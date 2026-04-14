@@ -505,8 +505,61 @@ Remove-Item Env:QT_QPA_PLATFORM -ErrorAction SilentlyContinue
 
 ## Building a Windows Installer
 
-See [docs/PACKAGING_WINDOWS.md](docs/PACKAGING_WINDOWS.md) for PyInstaller
-packaging, installer creation, and code signing instructions.
+Build Windows releases from PowerShell using the project-local virtual
+environment and the repo packaging scripts:
+
+```powershell
+# From a fresh clone
+py -3.10 -m venv venv
+.\venv\Scripts\python.exe -m pip install --upgrade pip
+.\venv\Scripts\python.exe -m pip install -e ".[all,dev]"
+
+# Build the default/base packaged app bundle
+.\scripts\build_windows_package.ps1 -PackageProfile base -Clean
+
+# Wrap that bundle into the distributable installer package
+.\scripts\build_windows_installer.ps1 -PackageProfile base
+```
+
+Key outputs:
+
+- Packaged app bundle:
+  `artifacts\pyinstaller\dist\base\COREX_Node_Editor\COREX_Node_Editor.exe`
+- Installer bundle zip:
+  `artifacts\releases\installer\base\<runId>\COREX_Node_Editor_installer_bundle_<runId>.zip`
+
+Notes:
+
+- Use `venv\Scripts\python.exe`; the packaging scripts expect the project-local
+  Windows-style virtual environment.
+- This is a one-folder PyInstaller build, not a single-file standalone `.exe`.
+- `build_windows_package.ps1` runs a short offscreen smoke test by default.
+  Add `-SkipSmoke` if you need to bypass it.
+- Keep the same `-PackageProfile` across all packaging steps. The default
+  profile is `base`.
+
+Viewer packaging uses the same flow with `-PackageProfile viewer`:
+
+```powershell
+.\scripts\build_windows_package.ps1 -PackageProfile viewer -Clean -SkipSmoke
+.\scripts\build_windows_installer.ps1 -PackageProfile viewer
+```
+
+The `viewer` profile requires the optional viewer/runtime imports to exist in
+the project venv, including `ansys.dpf.core`, `pyvista`, `pyvistaqt`, and
+`vtk`.
+
+Optional code signing happens after the installer bundle is created:
+
+```powershell
+$env:EA_SIGN_CERT_THUMBPRINT = "YOUR_CERT_THUMBPRINT"
+$env:EA_SIGN_TIMESTAMP_URL = "https://your.timestamp.server"
+$env:EA_SIGN_REQUIRE_SIGNED = "1"
+.\scripts\sign_release_artifacts.ps1 -PackageProfile base
+```
+
+For the full packaging reference, installer layout, and signing details, see
+[docs/PACKAGING_WINDOWS.md](docs/PACKAGING_WINDOWS.md).
 
 Regenerate the committed app icon asset set with:
 
