@@ -85,6 +85,36 @@ class GraphicsSettingsDialog(SectionedSettingsDialog):
         "full_fidelity": "graphicsSettingsFullFidelityModeCopy",
         "max_performance": "graphicsSettingsMaxPerformanceModeCopy",
     }
+    _EXPAND_COLLISION_CONTROL_TOOLTIPS = (
+        (
+            "expand_collision_enabled_check",
+            "Pushes newly expanded items away from nearby content to reduce overlap.",
+        ),
+        (
+            "expand_collision_strategy_combo",
+            "Chooses how the first items are picked when overlap resolution begins.",
+        ),
+        (
+            "expand_collision_animate_check",
+            "Animates the repositioning pass so the settled layout stays readable.",
+        ),
+        (
+            "expand_collision_scope_combo",
+            "Limits which nearby items can move when the expanded area needs room.",
+        ),
+        (
+            "expand_collision_gap_preset_combo",
+            "Sets the target spacing kept between the expanded area and moved items.",
+        ),
+        (
+            "expand_collision_radius_mode_combo",
+            "Controls whether overlap checks stay local or search across the full canvas.",
+        ),
+        (
+            "expand_collision_local_radius_preset_combo",
+            "Sets how far the local search reaches when reach mode stays nearby.",
+        ),
+    )
 
     def __init__(
         self,
@@ -94,6 +124,7 @@ class GraphicsSettingsDialog(SectionedSettingsDialog):
         available_graph_themes: Sequence[tuple[str, str]] | None = None,
         manage_graph_themes_callback: Callable[[dict[str, Any]], dict[str, Any] | None] | None = None,
         active_renderer_label: str | None = None,
+        tooltips_enabled: bool = True,
     ) -> None:
         graph_themes = available_graph_themes or graph_theme_choices()
         self._available_graph_themes = tuple((str(theme_id), str(label)) for theme_id, label in graph_themes)
@@ -103,6 +134,7 @@ class GraphicsSettingsDialog(SectionedSettingsDialog):
         self._explicit_graph_theme_id = str(DEFAULT_GRAPHICS_SETTINGS["graph_theme"]["selected_theme_id"])
         self._manage_graph_themes_callback = manage_graph_themes_callback
         self._active_renderer_label = self._normalize_active_renderer_label(active_renderer_label)
+        self._tooltips_enabled = bool(tooltips_enabled)
         super().__init__(
             window_title="Graphics Settings",
             header_text="Configure app-wide graphics and interaction defaults.",
@@ -111,6 +143,7 @@ class GraphicsSettingsDialog(SectionedSettingsDialog):
             header_object_name="graphicsSettingsHeader",
             parent=parent,
         )
+        self._apply_expand_collision_control_tooltips()
         self.set_values(initial_settings or {})
 
     def _build_pages(self) -> None:
@@ -272,6 +305,13 @@ class GraphicsSettingsDialog(SectionedSettingsDialog):
         for control in getattr(self, "_expand_collision_controls", ()):
             control.setEnabled(enabled)
         self._sync_expand_collision_radius_visibility()
+
+    def _apply_expand_collision_control_tooltips(self) -> None:
+        for control_name, tooltip_text in self._EXPAND_COLLISION_CONTROL_TOOLTIPS:
+            control = getattr(self, control_name, None)
+            if control is None:
+                continue
+            control.setToolTip(tooltip_text if self._tooltips_enabled else "")
 
     def _update_shadow_preview(self) -> None:
         preview = getattr(self, "_shadow_preview", None)
