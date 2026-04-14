@@ -522,6 +522,106 @@ class RegistryValidationTests(unittest.TestCase):
             "operator_default",
         )
 
+    def test_register_accepts_callable_dpf_source_metadata_contract(self) -> None:
+        registry = NodeRegistry()
+        spec = NodeTypeSpec(
+            type_id="tests.dpf.helper.data_sources_mutator",
+            display_name="DPF Data Sources Mutator",
+            category_path=("Tests",),
+            icon="",
+            ports=(
+                PortSpec(
+                    "receiver",
+                    "in",
+                    "data",
+                    node_specs.DPF_OBJECT_HANDLE_DATA_TYPE,
+                    accepted_data_types=(
+                        DPF_MODEL_DATA_TYPE,
+                        node_specs.DPF_DATA_SOURCES_DATA_TYPE,
+                    ),
+                    source_metadata=DpfPinSourceSpec(
+                        pin_name="self",
+                        pin_direction="input",
+                        value_origin="port",
+                        value_key="receiver",
+                        data_type=node_specs.DPF_OBJECT_HANDLE_DATA_TYPE,
+                        accepted_data_types=(
+                            DPF_MODEL_DATA_TYPE,
+                            node_specs.DPF_DATA_SOURCES_DATA_TYPE,
+                        ),
+                        callable_binding=node_specs.DpfCallableBindingSpec("receiver"),
+                    ),
+                ),
+                PortSpec(
+                    "result_path",
+                    "in",
+                    "data",
+                    "path",
+                    source_metadata=DpfPinSourceSpec(
+                        pin_name="result_path",
+                        pin_direction="input",
+                        value_origin="port",
+                        value_key="result_path",
+                        data_type="path",
+                        callable_binding=node_specs.DpfCallableBindingSpec("parameter", "result_path"),
+                    ),
+                ),
+                PortSpec(
+                    "updated_receiver",
+                    "out",
+                    "data",
+                    node_specs.DPF_OBJECT_HANDLE_DATA_TYPE,
+                    accepted_data_types=(node_specs.DPF_DATA_SOURCES_DATA_TYPE,),
+                    source_metadata=DpfPinSourceSpec(
+                        pin_name="return_value",
+                        pin_direction="output",
+                        value_origin="port",
+                        value_key="updated_receiver",
+                        data_type=node_specs.DPF_OBJECT_HANDLE_DATA_TYPE,
+                        accepted_data_types=(node_specs.DPF_DATA_SOURCES_DATA_TYPE,),
+                        callable_binding=node_specs.DpfCallableBindingSpec("return_value"),
+                    ),
+                ),
+            ),
+            properties=(
+                PropertySpec(
+                    "server",
+                    "str",
+                    "localhost",
+                    "Server",
+                    source_metadata=DpfPinSourceSpec(
+                        pin_name="server",
+                        pin_direction="input",
+                        value_origin="property",
+                        value_key="server",
+                        data_type="str",
+                        callable_binding=node_specs.DpfCallableBindingSpec("parameter", "server"),
+                    ),
+                ),
+            ),
+            source_metadata=node_specs.DpfCallableSourceSpec(
+                callable_name="DataSources.set_result_file_path",
+                callable_kind="mutator",
+                source_path="ansys.dpf.core.data_sources.DataSources.set_result_file_path",
+                family_path=("Inputs", "Result Setup"),
+                stability="core",
+            ),
+        )
+
+        registry.register(_factory(spec))
+
+        registered = registry.get_spec(spec.type_id)
+        self.assertEqual(registered.source_metadata.callable_kind, "mutator")
+        self.assertEqual(registered.source_metadata.family_path, ("Inputs", "Result Setup"))
+        self.assertEqual(
+            registered.ports[0].accepted_data_types,
+            (DPF_MODEL_DATA_TYPE, node_specs.DPF_DATA_SOURCES_DATA_TYPE),
+        )
+        self.assertEqual(
+            registered.ports[2].source_metadata.callable_binding.binding_kind,
+            "return_value",
+        )
+
     def test_register_rejects_port_source_metadata_without_node_source_metadata(self) -> None:
         registry = NodeRegistry()
         spec = NodeTypeSpec(
@@ -585,6 +685,44 @@ class RegistryValidationTests(unittest.TestCase):
                         operator_name="math.norm_fc",
                     ),
                 ),
+            ),
+        )
+
+        with self.assertRaises(ValueError):
+            registry.register(_factory(spec))
+
+    def test_register_rejects_dpf_source_metadata_with_mismatched_accepted_data_types(self) -> None:
+        registry = NodeRegistry()
+        spec = NodeTypeSpec(
+            type_id="tests.dpf.accepted_type_mismatch",
+            display_name="DPF Accepted Type Mismatch",
+            category_path=("Tests",),
+            icon="",
+            ports=(
+                PortSpec(
+                    "receiver",
+                    "in",
+                    "data",
+                    node_specs.DPF_OBJECT_HANDLE_DATA_TYPE,
+                    accepted_data_types=(
+                        DPF_MODEL_DATA_TYPE,
+                        node_specs.DPF_DATA_SOURCES_DATA_TYPE,
+                    ),
+                    source_metadata=DpfPinSourceSpec(
+                        pin_name="self",
+                        pin_direction="input",
+                        value_origin="port",
+                        value_key="receiver",
+                        data_type=node_specs.DPF_OBJECT_HANDLE_DATA_TYPE,
+                        accepted_data_types=(DPF_MODEL_DATA_TYPE,),
+                        callable_binding=node_specs.DpfCallableBindingSpec("receiver"),
+                    ),
+                ),
+            ),
+            properties=(),
+            source_metadata=node_specs.DpfCallableSourceSpec(
+                callable_name="DataSources",
+                callable_kind="constructor",
             ),
         )
 
@@ -1057,6 +1195,44 @@ class RegistryValidationTests(unittest.TestCase):
             {spec.type_id for spec in scoping_specs},
             {"dpf.scoping.mesh", "dpf.scoping.time"},
         )
+
+    def test_filter_nodes_matches_ports_through_accepted_dpf_data_types(self) -> None:
+        registry = NodeRegistry()
+        spec = NodeTypeSpec(
+            type_id="tests.dpf.helper.multi_input",
+            display_name="DPF Multi Input",
+            category_path=("Tests",),
+            icon="",
+            ports=(
+                PortSpec(
+                    "receiver",
+                    "in",
+                    "data",
+                    node_specs.DPF_OBJECT_HANDLE_DATA_TYPE,
+                    accepted_data_types=(
+                        DPF_MODEL_DATA_TYPE,
+                        node_specs.DPF_DATA_SOURCES_DATA_TYPE,
+                    ),
+                ),
+                PortSpec("result", "out", "data", node_specs.DPF_OBJECT_HANDLE_DATA_TYPE),
+            ),
+            properties=(),
+        )
+        registry.register(_factory(spec))
+
+        model_matches = registry.filter_nodes(data_type=DPF_MODEL_DATA_TYPE, direction="in")
+        data_sources_matches = registry.filter_nodes(
+            data_type=node_specs.DPF_DATA_SOURCES_DATA_TYPE,
+            direction="in",
+        )
+        object_handle_matches = registry.filter_nodes(
+            data_type=node_specs.DPF_OBJECT_HANDLE_DATA_TYPE,
+            direction="out",
+        )
+
+        self.assertEqual([match.type_id for match in model_matches], [spec.type_id])
+        self.assertEqual([match.type_id for match in data_sources_matches], [spec.type_id])
+        self.assertEqual([match.type_id for match in object_handle_matches], [spec.type_id])
 
 
 if __name__ == "__main__":

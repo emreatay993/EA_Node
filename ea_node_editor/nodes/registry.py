@@ -14,7 +14,14 @@ from .category_paths import (
     category_path_matches_prefix,
     normalize_category_path,
 )
-from .node_specs import DpfOperatorSourceSpec, DpfPinSourceSpec, NodeTypeSpec, PortSpec, PropertySpec
+from .node_specs import (
+    DpfCallableSourceSpec,
+    DpfOperatorSourceSpec,
+    DpfPinSourceSpec,
+    NodeTypeSpec,
+    PortSpec,
+    PropertySpec,
+)
 from .plugin_contracts import NodePlugin, PluginDescriptor, PluginProvenance
 
 
@@ -249,10 +256,15 @@ class NodeRegistry:
         for port in spec.ports:
             if direction and port.direction != direction:
                 continue
-            if data_type and port.data_type.lower() != data_type:
+            if data_type and not NodeRegistry._port_matches_data_type(port, data_type):
                 continue
             return True
         return False
+
+    @staticmethod
+    def _port_matches_data_type(port: PortSpec, data_type: str) -> bool:
+        accepted_types = port.accepted_data_types or (port.data_type,)
+        return any(accepted_type.lower() == data_type for accepted_type in accepted_types)
 
     def _property_spec(self, type_id: str, key: str) -> PropertySpec:
         spec = self.get_spec(type_id)
@@ -319,6 +331,11 @@ class NodeRegistry:
             raise ValueError(f"Node {type_id} port {port.key} has invalid kind: {port.kind}")
         if not port.data_type or port.data_type.strip() != port.data_type:
             raise ValueError(f"Node {type_id} port {port.key} has invalid data_type: {port.data_type!r}")
+        for accepted_type in port.accepted_data_types:
+            if not accepted_type or accepted_type.strip() != accepted_type:
+                raise ValueError(
+                    f"Node {type_id} port {port.key} has invalid accepted_data_type: {accepted_type!r}"
+                )
         if not isinstance(port.side, str) or port.side.strip() != port.side:
             raise ValueError(f"Node {type_id} port {port.key} side must be a trimmed string")
         if port.side not in self._SUPPORTED_PORT_SIDES:
@@ -394,10 +411,19 @@ class NodeRegistry:
 
     def _validate_source_metadata(self, spec: NodeTypeSpec) -> None:
         node_source = spec.source_metadata
-        if node_source is not None and not isinstance(node_source, DpfOperatorSourceSpec):
-            raise TypeError(f"Node {spec.type_id} source_metadata must be a DpfOperatorSourceSpec")
+        if node_source is not None and not isinstance(
+            node_source,
+            (DpfOperatorSourceSpec, DpfCallableSourceSpec),
+        ):
+            raise TypeError(
+                f"Node {spec.type_id} source_metadata must be a DpfOperatorSourceSpec or DpfCallableSourceSpec"
+            )
 
-        variant_keys = set(node_source.variant_keys) if node_source is not None else set()
+        variant_keys = (
+            set(node_source.variant_keys)
+            if isinstance(node_source, DpfOperatorSourceSpec)
+            else set()
+        )
 
         for port in spec.ports:
             source = port.source_metadata
@@ -429,7 +455,7 @@ class NodeRegistry:
         port: PortSpec,
         source: DpfPinSourceSpec,
         *,
-        node_source: DpfOperatorSourceSpec | None,
+        node_source: DpfOperatorSourceSpec | DpfCallableSourceSpec | None,
         variant_keys: set[str],
     ) -> None:
         if not isinstance(source, DpfPinSourceSpec):
@@ -450,6 +476,10 @@ class NodeRegistry:
             raise ValueError(
                 f"Node {spec.type_id} port {port.key} source_metadata data_type must match the port data_type"
             )
+        if source.accepted_data_types != port.accepted_data_types:
+            raise ValueError(
+                f"Node {spec.type_id} port {port.key} source_metadata accepted_data_types must match the port accepted_data_types"
+            )
         if port.direction == "neutral":
             raise ValueError(
                 f"Node {spec.type_id} port {port.key} neutral ports cannot publish DPF source metadata"
@@ -459,11 +489,37 @@ class NodeRegistry:
             raise ValueError(
                 f"Node {spec.type_id} port {port.key} source_metadata pin_direction must match the port direction"
             )
-        unknown_variant_keys = set(source.variant_keys) - variant_keys
-        if unknown_variant_keys:
-            unknown_values = ", ".join(sorted(unknown_variant_keys))
+        if isinstance(node_source, DpfOperatorSourceSpec):
+            if source.callable_binding is not None:
+                raise ValueError(
+                    f"Node {spec.type_id} port {port.key} operator metadata cannot declare callable_binding"
+                )
+            unknown_variant_keys = set(source.variant_keys) - variant_keys
+            if unknown_variant_keys:
+                unknown_values = ", ".join(sorted(unknown_variant_keys))
+                raise ValueError(
+                    f"Node {spec.type_id} port {port.key} references unknown DPF source variants: {unknown_values}"
+                )
+            return
+
+        if source.variant_keys:
             raise ValueError(
-                f"Node {spec.type_id} port {port.key} references unknown DPF source variants: {unknown_values}"
+                f"Node {spec.type_id} port {port.key} callable source_metadata cannot declare variant_keys"
+            )
+        if source.callable_binding is None:
+            raise ValueError(
+                f"Node {spec.type_id} port {port.key} callable source_metadata requires callable_binding"
+            )
+        binding_kind = source.callable_binding.binding_kind
+        if expected_pin_direction == "output":
+            if binding_kind != "return_value":
+                raise ValueError(
+                    f"Node {spec.type_id} port {port.key} callable output bindings must use return_value"
+                )
+            return
+        if binding_kind not in {"parameter", "receiver"}:
+            raise ValueError(
+                f"Node {spec.type_id} port {port.key} callable input bindings must use parameter or receiver"
             )
 
     def _validate_property_source_metadata(
@@ -472,7 +528,7 @@ class NodeRegistry:
         prop: PropertySpec,
         source: DpfPinSourceSpec,
         *,
-        node_source: DpfOperatorSourceSpec | None,
+        node_source: DpfOperatorSourceSpec | DpfCallableSourceSpec | None,
         variant_keys: set[str],
     ) -> None:
         if not isinstance(source, DpfPinSourceSpec):
@@ -495,11 +551,34 @@ class NodeRegistry:
             raise ValueError(
                 f"Node {spec.type_id} property {prop.key} source_metadata pin_direction must be input"
             )
-        unknown_variant_keys = set(source.variant_keys) - variant_keys
-        if unknown_variant_keys:
-            unknown_values = ", ".join(sorted(unknown_variant_keys))
+        if source.accepted_data_types:
             raise ValueError(
-                f"Node {spec.type_id} property {prop.key} references unknown DPF source variants: {unknown_values}"
+                f"Node {spec.type_id} property {prop.key} source_metadata cannot declare accepted_data_types"
+            )
+        if isinstance(node_source, DpfOperatorSourceSpec):
+            if source.callable_binding is not None:
+                raise ValueError(
+                    f"Node {spec.type_id} property {prop.key} operator metadata cannot declare callable_binding"
+                )
+            unknown_variant_keys = set(source.variant_keys) - variant_keys
+            if unknown_variant_keys:
+                unknown_values = ", ".join(sorted(unknown_variant_keys))
+                raise ValueError(
+                    f"Node {spec.type_id} property {prop.key} references unknown DPF source variants: {unknown_values}"
+                )
+            return
+
+        if source.variant_keys:
+            raise ValueError(
+                f"Node {spec.type_id} property {prop.key} callable source_metadata cannot declare variant_keys"
+            )
+        if source.callable_binding is None:
+            raise ValueError(
+                f"Node {spec.type_id} property {prop.key} callable source_metadata requires callable_binding"
+            )
+        if source.callable_binding.binding_kind != "parameter":
+            raise ValueError(
+                f"Node {spec.type_id} property {prop.key} callable property bindings must use parameter"
             )
 
     @staticmethod

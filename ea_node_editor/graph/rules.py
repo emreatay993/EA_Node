@@ -6,6 +6,7 @@ from ea_node_editor.graph.effective_ports import (
     are_data_types_compatible,
     are_port_kinds_compatible,
     is_neutral_flow_port,
+    port_accepted_data_types as effective_port_accepted_data_types,
     port_layout_direction,
     port_side as _port_side,
     port_supports_incoming_edge,
@@ -42,6 +43,13 @@ def port_data_type(spec: NodeTypeSpec, port_key: str) -> str:
     if port is None:
         return "any"
     return port.data_type
+
+
+def port_accepted_data_types(spec: NodeTypeSpec, port_key: str) -> tuple[str, ...]:
+    port = find_port(spec, port_key)
+    if port is None:
+        return ("any",)
+    return effective_port_accepted_data_types(port)
 
 
 def ports_compatible(source_port: PortSpec, target_port: PortSpec) -> bool:
@@ -109,6 +117,7 @@ __all__ = [
     "find_port",
     "first_compatible_port",
     "is_neutral_flow_port",
+    "port_accepted_data_types",
     "is_port_exposed",
     "port_data_type",
     "port_direction",

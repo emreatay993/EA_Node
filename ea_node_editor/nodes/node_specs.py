@@ -33,6 +33,9 @@ DpfPinDirection = Literal["input", "output"]
 DpfPinValueOrigin = Literal["port", "property"]
 DpfPinPresence = Literal["required", "optional"]
 DpfPinOmissionSemantics = Literal["disallowed", "skip", "operator_default"]
+DpfCallableKind = Literal["constructor", "factory", "mutator"]
+DpfCallableBindingKind = Literal["parameter", "receiver", "return_value"]
+DpfNodeStability = Literal["", "core", "advanced", "raw"]
 
 DPF_RESULT_FILE_DATA_TYPE = "dpf_result_file"
 DPF_MODEL_DATA_TYPE = "dpf_model"
@@ -40,12 +43,29 @@ DPF_MESH_DATA_TYPE = "dpf_mesh"
 DPF_FIELD_DATA_TYPE = "dpf_field"
 DPF_SCOPING_DATA_TYPE = "dpf_scoping"
 DPF_VIEW_SESSION_DATA_TYPE = "dpf_view_session"
+DPF_FIELDS_CONTAINER_DATA_TYPE = "dpf_fields_container"
+DPF_DATA_SOURCES_DATA_TYPE = "dpf_data_sources"
+DPF_STREAMS_CONTAINER_DATA_TYPE = "dpf_streams_container"
+DPF_WORKFLOW_DATA_TYPE = "dpf_workflow"
+DPF_OBJECT_HANDLE_DATA_TYPE = "dpf_object_handle"
 DPF_PUBLIC_DATA_TYPES = (
     DPF_MODEL_DATA_TYPE,
     DPF_MESH_DATA_TYPE,
     DPF_FIELD_DATA_TYPE,
     DPF_SCOPING_DATA_TYPE,
     DPF_VIEW_SESSION_DATA_TYPE,
+)
+DPF_SPECIALIZED_DATA_TYPES = (
+    DPF_RESULT_FILE_DATA_TYPE,
+    DPF_MODEL_DATA_TYPE,
+    DPF_MESH_DATA_TYPE,
+    DPF_FIELD_DATA_TYPE,
+    DPF_SCOPING_DATA_TYPE,
+    DPF_VIEW_SESSION_DATA_TYPE,
+    DPF_FIELDS_CONTAINER_DATA_TYPE,
+    DPF_DATA_SOURCES_DATA_TYPE,
+    DPF_STREAMS_CONTAINER_DATA_TYPE,
+    DPF_WORKFLOW_DATA_TYPE,
 )
 
 _SUPPORTED_RENDER_WEIGHT_CLASSES = {"standard", "heavy"}
@@ -55,6 +75,41 @@ _SUPPORTED_DPF_PIN_DIRECTIONS = {"input", "output"}
 _SUPPORTED_DPF_PIN_VALUE_ORIGINS = {"port", "property"}
 _SUPPORTED_DPF_PIN_PRESENCE = {"required", "optional"}
 _SUPPORTED_DPF_PIN_OMISSION_SEMANTICS = {"disallowed", "skip", "operator_default"}
+_SUPPORTED_DPF_CALLABLE_KINDS = {"constructor", "factory", "mutator"}
+_SUPPORTED_DPF_CALLABLE_BINDING_KINDS = {"parameter", "receiver", "return_value"}
+_SUPPORTED_DPF_NODE_STABILITY = {"", "core", "advanced", "raw"}
+_DPF_TYPE_ID_ALIASES = {
+    DPF_RESULT_FILE_DATA_TYPE: DPF_RESULT_FILE_DATA_TYPE,
+    DPF_MODEL_DATA_TYPE: DPF_MODEL_DATA_TYPE,
+    DPF_MESH_DATA_TYPE: DPF_MESH_DATA_TYPE,
+    DPF_FIELD_DATA_TYPE: DPF_FIELD_DATA_TYPE,
+    DPF_SCOPING_DATA_TYPE: DPF_SCOPING_DATA_TYPE,
+    DPF_VIEW_SESSION_DATA_TYPE: DPF_VIEW_SESSION_DATA_TYPE,
+    DPF_FIELDS_CONTAINER_DATA_TYPE: DPF_FIELDS_CONTAINER_DATA_TYPE,
+    DPF_DATA_SOURCES_DATA_TYPE: DPF_DATA_SOURCES_DATA_TYPE,
+    DPF_STREAMS_CONTAINER_DATA_TYPE: DPF_STREAMS_CONTAINER_DATA_TYPE,
+    DPF_WORKFLOW_DATA_TYPE: DPF_WORKFLOW_DATA_TYPE,
+    DPF_OBJECT_HANDLE_DATA_TYPE: DPF_OBJECT_HANDLE_DATA_TYPE,
+    "result_file": DPF_RESULT_FILE_DATA_TYPE,
+    "resultfile": DPF_RESULT_FILE_DATA_TYPE,
+    "model": DPF_MODEL_DATA_TYPE,
+    "mesh": DPF_MESH_DATA_TYPE,
+    "meshed_region": DPF_MESH_DATA_TYPE,
+    "meshedregion": DPF_MESH_DATA_TYPE,
+    "field": DPF_FIELD_DATA_TYPE,
+    "scoping": DPF_SCOPING_DATA_TYPE,
+    "view_session": DPF_VIEW_SESSION_DATA_TYPE,
+    "viewsession": DPF_VIEW_SESSION_DATA_TYPE,
+    "fields_container": DPF_FIELDS_CONTAINER_DATA_TYPE,
+    "fieldscontainer": DPF_FIELDS_CONTAINER_DATA_TYPE,
+    "data_sources": DPF_DATA_SOURCES_DATA_TYPE,
+    "datasources": DPF_DATA_SOURCES_DATA_TYPE,
+    "streams_container": DPF_STREAMS_CONTAINER_DATA_TYPE,
+    "streamscontainer": DPF_STREAMS_CONTAINER_DATA_TYPE,
+    "workflow": DPF_WORKFLOW_DATA_TYPE,
+    "object_handle": DPF_OBJECT_HANDLE_DATA_TYPE,
+    "objecthandle": DPF_OBJECT_HANDLE_DATA_TYPE,
+}
 
 
 def _normalize_render_quality_token(
@@ -146,6 +201,44 @@ def _normalize_string_tuple(
     return tuple(normalized)
 
 
+def _normalize_dpf_type_alias(value: str) -> str:
+    characters: list[str] = []
+    previous_was_separator = False
+    for char in value:
+        if char.isupper() and characters and characters[-1] != "_":
+            characters.append("_")
+        if char.isalnum():
+            characters.append(char.lower())
+            previous_was_separator = False
+            continue
+        if not previous_was_separator:
+            characters.append("_")
+            previous_was_separator = True
+    normalized = "".join(characters).strip("_")
+    while "__" in normalized:
+        normalized = normalized.replace("__", "_")
+    return normalized
+
+
+def normalize_dpf_type_id(value: object) -> str:
+    normalized = _normalize_trimmed_string("dpf type_id", value)
+    alias_candidates = [normalized, _normalize_dpf_type_alias(normalized)]
+    if "." in normalized:
+        alias_candidates.append(_normalize_dpf_type_alias(normalized.rsplit(".", 1)[-1]))
+    for alias in alias_candidates:
+        canonical = _DPF_TYPE_ID_ALIASES.get(alias)
+        if canonical is not None:
+            return canonical
+    return DPF_OBJECT_HANDLE_DATA_TYPE
+
+
+def _normalize_dpf_node_stability(field_name: str, value: object) -> str:
+    normalized = _normalize_trimmed_string(field_name, value, allow_empty=True)
+    if normalized not in _SUPPORTED_DPF_NODE_STABILITY:
+        raise ValueError(f"{field_name} has invalid value: {normalized}")
+    return normalized
+
+
 @dataclass(slots=True, frozen=True)
 class DpfOperatorSelectorCondition:
     property_key: str
@@ -206,6 +299,9 @@ class DpfOperatorVariantSpec:
 class DpfOperatorSourceSpec:
     backend: str = "ansys.dpf.core"
     variants: tuple[DpfOperatorVariantSpec, ...] = ()
+    source_path: str = ""
+    family_path: tuple[str, ...] = ()
+    stability: DpfNodeStability = ""
 
     def __post_init__(self) -> None:
         object.__setattr__(
@@ -224,10 +320,85 @@ class DpfOperatorSourceSpec:
             if variant.key in variant_keys:
                 raise ValueError(f"dpf operator variants must not reuse the key {variant.key!r}")
             variant_keys.add(variant.key)
+        object.__setattr__(
+            self,
+            "source_path",
+            _normalize_trimmed_string("dpf operator source_path", self.source_path, allow_empty=True),
+        )
+        object.__setattr__(
+            self,
+            "family_path",
+            _normalize_string_tuple("dpf operator family_path", self.family_path, allow_empty=True),
+        )
+        object.__setattr__(
+            self,
+            "stability",
+            _normalize_dpf_node_stability("dpf operator stability", self.stability),
+        )
 
     @property
     def variant_keys(self) -> tuple[str, ...]:
         return tuple(variant.key for variant in self.variants)
+
+
+@dataclass(slots=True, frozen=True)
+class DpfCallableSourceSpec:
+    callable_name: str
+    callable_kind: DpfCallableKind
+    backend: str = "ansys.dpf.core"
+    source_path: str = ""
+    family_path: tuple[str, ...] = ()
+    stability: DpfNodeStability = ""
+
+    def __post_init__(self) -> None:
+        object.__setattr__(
+            self,
+            "backend",
+            _normalize_trimmed_string("dpf callable backend", self.backend),
+        )
+        object.__setattr__(
+            self,
+            "callable_name",
+            _normalize_trimmed_string("dpf callable callable_name", self.callable_name),
+        )
+        if self.callable_kind not in _SUPPORTED_DPF_CALLABLE_KINDS:
+            raise ValueError(f"dpf callable callable_kind has invalid value: {self.callable_kind}")
+        object.__setattr__(
+            self,
+            "source_path",
+            _normalize_trimmed_string("dpf callable source_path", self.source_path, allow_empty=True),
+        )
+        object.__setattr__(
+            self,
+            "family_path",
+            _normalize_string_tuple("dpf callable family_path", self.family_path, allow_empty=True),
+        )
+        object.__setattr__(
+            self,
+            "stability",
+            _normalize_dpf_node_stability("dpf callable stability", self.stability),
+        )
+
+
+@dataclass(slots=True, frozen=True)
+class DpfCallableBindingSpec:
+    binding_kind: DpfCallableBindingKind
+    binding_name: str = ""
+
+    def __post_init__(self) -> None:
+        if self.binding_kind not in _SUPPORTED_DPF_CALLABLE_BINDING_KINDS:
+            raise ValueError(f"dpf callable binding_kind has invalid value: {self.binding_kind}")
+        object.__setattr__(
+            self,
+            "binding_name",
+            _normalize_trimmed_string(
+                "dpf callable binding_name",
+                self.binding_name,
+                allow_empty=True,
+            ),
+        )
+        if self.binding_kind == "parameter" and not self.binding_name:
+            raise ValueError("dpf callable parameter bindings must declare a binding_name")
 
 
 @dataclass(slots=True, frozen=True)
@@ -241,6 +412,8 @@ class DpfPinSourceSpec:
     omission_semantics: DpfPinOmissionSemantics = "skip"
     exclusive_group: str = ""
     variant_keys: tuple[str, ...] = ()
+    accepted_data_types: tuple[str, ...] = ()
+    callable_binding: DpfCallableBindingSpec | None = None
 
     def __post_init__(self) -> None:
         object.__setattr__(
@@ -292,16 +465,30 @@ class DpfPinSourceSpec:
                 allow_empty=True,
             ),
         )
+        object.__setattr__(
+            self,
+            "accepted_data_types",
+            _normalize_string_tuple(
+                "dpf accepted_data_types",
+                self.accepted_data_types,
+                allow_empty=True,
+            ),
+        )
+        if self.callable_binding is not None and not isinstance(
+            self.callable_binding,
+            DpfCallableBindingSpec,
+        ):
+            raise TypeError("dpf callable_binding must be DpfCallableBindingSpec or None")
 
 
-def _coerce_dpf_operator_source_metadata(
-    value: DpfOperatorSourceSpec | None,
+def _coerce_dpf_node_source_metadata(
+    value: DpfOperatorSourceSpec | DpfCallableSourceSpec | None,
     *,
     field_name: str,
-) -> DpfOperatorSourceSpec | None:
-    if value is None or isinstance(value, DpfOperatorSourceSpec):
+) -> DpfOperatorSourceSpec | DpfCallableSourceSpec | None:
+    if value is None or isinstance(value, (DpfOperatorSourceSpec, DpfCallableSourceSpec)):
         return value
-    raise TypeError(f"{field_name} must be a DpfOperatorSourceSpec or None")
+    raise TypeError(f"{field_name} must be a DpfOperatorSourceSpec, DpfCallableSourceSpec, or None")
 
 
 def _coerce_dpf_pin_source_metadata(
@@ -326,6 +513,7 @@ class PortSpec:
     allow_multiple_connections: bool = False
     side: PortSide = ""
     source_metadata: DpfPinSourceSpec | None = None
+    accepted_data_types: tuple[str, ...] = ()
 
     def __post_init__(self) -> None:
         object.__setattr__(
@@ -334,6 +522,15 @@ class PortSpec:
             _coerce_dpf_pin_source_metadata(
                 self.source_metadata,
                 field_name="PortSpec.source_metadata",
+            ),
+        )
+        object.__setattr__(
+            self,
+            "accepted_data_types",
+            _normalize_string_tuple(
+                "PortSpec.accepted_data_types",
+                self.accepted_data_types,
+                allow_empty=True,
             ),
         )
 
@@ -431,7 +628,7 @@ class NodeTypeSpec:
     surface_family: SurfaceFamily = "standard"
     surface_variant: str = ""
     render_quality: NodeRenderQualitySpec = field(default_factory=NodeRenderQualitySpec)
-    source_metadata: DpfOperatorSourceSpec | None = None
+    source_metadata: DpfOperatorSourceSpec | DpfCallableSourceSpec | None = None
 
     def __post_init__(self) -> None:
         object.__setattr__(
@@ -447,7 +644,7 @@ class NodeTypeSpec:
         object.__setattr__(
             self,
             "source_metadata",
-            _coerce_dpf_operator_source_metadata(
+            _coerce_dpf_node_source_metadata(
                 self.source_metadata,
                 field_name="NodeTypeSpec.source_metadata",
             ),
@@ -488,14 +685,25 @@ def property_visible_in_inspector(property_spec: PropertySpec) -> bool:
 
 
 __all__ = [
+    "DPF_DATA_SOURCES_DATA_TYPE",
     "DPF_FIELD_DATA_TYPE",
+    "DPF_FIELDS_CONTAINER_DATA_TYPE",
     "DPF_MESH_DATA_TYPE",
     "DPF_MODEL_DATA_TYPE",
+    "DPF_OBJECT_HANDLE_DATA_TYPE",
     "DPF_PUBLIC_DATA_TYPES",
     "DPF_RESULT_FILE_DATA_TYPE",
     "DPF_SCOPING_DATA_TYPE",
+    "DPF_SPECIALIZED_DATA_TYPES",
+    "DPF_STREAMS_CONTAINER_DATA_TYPE",
     "DPF_VIEW_SESSION_DATA_TYPE",
+    "DPF_WORKFLOW_DATA_TYPE",
     "CategoryPath",
+    "DpfCallableBindingKind",
+    "DpfCallableBindingSpec",
+    "DpfCallableKind",
+    "DpfCallableSourceSpec",
+    "DpfNodeStability",
     "DpfOperatorSelectorCondition",
     "DpfOperatorSourceSpec",
     "DpfOperatorVariantSpec",
@@ -520,6 +728,7 @@ __all__ = [
     "RuntimeBehavior",
     "SurfaceFamily",
     "inline_property_specs",
+    "normalize_dpf_type_id",
     "property_has_inline_editor",
     "property_inspector_editor",
     "property_visible_in_inspector",

@@ -30,6 +30,7 @@ class EffectivePort:
     exposed: bool = True
     allow_multiple_connections: bool = False
     locked: bool = False
+    accepted_data_types: tuple[str, ...] = ()
 
 
 PortLike = TypeVar("PortLike", EffectivePort, PortSpec)
@@ -93,10 +94,24 @@ def are_data_types_compatible(source_type: str, target_type: str) -> bool:
     return source_type == target_type
 
 
+def port_accepted_data_types(port: EffectivePort | PortSpec) -> tuple[str, ...]:
+    accepted = tuple(getattr(port, "accepted_data_types", ()) or ())
+    if accepted:
+        return accepted
+    return (str(getattr(port, "data_type", "")),)
+
+
+def port_accepts_data_type(port: EffectivePort | PortSpec, data_type: str) -> bool:
+    return any(
+        are_data_types_compatible(data_type, accepted_type)
+        for accepted_type in port_accepted_data_types(port)
+    )
+
+
 def ports_compatible(source_port: EffectivePort | PortSpec, target_port: EffectivePort | PortSpec) -> bool:
-    return are_port_kinds_compatible(source_port.kind, target_port.kind) and are_data_types_compatible(
+    return are_port_kinds_compatible(source_port.kind, target_port.kind) and port_accepts_data_type(
+        target_port,
         source_port.data_type,
-        target_port.data_type,
     )
 
 
@@ -122,6 +137,7 @@ def effective_ports(
             exposed=bool(port.required or node.exposed_ports.get(port.key, port.exposed)),
             allow_multiple_connections=bool(port.allow_multiple_connections),
             locked=bool(node.locked_ports.get(port.key, False)),
+            accepted_data_types=port.accepted_data_types,
         )
         for port in spec.ports
     )
@@ -439,6 +455,8 @@ __all__ = [
     "port_supports_outgoing_edge",
     "preferred_connection_port",
     "ordered_ports_for_display",
+    "port_accepted_data_types",
+    "port_accepts_data_type",
     "ports_compatible",
     "target_port_has_capacity",
     "visible_ports",
