@@ -297,6 +297,10 @@ def _qt_graphics_show_port_labels(self: "ShellWindow") -> bool:
     return self.graph_canvas_presenter.graphics_show_port_labels
 
 
+def _qt_graphics_show_tooltips(self: "ShellWindow") -> bool:
+    return self.shell_workspace_presenter.graphics_show_tooltips
+
+
 def _qt_graphics_minimap_expanded(self: "ShellWindow") -> bool:
     return self.graph_canvas_presenter.graphics_minimap_expanded
 

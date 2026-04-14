@@ -72,6 +72,7 @@ __all__ = [
     "_qt_graphics_edge_crossing_style",
     "_qt_graphics_show_minimap",
     "_qt_graphics_show_port_labels",
+    "_qt_graphics_show_tooltips",
     "_qt_graphics_minimap_expanded",
     "_qt_graphics_node_shadow",
     "_qt_graphics_shadow_strength",

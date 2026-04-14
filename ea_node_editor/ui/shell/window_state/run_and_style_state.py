@@ -38,12 +38,33 @@ def set_graphics_show_port_labels(self: "ShellWindow", show_port_labels: bool) -
     )
 
 
+@pyqtSlot(bool)
+def set_graphics_show_tooltips(self: "ShellWindow", show_tooltips: bool) -> None:
+    self.app_preferences_controller.update_graphics_settings(
+        {
+            "shell": {
+                "show_tooltips": bool(show_tooltips),
+            }
+        },
+        host=self,
+    )
+
+
 def _sync_graphics_show_port_labels_action(self: "ShellWindow", show_port_labels: bool) -> None:
     action = getattr(self, "action_show_port_labels", None)
     if action is None or action.isChecked() == show_port_labels:
         return
     blocked = action.blockSignals(True)
     action.setChecked(show_port_labels)
+    action.blockSignals(blocked)
+
+
+def _sync_graphics_show_tooltips_action(self: "ShellWindow", show_tooltips: bool) -> None:
+    action = getattr(self, "action_show_tooltips", None)
+    if action is None or action.isChecked() == show_tooltips:
+        return
+    blocked = action.blockSignals(True)
+    action.setChecked(show_tooltips)
     action.blockSignals(blocked)
 
 
@@ -504,6 +525,9 @@ def apply_graphics_preferences(self: "ShellWindow", graphics: Any) -> dict[str, 
     previous_show_port_labels = bool(
         getattr(getattr(self, "workspace_ui_state", None), "show_port_labels", True)
     )
+    previous_show_tooltips = bool(
+        getattr(getattr(self, "workspace_ui_state", None), "graphics_show_tooltips", True)
+    )
     previous_graph_label_pixel_size = int(
         getattr(getattr(self, "workspace_ui_state", None), "graph_label_pixel_size", 10)
     )
@@ -512,8 +536,10 @@ def apply_graphics_preferences(self: "ShellWindow", graphics: Any) -> dict[str, 
     )
     resolved = self.shell_workspace_presenter.apply_graphics_preferences(graphics)
     canvas = resolved.get("canvas", {}) if isinstance(resolved, dict) else {}
+    shell = resolved.get("shell", {}) if isinstance(resolved, dict) else {}
     typography = resolved.get("typography", {}) if isinstance(resolved, dict) else {}
     current_show_port_labels = bool(canvas.get("show_port_labels", previous_show_port_labels))
+    current_show_tooltips = bool(shell.get("show_tooltips", previous_show_tooltips))
     current_graph_label_pixel_size = int(
         typography.get("graph_label_pixel_size", previous_graph_label_pixel_size)
     )
@@ -521,6 +547,10 @@ def apply_graphics_preferences(self: "ShellWindow", graphics: Any) -> dict[str, 
         self.shell_workspace_presenter.graphics_node_title_icon_pixel_size
     )
     self._sync_graphics_show_port_labels_action(current_show_port_labels)
+    self._sync_graphics_show_tooltips_action(current_show_tooltips)
+    tooltip_manager = getattr(self, "tooltip_manager", None)
+    if tooltip_manager is not None:
+        tooltip_manager.set_info_tooltips_enabled(current_show_tooltips)
     if (
         previous_show_port_labels != current_show_port_labels
         or previous_graph_label_pixel_size != current_graph_label_pixel_size

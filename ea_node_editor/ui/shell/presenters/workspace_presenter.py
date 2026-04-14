@@ -59,6 +59,9 @@ class ShellWorkspacePresenter(QObject):
     def graphics_tab_strip_density(self) -> str: return str(self._ui_state.tab_strip_density)
 
     @property
+    def graphics_show_tooltips(self) -> bool: return bool(self._ui_state.graphics_show_tooltips)
+
+    @property
     def graphics_performance_mode(self) -> str: return str(self._ui_state.graphics_performance_mode)
 
     @property
@@ -249,6 +252,12 @@ class ShellWorkspacePresenter(QObject):
         else:
             expand_collision_avoidance = copy.deepcopy(self._expand_collision_avoidance)
         tab_strip_density = str(shell.get("tab_strip_density", self._ui_state.tab_strip_density))
+        show_tooltips_value = shell.get("show_tooltips", self._ui_state.graphics_show_tooltips)
+        show_tooltips = (
+            show_tooltips_value
+            if isinstance(show_tooltips_value, bool)
+            else self._ui_state.graphics_show_tooltips
+        )
         active_theme_id = self._host.shell_host_presenter.apply_theme(
             theme.get("theme_id", self._ui_state.active_theme_id)
         )
@@ -322,6 +331,9 @@ class ShellWorkspacePresenter(QObject):
         if self._ui_state.tab_strip_density != tab_strip_density:
             self._ui_state.tab_strip_density = tab_strip_density
             changed = True
+        if self._ui_state.graphics_show_tooltips != show_tooltips:
+            self._ui_state.graphics_show_tooltips = show_tooltips
+            changed = True
         if self._ui_state.active_theme_id != active_theme_id:
             self._ui_state.active_theme_id = active_theme_id
             changed = True
@@ -357,6 +369,7 @@ class ShellWorkspacePresenter(QObject):
             },
             "shell": {
                 "tab_strip_density": str(self._ui_state.tab_strip_density),
+                "show_tooltips": bool(self._ui_state.graphics_show_tooltips),
             },
             "theme": {
                 "theme_id": str(self._ui_state.active_theme_id),
