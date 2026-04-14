@@ -8,6 +8,20 @@ Button {
     property bool selectedStyle: false
     property bool compact: false
     property string tooltipText: ""
+    function _tooltipBridge() {
+        if (typeof graphCanvasStateBridge !== "undefined" && graphCanvasStateBridge)
+            return graphCanvasStateBridge;
+        return null;
+    }
+    readonly property bool informationalTooltipsEnabled: {
+        var bridge = control._tooltipBridge();
+        if (bridge && bridge.graphics_show_tooltips !== undefined)
+            return Boolean(bridge.graphics_show_tooltips);
+        return true;
+    }
+    readonly property bool tooltipVisible: informationalTooltipsEnabled
+        && hovered
+        && tooltipText.length > 0
     readonly property color fillColor: !enabled
         ? pane.themePalette.tab_bg
         : destructive
@@ -32,7 +46,7 @@ Button {
     hoverEnabled: true
     padding: 0
 
-    ToolTip.visible: hovered && tooltipText.length > 0
+    ToolTip.visible: tooltipVisible
     ToolTip.delay: 280
     ToolTip.text: tooltipText
 

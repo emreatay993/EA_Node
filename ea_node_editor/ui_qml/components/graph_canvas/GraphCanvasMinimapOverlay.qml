@@ -11,6 +11,23 @@ Rectangle {
     property var viewCommandBridge: null
     property bool degradedWindowActive: false
     readonly property var themePalette: themeBridge.palette
+    function _tooltipBridge() {
+        if (root.canvasItem) {
+            if (root.canvasItem.canvasStateBridgeRef)
+                return root.canvasItem.canvasStateBridgeRef;
+            if (root.canvasItem._canvasStateBridgeRef)
+                return root.canvasItem._canvasStateBridgeRef;
+        }
+        if (typeof graphCanvasStateBridge !== "undefined" && graphCanvasStateBridge)
+            return graphCanvasStateBridge;
+        return null;
+    }
+    readonly property bool informationalTooltipsEnabled: {
+        var bridge = root._tooltipBridge();
+        if (bridge && bridge.graphics_show_tooltips !== undefined)
+            return Boolean(bridge.graphics_show_tooltips);
+        return true;
+    }
     readonly property bool isExpanded: root.canvasItem ? root.canvasItem.minimapExpanded : false
     readonly property bool minimapContentVisible: root.isExpanded && !root.degradedWindowActive
     readonly property color chromeColor: Qt.alpha(themePalette.panel_bg, 0.64)
@@ -104,7 +121,7 @@ Rectangle {
             mipmap: true
         }
 
-        ToolTip.visible: minimapToggleMouse.containsMouse
+        ToolTip.visible: root.informationalTooltipsEnabled && minimapToggleMouse.containsMouse
         ToolTip.text: root.isExpanded ? "Collapse minimap" : "Expand minimap"
         ToolTip.delay: 400
 

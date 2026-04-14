@@ -74,6 +74,7 @@ class GraphThemeEditorDialog(QDialog):
         parent=None,
         *,
         live_apply_callback: Callable[[dict[str, Any]], None] | None = None,
+        tooltips_enabled: bool | None = None,
     ) -> None:
         super().__init__(parent)
         self.setWindowTitle("Graph Theme Manager")
@@ -89,6 +90,10 @@ class GraphThemeEditorDialog(QDialog):
         )
         self._preview_theme_id = self._explicit_theme_id
         self._live_apply_callback = live_apply_callback
+        self._tooltips_enabled = self._resolve_tooltips_enabled(
+            explicit_value=tooltips_enabled,
+            parent=parent,
+        )
         self._use_selected_requested = False
         self._theme_items: dict[str, QTreeWidgetItem] = {}
         self._token_value_fields: dict[str, dict[str, QLineEdit]] = {}
@@ -194,7 +199,9 @@ class GraphThemeEditorDialog(QDialog):
             "  border: 1px solid #666666;"
             "}"
         )
-        self.use_selected_button.setToolTip("Set this theme as the active graph theme")
+        self.use_selected_button.setToolTip(
+            "Set this theme as the active graph theme" if self._tooltips_enabled else ""
+        )
         self.use_selected_button.clicked.connect(self._use_selected_theme)
         bottom_bar.addWidget(self.use_selected_button)
         root.addLayout(bottom_bar)
@@ -638,5 +645,23 @@ class GraphThemeEditorDialog(QDialog):
             return None
         normalized = str(theme_id).strip()
         return normalized or None
+
+    def _resolve_tooltips_enabled(
+        self,
+        *,
+        explicit_value: bool | None,
+        parent: object | None,
+    ) -> bool:
+        if explicit_value is not None:
+            return bool(explicit_value)
+        tooltip_manager = getattr(parent, "tooltip_manager", None)
+        if tooltip_manager is not None:
+            info_tooltips_enabled = getattr(tooltip_manager, "info_tooltips_enabled", None)
+            if info_tooltips_enabled is not None:
+                return bool(info_tooltips_enabled)
+        parent_value = getattr(parent, "graphics_show_tooltips", None)
+        if parent_value is not None:
+            return bool(parent_value)
+        return True
 
 __all__ = ["GraphThemeEditorDialog"]

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import copy
 import json
+from pathlib import Path
 from unittest.mock import patch
 
 from PyQt6.QtGui import QColor
@@ -10,6 +11,7 @@ from PyQt6.QtQuick import QQuickItem
 
 from tests.main_window_shell.base import *  # noqa: F401,F403
 from tests.main_window_shell.base import _action_shortcuts
+from tests.qt_wait import wait_for_condition_or_raise
 
 
 def _color_name(value: object, *, include_alpha: bool = False) -> str:
@@ -104,7 +106,7 @@ class MainWindowShellBasicsAndSearchTests(SharedMainWindowShellTestBase):
         ]
         self.assertEqual(settings_entries, ["Workflow Settings", "Graphics Settings"])
 
-    def test_view_menu_exposes_port_labels_toggle(self) -> None:
+    def test_view_menu_exposes_port_labels_and_tooltip_toggles(self) -> None:
         menu_actions = {
             action.text(): action.menu()
             for action in self.window.menuBar().actions()
@@ -121,6 +123,7 @@ class MainWindowShellBasicsAndSearchTests(SharedMainWindowShellTestBase):
             [
                 "Script Editor",
                 "Port Labels",
+                "Show Tooltips",
                 "Frame All",
                 "Frame Selection",
                 "Center Selection",
@@ -130,6 +133,8 @@ class MainWindowShellBasicsAndSearchTests(SharedMainWindowShellTestBase):
         )
         self.assertTrue(self.window.action_show_port_labels.isCheckable())
         self.assertTrue(self.window.action_show_port_labels.isChecked())
+        self.assertTrue(self.window.action_show_tooltips.isCheckable())
+        self.assertTrue(self.window.action_show_tooltips.isChecked())
 
     def test_graphics_settings_properties_are_exposed_to_qml(self) -> None:
         meta = self.window.metaObject()
@@ -138,6 +143,7 @@ class MainWindowShellBasicsAndSearchTests(SharedMainWindowShellTestBase):
         self.assertGreaterEqual(meta.indexOfProperty("graphics_edge_crossing_style"), 0)
         self.assertGreaterEqual(meta.indexOfProperty("graphics_show_minimap"), 0)
         self.assertGreaterEqual(meta.indexOfProperty("graphics_minimap_expanded"), 0)
+        self.assertGreaterEqual(meta.indexOfProperty("graphics_show_tooltips"), 0)
         self.assertGreaterEqual(meta.indexOfProperty("graphics_performance_mode"), 0)
         self.assertGreaterEqual(meta.indexOfProperty("graphics_tab_strip_density"), 0)
         self.assertGreaterEqual(meta.indexOfProperty("active_theme_id"), 0)
@@ -147,6 +153,7 @@ class MainWindowShellBasicsAndSearchTests(SharedMainWindowShellTestBase):
         self.assertEqual(self.window.graphics_edge_crossing_style, "none")
         self.assertTrue(self.window.graphics_show_minimap)
         self.assertTrue(self.window.graphics_minimap_expanded)
+        self.assertTrue(self.window.graphics_show_tooltips)
         self.assertEqual(self.window.graphics_performance_mode, "full_fidelity")
         self.assertEqual(self.window.graphics_tab_strip_density, "compact")
         self.assertEqual(self.window.active_theme_id, "stitch_dark")
@@ -208,6 +215,37 @@ class MainWindowShellBasicsAndSearchTests(SharedMainWindowShellTestBase):
         self.assertTrue(self.window.action_show_port_labels.isChecked())
         persisted = json.loads(self._app_preferences_path.read_text(encoding="utf-8"))
         self.assertTrue(persisted["graphics"]["canvas"]["show_port_labels"])
+
+    def test_view_tooltip_toggle_persists_shell_preference_and_recent_project_action_tooltips(self) -> None:
+        alpha_path = Path(self._temp_dir.name) / "projects" / "alpha_project.sfe"
+        alpha_path.parent.mkdir(parents=True, exist_ok=True)
+
+        self.window.project_path = str(alpha_path)
+        self.window._save_project()
+        self.window._refresh_recent_projects_menu()
+        self.app.processEvents()
+
+        recent_actions = [action for action in self.window.menu_recent_projects.actions() if not action.isSeparator()]
+        self.assertEqual(recent_actions[0].toolTip(), str(alpha_path))
+        self.assertTrue(self.window.graphics_show_tooltips)
+        self.assertTrue(self.window.action_show_tooltips.isChecked())
+
+        self.window.action_show_tooltips.trigger()
+        self.app.processEvents()
+
+        recent_actions = [action for action in self.window.menu_recent_projects.actions() if not action.isSeparator()]
+        self.assertFalse(self.window.graphics_show_tooltips)
+        self.assertFalse(self.window.action_show_tooltips.isChecked())
+        self.assertEqual(recent_actions[0].toolTip().strip(), "")
+        persisted = json.loads(self._app_preferences_path.read_text(encoding="utf-8"))
+        self.assertFalse(persisted["graphics"]["shell"]["show_tooltips"])
+
+        self._reopen_window()
+        self.window._refresh_recent_projects_menu()
+        restored_actions = [action for action in self.window.menu_recent_projects.actions() if not action.isSeparator()]
+        self.assertFalse(self.window.graphics_show_tooltips)
+        self.assertFalse(self.window.action_show_tooltips.isChecked())
+        self.assertEqual(restored_actions[0].toolTip().strip(), "")
 
     def test_graphics_settings_dialog_persists_edge_crossing_style_through_shell_window(self) -> None:
         captured_initial_settings: list[dict[str, object]] = []
@@ -291,6 +329,35 @@ class MainWindowShellBasicsAndSearchTests(SharedMainWindowShellTestBase):
             self.window.show_graphics_settings_dialog()
             self.app.processEvents()
 
+        updated_title: QObject | None = None
+        updated_typography: QObject | None = None
+
+        def _typography_updated() -> bool:
+            nonlocal updated_title, updated_typography
+            for updated_node_card in _named_child_items(graph_canvas, "graphNodeCard"):
+                candidate_title = updated_node_card.findChild(QObject, "graphNodeTitle")
+                candidate_typography = updated_node_card.findChild(QObject, "graphSharedTypography")
+                if candidate_title is None or candidate_typography is None:
+                    continue
+                if int(candidate_typography.property("graphLabelPixelSize")) != 16:
+                    continue
+                if candidate_title.property("font").pixelSize() != 18:
+                    continue
+                updated_title = candidate_title
+                updated_typography = candidate_typography
+                return True
+            return False
+
+        wait_for_condition_or_raise(
+            _typography_updated,
+            app=self.app,
+            timeout_message="Expected graph typography bindings to refresh after accepting graphics settings.",
+        )
+        self.assertIsNotNone(updated_title)
+        self.assertIsNotNone(updated_typography)
+        if updated_title is None or updated_typography is None:
+            self.fail("Expected refreshed graph typography items after accepting graphics settings.")
+
         self.assertEqual(len(captured_initial_settings), 1)
         self.assertEqual(captured_initial_settings[0]["typography"]["graph_label_pixel_size"], 10)
         self.assertEqual(self.window.graphics_graph_label_pixel_size, 16)
@@ -298,9 +365,9 @@ class MainWindowShellBasicsAndSearchTests(SharedMainWindowShellTestBase):
             self.window.app_preferences_controller.graphics_settings()["typography"]["graph_label_pixel_size"],
             16,
         )
-        self.assertEqual(int(typography.property("graphLabelPixelSize")), 16)
-        self.assertEqual(int(typography.property("nodeTitlePixelSize")), 18)
-        self.assertEqual(title.property("font").pixelSize(), 18)
+        self.assertEqual(int(updated_typography.property("graphLabelPixelSize")), 16)
+        self.assertEqual(int(updated_typography.property("nodeTitlePixelSize")), 18)
+        self.assertEqual(updated_title.property("font").pixelSize(), 18)
         persisted = json.loads(self._app_preferences_path.read_text(encoding="utf-8"))
         self.assertEqual(persisted["graphics"]["typography"]["graph_label_pixel_size"], 16)
 

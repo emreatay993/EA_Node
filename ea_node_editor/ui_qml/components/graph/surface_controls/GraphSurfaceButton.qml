@@ -26,6 +26,17 @@ Button {
     property real hoverBorderWidth: 1.5
     property int contentHorizontalPadding: 7
     property int contentVerticalPadding: 4
+    function _tooltipBridge() {
+        if (host && host.canvasItem) {
+            if (host.canvasItem.canvasStateBridgeRef)
+                return host.canvasItem.canvasStateBridgeRef;
+            if (host.canvasItem._canvasStateBridgeRef)
+                return host.canvasItem._canvasStateBridgeRef;
+        }
+        if (typeof graphCanvasStateBridge !== "undefined" && graphCanvasStateBridge)
+            return graphCanvasStateBridge;
+        return null;
+    }
     readonly property bool hoverVisualActive: hovered || externalHover
     readonly property color resolvedForegroundColor: !enabled
         ? disabledForegroundColor
@@ -56,6 +67,15 @@ Button {
             return String(uiIcons.label(iconName) || "");
         return "";
     }
+    readonly property bool informationalTooltipsEnabled: {
+        var bridge = control._tooltipBridge();
+        if (bridge && bridge.graphics_show_tooltips !== undefined)
+            return Boolean(bridge.graphics_show_tooltips);
+        return true;
+    }
+    readonly property bool tooltipVisible: informationalTooltipsEnabled
+        && hovered
+        && resolvedTooltipText.length > 0
     readonly property bool labelVisible: text.length > 0 && (!iconOnly || resolvedIconSource.length === 0)
     readonly property var interactiveRect: SurfaceControlGeometry.rectFromItem(rectItem, host)
     readonly property var embeddedInteractiveRects: SurfaceControlGeometry.rectList(interactiveRect)
@@ -73,7 +93,7 @@ Button {
     font.pixelSize: inlineFontPixelSize
     hoverEnabled: true
     focusPolicy: Qt.NoFocus
-    ToolTip.visible: hovered && resolvedTooltipText.length > 0
+    ToolTip.visible: tooltipVisible
     ToolTip.text: resolvedTooltipText
     ToolTip.delay: 280
 

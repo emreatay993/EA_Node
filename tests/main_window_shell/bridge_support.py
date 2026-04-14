@@ -490,6 +490,7 @@ class _GraphCanvasShellHostStub(QObject):
         self.graphics_grid_style = "lines"
         self.graphics_show_minimap = True
         self.graphics_show_port_labels = True
+        self.graphics_show_tooltips = True
         self.graphics_node_shadow = True
         self.graphics_shadow_strength = 70
         self.graphics_shadow_softness = 50
@@ -690,6 +691,11 @@ class _GraphCanvasShellHostStub(QObject):
 
     def request_remove_node(self, node_id: str) -> bool:
         return bool(self._record("request_remove_node", node_id))
+
+
+class _GraphCanvasTooltipCanvasSourceStub(QObject):
+    graphics_preferences_changed = pyqtSignal()
+    snap_to_grid_changed = pyqtSignal()
 
 
 class _GraphCanvasParentStub(QObject):
@@ -1222,6 +1228,7 @@ class GraphCanvasBridgeTests(unittest.TestCase):
         self.assertEqual(bridge.graphics_grid_style, "lines")
         self.assertTrue(bridge.graphics_show_minimap)
         self.assertTrue(bridge.graphics_show_port_labels)
+        self.assertTrue(bridge.graphics_show_tooltips)
         self.assertTrue(bridge.graphics_node_shadow)
         self.assertEqual(bridge.graphics_shadow_strength, 70)
         self.assertEqual(bridge.graphics_shadow_softness, 50)
@@ -1255,6 +1262,69 @@ class GraphCanvasBridgeTests(unittest.TestCase):
                 "scene_edges_changed": 1,
                 "scene_selection_changed": 1,
                 "view_state_changed": 1,
+            },
+        )
+
+    def test_graphics_state_bridge_and_legacy_bridge_fall_back_to_shell_tooltip_policy_when_canvas_source_omits_it(
+        self,
+    ) -> None:
+        host = _GraphCanvasShellHostStub()
+        host.graphics_show_tooltips = False
+        canvas_source = _GraphCanvasTooltipCanvasSourceStub()
+        scene = _GraphCanvasSceneBridgeStub()
+        view = _GraphCanvasViewBridgeStub()
+        state_bridge = GraphCanvasStateBridge(
+            host,
+            shell_window=host,
+            canvas_source=canvas_source,
+            scene_bridge=scene,
+            view_bridge=view,
+        )
+        bridge = GraphCanvasBridge(
+            host,
+            shell_window=host,
+            scene_bridge=scene,
+            view_bridge=view,
+            state_bridge=state_bridge,
+            command_bridge=GraphCanvasCommandBridge(
+                host,
+                shell_window=host,
+                canvas_source=host,
+                host_source=host,
+                scene_bridge=scene,
+                view_bridge=view,
+            ),
+        )
+        seen = {
+            "state_graphics_preferences_changed": 0,
+            "legacy_graphics_preferences_changed": 0,
+        }
+        state_bridge.graphics_preferences_changed.connect(
+            lambda: seen.__setitem__(
+                "state_graphics_preferences_changed",
+                seen["state_graphics_preferences_changed"] + 1,
+            )
+        )
+        bridge.graphics_preferences_changed.connect(
+            lambda: seen.__setitem__(
+                "legacy_graphics_preferences_changed",
+                seen["legacy_graphics_preferences_changed"] + 1,
+            )
+        )
+
+        self.assertFalse(state_bridge.graphics_show_tooltips)
+        self.assertFalse(bridge.graphics_show_tooltips)
+
+        host.graphics_show_tooltips = True
+        canvas_source.graphics_preferences_changed.emit()
+
+        self.assertTrue(state_bridge.graphics_show_tooltips)
+        self.assertTrue(bridge.graphics_show_tooltips)
+        self.assertEqual(
+            seen,
+            {
+                "state_graphics_preferences_changed": 1,
+                "legacy_graphics_preferences_changed": 1,
             },
         )
 

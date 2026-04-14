@@ -20,6 +20,19 @@ def format_recent_project_menu_label(index: int, project_path: str) -> str:
     return f"{index}. {path.name} [{parent}]"
 
 
+def _recent_project_tooltip_text(window: ShellWindow, project_path: str) -> str:
+    tooltip_manager = getattr(window, "tooltip_manager", None)
+    if tooltip_manager is None:
+        return project_path
+    should_show_tooltip = getattr(tooltip_manager, "should_show_info_tooltip", None)
+    if not callable(should_show_tooltip):
+        return project_path
+    if should_show_tooltip(project_path):
+        return project_path
+    # QAction falls back to its text when the tooltip is set to an empty string.
+    return " "
+
+
 def refresh_recent_projects_menu(window: ShellWindow) -> None:
     menu = getattr(window, "menu_recent_projects", None)
     if menu is None:
@@ -34,7 +47,7 @@ def refresh_recent_projects_menu(window: ShellWindow) -> None:
     current_project_path = window.project_session_controller._normalize_project_path(window.project_path)
     for index, project_path in enumerate(recent_paths, start=1):
         action = menu.addAction(format_recent_project_menu_label(index, project_path))
-        action.setToolTip(project_path)
+        action.setToolTip(_recent_project_tooltip_text(window, project_path))
         action.setStatusTip(project_path)
         action.triggered.connect(
             lambda _checked=False, selected_path=project_path: window._open_project_path(selected_path)
@@ -149,6 +162,12 @@ def create_window_actions(window: ShellWindow) -> None:
     window.action_show_port_labels.setChecked(True)
     window.action_show_port_labels.toggled.connect(window.set_graphics_show_port_labels)
 
+    window.action_show_tooltips = QAction("Show Tooltips", window)
+    window.action_show_tooltips.setCheckable(True)
+    window.action_show_tooltips.setChecked(True)
+    window.action_show_tooltips.toggled.connect(window.set_graphics_show_tooltips)
+    window.action_show_tooltips.toggled.connect(lambda _checked=False: refresh_recent_projects_menu(window))
+
     window.action_undo = QAction("Undo", window)
     window.action_undo.setShortcut(QKeySequence("Ctrl+Z"))
     window.action_undo.triggered.connect(window._undo)
@@ -261,6 +280,7 @@ def create_window_actions(window: ShellWindow) -> None:
         window.action_distribute_vertically,
         window.action_snap_to_grid,
         window.action_show_port_labels,
+        window.action_show_tooltips,
         window.action_frame_all,
         window.action_frame_selection,
         window.action_center_selection,
@@ -330,6 +350,7 @@ def build_window_menu_bar(window: ShellWindow) -> None:
     view_menu = menu_bar.addMenu("&View")
     view_menu.addAction(window.action_toggle_script_editor)
     view_menu.addAction(window.action_show_port_labels)
+    view_menu.addAction(window.action_show_tooltips)
     view_menu.addSeparator()
     view_menu.addAction(window.action_frame_all)
     view_menu.addAction(window.action_frame_selection)

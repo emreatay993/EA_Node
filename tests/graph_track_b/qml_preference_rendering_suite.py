@@ -265,6 +265,311 @@ class GraphCanvasQmlPreferenceRenderingTests(GraphCanvasQmlPreferenceTestBase):
 
         self.assertTrue(bool(node_card.property("_tooltipOnlyPortLabelsActive")))
 
+    def test_graph_canvas_port_label_info_tooltips_follow_policy_but_inactive_reason_tooltips_remain_visible(
+        self,
+    ) -> None:
+        from PyQt6.QtCore import QPoint, QPointF, pyqtProperty, pyqtSignal
+
+        node_payload = {
+            "node_id": "node_tooltip_policy_test",
+            "type_id": "core.logger",
+            "title": "Logger",
+            "x": 120.0,
+            "y": 140.0,
+            "width": 210.0,
+            "height": 88.0,
+            "accent": "#2F89FF",
+            "collapsed": False,
+            "selected": False,
+            "can_enter_scope": False,
+            "surface_family": "standard",
+            "surface_variant": "",
+            "ports": [
+                {
+                    "key": "path",
+                    "label": "Primary Input Payload",
+                    "direction": "in",
+                    "kind": "data",
+                    "data_type": "path",
+                    "connected": False,
+                    "inactive": True,
+                    "inactive_reason": "Driven by result_file",
+                },
+                {
+                    "key": "exec_out",
+                    "label": "Dispatch Result Token",
+                    "direction": "out",
+                    "kind": "exec",
+                    "data_type": "exec",
+                    "connected": False,
+                },
+            ],
+            "inline_properties": [],
+            "surface_metrics": {
+                "default_width": 210.0,
+                "default_height": 88.0,
+                "min_width": 120.0,
+                "min_height": 50.0,
+                "collapsed_width": 130.0,
+                "collapsed_height": 36.0,
+                "header_height": 24.0,
+                "header_top_margin": 4.0,
+                "body_top": 30.0,
+                "body_height": 30.0,
+                "port_top": 60.0,
+                "port_height": 18.0,
+                "port_center_offset": 6.0,
+                "port_side_margin": 8.0,
+                "port_dot_radius": 3.5,
+                "resize_handle_size": 16.0,
+            },
+        }
+
+        class TooltipPreferenceBridge(QObject):
+            graphics_preferences_changed = pyqtSignal()
+
+            def __init__(self) -> None:
+                super().__init__()
+                self._graphics_show_grid = True
+                self._graphics_grid_style = "lines"
+                self._graphics_show_minimap = True
+                self._graphics_minimap_expanded = True
+                self._graphics_show_port_labels = False
+                self._graphics_show_tooltips = True
+                self._graphics_node_shadow = True
+                self._graphics_shadow_strength = 70
+                self._graphics_shadow_softness = 50
+                self._graphics_shadow_offset = 4
+                self._graphics_performance_mode = "full_fidelity"
+
+            @property
+            def graphics_show_grid(self) -> bool:
+                return bool(self._graphics_show_grid)
+
+            @property
+            def graphics_grid_style(self) -> str:
+                return str(self._graphics_grid_style)
+
+            @property
+            def graphics_show_minimap(self) -> bool:
+                return bool(self._graphics_show_minimap)
+
+            @property
+            def graphics_minimap_expanded(self) -> bool:
+                return bool(self._graphics_minimap_expanded)
+
+            @property
+            def graphics_show_port_labels(self) -> bool:
+                return bool(self._graphics_show_port_labels)
+
+            @property
+            def graphics_show_tooltips(self) -> bool:
+                return bool(self._graphics_show_tooltips)
+
+            @property
+            def graphics_node_shadow(self) -> bool:
+                return bool(self._graphics_node_shadow)
+
+            @property
+            def graphics_shadow_strength(self) -> int:
+                return int(self._graphics_shadow_strength)
+
+            @property
+            def graphics_shadow_softness(self) -> int:
+                return int(self._graphics_shadow_softness)
+
+            @property
+            def graphics_shadow_offset(self) -> int:
+                return int(self._graphics_shadow_offset)
+
+            @property
+            def graphics_performance_mode(self) -> str:
+                return str(self._graphics_performance_mode)
+
+            def set_graphics_show_tooltips_value(self, value: bool) -> None:
+                normalized = bool(value)
+                if self._graphics_show_tooltips == normalized:
+                    return
+                self._graphics_show_tooltips = normalized
+                self.graphics_preferences_changed.emit()
+
+        class CanvasStateBridgeStub(QObject):
+            graphics_preferences_changed = pyqtSignal()
+            scene_nodes_changed = pyqtSignal()
+            failure_highlight_changed = pyqtSignal()
+            node_execution_state_changed = pyqtSignal()
+
+            def __init__(self, preference_bridge: TooltipPreferenceBridge) -> None:
+                super().__init__()
+                self._preference_bridge = preference_bridge
+                self._nodes_model = [dict(node_payload)]
+                self._preference_bridge.graphics_preferences_changed.connect(self.graphics_preferences_changed.emit)
+
+            @pyqtProperty(bool, notify=graphics_preferences_changed)
+            def graphics_minimap_expanded(self) -> bool:
+                return bool(self._preference_bridge.graphics_minimap_expanded)
+
+            @pyqtProperty(bool, notify=graphics_preferences_changed)
+            def graphics_show_grid(self) -> bool:
+                return bool(self._preference_bridge.graphics_show_grid)
+
+            @pyqtProperty(str, notify=graphics_preferences_changed)
+            def graphics_grid_style(self) -> str:
+                return str(self._preference_bridge.graphics_grid_style)
+
+            @pyqtProperty(str, notify=graphics_preferences_changed)
+            def graphics_edge_crossing_style(self) -> str:
+                return "none"
+
+            @pyqtProperty(bool, notify=graphics_preferences_changed)
+            def graphics_show_minimap(self) -> bool:
+                return bool(self._preference_bridge.graphics_show_minimap)
+
+            @pyqtProperty(bool, notify=graphics_preferences_changed)
+            def graphics_show_port_labels(self) -> bool:
+                return bool(self._preference_bridge.graphics_show_port_labels)
+
+            @pyqtProperty(bool, notify=graphics_preferences_changed)
+            def graphics_show_tooltips(self) -> bool:
+                return bool(self._preference_bridge.graphics_show_tooltips)
+
+            @pyqtProperty(bool, notify=graphics_preferences_changed)
+            def graphics_node_shadow(self) -> bool:
+                return bool(self._preference_bridge.graphics_node_shadow)
+
+            @pyqtProperty(int, notify=graphics_preferences_changed)
+            def graphics_shadow_strength(self) -> int:
+                return int(self._preference_bridge.graphics_shadow_strength)
+
+            @pyqtProperty(int, notify=graphics_preferences_changed)
+            def graphics_shadow_softness(self) -> int:
+                return int(self._preference_bridge.graphics_shadow_softness)
+
+            @pyqtProperty(int, notify=graphics_preferences_changed)
+            def graphics_shadow_offset(self) -> int:
+                return int(self._preference_bridge.graphics_shadow_offset)
+
+            @pyqtProperty(str, notify=graphics_preferences_changed)
+            def graphics_performance_mode(self) -> str:
+                return str(self._preference_bridge.graphics_performance_mode)
+
+            @pyqtProperty("QVariantList", notify=scene_nodes_changed)
+            def nodes_model(self) -> list[dict[str, object]]:
+                return list(self._nodes_model)
+
+            @pyqtProperty("QVariantList", constant=True)
+            def backdrop_nodes_model(self) -> list[dict[str, object]]:
+                return []
+
+            @pyqtProperty("QVariantList", constant=True)
+            def edges_model(self) -> list[dict[str, object]]:
+                return []
+
+            @pyqtProperty("QVariantMap", constant=True)
+            def selected_node_lookup(self) -> dict[str, bool]:
+                return {}
+
+            @pyqtProperty("QVariantMap", constant=True)
+            def workspace_scene_bounds_payload(self) -> dict[str, float]:
+                return {}
+
+            @pyqtProperty("QVariantMap", notify=failure_highlight_changed)
+            def failed_node_lookup(self) -> dict[str, bool]:
+                return {}
+
+            @pyqtProperty(int, notify=failure_highlight_changed)
+            def failed_node_revision(self) -> int:
+                return 0
+
+            @pyqtProperty(str, notify=failure_highlight_changed)
+            def failed_node_title(self) -> str:
+                return ""
+
+            @pyqtProperty("QVariantMap", notify=node_execution_state_changed)
+            def running_node_lookup(self) -> dict[str, bool]:
+                return {}
+
+            @pyqtProperty("QVariantMap", notify=node_execution_state_changed)
+            def completed_node_lookup(self) -> dict[str, bool]:
+                return {}
+
+            @pyqtProperty("QVariantMap", notify=node_execution_state_changed)
+            def running_node_started_at_ms_lookup(self) -> dict[str, float]:
+                return {}
+
+            @pyqtProperty("QVariantMap", notify=node_execution_state_changed)
+            def node_elapsed_ms_lookup(self) -> dict[str, float]:
+                return {}
+
+            @pyqtProperty(int, notify=node_execution_state_changed)
+            def node_execution_revision(self) -> int:
+                return 0
+
+        def item_scene_point(item: QObject) -> QPoint:
+            scene_point = item.mapToScene(QPointF(item.width() * 0.5, item.height() * 0.5))
+            return QPoint(round(scene_point.x()), round(scene_point.y()))
+
+        self.canvas.deleteLater()
+        self.app.processEvents()
+
+        preference_bridge = TooltipPreferenceBridge()
+        canvas_state_bridge = CanvasStateBridgeStub(preference_bridge)
+        canvas_command_bridge = GraphCanvasCommandBridge(
+            shell_window=self.bridge,  # type: ignore[arg-type]
+            view_bridge=self.view,
+        )
+        self.canvas = self._create_canvas(
+            {
+                "canvasStateBridge": canvas_state_bridge,
+                "canvasCommandBridge": canvas_command_bridge,
+                "width": 1280.0,
+                "height": 720.0,
+            }
+        )
+
+        wait_for_condition_or_raise(
+            lambda: len(_named_child_items(self.canvas, "graphNodeInputPortMouseArea")) == 1,
+            timeout_ms=200,
+            app=self.app,
+            timeout_message="Timed out waiting for graph canvas tooltip-policy input port to appear.",
+        )
+        node_card = _named_child_items(self.canvas, "graphNodeCard")[0]
+        input_mouse = _named_child_items(self.canvas, "graphNodeInputPortMouseArea")[0]
+
+        window = QQuickWindow()
+        window.resize(1280, 720)
+        self.canvas.setParentItem(window.contentItem())
+        window.show()
+        self.app.processEvents()
+        try:
+            self.assertTrue(bool(node_card.property("_tooltipOnlyPortLabelsActive")))
+            self.assertEqual(input_mouse.property("inactiveTooltipText"), "Driven by result_file")
+            QTest.mouseMove(window, item_scene_point(input_mouse))
+            wait_for_condition_or_raise(
+                lambda: bool(input_mouse.property("containsMouse")),
+                timeout_ms=300,
+                app=self.app,
+                timeout_message="Timed out waiting for graph canvas tooltip-policy hover state.",
+            )
+
+            self.assertTrue(bool(input_mouse.property("infoTooltipsEnabled")))
+            self.assertTrue(bool(input_mouse.property("tooltipVisible")))
+            self.assertTrue(bool(input_mouse.property("inactiveTooltipVisible")))
+
+            preference_bridge.set_graphics_show_tooltips_value(False)
+            wait_for_condition_or_raise(
+                lambda: not bool(input_mouse.property("infoTooltipsEnabled")),
+                timeout_ms=300,
+                app=self.app,
+                timeout_message="Timed out waiting for graph canvas tooltip policy update to reach port hover state.",
+            )
+
+            self.assertFalse(bool(input_mouse.property("tooltipVisible")))
+            self.assertTrue(bool(input_mouse.property("inactiveTooltipVisible")))
+        finally:
+            window.close()
+            self.app.processEvents()
+
     def test_node_execution_visualization_graph_canvas_host_chrome_follows_bridge_state_priority(self) -> None:
         node_id = "node_execution_visualization"
         node_payload = {

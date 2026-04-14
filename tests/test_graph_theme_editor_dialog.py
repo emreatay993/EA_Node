@@ -286,6 +286,16 @@ class GraphThemeEditorDialogTests(unittest.TestCase):
 
 
 class GraphThemeEditorShellFlowTests(MainWindowShellTestBase):
+    def test_dialog_uses_parent_tooltip_policy_for_use_selected_button_tooltip(self) -> None:
+        self.window.tooltip_manager.set_info_tooltips_enabled(False)
+        dialog = GraphThemeEditorDialog(
+            initial_settings=self.window.app_preferences_controller.graph_theme_settings(),
+            parent=self.window,
+        )
+        try:
+            self.assertEqual(dialog.use_selected_button.toolTip(), "")
+        finally:
+            dialog.close()
 
     def test_shell_flow_persists_manager_result(self) -> None:
         custom_theme = _custom_theme()

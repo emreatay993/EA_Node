@@ -158,6 +158,10 @@ class GraphCanvasBridge(QObject):
         return self._state_bridge.graphics_show_port_labels
 
     @pyqtProperty(bool, notify=graphics_preferences_changed)
+    def graphics_show_tooltips(self) -> bool:
+        return self._state_bridge.graphics_show_tooltips
+
+    @pyqtProperty(bool, notify=graphics_preferences_changed)
     def graphics_node_shadow(self) -> bool:
         return self._state_bridge.graphics_node_shadow
 
