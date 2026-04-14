@@ -68,6 +68,8 @@ Selected work-packet manifests and status ledgers under `docs/specs/work_packets
 - [TITLE_ICONS_FOR_NON_PASSIVE_NODES Work Packet Manifest](work_packets/title_icons_for_non_passive_nodes/TITLE_ICONS_FOR_NON_PASSIVE_NODES_MANIFEST.md)
 - [TITLE_ICONS_FOR_NON_PASSIVE_NODES Status Ledger](work_packets/title_icons_for_non_passive_nodes/TITLE_ICONS_FOR_NON_PASSIVE_NODES_STATUS.md)
 - [TITLE_ICONS_FOR_NON_PASSIVE_NODES QA Matrix](perf/TITLE_ICONS_FOR_NON_PASSIVE_NODES_QA_MATRIX.md)
+- [TOOLTIP_MANAGER Work Packet Manifest](work_packets/tooltip_manager/TOOLTIP_MANAGER_MANIFEST.md)
+- [TOOLTIP_MANAGER Status Ledger](work_packets/tooltip_manager/TOOLTIP_MANAGER_STATUS.md)
 - [PORT_VALUE_LOCKING Work Packet Manifest](work_packets/port_value_locking/PORT_VALUE_LOCKING_MANIFEST.md)
 - [PORT_VALUE_LOCKING Status Ledger](work_packets/port_value_locking/PORT_VALUE_LOCKING_STATUS.md)
 - [PORT_VALUE_LOCKING QA Matrix](perf/PORT_VALUE_LOCKING_QA_MATRIX.md)
