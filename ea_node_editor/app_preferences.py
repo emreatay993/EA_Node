@@ -12,6 +12,7 @@ from ea_node_editor.settings import (
     APP_PREFERENCES_KIND,
     APP_PREFERENCES_VERSION,
     DEFAULT_APP_PREFERENCES,
+    DEFAULT_ANSYS_DPF_PLUGIN_SETTINGS,
     DEFAULT_EDGE_CROSSING_STYLE,
     DEFAULT_EXPAND_COLLISION_AVOIDANCE_GAP_PRESET,
     DEFAULT_EXPAND_COLLISION_AVOIDANCE_LOCAL_RADIUS_PRESET,
@@ -22,6 +23,7 @@ from ea_node_editor.settings import (
     DEFAULT_GRAPHICS_PERFORMANCE_MODE,
     DEFAULT_GRID_OVERLAY_STYLE,
     DEFAULT_GRAPHICS_SETTINGS,
+    DEFAULT_PLUGIN_SETTINGS,
     DEFAULT_SOURCE_IMPORT_MODE,
     DEFAULT_SOURCE_IMPORT_SETTINGS,
     EDGE_CROSSING_STYLE_CHOICES,
@@ -259,6 +261,39 @@ def normalize_source_import_settings(payload: Any) -> dict[str, Any]:
     return normalized
 
 
+def normalize_ansys_dpf_plugin_version(value: Any) -> str:
+    if value is None:
+        return ""
+    if isinstance(value, (Mapping, list, tuple, set, bool)):
+        return ""
+    if isinstance(value, str):
+        return value
+    return str(value)
+
+
+def normalize_ansys_dpf_plugin_settings(payload: Any) -> dict[str, str]:
+    defaults = DEFAULT_ANSYS_DPF_PLUGIN_SETTINGS
+    if not isinstance(payload, Mapping):
+        return copy.deepcopy(defaults)
+
+    normalized = copy.deepcopy(defaults)
+    normalized["version"] = normalize_ansys_dpf_plugin_version(payload.get("version"))
+    normalized["catalog_cache_version"] = normalize_ansys_dpf_plugin_version(
+        payload.get("catalog_cache_version")
+    )
+    return normalized
+
+
+def normalize_plugin_settings(payload: Any) -> dict[str, Any]:
+    defaults = DEFAULT_PLUGIN_SETTINGS
+    if not isinstance(payload, Mapping):
+        return copy.deepcopy(defaults)
+
+    normalized = copy.deepcopy(defaults)
+    normalized["ansys_dpf"] = normalize_ansys_dpf_plugin_settings(payload.get("ansys_dpf"))
+    return normalized
+
+
 def normalize_app_preferences_document(payload: Any) -> dict[str, Any]:
     normalized = default_app_preferences_document()
     if not isinstance(payload, Mapping):
@@ -276,6 +311,7 @@ def normalize_app_preferences_document(payload: Any) -> dict[str, Any]:
         return normalized
 
     normalized["graphics"] = normalize_graphics_settings(payload.get("graphics"))
+    normalized["plugins"] = normalize_plugin_settings(payload.get("plugins"))
     normalized["source_import"] = normalize_source_import_settings(payload.get("source_import"))
     return normalized
 
@@ -302,6 +338,27 @@ class AppPreferencesStore:
         normalized = normalize_app_preferences_document(document)
         write_json_atomic(self._path_provider(), normalized)
         return normalized
+
+
+def ansys_dpf_plugin_state(document: Any) -> dict[str, str]:
+    normalized = normalize_app_preferences_document(document)
+    return copy.deepcopy(normalized["plugins"]["ansys_dpf"])
+
+
+def set_ansys_dpf_plugin_state(
+    document: Any,
+    *,
+    version: Any,
+    catalog_cache_version: Any,
+) -> dict[str, Any]:
+    normalized = normalize_app_preferences_document(document)
+    normalized["plugins"]["ansys_dpf"] = normalize_ansys_dpf_plugin_settings(
+        {
+            "version": version,
+            "catalog_cache_version": catalog_cache_version,
+        }
+    )
+    return normalized
 
 
 def resolve_startup_theme_id(
@@ -445,8 +502,11 @@ def normalize_source_import_mode(value: Any, default: str = DEFAULT_SOURCE_IMPOR
 
 __all__ = [
     "AppPreferencesStore",
+    "ansys_dpf_plugin_state",
     "default_app_preferences_document",
     "normalize_app_preferences_document",
+    "normalize_ansys_dpf_plugin_settings",
+    "normalize_ansys_dpf_plugin_version",
     "normalize_edge_crossing_style",
     "normalize_expand_collision_avoidance_settings",
     "normalize_graph_label_pixel_size",
@@ -456,7 +516,9 @@ __all__ = [
     "normalize_grid_overlay_style",
     "normalize_graphics_performance_mode",
     "normalize_graphics_settings",
+    "normalize_plugin_settings",
     "normalize_source_import_mode",
     "normalize_source_import_settings",
     "resolve_startup_theme_id",
+    "set_ansys_dpf_plugin_state",
 ]

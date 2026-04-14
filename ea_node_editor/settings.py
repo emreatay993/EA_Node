@@ -165,10 +165,20 @@ DEFAULT_SOURCE_IMPORT_SETTINGS = {
     "default_mode": DEFAULT_SOURCE_IMPORT_MODE,
 }
 
+DEFAULT_ANSYS_DPF_PLUGIN_SETTINGS = {
+    "version": "",
+    "catalog_cache_version": "",
+}
+
+DEFAULT_PLUGIN_SETTINGS = {
+    "ansys_dpf": DEFAULT_ANSYS_DPF_PLUGIN_SETTINGS,
+}
+
 DEFAULT_APP_PREFERENCES = {
     "kind": APP_PREFERENCES_KIND,
     "version": APP_PREFERENCES_VERSION,
     "graphics": DEFAULT_GRAPHICS_SETTINGS,
+    "plugins": DEFAULT_PLUGIN_SETTINGS,
     "source_import": DEFAULT_SOURCE_IMPORT_SETTINGS,
 }
 

@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import json
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 from unittest.mock import patch
@@ -14,6 +16,11 @@ try:
 except ModuleNotFoundError:  # pragma: no cover - optional dependency guard
     dpf = None
 
+from ea_node_editor.app_preferences import (
+    AppPreferencesStore,
+    default_app_preferences_document,
+    set_ansys_dpf_plugin_state,
+)
 from ea_node_editor.execution.dpf_runtime_service import (
     DPF_MESH_SCOPING_HANDLE_KIND,
     DPF_MODEL_HANDLE_KIND,
@@ -185,7 +192,14 @@ _EXPECTED_DPF_TITLE_ICON_PATHS = {
 
 class DpfNodeCatalogTests(unittest.TestCase):
     def setUp(self) -> None:
-        self.registry = build_default_registry()
+        self._temp_dir = tempfile.TemporaryDirectory()
+        self._preferences_path = Path(self._temp_dir.name) / "app_preferences.json"
+        self._store = AppPreferencesStore(path_provider=lambda: self._preferences_path)
+        self.registry = build_default_registry(app_preferences_store=self._store)
+
+    def tearDown(self) -> None:
+        ansys_dpf_catalog.invalidate_ansys_dpf_descriptor_cache()
+        self._temp_dir.cleanup()
 
     def _execution_context(
         self,
@@ -236,12 +250,96 @@ class DpfNodeCatalogTests(unittest.TestCase):
 
     def test_default_registry_keeps_non_dpf_nodes_when_backend_is_missing(self) -> None:
         with patch.object(ansys_dpf_catalog, "_find_spec", return_value=None):
-            registry = build_default_registry()
+            registry = build_default_registry(app_preferences_store=self._store)
 
         self.assertIsNotNone(registry.spec_or_none("core.start"))
         self.assertEqual(registry.filter_nodes(category=DPF_NODE_CATEGORY), [])
         self.assertNotIn(DPF_NODE_CATEGORY_PATH, registry.category_paths())
         self.assertIsNone(registry.spec_or_none(DPF_RESULT_FILE_NODE_TYPE_ID))
+
+    def test_build_default_registry_refreshes_descriptor_cache_when_dpf_version_changes(self) -> None:
+        exact_version = "0.15.0.dev1+build.42"
+        self._store.persist_document(
+            set_ansys_dpf_plugin_state(
+                default_app_preferences_document(),
+                version="0.14.0",
+                catalog_cache_version="0.14.0",
+            )
+        )
+        ansys_dpf_catalog.invalidate_ansys_dpf_descriptor_cache()
+
+        with (
+            patch.object(ansys_dpf_catalog, "_find_spec", return_value=object()),
+            patch.object(
+                ansys_dpf_catalog,
+                "resolve_ansys_dpf_plugin_version",
+                return_value=exact_version,
+            ),
+            patch.object(
+                ansys_dpf_catalog,
+                "_build_ansys_dpf_plugin_descriptors",
+                return_value=(),
+            ) as build_descriptors,
+            patch("ea_node_editor.nodes.plugin_loader.register_plugin_backends", return_value=[]),
+            patch("ea_node_editor.nodes.plugin_loader.discover_and_load_plugins", return_value=[]),
+        ):
+            build_default_registry(app_preferences_store=self._store)
+
+        document = self._store.load_document()
+        self.assertEqual(document["plugins"]["ansys_dpf"]["version"], exact_version)
+        self.assertEqual(document["plugins"]["ansys_dpf"]["catalog_cache_version"], exact_version)
+        build_descriptors.assert_called_once_with()
+
+    def test_build_default_registry_skips_descriptor_rebuild_when_dpf_version_is_unchanged(self) -> None:
+        exact_version = "0.15.0.dev1+build.42"
+        self._store.persist_document(
+            set_ansys_dpf_plugin_state(
+                default_app_preferences_document(),
+                version=exact_version,
+                catalog_cache_version=exact_version,
+            )
+        )
+        ansys_dpf_catalog.invalidate_ansys_dpf_descriptor_cache()
+
+        with (
+            patch.object(ansys_dpf_catalog, "_find_spec", return_value=object()),
+            patch.object(
+                ansys_dpf_catalog,
+                "resolve_ansys_dpf_plugin_version",
+                return_value=exact_version,
+            ),
+            patch.object(
+                ansys_dpf_catalog,
+                "_build_ansys_dpf_plugin_descriptors",
+                return_value=(),
+            ) as build_descriptors,
+            patch("ea_node_editor.nodes.plugin_loader.register_plugin_backends", return_value=[]),
+            patch("ea_node_editor.nodes.plugin_loader.discover_and_load_plugins", return_value=[]),
+        ):
+            build_default_registry(app_preferences_store=self._store)
+
+        document = self._store.load_document()
+        self.assertEqual(document["plugins"]["ansys_dpf"]["version"], exact_version)
+        self.assertEqual(document["plugins"]["ansys_dpf"]["catalog_cache_version"], exact_version)
+        build_descriptors.assert_not_called()
+
+    def test_build_default_registry_leaves_dpf_plugin_state_untouched_when_dependency_is_missing(self) -> None:
+        persisted = self._store.persist_document(
+            set_ansys_dpf_plugin_state(
+                default_app_preferences_document(),
+                version="0.15.0.dev1+build.42",
+                catalog_cache_version="0.15.0.dev1+build.42",
+            )
+        )
+        before = json.loads(self._preferences_path.read_text(encoding="utf-8"))
+        ansys_dpf_catalog.invalidate_ansys_dpf_descriptor_cache()
+
+        with patch.object(ansys_dpf_catalog, "_find_spec", return_value=None):
+            build_default_registry(app_preferences_store=self._store)
+
+        after = json.loads(self._preferences_path.read_text(encoding="utf-8"))
+        self.assertEqual(after, before)
+        self.assertEqual(self._store.load_document()["plugins"]["ansys_dpf"], persisted["plugins"]["ansys_dpf"])
 
     @unittest.skipIf(dpf is None, "ansys.dpf.core is not installed")
     def test_default_registry_registers_foundational_dpf_nodes(self) -> None:

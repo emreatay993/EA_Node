@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from ea_node_editor.app_preferences import AppPreferencesStore
 from ea_node_editor.nodes.builtins.core import (
     BranchNodePlugin,
     ConstantNodePlugin,
@@ -36,7 +37,11 @@ from ea_node_editor.nodes.builtins.integrations_spreadsheet import (
 from ea_node_editor.nodes.registry import NodeRegistry
 
 
-def build_default_registry(extra_plugin_dirs: list[Path] | None = None) -> NodeRegistry:
+def build_default_registry(
+    extra_plugin_dirs: list[Path] | None = None,
+    *,
+    app_preferences_store: AppPreferencesStore | None = None,
+) -> NodeRegistry:
     registry = NodeRegistry()
     registry.register(StartNodePlugin)
     registry.register(EndNodePlugin)
@@ -67,9 +72,13 @@ def build_default_registry(extra_plugin_dirs: list[Path] | None = None) -> NodeR
     for plugin in PASSIVE_MEDIA_NODE_PLUGINS:
         registry.register(plugin)
 
-    from ea_node_editor.nodes.builtins.ansys_dpf_catalog import PLUGIN_BACKENDS as ANSYS_DPF_PLUGIN_BACKENDS
+    from ea_node_editor.nodes.builtins.ansys_dpf_catalog import (
+        PLUGIN_BACKENDS as ANSYS_DPF_PLUGIN_BACKENDS,
+        sync_ansys_dpf_plugin_state,
+    )
     from ea_node_editor.nodes.plugin_loader import discover_and_load_plugins, register_plugin_backends
 
+    sync_ansys_dpf_plugin_state(store=app_preferences_store)
     register_plugin_backends(
         ANSYS_DPF_PLUGIN_BACKENDS,
         registry,
