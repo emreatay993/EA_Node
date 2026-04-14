@@ -87,6 +87,9 @@ QtObject {
     readonly property bool showPortLabels: root._canvasStateBridgeRef
         ? Boolean(root._canvasStateBridgeRef.graphics_show_port_labels)
         : true
+    readonly property bool showTooltips: root._canvasStateBridgeRef
+        ? Boolean(root._canvasStateBridgeRef.graphics_show_tooltips)
+        : true
     readonly property int graphLabelPixelSize: {
         if (!root._canvasStateBridgeRef)
             return 10;

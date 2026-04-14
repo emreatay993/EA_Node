@@ -32,6 +32,7 @@ class _GraphCanvasTypographyPreferenceBridge(_rendering_suite.QObject):
         self._graphics_show_minimap = True
         self._graphics_minimap_expanded = True
         self._graphics_show_port_labels = True
+        self._graphics_show_tooltips = True
         self._graphics_edge_crossing_style = "none"
         self._graphics_node_shadow = True
         self._graphics_shadow_strength = 70
@@ -63,6 +64,10 @@ class _GraphCanvasTypographyPreferenceBridge(_rendering_suite.QObject):
     @property
     def graphics_show_port_labels(self) -> bool:
         return bool(self._graphics_show_port_labels)
+
+    @property
+    def graphics_show_tooltips(self) -> bool:
+        return bool(self._graphics_show_tooltips)
 
     @property
     def graphics_edge_crossing_style(self) -> str:
@@ -110,6 +115,13 @@ class _GraphCanvasTypographyPreferenceBridge(_rendering_suite.QObject):
         if self._graphics_graph_label_pixel_size == normalized:
             return
         self._graphics_graph_label_pixel_size = normalized
+        self.graphics_preferences_changed.emit()
+
+    def set_graphics_show_tooltips_value(self, value: bool) -> None:
+        normalized = bool(value)
+        if self._graphics_show_tooltips == normalized:
+            return
+        self._graphics_show_tooltips = normalized
         self.graphics_preferences_changed.emit()
 
     def set_graphics_graph_node_icon_pixel_size_override_value(self, value: int | None) -> None:
@@ -675,6 +687,35 @@ class GraphCanvasQmlPreferenceBindingTests(
             self.assertEqual(int(typography.property("nodeTitlePixelSize")), 18)
         finally:
             typography.deleteLater()
+            root_bindings.deleteLater()
+            self.app.processEvents()
+
+    def test_graph_tooltip_qml_bindings_follow_bridge_projection(self) -> None:
+        preference_bridge = _GraphCanvasTypographyPreferenceBridge()
+        state_bridge = GraphCanvasStateBridge(
+            shell_window=preference_bridge,  # type: ignore[arg-type]
+            view_bridge=self.view,
+        )
+        root_bindings = self._create_component(
+            _GRAPH_CANVAS_ROOT_BINDINGS_QML_PATH,
+            {"canvasStateBridge": state_bridge},
+        )
+
+        try:
+            self.assertTrue(bool(state_bridge.graphics_show_tooltips))
+            self.assertTrue(bool(root_bindings.property("showTooltips")))
+
+            preference_bridge.set_graphics_show_tooltips_value(False)
+            _rendering_suite.wait_for_condition_or_raise(
+                lambda: not bool(root_bindings.property("showTooltips")),
+                timeout_ms=200,
+                app=self.app,
+                timeout_message="Timed out waiting for GraphCanvasRootBindings to project tooltip visibility policy.",
+            )
+
+            self.assertFalse(bool(state_bridge.graphics_show_tooltips))
+            self.assertFalse(bool(root_bindings.property("showTooltips")))
+        finally:
             root_bindings.deleteLater()
             self.app.processEvents()
 

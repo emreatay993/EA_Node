@@ -8,6 +8,17 @@ Item {
     property string propertyKey: ""
     property string committedText: ""
     readonly property string text: colorField.text
+    function _tooltipBridge() {
+        if (typeof graphCanvasStateBridge !== "undefined" && graphCanvasStateBridge)
+            return graphCanvasStateBridge;
+        return null;
+    }
+    readonly property bool informationalTooltipsEnabled: {
+        var bridge = root._tooltipBridge();
+        if (bridge && bridge.graphics_show_tooltips !== undefined)
+            return Boolean(bridge.graphics_show_tooltips);
+        return true;
+    }
 
     implicitWidth: editorRow.implicitWidth
     implicitHeight: editorRow.implicitHeight
@@ -84,7 +95,7 @@ Item {
 
             onClicked: root.pickColor()
 
-            ToolTip.visible: hovered
+            ToolTip.visible: root.informationalTooltipsEnabled && hovered
             ToolTip.delay: 280
             ToolTip.text: "Pick color"
 

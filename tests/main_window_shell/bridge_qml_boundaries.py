@@ -344,7 +344,9 @@ class ShellWorkspaceBridgeQmlBoundaryTests(unittest.TestCase):
             "readonly property real contentOpacity: control.enabled ? 1.0 : 0.72",
             "property color iconColor: control.foregroundColor",
             "hoverEnabled: control.enabled",
-            "ToolTip.visible: control.enabled && hovered && resolvedTooltipText.length > 0",
+            "readonly property bool informationalTooltipsEnabled:",
+            "readonly property bool tooltipVisible: control.enabled",
+            "ToolTip.visible: tooltipVisible",
             "opacity: control.contentOpacity",
             "color: control.foregroundColor",
             "(control.enabled && control.down)",
@@ -354,6 +356,52 @@ class ShellWorkspaceBridgeQmlBoundaryTests(unittest.TestCase):
         for snippet in present_snippets:
             with self.subTest(snippet=snippet):
                 self.assertIn(snippet, qml_text)
+
+    def test_shell_tooltip_qml_surfaces_gate_informational_tooltips_through_canvas_state_bridge(
+        self,
+    ) -> None:
+        expectations = {
+            "ea_node_editor/ui_qml/components/shell/ShellButton.qml": (
+                "function _tooltipBridge() {",
+                'typeof graphCanvasStateBridge !== "undefined"',
+                "readonly property bool informationalTooltipsEnabled:",
+                "bridge.graphics_show_tooltips",
+                "readonly property bool tooltipVisible: control.enabled",
+                "ToolTip.visible: tooltipVisible",
+            ),
+            "ea_node_editor/ui_qml/components/shell/ShellCreateButton.qml": (
+                "function _tooltipBridge() {",
+                "readonly property bool informationalTooltipsEnabled:",
+                "bridge.graphics_show_tooltips",
+                "readonly property bool tooltipVisible: informationalTooltipsEnabled",
+                "ToolTip.visible: tooltipVisible",
+            ),
+            "ea_node_editor/ui_qml/components/shell/InspectorButton.qml": (
+                "function _tooltipBridge() {",
+                "readonly property bool informationalTooltipsEnabled:",
+                "bridge.graphics_show_tooltips",
+                "readonly property bool tooltipVisible: informationalTooltipsEnabled",
+                "ToolTip.visible: tooltipVisible",
+            ),
+            "ea_node_editor/ui_qml/components/shell/InspectorColorField.qml": (
+                "function _tooltipBridge() {",
+                "readonly property bool informationalTooltipsEnabled:",
+                "bridge.graphics_show_tooltips",
+                "ToolTip.visible: root.informationalTooltipsEnabled && hovered",
+            ),
+            "ea_node_editor/ui_qml/components/shell/ShellCollapsibleSidePane.qml": (
+                "function _tooltipBridge() {",
+                "readonly property bool informationalTooltipsEnabled:",
+                "bridge.graphics_show_tooltips",
+                "ToolTip.visible: root.informationalTooltipsEnabled",
+            ),
+        }
+
+        for relative_path, present_snippets in expectations.items():
+            qml_text = (_REPO_ROOT / relative_path).read_text(encoding="utf-8")
+            for snippet in present_snippets:
+                with self.subTest(path=relative_path, snippet=snippet):
+                    self.assertIn(snippet, qml_text)
 
     def test_main_shell_keeps_only_the_remaining_live_shell_plumbing_assignments(self) -> None:
         qml_path = _REPO_ROOT / "ea_node_editor/ui_qml/MainShell.qml"
@@ -504,30 +552,30 @@ class GraphCanvasQmlBoundaryTests(unittest.TestCase):
             "readonly property var _canvasShellCommandBridgeRef",
             "readonly property var _canvasSceneCommandBridgeRef",
             "readonly property var _canvasViewCommandBridgeRef",
-            "readonly property var sceneBridge: root._canvasSceneStateBridgeRef",
-            "readonly property var viewBridge: root._canvasViewStateBridgeRef",
-            "root._canvasStateBridgeRef.graphics_show_grid",
-            "root._canvasSceneStateBridgeRef.nodes_model",
+            "readonly property var sceneStateBridge: rootBindings.sceneStateBridge",
+            "readonly property var sceneCommandBridge: rootBindings.sceneCommandBridge",
+            "readonly property var sceneBridge: rootBindings.sceneBridge",
+            "readonly property var viewBridge: rootBindings.viewBridge",
+            "readonly property bool showGrid: rootBindings.showGrid",
             "GraphCanvasComponents.GraphCanvasInteractionState {",
             "GraphCanvasComponents.GraphCanvasSceneState {",
             "GraphCanvasComponents.GraphCanvasNodeSurfaceBridge {",
             "GraphCanvasComponents.GraphCanvasViewportController {",
             "GraphCanvasComponents.GraphCanvasSceneLifecycle {",
-            "GraphCanvasComponents.GraphCanvasWorldLayer {",
+            "GraphCanvasComponents.GraphCanvasRootLayers {",
             "readonly property var canvasViewportController: viewportController",
             "readonly property var canvasSceneLifecycle: sceneLifecycle",
             "property alias hoveredPort: interactionState.hoveredPort",
             "property alias pendingConnectionPort: interactionState.pendingConnectionPort",
             "property alias interactionActive: interactionState.interactionActive",
-            "interactionState.updateLibraryDropPreview(screenX, screenY, payload);",
-            "interactionState.beginPortWireDrag(nodeId, portKey, direction, sceneX, sceneY, screenX, screenY);",
-            "viewportController.applyWheelZoom(eventObj);",
-            "sceneLifecycle.requestEdgeRedraw();",
-            "viewBridge: root._canvasViewStateBridgeRef",
-            "sceneBridge: root._canvasSceneStateBridgeRef",
+            'GraphCanvasRootApi.invoke(interactionState, "updateLibraryDropPreview", [screenX, screenY, payload]);',
+            'GraphCanvasRootApi.invoke(interactionState, "beginPortWireDrag", [nodeId, portKey, direction, sceneX, sceneY, screenX, screenY]);',
+            'GraphCanvasRootApi.invoke(viewportController, "applyWheelZoom", [eventObj], false);',
+            'GraphCanvasRootApi.invoke(sceneLifecycle, "requestEdgeRedraw");',
+            "sceneBridge: root.sceneStateBridge",
             "shellCommandBridge: root._canvasShellCommandBridgeRef",
-            "sceneCommandBridge: root._canvasSceneCommandBridgeRef",
-            "sceneStateBridge: root._canvasSceneStateBridgeRef",
+            "sceneCommandBridge: root.sceneCommandBridge",
+            "sceneStateBridge: root.sceneStateBridge",
             "viewStateBridge: root._canvasViewStateBridgeRef",
             "viewCommandBridge: root._canvasViewCommandBridgeRef",
         )
@@ -539,6 +587,42 @@ class GraphCanvasQmlBoundaryTests(unittest.TestCase):
         for snippet in present_snippets:
             with self.subTest(snippet=snippet, expectation="present"):
                 self.assertIn(snippet, qml_text)
+
+    def test_graph_canvas_tooltip_qml_surfaces_bind_to_bridge_first_policy_and_preserve_inactive_explanations(
+        self,
+    ) -> None:
+        expectations = {
+            "ea_node_editor/ui_qml/components/graph_canvas/GraphCanvasRootBindings.qml": (
+                "readonly property bool showTooltips: root._canvasStateBridgeRef",
+                "root._canvasStateBridgeRef.graphics_show_tooltips",
+            ),
+            "ea_node_editor/ui_qml/components/graph/surface_controls/GraphSurfaceButton.qml": (
+                "function _tooltipBridge() {",
+                "readonly property bool informationalTooltipsEnabled:",
+                "bridge.graphics_show_tooltips",
+                "readonly property bool tooltipVisible: informationalTooltipsEnabled",
+                "ToolTip.visible: tooltipVisible",
+            ),
+            "ea_node_editor/ui_qml/components/graph_canvas/GraphCanvasMinimapOverlay.qml": (
+                "function _tooltipBridge() {",
+                "readonly property bool informationalTooltipsEnabled:",
+                "bridge.graphics_show_tooltips",
+                "ToolTip.visible: root.informationalTooltipsEnabled && minimapToggleMouse.containsMouse",
+            ),
+            "ea_node_editor/ui_qml/components/graph/GraphNodePortsLayer.qml": (
+                "function _tooltipBridge() {",
+                "property bool infoTooltipsEnabled: {",
+                "property bool tooltipVisible: infoTooltipsEnabled",
+                "property bool inactiveTooltipVisible: containsMouse",
+                "ToolTip.visible: tooltipVisible || inactiveTooltipVisible",
+            ),
+        }
+
+        for relative_path, present_snippets in expectations.items():
+            qml_text = (_REPO_ROOT / relative_path).read_text(encoding="utf-8")
+            for snippet in present_snippets:
+                with self.subTest(path=relative_path, snippet=snippet):
+                    self.assertIn(snippet, qml_text)
 
     def test_graph_typography_qml_contract_exposes_canvas_binding_and_shared_role_names(self) -> None:
         expectations = {

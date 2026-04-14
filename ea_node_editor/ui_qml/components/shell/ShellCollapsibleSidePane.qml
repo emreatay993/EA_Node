@@ -24,6 +24,17 @@ Rectangle {
     property alias contentData: paneContentLayout.data
     property alias headerActionsData: headerActionsLayout.data
     readonly property var themePalette: themeBridge.palette
+    function _tooltipBridge() {
+        if (typeof graphCanvasStateBridge !== "undefined" && graphCanvasStateBridge)
+            return graphCanvasStateBridge;
+        return null;
+    }
+    readonly property bool informationalTooltipsEnabled: {
+        var bridge = root._tooltipBridge();
+        if (bridge && bridge.graphics_show_tooltips !== undefined)
+            return Boolean(bridge.graphics_show_tooltips);
+        return true;
+    }
     readonly property bool isLeftSide: String(side || "").toLowerCase() === "left"
     readonly property string collapseButtonText: root.isLeftSide ? "‹" : "›"
     readonly property string collapseButtonIconName: root.isLeftSide ? "chevrons-left" : "chevrons-right"
@@ -187,7 +198,10 @@ Rectangle {
             enabled: root.paneCollapsed
         }
 
-        ToolTip.visible: collapsedHandleHover.hovered && root.paneCollapsed && root.expandHandleTooltip.length > 0
+        ToolTip.visible: root.informationalTooltipsEnabled
+            && collapsedHandleHover.hovered
+            && root.paneCollapsed
+            && root.expandHandleTooltip.length > 0
         ToolTip.text: root.expandHandleTooltip
 
         TapHandler {

@@ -9,6 +9,11 @@ ToolButton {
     property url iconSource: ""
     property string tooltipText: ""
     property int iconSize: iconName.length > 0 && uiIcons.has(iconName) ? uiIcons.defaultSize(iconName) : 16
+    function _tooltipBridge() {
+        if (typeof graphCanvasStateBridge !== "undefined" && graphCanvasStateBridge)
+            return graphCanvasStateBridge;
+        return null;
+    }
     readonly property color foregroundColor: !control.enabled
         ? Qt.alpha(control.themePalette.muted_fg, 0.55)
         : (control.selectedStyle ? control.themePalette.tab_selected_fg : control.themePalette.tab_fg)
@@ -35,12 +40,22 @@ ToolButton {
     readonly property string resolvedTooltipText: tooltipText.length > 0
         ? tooltipText
         : (iconName.length > 0 ? uiIcons.label(iconName) : "")
+    readonly property bool informationalTooltipsEnabled: {
+        var bridge = control._tooltipBridge();
+        if (bridge && bridge.graphics_show_tooltips !== undefined)
+            return Boolean(bridge.graphics_show_tooltips);
+        return true;
+    }
+    readonly property bool tooltipVisible: control.enabled
+        && informationalTooltipsEnabled
+        && hovered
+        && resolvedTooltipText.length > 0
     implicitHeight: 24
     implicitWidth: Math.max(control.resolvedIconSource !== "" && control.text.length === 0 ? 28 : 64, contentRow.implicitWidth + 16)
     padding: 0
     hoverEnabled: control.enabled
 
-    ToolTip.visible: control.enabled && hovered && resolvedTooltipText.length > 0
+    ToolTip.visible: tooltipVisible
     ToolTip.text: resolvedTooltipText
     ToolTip.delay: 300
 

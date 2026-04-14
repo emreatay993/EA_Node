@@ -5,6 +5,20 @@ ToolButton {
     id: control
     readonly property var themePalette: themeBridge.palette
     property string tooltipText: text
+    function _tooltipBridge() {
+        if (typeof graphCanvasStateBridge !== "undefined" && graphCanvasStateBridge)
+            return graphCanvasStateBridge;
+        return null;
+    }
+    readonly property bool informationalTooltipsEnabled: {
+        var bridge = control._tooltipBridge();
+        if (bridge && bridge.graphics_show_tooltips !== undefined)
+            return Boolean(bridge.graphics_show_tooltips);
+        return true;
+    }
+    readonly property bool tooltipVisible: informationalTooltipsEnabled
+        && hovered
+        && tooltipText.length > 0
     property bool accentOutline: false
     property int buttonHeight: 30
     property int labelFontPixelSize: 11
@@ -24,7 +38,7 @@ ToolButton {
     padding: 0
     hoverEnabled: true
 
-    ToolTip.visible: hovered && tooltipText.length > 0
+    ToolTip.visible: tooltipVisible
     ToolTip.text: tooltipText
     ToolTip.delay: 300
 

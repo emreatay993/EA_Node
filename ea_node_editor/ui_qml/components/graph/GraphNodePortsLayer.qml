@@ -77,6 +77,18 @@ Item {
         return !!(portData && portData.inactive);
     }
 
+    function _tooltipBridge() {
+        if (root.host && root.host.canvasItem) {
+            if (root.host.canvasItem.canvasStateBridgeRef)
+                return root.host.canvasItem.canvasStateBridgeRef;
+            if (root.host.canvasItem._canvasStateBridgeRef)
+                return root.host.canvasItem._canvasStateBridgeRef;
+        }
+        if (typeof graphCanvasStateBridge !== "undefined" && graphCanvasStateBridge)
+            return graphCanvasStateBridge;
+        return null;
+    }
+
     function _portKey(portData) {
         return String(portData && portData.key || "");
     }
@@ -240,9 +252,16 @@ Item {
                     preventStealing: true
                     cursorShape: inputDot.interactionBlockedState ? Qt.ForbiddenCursor : Qt.PointingHandCursor
                     property bool tooltipOnlyPortLabelActive: root.host ? root.host._tooltipOnlyPortLabelsActive : false
+                    property bool infoTooltipsEnabled: {
+                        var bridge = root._tooltipBridge();
+                        if (bridge && bridge.graphics_show_tooltips !== undefined)
+                            return Boolean(bridge.graphics_show_tooltips);
+                        return true;
+                    }
                     property string portLabelTooltipText: root._portLabelText(modelData)
                     property string inactiveTooltipText: String(modelData && modelData.inactive_reason || "")
-                    property bool tooltipVisible: tooltipOnlyPortLabelActive
+                    property bool tooltipVisible: infoTooltipsEnabled
+                        && tooltipOnlyPortLabelActive
                         && containsMouse
                         && portLabelTooltipText.length > 0
                     property bool inactiveTooltipVisible: containsMouse
@@ -702,8 +721,15 @@ Item {
                     preventStealing: true
                     cursorShape: Qt.PointingHandCursor
                     property bool tooltipOnlyPortLabelActive: root.host ? root.host._tooltipOnlyPortLabelsActive : false
+                    property bool infoTooltipsEnabled: {
+                        var bridge = root._tooltipBridge();
+                        if (bridge && bridge.graphics_show_tooltips !== undefined)
+                            return Boolean(bridge.graphics_show_tooltips);
+                        return true;
+                    }
                     property string portLabelTooltipText: root._portLabelText(modelData)
-                    property bool tooltipVisible: tooltipOnlyPortLabelActive
+                    property bool tooltipVisible: infoTooltipsEnabled
+                        && tooltipOnlyPortLabelActive
                         && hoverActive
                         && portLabelTooltipText.length > 0
 
