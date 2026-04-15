@@ -21,18 +21,24 @@ from ea_node_editor.execution.dpf_runtime_service import (
 )
 from ea_node_editor.nodes.execution_context import ExecutionContext
 from ea_node_editor.nodes.node_specs import (
+    DPF_DATA_SOURCES_DATA_TYPE,
     DPF_FIELD_DATA_TYPE,
+    DPF_FIELDS_CONTAINER_DATA_TYPE,
     DPF_MESH_DATA_TYPE,
     DPF_MODEL_DATA_TYPE,
+    DPF_OBJECT_HANDLE_DATA_TYPE,
     DPF_RESULT_FILE_DATA_TYPE,
     DPF_SCOPING_DATA_TYPE,
+    DPF_STREAMS_CONTAINER_DATA_TYPE,
     DPF_VIEW_SESSION_DATA_TYPE,
+    DPF_WORKFLOW_DATA_TYPE,
     DpfOperatorSelectorCondition,
     DpfOperatorSourceSpec,
     DpfOperatorVariantSpec,
     DpfPinSourceSpec,
     NodeTypeSpec,
     PropertySpec,
+    normalize_dpf_type_id,
 )
 from ea_node_editor.runtime_contracts import RuntimeHandleRef
 
@@ -354,6 +360,48 @@ def normalize_dpf_descriptor_spec(spec: NodeTypeSpec) -> NodeTypeSpec:
         ),
         source_metadata=node_source if node_source is not None else spec.source_metadata,
     )
+
+
+def normalize_dpf_live_type_name(type_name: object) -> str:
+    normalized = str(type_name or "").strip().lower()
+    if not normalized:
+        return DPF_OBJECT_HANDLE_DATA_TYPE
+    if normalized == "bool":
+        return "bool"
+    if normalized == "int32":
+        return "int"
+    if normalized == "double":
+        return "float"
+    if normalized == "string":
+        return "str"
+    if normalized.startswith("vector<"):
+        return "json"
+    if normalized.startswith("enum ") or normalized.endswith("_enum"):
+        return "int"
+    if normalized == "any":
+        return "any"
+    if normalized == "fields_container":
+        return DPF_FIELDS_CONTAINER_DATA_TYPE
+    if normalized == "data_sources":
+        return DPF_DATA_SOURCES_DATA_TYPE
+    if normalized == "streams_container":
+        return DPF_STREAMS_CONTAINER_DATA_TYPE
+    if normalized == "workflow":
+        return DPF_WORKFLOW_DATA_TYPE
+    if "meshed_region" in normalized or normalized == "mesh":
+        return DPF_MESH_DATA_TYPE
+    canonical = normalize_dpf_type_id(normalized)
+    if canonical != DPF_OBJECT_HANDLE_DATA_TYPE:
+        return canonical
+    return DPF_OBJECT_HANDLE_DATA_TYPE
+
+
+def humanize_dpf_symbol_name(value: object) -> str:
+    token = re.sub(r"[^0-9A-Za-z]+", " ", str(value or "").strip().replace("_", " "))
+    token = re.sub(r"\s+", " ", token).strip()
+    if not token:
+        return "DPF Value"
+    return " ".join(part.capitalize() for part in token.split(" "))
 
 
 def dpf_output_mode_property(*, default: str = DPF_OUTPUT_MODE_MEMORY) -> PropertySpec:
@@ -1136,6 +1184,7 @@ __all__ = [
     "is_result_file_handle",
     "is_time_scoping_handle",
     "normalize_dpf_output_mode",
+    "normalize_dpf_live_type_name",
     "normalize_dpf_viewer_live_policy",
     "normalize_export_artifact_key",
     "normalize_export_formats",
@@ -1155,6 +1204,7 @@ __all__ = [
     "resolve_named_selection",
     "resolve_single_active_set",
     "resolve_time_selection",
+    "humanize_dpf_symbol_name",
     "unwrap_single_field_handle",
     "wrap_field_handle_as_fields_container",
 ]

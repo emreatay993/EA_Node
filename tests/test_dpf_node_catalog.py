@@ -221,6 +221,9 @@ _EXPECTED_DPF_DESCRIPTOR_ORDER = (
     DPF_FIELD_OPS_NODE_TYPE_ID,
 )
 
+_GENERATED_DPF_RESULT_OPERATOR_TYPE_ID = "dpf.op.result.displacement"
+_GENERATED_DPF_MATH_OPERATOR_TYPE_ID = "dpf.op.math.add"
+
 
 class DpfNodeCatalogTests(unittest.TestCase):
     def setUp(self) -> None:
@@ -494,6 +497,25 @@ class DpfNodeCatalogTests(unittest.TestCase):
         self.assertEqual(field_ops_ports["field_min"].source_metadata.pin_name, "field_min")
         self.assertEqual(field_ops_ports["field_max"].source_metadata.pin_name, "field_max")
 
+        displacement = descriptors[_GENERATED_DPF_RESULT_OPERATOR_TYPE_ID]
+        self.assertEqual(displacement.category_path, operator_family_category_path("result"))
+        self.assertEqual(displacement.source_metadata.variants[0].operator_name, "U")
+        self.assertEqual(
+            displacement.source_metadata.source_path,
+            "ansys.dpf.core.operators.result.displacement",
+        )
+        self.assertEqual(displacement.source_metadata.family_path, operator_family_path("result"))
+        self.assertEqual(displacement.source_metadata.stability, "core")
+        displacement_ports = {port.key: port for port in displacement.ports}
+        self.assertTrue(displacement_ports["data_sources"].required)
+        self.assertTrue(displacement_ports["data_sources"].exposed)
+        self.assertEqual(displacement_ports["data_sources"].data_type, "dpf_data_sources")
+        self.assertFalse(displacement_ports["time_scoping"].exposed)
+        self.assertIn("dpf_scoping", displacement_ports["time_scoping"].accepted_data_types)
+        displacement_properties = {prop.key: prop for prop in displacement.properties}
+        self.assertEqual(displacement_properties["bool_rotate_to_global"].type, "bool")
+        self.assertTrue(displacement_properties["bool_rotate_to_global"].expose_port_toggle)
+
         self.assertIsNone(descriptors[DPF_MODEL_NODE_TYPE_ID].source_metadata)
         self.assertIsNone(descriptors[DPF_EXPORT_NODE_TYPE_ID].source_metadata)
         self.assertIsNone(descriptors[DPF_VIEWER_NODE_TYPE_ID].source_metadata)
@@ -526,8 +548,11 @@ class DpfNodeCatalogTests(unittest.TestCase):
             self.assertEqual(node_plugins, ())
             return
 
-        expected_type_ids = _EXPECTED_DPF_DESCRIPTOR_ORDER
-        self.assertEqual(tuple(descriptor.spec.type_id for descriptor in descriptors), expected_type_ids)
+        actual_type_ids = tuple(descriptor.spec.type_id for descriptor in descriptors)
+        self.assertEqual(actual_type_ids[: len(_EXPECTED_DPF_DESCRIPTOR_ORDER)], _EXPECTED_DPF_DESCRIPTOR_ORDER)
+        self.assertIn(_GENERATED_DPF_RESULT_OPERATOR_TYPE_ID, actual_type_ids)
+        self.assertIn(_GENERATED_DPF_MATH_OPERATOR_TYPE_ID, actual_type_ids)
+        self.assertTrue(any(type_id.startswith("dpf.op.") for type_id in actual_type_ids))
         self.assertEqual(tuple(descriptor.factory for descriptor in descriptors), node_plugins)
 
     def test_title_icon_dpf_specs_use_packaged_relative_assets(self) -> None:
@@ -561,16 +586,32 @@ class DpfNodeCatalogTests(unittest.TestCase):
             )
             return
 
-        self.assertEqual({spec.type_id for spec in dpf_specs}, set(_EXPECTED_DPF_SPECS))
-        self.assertEqual(
-            {spec.category_path for spec in dpf_specs},
-            set(_EXPECTED_DPF_CATEGORY_PATHS.values()),
+        dpf_type_ids = {spec.type_id for spec in dpf_specs}
+        self.assertTrue(set(_EXPECTED_DPF_SPECS).issubset(dpf_type_ids))
+        self.assertIn(_GENERATED_DPF_RESULT_OPERATOR_TYPE_ID, dpf_type_ids)
+        self.assertIn(_GENERATED_DPF_MATH_OPERATOR_TYPE_ID, dpf_type_ids)
+        self.assertGreater(len(dpf_type_ids), len(_EXPECTED_DPF_SPECS))
+        self.assertTrue(
+            {
+                DPF_INPUTS_CATEGORY_PATH,
+                DPF_WORKFLOW_CATEGORY_PATH,
+                DPF_HELPERS_SCOPING_CATEGORY_PATH,
+                DPF_HELPERS_CONTAINERS_CATEGORY_PATH,
+                DPF_HELPERS_SUPPORT_CATEGORY_PATH,
+                DPF_VIEWER_CATEGORY_PATH,
+                operator_family_category_path("result"),
+                operator_family_category_path("math"),
+            }.issubset({spec.category_path for spec in dpf_specs})
         )
         self.assertIn(DPF_NODE_CATEGORY_PATH, self.registry.category_paths())
-        self.assertEqual(
-            {spec.type_id for spec in self.registry.filter_nodes(data_type=DPF_SCOPING_DATA_TYPE, direction="out")},
-            {DPF_MESH_SCOPING_NODE_TYPE_ID, DPF_TIME_SCOPING_NODE_TYPE_ID},
+        scoping_output_type_ids = {
+            spec.type_id
+            for spec in self.registry.filter_nodes(data_type=DPF_SCOPING_DATA_TYPE, direction="out")
+        }
+        self.assertTrue(
+            {DPF_MESH_SCOPING_NODE_TYPE_ID, DPF_TIME_SCOPING_NODE_TYPE_ID}.issubset(scoping_output_type_ids)
         )
+        self.assertTrue(any(type_id.startswith("dpf.op.") for type_id in scoping_output_type_ids))
 
     @unittest.skipIf(dpf is None, "ansys.dpf.core is not installed")
     def test_result_file_and_model_nodes_emit_handle_based_outputs(self) -> None:
