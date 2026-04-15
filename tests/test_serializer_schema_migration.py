@@ -100,6 +100,71 @@ def _dpf_rebind_payload() -> dict[str, object]:
     }
 
 
+def _generated_dpf_rebind_payload() -> dict[str, object]:
+    return {
+        "schema_version": SCHEMA_VERSION,
+        "project_id": "proj_generated_dpf_rebind",
+        "name": "Generated DPF Rebind",
+        "active_workspace_id": "ws_dpf",
+        "workspace_order": ["ws_dpf"],
+        "workspaces": [
+            {
+                "workspace_id": "ws_dpf",
+                "name": "Workspace DPF",
+                "active_view_id": "view_dpf",
+                "views": [
+                    {
+                        "view_id": "view_dpf",
+                        "name": "V1",
+                        "zoom": 1.0,
+                        "pan_x": 0.0,
+                        "pan_y": 0.0,
+                    }
+                ],
+                "nodes": [
+                    {
+                        "node_id": "node_streams_container",
+                        "type_id": "dpf.helper.streams_container.streams_container",
+                        "title": "Saved Streams Container",
+                        "x": 0.0,
+                        "y": 0.0,
+                        "collapsed": False,
+                        "properties": {},
+                        "exposed_ports": {"streams_container": True, "exec_out": True},
+                        "port_labels": {"streams_container": "Saved Streams Container"},
+                        "parent_node_id": None,
+                    },
+                    {
+                        "node_id": "node_displacement",
+                        "type_id": "dpf.op.result.displacement",
+                        "title": "Saved Displacement",
+                        "x": 280.0,
+                        "y": 0.0,
+                        "collapsed": False,
+                        "properties": {"read_cyclic": 2, "phi": 45.0},
+                        "exposed_ports": {"streams_container": False, "fields_container_2": True, "exec_in": True},
+                        "port_labels": {
+                            "streams_container": "Hidden Saved Streams Container",
+                            "fields_container_2": "Saved Fields",
+                        },
+                        "parent_node_id": None,
+                    },
+                ],
+                "edges": [
+                    {
+                        "edge_id": "edge_generated_streams",
+                        "source_node_id": "node_streams_container",
+                        "source_port_key": "streams_container",
+                        "target_node_id": "node_displacement",
+                        "target_port_key": "streams_container",
+                    }
+                ],
+            }
+        ],
+        "metadata": {},
+    }
+
+
 class SerializerSchemaMigrationTests(unittest.TestCase):
     def test_migrate_prefers_explicit_workspace_order_and_normalizes_metadata_copy(self) -> None:
         serializer = JsonProjectSerializer(build_default_registry())
@@ -457,6 +522,31 @@ class SerializerSchemaMigrationTests(unittest.TestCase):
         self.assertEqual(workspace.unresolved_node_docs, {})
         self.assertEqual(workspace.unresolved_edge_docs, {})
         self.assertFalse(workspace.nodes["node_model"].exposed_ports["result_file"])
+
+    def test_normalize_project_for_registry_rebinds_generated_dpf_nodes_and_hidden_edges(self) -> None:
+        missing_registry = NodeRegistry()
+        serializer = JsonProjectSerializer(missing_registry)
+        project = serializer.from_document(_generated_dpf_rebind_payload())
+        workspace = project.workspaces["ws_dpf"]
+
+        self.assertEqual(workspace.nodes, {})
+        self.assertEqual(set(workspace.unresolved_node_docs), {"node_streams_container", "node_displacement"})
+        self.assertEqual(set(workspace.unresolved_edge_docs), {"edge_generated_streams"})
+
+        rebind_registry = build_default_registry()
+        if rebind_registry.spec_or_none("dpf.op.result.displacement") is None:
+            self.skipTest("Generated DPF operator descriptors are not available in this environment.")
+
+        normalize_project_for_registry(project, rebind_registry)
+        workspace = project.workspaces["ws_dpf"]
+
+        self.assertEqual(set(workspace.nodes), {"node_streams_container", "node_displacement"})
+        self.assertEqual(set(workspace.edges), {"edge_generated_streams"})
+        self.assertEqual(workspace.unresolved_node_docs, {})
+        self.assertEqual(workspace.unresolved_edge_docs, {})
+        self.assertFalse(workspace.nodes["node_displacement"].exposed_ports["streams_container"])
+        self.assertEqual(workspace.nodes["node_displacement"].properties["read_cyclic"], 2)
+        self.assertEqual(workspace.nodes["node_displacement"].port_labels["fields_container_2"], "Saved Fields")
 
 
 if __name__ == "__main__":

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import copy
 import unittest
+from unittest import mock
 
 from ea_node_editor.graph.model import GraphModel
 from ea_node_editor.nodes.bootstrap import build_default_registry
@@ -120,6 +121,71 @@ def _dpf_hidden_edge_placeholder_payload() -> dict[str, object]:
                         "source_port_key": "result_file",
                         "target_node_id": "node_model",
                         "target_port_key": "result_file",
+                    }
+                ],
+            }
+        ],
+        "metadata": {},
+    }
+
+
+def _generated_dpf_placeholder_payload() -> dict[str, object]:
+    return {
+        "schema_version": SCHEMA_VERSION,
+        "project_id": "proj_generated_dpf_placeholder",
+        "name": "Generated DPF Placeholder",
+        "active_workspace_id": "ws_dpf",
+        "workspace_order": ["ws_dpf"],
+        "workspaces": [
+            {
+                "workspace_id": "ws_dpf",
+                "name": "Workspace DPF",
+                "active_view_id": "view_dpf",
+                "views": [
+                    {
+                        "view_id": "view_dpf",
+                        "name": "V1",
+                        "zoom": 1.0,
+                        "pan_x": 0.0,
+                        "pan_y": 0.0,
+                    }
+                ],
+                "nodes": [
+                    {
+                        "node_id": "node_streams_container",
+                        "type_id": "dpf.helper.streams_container.streams_container",
+                        "title": "Saved Streams Container",
+                        "x": 40.0,
+                        "y": 40.0,
+                        "collapsed": False,
+                        "properties": {},
+                        "exposed_ports": {"streams_container": True, "exec_out": True},
+                        "port_labels": {"streams_container": "Saved Streams Container"},
+                        "parent_node_id": None,
+                    },
+                    {
+                        "node_id": "node_displacement",
+                        "type_id": "dpf.op.result.displacement",
+                        "title": "Saved Displacement",
+                        "x": 340.0,
+                        "y": 40.0,
+                        "collapsed": True,
+                        "properties": {"read_cyclic": 2, "phi": 90.0},
+                        "exposed_ports": {"streams_container": False, "fields_container_2": True},
+                        "port_labels": {
+                            "streams_container": "Hidden Saved Streams Container",
+                            "fields_container_2": "Saved Fields",
+                        },
+                        "parent_node_id": None,
+                    },
+                ],
+                "edges": [
+                    {
+                        "edge_id": "edge_generated_streams_container",
+                        "source_node_id": "node_streams_container",
+                        "source_port_key": "streams_container",
+                        "target_node_id": "node_displacement",
+                        "target_port_key": "streams_container",
                     }
                 ],
             }
@@ -358,6 +424,46 @@ class SerializerDpfPlaceholderTests(unittest.TestCase):
         self.assertEqual(
             set(runtime_envelope.workspace_envelope("ws_dpf").unresolved_edge_docs),
             {"edge_hidden_result_file"},
+        )
+
+    def test_generated_dpf_placeholder_projection_preserves_saved_properties_and_labels(self) -> None:
+        serializer = JsonProjectSerializer(NodeRegistry())
+        payload = _generated_dpf_placeholder_payload()
+
+        project = serializer.from_document(copy.deepcopy(payload))
+        runtime_document = serializer.to_document(project)
+        runtime_envelope = ProjectPersistenceEnvelope.from_document(runtime_document)
+        self.assertEqual(
+            set(runtime_envelope.workspace_envelope("ws_dpf").unresolved_edge_docs),
+            {"edge_generated_streams_container"},
+        )
+
+        loaded_model = GraphModel(project)
+        scene = GraphSceneBridge()
+        with mock.patch(
+            "ea_node_editor.ui_qml.graph_scene_payload_builder._dpf_placeholder_specs_by_type_id",
+            return_value={},
+        ):
+            scene.set_workspace(loaded_model, NodeRegistry(), "ws_dpf")
+
+        payloads = {payload["node_id"]: payload for payload in scene.nodes_model}
+        displacement = payloads["node_displacement"]
+        streams_container = payloads["node_streams_container"]
+
+        self.assertTrue(displacement["unresolved"])
+        self.assertTrue(displacement["read_only"])
+        self.assertEqual(displacement["properties"], {"read_cyclic": 2, "phi": 90.0})
+        self.assertEqual(
+            {port["key"]: port["label"] for port in streams_container["ports"]}["streams_container"],
+            "Saved Streams Container",
+        )
+        self.assertEqual(
+            {port["key"]: port["label"] for port in displacement["ports"]}["fields_container_2"],
+            "Saved Fields",
+        )
+        self.assertNotIn(
+            "streams_container",
+            {port["key"] for port in displacement["ports"]},
         )
 
 

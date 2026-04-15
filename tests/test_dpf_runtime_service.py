@@ -15,7 +15,10 @@ if str(_TESTS_ROOT) not in sys.path:
 dpf = pytest.importorskip("ansys.dpf.core")
 
 from ansys_dpf_core.fixture_paths import MODAL_ANALYSIS_RST, STATIC_ANALYSIS_RST, THERMAL_ANALYSIS_RTH
-from ea_node_editor.execution.dpf_runtime.contracts import DpfOperatorInvocationError
+from ea_node_editor.execution.dpf_runtime.contracts import (
+    DPF_OBJECT_HANDLE_KIND,
+    DpfOperatorInvocationError,
+)
 from ea_node_editor.execution.dpf_runtime_service import (
     DPF_FIELDS_CONTAINER_HANDLE_KIND,
     DPF_FIELD_HANDLE_KIND,
@@ -29,6 +32,10 @@ from ea_node_editor.execution.dpf_runtime_service import (
 )
 from ea_node_editor.execution.handle_registry import StaleHandleError
 from ea_node_editor.execution.worker_services import WorkerServices
+from ea_node_editor.nodes.node_specs import (
+    DPF_DATA_SOURCES_DATA_TYPE,
+    DPF_STREAMS_CONTAINER_DATA_TYPE,
+)
 
 
 class _FakeScoping:
@@ -407,6 +414,64 @@ class DpfRuntimeServiceTests(unittest.TestCase):
         self.assertIn("min_max.min_max_fc", str(exc_info.exception))
         self.assertIn("dpf.field_ops", str(exc_info.exception))
         self.assertIn("boom", str(exc_info.exception))
+
+    def test_invoke_generated_operator_uses_source_path_and_materializes_helper_handles(self) -> None:
+        services = WorkerServices()
+        service = services.dpf_runtime_service
+        capture: dict[str, object] = {}
+
+        data_sources = object()
+        streams_container = object()
+        mesh = object()
+        mesh_scoping = _FakeScoping(ids=[3, 4], location="Nodal")
+        data_sources_ref = services.register_handle(
+            data_sources,
+            kind=DPF_OBJECT_HANDLE_KIND,
+            owner_scope="run:generated_operator",
+            metadata={"dpf_data_type": DPF_DATA_SOURCES_DATA_TYPE},
+        )
+        streams_container_ref = services.register_handle(
+            streams_container,
+            kind=DPF_OBJECT_HANDLE_KIND,
+            owner_scope="run:generated_operator",
+            metadata={"dpf_data_type": DPF_STREAMS_CONTAINER_DATA_TYPE},
+        )
+        mesh_ref = services.register_handle(
+            mesh,
+            kind=DPF_MESH_HANDLE_KIND,
+            owner_scope="run:generated_operator",
+        )
+        mesh_scoping_ref = services.register_handle(
+            mesh_scoping,
+            kind=DPF_MESH_SCOPING_HANDLE_KIND,
+            owner_scope="run:generated_operator",
+            metadata={"ids": [3, 4], "location": "Nodal"},
+        )
+        fake_dpf = _fake_dpf_module(
+            result_factory=_capturing_factory(capture, {"fields_container": "generated_output"}),
+        )
+
+        with mock.patch.object(service, "_dpf_module", return_value=fake_dpf):
+            invocation = service.invoke_operator(
+                "dpf.op.result.displacement",
+                inputs={
+                    "data_sources": data_sources_ref,
+                    "streams_container": streams_container_ref,
+                    "mesh": mesh_ref,
+                    "mesh_scoping": mesh_scoping_ref,
+                },
+                properties={},
+            )
+
+        self.assertEqual(invocation.operator_name, "result.displacement")
+        self.assertEqual(invocation.outputs["fields_container_2"], "generated_output")
+
+        operator = capture["operator"]
+        self.assertIsInstance(operator, _FakeOperator)
+        self.assertIs(operator.inputs.calls["data_sources"], data_sources)
+        self.assertIs(operator.inputs.calls["streams_container"], streams_container)
+        self.assertIs(operator.inputs.calls["mesh"], mesh)
+        self.assertIs(operator.inputs.calls["mesh_scoping"], mesh_scoping)
 
 
 if __name__ == "__main__":

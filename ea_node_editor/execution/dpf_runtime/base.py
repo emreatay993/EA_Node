@@ -14,6 +14,7 @@ from ea_node_editor.execution.dpf_runtime.contracts import (
     DPF_MESH_HANDLE_KIND,
     DPF_MESH_SCOPING_HANDLE_KIND,
     DPF_MODEL_HANDLE_KIND,
+    DPF_OBJECT_HANDLE_KIND,
     DPF_RESULT_FILE_HANDLE_KIND,
     DPF_TIME_SCOPING_HANDLE_KIND,
     FIELD_LOCATION_ALIASES,
@@ -30,8 +31,12 @@ from ea_node_editor.execution.dpf_runtime.contracts import (
 from ea_node_editor.execution.handle_registry import StaleHandleError
 from ea_node_editor.nodes.node_specs import (
     DPF_FIELD_DATA_TYPE,
+    DPF_FIELDS_CONTAINER_DATA_TYPE,
+    DPF_MESH_DATA_TYPE,
     DPF_MODEL_DATA_TYPE,
+    DPF_OBJECT_HANDLE_DATA_TYPE,
     DPF_SCOPING_DATA_TYPE,
+    DpfOperatorSourceSpec,
     DpfOperatorVariantSpec,
     DpfPinSourceSpec,
     NodeTypeSpec,
@@ -51,6 +56,10 @@ def _dpf_operator_descriptor_specs() -> dict[str, NodeTypeSpec]:
         for descriptor in load_ansys_dpf_plugin_descriptors()
         if descriptor.spec.source_metadata is not None
     }
+
+
+_DPF_OPERATOR_SOURCE_PATH_PREFIX = "ansys.dpf.core.operators."
+_UNMATERIALIZED_OPERATOR_INPUT = object()
 
 
 class _OperatorTemplateValues(dict[str, str]):
@@ -107,7 +116,7 @@ class DpfRuntimeBase:
 
     def _operator_spec(self, type_id: str) -> NodeTypeSpec:
         spec = _dpf_operator_descriptor_specs().get(str(type_id).strip())
-        if spec is None or spec.source_metadata is None:
+        if spec is None or not isinstance(spec.source_metadata, DpfOperatorSourceSpec):
             raise DpfOperatorInvocationError(
                 f"Node type {type_id!r} does not publish normalized DPF operator source metadata."
             )
@@ -161,7 +170,14 @@ class DpfRuntimeBase:
         properties: Mapping[str, Any],
     ) -> str:
         if variant.operator_name:
-            return variant.operator_name
+            operator_name = str(variant.operator_name).strip()
+            if "." not in operator_name:
+                source_path = str(spec.source_metadata.source_path).strip()
+                if source_path.startswith(_DPF_OPERATOR_SOURCE_PATH_PREFIX):
+                    resolved_name = source_path[len(_DPF_OPERATOR_SOURCE_PATH_PREFIX) :].strip()
+                    if resolved_name:
+                        return resolved_name
+            return operator_name
         template_values = _OperatorTemplateValues(
             {
                 key: str(value).strip()
@@ -266,6 +282,98 @@ class DpfRuntimeBase:
         return False
 
     @staticmethod
+    def _expected_input_data_types(source: DpfPinSourceSpec) -> tuple[str, ...]:
+        data_types: list[str] = []
+        for candidate in (source.data_type, *source.accepted_data_types):
+            normalized = str(candidate).strip()
+            if normalized and normalized not in data_types:
+                data_types.append(normalized)
+        return tuple(data_types)
+
+    def _resolve_runtime_handle_input(
+        self,
+        value: Any,
+        *,
+        expected_data_types: Sequence[str],
+    ) -> Any | object:
+        runtime_ref = coerce_runtime_handle_ref(value)
+        if runtime_ref is None:
+            return _UNMATERIALIZED_OPERATOR_INPUT
+
+        expected_type_set = {
+            normalized
+            for normalized in (str(item).strip() for item in expected_data_types)
+            if normalized
+        }
+        if runtime_ref.kind == DPF_FIELD_HANDLE_KIND:
+            field_value = self._worker_services.resolve_handle(
+                runtime_ref,
+                expected_kind=DPF_FIELD_HANDLE_KIND,
+            )
+            if DPF_FIELDS_CONTAINER_DATA_TYPE in expected_type_set:
+                return self._single_field_container(
+                    field_value,
+                    set_id=self._field_set_id_from_metadata(runtime_ref.metadata),
+                )
+            if DPF_FIELD_DATA_TYPE in expected_type_set:
+                return field_value
+            return _UNMATERIALIZED_OPERATOR_INPUT
+
+        if runtime_ref.kind == DPF_FIELDS_CONTAINER_HANDLE_KIND:
+            if DPF_FIELDS_CONTAINER_DATA_TYPE not in expected_type_set:
+                return _UNMATERIALIZED_OPERATOR_INPUT
+            return self._worker_services.resolve_handle(
+                runtime_ref,
+                expected_kind=DPF_FIELDS_CONTAINER_HANDLE_KIND,
+            )
+
+        if runtime_ref.kind == DPF_MESH_HANDLE_KIND:
+            if DPF_MESH_DATA_TYPE not in expected_type_set:
+                return _UNMATERIALIZED_OPERATOR_INPUT
+            return self._worker_services.resolve_handle(runtime_ref, expected_kind=DPF_MESH_HANDLE_KIND)
+
+        if runtime_ref.kind == DPF_MESH_SCOPING_HANDLE_KIND:
+            if DPF_SCOPING_DATA_TYPE not in expected_type_set:
+                return _UNMATERIALIZED_OPERATOR_INPUT
+            return self._worker_services.resolve_handle(
+                runtime_ref,
+                expected_kind=DPF_MESH_SCOPING_HANDLE_KIND,
+            )
+
+        if runtime_ref.kind == DPF_TIME_SCOPING_HANDLE_KIND:
+            if DPF_SCOPING_DATA_TYPE not in expected_type_set:
+                return _UNMATERIALIZED_OPERATOR_INPUT
+            return self._worker_services.resolve_handle(
+                runtime_ref,
+                expected_kind=DPF_TIME_SCOPING_HANDLE_KIND,
+            )
+
+        if runtime_ref.kind == DPF_MODEL_HANDLE_KIND:
+            if DPF_MODEL_DATA_TYPE not in expected_type_set:
+                return _UNMATERIALIZED_OPERATOR_INPUT
+            return self._worker_services.resolve_handle(runtime_ref, expected_kind=DPF_MODEL_HANDLE_KIND)
+
+        if runtime_ref.kind == DPF_RESULT_FILE_HANDLE_KIND:
+            if DPF_MODEL_DATA_TYPE not in expected_type_set:
+                return _UNMATERIALIZED_OPERATOR_INPUT
+            _, model = self._resolve_model_handle_and_object(runtime_ref)
+            return model
+
+        if runtime_ref.kind == DPF_OBJECT_HANDLE_KIND:
+            object_data_type = str(runtime_ref.metadata.get("dpf_data_type", "")).strip()
+            if (
+                DPF_OBJECT_HANDLE_DATA_TYPE not in expected_type_set
+                and object_data_type not in expected_type_set
+            ):
+                return _UNMATERIALIZED_OPERATOR_INPUT
+            return self._worker_services.resolve_handle(
+                runtime_ref,
+                expected_kind=DPF_OBJECT_HANDLE_KIND,
+            )
+
+        return _UNMATERIALIZED_OPERATOR_INPUT
+
+    @staticmethod
     def _field_set_id_from_metadata(metadata: Mapping[str, Any]) -> int:
         set_id = metadata.get("set_id")
         if set_id is not None:
@@ -329,17 +437,20 @@ class DpfRuntimeBase:
         inputs: Mapping[str, Any],
         properties: Mapping[str, Any],
     ) -> Any:
-        if source.pin_name == "data_sources" and source.data_type == DPF_MODEL_DATA_TYPE:
+        expected_data_types = self._expected_input_data_types(source)
+
+        if source.pin_name == "data_sources" and DPF_MODEL_DATA_TYPE in expected_data_types:
             _, model = self._resolve_model_handle_and_object(raw_value)
             return model.metadata.data_sources
-        if source.pin_name == "mesh" and source.data_type == DPF_MODEL_DATA_TYPE:
+        if source.pin_name == "mesh" and DPF_MODEL_DATA_TYPE in expected_data_types:
             _, model = self._resolve_model_handle_and_object(raw_value)
             return model.metadata.meshed_region
-        if source.pin_name == "fields_container" and source.data_type == DPF_FIELD_DATA_TYPE:
+        if source.pin_name == "fields_container" and (
+            DPF_FIELD_DATA_TYPE in expected_data_types
+            or DPF_FIELDS_CONTAINER_DATA_TYPE in expected_data_types
+        ):
             return self._resolve_fields_container_binding(raw_value)
-        if source.pin_name == "mesh_scoping" and source.data_type == DPF_SCOPING_DATA_TYPE:
-            return self._resolve_mesh_scoping_input(raw_value)
-        if source.pin_name == "time_scoping" and source.data_type == DPF_SCOPING_DATA_TYPE:
+        if source.pin_name == "time_scoping":
             model_value = inputs.get("model")
             if source.value_origin == "property":
                 if source.value_key == "set_ids":
@@ -347,9 +458,45 @@ class DpfRuntimeBase:
                 raise DpfOperatorInvocationError(
                     f"Node value {source.value_key!r} must be resolved to set_ids before DPF operator binding."
                 )
-            return self._resolve_time_scoping_input(raw_value, set_ids=None, model=model_value)
+            materialized = self._resolve_runtime_handle_input(
+                raw_value,
+                expected_data_types=expected_data_types,
+            )
+            if materialized is not _UNMATERIALIZED_OPERATOR_INPUT:
+                return materialized
+            if DPF_SCOPING_DATA_TYPE in expected_data_types and (
+                hasattr(raw_value, "ids") and hasattr(raw_value, "location")
+            ):
+                return self._resolve_time_scoping_input(raw_value, set_ids=None, model=model_value)
+            if DPF_FIELD_DATA_TYPE in expected_data_types and (
+                hasattr(raw_value, "component_count") and hasattr(raw_value, "scoping")
+            ):
+                return raw_value
+            return raw_value
         if source.pin_name == "requested_location":
             return self._normalize_field_location(raw_value)
+
+        materialized = self._resolve_runtime_handle_input(
+            raw_value,
+            expected_data_types=expected_data_types,
+        )
+        if materialized is not _UNMATERIALIZED_OPERATOR_INPUT:
+            return materialized
+
+        if DPF_FIELDS_CONTAINER_DATA_TYPE in expected_data_types:
+            if hasattr(raw_value, "get_label_space") and hasattr(raw_value, "__len__"):
+                return raw_value
+            if hasattr(raw_value, "component_count") and hasattr(raw_value, "scoping"):
+                return self._single_field_container(raw_value, set_id=1)
+
+        if DPF_FIELD_DATA_TYPE in expected_data_types and (
+            hasattr(raw_value, "component_count") and hasattr(raw_value, "scoping")
+        ):
+            return raw_value
+
+        if source.pin_name == "mesh_scoping" and DPF_SCOPING_DATA_TYPE in expected_data_types:
+            return self._resolve_mesh_scoping_input(raw_value)
+
         return raw_value
 
     def _coerce_result_path(self, value: Any) -> Path:
