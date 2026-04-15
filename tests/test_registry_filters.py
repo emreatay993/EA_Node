@@ -3,35 +3,51 @@ from __future__ import annotations
 import unittest
 
 from ea_node_editor.nodes.builtins.ansys_dpf_common import (
-    DPF_COMPUTE_CATEGORY_PATH,
     DPF_EXPORT_NODE_TYPE_ID,
     DPF_FIELD_OPS_NODE_TYPE_ID,
     DPF_MESH_EXTRACT_NODE_TYPE_ID,
     DPF_MESH_SCOPING_NODE_TYPE_ID,
     DPF_MODEL_NODE_TYPE_ID,
-    DPF_NODE_CATEGORY,
-    DPF_NODE_CATEGORY_PATH,
     DPF_RESULT_FIELD_NODE_TYPE_ID,
     DPF_RESULT_FILE_NODE_TYPE_ID,
     DPF_TIME_SCOPING_NODE_TYPE_ID,
-    DPF_VIEWER_CATEGORY_PATH,
     DPF_VIEWER_NODE_TYPE_ID,
+)
+from ea_node_editor.nodes.builtins.ansys_dpf_taxonomy import (
+    DPF_HELPERS_CATEGORY_PATH,
+    DPF_HELPERS_CONTAINERS_CATEGORY_PATH,
+    DPF_HELPERS_SCOPING_CATEGORY_PATH,
+    DPF_HELPERS_SUPPORT_CATEGORY_PATH,
+    DPF_INPUTS_CATEGORY_PATH,
+    DPF_NODE_CATEGORY,
+    DPF_NODE_CATEGORY_PATH,
+    DPF_OPERATORS_CATEGORY_PATH,
+    DPF_VIEWER_CATEGORY_PATH,
+    DPF_WORKFLOW_CATEGORY_PATH,
+    operator_family_category_path,
 )
 from ea_node_editor.nodes.bootstrap import build_default_registry
 from ea_node_editor.nodes.category_paths import category_display
 
 
-_DPF_COMPUTE_TYPE_IDS = {
+_DPF_HELPER_TYPE_IDS = {
     DPF_RESULT_FILE_NODE_TYPE_ID,
     DPF_MODEL_NODE_TYPE_ID,
     DPF_MESH_SCOPING_NODE_TYPE_ID,
     DPF_TIME_SCOPING_NODE_TYPE_ID,
-    DPF_RESULT_FIELD_NODE_TYPE_ID,
-    DPF_FIELD_OPS_NODE_TYPE_ID,
     DPF_MESH_EXTRACT_NODE_TYPE_ID,
     DPF_EXPORT_NODE_TYPE_ID,
+    DPF_VIEWER_NODE_TYPE_ID,
 }
-_DPF_ALL_TYPE_IDS = _DPF_COMPUTE_TYPE_IDS | {DPF_VIEWER_NODE_TYPE_ID}
+_DPF_OPERATOR_TYPE_IDS = {
+    DPF_RESULT_FIELD_NODE_TYPE_ID,
+    DPF_FIELD_OPS_NODE_TYPE_ID,
+}
+_DPF_SCOPING_TYPE_IDS = {
+    DPF_MESH_SCOPING_NODE_TYPE_ID,
+    DPF_TIME_SCOPING_NODE_TYPE_ID,
+}
+_DPF_ALL_TYPE_IDS = _DPF_HELPER_TYPE_IDS | _DPF_OPERATOR_TYPE_IDS
 
 
 class RegistryFilterTests(unittest.TestCase):
@@ -138,12 +154,15 @@ class RegistryFilterTests(unittest.TestCase):
 
     def test_nested_category_registry_leaf_category_path_filter_is_precise(self) -> None:
         registry = build_default_registry()
-        compute_results = registry.filter_nodes(category_path=DPF_COMPUTE_CATEGORY_PATH)
+        scoping_results = registry.filter_nodes(category_path=DPF_HELPERS_SCOPING_CATEGORY_PATH)
+        result_results = registry.filter_nodes(category_path=operator_family_category_path("result"))
         viewer_results = registry.filter_nodes(category=category_display(DPF_VIEWER_CATEGORY_PATH))
 
-        self.assertEqual({spec.type_id for spec in compute_results}, _DPF_COMPUTE_TYPE_IDS)
+        self.assertEqual({spec.type_id for spec in scoping_results}, _DPF_SCOPING_TYPE_IDS)
+        self.assertEqual({spec.type_id for spec in result_results}, {DPF_RESULT_FIELD_NODE_TYPE_ID})
         self.assertEqual([spec.type_id for spec in viewer_results], [DPF_VIEWER_NODE_TYPE_ID])
-        self.assertTrue(all(spec.category_path == DPF_COMPUTE_CATEGORY_PATH for spec in compute_results))
+        self.assertTrue(all(spec.category_path == DPF_HELPERS_SCOPING_CATEGORY_PATH for spec in scoping_results))
+        self.assertTrue(all(spec.category_path == operator_family_category_path("result") for spec in result_results))
         self.assertEqual(viewer_results[0].category_path, DPF_VIEWER_CATEGORY_PATH)
 
     def test_nested_category_registry_category_paths_include_dpf_ancestors(self) -> None:
@@ -152,11 +171,27 @@ class RegistryFilterTests(unittest.TestCase):
         categories = registry.categories()
 
         self.assertIn(DPF_NODE_CATEGORY_PATH, category_paths)
-        self.assertIn(DPF_COMPUTE_CATEGORY_PATH, category_paths)
+        self.assertIn(DPF_INPUTS_CATEGORY_PATH, category_paths)
+        self.assertIn(DPF_WORKFLOW_CATEGORY_PATH, category_paths)
+        self.assertIn(DPF_HELPERS_CATEGORY_PATH, category_paths)
+        self.assertIn(DPF_HELPERS_SCOPING_CATEGORY_PATH, category_paths)
+        self.assertIn(DPF_HELPERS_CONTAINERS_CATEGORY_PATH, category_paths)
+        self.assertIn(DPF_HELPERS_SUPPORT_CATEGORY_PATH, category_paths)
+        self.assertIn(DPF_OPERATORS_CATEGORY_PATH, category_paths)
+        self.assertIn(operator_family_category_path("result"), category_paths)
+        self.assertIn(operator_family_category_path("math"), category_paths)
         self.assertIn(DPF_VIEWER_CATEGORY_PATH, category_paths)
-        self.assertIn(category_display(DPF_COMPUTE_CATEGORY_PATH), categories)
+        self.assertIn(category_display(DPF_INPUTS_CATEGORY_PATH), categories)
+        self.assertIn(category_display(DPF_WORKFLOW_CATEGORY_PATH), categories)
+        self.assertIn(category_display(DPF_HELPERS_SCOPING_CATEGORY_PATH), categories)
+        self.assertIn(category_display(DPF_HELPERS_CONTAINERS_CATEGORY_PATH), categories)
+        self.assertIn(category_display(DPF_HELPERS_SUPPORT_CATEGORY_PATH), categories)
+        self.assertIn(category_display(operator_family_category_path("result")), categories)
+        self.assertIn(category_display(operator_family_category_path("math")), categories)
         self.assertIn(category_display(DPF_VIEWER_CATEGORY_PATH), categories)
         self.assertNotIn(category_display(DPF_NODE_CATEGORY_PATH), categories)
+        self.assertNotIn(category_display(DPF_HELPERS_CATEGORY_PATH), categories)
+        self.assertNotIn(category_display(DPF_OPERATORS_CATEGORY_PATH), categories)
         self.assertIn(("Flowchart",), category_paths)
 
 

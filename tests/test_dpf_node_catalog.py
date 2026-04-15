@@ -32,7 +32,6 @@ from ea_node_editor.nodes.bootstrap import build_default_registry
 from ea_node_editor.nodes.builtins import ansys_dpf as ansys_dpf_module
 from ea_node_editor.nodes.builtins import ansys_dpf_catalog
 from ea_node_editor.nodes.builtins.ansys_dpf_common import (
-    DPF_COMPUTE_CATEGORY_PATH,
     DPF_EXPORT_NODE_TYPE_ID,
     DPF_FIELD_OPS_NODE_TYPE_ID,
     DPF_FIELD_OPS_VARIANT_CONVERT_LOCATION_ELEMENTAL,
@@ -42,8 +41,6 @@ from ea_node_editor.nodes.builtins.ansys_dpf_common import (
     DPF_MESH_EXTRACT_NODE_TYPE_ID,
     DPF_MESH_SCOPING_NODE_TYPE_ID,
     DPF_MODEL_NODE_TYPE_ID,
-    DPF_NODE_CATEGORY,
-    DPF_NODE_CATEGORY_PATH,
     DPF_NODE_SOURCE_METADATA_BY_TYPE_ID,
     DPF_OUTPUT_MODE_MEMORY,
     DPF_OUTPUT_MODE_STORED,
@@ -55,7 +52,18 @@ from ea_node_editor.nodes.builtins.ansys_dpf_common import (
     DPF_TIME_SELECTION_EXCLUSIVE_GROUP,
     DPF_TIME_SCOPING_NODE_TYPE_ID,
     DPF_VIEWER_NODE_TYPE_ID,
+)
+from ea_node_editor.nodes.builtins.ansys_dpf_taxonomy import (
+    DPF_HELPERS_CONTAINERS_CATEGORY_PATH,
+    DPF_HELPERS_SCOPING_CATEGORY_PATH,
+    DPF_HELPERS_SUPPORT_CATEGORY_PATH,
+    DPF_INPUTS_CATEGORY_PATH,
+    DPF_NODE_CATEGORY,
+    DPF_NODE_CATEGORY_PATH,
     DPF_VIEWER_CATEGORY_PATH,
+    DPF_WORKFLOW_CATEGORY_PATH,
+    operator_family_category_path,
+    operator_family_path,
 )
 from ea_node_editor.nodes.category_paths import category_display
 from ea_node_editor.nodes.types import (
@@ -188,6 +196,30 @@ _EXPECTED_DPF_TITLE_ICON_PATHS = {
     DPF_EXPORT_NODE_TYPE_ID: "dpf/ansys.svg",
     DPF_VIEWER_NODE_TYPE_ID: "dpf/ansys.svg",
 }
+
+_EXPECTED_DPF_CATEGORY_PATHS = {
+    DPF_RESULT_FILE_NODE_TYPE_ID: DPF_INPUTS_CATEGORY_PATH,
+    DPF_MODEL_NODE_TYPE_ID: DPF_WORKFLOW_CATEGORY_PATH,
+    DPF_MESH_SCOPING_NODE_TYPE_ID: DPF_HELPERS_SCOPING_CATEGORY_PATH,
+    DPF_TIME_SCOPING_NODE_TYPE_ID: DPF_HELPERS_SCOPING_CATEGORY_PATH,
+    DPF_RESULT_FIELD_NODE_TYPE_ID: operator_family_category_path("result"),
+    DPF_FIELD_OPS_NODE_TYPE_ID: operator_family_category_path("math"),
+    DPF_MESH_EXTRACT_NODE_TYPE_ID: DPF_HELPERS_CONTAINERS_CATEGORY_PATH,
+    DPF_EXPORT_NODE_TYPE_ID: DPF_HELPERS_SUPPORT_CATEGORY_PATH,
+    DPF_VIEWER_NODE_TYPE_ID: DPF_VIEWER_CATEGORY_PATH,
+}
+
+_EXPECTED_DPF_DESCRIPTOR_ORDER = (
+    DPF_RESULT_FILE_NODE_TYPE_ID,
+    DPF_MODEL_NODE_TYPE_ID,
+    DPF_MESH_SCOPING_NODE_TYPE_ID,
+    DPF_TIME_SCOPING_NODE_TYPE_ID,
+    DPF_MESH_EXTRACT_NODE_TYPE_ID,
+    DPF_EXPORT_NODE_TYPE_ID,
+    DPF_VIEWER_NODE_TYPE_ID,
+    DPF_RESULT_FIELD_NODE_TYPE_ID,
+    DPF_FIELD_OPS_NODE_TYPE_ID,
+)
 
 
 class DpfNodeCatalogTests(unittest.TestCase):
@@ -375,15 +407,11 @@ class DpfNodeCatalogTests(unittest.TestCase):
                 self.assertEqual(ports_by_key[port_key].data_type, data_type)
 
     @unittest.skipIf(dpf is None, "ansys.dpf.core is not installed")
-    def test_nested_category_registry_dpf_catalog_publishes_compute_and_viewer_paths(self) -> None:
+    def test_nested_category_registry_dpf_catalog_publishes_library_taxonomy_paths(self) -> None:
         for type_id in _EXPECTED_DPF_SPECS:
-            expected_path = (
-                DPF_VIEWER_CATEGORY_PATH
-                if type_id == DPF_VIEWER_NODE_TYPE_ID
-                else DPF_COMPUTE_CATEGORY_PATH
-            )
             with self.subTest(type_id=type_id):
                 spec = self.registry.get_spec(type_id)
+                expected_path = _EXPECTED_DPF_CATEGORY_PATHS[type_id]
                 self.assertEqual(spec.category_path, expected_path)
                 self.assertEqual(spec.category, category_display(expected_path))
 
@@ -404,6 +432,9 @@ class DpfNodeCatalogTests(unittest.TestCase):
             result_field.source_metadata.variants[0].operator_name_template,
             "result.{result_name}",
         )
+        self.assertEqual(result_field.source_metadata.source_path, "ansys.dpf.core.operators.result")
+        self.assertEqual(result_field.source_metadata.family_path, operator_family_path("result"))
+        self.assertEqual(result_field.source_metadata.stability, "core")
         result_ports = {port.key: port for port in result_field.ports}
         self.assertEqual(result_ports["model"].source_metadata.pin_name, "data_sources")
         self.assertEqual(result_ports["model"].source_metadata.presence, "required")
@@ -437,6 +468,9 @@ class DpfNodeCatalogTests(unittest.TestCase):
                 DPF_FIELD_OPS_VARIANT_MIN_MAX,
             },
         )
+        self.assertEqual(field_ops.source_metadata.source_path, "ansys.dpf.core.operators.math")
+        self.assertEqual(field_ops.source_metadata.family_path, operator_family_path("math"))
+        self.assertEqual(field_ops.source_metadata.stability, "core")
         field_ops_ports = {port.key: port for port in field_ops.ports}
         self.assertEqual(field_ops_ports["field"].source_metadata.pin_name, "fields_container")
         self.assertEqual(
@@ -492,7 +526,7 @@ class DpfNodeCatalogTests(unittest.TestCase):
             self.assertEqual(node_plugins, ())
             return
 
-        expected_type_ids = tuple(_EXPECTED_DPF_SPECS)
+        expected_type_ids = _EXPECTED_DPF_DESCRIPTOR_ORDER
         self.assertEqual(tuple(descriptor.spec.type_id for descriptor in descriptors), expected_type_ids)
         self.assertEqual(tuple(descriptor.factory for descriptor in descriptors), node_plugins)
 
@@ -530,7 +564,7 @@ class DpfNodeCatalogTests(unittest.TestCase):
         self.assertEqual({spec.type_id for spec in dpf_specs}, set(_EXPECTED_DPF_SPECS))
         self.assertEqual(
             {spec.category_path for spec in dpf_specs},
-            {DPF_COMPUTE_CATEGORY_PATH, DPF_VIEWER_CATEGORY_PATH},
+            set(_EXPECTED_DPF_CATEGORY_PATHS.values()),
         )
         self.assertIn(DPF_NODE_CATEGORY_PATH, self.registry.category_paths())
         self.assertEqual(

@@ -1,16 +1,19 @@
 from __future__ import annotations
 
 import importlib.util
-from collections.abc import Callable
 
 from ea_node_editor.app_preferences import (
     AppPreferencesStore,
     ansys_dpf_plugin_state,
     set_ansys_dpf_plugin_state,
 )
-from ea_node_editor.nodes.builtins.ansys_dpf_common import normalize_dpf_descriptor_spec
+from ea_node_editor.nodes.builtins.ansys_dpf_helper_catalog import (
+    load_ansys_dpf_helper_plugin_descriptors,
+)
+from ea_node_editor.nodes.builtins.ansys_dpf_operator_catalog import (
+    load_ansys_dpf_operator_plugin_descriptors,
+)
 from ea_node_editor.nodes.plugin_contracts import (
-    NodePlugin,
     PluginAvailability,
     PluginBackendDescriptor,
     PluginDescriptor,
@@ -49,36 +52,10 @@ def resolve_ansys_dpf_plugin_version() -> str:
     return str(getattr(dpf, "__version__", ""))
 
 
-def _load_ansys_dpf_node_plugin_factories() -> tuple[Callable[[], NodePlugin], ...]:
-    from ea_node_editor.nodes.builtins.ansys_dpf_compute import (
-        DpfExportNodePlugin,
-        DpfFieldOpsNodePlugin,
-        DpfMeshExtractNodePlugin,
-        DpfMeshScopingNodePlugin,
-        DpfModelNodePlugin,
-        DpfResultFieldNodePlugin,
-        DpfResultFileNodePlugin,
-        DpfTimeScopingNodePlugin,
-    )
-    from ea_node_editor.nodes.builtins.ansys_dpf_viewer import DpfViewerNodePlugin
-
-    return (
-        DpfResultFileNodePlugin,
-        DpfModelNodePlugin,
-        DpfMeshScopingNodePlugin,
-        DpfTimeScopingNodePlugin,
-        DpfResultFieldNodePlugin,
-        DpfFieldOpsNodePlugin,
-        DpfMeshExtractNodePlugin,
-        DpfExportNodePlugin,
-        DpfViewerNodePlugin,
-    )
-
-
 def _build_ansys_dpf_plugin_descriptors() -> tuple[PluginDescriptor, ...]:
-    return tuple(
-        PluginDescriptor(spec=normalize_dpf_descriptor_spec(factory().spec()), factory=factory)
-        for factory in _load_ansys_dpf_node_plugin_factories()
+    return (
+        load_ansys_dpf_helper_plugin_descriptors()
+        + load_ansys_dpf_operator_plugin_descriptors()
     )
 
 
