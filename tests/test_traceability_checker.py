@@ -534,6 +534,176 @@ DPF_OPERATOR_PLUGIN_BACKEND_QA_MATRIX_TOKENS = (
     DPF_OPERATOR_PLUGIN_BACKEND_MARKDOWN_COMMAND,
 )
 
+ANSYS_DPF_FULL_PLUGIN_ROLLOUT_QA_MATRIX = (
+    REPO_ROOT / "docs/specs/perf/ANSYS_DPF_FULL_PLUGIN_ROLLOUT_QA_MATRIX.md"
+)
+ANSYS_DPF_FULL_PLUGIN_ROLLOUT_P01_COMMAND = (
+    r".\venv\Scripts\python.exe -m pytest tests/test_app_preferences.py "
+    r"tests/test_dpf_node_catalog.py --ignore=venv -q"
+)
+ANSYS_DPF_FULL_PLUGIN_ROLLOUT_P02_COMMAND = (
+    r".\venv\Scripts\python.exe -m pytest tests/test_registry_validation.py "
+    r"tests/test_dpf_contracts.py --ignore=venv -q"
+)
+ANSYS_DPF_FULL_PLUGIN_ROLLOUT_P03_COMMAND = (
+    r".\venv\Scripts\python.exe -m pytest tests/test_dpf_library_taxonomy.py "
+    r"tests/test_dpf_node_catalog.py tests/test_registry_filters.py "
+    r"--ignore=venv -q"
+)
+ANSYS_DPF_FULL_PLUGIN_ROLLOUT_P04_COMMAND = (
+    r".\venv\Scripts\python.exe -m pytest "
+    r"tests/test_dpf_generated_operator_catalog.py tests/test_dpf_node_catalog.py "
+    r"--ignore=venv -q"
+)
+ANSYS_DPF_FULL_PLUGIN_ROLLOUT_P05_COMMAND = (
+    r".\venv\Scripts\python.exe -m pytest "
+    r"tests/test_dpf_generated_helper_catalog.py tests/test_dpf_workflow_helpers.py "
+    r"--ignore=venv -q"
+)
+ANSYS_DPF_FULL_PLUGIN_ROLLOUT_P06_COMMAND = (
+    r".\venv\Scripts\python.exe -m pytest tests/test_dpf_materialization.py "
+    r"tests/test_dpf_runtime_service.py tests/test_serializer.py "
+    r"tests/test_serializer_schema_migration.py --ignore=venv -q"
+)
+ANSYS_DPF_FULL_PLUGIN_ROLLOUT_CLOSEOUT_PYTEST_COMMAND = (
+    r".\venv\Scripts\python.exe -m pytest tests/test_traceability_checker.py "
+    r"tests/test_markdown_hygiene.py --ignore=venv -q"
+)
+ANSYS_DPF_FULL_PLUGIN_ROLLOUT_TRACEABILITY_COMMAND = (
+    r".\venv\Scripts\python.exe scripts/check_traceability.py"
+)
+
+ANSYS_DPF_FULL_PLUGIN_ROLLOUT_PUBLIC_DOC_TOKENS: dict[str, tuple[str, ...]] = {
+    "README.md": (
+        "workflow-first",
+        "Ansys DPF > Inputs",
+        "Ansys DPF > Helpers",
+        "Ansys DPF > Operators",
+        "ANSYS_DPF_FULL_PLUGIN_ROLLOUT_QA_MATRIX.md",
+    ),
+    "ARCHITECTURE.md": (
+        "workflow-first and descriptor-driven",
+        "version-aware",
+        "Ansys DPF > Operators > <Family>",
+        "generic object handles",
+        "ANSYS_DPF_FULL_PLUGIN_ROLLOUT_QA_MATRIX.md",
+    ),
+}
+
+ANSYS_DPF_FULL_PLUGIN_ROLLOUT_REQUIREMENT_TOKENS: dict[str, dict[str, tuple[str, ...]]] = {
+    "docs/specs/requirements/70_INTEGRATIONS.md": {
+        "REQ-INT-008": (
+            '("Ansys DPF", "Inputs")',
+            '("Ansys DPF", "Workflow")',
+            '("Ansys DPF", "Helpers", ...)',
+            '("Ansys DPF", "Operators", ...)',
+            '("Ansys DPF", "Advanced", "Raw API Mirror")',
+        ),
+        "REQ-INT-009": (
+            "version-aware plugin lifecycle",
+            "generated operator and helper descriptors",
+            "generic object handles",
+            "read-only missing-plugin placeholders",
+            "non-operator `ansys.dpf.core` reflection",
+        ),
+        "AC-REQ-INT-008-01": (
+            "generated operator and helper",
+            "Ansys DPF > Inputs",
+            "ANSYS_DPF_FULL_PLUGIN_ROLLOUT_QA_MATRIX.md",
+        ),
+        "AC-REQ-INT-009-01": (
+            "ANSYS_DPF_FULL_PLUGIN_ROLLOUT_QA_MATRIX.md",
+            "generated operator/helper",
+            "helper object-handle portability",
+            "missing-plugin placeholder portability",
+        ),
+    },
+    "docs/specs/requirements/90_QA_ACCEPTANCE.md": {
+        "REQ-QA-038": (
+            "ANSYS_DPF_FULL_PLUGIN_ROLLOUT_QA_MATRIX.md",
+            "`P00` through `P06`",
+            "`P07` traceability and markdown-hygiene closeout commands",
+            "workflow-first `Ansys DPF` family taxonomy",
+            "version-aware plugin lifecycle evidence",
+            "`Ansys DPF > Advanced > Raw API Mirror` deferral",
+        ),
+        "AC-REQ-QA-038-01": (
+            ANSYS_DPF_FULL_PLUGIN_ROLLOUT_CLOSEOUT_PYTEST_COMMAND,
+            ANSYS_DPF_FULL_PLUGIN_ROLLOUT_TRACEABILITY_COMMAND,
+            "ANSYS_DPF_FULL_PLUGIN_ROLLOUT_QA_MATRIX.md",
+        ),
+    },
+}
+
+ANSYS_DPF_FULL_PLUGIN_ROLLOUT_TRACEABILITY_ROW_TOKENS: dict[str, tuple[str, ...]] = {
+    "REQ-INT-008": (
+        "ansys_dpf_taxonomy.py",
+        "ansys_dpf_operator_catalog.py",
+        "ansys_dpf_helper_catalog.py",
+        "tests/test_dpf_library_taxonomy.py",
+        "docs/specs/perf/ANSYS_DPF_FULL_PLUGIN_ROLLOUT_QA_MATRIX.md",
+    ),
+    "AC-REQ-INT-008-01": (
+        "tests/test_dpf_generated_operator_catalog.py",
+        "tests/test_dpf_generated_helper_catalog.py",
+        "tests/test_packaging_configuration.py",
+        "docs/specs/perf/ANSYS_DPF_FULL_PLUGIN_ROLLOUT_QA_MATRIX.md",
+    ),
+    "REQ-INT-009": (
+        "settings.py",
+        "app_preferences.py",
+        "bootstrap.py",
+        "ansys_dpf_helper_adapters.py",
+        "docs/specs/perf/ANSYS_DPF_FULL_PLUGIN_ROLLOUT_QA_MATRIX.md",
+    ),
+    "AC-REQ-INT-009-01": (
+        "tests/test_app_preferences.py",
+        "tests/test_dpf_contracts.py",
+        "tests/test_dpf_materialization.py",
+        "tests/test_serializer.py",
+        "docs/specs/perf/ANSYS_DPF_FULL_PLUGIN_ROLLOUT_QA_MATRIX.md",
+    ),
+    "REQ-QA-038": (
+        "ARCHITECTURE.md",
+        "README.md",
+        "docs/specs/perf/ANSYS_DPF_FULL_PLUGIN_ROLLOUT_QA_MATRIX.md",
+        "tests/test_traceability_checker.py",
+        "tests/test_markdown_hygiene.py",
+        "scripts/check_traceability.py",
+    ),
+    "AC-REQ-QA-038-01": (
+        ANSYS_DPF_FULL_PLUGIN_ROLLOUT_CLOSEOUT_PYTEST_COMMAND,
+        ANSYS_DPF_FULL_PLUGIN_ROLLOUT_TRACEABILITY_COMMAND,
+        "docs/specs/perf/ANSYS_DPF_FULL_PLUGIN_ROLLOUT_QA_MATRIX.md",
+    ),
+}
+
+ANSYS_DPF_FULL_PLUGIN_ROLLOUT_QA_MATRIX_TOKENS = (
+    "ANSYS DPF Full Plugin Rollout QA Matrix",
+    "## Locked Scope",
+    "## Retained Automated Verification",
+    "## Final Closeout Commands",
+    "## 2026-04-15 Execution Results",
+    "## Retained Manual Evidence",
+    "## Residual Risks",
+    "workflow-first",
+    "version-aware",
+    "Ansys DPF > Advanced > Raw API Mirror",
+    "generic object handles",
+    "read-only placeholders",
+    "P00_bootstrap_WRAPUP.md",
+    "P03_family_taxonomy_WRAPUP.md",
+    "P06_runtime_persistence_portability_WRAPUP.md",
+    ANSYS_DPF_FULL_PLUGIN_ROLLOUT_P01_COMMAND,
+    ANSYS_DPF_FULL_PLUGIN_ROLLOUT_P02_COMMAND,
+    ANSYS_DPF_FULL_PLUGIN_ROLLOUT_P03_COMMAND,
+    ANSYS_DPF_FULL_PLUGIN_ROLLOUT_P04_COMMAND,
+    ANSYS_DPF_FULL_PLUGIN_ROLLOUT_P05_COMMAND,
+    ANSYS_DPF_FULL_PLUGIN_ROLLOUT_P06_COMMAND,
+    ANSYS_DPF_FULL_PLUGIN_ROLLOUT_CLOSEOUT_PYTEST_COMMAND,
+    ANSYS_DPF_FULL_PLUGIN_ROLLOUT_TRACEABILITY_COMMAND,
+)
+
 GLOBAL_GAP_BREAK_EDGE_CROSSING_VARIANT_QA_MATRIX = (
     REPO_ROOT / "docs/specs/perf/GLOBAL_GAP_BREAK_EDGE_CROSSING_VARIANT_QA_MATRIX.md"
 )
@@ -2885,6 +3055,36 @@ class TraceabilityCheckerTests(unittest.TestCase):
     def test_dpf_operator_plugin_backend_qa_matrix_records_commands_and_manual_checks(self) -> None:
         text = DPF_OPERATOR_PLUGIN_BACKEND_REFACTOR_QA_MATRIX.read_text(encoding="utf-8-sig")
         for token in DPF_OPERATOR_PLUGIN_BACKEND_QA_MATRIX_TOKENS:
+            self.assertIn(token, text)
+
+    def test_ansys_dpf_full_plugin_rollout_public_docs_record_closeout_scope_tokens(self) -> None:
+        for relative_path, tokens in ANSYS_DPF_FULL_PLUGIN_ROLLOUT_PUBLIC_DOC_TOKENS.items():
+            text = (REPO_ROOT / relative_path).read_text(encoding="utf-8-sig")
+            for token in tokens:
+                self.assertIn(token, text, msg=f"{relative_path} missing token {token!r}")
+
+    def test_ansys_dpf_full_plugin_rollout_requirements_record_closeout_scope_tokens(self) -> None:
+        for relative_path, requirement_tokens in ANSYS_DPF_FULL_PLUGIN_ROLLOUT_REQUIREMENT_TOKENS.items():
+            path = REPO_ROOT / relative_path
+            for requirement_id, tokens in requirement_tokens.items():
+                body = requirement_line(path, requirement_id)
+                for token in tokens:
+                    self.assertIn(
+                        token,
+                        body,
+                        msg=f"{relative_path} {requirement_id} missing token {token!r}",
+                    )
+
+    def test_ansys_dpf_full_plugin_rollout_traceability_rows_reference_packet_artifacts(self) -> None:
+        traceability_path = REPO_ROOT / "docs/specs/requirements/TRACEABILITY_MATRIX.md"
+        for row_id, tokens in ANSYS_DPF_FULL_PLUGIN_ROLLOUT_TRACEABILITY_ROW_TOKENS.items():
+            row_text = traceability_row(traceability_path, row_id)
+            for token in tokens:
+                self.assertIn(token, row_text, msg=f"traceability row {row_id} missing token {token!r}")
+
+    def test_ansys_dpf_full_plugin_rollout_qa_matrix_records_commands_and_manual_checks(self) -> None:
+        text = ANSYS_DPF_FULL_PLUGIN_ROLLOUT_QA_MATRIX.read_text(encoding="utf-8-sig")
+        for token in ANSYS_DPF_FULL_PLUGIN_ROLLOUT_QA_MATRIX_TOKENS:
             self.assertIn(token, text)
 
     def test_global_gap_break_edge_crossing_variant_docs_record_closeout_scope_tokens(self) -> None:

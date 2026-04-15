@@ -132,6 +132,22 @@ class MarkdownHygieneTests(unittest.TestCase):
         self.assertEqual([], self.checker.audit_markdown_file(review_path, REPO_ROOT))
         self.assertEqual([], self.checker.audit_markdown_file(matrix_path, REPO_ROOT))
 
+    def test_readme_links_ansys_dpf_full_plugin_rollout_matrix(self) -> None:
+        readme_path = REPO_ROOT / "README.md"
+        readme_text = readme_path.read_text(encoding="utf-8-sig")
+        matrix_path = (
+            REPO_ROOT / "docs" / "specs" / "perf" / "ANSYS_DPF_FULL_PLUGIN_ROLLOUT_QA_MATRIX.md"
+        )
+        matrix_text = matrix_path.read_text(encoding="utf-8-sig")
+
+        self.assertIn(
+            "[ANSYS DPF Full Plugin Rollout QA Matrix](docs/specs/perf/ANSYS_DPF_FULL_PLUGIN_ROLLOUT_QA_MATRIX.md)",
+            readme_text,
+        )
+        self.assertTrue(matrix_text.startswith("# ANSYS DPF Full Plugin Rollout QA Matrix"))
+        self.assertEqual([], self.checker.audit_markdown_file(readme_path, REPO_ROOT))
+        self.assertEqual([], self.checker.audit_markdown_file(matrix_path, REPO_ROOT))
+
     def test_architecture_registers_plan_template_and_overlay(self) -> None:
         architecture_text = (REPO_ROOT / "ARCHITECTURE.md").read_text(encoding="utf-8-sig")
 
