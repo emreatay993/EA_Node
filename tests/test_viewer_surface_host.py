@@ -827,8 +827,10 @@ class ViewerSurfaceHostTests(unittest.TestCase):
                 assert mode_label.property("text") == "Blocked"
                 assert headline.property("text") == "Rerun required before live open"
                 assert "requires rerun" in str(hint.property("text"))
-                footer_meta = variant_list(surface.property("viewerFooterMetaModel"))
-                assert any(item["label"] == "Status" and item["value"] == "Rerun required" for item in footer_meta)
+                assert host.findChild(QObject, "graphNodeViewerResultMeta") is None
+                assert host.findChild(QObject, "graphNodeViewerSelectionMeta") is None
+                assert host.findChild(QObject, "graphNodeViewerStepMeta") is None
+                assert host.findChild(QObject, "graphNodeViewerStatusMeta") is None
                 assert len(variant_list(surface.property("viewerInteractiveRects"))) == 4
             finally:
                 dispose_host_window(host, window)

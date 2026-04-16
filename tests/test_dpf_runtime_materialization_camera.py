@@ -24,6 +24,7 @@ class _FakePlotterCamera:
 class _FakePlotter:
     def __init__(self, *, off_screen: bool) -> None:
         self.off_screen = off_screen
+        self.window_size = [1024, 768]
         self.camera = _FakePlotterCamera()
         self.camera_position = None
         self.add_mesh_calls: list[dict[str, object]] = []
@@ -93,6 +94,18 @@ class DpfRuntimeMaterializationCameraTests(unittest.TestCase):
         self.assertEqual(plotter.camera.parallel_scale, 4.0)
         self.assertEqual(plotter.camera.view_angle, 18.0)
         self.assertEqual(plotter.view_isometric_calls, 0)
+        self.assertEqual(
+            plotter.add_mesh_calls[-1]["scalar_bar_args"],
+            {
+                "vertical": True,
+                "title_font_size": 11,
+                "label_font_size": 9,
+                "height": 0.52,
+                "width": 0.10,
+                "position_x": 0.86,
+                "position_y": 0.08,
+            },
+        )
         self.assertEqual(plotter.show_calls[-1]["screenshot"], str(output_path))
         self.assertTrue(plotter.closed)
 
@@ -103,6 +116,18 @@ class DpfRuntimeMaterializationCameraTests(unittest.TestCase):
 
         plotter = self.fake_pyvista.plotters[-1]
         self.assertEqual(plotter.view_isometric_calls, 1)
+        self.assertEqual(
+            plotter.add_mesh_calls[-1]["scalar_bar_args"],
+            {
+                "vertical": True,
+                "title_font_size": 11,
+                "label_font_size": 9,
+                "height": 0.52,
+                "width": 0.10,
+                "position_x": 0.86,
+                "position_y": 0.08,
+            },
+        )
         self.assertEqual(plotter.show_calls[-1]["screenshot"], str(output_path))
         self.assertTrue(plotter.closed)
 

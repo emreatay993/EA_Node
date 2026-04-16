@@ -8,6 +8,7 @@ from pathlib import Path, PurePosixPath
 from typing import Any
 
 from ea_node_editor.execution.viewer_camera_state import apply_camera_state
+from ea_node_editor.execution.viewer_pyvista_style import scalar_bar_args_for_viewport
 from ea_node_editor.execution.dpf_runtime.base import DpfRuntimeBase
 from ea_node_editor.execution.dpf_runtime.contracts import (
     DEFAULT_VTM_FILENAME,
@@ -254,12 +255,35 @@ class DpfRuntimeMaterializationMixin(DpfRuntimeBase):
         plotter = pyvista.Plotter(off_screen=True)
         try:
             array_name = self._preferred_array_name(preview_dataset)
-            plotter.add_mesh(preview_dataset, scalars=array_name)
+            viewport_width, viewport_height = self._plotter_window_size(plotter)
+            plotter.add_mesh(
+                preview_dataset,
+                scalars=array_name,
+                scalar_bar_args=(
+                    scalar_bar_args_for_viewport(viewport_width, viewport_height)
+                    if array_name
+                    else None
+                ),
+            )
             if not apply_camera_state(plotter, camera_state or {}):
                 plotter.view_isometric()
             plotter.show(screenshot=str(output_path), auto_close=False)
         finally:
             plotter.close()
+
+    @staticmethod
+    def _plotter_window_size(plotter: Any) -> tuple[int, int]:
+        window_size = getattr(plotter, "window_size", None)
+        if isinstance(window_size, (list, tuple)) and len(window_size) >= 2:
+            try:
+                width = int(window_size[0])
+                height = int(window_size[1])
+            except (TypeError, ValueError):
+                width = 0
+                height = 0
+            if width > 0 and height > 0:
+                return width, height
+        return 1024, 768
 
     def _write_vtu_bundle(self, fields_container: Any, mesh: Any, output_dir: Path) -> list[str]:
         dpf = self._dpf_module()

@@ -35,6 +35,7 @@ class _FakeInteractor(QWidget):
         super().__init__(parent)
         self.clear_calls = 0
         self.add_mesh_calls: list[dict[str, object]] = []
+        self.add_text_calls: list[dict[str, object]] = []
         self.reset_camera_calls = 0
         self.render_calls = 0
         self.screenshot_calls = 0
@@ -43,12 +44,17 @@ class _FakeInteractor(QWidget):
         self.screenshot_image.fill(0xFF2F89FF)
         self.camera_position = None
         self.camera = _FakeCamera()
+        self.resize(320, 240)
 
     def clear(self) -> None:
         self.clear_calls += 1
 
     def add_mesh(self, mesh, **kwargs):  # noqa: ANN001
         self.add_mesh_calls.append({"mesh": mesh, **kwargs})
+        return object()
+
+    def add_text(self, text, **kwargs):  # noqa: ANN001
+        self.add_text_calls.append({"text": text, **kwargs})
         return object()
 
     def reset_camera(self) -> None:
@@ -113,6 +119,7 @@ def _bind_request(
     current_widget: QWidget | None = None,
     playback_step_index: int = 0,
     camera_state: dict[str, object] | None = None,
+    summary: dict[str, object] | None = None,
 ) -> ViewerWidgetBindRequest:
     return ViewerWidgetBindRequest(
         workspace_id="ws-tests",
@@ -131,6 +138,11 @@ def _bind_request(
         },
         camera_state=dict(camera_state or {}),
         playback_state={"state": "paused", "step_index": playback_step_index},
+        summary={
+            "result_name": "Displacement",
+            "set_label": "Set 4",
+            **dict(summary or {}),
+        },
         container=QWidget(),
         current_widget=current_widget,
     )
@@ -174,6 +186,32 @@ class DpfViewerWidgetBinderTests(unittest.TestCase):
         self.assertEqual(len(widget.add_mesh_calls), 1)
         self.assertIs(widget.add_mesh_calls[0]["mesh"], blocks[1])
         self.assertEqual(widget.add_mesh_calls[0]["scalars"], "stress")
+        self.assertEqual(
+            widget.add_mesh_calls[0]["scalar_bar_args"],
+            {
+                "vertical": True,
+                "title_font_size": 10,
+                "label_font_size": 8,
+                "height": 0.46,
+                "width": 0.09,
+                "position_x": 0.87,
+                "position_y": 0.10,
+            },
+        )
+        self.assertEqual(
+            widget.add_text_calls,
+            [
+                {
+                    "text": "Result: Displacement\nSet: Set 4\nStep: 1",
+                    "position": "upper_left",
+                    "font_size": 9,
+                    "color": "#F4F6F8",
+                    "shadow": True,
+                    "name": "ea.dpf.viewer.metadata",
+                    "render": False,
+                },
+            ],
+        )
         self.assertEqual(
             widget.camera_position,
             [

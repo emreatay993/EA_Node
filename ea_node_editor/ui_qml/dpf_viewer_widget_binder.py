@@ -12,6 +12,7 @@ from PyQt6.QtWidgets import QWidget
 
 from ea_node_editor.execution.viewer_backend_dpf import DPF_EXECUTION_VIEWER_BACKEND_ID
 from ea_node_editor.execution.viewer_camera_state import apply_camera_state, extract_camera_state
+from ea_node_editor.execution.viewer_pyvista_style import scalar_bar_args_for_viewport
 from ea_node_editor.ui_qml.viewer_widget_binder import (
     ViewerWidgetBindRequest,
     ViewerWidgetNoBind,
@@ -26,6 +27,7 @@ _MANIFEST_PATH_PROPERTY = "ea.viewer.manifest_path"
 _SESSION_PROPERTY = "ea.viewer.session_id"
 _STEP_INDEX_PROPERTY = "ea.viewer.step_index"
 _TRANSPORT_REVISION_PROPERTY = "ea.viewer.transport_revision"
+_VIEWER_METADATA_OVERLAY_NAME = "ea.dpf.viewer.metadata"
 
 
 def _mapping(value: Any) -> dict[str, Any]:
@@ -169,14 +171,31 @@ class DpfViewerWidgetBinder:
         if not callable(add_mesh):
             raise TypeError("DPF viewer interactor widget must expose add_mesh().")
 
+        viewport_width, viewport_height = self._viewport_size(
+            interactor,
+            container=request.container,
+        )
+        scalar_bar_args = (
+            scalar_bar_args_for_viewport(viewport_width, viewport_height)
+            if loaded_transport.scalars_name
+            else None
+        )
         clear()
         add_mesh(
             loaded_transport.display_dataset,
             scalars=loaded_transport.scalars_name,
+            scalar_bar_args=scalar_bar_args,
             reset_camera=False,
             render=False,
         )
         apply_camera_state(interactor, request.camera_state)
+        self._add_live_metadata_overlay(
+            interactor,
+            summary=request.summary,
+            playback_state=request.playback_state,
+            viewport_width=viewport_width,
+            viewport_height=viewport_height,
+        )
         self._set_widget_properties(
             interactor,
             session_id=request.session_id,
@@ -265,6 +284,88 @@ class DpfViewerWidgetBinder:
                     return candidate, index, block_count
             raise ViewerWidgetNoBind("DPF viewer transport bundle does not contain a readable step.")
         return display_dataset, resolved_step_index, block_count
+
+    @staticmethod
+    def _viewport_size(
+        interactor: QWidget,
+        *,
+        container: QWidget | None,
+    ) -> tuple[int, int]:
+        widths: list[int] = []
+        heights: list[int] = []
+        for widget in (interactor, container):
+            if not isinstance(widget, QWidget):
+                continue
+            width = int(widget.width())
+            height = int(widget.height())
+            if width > 0:
+                widths.append(width)
+            if height > 0:
+                heights.append(height)
+        width = min(widths) if widths else 320
+        height = min(heights) if heights else 240
+        if width <= 0:
+            width = 320
+        if height <= 0:
+            height = 240
+        return width, height
+
+    def _add_live_metadata_overlay(
+        self,
+        interactor: QWidget,
+        *,
+        summary: Mapping[str, Any],
+        playback_state: Mapping[str, Any],
+        viewport_width: int,
+        viewport_height: int,
+    ) -> None:
+        overlay_text = self._live_metadata_overlay_text(summary, playback_state)
+        if not overlay_text:
+            return
+
+        add_text = getattr(interactor, "add_text", None)
+        if not callable(add_text):
+            return
+
+        add_text(
+            overlay_text,
+            position="upper_left",
+            font_size=self._overlay_font_size(viewport_width, viewport_height),
+            color="#F4F6F8",
+            shadow=True,
+            name=_VIEWER_METADATA_OVERLAY_NAME,
+            render=False,
+        )
+
+    @staticmethod
+    def _live_metadata_overlay_text(
+        summary: Mapping[str, Any],
+        playback_state: Mapping[str, Any],
+    ) -> str:
+        lines: list[str] = []
+
+        result_name = _string(summary.get("result_name") or summary.get("result_label"))
+        if result_name:
+            lines.append(f"Result: {result_name}")
+
+        set_label = _string(summary.get("set_label") or summary.get("time_label"))
+        if set_label:
+            lines.append(f"Set: {set_label}")
+
+        step_value = playback_state.get("step_index")
+        if step_value is not None and _string(step_value):
+            lines.append(f"Step: {max(0, _coerce_int(step_value, default=0))}")
+
+        return "\n".join(lines)
+
+    @staticmethod
+    def _overlay_font_size(viewport_width: int, viewport_height: int) -> int:
+        shortest_side = min(max(1, int(viewport_width)), max(1, int(viewport_height)))
+        if shortest_side < 180:
+            return 8
+        if shortest_side < 260:
+            return 9
+        return 10
 
     @staticmethod
     def _mark_backend(widget: QWidget) -> None:
