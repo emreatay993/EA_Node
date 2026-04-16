@@ -9,6 +9,7 @@ from functools import lru_cache, partial
 from typing import Any
 
 from ea_node_editor.nodes.builtins.ansys_dpf_common import (
+    build_field_handle_metadata,
     DPF_FIELD_OPS_NODE_TYPE_ID,
     DPF_RESULT_FIELD_NODE_TYPE_ID,
     humanize_dpf_symbol_name,
@@ -23,6 +24,15 @@ from ea_node_editor.nodes.builtins.ansys_dpf_taxonomy import (
 )
 from ea_node_editor.nodes.execution_context import NodeResult
 from ea_node_editor.nodes.node_specs import (
+    DPF_DATA_SOURCES_DATA_TYPE,
+    DPF_FIELD_DATA_TYPE,
+    DPF_FIELDS_CONTAINER_DATA_TYPE,
+    DPF_MESH_DATA_TYPE,
+    DPF_MODEL_DATA_TYPE,
+    DPF_OBJECT_HANDLE_DATA_TYPE,
+    DPF_SCOPING_DATA_TYPE,
+    DPF_STREAMS_CONTAINER_DATA_TYPE,
+    DPF_WORKFLOW_DATA_TYPE,
     DpfOperatorSourceSpec,
     DpfOperatorVariantSpec,
     DpfPinSourceSpec,
@@ -31,6 +41,16 @@ from ea_node_editor.nodes.node_specs import (
     PropertySpec,
 )
 from ea_node_editor.nodes.plugin_contracts import NodePlugin, PluginDescriptor
+from ea_node_editor.runtime_contracts import coerce_runtime_artifact_ref, coerce_runtime_handle_ref
+from ea_node_editor.execution.dpf_runtime.contracts import (
+    DPF_FIELDS_CONTAINER_HANDLE_KIND,
+    DPF_FIELD_HANDLE_KIND,
+    DPF_MESH_HANDLE_KIND,
+    DPF_MESH_SCOPING_HANDLE_KIND,
+    DPF_MODEL_HANDLE_KIND,
+    DPF_OBJECT_HANDLE_KIND,
+    DPF_TIME_SCOPING_HANDLE_KIND,
+)
 
 _EXEC_IN_PORT = PortSpec("exec_in", "in", "exec", "exec", required=False)
 _EXEC_OUT_PORT = PortSpec("exec_out", "out", "exec", "exec", exposed=True)
@@ -42,6 +62,14 @@ _ADVANCED_OPERATOR_FAMILIES = frozenset({"compression", "serialization", "server
 _PRIMITIVE_PROPERTY_TYPES = frozenset({"bool", "int", "float", "str", "json"})
 _FAMILY_ORDER_INDEX = {family: index for index, family in enumerate(DPF_OPERATOR_FAMILY_ORDER)}
 _KEY_SANITIZE_RE = re.compile(r"[^0-9a-zA-Z_]+")
+_OBJECT_HANDLE_DATA_TYPES = frozenset(
+    {
+        DPF_DATA_SOURCES_DATA_TYPE,
+        DPF_OBJECT_HANDLE_DATA_TYPE,
+        DPF_STREAMS_CONTAINER_DATA_TYPE,
+        DPF_WORKFLOW_DATA_TYPE,
+    }
+)
 
 
 @dataclass(slots=True, frozen=True)
@@ -66,18 +94,92 @@ class _GeneratedDpfOperatorNodePlugin:
         return self._spec
 
     def execute(self, ctx) -> NodeResult:  # noqa: ANN001
-        invocation = require_dpf_runtime_service(
+        service = require_dpf_runtime_service(
             ctx,
             node_name=self._spec.display_name,
-        ).invoke_operator(
+        )
+        invocation = service.invoke_operator(
             self._spec.type_id,
             inputs=ctx.inputs,
             properties=ctx.properties,
         )
         outputs = dict(invocation.outputs)
+        output_ports = {
+            port.key: port
+            for port in self._spec.ports
+            if port.direction == "out" and port.kind == "data"
+        }
+        for output_key, output_value in tuple(outputs.items()):
+            port = output_ports.get(output_key)
+            if port is None:
+                continue
+            outputs[output_key] = _wrap_generated_dpf_output(
+                ctx,
+                service=service,
+                port=port,
+                value=output_value,
+            )
         if any(port.key == "exec_out" for port in self._spec.ports):
             outputs["exec_out"] = True
         return NodeResult(outputs=outputs)
+
+
+def _wrap_generated_dpf_output(ctx, *, service, port: PortSpec, value: Any) -> Any:  # noqa: ANN001
+    if value is None:
+        return None
+    if coerce_runtime_handle_ref(value) is not None or coerce_runtime_artifact_ref(value) is not None:
+        return value
+
+    data_type = str(port.data_type or "").strip()
+    if data_type == DPF_FIELDS_CONTAINER_DATA_TYPE:
+        return ctx.register_handle(
+            value,
+            kind=DPF_FIELDS_CONTAINER_HANDLE_KIND,
+            metadata=service._build_fields_container_metadata(value),
+        )
+    if data_type == DPF_FIELD_DATA_TYPE:
+        return ctx.register_handle(
+            value,
+            kind=DPF_FIELD_HANDLE_KIND,
+            metadata=build_field_handle_metadata(value),
+        )
+    if data_type == DPF_MESH_DATA_TYPE:
+        return ctx.register_handle(
+            value,
+            kind=DPF_MESH_HANDLE_KIND,
+            metadata=service._build_mesh_metadata(value),
+        )
+    if data_type == DPF_MODEL_DATA_TYPE:
+        return ctx.register_handle(value, kind=DPF_MODEL_HANDLE_KIND, metadata={})
+    if data_type == DPF_SCOPING_DATA_TYPE:
+        location = str(getattr(value, "location", "") or "").strip()
+        metadata: dict[str, Any] = {"location": location}
+        ids = getattr(value, "ids", None)
+        if ids is not None:
+            try:
+                metadata["ids"] = [int(item) for item in ids]
+            except TypeError:
+                metadata["ids"] = []
+        if location.casefold() == "timefreq":
+            return ctx.register_handle(
+                value,
+                kind=DPF_TIME_SCOPING_HANDLE_KIND,
+                metadata=metadata,
+            )
+        if location:
+            return ctx.register_handle(
+                value,
+                kind=DPF_MESH_SCOPING_HANDLE_KIND,
+                metadata=metadata,
+            )
+    if data_type.startswith("dpf_"):
+        metadata = {"dpf_data_type": data_type}
+        return ctx.register_handle(
+            value,
+            kind=DPF_OBJECT_HANDLE_KIND,
+            metadata=metadata,
+        )
+    return value
 
 
 def _operator_family_path(family: str) -> tuple[str, ...]:

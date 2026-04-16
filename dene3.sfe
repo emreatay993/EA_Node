@@ -1,0 +1,1794 @@
+{
+  "active_workspace_id": "ws_d7a12db805",
+  "metadata": {
+    "artifact_store": {
+      "artifacts": {},
+      "staged": {}
+    },
+    "custom_workflows": [],
+    "ui": {
+      "passive_style_presets": {
+        "edge_presets": [],
+        "node_presets": []
+      },
+      "script_editor": {
+        "floating": false,
+        "visible": false
+      }
+    },
+    "workflow_settings": {
+      "environment": {
+        "python_path": "",
+        "working_directory": ""
+      },
+      "general": {
+        "author": "",
+        "description": "",
+        "project_name": ""
+      },
+      "logging": {
+        "capture_console": true,
+        "level": "info"
+      },
+      "plugins": {
+        "enabled": []
+      },
+      "solver_config": {
+        "enable_parallel": true,
+        "memory_limit_gb": 12,
+        "thread_count": 8
+      }
+    },
+    "workspace_order": [
+      "ws_dddebcfa29",
+      "ws_b0cfa3b66a",
+      "ws_d7a12db805",
+      "ws_6da57d8011",
+      "ws_e5ae77ad10",
+      "ws_62bc89bdf6",
+      "ws_b664729fdc"
+    ]
+  },
+  "name": "untitled",
+  "project_id": "proj_local",
+  "schema_version": 4,
+  "workspace_order": [
+    "ws_dddebcfa29",
+    "ws_b0cfa3b66a",
+    "ws_d7a12db805",
+    "ws_6da57d8011",
+    "ws_e5ae77ad10",
+    "ws_62bc89bdf6",
+    "ws_b664729fdc"
+  ],
+  "workspaces": [
+    {
+      "active_view_id": "view_883091c990",
+      "dirty": true,
+      "edges": [
+        {
+          "edge_id": "edge_07f67e668d",
+          "label": "",
+          "source_node_id": "node_57b08967fc",
+          "source_port_key": "exec_out",
+          "target_node_id": "node_69b2312bd7",
+          "target_port_key": "exec_in",
+          "visual_style": {}
+        },
+        {
+          "edge_id": "edge_24f9593f72",
+          "label": "",
+          "source_node_id": "node_0cf8c7b581",
+          "source_port_key": "exec_out",
+          "target_node_id": "node_e4ece796c3",
+          "target_port_key": "exec_in",
+          "visual_style": {}
+        },
+        {
+          "edge_id": "edge_443eaf785f",
+          "label": "",
+          "source_node_id": "node_841d41d28c",
+          "source_port_key": "exec_out",
+          "target_node_id": "node_a61b4dcf78",
+          "target_port_key": "exec_in",
+          "visual_style": {}
+        },
+        {
+          "edge_id": "edge_46a15152a5",
+          "label": "",
+          "source_node_id": "node_a61b4dcf78",
+          "source_port_key": "exec_out",
+          "target_node_id": "node_0cf8c7b581",
+          "target_port_key": "exec_in",
+          "visual_style": {}
+        },
+        {
+          "edge_id": "edge_56d30b3ed3",
+          "label": "",
+          "source_node_id": "node_0cf8c7b581",
+          "source_port_key": "exec_out",
+          "target_node_id": "node_31a30d9d43",
+          "target_port_key": "exec_in",
+          "visual_style": {}
+        },
+        {
+          "edge_id": "edge_79e4fd5629",
+          "label": "",
+          "source_node_id": "node_0cf8c7b581",
+          "source_port_key": "model",
+          "target_node_id": "node_69b2312bd7",
+          "target_port_key": "model",
+          "visual_style": {}
+        },
+        {
+          "edge_id": "edge_7c96a922ac",
+          "label": "",
+          "source_node_id": "node_0cf8c7b581",
+          "source_port_key": "model",
+          "target_node_id": "node_e4ece796c3",
+          "target_port_key": "model",
+          "visual_style": {}
+        },
+        {
+          "edge_id": "edge_a02a42be33",
+          "label": "",
+          "source_node_id": "node_31a30d9d43",
+          "source_port_key": "scoping",
+          "target_node_id": "node_57b08967fc",
+          "target_port_key": "mesh_scoping",
+          "visual_style": {}
+        },
+        {
+          "edge_id": "edge_a3596228ec",
+          "label": "",
+          "source_node_id": "node_e4ece796c3",
+          "source_port_key": "field",
+          "target_node_id": "node_69b2312bd7",
+          "target_port_key": "field",
+          "visual_style": {}
+        },
+        {
+          "edge_id": "edge_ac6f4013ef",
+          "label": "",
+          "source_node_id": "node_57b08967fc",
+          "source_port_key": "mesh",
+          "target_node_id": "node_69b2312bd7",
+          "target_port_key": "mesh",
+          "visual_style": {}
+        },
+        {
+          "edge_id": "edge_b27db7a5c6",
+          "label": "",
+          "source_node_id": "node_0cf8c7b581",
+          "source_port_key": "exec_out",
+          "target_node_id": "node_57b08967fc",
+          "target_port_key": "exec_in",
+          "visual_style": {}
+        },
+        {
+          "edge_id": "edge_c4ed17894d",
+          "label": "",
+          "source_node_id": "node_a61b4dcf78",
+          "source_port_key": "result_file",
+          "target_node_id": "node_0cf8c7b581",
+          "target_port_key": "result_file",
+          "visual_style": {}
+        },
+        {
+          "edge_id": "edge_e77ffb3249",
+          "label": "",
+          "source_node_id": "node_0cf8c7b581",
+          "source_port_key": "model",
+          "target_node_id": "node_31a30d9d43",
+          "target_port_key": "model",
+          "visual_style": {}
+        },
+        {
+          "edge_id": "edge_f2ba43c86b",
+          "label": "",
+          "source_node_id": "node_0cf8c7b581",
+          "source_port_key": "model",
+          "target_node_id": "node_57b08967fc",
+          "target_port_key": "model",
+          "visual_style": {}
+        }
+      ],
+      "name": "Workspace 1",
+      "nodes": [
+        {
+          "collapsed": false,
+          "custom_height": null,
+          "custom_width": null,
+          "exposed_ports": {
+            "exec_in": true,
+            "exec_out": true,
+            "model": true,
+            "path": true,
+            "result_file": true
+          },
+          "locked_ports": {},
+          "node_id": "node_0cf8c7b581",
+          "parent_node_id": null,
+          "port_labels": {},
+          "properties": {
+            "output_mode": "memory",
+            "path": "C:/Users/emre_/PycharmProjects/EA_Node_Editor/tests/ansys_dpf_core/example_outputs/modal_analysis_1_bolted_joint/file.rst"
+          },
+          "title": "DPF Model",
+          "type_id": "dpf.model",
+          "visual_style": {},
+          "x": -488.33750000000146,
+          "y": -210.3075000000017
+        },
+        {
+          "collapsed": false,
+          "custom_height": 68.0,
+          "custom_width": 210.0,
+          "exposed_ports": {
+            "exec_in": true,
+            "exec_out": true,
+            "model": true,
+            "scoping": true
+          },
+          "locked_ports": {},
+          "node_id": "node_31a30d9d43",
+          "parent_node_id": null,
+          "port_labels": {},
+          "properties": {
+            "element_ids": "",
+            "location": "auto",
+            "named_selection": "_FIXEDSU",
+            "node_ids": "",
+            "output_mode": "memory",
+            "selection_mode": "named_selection",
+            "set_ids": "",
+            "time_values": ""
+          },
+          "title": "DPF Mesh Scoping",
+          "type_id": "dpf.scoping.mesh",
+          "visual_style": {},
+          "x": -59.58842999999888,
+          "y": -417.46146359375143
+        },
+        {
+          "collapsed": false,
+          "custom_height": 86.0,
+          "custom_width": 210.0,
+          "exposed_ports": {
+            "exec_in": true,
+            "exec_out": true,
+            "mesh": true,
+            "mesh_scoping": true,
+            "model": true
+          },
+          "locked_ports": {},
+          "node_id": "node_57b08967fc",
+          "parent_node_id": null,
+          "port_labels": {},
+          "properties": {
+            "nodes_only": false,
+            "output_mode": "memory"
+          },
+          "title": "DPF Mesh Extract",
+          "type_id": "dpf.mesh_extract",
+          "visual_style": {},
+          "x": 269.66732734375364,
+          "y": -315.6586443749975
+        },
+        {
+          "collapsed": false,
+          "custom_height": 596.4696201562498,
+          "custom_width": 792.6428174999996,
+          "exposed_ports": {
+            "exec_in": true,
+            "exec_out": true,
+            "field": true,
+            "mesh": true,
+            "model": true,
+            "session": true
+          },
+          "locked_ports": {},
+          "node_id": "node_69b2312bd7",
+          "parent_node_id": null,
+          "port_labels": {},
+          "properties": {
+            "output_mode": "memory"
+          },
+          "title": "DPF Viewer",
+          "type_id": "dpf.viewer",
+          "visual_style": {},
+          "x": 648.9621125106905,
+          "y": -473.66782482925373
+        },
+        {
+          "collapsed": false,
+          "custom_height": null,
+          "custom_width": null,
+          "exposed_ports": {
+            "exec_out": true,
+            "trigger": true
+          },
+          "locked_ports": {},
+          "node_id": "node_841d41d28c",
+          "parent_node_id": null,
+          "port_labels": {},
+          "properties": {},
+          "title": "Start",
+          "type_id": "core.start",
+          "visual_style": {},
+          "x": -483.95237499999985,
+          "y": -493.58887500000037
+        },
+        {
+          "collapsed": false,
+          "custom_height": 660.7421970312507,
+          "custom_width": 1032.004827343755,
+          "exposed_ports": {},
+          "locked_ports": {},
+          "node_id": "node_a1fb96c190",
+          "parent_node_id": null,
+          "port_labels": {},
+          "properties": {
+            "body": "write your notes here",
+            "title": "Comment Backdrop"
+          },
+          "title": "Comment Backdrop",
+          "type_id": "passive.annotation.comment_backdrop",
+          "visual_style": {},
+          "x": -520.3375000000015,
+          "y": -589.5888750000004
+        },
+        {
+          "collapsed": false,
+          "custom_height": null,
+          "custom_width": null,
+          "exposed_ports": {
+            "exec_in": true,
+            "exec_out": true,
+            "normalized_path": true,
+            "path": true,
+            "result_file": true
+          },
+          "locked_ports": {},
+          "node_id": "node_a61b4dcf78",
+          "parent_node_id": null,
+          "port_labels": {},
+          "properties": {
+            "output_mode": "memory",
+            "path": "C:/Users/emre_/OneDrive/Desktop/J/Firat/dj_files/dp0/SYS-2/MECH/file.rst"
+          },
+          "title": "DPF Result File",
+          "type_id": "dpf.result_file",
+          "visual_style": {},
+          "x": -475.66143750000083,
+          "y": -377.9495625000027
+        },
+        {
+          "collapsed": false,
+          "custom_height": null,
+          "custom_width": null,
+          "exposed_ports": {
+            "bottom": true,
+            "left": true,
+            "right": true,
+            "top": true
+          },
+          "locked_ports": {},
+          "node_id": "node_cbe7b4b589",
+          "parent_node_id": null,
+          "port_labels": {},
+          "properties": {
+            "body": "Decision",
+            "title": "Decision"
+          },
+          "title": "Decision",
+          "type_id": "passive.flowchart.decision",
+          "visual_style": {
+            "border_color": "#61798B",
+            "border_width": 2.0,
+            "fill_color": "#F5FAFD",
+            "font_weight": "bold",
+            "text_color": "#173247"
+          },
+          "x": -406.32880335390473,
+          "y": 71.1146626245918
+        },
+        {
+          "collapsed": false,
+          "custom_height": null,
+          "custom_width": null,
+          "exposed_ports": {
+            "exec_in": true,
+            "exec_out": true,
+            "field": true,
+            "mesh_scoping": true,
+            "model": true,
+            "time_scoping": true
+          },
+          "locked_ports": {},
+          "node_id": "node_e4ece796c3",
+          "parent_node_id": null,
+          "port_labels": {},
+          "properties": {
+            "location": "auto",
+            "output_mode": "memory",
+            "result_name": "displacement",
+            "set_ids": "",
+            "time_values": ""
+          },
+          "title": "DPF Result Field",
+          "type_id": "dpf.result_field",
+          "visual_style": {},
+          "x": 246.59511734374883,
+          "y": -64.84667796874965
+        }
+      ],
+      "views": [
+        {
+          "hide_locked_ports": false,
+          "hide_optional_ports": false,
+          "name": "V1",
+          "pan_x": 459.5334404401299,
+          "pan_y": -112.52199808528027,
+          "scope_path": [],
+          "view_id": "view_883091c990",
+          "zoom": 0.487375449183326
+        }
+      ],
+      "workspace_id": "ws_dddebcfa29"
+    },
+    {
+      "active_view_id": "view_466cff3dad",
+      "dirty": false,
+      "edges": [],
+      "name": "ws2",
+      "nodes": [],
+      "views": [
+        {
+          "hide_locked_ports": false,
+          "hide_optional_ports": false,
+          "name": "V1",
+          "pan_x": -4.0,
+          "pan_y": -2.5,
+          "scope_path": [],
+          "view_id": "view_466cff3dad",
+          "zoom": 1.0
+        }
+      ],
+      "workspace_id": "ws_b0cfa3b66a"
+    },
+    {
+      "active_view_id": "view_2231c083a1",
+      "dirty": false,
+      "edges": [
+        {
+          "edge_id": "edge_287c4a0cff",
+          "label": "",
+          "source_node_id": "node_670af789af",
+          "source_port_key": "scoping",
+          "target_node_id": "node_5a4770026b",
+          "target_port_key": "time_scoping",
+          "visual_style": {}
+        },
+        {
+          "edge_id": "edge_444103247a",
+          "label": "",
+          "source_node_id": "node_6f45d8f49c",
+          "source_port_key": "model",
+          "target_node_id": "node_228b93d47f",
+          "target_port_key": "model",
+          "visual_style": {}
+        },
+        {
+          "edge_id": "edge_4f335c6ae4",
+          "label": "",
+          "source_node_id": "node_6f45d8f49c",
+          "source_port_key": "exec_out",
+          "target_node_id": "node_670af789af",
+          "target_port_key": "exec_in",
+          "visual_style": {}
+        },
+        {
+          "edge_id": "edge_783fc4567b",
+          "label": "",
+          "source_node_id": "node_07c6b95b12",
+          "source_port_key": "exec_out",
+          "target_node_id": "node_6f45d8f49c",
+          "target_port_key": "exec_in",
+          "visual_style": {}
+        },
+        {
+          "edge_id": "edge_8082b1aed8",
+          "label": "",
+          "source_node_id": "node_670af789af",
+          "source_port_key": "exec_out",
+          "target_node_id": "node_5a4770026b",
+          "target_port_key": "exec_in",
+          "visual_style": {}
+        },
+        {
+          "edge_id": "edge_92a5b0982d",
+          "label": "",
+          "source_node_id": "node_a7627a7ed5",
+          "source_port_key": "exec_out",
+          "target_node_id": "node_07c6b95b12",
+          "target_port_key": "exec_in",
+          "visual_style": {}
+        },
+        {
+          "edge_id": "edge_cbe7139969",
+          "label": "",
+          "source_node_id": "node_5a4770026b",
+          "source_port_key": "exec_out",
+          "target_node_id": "node_228b93d47f",
+          "target_port_key": "exec_in",
+          "visual_style": {}
+        },
+        {
+          "edge_id": "edge_d4adc0607e",
+          "label": "",
+          "source_node_id": "node_6f45d8f49c",
+          "source_port_key": "model",
+          "target_node_id": "node_5a4770026b",
+          "target_port_key": "model",
+          "visual_style": {}
+        },
+        {
+          "edge_id": "edge_dbb2c687e8",
+          "label": "",
+          "source_node_id": "node_07c6b95b12",
+          "source_port_key": "result_file",
+          "target_node_id": "node_6f45d8f49c",
+          "target_port_key": "result_file",
+          "visual_style": {}
+        },
+        {
+          "edge_id": "edge_e5780d7499",
+          "label": "",
+          "source_node_id": "node_5a4770026b",
+          "source_port_key": "field",
+          "target_node_id": "node_228b93d47f",
+          "target_port_key": "field",
+          "visual_style": {}
+        },
+        {
+          "edge_id": "edge_e6b903f650",
+          "label": "",
+          "source_node_id": "node_6f45d8f49c",
+          "source_port_key": "model",
+          "target_node_id": "node_670af789af",
+          "target_port_key": "model",
+          "visual_style": {}
+        }
+      ],
+      "name": "Demo 1 - Static Displacement Viewer",
+      "nodes": [
+        {
+          "collapsed": false,
+          "custom_height": null,
+          "custom_width": null,
+          "exposed_ports": {
+            "exec_in": true,
+            "exec_out": true,
+            "normalized_path": false,
+            "path": false,
+            "result_file": true
+          },
+          "locked_ports": {},
+          "node_id": "node_07c6b95b12",
+          "parent_node_id": null,
+          "port_labels": {},
+          "properties": {
+            "output_mode": "memory",
+            "path": "tests/ansys_dpf_core/example_outputs/static_analysis_1_bolted_joint/file.rst"
+          },
+          "title": "DPF Result File",
+          "type_id": "dpf.result_file",
+          "visual_style": {},
+          "x": 260.0,
+          "y": 0.0
+        },
+        {
+          "collapsed": false,
+          "custom_height": null,
+          "custom_width": null,
+          "exposed_ports": {
+            "exec_in": true,
+            "exec_out": false,
+            "field": true,
+            "mesh": false,
+            "model": true,
+            "session": false
+          },
+          "locked_ports": {},
+          "node_id": "node_228b93d47f",
+          "parent_node_id": null,
+          "port_labels": {},
+          "properties": {},
+          "title": "DPF Viewer",
+          "type_id": "dpf.viewer",
+          "visual_style": {},
+          "x": 1300.0,
+          "y": 0.0
+        },
+        {
+          "collapsed": false,
+          "custom_height": null,
+          "custom_width": null,
+          "exposed_ports": {
+            "exec_in": true,
+            "exec_out": true,
+            "field": true,
+            "mesh_scoping": false,
+            "model": true,
+            "time_scoping": true
+          },
+          "locked_ports": {},
+          "node_id": "node_5a4770026b",
+          "parent_node_id": null,
+          "port_labels": {},
+          "properties": {
+            "output_mode": "memory",
+            "result_name": "displacement"
+          },
+          "title": "DPF Result Field",
+          "type_id": "dpf.result_field",
+          "visual_style": {},
+          "x": 1040.0,
+          "y": 0.0
+        },
+        {
+          "collapsed": false,
+          "custom_height": null,
+          "custom_width": null,
+          "exposed_ports": {
+            "exec_in": true,
+            "exec_out": true,
+            "model": true,
+            "scoping": true
+          },
+          "locked_ports": {},
+          "node_id": "node_670af789af",
+          "parent_node_id": null,
+          "port_labels": {},
+          "properties": {
+            "output_mode": "memory",
+            "set_ids": "2"
+          },
+          "title": "DPF Time Scoping",
+          "type_id": "dpf.scoping.time",
+          "visual_style": {},
+          "x": 780.0,
+          "y": 0.0
+        },
+        {
+          "collapsed": false,
+          "custom_height": null,
+          "custom_width": null,
+          "exposed_ports": {
+            "exec_in": true,
+            "exec_out": true,
+            "model": true,
+            "path": false,
+            "result_file": true
+          },
+          "locked_ports": {},
+          "node_id": "node_6f45d8f49c",
+          "parent_node_id": null,
+          "port_labels": {},
+          "properties": {
+            "output_mode": "memory"
+          },
+          "title": "DPF Model",
+          "type_id": "dpf.model",
+          "visual_style": {},
+          "x": 520.0,
+          "y": 0.0
+        },
+        {
+          "collapsed": false,
+          "custom_height": null,
+          "custom_width": null,
+          "exposed_ports": {
+            "exec_out": true,
+            "trigger": false
+          },
+          "locked_ports": {},
+          "node_id": "node_a7627a7ed5",
+          "parent_node_id": null,
+          "port_labels": {},
+          "properties": {},
+          "title": "Start",
+          "type_id": "core.start",
+          "visual_style": {},
+          "x": 0.0,
+          "y": 0.0
+        }
+      ],
+      "views": [
+        {
+          "hide_locked_ports": false,
+          "hide_optional_ports": false,
+          "name": "V1",
+          "pan_x": 0.0,
+          "pan_y": 0.0,
+          "scope_path": [],
+          "view_id": "view_2231c083a1",
+          "zoom": 1.0
+        }
+      ],
+      "workspace_id": "ws_d7a12db805"
+    },
+    {
+      "active_view_id": "view_3da832b371",
+      "dirty": false,
+      "edges": [
+        {
+          "edge_id": "edge_057b760872",
+          "label": "",
+          "source_node_id": "node_c16866c1bb",
+          "source_port_key": "exec_out",
+          "target_node_id": "node_0182a92c10",
+          "target_port_key": "exec_in",
+          "visual_style": {}
+        },
+        {
+          "edge_id": "edge_230c3c7f47",
+          "label": "",
+          "source_node_id": "node_0182a92c10",
+          "source_port_key": "model",
+          "target_node_id": "node_03b4684279",
+          "target_port_key": "model",
+          "visual_style": {}
+        },
+        {
+          "edge_id": "edge_23b30981ae",
+          "label": "",
+          "source_node_id": "node_f4ed2026c9",
+          "source_port_key": "field_out",
+          "target_node_id": "node_03b4684279",
+          "target_port_key": "field",
+          "visual_style": {}
+        },
+        {
+          "edge_id": "edge_2e8b89b862",
+          "label": "",
+          "source_node_id": "node_0182a92c10",
+          "source_port_key": "exec_out",
+          "target_node_id": "node_59ec7b4228",
+          "target_port_key": "exec_in",
+          "visual_style": {}
+        },
+        {
+          "edge_id": "edge_32d3b62f56",
+          "label": "",
+          "source_node_id": "node_0182a92c10",
+          "source_port_key": "model",
+          "target_node_id": "node_59ec7b4228",
+          "target_port_key": "model",
+          "visual_style": {}
+        },
+        {
+          "edge_id": "edge_4cba9f9856",
+          "label": "",
+          "source_node_id": "node_f4ed2026c9",
+          "source_port_key": "exec_out",
+          "target_node_id": "node_03b4684279",
+          "target_port_key": "exec_in",
+          "visual_style": {}
+        },
+        {
+          "edge_id": "edge_84fd3fb8c9",
+          "label": "",
+          "source_node_id": "node_58766d8093",
+          "source_port_key": "exec_out",
+          "target_node_id": "node_c16866c1bb",
+          "target_port_key": "exec_in",
+          "visual_style": {}
+        },
+        {
+          "edge_id": "edge_8bef2ce71f",
+          "label": "",
+          "source_node_id": "node_59ec7b4228",
+          "source_port_key": "exec_out",
+          "target_node_id": "node_f4ed2026c9",
+          "target_port_key": "exec_in",
+          "visual_style": {}
+        },
+        {
+          "edge_id": "edge_9c70e0434e",
+          "label": "",
+          "source_node_id": "node_59ec7b4228",
+          "source_port_key": "field",
+          "target_node_id": "node_f4ed2026c9",
+          "target_port_key": "field",
+          "visual_style": {}
+        },
+        {
+          "edge_id": "edge_fed667a6b8",
+          "label": "",
+          "source_node_id": "node_c16866c1bb",
+          "source_port_key": "result_file",
+          "target_node_id": "node_0182a92c10",
+          "target_port_key": "result_file",
+          "visual_style": {}
+        }
+      ],
+      "name": "Demo 2 - Static Stress Norm Export",
+      "nodes": [
+        {
+          "collapsed": false,
+          "custom_height": null,
+          "custom_width": null,
+          "exposed_ports": {
+            "exec_in": true,
+            "exec_out": true,
+            "model": true,
+            "path": false,
+            "result_file": true
+          },
+          "locked_ports": {},
+          "node_id": "node_0182a92c10",
+          "parent_node_id": null,
+          "port_labels": {},
+          "properties": {
+            "output_mode": "memory"
+          },
+          "title": "DPF Model",
+          "type_id": "dpf.model",
+          "visual_style": {},
+          "x": 520.0,
+          "y": 0.0
+        },
+        {
+          "collapsed": false,
+          "custom_height": null,
+          "custom_width": null,
+          "exposed_ports": {
+            "csv": false,
+            "dataset": false,
+            "exec_in": true,
+            "exec_out": false,
+            "exports": false,
+            "field": true,
+            "mesh": false,
+            "model": true,
+            "png": false,
+            "vtm": false,
+            "vtu": false
+          },
+          "locked_ports": {},
+          "node_id": "node_03b4684279",
+          "parent_node_id": null,
+          "port_labels": {},
+          "properties": {
+            "artifact_key": "static_stress_norm",
+            "export_formats": "csv",
+            "output_mode": "memory"
+          },
+          "title": "DPF Export",
+          "type_id": "dpf.export",
+          "visual_style": {},
+          "x": 1300.0,
+          "y": 0.0
+        },
+        {
+          "collapsed": false,
+          "custom_height": null,
+          "custom_width": null,
+          "exposed_ports": {
+            "exec_out": true,
+            "trigger": false
+          },
+          "locked_ports": {},
+          "node_id": "node_58766d8093",
+          "parent_node_id": null,
+          "port_labels": {},
+          "properties": {},
+          "title": "Start",
+          "type_id": "core.start",
+          "visual_style": {},
+          "x": 0.0,
+          "y": 0.0
+        },
+        {
+          "collapsed": false,
+          "custom_height": null,
+          "custom_width": null,
+          "exposed_ports": {
+            "exec_in": true,
+            "exec_out": true,
+            "field": true,
+            "mesh_scoping": false,
+            "model": true,
+            "time_scoping": false
+          },
+          "locked_ports": {},
+          "node_id": "node_59ec7b4228",
+          "parent_node_id": null,
+          "port_labels": {},
+          "properties": {
+            "output_mode": "memory",
+            "result_name": "stress",
+            "set_ids": "1"
+          },
+          "title": "DPF Result Field",
+          "type_id": "dpf.result_field",
+          "visual_style": {},
+          "x": 780.0,
+          "y": 0.0
+        },
+        {
+          "collapsed": false,
+          "custom_height": null,
+          "custom_width": null,
+          "exposed_ports": {
+            "exec_in": true,
+            "exec_out": true,
+            "normalized_path": false,
+            "path": false,
+            "result_file": true
+          },
+          "locked_ports": {},
+          "node_id": "node_c16866c1bb",
+          "parent_node_id": null,
+          "port_labels": {},
+          "properties": {
+            "output_mode": "memory",
+            "path": "tests/ansys_dpf_core/example_outputs/static_analysis_1_bolted_joint/file.rst"
+          },
+          "title": "DPF Result File",
+          "type_id": "dpf.result_file",
+          "visual_style": {},
+          "x": 260.0,
+          "y": 0.0
+        },
+        {
+          "collapsed": false,
+          "custom_height": null,
+          "custom_width": null,
+          "exposed_ports": {
+            "exec_in": true,
+            "exec_out": true,
+            "field": true,
+            "field_max": false,
+            "field_min": false,
+            "field_out": true,
+            "model": false
+          },
+          "locked_ports": {},
+          "node_id": "node_f4ed2026c9",
+          "parent_node_id": null,
+          "port_labels": {},
+          "properties": {
+            "operation": "norm",
+            "output_mode": "memory"
+          },
+          "title": "DPF Field Ops",
+          "type_id": "dpf.field_ops",
+          "visual_style": {},
+          "x": 1040.0,
+          "y": 0.0
+        }
+      ],
+      "views": [
+        {
+          "hide_locked_ports": false,
+          "hide_optional_ports": false,
+          "name": "V1",
+          "pan_x": 0.0,
+          "pan_y": 0.0,
+          "scope_path": [],
+          "view_id": "view_3da832b371",
+          "zoom": 1.0
+        }
+      ],
+      "workspace_id": "ws_6da57d8011"
+    },
+    {
+      "active_view_id": "view_f5bd4055d9",
+      "dirty": false,
+      "edges": [
+        {
+          "edge_id": "edge_036e531e18",
+          "label": "",
+          "source_node_id": "node_fa7ad20bd5",
+          "source_port_key": "exec_out",
+          "target_node_id": "node_86172c26a0",
+          "target_port_key": "exec_in",
+          "visual_style": {}
+        },
+        {
+          "edge_id": "edge_2bd59e9a83",
+          "label": "",
+          "source_node_id": "node_22a38e40c3",
+          "source_port_key": "scoping",
+          "target_node_id": "node_432e7d56b7",
+          "target_port_key": "mesh_scoping",
+          "visual_style": {}
+        },
+        {
+          "edge_id": "edge_2fe07d0f27",
+          "label": "",
+          "source_node_id": "node_22a38e40c3",
+          "source_port_key": "exec_out",
+          "target_node_id": "node_432e7d56b7",
+          "target_port_key": "exec_in",
+          "visual_style": {}
+        },
+        {
+          "edge_id": "edge_5fdcbb0617",
+          "label": "",
+          "source_node_id": "node_49e8322704",
+          "source_port_key": "field",
+          "target_node_id": "node_624f27b8ff",
+          "target_port_key": "field",
+          "visual_style": {}
+        },
+        {
+          "edge_id": "edge_61178d97a1",
+          "label": "",
+          "source_node_id": "node_d9bc690efa",
+          "source_port_key": "model",
+          "target_node_id": "node_624f27b8ff",
+          "target_port_key": "model",
+          "visual_style": {}
+        },
+        {
+          "edge_id": "edge_621e421340",
+          "label": "",
+          "source_node_id": "node_86172c26a0",
+          "source_port_key": "exec_out",
+          "target_node_id": "node_d9bc690efa",
+          "target_port_key": "exec_in",
+          "visual_style": {}
+        },
+        {
+          "edge_id": "edge_803fc940b2",
+          "label": "",
+          "source_node_id": "node_d9bc690efa",
+          "source_port_key": "model",
+          "target_node_id": "node_432e7d56b7",
+          "target_port_key": "model",
+          "visual_style": {}
+        },
+        {
+          "edge_id": "edge_8263afeb5d",
+          "label": "",
+          "source_node_id": "node_22a38e40c3",
+          "source_port_key": "scoping",
+          "target_node_id": "node_49e8322704",
+          "target_port_key": "mesh_scoping",
+          "visual_style": {}
+        },
+        {
+          "edge_id": "edge_8c4cb1b594",
+          "label": "",
+          "source_node_id": "node_432e7d56b7",
+          "source_port_key": "exec_out",
+          "target_node_id": "node_624f27b8ff",
+          "target_port_key": "exec_in",
+          "visual_style": {}
+        },
+        {
+          "edge_id": "edge_c06c6a4730",
+          "label": "",
+          "source_node_id": "node_d9bc690efa",
+          "source_port_key": "model",
+          "target_node_id": "node_22a38e40c3",
+          "target_port_key": "model",
+          "visual_style": {}
+        },
+        {
+          "edge_id": "edge_ca389fd9ed",
+          "label": "",
+          "source_node_id": "node_432e7d56b7",
+          "source_port_key": "mesh",
+          "target_node_id": "node_624f27b8ff",
+          "target_port_key": "mesh",
+          "visual_style": {}
+        },
+        {
+          "edge_id": "edge_cc17bc62b1",
+          "label": "",
+          "source_node_id": "node_22a38e40c3",
+          "source_port_key": "exec_out",
+          "target_node_id": "node_49e8322704",
+          "target_port_key": "exec_in",
+          "visual_style": {}
+        },
+        {
+          "edge_id": "edge_d2f30a1fae",
+          "label": "",
+          "source_node_id": "node_49e8322704",
+          "source_port_key": "exec_out",
+          "target_node_id": "node_624f27b8ff",
+          "target_port_key": "exec_in",
+          "visual_style": {}
+        },
+        {
+          "edge_id": "edge_e07895c068",
+          "label": "",
+          "source_node_id": "node_d9bc690efa",
+          "source_port_key": "exec_out",
+          "target_node_id": "node_22a38e40c3",
+          "target_port_key": "exec_in",
+          "visual_style": {}
+        },
+        {
+          "edge_id": "edge_e261ccade5",
+          "label": "",
+          "source_node_id": "node_d9bc690efa",
+          "source_port_key": "model",
+          "target_node_id": "node_49e8322704",
+          "target_port_key": "model",
+          "visual_style": {}
+        },
+        {
+          "edge_id": "edge_f8db0571dd",
+          "label": "",
+          "source_node_id": "node_86172c26a0",
+          "source_port_key": "result_file",
+          "target_node_id": "node_d9bc690efa",
+          "target_port_key": "result_file",
+          "visual_style": {}
+        }
+      ],
+      "name": "Demo 3 - Static Named Selection Mesh Viewer",
+      "nodes": [
+        {
+          "collapsed": false,
+          "custom_height": null,
+          "custom_width": null,
+          "exposed_ports": {
+            "exec_in": true,
+            "exec_out": true,
+            "model": true,
+            "scoping": true
+          },
+          "locked_ports": {},
+          "node_id": "node_22a38e40c3",
+          "parent_node_id": null,
+          "port_labels": {},
+          "properties": {
+            "named_selection": "BOLT_NODES",
+            "output_mode": "memory",
+            "selection_mode": "named_selection",
+            "time_values": "2.0"
+          },
+          "title": "DPF Mesh Scoping",
+          "type_id": "dpf.scoping.mesh",
+          "visual_style": {},
+          "x": 720.0,
+          "y": 0.0
+        },
+        {
+          "collapsed": false,
+          "custom_height": null,
+          "custom_width": null,
+          "exposed_ports": {
+            "exec_in": true,
+            "exec_out": true,
+            "mesh": true,
+            "mesh_scoping": true,
+            "model": true
+          },
+          "locked_ports": {},
+          "node_id": "node_432e7d56b7",
+          "parent_node_id": null,
+          "port_labels": {},
+          "properties": {
+            "nodes_only": false,
+            "output_mode": "memory"
+          },
+          "title": "DPF Mesh Extract",
+          "type_id": "dpf.mesh_extract",
+          "visual_style": {},
+          "x": 960.0,
+          "y": 140.0
+        },
+        {
+          "collapsed": false,
+          "custom_height": null,
+          "custom_width": null,
+          "exposed_ports": {
+            "exec_in": true,
+            "exec_out": true,
+            "field": true,
+            "mesh_scoping": true,
+            "model": true,
+            "time_scoping": false
+          },
+          "locked_ports": {},
+          "node_id": "node_49e8322704",
+          "parent_node_id": null,
+          "port_labels": {},
+          "properties": {
+            "output_mode": "memory",
+            "result_name": "displacement",
+            "set_ids": "2"
+          },
+          "title": "DPF Result Field",
+          "type_id": "dpf.result_field",
+          "visual_style": {},
+          "x": 960.0,
+          "y": -140.0
+        },
+        {
+          "collapsed": false,
+          "custom_height": null,
+          "custom_width": null,
+          "exposed_ports": {
+            "exec_in": true,
+            "exec_out": false,
+            "field": true,
+            "mesh": true,
+            "model": true,
+            "session": false
+          },
+          "locked_ports": {},
+          "node_id": "node_624f27b8ff",
+          "parent_node_id": null,
+          "port_labels": {},
+          "properties": {},
+          "title": "DPF Viewer",
+          "type_id": "dpf.viewer",
+          "visual_style": {},
+          "x": 1220.0,
+          "y": 0.0
+        },
+        {
+          "collapsed": false,
+          "custom_height": null,
+          "custom_width": null,
+          "exposed_ports": {
+            "exec_in": true,
+            "exec_out": true,
+            "normalized_path": false,
+            "path": false,
+            "result_file": true
+          },
+          "locked_ports": {},
+          "node_id": "node_86172c26a0",
+          "parent_node_id": null,
+          "port_labels": {},
+          "properties": {
+            "output_mode": "memory",
+            "path": "tests/ansys_dpf_core/example_outputs/static_analysis_1_bolted_joint/file.rst"
+          },
+          "title": "DPF Result File",
+          "type_id": "dpf.result_file",
+          "visual_style": {},
+          "x": 240.0,
+          "y": 0.0
+        },
+        {
+          "collapsed": false,
+          "custom_height": null,
+          "custom_width": null,
+          "exposed_ports": {
+            "exec_in": true,
+            "exec_out": true,
+            "model": true,
+            "path": false,
+            "result_file": true
+          },
+          "locked_ports": {},
+          "node_id": "node_d9bc690efa",
+          "parent_node_id": null,
+          "port_labels": {},
+          "properties": {
+            "output_mode": "memory"
+          },
+          "title": "DPF Model",
+          "type_id": "dpf.model",
+          "visual_style": {},
+          "x": 480.0,
+          "y": 0.0
+        },
+        {
+          "collapsed": false,
+          "custom_height": null,
+          "custom_width": null,
+          "exposed_ports": {
+            "exec_out": true,
+            "trigger": false
+          },
+          "locked_ports": {},
+          "node_id": "node_fa7ad20bd5",
+          "parent_node_id": null,
+          "port_labels": {},
+          "properties": {},
+          "title": "Start",
+          "type_id": "core.start",
+          "visual_style": {},
+          "x": 0.0,
+          "y": 0.0
+        }
+      ],
+      "views": [
+        {
+          "hide_locked_ports": false,
+          "hide_optional_ports": false,
+          "name": "V1",
+          "pan_x": 0.0,
+          "pan_y": 0.0,
+          "scope_path": [],
+          "view_id": "view_f5bd4055d9",
+          "zoom": 1.0
+        }
+      ],
+      "workspace_id": "ws_e5ae77ad10"
+    },
+    {
+      "active_view_id": "view_8de94d1022",
+      "dirty": false,
+      "edges": [
+        {
+          "edge_id": "edge_20d9602ad2",
+          "label": "",
+          "source_node_id": "node_55d67816e3",
+          "source_port_key": "exec_out",
+          "target_node_id": "node_c451bf7c07",
+          "target_port_key": "exec_in",
+          "visual_style": {}
+        },
+        {
+          "edge_id": "edge_2725784e41",
+          "label": "",
+          "source_node_id": "node_ee08292c1a",
+          "source_port_key": "exec_out",
+          "target_node_id": "node_fcad1c2ef6",
+          "target_port_key": "exec_in",
+          "visual_style": {}
+        },
+        {
+          "edge_id": "edge_5235d3a9f8",
+          "label": "",
+          "source_node_id": "node_c451bf7c07",
+          "source_port_key": "exec_out",
+          "target_node_id": "node_e953a49d61",
+          "target_port_key": "exec_in",
+          "visual_style": {}
+        },
+        {
+          "edge_id": "edge_7177321fe9",
+          "label": "",
+          "source_node_id": "node_c451bf7c07",
+          "source_port_key": "result_file",
+          "target_node_id": "node_e953a49d61",
+          "target_port_key": "result_file",
+          "visual_style": {}
+        },
+        {
+          "edge_id": "edge_a16f94732f",
+          "label": "",
+          "source_node_id": "node_ee08292c1a",
+          "source_port_key": "field",
+          "target_node_id": "node_fcad1c2ef6",
+          "target_port_key": "field",
+          "visual_style": {}
+        },
+        {
+          "edge_id": "edge_a2a68b542c",
+          "label": "",
+          "source_node_id": "node_e953a49d61",
+          "source_port_key": "exec_out",
+          "target_node_id": "node_ee08292c1a",
+          "target_port_key": "exec_in",
+          "visual_style": {}
+        },
+        {
+          "edge_id": "edge_a2af2c51f8",
+          "label": "",
+          "source_node_id": "node_e953a49d61",
+          "source_port_key": "model",
+          "target_node_id": "node_ee08292c1a",
+          "target_port_key": "model",
+          "visual_style": {}
+        },
+        {
+          "edge_id": "edge_f7357e2ec1",
+          "label": "",
+          "source_node_id": "node_e953a49d61",
+          "source_port_key": "model",
+          "target_node_id": "node_fcad1c2ef6",
+          "target_port_key": "model",
+          "visual_style": {}
+        }
+      ],
+      "name": "Demo 4 - Thermal Temperature Export",
+      "nodes": [
+        {
+          "collapsed": false,
+          "custom_height": null,
+          "custom_width": null,
+          "exposed_ports": {
+            "exec_out": true,
+            "trigger": false
+          },
+          "locked_ports": {},
+          "node_id": "node_55d67816e3",
+          "parent_node_id": null,
+          "port_labels": {},
+          "properties": {},
+          "title": "Start",
+          "type_id": "core.start",
+          "visual_style": {},
+          "x": 0.0,
+          "y": 0.0
+        },
+        {
+          "collapsed": false,
+          "custom_height": null,
+          "custom_width": null,
+          "exposed_ports": {
+            "exec_in": true,
+            "exec_out": true,
+            "normalized_path": false,
+            "path": false,
+            "result_file": true
+          },
+          "locked_ports": {},
+          "node_id": "node_c451bf7c07",
+          "parent_node_id": null,
+          "port_labels": {},
+          "properties": {
+            "output_mode": "memory",
+            "path": "tests/ansys_dpf_core/example_outputs/steady_state_thermal_analysis_1_bolted_joint/file.rth"
+          },
+          "title": "DPF Result File",
+          "type_id": "dpf.result_file",
+          "visual_style": {},
+          "x": 260.0,
+          "y": 0.0
+        },
+        {
+          "collapsed": false,
+          "custom_height": null,
+          "custom_width": null,
+          "exposed_ports": {
+            "exec_in": true,
+            "exec_out": true,
+            "model": true,
+            "path": false,
+            "result_file": true
+          },
+          "locked_ports": {},
+          "node_id": "node_e953a49d61",
+          "parent_node_id": null,
+          "port_labels": {},
+          "properties": {
+            "output_mode": "memory"
+          },
+          "title": "DPF Model",
+          "type_id": "dpf.model",
+          "visual_style": {},
+          "x": 520.0,
+          "y": 0.0
+        },
+        {
+          "collapsed": false,
+          "custom_height": null,
+          "custom_width": null,
+          "exposed_ports": {
+            "exec_in": true,
+            "exec_out": true,
+            "field": true,
+            "mesh_scoping": false,
+            "model": true,
+            "time_scoping": false
+          },
+          "locked_ports": {},
+          "node_id": "node_ee08292c1a",
+          "parent_node_id": null,
+          "port_labels": {},
+          "properties": {
+            "output_mode": "memory",
+            "result_name": "temperature",
+            "set_ids": "1"
+          },
+          "title": "DPF Result Field",
+          "type_id": "dpf.result_field",
+          "visual_style": {},
+          "x": 780.0,
+          "y": 0.0
+        },
+        {
+          "collapsed": false,
+          "custom_height": null,
+          "custom_width": null,
+          "exposed_ports": {
+            "csv": false,
+            "dataset": false,
+            "exec_in": true,
+            "exec_out": false,
+            "exports": false,
+            "field": true,
+            "mesh": false,
+            "model": true,
+            "png": false,
+            "vtm": false,
+            "vtu": false
+          },
+          "locked_ports": {},
+          "node_id": "node_fcad1c2ef6",
+          "parent_node_id": null,
+          "port_labels": {},
+          "properties": {
+            "artifact_key": "thermal_temperature",
+            "export_formats": "csv",
+            "output_mode": "memory"
+          },
+          "title": "DPF Export",
+          "type_id": "dpf.export",
+          "visual_style": {},
+          "x": 1040.0,
+          "y": 0.0
+        }
+      ],
+      "views": [
+        {
+          "hide_locked_ports": false,
+          "hide_optional_ports": false,
+          "name": "V1",
+          "pan_x": 0.0,
+          "pan_y": 0.0,
+          "scope_path": [],
+          "view_id": "view_8de94d1022",
+          "zoom": 1.0
+        }
+      ],
+      "workspace_id": "ws_62bc89bdf6"
+    },
+    {
+      "active_view_id": "view_590663ef94",
+      "dirty": false,
+      "edges": [
+        {
+          "edge_id": "edge_38c5017b42",
+          "label": "",
+          "source_node_id": "node_a943a043ea",
+          "source_port_key": "field_max",
+          "target_node_id": "node_4de2205919",
+          "target_port_key": "field",
+          "visual_style": {}
+        },
+        {
+          "edge_id": "edge_6c1e7c8535",
+          "label": "",
+          "source_node_id": "node_69534a189a",
+          "source_port_key": "exec_out",
+          "target_node_id": "node_4de2205919",
+          "target_port_key": "exec_in",
+          "visual_style": {}
+        },
+        {
+          "edge_id": "edge_768ca044e5",
+          "label": "",
+          "source_node_id": "node_2df67c75a3",
+          "source_port_key": "fields_container_2",
+          "target_node_id": "node_a943a043ea",
+          "target_port_key": "fields_container",
+          "visual_style": {}
+        },
+        {
+          "edge_id": "edge_9476f54c5a",
+          "label": "",
+          "source_node_id": "node_69534a189a",
+          "source_port_key": "model",
+          "target_node_id": "node_4de2205919",
+          "target_port_key": "model",
+          "visual_style": {}
+        },
+        {
+          "edge_id": "edge_a3327812c2",
+          "label": "",
+          "source_node_id": "node_6a664e775d",
+          "source_port_key": "data_sources",
+          "target_node_id": "node_69534a189a",
+          "target_port_key": "data_sources",
+          "visual_style": {}
+        },
+        {
+          "edge_id": "edge_a5353159be",
+          "label": "",
+          "source_node_id": "node_ec97af64c8",
+          "source_port_key": "exec_out",
+          "target_node_id": "node_6a664e775d",
+          "target_port_key": "exec_in",
+          "visual_style": {}
+        },
+        {
+          "edge_id": "edge_a8e60e605e",
+          "label": "",
+          "source_node_id": "node_6a664e775d",
+          "source_port_key": "data_sources",
+          "target_node_id": "node_2df67c75a3",
+          "target_port_key": "data_sources",
+          "visual_style": {}
+        },
+        {
+          "edge_id": "edge_b679766480",
+          "label": "",
+          "source_node_id": "node_a943a043ea",
+          "source_port_key": "exec_out",
+          "target_node_id": "node_4de2205919",
+          "target_port_key": "exec_in",
+          "visual_style": {}
+        },
+        {
+          "edge_id": "edge_b6a729ae1a",
+          "label": "",
+          "source_node_id": "node_6a664e775d",
+          "source_port_key": "exec_out",
+          "target_node_id": "node_69534a189a",
+          "target_port_key": "exec_in",
+          "visual_style": {}
+        },
+        {
+          "edge_id": "edge_b6e5bfbeba",
+          "label": "",
+          "source_node_id": "node_6a664e775d",
+          "source_port_key": "exec_out",
+          "target_node_id": "node_2df67c75a3",
+          "target_port_key": "exec_in",
+          "visual_style": {}
+        },
+        {
+          "edge_id": "edge_dba49de62d",
+          "label": "",
+          "source_node_id": "node_2df67c75a3",
+          "source_port_key": "exec_out",
+          "target_node_id": "node_a943a043ea",
+          "target_port_key": "exec_in",
+          "visual_style": {}
+        }
+      ],
+      "name": "Demo 5 - Generated Operator Displacement MinMax Viewer",
+      "nodes": [
+        {
+          "collapsed": false,
+          "custom_height": null,
+          "custom_width": null,
+          "exposed_ports": {
+            "data_sources": true,
+            "exec_in": true,
+            "exec_out": true,
+            "fields_container_2": true
+          },
+          "locked_ports": {},
+          "node_id": "node_2df67c75a3",
+          "parent_node_id": null,
+          "port_labels": {},
+          "properties": {},
+          "title": "Generated Displacement",
+          "type_id": "dpf.op.result.displacement",
+          "visual_style": {},
+          "x": 520.0,
+          "y": 140.0
+        },
+        {
+          "collapsed": false,
+          "custom_height": null,
+          "custom_width": null,
+          "exposed_ports": {
+            "exec_in": true,
+            "exec_out": false,
+            "field": true,
+            "mesh": false,
+            "model": true,
+            "session": false
+          },
+          "locked_ports": {},
+          "node_id": "node_4de2205919",
+          "parent_node_id": null,
+          "port_labels": {},
+          "properties": {},
+          "title": "DPF Viewer",
+          "type_id": "dpf.viewer",
+          "visual_style": {},
+          "x": 1080.0,
+          "y": 0.0
+        },
+        {
+          "collapsed": false,
+          "custom_height": null,
+          "custom_width": null,
+          "exposed_ports": {
+            "data_sources": true,
+            "exec_in": true,
+            "exec_out": true,
+            "model": true
+          },
+          "locked_ports": {},
+          "node_id": "node_69534a189a",
+          "parent_node_id": null,
+          "port_labels": {},
+          "properties": {},
+          "title": "Generated Helper Model",
+          "type_id": "dpf.helper.model.model",
+          "visual_style": {},
+          "x": 520.0,
+          "y": -140.0
+        },
+        {
+          "collapsed": false,
+          "custom_height": null,
+          "custom_width": null,
+          "exposed_ports": {
+            "data_sources": true,
+            "exec_in": true,
+            "exec_out": true
+          },
+          "locked_ports": {},
+          "node_id": "node_6a664e775d",
+          "parent_node_id": null,
+          "port_labels": {},
+          "properties": {
+            "result_path": "tests/ansys_dpf_core/example_outputs/static_analysis_1_bolted_joint/file.rst"
+          },
+          "title": "DPF Data Sources",
+          "type_id": "dpf.helper.data_sources.data_sources",
+          "visual_style": {},
+          "x": 240.0,
+          "y": 0.0
+        },
+        {
+          "collapsed": false,
+          "custom_height": null,
+          "custom_width": null,
+          "exposed_ports": {
+            "exec_in": true,
+            "exec_out": true,
+            "field_max": true,
+            "field_min": false,
+            "fields_container": true
+          },
+          "locked_ports": {},
+          "node_id": "node_a943a043ea",
+          "parent_node_id": null,
+          "port_labels": {},
+          "properties": {},
+          "title": "Generated Min Max",
+          "type_id": "dpf.op.min_max.min_max_fc",
+          "visual_style": {},
+          "x": 800.0,
+          "y": 140.0
+        },
+        {
+          "collapsed": false,
+          "custom_height": null,
+          "custom_width": null,
+          "exposed_ports": {
+            "exec_out": true,
+            "trigger": false
+          },
+          "locked_ports": {},
+          "node_id": "node_ec97af64c8",
+          "parent_node_id": null,
+          "port_labels": {},
+          "properties": {},
+          "title": "Start",
+          "type_id": "core.start",
+          "visual_style": {},
+          "x": 0.0,
+          "y": 0.0
+        }
+      ],
+      "views": [
+        {
+          "hide_locked_ports": false,
+          "hide_optional_ports": false,
+          "name": "V1",
+          "pan_x": 0.0,
+          "pan_y": 0.0,
+          "scope_path": [],
+          "view_id": "view_590663ef94",
+          "zoom": 1.0
+        }
+      ],
+      "workspace_id": "ws_b664729fdc"
+    }
+  ]
+}

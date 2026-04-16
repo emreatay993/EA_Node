@@ -3,21 +3,26 @@ from __future__ import annotations
 import importlib
 import pkgutil
 import re
+from types import SimpleNamespace
 import unittest
+from unittest import mock
 
 try:
     import ansys.dpf.core.operators as dpf_operators
 except ModuleNotFoundError:  # pragma: no cover - optional dependency guard
     dpf_operators = None
 
+from ea_node_editor.execution.worker_services import WorkerServices
 from ea_node_editor.nodes.builtins.ansys_dpf_operator_catalog import (
     load_ansys_dpf_operator_plugin_descriptors,
 )
+from ea_node_editor.nodes.execution_context import ExecutionContext
 from ea_node_editor.nodes.builtins.ansys_dpf_taxonomy import (
     DPF_OPERATOR_FAMILY_ORDER,
     dpf_category_path,
     operator_family_display_name,
 )
+from ea_node_editor.runtime_contracts import RuntimeHandleRef
 
 _SKIPPED_OPERATOR_PACKAGES = frozenset({"specification", "translator"})
 _GENERATED_OPERATOR_PREFIX = "dpf.op."
@@ -149,6 +154,66 @@ class DpfGeneratedOperatorCatalogTests(unittest.TestCase):
         self.assertIn("dpf_fields_container", add_ports["fielda"].accepted_data_types)
         self.assertIn("float", add_ports["fielda"].accepted_data_types)
         self.assertEqual(add_ports["field"].source_metadata.pin_name, "field")
+
+    @unittest.skipIf(dpf_operators is None, "ansys.dpf.core is not installed")
+    def test_generated_operator_execute_wraps_dpf_outputs_as_runtime_handles(self) -> None:
+        class _FakeField:
+            def __init__(self) -> None:
+                self.location = "Nodal"
+                self.component_count = 3
+                self.scoping = SimpleNamespace(size=2)
+                self.unit = "m"
+
+        class _FakeFieldsContainer:
+            def __init__(self, field: object) -> None:
+                self._fields = [field]
+                self.labels = ("time",)
+
+            def __len__(self) -> int:
+                return len(self._fields)
+
+            def __getitem__(self, index: int) -> object:
+                return self._fields[index]
+
+            def get_label_space(self, index: int) -> dict[str, int]:
+                self._fields[index]
+                return {"time": 2}
+
+        descriptors = {
+            descriptor.spec.type_id: descriptor
+            for descriptor in load_ansys_dpf_operator_plugin_descriptors()
+        }
+        plugin = descriptors["dpf.op.result.displacement"].factory()
+        services = WorkerServices()
+        service = services.dpf_runtime_service
+        fake_field = _FakeField()
+        fake_fields = _FakeFieldsContainer(fake_field)
+        ctx = ExecutionContext(
+            run_id="run_generated_wrap",
+            node_id="node_generated_wrap",
+            workspace_id="ws_generated_wrap",
+            inputs={},
+            properties={},
+            emit_log=lambda *_args: None,
+            worker_services=services,
+        )
+
+        with mock.patch.object(
+            service,
+            "invoke_operator",
+            return_value=SimpleNamespace(outputs={"fields_container_2": fake_fields}),
+        ):
+            result = plugin.execute(ctx)
+
+        wrapped = result.outputs["fields_container_2"]
+        self.assertIsInstance(wrapped, RuntimeHandleRef)
+        if not isinstance(wrapped, RuntimeHandleRef):
+            return
+        self.assertEqual(wrapped.kind, "dpf.fields_container")
+        self.assertEqual(wrapped.metadata["field_count"], 1)
+        self.assertEqual(wrapped.metadata["set_ids"], [2])
+        self.assertIs(services.resolve_handle(wrapped, expected_kind="dpf.fields_container"), fake_fields)
+        self.assertTrue(result.outputs["exec_out"])
 
 
 if __name__ == "__main__":
