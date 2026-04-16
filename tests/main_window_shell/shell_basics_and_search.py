@@ -590,6 +590,41 @@ class MainWindowShellBasicsAndSearchTests(SharedMainWindowShellTestBase):
 
         self.assertLess(short_width, long_width)
 
+    def test_qml_view_tabs_size_each_chip_from_its_own_label(self) -> None:
+        root_object = self.window.quick_widget.rootObject()
+        self.assertIsNotNone(root_object)
+        view_controls_strip = root_object.findChild(QObject, "viewControlsStrip")
+        self.assertIsNotNone(view_controls_strip)
+
+        short_name = "v2"
+        long_name = "Demo 2 - Static Stress Norm Export"
+        with patch.object(
+            self.window.shell_host_presenter,
+            "prompt_text_value",
+            side_effect=[(short_name, True), (long_name, True)],
+        ):
+            self.window.request_create_view()
+            self.window.request_create_view()
+        self.app.processEvents()
+
+        def _has_expected_tab_buttons() -> bool:
+            buttons_by_label = _tab_buttons_by_label(view_controls_strip)
+            return short_name in buttons_by_label and long_name in buttons_by_label
+
+        wait_for_condition_or_raise(
+            _has_expected_tab_buttons,
+            timeout_ms=1500,
+            poll_interval_ms=20,
+            app=self.app,
+            timeout_message="View tab strip did not expose the expected tab buttons.",
+        )
+
+        buttons_by_label = _tab_buttons_by_label(view_controls_strip)
+        short_width = float(buttons_by_label[short_name].property("width"))
+        long_width = float(buttons_by_label[long_name].property("width"))
+
+        self.assertLess(short_width, long_width)
+
     def test_qml_canvas_surfaces_start_on_active_theme_palette(self) -> None:
         graph_canvas = self._graph_canvas_item()
         background = graph_canvas.findChild(QObject, "graphCanvasBackground")
