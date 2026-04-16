@@ -223,7 +223,11 @@ Item {
     readonly property int passiveFontWeight: themeState.passiveFontWeight
     readonly property bool passiveFontBold: themeState.passiveFontBold
     readonly property var graphSharedTypography: sharedTypographyState
-    readonly property var surfaceMetrics: GraphNodeSurfaceMetrics.surfaceMetrics(nodeData)
+    readonly property var surfaceMetrics: GraphNodeSurfaceMetrics.surfaceMetrics(
+        nodeData,
+        card._liveGeometryActive ? card._liveWidth : (card.nodeData ? card.nodeData.width : undefined),
+        card._liveGeometryActive ? card._liveHeight : (card.nodeData ? card.nodeData.height : undefined)
+    )
     readonly property bool surfaceInteractionLocked: Boolean(surfaceLoader.blocksHostInteraction)
     readonly property var viewerSurfaceContract: surfaceLoader.viewerSurfaceContract
     readonly property rect viewerBodyRect: surfaceLoader.viewerBodyRect

@@ -60,6 +60,15 @@ function _mediaContract() {
     return _contractSection("media");
 }
 
+var VIEWER_DEFAULT_WIDTH = 340.0;
+var VIEWER_MIN_WIDTH = 320.0;
+var VIEWER_DEFAULT_BODY_HEIGHT = 176.0;
+var VIEWER_MIN_BODY_HEIGHT = 148.0;
+var VIEWER_BODY_LEFT_MARGIN = 14.0;
+var VIEWER_BODY_RIGHT_MARGIN = 14.0;
+var VIEWER_BODY_BOTTOM_PADDING = 12.0;
+var VIEWER_TITLE_RIGHT_MARGIN = 42.0;
+
 function _variantLayouts(section) {
     var layouts = section ? section.variants : null;
     return layouts && typeof layouts === "object" ? layouts : {};
@@ -593,7 +602,107 @@ function _mediaSurfaceMetrics(node, source) {
     };
 }
 
-function surfaceMetrics(node) {
+function _viewerSurfaceMetrics(node, source, _widthOverride, heightOverride) {
+    var standard = _standardContract();
+    var portCount = _visiblePortCounts(node).portCount;
+    var headerHeight = _contractNumber(standard, "header_height");
+    var bodyTop = _contractNumber(standard, "body_top");
+    var portHeight = _contractNumber(standard, "port_height");
+    var inlineHeight = inlineBodyHeight(node);
+    var defaultBodyHeight = Math.max(VIEWER_DEFAULT_BODY_HEIGHT, inlineHeight);
+    var minBodyHeight = Math.max(VIEWER_MIN_BODY_HEIGHT, inlineHeight);
+    var defaultHeight = bodyTop + defaultBodyHeight + portCount * portHeight + VIEWER_BODY_BOTTOM_PADDING;
+    var minHeight = bodyTop + minBodyHeight + portCount * portHeight + VIEWER_BODY_BOTTOM_PADDING;
+    var activeHeight = _resolvedDimension(
+        heightOverride !== undefined ? heightOverride : node && node.height,
+        _metricNumber(source, "default_height", defaultHeight)
+    );
+    var bodyBottomMargin = _metricNumber(source, "body_bottom_margin", VIEWER_BODY_BOTTOM_PADDING);
+    var bodyHeight = Math.max(
+        defaultBodyHeight,
+        activeHeight - bodyTop - portCount * portHeight - bodyBottomMargin
+    );
+    return {
+        "default_width": _metricNumber(source, "default_width", VIEWER_DEFAULT_WIDTH),
+        "default_height": _metricNumber(source, "default_height", defaultHeight),
+        "min_width": _metricNumber(source, "min_width", VIEWER_MIN_WIDTH),
+        "min_height": Math.max(
+            _metricNumber(source, "min_height", minHeight),
+            minHeight
+        ),
+        "collapsed_width": _metricNumber(source, "collapsed_width", _contractNumber(standard, "collapsed_width")),
+        "collapsed_height": _metricNumber(source, "collapsed_height", _contractNumber(standard, "collapsed_height")),
+        "header_height": _metricNumber(source, "header_height", headerHeight),
+        "header_top_margin": _metricNumber(source, "header_top_margin", _contractNumber(standard, "header_top_margin")),
+        "body_top": _metricNumber(source, "body_top", bodyTop),
+        "body_height": bodyHeight,
+        "port_top": _metricNumber(source, "body_top", bodyTop) + bodyHeight,
+        "port_height": _metricNumber(source, "port_height", portHeight),
+        "port_center_offset": _metricNumber(
+            source,
+            "port_center_offset",
+            _contractNumber(standard, "port_center_offset")
+        ),
+        "port_side_margin": _metricNumber(source, "port_side_margin", _contractNumber(standard, "port_side_margin")),
+        "port_dot_radius": _metricNumber(source, "port_dot_radius", _contractNumber(standard, "port_dot_radius")),
+        "resize_handle_size": _metricNumber(
+            source,
+            "resize_handle_size",
+            _contractNumber(standard, "resize_handle_size")
+        ),
+        "title_top": _metricNumber(source, "title_top", _contractNumber(standard, "header_top_margin")),
+        "title_height": _metricNumber(source, "title_height", headerHeight),
+        "title_left_margin": _metricNumber(
+            source,
+            "title_left_margin",
+            _contractNumber(standard, "title_left_margin")
+        ),
+        "title_right_margin": _metricNumber(source, "title_right_margin", VIEWER_TITLE_RIGHT_MARGIN),
+        "title_centered": _metricBool(source, "title_centered", false),
+        "body_left_margin": _metricNumber(source, "body_left_margin", VIEWER_BODY_LEFT_MARGIN),
+        "body_right_margin": _metricNumber(source, "body_right_margin", VIEWER_BODY_RIGHT_MARGIN),
+        "body_bottom_margin": bodyBottomMargin,
+        "show_header_background": _metricBool(
+            source,
+            "show_header_background",
+            Boolean(standard.show_header_background)
+        ),
+        "show_accent_bar": _metricBool(source, "show_accent_bar", Boolean(standard.show_accent_bar)),
+        "use_host_chrome": _metricBool(source, "use_host_chrome", Boolean(standard.use_host_chrome)),
+        "standard_title_full_width": _metricNumber(
+            source,
+            "standard_title_full_width",
+            _contractNumber(standard, "standard_title_full_width")
+        ),
+        "standard_left_label_width": _metricNumber(
+            source,
+            "standard_left_label_width",
+            _contractNumber(standard, "standard_left_label_width")
+        ),
+        "standard_right_label_width": _metricNumber(
+            source,
+            "standard_right_label_width",
+            _contractNumber(standard, "standard_right_label_width")
+        ),
+        "standard_port_gutter": _metricNumber(
+            source,
+            "standard_port_gutter",
+            _contractNumber(standard, "standard_port_gutter")
+        ),
+        "standard_center_gap": _metricNumber(
+            source,
+            "standard_center_gap",
+            _contractNumber(standard, "standard_center_gap")
+        ),
+        "standard_port_label_min_width": _metricNumber(
+            source,
+            "standard_port_label_min_width",
+            _contractNumber(standard, "standard_port_label_min_width")
+        )
+    };
+}
+
+function surfaceMetrics(node, widthOverride, heightOverride) {
     var source = node && node.surface_metrics ? node.surface_metrics : null;
     var family = String(node && node.surface_family || "standard");
     if (family === "flowchart")
@@ -606,6 +715,8 @@ function surfaceMetrics(node) {
         return _commentBackdropSurfaceMetrics(node, source);
     if (family === "media")
         return _mediaSurfaceMetrics(node, source);
+    if (family === "viewer")
+        return _viewerSurfaceMetrics(node, source, widthOverride, heightOverride);
     return _standardSurfaceMetrics(node, source);
 }
 
@@ -911,7 +1022,7 @@ function _flowchartHorizontalBounds(variant, width, height, localY) {
 function localPortPointForPort(node, port, inputRow, outputRow, widthOverride, heightOverride) {
     if (!node || !port)
         return {"x": 0.0, "y": 0.0};
-    var metrics = surfaceMetrics(node);
+    var metrics = surfaceMetrics(node, widthOverride, heightOverride);
     var widthValue = _resolvedDimension(widthOverride !== undefined ? widthOverride : node.width, metrics.default_width);
     var heightValue = _resolvedDimension(heightOverride !== undefined ? heightOverride : node.height, metrics.default_height);
     var direction = portLayoutDirection(port);
@@ -965,7 +1076,7 @@ function localPortPoint(node, direction, rowIndex, widthOverride, heightOverride
         if (portCardinalSide(rowPort))
             return localPortPointForPort(node, rowPort, resolvedRow, resolvedRow, widthOverride, heightOverride);
     }
-    var metrics = surfaceMetrics(node);
+    var metrics = surfaceMetrics(node, widthOverride, heightOverride);
     var widthValue = _resolvedDimension(widthOverride !== undefined ? widthOverride : node.width, metrics.default_width);
     var heightValue = _resolvedDimension(heightOverride !== undefined ? heightOverride : node.height, metrics.default_height);
     if (node.collapsed) {

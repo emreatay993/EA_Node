@@ -433,6 +433,38 @@ class ViewerSurfaceContractTests(unittest.TestCase):
             """,
         )
 
+    def test_viewer_ports_follow_live_resize_preview(self) -> None:
+        self._run_qml_probe(
+            "viewer-live-resize-port-preview",
+            """
+            host = create_component(
+                graph_node_host_qml_path,
+                {
+                    "nodeData": viewer_payload(),
+                    "snapshotReuseActive": True,
+                },
+            )
+
+            initial_metrics = variant_value(host.property("surfaceMetrics"))
+            initial_point = variant_value(host.localPortPoint("in", 0))
+            assert abs(float(initial_metrics["body_height"]) - 176.0) < 0.1
+            assert abs(float(initial_metrics["port_top"]) - 206.0) < 0.1
+            assert abs(float(initial_point["y"]) - 212.0) < 0.1
+
+            host.setProperty("_liveWidth", 296.0)
+            host.setProperty("_liveHeight", 320.0)
+            host.setProperty("_liveGeometryActive", True)
+            app.processEvents()
+
+            live_metrics = variant_value(host.property("surfaceMetrics"))
+            live_point = variant_value(host.localPortPoint("in", 0))
+            assert abs(float(live_metrics["body_height"]) - 260.0) < 0.1
+            assert abs(float(live_metrics["port_top"]) - 290.0) < 0.1
+            assert abs(float(live_point["y"]) - 296.0) < 0.1
+            assert float(live_point["y"]) > float(initial_point["y"])
+            """,
+        )
+
     def test_graph_viewer_surface_contract_includes_bridge_binding_and_control_rects(self) -> None:
         self._run_qml_probe(
             "viewer-surface-bridge-contract",
