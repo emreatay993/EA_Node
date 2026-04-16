@@ -107,6 +107,13 @@ def _tab_buttons_by_label(strip: QObject) -> dict[str, QQuickItem]:
     return buttons_by_label
 
 
+def _strip_child(strip: QObject, object_name: str) -> QObject:
+    child = strip.findChild(QObject, object_name)
+    if child is None:
+        raise AssertionError(f"Expected child {object_name!r} under strip {strip.objectName()!r}.")
+    return child
+
+
 class MainWindowShellBasicsAndSearchTests(SharedMainWindowShellTestBase):
     def _reopen_window(self) -> None:
         self._reopen_shared_window()
@@ -624,6 +631,81 @@ class MainWindowShellBasicsAndSearchTests(SharedMainWindowShellTestBase):
         long_width = float(buttons_by_label[long_name].property("width"))
 
         self.assertLess(short_width, long_width)
+
+    def test_qml_workspace_tab_strip_only_shows_overflow_controls_when_needed(self) -> None:
+        root_object = self.window.quick_widget.rootObject()
+        self.assertIsNotNone(root_object)
+        workspace_controls_strip = root_object.findChild(QObject, "workspaceControlsStrip")
+        self.assertIsNotNone(workspace_controls_strip)
+
+        backward_button = _strip_child(workspace_controls_strip, "tabStripScrollBackwardButton")
+        forward_button = _strip_child(workspace_controls_strip, "tabStripScrollForwardButton")
+        create_button = _strip_child(workspace_controls_strip, "tabStripCreateButton")
+
+        self.assertFalse(bool(workspace_controls_strip.property("tabsOverflowActive")))
+        self.assertFalse(bool(backward_button.property("visible")))
+        self.assertFalse(bool(forward_button.property("visible")))
+        self.assertTrue(bool(create_button.property("visible")))
+
+        for index in range(8):
+            self.window.workspace_manager.create_workspace(
+                f"Overflow Workspace {index} - Static Displacement Viewer"
+            )
+        self.window._refresh_workspace_tabs()
+        self.app.processEvents()
+
+        wait_for_condition_or_raise(
+            lambda: bool(workspace_controls_strip.property("tabsOverflowActive")),
+            timeout_ms=1500,
+            poll_interval_ms=20,
+            app=self.app,
+            timeout_message="Workspace strip did not enter overflow mode.",
+        )
+
+        self.assertTrue(bool(backward_button.property("visible")))
+        self.assertTrue(bool(forward_button.property("visible")))
+        self.assertTrue(bool(create_button.property("visible")))
+        self.assertLess(
+            float(workspace_controls_strip.property("width")),
+            float(workspace_controls_strip.property("implicitWidth")),
+        )
+        self.assertGreater(float(workspace_controls_strip.property("tabsMaxContentX")), 0.0)
+
+    def test_qml_view_tab_strip_caps_width_and_keeps_create_visible_under_overflow(self) -> None:
+        root_object = self.window.quick_widget.rootObject()
+        self.assertIsNotNone(root_object)
+        view_controls_strip = root_object.findChild(QObject, "viewControlsStrip")
+        self.assertIsNotNone(view_controls_strip)
+
+        create_button = _strip_child(view_controls_strip, "tabStripCreateButton")
+
+        view_names = [
+            f"View {index} - Static Stress Norm Export"
+            for index in range(2, 10)
+        ]
+        with patch.object(
+            self.window.shell_host_presenter,
+            "prompt_text_value",
+            side_effect=[(name, True) for name in view_names],
+        ):
+            for _name in view_names:
+                self.window.request_create_view()
+        self.app.processEvents()
+
+        wait_for_condition_or_raise(
+            lambda: bool(view_controls_strip.property("tabsOverflowActive")),
+            timeout_ms=1500,
+            poll_interval_ms=20,
+            app=self.app,
+            timeout_message="View strip did not enter overflow mode.",
+        )
+
+        self.assertTrue(bool(create_button.property("visible")))
+        self.assertLess(
+            float(view_controls_strip.property("width")),
+            float(view_controls_strip.property("implicitWidth")),
+        )
+        self.assertGreater(float(view_controls_strip.property("tabsViewportWidth")), 0.0)
 
     def test_qml_canvas_surfaces_start_on_active_theme_palette(self) -> None:
         graph_canvas = self._graph_canvas_item()

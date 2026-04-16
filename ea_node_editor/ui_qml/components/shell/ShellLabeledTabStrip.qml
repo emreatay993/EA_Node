@@ -19,6 +19,9 @@ RowLayout {
     property bool createButtonAccentOutline: false
     property var contextMenuItemData: null
     property var tabSlots: []
+    property int testWheelHorizontalDelta: 0
+    property int testWheelVerticalDelta: 0
+    property bool testWheelShiftHeld: false
     readonly property var themePalette: themeBridge.palette
     readonly property bool compactDensity: String(root.densityPreset).toLowerCase() === "compact"
     readonly property int contextMenuRowHeight: 29
@@ -46,6 +49,17 @@ RowLayout {
     readonly property int effectiveCreateButtonHorizontalPadding: root.compactDensity
         ? Math.max(8, root.createButtonHorizontalPadding - 2)
         : root.createButtonHorizontalPadding
+    readonly property int overflowButtonSize: root.compactDensity ? 24 : 28
+    readonly property real tabsViewportWidth: Math.max(0, Number(tabsViewport.width) || 0)
+    readonly property real tabsContentWidth: Math.max(0, Number(tabsViewport.contentWidth) || 0)
+    readonly property real tabsContentX: Math.max(0, Number(tabsViewport.contentX) || 0)
+    readonly property real tabsMaxContentX: Math.max(0, root.tabsContentWidth - root.tabsViewportWidth)
+    readonly property bool tabsOverflowActive: root.tabsMaxContentX > 0.5
+    readonly property bool tabsAtStart: !root.tabsOverflowActive || root.tabsContentX <= 0.5
+    readonly property bool tabsAtEnd: !root.tabsOverflowActive || root.tabsContentX >= root.tabsMaxContentX - 0.5
+    readonly property int effectiveMaxTabWidth: root.tabsViewportWidth > 0
+        ? Math.max(1, Math.floor(root.tabsViewportWidth - 4))
+        : 4096
 
     signal tabActivated(var itemData)
     signal tabMoveRequested(int fromIndex, int toIndex, var itemData)
@@ -120,10 +134,12 @@ RowLayout {
 
     function registerTabSlot(slot) {
         root.setTabSlotRegistration(slot, true)
+        root.scheduleActiveTabReveal()
     }
 
     function unregisterTabSlot(slot) {
         root.setTabSlotRegistration(slot, false)
+        root.scheduleActiveTabReveal()
     }
 
     function dragMinimumXForSlot(slot) {
@@ -158,6 +174,7 @@ RowLayout {
         tabButton.dragStartIndex = -1
         if (fromIndex >= 0 && fromIndex !== toIndex)
             root.tabMoveRequested(fromIndex, toIndex, tabButton.itemData)
+        root.scheduleActiveTabReveal()
     }
 
     function openContextMenu(itemData, positionX, positionY) {
@@ -172,18 +189,142 @@ RowLayout {
         contextActionPopup.open()
     }
 
+    function clampTabsContentX(value) {
+        return Math.max(0, Math.min(root.tabsMaxContentX, Number(value) || 0))
+    }
+
+    function setTabsContentX(value) {
+        var nextValue = root.tabsOverflowActive ? root.clampTabsContentX(value) : 0
+        if (Math.abs(nextValue - tabsViewport.contentX) < 0.5)
+            return false
+        tabsViewport.contentX = nextValue
+        return true
+    }
+
+    function scrollTabsBy(delta) {
+        return root.setTabsContentX(tabsViewport.contentX + (Number(delta) || 0))
+    }
+
+    function scrollTabsTowardStart() {
+        var distance = Math.max(48, Math.round(root.tabsViewportWidth * 0.72))
+        return root.scrollTabsBy(-distance)
+    }
+
+    function scrollTabsTowardEnd() {
+        var distance = Math.max(48, Math.round(root.tabsViewportWidth * 0.72))
+        return root.scrollTabsBy(distance)
+    }
+
+    function activeTabSlot() {
+        if (typeof root.isTabActive !== "function")
+            return null
+        var slots = root.orderedTabSlots()
+        for (var index = 0; index < slots.length; index += 1) {
+            var slot = slots[index]
+            if (root.isTabActive(slot.itemData))
+                return slot
+        }
+        return null
+    }
+
+    function ensureTabSlotVisible(slot) {
+        if (!slot)
+            return false
+        if (!root.tabsOverflowActive)
+            return root.setTabsContentX(0)
+        var slotLeft = Number(slot.x) || 0
+        var slotRight = slotLeft + (Number(slot.width) || 0)
+        var viewportLeft = tabsViewport.contentX
+        var viewportRight = viewportLeft + root.tabsViewportWidth
+        if (slotLeft < viewportLeft)
+            return root.setTabsContentX(slotLeft)
+        if (slotRight > viewportRight)
+            return root.setTabsContentX(slotRight - root.tabsViewportWidth)
+        return false
+    }
+
+    function ensureActiveTabVisible() {
+        if (!root.tabsOverflowActive)
+            return root.setTabsContentX(0)
+        return root.ensureTabSlotVisible(root.activeTabSlot())
+    }
+
+    function scheduleActiveTabReveal() {
+        activeTabRevealTimer.restart()
+    }
+
+    function wheelAxisDelta(wheel, axisName) {
+        if (!wheel)
+            return 0.0
+        var delta = 0.0
+        if (wheel.angleDelta && wheel.angleDelta[axisName] !== undefined && Number(wheel.angleDelta[axisName]) !== 0)
+            delta = Number(wheel.angleDelta[axisName])
+        else if (wheel.pixelDelta && wheel.pixelDelta[axisName] !== undefined && Number(wheel.pixelDelta[axisName]) !== 0)
+            delta = Number(wheel.pixelDelta[axisName]) * 0.5
+        if (wheel.inverted)
+            delta = -delta
+        return delta
+    }
+
+    function scrollStepFromWheelDelta(delta) {
+        var step = (-Number(delta) / 120.0) * 40.0
+        if (Math.abs(step) < 1.0)
+            step = delta > 0 ? -24.0 : 24.0
+        return step
+    }
+
+    function applyWheelScroll(wheel) {
+        if (!root.tabsOverflowActive)
+            return false
+        var deltaX = root.wheelAxisDelta(wheel, "x")
+        var deltaY = root.wheelAxisDelta(wheel, "y")
+        var modifiers = Number(wheel && wheel.modifiers) || 0
+        var hasHorizontalDelta = Math.abs(deltaX) >= 0.001
+        var shiftHeld = (modifiers & Qt.ShiftModifier) === Qt.ShiftModifier
+        if (!hasHorizontalDelta && !shiftHeld)
+            return false
+        var sourceDelta = hasHorizontalDelta ? deltaX : deltaY
+        if (Math.abs(sourceDelta) < 0.001)
+            return false
+        return root.scrollTabsBy(root.scrollStepFromWheelDelta(sourceDelta))
+    }
+
+    function applyConfiguredTestWheelScroll() {
+        return root.applyWheelScroll({
+            "angleDelta": {
+                "x": Number(root.testWheelHorizontalDelta) || 0,
+                "y": Number(root.testWheelVerticalDelta) || 0
+            },
+            "modifiers": root.testWheelShiftHeld ? Qt.ShiftModifier : Qt.NoModifier,
+            "inverted": false
+        })
+    }
+
     implicitWidth: titleLabel.implicitWidth + spacing + stripCard.implicitWidth
     implicitHeight: Math.max(titleLabel.implicitHeight, stripCard.implicitHeight)
     spacing: root.compactDensity ? 8 : 10
 
+    onModelChanged: root.scheduleActiveTabReveal()
+
     onWidthChanged: {
         if (contextActionPopup.visible)
             contextActionPopup.close()
+        root.scheduleActiveTabReveal()
     }
 
     onHeightChanged: {
         if (contextActionPopup.visible)
             contextActionPopup.close()
+        root.scheduleActiveTabReveal()
+    }
+
+    Component.onCompleted: root.scheduleActiveTabReveal()
+
+    Timer {
+        id: activeTabRevealTimer
+        interval: 0
+        repeat: false
+        onTriggered: root.ensureActiveTabVisible()
     }
 
     Text {
@@ -199,20 +340,142 @@ RowLayout {
     Rectangle {
         id: stripCard
         Layout.alignment: Qt.AlignVCenter
-        implicitWidth: stripRow.implicitWidth + (root.cardHorizontalPadding * 2)
-        implicitHeight: stripRow.implicitHeight + (root.cardVerticalPadding * 2)
+        Layout.fillWidth: true
+        Layout.minimumWidth: 0
+        implicitWidth: stripChromeRow.implicitWidth + (root.cardHorizontalPadding * 2)
+        implicitHeight: stripChromeRow.implicitHeight + (root.cardVerticalPadding * 2)
         radius: root.cardRadius
         color: root.themePalette.panel_alt_bg
         border.color: root.themePalette.border
 
-        Row {
-            id: stripRow
+        RowLayout {
+            id: stripChromeRow
             anchors.fill: parent
             anchors.leftMargin: root.cardHorizontalPadding
             anchors.rightMargin: root.cardHorizontalPadding
             anchors.topMargin: root.cardVerticalPadding
             anchors.bottomMargin: root.cardVerticalPadding
             spacing: root.cardSpacing
+
+            ShellButton {
+                id: scrollBackwardButton
+                objectName: "tabStripScrollBackwardButton"
+                Layout.alignment: Qt.AlignVCenter
+                Layout.preferredWidth: root.tabsOverflowActive ? root.overflowButtonSize : 0
+                Layout.maximumWidth: root.tabsOverflowActive ? root.overflowButtonSize : 0
+                Layout.minimumWidth: 0
+                Layout.preferredHeight: root.tabHeight
+                visible: root.tabsOverflowActive
+                enabled: root.tabsOverflowActive && !root.tabsAtStart
+                text: ""
+                iconName: "chevrons-left"
+                iconSize: root.compactDensity ? 14 : 16
+                tooltipText: "Scroll tabs left"
+                onClicked: root.scrollTabsTowardStart()
+            }
+
+            Item {
+                id: tabsViewportHost
+                objectName: "tabStripViewportHost"
+                Layout.fillWidth: true
+                Layout.minimumWidth: 0
+                Layout.alignment: Qt.AlignVCenter
+                implicitWidth: tabsList.implicitWidth
+                implicitHeight: root.tabHeight
+
+                Flickable {
+                    id: tabsViewport
+                    objectName: "tabStripViewport"
+                    anchors.fill: parent
+                    contentWidth: tabsList.width
+                    contentHeight: tabsList.height
+                    interactive: false
+                    clip: true
+                    boundsBehavior: Flickable.StopAtBounds
+                    flickableDirection: Flickable.HorizontalFlick
+                    onWidthChanged: root.scheduleActiveTabReveal()
+                    onContentWidthChanged: root.scheduleActiveTabReveal()
+
+                    ListView {
+                        id: tabsList
+                        objectName: "tabStripListView"
+                        orientation: ListView.Horizontal
+                        interactive: false
+                        spacing: root.cardSpacing
+                        clip: false
+                        implicitWidth: contentWidth
+                        implicitHeight: root.tabHeight
+                        width: contentWidth
+                        height: root.tabHeight
+                        model: visualModel
+                        displaced: Transition {
+                            NumberAnimation {
+                                properties: "x,y"
+                                duration: 180
+                                easing.type: Easing.OutCubic
+                            }
+                        }
+                        moveDisplaced: Transition {
+                            NumberAnimation {
+                                properties: "x,y"
+                                duration: 180
+                                easing.type: Easing.OutCubic
+                            }
+                        }
+                    }
+
+                    MouseArea {
+                        anchors.fill: parent
+                        acceptedButtons: Qt.NoButton
+                        hoverEnabled: true
+                        propagateComposedEvents: true
+                        onWheel: function(wheel) {
+                            if (root.applyWheelScroll(wheel))
+                                wheel.accepted = true
+                        }
+                    }
+                }
+
+                Item {
+                    id: dragOverlay
+                    objectName: "tabStripDragOverlay"
+                    anchors.fill: tabsViewport
+                    z: 100
+                }
+            }
+
+            ShellButton {
+                id: scrollForwardButton
+                objectName: "tabStripScrollForwardButton"
+                Layout.alignment: Qt.AlignVCenter
+                Layout.preferredWidth: root.tabsOverflowActive ? root.overflowButtonSize : 0
+                Layout.maximumWidth: root.tabsOverflowActive ? root.overflowButtonSize : 0
+                Layout.minimumWidth: 0
+                Layout.preferredHeight: root.tabHeight
+                visible: root.tabsOverflowActive
+                enabled: root.tabsOverflowActive && !root.tabsAtEnd
+                text: ""
+                iconName: "chevrons-right"
+                iconSize: root.compactDensity ? 14 : 16
+                tooltipText: "Scroll tabs right"
+                onClicked: root.scrollTabsTowardEnd()
+            }
+
+            ShellCreateButton {
+                id: createButton
+                objectName: "tabStripCreateButton"
+                Layout.alignment: Qt.AlignVCenter
+                text: root.createButtonText
+                accentOutline: root.createButtonAccentOutline
+                buttonHeight: root.createButtonHeight
+                labelFontPixelSize: root.createButtonFontSize
+                iconCircleSize: root.createButtonIconSize
+                minimumButtonWidth: root.effectiveCreateButtonMinimumWidth
+                contentHorizontalPadding: root.effectiveCreateButtonHorizontalPadding
+                contentSpacing: root.compactDensity ? 6 : 8
+                cornerRadius: root.tabRadius
+                onClicked: root.createActivated()
+            }
 
             DelegateModel {
                 id: visualModel
@@ -223,11 +486,16 @@ RowLayout {
                     property var itemData: modelData
                     readonly property string itemLabel: root.tabLabelForItem(itemData)
                     readonly property int buttonWidth: Math.max(
-                        root.effectiveMinTabWidth,
-                        Math.ceil(tabLabelMetrics.advanceWidth + root.effectiveTabHorizontalPadding)
+                        1,
+                        Math.min(
+                            root.effectiveMaxTabWidth,
+                            Math.max(
+                                root.effectiveMinTabWidth,
+                                Math.ceil(tabLabelMetrics.advanceWidth + root.effectiveTabHorizontalPadding)
+                            )
+                        )
                     )
                     readonly property bool draggingInOverlay: tabButton.parent === dragOverlay
-                    // Allow non-leftmost tabs to move left before the overlay reparenting kicks in.
                     readonly property real dragMinimumX: root.dragMinimumXForSlot(tabSlot)
                     readonly property real dragMaximumX: root.dragMaximumXForSlot(tabSlot)
                     width: buttonWidth
@@ -277,6 +545,7 @@ RowLayout {
                             if (!tabButton.dragging)
                                 root.resetDraggedTabPosition(tabButton)
                         }
+                        onActiveChanged: root.scheduleActiveTabReveal()
 
                         Behavior on scale {
                             NumberAnimation {
@@ -299,13 +568,19 @@ RowLayout {
                         }
 
                         Text {
-                            anchors.centerIn: parent
+                            anchors.left: parent.left
+                            anchors.right: parent.right
+                            anchors.leftMargin: root.compactDensity ? 6 : 8
+                            anchors.rightMargin: root.compactDensity ? 6 : 8
+                            anchors.verticalCenter: parent.verticalCenter
                             text: tabSlot.itemLabel
                             color: tabButton.active
                                 ? root.themePalette.tab_selected_fg
                                 : root.themePalette.tab_fg
                             font.pixelSize: root.tabFontSize
                             font.bold: tabButton.active
+                            horizontalAlignment: Text.AlignHCenter
+                            elide: Text.ElideRight
                         }
 
                         MouseArea {
@@ -334,6 +609,7 @@ RowLayout {
                             onCanceled: {
                                 tabButton.dragStartIndex = -1
                                 tabButton.suppressClick = false
+                                root.scheduleActiveTabReveal()
                             }
                             onClicked: function(mouse) {
                                 if (mouse.button === Qt.LeftButton) {
@@ -353,56 +629,6 @@ RowLayout {
                     }
                 }
             }
-
-            ListView {
-                id: tabsList
-                orientation: ListView.Horizontal
-                interactive: false
-                spacing: root.cardSpacing
-                clip: false
-                implicitWidth: contentWidth
-                implicitHeight: root.tabHeight
-                width: contentWidth
-                height: root.tabHeight
-                model: visualModel
-                displaced: Transition {
-                    NumberAnimation {
-                        properties: "x,y"
-                        duration: 180
-                        easing.type: Easing.OutCubic
-                    }
-                }
-                moveDisplaced: Transition {
-                    NumberAnimation {
-                        properties: "x,y"
-                        duration: 180
-                        easing.type: Easing.OutCubic
-                    }
-                }
-            }
-
-            ShellCreateButton {
-                id: createButton
-                text: root.createButtonText
-                accentOutline: root.createButtonAccentOutline
-                buttonHeight: root.createButtonHeight
-                labelFontPixelSize: root.createButtonFontSize
-                iconCircleSize: root.createButtonIconSize
-                minimumButtonWidth: root.effectiveCreateButtonMinimumWidth
-                contentHorizontalPadding: root.effectiveCreateButtonHorizontalPadding
-                contentSpacing: root.compactDensity ? 6 : 8
-                cornerRadius: root.tabRadius
-                onClicked: root.createActivated()
-            }
-        }
-
-        Item {
-            id: dragOverlay
-            x: stripRow.x
-            y: stripRow.y
-            width: tabsList.width
-            height: tabsList.height
-            z: 100
         }
     }
 

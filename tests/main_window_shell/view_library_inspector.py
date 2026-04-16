@@ -81,6 +81,34 @@ class MainWindowShellViewLibraryInspectorTests(SharedMainWindowShellTestBase):
             if item.get("type_id") == type_id
         )
 
+    def _strip_child(self, strip: QObject, object_name: str) -> QObject:
+        child = strip.findChild(QObject, object_name)
+        self.assertIsNotNone(child)
+        return child
+
+    def _tab_strip_slots(self, strip: QObject) -> list[QQuickItem]:
+        slots = strip.property("tabSlots")
+        if isinstance(slots, QJSValue):
+            slots = slots.toVariant()
+        return sorted(
+            [slot for slot in (slots or []) if isinstance(slot, QQuickItem)],
+            key=lambda slot: float(slot.property("x")),
+        )
+
+    def _active_tab_slot(self, strip: QObject) -> QQuickItem:
+        for slot in self._tab_strip_slots(strip):
+            for child in slot.children():
+                if isinstance(child, QQuickItem) and bool(child.property("active")):
+                    return slot
+        self.fail(f"Expected an active tab slot under strip {strip.objectName()!r}.")
+
+    def _tab_slot_fully_visible(self, strip: QObject, slot: QQuickItem) -> bool:
+        viewport_width = float(strip.property("tabsViewportWidth"))
+        content_x = float(strip.property("tabsContentX"))
+        slot_left = float(slot.property("x")) - content_x
+        slot_right = slot_left + float(slot.property("width"))
+        return slot_left >= -0.5 and slot_right <= viewport_width + 0.5
+
     def _scene_node_payload(self, node_id: str) -> dict[str, object]:
         return next(
             node
@@ -1272,3 +1300,202 @@ class MainWindowShellViewLibraryInspectorTests(SharedMainWindowShellTestBase):
         self.assertLess(float(slots[1].property("dragMinimumX")), 0.0)
         self.assertLess(float(slots[2].property("dragMinimumX")), 0.0)
         self.assertGreater(float(slots[1].property("dragMaximumX")), 0.0)
+
+    def test_qml_workspace_tabs_chevrons_scroll_overflowed_strip_and_keep_create_visible(self) -> None:
+        first_workspace_id = self.window.workspace_manager.active_workspace_id()
+        for index in range(8):
+            self.window.workspace_manager.create_workspace(
+                f"Overflow Workspace {index} - Static Displacement Viewer"
+            )
+        self.window._refresh_workspace_tabs()
+        self.app.processEvents()
+
+        strip = self._inspector_object("workspaceControlsStrip")
+        backward_button = self._strip_child(strip, "tabStripScrollBackwardButton")
+        forward_button = self._strip_child(strip, "tabStripScrollForwardButton")
+        create_button = self._strip_child(strip, "tabStripCreateButton")
+
+        wait_for_condition_or_raise(
+            lambda: bool(strip.property("tabsOverflowActive")),
+            timeout_ms=1500,
+            poll_interval_ms=20,
+            app=self.app,
+            timeout_message="Workspace strip did not overflow for chevron test.",
+        )
+
+        self.window.workspace_tabs.activate_workspace(first_workspace_id)
+        self.app.processEvents()
+        wait_for_condition_or_raise(
+            lambda: float(strip.property("tabsContentX")) <= 0.5,
+            timeout_ms=800,
+            poll_interval_ms=20,
+            app=self.app,
+            timeout_message="Workspace strip did not return to the left edge.",
+        )
+
+        self.assertTrue(bool(create_button.property("visible")))
+        self.assertTrue(bool(forward_button.property("visible")))
+        QMetaObject.invokeMethod(
+            forward_button,
+            "click",
+            Qt.ConnectionType.DirectConnection,
+        )
+        self.app.processEvents()
+
+        wait_for_condition_or_raise(
+            lambda: float(strip.property("tabsContentX")) > 0.5,
+            timeout_ms=800,
+            poll_interval_ms=20,
+            app=self.app,
+            timeout_message="Workspace strip did not scroll right after chevron click.",
+        )
+
+        self.assertTrue(bool(create_button.property("visible")))
+        self.assertTrue(bool(backward_button.property("enabled")))
+
+        QMetaObject.invokeMethod(
+            backward_button,
+            "click",
+            Qt.ConnectionType.DirectConnection,
+        )
+        self.app.processEvents()
+
+        wait_for_condition_or_raise(
+            lambda: float(strip.property("tabsContentX")) <= 0.5,
+            timeout_ms=800,
+            poll_interval_ms=20,
+            app=self.app,
+            timeout_message="Workspace strip did not scroll back left after chevron click.",
+        )
+
+    def test_qml_workspace_tabs_shift_wheel_and_horizontal_delta_scroll_only_when_supported(self) -> None:
+        first_workspace_id = self.window.workspace_manager.active_workspace_id()
+        for index in range(8):
+            self.window.workspace_manager.create_workspace(
+                f"Wheel Workspace {index} - Static Stress Norm Export"
+            )
+        self.window._refresh_workspace_tabs()
+        self.app.processEvents()
+
+        strip = self._inspector_object("workspaceControlsStrip")
+        wait_for_condition_or_raise(
+            lambda: bool(strip.property("tabsOverflowActive")),
+            timeout_ms=1500,
+            poll_interval_ms=20,
+            app=self.app,
+            timeout_message="Workspace strip did not overflow for wheel test.",
+        )
+
+        self.window.workspace_tabs.activate_workspace(first_workspace_id)
+        self.app.processEvents()
+        wait_for_condition_or_raise(
+            lambda: float(strip.property("tabsContentX")) <= 0.5,
+            timeout_ms=800,
+            poll_interval_ms=20,
+            app=self.app,
+            timeout_message="Workspace strip did not return to the left edge before wheel assertions.",
+        )
+
+        strip.setProperty("testWheelHorizontalDelta", 0)
+        strip.setProperty("testWheelVerticalDelta", -120)
+        strip.setProperty("testWheelShiftHeld", False)
+        QMetaObject.invokeMethod(
+            strip,
+            "applyConfiguredTestWheelScroll",
+            Qt.ConnectionType.DirectConnection,
+        )
+        self.app.processEvents()
+        self.assertAlmostEqual(float(strip.property("tabsContentX")), 0.0, places=4)
+
+        strip.setProperty("testWheelShiftHeld", True)
+        QMetaObject.invokeMethod(
+            strip,
+            "applyConfiguredTestWheelScroll",
+            Qt.ConnectionType.DirectConnection,
+        )
+        self.app.processEvents()
+
+        wait_for_condition_or_raise(
+            lambda: float(strip.property("tabsContentX")) > 0.5,
+            timeout_ms=800,
+            poll_interval_ms=20,
+            app=self.app,
+            timeout_message="Shift+wheel did not scroll the overflowed workspace strip.",
+        )
+        shift_scroll_x = float(strip.property("tabsContentX"))
+
+        strip.setProperty("testWheelHorizontalDelta", -120)
+        strip.setProperty("testWheelVerticalDelta", 0)
+        strip.setProperty("testWheelShiftHeld", False)
+        QMetaObject.invokeMethod(
+            strip,
+            "applyConfiguredTestWheelScroll",
+            Qt.ConnectionType.DirectConnection,
+        )
+        self.app.processEvents()
+
+        wait_for_condition_or_raise(
+            lambda: float(strip.property("tabsContentX")) > shift_scroll_x + 0.5,
+            timeout_ms=800,
+            poll_interval_ms=20,
+            app=self.app,
+            timeout_message="Native horizontal delta did not scroll the overflowed workspace strip.",
+        )
+
+    def test_qml_workspace_tabs_auto_reveal_active_workspace_when_selection_moves_offscreen(self) -> None:
+        first_workspace_id = self.window.workspace_manager.active_workspace_id()
+        created_workspace_ids: list[str] = []
+        for index in range(8):
+            created_workspace_ids.append(
+                self.window.workspace_manager.create_workspace(
+                    f"Reveal Workspace {index} - Static Displacement Viewer"
+                )
+            )
+        self.window._refresh_workspace_tabs()
+        self.app.processEvents()
+
+        strip = self._inspector_object("workspaceControlsStrip")
+        wait_for_condition_or_raise(
+            lambda: bool(strip.property("tabsOverflowActive")),
+            timeout_ms=1500,
+            poll_interval_ms=20,
+            app=self.app,
+            timeout_message="Workspace strip did not overflow for auto-reveal test.",
+        )
+
+        self.window.workspace_tabs.activate_workspace(first_workspace_id)
+        self.app.processEvents()
+        wait_for_condition_or_raise(
+            lambda: float(strip.property("tabsContentX")) <= 0.5,
+            timeout_ms=800,
+            poll_interval_ms=20,
+            app=self.app,
+            timeout_message="Workspace strip did not reveal the leftmost active tab.",
+        )
+
+        last_workspace_id = created_workspace_ids[-1]
+        self.window.workspace_tabs.activate_workspace(last_workspace_id)
+        self.app.processEvents()
+        wait_for_condition_or_raise(
+            lambda: self._tab_slot_fully_visible(strip, self._active_tab_slot(strip)),
+            timeout_ms=1200,
+            poll_interval_ms=20,
+            app=self.app,
+            timeout_message="Workspace strip did not scroll to reveal the last workspace.",
+        )
+
+        active_slot = self._active_tab_slot(strip)
+        self.assertTrue(self._tab_slot_fully_visible(strip, active_slot))
+
+        self.window.workspace_tabs.activate_workspace(first_workspace_id)
+        self.app.processEvents()
+        wait_for_condition_or_raise(
+            lambda: self._tab_slot_fully_visible(strip, self._active_tab_slot(strip)),
+            timeout_ms=1200,
+            poll_interval_ms=20,
+            app=self.app,
+            timeout_message="Workspace strip did not scroll back to reveal the first workspace.",
+        )
+
+        active_slot = self._active_tab_slot(strip)
+        self.assertTrue(self._tab_slot_fully_visible(strip, active_slot))

@@ -71,41 +71,48 @@ Rectangle {
                     }
                 }
 
-                Item { Layout.fillWidth: true }
-
-                ShellLabeledTabStrip {
-                    id: viewControlsStrip
-                    objectName: "viewControlsStrip"
+                Item {
+                    Layout.fillWidth: true
+                    Layout.minimumWidth: 0
                     Layout.alignment: Qt.AlignRight | Qt.AlignVCenter
-                    densityPreset: root.tabStripDensityPreset
-                    titleText: "VIEWS"
-                    model: root.workspaceBridgeRef.active_view_items
-                    minTabWidth: 56
-                    tabHorizontalPadding: 20
-                    contextMenuActions: [
-                        { "actionId": "rename", "text": "Rename View" },
-                        { "actionId": "delete", "text": "Delete View", "destructive": true }
-                    ]
-                    createButtonText: "New View"
-                    createButtonAccentOutline: true
-                    isTabActive: function(itemData) {
-                        return !!itemData.active
-                    }
-                    onTabActivated: function(itemData) {
-                        root.workspaceBridgeRef.request_switch_view(itemData.view_id)
-                    }
-                    onTabMoveRequested: function(fromIndex, toIndex, _itemData) {
-                        root.workspaceBridgeRef.request_move_view_tab(fromIndex, toIndex)
-                    }
-                    onContextMenuActionRequested: function(actionId, itemData) {
-                        if (actionId === "rename") {
-                            root.workspaceBridgeRef.request_rename_view(String(itemData.view_id || ""))
-                            return
+                    implicitHeight: viewControlsStrip.implicitHeight
+
+                    ShellLabeledTabStrip {
+                        id: viewControlsStrip
+                        objectName: "viewControlsStrip"
+                        anchors.right: parent.right
+                        anchors.verticalCenter: parent.verticalCenter
+                        width: Math.max(0, parent.width)
+                        densityPreset: root.tabStripDensityPreset
+                        titleText: "VIEWS"
+                        model: root.workspaceBridgeRef.active_view_items
+                        minTabWidth: 56
+                        tabHorizontalPadding: 20
+                        contextMenuActions: [
+                            { "actionId": "rename", "text": "Rename View" },
+                            { "actionId": "delete", "text": "Delete View", "destructive": true }
+                        ]
+                        createButtonText: "New View"
+                        createButtonAccentOutline: true
+                        isTabActive: function(itemData) {
+                            return !!itemData.active
                         }
-                        if (actionId === "delete")
-                            root.workspaceBridgeRef.request_close_view(String(itemData.view_id || ""))
+                        onTabActivated: function(itemData) {
+                            root.workspaceBridgeRef.request_switch_view(itemData.view_id)
+                        }
+                        onTabMoveRequested: function(fromIndex, toIndex, _itemData) {
+                            root.workspaceBridgeRef.request_move_view_tab(fromIndex, toIndex)
+                        }
+                        onContextMenuActionRequested: function(actionId, itemData) {
+                            if (actionId === "rename") {
+                                root.workspaceBridgeRef.request_rename_view(String(itemData.view_id || ""))
+                                return
+                            }
+                            if (actionId === "delete")
+                                root.workspaceBridgeRef.request_close_view(String(itemData.view_id || ""))
+                        }
+                        onCreateActivated: root.workspaceBridgeRef.request_create_view()
                     }
-                    onCreateActivated: root.workspaceBridgeRef.request_create_view()
                 }
             }
         }
@@ -134,6 +141,8 @@ Rectangle {
                 ShellLabeledTabStrip {
                     id: workspaceControlsStrip
                     objectName: "workspaceControlsStrip"
+                    Layout.fillWidth: true
+                    Layout.minimumWidth: 0
                     Layout.alignment: Qt.AlignVCenter
                     densityPreset: root.tabStripDensityPreset
                     titleText: "WORKSPACES"
@@ -164,8 +173,6 @@ Rectangle {
                     }
                     onCreateActivated: root.workspaceBridgeRef.request_create_workspace()
                 }
-
-                Item { Layout.fillWidth: true }
             }
         }
 
