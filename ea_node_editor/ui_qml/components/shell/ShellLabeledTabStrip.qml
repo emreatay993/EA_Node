@@ -60,11 +60,6 @@ RowLayout {
         return ""
     }
 
-    function tabWidthForItem(itemData) {
-        labelMetrics.text = root.tabLabelForItem(itemData)
-        return Math.max(root.effectiveMinTabWidth, labelMetrics.advanceWidth + root.effectiveTabHorizontalPadding)
-    }
-
     function orderedTabSlots() {
         var slots = []
         for (var index = 0; index < root.tabSlots.length; index += 1) {
@@ -226,7 +221,11 @@ RowLayout {
                     id: tabSlot
                     property int visualIndex: DelegateModel.itemsIndex
                     property var itemData: modelData
-                    readonly property int buttonWidth: root.tabWidthForItem(itemData)
+                    readonly property string itemLabel: root.tabLabelForItem(itemData)
+                    readonly property int buttonWidth: Math.max(
+                        root.effectiveMinTabWidth,
+                        Math.ceil(tabLabelMetrics.advanceWidth + root.effectiveTabHorizontalPadding)
+                    )
                     readonly property bool draggingInOverlay: tabButton.parent === dragOverlay
                     // Allow non-leftmost tabs to move left before the overlay reparenting kicks in.
                     readonly property real dragMinimumX: root.dragMinimumXForSlot(tabSlot)
@@ -235,6 +234,13 @@ RowLayout {
                     height: root.tabHeight
                     Component.onCompleted: root.registerTabSlot(tabSlot)
                     Component.onDestruction: root.unregisterTabSlot(tabSlot)
+
+                    TextMetrics {
+                        id: tabLabelMetrics
+                        text: tabSlot.itemLabel
+                        font.pixelSize: root.tabFontSize
+                        font.bold: false
+                    }
 
                     Rectangle {
                         id: tabButton
@@ -294,7 +300,7 @@ RowLayout {
 
                         Text {
                             anchors.centerIn: parent
-                            text: root.tabLabelForItem(tabButton.itemData)
+                            text: tabSlot.itemLabel
                             color: tabButton.active
                                 ? root.themePalette.tab_selected_fg
                                 : root.themePalette.tab_fg
@@ -398,12 +404,6 @@ RowLayout {
             height: tabsList.height
             z: 100
         }
-    }
-
-    TextMetrics {
-        id: labelMetrics
-        font.pixelSize: root.tabFontSize
-        font.bold: false
     }
 
     Popup {

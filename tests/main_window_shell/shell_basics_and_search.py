@@ -74,6 +74,39 @@ def _active_tab_label(strip: QObject) -> tuple[QQuickItem, QObject]:
     raise AssertionError("Expected at least one active tab button.")
 
 
+def _tab_buttons_by_label(strip: QObject) -> dict[str, QQuickItem]:
+    slots = strip.property("tabSlots")
+    if isinstance(slots, QJSValue):
+        slots = slots.toVariant()
+    slot_items = [slot for slot in (slots or []) if isinstance(slot, QQuickItem)]
+    buttons_by_label: dict[str, QQuickItem] = {}
+
+    for slot in slot_items:
+        button = next(
+            (
+                child
+                for child in slot.children()
+                if isinstance(child, QQuickItem) and child.property("itemData") is not None
+            ),
+            None,
+        )
+        if button is None:
+            continue
+        label = next(
+            (
+                child
+                for child in button.children()
+                if child.metaObject().className() == "QQuickText" and str(child.property("text") or "").strip()
+            ),
+            None,
+        )
+        if label is None:
+            continue
+        buttons_by_label[str(label.property("text"))] = button
+
+    return buttons_by_label
+
+
 class MainWindowShellBasicsAndSearchTests(SharedMainWindowShellTestBase):
     def _reopen_window(self) -> None:
         self._reopen_shared_window()
@@ -525,6 +558,37 @@ class MainWindowShellBasicsAndSearchTests(SharedMainWindowShellTestBase):
             self.assertTrue(bool(button.property("active")))
             self.assertEqual(_color_name(label.property("color")), palette["tab_selected_fg"])
             self.assertTrue(label.property("font").bold())
+
+    def test_qml_workspace_tabs_size_each_chip_from_its_own_label(self) -> None:
+        root_object = self.window.quick_widget.rootObject()
+        self.assertIsNotNone(root_object)
+        workspace_controls_strip = root_object.findChild(QObject, "workspaceControlsStrip")
+        self.assertIsNotNone(workspace_controls_strip)
+
+        short_name = "ws2"
+        long_name = "Demo 1 - Static Displacement Viewer"
+        self.window.workspace_manager.create_workspace(short_name)
+        self.window.workspace_manager.create_workspace(long_name)
+        self.window._refresh_workspace_tabs()
+        self.app.processEvents()
+
+        def _has_expected_tab_buttons() -> bool:
+            buttons_by_label = _tab_buttons_by_label(workspace_controls_strip)
+            return short_name in buttons_by_label and long_name in buttons_by_label
+
+        wait_for_condition_or_raise(
+            _has_expected_tab_buttons,
+            timeout_ms=1500,
+            poll_interval_ms=20,
+            app=self.app,
+            timeout_message="Workspace tab strip did not expose the expected tab buttons.",
+        )
+
+        buttons_by_label = _tab_buttons_by_label(workspace_controls_strip)
+        short_width = float(buttons_by_label[short_name].property("width"))
+        long_width = float(buttons_by_label[long_name].property("width"))
+
+        self.assertLess(short_width, long_width)
 
     def test_qml_canvas_surfaces_start_on_active_theme_palette(self) -> None:
         graph_canvas = self._graph_canvas_item()
