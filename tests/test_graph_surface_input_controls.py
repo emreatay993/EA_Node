@@ -24,6 +24,7 @@ from ea_node_editor.ui_qml.graph_geometry.standard_metrics import (
     standard_inline_row_height,
     standard_inline_textarea_row_height,
 )
+from ea_node_editor.ui_qml.graph_geometry.surface_contract import VIEWER_LEGACY_DEFAULT_BODY_HEIGHTS
 from ea_node_editor.ui_qml.graph_surface_metrics import surface_port_local_point
 from ea_node_editor.ui_qml.graph_theme_bridge import GraphThemeBridge
 from tests.graph_surface.environment import GraphSurfaceInputContractTestBase
@@ -913,6 +914,33 @@ class GraphSurfaceInlineMetricTypographyTests(unittest.TestCase):
         self.assertGreater(grown_metrics.default_height, baseline_height)
         self.assertLess(grown_metrics.min_height, grown_metrics.default_height)
         self.assertEqual(grown_size[1], grown_metrics.default_height)
+
+    def test_viewer_surface_size_clamps_legacy_default_height_when_body_chrome_grows(self) -> None:
+        spec = _viewer_surface_spec()
+        node = NodeInstance(
+            node_id="node_viewer_surface_legacy_height",
+            type_id=spec.type_id,
+            title="Viewer Controls",
+            x=32.0,
+            y=48.0,
+        )
+
+        current_metrics = node_surface_metrics(node, spec, {node.node_id: node})
+        legacy_body_height = float(VIEWER_LEGACY_DEFAULT_BODY_HEIGHTS[-1])
+        legacy_height = (
+            float(current_metrics.default_height)
+            - (float(current_metrics.body_height) - legacy_body_height)
+        )
+        node.custom_height = legacy_height
+
+        resolved_size = resolved_node_surface_size(
+            node,
+            spec,
+            {node.node_id: node},
+        )
+
+        self.assertGreater(legacy_height, current_metrics.default_height)
+        self.assertEqual(resolved_size[1], current_metrics.default_height)
 
     def test_standard_surface_size_clamps_stale_custom_height_when_header_grows(self) -> None:
         registry = build_default_registry()

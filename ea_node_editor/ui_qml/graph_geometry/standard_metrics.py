@@ -41,6 +41,8 @@ from .surface_contract import (
     STANDARD_TITLE_LEFT_MARGIN,
     STANDARD_TITLE_RIGHT_MARGIN,
     STANDARD_USE_HOST_CHROME,
+    VIEWER_BODY_BOTTOM_PADDING,
+    VIEWER_LEGACY_DEFAULT_BODY_HEIGHTS,
     _StandardWidthContract,
     _resolved_dimensions,
 )
@@ -414,8 +416,31 @@ def resolved_node_surface_size(
             graph_label_pixel_size=graph_label_pixel_size,
             graph_node_icon_pixel_size=None,
         )
-        if abs(float(node.custom_height) - float(baseline_metrics.default_height)) <= 0.01:
-            resolved_height = max(float(resolved_height), float(metrics.default_height))
+        from .surface_contract import _visible_port_count
+
+        port_count = _visible_port_count(node, spec, workspace_nodes)
+        body_top = standard_body_top(
+            graph_label_pixel_size=graph_label_pixel_size,
+            graph_node_icon_pixel_size=graph_node_icon_pixel_size,
+        )
+        inline_body_height = standard_inline_body_height(
+            spec,
+            graph_label_pixel_size=graph_label_pixel_size,
+        )
+        legacy_default_heights = {
+            float(
+                body_top
+                + max(float(legacy_body_height), float(inline_body_height))
+                + port_count * STANDARD_PORT_HEIGHT
+                + VIEWER_BODY_BOTTOM_PADDING
+            )
+            for legacy_body_height in VIEWER_LEGACY_DEFAULT_BODY_HEIGHTS
+        }
+        if abs(float(node.custom_height) - float(baseline_metrics.default_height)) <= 0.01 or any(
+            abs(float(node.custom_height) - legacy_height) <= 0.01
+            for legacy_height in legacy_default_heights
+        ):
+            resolved_height = float(metrics.default_height)
     if clamp_height:
         resolved_height = max(float(metrics.min_height), resolved_height)
     return resolved_width, resolved_height
