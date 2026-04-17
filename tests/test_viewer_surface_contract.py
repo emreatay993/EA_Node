@@ -580,8 +580,51 @@ class ViewerSurfaceContractTests(unittest.TestCase):
             assert surface is not None
 
             interactive_rects = variant_list(surface.property("viewerInteractiveRects"))
-            assert len(interactive_rects) == 4, interactive_rects
+            assert len(interactive_rects) == 5, interactive_rects
             assert max(rect["width"] for rect in interactive_rects) > 40.0, interactive_rects
             assert interactive_rects[0]["height"] >= 24.0, interactive_rects
+            """,
+        )
+
+    def test_graph_viewer_surface_content_fullscreen_button_routes_bridge(self) -> None:
+        self._run_qml_probe(
+            "viewer-content-fullscreen-button",
+            """
+            from PyQt6.QtCore import QMetaObject, pyqtSlot
+
+            class ContentFullscreenBridgeStub(QObject):
+                def __init__(self):
+                    super().__init__()
+                    self.toggle_calls = []
+
+                @pyqtSlot(str, result=bool)
+                def request_toggle_for_node(self, node_id):
+                    self.toggle_calls.append(str(node_id or ""))
+                    return True
+
+            bridge = ContentFullscreenBridgeStub()
+            engine.rootContext().setContextProperty("contentFullscreenBridge", bridge)
+
+            host = create_component(graph_node_host_qml_path, {"nodeData": viewer_payload()})
+            surface = host.findChild(QObject, "graphNodeViewerSurface")
+            fullscreen_button = host.findChild(QObject, "graphNodeViewerMoreButton")
+            assert surface is not None
+            assert fullscreen_button is not None
+            assert bool(fullscreen_button.property("enabled"))
+
+            rects = variant_list(surface.property("viewerInteractiveRects"))
+            fullscreen_rect = fullscreen_button.property("interactiveRect")
+            assert len(rects) == 5, rects
+            assert any(
+                abs(rect_field(rect, "x") - rect_field(fullscreen_rect, "x")) < 0.5
+                and abs(rect_field(rect, "y") - rect_field(fullscreen_rect, "y")) < 0.5
+                and abs(rect_field(rect, "width") - rect_field(fullscreen_rect, "width")) < 0.5
+                and abs(rect_field(rect, "height") - rect_field(fullscreen_rect, "height")) < 0.5
+                for rect in rects
+            )
+
+            QMetaObject.invokeMethod(fullscreen_button, "click")
+            app.processEvents()
+            assert bridge.toggle_calls == ["node_viewer_surface_contract"]
             """,
         )

@@ -879,6 +879,139 @@ class GraphSurfaceInlineMetricTypographyTests(unittest.TestCase):
 
 
 class GraphSurfaceLockedPortCanvasTests(GraphSurfaceInputContractTestBase):
+    def test_graph_canvas_content_fullscreen_f11_routes_selection_and_hint_contract(self) -> None:
+        self._run_qml_probe(
+            "graph-canvas-content-fullscreen-shortcut",
+            """
+            from PyQt6.QtCore import pyqtProperty, pyqtSlot
+
+            class ContentFullscreenBridgeStub(QObject):
+                def __init__(self):
+                    super().__init__()
+                    self.is_open = False
+                    self.open_calls = []
+                    self.close_calls = 0
+                    self.eligible_node_ids = {"media_node"}
+                    self.last_error_value = "The selected node does not support content fullscreen."
+
+                @pyqtProperty(bool)
+                def open(self):
+                    return self.is_open
+
+                @pyqtProperty(str)
+                def last_error(self):
+                    return self.last_error_value
+
+                @pyqtSlot(str, result=bool)
+                def can_open_node(self, node_id):
+                    return str(node_id or "") in self.eligible_node_ids
+
+                @pyqtSlot(str, result=bool)
+                def request_open_node(self, node_id):
+                    normalized = str(node_id or "")
+                    self.open_calls.append(normalized)
+                    if normalized in self.eligible_node_ids:
+                        self.is_open = True
+                        self.last_error_value = ""
+                        return True
+                    self.last_error_value = "The selected node does not support content fullscreen."
+                    return False
+
+                @pyqtSlot()
+                def request_close(self):
+                    self.close_calls += 1
+                    self.is_open = False
+
+            class ShellBridgeStub(QObject):
+                def __init__(self):
+                    super().__init__()
+                    self.hints = []
+
+                @pyqtSlot(str, int)
+                def show_graph_hint(self, message, timeout_ms):
+                    self.hints.append((str(message or ""), int(timeout_ms)))
+
+            bridge = ContentFullscreenBridgeStub()
+            shell_bridge = ShellBridgeStub()
+            engine.rootContext().setContextProperty("contentFullscreenBridge", bridge)
+            engine.rootContext().setContextProperty("shellBridge", shell_bridge)
+
+            component = QQmlComponent(engine)
+            component.setData(
+                b'''
+                import QtQuick 2.15
+                import "ea_node_editor/ui_qml/components/graph_canvas" as GraphCanvasComponents
+
+                Item {
+                    id: probeRoot
+                    objectName: "contentFullscreenShortcutProbe"
+                    width: 400
+                    height: 300
+                    property var selectedIds: []
+
+                    function selectedNodeIds() {
+                        return selectedIds;
+                    }
+
+                    GraphCanvasComponents.GraphCanvasInputLayers {
+                        id: inputLayers
+                        objectName: "graphCanvasInputLayers"
+                        canvasItem: probeRoot
+                        shellCommandBridge: shellBridge
+                    }
+
+                    function triggerShortcut() {
+                        return inputLayers._handleContentFullscreenShortcut();
+                    }
+                }
+                ''',
+                QUrl.fromLocalFile(str(repo_root) + "/"),
+            )
+            if component.status() != QQmlComponent.Status.Ready:
+                errors = "\\n".join(error.toString() for error in component.errors())
+                raise AssertionError("Failed to load shortcut probe:\\n" + errors)
+            probe = component.create()
+            if probe is None:
+                errors = "\\n".join(error.toString() for error in component.errors())
+                raise AssertionError("Failed to instantiate shortcut probe:\\n" + errors)
+            app.processEvents()
+
+            probe.setProperty("selectedIds", ["media_node"])
+            assert probe.triggerShortcut() is True
+            app.processEvents()
+            assert bridge.open_calls == ["media_node"]
+            assert bridge.is_open is True
+            assert shell_bridge.hints == []
+
+            assert probe.triggerShortcut() is True
+            app.processEvents()
+            assert bridge.close_calls == 1
+            assert bridge.is_open is False
+
+            probe.setProperty("selectedIds", ["unsupported_node"])
+            assert probe.triggerShortcut() is True
+            app.processEvents()
+            assert bridge.open_calls == ["media_node", "unsupported_node"]
+            assert shell_bridge.hints[-1] == (
+                "The selected node does not support content fullscreen.",
+                2400,
+            )
+
+            probe.setProperty("selectedIds", ["media_node", "viewer_node"])
+            assert probe.triggerShortcut() is True
+            app.processEvents()
+            assert bridge.open_calls == ["media_node", "unsupported_node"]
+            assert shell_bridge.hints[-1] == (
+                "Select one media or viewer node for fullscreen.",
+                2400,
+            )
+
+            probe.deleteLater()
+            engine.deleteLater()
+            app.processEvents()
+            """,
+        )
+
     def test_graph_canvas_lock_toggle_hit_target_tracks_locked_state(self) -> None:
         self._run_qml_probe(
             "graph-canvas-lock-toggle-hit-target",

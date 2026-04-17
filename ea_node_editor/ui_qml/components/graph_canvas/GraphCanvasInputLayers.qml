@@ -40,6 +40,66 @@ Item {
         return Boolean(root.shellCommandBridge.request_close_comment_peek());
     }
 
+    function _contentFullscreenBridge() {
+        if (typeof contentFullscreenBridge !== "undefined" && contentFullscreenBridge)
+            return contentFullscreenBridge;
+        return null;
+    }
+
+    function _showContentFullscreenHint(message) {
+        var normalized = String(message || "Select one media or viewer node for fullscreen.").trim();
+        if (!normalized.length)
+            normalized = "Select one media or viewer node for fullscreen.";
+        if (root.shellCommandBridge && root.shellCommandBridge.show_graph_hint) {
+            root.shellCommandBridge.show_graph_hint(normalized, 2400);
+            return true;
+        }
+        if (typeof shellLibraryBridge !== "undefined" && shellLibraryBridge && shellLibraryBridge.show_graph_hint) {
+            shellLibraryBridge.show_graph_hint(normalized, 2400);
+            return true;
+        }
+        return false;
+    }
+
+    function _selectedContentFullscreenNodeId() {
+        if (!root.canvasItem || !root.canvasItem.selectedNodeIds)
+            return "";
+        var selected = root.canvasItem.selectedNodeIds() || [];
+        if (selected.length !== 1)
+            return "";
+        return String(selected[0] || "").trim();
+    }
+
+    function _handleContentFullscreenShortcut() {
+        var bridge = root._contentFullscreenBridge();
+        if (!bridge)
+            return false;
+        if (Boolean(bridge.open)) {
+            if (bridge.request_close)
+                bridge.request_close();
+            return true;
+        }
+        var nodeId = root._selectedContentFullscreenNodeId();
+        if (!nodeId.length) {
+            root._showContentFullscreenHint("Select one media or viewer node for fullscreen.");
+            return true;
+        }
+        if (bridge.can_open_node && !bridge.can_open_node(nodeId)) {
+            if (bridge.request_open_node)
+                bridge.request_open_node(nodeId);
+            root._showContentFullscreenHint(
+                bridge.last_error || "The selected node does not support content fullscreen."
+            );
+            return true;
+        }
+        if (bridge.request_open_node && bridge.request_open_node(nodeId))
+            return true;
+        root._showContentFullscreenHint(
+            bridge.last_error || "The selected node does not support content fullscreen."
+        );
+        return true;
+    }
+
     function _handleHidePortChord(buttons, changedButton) {
         var normalizedButtons = Number(buttons || 0);
         if (!(normalizedButtons & Qt.MiddleButton))
@@ -101,6 +161,11 @@ Item {
     }
 
     Keys.onPressed: function(event) {
+        if (event.key === Qt.Key_F11) {
+            if (root._handleContentFullscreenShortcut())
+                event.accepted = true;
+            return;
+        }
         if (!root.canvasItem)
             return;
         if ((event.modifiers & Qt.AltModifier) && event.key === Qt.Key_Left) {

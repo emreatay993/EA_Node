@@ -248,9 +248,11 @@ class PassiveGraphSurfaceMediaAndScopeTests(PassiveGraphSurfaceHostTestBase):
                 surface = host.findChild(QObject, "graphNodeMediaSurface")
                 loader = host.findChild(QObject, "graphNodeSurfaceLoader")
                 crop_button = host.findChild(QObject, "graphNodeMediaCropButton")
+                fullscreen_button = host.findChild(QObject, "graphNodeMediaFullscreenButton")
                 assert surface is not None
                 assert loader is not None
                 assert crop_button is not None
+                assert fullscreen_button is not None
 
                 for _index in range(40):
                     app.processEvents()
@@ -269,11 +271,93 @@ class PassiveGraphSurfaceMediaAndScopeTests(PassiveGraphSurfaceHostTestBase):
                 assert loader.metaObject().indexOfProperty("hoverActionHitRect") == -1
                 assert surface.metaObject().indexOfProperty("hoverActionHitRect") == -1
                 assert bool(crop_button.property("visible"))
-                assert len(embedded_rects) == 1
-                assert abs(rect_field(embedded_rects[0], "x") - rect_field(crop_button_rect, "x")) < 0.5
-                assert abs(rect_field(embedded_rects[0], "y") - rect_field(crop_button_rect, "y")) < 0.5
-                assert abs(rect_field(embedded_rects[0], "width") - rect_field(crop_button_rect, "width")) < 0.5
-                assert abs(rect_field(embedded_rects[0], "height") - rect_field(crop_button_rect, "height")) < 0.5
+                assert bool(fullscreen_button.property("visible"))
+                assert len(embedded_rects) == 2
+                assert any(
+                    abs(rect_field(rect, "x") - rect_field(crop_button_rect, "x")) < 0.5
+                    and abs(rect_field(rect, "y") - rect_field(crop_button_rect, "y")) < 0.5
+                    and abs(rect_field(rect, "width") - rect_field(crop_button_rect, "width")) < 0.5
+                    and abs(rect_field(rect, "height") - rect_field(crop_button_rect, "height")) < 0.5
+                    for rect in embedded_rects
+                )
+
+                dispose_host_window(host, window)
+                engine.deleteLater()
+                app.processEvents()
+            """,
+        )
+
+    def test_media_surface_content_fullscreen_button_routes_bridge_without_crop_mode(self) -> None:
+        self._run_qml_probe(
+            "media-content-fullscreen-button",
+            """
+            import tempfile
+            from PyQt6.QtGui import QColor, QImage
+
+            class ContentFullscreenBridgeStub(QObject):
+                def __init__(self):
+                    super().__init__()
+                    self.toggle_calls = []
+
+                @pyqtSlot(str, result=bool)
+                def request_toggle_for_node(self, node_id):
+                    self.toggle_calls.append(str(node_id or ""))
+                    return True
+
+            bridge = ContentFullscreenBridgeStub()
+            engine.rootContext().setContextProperty("contentFullscreenBridge", bridge)
+
+            with tempfile.TemporaryDirectory() as temp_dir:
+                image_path = Path(temp_dir) / "media-fullscreen.png"
+                image = QImage(32, 20, QImage.Format.Format_ARGB32)
+                image.fill(QColor("#2c85bf"))
+                assert image.save(str(image_path))
+
+                media_payload = node_payload(surface_family="media", surface_variant="image_panel")
+                media_payload["runtime_behavior"] = "passive"
+                media_payload["surface_metrics"] = {}
+                media_payload["properties"] = {
+                    "source_path": str(image_path),
+                    "caption": "",
+                    "fit_mode": "contain",
+                }
+                host = create_component(graph_node_host_qml_path, {"nodeData": media_payload})
+                surface = host.findChild(QObject, "graphNodeMediaSurface")
+                loader = host.findChild(QObject, "graphNodeSurfaceLoader")
+                fullscreen_button = host.findChild(QObject, "graphNodeMediaFullscreenButton")
+                assert surface is not None
+                assert loader is not None
+                assert fullscreen_button is not None
+
+                for _index in range(40):
+                    app.processEvents()
+                    if str(surface.property("previewState")) == "ready":
+                        break
+                assert str(surface.property("previewState")) == "ready"
+                assert not bool(fullscreen_button.property("visible"))
+
+                window = attach_host_to_window(host)
+                hover_host_local_point(window, host, 80.0, 44.0)
+
+                embedded_rects = variant_list(loader.property("embeddedInteractiveRects"))
+                fullscreen_rect = fullscreen_button.property("interactiveRect")
+                assert bool(fullscreen_button.property("visible"))
+                assert len(embedded_rects) == 2
+                assert any(
+                    abs(rect_field(rect, "x") - rect_field(fullscreen_rect, "x")) < 0.5
+                    and abs(rect_field(rect, "y") - rect_field(fullscreen_rect, "y")) < 0.5
+                    and abs(rect_field(rect, "width") - rect_field(fullscreen_rect, "width")) < 0.5
+                    and abs(rect_field(rect, "height") - rect_field(fullscreen_rect, "height")) < 0.5
+                    for rect in embedded_rects
+                )
+
+                QMetaObject.invokeMethod(fullscreen_button, "click")
+                app.processEvents()
+                assert bridge.toggle_calls == ["node_surface_host_test"]
+
+                surface.setProperty("cropModeActive", True)
+                app.processEvents()
+                assert not bool(fullscreen_button.property("visible"))
 
                 dispose_host_window(host, window)
                 engine.deleteLater()
@@ -727,9 +811,9 @@ class GraphSurfaceMediaAndScopeContractTests(GraphSurfaceInputContractTestBase):
             assert bridge_binding["phase"] == "open", bridge_binding
             assert bridge_binding["live_mode"] == "proxy", bridge_binding
             assert contract["bridge_binding"]["phase"] == "open", contract
-            assert len(control_rects) == 4, control_rects
-            assert len(variant_list(loader.property("embeddedInteractiveRects"))) == 4, variant_list(loader.property("embeddedInteractiveRects"))
-            assert len(contract["interactive_rects"]) == 4, contract
+            assert len(control_rects) == 5, control_rects
+            assert len(variant_list(loader.property("embeddedInteractiveRects"))) == 5, variant_list(loader.property("embeddedInteractiveRects"))
+            assert len(contract["interactive_rects"]) == 5, contract
             assert contract["interactive_rects"][0]["width"] > 28.0, contract["interactive_rects"]
             assert contract["interactive_rects"][0]["height"] >= 24.0, contract["interactive_rects"]
             assert rect_field(host.property("viewerBodyRect"), "x") == float(contract["body_rect"]["x"]), variant_value(host.property("viewerBodyRect"))
@@ -942,7 +1026,7 @@ class GraphSurfaceMediaAndScopeContractTests(GraphSurfaceInputContractTestBase):
                 window = attach_host_to_window(host)
                 hover_host_local_point(window, host, 80.0, 44.0)
 
-                assert len(variant_list(loader.property("embeddedInteractiveRects"))) == 1
+                assert len(variant_list(loader.property("embeddedInteractiveRects"))) == 2
                 assert not bool(loader.property("blocksHostInteraction"))
                 assert bool(drag_area.property("enabled"))
 
