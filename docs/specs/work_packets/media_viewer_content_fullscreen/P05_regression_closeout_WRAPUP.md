@@ -6,30 +6,16 @@
 - Branch Label: `codex/media-viewer-content-fullscreen/p05-regression-closeout`
 - Commit Owner: `worker`
 - Commit SHA: `bcb5bc3053b2942acd7f05df4fd430eea143e2a8`
-- Changed Files:
-  - `docs/specs/INDEX.md`
-  - `docs/specs/perf/MEDIA_VIEWER_CONTENT_FULLSCREEN_QA_MATRIX.md`
-  - `docs/specs/requirements/20_UI_UX.md`
-  - `docs/specs/requirements/70_INTEGRATIONS.md`
-  - `docs/specs/requirements/90_QA_ACCEPTANCE.md`
-  - `docs/specs/requirements/TRACEABILITY_MATRIX.md`
-  - `docs/specs/work_packets/media_viewer_content_fullscreen/P05_regression_closeout_WRAPUP.md`
-  - `tests/test_graph_surface_input_controls.py`
-  - `tests/test_shell_window_lifecycle.py`
-- Artifacts Produced:
-  - `docs/specs/perf/MEDIA_VIEWER_CONTENT_FULLSCREEN_QA_MATRIX.md`
-  - `docs/specs/work_packets/media_viewer_content_fullscreen/P05_regression_closeout_WRAPUP.md`
+- Changed Files: `docs/specs/INDEX.md`, `docs/specs/perf/MEDIA_VIEWER_CONTENT_FULLSCREEN_QA_MATRIX.md`, `docs/specs/requirements/20_UI_UX.md`, `docs/specs/requirements/70_INTEGRATIONS.md`, `docs/specs/requirements/90_QA_ACCEPTANCE.md`, `docs/specs/requirements/TRACEABILITY_MATRIX.md`, `docs/specs/work_packets/media_viewer_content_fullscreen/MEDIA_VIEWER_CONTENT_FULLSCREEN_STATUS.md`, `docs/specs/work_packets/media_viewer_content_fullscreen/P05_regression_closeout_WRAPUP.md`, `tests/test_graph_surface_input_controls.py`, `tests/test_shell_window_lifecycle.py`
+- Artifacts Produced: `docs/specs/perf/MEDIA_VIEWER_CONTENT_FULLSCREEN_QA_MATRIX.md`, `docs/specs/work_packets/media_viewer_content_fullscreen/MEDIA_VIEWER_CONTENT_FULLSCREEN_STATUS.md`, `docs/specs/work_packets/media_viewer_content_fullscreen/P05_regression_closeout_WRAPUP.md`
 
 ## Verification
 
-| Command | Result | Notes |
-|---|---|---|
-| `$env:QT_QPA_PLATFORM='offscreen'; .\venv\Scripts\python.exe -m pytest tests/test_content_fullscreen_bridge.py tests/test_shell_window_lifecycle.py tests/test_graph_surface_input_controls.py tests/test_graph_surface_input_contract.py tests/test_viewer_surface_contract.py tests/test_viewer_host_service.py tests/test_embedded_viewer_overlay_manager.py --ignore=venv -q` | PASS (`88 passed, 4 warnings, 30 subtests passed`) | Integrated fullscreen regression gate; warnings are existing Ansys DPF operator deprecations |
-| `.\venv\Scripts\python.exe -m pytest tests/test_traceability_checker.py --ignore=venv -q` | PASS (`58 passed`) | Traceability checker regression |
-| `.\venv\Scripts\python.exe scripts/check_traceability.py` | PASS (`TRACEABILITY CHECK PASS`) | Verification command |
-| `.\venv\Scripts\python.exe scripts/check_traceability.py` | PASS (`TRACEABILITY CHECK PASS`) | Review Gate duplicate |
-
-Final Verification Verdict: PASS
+- PASS: `$env:QT_QPA_PLATFORM='offscreen'; .\venv\Scripts\python.exe -m pytest tests/test_content_fullscreen_bridge.py tests/test_shell_window_lifecycle.py tests/test_graph_surface_input_controls.py tests/test_graph_surface_input_contract.py tests/test_viewer_surface_contract.py tests/test_viewer_host_service.py tests/test_embedded_viewer_overlay_manager.py --ignore=venv -q` -> `88 passed, 4 warnings, 30 subtests passed`
+- PASS: `.\venv\Scripts\python.exe -m pytest tests/test_traceability_checker.py --ignore=venv -q` -> `58 passed`
+- PASS: `.\venv\Scripts\python.exe scripts/check_traceability.py` -> `TRACEABILITY CHECK PASS`
+- PASS: Review Gate `.\venv\Scripts\python.exe scripts/check_traceability.py` -> `TRACEABILITY CHECK PASS`
+- Final Verification Verdict: `PASS`
 
 ## Manual Test Directives
 
@@ -48,4 +34,4 @@ Final Verification Verdict: PASS
 
 ## Ready for Integration
 
-Yes: P05 passed the integrated regression command, traceability pytest, and review gate; the QA matrix and wrap-up artifacts are present, and no source changes outside the P05 conservative write scope were made.
+- Yes: P05 passed the integrated regression command, traceability pytest, and review gate; the QA matrix and wrap-up artifacts are present, and no source changes outside the P05 conservative write scope were made.
