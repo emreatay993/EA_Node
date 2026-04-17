@@ -481,6 +481,115 @@ class GraphSurfaceInputControlsTests(unittest.TestCase):
             """,
         )
 
+    def test_media_fullscreen_button_is_suppressed_while_crop_mode_is_active(self) -> None:
+        self._run_qml_probe(
+            "media-fullscreen-crop-mode-suppression",
+            """
+            from PyQt6.QtCore import pyqtSlot
+
+            class ContentFullscreenBridgeStub(QObject):
+                def __init__(self):
+                    super().__init__()
+                    self.toggle_calls = []
+
+                @pyqtSlot(str, result=bool)
+                def request_toggle_for_node(self, node_id):
+                    self.toggle_calls.append(str(node_id or ""))
+                    return True
+
+            bridge = ContentFullscreenBridgeStub()
+            engine.rootContext().setContextProperty("contentFullscreenBridge", bridge)
+            component = QQmlComponent(engine)
+            component.setData(
+                b'''
+                import QtQuick 2.15
+                import "ea_node_editor/ui_qml/components/graph/passive" as PassiveGraph
+
+                Item {
+                    id: probeRoot
+                    width: 240
+                    height: 120
+                    objectName: "mediaControlsProbe"
+
+                    Item {
+                        id: hostItem
+                        objectName: "mediaHost"
+                        anchors.fill: parent
+                        property bool hoverActive: true
+                        property bool isSelected: true
+                        property var nodeData: ({ "node_id": "media_node" })
+                        property var surfaceMetrics: ({
+                            "title_top": 0,
+                            "title_height": 28,
+                            "title_right_margin": 10
+                        })
+                        property color headerTextColor: "#f7f7f0"
+                        property color inlineInputBackgroundColor: "#223344"
+                        property color inlineInputBorderColor: "#556677"
+                        property int nodeTextRenderType: Text.QtRendering
+
+                        Item {
+                            id: surfaceStub
+                            objectName: "mediaSurfaceStub"
+                            anchors.fill: parent
+                            property Item host: hostItem
+                            property string previewState: "ready"
+                            property bool cropModeActive: false
+                            property bool cropButtonVisible: true
+                            property bool fileIssueActive: false
+                            property bool isPdfPanel: false
+                            property int pdfPageCount: 0
+                            property int pdfResolvedPageNumber: 1
+                            property color cropButtonIconColor: "#f0f2f5"
+                            property color panelFillColor: "#1b1d22"
+                            property color panelBorderColor: "#4a4f5a"
+                            function _iconSource(name, size, color) { return ""; }
+                            function _beginInlineInteraction() {}
+                            function triggerHoverAction() {}
+                            function repairFile() {}
+                        }
+
+                        PassiveGraph.GraphMediaPanelHeaderControls {
+                            id: mediaControls
+                            objectName: "mediaControls"
+                            anchors.fill: parent
+                            surface: surfaceStub
+                        }
+                    }
+                }
+                ''',
+                QUrl.fromLocalFile(str(repo_root) + "/"),
+            )
+            if component.status() != QQmlComponent.Status.Ready:
+                errors = "\\n".join(error.toString() for error in component.errors())
+                raise AssertionError("Failed to load media controls probe:\\n" + errors)
+            probe = component.create()
+            if probe is None:
+                errors = "\\n".join(error.toString() for error in component.errors())
+                raise AssertionError("Failed to instantiate media controls probe:\\n" + errors)
+            app.processEvents()
+
+            controls = named_item(probe, "mediaControls")
+            surface = named_item(probe, "mediaSurfaceStub")
+            fullscreen_button = named_item(probe, "graphNodeMediaFullscreenButton")
+
+            assert bool(fullscreen_button.property("visible"))
+            assert len(variant_list(controls.property("embeddedInteractiveRects"))) == 2
+            QMetaObject.invokeMethod(fullscreen_button, "click")
+            app.processEvents()
+            assert bridge.toggle_calls == ["media_node"]
+
+            surface.setProperty("cropModeActive", True)
+            app.processEvents()
+
+            assert not bool(fullscreen_button.property("visible"))
+            assert len(variant_list(controls.property("embeddedInteractiveRects"))) == 1
+            probe.deleteLater()
+            engine.deleteLater()
+            app.processEvents()
+            """,
+        )
+
     def test_inline_properties_layer_publishes_control_scoped_rects_for_core_editors(self) -> None:
         self._run_qml_probe(
             "inline-layer-core-editors",

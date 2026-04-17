@@ -13,7 +13,10 @@ from PyQt6.QtTest import QTest
 from PyQt6.QtQuickWidgets import QQuickWidget
 from PyQt6.QtWidgets import QApplication
 
-from ea_node_editor.nodes.builtins.passive_media import PASSIVE_MEDIA_IMAGE_PANEL_TYPE_ID
+from ea_node_editor.nodes.builtins.passive_media import (
+    PASSIVE_MEDIA_IMAGE_PANEL_TYPE_ID,
+    PASSIVE_MEDIA_PDF_PANEL_TYPE_ID,
+)
 from ea_node_editor.ui.shell.composition import create_shell_window
 from ea_node_editor.ui.shell.window import ShellWindow
 from tests.conftest import ShellTestEnvironment
@@ -244,6 +247,56 @@ def test_content_fullscreen_overlay_renders_image_media_and_keeps_node_state_rea
             assert bool(actual_button.property("selectedStyle"))
             after_state = workspace.nodes[node_id].properties.copy()
             assert after_state == before_state
+
+        window.close()
+        _flush_shell_qt_events(app)
+        _delete_window(window, app)
+
+
+def test_content_fullscreen_overlay_renders_pdf_media_blocks_background_and_close_button() -> None:
+    with _shell_lifecycle_context() as app:
+        window = _create_window(app, _build_window_via_constructor)
+        pdf_path = Path(__file__).resolve().parent / "fixtures" / "passive_nodes" / "reference_preview.pdf"
+
+        node_id = window.scene.add_node_from_type(PASSIVE_MEDIA_PDF_PANEL_TYPE_ID, x=120.0, y=80.0)
+        window.scene.set_node_properties(
+            node_id,
+            {
+                "source_path": str(pdf_path),
+                "page_number": 1,
+                "caption": "Fullscreen PDF caption",
+            },
+        )
+        _flush_shell_qt_events(app)
+
+        bridge = window.content_fullscreen_bridge
+        assert bridge.request_open_node(node_id)
+        _flush_shell_qt_events(app)
+
+        root = window.quick_widget.rootObject()
+        assert root is not None
+        overlay = _find_child(root, "contentFullscreenOverlay")
+        blocker = _find_child(root, "contentFullscreenInteractionBlocker")
+        media_summary = _find_child(root, "contentFullscreenMediaSummary")
+        media_image = _find_child(root, "contentFullscreenMediaImage")
+        caption = _find_child(root, "contentFullscreenCaptionText")
+        close_button = _find_child(root, "contentFullscreenCloseButton")
+
+        assert bool(overlay.property("visible"))
+        assert str(overlay.property("contentKind")) == "pdf"
+        assert bool(blocker.property("visible"))
+        assert bool(blocker.property("preventStealing"))
+        assert str(media_summary.property("text")) == "PDF page 1"
+        assert "local-pdf-preview" in _qurl_text(media_image.property("source"))
+        assert str(caption.property("text")) == "Fullscreen PDF caption"
+
+        QTest.mouseClick(window.quick_widget, Qt.MouseButton.LeftButton, pos=window.quick_widget.rect().topLeft())
+        _flush_shell_qt_events(app)
+        assert bridge.open
+
+        QMetaObject.invokeMethod(close_button, "click")
+        _flush_shell_qt_events(app)
+        assert not bridge.open
 
         window.close()
         _flush_shell_qt_events(app)

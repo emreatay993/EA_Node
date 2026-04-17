@@ -80,6 +80,7 @@ Selected work-packet manifests and status ledgers under `docs/specs/work_packets
 - [CROSS_PROCESS_VIEWER_BACKEND_FRAMEWORK QA Matrix](perf/CROSS_PROCESS_VIEWER_BACKEND_FRAMEWORK_QA_MATRIX.md)
 - [MEDIA_VIEWER_CONTENT_FULLSCREEN Work Packet Manifest](work_packets/media_viewer_content_fullscreen/MEDIA_VIEWER_CONTENT_FULLSCREEN_MANIFEST.md)
 - [MEDIA_VIEWER_CONTENT_FULLSCREEN Status Ledger](work_packets/media_viewer_content_fullscreen/MEDIA_VIEWER_CONTENT_FULLSCREEN_STATUS.md)
+- [MEDIA_VIEWER_CONTENT_FULLSCREEN QA Matrix](perf/MEDIA_VIEWER_CONTENT_FULLSCREEN_QA_MATRIX.md)
 - [NESTED_NODE_CATEGORIES Work Packet Manifest](work_packets/nested_node_categories/NESTED_NODE_CATEGORIES_MANIFEST.md)
 - [NESTED_NODE_CATEGORIES Status Ledger](work_packets/nested_node_categories/NESTED_NODE_CATEGORIES_STATUS.md)
 
