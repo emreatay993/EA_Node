@@ -4,6 +4,7 @@ import os
 import subprocess
 import sys
 import unittest
+from pathlib import Path
 
 from PyQt6.QtCore import QMetaObject
 
@@ -27,6 +28,16 @@ from tests.main_window_shell.bridge_contracts import (
 )
 from ea_node_editor.ui_qml.viewer_host_service import ViewerHostService
 from ea_node_editor.ui_qml.viewer_session_bridge import ViewerSessionBridge
+
+
+_CONTENT_FULLSCREEN_PACKET_FILES = (
+    _REPO_ROOT / "ea_node_editor" / "ui_qml" / "MainShell.qml",
+    _REPO_ROOT / "ea_node_editor" / "ui_qml" / "ContentFullscreenOverlay.qml",
+)
+
+
+def _packet_file_text(path: Path) -> str:
+    return path.read_text(encoding="utf-8")
 
 
 def _status_strip_items(window) -> tuple[QObject, QObject, QObject, QObject]:
@@ -265,6 +276,49 @@ class MainWindowShellStatusStripQuickToggleTests(SharedMainWindowShellTestBase):
         self.assertFalse(bool(reopened_max_button.property("selectedStyle")))
 
 
+class MainWindowShellContentFullscreenStaticContractsTests(unittest.TestCase):
+    def test_content_fullscreen_overlay_is_shell_owned_and_bridge_gated(self) -> None:
+        main_shell = _packet_file_text(_CONTENT_FULLSCREEN_PACKET_FILES[0])
+        overlay = _packet_file_text(_CONTENT_FULLSCREEN_PACKET_FILES[1])
+
+        self.assertIn("ContentFullscreenOverlay", main_shell)
+        self.assertIn("bridgeRef: contentFullscreenBridge", main_shell)
+        self.assertIn('objectName: "contentFullscreenOverlay"', overlay)
+        self.assertIn("readonly property bool bridgeOpen", overlay)
+        self.assertIn("root.bridgeRef.open", overlay)
+        self.assertIn("root.bridgeRef.request_close()", overlay)
+
+    def test_content_fullscreen_overlay_declares_media_modes_and_viewer_viewport(self) -> None:
+        overlay = _packet_file_text(_CONTENT_FULLSCREEN_PACKET_FILES[1])
+
+        for snippet in (
+            'objectName: "contentFullscreenMediaViewport"',
+            'objectName: "contentFullscreenMediaImage"',
+            'objectName: "contentFullscreenDisplayModeFitButton"',
+            'objectName: "contentFullscreenDisplayModeFillButton"',
+            'objectName: "contentFullscreenDisplayModeActualButton"',
+            'objectName: "contentFullscreenViewerViewport"',
+            "GraphMediaPanelGeometry.sourceClipRectFromNormalized",
+            "sourceClipRect: root._sourceClipRect()",
+            "root.mediaPayload.preview_url",
+        ):
+            with self.subTest(snippet=snippet):
+                self.assertIn(snippet, overlay)
+
+    def test_content_fullscreen_overlay_blocks_background_and_handles_close_keys(self) -> None:
+        overlay = _packet_file_text(_CONTENT_FULLSCREEN_PACKET_FILES[1])
+
+        for snippet in (
+            'objectName: "contentFullscreenInteractionBlocker"',
+            "acceptedButtons: Qt.AllButtons",
+            "event.key === Qt.Key_Escape",
+            "event.key === Qt.Key_F11",
+            'objectName: "contentFullscreenCloseButton"',
+        ):
+            with self.subTest(snippet=snippet):
+                self.assertIn(snippet, overlay)
+
+
 class MainWindowShellHostProtocolStateTests(SharedMainWindowShellTestBase):
     def test_search_scope_state_tracks_graph_search_quick_insert_and_hints(self) -> None:
         self.window.action_graph_search.trigger()
@@ -491,6 +545,7 @@ __all__ = [
     "MainWindowShellBootstrapCompositionTests",
     "MainWindowShellContextBootstrapTests",
     "MainWindowShellStatusStripQuickToggleTests",
+    "MainWindowShellContentFullscreenStaticContractsTests",
     "MainWindowShellHostProtocolStateTests",
     "_MainWindowShellGraphCanvasHostDirectTests",
     "MainWindowShellPassiveImageNodesTests",

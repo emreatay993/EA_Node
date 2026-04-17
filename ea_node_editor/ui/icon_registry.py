@@ -28,6 +28,7 @@ _ICON_SPECS: dict[str, IconSpec] = {
     "comment": IconSpec(name="comment", label="Comment", relative_path="comment.svg"),
     "crop": IconSpec(name="crop", label="Crop", relative_path="crop.svg"),
     "filter": IconSpec(name="filter", label="Filter", relative_path="filter.svg"),
+    "fullscreen": IconSpec(name="fullscreen", label="Fullscreen", relative_path="fullscreen.svg"),
     "open-session": IconSpec(name="open-session", label="Open Session", relative_path="open-session.svg"),
     "run": IconSpec(name="run", label="Run", relative_path="player-play.svg"),
     "pause": IconSpec(name="pause", label="Pause", relative_path="player-pause.svg"),

@@ -12,9 +12,33 @@ from ea_node_editor.ui.icon_registry import (
 
 class IconRegistryTests(unittest.TestCase):
     def test_known_icons_resolve_to_existing_files(self) -> None:
-        for name in ("crop", "open-session", "run", "pause", "resume", "stop", "step", "focus", "keep-live", "pin", "more"):
+        for name in (
+            "crop",
+            "open-session",
+            "run",
+            "pause",
+            "resume",
+            "stop",
+            "step",
+            "focus",
+            "keep-live",
+            "pin",
+            "more",
+        ):
             self.assertIn(name, icon_names())
             self.assertTrue(icon_path(name).is_file(), name)
+
+    def test_content_fullscreen_icon_resolves_to_existing_file(self) -> None:
+        bridge = UiIconRegistryBridge()
+
+        self.assertIn("fullscreen", icon_names())
+        self.assertTrue(icon_path("fullscreen").is_file())
+        self.assertTrue(bridge.has("fullscreen"))
+        self.assertEqual(bridge.label("fullscreen"), "Fullscreen")
+        self.assertEqual(
+            bridge.sourceSized("fullscreen", 18, DEFAULT_ICON_COLOR),
+            "image://ui-icons/fullscreen?size=18&color=%23D8DEEA",
+        )
 
     def test_bridge_exposes_label_and_provider_url(self) -> None:
         bridge = UiIconRegistryBridge()

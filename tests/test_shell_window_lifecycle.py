@@ -7,8 +7,9 @@ from contextlib import contextmanager
 from pathlib import Path
 from unittest.mock import patch
 
-from PyQt6.QtCore import QEvent, QUrl
+from PyQt6.QtCore import QEvent, QMetaObject, QObject, Qt, QUrl
 from PyQt6.QtGui import QImage
+from PyQt6.QtTest import QTest
 from PyQt6.QtQuickWidgets import QQuickWidget
 from PyQt6.QtWidgets import QApplication
 
@@ -76,6 +77,26 @@ def _delete_window(window: ShellWindow, app: QApplication) -> None:
     window.deleteLater()
     _flush_shell_qt_events(app)
     gc.collect()
+
+
+def _find_child(root: QObject, object_name: str) -> QObject:
+    child = root.findChild(QObject, object_name)
+    if child is None:
+        raise AssertionError(f"Expected QML object {object_name!r}")
+    return child
+
+
+def _qurl_text(value: object) -> str:
+    to_string = getattr(value, "toString", None)
+    if callable(to_string):
+        return str(to_string())
+    return str(value)
+
+
+def _write_test_image(path: Path, color: int = 0xFF4C7BC0) -> None:
+    image = QImage(48, 30, QImage.Format.Format_ARGB32)
+    image.fill(color)
+    assert image.save(str(path))
 
 
 def test_shell_window_close_allows_repeated_in_process_cycles() -> None:
@@ -165,6 +186,128 @@ def test_content_fullscreen_bridge_closes_during_project_reset_lifecycle() -> No
             assert not bridge.open
             assert bridge.node_id == ""
             assert bridge.media_payload == {}
+
+        window.close()
+        _flush_shell_qt_events(app)
+        _delete_window(window, app)
+
+
+def test_content_fullscreen_overlay_renders_image_media_and_keeps_node_state_read_only() -> None:
+    with _shell_lifecycle_context() as app:
+        window = _create_window(app, _build_window_via_constructor)
+        with tempfile.TemporaryDirectory() as temp_dir:
+            image_path = Path(temp_dir) / "content-fullscreen-overlay.png"
+            _write_test_image(image_path)
+
+            node_id = window.scene.add_node_from_type(PASSIVE_MEDIA_IMAGE_PANEL_TYPE_ID, x=120.0, y=80.0)
+            window.scene.set_node_properties(
+                node_id,
+                {
+                    "source_path": str(image_path),
+                    "fit_mode": "cover",
+                    "caption": "Fullscreen overlay caption",
+                    "crop_x": 0.2,
+                    "crop_y": 0.1,
+                    "crop_w": 0.5,
+                    "crop_h": 0.6,
+                },
+            )
+            _flush_shell_qt_events(app)
+
+            workspace = window.model.project.workspaces[window.workspace_manager.active_workspace_id()]
+            before_state = workspace.nodes[node_id].properties.copy()
+            bridge = window.content_fullscreen_bridge
+            assert bridge.request_open_node(node_id)
+            _flush_shell_qt_events(app)
+
+            root = window.quick_widget.rootObject()
+            assert root is not None
+            overlay = _find_child(root, "contentFullscreenOverlay")
+            media_image = _find_child(root, "contentFullscreenMediaImage")
+            caption = _find_child(root, "contentFullscreenCaptionText")
+            fit_button = _find_child(root, "contentFullscreenDisplayModeFitButton")
+            fill_button = _find_child(root, "contentFullscreenDisplayModeFillButton")
+            actual_button = _find_child(root, "contentFullscreenDisplayModeActualButton")
+
+            assert bool(overlay.property("visible"))
+            assert str(overlay.property("contentKind")) == "image"
+            assert str(overlay.property("effectiveDisplayMode")) == "fill"
+            assert "local-media-preview" in _qurl_text(media_image.property("source"))
+            assert str(caption.property("text")) == "Fullscreen overlay caption"
+            assert bool(fill_button.property("selectedStyle"))
+            assert not bool(fit_button.property("selectedStyle"))
+
+            QMetaObject.invokeMethod(actual_button, "click")
+            _flush_shell_qt_events(app)
+
+            assert str(overlay.property("effectiveDisplayMode")) == "actual"
+            assert bool(actual_button.property("selectedStyle"))
+            after_state = workspace.nodes[node_id].properties.copy()
+            assert after_state == before_state
+
+        window.close()
+        _flush_shell_qt_events(app)
+        _delete_window(window, app)
+
+
+def test_content_fullscreen_overlay_closes_open_state_with_escape_and_f11() -> None:
+    with _shell_lifecycle_context() as app:
+        window = _create_window(app, _build_window_via_constructor)
+        with tempfile.TemporaryDirectory() as temp_dir:
+            image_path = Path(temp_dir) / "content-fullscreen-shortcuts.png"
+            _write_test_image(image_path, color=0xFF669933)
+
+            node_id = window.scene.add_node_from_type(PASSIVE_MEDIA_IMAGE_PANEL_TYPE_ID, x=120.0, y=80.0)
+            window.scene.set_node_property(node_id, "source_path", str(image_path))
+            _flush_shell_qt_events(app)
+
+            bridge = window.content_fullscreen_bridge
+            root = window.quick_widget.rootObject()
+            assert root is not None
+            overlay = _find_child(root, "contentFullscreenOverlay")
+
+            assert bridge.request_open_node(node_id)
+            _flush_shell_qt_events(app)
+            window.quick_widget.setFocus()
+            QMetaObject.invokeMethod(overlay, "forceActiveFocus")
+            QTest.keyClick(window.quick_widget, Qt.Key.Key_Escape)
+            _flush_shell_qt_events(app)
+            assert not bridge.open
+
+            assert bridge.request_open_node(node_id)
+            _flush_shell_qt_events(app)
+            window.quick_widget.setFocus()
+            QMetaObject.invokeMethod(overlay, "forceActiveFocus")
+            QTest.keyClick(window.quick_widget, Qt.Key.Key_F11)
+            _flush_shell_qt_events(app)
+            assert not bridge.open
+
+        window.close()
+        _flush_shell_qt_events(app)
+        _delete_window(window, app)
+
+
+def test_content_fullscreen_overlay_exposes_viewer_viewport_placeholder_contract() -> None:
+    with _shell_lifecycle_context() as app:
+        window = _create_window(app, _build_window_via_constructor)
+
+        node_id = window.scene.add_node_from_type("dpf.viewer", x=120.0, y=80.0)
+        _flush_shell_qt_events(app)
+
+        bridge = window.content_fullscreen_bridge
+        assert bridge.request_open_node(node_id)
+        _flush_shell_qt_events(app)
+
+        root = window.quick_widget.rootObject()
+        assert root is not None
+        overlay = _find_child(root, "contentFullscreenOverlay")
+        viewer_viewport = _find_child(root, "contentFullscreenViewerViewport")
+        viewer_status = _find_child(root, "contentFullscreenViewerStatusText")
+
+        assert bool(overlay.property("visible"))
+        assert str(overlay.property("contentKind")) == "viewer"
+        assert bool(viewer_viewport.property("visible"))
+        assert "Session" in str(viewer_status.property("text"))
 
         window.close()
         _flush_shell_qt_events(app)

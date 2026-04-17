@@ -82,4 +82,10 @@ Rectangle {
         id: graphHintOverlay
         graphSearchVisible: graphSearchOverlay.visible || connectionQuickInsertOverlay.visible
     }
+
+    ContentFullscreenOverlay {
+        id: contentFullscreenOverlay
+        anchors.fill: parent
+        bridgeRef: contentFullscreenBridge
+    }
 }
