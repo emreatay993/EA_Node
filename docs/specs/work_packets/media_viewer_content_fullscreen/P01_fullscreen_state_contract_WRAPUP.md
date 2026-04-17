@@ -6,18 +6,8 @@
 - Branch Label: `codex/media-viewer-content-fullscreen/p01-fullscreen-state-contract`
 - Commit Owner: `worker`
 - Commit SHA: `9f529e57d073fa2010e206db9dac3aa8a968b03d`
-- Changed Files:
-  - `ea_node_editor/ui/shell/composition.py`
-  - `ea_node_editor/ui_qml/content_fullscreen_bridge.py`
-  - `ea_node_editor/ui_qml/graph_scene_payload_builder.py`
-  - `tests/test_content_fullscreen_bridge.py`
-  - `tests/test_main_window_shell.py`
-  - `tests/test_shell_window_lifecycle.py`
-  - `docs/specs/work_packets/media_viewer_content_fullscreen/P01_fullscreen_state_contract_WRAPUP.md`
-- Artifacts Produced:
-  - `ea_node_editor/ui_qml/content_fullscreen_bridge.py`
-  - `tests/test_content_fullscreen_bridge.py`
-  - `docs/specs/work_packets/media_viewer_content_fullscreen/P01_fullscreen_state_contract_WRAPUP.md`
+- Changed Files: `docs/specs/work_packets/media_viewer_content_fullscreen/P01_fullscreen_state_contract_WRAPUP.md`, `ea_node_editor/ui/shell/composition.py`, `ea_node_editor/ui_qml/content_fullscreen_bridge.py`, `ea_node_editor/ui_qml/graph_scene_payload_builder.py`, `tests/test_content_fullscreen_bridge.py`, `tests/test_main_window_shell.py`, `tests/test_shell_window_lifecycle.py`
+- Artifacts Produced: `docs/specs/work_packets/media_viewer_content_fullscreen/P01_fullscreen_state_contract_WRAPUP.md`, `ea_node_editor/ui_qml/content_fullscreen_bridge.py`, `tests/test_content_fullscreen_bridge.py`
 
 Implemented the shell-owned `contentFullscreenBridge` contract as transient UI state with read-only QML properties, request/toggle/close/can-open slots, single-active replacement semantics, eligibility checks for image media, PDF media, and DPF viewer nodes, and cleanup on workspace switches and node deletion. Added normalized media payload construction that reuses existing image preview, crop, fit, and PDF preview/page semantics, plus viewer payload metadata for later overlay and live-viewer packets.
 
