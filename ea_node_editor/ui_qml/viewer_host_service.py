@@ -173,8 +173,10 @@ class ViewerHostService(QObject):
         overlay_manager: EmbeddedViewerOverlayManager | None = None,
     ) -> None:
         super().__init__(parent)
+        self._shell_window = shell_window
         self._viewer_session_bridge = viewer_session_bridge
         self._overlay_manager = overlay_manager
+        self._content_fullscreen_bridge: QObject | None = None
         self._binder_registry = ViewerWidgetBinderRegistry()
         self._bound_overlays: dict[_OverlayKey, _BoundOverlay] = {}
         self._last_error = ""
@@ -315,7 +317,9 @@ class ViewerHostService(QObject):
         previous_overlay_manager = self._overlay_manager
         self._overlay_manager = overlay_manager
         if previous_overlay_manager is not None:
+            previous_overlay_manager.set_content_fullscreen_target(None)
             previous_overlay_manager.set_active_overlays(())
+        self._connect_content_fullscreen_bridge()
         self._schedule_sync()
 
     def reset(self, *, reason: str = "") -> None:
@@ -324,6 +328,7 @@ class ViewerHostService(QObject):
         self._release_all_bindings(reason=reason or "reset")
         overlay_manager = self._overlay_manager
         if overlay_manager is not None:
+            overlay_manager.set_content_fullscreen_target(None)
             overlay_manager.set_active_overlays(())
         self._set_last_error("")
         self.state_changed.emit()
@@ -352,15 +357,30 @@ class ViewerHostService(QObject):
         self._release_all_bindings(reason=reason or "shutdown")
         overlay_manager = self._overlay_manager
         if overlay_manager is not None:
+            overlay_manager.set_content_fullscreen_target(None)
             overlay_manager.set_active_overlays(())
         self._overlay_manager = None
+        self._content_fullscreen_bridge = None
         self._viewer_session_bridge = None
+        self._shell_window = None
         self._set_last_error("")
         self.state_changed.emit()
 
     def _connect_signals(self) -> None:
         self._connect_signal(self._viewer_session_bridge, "sessions_changed", self._schedule_sync)
         self._connect_signal(self._viewer_session_bridge, "active_workspace_changed", self._schedule_sync)
+        self._connect_content_fullscreen_bridge()
+
+    def _connect_content_fullscreen_bridge(self) -> QObject | None:
+        shell_window = self._shell_window
+        bridge = getattr(shell_window, "content_fullscreen_bridge", None) if shell_window is not None else None
+        if bridge is None:
+            return self._content_fullscreen_bridge
+        if bridge is self._content_fullscreen_bridge:
+            return bridge
+        self._content_fullscreen_bridge = bridge
+        self._connect_signal(bridge, "content_fullscreen_changed", self._schedule_sync)
+        return bridge if isinstance(bridge, QObject) else None
 
     @staticmethod
     def _connect_signal(source: object | None, name: str, slot) -> None:  # noqa: ANN001
@@ -395,9 +415,13 @@ class ViewerHostService(QObject):
         bridge = self._viewer_session_bridge
         if overlay_manager is None or bridge is None:
             self._release_all_bindings(reason="overlay_manager_unavailable")
+            if overlay_manager is not None:
+                overlay_manager.set_content_fullscreen_target(None)
+                overlay_manager.set_active_overlays(())
             self.state_changed.emit()
             return
 
+        overlay_manager.set_content_fullscreen_target(self._content_fullscreen_overlay_spec())
         projected_sessions = getattr(bridge, "sessions_model", [])
         desired_overlays: dict[_OverlayKey, tuple[_ViewerHostSessionSnapshot, ViewerWidgetBinder]] = {}
         errors: list[str] = []
@@ -484,6 +508,25 @@ class ViewerHostService(QObject):
 
         self._set_last_error(errors[0] if errors else "")
         self.state_changed.emit()
+
+    def _content_fullscreen_overlay_spec(self) -> EmbeddedViewerOverlaySpec | None:
+        bridge = self._connect_content_fullscreen_bridge()
+        if bridge is None:
+            return None
+        if not bool(getattr(bridge, "open", False)):
+            return None
+        if _string(getattr(bridge, "content_kind", "")) != "viewer":
+            return None
+        workspace_id = _string(getattr(bridge, "workspace_id", ""))
+        node_id = _string(getattr(bridge, "node_id", ""))
+        if not workspace_id or not node_id:
+            return None
+        viewer_payload = _mapping(getattr(bridge, "viewer_payload", {}))
+        return EmbeddedViewerOverlaySpec(
+            workspace_id=workspace_id,
+            node_id=node_id,
+            session_id=_string(viewer_payload.get("session_id", "")),
+        )
 
     def _release_all_bindings(self, *, reason: str) -> None:
         for key in list(self._bound_overlays):

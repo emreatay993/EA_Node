@@ -4,10 +4,11 @@ import unittest
 from typing import Any
 from unittest.mock import patch
 
-from PyQt6.QtCore import QEvent, QPointF, QRectF
+from PyQt6.QtCore import QEvent, QObject, QPointF, QRectF
 from PyQt6.QtQuick import QQuickItem
 from PyQt6.QtWidgets import QWidget
 
+from ea_node_editor.nodes.builtins.ansys_dpf_common import DPF_VIEWER_NODE_TYPE_ID
 from ea_node_editor.nodes.types import NodeRenderQualitySpec, NodeResult, NodeTypeSpec, PortSpec
 from ea_node_editor.ui_qml.embedded_viewer_overlay_manager import EmbeddedViewerOverlaySpec
 from tests.main_window_shell.base import MainWindowShellTestBase
@@ -28,7 +29,7 @@ def _viewer_overlay_spec() -> NodeTypeSpec:
     return NodeTypeSpec(
         type_id="tests.embedded_viewer_overlay",
         display_name="Embedded Viewer Overlay",
-        category="Tests",
+        category_path=("Tests",),
         icon="",
         ports=(
             PortSpec("fields", "in", "data", "dpf_field"),
@@ -96,6 +97,13 @@ class EmbeddedViewerOverlayManagerTests(MainWindowShellTestBase):
                 return item
         self.fail(f"Missing graphNodeViewerViewport for {node_id!r}")
 
+    def _content_fullscreen_viewer_viewport(self) -> QQuickItem:
+        root_item = self.window.quick_widget.rootObject()
+        self.assertIsInstance(root_item, QQuickItem)
+        item = root_item.findChild(QObject, "contentFullscreenViewerViewport")
+        self.assertIsInstance(item, QQuickItem)
+        return item
+
     def _add_viewer_node(
         self,
         *,
@@ -105,6 +113,20 @@ class EmbeddedViewerOverlayManagerTests(MainWindowShellTestBase):
         height: float = 280.0,
     ) -> str:
         node_id = self.window.scene.add_node_from_type("tests.embedded_viewer_overlay", x=x, y=y)
+        self.window.scene.resize_node(node_id, width, height)
+        self.window.view.set_view_state(1.0, x + (width * 0.5), y + (height * 0.5))
+        self.app.processEvents()
+        return node_id
+
+    def _add_dpf_viewer_node(
+        self,
+        *,
+        x: float = 160.0,
+        y: float = 90.0,
+        width: float = 360.0,
+        height: float = 280.0,
+    ) -> str:
+        node_id = self.window.scene.add_node_from_type(DPF_VIEWER_NODE_TYPE_ID, x=x, y=y)
         self.window.scene.resize_node(node_id, width, height)
         self.window.view.set_view_state(1.0, x + (width * 0.5), y + (height * 0.5))
         self.app.processEvents()
@@ -194,6 +216,18 @@ class EmbeddedViewerOverlayManagerTests(MainWindowShellTestBase):
         self.assertAlmostEqual(float(geometry.y()), top, delta=delta)
         self.assertAlmostEqual(float(geometry.width()), width, delta=delta)
         self.assertAlmostEqual(float(geometry.height()), height, delta=delta)
+
+    def _assert_rect_matches_item(self, widget: QWidget, item: QQuickItem, *, delta: float = 1.1) -> None:
+        root_item = self.window.quick_widget.rootObject()
+        self.assertIsInstance(root_item, QQuickItem)
+        top_left = item.mapToItem(root_item, QPointF(0.0, 0.0))
+        bottom_right = item.mapToItem(root_item, QPointF(item.width(), item.height()))
+        expected = QRectF(top_left, bottom_right).normalized()
+        geometry = widget.geometry()
+        self.assertAlmostEqual(float(geometry.x()), float(expected.x()), delta=delta)
+        self.assertAlmostEqual(float(geometry.y()), float(expected.y()), delta=delta)
+        self.assertAlmostEqual(float(geometry.width()), float(expected.width()), delta=delta)
+        self.assertAlmostEqual(float(geometry.height()), float(expected.height()), delta=delta)
 
     def test_shell_window_creates_overlay_manager_parented_to_qquickwidget(self) -> None:
         self.assertIs(self.manager.parent(), self.window.quick_widget)
@@ -303,6 +337,62 @@ class EmbeddedViewerOverlayManagerTests(MainWindowShellTestBase):
         self.assertAlmostEqual(float(container.geometry().height()), float(viewport_frame.height()), delta=1.1)
         self.assertGreater(float(container.geometry().y()), float(body_top_left.y()))
         self.assertGreater(float(viewport_top_left.y()), float(body_top_left.y()))
+
+    def test_content_fullscreen_target_moves_live_overlay_to_shell_viewport_and_restores(self) -> None:
+        self.window.viewer_host_service.suspend_sync(reason="manager_content_fullscreen_geometry_test")
+        node_id = self._add_dpf_viewer_node()
+        widget = self._activate_overlay(node_id)
+        container = self.manager.overlay_container(node_id, workspace_id=self.workspace_id)
+        self.assertIsNotNone(container)
+        node_geometry = container.geometry()
+
+        self.assertTrue(self.window.content_fullscreen_bridge.request_open_node(node_id))
+        self.manager.set_content_fullscreen_target(
+            EmbeddedViewerOverlaySpec(
+                workspace_id=self.workspace_id,
+                node_id=node_id,
+                session_id=f"session::{node_id}",
+            )
+        )
+        self.app.processEvents()
+        self.app.processEvents()
+
+        viewer_viewport = self._content_fullscreen_viewer_viewport()
+        self.assertTrue(viewer_viewport.isVisible())
+        self.assertIs(self.manager.overlay_widget(node_id, workspace_id=self.workspace_id), widget)
+        self._assert_rect_matches_item(container, viewer_viewport)
+        self.assertGreater(container.geometry().width(), node_geometry.width())
+
+        self.window.content_fullscreen_bridge.request_close()
+        self.manager.set_content_fullscreen_target(None)
+        self.app.processEvents()
+        self.app.processEvents()
+
+        self.assertIs(self.manager.overlay_widget(node_id, workspace_id=self.workspace_id), widget)
+        self._assert_rect_close(container, node_id)
+        self.assertEqual(widget.geometry(), container.rect())
+        self.window.viewer_host_service.resume_sync()
+
+    def test_content_fullscreen_target_falls_back_to_node_viewport_when_shell_viewport_hidden(self) -> None:
+        node_id = self._add_viewer_node()
+        widget = self._activate_overlay(node_id)
+        container = self.manager.overlay_container(node_id, workspace_id=self.workspace_id)
+        self.assertIsNotNone(container)
+
+        self.manager.set_content_fullscreen_target(
+            EmbeddedViewerOverlaySpec(
+                workspace_id=self.workspace_id,
+                node_id=node_id,
+                session_id=f"session::{node_id}",
+            )
+        )
+        self.app.processEvents()
+        self.app.processEvents()
+
+        self.assertIs(self.manager.overlay_widget(node_id, workspace_id=self.workspace_id), widget)
+        self._assert_rect_close(container, node_id)
+        self.assertTrue(container.isVisible())
+        self.assertTrue(widget.isVisible())
 
     def test_offscreen_culling_hides_overlay_reuses_widget_and_tears_down_when_deactivated(self) -> None:
         node_id = self._add_viewer_node(x=120.0, y=80.0)

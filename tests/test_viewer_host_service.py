@@ -3,10 +3,12 @@ from __future__ import annotations
 import unittest
 from typing import Any
 
-from PyQt6.QtCore import QEvent, Qt
+from PyQt6.QtCore import QEvent, QObject, QPointF, QRectF, Qt
 from PyQt6.QtGui import QImage
+from PyQt6.QtQuick import QQuickItem
 from PyQt6.QtWidgets import QWidget
 
+from ea_node_editor.nodes.builtins.ansys_dpf_common import DPF_VIEWER_NODE_TYPE_ID
 from ea_node_editor.nodes.types import NodeRenderQualitySpec, NodeResult, NodeTypeSpec, PortSpec
 from ea_node_editor.ui_qml.dpf_viewer_widget_binder import DpfViewerWidgetBinder
 from ea_node_editor.ui_qml.viewer_widget_binder import ViewerWidgetNoBind
@@ -28,7 +30,7 @@ def _viewer_overlay_spec() -> NodeTypeSpec:
     return NodeTypeSpec(
         type_id="tests.viewer_host_service_overlay",
         display_name="Viewer Host Service Overlay",
-        category="Tests",
+        category_path=("Tests",),
         icon="",
         ports=(
             PortSpec("fields", "in", "data", "dpf_field"),
@@ -179,6 +181,54 @@ class ViewerHostServiceTests(MainWindowShellTestBase):
         self.window.scene.resize_node(node_id, width, height)
         self.app.processEvents()
         return node_id
+
+    def _add_dpf_viewer_node(
+        self,
+        *,
+        x: float = 160.0,
+        y: float = 90.0,
+        width: float = 360.0,
+        height: float = 280.0,
+    ) -> str:
+        node_id = self.window.scene.add_node_from_type(DPF_VIEWER_NODE_TYPE_ID, x=x, y=y)
+        self.window.scene.resize_node(node_id, width, height)
+        self.window.view.set_view_state(1.0, x + (width * 0.5), y + (height * 0.5))
+        self.app.processEvents()
+        return node_id
+
+    def _content_fullscreen_viewer_viewport(self) -> QQuickItem:
+        root_item = self.window.quick_widget.rootObject()
+        self.assertIsInstance(root_item, QQuickItem)
+        item = root_item.findChild(QObject, "contentFullscreenViewerViewport")
+        self.assertIsInstance(item, QQuickItem)
+        return item
+
+    def _assert_rect_matches_item(self, widget: QWidget, item: QQuickItem, *, delta: float = 1.1) -> None:
+        root_item = self.window.quick_widget.rootObject()
+        self.assertIsInstance(root_item, QQuickItem)
+        top_left = item.mapToItem(root_item, QPointF(0.0, 0.0))
+        bottom_right = item.mapToItem(root_item, QPointF(item.width(), item.height()))
+        expected = QRectF(top_left, bottom_right).normalized()
+        geometry = widget.geometry()
+        self.assertAlmostEqual(float(geometry.x()), float(expected.x()), delta=delta)
+        self.assertAlmostEqual(float(geometry.y()), float(expected.y()), delta=delta)
+        self.assertAlmostEqual(float(geometry.width()), float(expected.width()), delta=delta)
+        self.assertAlmostEqual(float(geometry.height()), float(expected.height()), delta=delta)
+
+    def _assert_rect_not_matches_item(self, widget: QWidget, item: QQuickItem, *, delta: float = 1.1) -> None:
+        root_item = self.window.quick_widget.rootObject()
+        self.assertIsInstance(root_item, QQuickItem)
+        top_left = item.mapToItem(root_item, QPointF(0.0, 0.0))
+        bottom_right = item.mapToItem(root_item, QPointF(item.width(), item.height()))
+        expected = QRectF(top_left, bottom_right).normalized()
+        geometry = widget.geometry()
+        differs = (
+            abs(float(geometry.x()) - float(expected.x())) > delta
+            or abs(float(geometry.y()) - float(expected.y())) > delta
+            or abs(float(geometry.width()) - float(expected.width())) > delta
+            or abs(float(geometry.height()) - float(expected.height())) > delta
+        )
+        self.assertTrue(differs)
 
     def _emit_viewer_event(
         self,
@@ -674,6 +724,40 @@ class ViewerHostServiceTests(MainWindowShellTestBase):
         self.assertIsNotNone(self.overlay_manager.overlay_widget(node_id, workspace_id=self.workspace_id))
         self.assertEqual(binder.bind_calls[-1]["live_mode"], "full")
         self.assertEqual(binder.bind_calls[-1]["camera_state"], binder.captured_camera_state)
+
+    def test_content_fullscreen_bridge_retargets_existing_live_widget_to_shell_viewport_and_restores(self) -> None:
+        binder = _RecordingBinder()
+        self.host_service.register_binder("tests.viewer_backend", binder)
+        node_id = self._add_dpf_viewer_node()
+
+        self._emit_viewer_event(event_type="viewer_data_materialized", node_id=node_id)
+
+        widget = self.overlay_manager.overlay_widget(node_id, workspace_id=self.workspace_id)
+        container = self.overlay_manager.overlay_container(node_id, workspace_id=self.workspace_id)
+        self.assertIsNotNone(widget)
+        self.assertIsNotNone(container)
+        self.assertEqual(len(binder.bind_calls), 1)
+        node_geometry = container.geometry()
+
+        self.assertTrue(self.window.content_fullscreen_bridge.request_open_node(node_id))
+        self.app.processEvents()
+        self.app.processEvents()
+
+        fullscreen_viewport = self._content_fullscreen_viewer_viewport()
+        self.assertTrue(fullscreen_viewport.isVisible())
+        self.assertIs(self.overlay_manager.overlay_widget(node_id, workspace_id=self.workspace_id), widget)
+        self.assertEqual(len(binder.bind_calls), 1)
+        self._assert_rect_matches_item(container, fullscreen_viewport)
+        self.assertGreater(container.geometry().width(), node_geometry.width())
+
+        self.window.content_fullscreen_bridge.request_close()
+        self.app.processEvents()
+        self.app.processEvents()
+
+        self.assertIs(self.overlay_manager.overlay_widget(node_id, workspace_id=self.workspace_id), widget)
+        self.assertEqual(len(binder.bind_calls), 1)
+        self.assertEqual(len(binder.release_calls), 0)
+        self._assert_rect_not_matches_item(container, fullscreen_viewport)
 
     def test_window_deactivate_blurs_live_viewer_and_captures_camera(self) -> None:
         preview_image = QImage(24, 16, QImage.Format.Format_ARGB32)

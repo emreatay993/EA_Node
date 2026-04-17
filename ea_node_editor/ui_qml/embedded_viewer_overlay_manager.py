@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
 from PyQt6 import sip
-from PyQt6.QtCore import QEvent, QObject, QPointF, QRect, QRectF, QTimer, pyqtSlot
+from PyQt6.QtCore import QEvent, QObject, QPointF, QRect, QRectF, Qt, QTimer, pyqtSlot
 from PyQt6.QtQuick import QQuickItem
 from PyQt6.QtQuickWidgets import QQuickWidget
 from PyQt6.QtWidgets import QWidget
@@ -90,6 +90,7 @@ class _OverlayRecord:
     node_card_item: QQuickItem | None = None
     viewer_geometry_item: QQuickItem | None = None
     updates_suspended: bool = False
+    fullscreen_target_active: bool = False
     geometry_retry_budget: int = 0
 
 
@@ -111,6 +112,7 @@ class EmbeddedViewerOverlayManager(QObject):
         self._observed_graph_canvas: QQuickItem | None = None
         self._desired_overlays: dict[_OverlayKey, EmbeddedViewerOverlaySpec] = {}
         self._overlay_records: dict[_OverlayKey, _OverlayRecord] = {}
+        self._content_fullscreen_target: _OverlayKey | None = None
         self._last_error = ""
         self._sync_queued = False
         self._syncing = False
@@ -146,6 +148,20 @@ class EmbeddedViewerOverlayManager(QObject):
             self._ensure_record(key=key, session_id=overlay.session_id)
         for key in removed_keys:
             self._teardown_record(key)
+        self._schedule_sync()
+
+    def set_content_fullscreen_target(self, overlay: EmbeddedViewerOverlaySpec | None) -> None:
+        next_target: _OverlayKey | None = None
+        if overlay is not None:
+            workspace_id = _string(getattr(overlay, "workspace_id", ""))
+            node_id = _string(getattr(overlay, "node_id", ""))
+            if workspace_id and node_id:
+                next_target = (workspace_id, node_id)
+        if next_target == self._content_fullscreen_target:
+            return
+        self._content_fullscreen_target = next_target
+        for key, record in self._overlay_records.items():
+            record.fullscreen_target_active = key == next_target
         self._schedule_sync()
 
     def overlay_widget(self, node_id: str, *, workspace_id: str = "") -> QWidget | None:
@@ -294,6 +310,7 @@ class EmbeddedViewerOverlayManager(QObject):
             {node_id for _workspace_id, node_id in self._desired_overlays}
         )
         managed_keys = set(self._desired_overlays)
+        fullscreen_target = self._content_fullscreen_target if self._content_fullscreen_target in managed_keys else None
         for key, overlay in self._desired_overlays.items():
             node_payload = node_payloads.get(key[1])
             if node_payload is None or _bool(node_payload.get("collapsed")):
@@ -317,7 +334,20 @@ class EmbeddedViewerOverlayManager(QObject):
             if viewer_viewport_item is not None:
                 self._observe_overlay_geometry_item(viewer_viewport_item)
 
-            geometry = self._overlay_geometry(
+            fullscreen_viewport_item = (
+                self._content_fullscreen_viewport_item(root_item)
+                if key == fullscreen_target
+                else None
+            )
+            if fullscreen_viewport_item is not None:
+                self._observe_overlay_geometry_item(fullscreen_viewport_item)
+            fullscreen_geometry = self._content_fullscreen_geometry(
+                root_item=root_item,
+                viewer_viewport_item=fullscreen_viewport_item,
+            )
+            record.fullscreen_target_active = fullscreen_geometry is not None
+
+            geometry = fullscreen_geometry or self._overlay_geometry(
                 root_item=root_item,
                 graph_canvas_item=graph_canvas_item,
                 node_payload=node_payload,
@@ -325,13 +355,16 @@ class EmbeddedViewerOverlayManager(QObject):
             )
             self._set_widget_updates_suspended(
                 record,
-                self._overlay_live_preview_active(node_card_item, node_payload, graph_canvas_item),
+                False
+                if record.fullscreen_target_active
+                else self._overlay_live_preview_active(node_card_item, node_payload, graph_canvas_item),
             )
             if geometry is None:
+                record.fullscreen_target_active = False
                 self._hide_record(key)
                 continue
 
-            self._show_record(record, geometry)
+            self._show_record(record, geometry, focus=record.fullscreen_target_active)
 
         for key in list(self._overlay_records):
             if key not in managed_keys:
@@ -444,6 +477,13 @@ class EmbeddedViewerOverlayManager(QObject):
                 viewer_geometry_item = preferred_geometry_item
             record.viewer_geometry_item = viewer_geometry_item
         return node_card_item, viewer_geometry_item
+
+    @staticmethod
+    def _content_fullscreen_viewport_item(root_item: QQuickItem | None) -> QQuickItem | None:
+        if not isinstance(root_item, QQuickItem):
+            return None
+        item = root_item.findChild(QObject, "contentFullscreenViewerViewport")
+        return item if isinstance(item, QQuickItem) else None
 
     def _overlay_live_preview_active(
         self,
@@ -570,6 +610,34 @@ class EmbeddedViewerOverlayManager(QObject):
             return None
         return _aligned_rect(clipped_rect)
 
+    def _content_fullscreen_geometry(
+        self,
+        *,
+        root_item: QQuickItem,
+        viewer_viewport_item: QQuickItem | None,
+    ) -> QRect | None:
+        if not isinstance(viewer_viewport_item, QQuickItem) or not viewer_viewport_item.isVisible():
+            return None
+        viewport_width = max(0.0, _number(viewer_viewport_item.width(), 0.0))
+        viewport_height = max(0.0, _number(viewer_viewport_item.height(), 0.0))
+        if viewport_width <= 0.0 or viewport_height <= 0.0:
+            return None
+        top_left = viewer_viewport_item.mapToItem(root_item, QPointF(0.0, 0.0))
+        bottom_right = viewer_viewport_item.mapToItem(root_item, QPointF(viewport_width, viewport_height))
+        rect = QRectF(top_left, bottom_right).normalized()
+        root_rect = QRectF(
+            0.0,
+            0.0,
+            max(0.0, _number(root_item.width(), 0.0)),
+            max(0.0, _number(root_item.height(), 0.0)),
+        )
+        if root_rect.width() <= 0.0 or root_rect.height() <= 0.0 or not rect.intersects(root_rect):
+            return None
+        clipped_rect = rect.intersected(root_rect)
+        if clipped_rect.width() <= 0.0 or clipped_rect.height() <= 0.0:
+            return None
+        return _aligned_rect(clipped_rect)
+
     def _node_scene_geometry(
         self,
         graph_canvas_item: QQuickItem,
@@ -673,7 +741,7 @@ class EmbeddedViewerOverlayManager(QObject):
         return record
 
     @staticmethod
-    def _show_record(record: _OverlayRecord, geometry: QRect) -> None:
+    def _show_record(record: _OverlayRecord, geometry: QRect, *, focus: bool = False) -> None:
         geometry_changed = record.container.geometry() != geometry
         if geometry_changed:
             record.container.setGeometry(geometry)
@@ -694,6 +762,8 @@ class EmbeddedViewerOverlayManager(QObject):
         if geometry_changed or container_was_hidden or widget_was_hidden:
             record.container.raise_()
             widget.raise_()
+        if focus:
+            widget.setFocus(Qt.FocusReason.OtherFocusReason)
 
     def _hide_record(self, key: _OverlayKey) -> None:
         record = self._overlay_records.get(key)
@@ -711,6 +781,7 @@ class EmbeddedViewerOverlayManager(QObject):
         record = self._overlay_records.pop(key, None)
         if record is None:
             return
+        record.fullscreen_target_active = False
         if record.overlay_widget is not None:
             self._teardown_widget(record.overlay_widget)
         record.container.close()
