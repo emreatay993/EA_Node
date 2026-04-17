@@ -6,8 +6,8 @@
 - Branch Label: codex/media-viewer-content-fullscreen/p02-shell-overlay-and-media-renderer
 - Commit Owner: worker
 - Commit SHA: 59bbd4b39027f2058f62e5717b9f996d76100cc2
-- Changed Files: ea_node_editor/ui/icon_registry.py, ea_node_editor/ui_qml/ContentFullscreenOverlay.qml, ea_node_editor/ui_qml/MainShell.qml, ea_node_editor/ui_qml/components/shell/icons/fullscreen.svg, tests/main_window_shell/shell_runtime_contracts.py, tests/test_icon_registry.py, tests/test_shell_window_lifecycle.py, docs/specs/work_packets/media_viewer_content_fullscreen/P02_shell_overlay_and_media_renderer_WRAPUP.md
-- Artifacts Produced: ea_node_editor/ui_qml/ContentFullscreenOverlay.qml, ea_node_editor/ui_qml/components/shell/icons/fullscreen.svg, docs/specs/work_packets/media_viewer_content_fullscreen/P02_shell_overlay_and_media_renderer_WRAPUP.md
+- Changed Files: docs/specs/work_packets/media_viewer_content_fullscreen/MEDIA_VIEWER_CONTENT_FULLSCREEN_STATUS.md, docs/specs/work_packets/media_viewer_content_fullscreen/P02_shell_overlay_and_media_renderer_WRAPUP.md, ea_node_editor/ui/icon_registry.py, ea_node_editor/ui_qml/ContentFullscreenOverlay.qml, ea_node_editor/ui_qml/MainShell.qml, ea_node_editor/ui_qml/components/shell/icons/fullscreen.svg, tests/main_window_shell/shell_runtime_contracts.py, tests/test_icon_registry.py, tests/test_shell_window_lifecycle.py
+- Artifacts Produced: docs/specs/work_packets/media_viewer_content_fullscreen/MEDIA_VIEWER_CONTENT_FULLSCREEN_STATUS.md, docs/specs/work_packets/media_viewer_content_fullscreen/P02_shell_overlay_and_media_renderer_WRAPUP.md, ea_node_editor/ui_qml/ContentFullscreenOverlay.qml, ea_node_editor/ui_qml/components/shell/icons/fullscreen.svg
 
 Added a shell-owned `ContentFullscreenOverlay` that is instantiated from `MainShell.qml`, gates visibility on `contentFullscreenBridge.open`, blocks background pointer input, captures focus while open, and closes through `Esc`, `F11`, and the close button via `contentFullscreenBridge.request_close()`.
 
