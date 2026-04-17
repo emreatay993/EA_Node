@@ -14,6 +14,7 @@ from ea_node_editor.ui.shell.runtime_clipboard import (
     build_graph_fragment_payload,
     serialize_graph_fragment_payload,
 )
+from ea_node_editor.ui_qml.content_fullscreen_bridge import ContentFullscreenBridge
 from ea_node_editor.ui_qml.graph_canvas_command_bridge import GraphCanvasCommandBridge
 from ea_node_editor.ui_qml.graph_canvas_state_bridge import GraphCanvasStateBridge
 from ea_node_editor.ui_qml.shell_inspector_bridge import ShellInspectorBridge
@@ -144,6 +145,7 @@ class MainWindowShellContextBootstrapTests(SharedMainWindowShellTestBase):
             "graphCanvasStateBridge",
             "graphCanvasCommandBridge",
             "graphCanvasViewBridge",
+            "contentFullscreenBridge",
             "viewerSessionBridge",
             "viewerHostService",
         )
@@ -203,6 +205,12 @@ class MainWindowShellContextBootstrapTests(SharedMainWindowShellTestBase):
         self.assertIs(graph_canvas_view_bridge, self.window.view)
         self.assertIs(graph_canvas_view_bridge.parent(), self.window)
 
+        content_fullscreen_bridge = context.contextProperty("contentFullscreenBridge")
+        self.assertIsInstance(content_fullscreen_bridge, ContentFullscreenBridge)
+        self.assertIs(content_fullscreen_bridge.parent(), self.window)
+        self.assertIs(content_fullscreen_bridge, self.window.content_fullscreen_bridge)
+        self.assertFalse(content_fullscreen_bridge.open)
+
         viewer_session_bridge = context.contextProperty("viewerSessionBridge")
         self.assertIsInstance(viewer_session_bridge, ViewerSessionBridge)
         self.assertIs(viewer_session_bridge.parent(), self.window)
@@ -223,8 +231,25 @@ class MainWindowShellContextBootstrapTests(SharedMainWindowShellTestBase):
         self.assertIs(context_bindings["graphCanvasStateBridge"], graph_canvas_state_bridge)
         self.assertIs(context_bindings["graphCanvasCommandBridge"], graph_canvas_command_bridge)
         self.assertIs(context_bindings["graphCanvasViewBridge"], graph_canvas_view_bridge)
+        self.assertIs(context_bindings["contentFullscreenBridge"], content_fullscreen_bridge)
         self.assertIs(context_bindings["viewerSessionBridge"], viewer_session_bridge)
         self.assertIs(context_bindings["viewerHostService"], viewer_host_service)
+
+    def test_content_fullscreen_bridge_context_property_registers_shell_owned_contract(self) -> None:
+        context = self.window.quick_widget.rootContext()
+        bridge = context.contextProperty("contentFullscreenBridge")
+
+        self.assertIsInstance(bridge, ContentFullscreenBridge)
+        self.assertIs(bridge, self.window.content_fullscreen_bridge)
+        self.assertIs(bridge.shell_window, self.window)
+        self.assertIs(bridge.scene_bridge, self.window.scene)
+        self.assertIs(bridge.viewer_session_bridge, self.window.viewer_session_bridge)
+        self.assertFalse(bridge.open)
+        self.assertEqual(bridge.node_id, "")
+        self.assertEqual(bridge.workspace_id, "")
+        self.assertEqual(bridge.content_kind, "")
+        self.assertEqual(bridge.media_payload, {})
+        self.assertEqual(bridge.viewer_payload, {})
 
     def test_shell_window_keeps_split_bridge_aliases_in_sync_with_context_bundle(self) -> None:
         bridges = self.window._shell_context_bridges

@@ -1,10 +1,15 @@
 from __future__ import annotations
 
 import copy
+import math
+import re
 from collections.abc import Mapping
 from dataclasses import dataclass
 from functools import lru_cache
 from typing import TYPE_CHECKING, Any
+from urllib.parse import quote
+
+from PyQt6.QtCore import QUrl
 
 from ea_node_editor.app_preferences import effective_graph_node_icon_pixel_size
 from ea_node_editor.graph.comment_backdrop_geometry import (
@@ -34,6 +39,10 @@ from ea_node_editor.nodes.builtins.ansys_dpf_catalog import (
     get_ansys_dpf_plugin_availability,
     load_ansys_dpf_plugin_descriptors,
 )
+from ea_node_editor.nodes.builtins.passive_media import (
+    PASSIVE_MEDIA_IMAGE_PANEL_TYPE_ID,
+    PASSIVE_MEDIA_PDF_PANEL_TYPE_ID,
+)
 from ea_node_editor.nodes.builtins.subnode import is_subnode_shell_type
 from ea_node_editor.nodes.plugin_contracts import PluginProvenance
 from ea_node_editor.nodes.registry import NodeRegistry
@@ -49,6 +58,11 @@ from ea_node_editor.ui.graph_theme import (
     resolve_category_accent,
     resolve_graph_theme,
 )
+from ea_node_editor.ui.media_preview_provider import (
+    LOCAL_MEDIA_PREVIEW_PROVIDER_ID,
+    local_image_dimensions,
+)
+from ea_node_editor.ui.pdf_preview_provider import describe_pdf_preview
 from ea_node_editor.ui.support.node_presentation import build_inline_property_items
 from ea_node_editor.ui_qml.edge_routing import build_edge_payload
 from ea_node_editor.ui_qml.graph_geometry.standard_metrics import (
@@ -62,7 +76,145 @@ from ea_node_editor.ui_qml.graph_surface_metrics import (
 from ea_node_editor.ui_qml.node_title_icon_sources import title_icon_source_for_node_payload
 
 if TYPE_CHECKING:
+    from ea_node_editor.graph.model import NodeInstance
     from ea_node_editor.ui_qml.graph_theme_bridge import GraphThemeBridge
+
+_PROJECT_ARTIFACT_REF_RE = re.compile(r"^artifact(?:-stage)?://[A-Za-z0-9][A-Za-z0-9._-]*$")
+_WINDOWS_DRIVE_PATH_RE = re.compile(r"^[A-Za-z]:[\\/]")
+_UNC_PATH_RE = re.compile(r"^[/\\]{2}[^/\\]")
+_IMAGE_FIT_MODES = frozenset({"contain", "cover", "original"})
+
+
+def _is_project_artifact_ref(value: str) -> bool:
+    return bool(_PROJECT_ARTIFACT_REF_RE.match(value))
+
+
+def _is_absolute_local_path(value: str) -> bool:
+    return (
+        bool(_WINDOWS_DRIVE_PATH_RE.match(value))
+        or bool(_UNC_PATH_RE.match(value))
+        or value.startswith("/")
+    )
+
+
+def _resolved_local_source_url(raw_value: object) -> str:
+    source = str(raw_value or "").strip()
+    if not source:
+        return ""
+    if _is_project_artifact_ref(source):
+        return source
+    if source.lower().startswith("file:"):
+        url = QUrl(source.replace("\\", "/"))
+        if url.isLocalFile():
+            return url.toString()
+        return ""
+    if not _is_absolute_local_path(source):
+        return ""
+    return QUrl.fromLocalFile(source).toString()
+
+
+def _image_preview_source_url(source_url: str) -> str:
+    normalized = str(source_url or "").strip()
+    if not normalized:
+        return ""
+    return f"image://{LOCAL_MEDIA_PREVIEW_PROVIDER_ID}/preview?source={quote(normalized, safe='')}"
+
+
+def _float_property(value: object, default: float) -> float:
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return float(default)
+
+
+def _normalized_crop_rect(properties: Mapping[str, Any]) -> dict[str, float]:
+    left = _float_property(properties.get("crop_x"), 0.0)
+    top = _float_property(properties.get("crop_y"), 0.0)
+    width = _float_property(properties.get("crop_w"), 1.0)
+    height = _float_property(properties.get("crop_h"), 1.0)
+    if not all(math.isfinite(value) for value in (left, top, width, height)):
+        return {"x": 0.0, "y": 0.0, "width": 1.0, "height": 1.0}
+    if width <= 0.0 or height <= 0.0:
+        return {"x": 0.0, "y": 0.0, "width": 1.0, "height": 1.0}
+    left = max(0.0, min(left, 1.0))
+    top = max(0.0, min(top, 1.0))
+    right = max(left, min(left + width, 1.0))
+    bottom = max(top, min(top + height, 1.0))
+    if right <= left or bottom <= top:
+        return {"x": 0.0, "y": 0.0, "width": 1.0, "height": 1.0}
+    return {
+        "x": left,
+        "y": top,
+        "width": right - left,
+        "height": bottom - top,
+    }
+
+
+def _normalized_fit_mode(value: object) -> str:
+    normalized = str(value or "contain").strip().lower()
+    return normalized if normalized in _IMAGE_FIT_MODES else "contain"
+
+
+def _int_property(value: object, default: int) -> int:
+    if isinstance(value, bool):
+        return int(default)
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return int(default)
+
+
+def build_content_fullscreen_media_payload(
+    *,
+    workspace_id: str,
+    node: "NodeInstance",
+    spec: NodeTypeSpec,
+) -> dict[str, Any]:
+    properties = copy.deepcopy(node.properties)
+    source_path = str(properties.get("source_path", "") or "").strip()
+    surface_variant = str(spec.surface_variant or "").strip()
+    payload: dict[str, Any] = {
+        "workspace_id": str(workspace_id or ""),
+        "node_id": str(node.node_id),
+        "type_id": str(node.type_id),
+        "title": str(node.title or spec.display_name),
+        "display_name": str(spec.display_name),
+        "surface_family": str(spec.surface_family or ""),
+        "surface_variant": surface_variant,
+        "source_path": source_path,
+        "caption": str(properties.get("caption", "") or ""),
+        "properties": properties,
+    }
+    if node.type_id == PASSIVE_MEDIA_PDF_PANEL_TYPE_ID:
+        page_number = _int_property(properties.get("page_number"), 1)
+        pdf_preview = describe_pdf_preview(source_path, page_number)
+        payload.update(
+            {
+                "media_kind": "pdf",
+                "fit_mode": "contain",
+                "page_number": page_number,
+                "pdf_preview": pdf_preview,
+                "resolved_page_number": int(pdf_preview.get("resolved_page_number", page_number) or page_number),
+                "preview_url": str(pdf_preview.get("preview_url", "") or ""),
+                "resolved_source_url": str(pdf_preview.get("resolved_source_url", "") or ""),
+            }
+        )
+        return payload
+
+    resolved_source_url = _resolved_local_source_url(source_path)
+    dimensions = local_image_dimensions(resolved_source_url or source_path)
+    payload.update(
+        {
+            "media_kind": "image",
+            "fit_mode": _normalized_fit_mode(properties.get("fit_mode")),
+            "crop": _normalized_crop_rect(properties),
+            "preview_url": _image_preview_source_url(resolved_source_url),
+            "resolved_source_url": resolved_source_url,
+            "source_pixel_width": int(dimensions[0]) if dimensions is not None else 0,
+            "source_pixel_height": int(dimensions[1]) if dimensions is not None else 0,
+        }
+    )
+    return payload
 
 
 class _GraphSceneThemeResolver:
@@ -1121,4 +1273,7 @@ class GraphScenePayloadBuilder:
         return self._theme_resolver.active_graph_theme(graph_theme_bridge)
 
 
-__all__ = ["GraphScenePayloadBuilder"]
+__all__ = [
+    "GraphScenePayloadBuilder",
+    "build_content_fullscreen_media_payload",
+]

@@ -39,6 +39,7 @@ from ea_node_editor.ui.shell.runtime_history import RuntimeGraphHistory
 from ea_node_editor.ui.shell.state import ShellState
 from ea_node_editor.ui.shell.window_search_scope_state import WindowSearchScopeController
 from ea_node_editor.ui_qml.console_model import ConsoleModel
+from ea_node_editor.ui_qml.content_fullscreen_bridge import ContentFullscreenBridge
 from ea_node_editor.ui_qml.graph_canvas_bridge import GraphCanvasBridge
 from ea_node_editor.ui_qml.graph_canvas_command_bridge import GraphCanvasCommandBridge
 from ea_node_editor.ui_qml.graph_scene_bridge import GraphSceneBridge
@@ -260,10 +261,12 @@ class ShellPresenterDependencies:
 
 @dataclass(frozen=True, slots=True)
 class ShellRuntimeDependencies:
+    content_fullscreen_bridge: ContentFullscreenBridge
     viewer_session_bridge: ViewerSessionBridge
     viewer_host_service: ViewerHostService
 
     def attach(self, host: "ShellWindow") -> None:
+        host.content_fullscreen_bridge = self.content_fullscreen_bridge
         host.viewer_session_bridge = self.viewer_session_bridge
         host.viewer_host_service = self.viewer_host_service
 
@@ -553,12 +556,19 @@ def _create_shell_runtime_dependencies(
         shell_window=host,
         scene_bridge=primitives.scene,
     )
+    content_fullscreen_bridge = ContentFullscreenBridge(
+        host,
+        shell_window=host,
+        scene_bridge=primitives.scene,
+        viewer_session_bridge=viewer_session_bridge,
+    )
     viewer_host_service = ViewerHostService(
         host,
         shell_window=host,
         viewer_session_bridge=viewer_session_bridge,
     )
     return ShellRuntimeDependencies(
+        content_fullscreen_bridge=content_fullscreen_bridge,
         viewer_session_bridge=viewer_session_bridge,
         viewer_host_service=viewer_host_service,
     )
@@ -645,6 +655,7 @@ def _build_shell_context_property_bindings(
         ("graphCanvasStateBridge", bridges.graph_canvas_state_bridge),
         ("graphCanvasCommandBridge", bridges.graph_canvas_command_bridge),
         ("graphCanvasViewBridge", primitives.view),
+        ("contentFullscreenBridge", runtime.content_fullscreen_bridge),
         ("viewerSessionBridge", runtime.viewer_session_bridge),
         ("viewerHostService", runtime.viewer_host_service),
         ("scriptEditorBridge", primitives.script_editor),
