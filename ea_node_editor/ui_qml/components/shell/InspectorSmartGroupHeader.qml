@@ -7,6 +7,7 @@ Rectangle {
     property int count: 0
     property bool open: true
     property color accentColor: "transparent"
+    property color labelColor: "transparent"
     property bool uppercase: true
     property bool showCount: true
 
@@ -21,9 +22,9 @@ Rectangle {
     readonly property color mutedForeground: pane
         ? pane.themePalette.muted_fg
         : "#d0d5de"
-    readonly property color displayedLabelColor: Qt.colorEqual(accentColor, "transparent")
-        ? labelFallback
-        : accentColor
+    readonly property color displayedLabelColor: Qt.colorEqual(labelColor, "transparent")
+        ? (Qt.colorEqual(accentColor, "transparent") ? labelFallback : accentColor)
+        : labelColor
 
     color: headerBackground
     implicitHeight: headerRow.implicitHeight + 14

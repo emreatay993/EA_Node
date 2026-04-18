@@ -388,6 +388,60 @@ class WindowLibraryInspectorPropertyGroupTests(unittest.TestCase):
         self.assertEqual(items_by_key["source_path"]["group"], "Source")
         self.assertEqual(items_by_key["comment"]["group"], "Properties")
 
+    def test_property_items_flag_dirty_when_value_differs_from_default(self) -> None:
+        spec = SimpleNamespace(
+            type_id="fixture.dirty",
+            display_name="Dirty Node",
+            category_path=("Fixtures",),
+            category=category_display(("Fixtures",)),
+            icon="fixture",
+            description="Dirty Node description",
+            ports=(),
+            properties=(
+                PropertySpec(
+                    key="source_path",
+                    type="str",
+                    default="",
+                    label="Source Path",
+                ),
+                PropertySpec(
+                    key="nodes_only",
+                    type="bool",
+                    default=False,
+                    label="Nodes Only",
+                ),
+            ),
+        )
+
+        def _items_for(properties: dict) -> dict:
+            node = SimpleNamespace(
+                type_id="fixture.dirty",
+                node_id="node-1",
+                properties=properties,
+            )
+            items = build_selected_node_property_items(
+                node=node,
+                spec=spec,
+                subnode_pin_type_ids=set(),
+            )
+            return {str(item["key"]): item for item in items}
+
+        absent = _items_for({})
+        self.assertFalse(absent["source_path"]["dirty"])
+        self.assertFalse(absent["nodes_only"]["dirty"])
+
+        equal_to_default = _items_for({"source_path": "", "nodes_only": False})
+        self.assertFalse(equal_to_default["source_path"]["dirty"])
+        self.assertFalse(equal_to_default["nodes_only"]["dirty"])
+
+        diverged = _items_for({"source_path": "C:/data/run.rst", "nodes_only": True})
+        self.assertTrue(diverged["source_path"]["dirty"])
+        self.assertTrue(diverged["nodes_only"]["dirty"])
+
+        mixed = _items_for({"source_path": "C:/data/run.rst"})
+        self.assertTrue(mixed["source_path"]["dirty"])
+        self.assertFalse(mixed["nodes_only"]["dirty"])
+
 
 if __name__ == "__main__":
     unittest.main()

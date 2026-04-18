@@ -23,6 +23,7 @@ class ThemeTokens:
     inspector_danger_bg: str
     inspector_danger_border: str
     inspector_danger_fg: str
+    inspector_smart_modified_fg: str
     accent: str
     accent_strong: str
     status_bg: str
@@ -68,6 +69,7 @@ STITCH_DARK_V1 = ThemeTokens(
     inspector_danger_bg="#392629",
     inspector_danger_border="#b96a72",
     inspector_danger_fg="#f1b0b7",
+    inspector_smart_modified_fg="#fbbf24",
     accent="#60CDFF",
     accent_strong="#1D8CE0",
     status_bg="#24a2dc",
@@ -111,6 +113,7 @@ STITCH_LIGHT_V1 = ThemeTokens(
     inspector_danger_bg="#fae7e9",
     inspector_danger_border="#d28c94",
     inspector_danger_fg="#98434c",
+    inspector_smart_modified_fg="#b45309",
     accent="#1D8CE0",
     accent_strong="#b9dcf7",
     status_bg="#dceefb",

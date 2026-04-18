@@ -67,6 +67,19 @@ Column {
         return "transparent"
     }
 
+    function _labelColorForKind(kind) {
+        if (!body.pane)
+            return "transparent"
+        var palette = body.pane.themePalette
+        if (kind === "modified")
+            return palette.inspector_smart_modified_fg
+        if (kind === "driven")
+            return palette.accent
+        if (kind === "required")
+            return palette.inspector_danger_fg
+        return "transparent"
+    }
+
     InspectorFilterBar {
         id: filterBar
         objectName: "inspectorSmartGroupsFilterBar"
@@ -108,6 +121,7 @@ Column {
                 open: smartSection.sectionOpen
                 uppercase: false
                 accentColor: body._accentColorForKind(smartSection.sectionKind)
+                labelColor: body._labelColorForKind(smartSection.sectionKind)
                 onToggleRequested: body.toggleGroup(smartSection.sectionKind, smartSection.sectionLabel)
             }
 

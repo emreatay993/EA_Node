@@ -734,15 +734,17 @@ def build_selected_node_property_items(
     }
     items: list[dict[str, Any]] = []
     for prop in ordered_properties:
+        current_value = node.properties.get(prop.key, prop.default)
         item = {
             "key": prop.key,
             "label": prop.label,
             "type": prop.type,
-            "value": node.properties.get(prop.key, prop.default),
+            "value": current_value,
             "enum_values": list(prop.enum_values),
             "inline_editor": prop.inline_editor,
             "editor_mode": property_inspector_editor(prop),
             "group": getattr(prop, "group", "") or "Properties",
+            "dirty": current_value != prop.default,
         }
         item.update(
             _dynamic_property_item_overrides(
