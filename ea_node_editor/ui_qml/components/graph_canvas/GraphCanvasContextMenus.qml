@@ -28,6 +28,11 @@ Item {
             && Boolean(payload.collapsed);
     }
 
+    function _isCommentBackdrop(payload) {
+        return !!payload
+            && String(payload.surface_family || "").trim() === "comment_backdrop";
+    }
+
     function _nodeCanPeekInside(nodeId) {
         var normalized = String(nodeId || "").trim();
         if (!normalized || root._activeCommentPeekNodeId() === normalized)
@@ -144,15 +149,23 @@ Item {
             } else if (actionId === "paste_node_style") {
                 root.commandBridge.request_paste_passive_node_style(root.canvasItem.nodeContextNodeId)
             } else if (actionId === "rename_node") {
-                // Close the menu first so the node host regains focus cleanly,
-                // then begin inline title editing in the header (same gesture
-                // as double-clicking the node name). Return early to skip the
-                // trailing _closeContextMenus() since we already closed it.
+                // For comment backdrops we route through the modal
+                // QInputDialog path: the backdrop header band is a thin
+                // callout that doesn't host an inline TextField, and the
+                // existing body editor owns the in-place editing affordance
+                // for the note text. Standard nodes keep the inline title
+                // editor (same gesture as double-clicking the node name),
+                // which also avoids the modal dialog nested-event-loop
+                // crash from the floating toolbar path.
                 var renameTargetId = root.canvasItem.nodeContextNodeId
-                root.canvasItem._closeContextMenus()
-                if (root.canvasItem.requestInlineRenameForNode)
-                    root.canvasItem.requestInlineRenameForNode(renameTargetId)
-                return
+                if (root._isCommentBackdrop(root._nodePayload(renameTargetId))) {
+                    root.commandBridge.request_rename_node(renameTargetId)
+                } else {
+                    root.canvasItem._closeContextMenus()
+                    if (root.canvasItem.requestInlineRenameForNode)
+                        root.canvasItem.requestInlineRenameForNode(renameTargetId)
+                    return
+                }
             } else if (actionId === "ungroup_subnode") {
                 root.commandBridge.request_ungroup_node(root.canvasItem.nodeContextNodeId)
             } else if (actionId === "remove_node") {
