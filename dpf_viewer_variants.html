@@ -1,0 +1,1095 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>DPF Viewer Node — UI/UX Variants</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  :root {
+    --bg-deep:    #0f1117;
+    --bg-surface: #161b27;
+    --bg-node:    #1e2435;
+    --bg-node-h:  #252c42;
+    --border:     #2d3550;
+    --border-hi:  #3a4466;
+    --accent:     #4a7eff;
+    --accent2:    #7aa8ff;
+    --success:    #4ea14e;
+    --warn:       #e8a237;
+    --danger:     #e85050;
+    --text-hi:    #e4e8f0;
+    --text-mid:   #9aa3bc;
+    --text-lo:    #5a637a;
+
+    /* viewport gradient (fake 3D) */
+    --vp-a: #1a2030;
+    --vp-b: #0c1220;
+
+    /* scalar-bar colors */
+    --sb-0: #2b2c8a;
+    --sb-1: #1778c5;
+    --sb-2: #37c29b;
+    --sb-3: #c9d23c;
+    --sb-4: #e77b2a;
+    --sb-5: #b8232b;
+  }
+
+  body {
+    background: var(--bg-deep);
+    color: var(--text-hi);
+    font-family: 'Segoe UI', system-ui, sans-serif;
+    font-size: 13px;
+    padding: 26px 24px 60px;
+    min-height: 100vh;
+  }
+
+  h1 {
+    text-align: center;
+    font-size: 22px;
+    color: var(--accent2);
+    margin-bottom: 6px;
+    font-weight: 600;
+    letter-spacing: 0.3px;
+  }
+  .subtitle {
+    text-align: center;
+    color: var(--text-mid);
+    font-size: 12px;
+    margin-bottom: 32px;
+    line-height: 1.6;
+    max-width: 780px;
+    margin-left: auto;
+    margin-right: auto;
+  }
+
+  .variants-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 22px;
+    max-width: 1440px;
+    margin: 0 auto;
+  }
+
+  .variant-card {
+    background: var(--bg-surface);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 18px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .variant-title {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 12px;
+    border-bottom: 1px dashed var(--border);
+    padding-bottom: 10px;
+  }
+  .variant-title h2 {
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--text-hi);
+    letter-spacing: 0.2px;
+  }
+  .variant-title h2 .num {
+    display: inline-block;
+    font-family: 'JetBrains Mono', Consolas, monospace;
+    color: var(--accent);
+    background: rgba(74,126,255,0.10);
+    border: 1px solid rgba(74,126,255,0.25);
+    border-radius: 4px;
+    padding: 1px 6px;
+    font-size: 11px;
+    margin-right: 8px;
+    letter-spacing: 0.5px;
+  }
+  .variant-title .tag {
+    font-size: 10.5px;
+    color: var(--text-lo);
+    letter-spacing: 0.8px;
+    text-transform: uppercase;
+  }
+
+  .variant-desc {
+    font-size: 11.5px;
+    color: var(--text-mid);
+    line-height: 1.55;
+  }
+  .variant-desc b { color: var(--accent2); font-weight: 500; }
+
+  .pros {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 2px;
+  }
+  .pros span {
+    font-size: 10.5px;
+    padding: 2px 8px;
+    border-radius: 10px;
+    background: rgba(78,161,78,0.12);
+    color: #8cd18c;
+    border: 1px solid rgba(78,161,78,0.25);
+  }
+  .pros span.warn {
+    background: rgba(232,162,55,0.1);
+    color: #e8bf7a;
+    border-color: rgba(232,162,55,0.3);
+  }
+
+  /* ─── "Node" chrome shared across mockups ───────── */
+  .node {
+    background: var(--bg-node);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    overflow: hidden;
+    box-shadow: 0 6px 24px -10px rgba(0,0,0,0.6);
+  }
+  .node-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 12px;
+    background: linear-gradient(180deg, #242c44, #1c2338);
+    border-bottom: 1px solid var(--border);
+  }
+  .node-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--success); box-shadow: 0 0 6px var(--success); }
+  .node-title { font-size: 12px; font-weight: 600; color: var(--text-hi); letter-spacing: 0.2px; }
+  .node-sub { font-size: 10.5px; color: var(--text-lo); margin-left: auto; font-family: 'JetBrains Mono', Consolas, monospace; }
+  .mode-badge {
+    font-size: 9.5px;
+    padding: 2px 7px;
+    border-radius: 10px;
+    letter-spacing: 0.6px;
+    text-transform: uppercase;
+    color: var(--accent2);
+    background: rgba(74,126,255,0.12);
+    border: 1px solid rgba(74,126,255,0.3);
+  }
+  .mode-badge.live { color: #8cd18c; background: rgba(78,161,78,0.12); border-color: rgba(78,161,78,0.3); }
+  .mode-badge.proxy { color: #e8bf7a; background: rgba(232,162,55,0.12); border-color: rgba(232,162,55,0.3); }
+
+  /* ─── Toolbar buttons ───────────────────────────── */
+  .toolbar {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 10px;
+    background: #1a2034;
+    border-bottom: 1px solid var(--border);
+  }
+  .tb-btn {
+    width: 28px; height: 24px;
+    border-radius: 6px;
+    background: var(--bg-node-h);
+    border: 1px solid var(--border);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 11px;
+    color: var(--text-mid);
+    cursor: pointer;
+  }
+  .tb-btn.primary { color: var(--accent2); background: rgba(74,126,255,0.14); border-color: rgba(74,126,255,0.35); }
+  .tb-btn.play    { color: #8cd18c; background: rgba(78,161,78,0.14); border-color: rgba(78,161,78,0.35); }
+  .tb-btn.pause   { color: #e8bf7a; background: rgba(232,162,55,0.14); border-color: rgba(232,162,55,0.35); }
+  .tb-btn.flat    { background: transparent; border-color: transparent; }
+  .tb-btn:hover   { border-color: var(--border-hi); color: var(--text-hi); }
+  .tb-divider { width: 1px; height: 16px; background: var(--border); margin: 0 4px; }
+  .tb-label { font-size: 11px; color: var(--text-mid); padding: 0 6px; }
+
+  /* ─── Viewport (fake 3D scene) ──────────────────── */
+  .viewport {
+    position: relative;
+    aspect-ratio: 16 / 9;
+    background:
+      radial-gradient(ellipse at 55% 45%, #1f2a44 0%, var(--vp-a) 45%, var(--vp-b) 100%);
+    overflow: hidden;
+  }
+  .viewport svg { width: 100%; height: 100%; display: block; }
+
+  /* ─── Scalar bar (legend) components ────────────── */
+  .sb-vertical {
+    position: absolute;
+    top: 14%;
+    right: 14px;
+    width: 28px;
+    height: 58%;
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    pointer-events: none;
+  }
+  .sb-vertical .bar {
+    flex: 1;
+    width: 12px;
+    margin: 0 auto;
+    border-radius: 3px;
+    background: linear-gradient(to top,
+      var(--sb-0) 0%, var(--sb-1) 20%, var(--sb-2) 40%,
+      var(--sb-3) 60%, var(--sb-4) 80%, var(--sb-5) 100%);
+    box-shadow: 0 0 0 1px rgba(0,0,0,0.4);
+  }
+  .sb-vertical .ticks {
+    position: absolute;
+    right: 0;
+    top: 0; bottom: 0;
+    display: flex; flex-direction: column; justify-content: space-between;
+    font-size: 9px;
+    color: var(--text-hi);
+    font-family: 'JetBrains Mono', Consolas, monospace;
+    text-shadow: 0 0 3px rgba(0,0,0,0.9);
+  }
+  .sb-vertical .title {
+    position: absolute;
+    top: -16px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 9.5px;
+    color: var(--text-hi);
+    white-space: nowrap;
+    text-shadow: 0 0 3px rgba(0,0,0,0.9);
+  }
+
+  .sb-horizontal {
+    position: absolute;
+    bottom: 14px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 60%;
+    height: 12px;
+    border-radius: 2px;
+    background: linear-gradient(to right,
+      var(--sb-0) 0%, var(--sb-1) 20%, var(--sb-2) 40%,
+      var(--sb-3) 60%, var(--sb-4) 80%, var(--sb-5) 100%);
+    box-shadow: 0 0 0 1px rgba(0,0,0,0.4), 0 2px 8px rgba(0,0,0,0.4);
+  }
+  .sb-horizontal::after {
+    content: '0.0     1.2     2.4     3.6     4.8     6.0';
+    position: absolute;
+    top: 14px;
+    left: 0; right: 0;
+    text-align: justify;
+    font-size: 9px;
+    font-family: 'JetBrains Mono', Consolas, monospace;
+    color: var(--text-hi);
+    display: flex;
+    justify-content: space-between;
+    text-shadow: 0 0 3px rgba(0,0,0,0.9);
+  }
+
+  /* ─── Metadata overlay ──────────────────────────── */
+  .meta-overlay {
+    position: absolute;
+    top: 10px;
+    left: 10px;
+    font-size: 10px;
+    font-family: 'JetBrains Mono', Consolas, monospace;
+    color: var(--text-hi);
+    line-height: 1.5;
+    text-shadow: 0 0 4px rgba(0,0,0,0.9);
+    pointer-events: none;
+  }
+  .meta-overlay .key { color: var(--text-mid); }
+
+  /* ─── Status strip ──────────────────────────────── */
+  .status-strip {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 12px;
+    font-size: 10.5px;
+    color: var(--text-mid);
+    background: #151a2a;
+    border-top: 1px solid var(--border);
+  }
+  .status-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--success); }
+
+  /* ═════════════════════════════════════════════════ */
+  /* VARIANT 1 — BASELINE (current design)            */
+  /* ═════════════════════════════════════════════════ */
+  .v1-footer {
+    display: flex;
+    gap: 18px;
+    padding: 5px 10px;
+    font-size: 10px;
+    color: var(--text-mid);
+    background: rgba(0,0,0,0.5);
+    position: absolute;
+    left: 0; right: 0; bottom: 0;
+    border-top: 1px solid rgba(255,255,255,0.06);
+  }
+  .v1-footer b { color: var(--text-hi); font-weight: 500; margin-left: 4px; }
+
+  /* ═════════════════════════════════════════════════ */
+  /* VARIANT 2 — TIMELINE SCRUBBER                    */
+  /* ═════════════════════════════════════════════════ */
+  .timeline-strip {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 10px 12px;
+    background: linear-gradient(180deg, #1a2034, #151a2a);
+    border-top: 1px solid var(--border);
+  }
+  .timeline-row { display: flex; align-items: center; gap: 10px; }
+  .tl-time { font-size: 10px; font-family: 'JetBrains Mono', Consolas, monospace; color: var(--text-mid); min-width: 80px; }
+  .tl-time b { color: var(--accent2); }
+  .tl-track {
+    position: relative;
+    flex: 1;
+    height: 26px;
+    background: #0e1320;
+    border-radius: 4px;
+    border: 1px solid var(--border);
+    overflow: hidden;
+  }
+  .tl-heatmap {
+    position: absolute; inset: 0;
+    background: linear-gradient(to right,
+      #1a2b44 0%, #1f4266 8%, #2a6688 18%, #35889b 28%,
+      #4aa88a 40%, #78bb60 55%, #c1b548 70%, #d4823b 82%, #b8322a 94%, #801e18 100%);
+    opacity: 0.45;
+  }
+  .tl-markers {
+    position: absolute; inset: 0;
+    display: flex;
+  }
+  .tl-markers span {
+    flex: 1;
+    border-right: 1px solid rgba(255,255,255,0.06);
+  }
+  .tl-markers span.keyframe { border-right-color: rgba(122,168,255,0.6); }
+  .tl-playhead {
+    position: absolute;
+    top: -3px; bottom: -3px;
+    left: 62%;
+    width: 2px;
+    background: var(--accent2);
+    box-shadow: 0 0 6px var(--accent2);
+  }
+  .tl-playhead::before {
+    content: '';
+    position: absolute;
+    top: -2px; left: -5px;
+    width: 12px; height: 6px;
+    background: var(--accent2);
+    border-radius: 2px 2px 0 0;
+  }
+  .tl-controls { display: flex; gap: 4px; }
+  .tl-steps {
+    display: flex; justify-content: space-between;
+    font-size: 9px;
+    color: var(--text-lo);
+    font-family: 'JetBrains Mono', Consolas, monospace;
+    padding: 0 90px 0 120px;
+  }
+
+  /* ═════════════════════════════════════════════════ */
+  /* VARIANT 3 — SIDE INSPECTOR                       */
+  /* ═════════════════════════════════════════════════ */
+  .v3-body { display: flex; }
+  .v3-viewport-wrap { flex: 1; position: relative; }
+  .v3-inspector {
+    width: 200px;
+    background: #141927;
+    border-left: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+  }
+  .ins-section {
+    padding: 8px 10px;
+    border-bottom: 1px solid var(--border);
+  }
+  .ins-title {
+    font-size: 9.5px;
+    color: var(--text-lo);
+    letter-spacing: 0.8px;
+    text-transform: uppercase;
+    margin-bottom: 6px;
+    display: flex; justify-content: space-between;
+  }
+  .ins-title .chev { color: var(--text-mid); }
+  .ins-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 3px 5px;
+    border-radius: 4px;
+    font-size: 11px;
+    color: var(--text-mid);
+    cursor: pointer;
+  }
+  .ins-row:hover { background: var(--bg-node-h); color: var(--text-hi); }
+  .ins-row.active { background: rgba(74,126,255,0.15); color: var(--accent2); }
+  .ins-row .ico { font-size: 10px; opacity: 0.7; margin-right: 6px; }
+  .ins-row .val { font-family: 'JetBrains Mono', Consolas, monospace; font-size: 10px; color: var(--text-lo); }
+  .ins-row.active .val { color: var(--accent2); }
+  .ins-chip-row { display: flex; flex-wrap: wrap; gap: 4px; }
+  .ins-chip {
+    font-size: 10px;
+    padding: 2px 7px;
+    border-radius: 10px;
+    background: var(--bg-node-h);
+    border: 1px solid var(--border);
+    color: var(--text-mid);
+    cursor: pointer;
+  }
+  .ins-chip.active { color: var(--accent2); border-color: rgba(74,126,255,0.45); background: rgba(74,126,255,0.12); }
+  .ins-slider {
+    height: 4px;
+    background: var(--border);
+    border-radius: 2px;
+    position: relative;
+    margin: 8px 2px;
+  }
+  .ins-slider::after {
+    content: '';
+    position: absolute;
+    left: 0; top: 0; bottom: 0;
+    width: 65%;
+    background: var(--accent);
+    border-radius: 2px;
+  }
+  .ins-slider .knob {
+    position: absolute;
+    left: 65%;
+    top: 50%;
+    transform: translate(-50%,-50%);
+    width: 12px; height: 12px;
+    border-radius: 50%;
+    background: var(--accent2);
+    box-shadow: 0 0 0 3px rgba(74,126,255,0.2);
+  }
+
+  /* ═════════════════════════════════════════════════ */
+  /* VARIANT 4 — PROBE & ANNOTATIONS                  */
+  /* ═════════════════════════════════════════════════ */
+  .probe-pin {
+    position: absolute;
+    width: 14px; height: 14px;
+    border-radius: 50%;
+    border: 2px solid var(--accent2);
+    background: rgba(74,126,255,0.35);
+    box-shadow: 0 0 0 2px rgba(0,0,0,0.6), 0 0 8px var(--accent2);
+    transform: translate(-50%,-50%);
+    cursor: pointer;
+  }
+  .probe-label {
+    position: absolute;
+    padding: 5px 8px;
+    background: rgba(14,19,32,0.92);
+    border: 1px solid var(--border-hi);
+    border-radius: 6px;
+    font-family: 'JetBrains Mono', Consolas, monospace;
+    font-size: 10px;
+    color: var(--text-hi);
+    white-space: nowrap;
+    transform: translate(12px,-50%);
+    backdrop-filter: blur(4px);
+    box-shadow: 0 4px 16px rgba(0,0,0,0.5);
+  }
+  .probe-label .num { color: var(--sb-5); font-size: 11px; font-weight: 600; }
+  .probe-label .key { color: var(--text-lo); }
+  .probe-label.accent .num { color: var(--sb-3); }
+  .probe-label.cool .num   { color: var(--sb-2); }
+
+  .probe-tools {
+    position: absolute;
+    left: 10px;
+    top: 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    background: rgba(14,19,32,0.8);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 5px;
+    backdrop-filter: blur(6px);
+  }
+  .probe-tools .tb-btn { background: transparent; border-color: transparent; }
+  .probe-tools .tb-btn.active {
+    background: rgba(74,126,255,0.18);
+    border-color: rgba(74,126,255,0.45);
+    color: var(--accent2);
+  }
+
+  /* ═════════════════════════════════════════════════ */
+  /* VARIANT 5 — COMPACT FLOATING HUD                 */
+  /* ═════════════════════════════════════════════════ */
+  .hud-top {
+    position: absolute;
+    top: 10px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    gap: 4px;
+    background: rgba(14,19,32,0.75);
+    border: 1px solid rgba(58,68,102,0.6);
+    border-radius: 20px;
+    padding: 4px 6px;
+    backdrop-filter: blur(8px);
+    box-shadow: 0 4px 16px rgba(0,0,0,0.5);
+  }
+  .hud-top .tb-btn { border-radius: 14px; background: transparent; border-color: transparent; }
+  .hud-top .tb-btn.primary { background: rgba(74,126,255,0.18); border-color: rgba(74,126,255,0.4); }
+  .hud-top .tb-btn.play { background: rgba(78,161,78,0.18); border-color: rgba(78,161,78,0.4); }
+  .hud-top .separator { width: 1px; background: var(--border); margin: 2px 3px; }
+
+  .hud-chip {
+    position: absolute;
+    background: rgba(14,19,32,0.78);
+    border: 1px solid rgba(58,68,102,0.6);
+    border-radius: 8px;
+    padding: 6px 10px;
+    font-size: 10.5px;
+    font-family: 'JetBrains Mono', Consolas, monospace;
+    color: var(--text-hi);
+    backdrop-filter: blur(8px);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+    line-height: 1.5;
+  }
+  .hud-chip .key { color: var(--text-lo); }
+  .hud-chip.tl { left: 10px; bottom: 10px; padding: 6px 12px; }
+  .hud-chip.tl .mini-bar {
+    display: inline-block;
+    vertical-align: middle;
+    width: 120px;
+    height: 3px;
+    background: var(--border);
+    border-radius: 2px;
+    margin: 0 8px;
+    position: relative;
+  }
+  .hud-chip.tl .mini-bar::after {
+    content: '';
+    position: absolute;
+    left: 0; top: 0; bottom: 0;
+    width: 62%;
+    background: var(--accent2);
+    border-radius: 2px;
+  }
+  .hud-chip.rb { right: 10px; bottom: 10px; padding: 4px 8px 8px; font-size: 9.5px; }
+  .hud-chip.rb .sb-mini {
+    width: 90px;
+    height: 8px;
+    border-radius: 2px;
+    background: linear-gradient(to right,
+      var(--sb-0), var(--sb-1), var(--sb-2), var(--sb-3), var(--sb-4), var(--sb-5));
+    margin-top: 4px;
+  }
+  .hud-chip.rb .sb-labels { display: flex; justify-content: space-between; margin-top: 2px; color: var(--text-mid); font-size: 9px;}
+
+  /* ═════════════════════════════════════════════════ */
+  /* VARIANT 6 — SPLIT COMPARISON                     */
+  /* ═════════════════════════════════════════════════ */
+  .v6-split {
+    display: flex;
+    aspect-ratio: 16 / 9;
+    background: var(--vp-b);
+  }
+  .v6-pane {
+    flex: 1;
+    position: relative;
+    background:
+      radial-gradient(ellipse at 55% 45%, #1f2a44 0%, var(--vp-a) 45%, var(--vp-b) 100%);
+  }
+  .v6-pane + .v6-pane { border-left: 2px solid var(--bg-deep); }
+  .v6-pane-label {
+    position: absolute;
+    top: 8px; left: 8px;
+    background: rgba(14,19,32,0.85);
+    padding: 3px 8px;
+    border-radius: 4px;
+    border: 1px solid var(--border);
+    font-size: 10px;
+    font-family: 'JetBrains Mono', Consolas, monospace;
+    color: var(--accent2);
+  }
+  .v6-pane-label.delta { color: var(--warn); }
+  .v6-sync {
+    position: absolute;
+    top: 8px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    gap: 4px;
+    background: rgba(14,19,32,0.9);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 2px 4px;
+    backdrop-filter: blur(4px);
+    z-index: 2;
+  }
+  .v6-sync .tb-btn { width: 22px; height: 20px; font-size: 10px; border-radius: 10px; background: transparent; border-color: transparent; }
+  .v6-sync .tb-btn.active { background: rgba(74,126,255,0.2); color: var(--accent2); border-color: rgba(74,126,255,0.4); }
+
+  /* fake "mesh" shading layer */
+  .mesh-shade {
+    position: absolute;
+    inset: 0;
+    background:
+      radial-gradient(circle at 30% 70%, rgba(255,255,255,0.04), transparent 40%),
+      radial-gradient(circle at 70% 30%, rgba(74,126,255,0.06), transparent 40%);
+    pointer-events: none;
+  }
+
+  /* footer note */
+  .foot-note {
+    text-align: center;
+    color: var(--text-lo);
+    font-size: 10.5px;
+    margin-top: 30px;
+    line-height: 1.7;
+  }
+  .foot-note b { color: var(--text-mid); }
+</style>
+</head>
+<body>
+
+<h1>DPF Viewer Node — UI/UX Variants</h1>
+<p class="subtitle">
+  Six directions to make the Ansys DPF viewer node more informative and quicker to operate.
+  Each mockup keeps the existing node chrome and shows how the <b>viewport, controls, and metadata</b> could be reorganized.
+</p>
+
+<div class="variants-grid">
+
+  <!-- ══════════════════ VARIANT 1 ══════════════════ -->
+  <div class="variant-card">
+    <div class="variant-title">
+      <h2><span class="num">01</span>Baseline — current layout</h2>
+      <span class="tag">reference</span>
+    </div>
+    <p class="variant-desc">
+      Today's surface: toolbar of discrete buttons, status strip, viewport with a <b>vertical scalar bar</b>
+      and upper-left metadata overlay, plus a footer metadata row. Shown for comparison.
+    </p>
+    <div class="node">
+      <div class="node-header">
+        <div class="node-dot"></div>
+        <div class="node-title">DPF Viewer</div>
+        <div class="node-sub">u_displacement.rst</div>
+        <div class="mode-badge live">Live</div>
+      </div>
+      <div class="toolbar">
+        <div class="tb-btn play" title="Session open">⏻</div>
+        <div class="tb-btn play" title="Play">▶</div>
+        <div class="tb-btn" title="Step">⏭</div>
+        <div class="tb-btn primary" title="Keep live">📌</div>
+        <div class="tb-divider"></div>
+        <div class="tb-btn flat" title="More">⋯</div>
+        <div style="flex:1"></div>
+        <div class="tb-label">Step 14 / 32</div>
+      </div>
+      <div class="viewport">
+        <svg viewBox="0 0 400 225" preserveAspectRatio="xMidYMid slice">
+          <defs>
+            <radialGradient id="mesh1" cx="50%" cy="50%" r="60%">
+              <stop offset="0%" stop-color="#c83528"/>
+              <stop offset="30%" stop-color="#d48436"/>
+              <stop offset="55%" stop-color="#c1b548"/>
+              <stop offset="75%" stop-color="#4aa88a"/>
+              <stop offset="100%" stop-color="#2a4a88"/>
+            </radialGradient>
+          </defs>
+          <g transform="translate(200 118)">
+            <path d="M-110,-28 Q-70,-60 0,-55 Q80,-50 120,-20 Q135,20 95,48 Q40,65 -20,60 Q-90,55 -120,20 Z" fill="url(#mesh1)" opacity="0.92"/>
+            <path d="M-110,-28 Q-70,-60 0,-55 Q80,-50 120,-20 Q135,20 95,48 Q40,65 -20,60 Q-90,55 -120,20 Z" fill="none" stroke="rgba(0,0,0,0.3)" stroke-width="0.6"/>
+          </g>
+        </svg>
+        <div class="mesh-shade"></div>
+        <div class="meta-overlay">
+          <div><span class="key">Result:</span> Equivalent Stress</div>
+          <div><span class="key">Set:</span> 14 (t=0.42s)</div>
+          <div><span class="key">Max:</span> 6.00e+08 Pa</div>
+        </div>
+        <div class="sb-vertical">
+          <div class="title">σ eqv [Pa]</div>
+          <div class="bar"></div>
+          <div class="ticks">
+            <span>6.0e8</span><span>4.8</span><span>3.6</span><span>2.4</span><span>1.2</span><span>0</span>
+          </div>
+        </div>
+        <div class="v1-footer">
+          <div><span>Result</span><b>Stress</b></div>
+          <div><span>Selection</span><b>All bodies</b></div>
+          <div><span>Step</span><b>14</b></div>
+        </div>
+      </div>
+      <div class="status-strip">
+        <div class="status-dot"></div>
+        Live overlay active · camera synced · 43 ms/frame
+      </div>
+    </div>
+    <div class="pros">
+      <span>familiar</span>
+      <span class="warn">dense header</span>
+      <span class="warn">no progress feel</span>
+      <span class="warn">metadata competes w/ legend</span>
+    </div>
+  </div>
+
+  <!-- ══════════════════ VARIANT 2 ══════════════════ -->
+  <div class="variant-card">
+    <div class="variant-title">
+      <h2><span class="num">02</span>Timeline scrubber</h2>
+      <span class="tag">for time-series results</span>
+    </div>
+    <p class="variant-desc">
+      Promote the playhead to a <b>first-class scrubber</b> beneath the viewport. Strip
+      shows a <b>heatmap of max-value per step</b>, keyframe ticks, and a draggable playhead.
+      Solves "no sense of total steps" and lets users jump directly to peaks.
+    </p>
+    <div class="node">
+      <div class="node-header">
+        <div class="node-dot"></div>
+        <div class="node-title">DPF Viewer</div>
+        <div class="node-sub">transient_drop.rst</div>
+        <div class="mode-badge live">Live</div>
+      </div>
+      <div class="viewport">
+        <svg viewBox="0 0 400 225" preserveAspectRatio="xMidYMid slice">
+          <g transform="translate(200 115)">
+            <path d="M-120,-40 Q-70,-70 10,-60 Q90,-48 130,-15 Q140,30 90,55 Q20,70 -40,62 Q-110,50 -130,15 Z"
+                  fill="url(#mesh1)" opacity="0.92"/>
+          </g>
+        </svg>
+        <div class="mesh-shade"></div>
+        <div class="meta-overlay">
+          <div><span class="key">Result:</span> Total Deformation</div>
+          <div><span class="key">Max at step 19:</span> 3.42 mm</div>
+        </div>
+        <div class="sb-vertical">
+          <div class="title">U_tot [mm]</div>
+          <div class="bar"></div>
+          <div class="ticks">
+            <span>3.42</span><span>2.7</span><span>2.0</span><span>1.4</span><span>0.7</span><span>0</span>
+          </div>
+        </div>
+      </div>
+      <div class="timeline-strip">
+        <div class="timeline-row">
+          <div class="tl-time">t=<b>0.62s</b> · 19/32</div>
+          <div class="tl-track">
+            <div class="tl-heatmap"></div>
+            <div class="tl-markers">
+              <span></span><span></span><span></span><span class="keyframe"></span><span></span>
+              <span></span><span class="keyframe"></span><span></span><span></span><span></span>
+              <span></span><span></span><span></span><span class="keyframe"></span><span></span><span></span>
+            </div>
+            <div class="tl-playhead"></div>
+          </div>
+          <div class="tl-controls">
+            <div class="tb-btn" title="Prev keyframe">⏮</div>
+            <div class="tb-btn play" title="Play">▶</div>
+            <div class="tb-btn" title="Next keyframe">⏭</div>
+          </div>
+        </div>
+        <div class="tl-steps">
+          <span>t=0.00</span><span>0.25</span><span>0.50</span><span>0.75</span><span>t=1.00s</span>
+        </div>
+      </div>
+      <div class="status-strip">
+        <div class="status-dot"></div>
+        Session live · hover timeline for per-step value
+      </div>
+    </div>
+    <div class="pros">
+      <span>spatial sense of progress</span>
+      <span>jump-to-peak</span>
+      <span>keyframe markers</span>
+      <span class="warn">+40 px height</span>
+    </div>
+  </div>
+
+  <!-- ══════════════════ VARIANT 3 ══════════════════ -->
+  <div class="variant-card">
+    <div class="variant-title">
+      <h2><span class="num">03</span>Side inspector (collapsible)</h2>
+      <span class="tag">result browser + settings</span>
+    </div>
+    <p class="variant-desc">
+      A <b>collapsible right panel</b> replaces the "⋯ More" button with a proper result tree,
+      variable component chips (X/Y/Z/eqv), legend min/max, deformation scale and opacity sliders.
+      Keeps the viewport clean; everything stateful is in one place.
+    </p>
+    <div class="node">
+      <div class="node-header">
+        <div class="node-dot"></div>
+        <div class="node-title">DPF Viewer</div>
+        <div class="node-sub">assembly.rst</div>
+        <div class="mode-badge live">Live</div>
+      </div>
+      <div class="toolbar">
+        <div class="tb-btn play">⏻</div>
+        <div class="tb-btn play">▶</div>
+        <div class="tb-btn">⏭</div>
+        <div class="tb-btn primary">📌</div>
+        <div style="flex:1"></div>
+        <div class="tb-btn primary" title="Inspector">≡</div>
+      </div>
+      <div class="v3-body">
+        <div class="v3-viewport-wrap">
+          <div class="viewport" style="aspect-ratio: auto; height: 240px;">
+            <svg viewBox="0 0 400 225" preserveAspectRatio="xMidYMid slice">
+              <g transform="translate(200 115)">
+                <path d="M-110,-35 Q-60,-60 10,-55 Q80,-48 120,-20 Q132,18 90,45 Q30,58 -25,52 Q-90,45 -115,15 Z" fill="url(#mesh1)" opacity="0.92"/>
+              </g>
+            </svg>
+            <div class="mesh-shade"></div>
+            <div class="meta-overlay">
+              <div><span class="key">Stress · eqv · set 14</span></div>
+            </div>
+            <div class="sb-horizontal"></div>
+          </div>
+        </div>
+        <div class="v3-inspector">
+          <div class="ins-section">
+            <div class="ins-title">Result <span class="chev">▾</span></div>
+            <div class="ins-row"><span><span class="ico">◆</span>Displacement</span><span class="val">vec</span></div>
+            <div class="ins-row active"><span><span class="ico">◆</span>Stress</span><span class="val">tens</span></div>
+            <div class="ins-row"><span><span class="ico">◆</span>Strain</span><span class="val">tens</span></div>
+            <div class="ins-row"><span><span class="ico">◆</span>Temperature</span><span class="val">sca</span></div>
+          </div>
+          <div class="ins-section">
+            <div class="ins-title">Component</div>
+            <div class="ins-chip-row">
+              <span class="ins-chip">X</span>
+              <span class="ins-chip">Y</span>
+              <span class="ins-chip">Z</span>
+              <span class="ins-chip active">eqv</span>
+              <span class="ins-chip">max ppl</span>
+            </div>
+          </div>
+          <div class="ins-section">
+            <div class="ins-title">Legend range</div>
+            <div class="ins-row" style="padding:2px 0"><span class="val" style="color:var(--text-mid)">min</span><span class="val">0.00e0</span></div>
+            <div class="ins-row" style="padding:2px 0"><span class="val" style="color:var(--text-mid)">max</span><span class="val">6.00e8</span></div>
+            <div class="ins-chip-row" style="margin-top:6px">
+              <span class="ins-chip active">auto</span>
+              <span class="ins-chip">global</span>
+              <span class="ins-chip">manual</span>
+            </div>
+          </div>
+          <div class="ins-section">
+            <div class="ins-title">Deformation × 50</div>
+            <div class="ins-slider"><div class="knob"></div></div>
+          </div>
+        </div>
+      </div>
+      <div class="status-strip">
+        <div class="status-dot"></div>
+        Inspector pinned · 200 px · toggle with ≡
+      </div>
+    </div>
+    <div class="pros">
+      <span>one place for state</span>
+      <span>fixes "⋯ more" nothing</span>
+      <span>result switching is 1 click</span>
+      <span class="warn">steals horizontal space</span>
+    </div>
+  </div>
+
+  <!-- ══════════════════ VARIANT 4 ══════════════════ -->
+  <div class="variant-card">
+    <div class="variant-title">
+      <h2><span class="num">04</span>Probe &amp; pinned annotations</h2>
+      <span class="tag">interactive inspection</span>
+    </div>
+    <p class="variant-desc">
+      Click the geometry to <b>probe node/element values</b> and <b>pin them</b> as floating labels.
+      Left floating toolset switches between <i>probe</i>, <i>measure</i>, <i>section plane</i>, and <i>isosurface</i>.
+      Great for comparing hotspots and writing reports.
+    </p>
+    <div class="node">
+      <div class="node-header">
+        <div class="node-dot"></div>
+        <div class="node-title">DPF Viewer</div>
+        <div class="node-sub">bracket_static.rst</div>
+        <div class="mode-badge live">Live · Probe</div>
+      </div>
+      <div class="viewport">
+        <svg viewBox="0 0 400 225" preserveAspectRatio="xMidYMid slice">
+          <g transform="translate(200 115)">
+            <path d="M-115,-30 Q-70,-60 0,-55 Q80,-50 120,-20 Q135,20 95,48 Q40,65 -20,60 Q-90,55 -120,20 Z"
+                  fill="url(#mesh1)" opacity="0.92"/>
+          </g>
+        </svg>
+        <div class="mesh-shade"></div>
+        <div class="probe-tools">
+          <div class="tb-btn active" title="Probe">⊕</div>
+          <div class="tb-btn" title="Measure">⇤⇥</div>
+          <div class="tb-btn" title="Section">⎊</div>
+          <div class="tb-btn" title="Isosurface">≋</div>
+          <div class="tb-btn" title="Clear pins">🗑</div>
+        </div>
+        <!-- three probe pins -->
+        <div class="probe-pin" style="left:34%; top:40%"></div>
+        <div class="probe-label" style="left:34%; top:40%">
+          <span class="key">N 41023 ·</span> σ = <span class="num">5.82e8</span>
+        </div>
+        <div class="probe-pin" style="left:62%; top:58%"></div>
+        <div class="probe-label accent" style="left:62%; top:58%">
+          <span class="key">N 18877 ·</span> σ = <span class="num">3.11e8</span>
+        </div>
+        <div class="probe-pin" style="left:20%; top:72%; border-color:var(--sb-2); box-shadow:0 0 0 2px rgba(0,0,0,0.6), 0 0 8px var(--sb-2); background:rgba(55,194,155,0.35)"></div>
+        <div class="probe-label cool" style="left:20%; top:72%">
+          <span class="key">N 50217 ·</span> σ = <span class="num">8.2e7</span>
+        </div>
+        <div class="sb-vertical">
+          <div class="title">σ eqv [Pa]</div>
+          <div class="bar"></div>
+          <div class="ticks">
+            <span>6.0e8</span><span>4.8</span><span>3.6</span><span>2.4</span><span>1.2</span><span>0</span>
+          </div>
+        </div>
+      </div>
+      <div class="status-strip">
+        <div class="status-dot"></div>
+        3 pins · Δ max–min = <b style="color:var(--text-hi); margin-left:3px">5.00e8 Pa</b> · right-click pin for report row
+      </div>
+    </div>
+    <div class="pros">
+      <span>direct value readout</span>
+      <span>report-ready</span>
+      <span>measure + section reuse</span>
+      <span class="warn">needs pick-ray backend</span>
+    </div>
+  </div>
+
+  <!-- ══════════════════ VARIANT 5 ══════════════════ -->
+  <div class="variant-card">
+    <div class="variant-title">
+      <h2><span class="num">05</span>Floating HUD (chrome-less)</h2>
+      <span class="tag">max viewport real estate</span>
+    </div>
+    <p class="variant-desc">
+      Strip out the fixed toolbar and footer. Controls collapse into a <b>floating pill</b> at top-center,
+      metadata into a <b>glass chip</b> at bottom-left, mini-legend at bottom-right. Best for small node
+      sizes where the current header eats 40 % of the height.
+    </p>
+    <div class="node">
+      <div class="node-header">
+        <div class="node-dot"></div>
+        <div class="node-title">DPF Viewer</div>
+        <div class="node-sub">compact · 320×180</div>
+        <div class="mode-badge live">Live</div>
+      </div>
+      <div class="viewport">
+        <svg viewBox="0 0 400 225" preserveAspectRatio="xMidYMid slice">
+          <g transform="translate(200 115)">
+            <path d="M-120,-40 Q-65,-65 10,-58 Q85,-50 125,-18 Q138,22 95,50 Q35,63 -25,58 Q-95,50 -125,18 Z"
+                  fill="url(#mesh1)" opacity="0.93"/>
+          </g>
+        </svg>
+        <div class="mesh-shade"></div>
+        <div class="hud-top">
+          <div class="tb-btn play">▶</div>
+          <div class="tb-btn">⏭</div>
+          <div class="separator"></div>
+          <div class="tb-btn primary">📌</div>
+          <div class="tb-btn">⟳</div>
+          <div class="tb-btn">⚙</div>
+        </div>
+        <div class="hud-chip tl">
+          <span class="key">t</span> 0.42s
+          <span class="mini-bar"></span>
+          <span class="key">step</span> 14/32
+        </div>
+        <div class="hud-chip rb">
+          <div><span class="key">σ eqv · max</span> 6.00e8 Pa</div>
+          <div class="sb-mini"></div>
+          <div class="sb-labels"><span>0</span><span>6.0e8</span></div>
+        </div>
+      </div>
+      <div class="status-strip">
+        <div class="status-dot"></div>
+        Chrome auto-hides after 1.5 s of no interaction
+      </div>
+    </div>
+    <div class="pros">
+      <span>viewport +40 %</span>
+      <span>scales with node size</span>
+      <span>modern glass look</span>
+      <span class="warn">tooltips critical</span>
+    </div>
+  </div>
+
+  <!-- ══════════════════ VARIANT 6 ══════════════════ -->
+  <div class="variant-card">
+    <div class="variant-title">
+      <h2><span class="num">06</span>Split comparison</h2>
+      <span class="tag">A ↔ B · Δ mode</span>
+    </div>
+    <p class="variant-desc">
+      Two synchronised viewports for comparing <b>load cases, timesteps, or solvers</b>.
+      Shared camera + shared legend range; a center sync pill toggles <i>linked camera</i>,
+      <i>linked playback</i>, and a <i>Δ</i> mode that paints absolute difference.
+    </p>
+    <div class="node">
+      <div class="node-header">
+        <div class="node-dot"></div>
+        <div class="node-title">DPF Viewer — Compare</div>
+        <div class="node-sub">case_A.rst ↔ case_B.rst</div>
+        <div class="mode-badge">Δ mode</div>
+      </div>
+      <div class="v6-split">
+        <div class="v6-pane">
+          <svg viewBox="0 0 400 225" preserveAspectRatio="xMidYMid slice">
+            <g transform="translate(200 115)">
+              <path d="M-115,-30 Q-70,-60 0,-55 Q80,-50 120,-20 Q135,20 95,48 Q40,65 -20,60 Q-90,55 -120,20 Z" fill="url(#mesh1)" opacity="0.92"/>
+            </g>
+          </svg>
+          <div class="mesh-shade"></div>
+          <div class="v6-pane-label">A · baseline · t=0.5s</div>
+        </div>
+        <div class="v6-pane">
+          <svg viewBox="0 0 400 225" preserveAspectRatio="xMidYMid slice">
+            <defs>
+              <radialGradient id="mesh2" cx="45%" cy="55%" r="65%">
+                <stop offset="0%" stop-color="#e77b2a"/>
+                <stop offset="40%" stop-color="#c9d23c"/>
+                <stop offset="70%" stop-color="#37c29b"/>
+                <stop offset="100%" stop-color="#2b2c8a"/>
+              </radialGradient>
+            </defs>
+            <g transform="translate(200 115)">
+              <path d="M-115,-32 Q-70,-62 0,-57 Q82,-50 122,-20 Q137,22 95,50 Q40,65 -22,60 Q-92,55 -120,22 Z" fill="url(#mesh2)" opacity="0.92"/>
+            </g>
+          </svg>
+          <div class="mesh-shade"></div>
+          <div class="v6-pane-label delta">Δ |A − B| · max 1.8e8 Pa</div>
+        </div>
+        <div class="v6-sync">
+          <div class="tb-btn active" title="Linked camera">🎥</div>
+          <div class="tb-btn active" title="Linked playback">▶</div>
+          <div class="tb-btn active" title="Shared legend">≡</div>
+          <div class="tb-btn" title="Swap">⇄</div>
+        </div>
+      </div>
+      <div class="status-strip">
+        <div class="status-dot"></div>
+        Shared legend 0 – 6.0e8 Pa · drag divider to re-proportion panes
+      </div>
+    </div>
+    <div class="pros">
+      <span>case / solver diff</span>
+      <span>synced camera</span>
+      <span>quantifies Δ</span>
+      <span class="warn">2× memory</span>
+    </div>
+  </div>
+
+</div>
+
+<p class="foot-note">
+  Mockups are static HTML/CSS only — no JS. <b>Variants 02 (timeline)</b> and <b>03 (inspector)</b>
+  are the lowest-risk wins; <b>04 (probe)</b> unlocks the biggest "aha" moment but needs a pick-ray
+  backend from DPF; <b>06 (compare)</b> is the largest architectural change but highest analyst value.
+</p>
+
+</body>
+</html>
