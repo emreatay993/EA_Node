@@ -29,6 +29,12 @@ Item {
         return Array.isArray(actions) ? actions : [];
     }
     readonly property color accentColor: root.hostValid ? root.host.nodeThemeColor : "#4DA8DA"
+    // Chrome colors track the host's theme / shell palette so the toolbar
+    // follows both graph-theme switches (dark/light) and per-node passive
+    // overrides (shell colors) instead of staying hardcoded-dark.
+    readonly property color _chromeBaseFill: root.hostValid ? root.host.headerColor : "#1b1d22"
+    readonly property color _chromeBaseBorder: root.hostValid ? root.host.outlineColor : "#3a3d45"
+    readonly property color _chromeForeground: root.hostValid ? root.host.headerTextColor : "#f0f4fb"
 
     function _canvasStateBridge() {
         if (root.canvasItem) {
@@ -59,13 +65,14 @@ Item {
         return 0;
     }
     readonly property color _chromeFillColor: {
-        if (root.style === "compact_pill") return Qt.rgba(22/255, 26/255, 36/255, 0.96);
-        if (root.style === "segmented_bar") return "#1a1f2a";
+        if (root.style === "compact_pill")
+            return Qt.rgba(root._chromeBaseFill.r, root._chromeBaseFill.g, root._chromeBaseFill.b, 0.96);
+        if (root.style === "segmented_bar") return root._chromeBaseFill;
         return "transparent";
     }
     readonly property color _chromeBorderColor: {
-        if (root.style === "compact_pill") return Qt.rgba(1, 1, 1, 0.06);
-        if (root.style === "segmented_bar") return "#2b3142";
+        if (root.style === "compact_pill") return Qt.alpha(root._chromeBaseBorder, 0.55);
+        if (root.style === "segmented_bar") return root._chromeBaseBorder;
         return "transparent";
     }
     readonly property real _chromeBorderWidth: root._hasChrome ? 1 : 0
@@ -101,11 +108,11 @@ Item {
         return 14;
     }
     readonly property color _buttonHoverFillColor: {
-        if (root.style === "minimal_ghost") return Qt.rgba(1, 1, 1, 0.08);
+        if (root.style === "minimal_ghost") return Qt.alpha(root._chromeForeground, 0.10);
         return Qt.alpha(root.accentColor, 0.18);
     }
-    readonly property color _segmentedDividerColor: "#242a38"
-    readonly property color _minimalSeparatorColor: Qt.rgba(1, 1, 1, 0.08)
+    readonly property color _segmentedDividerColor: Qt.alpha(root._chromeBaseBorder, 0.75)
+    readonly property color _minimalSeparatorColor: Qt.alpha(root._chromeForeground, 0.18)
     readonly property color _caretFillColor: root._hasChrome ? root._chromeFillColor : Qt.alpha(root.accentColor, 0.55)
     readonly property color _caretBorderColor: root._hasChrome ? root._chromeBorderColor : Qt.alpha(root.accentColor, 0.55)
 

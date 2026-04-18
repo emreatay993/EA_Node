@@ -118,21 +118,23 @@ class FloatingToolbarPositioningTests(unittest.TestCase):
         self.assertTrue(bool(anchor["flipped"]))
         self.assertAlmostEqual(float(anchor["y"]), 96.0, places=4)
 
-    def test_anchor_clamps_horizontally_at_left_viewport_edge(self) -> None:
+    def test_anchor_tracks_node_past_left_viewport_edge(self) -> None:
+        # The toolbar follows its owner off-screen instead of pinning to the
+        # viewport's left edge, so it stays visually glued to the node.
         node = {"x": -100.0, "y": 200.0, "width": 200.0, "height": 80.0}
 
         anchor = self._compute(node=node)
 
-        # centerX = -100 + 100 - 60 = -60; clamped to viewport.x + safety = 8
-        self.assertAlmostEqual(float(anchor["x"]), 8.0, places=4)
+        # centerX = -100 + 100 - 60 = -60
+        self.assertAlmostEqual(float(anchor["x"]), -60.0, places=4)
 
-    def test_anchor_clamps_horizontally_at_right_viewport_edge(self) -> None:
+    def test_anchor_tracks_node_past_right_viewport_edge(self) -> None:
         node = {"x": 600.0, "y": 200.0, "width": 200.0, "height": 80.0}
 
         anchor = self._compute(node=node)
 
-        # centerX = 600 + 100 - 60 = 640; maxX = 640 - 8 - 120 = 512
-        self.assertAlmostEqual(float(anchor["x"]), 512.0, places=4)
+        # centerX = 600 + 100 - 60 = 640 (no clamp; toolbar follows node off-screen)
+        self.assertAlmostEqual(float(anchor["x"]), 640.0, places=4)
 
     def test_anchor_uses_hysteresis_to_prevent_flip_jitter(self) -> None:
         # node.y chosen so topY = 50 - 32 - 6 = 12, which sits between the

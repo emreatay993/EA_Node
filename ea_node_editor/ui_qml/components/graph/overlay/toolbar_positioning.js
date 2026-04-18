@@ -48,17 +48,11 @@ function computeAnchor(nodeRect, toolbarSize, viewportRect, metrics, previousFli
         }
     }
 
+    // Toolbar tracks the node's horizontal center unconditionally — no viewport
+    // clamp. When the node scrolls off-screen the toolbar follows it rather than
+    // pinning to the viewport edge and detaching from its owner.
     var anchorY = flipped ? bottomY : topY;
-    var centerX = node.x + node.width / 2 - size.width / 2;
-
-    var anchorX = centerX;
-    if (viewportValid) {
-        var minX = viewport.x + safety;
-        var maxX = viewport.x + viewport.width - safety - size.width;
-        if (maxX < minX)
-            maxX = minX;
-        anchorX = Math.max(minX, Math.min(maxX, centerX));
-    }
+    var anchorX = node.x + node.width / 2 - size.width / 2;
 
     return {
         x: anchorX,
