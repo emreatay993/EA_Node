@@ -325,6 +325,10 @@ def _qt_graphics_performance_mode(self: "ShellWindow") -> str:
     return self.shell_workspace_presenter.graphics_performance_mode
 
 
+def _qt_graphics_floating_toolbar_style(self: "ShellWindow") -> str:
+    return self.shell_workspace_presenter.graphics_floating_toolbar_style
+
+
 def _qt_graphics_tab_strip_density(self: "ShellWindow") -> str:
     return self.shell_workspace_presenter.graphics_tab_strip_density
 

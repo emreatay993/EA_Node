@@ -281,6 +281,16 @@ class GraphCanvasStateBridge(QObject):
     def graphics_performance_mode(self) -> str:
         return str(_source_attr(self._canvas_source, "graphics_performance_mode", "full_fidelity"))
 
+    @pyqtProperty(str, notify=graphics_preferences_changed)
+    def graphics_floating_toolbar_style(self) -> str:
+        return str(
+            _source_attr(
+                self._canvas_source,
+                "graphics_floating_toolbar_style",
+                "compact_pill",
+            )
+        )
+
     @pyqtProperty("QVariantMap", notify=graphics_preferences_changed)
     def graphics_expand_collision_avoidance(self) -> dict[str, Any]:
         default = DEFAULT_GRAPHICS_SETTINGS["interaction"]["expand_collision_avoidance"]

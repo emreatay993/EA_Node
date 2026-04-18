@@ -91,6 +91,18 @@ def set_graphics_performance_mode(self: "ShellWindow", mode: str) -> None:
     )
 
 
+@pyqtSlot(str)
+def set_graphics_floating_toolbar_style(self: "ShellWindow", style: str) -> None:
+    self.app_preferences_controller.update_graphics_settings(
+        {
+            "canvas": {
+                "floating_toolbar_style": str(style),
+            }
+        },
+        host=self,
+    )
+
+
 @pyqtSlot("QVariantMap")
 def set_graphics_expand_collision_avoidance(self: "ShellWindow", settings: dict[str, Any]) -> None:
     self.app_preferences_controller.update_graphics_settings(

@@ -17,6 +17,8 @@ class _GraphCanvasCommandSource(Protocol):
 
     def set_graphics_performance_mode(self, mode: str) -> None: ...
 
+    def set_graphics_floating_toolbar_style(self, style: str) -> None: ...
+
     def request_open_subnode_scope(self, node_id: str) -> bool: ...
 
     def browse_node_property_path(self, node_id: str, key: str, current_path: str) -> str: ...
@@ -260,6 +262,10 @@ class GraphCanvasCommandBridge(QObject):
     @pyqtSlot(str)
     def set_graphics_performance_mode(self, mode: str) -> None:
         _invoke(self._canvas_source, "set_graphics_performance_mode", mode)
+
+    @pyqtSlot(str)
+    def set_graphics_floating_toolbar_style(self, style: str) -> None:
+        _invoke(self._canvas_source, "set_graphics_floating_toolbar_style", style)
 
     @pyqtSlot(float)
     def adjust_zoom(self, factor: float) -> None:

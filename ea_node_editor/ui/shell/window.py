@@ -273,6 +273,11 @@ class ShellWindow(QMainWindow):
         fget=state_helpers._qt_graphics_performance_mode,
         notify=graphics_preferences_changed,
     )
+    graphics_floating_toolbar_style = pyqtProperty(
+        str,
+        fget=state_helpers._qt_graphics_floating_toolbar_style,
+        notify=graphics_preferences_changed,
+    )
     graphics_tab_strip_density = pyqtProperty(
         str,
         fget=state_helpers._qt_graphics_tab_strip_density,

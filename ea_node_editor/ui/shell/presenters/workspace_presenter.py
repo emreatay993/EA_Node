@@ -10,6 +10,7 @@ from ea_node_editor.app_preferences import (
     effective_graph_node_icon_pixel_size,
     normalize_edge_crossing_style,
     normalize_expand_collision_avoidance_settings,
+    normalize_floating_toolbar_style,
     normalize_graph_label_pixel_size,
     normalize_graph_node_icon_pixel_size_override,
     normalize_graphics_performance_mode,
@@ -63,6 +64,9 @@ class ShellWorkspacePresenter(QObject):
 
     @property
     def graphics_performance_mode(self) -> str: return str(self._ui_state.graphics_performance_mode)
+
+    @property
+    def graphics_floating_toolbar_style(self) -> str: return str(self._ui_state.floating_toolbar_style)
 
     @property
     def graphics_edge_crossing_style(self) -> str: return str(self._ui_state.edge_crossing_style)
@@ -157,6 +161,7 @@ class ShellWorkspacePresenter(QObject):
     def show_workflow_settings_dialog(self, _checked: bool = False) -> None: self._host.project_session_controller.show_workflow_settings_dialog()
     def set_script_editor_panel_visible(self, checked: bool | None = None) -> None: self._host.project_session_controller.set_script_editor_panel_visible(checked)
     def set_graphics_performance_mode(self, mode: str) -> None: self._host.set_graphics_performance_mode(mode)
+    def set_graphics_floating_toolbar_style(self, style: str) -> None: self._host.set_graphics_floating_toolbar_style(style)
 
     def request_open_scope_breadcrumb(self, node_id: str) -> bool:
         normalized_node_id = str(node_id).strip()
@@ -220,6 +225,10 @@ class ShellWorkspacePresenter(QObject):
         edge_crossing_style = normalize_edge_crossing_style(
             canvas.get("edge_crossing_style", self._ui_state.edge_crossing_style),
             self._ui_state.edge_crossing_style,
+        )
+        floating_toolbar_style = normalize_floating_toolbar_style(
+            canvas.get("floating_toolbar_style", self._ui_state.floating_toolbar_style),
+            self._ui_state.floating_toolbar_style,
         )
         graph_label_pixel_size = normalize_graph_label_pixel_size(
             typography.get("graph_label_pixel_size", self._ui_state.graph_label_pixel_size),
@@ -292,6 +301,9 @@ class ShellWorkspacePresenter(QObject):
         if self._ui_state.edge_crossing_style != edge_crossing_style:
             self._ui_state.edge_crossing_style = edge_crossing_style
             changed = True
+        if self._ui_state.floating_toolbar_style != floating_toolbar_style:
+            self._ui_state.floating_toolbar_style = floating_toolbar_style
+            changed = True
         if self._ui_state.graph_label_pixel_size != graph_label_pixel_size:
             self._ui_state.graph_label_pixel_size = graph_label_pixel_size
             changed = True
@@ -359,6 +371,7 @@ class ShellWorkspacePresenter(QObject):
                 "shadow_strength": int(self._ui_state.shadow_strength),
                 "shadow_softness": int(self._ui_state.shadow_softness),
                 "shadow_offset": int(self._ui_state.shadow_offset),
+                "floating_toolbar_style": str(self._ui_state.floating_toolbar_style),
             },
             "interaction": {
                 "snap_to_grid": bool(self._host.search_scope_state.snap_to_grid_enabled),
