@@ -267,6 +267,10 @@ class GraphCanvasCommandBridge(QObject):
     def set_graphics_floating_toolbar_style(self, style: str) -> None:
         _invoke(self._canvas_source, "set_graphics_floating_toolbar_style", style)
 
+    @pyqtSlot(str)
+    def set_graphics_floating_toolbar_size(self, size: str) -> None:
+        _invoke(self._canvas_source, "set_graphics_floating_toolbar_size", size)
+
     @pyqtSlot(float)
     def adjust_zoom(self, factor: float) -> None:
         _invoke(self._view_bridge, "adjust_zoom", float(factor))

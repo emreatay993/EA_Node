@@ -83,6 +83,10 @@ class GraphCanvasPresenter(QObject):
         return str(self._host.workspace_ui_state.floating_toolbar_style)
 
     @property
+    def graphics_floating_toolbar_size(self) -> str:
+        return str(self._host.workspace_ui_state.floating_toolbar_size)
+
+    @property
     def snap_to_grid_enabled(self) -> bool: return bool(self._host.search_scope_state.snap_to_grid_enabled)
 
     @property
@@ -109,6 +113,12 @@ class GraphCanvasPresenter(QObject):
     def set_graphics_floating_toolbar_style(self, style: str) -> None:
         self._host.app_preferences_controller.update_graphics_settings(
             {"canvas": {"floating_toolbar_style": str(style)}},
+            host=self._host,
+        )
+
+    def set_graphics_floating_toolbar_size(self, size: str) -> None:
+        self._host.app_preferences_controller.update_graphics_settings(
+            {"canvas": {"floating_toolbar_size": str(size)}},
             host=self._host,
         )
 

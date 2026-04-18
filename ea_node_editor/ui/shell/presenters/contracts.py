@@ -56,6 +56,8 @@ class _ShellWorkspacePresenterHostProtocol(Protocol):
 
     def set_graphics_floating_toolbar_style(self, style: str) -> None: ...
 
+    def set_graphics_floating_toolbar_size(self, size: str) -> None: ...
+
 
 class _ShellInspectorPresenterHostProtocol(Protocol):
     selected_node_changed: _SignalLike

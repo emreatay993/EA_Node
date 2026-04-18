@@ -6,6 +6,7 @@ from typing import Any
 from ea_node_editor.app_preferences import (
     effective_graph_node_icon_pixel_size,
     normalize_edge_crossing_style,
+    normalize_floating_toolbar_size,
     normalize_floating_toolbar_style,
     normalize_graph_label_pixel_size,
     normalize_graph_node_icon_pixel_size_override,
@@ -28,6 +29,7 @@ class ShellWorkspaceUiState:
     grid_style: str
     edge_crossing_style: str
     floating_toolbar_style: str
+    floating_toolbar_size: str
     graph_label_pixel_size: int
     graph_node_icon_pixel_size_override: int | None
     node_title_icon_pixel_size: int
@@ -72,6 +74,12 @@ def build_default_shell_workspace_ui_state(
             canvas.get(
                 "floating_toolbar_style",
                 DEFAULT_GRAPHICS_SETTINGS["canvas"]["floating_toolbar_style"],
+            )
+        ),
+        floating_toolbar_size=normalize_floating_toolbar_size(
+            canvas.get(
+                "floating_toolbar_size",
+                DEFAULT_GRAPHICS_SETTINGS["canvas"]["floating_toolbar_size"],
             )
         ),
         graph_label_pixel_size=graph_label_pixel_size,

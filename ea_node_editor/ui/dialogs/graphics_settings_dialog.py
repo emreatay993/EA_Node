@@ -28,6 +28,7 @@ from ea_node_editor.settings import (
     EXPAND_COLLISION_AVOIDANCE_RADIUS_MODE_CHOICES,
     EXPAND_COLLISION_AVOIDANCE_SCOPE_CHOICES,
     EXPAND_COLLISION_AVOIDANCE_STRATEGY_CHOICES,
+    FLOATING_TOOLBAR_SIZE_CHOICES,
     FLOATING_TOOLBAR_STYLE_CHOICES,
     GRAPHICS_PERFORMANCE_MODE_CHOICES,
     GRAPH_LABEL_PIXEL_SIZE_MAX,
@@ -231,9 +232,14 @@ class GraphicsSettingsDialog(SectionedSettingsDialog):
         for toolbar_style_id, label in FLOATING_TOOLBAR_STYLE_CHOICES:
             self.floating_toolbar_style_combo.addItem(label, toolbar_style_id)
         toolbar_form.addRow("Floating toolbar style", self.floating_toolbar_style_combo)
+        self.floating_toolbar_size_combo = QComboBox(toolbar_card)
+        self.floating_toolbar_size_combo.setObjectName("graphicsSettingsFloatingToolbarSizeCombo")
+        for toolbar_size_id, label in FLOATING_TOOLBAR_SIZE_CHOICES:
+            self.floating_toolbar_size_combo.addItem(label, toolbar_size_id)
+        toolbar_form.addRow("Floating toolbar size", self.floating_toolbar_size_combo)
         toolbar_lay.addLayout(toolbar_form)
         floating_toolbar_helper = QLabel(
-            "Chrome style for the hover toolbar above nodes.",
+            "Chrome style and size for the hover toolbar above nodes.",
             toolbar_card,
         )
         floating_toolbar_helper.setObjectName("graphicsSettingsFloatingToolbarStyleHelper")
@@ -659,6 +665,13 @@ class GraphicsSettingsDialog(SectionedSettingsDialog):
         self.floating_toolbar_style_combo.setCurrentIndex(
             floating_toolbar_style_index if floating_toolbar_style_index >= 0 else 0
         )
+        floating_toolbar_size_id = settings["canvas"]["floating_toolbar_size"]
+        floating_toolbar_size_index = self.floating_toolbar_size_combo.findData(
+            floating_toolbar_size_id
+        )
+        self.floating_toolbar_size_combo.setCurrentIndex(
+            floating_toolbar_size_index if floating_toolbar_size_index >= 0 else 0
+        )
         self._sync_grid_style_visibility()
         self.show_minimap_check.setChecked(settings["canvas"]["show_minimap"])
         self.show_port_labels_check.setChecked(settings["canvas"]["show_port_labels"])
@@ -736,6 +749,10 @@ class GraphicsSettingsDialog(SectionedSettingsDialog):
                     "floating_toolbar_style": str(
                         self.floating_toolbar_style_combo.currentData()
                         or DEFAULT_GRAPHICS_SETTINGS["canvas"]["floating_toolbar_style"]
+                    ),
+                    "floating_toolbar_size": str(
+                        self.floating_toolbar_size_combo.currentData()
+                        or DEFAULT_GRAPHICS_SETTINGS["canvas"]["floating_toolbar_size"]
                     ),
                 },
                 "interaction": {

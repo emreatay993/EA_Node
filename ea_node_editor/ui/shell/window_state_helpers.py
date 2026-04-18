@@ -80,6 +80,7 @@ __all__ = [
     "_qt_graphics_shadow_offset",
     "_qt_graphics_performance_mode",
     "_qt_graphics_floating_toolbar_style",
+    "_qt_graphics_floating_toolbar_size",
     "_qt_graphics_tab_strip_density",
     "_qt_active_theme_id",
     "_qt_snap_to_grid_enabled",

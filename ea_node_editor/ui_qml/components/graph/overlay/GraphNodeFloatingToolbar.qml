@@ -58,6 +58,22 @@ Item {
         return "compact_pill";
     }
 
+    readonly property string size: {
+        var bridge = root._canvasStateBridge();
+        if (bridge && bridge.graphics_floating_toolbar_size !== undefined) {
+            var value = String(bridge.graphics_floating_toolbar_size || "").toLowerCase();
+            if (value === "small" || value === "medium" || value === "large")
+                return value;
+        }
+        return "small";
+    }
+
+    readonly property real _sizeScale: {
+        if (root.size === "large") return 1.5;
+        if (root.size === "medium") return 1.25;
+        return 1.0;
+    }
+
     readonly property bool _hasChrome: root.style !== "minimal_ghost"
     readonly property real _chromeRadius: {
         if (root.style === "compact_pill") return 999;
@@ -77,14 +93,18 @@ Item {
     }
     readonly property real _chromeBorderWidth: root._hasChrome ? 1 : 0
     readonly property real _chromeInternalPadding: {
-        if (root.style === "compact_pill") return 3;
-        if (root.style === "segmented_bar") return 0;
-        return 2;
+        var base;
+        if (root.style === "compact_pill") base = 3;
+        else if (root.style === "segmented_bar") base = 0;
+        else base = 2;
+        return base * root._sizeScale;
     }
     readonly property real _chromeButtonGap: {
-        if (root.style === "compact_pill") return 2;
-        if (root.style === "segmented_bar") return 0;
-        return 2;
+        var base;
+        if (root.style === "compact_pill") base = 2;
+        else if (root.style === "segmented_bar") base = 0;
+        else base = 2;
+        return base * root._sizeScale;
     }
     readonly property bool _chromeClip: root.style === "segmented_bar"
     readonly property real _buttonChromeRadius: {
@@ -93,19 +113,25 @@ Item {
         return 5;
     }
     readonly property int _buttonHPadding: {
-        if (root.style === "compact_pill") return 7;
-        if (root.style === "segmented_bar") return 12;
-        return 6;
+        var base;
+        if (root.style === "compact_pill") base = 7;
+        else if (root.style === "segmented_bar") base = 12;
+        else base = 6;
+        return Math.round(base * root._sizeScale);
     }
     readonly property int _buttonVPadding: {
-        if (root.style === "compact_pill") return 7;
-        if (root.style === "segmented_bar") return 6;
-        return 6;
+        var base;
+        if (root.style === "compact_pill") base = 7;
+        else if (root.style === "segmented_bar") base = 6;
+        else base = 6;
+        return Math.round(base * root._sizeScale);
     }
     readonly property int _buttonIconSize: {
-        if (root.style === "compact_pill") return 15;
-        if (root.style === "segmented_bar") return 14;
-        return 14;
+        var base;
+        if (root.style === "compact_pill") base = 15;
+        else if (root.style === "segmented_bar") base = 14;
+        else base = 14;
+        return Math.round(base * root._sizeScale);
     }
     readonly property color _buttonHoverFillColor: {
         if (root.style === "minimal_ghost") return Qt.alpha(root._chromeForeground, 0.10);

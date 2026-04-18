@@ -185,6 +185,10 @@ class GraphCanvasBridge(QObject):
     def graphics_floating_toolbar_style(self) -> str:
         return self._state_bridge.graphics_floating_toolbar_style
 
+    @pyqtProperty(str, notify=graphics_preferences_changed)
+    def graphics_floating_toolbar_size(self) -> str:
+        return self._state_bridge.graphics_floating_toolbar_size
+
     @pyqtProperty(bool, notify=snap_to_grid_changed)
     def snap_to_grid_enabled(self) -> bool:
         return self._state_bridge.snap_to_grid_enabled
@@ -268,6 +272,10 @@ class GraphCanvasBridge(QObject):
     @pyqtSlot(str)
     def set_graphics_floating_toolbar_style(self, style: str) -> None:
         self._command_bridge.set_graphics_floating_toolbar_style(style)
+
+    @pyqtSlot(str)
+    def set_graphics_floating_toolbar_size(self, size: str) -> None:
+        self._command_bridge.set_graphics_floating_toolbar_size(size)
 
     @pyqtSlot(float)
     def adjust_zoom(self, factor: float) -> None:

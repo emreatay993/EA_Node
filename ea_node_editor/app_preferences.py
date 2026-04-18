@@ -19,6 +19,7 @@ from ea_node_editor.settings import (
     DEFAULT_EXPAND_COLLISION_AVOIDANCE_RADIUS_MODE,
     DEFAULT_EXPAND_COLLISION_AVOIDANCE_SCOPE,
     DEFAULT_EXPAND_COLLISION_AVOIDANCE_STRATEGY,
+    DEFAULT_FLOATING_TOOLBAR_SIZE,
     DEFAULT_FLOATING_TOOLBAR_STYLE,
     DEFAULT_GRAPH_LABEL_PIXEL_SIZE,
     DEFAULT_GRAPHICS_PERFORMANCE_MODE,
@@ -33,6 +34,7 @@ from ea_node_editor.settings import (
     EXPAND_COLLISION_AVOIDANCE_RADIUS_MODE_CHOICES,
     EXPAND_COLLISION_AVOIDANCE_SCOPE_CHOICES,
     EXPAND_COLLISION_AVOIDANCE_STRATEGY_CHOICES,
+    FLOATING_TOOLBAR_SIZE_CHOICES,
     FLOATING_TOOLBAR_STYLE_CHOICES,
     GRAPH_LABEL_PIXEL_SIZE_MAX,
     GRAPH_LABEL_PIXEL_SIZE_MIN,
@@ -60,6 +62,9 @@ _GRID_OVERLAY_STYLE_VALUES = {
 }
 _FLOATING_TOOLBAR_STYLE_VALUES = {
     str(choice[0]).strip().lower() for choice in FLOATING_TOOLBAR_STYLE_CHOICES
+}
+_FLOATING_TOOLBAR_SIZE_VALUES = {
+    str(choice[0]).strip().lower() for choice in FLOATING_TOOLBAR_SIZE_CHOICES
 }
 _EDGE_CROSSING_STYLE_VALUES = {
     str(choice[0]).strip().lower() for choice in EDGE_CROSSING_STYLE_CHOICES
@@ -213,6 +218,10 @@ def normalize_graphics_settings(payload: Any) -> dict[str, Any]:
         normalized["canvas"]["floating_toolbar_style"] = normalize_floating_toolbar_style(
             canvas_payload.get("floating_toolbar_style"),
             defaults["canvas"]["floating_toolbar_style"],
+        )
+        normalized["canvas"]["floating_toolbar_size"] = normalize_floating_toolbar_size(
+            canvas_payload.get("floating_toolbar_size"),
+            defaults["canvas"]["floating_toolbar_size"],
         )
     if isinstance(interaction_payload, Mapping):
         normalized["interaction"]["snap_to_grid"] = _normalize_bool(
@@ -501,6 +510,18 @@ def normalize_floating_toolbar_style(
     return DEFAULT_FLOATING_TOOLBAR_STYLE
 
 
+def normalize_floating_toolbar_size(
+    value: Any, default: str = DEFAULT_FLOATING_TOOLBAR_SIZE
+) -> str:
+    normalized = str(value).strip().lower()
+    if normalized in _FLOATING_TOOLBAR_SIZE_VALUES:
+        return normalized
+    resolved_default = str(default).strip().lower()
+    if resolved_default in _FLOATING_TOOLBAR_SIZE_VALUES:
+        return resolved_default
+    return DEFAULT_FLOATING_TOOLBAR_SIZE
+
+
 def normalize_edge_crossing_style(value: Any, default: str = DEFAULT_EDGE_CROSSING_STYLE) -> str:
     normalized = str(value).strip().lower()
     if normalized in _EDGE_CROSSING_STYLE_VALUES:
@@ -530,6 +551,7 @@ __all__ = [
     "normalize_ansys_dpf_plugin_version",
     "normalize_edge_crossing_style",
     "normalize_expand_collision_avoidance_settings",
+    "normalize_floating_toolbar_size",
     "normalize_floating_toolbar_style",
     "normalize_graph_label_pixel_size",
     "effective_graph_node_icon_pixel_size",
