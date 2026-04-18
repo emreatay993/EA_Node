@@ -547,6 +547,7 @@ class PropertySpec:
     inspector_editor: InspectorEditorType = ""
     inspector_visible: bool = True
     source_metadata: DpfPinSourceSpec | None = None
+    group: str = ""
 
     def __post_init__(self) -> None:
         object.__setattr__(

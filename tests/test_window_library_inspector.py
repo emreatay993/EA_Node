@@ -6,6 +6,7 @@ from types import SimpleNamespace
 from ea_node_editor.custom_workflows.codec import custom_workflow_library_items
 from ea_node_editor.nodes.category_paths import category_display, category_key
 from ea_node_editor.nodes.bootstrap import build_default_registry
+from ea_node_editor.nodes.node_specs import PropertySpec
 from ea_node_editor.ui.shell.window_library_inspector import (
     build_canvas_quick_insert_items,
     build_combined_library_items,
@@ -15,6 +16,7 @@ from ea_node_editor.ui.shell.window_library_inspector import (
     build_library_category_options,
     build_registry_library_items,
     build_selected_node_header_data,
+    build_selected_node_property_items,
 )
 
 
@@ -342,6 +344,49 @@ class WindowLibraryInspectorNestedCategoryLibraryPayloadTests(unittest.TestCase)
         )
         metadata = {item["label"]: item["value"] for item in header["metadata_items"]}
         self.assertEqual(metadata["Category"], "Ansys DPF > Compute")
+
+
+class WindowLibraryInspectorPropertyGroupTests(unittest.TestCase):
+    def test_property_items_emit_group_with_fallback_when_unset(self) -> None:
+        spec = SimpleNamespace(
+            type_id="fixture.grouped",
+            display_name="Grouped Node",
+            category_path=("Fixtures",),
+            category=category_display(("Fixtures",)),
+            icon="fixture",
+            description="Grouped Node description",
+            ports=(),
+            properties=(
+                PropertySpec(
+                    key="source_path",
+                    type="str",
+                    default="",
+                    label="Source Path",
+                    group="Source",
+                ),
+                PropertySpec(
+                    key="comment",
+                    type="str",
+                    default="",
+                    label="Comment",
+                ),
+            ),
+        )
+        node = SimpleNamespace(
+            type_id="fixture.grouped",
+            node_id="node-1",
+            properties={},
+        )
+
+        items = build_selected_node_property_items(
+            node=node,
+            spec=spec,
+            subnode_pin_type_ids=set(),
+        )
+        items_by_key = {str(item["key"]): item for item in items}
+
+        self.assertEqual(items_by_key["source_path"]["group"], "Source")
+        self.assertEqual(items_by_key["comment"]["group"], "Properties")
 
 
 if __name__ == "__main__":

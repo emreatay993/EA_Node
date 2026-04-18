@@ -742,6 +742,7 @@ def build_selected_node_property_items(
             "enum_values": list(prop.enum_values),
             "inline_editor": prop.inline_editor,
             "editor_mode": property_inspector_editor(prop),
+            "group": getattr(prop, "group", "") or "Properties",
         }
         item.update(
             _dynamic_property_item_overrides(
