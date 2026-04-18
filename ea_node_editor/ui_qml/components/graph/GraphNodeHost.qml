@@ -531,6 +531,10 @@ Item {
         return interactionState.requestInlineTitleEditAt(localX, localY);
     }
 
+    function beginInlineTitleEdit() {
+        return headerLayer._beginTitleEdit();
+    }
+
     function requestScopeOpenAt(localX, localY) {
         return interactionState.requestScopeOpenAt(localX, localY);
     }

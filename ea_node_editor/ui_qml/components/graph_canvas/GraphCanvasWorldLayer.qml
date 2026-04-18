@@ -19,10 +19,23 @@ Item {
         : 0.0
 
     Repeater {
+        id: nodeRepeater
         model: root.sceneModel
         delegate: GraphCanvasNodeDelegate {
             canvasItem: root.canvasItem
             backdropInputOverlay: root.backdropInputOverlay
         }
+    }
+
+    function hostForNodeId(nodeId) {
+        var normalized = String(nodeId || "");
+        if (!normalized)
+            return null;
+        for (var i = 0; i < nodeRepeater.count; i++) {
+            var item = nodeRepeater.itemAt(i);
+            if (item && item.nodeData && String(item.nodeData.node_id || "") === normalized)
+                return item;
+        }
+        return null;
     }
 }

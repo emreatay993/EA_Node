@@ -25,6 +25,7 @@ Item {
     }
 
     GraphCanvasWorldLayer {
+        id: backdropLayer
         objectName: "graphCanvasBackdropLayer"
         canvasItem: root.canvasItem
         viewBridge: root.viewStateBridge
@@ -103,10 +104,18 @@ Item {
     }
 
     GraphCanvasWorldLayer {
+        id: nodeWorldLayer
         objectName: "graphCanvasWorld"
         canvasItem: root.canvasItem
         viewBridge: root.viewStateBridge
         sceneModel: root.sceneStateBridge ? root.sceneStateBridge.nodes_model : []
+    }
+
+    function hostForNodeId(nodeId) {
+        var host = nodeWorldLayer.hostForNodeId(nodeId);
+        if (host)
+            return host;
+        return backdropLayer.hostForNodeId(nodeId);
     }
 
     GraphOverlay.GraphNodeOverlayToolbarLayer {

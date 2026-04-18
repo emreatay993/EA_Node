@@ -356,6 +356,17 @@ Item {
         minimapSimplificationActive: root.minimapSimplificationActive
     }
 
+    function hostForNodeId(nodeId) {
+        return rootLayers.hostForNodeId(nodeId);
+    }
+
+    function requestInlineRenameForNode(nodeId) {
+        var host = rootLayers.hostForNodeId(nodeId);
+        if (host && host.beginInlineTitleEdit)
+            return host.beginInlineTitleEdit();
+        return false;
+    }
+
     GraphCanvasComponents.GraphCanvasInputLayers {
         id: inputLayers
         objectName: "graphCanvasInputLayers"

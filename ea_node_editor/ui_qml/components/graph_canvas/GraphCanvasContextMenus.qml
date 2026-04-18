@@ -144,7 +144,15 @@ Item {
             } else if (actionId === "paste_node_style") {
                 root.commandBridge.request_paste_passive_node_style(root.canvasItem.nodeContextNodeId)
             } else if (actionId === "rename_node") {
-                root.commandBridge.request_rename_node(root.canvasItem.nodeContextNodeId)
+                // Close the menu first so the node host regains focus cleanly,
+                // then begin inline title editing in the header (same gesture
+                // as double-clicking the node name). Return early to skip the
+                // trailing _closeContextMenus() since we already closed it.
+                var renameTargetId = root.canvasItem.nodeContextNodeId
+                root.canvasItem._closeContextMenus()
+                if (root.canvasItem.requestInlineRenameForNode)
+                    root.canvasItem.requestInlineRenameForNode(renameTargetId)
+                return
             } else if (actionId === "ungroup_subnode") {
                 root.commandBridge.request_ungroup_node(root.canvasItem.nodeContextNodeId)
             } else if (actionId === "remove_node") {

@@ -229,12 +229,19 @@ GraphComponents.GraphNodeHost {
             canvasItem.requestOpenSubnodeScope(nodeId);
             return;
         }
-        if (normalized === "rename" || normalized === "delete" || normalized === "duplicate") {
+        if (normalized === "rename") {
+            // Rename starts inline title editing in the node header, matching
+            // the double-click-on-title gesture. This avoids the modal
+            // QInputDialog whose nested event loop would destroy the clicked
+            // toolbar button mid-unwind.
+            if (nodeCard.beginInlineTitleEdit)
+                nodeCard.beginInlineTitleEdit();
+            return;
+        }
+        if (normalized === "delete" || normalized === "duplicate") {
             if (!bridge)
                 return;
-            if (normalized === "rename" && bridge.request_rename_node) {
-                bridge.request_rename_node(nodeId);
-            } else if (normalized === "delete" && bridge.request_remove_node) {
+            if (normalized === "delete" && bridge.request_remove_node) {
                 bridge.request_remove_node(nodeId);
                 canvasItem.clearEdgeSelection();
             } else if (normalized === "duplicate" && bridge.request_duplicate_node) {
