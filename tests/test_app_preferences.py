@@ -9,9 +9,14 @@ from ea_node_editor.app_preferences import (
     AppPreferencesStore,
     ansys_dpf_plugin_state,
     default_app_preferences_document,
+    normalize_floating_toolbar_style,
     set_ansys_dpf_plugin_state,
 )
-from ea_node_editor.settings import APP_PREFERENCES_KIND, APP_PREFERENCES_VERSION
+from ea_node_editor.settings import (
+    APP_PREFERENCES_KIND,
+    APP_PREFERENCES_VERSION,
+    DEFAULT_FLOATING_TOOLBAR_STYLE,
+)
 
 
 class AppPreferencesTests(unittest.TestCase):
@@ -82,6 +87,29 @@ class AppPreferencesTests(unittest.TestCase):
                 "version": exact_version,
                 "catalog_cache_version": exact_version,
             },
+        )
+
+
+class FloatingToolbarStyleNormalizationTests(unittest.TestCase):
+    def test_known_values_pass_through_case_insensitive(self) -> None:
+        self.assertEqual(normalize_floating_toolbar_style("compact_pill"), "compact_pill")
+        self.assertEqual(normalize_floating_toolbar_style(" SEGMENTED_BAR "), "segmented_bar")
+        self.assertEqual(normalize_floating_toolbar_style("Minimal_Ghost"), "minimal_ghost")
+
+    def test_unknown_value_falls_back_to_default(self) -> None:
+        self.assertEqual(
+            normalize_floating_toolbar_style("bubble_row"),
+            DEFAULT_FLOATING_TOOLBAR_STYLE,
+        )
+        self.assertEqual(
+            normalize_floating_toolbar_style(None),
+            DEFAULT_FLOATING_TOOLBAR_STYLE,
+        )
+
+    def test_unknown_value_with_valid_override_default_uses_override(self) -> None:
+        self.assertEqual(
+            normalize_floating_toolbar_style("bogus", "segmented_bar"),
+            "segmented_bar",
         )
 
 

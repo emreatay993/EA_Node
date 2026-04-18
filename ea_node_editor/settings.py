@@ -70,6 +70,11 @@ GRID_OVERLAY_STYLE_CHOICES = (
     ("lines", "Lines"),
     ("points", "Points"),
 )
+FLOATING_TOOLBAR_STYLE_CHOICES = (
+    ("compact_pill", "Compact pill"),
+    ("segmented_bar", "Segmented bar"),
+    ("minimal_ghost", "Minimal ghost"),
+)
 EDGE_CROSSING_STYLE_CHOICES = (
     ("none", "None"),
     ("gap_break", "Gap break"),
@@ -101,6 +106,7 @@ SOURCE_IMPORT_MODE_CHOICES = (
 
 DEFAULT_GRAPHICS_PERFORMANCE_MODE = GRAPHICS_PERFORMANCE_MODE_CHOICES[0][0]
 DEFAULT_GRID_OVERLAY_STYLE = GRID_OVERLAY_STYLE_CHOICES[0][0]
+DEFAULT_FLOATING_TOOLBAR_STYLE = FLOATING_TOOLBAR_STYLE_CHOICES[0][0]
 DEFAULT_EDGE_CROSSING_STYLE = EDGE_CROSSING_STYLE_CHOICES[0][0]
 DEFAULT_EXPAND_COLLISION_AVOIDANCE_STRATEGY = EXPAND_COLLISION_AVOIDANCE_STRATEGY_CHOICES[0][0]
 DEFAULT_EXPAND_COLLISION_AVOIDANCE_SCOPE = EXPAND_COLLISION_AVOIDANCE_SCOPE_CHOICES[0][0]
@@ -135,6 +141,7 @@ DEFAULT_GRAPHICS_SETTINGS = {
         "shadow_strength": 70,
         "shadow_softness": 50,
         "shadow_offset": 4,
+        "floating_toolbar_style": DEFAULT_FLOATING_TOOLBAR_STYLE,
     },
     "interaction": {
         "snap_to_grid": False,

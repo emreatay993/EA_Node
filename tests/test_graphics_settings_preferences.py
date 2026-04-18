@@ -184,6 +184,7 @@ class GraphicsSettingsPreferencesTests(unittest.TestCase):
                             "shadow_strength": 101,
                             "shadow_softness": 25,
                             "shadow_offset": -1,
+                            "floating_toolbar_style": "bubble_row",
                         },
                         "interaction": {
                             "snap_to_grid": True,
@@ -232,6 +233,10 @@ class GraphicsSettingsPreferencesTests(unittest.TestCase):
         self.assertEqual(graphics["canvas"]["shadow_strength"], DEFAULT_GRAPHICS_SETTINGS["canvas"]["shadow_strength"])
         self.assertEqual(graphics["canvas"]["shadow_softness"], 25)
         self.assertEqual(graphics["canvas"]["shadow_offset"], DEFAULT_GRAPHICS_SETTINGS["canvas"]["shadow_offset"])
+        self.assertEqual(
+            graphics["canvas"]["floating_toolbar_style"],
+            DEFAULT_GRAPHICS_SETTINGS["canvas"]["floating_toolbar_style"],
+        )
         self.assertEqual(graphics["interaction"]["snap_to_grid"], True)
         self.assertEqual(
             graphics["interaction"]["expand_collision_avoidance"],
@@ -263,6 +268,7 @@ class GraphicsSettingsPreferencesTests(unittest.TestCase):
                     "shadow_strength": 15,
                     "shadow_softness": 25,
                     "shadow_offset": 3,
+                    "floating_toolbar_style": " SEGMENTED_BAR ",
                 },
                 "interaction": {
                     "snap_to_grid": True,
@@ -297,6 +303,7 @@ class GraphicsSettingsPreferencesTests(unittest.TestCase):
         self.assertEqual(host.applied_graphics, [graphics])
         self.assertEqual(graphics["canvas"]["grid_style"], "points")
         self.assertEqual(graphics["canvas"]["edge_crossing_style"], "gap_break")
+        self.assertEqual(graphics["canvas"]["floating_toolbar_style"], "segmented_bar")
         self.assertFalse(graphics["canvas"]["show_port_labels"])
         self.assertEqual(graphics["performance"]["mode"], "max_performance")
         self.assertEqual(
