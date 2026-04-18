@@ -229,6 +229,52 @@ ShellCollapsibleSidePane {
                         width: inspectorColumn.width
                     }
 
+                    Loader {
+                        id: inspectorPropertyVariantLoader
+                        objectName: "inspectorPropertyVariantLoader"
+                        width: inspectorColumn.width
+                        height: item ? item.implicitHeight : 0
+                        visible: root.hasSelectedNode
+                        active: root.hasSelectedNode
+
+                        property var paneRef: root
+                        property var propertyItems: root.selectedNodePropertyItems
+
+                        sourceComponent: {
+                            var variant = root.inspectorBridgeRef ? root.inspectorBridgeRef.property_pane_variant : "smart_groups"
+                            switch (String(variant || "")) {
+                                case "accordion_cards": return accordionCardsBodyComponent
+                                case "palette":         return paletteBodyComponent
+                                case "smart_groups":
+                                default:                return smartGroupsBodyComponent
+                            }
+                        }
+
+                        Component {
+                            id: smartGroupsBodyComponent
+                            InspectorSmartGroupsBody {
+                                pane: inspectorPropertyVariantLoader.paneRef
+                                propertyItems: inspectorPropertyVariantLoader.propertyItems
+                            }
+                        }
+
+                        Component {
+                            id: accordionCardsBodyComponent
+                            InspectorAccordionCardsBody {
+                                pane: inspectorPropertyVariantLoader.paneRef
+                                propertyItems: inspectorPropertyVariantLoader.propertyItems
+                            }
+                        }
+
+                        Component {
+                            id: paletteBodyComponent
+                            InspectorPaletteBody {
+                                pane: inspectorPropertyVariantLoader.paneRef
+                                propertyItems: inspectorPropertyVariantLoader.propertyItems
+                            }
+                        }
+                    }
+
                     InspectorPortManagementSection {
                         pane: root
                         width: inspectorColumn.width

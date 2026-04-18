@@ -528,6 +528,43 @@ class MainWindowShellViewLibraryInspectorTests(SharedMainWindowShellTestBase):
         self.assertTrue(bool(node_definition_card.property("visible")))
         self.assertTrue(bool(port_management_card.property("visible")))
 
+    def test_qml_inspector_property_variant_loader_defaults_to_smart_groups(self) -> None:
+        self.window.shell_inspector_presenter.set_property_pane_variant("smart_groups")
+        self.app.processEvents()
+
+        node_id = self.window.scene.add_node_from_type("core.logger", x=80.0, y=60.0)
+        self.window.scene.focus_node(node_id)
+        self.app.processEvents()
+
+        loader = self._inspector_object("inspectorPropertyVariantLoader")
+        self.assertTrue(bool(loader.property("visible")))
+        self.assertTrue(bool(loader.property("active")))
+
+        body = self._inspector_object("inspectorSmartGroupsBody")
+        self.assertIsNotNone(body)
+
+    def test_qml_inspector_property_variant_loader_switches_with_preference(self) -> None:
+        node_id = self.window.scene.add_node_from_type("core.logger", x=80.0, y=60.0)
+        self.window.scene.focus_node(node_id)
+        self.app.processEvents()
+
+        presenter = self.window.shell_inspector_presenter
+        try:
+            presenter.set_property_pane_variant("accordion_cards")
+            self.app.processEvents()
+            self.assertIsNotNone(self._inspector_object("inspectorAccordionCardsBody"))
+
+            presenter.set_property_pane_variant("palette")
+            self.app.processEvents()
+            self.assertIsNotNone(self._inspector_object("inspectorPaletteBody"))
+
+            presenter.set_property_pane_variant("smart_groups")
+            self.app.processEvents()
+            self.assertIsNotNone(self._inspector_object("inspectorSmartGroupsBody"))
+        finally:
+            presenter.set_property_pane_variant("smart_groups")
+            self.app.processEvents()
+
     def test_qml_inspector_port_direction_switch_reselects_visible_port(self) -> None:
         node_id = self.window.scene.add_node_from_type("core.logger", x=80.0, y=60.0)
         self.window.scene.focus_node(node_id)

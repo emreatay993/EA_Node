@@ -115,13 +115,4 @@ InspectorSectionCard {
         }
     }
 
-    Repeater {
-        model: definitionSection.pane.selectedNodePropertyItems
-
-        delegate: InspectorPropertyEditor {
-            pane: definitionSection.pane
-            width: parent ? parent.width : definitionSection.width
-            propertyItem: modelData
-        }
-    }
 }
