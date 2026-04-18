@@ -10,9 +10,11 @@ from PyQt6.QtWidgets import QMessageBox
 from ea_node_editor.graph.model import GraphModel, ProjectData
 from ea_node_editor.graph.mutation_service import create_workspace_mutation_service
 from ea_node_editor.nodes.bootstrap import build_default_registry
+from ea_node_editor.nodes.registry import NodeRegistry
 from ea_node_editor.persistence.serializer import JsonProjectSerializer
 from ea_node_editor.settings import AUTOSAVE_INTERVAL_MS, DEFAULT_GRAPHICS_SETTINGS
 from ea_node_editor.telemetry.frame_rate import FrameRateSampler
+from ea_node_editor.telemetry.startup_profile import phase
 from ea_node_editor.ui.app_icon import apply_window_icon
 from ea_node_editor.ui.graph_interactions import GraphInteractions
 from ea_node_editor.ui.graph_theme import default_graph_theme_id_for_shell_theme
@@ -324,16 +326,23 @@ class ShellWindowComposition:
 
 
 class ShellWindowDependencyFactory:
-    def __init__(self, host: "ShellWindow") -> None:
+    def __init__(self, host: "ShellWindow", registry: NodeRegistry | None = None) -> None:
         self._host = host
+        self._registry = registry
 
     def build_composition(self) -> ShellWindowComposition:
-        state = self.create_state_dependencies()
-        primitives = self.create_primitive_dependencies(state)
-        controllers = self.create_controller_dependencies(state)
-        presenters = self.create_presenter_dependencies(state)
-        runtime = self.create_runtime_dependencies(primitives)
-        context_bridges = self.create_context_bridge_dependencies(primitives, presenters, runtime)
+        with phase("factory.state"):
+            state = self.create_state_dependencies()
+        with phase("factory.primitives"):
+            primitives = self.create_primitive_dependencies(state)
+        with phase("factory.controllers"):
+            controllers = self.create_controller_dependencies(state)
+        with phase("factory.presenters"):
+            presenters = self.create_presenter_dependencies(state)
+        with phase("factory.runtime"):
+            runtime = self.create_runtime_dependencies(primitives)
+        with phase("factory.context_bridges"):
+            context_bridges = self.create_context_bridge_dependencies(primitives, presenters, runtime)
         return ShellWindowComposition(
             state=state,
             primitives=primitives,
@@ -347,7 +356,7 @@ class ShellWindowDependencyFactory:
         return _create_shell_state_dependencies()
 
     def create_primitive_dependencies(self, state: ShellStateDependencies) -> ShellPrimitiveDependencies:
-        return _create_shell_primitive_dependencies(self._host, state)
+        return _create_shell_primitive_dependencies(self._host, state, registry=self._registry)
 
     def create_controller_dependencies(self, state: ShellStateDependencies) -> ShellControllerDependencies:
         return _create_shell_controller_dependencies(self._host, state)
@@ -369,28 +378,45 @@ class ShellWindowDependencyFactory:
 
 class ShellWindowBootstrapCoordinator:
     def bootstrap(self, host: "ShellWindow", composition: ShellWindowComposition) -> None:
-        _configure_shell_window_host(host)
-        composition.attach(host)
-        _run_shell_startup_sequence(host)
-        self.create_timer_dependencies(host).attach(host)
-        _finalize_shell_window_bootstrap(host)
+        with phase("coord.configure_host"):
+            _configure_shell_window_host(host)
+        with phase("coord.composition.attach"):
+            composition.attach(host)
+        with phase("coord.startup_sequence"):
+            _run_shell_startup_sequence(host)
+        with phase("coord.timer_deps"):
+            self.create_timer_dependencies(host).attach(host)
+        with phase("coord.finalize"):
+            _finalize_shell_window_bootstrap(host)
 
     def create_timer_dependencies(self, host: "ShellWindow") -> ShellTimerDependencies:
         return _create_shell_timer_dependencies(host)
 
 
-def create_shell_window() -> "ShellWindow":
+def create_shell_window(registry: NodeRegistry | None = None) -> "ShellWindow":
+    """Build the shell window, optionally reusing a pre-built node registry.
+
+    Pass ``registry`` to skip the blocking ``build_default_registry()`` call —
+    the splash builds the registry on a worker thread and hands it in here.
+    See ``PLANS_TO_IMPLEMENT/in_progress/splash_threaded_plugin_registry.md``.
+    """
     from ea_node_editor.ui.shell.window import ShellWindow
 
-    host = ShellWindow(_defer_bootstrap=True)
-    composition = build_shell_window_composition(host)
-    bootstrap_shell_window(host, composition)
-    host._connect_application_state_signal()
+    with phase("shell.ShellWindow()"):
+        host = ShellWindow(_defer_bootstrap=True)
+    with phase("shell.build_composition"):
+        composition = build_shell_window_composition(host, registry=registry)
+    with phase("shell.bootstrap"):
+        bootstrap_shell_window(host, composition)
+    with phase("shell.connect_state_signal"):
+        host._connect_application_state_signal()
     return host
 
 
-def build_shell_window_composition(host: "ShellWindow") -> ShellWindowComposition:
-    return ShellWindowDependencyFactory(host).build_composition()
+def build_shell_window_composition(
+    host: "ShellWindow", registry: NodeRegistry | None = None
+) -> ShellWindowComposition:
+    return ShellWindowDependencyFactory(host, registry=registry).build_composition()
 
 
 def bootstrap_shell_window(host: "ShellWindow", composition: ShellWindowComposition) -> None:
@@ -428,43 +454,67 @@ def _create_shell_state_dependencies() -> ShellStateDependencies:
 def _create_shell_primitive_dependencies(
     host: "ShellWindow",
     state: ShellStateDependencies,
+    *,
+    registry: NodeRegistry | None = None,
 ) -> ShellPrimitiveDependencies:
-    registry = build_default_registry()
-    serializer = JsonProjectSerializer(registry)
-    session_store = host._create_session_store(serializer)
-    model = GraphModel(
-        ProjectData(project_id="proj_local", name="untitled"),
-        mutation_service_factory=create_workspace_mutation_service,
-    )
-    workspace_manager = WorkspaceManager(model)
-    runtime_history = RuntimeGraphHistory()
-    scene = GraphSceneBridge(host)
-    scene.bind_runtime_history(runtime_history)
-    view = ViewportBridge(host)
-    graph_interactions = GraphInteractions(
-        scene=scene,
-        registry=registry,
-        history=runtime_history,
-    )
-    console_panel = ConsoleModel(host)
-    script_editor = ScriptEditorModel(host)
-    script_highlighter = QmlScriptSyntaxBridge(host)
-    workspace_tabs = WorkspaceTabsModel(host)
-    ui_icons = UiIconRegistryBridge(host)
-    ui_icon_image_provider = UiIconImageProvider()
-    local_media_preview_provider = LocalMediaPreviewImageProvider()
-    local_pdf_preview_provider = LocalPdfPreviewImageProvider()
-    status_engine = StatusItemModel("E", "Ready", host)
-    status_jobs = StatusItemModel("J", "R:0 Q:0 D:0 F:0", host)
-    status_metrics = StatusItemModel("M", "FPS:0 CPU:0% RAM:0/0 GB", host)
-    status_notifications = StatusItemModel("N", "W:0 E:0", host)
-    frame_rate_sampler = FrameRateSampler()
-    theme_bridge = ThemeBridge(host, theme_id=state.workspace_ui_state.active_theme_id)
-    graph_theme_bridge = GraphThemeBridge(
-        host,
-        theme_id=default_graph_theme_id_for_shell_theme(state.workspace_ui_state.active_theme_id),
-    )
-    scene.bind_graph_theme_bridge(graph_theme_bridge)
+    with phase("prim.build_default_registry"):
+        if registry is None:
+            registry = build_default_registry()
+    with phase("prim.JsonProjectSerializer"):
+        serializer = JsonProjectSerializer(registry)
+    with phase("prim.session_store"):
+        session_store = host._create_session_store(serializer)
+    with phase("prim.GraphModel"):
+        model = GraphModel(
+            ProjectData(project_id="proj_local", name="untitled"),
+            mutation_service_factory=create_workspace_mutation_service,
+        )
+    with phase("prim.WorkspaceManager"):
+        workspace_manager = WorkspaceManager(model)
+    with phase("prim.RuntimeGraphHistory"):
+        runtime_history = RuntimeGraphHistory()
+    with phase("prim.GraphSceneBridge"):
+        scene = GraphSceneBridge(host)
+        scene.bind_runtime_history(runtime_history)
+    with phase("prim.ViewportBridge"):
+        view = ViewportBridge(host)
+    with phase("prim.GraphInteractions"):
+        graph_interactions = GraphInteractions(
+            scene=scene,
+            registry=registry,
+            history=runtime_history,
+        )
+    with phase("prim.ConsoleModel"):
+        console_panel = ConsoleModel(host)
+    with phase("prim.ScriptEditorModel"):
+        script_editor = ScriptEditorModel(host)
+    with phase("prim.QmlScriptSyntaxBridge"):
+        script_highlighter = QmlScriptSyntaxBridge(host)
+    with phase("prim.WorkspaceTabsModel"):
+        workspace_tabs = WorkspaceTabsModel(host)
+    with phase("prim.UiIconRegistryBridge"):
+        ui_icons = UiIconRegistryBridge(host)
+    with phase("prim.UiIconImageProvider"):
+        ui_icon_image_provider = UiIconImageProvider()
+    with phase("prim.LocalMediaPreviewImageProvider"):
+        local_media_preview_provider = LocalMediaPreviewImageProvider()
+    with phase("prim.LocalPdfPreviewImageProvider"):
+        local_pdf_preview_provider = LocalPdfPreviewImageProvider()
+    with phase("prim.StatusItemModels"):
+        status_engine = StatusItemModel("E", "Ready", host)
+        status_jobs = StatusItemModel("J", "R:0 Q:0 D:0 F:0", host)
+        status_metrics = StatusItemModel("M", "FPS:0 CPU:0% RAM:0/0 GB", host)
+        status_notifications = StatusItemModel("N", "W:0 E:0", host)
+    with phase("prim.FrameRateSampler"):
+        frame_rate_sampler = FrameRateSampler()
+    with phase("prim.ThemeBridge"):
+        theme_bridge = ThemeBridge(host, theme_id=state.workspace_ui_state.active_theme_id)
+    with phase("prim.GraphThemeBridge"):
+        graph_theme_bridge = GraphThemeBridge(
+            host,
+            theme_id=default_graph_theme_id_for_shell_theme(state.workspace_ui_state.active_theme_id),
+        )
+        scene.bind_graph_theme_bridge(graph_theme_bridge)
     return ShellPrimitiveDependencies(
         registry=registry,
         serializer=serializer,

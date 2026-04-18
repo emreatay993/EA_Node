@@ -75,7 +75,10 @@ def _bootstrap_python() -> None:
 
 def main() -> int:
     _bootstrap_python()
-    from ea_node_editor.app import run
+    from ea_node_editor.telemetry.startup_profile import phase
+
+    with phase("bootstrap.import app"):
+        from ea_node_editor.app import run
 
     return run()
 

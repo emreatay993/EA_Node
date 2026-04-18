@@ -151,7 +151,7 @@ class AppBootstrapTests(unittest.TestCase):
             window = shell_composition_module.create_shell_window()
 
         self.assertIsInstance(window, shell_window_module.ShellWindow)
-        build_composition_mock.assert_called_once_with(window)
+        build_composition_mock.assert_called_once_with(window, registry=None)
         bootstrap_mock.assert_called_once_with(window, composition)
         window.close()
         window.deleteLater()
@@ -256,6 +256,8 @@ class AppBootstrapTests(unittest.TestCase):
     def test_run_applies_startup_theme_and_bootstraps_shell_window(self) -> None:
         fake_app = Mock()
         fake_app.exec.return_value = 17
+        fake_splash = Mock()
+        fake_loader = Mock()
 
         with patch.object(app_module.mp, "freeze_support") as freeze_support_mock, patch.object(
             app_module,
@@ -274,15 +276,30 @@ class AppBootstrapTests(unittest.TestCase):
             "apply_application_icon",
         ), patch.object(
             app_module,
-            "build_and_show_shell_window",
-        ) as build_window_mock:
+            "OpeningSplash",
+            return_value=fake_splash,
+        ) as splash_ctor, patch.object(
+            app_module,
+            "RegistryLoader",
+            return_value=fake_loader,
+        ) as loader_ctor, patch.object(
+            app_module,
+            "create_shell_window",
+        ) as create_shell_window_mock:
             self.assertEqual(app_module.run(), 17)
 
         freeze_support_mock.assert_called_once_with()
         app_ctor.assert_called_once()
         fake_app.setApplicationName.assert_called_once_with("COREX Node Editor")
         fake_app.setStyleSheet.assert_called_once_with("stylesheet:packet-theme")
-        build_window_mock.assert_called_once_with()
+        splash_ctor.assert_called_once_with()
+        fake_splash.show_centered.assert_called_once_with()
+        loader_ctor.assert_called_once_with()
+        fake_splash.boot_completed.connect.assert_called_once()
+        fake_loader.ready.connect.assert_called_once()
+        fake_loader.failed.connect.assert_called_once()
+        fake_loader.start.assert_called_once_with()
+        create_shell_window_mock.assert_not_called()
         fake_app.exec.assert_called_once_with()
 
     def test_shell_window_configuration_applies_title_size_and_icon(self) -> None:
