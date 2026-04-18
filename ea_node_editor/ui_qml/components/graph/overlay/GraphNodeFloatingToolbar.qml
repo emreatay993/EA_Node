@@ -318,9 +318,8 @@ Item {
         height: 24
         smooth: true
         antialiasing: true
-        opacity: 0.85
         source: root._iconSource(
-            root.flipped ? "chevron-up" : "chevron-down",
+            root.flipped ? "chevron-down" : "chevron-up",
             24,
             root._chromeBaseBorder
         )
@@ -395,7 +394,7 @@ Item {
                         }
                         accentColor: buttonCell._isDestructive
                             ? "#D94F4F"
-                            : (Boolean(modelData.primary) ? root.accentColor : Qt.alpha(root.accentColor, 0.85))
+                            : root.accentColor
                         enabled: modelData.enabled !== false
                         chromeRadius: root._buttonChromeRadius
                         contentHorizontalPadding: root._buttonHPadding
