@@ -275,9 +275,17 @@ Item {
         }
     }
 
+    readonly property real _ownerCenterX: {
+        if (!root.hostValid)
+            return chromeContainer.width / 2;
+        var rect = root.nodeLocalRect;
+        return rect.x + rect.width / 2 - root.x;
+    }
+
     Rectangle {
         id: ownershipCaret
         objectName: "graphNodeFloatingToolbarCaret"
+        visible: root._hasChrome
         z: -1
         width: 9
         height: 9
@@ -287,24 +295,69 @@ Item {
         border.width: 1
         border.color: root._caretBorderColor
 
-        readonly property real ownerCenterX: {
-            if (!root.hostValid)
-                return chromeContainer.width / 2;
-            var rect = root.nodeLocalRect;
-            return rect.x + rect.width / 2 - root.x;
-        }
         readonly property real caretEdgeMargin: 6
         readonly property real clampedCenterX: Math.max(
             caretEdgeMargin + width / 2,
             Math.min(
                 chromeContainer.width - caretEdgeMargin - width / 2,
-                ownerCenterX
+                root._ownerCenterX
             )
         )
         x: clampedCenterX - width / 2
         y: root.flipped
             ? -height / 2 - 0.5
             : chromeContainer.height - height / 2 + 0.5
+    }
+
+    Canvas {
+        id: ownershipChevron
+        objectName: "graphNodeFloatingToolbarChevron"
+        visible: !root._hasChrome
+        z: -1
+        width: 14
+        height: 6
+        antialiasing: true
+
+        readonly property color strokeColor: Qt.alpha(root._chromeBaseBorder, 0.85)
+        readonly property real strokeWidth: 1.5
+        readonly property real chevronEdgeMargin: 6
+        readonly property real clampedCenterX: Math.max(
+            chevronEdgeMargin + width / 2,
+            Math.min(
+                chromeContainer.width - chevronEdgeMargin - width / 2,
+                root._ownerCenterX
+            )
+        )
+        x: clampedCenterX - width / 2
+        y: root.flipped ? -height - 1 : chromeContainer.height + 1
+
+        onPaint: {
+            var ctx = getContext("2d");
+            ctx.reset();
+            ctx.strokeStyle = strokeColor;
+            ctx.lineWidth = strokeWidth;
+            ctx.lineCap = "round";
+            ctx.lineJoin = "round";
+            var inset = strokeWidth / 2;
+            ctx.beginPath();
+            if (root.flipped) {
+                ctx.moveTo(inset, height - inset);
+                ctx.lineTo(width / 2, inset);
+                ctx.lineTo(width - inset, height - inset);
+            } else {
+                ctx.moveTo(inset, inset);
+                ctx.lineTo(width / 2, height - inset);
+                ctx.lineTo(width - inset, inset);
+            }
+            ctx.stroke();
+        }
+
+        Connections {
+            target: root
+            function onFlippedChanged() { ownershipChevron.requestPaint(); }
+        }
+        onStrokeColorChanged: requestPaint()
+        onVisibleChanged: if (visible) requestPaint()
     }
 
     Rectangle {
