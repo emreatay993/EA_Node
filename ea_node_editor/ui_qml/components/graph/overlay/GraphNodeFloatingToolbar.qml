@@ -28,6 +28,29 @@ Item {
         var actions = root.host.availableActions;
         return Array.isArray(actions) ? actions : [];
     }
+    // compact_pill / minimal_ghost group surface-specific buttons on the left
+    // and common (rename/duplicate/delete/...) buttons on the right so the two
+    // families read as distinct groups separated by a thin divider. Other styles
+    // keep the source order.
+    readonly property bool _groupBySurfaceFamily:
+        root.style === "compact_pill" || root.style === "minimal_ghost"
+    readonly property var _orderedActions: {
+        var all = root.actionList;
+        if (!Array.isArray(all) || all.length === 0)
+            return [];
+        if (!root._groupBySurfaceFamily)
+            return all;
+        var surface = [];
+        var common = [];
+        for (var i = 0; i < all.length; i++) {
+            var item = all[i] || {};
+            if (String(item.kind || "") === "common")
+                common.push(item);
+            else
+                surface.push(item);
+        }
+        return surface.concat(common);
+    }
     readonly property color accentColor: root.hostValid ? root.host.nodeThemeColor : "#4DA8DA"
     // Chrome colors track the host's theme / shell palette so the toolbar
     // follows both graph-theme switches (dark/light) and per-node passive
@@ -355,7 +378,7 @@ Item {
 
             Repeater {
                 id: buttonRepeater
-                model: root.actionList
+                model: root._orderedActions
 
                 Row {
                     id: buttonCell
@@ -365,8 +388,16 @@ Item {
                     readonly property bool _isFirst: index === 0
                     readonly property bool _isLast: index === buttonRepeater.count - 1
                     readonly property bool _isDestructive: Boolean(modelData.destructive)
+                    readonly property bool _isCommon: String((modelData || {}).kind || "") === "common"
+                    readonly property bool _startsCommonGroup: {
+                        if (!root._groupBySurfaceFamily || !buttonCell._isCommon || buttonCell._isFirst)
+                            return false;
+                        var prev = root._orderedActions[index - 1] || {};
+                        return String(prev.kind || "") !== "common";
+                    }
                     readonly property bool _showLeadingSeparator:
-                        root.style === "minimal_ghost" && buttonCell._isDestructive && !buttonCell._isFirst
+                        buttonCell._startsCommonGroup
+                        || (root.style === "minimal_ghost" && buttonCell._isDestructive && !buttonCell._isFirst)
 
                     Item {
                         id: leadingSeparatorSlot
