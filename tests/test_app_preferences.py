@@ -10,12 +10,15 @@ from ea_node_editor.app_preferences import (
     ansys_dpf_plugin_state,
     default_app_preferences_document,
     normalize_floating_toolbar_style,
+    normalize_graphics_settings,
+    normalize_property_pane_variant,
     set_ansys_dpf_plugin_state,
 )
 from ea_node_editor.settings import (
     APP_PREFERENCES_KIND,
     APP_PREFERENCES_VERSION,
     DEFAULT_FLOATING_TOOLBAR_STYLE,
+    DEFAULT_PROPERTY_PANE_VARIANT,
 )
 
 
@@ -111,6 +114,45 @@ class FloatingToolbarStyleNormalizationTests(unittest.TestCase):
             normalize_floating_toolbar_style("bogus", "segmented_bar"),
             "segmented_bar",
         )
+
+
+class PropertyPaneVariantNormalizationTests(unittest.TestCase):
+    def test_known_values_pass_through_case_insensitive(self) -> None:
+        self.assertEqual(normalize_property_pane_variant("smart_groups"), "smart_groups")
+        self.assertEqual(normalize_property_pane_variant(" ACCORDION_CARDS "), "accordion_cards")
+        self.assertEqual(normalize_property_pane_variant("Palette"), "palette")
+
+    def test_unknown_value_falls_back_to_default(self) -> None:
+        self.assertEqual(
+            normalize_property_pane_variant("bogus_layout"),
+            DEFAULT_PROPERTY_PANE_VARIANT,
+        )
+        self.assertEqual(
+            normalize_property_pane_variant(None),
+            DEFAULT_PROPERTY_PANE_VARIANT,
+        )
+
+    def test_graphics_settings_fills_default_when_absent(self) -> None:
+        normalized = normalize_graphics_settings({"shell": {}})
+        self.assertEqual(
+            normalized["shell"]["property_pane_variant"],
+            DEFAULT_PROPERTY_PANE_VARIANT,
+        )
+
+    def test_graphics_settings_rejects_unknown_variant(self) -> None:
+        normalized = normalize_graphics_settings(
+            {"shell": {"property_pane_variant": "floating_bubbles"}}
+        )
+        self.assertEqual(
+            normalized["shell"]["property_pane_variant"],
+            DEFAULT_PROPERTY_PANE_VARIANT,
+        )
+
+    def test_graphics_settings_preserves_known_variant(self) -> None:
+        normalized = normalize_graphics_settings(
+            {"shell": {"property_pane_variant": "palette"}}
+        )
+        self.assertEqual(normalized["shell"]["property_pane_variant"], "palette")
 
 
 if __name__ == "__main__":

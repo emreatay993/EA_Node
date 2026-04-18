@@ -12,6 +12,7 @@ from ea_node_editor.app_preferences import (
     normalize_graph_node_icon_pixel_size_override,
     normalize_graphics_performance_mode,
     normalize_grid_overlay_style,
+    normalize_property_pane_variant,
 )
 from ea_node_editor.graph.effective_ports import find_port
 from ea_node_editor.settings import DEFAULT_GRAPHICS_SETTINGS
@@ -41,6 +42,7 @@ class ShellWorkspaceUiState:
     shadow_offset: int
     graphics_performance_mode: str
     tab_strip_density: str
+    property_pane_variant: str
     graphics_show_tooltips: bool
     active_theme_id: str
 
@@ -101,6 +103,12 @@ def build_default_shell_workspace_ui_state(
         ),
         tab_strip_density=str(
             shell.get("tab_strip_density", DEFAULT_GRAPHICS_SETTINGS["shell"]["tab_strip_density"])
+        ),
+        property_pane_variant=normalize_property_pane_variant(
+            shell.get(
+                "property_pane_variant",
+                DEFAULT_GRAPHICS_SETTINGS["shell"]["property_pane_variant"],
+            )
         ),
         graphics_show_tooltips=show_tooltips,
         active_theme_id=str(theme.get("theme_id", DEFAULT_GRAPHICS_SETTINGS["theme"]["theme_id"])),

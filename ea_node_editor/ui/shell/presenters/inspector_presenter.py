@@ -5,6 +5,7 @@ from typing import Any
 
 from PyQt6.QtCore import QObject, pyqtSignal
 
+from ea_node_editor.app_preferences import normalize_property_pane_variant
 from ea_node_editor.graph.file_issue_state import (
     collect_node_file_issues,
     decode_file_repair_request,
@@ -14,6 +15,7 @@ from ea_node_editor.nodes.builtins.subnode import (
     SUBNODE_TYPE_ID,
 )
 from ea_node_editor.nodes.types import property_inspector_editor
+from ea_node_editor.settings import DEFAULT_PROPERTY_PANE_VARIANT
 from ea_node_editor.ui.shell.window_library_inspector import (
     build_pin_data_type_options,
     build_selected_node_header_data,
@@ -37,6 +39,7 @@ class ShellInspectorPresenter(QObject):
     ) -> None:
         super().__init__(_presenter_parent(host, parent))
         self._host = host
+        self._property_pane_variant = DEFAULT_PROPERTY_PANE_VARIANT
         host.selected_node_changed.connect(self._emit_selected_node_changed)
         host.workspace_state_changed.connect(self._emit_workspace_state_changed)
 
@@ -150,6 +153,17 @@ class ShellInspectorPresenter(QObject):
         if workspace is None:
             return []
         return build_selected_node_port_items(node=node, spec=spec, workspace_nodes=workspace.nodes)
+
+    @property
+    def property_pane_variant(self) -> str:
+        return str(self._property_pane_variant)
+
+    def set_property_pane_variant(self, variant: str) -> None:
+        normalized = normalize_property_pane_variant(variant, self._property_pane_variant)
+        if normalized == self._property_pane_variant:
+            return
+        self._property_pane_variant = normalized
+        self.inspector_state_changed.emit()
 
     @property
     def pin_data_type_options(self) -> list[str]:

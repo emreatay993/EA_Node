@@ -50,6 +50,7 @@ class _ShellWorkspacePresenterHostProtocol(Protocol):
     search_scope_state: Any
     workspace_library_controller: Any
     shell_host_presenter: Any
+    shell_inspector_presenter: Any
     graph_theme_bridge: Any
 
     def set_graphics_performance_mode(self, mode: str) -> None: ...

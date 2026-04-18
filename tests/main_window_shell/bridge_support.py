@@ -423,6 +423,9 @@ class _ShellWorkspacePresenterHostStub(QObject):
             create_workspace=lambda: None,
         )
         self.shell_host_presenter = SimpleNamespace(apply_theme=lambda theme_id: str(theme_id or "system"))
+        self.shell_inspector_presenter = SimpleNamespace(
+            set_property_pane_variant=lambda variant: None,
+        )
         self.graph_theme_bridge = SimpleNamespace(theme_id="system", apply_settings=lambda **kwargs: None)
         self.graphics_modes: list[str] = []
 

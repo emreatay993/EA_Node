@@ -97,6 +97,9 @@ class _RuntimeTooltipHost:
         )
         self.search_scope_controller = _SearchScopeController(self.search_scope_state)
         self.shell_host_presenter = _ShellHostPresenter()
+        self.shell_inspector_presenter = SimpleNamespace(
+            set_property_pane_variant=lambda variant: None,
+        )
         self.graph_theme_bridge = _GraphThemeBridge()
         self.workspace_manager = SimpleNamespace()
         self.model = SimpleNamespace()

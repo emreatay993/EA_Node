@@ -62,6 +62,13 @@ TAB_STRIP_DENSITY_CHOICES = (
     ("regular", "Regular"),
 )
 
+PROPERTY_PANE_VARIANT_CHOICES = (
+    ("smart_groups", "Smart Groups"),
+    ("accordion_cards", "Accordion Cards"),
+    ("palette", "Palette"),
+)
+DEFAULT_PROPERTY_PANE_VARIANT = "smart_groups"
+
 GRAPHICS_PERFORMANCE_MODE_CHOICES = (
     ("full_fidelity", "Full Fidelity"),
     ("max_performance", "Max Performance"),
@@ -159,6 +166,7 @@ DEFAULT_GRAPHICS_SETTINGS = {
     },
     "shell": {
         "tab_strip_density": "compact",
+        "property_pane_variant": DEFAULT_PROPERTY_PANE_VARIANT,
         "show_tooltips": True,
     },
     "theme": {

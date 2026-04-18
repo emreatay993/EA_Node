@@ -26,6 +26,7 @@ from ea_node_editor.settings import (
     DEFAULT_GRID_OVERLAY_STYLE,
     DEFAULT_GRAPHICS_SETTINGS,
     DEFAULT_PLUGIN_SETTINGS,
+    DEFAULT_PROPERTY_PANE_VARIANT,
     DEFAULT_SOURCE_IMPORT_MODE,
     DEFAULT_SOURCE_IMPORT_SETTINGS,
     EDGE_CROSSING_STYLE_CHOICES,
@@ -41,6 +42,7 @@ from ea_node_editor.settings import (
     GRAPH_NODE_ICON_PIXEL_SIZE_MAX,
     GRAPHICS_PERFORMANCE_MODE_CHOICES,
     GRID_OVERLAY_STYLE_CHOICES,
+    PROPERTY_PANE_VARIANT_CHOICES,
     SOURCE_IMPORT_MODE_CHOICES,
     TAB_STRIP_DENSITY_CHOICES,
     app_preferences_path,
@@ -88,6 +90,9 @@ _SOURCE_IMPORT_MODE_VALUES = {
     str(choice[0]).strip().lower() for choice in SOURCE_IMPORT_MODE_CHOICES
 }
 _TAB_STRIP_DENSITY_VALUES = {str(choice[0]).strip().lower() for choice in TAB_STRIP_DENSITY_CHOICES}
+_PROPERTY_PANE_VARIANT_VALUES = {
+    str(choice[0]).strip().lower() for choice in PROPERTY_PANE_VARIANT_CHOICES
+}
 
 
 def default_app_preferences_document() -> dict[str, Any]:
@@ -242,6 +247,10 @@ def normalize_graphics_settings(payload: Any) -> dict[str, Any]:
         normalized["shell"]["tab_strip_density"] = _normalize_tab_strip_density(
             shell_payload.get("tab_strip_density"),
             defaults["shell"]["tab_strip_density"],
+        )
+        normalized["shell"]["property_pane_variant"] = normalize_property_pane_variant(
+            shell_payload.get("property_pane_variant"),
+            defaults["shell"]["property_pane_variant"],
         )
         normalized["shell"]["show_tooltips"] = _normalize_bool(
             shell_payload.get("show_tooltips"),
@@ -532,6 +541,18 @@ def normalize_edge_crossing_style(value: Any, default: str = DEFAULT_EDGE_CROSSI
     return DEFAULT_EDGE_CROSSING_STYLE
 
 
+def normalize_property_pane_variant(
+    value: Any, default: str = DEFAULT_PROPERTY_PANE_VARIANT
+) -> str:
+    normalized = str(value).strip().lower()
+    if normalized in _PROPERTY_PANE_VARIANT_VALUES:
+        return normalized
+    resolved_default = str(default).strip().lower()
+    if resolved_default in _PROPERTY_PANE_VARIANT_VALUES:
+        return resolved_default
+    return DEFAULT_PROPERTY_PANE_VARIANT
+
+
 def normalize_source_import_mode(value: Any, default: str = DEFAULT_SOURCE_IMPORT_MODE) -> str:
     normalized = str(value).strip().lower()
     if normalized in _SOURCE_IMPORT_MODE_VALUES:
@@ -561,6 +582,7 @@ __all__ = [
     "normalize_graphics_performance_mode",
     "normalize_graphics_settings",
     "normalize_plugin_settings",
+    "normalize_property_pane_variant",
     "normalize_source_import_mode",
     "normalize_source_import_settings",
     "resolve_startup_theme_id",

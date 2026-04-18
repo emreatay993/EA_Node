@@ -28,6 +28,7 @@ class _ShellInspectorSource(Protocol):
     selected_node_property_items: list[dict[str, Any]]
     selected_node_port_items: list[dict[str, Any]]
     pin_data_type_options: list[str]
+    property_pane_variant: str
 
     def set_selected_node_property(self, key: str, value: Any) -> None: ...
 
@@ -174,6 +175,10 @@ class ShellInspectorBridge(QObject):
     @pyqtProperty("QVariantList", notify=inspector_state_changed)
     def pin_data_type_options(self) -> list[str]:
         return _copy_list(self._inspector_source.pin_data_type_options)
+
+    @pyqtProperty(str, notify=inspector_state_changed)
+    def property_pane_variant(self) -> str:
+        return str(getattr(self._inspector_source, "property_pane_variant", "") or "")
 
     @pyqtSlot(str, "QVariant")
     def set_selected_node_property(self, key: str, value) -> None:

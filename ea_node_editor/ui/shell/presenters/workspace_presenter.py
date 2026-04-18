@@ -16,6 +16,7 @@ from ea_node_editor.app_preferences import (
     normalize_graph_node_icon_pixel_size_override,
     normalize_graphics_performance_mode,
     normalize_grid_overlay_style,
+    normalize_property_pane_variant,
 )
 from ea_node_editor.settings import DEFAULT_GRAPHICS_SETTINGS
 from ea_node_editor.ui.shell.run_flow import (
@@ -270,6 +271,10 @@ class ShellWorkspacePresenter(QObject):
         else:
             expand_collision_avoidance = copy.deepcopy(self._expand_collision_avoidance)
         tab_strip_density = str(shell.get("tab_strip_density", self._ui_state.tab_strip_density))
+        property_pane_variant = normalize_property_pane_variant(
+            shell.get("property_pane_variant", self._ui_state.property_pane_variant),
+            self._ui_state.property_pane_variant,
+        )
         show_tooltips_value = shell.get("show_tooltips", self._ui_state.graphics_show_tooltips)
         show_tooltips = (
             show_tooltips_value
@@ -355,6 +360,10 @@ class ShellWorkspacePresenter(QObject):
         if self._ui_state.tab_strip_density != tab_strip_density:
             self._ui_state.tab_strip_density = tab_strip_density
             changed = True
+        if self._ui_state.property_pane_variant != property_pane_variant:
+            self._ui_state.property_pane_variant = property_pane_variant
+            changed = True
+        self._host.shell_inspector_presenter.set_property_pane_variant(property_pane_variant)
         if self._ui_state.graphics_show_tooltips != show_tooltips:
             self._ui_state.graphics_show_tooltips = show_tooltips
             changed = True
@@ -395,6 +404,7 @@ class ShellWorkspacePresenter(QObject):
             },
             "shell": {
                 "tab_strip_density": str(self._ui_state.tab_strip_density),
+                "property_pane_variant": str(self._ui_state.property_pane_variant),
                 "show_tooltips": bool(self._ui_state.graphics_show_tooltips),
             },
             "theme": {
