@@ -29,11 +29,85 @@ Item {
         return Array.isArray(actions) ? actions : [];
     }
     readonly property color accentColor: root.hostValid ? root.host.nodeThemeColor : "#4DA8DA"
-    readonly property color chromeFillColor: {
-        if (root.hostValid && root.host.headerColor !== undefined)
-            return Qt.rgba(root.host.headerColor.r, root.host.headerColor.g, root.host.headerColor.b, 0.95);
-        return Qt.rgba(0.10, 0.11, 0.13, 0.95);
+
+    function _canvasStateBridge() {
+        if (root.canvasItem) {
+            if (root.canvasItem.canvasStateBridgeRef)
+                return root.canvasItem.canvasStateBridgeRef;
+            if (root.canvasItem._canvasStateBridgeRef)
+                return root.canvasItem._canvasStateBridgeRef;
+        }
+        if (typeof graphCanvasStateBridge !== "undefined" && graphCanvasStateBridge)
+            return graphCanvasStateBridge;
+        return null;
     }
+
+    readonly property string style: {
+        var bridge = root._canvasStateBridge();
+        if (bridge && bridge.graphics_floating_toolbar_style !== undefined) {
+            var value = String(bridge.graphics_floating_toolbar_style || "").toLowerCase();
+            if (value === "compact_pill" || value === "segmented_bar" || value === "minimal_ghost")
+                return value;
+        }
+        return "compact_pill";
+    }
+
+    readonly property bool _hasChrome: root.style !== "minimal_ghost"
+    readonly property real _chromeRadius: {
+        if (root.style === "compact_pill") return 999;
+        if (root.style === "segmented_bar") return 7;
+        return 0;
+    }
+    readonly property color _chromeFillColor: {
+        if (root.style === "compact_pill") return Qt.rgba(22/255, 26/255, 36/255, 0.96);
+        if (root.style === "segmented_bar") return "#1a1f2a";
+        return "transparent";
+    }
+    readonly property color _chromeBorderColor: {
+        if (root.style === "compact_pill") return Qt.rgba(1, 1, 1, 0.06);
+        if (root.style === "segmented_bar") return "#2b3142";
+        return "transparent";
+    }
+    readonly property real _chromeBorderWidth: root._hasChrome ? 1 : 0
+    readonly property real _chromeInternalPadding: {
+        if (root.style === "compact_pill") return 3;
+        if (root.style === "segmented_bar") return 0;
+        return 2;
+    }
+    readonly property real _chromeButtonGap: {
+        if (root.style === "compact_pill") return 2;
+        if (root.style === "segmented_bar") return 0;
+        return 2;
+    }
+    readonly property bool _chromeClip: root.style === "segmented_bar"
+    readonly property real _buttonChromeRadius: {
+        if (root.style === "compact_pill") return 999;
+        if (root.style === "segmented_bar") return 0;
+        return 5;
+    }
+    readonly property int _buttonHPadding: {
+        if (root.style === "compact_pill") return 7;
+        if (root.style === "segmented_bar") return 12;
+        return 6;
+    }
+    readonly property int _buttonVPadding: {
+        if (root.style === "compact_pill") return 7;
+        if (root.style === "segmented_bar") return 6;
+        return 6;
+    }
+    readonly property int _buttonIconSize: {
+        if (root.style === "compact_pill") return 15;
+        if (root.style === "segmented_bar") return 14;
+        return 14;
+    }
+    readonly property color _buttonHoverFillColor: {
+        if (root.style === "minimal_ghost") return Qt.rgba(1, 1, 1, 0.08);
+        return Qt.alpha(root.accentColor, 0.18);
+    }
+    readonly property color _segmentedDividerColor: "#242a38"
+    readonly property color _minimalSeparatorColor: Qt.rgba(1, 1, 1, 0.08)
+    readonly property color _caretFillColor: root._hasChrome ? root._chromeFillColor : Qt.alpha(root.accentColor, 0.55)
+    readonly property color _caretBorderColor: root._hasChrome ? root._chromeBorderColor : Qt.alpha(root.accentColor, 0.55)
 
     readonly property real gapFromNode: Number(toolbarMetrics.gap_from_node || 6)
     readonly property real safetyMargin: Number(toolbarMetrics.safety_margin || 8)
@@ -177,9 +251,9 @@ Item {
         height: 9
         rotation: 45
         antialiasing: true
-        color: chromeContainer.color
+        color: root._caretFillColor
         border.width: 1
-        border.color: chromeContainer.border.color
+        border.color: root._caretBorderColor
 
         readonly property real ownerCenterX: {
             if (!root.hostValid)
@@ -204,65 +278,93 @@ Item {
     Rectangle {
         id: chromeContainer
         objectName: "graphNodeFloatingToolbarChrome"
-        radius: 8
-        color: root.chromeFillColor
-        border.width: 1
-        border.color: Qt.alpha(root.accentColor, 0.82)
+        radius: root._chromeRadius
+        color: root._chromeFillColor
+        border.width: root._chromeBorderWidth
+        border.color: root._chromeBorderColor
+        clip: root._chromeClip
 
-        implicitWidth: Math.max(root.buttonSizeMetric, buttonRow.implicitWidth + root.internalPadding * 2)
-        implicitHeight: Math.max(root.toolbarHeightMetric, buttonRow.implicitHeight + root.internalPadding * 2)
-
-        Rectangle {
-            anchors.fill: parent
-            anchors.margins: 1
-            radius: parent.radius - 1
-            color: "transparent"
-            border.width: 1
-            border.color: Qt.rgba(1, 1, 1, 0.04)
-        }
+        implicitWidth: buttonRow.implicitWidth + root._chromeInternalPadding * 2
+        implicitHeight: Math.max(root.toolbarHeightMetric, buttonRow.implicitHeight + root._chromeInternalPadding * 2)
 
         Row {
             id: buttonRow
             anchors.centerIn: parent
-            spacing: root.buttonGap
+            spacing: root._chromeButtonGap
 
             Repeater {
                 id: buttonRepeater
                 model: root.actionList
 
-                GraphSurfaceControls.GraphSurfaceButton {
-                    id: actionButton
-                    objectName: "graphNodeFloatingToolbarAction_" + String(modelData.id || "")
-                    host: root.host
-                    text: String(modelData.label || "")
-                    iconName: String(modelData.icon || "")
-                    iconOnly: false
-                    iconSize: 14
-                    iconSourceResolver: function(name, size, color) {
-                        return root._iconSource(name, size, color);
+                Row {
+                    id: buttonCell
+                    spacing: 0
+                    height: actionButton.implicitHeight
+
+                    readonly property bool _isFirst: index === 0
+                    readonly property bool _isLast: index === buttonRepeater.count - 1
+                    readonly property bool _isDestructive: Boolean(modelData.destructive)
+                    readonly property bool _showLeadingSeparator:
+                        root.style === "minimal_ghost" && buttonCell._isDestructive && !buttonCell._isFirst
+
+                    Item {
+                        id: leadingSeparatorSlot
+                        visible: buttonCell._showLeadingSeparator
+                        width: visible ? 9 : 0
+                        height: buttonCell.height
+                        Rectangle {
+                            anchors.centerIn: parent
+                            width: 1
+                            height: parent.height - 8
+                            color: root._minimalSeparatorColor
+                        }
                     }
-                    accentColor: Boolean(modelData.destructive)
-                        ? "#D94F4F"
-                        : (Boolean(modelData.primary) ? root.accentColor : Qt.alpha(root.accentColor, 0.85))
-                    enabled: modelData.enabled !== false
-                    chromeRadius: 6
-                    contentHorizontalPadding: 8
-                    contentVerticalPadding: 4
-                    tooltipText: String(modelData.label || "")
-                    baseFillColor: Qt.rgba(1, 1, 1, 0.04)
-                    baseBorderColor: Qt.alpha(root.accentColor, 0.22)
-                    focusPolicy: Qt.TabFocus
-                    onControlStarted: {
-                        if (root.host && root.host.nodeData && root.host.surfaceControlInteractionStarted)
-                            root.host.surfaceControlInteractionStarted(String(root.host.nodeData.node_id || ""));
+
+                    GraphSurfaceControls.GraphSurfaceButton {
+                        id: actionButton
+                        objectName: "graphNodeFloatingToolbarAction_" + String(modelData.id || "")
+                        host: root.host
+                        text: String(modelData.label || "")
+                        iconName: String(modelData.icon || "")
+                        iconOnly: true
+                        iconSize: root._buttonIconSize
+                        iconSourceResolver: function(name, size, color) {
+                            return root._iconSource(name, size, color);
+                        }
+                        accentColor: buttonCell._isDestructive
+                            ? "#D94F4F"
+                            : (Boolean(modelData.primary) ? root.accentColor : Qt.alpha(root.accentColor, 0.85))
+                        enabled: modelData.enabled !== false
+                        chromeRadius: root._buttonChromeRadius
+                        contentHorizontalPadding: root._buttonHPadding
+                        contentVerticalPadding: root._buttonVPadding
+                        tooltipText: String(modelData.label || "")
+                        baseFillColor: "transparent"
+                        baseBorderColor: "transparent"
+                        hoverFillColor: root._buttonHoverFillColor
+                        hoverBorderColor: root._buttonHoverFillColor
+                        hoverBorderWidth: 1
+                        focusPolicy: Qt.TabFocus
+                        onControlStarted: {
+                            if (root.host && root.host.nodeData && root.host.surfaceControlInteractionStarted)
+                                root.host.surfaceControlInteractionStarted(String(root.host.nodeData.node_id || ""));
+                        }
+                        onClicked: {
+                            if (!root.host)
+                                return;
+                            root.host.dispatchNodeAction(String(modelData.id || ""), null);
+                        }
+                        Keys.onReturnPressed: actionButton.clicked()
+                        Keys.onEnterPressed: actionButton.clicked()
                     }
-                    onClicked: {
-                        if (!root.host)
-                            return;
-                        root.host.dispatchNodeAction(String(modelData.id || ""), null);
+
+                    Rectangle {
+                        id: trailingDivider
+                        visible: root.style === "segmented_bar" && !buttonCell._isLast
+                        width: visible ? 1 : 0
+                        height: buttonCell.height
+                        color: root._segmentedDividerColor
                     }
-                    Keys.onReturnPressed: actionButton.clicked()
-                    Keys.onEnterPressed: actionButton.clicked()
                 }
             }
         }
