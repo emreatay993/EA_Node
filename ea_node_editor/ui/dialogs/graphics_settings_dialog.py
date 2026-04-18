@@ -28,6 +28,7 @@ from ea_node_editor.settings import (
     EXPAND_COLLISION_AVOIDANCE_RADIUS_MODE_CHOICES,
     EXPAND_COLLISION_AVOIDANCE_SCOPE_CHOICES,
     EXPAND_COLLISION_AVOIDANCE_STRATEGY_CHOICES,
+    FLOATING_TOOLBAR_STYLE_CHOICES,
     GRAPHICS_PERFORMANCE_MODE_CHOICES,
     GRAPH_LABEL_PIXEL_SIZE_MAX,
     GRAPH_LABEL_PIXEL_SIZE_MIN,
@@ -217,6 +218,28 @@ class GraphicsSettingsDialog(SectionedSettingsDialog):
         overlay_lay.addWidget(self.minimap_expanded_check)
         overlay_lay.addWidget(self._edge_crossing_style_container)
         outer.addWidget(overlay_card)
+
+        # ── Floating toolbar section ──
+        outer.addWidget(self._make_section_title("Floating toolbar", page))
+        toolbar_card, toolbar_lay = self._make_section_card(page)
+        toolbar_form = QFormLayout()
+        toolbar_form.setContentsMargins(0, 0, 0, 0)
+        toolbar_form.setHorizontalSpacing(10)
+        toolbar_form.setVerticalSpacing(0)
+        self.floating_toolbar_style_combo = QComboBox(toolbar_card)
+        self.floating_toolbar_style_combo.setObjectName("graphicsSettingsFloatingToolbarStyleCombo")
+        for toolbar_style_id, label in FLOATING_TOOLBAR_STYLE_CHOICES:
+            self.floating_toolbar_style_combo.addItem(label, toolbar_style_id)
+        toolbar_form.addRow("Floating toolbar style", self.floating_toolbar_style_combo)
+        toolbar_lay.addLayout(toolbar_form)
+        floating_toolbar_helper = QLabel(
+            "Chrome style for the hover toolbar above nodes.",
+            toolbar_card,
+        )
+        floating_toolbar_helper.setObjectName("graphicsSettingsFloatingToolbarStyleHelper")
+        floating_toolbar_helper.setWordWrap(True)
+        toolbar_lay.addWidget(floating_toolbar_helper)
+        outer.addWidget(toolbar_card)
 
         # ── Node Shadow section ──
         outer.addWidget(self._make_section_title("Node Shadow", page))
@@ -629,6 +652,13 @@ class GraphicsSettingsDialog(SectionedSettingsDialog):
         self.edge_crossing_style_combo.setCurrentIndex(
             edge_crossing_style_index if edge_crossing_style_index >= 0 else 0
         )
+        floating_toolbar_style_id = settings["canvas"]["floating_toolbar_style"]
+        floating_toolbar_style_index = self.floating_toolbar_style_combo.findData(
+            floating_toolbar_style_id
+        )
+        self.floating_toolbar_style_combo.setCurrentIndex(
+            floating_toolbar_style_index if floating_toolbar_style_index >= 0 else 0
+        )
         self._sync_grid_style_visibility()
         self.show_minimap_check.setChecked(settings["canvas"]["show_minimap"])
         self.show_port_labels_check.setChecked(settings["canvas"]["show_port_labels"])
@@ -703,6 +733,10 @@ class GraphicsSettingsDialog(SectionedSettingsDialog):
                     "shadow_strength": self.shadow_strength_slider.value(),
                     "shadow_softness": self.shadow_softness_slider.value(),
                     "shadow_offset": self.shadow_offset_slider.value(),
+                    "floating_toolbar_style": str(
+                        self.floating_toolbar_style_combo.currentData()
+                        or DEFAULT_GRAPHICS_SETTINGS["canvas"]["floating_toolbar_style"]
+                    ),
                 },
                 "interaction": {
                     "snap_to_grid": self.snap_to_grid_check.isChecked(),

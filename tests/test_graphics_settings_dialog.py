@@ -443,6 +443,71 @@ class GraphicsSettingsDialogTests(unittest.TestCase):
         finally:
             dialog.close()
 
+    def test_floating_toolbar_style_combo_defaults_and_roundtrips_all_choices(self) -> None:
+        dialog = GraphicsSettingsDialog()
+        try:
+            self.assertEqual(
+                dialog.floating_toolbar_style_combo.objectName(),
+                "graphicsSettingsFloatingToolbarStyleCombo",
+            )
+            self.assertEqual(dialog.floating_toolbar_style_combo.count(), 3)
+            item_ids = [
+                dialog.floating_toolbar_style_combo.itemData(index)
+                for index in range(dialog.floating_toolbar_style_combo.count())
+            ]
+            self.assertEqual(item_ids, ["compact_pill", "segmented_bar", "minimal_ghost"])
+            self.assertEqual(dialog.floating_toolbar_style_combo.currentData(), "compact_pill")
+            self.assertEqual(
+                dialog.values()["canvas"]["floating_toolbar_style"],
+                "compact_pill",
+            )
+
+            for style_id in ("segmented_bar", "minimal_ghost", "compact_pill"):
+                with self.subTest(style=style_id):
+                    dialog.floating_toolbar_style_combo.setCurrentIndex(
+                        dialog.floating_toolbar_style_combo.findData(style_id)
+                    )
+                    self.assertEqual(
+                        dialog.values()["canvas"]["floating_toolbar_style"],
+                        style_id,
+                    )
+        finally:
+            dialog.close()
+
+    def test_floating_toolbar_style_set_values_accepts_initial_settings(self) -> None:
+        dialog = GraphicsSettingsDialog(
+            initial_settings={
+                "canvas": {
+                    "floating_toolbar_style": "segmented_bar",
+                }
+            }
+        )
+        try:
+            self.assertEqual(dialog.floating_toolbar_style_combo.currentData(), "segmented_bar")
+            self.assertEqual(
+                dialog.values()["canvas"]["floating_toolbar_style"],
+                "segmented_bar",
+            )
+        finally:
+            dialog.close()
+
+    def test_floating_toolbar_style_set_values_falls_back_for_unknown_id(self) -> None:
+        dialog = GraphicsSettingsDialog(
+            initial_settings={
+                "canvas": {
+                    "floating_toolbar_style": "bubble_row",
+                }
+            }
+        )
+        try:
+            self.assertEqual(dialog.floating_toolbar_style_combo.currentData(), "compact_pill")
+            self.assertEqual(
+                dialog.values()["canvas"]["floating_toolbar_style"],
+                "compact_pill",
+            )
+        finally:
+            dialog.close()
+
     def test_grid_style_control_tracks_grid_visibility_and_roundtrips_selection(self) -> None:
         dialog = GraphicsSettingsDialog(
             initial_settings={
