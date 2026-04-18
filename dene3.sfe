@@ -459,7 +459,7 @@
     },
     {
       "active_view_id": "view_2231c083a1",
-      "dirty": false,
+      "dirty": true,
       "edges": [
         {
           "edge_id": "edge_287c4a0cff",
@@ -710,11 +710,11 @@
           "hide_locked_ports": false,
           "hide_optional_ports": false,
           "name": "V1",
-          "pan_x": 0.0,
-          "pan_y": 0.0,
+          "pan_x": 963.4149081875004,
+          "pan_y": 61.725362999999895,
           "scope_path": [],
           "view_id": "view_2231c083a1",
-          "zoom": 1.0
+          "zoom": 0.6575162324319884
         }
       ],
       "workspace_id": "ws_d7a12db805"
@@ -1094,15 +1094,6 @@
           "source_node_id": "node_22a38e40c3",
           "source_port_key": "exec_out",
           "target_node_id": "node_49e8322704",
-          "target_port_key": "exec_in",
-          "visual_style": {}
-        },
-        {
-          "edge_id": "edge_d2f30a1fae",
-          "label": "",
-          "source_node_id": "node_49e8322704",
-          "source_port_key": "exec_out",
-          "target_node_id": "node_624f27b8ff",
           "target_port_key": "exec_in",
           "visual_style": {}
         },
@@ -1609,15 +1600,6 @@
           "visual_style": {}
         },
         {
-          "edge_id": "edge_b679766480",
-          "label": "",
-          "source_node_id": "node_a943a043ea",
-          "source_port_key": "exec_out",
-          "target_node_id": "node_4de2205919",
-          "target_port_key": "exec_in",
-          "visual_style": {}
-        },
-        {
           "edge_id": "edge_b6a729ae1a",
           "label": "",
           "source_node_id": "node_6a664e775d",
@@ -1655,7 +1637,14 @@
             "data_sources": true,
             "exec_in": true,
             "exec_out": true,
-            "fields_container_2": true
+            "expanded_meshed_region": false,
+            "fields_container": false,
+            "fields_container_2": true,
+            "mesh": false,
+            "mesh_scoping": false,
+            "sectors_to_expand": false,
+            "streams_container": false,
+            "time_scoping": false
           },
           "locked_ports": {},
           "node_id": "node_2df67c75a3",
