@@ -5,6 +5,7 @@ from dataclasses import dataclass, replace
 from functools import lru_cache, partial
 
 from ea_node_editor.nodes.builtins.ansys_dpf_common import (
+    DPF_COMPUTE_CATEGORY_PATH,
     DPF_EXPORT_NODE_TYPE_ID,
     DPF_MESH_EXTRACT_NODE_TYPE_ID,
     DPF_MESH_SCOPING_NODE_TYPE_ID,
@@ -22,7 +23,6 @@ from ea_node_editor.nodes.builtins.ansys_dpf_taxonomy import (
     DPF_HELPERS_CONTAINERS_CATEGORY_PATH,
     DPF_HELPERS_SCOPING_CATEGORY_PATH,
     DPF_HELPERS_SUPPORT_CATEGORY_PATH,
-    DPF_INPUTS_CATEGORY_PATH,
     DPF_VIEWER_CATEGORY_PATH,
     DPF_WORKFLOW_CATEGORY_PATH,
 )
@@ -54,7 +54,7 @@ def _load_ansys_dpf_helper_plugin_factories() -> tuple[Callable[[], NodePlugin],
 
 
 _HELPER_CATEGORY_PATHS = {
-    DPF_RESULT_FILE_NODE_TYPE_ID: DPF_INPUTS_CATEGORY_PATH,
+    DPF_RESULT_FILE_NODE_TYPE_ID: DPF_COMPUTE_CATEGORY_PATH,
     DPF_MODEL_NODE_TYPE_ID: DPF_WORKFLOW_CATEGORY_PATH,
     DPF_MESH_SCOPING_NODE_TYPE_ID: DPF_HELPERS_SCOPING_CATEGORY_PATH,
     DPF_TIME_SCOPING_NODE_TYPE_ID: DPF_HELPERS_SCOPING_CATEGORY_PATH,

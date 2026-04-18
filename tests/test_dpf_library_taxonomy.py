@@ -4,6 +4,7 @@ import unittest
 
 from ea_node_editor.nodes.builtins import ansys_dpf_catalog
 from ea_node_editor.nodes.builtins.ansys_dpf_common import (
+    DPF_COMPUTE_CATEGORY_PATH,
     DPF_EXPORT_NODE_TYPE_ID,
     DPF_FIELD_OPS_NODE_TYPE_ID,
     DPF_MESH_EXTRACT_NODE_TYPE_ID,
@@ -93,7 +94,7 @@ class DpfLibraryTaxonomyTests(unittest.TestCase):
             descriptor.spec.type_id: descriptor.spec
             for descriptor in ansys_dpf_catalog.load_ansys_dpf_plugin_descriptors()
         }
-        self.assertEqual(descriptors[DPF_RESULT_FILE_NODE_TYPE_ID].category_path, DPF_INPUTS_CATEGORY_PATH)
+        self.assertEqual(descriptors[DPF_RESULT_FILE_NODE_TYPE_ID].category_path, DPF_COMPUTE_CATEGORY_PATH)
         self.assertEqual(descriptors[DPF_MODEL_NODE_TYPE_ID].category_path, DPF_WORKFLOW_CATEGORY_PATH)
         self.assertEqual(
             descriptors[DPF_MESH_SCOPING_NODE_TYPE_ID].category_path,

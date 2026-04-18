@@ -3,6 +3,7 @@ from __future__ import annotations
 import unittest
 
 from ea_node_editor.nodes.builtins.ansys_dpf_common import (
+    DPF_COMPUTE_CATEGORY_PATH,
     DPF_EXPORT_NODE_TYPE_ID,
     DPF_FIELD_OPS_NODE_TYPE_ID,
     DPF_MESH_EXTRACT_NODE_TYPE_ID,
@@ -172,6 +173,7 @@ class RegistryFilterTests(unittest.TestCase):
 
         self.assertIn(DPF_NODE_CATEGORY_PATH, category_paths)
         self.assertIn(DPF_INPUTS_CATEGORY_PATH, category_paths)
+        self.assertIn(DPF_COMPUTE_CATEGORY_PATH, category_paths)
         self.assertIn(DPF_WORKFLOW_CATEGORY_PATH, category_paths)
         self.assertIn(DPF_HELPERS_CATEGORY_PATH, category_paths)
         self.assertIn(DPF_HELPERS_SCOPING_CATEGORY_PATH, category_paths)
@@ -181,7 +183,7 @@ class RegistryFilterTests(unittest.TestCase):
         self.assertIn(operator_family_category_path("result"), category_paths)
         self.assertIn(operator_family_category_path("math"), category_paths)
         self.assertIn(DPF_VIEWER_CATEGORY_PATH, category_paths)
-        self.assertIn(category_display(DPF_INPUTS_CATEGORY_PATH), categories)
+        self.assertIn(category_display(DPF_COMPUTE_CATEGORY_PATH), categories)
         self.assertIn(category_display(DPF_WORKFLOW_CATEGORY_PATH), categories)
         self.assertIn(category_display(DPF_HELPERS_SCOPING_CATEGORY_PATH), categories)
         self.assertIn(category_display(DPF_HELPERS_CONTAINERS_CATEGORY_PATH), categories)

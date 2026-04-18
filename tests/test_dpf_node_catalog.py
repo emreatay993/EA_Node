@@ -32,6 +32,7 @@ from ea_node_editor.nodes.bootstrap import build_default_registry
 from ea_node_editor.nodes.builtins import ansys_dpf as ansys_dpf_module
 from ea_node_editor.nodes.builtins import ansys_dpf_catalog
 from ea_node_editor.nodes.builtins.ansys_dpf_common import (
+    DPF_COMPUTE_CATEGORY_PATH,
     DPF_EXPORT_NODE_TYPE_ID,
     DPF_FIELD_OPS_NODE_TYPE_ID,
     DPF_FIELD_OPS_VARIANT_CONVERT_LOCATION_ELEMENTAL,
@@ -57,7 +58,6 @@ from ea_node_editor.nodes.builtins.ansys_dpf_taxonomy import (
     DPF_HELPERS_CONTAINERS_CATEGORY_PATH,
     DPF_HELPERS_SCOPING_CATEGORY_PATH,
     DPF_HELPERS_SUPPORT_CATEGORY_PATH,
-    DPF_INPUTS_CATEGORY_PATH,
     DPF_NODE_CATEGORY,
     DPF_NODE_CATEGORY_PATH,
     DPF_VIEWER_CATEGORY_PATH,
@@ -198,7 +198,7 @@ _EXPECTED_DPF_TITLE_ICON_PATHS = {
 }
 
 _EXPECTED_DPF_CATEGORY_PATHS = {
-    DPF_RESULT_FILE_NODE_TYPE_ID: DPF_INPUTS_CATEGORY_PATH,
+    DPF_RESULT_FILE_NODE_TYPE_ID: DPF_COMPUTE_CATEGORY_PATH,
     DPF_MODEL_NODE_TYPE_ID: DPF_WORKFLOW_CATEGORY_PATH,
     DPF_MESH_SCOPING_NODE_TYPE_ID: DPF_HELPERS_SCOPING_CATEGORY_PATH,
     DPF_TIME_SCOPING_NODE_TYPE_ID: DPF_HELPERS_SCOPING_CATEGORY_PATH,
@@ -593,7 +593,7 @@ class DpfNodeCatalogTests(unittest.TestCase):
         self.assertGreater(len(dpf_type_ids), len(_EXPECTED_DPF_SPECS))
         self.assertTrue(
             {
-                DPF_INPUTS_CATEGORY_PATH,
+                DPF_COMPUTE_CATEGORY_PATH,
                 DPF_WORKFLOW_CATEGORY_PATH,
                 DPF_HELPERS_SCOPING_CATEGORY_PATH,
                 DPF_HELPERS_CONTAINERS_CATEGORY_PATH,
