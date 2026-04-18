@@ -29,6 +29,11 @@ Item {
         return Array.isArray(actions) ? actions : [];
     }
     readonly property color accentColor: root.hostValid ? root.host.nodeThemeColor : "#4DA8DA"
+    readonly property color chromeFillColor: {
+        if (root.hostValid && root.host.headerColor !== undefined)
+            return Qt.rgba(root.host.headerColor.r, root.host.headerColor.g, root.host.headerColor.b, 0.95);
+        return Qt.rgba(0.10, 0.11, 0.13, 0.95);
+    }
 
     readonly property real gapFromNode: Number(toolbarMetrics.gap_from_node || 6)
     readonly property real safetyMargin: Number(toolbarMetrics.safety_margin || 8)
@@ -49,12 +54,18 @@ Item {
     readonly property var nodeLocalRect: {
         if (!root.hostValid || !root.hostNodeData)
             return ({ x: 0, y: 0, width: 0, height: 0 });
-        var offset = Number(root.host.worldOffset || 0);
-        var liveX = Boolean(root.host._liveGeometryActive) ? Number(root.host._liveX || 0) : Number(root.hostNodeData.x || 0);
-        var liveY = Boolean(root.host._liveGeometryActive) ? Number(root.host._liveY || 0) : Number(root.hostNodeData.y || 0);
+        // host.x already folds in worldOffset plus the active drag (drag.target
+        // mutates host.x directly during a drag). liveDragDx/Dy contribute the
+        // multi-selection translate applied to non-anchor nodes via transform.
+        var dragDx = root.host.dragTranslateX !== undefined
+            ? Number(root.host.dragTranslateX || 0)
+            : 0.0;
+        var dragDy = root.host.dragTranslateY !== undefined
+            ? Number(root.host.dragTranslateY || 0)
+            : 0.0;
         return {
-            x: liveX + offset,
-            y: liveY + offset,
+            x: Number(root.host.x || 0) + dragDx,
+            y: Number(root.host.y || 0) + dragDy,
             width: Number(root.host.width || 0),
             height: Number(root.host.height || 0)
         };
@@ -123,11 +134,46 @@ Item {
         return uiIcons.sourceSized(name, size, color);
     }
 
+    // Propagate hover state back to the host so toolbarActiveSource stays true
+    // while the cursor is on the chrome or in the gap bridging it to the node.
+    // The gap bridge widens the effective hover target across the visible gap
+    // so slow cursor movement does not race the 120 ms grace timer.
+    readonly property bool pointerOnToolbar: chromeHoverHandler.hovered || bridgeHoverHandler.hovered
+    onPointerOnToolbarChanged: {
+        if (root.hostValid)
+            root.host.toolbarPointerInside = root.pointerOnToolbar;
+    }
+    onHostChanged: {
+        if (_previousHost && _previousHost.toolbarPointerInside !== undefined)
+            _previousHost.toolbarPointerInside = false;
+        _previousHost = root.host;
+        if (root.hostValid)
+            root.host.toolbarPointerInside = root.pointerOnToolbar;
+    }
+    property Item _previousHost: null
+
+    HoverHandler {
+        id: chromeHoverHandler
+    }
+
+    Item {
+        id: hoverBridge
+        objectName: "graphNodeFloatingToolbarHoverBridge"
+        width: chromeContainer.width
+        height: Math.max(1, root.gapFromNode)
+        x: 0
+        y: root.flipped ? -height : chromeContainer.height
+
+        HoverHandler {
+            id: bridgeHoverHandler
+        }
+    }
+
     Rectangle {
         id: chromeContainer
         objectName: "graphNodeFloatingToolbarChrome"
         radius: 8
-        color: Qt.rgba(0.10, 0.11, 0.13, 0.95)
+        color: root.chromeFillColor
         border.width: 1
         border.color: Qt.alpha(root.accentColor, 0.82)
 

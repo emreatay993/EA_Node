@@ -665,9 +665,22 @@ Item {
         return card.commonNodeActions.concat(surface);
     }
 
+    // Drag translate exposed for sibling overlays (floating toolbar) that need to
+    // follow the node during multi-selection drag, where non-anchor nodes stay
+    // pinned to nodeData.x/y and move via the Translate transform below.
+    readonly property real dragTranslateX: hostGestureLayer.dragActive ? 0 : Number(card.liveDragDx || 0)
+    readonly property real dragTranslateY: hostGestureLayer.dragActive ? 0 : Number(card.liveDragDy || 0)
+
+    // Set by the overlay toolbar while the cursor is inside its chrome (or the
+    // gap bridging it to the node), so the toolbar stays open while the user
+    // reaches for a button.
+    property bool toolbarPointerInside: false
+
     // Hover-or-selected trigger with 120 ms grace period so the cursor can travel
     // from the node onto the toolbar without the toolbar collapsing mid-motion.
-    readonly property bool toolbarActiveSource: card.hoverActive || card.isSelected
+    readonly property bool toolbarActiveSource: card.hoverActive
+        || card.isSelected
+        || card.toolbarPointerInside
     property bool toolbarActive: false
     Timer {
         id: _toolbarGraceTimer
