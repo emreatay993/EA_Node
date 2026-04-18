@@ -41,6 +41,7 @@ _ICON_SPECS: dict[str, IconSpec] = {
     "focus": IconSpec(name="focus", label="Focus", relative_path="focus.svg"),
     "keep-live": IconSpec(name="keep-live", label="Keep Live", relative_path="keep-live.svg"),
     "pin": IconSpec(name="pin", label="Pin", relative_path="pin.svg"),
+    "search": IconSpec(name="search", label="Search", relative_path="search.svg"),
     "more": IconSpec(name="more", label="More", relative_path="more.svg"),
     "chevrons-left": IconSpec(name="chevrons-left", label="Collapse", relative_path="chevrons-left.svg"),
     "chevrons-right": IconSpec(name="chevrons-right", label="Collapse", relative_path="chevrons-right.svg"),
