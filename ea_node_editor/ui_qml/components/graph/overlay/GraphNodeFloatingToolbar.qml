@@ -170,6 +170,38 @@ Item {
     }
 
     Rectangle {
+        id: ownershipCaret
+        objectName: "graphNodeFloatingToolbarCaret"
+        z: -1
+        width: 9
+        height: 9
+        rotation: 45
+        antialiasing: true
+        color: chromeContainer.color
+        border.width: 1
+        border.color: chromeContainer.border.color
+
+        readonly property real ownerCenterX: {
+            if (!root.hostValid)
+                return chromeContainer.width / 2;
+            var rect = root.nodeLocalRect;
+            return rect.x + rect.width / 2 - root.x;
+        }
+        readonly property real caretEdgeMargin: 6
+        readonly property real clampedCenterX: Math.max(
+            caretEdgeMargin + width / 2,
+            Math.min(
+                chromeContainer.width - caretEdgeMargin - width / 2,
+                ownerCenterX
+            )
+        )
+        x: clampedCenterX - width / 2
+        y: root.flipped
+            ? -height / 2 - 0.5
+            : chromeContainer.height - height / 2 + 0.5
+    }
+
+    Rectangle {
         id: chromeContainer
         objectName: "graphNodeFloatingToolbarChrome"
         radius: 8
