@@ -404,7 +404,9 @@ def humanize_dpf_symbol_name(value: object) -> str:
     return " ".join(part.capitalize() for part in token.split(" "))
 
 
-def dpf_output_mode_property(*, default: str = DPF_OUTPUT_MODE_MEMORY) -> PropertySpec:
+def dpf_output_mode_property(
+    *, default: str = DPF_OUTPUT_MODE_MEMORY, group: str = "Post"
+) -> PropertySpec:
     return PropertySpec(
         "output_mode",
         "enum",
@@ -412,6 +414,7 @@ def dpf_output_mode_property(*, default: str = DPF_OUTPUT_MODE_MEMORY) -> Proper
         "Output Mode",
         enum_values=DPF_OUTPUT_MODE_VALUES,
         inspector_editor="enum",
+        group=group,
     )
 
 

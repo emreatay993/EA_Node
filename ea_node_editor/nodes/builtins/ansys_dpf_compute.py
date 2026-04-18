@@ -92,7 +92,7 @@ from ea_node_editor.nodes.node_specs import (
         PortSpec("exec_out", "out", "exec", "exec", exposed=True),
     ),
     properties=(
-        PropertySpec("path", "path", "", "Result File"),
+        PropertySpec("path", "path", "", "Result File", group="Source"),
         dpf_output_mode_property(),
     ),
 )
@@ -124,7 +124,7 @@ class DpfResultFileNodePlugin:
         PortSpec("exec_out", "out", "exec", "exec", exposed=True),
     ),
     properties=(
-        PropertySpec("path", "path", "", "Result File"),
+        PropertySpec("path", "path", "", "Result File", group="Source"),
         dpf_output_mode_property(),
     ),
 )
@@ -161,10 +161,11 @@ class DpfModelNodePlugin:
             "Selection Mode",
             enum_values=DPF_MESH_SELECTION_VALUES,
             inspector_editor="enum",
+            group="Selection",
         ),
-        PropertySpec("named_selection", "str", "", "Named Selection"),
-        PropertySpec("node_ids", "str", "", "Node IDs", inspector_editor="textarea"),
-        PropertySpec("element_ids", "str", "", "Element IDs", inspector_editor="textarea"),
+        PropertySpec("named_selection", "str", "", "Named Selection", group="Selection"),
+        PropertySpec("node_ids", "str", "", "Node IDs", inspector_editor="textarea", group="Selection"),
+        PropertySpec("element_ids", "str", "", "Element IDs", inspector_editor="textarea", group="Selection"),
         PropertySpec(
             "location",
             "enum",
@@ -172,9 +173,10 @@ class DpfModelNodePlugin:
             "Location",
             enum_values=DPF_LOCATION_VALUES,
             inspector_editor="enum",
+            group="Selection",
         ),
-        PropertySpec("set_ids", "str", "", "Set IDs", inspector_editor="textarea"),
-        PropertySpec("time_values", "str", "", "Time Values", inspector_editor="textarea"),
+        PropertySpec("set_ids", "str", "", "Set IDs", inspector_editor="textarea", group="Selection"),
+        PropertySpec("time_values", "str", "", "Time Values", inspector_editor="textarea", group="Selection"),
         dpf_output_mode_property(),
     ),
 )
@@ -267,8 +269,8 @@ class DpfMeshScopingNodePlugin:
         PortSpec("exec_out", "out", "exec", "exec", exposed=True),
     ),
     properties=(
-        PropertySpec("set_ids", "str", "", "Set IDs", inspector_editor="textarea"),
-        PropertySpec("time_values", "str", "", "Time Values", inspector_editor="textarea"),
+        PropertySpec("set_ids", "str", "", "Set IDs", inspector_editor="textarea", group="Selection"),
+        PropertySpec("time_values", "str", "", "Time Values", inspector_editor="textarea", group="Selection"),
         dpf_output_mode_property(),
     ),
 )
@@ -325,7 +327,7 @@ class DpfTimeScopingNodePlugin:
         PortSpec("exec_out", "out", "exec", "exec", exposed=True),
     ),
     properties=(
-        PropertySpec("result_name", "str", "displacement", "Result Name"),
+        PropertySpec("result_name", "str", "displacement", "Result Name", group="Selection"),
         PropertySpec(
             "location",
             "enum",
@@ -333,9 +335,10 @@ class DpfTimeScopingNodePlugin:
             "Location",
             enum_values=DPF_RESULT_FIELD_LOCATION_VALUES,
             inspector_editor="enum",
+            group="Selection",
         ),
-        PropertySpec("set_ids", "str", "", "Set IDs", inspector_editor="textarea"),
-        PropertySpec("time_values", "str", "", "Time Values", inspector_editor="textarea"),
+        PropertySpec("set_ids", "str", "", "Set IDs", inspector_editor="textarea", group="Selection"),
+        PropertySpec("time_values", "str", "", "Time Values", inspector_editor="textarea", group="Selection"),
         dpf_output_mode_property(),
     ),
 )
@@ -422,6 +425,7 @@ class DpfResultFieldNodePlugin:
             "Operation",
             enum_values=DPF_FIELD_OPERATION_VALUES,
             inspector_editor="enum",
+            group="Post",
         ),
         PropertySpec(
             "location",
@@ -430,6 +434,7 @@ class DpfResultFieldNodePlugin:
             "Target Location",
             enum_values=DPF_TARGET_FIELD_LOCATION_VALUES,
             inspector_editor="enum",
+            group="Post",
         ),
         dpf_output_mode_property(),
     ),
@@ -519,7 +524,7 @@ class DpfFieldOpsNodePlugin:
         PortSpec("exec_out", "out", "exec", "exec", exposed=True),
     ),
     properties=(
-        PropertySpec("nodes_only", "bool", False, "Nodes Only"),
+        PropertySpec("nodes_only", "bool", False, "Nodes Only", group="Post"),
         dpf_output_mode_property(),
     ),
 )
@@ -556,8 +561,8 @@ class DpfMeshExtractNodePlugin:
         PortSpec("exec_out", "out", "exec", "exec", exposed=True),
     ),
     properties=(
-        PropertySpec("artifact_key", "str", "", "Artifact Key"),
-        PropertySpec("export_formats", "str", "csv", "Export Formats"),
+        PropertySpec("artifact_key", "str", "", "Artifact Key", group="Post"),
+        PropertySpec("export_formats", "str", "csv", "Export Formats", group="Post"),
         dpf_output_mode_property(default=DPF_OUTPUT_MODE_STORED),
     ),
 )
