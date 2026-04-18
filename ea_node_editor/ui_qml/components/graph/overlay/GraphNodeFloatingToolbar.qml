@@ -3,6 +3,7 @@ import QtQuick.Controls 2.15
 import "../surface_controls" as GraphSurfaceControls
 import "../surface_controls/SurfaceControlGeometry.js" as SurfaceControlGeometry
 import "toolbar_positioning.js" as ToolbarPositioning
+import "contrast_utils.js" as ContrastUtils
 
 Item {
     id: root
@@ -57,7 +58,15 @@ Item {
     // overrides (shell colors) instead of staying hardcoded-dark.
     readonly property color _chromeBaseFill: root.hostValid ? root.host.headerColor : "#1b1d22"
     readonly property color _chromeBaseBorder: root.hostValid ? root.host.outlineColor : "#3a3d45"
-    readonly property color _chromeForeground: root.hostValid ? root.host.headerTextColor : "#f0f4fb"
+    readonly property color _rawHeaderText: root.hostValid ? root.host.headerTextColor : "#f0f4fb"
+    // Ghost icons float on the shell's canvas_bg but headerTextColor comes from the graph theme — some pairs drop below WCAG 3:1, so fall back to shell app_fg.
+    readonly property string _canvasBg: (typeof themeBridge !== "undefined" && themeBridge && themeBridge.palette) ? String(themeBridge.palette.canvas_bg || "") : ""
+    readonly property color _shellFallbackFg: (typeof themeBridge !== "undefined" && themeBridge && themeBridge.palette && themeBridge.palette.app_fg) ? themeBridge.palette.app_fg : "#f0f4fb"
+    readonly property color _chromeForeground: {
+        if (!root.hostValid || root.style !== "minimal_ghost")
+            return root._rawHeaderText;
+        return ContrastUtils.pickReadableForeground(root._rawHeaderText, root._shellFallbackFg, root._canvasBg, 3.0);
+    }
 
     function _canvasStateBridge() {
         if (root.canvasItem) {
@@ -423,6 +432,7 @@ Item {
                         iconSourceResolver: function(name, size, color) {
                             return root._iconSource(name, size, color);
                         }
+                        foregroundColor: root._chromeForeground
                         accentColor: buttonCell._isDestructive
                             ? "#D94F4F"
                             : root.accentColor
