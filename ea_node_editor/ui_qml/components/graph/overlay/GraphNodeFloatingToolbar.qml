@@ -321,7 +321,7 @@ Item {
         source: root._iconSource(
             root.flipped ? "chevron-down" : "chevron-up",
             24,
-            root._chromeBaseBorder
+            root._chromeForeground
         )
         sourceSize: Qt.size(24, 24)
 
