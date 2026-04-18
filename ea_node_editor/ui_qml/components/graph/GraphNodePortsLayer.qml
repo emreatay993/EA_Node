@@ -93,6 +93,13 @@ Item {
         return String(portData && portData.key || "");
     }
 
+    function _resolvedPortRowHeight() {
+        var numeric = Number(root.host && root.host.surfaceMetrics ? root.host.surfaceMetrics.port_height : NaN);
+        if (!isFinite(numeric) || numeric <= 0.0)
+            return 18.0;
+        return Math.max(18.0, numeric);
+    }
+
     function beginPortLabelEdit(portKey, direction) {
         root.editingPortKey = portKey;
         root.editingPortDirection = direction;
@@ -134,10 +141,11 @@ Item {
                 ? root.host.localPortPoint("in", rowIndex)
                 : ({"x": 0.0, "y": 0.0})
             readonly property real dotDiameter: inputDot.width
+            readonly property real metricRowHeight: root._resolvedPortRowHeight()
             x: 0
             y: portPoint.y - height * 0.5
             width: root.host ? root.host.width : 0
-            height: Math.max(dotDiameter, 18)
+            height: Math.max(dotDiameter, metricRowHeight)
 
             Rectangle {
                 objectName: "graphNodeInputPortLockedRowTint"
@@ -425,7 +433,7 @@ Item {
                 anchors.verticalCenter: parent.verticalCenter
                 x: labelX
                 width: availableWidth
-                height: Math.max(inputLabelText.implicitHeight, 18)
+                height: parent.height
 
                 Canvas {
                     id: lockGlyph
@@ -644,10 +652,11 @@ Item {
                 ? root.host.localPortPoint("out", rowIndex)
                 : ({"x": 0.0, "y": 0.0})
             readonly property real dotDiameter: outputDot.width
+            readonly property real metricRowHeight: root._resolvedPortRowHeight()
             x: 0
             y: portPoint.y - height * 0.5
             width: root.host ? root.host.width : 0
-            height: Math.max(dotDiameter, 18)
+            height: Math.max(dotDiameter, metricRowHeight)
 
             Rectangle {
                 id: outputDot
@@ -887,7 +896,7 @@ Item {
                 visible: root.host ? root.host._portLabelsVisible : true
                 anchors.verticalCenter: parent.verticalCenter
                 width: availableWidth
-                height: Math.max(outputLabelText.implicitHeight, 18)
+                height: parent.height
                 x: standardColumnsActive && root.host
                     ? Math.max(0, outputDot.x - (root.host ? root.host._portLabelGap : 6) - availableWidth)
                     : 4

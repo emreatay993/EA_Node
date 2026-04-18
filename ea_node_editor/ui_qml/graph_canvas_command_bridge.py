@@ -802,5 +802,15 @@ class GraphCanvasCommandBridge(QObject):
             )
         )
 
+    @pyqtSlot(str, result=bool)
+    def request_duplicate_node(self, node_id: str) -> bool:
+        normalized = str(node_id or "").strip()
+        if not normalized:
+            return False
+        _invoke(self._scene_command_source, "select_node", normalized, False)
+        return bool(
+            _invoke(self._scene_bridge, "duplicate_selected_subgraph", default=False)
+        )
+
 
 __all__ = ["GraphCanvasCommandBridge"]

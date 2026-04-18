@@ -52,12 +52,15 @@ class ViewerSurfaceContractTests(unittest.TestCase):
     def test_graph_viewer_surface_facade_stays_within_packet_budget(self) -> None:
         viewer_dir = Path(__file__).resolve().parents[1] / "ea_node_editor" / "ui_qml" / "components" / "graph" / "viewer"
         facade_path = viewer_dir / "GraphViewerSurface.qml"
-        content_path = viewer_dir / "GraphViewerSurfaceContent.qml"
+        body_path = viewer_dir / "GraphViewerSurfaceBody.qml"
+        legacy_content_path = viewer_dir / "GraphViewerSurfaceContent.qml"
         facade_text = facade_path.read_text(encoding="utf-8")
 
-        self.assertFalse(content_path.exists())
-        self.assertIn("Qt.createQmlObject", facade_text)
-        self.assertIn("readonly property string _SRC", facade_text)
+        self.assertFalse(legacy_content_path.exists())
+        self.assertTrue(body_path.exists())
+        self.assertIn("GraphViewerSurfaceBody.qml", facade_text)
+        self.assertIn("dispatchSurfaceAction", facade_text)
+        self.assertIn("surfaceActions", facade_text)
         self.assertLessEqual(len(facade_text.splitlines()), 600)
 
 
@@ -341,6 +344,40 @@ class ViewerSurfaceContractTests(unittest.TestCase):
             },
         )
 
+    def test_surface_metrics_payload_publishes_floating_toolbar_block(self) -> None:
+        spec = _viewer_surface_spec()
+        node = NodeInstance(
+            node_id="node_viewer_surface_contract",
+            type_id=spec.type_id,
+            title="Viewer Contract",
+            x=24.0,
+            y=18.0,
+        )
+
+        metrics = node_surface_metrics(node, spec, {node.node_id: node})
+        payload = metrics.to_payload()
+
+        self.assertIn("floating_toolbar", payload)
+        toolbar = payload["floating_toolbar"]
+        self.assertIsInstance(toolbar, dict)
+        for key in (
+            "toolbar_height",
+            "button_size",
+            "button_gap",
+            "internal_padding",
+            "gap_from_node",
+            "safety_margin",
+        ):
+            with self.subTest(key=key):
+                self.assertIn(key, toolbar)
+                self.assertGreater(float(toolbar[key]), 0.0)
+        self.assertEqual(float(toolbar["toolbar_height"]), 32.0)
+        self.assertEqual(float(toolbar["button_size"]), 24.0)
+        self.assertEqual(float(toolbar["button_gap"]), 4.0)
+        self.assertEqual(float(toolbar["internal_padding"]), 4.0)
+        self.assertEqual(float(toolbar["gap_from_node"]), 6.0)
+        self.assertEqual(float(toolbar["safety_margin"]), 8.0)
+
     def test_graph_scene_payload_builder_publishes_viewer_surface_payload(self) -> None:
         registry = NodeRegistry()
         spec = _viewer_surface_spec()
@@ -465,6 +502,206 @@ class ViewerSurfaceContractTests(unittest.TestCase):
             """,
         )
 
+    def test_viewer_ports_stay_within_shell_when_height_is_reduced_above_minimum(self) -> None:
+        self._run_qml_probe(
+            "viewer-mid-height-port-fit",
+            """
+            payload = viewer_payload()
+            payload["height"] = 254.0
+            payload["surface_metrics"]["default_height"] = 272.0
+            payload["surface_metrics"]["min_height"] = 244.0
+            payload["surface_metrics"]["body_height"] = 176.0
+            payload["surface_metrics"]["port_top"] = 206.0
+            payload["ports"] = [
+                {"port_id": "field", "label": "field", "direction": "in", "kind": "data", "data_type": "dpf_field"},
+                {"port_id": "model", "label": "model", "direction": "in", "kind": "data", "data_type": "dpf_model"},
+                {"port_id": "mesh", "label": "mesh", "direction": "in", "kind": "data", "data_type": "dpf_mesh"},
+                {"port_id": "session", "label": "session", "direction": "out", "kind": "data", "data_type": "dpf_view_session"},
+            ]
+
+            host = create_component(
+                graph_node_host_qml_path,
+                {
+                    "nodeData": payload,
+                    "snapshotReuseActive": True,
+                },
+            )
+
+            reduced_metrics = variant_value(host.property("surfaceMetrics"))
+            reduced_point = variant_value(host.localPortPoint("in", 2))
+            assert abs(float(reduced_metrics["body_height"]) - 158.0) < 0.1
+            assert abs(float(reduced_metrics["port_top"]) - 188.0) < 0.1
+            assert (
+                float(reduced_metrics["port_top"])
+                + 3.0 * float(reduced_metrics["port_height"])
+                + float(reduced_metrics["body_bottom_margin"])
+            ) <= 254.1
+            assert float(reduced_point["y"]) <= 254.0
+            """,
+        )
+
+    def test_viewer_host_clamps_short_payload_height_to_live_surface_minimum(self) -> None:
+        self._run_qml_probe(
+            "viewer-short-payload-height-clamp",
+            """
+            payload = viewer_payload()
+            payload["height"] = 236.0
+            payload["surface_metrics"]["default_height"] = 290.0
+            payload["surface_metrics"]["min_height"] = 262.0
+            payload["surface_metrics"]["body_height"] = 176.0
+            payload["surface_metrics"]["port_top"] = 206.0
+            payload["ports"] = [
+                {"key": "exec_in", "label": "exec_in", "direction": "in", "kind": "exec", "data_type": "exec", "exposed": True},
+                {"key": "exec_out", "label": "exec_out", "direction": "out", "kind": "exec", "data_type": "exec", "exposed": True},
+                {"key": "field", "label": "field", "direction": "in", "kind": "data", "data_type": "dpf_field", "exposed": True},
+                {"key": "model", "label": "model", "direction": "in", "kind": "data", "data_type": "dpf_model", "exposed": True},
+                {"key": "mesh", "label": "mesh", "direction": "in", "kind": "data", "data_type": "dpf_mesh", "exposed": True},
+                {"key": "session", "label": "session", "direction": "out", "kind": "data", "data_type": "dpf_view_session", "exposed": True},
+            ]
+
+            host = create_component(
+                graph_node_host_qml_path,
+                {
+                    "nodeData": payload,
+                    "snapshotReuseActive": True,
+                },
+            )
+
+            host_height = float(host.property("height"))
+            clamped_metrics = variant_value(host.property("surfaceMetrics"))
+            last_input_point = variant_value(host.localPortPoint("in", 3))
+            last_output_point = variant_value(host.localPortPoint("out", 1))
+
+            assert abs(host_height - 262.0) < 0.1
+            assert abs(float(clamped_metrics["min_height"]) - 262.0) < 0.1
+            assert float(last_input_point["y"]) <= host_height
+            assert float(last_output_point["y"]) <= host_height
+            """,
+        )
+
+    def test_viewer_host_heals_stale_default_height_without_explicit_node_height(self) -> None:
+        self._run_qml_probe(
+            "viewer-stale-default-height-heal",
+            """
+            payload = viewer_payload()
+            del payload["height"]
+            payload["surface_metrics"]["default_height"] = 290.0
+            payload["surface_metrics"]["min_height"] = 262.0
+            payload["surface_metrics"]["body_height"] = 176.0
+            payload["surface_metrics"]["port_top"] = 206.0
+            payload["ports"] = [
+                {"key": "exec_in", "label": "exec_in", "direction": "in", "kind": "exec", "data_type": "exec", "exposed": True},
+                {"key": "exec_out", "label": "exec_out", "direction": "out", "kind": "exec", "data_type": "exec", "exposed": True},
+                {"key": "field", "label": "field", "direction": "in", "kind": "data", "data_type": "dpf_field", "exposed": True},
+                {"key": "model", "label": "model", "direction": "in", "kind": "data", "data_type": "dpf_model", "exposed": True},
+                {"key": "mesh", "label": "mesh", "direction": "in", "kind": "data", "data_type": "dpf_mesh", "exposed": True},
+                {"key": "session", "label": "session", "direction": "out", "kind": "data", "data_type": "dpf_view_session", "exposed": True},
+            ]
+
+            host = create_component(
+                graph_node_host_qml_path,
+                {
+                    "nodeData": payload,
+                    "snapshotReuseActive": True,
+                    "graphLabelPixelSize": 16,
+                },
+            )
+
+            host_height = float(host.property("height"))
+            metrics = variant_value(host.property("surfaceMetrics"))
+            mesh_row = named_item(host, "graphNodeInputPortRow", "mesh")
+            mesh_row_bottom = float(mesh_row.y()) + float(mesh_row.height())
+
+            assert abs(host_height - 314.0) < 0.1
+            assert abs(float(metrics["default_height"]) - 314.0) < 0.1
+            assert abs(float(metrics["port_height"]) - 24.0) < 0.1
+            assert mesh_row_bottom <= host_height - 0.1
+            """,
+        )
+
+    def test_viewer_host_respects_payload_body_top_when_title_icon_increases_header(self) -> None:
+        self._run_qml_probe(
+            "viewer-body-top-consistency-with-large-header",
+            """
+            payload = viewer_payload()
+            payload["height"] = 320.0
+            payload["surface_metrics"]["default_height"] = 320.0
+            payload["surface_metrics"]["min_height"] = 292.0
+            payload["surface_metrics"]["header_height"] = 54.0
+            payload["surface_metrics"]["title_height"] = 54.0
+            payload["surface_metrics"]["body_top"] = 60.0
+            payload["surface_metrics"]["body_height"] = 176.0
+            payload["surface_metrics"]["port_top"] = 236.0
+            payload["surface_metrics"]["port_height"] = 24.0
+            payload["ports"] = [
+                {"key": "exec_in", "label": "exec_in", "direction": "in", "kind": "exec", "data_type": "exec", "exposed": True},
+                {"key": "field", "label": "field", "direction": "in", "kind": "data", "data_type": "dpf_field", "exposed": True},
+                {"key": "model", "label": "model", "direction": "in", "kind": "data", "data_type": "dpf_model", "exposed": True},
+            ]
+
+            host = create_component(
+                graph_node_host_qml_path,
+                {
+                    "nodeData": payload,
+                    "snapshotReuseActive": True,
+                    "graphLabelPixelSize": 16,
+                },
+            )
+
+            host_height = float(host.property("height"))
+            metrics = variant_value(host.property("surfaceMetrics"))
+            model_row = named_item(host, "graphNodeInputPortRow", "model")
+            model_row_bottom = float(model_row.y()) + float(model_row.height())
+            model_point = variant_value(host.localPortPoint("in", 2))
+
+            assert abs(host_height - 320.0) < 0.1
+            assert abs(float(metrics["body_height"]) - 176.0) < 0.1
+            assert abs(float(metrics["port_top"]) - 236.0) < 0.1
+            assert abs(float(model_point["y"]) - 290.0) < 0.1
+            assert model_row_bottom <= host_height - 0.1
+            """,
+        )
+
+    def test_viewer_port_rows_stay_inside_shell_for_large_graph_labels(self) -> None:
+        self._run_qml_probe(
+            "viewer-large-graph-label-port-fit",
+            """
+            payload = viewer_payload()
+            payload["height"] = 236.0
+            payload["surface_metrics"]["default_height"] = 290.0
+            payload["surface_metrics"]["min_height"] = 262.0
+            payload["surface_metrics"]["body_height"] = 176.0
+            payload["surface_metrics"]["port_top"] = 206.0
+            payload["ports"] = [
+                {"key": "exec_in", "label": "exec_in", "direction": "in", "kind": "exec", "data_type": "exec", "exposed": True},
+                {"key": "exec_out", "label": "exec_out", "direction": "out", "kind": "exec", "data_type": "exec", "exposed": True},
+                {"key": "field", "label": "field", "direction": "in", "kind": "data", "data_type": "dpf_field", "exposed": True},
+                {"key": "model", "label": "model", "direction": "in", "kind": "data", "data_type": "dpf_model", "exposed": True},
+                {"key": "mesh", "label": "mesh", "direction": "in", "kind": "data", "data_type": "dpf_mesh", "exposed": True},
+                {"key": "session", "label": "session", "direction": "out", "kind": "data", "data_type": "dpf_view_session", "exposed": True},
+            ]
+
+            host = create_component(
+                graph_node_host_qml_path,
+                {
+                    "nodeData": payload,
+                    "snapshotReuseActive": True,
+                    "graphLabelPixelSize": 16,
+                },
+            )
+
+            host_height = float(host.property("height"))
+            metrics = variant_value(host.property("surfaceMetrics"))
+            mesh_row = named_item(host, "graphNodeInputPortRow", "mesh")
+            mesh_row_bottom = float(mesh_row.y()) + float(mesh_row.height())
+
+            assert abs(host_height - 286.0) < 0.1
+            assert abs(float(metrics["min_height"]) - 286.0) < 0.1
+            assert abs(float(metrics["port_height"]) - 24.0) < 0.1
+            assert mesh_row_bottom <= host_height - 0.1
+            """,
+        )
+
     def test_graph_viewer_surface_contract_includes_bridge_binding_and_control_rects(self) -> None:
         self._run_qml_probe(
             "viewer-surface-bridge-contract",
@@ -580,17 +817,19 @@ class ViewerSurfaceContractTests(unittest.TestCase):
             assert surface is not None
 
             interactive_rects = variant_list(surface.property("viewerInteractiveRects"))
-            assert len(interactive_rects) == 5, interactive_rects
-            assert max(rect["width"] for rect in interactive_rects) > 40.0, interactive_rects
-            assert interactive_rects[0]["height"] >= 24.0, interactive_rects
+            assert interactive_rects == [], interactive_rects
+
+            actions = variant_list(surface.property("surfaceActions"))
+            action_ids = [str(action["id"]) for action in actions]
+            assert action_ids == ["openSession", "playPause", "step", "keepLive", "fullscreen"], action_ids
             """,
         )
 
-    def test_graph_viewer_surface_content_fullscreen_button_routes_bridge(self) -> None:
+    def test_graph_viewer_surface_fullscreen_action_routes_bridge(self) -> None:
         self._run_qml_probe(
-            "viewer-content-fullscreen-button",
+            "viewer-content-fullscreen-action",
             """
-            from PyQt6.QtCore import QMetaObject, pyqtSlot
+            from PyQt6.QtCore import QMetaObject, Q_ARG, pyqtSlot
 
             class ContentFullscreenBridgeStub(QObject):
                 def __init__(self):
@@ -607,23 +846,14 @@ class ViewerSurfaceContractTests(unittest.TestCase):
 
             host = create_component(graph_node_host_qml_path, {"nodeData": viewer_payload()})
             surface = host.findChild(QObject, "graphNodeViewerSurface")
-            fullscreen_button = host.findChild(QObject, "graphNodeViewerMoreButton")
             assert surface is not None
-            assert fullscreen_button is not None
-            assert bool(fullscreen_button.property("enabled"))
+            assert host.findChild(QObject, "graphNodeViewerMoreButton") is None
 
-            rects = variant_list(surface.property("viewerInteractiveRects"))
-            fullscreen_rect = fullscreen_button.property("interactiveRect")
-            assert len(rects) == 5, rects
-            assert any(
-                abs(rect_field(rect, "x") - rect_field(fullscreen_rect, "x")) < 0.5
-                and abs(rect_field(rect, "y") - rect_field(fullscreen_rect, "y")) < 0.5
-                and abs(rect_field(rect, "width") - rect_field(fullscreen_rect, "width")) < 0.5
-                and abs(rect_field(rect, "height") - rect_field(fullscreen_rect, "height")) < 0.5
-                for rect in rects
-            )
+            actions = variant_list(surface.property("surfaceActions"))
+            fullscreen_action = next(action for action in actions if action["id"] == "fullscreen")
+            assert bool(fullscreen_action["enabled"])
 
-            QMetaObject.invokeMethod(fullscreen_button, "click")
+            QMetaObject.invokeMethod(surface, "dispatchSurfaceAction", Q_ARG("QVariant", "fullscreen"))
             app.processEvents()
             assert bridge.toggle_calls == ["node_viewer_surface_contract"]
             """,

@@ -68,6 +68,9 @@ var VIEWER_BODY_LEFT_MARGIN = 14.0;
 var VIEWER_BODY_RIGHT_MARGIN = 14.0;
 var VIEWER_BODY_BOTTOM_PADDING = 12.0;
 var VIEWER_TITLE_RIGHT_MARGIN = 42.0;
+var GRAPH_LABEL_PIXEL_SIZE_DEFAULT = 10;
+var GRAPH_LABEL_PIXEL_SIZE_MIN = 8;
+var GRAPH_LABEL_PIXEL_SIZE_MAX = 18;
 
 function _variantLayouts(section) {
     var layouts = section ? section.variants : null;
@@ -164,6 +167,22 @@ function _resolvedDimension(value, fallback) {
     if (!(numeric > 0.0))
         numeric = fallback;
     return isFinite(numeric) ? numeric : 0.0;
+}
+
+function _normalizedGraphLabelPixelSize(value) {
+    var numeric = Math.round(Number(value));
+    if (!isFinite(numeric))
+        numeric = GRAPH_LABEL_PIXEL_SIZE_DEFAULT;
+    return Math.max(GRAPH_LABEL_PIXEL_SIZE_MIN, Math.min(GRAPH_LABEL_PIXEL_SIZE_MAX, numeric));
+}
+
+function _viewerPortRowHeight(graphLabelPixelSize) {
+    var standard = _standardContract();
+    var execArrowPixelSize = _normalizedGraphLabelPixelSize(graphLabelPixelSize) + 8;
+    return Math.max(
+        _contractNumber(standard, "port_height"),
+        execArrowPixelSize
+    );
 }
 
 function _standardSurfaceMetrics(node, source) {
@@ -602,29 +621,37 @@ function _mediaSurfaceMetrics(node, source) {
     };
 }
 
-function _viewerSurfaceMetrics(node, source, _widthOverride, heightOverride) {
+function _viewerSurfaceMetrics(node, source, _widthOverride, heightOverride, graphLabelPixelSize) {
     var standard = _standardContract();
     var portCount = _visiblePortCounts(node).portCount;
     var headerHeight = _contractNumber(standard, "header_height");
     var bodyTop = _contractNumber(standard, "body_top");
-    var portHeight = _contractNumber(standard, "port_height");
+    var resolvedBodyTop = _metricNumber(source, "body_top", bodyTop);
+    var portHeight = Math.max(
+        _metricNumber(source, "port_height", 0.0),
+        _viewerPortRowHeight(graphLabelPixelSize)
+    );
     var inlineHeight = inlineBodyHeight(node);
     var defaultBodyHeight = Math.max(VIEWER_DEFAULT_BODY_HEIGHT, inlineHeight);
     var minBodyHeight = Math.max(VIEWER_MIN_BODY_HEIGHT, inlineHeight);
-    var defaultHeight = bodyTop + defaultBodyHeight + portCount * portHeight + VIEWER_BODY_BOTTOM_PADDING;
-    var minHeight = bodyTop + minBodyHeight + portCount * portHeight + VIEWER_BODY_BOTTOM_PADDING;
+    var defaultHeight = resolvedBodyTop + defaultBodyHeight + portCount * portHeight + VIEWER_BODY_BOTTOM_PADDING;
+    var minHeight = resolvedBodyTop + minBodyHeight + portCount * portHeight + VIEWER_BODY_BOTTOM_PADDING;
+    var resolvedDefaultHeight = Math.max(
+        _metricNumber(source, "default_height", defaultHeight),
+        defaultHeight
+    );
     var activeHeight = _resolvedDimension(
         heightOverride !== undefined ? heightOverride : node && node.height,
-        _metricNumber(source, "default_height", defaultHeight)
+        resolvedDefaultHeight
     );
     var bodyBottomMargin = _metricNumber(source, "body_bottom_margin", VIEWER_BODY_BOTTOM_PADDING);
     var bodyHeight = Math.max(
-        defaultBodyHeight,
-        activeHeight - bodyTop - portCount * portHeight - bodyBottomMargin
+        minBodyHeight,
+        activeHeight - resolvedBodyTop - portCount * portHeight - bodyBottomMargin
     );
     return {
         "default_width": _metricNumber(source, "default_width", VIEWER_DEFAULT_WIDTH),
-        "default_height": _metricNumber(source, "default_height", defaultHeight),
+        "default_height": resolvedDefaultHeight,
         "min_width": _metricNumber(source, "min_width", VIEWER_MIN_WIDTH),
         "min_height": Math.max(
             _metricNumber(source, "min_height", minHeight),
@@ -634,10 +661,10 @@ function _viewerSurfaceMetrics(node, source, _widthOverride, heightOverride) {
         "collapsed_height": _metricNumber(source, "collapsed_height", _contractNumber(standard, "collapsed_height")),
         "header_height": _metricNumber(source, "header_height", headerHeight),
         "header_top_margin": _metricNumber(source, "header_top_margin", _contractNumber(standard, "header_top_margin")),
-        "body_top": _metricNumber(source, "body_top", bodyTop),
+        "body_top": resolvedBodyTop,
         "body_height": bodyHeight,
-        "port_top": _metricNumber(source, "body_top", bodyTop) + bodyHeight,
-        "port_height": _metricNumber(source, "port_height", portHeight),
+        "port_top": resolvedBodyTop + bodyHeight,
+        "port_height": portHeight,
         "port_center_offset": _metricNumber(
             source,
             "port_center_offset",
@@ -702,7 +729,7 @@ function _viewerSurfaceMetrics(node, source, _widthOverride, heightOverride) {
     };
 }
 
-function surfaceMetrics(node, widthOverride, heightOverride) {
+function surfaceMetrics(node, widthOverride, heightOverride, graphLabelPixelSize) {
     var source = node && node.surface_metrics ? node.surface_metrics : null;
     var family = String(node && node.surface_family || "standard");
     if (family === "flowchart")
@@ -716,7 +743,7 @@ function surfaceMetrics(node, widthOverride, heightOverride) {
     if (family === "media")
         return _mediaSurfaceMetrics(node, source);
     if (family === "viewer")
-        return _viewerSurfaceMetrics(node, source, widthOverride, heightOverride);
+        return _viewerSurfaceMetrics(node, source, widthOverride, heightOverride, graphLabelPixelSize);
     return _standardSurfaceMetrics(node, source);
 }
 
@@ -1019,10 +1046,10 @@ function _flowchartHorizontalBounds(variant, width, height, localY) {
     return {"left": 0.0, "right": width};
 }
 
-function localPortPointForPort(node, port, inputRow, outputRow, widthOverride, heightOverride) {
+function localPortPointForPort(node, port, inputRow, outputRow, widthOverride, heightOverride, graphLabelPixelSize) {
     if (!node || !port)
         return {"x": 0.0, "y": 0.0};
-    var metrics = surfaceMetrics(node, widthOverride, heightOverride);
+    var metrics = surfaceMetrics(node, widthOverride, heightOverride, graphLabelPixelSize);
     var widthValue = _resolvedDimension(widthOverride !== undefined ? widthOverride : node.width, metrics.default_width);
     var heightValue = _resolvedDimension(heightOverride !== undefined ? heightOverride : node.height, metrics.default_height);
     var direction = portLayoutDirection(port);
@@ -1064,7 +1091,7 @@ function localPortPointForPort(node, port, inputRow, outputRow, widthOverride, h
     };
 }
 
-function localPortPoint(node, direction, rowIndex, widthOverride, heightOverride) {
+function localPortPoint(node, direction, rowIndex, widthOverride, heightOverride, graphLabelPixelSize) {
     if (!node)
         return {"x": 0.0, "y": 0.0};
     var visiblePorts = visiblePortsForDirection(node, direction);
@@ -1074,9 +1101,17 @@ function localPortPoint(node, direction, rowIndex, widthOverride, heightOverride
     if (resolvedRow >= 0 && resolvedRow < visiblePorts.length) {
         var rowPort = visiblePorts[resolvedRow];
         if (portCardinalSide(rowPort))
-            return localPortPointForPort(node, rowPort, resolvedRow, resolvedRow, widthOverride, heightOverride);
+            return localPortPointForPort(
+                node,
+                rowPort,
+                resolvedRow,
+                resolvedRow,
+                widthOverride,
+                heightOverride,
+                graphLabelPixelSize
+            );
     }
-    var metrics = surfaceMetrics(node, widthOverride, heightOverride);
+    var metrics = surfaceMetrics(node, widthOverride, heightOverride, graphLabelPixelSize);
     var widthValue = _resolvedDimension(widthOverride !== undefined ? widthOverride : node.width, metrics.default_width);
     var heightValue = _resolvedDimension(heightOverride !== undefined ? heightOverride : node.height, metrics.default_height);
     if (node.collapsed) {
@@ -1106,20 +1141,35 @@ function localPortPoint(node, direction, rowIndex, widthOverride, heightOverride
     };
 }
 
-function portScenePoint(node, direction, rowIndex, widthOverride, heightOverride) {
+function portScenePoint(node, direction, rowIndex, widthOverride, heightOverride, graphLabelPixelSize) {
     if (!node)
         return {"x": 0.0, "y": 0.0};
-    var localPoint = localPortPoint(node, direction, rowIndex, widthOverride, heightOverride);
+    var localPoint = localPortPoint(
+        node,
+        direction,
+        rowIndex,
+        widthOverride,
+        heightOverride,
+        graphLabelPixelSize
+    );
     return {
         "x": Number(node.x || 0.0) + localPoint.x,
         "y": Number(node.y || 0.0) + localPoint.y
     };
 }
 
-function portScenePointForPort(node, port, inputRow, outputRow, widthOverride, heightOverride) {
+function portScenePointForPort(node, port, inputRow, outputRow, widthOverride, heightOverride, graphLabelPixelSize) {
     if (!node || !port)
         return {"x": 0.0, "y": 0.0};
-    var localPoint = localPortPointForPort(node, port, inputRow, outputRow, widthOverride, heightOverride);
+    var localPoint = localPortPointForPort(
+        node,
+        port,
+        inputRow,
+        outputRow,
+        widthOverride,
+        heightOverride,
+        graphLabelPixelSize
+    );
     return {
         "x": Number(node.x || 0.0) + localPoint.x,
         "y": Number(node.y || 0.0) + localPoint.y

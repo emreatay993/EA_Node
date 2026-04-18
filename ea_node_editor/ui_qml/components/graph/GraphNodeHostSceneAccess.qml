@@ -23,7 +23,8 @@ QtObject {
             direction,
             rowIndex,
             widthValue,
-            heightValue
+            heightValue,
+            root.host.effectiveGraphLabelPixelSize
         );
     }
 

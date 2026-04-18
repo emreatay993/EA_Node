@@ -223,9 +223,9 @@ class PassiveGraphSurfaceMediaAndScopeTests(PassiveGraphSurfaceHostTestBase):
             """,
         )
 
-    def test_media_surface_publishes_direct_crop_button_rect_without_host_hover_proxy(self) -> None:
+    def test_media_surface_publishes_crop_and_fullscreen_actions_without_inline_buttons(self) -> None:
         self._run_qml_probe(
-            "media-direct-crop-button",
+            "media-surface-actions-crop-fullscreen",
             """
             import tempfile
             from PyQt6.QtGui import QColor, QImage
@@ -247,12 +247,11 @@ class PassiveGraphSurfaceMediaAndScopeTests(PassiveGraphSurfaceHostTestBase):
                 host = create_component(graph_node_host_qml_path, {"nodeData": media_payload})
                 surface = host.findChild(QObject, "graphNodeMediaSurface")
                 loader = host.findChild(QObject, "graphNodeSurfaceLoader")
-                crop_button = host.findChild(QObject, "graphNodeMediaCropButton")
-                fullscreen_button = host.findChild(QObject, "graphNodeMediaFullscreenButton")
                 assert surface is not None
                 assert loader is not None
-                assert crop_button is not None
-                assert fullscreen_button is not None
+                assert host.findChild(QObject, "graphNodeMediaCropButton") is None
+                assert host.findChild(QObject, "graphNodeMediaFullscreenButton") is None
+                assert host.findChild(QObject, "graphNodeMediaRepairButton") is None
 
                 for _index in range(40):
                     app.processEvents()
@@ -265,21 +264,24 @@ class PassiveGraphSurfaceMediaAndScopeTests(PassiveGraphSurfaceHostTestBase):
                 hover_host_local_point(window, host, 80.0, 44.0)
 
                 embedded_rects = variant_list(loader.property("embeddedInteractiveRects"))
-                crop_button_rect = crop_button.property("interactiveRect")
 
                 assert host.findChild(QObject, "graphNodeSurfaceHoverActionButton") is None
                 assert loader.metaObject().indexOfProperty("hoverActionHitRect") == -1
                 assert surface.metaObject().indexOfProperty("hoverActionHitRect") == -1
-                assert bool(crop_button.property("visible"))
-                assert bool(fullscreen_button.property("visible"))
-                assert len(embedded_rects) == 2
-                assert any(
-                    abs(rect_field(rect, "x") - rect_field(crop_button_rect, "x")) < 0.5
-                    and abs(rect_field(rect, "y") - rect_field(crop_button_rect, "y")) < 0.5
-                    and abs(rect_field(rect, "width") - rect_field(crop_button_rect, "width")) < 0.5
-                    and abs(rect_field(rect, "height") - rect_field(crop_button_rect, "height")) < 0.5
-                    for rect in embedded_rects
-                )
+                assert embedded_rects == []
+
+                surface_actions = variant_list(surface.property("surfaceActions"))
+                action_ids = [action["id"] for action in surface_actions]
+                assert action_ids == ["crop", "fullscreen", "repair"]
+                crop_action = next(action for action in surface_actions if action["id"] == "crop")
+                fullscreen_action = next(action for action in surface_actions if action["id"] == "fullscreen")
+                repair_action = next(action for action in surface_actions if action["id"] == "repair")
+                assert bool(crop_action["enabled"])
+                assert not bool(fullscreen_action["enabled"])
+                assert not bool(repair_action["enabled"])
+
+                loader_actions = variant_list(loader.property("surfaceActions"))
+                assert [action["id"] for action in loader_actions] == ["crop", "fullscreen", "repair"]
 
                 dispose_host_window(host, window)
                 engine.deleteLater()
@@ -287,11 +289,12 @@ class PassiveGraphSurfaceMediaAndScopeTests(PassiveGraphSurfaceHostTestBase):
             """,
         )
 
-    def test_media_surface_content_fullscreen_button_routes_bridge_without_crop_mode(self) -> None:
+    def test_media_surface_fullscreen_action_routes_bridge_without_crop_mode(self) -> None:
         self._run_qml_probe(
-            "media-content-fullscreen-button",
+            "media-surface-fullscreen-action",
             """
             import tempfile
+            from PyQt6.QtCore import Q_ARG
             from PyQt6.QtGui import QColor, QImage
 
             class ContentFullscreenBridgeStub(QObject):
@@ -324,40 +327,39 @@ class PassiveGraphSurfaceMediaAndScopeTests(PassiveGraphSurfaceHostTestBase):
                 host = create_component(graph_node_host_qml_path, {"nodeData": media_payload})
                 surface = host.findChild(QObject, "graphNodeMediaSurface")
                 loader = host.findChild(QObject, "graphNodeSurfaceLoader")
-                fullscreen_button = host.findChild(QObject, "graphNodeMediaFullscreenButton")
                 assert surface is not None
                 assert loader is not None
-                assert fullscreen_button is not None
+                assert host.findChild(QObject, "graphNodeMediaFullscreenButton") is None
 
                 for _index in range(40):
                     app.processEvents()
                     if str(surface.property("previewState")) == "ready":
                         break
                 assert str(surface.property("previewState")) == "ready"
-                assert not bool(fullscreen_button.property("visible"))
 
                 window = attach_host_to_window(host)
                 hover_host_local_point(window, host, 80.0, 44.0)
 
-                embedded_rects = variant_list(loader.property("embeddedInteractiveRects"))
-                fullscreen_rect = fullscreen_button.property("interactiveRect")
-                assert bool(fullscreen_button.property("visible"))
-                assert len(embedded_rects) == 2
-                assert any(
-                    abs(rect_field(rect, "x") - rect_field(fullscreen_rect, "x")) < 0.5
-                    and abs(rect_field(rect, "y") - rect_field(fullscreen_rect, "y")) < 0.5
-                    and abs(rect_field(rect, "width") - rect_field(fullscreen_rect, "width")) < 0.5
-                    and abs(rect_field(rect, "height") - rect_field(fullscreen_rect, "height")) < 0.5
-                    for rect in embedded_rects
-                )
+                def fullscreen_action():
+                    return next(
+                        action
+                        for action in variant_list(surface.property("surfaceActions"))
+                        if action["id"] == "fullscreen"
+                    )
 
-                QMetaObject.invokeMethod(fullscreen_button, "click")
+                assert bool(fullscreen_action()["enabled"])
+
+                QMetaObject.invokeMethod(
+                    surface,
+                    "dispatchSurfaceAction",
+                    Q_ARG("QVariant", "fullscreen"),
+                )
                 app.processEvents()
                 assert bridge.toggle_calls == ["node_surface_host_test"]
 
                 surface.setProperty("cropModeActive", True)
                 app.processEvents()
-                assert not bool(fullscreen_button.property("visible"))
+                assert not bool(fullscreen_action()["enabled"])
 
                 dispose_host_window(host, window)
                 engine.deleteLater()
@@ -429,12 +431,13 @@ class PassiveGraphSurfaceMediaAndScopeTests(PassiveGraphSurfaceHostTestBase):
             """,
         )
 
-    def test_media_surface_repair_button_relinks_missing_source_through_canvas_contract(self) -> None:
+    def test_media_surface_repair_action_relinks_missing_source_through_canvas_contract(self) -> None:
         self._run_qml_probe(
             "media-repair-contract",
             """
             import tempfile
 
+            from PyQt6.QtCore import Q_ARG
             from PyQt6.QtGui import QColor, QImage
             from PyQt6.QtQuick import QQuickItem
 
@@ -477,11 +480,10 @@ class PassiveGraphSurfaceMediaAndScopeTests(PassiveGraphSurfaceHostTestBase):
                     },
                 )
                 surface = host.findChild(QObject, "graphNodeMediaSurface")
-                repair_button = host.findChild(QObject, "graphNodeMediaRepairButton")
                 issue_badge = host.findChild(QObject, "graphNodeMediaIssueBadge")
                 assert surface is not None
-                assert repair_button is not None
                 assert issue_badge is not None
+                assert host.findChild(QObject, "graphNodeMediaRepairButton") is None
 
                 committed = []
                 host.inlinePropertyCommitted.connect(
@@ -489,10 +491,20 @@ class PassiveGraphSurfaceMediaAndScopeTests(PassiveGraphSurfaceHostTestBase):
                 )
 
                 assert str(surface.property("previewState")) == "error"
-                assert bool(repair_button.property("visible"))
                 assert bool(issue_badge.property("visible"))
 
-                QMetaObject.invokeMethod(repair_button, "click")
+                repair_action = next(
+                    action
+                    for action in variant_list(surface.property("surfaceActions"))
+                    if action["id"] == "repair"
+                )
+                assert bool(repair_action["enabled"])
+
+                QMetaObject.invokeMethod(
+                    surface,
+                    "dispatchSurfaceAction",
+                    Q_ARG("QVariant", "repair"),
+                )
                 app.processEvents()
 
                 assert canvas_item.last_browse_args is not None
@@ -808,14 +820,14 @@ class GraphSurfaceMediaAndScopeContractTests(GraphSurfaceInputContractTestBase):
             bridge_binding = variant_value(host.property("viewerBridgeBinding"))
             contract = variant_value(host.property("viewerSurfaceContract"))
             control_rects = variant_list(host.property("viewerInteractiveRects"))
+            surface_actions = variant_list(loader.property("surfaceActions"))
             assert bridge_binding["phase"] == "open", bridge_binding
             assert bridge_binding["live_mode"] == "proxy", bridge_binding
             assert contract["bridge_binding"]["phase"] == "open", contract
-            assert len(control_rects) == 5, control_rects
-            assert len(variant_list(loader.property("embeddedInteractiveRects"))) == 5, variant_list(loader.property("embeddedInteractiveRects"))
-            assert len(contract["interactive_rects"]) == 5, contract
-            assert contract["interactive_rects"][0]["width"] > 28.0, contract["interactive_rects"]
-            assert contract["interactive_rects"][0]["height"] >= 24.0, contract["interactive_rects"]
+            assert control_rects == [], control_rects
+            assert variant_list(loader.property("embeddedInteractiveRects")) == [], variant_list(loader.property("embeddedInteractiveRects"))
+            assert contract["interactive_rects"] == [], contract
+            assert [action["id"] for action in surface_actions] == ["openSession", "playPause", "step", "keepLive", "fullscreen"], surface_actions
             assert rect_field(host.property("viewerBodyRect"), "x") == float(contract["body_rect"]["x"]), variant_value(host.property("viewerBodyRect"))
             assert rect_field(host.property("viewerLiveSurfaceRect"), "width") == float(contract["live_rect"]["width"]), variant_value(host.property("viewerLiveSurfaceRect"))
             assert rect_field(host.property("viewerLiveSurfaceRect"), "height") == float(contract["live_rect"]["height"]), variant_value(host.property("viewerLiveSurfaceRect"))
@@ -1026,7 +1038,7 @@ class GraphSurfaceMediaAndScopeContractTests(GraphSurfaceInputContractTestBase):
                 window = attach_host_to_window(host)
                 hover_host_local_point(window, host, 80.0, 44.0)
 
-                assert len(variant_list(loader.property("embeddedInteractiveRects"))) == 2
+                assert variant_list(loader.property("embeddedInteractiveRects")) == []
                 assert not bool(loader.property("blocksHostInteraction"))
                 assert bool(drag_area.property("enabled"))
 

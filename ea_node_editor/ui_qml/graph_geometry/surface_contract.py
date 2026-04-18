@@ -13,6 +13,35 @@ from ea_node_editor.nodes.types import NodeTypeSpec
 
 
 @dataclass(frozen=True, slots=True)
+class FloatingToolbarMetrics:
+    toolbar_height: float = 32.0
+    button_size: float = 24.0
+    button_gap: float = 4.0
+    internal_padding: float = 4.0
+    gap_from_node: float = 6.0
+    safety_margin: float = 8.0
+    hysteresis: float = 8.0
+    grace_period_ms: int = 120
+    animation_duration_ms: int = 180
+
+    def to_payload(self) -> dict[str, Any]:
+        return {
+            "toolbar_height": float(self.toolbar_height),
+            "button_size": float(self.button_size),
+            "button_gap": float(self.button_gap),
+            "internal_padding": float(self.internal_padding),
+            "gap_from_node": float(self.gap_from_node),
+            "safety_margin": float(self.safety_margin),
+            "hysteresis": float(self.hysteresis),
+            "grace_period_ms": int(self.grace_period_ms),
+            "animation_duration_ms": int(self.animation_duration_ms),
+        }
+
+
+FLOATING_TOOLBAR_METRICS = FloatingToolbarMetrics()
+
+
+@dataclass(frozen=True, slots=True)
 class GraphNodeSurfaceMetrics:
     default_width: float
     default_height: float
@@ -83,6 +112,7 @@ class GraphNodeSurfaceMetrics:
             "standard_port_gutter": float(self.standard_port_gutter),
             "standard_center_gap": float(self.standard_center_gap),
             "standard_port_label_min_width": float(self.standard_port_label_min_width),
+            "floating_toolbar": FLOATING_TOOLBAR_METRICS.to_payload(),
         }
 
 

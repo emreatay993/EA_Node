@@ -200,6 +200,18 @@ def standard_exec_arrow_port_pixel_size(value: object = DEFAULT_GRAPH_LABEL_PIXE
     return standard_graph_label_pixel_size(value) + 8
 
 
+def standard_viewer_port_row_height(
+    *,
+    graph_label_pixel_size: object = DEFAULT_GRAPH_LABEL_PIXEL_SIZE,
+) -> float:
+    return float(
+        max(
+            STANDARD_PORT_HEIGHT,
+            standard_exec_arrow_port_pixel_size(graph_label_pixel_size),
+        )
+    )
+
+
 @lru_cache(maxsize=1024)
 def _qt_standard_text_width(content: str, pixel_size: int, font_description: str) -> float:
     from PyQt6.QtGui import QFont, QFontMetricsF
@@ -406,6 +418,11 @@ def resolved_node_surface_size(
     resolved_height = max(float(metrics.min_height), float(height))
     family = str(spec.surface_family or "standard").strip() or "standard"
     if family == "viewer" and node.custom_height is not None:
+        viewer_height_tolerance = 1.0
+
+        def _matches_viewer_height(value: float, expected: float) -> bool:
+            return abs(float(value) - float(expected)) <= viewer_height_tolerance
+
         baseline_node = node.clone()
         baseline_node.custom_height = None
         baseline_metrics = node_surface_metrics(
@@ -423,6 +440,9 @@ def resolved_node_surface_size(
             graph_label_pixel_size=graph_label_pixel_size,
             graph_node_icon_pixel_size=graph_node_icon_pixel_size,
         )
+        port_row_height = standard_viewer_port_row_height(
+            graph_label_pixel_size=graph_label_pixel_size,
+        )
         inline_body_height = standard_inline_body_height(
             spec,
             graph_label_pixel_size=graph_label_pixel_size,
@@ -431,13 +451,13 @@ def resolved_node_surface_size(
             float(
                 body_top
                 + max(float(legacy_body_height), float(inline_body_height))
-                + port_count * STANDARD_PORT_HEIGHT
+                + port_count * port_row_height
                 + VIEWER_BODY_BOTTOM_PADDING
             )
             for legacy_body_height in VIEWER_LEGACY_DEFAULT_BODY_HEIGHTS
         }
-        if abs(float(node.custom_height) - float(baseline_metrics.default_height)) <= 0.01 or any(
-            abs(float(node.custom_height) - legacy_height) <= 0.01
+        if _matches_viewer_height(float(node.custom_height), float(baseline_metrics.default_height)) or any(
+            _matches_viewer_height(float(node.custom_height), legacy_height)
             for legacy_height in legacy_default_heights
         ):
             resolved_height = float(metrics.default_height)

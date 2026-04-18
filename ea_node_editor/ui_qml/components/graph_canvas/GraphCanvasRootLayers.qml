@@ -1,5 +1,6 @@
 import QtQuick 2.15
 import "../graph" as GraphComponents
+import "../graph/overlay" as GraphOverlay
 
 Item {
     id: root
@@ -106,6 +107,14 @@ Item {
         canvasItem: root.canvasItem
         viewBridge: root.viewStateBridge
         sceneModel: root.sceneStateBridge ? root.sceneStateBridge.nodes_model : []
+    }
+
+    GraphOverlay.GraphNodeOverlayToolbarLayer {
+        objectName: "graphNodeOverlayToolbarLayer"
+        canvasItem: root.canvasItem
+        viewBridge: root.viewStateBridge
+        sceneStateBridge: root.sceneStateBridge
+        visibleSceneRectPayload: root.canvasItem ? root.canvasItem.visibleSceneRectPayload : ({})
     }
 
     GraphCanvasMinimapOverlay {

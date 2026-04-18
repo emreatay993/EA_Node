@@ -680,7 +680,13 @@ class PassiveImageNodeSurfaceQmlTests(unittest.TestCase):
                 assert not bool(placeholder_surface.property("cropToolAvailable"))
                 assert not bool(error_surface.property("cropToolAvailable"))
                 assert not bool(pdf_surface.property("cropToolAvailable"))
-                assert pdf_surface.findChild(QObject, "graphNodeMediaCropButton") is not None
+                assert pdf_surface.findChild(QObject, "graphNodeMediaCropButton") is None
+                pdf_crop_action = next(
+                    action
+                    for action in variant_list(pdf_surface.property("surfaceActions"))
+                    if action["id"] == "crop"
+                )
+                assert not bool(pdf_crop_action["enabled"])
             """,
         )
 
@@ -735,17 +741,21 @@ class PassiveImageNodeSurfaceQmlTests(unittest.TestCase):
                     },
                 )
                 surface = host.findChild(QObject, "graphNodeMediaSurface")
-                crop_button = host.findChild(QObject, "graphNodeMediaCropButton")
                 wait_for_preview(surface)
                 assert surface is not None
-                assert crop_button is not None
+                assert host.findChild(QObject, "graphNodeMediaCropButton") is None
 
                 window = attach_host_to_window(host)
 
                 hover_host_local_point(window, host, 80.0, 44.0)
 
-                assert bool(crop_button.property("visible"))
-                assert len(variant_list(surface.property("embeddedInteractiveRects"))) == 1
+                crop_action = next(
+                    action
+                    for action in variant_list(surface.property("surfaceActions"))
+                    if action["id"] == "crop"
+                )
+                assert bool(crop_action["enabled"])
+                assert variant_list(surface.property("embeddedInteractiveRects")) == []
 
                 surface.setProperty("cropModeActive", True)
                 app.processEvents()

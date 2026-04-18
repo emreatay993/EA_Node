@@ -25,6 +25,7 @@ Item {
     readonly property var sceneBridge: rootBindings.sceneBridge
     readonly property var viewBridge: rootBindings.viewBridge
     property var overlayHostItem: null
+    property Item activeToolbarHost: null
     property var edgePayload: []
     readonly property var visibleSceneRectPayload: rootBindings.visibleSceneRectPayload
     readonly property var failedNodeLookup: rootBindings.failedNodeLookup

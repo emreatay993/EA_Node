@@ -218,4 +218,31 @@ GraphComponents.GraphNodeHost {
         if (canvasItem && canvasItem.commitNodePortLabel(nodeId, portKey, label))
             canvasItem.forceActiveFocus();
     }
+    onNodeActionRequested: function(nodeId, actionId, payload) {
+        if (!canvasItem)
+            return;
+        var bridge = canvasItem._canvasSceneCommandBridgeRef;
+        var normalized = String(actionId || "").trim();
+        if (!normalized)
+            return;
+        if (normalized === "enterScope") {
+            canvasItem.requestOpenSubnodeScope(nodeId);
+            return;
+        }
+        if (normalized === "rename" || normalized === "delete" || normalized === "duplicate") {
+            if (!bridge)
+                return;
+            if (normalized === "rename" && bridge.request_rename_node) {
+                bridge.request_rename_node(nodeId);
+            } else if (normalized === "delete" && bridge.request_remove_node) {
+                bridge.request_remove_node(nodeId);
+                canvasItem.clearEdgeSelection();
+            } else if (normalized === "duplicate" && bridge.request_duplicate_node) {
+                bridge.request_duplicate_node(nodeId);
+            }
+            return;
+        }
+        if (nodeCard.dispatchSurfaceAction)
+            nodeCard.dispatchSurfaceAction(normalized);
+    }
 }

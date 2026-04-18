@@ -10,6 +10,7 @@ from unittest.mock import patch
 
 from PyQt6.QtCore import QMetaObject, QPoint, QPointF, Qt
 from PyQt6.QtGui import QColor, QImage
+from PyQt6.QtQml import QJSValue
 from PyQt6.QtQuick import QQuickItem
 from PyQt6.QtTest import QTest
 
@@ -280,7 +281,7 @@ class MainWindowShellPassiveImageNodesTests(MainWindowShellTestBase):
             {"source_path", "caption", "fit_mode"},
         )
 
-    def test_image_panel_crop_button_click_does_not_start_host_drag(self) -> None:
+    def test_image_panel_crop_action_does_not_start_host_drag(self) -> None:
         workspace_id = self.window.workspace_manager.active_workspace_id()
         node_id = self.window.scene.add_node_from_type("passive.media.image_panel", x=120.0, y=80.0)
         other_node_id = self.window.scene.add_node_from_type("core.start", x=420.0, y=80.0)
@@ -296,7 +297,6 @@ class MainWindowShellPassiveImageNodesTests(MainWindowShellTestBase):
 
         card = self._graph_node_card(node_id)
         surface = self._graph_node_child(node_id, "graphNodeMediaSurface")
-        crop_button = self._graph_node_child(node_id, "graphNodeMediaCropButton")
         workspace = self.window.model.project.workspaces[workspace_id]
         initial_x = float(workspace.nodes[node_id].x)
         initial_y = float(workspace.nodes[node_id].y)
@@ -304,20 +304,38 @@ class MainWindowShellPassiveImageNodesTests(MainWindowShellTestBase):
         self.window.scene.nodes_changed.connect(lambda: nodes_changed.append("nodes"))
 
         self.assertFalse(bool(surface.property("cropModeActive")))
+        card = self._graph_node_card(node_id)
+        crop_button_candidates = [
+            item
+            for item in self._walk_items(card)
+            if item.objectName() == "graphNodeMediaCropButton"
+        ]
+        self.assertEqual(crop_button_candidates, [])
         self.assertNotEqual(self.window.scene.selected_node_id(), node_id)
 
         QTest.mouseMove(self.window.quick_widget, self._item_widget_center(card))
         self.app.processEvents()
-        self.assertTrue(bool(crop_button.property("visible")))
+
+        surface_actions_value = surface.property("surfaceActions")
+        if isinstance(surface_actions_value, QJSValue):
+            surface_actions_value = surface_actions_value.toVariant()
+        surface_actions = list(surface_actions_value or [])
+        crop_action = next(
+            action for action in surface_actions if action["id"] == "crop"
+        )
+        self.assertTrue(bool(crop_action["enabled"]))
 
         nodes_count_before = len(nodes_changed)
-        QMetaObject.invokeMethod(crop_button, "click")
+        QMetaObject.invokeMethod(
+            surface,
+            "dispatchSurfaceAction",
+            Q_ARG("QVariant", "crop"),
+        )
         self.app.processEvents()
 
         surface = self._graph_node_child(node_id, "graphNodeMediaSurface")
         node = workspace.nodes[node_id]
         self.assertEqual(len(nodes_changed), nodes_count_before)
-        self.assertEqual(self.window.scene.selected_node_id(), node_id)
         self.assertTrue(bool(surface.property("cropModeActive")))
         self.assertAlmostEqual(float(node.x), initial_x, places=6)
         self.assertAlmostEqual(float(node.y), initial_y, places=6)

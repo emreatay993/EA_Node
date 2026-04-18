@@ -482,115 +482,6 @@ class GraphSurfaceInputControlsTests(unittest.TestCase):
             """,
         )
 
-    def test_media_fullscreen_button_is_suppressed_while_crop_mode_is_active(self) -> None:
-        self._run_qml_probe(
-            "media-fullscreen-crop-mode-suppression",
-            """
-            from PyQt6.QtCore import pyqtSlot
-
-            class ContentFullscreenBridgeStub(QObject):
-                def __init__(self):
-                    super().__init__()
-                    self.toggle_calls = []
-
-                @pyqtSlot(str, result=bool)
-                def request_toggle_for_node(self, node_id):
-                    self.toggle_calls.append(str(node_id or ""))
-                    return True
-
-            bridge = ContentFullscreenBridgeStub()
-            engine.rootContext().setContextProperty("contentFullscreenBridge", bridge)
-            component = QQmlComponent(engine)
-            component.setData(
-                b'''
-                import QtQuick 2.15
-                import "ea_node_editor/ui_qml/components/graph/passive" as PassiveGraph
-
-                Item {
-                    id: probeRoot
-                    width: 240
-                    height: 120
-                    objectName: "mediaControlsProbe"
-
-                    Item {
-                        id: hostItem
-                        objectName: "mediaHost"
-                        anchors.fill: parent
-                        property bool hoverActive: true
-                        property bool isSelected: true
-                        property var nodeData: ({ "node_id": "media_node" })
-                        property var surfaceMetrics: ({
-                            "title_top": 0,
-                            "title_height": 28,
-                            "title_right_margin": 10
-                        })
-                        property color headerTextColor: "#f7f7f0"
-                        property color inlineInputBackgroundColor: "#223344"
-                        property color inlineInputBorderColor: "#556677"
-                        property int nodeTextRenderType: Text.QtRendering
-
-                        Item {
-                            id: surfaceStub
-                            objectName: "mediaSurfaceStub"
-                            anchors.fill: parent
-                            property Item host: hostItem
-                            property string previewState: "ready"
-                            property bool cropModeActive: false
-                            property bool cropButtonVisible: true
-                            property bool fileIssueActive: false
-                            property bool isPdfPanel: false
-                            property int pdfPageCount: 0
-                            property int pdfResolvedPageNumber: 1
-                            property color cropButtonIconColor: "#f0f2f5"
-                            property color panelFillColor: "#1b1d22"
-                            property color panelBorderColor: "#4a4f5a"
-                            function _iconSource(name, size, color) { return ""; }
-                            function _beginInlineInteraction() {}
-                            function triggerHoverAction() {}
-                            function repairFile() {}
-                        }
-
-                        PassiveGraph.GraphMediaPanelHeaderControls {
-                            id: mediaControls
-                            objectName: "mediaControls"
-                            anchors.fill: parent
-                            surface: surfaceStub
-                        }
-                    }
-                }
-                ''',
-                QUrl.fromLocalFile(str(repo_root) + "/"),
-            )
-            if component.status() != QQmlComponent.Status.Ready:
-                errors = "\\n".join(error.toString() for error in component.errors())
-                raise AssertionError("Failed to load media controls probe:\\n" + errors)
-            probe = component.create()
-            if probe is None:
-                errors = "\\n".join(error.toString() for error in component.errors())
-                raise AssertionError("Failed to instantiate media controls probe:\\n" + errors)
-            app.processEvents()
-
-            controls = named_item(probe, "mediaControls")
-            surface = named_item(probe, "mediaSurfaceStub")
-            fullscreen_button = named_item(probe, "graphNodeMediaFullscreenButton")
-
-            assert bool(fullscreen_button.property("visible"))
-            assert len(variant_list(controls.property("embeddedInteractiveRects"))) == 2
-            QMetaObject.invokeMethod(fullscreen_button, "click")
-            app.processEvents()
-            assert bridge.toggle_calls == ["media_node"]
-
-            surface.setProperty("cropModeActive", True)
-            app.processEvents()
-
-            assert not bool(fullscreen_button.property("visible"))
-            assert len(variant_list(controls.property("embeddedInteractiveRects"))) == 1
-            probe.deleteLater()
-            engine.deleteLater()
-            app.processEvents()
-            """,
-        )
-
     def test_inline_properties_layer_publishes_control_scoped_rects_for_core_editors(self) -> None:
         self._run_qml_probe(
             "inline-layer-core-editors",
@@ -611,6 +502,298 @@ class GraphSurfaceInputControlsTests(unittest.TestCase):
             assert widths[2] > 90.0
             assert widths[3] > 90.0
             assert ys == sorted(ys)
+            """,
+        )
+
+
+class GraphNodeFloatingToolbarProbeTests(unittest.TestCase):
+    def _run_toolbar_probe(self, label: str, body: str) -> None:
+        probe_qml = textwrap.dedent(
+            """
+            import QtQuick 2.15
+            import QtQuick.Controls 2.15
+            import "ea_node_editor/ui_qml/components/graph/overlay" as GraphOverlay
+
+            Item {
+                id: probeRoot
+                width: 640
+                height: 480
+                objectName: "floatingToolbarProbeRoot"
+
+                Item {
+                    id: fakeHost
+                    objectName: "floatingToolbarProbeHost"
+                    x: 200
+                    y: 180
+                    width: 200
+                    height: 80
+
+                    property var nodeData: ({ "node_id": "probe_node" })
+                    property var surfaceMetrics: ({
+                        "floating_toolbar": {
+                            "toolbar_height": 32,
+                            "button_size": 24,
+                            "button_gap": 4,
+                            "internal_padding": 4,
+                            "gap_from_node": 6,
+                            "safety_margin": 8,
+                            "hysteresis": 8,
+                            "animation_duration_ms": 0
+                        }
+                    })
+                    property var availableActions: ([
+                        { "id": "rename", "label": "Rename", "icon": "edit", "kind": "common", "enabled": true, "primary": false },
+                        { "id": "duplicate", "label": "Duplicate", "icon": "duplicate", "kind": "common", "enabled": true, "primary": false },
+                        { "id": "delete", "label": "Delete", "icon": "delete", "kind": "common", "enabled": true, "primary": false, "destructive": true }
+                    ])
+                    property bool toolbarActive: true
+                    property color nodeThemeColor: "#5da9ff"
+                    property real worldOffset: 0
+                    property bool _liveGeometryActive: false
+                    property real _liveX: 0
+                    property real _liveY: 0
+                    property color inlineInputBackgroundColor: "#22242a"
+                    property color inlineInputBorderColor: "#4a4f5a"
+                    property color headerTextColor: "#eef3ff"
+                    property var graphSharedTypography: ({ "inlinePropertyPixelSize": 12 })
+                    property var canvasItem: null
+
+                    signal surfaceControlInteractionStarted(string nodeId)
+                    signal nodeActionRequested(string nodeId, string actionId, var payload)
+
+                    function dispatchNodeAction(actionId, payload) {
+                        fakeHost.nodeActionRequested(
+                            String(fakeHost.nodeData && fakeHost.nodeData.node_id || ""),
+                            String(actionId || ""),
+                            payload || null
+                        )
+                    }
+                }
+
+                GraphOverlay.GraphNodeFloatingToolbar {
+                    id: toolbar
+                    objectName: "floatingToolbarProbeToolbar"
+                    host: fakeHost
+                    visibleSceneRectPayload: ({ "x": 0, "y": 0, "width": 640, "height": 480 })
+                }
+            }
+            """
+        )
+        script = (
+            textwrap.dedent(
+                """
+                from pathlib import Path
+
+                from PyQt6.QtCore import QMetaObject, QObject, QPoint, QPointF, Qt, QUrl
+                from PyQt6.QtGui import QColor, QKeySequence
+                from PyQt6.QtQml import QQmlComponent, QQmlEngine
+                from PyQt6.QtQuick import QQuickItem, QQuickWindow
+                from PyQt6.QtTest import QTest
+                from PyQt6.QtWidgets import QApplication
+
+                from ea_node_editor.ui.icon_registry import (
+                    UI_ICON_PROVIDER_ID,
+                    UiIconImageProvider,
+                    UiIconRegistryBridge,
+                )
+
+                app = QApplication.instance() or QApplication([])
+                engine = QQmlEngine()
+                engine.addImageProvider(UI_ICON_PROVIDER_ID, UiIconImageProvider())
+                engine.rootContext().setContextProperty("uiIcons", UiIconRegistryBridge())
+                repo_root = Path.cwd()
+
+                def load_probe():
+                    component = QQmlComponent(engine)
+                    component.setData(
+                        PROBE_QML.encode("utf-8"),
+                        QUrl.fromLocalFile(str(repo_root) + "/"),
+                    )
+                    if component.status() != QQmlComponent.Status.Ready:
+                        errors = "\\n".join(error.toString() for error in component.errors())
+                        raise AssertionError("Failed to load probe QML:\\n" + errors)
+                    probe = component.create()
+                    if probe is None:
+                        errors = "\\n".join(error.toString() for error in component.errors())
+                        raise AssertionError("Failed to instantiate probe QML:\\n" + errors)
+                    app.processEvents()
+                    return probe
+
+                def variant_value(value):
+                    return value.toVariant() if hasattr(value, "toVariant") else value
+
+                def variant_list(value):
+                    normalized = variant_value(value)
+                    if normalized is None:
+                        return []
+                    return list(normalized)
+
+                def rect_field(rect, key):
+                    normalized = variant_value(rect)
+                    if isinstance(normalized, dict):
+                        return float(normalized[key])
+                    try:
+                        value = normalized[key]
+                    except Exception:
+                        value = getattr(normalized, key)
+                    value = variant_value(value)
+                    return float(value() if callable(value) else value)
+
+                def walk_items(item):
+                    if isinstance(item, QQuickItem):
+                        yield item
+                        for child in item.childItems():
+                            yield from walk_items(child)
+
+                def named_item(root, object_name):
+                    for child in walk_items(root):
+                        if child.objectName() == object_name:
+                            return child
+                    raise AssertionError("Missing object: " + object_name)
+
+                def attach_window(root):
+                    window = QQuickWindow()
+                    window.resize(640, 480)
+                    root.setParentItem(window.contentItem())
+                    window.show()
+                    app.processEvents()
+                    return window
+
+                PROBE_QML = """
+            )
+            + repr(probe_qml)
+            + "\n"
+            + textwrap.dedent(body)
+        )
+        env = os.environ.copy()
+        env["QT_QPA_PLATFORM"] = "offscreen"
+        result = subprocess.run(
+            [sys.executable, "-c", script],
+            cwd=_REPO_ROOT,
+            env=env,
+            capture_output=True,
+            text=True,
+        )
+        if result.returncode != 0:
+            details = "\\n".join(
+                part for part in (result.stdout.strip(), result.stderr.strip()) if part
+            )
+            self.fail(f"{label} probe failed with exit code {result.returncode}\n{details}")
+
+    def test_floating_toolbar_publishes_rect_and_dispatches_each_action_exactly_once(self) -> None:
+        self._run_toolbar_probe(
+            "floating-toolbar-rect-and-click-dispatch",
+            """
+            root = load_probe()
+            host = named_item(root, "floatingToolbarProbeHost")
+            toolbar = named_item(root, "floatingToolbarProbeToolbar")
+
+            assert bool(toolbar.property("visible"))
+            assert float(toolbar.property("width")) > 0.0
+            assert float(toolbar.property("height")) > 0.0
+
+            rect = variant_value(toolbar.property("toolbarRect"))
+            assert rect_field(rect, "width") > 0.0
+            assert rect_field(rect, "height") > 0.0
+
+            embedded = variant_list(toolbar.property("embeddedInteractiveRects"))
+            assert len(embedded) == 1
+            assert rect_field(embedded[0], "width") > 0.0
+
+            events = []
+            host.nodeActionRequested.connect(
+                lambda node_id, action_id, payload: events.append((str(node_id), str(action_id)))
+            )
+
+            window = attach_window(root)
+            try:
+                for action_id in ("rename", "duplicate", "delete"):
+                    button = named_item(root, "graphNodeFloatingToolbarAction_" + action_id)
+                    center = button.mapToScene(
+                        QPointF(float(button.width()) * 0.5, float(button.height()) * 0.5)
+                    )
+                    QTest.mouseClick(
+                        window,
+                        Qt.MouseButton.LeftButton,
+                        Qt.KeyboardModifier.NoModifier,
+                        QPoint(round(center.x()), round(center.y())),
+                    )
+                    app.processEvents()
+
+                assert events == [
+                    ("probe_node", "rename"),
+                    ("probe_node", "duplicate"),
+                    ("probe_node", "delete"),
+                ], events
+            finally:
+                window.close()
+                app.processEvents()
+            """,
+        )
+
+    def test_floating_toolbar_buttons_support_keyboard_tab_and_enter(self) -> None:
+        self._run_toolbar_probe(
+            "floating-toolbar-keyboard-parity",
+            """
+            root = load_probe()
+            host = named_item(root, "floatingToolbarProbeHost")
+
+            events = []
+            host.nodeActionRequested.connect(
+                lambda node_id, action_id, payload: events.append((str(node_id), str(action_id)))
+            )
+
+            window = attach_window(root)
+            try:
+                first_button = named_item(root, "graphNodeFloatingToolbarAction_rename")
+                first_button.forceActiveFocus()
+                app.processEvents()
+                assert bool(first_button.property("activeFocus"))
+
+                QTest.keyClick(window, Qt.Key.Key_Return)
+                app.processEvents()
+                assert events == [("probe_node", "rename")], events
+
+                second_button = named_item(root, "graphNodeFloatingToolbarAction_duplicate")
+                second_button.forceActiveFocus()
+                app.processEvents()
+                assert bool(second_button.property("activeFocus"))
+
+                QTest.keyClick(window, Qt.Key.Key_Enter)
+                app.processEvents()
+                assert events == [
+                    ("probe_node", "rename"),
+                    ("probe_node", "duplicate"),
+                ], events
+            finally:
+                window.close()
+                app.processEvents()
+            """,
+        )
+
+    def test_floating_toolbar_visibility_tracks_host_toolbar_active_flag(self) -> None:
+        self._run_toolbar_probe(
+            "floating-toolbar-toolbar-active-tracking",
+            """
+            root = load_probe()
+            host = named_item(root, "floatingToolbarProbeHost")
+            toolbar = named_item(root, "floatingToolbarProbeToolbar")
+
+            assert bool(host.property("toolbarActive"))
+            assert bool(toolbar.property("visible"))
+
+            host.setProperty("toolbarActive", False)
+            app.processEvents()
+            assert not bool(host.property("toolbarActive"))
+            assert not bool(toolbar.property("visible"))
+
+            host.setProperty("toolbarActive", True)
+            app.processEvents()
+            assert bool(toolbar.property("visible"))
+
+            host.setProperty("availableActions", [])
+            app.processEvents()
+            assert not bool(toolbar.property("visible"))
             """,
         )
 
@@ -725,6 +908,39 @@ class GraphSurfaceInlineMetricTypographyTests(unittest.TestCase):
         self.assertEqual(large_icon_metrics.body_height, default_metrics.body_height)
         self.assertEqual(large_icon_port_point[1] - baseline_port_point[1], 30.0)
 
+    def test_dpf_viewer_metrics_follow_graph_label_size_for_port_rows(self) -> None:
+        registry = build_default_registry()
+        spec = registry.get_spec("dpf.viewer")
+        node = NodeInstance(
+            node_id="node_dpf_viewer_input_controls",
+            type_id=spec.type_id,
+            title="DPF Viewer",
+            x=32.0,
+            y=48.0,
+        )
+
+        default_metrics = node_surface_metrics(
+            node,
+            spec,
+            {node.node_id: node},
+            graph_label_pixel_size=10,
+            graph_node_icon_pixel_size=50,
+        )
+        large_metrics = node_surface_metrics(
+            node,
+            spec,
+            {node.node_id: node},
+            graph_label_pixel_size=16,
+            graph_node_icon_pixel_size=50,
+        )
+
+        self.assertEqual(default_metrics.port_height, 18.0)
+        self.assertEqual(large_metrics.port_height, 24.0)
+        self.assertEqual(large_metrics.body_top, default_metrics.body_top)
+        self.assertEqual(large_metrics.body_height, default_metrics.body_height)
+        self.assertEqual(large_metrics.default_height - default_metrics.default_height, 24.0)
+        self.assertEqual(large_metrics.min_height - default_metrics.min_height, 24.0)
+
     def test_scene_payload_builder_applies_title_icon_size_to_standard_nodes(self) -> None:
         class _ThemeSource:
             graphics_graph_label_pixel_size = 16
@@ -798,7 +1014,48 @@ class GraphSurfaceInlineMetricTypographyTests(unittest.TestCase):
         self.assertEqual(payload["surface_metrics"]["body_top"], 60.0)
         self.assertEqual(payload["viewer_surface"]["live_rect"]["y"], 60.0)
         self.assertEqual(payload["viewer_surface"]["live_rect"]["height"], 176.0)
-        self.assertEqual(payload["height"], 266.0)
+        self.assertEqual(payload["surface_metrics"]["port_height"], 24.0)
+        self.assertEqual(payload["height"], 272.0)
+
+    def test_scene_payload_builder_applies_graph_label_port_height_to_dpf_viewer_nodes(self) -> None:
+        class _ThemeSource:
+            graphics_graph_label_pixel_size = 16
+            graphics_node_title_icon_pixel_size = 50
+
+        class _ThemeBridge:
+            theme = "stitch_dark"
+
+            def __init__(self, parent: object) -> None:
+                self._parent = parent
+
+            def parent(self) -> object:
+                return self._parent
+
+        registry = build_default_registry()
+        model = GraphModel()
+        workspace_id = model.active_workspace.workspace_id
+        model.add_node(workspace_id, "dpf.viewer", "DPF Viewer", 32.0, 48.0)
+
+        builder = GraphScenePayloadBuilder()
+        nodes_payload, backdrop_nodes_payload, _minimap_nodes_payload, _edges_payload = builder.rebuild_partitioned_models(
+            model=model,
+            registry=registry,
+            workspace_id=workspace_id,
+            scope_path=(),
+            graph_theme_bridge=_ThemeBridge(_ThemeSource()),
+        )
+
+        self.assertEqual(len(backdrop_nodes_payload), 0)
+        self.assertEqual(len(nodes_payload), 1)
+        payload = nodes_payload[0]
+        self.assertEqual(payload["surface_family"], "viewer")
+        self.assertEqual(payload["surface_metrics"]["body_top"], 60.0)
+        self.assertEqual(payload["surface_metrics"]["body_height"], 176.0)
+        self.assertEqual(payload["surface_metrics"]["port_height"], 24.0)
+        self.assertEqual(payload["surface_metrics"]["min_height"], 316.0)
+        self.assertEqual(payload["viewer_surface"]["live_rect"]["y"], 60.0)
+        self.assertEqual(payload["viewer_surface"]["live_rect"]["height"], 176.0)
+        self.assertEqual(payload["height"], 344.0)
 
     def test_scene_payload_builder_reads_title_icon_size_from_graph_canvas_presenter(self) -> None:
         class _SearchScopeState:
@@ -930,6 +1187,7 @@ class GraphSurfaceInlineMetricTypographyTests(unittest.TestCase):
         legacy_height = (
             float(current_metrics.default_height)
             - (float(current_metrics.body_height) - legacy_body_height)
+            + 0.5
         )
         node.custom_height = legacy_height
 
@@ -941,6 +1199,59 @@ class GraphSurfaceInlineMetricTypographyTests(unittest.TestCase):
 
         self.assertGreater(legacy_height, current_metrics.default_height)
         self.assertEqual(resolved_size[1], current_metrics.default_height)
+
+    def test_viewer_surface_metrics_shrink_body_to_fit_custom_height_between_minimum_and_default(self) -> None:
+        spec = NodeTypeSpec(
+            type_id="tests.viewer_surface_input_controls.multiport",
+            display_name="Viewer Controls",
+            category_path=("Tests",),
+            icon="",
+            ports=(
+                PortSpec("field", "in", "data", "dpf_field"),
+                PortSpec("model", "in", "data", "dpf_model"),
+                PortSpec("mesh", "in", "data", "dpf_mesh"),
+                PortSpec("session", "out", "data", "dpf_view_session"),
+            ),
+            properties=(),
+            surface_family="viewer",
+            render_quality=NodeRenderQualitySpec(
+                weight_class="heavy",
+                max_performance_strategy="proxy_surface",
+                supported_quality_tiers=("full", "proxy"),
+            ),
+        )
+        node = NodeInstance(
+            node_id="node_viewer_surface_input_controls_mid_height",
+            type_id=spec.type_id,
+            title="Viewer Controls",
+            x=32.0,
+            y=48.0,
+        )
+
+        default_metrics = node_surface_metrics(node, spec, {node.node_id: node})
+        self.assertGreater(default_metrics.default_height, default_metrics.min_height)
+
+        midway_height = float(default_metrics.default_height - 18.0)
+        self.assertGreater(midway_height, float(default_metrics.min_height))
+        node.custom_height = midway_height
+
+        shrunk_metrics = node_surface_metrics(node, spec, {node.node_id: node})
+        expected_body_height = (
+            midway_height
+            - float(shrunk_metrics.body_top)
+            - 3.0 * float(shrunk_metrics.port_height)
+            - float(shrunk_metrics.body_bottom_margin)
+        )
+
+        self.assertLess(shrunk_metrics.body_height, default_metrics.body_height)
+        self.assertAlmostEqual(float(shrunk_metrics.body_height), expected_body_height, places=6)
+        self.assertAlmostEqual(
+            float(shrunk_metrics.port_top)
+            + 3.0 * float(shrunk_metrics.port_height)
+            + float(shrunk_metrics.body_bottom_margin),
+            midway_height,
+            places=6,
+        )
 
     def test_standard_surface_size_clamps_stale_custom_height_when_header_grows(self) -> None:
         registry = build_default_registry()

@@ -88,6 +88,17 @@ Item {
             return [];
         return loader.item.embeddedInteractiveRects;
     }
+    readonly property var surfaceActions: {
+        if (!loader.item || loader.item.surfaceActions === undefined || loader.item.surfaceActions === null)
+            return [];
+        return loader.item.surfaceActions;
+    }
+
+    function dispatchSurfaceAction(actionId) {
+        if (loader.item && loader.item.dispatchSurfaceAction)
+            return Boolean(loader.item.dispatchSurfaceAction(actionId));
+        return false;
+    }
 
     function _loadedSurfaceKey(family, _variant) {
         var normalizedFamily = String(family || "standard");

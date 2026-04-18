@@ -226,7 +226,8 @@ Item {
     readonly property var surfaceMetrics: GraphNodeSurfaceMetrics.surfaceMetrics(
         nodeData,
         card._liveGeometryActive ? card._liveWidth : (card.nodeData ? card.nodeData.width : undefined),
-        card._liveGeometryActive ? card._liveHeight : (card.nodeData ? card.nodeData.height : undefined)
+        card._liveGeometryActive ? card._liveHeight : (card.nodeData ? card.nodeData.height : undefined),
+        card.effectiveGraphLabelPixelSize
     )
     readonly property bool surfaceInteractionLocked: Boolean(surfaceLoader.blocksHostInteraction)
     readonly property var viewerSurfaceContract: surfaceLoader.viewerSurfaceContract
@@ -290,6 +291,11 @@ Item {
         real sceneY,
         bool hovered
     )
+    signal nodeActionRequested(string nodeId, string actionId, var payload)
+
+    // Type-specific action list published by the loaded surface (viewer, media, ...).
+    // Each entry is { id, label, icon, kind, enabled, primary }.
+    property var surfaceActions: Array.isArray(surfaceLoader.surfaceActions) ? surfaceLoader.surfaceActions : []
 
     property bool _liveGeometryActive: false
     property real _liveX: 0
@@ -298,6 +304,17 @@ Item {
     property real _liveHeight: 0
     readonly property real _minNodeWidth: Number(surfaceMetrics.min_width)
     readonly property real _minNodeHeight: Number(surfaceMetrics.min_height)
+    readonly property bool _viewerSurfaceHeightClamped: card.surfaceFamily === "viewer"
+    readonly property real _resolvedNodeHeight: {
+        var numeric = card._liveGeometryActive
+            ? Number(card._liveHeight)
+            : (card.nodeData ? Number(card.nodeData.height) : Number(surfaceMetrics.default_height));
+        if (!isFinite(numeric) || numeric <= 0.0)
+            numeric = Number(surfaceMetrics.default_height);
+        if (card._viewerSurfaceHeightClamped)
+            return Math.max(card._minNodeHeight, numeric);
+        return numeric;
+    }
     readonly property real _resizeHandleSize: Number(surfaceMetrics.resize_handle_size)
     readonly property real _resizeHandleHitSize: {
         var size = Number(card._resizeHandleSize);
@@ -596,6 +613,106 @@ Item {
     readonly property bool hoverActive: card._hostHoverActive
         || card._resizeHandleContainsMouse
         || card._resizeInteractionActive
+
+    // --- Floating toolbar contract (T01) -------------------------------------
+    // Accent color used by the floating toolbar for primary-action tint and hover
+    // border. Tracks the node's per-node theme via its selected outline color.
+    readonly property color nodeThemeColor: card.selectedOutlineColor
+
+    // Common actions available on every node. Surfaces add type-specific actions
+    // via card.surfaceActions; availableActions is the concatenation.
+    readonly property var commonNodeActions: {
+        var actions = [];
+        actions.push({
+            id: "rename",
+            label: "Rename",
+            icon: "edit",
+            kind: "common",
+            enabled: true,
+            primary: false,
+        });
+        actions.push({
+            id: "duplicate",
+            label: "Duplicate",
+            icon: "duplicate",
+            kind: "common",
+            enabled: true,
+            primary: false,
+        });
+        if (card.canEnterScope) {
+            actions.push({
+                id: "enterScope",
+                label: "Open",
+                icon: "open-session",
+                kind: "common",
+                enabled: true,
+                primary: false,
+            });
+        }
+        actions.push({
+            id: "delete",
+            label: "Delete",
+            icon: "delete",
+            kind: "common",
+            enabled: true,
+            primary: false,
+            destructive: true,
+        });
+        return actions;
+    }
+    readonly property var availableActions: {
+        var surface = Array.isArray(card.surfaceActions) ? card.surfaceActions : [];
+        return card.commonNodeActions.concat(surface);
+    }
+
+    // Hover-or-selected trigger with 120 ms grace period so the cursor can travel
+    // from the node onto the toolbar without the toolbar collapsing mid-motion.
+    readonly property bool toolbarActiveSource: card.hoverActive || card.isSelected
+    property bool toolbarActive: false
+    Timer {
+        id: _toolbarGraceTimer
+        interval: 120
+        repeat: false
+        onTriggered: {
+            if (!card.toolbarActiveSource)
+                card.toolbarActive = false;
+        }
+    }
+    onToolbarActiveSourceChanged: {
+        if (card.toolbarActiveSource) {
+            _toolbarGraceTimer.stop();
+            card.toolbarActive = true;
+        } else {
+            _toolbarGraceTimer.restart();
+        }
+    }
+    onToolbarActiveChanged: {
+        if (!card.canvasItem)
+            return;
+        if (card.toolbarActive) {
+            card.canvasItem.activeToolbarHost = card;
+        } else if (card.canvasItem.activeToolbarHost === card) {
+            card.canvasItem.activeToolbarHost = null;
+        }
+    }
+    Component.onDestruction: {
+        if (card.canvasItem && card.canvasItem.activeToolbarHost === card)
+            card.canvasItem.activeToolbarHost = null;
+    }
+
+    function dispatchNodeAction(actionId, payload) {
+        if (!card.nodeData)
+            return;
+        card.nodeActionRequested(String(card.nodeData.node_id || ""), String(actionId || ""), payload || null);
+    }
+
+    function dispatchSurfaceAction(actionId) {
+        if (!surfaceLoader || !surfaceLoader.dispatchSurfaceAction)
+            return false;
+        return Boolean(surfaceLoader.dispatchSurfaceAction(actionId));
+    }
+    // -------------------------------------------------------------------------
+
     readonly property bool _forceRenderActive: card.isSelected
         || card.isFailedNode
         || card.isRunningNode
@@ -630,7 +747,7 @@ Item {
         y: hostGestureLayer.dragActive ? 0 : card.liveDragDy
     }
     width: card._liveGeometryActive ? card._liveWidth : (card.nodeData ? card.nodeData.width : Number(surfaceMetrics.default_width))
-    height: card._liveGeometryActive ? card._liveHeight : (card.nodeData ? card.nodeData.height : Number(surfaceMetrics.default_height))
+    height: card._resolvedNodeHeight
 
     GraphNodeChromeBackground {
         anchors.fill: parent

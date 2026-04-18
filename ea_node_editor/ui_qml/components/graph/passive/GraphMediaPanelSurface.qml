@@ -159,6 +159,38 @@ Item {
             previewViewport.embeddedInteractiveRects
         ]
     )
+    readonly property var surfaceActions: {
+        var actions = [];
+        var fullscreenAvailable = typeof contentFullscreenBridge !== "undefined"
+            && contentFullscreenBridge
+            && host && host.nodeData
+            && String(host.nodeData.node_id || "").length > 0;
+        actions.push({
+            "id": "crop",
+            "label": "Crop",
+            "icon": "crop",
+            "kind": "media",
+            "enabled": cropToolAvailable && !cropModeActive,
+            "primary": cropModeActive
+        });
+        actions.push({
+            "id": "fullscreen",
+            "label": "Fullscreen",
+            "icon": "fullscreen",
+            "kind": "media",
+            "enabled": fullscreenAvailable && previewState === "ready" && !cropModeActive,
+            "primary": false
+        });
+        actions.push({
+            "id": "repair",
+            "label": "Repair",
+            "icon": "alert",
+            "kind": "media",
+            "enabled": fileIssueActive,
+            "primary": fileIssueActive
+        });
+        return actions;
+    }
     readonly property real cropHandleSize: 12
     readonly property real cropHandleHitSlop: 8
     implicitHeight: host ? Number(host.surfaceMetrics.body_height || 0) : 0
@@ -378,6 +410,37 @@ Item {
 
     function triggerHoverAction() {
         _beginCropEdit();
+    }
+
+    function _requestContentFullscreen() {
+        if (typeof contentFullscreenBridge === "undefined" || !contentFullscreenBridge)
+            return false;
+        var nodeId = host && host.nodeData ? String(host.nodeData.node_id || "") : "";
+        if (!nodeId.length)
+            return false;
+        if (contentFullscreenBridge.request_toggle_for_node)
+            return Boolean(contentFullscreenBridge.request_toggle_for_node(nodeId));
+        if (contentFullscreenBridge.request_open_node)
+            return Boolean(contentFullscreenBridge.request_open_node(nodeId));
+        return false;
+    }
+
+    function dispatchSurfaceAction(actionId) {
+        var normalized = String(actionId || "");
+        _beginInlineInteraction();
+        if (normalized === "crop") {
+            _beginCropEdit();
+            return cropModeActive;
+        }
+        if (normalized === "fullscreen")
+            return _requestContentFullscreen();
+        if (normalized === "repair") {
+            if (!fileIssueActive)
+                return false;
+            repairFile();
+            return true;
+        }
+        return false;
     }
 
     function _updateDraftFromHandle(handle, deltaPixelsX, deltaPixelsY, startX, startY, startW, startH) {
