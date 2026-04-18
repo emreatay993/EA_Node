@@ -309,55 +309,32 @@ Item {
             : chromeContainer.height - height / 2 + 0.5
     }
 
-    Canvas {
+    Image {
         id: ownershipChevron
         objectName: "graphNodeFloatingToolbarChevron"
         visible: !root._hasChrome
         z: -1
-        width: 14
-        height: 6
+        width: 24
+        height: 24
+        smooth: true
         antialiasing: true
+        opacity: 0.85
+        source: root._iconSource(
+            root.flipped ? "chevron-up" : "chevron-down",
+            24,
+            root._chromeBaseBorder
+        )
+        sourceSize: Qt.size(24, 24)
 
-        readonly property color strokeColor: Qt.alpha(root._chromeBaseBorder, 0.85)
-        readonly property real strokeWidth: 1.5
-        readonly property real chevronEdgeMargin: 6
         readonly property real clampedCenterX: Math.max(
-            chevronEdgeMargin + width / 2,
+            width / 2,
             Math.min(
-                chromeContainer.width - chevronEdgeMargin - width / 2,
+                chromeContainer.width - width / 2,
                 root._ownerCenterX
             )
         )
         x: clampedCenterX - width / 2
-        y: root.flipped ? -height - 1 : chromeContainer.height + 1
-
-        onPaint: {
-            var ctx = getContext("2d");
-            ctx.reset();
-            ctx.strokeStyle = strokeColor;
-            ctx.lineWidth = strokeWidth;
-            ctx.lineCap = "round";
-            ctx.lineJoin = "round";
-            var inset = strokeWidth / 2;
-            ctx.beginPath();
-            if (root.flipped) {
-                ctx.moveTo(inset, height - inset);
-                ctx.lineTo(width / 2, inset);
-                ctx.lineTo(width - inset, height - inset);
-            } else {
-                ctx.moveTo(inset, inset);
-                ctx.lineTo(width / 2, height - inset);
-                ctx.lineTo(width - inset, inset);
-            }
-            ctx.stroke();
-        }
-
-        Connections {
-            target: root
-            function onFlippedChanged() { ownershipChevron.requestPaint(); }
-        }
-        onStrokeColorChanged: requestPaint()
-        onVisibleChanged: if (visible) requestPaint()
+        y: root.flipped ? -height + 8 : chromeContainer.height - 9
     }
 
     Rectangle {
