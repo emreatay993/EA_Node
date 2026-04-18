@@ -112,11 +112,8 @@ Item {
     readonly property real gapFromNode: Number(toolbarMetrics.gap_from_node || 6)
     readonly property real safetyMargin: Number(toolbarMetrics.safety_margin || 8)
     readonly property real hysteresis: Number(toolbarMetrics.hysteresis || 8)
-    readonly property real internalPadding: Number(toolbarMetrics.internal_padding || 4)
-    readonly property real buttonGap: Number(toolbarMetrics.button_gap || 4)
     readonly property int animationDuration: Number(toolbarMetrics.animation_duration_ms || 180)
     readonly property real toolbarHeightMetric: Number(toolbarMetrics.toolbar_height || 32)
-    readonly property real buttonSizeMetric: Number(toolbarMetrics.button_size || 24)
 
     readonly property var embeddedInteractiveRects: root.visible
         ? SurfaceControlGeometry.rectList(SurfaceControlGeometry.rectFromItem(chromeContainer, root.host))
