@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import gc
-from unittest.mock import patch
 
 from PyQt6.QtCore import QObject, QPoint, QPointF, Qt
 from PyQt6.QtQuick import QQuickItem
@@ -228,14 +227,40 @@ class MainWindowShellCommentBackdropWorkflowTests(MainWindowShellTestBase):
         graph_canvas.setProperty("nodeContextVisible", True)
         self.app.processEvents()
 
-        with patch("PyQt6.QtWidgets.QInputDialog.getText", return_value=("Mesh Extraction", True)):
-            node_context_popup.actionTriggered.emit("rename_node")
+        title_editor = self._graph_node_child(
+            backdrop_id,
+            card_object_name="graphNodeCard",
+            child_object_name="graphNodeTitleEditor",
+        )
+        self.assertFalse(bool(title_editor.property("visible")))
+
+        node_context_popup.actionTriggered.emit("rename_node")
         self.app.processEvents()
+
+        self.assertFalse(bool(graph_canvas.property("nodeContextVisible")))
+        wait_for_condition_or_raise(
+            lambda: bool(title_editor.property("visible")),
+            timeout_ms=1500,
+            poll_interval_ms=20,
+            app=self.app,
+            timeout_message="Timed out waiting for the comment-backdrop inline title editor to activate.",
+        )
+
+        card = self._graph_node_card(backdrop_id, object_name="graphNodeCard")
+        card.inlinePropertyCommitted.emit(backdrop_id, "title", "Mesh Extraction")
+        self.app.processEvents()
+
+        wait_for_condition_or_raise(
+            lambda: workspace.nodes[backdrop_id].title == "Mesh Extraction",
+            timeout_ms=1500,
+            poll_interval_ms=20,
+            app=self.app,
+            timeout_message="Timed out waiting for the inline rename to reach the workspace model.",
+        )
 
         backdrop = workspace.nodes[backdrop_id]
         self.assertEqual(backdrop.title, "Mesh Extraction")
         self.assertEqual(backdrop.properties["title"], "Mesh Extraction")
-        self.assertFalse(bool(graph_canvas.property("nodeContextVisible")))
 
     def test_comment_backdrop_context_menu_peek_inside_is_only_for_collapsed_backdrops(self) -> None:
         graph_canvas = self._graph_canvas_item()
