@@ -675,6 +675,10 @@ Item {
     readonly property real dragTranslateX: hostGestureLayer.dragActive ? 0 : Number(card.liveDragDx || 0)
     readonly property real dragTranslateY: hostGestureLayer.dragActive ? 0 : Number(card.liveDragDy || 0)
 
+    readonly property bool hostDragActive: hostGestureLayer.dragActive
+        || Number(card.liveDragDx || 0) !== 0
+        || Number(card.liveDragDy || 0) !== 0
+
     // Set by the overlay toolbar while the cursor is inside its chrome (or the
     // gap bridging it to the node), so the toolbar stays open while the user
     // reaches for a button.

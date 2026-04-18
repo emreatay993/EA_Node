@@ -205,7 +205,9 @@ Item {
             root.flipped = Boolean(root.anchor.flipped);
     }
 
-    visible: root.toolbarActive && root.actionList.length > 0
+    readonly property bool _nodeDragActive: root.hostValid && Boolean(root.host.hostDragActive)
+
+    visible: root.toolbarActive && root.actionList.length > 0 && !root._nodeDragActive
     x: Number(root.anchor.x)
     y: Number(root.anchor.y)
     width: chromeContainer.implicitWidth
