@@ -186,6 +186,14 @@ Item {
                 showActionButtons: false
                 fieldFont.pixelSize: surface.bodyFontSize
                 fieldFont.bold: surface.bodyFontBold
+                fieldTextColor: surface.bodyTextColor
+                fieldFillColor: "transparent"
+                fieldBorderColor: "transparent"
+                fieldFocusBorderColor: "transparent"
+                fieldLeftPadding: 0
+                fieldRightPadding: 0
+                fieldTopPadding: 0
+                fieldBottomPadding: 0
                 fieldObjectName: "graphCommentBackdropBodyEditorField"
                 applyButtonObjectName: "graphCommentBackdropBodyApplyButton"
                 resetButtonObjectName: "graphCommentBackdropBodyResetButton"

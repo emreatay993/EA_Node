@@ -46,7 +46,6 @@ Item {
         && root.nodeTitleIconSource.length > 0
     readonly property bool nodeTitleIconVisible: root.nodeTitleIconEligible
         && root.nodeTitleIconRenderSize > 0
-        && !root.isEditing
     readonly property real _nodeTitleIconReserveWidth: root.nodeTitleIconEligible
         && root.nodeTitleIconRenderSize > 0
         ? root.nodeTitleIconRenderSize + root.nodeTitleIconSpacing
@@ -74,11 +73,11 @@ Item {
         ? uiIcons.sourceSized("comment", root.commentTitleIconSize, String(root.host ? root.host.headerTextColor : "#f0f4fb"))
         : ""
     readonly property real _titleEditorLeftPadding: root.host && root.host._titleCentered
-        ? 6 + (root._titleLeadingIconReserveWidth * 0.5)
-        : 6 + root._titleLeadingIconReserveWidth
+        ? (root._titleLeadingIconReserveWidth * 0.5)
+        : root._titleLeadingIconReserveWidth
     readonly property real _titleEditorRightPadding: root.host && root.host._titleCentered
-        ? 6 + (root._titleLeadingIconReserveWidth * 0.5)
-        : 6
+        ? (root._titleLeadingIconReserveWidth * 0.5)
+        : 0
     readonly property var embeddedInteractiveRects: SurfaceControlGeometry.combineRectLists(
         [titleEditorInteractionRegion.embeddedInteractiveRects, openBadgeInteractionRegion.embeddedInteractiveRects]
     )
@@ -249,6 +248,7 @@ Item {
         Text {
             id: titleText
             objectName: "graphNodeTitle"
+            visible: !(root.headerTitleVisible && root.isEditing)
             property int effectiveRenderType: renderType
             x: root._titleLeadingIconReserveWidth > 0
                 ? (root.host && root.host._titleCentered
@@ -294,9 +294,9 @@ Item {
         font.pixelSize: titleText.font.pixelSize
         font.weight: titleText.font.weight
         textColor: root.host ? root.host.headerTextColor : "#f0f4fb"
-        fillColor: root.host ? Qt.alpha(root.host.surfaceColor, 0.96) : "#f5fafd"
-        borderColor: root.host ? Qt.alpha(root.host.outlineColor, 0.9) : "#61798B"
-        focusBorderColor: root.host ? root.host.selectedOutlineColor : "#2C85BF"
+        fillColor: "transparent"
+        borderColor: "transparent"
+        focusBorderColor: "transparent"
         topPadding: 0
         bottomPadding: 0
         leftPadding: root._titleEditorLeftPadding

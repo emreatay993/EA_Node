@@ -7,6 +7,14 @@ Item {
     id: root
     property Item host: null
     property alias fieldFont: textareaField.font
+    property alias fieldFillColor: textareaField.fillColor
+    property alias fieldBorderColor: textareaField.borderColor
+    property alias fieldFocusBorderColor: textareaField.focusBorderColor
+    property alias fieldTextColor: textareaField.textColor
+    property alias fieldLeftPadding: textareaField.leftPadding
+    property alias fieldRightPadding: textareaField.rightPadding
+    property alias fieldTopPadding: textareaField.topPadding
+    property alias fieldBottomPadding: textareaField.bottomPadding
     property bool showActionButtons: true
     property string propertyKey: ""
     property string committedText: ""
