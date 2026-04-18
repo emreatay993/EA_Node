@@ -35,6 +35,7 @@ from ea_node_editor.settings import (
     GRAPH_LABEL_PIXEL_SIZE_MIN,
     GRAPH_NODE_ICON_PIXEL_SIZE_MAX,
     GRID_OVERLAY_STYLE_CHOICES,
+    PROPERTY_PANE_VARIANT_CHOICES,
     TAB_STRIP_DENSITY_CHOICES,
 )
 from ea_node_editor.ui.dialogs.sectioned_settings_dialog import SectionedSettingsDialog
@@ -608,6 +609,27 @@ class GraphicsSettingsDialog(SectionedSettingsDialog):
         typography_lay.addLayout(typography_form)
         outer.addWidget(typography_card)
 
+        # ── Inspector section ──
+        outer.addWidget(self._make_section_title("Inspector", page))
+        inspector_card, inspector_lay = self._make_section_card(page)
+        inspector_form = QFormLayout()
+        inspector_form.setContentsMargins(0, 0, 0, 0)
+        inspector_form.setVerticalSpacing(8)
+        self.property_pane_variant_combo = QComboBox(inspector_card)
+        self.property_pane_variant_combo.setObjectName("graphicsSettingsPropertyPaneVariantCombo")
+        for variant_id, label in PROPERTY_PANE_VARIANT_CHOICES:
+            self.property_pane_variant_combo.addItem(label, variant_id)
+        inspector_form.addRow("Property pane", self.property_pane_variant_combo)
+        inspector_lay.addLayout(inspector_form)
+        property_pane_variant_helper = QLabel(
+            "Layout for the property / inspector pane.",
+            inspector_card,
+        )
+        property_pane_variant_helper.setObjectName("graphicsSettingsPropertyPaneVariantHelper")
+        property_pane_variant_helper.setWordWrap(True)
+        inspector_lay.addWidget(property_pane_variant_helper)
+        outer.addWidget(inspector_card)
+
         self.graph_node_icon_size_override_check.toggled.connect(
             self._sync_graph_node_icon_size_override_enabled
         )
@@ -710,6 +732,13 @@ class GraphicsSettingsDialog(SectionedSettingsDialog):
         density_id = settings["shell"]["tab_strip_density"]
         density_index = self.tab_strip_density_combo.findData(density_id)
         self.tab_strip_density_combo.setCurrentIndex(density_index if density_index >= 0 else 0)
+        property_pane_variant_id = settings["shell"]["property_pane_variant"]
+        property_pane_variant_index = self.property_pane_variant_combo.findData(
+            property_pane_variant_id
+        )
+        self.property_pane_variant_combo.setCurrentIndex(
+            property_pane_variant_index if property_pane_variant_index >= 0 else 0
+        )
         theme_id = settings["theme"]["theme_id"]
         index = self.theme_combo.findData(theme_id)
         self.theme_combo.setCurrentIndex(index if index >= 0 else 0)
@@ -789,6 +818,10 @@ class GraphicsSettingsDialog(SectionedSettingsDialog):
                 },
                 "shell": {
                     "tab_strip_density": str(self.tab_strip_density_combo.currentData() or ""),
+                    "property_pane_variant": str(
+                        self.property_pane_variant_combo.currentData()
+                        or DEFAULT_GRAPHICS_SETTINGS["shell"]["property_pane_variant"]
+                    ),
                 },
                 "theme": {
                     "theme_id": str(theme_id) if theme_id is not None else "",

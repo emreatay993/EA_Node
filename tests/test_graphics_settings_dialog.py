@@ -145,6 +145,9 @@ class GraphicsSettingsDialogTests(unittest.TestCase):
             dialog.expand_collision_animate_check.setChecked(False)
             dialog.max_performance_mode_button.setChecked(True)
             dialog.tab_strip_density_combo.setCurrentIndex(dialog.tab_strip_density_combo.findData("regular"))
+            dialog.property_pane_variant_combo.setCurrentIndex(
+                dialog.property_pane_variant_combo.findData("accordion_cards")
+            )
             dialog.theme_combo.setCurrentIndex(dialog.theme_combo.findData("stitch_light"))
             dialog.follow_shell_theme_check.setChecked(False)
             dialog.graph_theme_combo.setCurrentIndex(dialog.graph_theme_combo.findData("graph_stitch_light"))
@@ -168,6 +171,7 @@ class GraphicsSettingsDialogTests(unittest.TestCase):
             }
             expected["performance"]["mode"] = "max_performance"
             expected["shell"]["tab_strip_density"] = "regular"
+            expected["shell"]["property_pane_variant"] = "accordion_cards"
             expected["theme"]["theme_id"] = "stitch_light"
             expected["graph_theme"]["follow_shell_theme"] = False
             expected["graph_theme"]["selected_theme_id"] = "graph_stitch_light"
@@ -689,6 +693,71 @@ class GraphicsSettingsDialogTests(unittest.TestCase):
         finally:
             dialog_with_tooltips.close()
             dialog_without_tooltips.close()
+
+    def test_property_pane_variant_combo_defaults_and_roundtrips_all_choices(self) -> None:
+        dialog = GraphicsSettingsDialog()
+        try:
+            self.assertEqual(
+                dialog.property_pane_variant_combo.objectName(),
+                "graphicsSettingsPropertyPaneVariantCombo",
+            )
+            self.assertEqual(dialog.property_pane_variant_combo.count(), 3)
+            item_ids = [
+                dialog.property_pane_variant_combo.itemData(index)
+                for index in range(dialog.property_pane_variant_combo.count())
+            ]
+            self.assertEqual(item_ids, ["smart_groups", "accordion_cards", "palette"])
+            self.assertEqual(dialog.property_pane_variant_combo.currentData(), "smart_groups")
+            self.assertEqual(
+                dialog.values()["shell"]["property_pane_variant"],
+                "smart_groups",
+            )
+
+            for variant_id in ("accordion_cards", "palette", "smart_groups"):
+                with self.subTest(variant=variant_id):
+                    dialog.property_pane_variant_combo.setCurrentIndex(
+                        dialog.property_pane_variant_combo.findData(variant_id)
+                    )
+                    self.assertEqual(
+                        dialog.values()["shell"]["property_pane_variant"],
+                        variant_id,
+                    )
+        finally:
+            dialog.close()
+
+    def test_property_pane_variant_combo_set_values_accepts_initial_settings(self) -> None:
+        dialog = GraphicsSettingsDialog(
+            initial_settings={
+                "shell": {
+                    "property_pane_variant": "accordion_cards",
+                }
+            }
+        )
+        try:
+            self.assertEqual(dialog.property_pane_variant_combo.currentData(), "accordion_cards")
+            self.assertEqual(
+                dialog.values()["shell"]["property_pane_variant"],
+                "accordion_cards",
+            )
+        finally:
+            dialog.close()
+
+    def test_property_pane_variant_combo_set_values_falls_back_for_unknown_id(self) -> None:
+        dialog = GraphicsSettingsDialog(
+            initial_settings={
+                "shell": {
+                    "property_pane_variant": "hologram",
+                }
+            }
+        )
+        try:
+            self.assertEqual(dialog.property_pane_variant_combo.currentData(), "smart_groups")
+            self.assertEqual(
+                dialog.values()["shell"]["property_pane_variant"],
+                "smart_groups",
+            )
+        finally:
+            dialog.close()
 
     def test_tooltip_host_presenter_passes_current_global_policy_to_graphics_dialog(self) -> None:
         from ea_node_editor.ui.shell.host_presenter import ShellHostPresenter
