@@ -203,7 +203,7 @@ Item {
     Item {
         id: titleDisplay
         objectName: "graphNodeTitleDisplay"
-        visible: root.headerTitleVisible && !root.isEditing
+        visible: root.headerTitleVisible
         anchors.left: parent.left
         anchors.leftMargin: root.host ? root.host._titleLeftMargin : 0
         anchors.right: parent.right
