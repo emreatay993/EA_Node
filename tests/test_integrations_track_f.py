@@ -21,6 +21,7 @@ from ea_node_editor.nodes.builtins.integrations import (
     ExcelWriteNodePlugin,
     FileReadNodePlugin,
     FileWriteNodePlugin,
+    PathPointerNodePlugin,
 )
 from ea_node_editor.nodes.types import ExecutionContext
 from ea_node_editor.persistence.serializer import JsonProjectSerializer
@@ -214,6 +215,102 @@ class IntegrationNodesTrackFTests(unittest.TestCase):
             with self.assertRaises(ValueError) as excel_error:
                 ExcelReadNodePlugin().execute(_context(properties={"path": str(bad_path)}))
         self.assertIn("supports only", str(excel_error.exception).lower())
+
+
+class PathPointerNodeTests(unittest.TestCase):
+    """Tests for ``io.path_pointer`` (Variant B from the design mockup)."""
+
+    def test_path_pointer_file_mode_happy_path(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            file_path = Path(temp_dir) / "hello.txt"
+            file_path.write_text("hi", encoding="utf-8")
+            result = PathPointerNodePlugin().execute(
+                _context(properties={"mode": "file", "path": str(file_path), "must_exist": True})
+            )
+            self.assertEqual(result.outputs["path"], str(file_path))
+            self.assertIs(result.outputs["exists"], True)
+
+    def test_path_pointer_folder_mode_happy_path(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            folder_path = Path(temp_dir)
+            result = PathPointerNodePlugin().execute(
+                _context(properties={"mode": "folder", "path": str(folder_path), "must_exist": True})
+            )
+            self.assertEqual(result.outputs["path"], str(folder_path))
+            self.assertIs(result.outputs["exists"], True)
+
+    def test_path_pointer_missing_raises_when_must_exist(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            missing = Path(temp_dir) / "does_not_exist.rst"
+            with self.assertRaises(FileNotFoundError) as cm:
+                PathPointerNodePlugin().execute(
+                    _context(properties={"mode": "file", "path": str(missing), "must_exist": True})
+                )
+            self.assertIn("does not exist", str(cm.exception).lower())
+
+    def test_path_pointer_missing_tolerated_when_not_must_exist(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            missing = Path(temp_dir) / "does_not_exist.rst"
+            result = PathPointerNodePlugin().execute(
+                _context(properties={"mode": "file", "path": str(missing), "must_exist": False})
+            )
+            self.assertEqual(result.outputs["path"], str(missing))
+            self.assertIs(result.outputs["exists"], False)
+
+    def test_path_pointer_mode_mismatch_raises(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            file_path = Path(temp_dir) / "data.txt"
+            file_path.write_text("x", encoding="utf-8")
+            with self.assertRaises(ValueError) as file_as_folder:
+                PathPointerNodePlugin().execute(
+                    _context(properties={"mode": "folder", "path": str(file_path), "must_exist": True})
+                )
+            self.assertIn("folder", str(file_as_folder.exception).lower())
+
+            with self.assertRaises(ValueError) as folder_as_file:
+                PathPointerNodePlugin().execute(
+                    _context(properties={"mode": "file", "path": str(temp_dir), "must_exist": True})
+                )
+            self.assertIn("file", str(folder_as_file.exception).lower())
+
+    def test_path_pointer_empty_path_tolerated_when_not_must_exist(self) -> None:
+        result = PathPointerNodePlugin().execute(
+            _context(properties={"mode": "file", "path": "", "must_exist": False})
+        )
+        self.assertEqual(result.outputs, {"path": "", "exists": False})
+
+    def test_path_pointer_empty_path_raises_when_must_exist(self) -> None:
+        with self.assertRaises(ValueError) as cm:
+            PathPointerNodePlugin().execute(
+                _context(properties={"mode": "file", "path": "", "must_exist": True})
+            )
+        self.assertIn("non-empty", str(cm.exception).lower())
+
+    def test_path_pointer_invalid_mode_raises(self) -> None:
+        with self.assertRaises(ValueError) as cm:
+            PathPointerNodePlugin().execute(
+                _context(properties={"mode": "url", "path": "whatever", "must_exist": False})
+            )
+        self.assertIn("'file' or 'folder'", str(cm.exception))
+
+    def test_path_pointer_registered_in_default_registry(self) -> None:
+        """Smoke test: node is discoverable from the default registry with expected spec."""
+        registry = build_default_registry()
+        spec = registry.spec_or_none("io.path_pointer")
+        self.assertIsNotNone(spec)
+        # Ports: both outputs, passive (no exec_in/out)
+        port_keys = {port.key for port in spec.ports}
+        self.assertEqual(port_keys, {"path", "exists"})
+        for port in spec.ports:
+            self.assertEqual(port.direction, "out")
+        # All properties live in the single "Source" group
+        self.assertEqual(
+            {prop.key for prop in spec.properties},
+            {"mode", "path", "must_exist"},
+        )
+        for prop in spec.properties:
+            self.assertEqual(prop.group, "Source", f"property {prop.key} not in Source group")
+        self.assertEqual(spec.runtime_behavior, "passive")
 
 
 class IntegrationFlowSmokeTests(unittest.TestCase):

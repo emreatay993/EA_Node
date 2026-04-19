@@ -4,6 +4,7 @@ from ea_node_editor.nodes.builtins.integrations import (
     ExcelWriteNodePlugin,
     FileReadNodePlugin,
     FileWriteNodePlugin,
+    PathPointerNodePlugin,
     ProcessRunNodePlugin,
 )
 
@@ -12,6 +13,7 @@ __all__ = [
     "ExcelWriteNodePlugin",
     "FileReadNodePlugin",
     "FileWriteNodePlugin",
+    "PathPointerNodePlugin",
     "EmailSendNodePlugin",
     "ProcessRunNodePlugin",
 ]

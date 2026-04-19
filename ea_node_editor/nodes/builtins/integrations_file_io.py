@@ -94,3 +94,95 @@ class FileWriteNodePlugin:
 
         _write_file_payload(path, inputs=ctx.inputs, as_json=as_json)
         return NodeResult(outputs={"written_path": str(path), "exec_out": True})
+
+
+class PathPointerNodePlugin:
+    """Path Pointer — holds a file or folder path for reuse across nodes.
+
+    Implements Variant B ("File / Folder Pointer") from the design mockup at
+    ``~/.claude/plans/do-i-have-some-enchanted-spindle.html``. Decisions:
+    ``mode`` is ``"file"`` or ``"folder"``; no DPF handle output (downstream
+    DPF workflows continue to use ``dpf.result_file``); all properties live in
+    a single ``"Source"`` inspector group.
+
+    Acts as a passive data source: one editable path feeds many consumers, so a
+    path referenced by several nodes has a single edit point.
+    """
+
+    def spec(self) -> NodeTypeSpec:
+        return NodeTypeSpec(
+            type_id="io.path_pointer",
+            display_name="Path Pointer",
+            category_path=("Input / Output",),
+            icon="integrations/description.svg",
+            description="Holds a file or folder path for reuse across nodes.",
+            runtime_behavior="passive",
+            ports=(
+                PortSpec("path", "out", "data", "path", exposed=True),
+                PortSpec("exists", "out", "data", "bool", exposed=True),
+            ),
+            properties=(
+                PropertySpec(
+                    "mode",
+                    "enum",
+                    "file",
+                    "Mode",
+                    enum_values=("file", "folder"),
+                    inline_editor="enum",
+                    inspector_editor="enum",
+                    group="Source",
+                ),
+                PropertySpec(
+                    "path",
+                    "path",
+                    "",
+                    "Path",
+                    inline_editor="path",
+                    inspector_editor="path",
+                    group="Source",
+                ),
+                PropertySpec(
+                    "must_exist",
+                    "bool",
+                    True,
+                    "Must Exist",
+                    inspector_editor="toggle",
+                    group="Source",
+                ),
+            ),
+        )
+
+    def execute(self, ctx) -> NodeResult:  # noqa: ANN001
+        mode = str(ctx.properties.get("mode", "file")).strip().lower()
+        if mode not in ("file", "folder"):
+            raise ValueError(
+                f"Path Pointer mode must be 'file' or 'folder', got: {mode!r}"
+            )
+        must_exist = bool(ctx.properties.get("must_exist", True))
+
+        path = pick_optional_path(ctx, input_key="path", property_key="path")
+        if path is None:
+            if must_exist:
+                raise ValueError(
+                    "Path Pointer requires a non-empty path when 'Must Exist' is enabled."
+                )
+            return NodeResult(outputs={"path": "", "exists": False})
+
+        exists = path.exists()
+        type_ok = (path.is_file() if mode == "file" else path.is_dir()) if exists else False
+
+        if must_exist:
+            if not exists:
+                raise FileNotFoundError(f"Path Pointer path does not exist: {path}")
+            if mode == "file" and not path.is_file():
+                raise ValueError(
+                    f"Path Pointer expected a file but got a directory: {path}"
+                )
+            if mode == "folder" and not path.is_dir():
+                raise ValueError(
+                    f"Path Pointer expected a folder but got a file: {path}"
+                )
+
+        return NodeResult(
+            outputs={"path": str(path), "exists": bool(exists and type_ok)}
+        )
