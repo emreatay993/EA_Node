@@ -14,13 +14,18 @@ import types
 from pathlib import Path
 from typing import Any
 
+from ea_node_editor.app_preferences import addon_state, normalize_app_preferences_document
 from ea_node_editor.nodes.registry import NodeRegistry
 from ea_node_editor.nodes.node_specs import NodeTypeSpec
 from ea_node_editor.nodes.plugin_contracts import (
+    AddOnManifest,
+    AddOnRecord,
+    AddOnState,
     NodePlugin,
     PluginBackendDescriptor,
     PluginDescriptor,
     PluginProvenance,
+    PluginAvailability,
 )
 from ea_node_editor.settings import plugins_dir
 
@@ -124,6 +129,12 @@ def _entry_points_for_group() -> tuple[Any, ...]:
         if hasattr(all_entry_points, "select"):
             return tuple(all_entry_points.select(group=ENTRY_POINT_GROUP))
         return tuple(all_entry_points.get(ENTRY_POINT_GROUP, ()))
+
+
+def _registered_addon_registrations():
+    from ea_node_editor.addons.catalog import registered_addon_registrations
+
+    return registered_addon_registrations()
 
 
 def _safe_module_segment(value: str, *, fallback: str) -> str:
@@ -473,6 +484,142 @@ def _load_plugins_from_entry_points(registry: NodeRegistry) -> list[str]:
     return loaded
 
 
+def _load_addon_backend_from_registration(registration: Any) -> tuple[PluginBackendDescriptor | None, Any | None]:
+    try:
+        module = importlib.import_module(registration.backend_module)
+    except Exception:  # noqa: BLE001
+        logger.warning(
+            "Failed to import add-on backend module %s",
+            registration.backend_module,
+            exc_info=True,
+        )
+        return None, None
+
+    raw_backends = getattr(module, registration.backend_collection_attr, ())
+    try:
+        backends = tuple(_coerce_plugin_backend(item) for item in raw_backends)
+    except TypeError:
+        logger.warning(
+            "Ignoring invalid add-on backend registration from %s",
+            registration.backend_module,
+            exc_info=True,
+        )
+        return None, module
+
+    for backend in backends:
+        if backend.plugin_id == registration.backend_id:
+            return backend, module
+
+    logger.warning(
+        "Add-on backend %s was not found in %s",
+        registration.backend_id,
+        registration.backend_module,
+    )
+    return None, module
+
+
+def _resolve_addon_version(manifest: AddOnManifest, *, module: Any, registration: Any) -> str:
+    version = manifest.version
+    version_resolver_attr = str(getattr(registration, "version_resolver_attr", "") or "").strip()
+    if module is None or not version_resolver_attr:
+        return version
+    version_resolver = getattr(module, version_resolver_attr, None)
+    if not callable(version_resolver):
+        return version
+    try:
+        resolved_version = version_resolver()
+    except Exception:  # noqa: BLE001
+        logger.warning(
+            "Failed to resolve add-on version for %s",
+            manifest.addon_id,
+            exc_info=True,
+        )
+        return version
+    return str(resolved_version or version)
+
+
+def _unavailable_addon_availability(manifest: AddOnManifest, *, reason: str = "") -> PluginAvailability:
+    summary = reason.strip()
+    if not summary:
+        summary = (
+            f"{manifest.display_name} could not initialize its backend metadata; "
+            "the add-on remains unavailable."
+        )
+    return PluginAvailability.missing_dependency(*manifest.dependencies, summary=summary)
+
+
+def discover_addon_records(*, preferences_document: Any = None) -> tuple[AddOnRecord, ...]:
+    normalized_preferences = normalize_app_preferences_document(preferences_document)
+    records: list[AddOnRecord] = []
+
+    for registration in _registered_addon_registrations():
+        manifest = registration.manifest
+        backend, module = _load_addon_backend_from_registration(registration)
+
+        if backend is None:
+            availability = _unavailable_addon_availability(manifest)
+        else:
+            manifest = backend.addon_manifest or manifest
+            try:
+                availability = backend.get_availability()
+            except Exception:  # noqa: BLE001
+                logger.warning(
+                    "Failed to resolve add-on availability for %s",
+                    manifest.addon_id,
+                    exc_info=True,
+                )
+                availability = _unavailable_addon_availability(
+                    manifest,
+                    reason=f"{manifest.display_name} failed to resolve add-on availability.",
+                )
+
+        state_payload = addon_state(normalized_preferences, manifest.addon_id)
+        state = AddOnState(
+            enabled=state_payload["enabled"],
+            pending_restart=state_payload["pending_restart"],
+        )
+
+        provided_node_type_ids: tuple[str, ...] = ()
+        if backend is not None and availability.is_available:
+            try:
+                descriptors = backend.load_descriptors()
+            except Exception:  # noqa: BLE001
+                logger.warning(
+                    "Failed to resolve provided node types for add-on %s",
+                    manifest.addon_id,
+                    exc_info=True,
+                )
+            else:
+                provided_node_type_ids = tuple(
+                    dict.fromkeys(descriptor.spec.type_id for descriptor in descriptors)
+                )
+
+        manifest = replace(
+            manifest,
+            version=_resolve_addon_version(manifest, module=module, registration=registration),
+        )
+        records.append(
+            AddOnRecord(
+                manifest=manifest,
+                state=state,
+                availability=availability,
+                provided_node_type_ids=provided_node_type_ids,
+            )
+        )
+
+    return tuple(records)
+
+
+def addon_record_by_id(addon_id: str, *, preferences_document: Any = None) -> AddOnRecord | None:
+    normalized_addon_id = str(addon_id).strip()
+    if not normalized_addon_id:
+        return None
+    for record in discover_addon_records(preferences_document=preferences_document):
+        if record.addon_id == normalized_addon_id:
+            return record
+    return None
+
+
 def discover_and_load_plugins(
     registry: NodeRegistry,
     extra_dirs: list[Path] | None = None,
@@ -494,6 +641,8 @@ def discover_and_load_plugins(
 
 __all__ = [
     "ENTRY_POINT_GROUP",
+    "addon_record_by_id",
+    "discover_addon_records",
     "discover_and_load_plugins",
     "discover_package_plugins",
     "register_plugin_backends",

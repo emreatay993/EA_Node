@@ -3,10 +3,19 @@ from __future__ import annotations
 import importlib.metadata
 import logging
 from pathlib import Path
+from types import SimpleNamespace
 
+from ea_node_editor.addons.catalog import AddOnRegistration
+from ea_node_editor.app_preferences import (
+    addon_state,
+    default_app_preferences_document,
+    normalize_app_preferences_document,
+    set_addon_state,
+)
 from ea_node_editor.nodes import plugin_loader
 from ea_node_editor.nodes.node_specs import NodeTypeSpec
 from ea_node_editor.nodes.plugin_contracts import (
+    AddOnManifest,
     PluginAvailability,
     PluginBackendDescriptor,
     PluginDescriptor,
@@ -392,3 +401,127 @@ def test_register_plugin_backends_loads_available_backends() -> None:
 
     assert loaded == ["packet.available"]
     assert registry.get_spec("packet.available").display_name == "Available Backend"
+
+
+def test_generic_addon_state_normalization_preserves_enabled_and_pending_restart() -> None:
+    document = normalize_app_preferences_document(
+        {
+            "kind": "ea-node-editor/app-preferences",
+            "version": 2,
+            "addons": {
+                "states": {
+                    "packet.restart": {
+                        "enabled": False,
+                        "pending_restart": True,
+                    }
+                }
+            },
+        }
+    )
+
+    assert addon_state(document, "packet.restart") == {
+        "enabled": False,
+        "pending_restart": True,
+    }
+
+
+def test_set_addon_state_updates_the_generic_addon_state_store() -> None:
+    document = set_addon_state(
+        default_app_preferences_document(),
+        "packet.toggle",
+        enabled=False,
+        pending_restart=True,
+    )
+
+    assert addon_state(document, "packet.toggle") == {
+        "enabled": False,
+        "pending_restart": True,
+    }
+
+
+def test_discover_addon_records_reports_generic_manifest_and_state(monkeypatch) -> None:
+    available_backend = PluginBackendDescriptor(
+        plugin_id="packet.restart",
+        display_name="Packet Restart Add-On",
+        get_availability=lambda: PluginAvailability.available("ready"),
+        load_descriptors=lambda: (_packet_descriptor("packet.restart.node", "Restart Node"),),
+    )
+    unavailable_backend = PluginBackendDescriptor(
+        plugin_id="packet.unavailable",
+        display_name="Packet Unavailable Add-On",
+        get_availability=lambda: PluginAvailability.missing_dependency(
+            "packet.unavailable.dep",
+            summary="dependency missing",
+        ),
+        load_descriptors=lambda: (_packet_descriptor("packet.unavailable.node", "Unavailable Node"),),
+    )
+    registrations = (
+        AddOnRegistration(
+            manifest=AddOnManifest(
+                addon_id="packet.restart",
+                display_name="Packet Restart Add-On",
+                apply_policy="restart_required",
+                vendor="Packet Vendor",
+                summary="Restart managed add-on",
+                details="Requires a restart to finish applying.",
+                dependencies=("packet.restart.dep",),
+            ),
+            backend_module="packet.restart.module",
+            backend_id="packet.restart",
+            version_resolver_attr="resolve_version",
+        ),
+        AddOnRegistration(
+            manifest=AddOnManifest(
+                addon_id="packet.unavailable",
+                display_name="Packet Unavailable Add-On",
+                apply_policy="hot_apply",
+                vendor="Packet Vendor",
+                summary="Unavailable add-on",
+                details="Stays unavailable until its dependency is installed.",
+                dependencies=("packet.unavailable.dep",),
+            ),
+            backend_module="packet.unavailable.module",
+            backend_id="packet.unavailable",
+        ),
+    )
+    fake_modules = {
+        "packet.restart.module": SimpleNamespace(
+            PLUGIN_BACKENDS=(available_backend,),
+            resolve_version=lambda: "9.9.9",
+        ),
+        "packet.unavailable.module": SimpleNamespace(
+            PLUGIN_BACKENDS=(unavailable_backend,),
+        ),
+    }
+    preferences = set_addon_state(
+        default_app_preferences_document(),
+        "packet.restart",
+        enabled=False,
+        pending_restart=True,
+    )
+
+    monkeypatch.setattr(plugin_loader, "_registered_addon_registrations", lambda: registrations)
+    monkeypatch.setattr(
+        plugin_loader.importlib,
+        "import_module",
+        lambda module_name: fake_modules[module_name],
+    )
+
+    records = plugin_loader.discover_addon_records(preferences_document=preferences)
+    records_by_id = {record.addon_id: record for record in records}
+
+    restart_record = records_by_id["packet.restart"]
+    assert restart_record.status == "pending_restart"
+    assert restart_record.apply_policy == "restart_required"
+    assert restart_record.vendor == "Packet Vendor"
+    assert restart_record.version == "9.9.9"
+    assert restart_record.summary == "Restart managed add-on"
+    assert restart_record.details == "Requires a restart to finish applying."
+    assert restart_record.provided_node_type_ids == ("packet.restart.node",)
+
+    unavailable_record = records_by_id["packet.unavailable"]
+    assert unavailable_record.status == "unavailable"
+    assert unavailable_record.apply_policy == "hot_apply"
+    assert unavailable_record.version == ""
+    assert unavailable_record.availability.missing_dependencies == ("packet.unavailable.dep",)
+    assert unavailable_record.provided_node_type_ids == ()
