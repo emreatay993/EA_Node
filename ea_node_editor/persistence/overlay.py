@@ -6,8 +6,136 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from typing import Any
 
+from ea_node_editor.nodes.plugin_loader import discover_addon_records
+
 PERSISTENCE_ENVELOPE_KEY = "_persistence_envelope"
 LEGACY_RUNTIME_PERSISTENCE_KEY = "_runtime_unresolved_workspaces"
+MISSING_ADDON_PLACEHOLDER_KEY = "_missing_addon_placeholder"
+_LOCKED_PLACEHOLDER_LABEL = "Requires add-on"
+
+
+def _normalized_text(value: Any) -> str:
+    return str(value or "").strip()
+
+
+def _locked_reason_for_status(status: str) -> str:
+    if status == "disabled":
+        return "addon_disabled"
+    if status == "pending_restart":
+        return "addon_pending_restart"
+    return "missing_addon"
+
+
+def _default_unavailable_reason(
+    *,
+    display_name: str,
+    status: str,
+    dependencies: tuple[str, ...],
+    summary: str,
+    is_available: bool,
+) -> str:
+    if status == "disabled":
+        return f"{display_name} is disabled."
+    if status == "pending_restart":
+        return f"{display_name} has pending restart changes."
+    if is_available:
+        return f"{display_name} is not loaded in this session."
+    if summary:
+        return summary
+    if dependencies:
+        return ", ".join(dependencies)
+    return f"{display_name} is unavailable."
+
+
+def _addon_record_by_type_id(type_id: Any) -> Any | None:
+    normalized_type_id = _normalized_text(type_id)
+    if not normalized_type_id:
+        return None
+    for record in discover_addon_records():
+        if normalized_type_id in record.provided_node_type_ids:
+            return record
+    return None
+
+
+def normalize_missing_addon_placeholder(value: Any) -> dict[str, Any] | None:
+    if not isinstance(value, Mapping):
+        return None
+    addon_id = _normalized_text(value.get("addon_id"))
+    if not addon_id:
+        return None
+    display_name = _normalized_text(value.get("display_name")) or addon_id
+    version = _normalized_text(value.get("version"))
+    apply_policy = _normalized_text(value.get("apply_policy"))
+    status = _normalized_text(value.get("status")) or "unavailable"
+    unavailable_reason = _normalized_text(value.get("unavailable_reason"))
+    raw_locked_state = value.get("locked_state")
+    locked_state_mapping = raw_locked_state if isinstance(raw_locked_state, Mapping) else {}
+    locked_reason = _normalized_text(locked_state_mapping.get("reason")) or _locked_reason_for_status(status)
+    locked_label = _normalized_text(locked_state_mapping.get("label")) or _LOCKED_PLACEHOLDER_LABEL
+    locked_summary = _normalized_text(locked_state_mapping.get("summary")) or unavailable_reason
+    return {
+        "addon_id": addon_id,
+        "display_name": display_name,
+        "version": version,
+        "apply_policy": apply_policy,
+        "status": status,
+        "unavailable_reason": unavailable_reason,
+        "locked_state": {
+            "is_locked": bool(locked_state_mapping.get("is_locked", True)),
+            "reason": locked_reason,
+            "label": locked_label,
+            "summary": locked_summary,
+            "focus_addon_id": addon_id,
+        },
+    }
+
+
+def missing_addon_placeholder_payload(node_doc: Mapping[str, Any] | None) -> dict[str, Any] | None:
+    if not isinstance(node_doc, Mapping):
+        return None
+    return normalize_missing_addon_placeholder(node_doc.get(MISSING_ADDON_PLACEHOLDER_KEY))
+
+
+def with_missing_addon_placeholder(
+    node_doc: Mapping[str, Any],
+    *,
+    addon_record: Any | None = None,
+) -> dict[str, Any]:
+    copied = copy.deepcopy(dict(node_doc))
+    existing = missing_addon_placeholder_payload(copied)
+    if existing is not None:
+        copied[MISSING_ADDON_PLACEHOLDER_KEY] = existing
+        return copied
+    record = addon_record or _addon_record_by_type_id(copied.get("type_id"))
+    if record is None:
+        return copied
+    manifest = record.manifest
+    dependencies = tuple(
+        dependency
+        for dependency in (_normalized_text(item) for item in manifest.dependencies)
+        if dependency
+    )
+    unavailable_reason = _default_unavailable_reason(
+        display_name=record.display_name,
+        status=record.status,
+        dependencies=dependencies,
+        summary=_normalized_text(record.availability.summary),
+        is_available=bool(record.availability.is_available),
+    )
+    copied[MISSING_ADDON_PLACEHOLDER_KEY] = normalize_missing_addon_placeholder(
+        {
+            "addon_id": record.addon_id,
+            "display_name": record.display_name,
+            "version": manifest.version,
+            "apply_policy": record.apply_policy,
+            "status": record.status,
+            "unavailable_reason": unavailable_reason,
+            "locked_state": {
+                "reason": _locked_reason_for_status(record.status),
+            },
+        }
+    )
+    return copied
 
 
 def _copy_overlay_docs(value: Mapping[str, Any] | None) -> dict[str, dict[str, Any]]:
@@ -19,6 +147,18 @@ def _copy_overlay_docs(value: Mapping[str, Any] | None) -> dict[str, dict[str, A
         if not key or not isinstance(raw_doc, Mapping):
             continue
         copied[key] = copy.deepcopy(dict(raw_doc))
+    return copied
+
+
+def _copy_unresolved_node_docs(value: Mapping[str, Any] | None) -> dict[str, dict[str, Any]]:
+    if not isinstance(value, Mapping):
+        return {}
+    copied: dict[str, dict[str, Any]] = {}
+    for raw_key, raw_doc in value.items():
+        key = str(raw_key).strip()
+        if not key or not isinstance(raw_doc, Mapping):
+            continue
+        copied[key] = with_missing_addon_placeholder(raw_doc)
     return copied
 
 
@@ -50,7 +190,7 @@ class WorkspacePersistenceState:
 
     def clone(self) -> "WorkspacePersistenceState":
         return WorkspacePersistenceState(
-            unresolved_node_docs=_copy_overlay_docs(self.unresolved_node_docs),
+            unresolved_node_docs=_copy_unresolved_node_docs(self.unresolved_node_docs),
             unresolved_edge_docs=_copy_overlay_docs(self.unresolved_edge_docs),
             authored_node_overrides=_copy_overlay_docs(self.authored_node_overrides),
         )
@@ -63,7 +203,7 @@ class WorkspacePersistenceState:
         restore_workspace_persistence_state(owner, self)
 
     def replace_unresolved_node_docs(self, value: Mapping[str, Any] | None) -> None:
-        self.unresolved_node_docs = _copy_overlay_docs(value)
+        self.unresolved_node_docs = _copy_unresolved_node_docs(value)
 
     def replace_unresolved_edge_docs(self, value: Mapping[str, Any] | None) -> None:
         self.unresolved_edge_docs = _copy_overlay_docs(value)
@@ -105,7 +245,7 @@ class WorkspacePersistenceEnvelope:
     @classmethod
     def from_state(cls, state: WorkspacePersistenceState) -> "WorkspacePersistenceEnvelope":
         return cls(
-            unresolved_node_docs=_copy_overlay_docs(state.unresolved_node_docs),
+            unresolved_node_docs=_copy_unresolved_node_docs(state.unresolved_node_docs),
             unresolved_edge_docs=_copy_overlay_docs(state.unresolved_edge_docs),
             authored_node_overrides=_copy_overlay_docs(state.authored_node_overrides),
         )
@@ -119,9 +259,11 @@ class WorkspacePersistenceEnvelope:
         if not isinstance(value, Mapping):
             return cls()
         return cls(
-            unresolved_node_docs=_copy_overlay_doc_sequence(
-                value.get("unresolved_nodes", value.get("nodes")),
-                id_key="node_id",
+            unresolved_node_docs=_copy_unresolved_node_docs(
+                _copy_overlay_doc_sequence(
+                    value.get("unresolved_nodes", value.get("nodes")),
+                    id_key="node_id",
+                )
             ),
             unresolved_edge_docs=_copy_overlay_doc_sequence(
                 value.get("unresolved_edges", value.get("edges")),

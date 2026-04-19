@@ -2,13 +2,16 @@ from __future__ import annotations
 
 import unittest
 
+from ea_node_editor.addons.catalog import ANSYS_DPF_ADDON_ID
 from ea_node_editor.graph.normalization import normalize_project_for_registry
 from ea_node_editor.nodes.builtins.ansys_dpf_compute import (
     DpfModelNodePlugin,
     DpfResultFileNodePlugin,
 )
 from ea_node_editor.nodes.bootstrap import build_default_registry
+from ea_node_editor.nodes.plugin_contracts import AddOnManifest, AddOnRecord, AddOnState, PluginAvailability
 from ea_node_editor.nodes.registry import NodeRegistry
+from ea_node_editor.persistence.overlay import MISSING_ADDON_PLACEHOLDER_KEY
 from ea_node_editor.persistence.serializer import JsonProjectSerializer
 from ea_node_editor.settings import SCHEMA_VERSION
 
@@ -163,6 +166,40 @@ def _generated_dpf_rebind_payload() -> dict[str, object]:
         ],
         "metadata": {},
     }
+
+
+def _assert_dpf_placeholder_contract(test_case: unittest.TestCase, node_doc: dict[str, object]) -> None:
+    placeholder = node_doc[MISSING_ADDON_PLACEHOLDER_KEY]
+    test_case.assertEqual(placeholder["addon_id"], ANSYS_DPF_ADDON_ID)
+    test_case.assertEqual(placeholder["display_name"], "ANSYS DPF")
+    test_case.assertEqual(placeholder["apply_policy"], "hot_apply")
+    test_case.assertEqual(placeholder["status"], "installed")
+    test_case.assertEqual(
+        placeholder["unavailable_reason"],
+        "ANSYS DPF is not loaded in this session.",
+    )
+
+
+def _test_dpf_addon_record() -> AddOnRecord:
+    return AddOnRecord(
+        manifest=AddOnManifest(
+            addon_id=ANSYS_DPF_ADDON_ID,
+            display_name="ANSYS DPF",
+            apply_policy="hot_apply",
+            version="",
+            dependencies=("ansys.dpf.core",),
+        ),
+        state=AddOnState(enabled=True, pending_restart=False),
+        availability=PluginAvailability.available(
+            summary="ANSYS DPF is not loaded in this session."
+        ),
+        provided_node_type_ids=(
+            "dpf.result_file",
+            "dpf.model",
+            "dpf.helper.streams_container.streams_container",
+            "dpf.op.result.displacement",
+        ),
+    )
 
 
 class SerializerSchemaMigrationTests(unittest.TestCase):
@@ -503,12 +540,18 @@ class SerializerSchemaMigrationTests(unittest.TestCase):
     def test_normalize_project_for_registry_rebinds_previously_unresolved_dpf_nodes_and_edges(self) -> None:
         missing_registry = NodeRegistry()
         serializer = JsonProjectSerializer(missing_registry)
-        project = serializer.from_document(_dpf_rebind_payload())
-        workspace = project.workspaces["ws_dpf"]
+        with unittest.mock.patch(
+            "ea_node_editor.persistence.overlay.discover_addon_records",
+            return_value=(_test_dpf_addon_record(),),
+        ):
+            project = serializer.from_document(_dpf_rebind_payload())
+            workspace = project.workspaces["ws_dpf"]
 
-        self.assertEqual(workspace.nodes, {})
-        self.assertEqual(set(workspace.unresolved_node_docs), {"node_result", "node_model"})
-        self.assertEqual(set(workspace.unresolved_edge_docs), {"edge_result_data", "edge_result_exec"})
+            self.assertEqual(workspace.nodes, {})
+            self.assertEqual(set(workspace.unresolved_node_docs), {"node_result", "node_model"})
+            self.assertEqual(set(workspace.unresolved_edge_docs), {"edge_result_data", "edge_result_exec"})
+            _assert_dpf_placeholder_contract(self, workspace.unresolved_node_docs["node_result"])
+            _assert_dpf_placeholder_contract(self, workspace.unresolved_node_docs["node_model"])
 
         rebind_registry = NodeRegistry()
         rebind_registry.register(DpfResultFileNodePlugin)
@@ -526,12 +569,18 @@ class SerializerSchemaMigrationTests(unittest.TestCase):
     def test_normalize_project_for_registry_rebinds_generated_dpf_nodes_and_hidden_edges(self) -> None:
         missing_registry = NodeRegistry()
         serializer = JsonProjectSerializer(missing_registry)
-        project = serializer.from_document(_generated_dpf_rebind_payload())
-        workspace = project.workspaces["ws_dpf"]
+        with unittest.mock.patch(
+            "ea_node_editor.persistence.overlay.discover_addon_records",
+            return_value=(_test_dpf_addon_record(),),
+        ):
+            project = serializer.from_document(_generated_dpf_rebind_payload())
+            workspace = project.workspaces["ws_dpf"]
 
-        self.assertEqual(workspace.nodes, {})
-        self.assertEqual(set(workspace.unresolved_node_docs), {"node_streams_container", "node_displacement"})
-        self.assertEqual(set(workspace.unresolved_edge_docs), {"edge_generated_streams"})
+            self.assertEqual(workspace.nodes, {})
+            self.assertEqual(set(workspace.unresolved_node_docs), {"node_streams_container", "node_displacement"})
+            self.assertEqual(set(workspace.unresolved_edge_docs), {"edge_generated_streams"})
+            _assert_dpf_placeholder_contract(self, workspace.unresolved_node_docs["node_streams_container"])
+            _assert_dpf_placeholder_contract(self, workspace.unresolved_node_docs["node_displacement"])
 
         rebind_registry = build_default_registry()
         if rebind_registry.spec_or_none("dpf.op.result.displacement") is None:

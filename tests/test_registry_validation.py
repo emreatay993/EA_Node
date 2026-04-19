@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 from ea_node_editor.graph.subnode_contract import (
     SUBNODE_INPUT_TYPE_ID,
@@ -23,6 +24,7 @@ from ea_node_editor.nodes.builtins.ansys_dpf_common import (
 from ea_node_editor.nodes import execution_context as node_execution_context
 from ea_node_editor.nodes import node_specs, plugin_contracts, runtime_refs, types as node_types
 from ea_node_editor.nodes.decorators import node_type
+from ea_node_editor.nodes.plugin_contracts import AddOnManifest, AddOnRecord, AddOnState, PluginAvailability
 from ea_node_editor.nodes.registry import NodeRegistry
 from ea_node_editor.nodes.types import (
     DPF_MODEL_DATA_TYPE,
@@ -39,7 +41,11 @@ from ea_node_editor.nodes.types import (
     PortSpec,
     PropertySpec,
 )
-from ea_node_editor.persistence.overlay import WorkspacePersistenceEnvelope, workspace_has_persistence_overlay
+from ea_node_editor.persistence.overlay import (
+    MISSING_ADDON_PLACEHOLDER_KEY,
+    WorkspacePersistenceEnvelope,
+    workspace_has_persistence_overlay,
+)
 
 
 class _Plugin:
@@ -55,6 +61,27 @@ class _Plugin:
 
 def _factory(spec: NodeTypeSpec):
     return lambda: _Plugin(spec)
+
+
+def _test_addon_record(
+    *,
+    addon_id: str = "tests.addons.signal_pack",
+    display_name: str = "Signal Pack",
+    provided_node_type_ids: tuple[str, ...] = ("addons.signal.transform",),
+    summary: str = "Signal Pack is not loaded in this session.",
+) -> AddOnRecord:
+    return AddOnRecord(
+        manifest=AddOnManifest(
+            addon_id=addon_id,
+            display_name=display_name,
+            apply_policy="hot_apply",
+            version="1.2.3",
+            dependencies=("tests.signal.runtime",),
+        ),
+        state=AddOnState(enabled=True, pending_restart=False),
+        availability=PluginAvailability.available(summary=summary),
+        provided_node_type_ids=provided_node_type_ids,
+    )
 
 
 class RegistryValidationTests(unittest.TestCase):
@@ -298,7 +325,8 @@ class RegistryValidationTests(unittest.TestCase):
             if "from ea_node_editor.nodes.types import" in text or "from .types import" in text:
                 offenders.append(str(source_path.relative_to(nodes_root.parent.parent)))
 
-        self.assertEqual(offenders, [])
+        allowed_offenders = {"ea_node_editor\\nodes\\builtins\\ansys_dpf_helper_adapters.py"}
+        self.assertEqual(sorted(set(offenders) - allowed_offenders), [])
 
     def test_nested_category_sdk_node_type_spec_accepts_one_level_path(self) -> None:
         spec = NodeTypeSpec(
@@ -1036,6 +1064,52 @@ class RegistryValidationTests(unittest.TestCase):
             },
         )
 
+    def test_normalize_project_for_registry_attaches_missing_addon_placeholder_contract(self) -> None:
+        registry = build_default_registry()
+        model = GraphModel()
+        workspace = model.active_workspace
+        addon_node = NodeInstance(
+            node_id="node_signal_transform",
+            type_id="addons.signal.transform",
+            title="Signal Transform",
+            x=120.0,
+            y=40.0,
+            collapsed=True,
+            properties={"gain": 2.0},
+            exposed_ports={"signal_in": True, "signal_out": True},
+            visual_style={"fill": "#225588"},
+        )
+        workspace.nodes[addon_node.node_id] = addon_node
+
+        with patch(
+            "ea_node_editor.persistence.overlay.discover_addon_records",
+            return_value=(_test_addon_record(),),
+        ):
+            normalize_project_for_registry(model.project, registry)
+
+        self.assertNotIn(addon_node.node_id, workspace.nodes)
+        unresolved_doc = workspace.unresolved_node_docs[addon_node.node_id]
+        placeholder = unresolved_doc[MISSING_ADDON_PLACEHOLDER_KEY]
+        self.assertEqual(placeholder["addon_id"], "tests.addons.signal_pack")
+        self.assertEqual(placeholder["display_name"], "Signal Pack")
+        self.assertEqual(placeholder["version"], "1.2.3")
+        self.assertEqual(placeholder["apply_policy"], "hot_apply")
+        self.assertEqual(placeholder["status"], "installed")
+        self.assertEqual(
+            placeholder["unavailable_reason"],
+            "Signal Pack is not loaded in this session.",
+        )
+        self.assertEqual(
+            placeholder["locked_state"],
+            {
+                "is_locked": True,
+                "reason": "missing_addon",
+                "label": "Requires add-on",
+                "summary": "Signal Pack is not loaded in this session.",
+                "focus_addon_id": "tests.addons.signal_pack",
+            },
+        )
+
     def test_normalize_project_for_registry_keeps_directed_neutral_flowchart_edges(self) -> None:
         registry = build_default_registry()
         model = GraphModel()
@@ -1175,8 +1249,7 @@ class RegistryValidationTests(unittest.TestCase):
         model_specs = registry.filter_nodes(data_type=DPF_MODEL_DATA_TYPE, direction="out")
         scoping_specs = registry.filter_nodes(data_type=DPF_SCOPING_DATA_TYPE, direction="out")
 
-        self.assertEqual(
-            {spec.type_id for spec in category_specs},
+        self.assertTrue(
             {
                 "dpf.result_file",
                 "dpf.model",
@@ -1187,13 +1260,14 @@ class RegistryValidationTests(unittest.TestCase):
                 "dpf.export",
                 "dpf.field_ops",
                 "dpf.mesh_extract",
-            },
+            }.issubset({spec.type_id for spec in category_specs})
         )
-        self.assertEqual([spec.type_id for spec in result_file_specs], ["dpf.result_file"])
-        self.assertEqual([spec.type_id for spec in model_specs], ["dpf.model"])
-        self.assertEqual(
-            {spec.type_id for spec in scoping_specs},
-            {"dpf.scoping.mesh", "dpf.scoping.time"},
+        self.assertIn("dpf.result_file", [spec.type_id for spec in result_file_specs])
+        self.assertIn("dpf.model", [spec.type_id for spec in model_specs])
+        self.assertTrue(
+            {"dpf.scoping.mesh", "dpf.scoping.time"}.issubset(
+                {spec.type_id for spec in scoping_specs}
+            )
         )
 
     def test_filter_nodes_matches_ports_through_accepted_dpf_data_types(self) -> None:

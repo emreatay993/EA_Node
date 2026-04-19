@@ -4,9 +4,12 @@ import copy
 import unittest
 from unittest import mock
 
+from ea_node_editor.addons.catalog import ANSYS_DPF_ADDON_ID
 from ea_node_editor.graph.model import GraphModel
 from ea_node_editor.nodes.bootstrap import build_default_registry
+from ea_node_editor.nodes.plugin_contracts import AddOnManifest, AddOnRecord, AddOnState, PluginAvailability
 from ea_node_editor.nodes.registry import NodeRegistry
+from ea_node_editor.persistence.overlay import MISSING_ADDON_PLACEHOLDER_KEY
 from ea_node_editor.persistence.project_codec import ProjectPersistenceEnvelope
 from ea_node_editor.persistence.serializer import JsonProjectSerializer, ProjectSessionMetadata
 from ea_node_editor.settings import SCHEMA_VERSION
@@ -14,6 +17,50 @@ from tests.serializer.round_trip_cases import SerializerRoundTripMixin
 from tests.serializer.schema_cases import SerializerSchemaMixin
 from tests.serializer.workflow_cases import SerializerWorkflowMixin
 from ea_node_editor.ui_qml.graph_scene_bridge import GraphSceneBridge
+
+
+def _test_dpf_addon_record() -> AddOnRecord:
+    return AddOnRecord(
+        manifest=AddOnManifest(
+            addon_id=ANSYS_DPF_ADDON_ID,
+            display_name="ANSYS DPF",
+            apply_policy="hot_apply",
+            version="",
+            dependencies=("ansys.dpf.core",),
+        ),
+        state=AddOnState(enabled=True, pending_restart=False),
+        availability=PluginAvailability.available(
+            summary="ANSYS DPF is not loaded in this session."
+        ),
+        provided_node_type_ids=(
+            "dpf.result_file",
+            "dpf.model",
+            "dpf.helper.streams_container.streams_container",
+            "dpf.op.result.displacement",
+        ),
+    )
+
+
+def _assert_dpf_placeholder_contract(test_case: unittest.TestCase, node_doc: dict[str, object]) -> None:
+    placeholder = node_doc[MISSING_ADDON_PLACEHOLDER_KEY]
+    test_case.assertEqual(placeholder["addon_id"], ANSYS_DPF_ADDON_ID)
+    test_case.assertEqual(placeholder["display_name"], "ANSYS DPF")
+    test_case.assertEqual(placeholder["apply_policy"], "hot_apply")
+    test_case.assertEqual(placeholder["status"], "installed")
+    test_case.assertEqual(
+        placeholder["unavailable_reason"],
+        "ANSYS DPF is not loaded in this session.",
+    )
+    test_case.assertEqual(
+        placeholder["locked_state"],
+        {
+            "is_locked": True,
+            "reason": "missing_addon",
+            "label": "Requires add-on",
+            "summary": "ANSYS DPF is not loaded in this session.",
+            "focus_addon_id": ANSYS_DPF_ADDON_ID,
+        },
+    )
 
 
 def _dpf_placeholder_round_trip_payload() -> dict[str, object]:
@@ -382,89 +429,126 @@ class SerializerDpfPlaceholderTests(unittest.TestCase):
         serializer = JsonProjectSerializer(NodeRegistry())
         payload = _dpf_placeholder_round_trip_payload()
 
-        project = serializer.from_document(copy.deepcopy(payload))
-        workspace = project.workspaces["ws_dpf"]
+        with mock.patch(
+            "ea_node_editor.persistence.overlay.discover_addon_records",
+            return_value=(_test_dpf_addon_record(),),
+        ):
+            project = serializer.from_document(copy.deepcopy(payload))
+            workspace = project.workspaces["ws_dpf"]
 
-        self.assertEqual(workspace.nodes, {})
-        self.assertEqual(set(workspace.unresolved_node_docs), {"node_dpf_model"})
+            self.assertEqual(workspace.nodes, {})
+            self.assertEqual(set(workspace.unresolved_node_docs), {"node_dpf_model"})
+            _assert_dpf_placeholder_contract(self, workspace.unresolved_node_docs["node_dpf_model"])
 
-        authored_document = serializer.to_persistent_document(project)
-        workspace_doc = authored_document["workspaces"][0]
-        node_doc = next(item for item in workspace_doc["nodes"] if item["node_id"] == "node_dpf_model")
-        self.assertEqual(node_doc, payload["workspaces"][0]["nodes"][0])
+            authored_document = serializer.to_persistent_document(project)
+            workspace_doc = authored_document["workspaces"][0]
+            node_doc = next(item for item in workspace_doc["nodes"] if item["node_id"] == "node_dpf_model")
+            for key, value in payload["workspaces"][0]["nodes"][0].items():
+                self.assertEqual(node_doc[key], value)
+            _assert_dpf_placeholder_contract(self, node_doc)
 
-        runtime_document = serializer.to_document(project)
-        runtime_envelope = ProjectPersistenceEnvelope.from_document(runtime_document)
-        self.assertEqual(
-            set(runtime_envelope.workspace_envelope("ws_dpf").unresolved_node_docs),
-            {"node_dpf_model"},
-        )
+            runtime_document = serializer.to_document(project)
+            runtime_envelope = ProjectPersistenceEnvelope.from_document(runtime_document)
+            self.assertEqual(
+                set(runtime_envelope.workspace_envelope("ws_dpf").unresolved_node_docs),
+                {"node_dpf_model"},
+            )
+            _assert_dpf_placeholder_contract(
+                self,
+                runtime_envelope.workspace_envelope("ws_dpf").unresolved_node_docs["node_dpf_model"],
+            )
 
     def test_persistent_document_round_trip_preserves_hidden_port_edges_for_unresolved_dpf_nodes(self) -> None:
         serializer = JsonProjectSerializer(NodeRegistry())
         payload = _dpf_hidden_edge_placeholder_payload()
 
-        project = serializer.from_document(copy.deepcopy(payload))
-        workspace = project.workspaces["ws_dpf"]
+        with mock.patch(
+            "ea_node_editor.persistence.overlay.discover_addon_records",
+            return_value=(_test_dpf_addon_record(),),
+        ):
+            project = serializer.from_document(copy.deepcopy(payload))
+            workspace = project.workspaces["ws_dpf"]
 
-        self.assertEqual(workspace.nodes, {})
-        self.assertEqual(set(workspace.unresolved_node_docs), {"node_model", "node_result"})
-        self.assertEqual(set(workspace.unresolved_edge_docs), {"edge_hidden_result_file"})
-        self.assertFalse(workspace.unresolved_node_docs["node_model"]["exposed_ports"]["result_file"])
+            self.assertEqual(workspace.nodes, {})
+            self.assertEqual(set(workspace.unresolved_node_docs), {"node_model", "node_result"})
+            self.assertEqual(set(workspace.unresolved_edge_docs), {"edge_hidden_result_file"})
+            self.assertFalse(workspace.unresolved_node_docs["node_model"]["exposed_ports"]["result_file"])
+            _assert_dpf_placeholder_contract(self, workspace.unresolved_node_docs["node_model"])
+            _assert_dpf_placeholder_contract(self, workspace.unresolved_node_docs["node_result"])
 
-        authored_document = serializer.to_persistent_document(project)
-        workspace_doc = authored_document["workspaces"][0]
-        node_doc = next(item for item in workspace_doc["nodes"] if item["node_id"] == "node_model")
-        edge_doc = next(item for item in workspace_doc["edges"] if item["edge_id"] == "edge_hidden_result_file")
-        self.assertFalse(node_doc["exposed_ports"]["result_file"])
-        self.assertEqual(edge_doc, payload["workspaces"][0]["edges"][0])
+            authored_document = serializer.to_persistent_document(project)
+            workspace_doc = authored_document["workspaces"][0]
+            node_doc = next(item for item in workspace_doc["nodes"] if item["node_id"] == "node_model")
+            edge_doc = next(item for item in workspace_doc["edges"] if item["edge_id"] == "edge_hidden_result_file")
+            self.assertFalse(node_doc["exposed_ports"]["result_file"])
+            self.assertEqual(edge_doc, payload["workspaces"][0]["edges"][0])
+            _assert_dpf_placeholder_contract(self, node_doc)
 
-        runtime_document = serializer.to_document(project)
-        runtime_envelope = ProjectPersistenceEnvelope.from_document(runtime_document)
-        self.assertEqual(
-            set(runtime_envelope.workspace_envelope("ws_dpf").unresolved_edge_docs),
-            {"edge_hidden_result_file"},
-        )
+            runtime_document = serializer.to_document(project)
+            runtime_envelope = ProjectPersistenceEnvelope.from_document(runtime_document)
+            self.assertEqual(
+                set(runtime_envelope.workspace_envelope("ws_dpf").unresolved_edge_docs),
+                {"edge_hidden_result_file"},
+            )
+            _assert_dpf_placeholder_contract(
+                self,
+                runtime_envelope.workspace_envelope("ws_dpf").unresolved_node_docs["node_model"],
+            )
 
     def test_generated_dpf_placeholder_projection_preserves_saved_properties_and_labels(self) -> None:
         serializer = JsonProjectSerializer(NodeRegistry())
         payload = _generated_dpf_placeholder_payload()
 
-        project = serializer.from_document(copy.deepcopy(payload))
-        runtime_document = serializer.to_document(project)
-        runtime_envelope = ProjectPersistenceEnvelope.from_document(runtime_document)
-        self.assertEqual(
-            set(runtime_envelope.workspace_envelope("ws_dpf").unresolved_edge_docs),
-            {"edge_generated_streams_container"},
-        )
-
-        loaded_model = GraphModel(project)
-        scene = GraphSceneBridge()
         with mock.patch(
-            "ea_node_editor.ui_qml.graph_scene_payload_builder._dpf_placeholder_specs_by_type_id",
-            return_value={},
+            "ea_node_editor.persistence.overlay.discover_addon_records",
+            return_value=(_test_dpf_addon_record(),),
         ):
+            project = serializer.from_document(copy.deepcopy(payload))
+            runtime_document = serializer.to_document(project)
+            runtime_envelope = ProjectPersistenceEnvelope.from_document(runtime_document)
+            self.assertEqual(
+                set(runtime_envelope.workspace_envelope("ws_dpf").unresolved_edge_docs),
+                {"edge_generated_streams_container"},
+            )
+
+            loaded_model = GraphModel(project)
+            scene = GraphSceneBridge()
             scene.set_workspace(loaded_model, NodeRegistry(), "ws_dpf")
 
-        payloads = {payload["node_id"]: payload for payload in scene.nodes_model}
-        displacement = payloads["node_displacement"]
-        streams_container = payloads["node_streams_container"]
+            payloads = {payload["node_id"]: payload for payload in scene.nodes_model}
+            displacement = payloads["node_displacement"]
+            streams_container = payloads["node_streams_container"]
 
-        self.assertTrue(displacement["unresolved"])
-        self.assertTrue(displacement["read_only"])
-        self.assertEqual(displacement["properties"], {"read_cyclic": 2, "phi": 90.0})
-        self.assertEqual(
-            {port["key"]: port["label"] for port in streams_container["ports"]}["streams_container"],
-            "Saved Streams Container",
-        )
-        self.assertEqual(
-            {port["key"]: port["label"] for port in displacement["ports"]}["fields_container_2"],
-            "Saved Fields",
-        )
-        self.assertNotIn(
-            "streams_container",
-            {port["key"] for port in displacement["ports"]},
-        )
+            self.assertTrue(displacement["unresolved"])
+            self.assertTrue(displacement["read_only"])
+            self.assertEqual(displacement["addon_id"], ANSYS_DPF_ADDON_ID)
+            self.assertEqual(displacement["addon_display_name"], "ANSYS DPF")
+            self.assertEqual(displacement["addon_apply_policy"], "hot_apply")
+            self.assertEqual(displacement["addon_status"], "installed")
+            self.assertEqual(displacement["unavailable_reason"], "ANSYS DPF is not loaded in this session.")
+            self.assertEqual(
+                displacement["locked_state"],
+                {
+                    "is_locked": True,
+                    "reason": "missing_addon",
+                    "label": "Requires add-on",
+                    "summary": "ANSYS DPF is not loaded in this session.",
+                    "focus_addon_id": ANSYS_DPF_ADDON_ID,
+                },
+            )
+            self.assertEqual(displacement["properties"], {"read_cyclic": 2, "phi": 90.0})
+            self.assertEqual(
+                {port["key"]: port["label"] for port in streams_container["ports"]}["streams_container"],
+                "Saved Streams Container",
+            )
+            self.assertEqual(
+                {port["key"]: port["label"] for port in displacement["ports"]}["fields_container_2"],
+                "Saved Fields",
+            )
+            self.assertNotIn(
+                "streams_container",
+                {port["key"] for port in displacement["ports"]},
+            )
 
 
 if __name__ == "__main__":
