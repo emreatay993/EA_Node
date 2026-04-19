@@ -249,6 +249,26 @@ def _execute_data_sources_set_result_file_path(ctx: ExecutionContext) -> NodeRes
     return NodeResult(outputs={"updated_receiver": data_sources_ref, "exec_out": True})
 
 
+def _execute_data_sources_add_upstream(ctx: ExecutionContext) -> NodeResult:
+    data_sources, data_sources_ref = _resolve_runtime_ref(
+        ctx,
+        ctx.inputs.get("receiver"),
+        expected_kind=DPF_OBJECT_HANDLE_DATA_TYPE,
+        allowed_data_types=(DPF_DATA_SOURCES_DATA_TYPE,),
+        node_name="DPF Add Upstream Data Sources",
+    )
+    upstream_data_sources, _ = _resolve_runtime_ref(
+        ctx,
+        ctx.inputs.get("upstream_data_sources"),
+        expected_kind=DPF_OBJECT_HANDLE_DATA_TYPE,
+        allowed_data_types=(DPF_DATA_SOURCES_DATA_TYPE,),
+        node_name="DPF Add Upstream Data Sources",
+    )
+    result_key = str(ctx.properties.get("result_key", "") or "").strip()
+    data_sources.add_upstream(upstream_data_sources, result_key=result_key)
+    return NodeResult(outputs={"updated_receiver": data_sources_ref, "exec_out": True})
+
+
 def _execute_streams_container_constructor(ctx: ExecutionContext) -> NodeResult:
     dpf = _dpf_module()
     streams_container = dpf.StreamsContainer()
@@ -587,6 +607,94 @@ def load_generated_dpf_helper_definitions() -> tuple[GeneratedDpfHelperDefinitio
                 ),
             ),
             execute=_execute_data_sources_set_result_file_path,
+        ),
+        GeneratedDpfHelperDefinition(
+            spec=NodeTypeSpec(
+                type_id=_helper_type_id("data_sources", "add_upstream"),
+                display_name="DPF Add Upstream Data Sources",
+                category_path=_INPUT_RESULT_SETUP_CATEGORY_PATH,
+                icon=_HELPER_ICON,
+                ports=(
+                    _EXEC_IN_PORT,
+                    PortSpec(
+                        "receiver",
+                        "in",
+                        "data",
+                        DPF_OBJECT_HANDLE_DATA_TYPE,
+                        required=True,
+                        exposed=True,
+                        accepted_data_types=(DPF_DATA_SOURCES_DATA_TYPE,),
+                        source_metadata=_port_source(
+                            "self",
+                            direction="in",
+                            value_key="receiver",
+                            data_type=DPF_OBJECT_HANDLE_DATA_TYPE,
+                            presence="required",
+                            omission_semantics="disallowed",
+                            accepted_data_types=(DPF_DATA_SOURCES_DATA_TYPE,),
+                            callable_binding=DpfCallableBindingSpec("receiver"),
+                        ),
+                    ),
+                    PortSpec(
+                        "upstream_data_sources",
+                        "in",
+                        "data",
+                        DPF_OBJECT_HANDLE_DATA_TYPE,
+                        required=True,
+                        exposed=True,
+                        accepted_data_types=(DPF_DATA_SOURCES_DATA_TYPE,),
+                        source_metadata=_port_source(
+                            "upstream_data_sources",
+                            direction="in",
+                            value_key="upstream_data_sources",
+                            data_type=DPF_OBJECT_HANDLE_DATA_TYPE,
+                            presence="required",
+                            omission_semantics="disallowed",
+                            accepted_data_types=(DPF_DATA_SOURCES_DATA_TYPE,),
+                            callable_binding=DpfCallableBindingSpec("parameter", "upstream_data_sources"),
+                        ),
+                    ),
+                    PortSpec(
+                        "updated_receiver",
+                        "out",
+                        "data",
+                        DPF_OBJECT_HANDLE_DATA_TYPE,
+                        exposed=True,
+                        accepted_data_types=(DPF_DATA_SOURCES_DATA_TYPE,),
+                        source_metadata=_port_source(
+                            "return_value",
+                            direction="out",
+                            value_key="updated_receiver",
+                            data_type=DPF_OBJECT_HANDLE_DATA_TYPE,
+                            accepted_data_types=(DPF_DATA_SOURCES_DATA_TYPE,),
+                            callable_binding=DpfCallableBindingSpec("return_value"),
+                        ),
+                    ),
+                    _EXEC_OUT_PORT,
+                ),
+                properties=(
+                    PropertySpec(
+                        "result_key",
+                        "str",
+                        "",
+                        "Result Key",
+                        source_metadata=_property_source(
+                            "result_key",
+                            value_key="result_key",
+                            data_type="str",
+                            binding_name="result_key",
+                        ),
+                        group="Source",
+                    ),
+                ),
+                description="Chains an upstream DPF DataSources into an existing DataSources helper for recursive workflows.",
+                source_metadata=_mutator_source(
+                    "DataSources.add_upstream",
+                    source_path="ansys.dpf.core.data_sources.DataSources.add_upstream",
+                    family_path=_INPUT_RESULT_SETUP_FAMILY_PATH,
+                ),
+            ),
+            execute=_execute_data_sources_add_upstream,
         ),
         GeneratedDpfHelperDefinition(
             spec=NodeTypeSpec(

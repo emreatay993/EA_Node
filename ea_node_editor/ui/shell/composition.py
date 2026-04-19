@@ -9,6 +9,7 @@ from PyQt6.QtWidgets import QMessageBox
 
 from ea_node_editor.graph.model import GraphModel, ProjectData
 from ea_node_editor.graph.mutation_service import create_workspace_mutation_service
+from ea_node_editor.help.help_bridge import HelpBridge
 from ea_node_editor.nodes.bootstrap import build_default_registry
 from ea_node_editor.nodes.registry import NodeRegistry
 from ea_node_editor.persistence.serializer import JsonProjectSerializer
@@ -282,6 +283,7 @@ class ShellContextBridgeDependencies:
     graph_canvas_state_bridge: GraphCanvasStateBridge
     graph_canvas_command_bridge: GraphCanvasCommandBridge
     graph_canvas_bridge: GraphCanvasBridge
+    help_bridge: HelpBridge
     qml_context_property_bindings: ShellContextPropertyBindings
 
     def attach(self, host: "ShellWindow") -> None:
@@ -293,6 +295,7 @@ class ShellContextBridgeDependencies:
         host.graph_canvas_state_bridge = self.graph_canvas_state_bridge
         host.graph_canvas_command_bridge = self.graph_canvas_command_bridge
         host.graph_canvas_bridge = self.graph_canvas_bridge
+        host.help_bridge = self.help_bridge
 
 
 @dataclass(frozen=True, slots=True)
@@ -677,6 +680,7 @@ def _create_shell_context_bridge_dependencies(
             command_bridge=graph_canvas_command_bridge,
         ),
     )
+    help_bridge = HelpBridge(host, shell_window=host)
     return ShellContextBridgeDependencies(
         shell_context_bridges=shell_context_bridges,
         shell_library_bridge=shell_context_bridges.shell_library_bridge,
@@ -685,10 +689,12 @@ def _create_shell_context_bridge_dependencies(
         graph_canvas_state_bridge=graph_canvas_state_bridge,
         graph_canvas_command_bridge=graph_canvas_command_bridge,
         graph_canvas_bridge=shell_context_bridges.graph_canvas_bridge,
+        help_bridge=help_bridge,
         qml_context_property_bindings=_build_shell_context_property_bindings(
             shell_context_bridges,
             primitives,
             runtime,
+            help_bridge,
         ),
     )
 
@@ -697,6 +703,7 @@ def _build_shell_context_property_bindings(
     bridges: ShellContextBridges,
     primitives: ShellPrimitiveDependencies,
     runtime: ShellRuntimeDependencies,
+    help_bridge: HelpBridge,
 ) -> ShellContextPropertyBindings:
     return (
         ("shellLibraryBridge", bridges.shell_library_bridge),
@@ -717,6 +724,7 @@ def _build_shell_context_property_bindings(
         ("statusJobs", primitives.status_jobs),
         ("statusMetrics", primitives.status_metrics),
         ("statusNotifications", primitives.status_notifications),
+        ("helpBridge", help_bridge),
     )
 
 

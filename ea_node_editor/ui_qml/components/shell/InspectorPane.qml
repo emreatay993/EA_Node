@@ -6,6 +6,8 @@ ShellCollapsibleSidePane {
     id: root
     objectName: "inspectorPane"
     readonly property var inspectorBridgeRef: shellInspectorBridge
+    readonly property var helpBridgeRef: (typeof helpBridge !== "undefined") ? helpBridge : null
+    property int activeTabIndex: 0
     property string activePortDirection: "in"
     property string selectedPortKey: ""
     property string editingPortKey: ""
@@ -166,123 +168,185 @@ ShellCollapsibleSidePane {
     onShowPortSectionChanged: syncSelectedPortSelection()
 
     contentData: [
-        Rectangle {
-            objectName: "inspectorContentSurface"
+        ColumnLayout {
             Layout.fillWidth: true
             Layout.fillHeight: true
-            color: "transparent"
+            spacing: 0
 
-            TapHandler {
-                enabled: root.editingPortKey.length > 0
-                acceptedButtons: Qt.LeftButton
-                onTapped: root.focusInspectorBackground()
+            RowLayout {
+                Layout.fillWidth: true
+                spacing: 2
+
+                Repeater {
+                    model: [
+                        { label: "Properties", index: 0 },
+                        { label: "Help", index: 1 }
+                    ]
+
+                    delegate: Rectangle {
+                        Layout.fillWidth: true
+                        Layout.preferredHeight: 26
+                        color: root.activeTabIndex === modelData.index
+                            ? root.themePalette.tab_selected_bg
+                            : root.themePalette.tab_bg
+                        border.color: root.themePalette.border
+
+                        Text {
+                            anchors.centerIn: parent
+                            text: modelData.label
+                            color: root.activeTabIndex === modelData.index
+                                ? root.themePalette.tab_selected_fg
+                                : root.themePalette.tab_fg
+                            font.pixelSize: 11
+                            font.bold: root.activeTabIndex === modelData.index
+                        }
+
+                        MouseArea {
+                            anchors.fill: parent
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: root.activeTabIndex = modelData.index
+                        }
+                    }
+                }
             }
 
-            ScrollView {
-                id: inspectorScroll
-                objectName: "inspectorScrollView"
-                anchors.fill: parent
-                anchors.leftMargin: 2
-                anchors.rightMargin: 2
-                clip: true
-                ScrollBar.horizontal.policy: ScrollBar.AlwaysOff
+            StackLayout {
+                Layout.fillWidth: true
+                Layout.fillHeight: true
+                currentIndex: root.activeTabIndex
 
-                TapHandler {
-                    enabled: root.editingPortKey.length > 0
-                    acceptedButtons: Qt.LeftButton
-                    onTapped: root.focusInspectorBackground()
-                }
-
-                background: Rectangle {
+                Rectangle {
+                    objectName: "inspectorContentSurface"
                     color: "transparent"
 
                     TapHandler {
+                        enabled: root.editingPortKey.length > 0
                         acceptedButtons: Qt.LeftButton
                         onTapped: root.focusInspectorBackground()
                     }
+
+                    ScrollView {
+                        id: inspectorScroll
+                        objectName: "inspectorScrollView"
+                        anchors.fill: parent
+                        anchors.leftMargin: 2
+                        anchors.rightMargin: 2
+                        clip: true
+                        ScrollBar.horizontal.policy: ScrollBar.AlwaysOff
+
+                        TapHandler {
+                            enabled: root.editingPortKey.length > 0
+                            acceptedButtons: Qt.LeftButton
+                            onTapped: root.focusInspectorBackground()
+                        }
+
+                        background: Rectangle {
+                            color: "transparent"
+
+                            TapHandler {
+                                acceptedButtons: Qt.LeftButton
+                                onTapped: root.focusInspectorBackground()
+                            }
+                        }
+
+                        Column {
+                            id: inspectorColumn
+                            width: inspectorScroll.availableWidth
+                            spacing: 10
+
+                            InspectorSectionCard {
+                                pane: root
+                                objectName: "inspectorEmptyStateCard"
+                                width: inspectorColumn.width
+                                visible: !root.hasSelectedNode
+                                title: "No Selection"
+                                subtitle: "Select a node on the graph to inspect its properties and exposed ports."
+
+                                Text {
+                                    width: parent.width
+                                    text: "The selected node's definition, editable fields, and port exposure controls will appear here."
+                                    wrapMode: Text.WordWrap
+                                    color: root.themePalette.muted_fg
+                                    font.pixelSize: 11
+                                }
+                            }
+
+                            InspectorNodeDefinitionSection {
+                                pane: root
+                                width: inspectorColumn.width
+                            }
+
+                            Loader {
+                                id: inspectorPropertyVariantLoader
+                                objectName: "inspectorPropertyVariantLoader"
+                                width: inspectorColumn.width
+                                height: item ? item.implicitHeight : 0
+                                visible: root.hasSelectedNode
+                                active: root.hasSelectedNode
+
+                                property var paneRef: root
+                                property var propertyItems: root.selectedNodePropertyItems
+
+                                sourceComponent: {
+                                    var variant = root.inspectorBridgeRef ? root.inspectorBridgeRef.property_pane_variant : "smart_groups"
+                                    switch (String(variant || "")) {
+                                        case "accordion_cards": return accordionCardsBodyComponent
+                                        case "palette":         return paletteBodyComponent
+                                        case "smart_groups":
+                                        default:                return smartGroupsBodyComponent
+                                    }
+                                }
+
+                                Component {
+                                    id: smartGroupsBodyComponent
+                                    InspectorSmartGroupsBody {
+                                        pane: inspectorPropertyVariantLoader.paneRef
+                                        propertyItems: inspectorPropertyVariantLoader.propertyItems
+                                    }
+                                }
+
+                                Component {
+                                    id: accordionCardsBodyComponent
+                                    InspectorAccordionCardsBody {
+                                        pane: inspectorPropertyVariantLoader.paneRef
+                                        propertyItems: inspectorPropertyVariantLoader.propertyItems
+                                    }
+                                }
+
+                                Component {
+                                    id: paletteBodyComponent
+                                    InspectorPaletteBody {
+                                        pane: inspectorPropertyVariantLoader.paneRef
+                                        propertyItems: inspectorPropertyVariantLoader.propertyItems
+                                    }
+                                }
+                            }
+
+                            InspectorPortManagementSection {
+                                pane: root
+                                width: inspectorColumn.width
+                            }
+                        }
+                    }
                 }
 
-                Column {
-                    id: inspectorColumn
-                    width: inspectorScroll.availableWidth
-                    spacing: 10
-
-                    InspectorSectionCard {
-                        pane: root
-                        objectName: "inspectorEmptyStateCard"
-                        width: inspectorColumn.width
-                        visible: !root.hasSelectedNode
-                        title: "No Selection"
-                        subtitle: "Select a node on the graph to inspect its properties and exposed ports."
-
-                        Text {
-                            width: parent.width
-                            text: "The selected node's definition, editable fields, and port exposure controls will appear here."
-                            wrapMode: Text.WordWrap
-                            color: root.themePalette.muted_fg
-                            font.pixelSize: 11
-                        }
-                    }
-
-                    InspectorNodeDefinitionSection {
-                        pane: root
-                        width: inspectorColumn.width
-                    }
-
-                    Loader {
-                        id: inspectorPropertyVariantLoader
-                        objectName: "inspectorPropertyVariantLoader"
-                        width: inspectorColumn.width
-                        height: item ? item.implicitHeight : 0
-                        visible: root.hasSelectedNode
-                        active: root.hasSelectedNode
-
-                        property var paneRef: root
-                        property var propertyItems: root.selectedNodePropertyItems
-
-                        sourceComponent: {
-                            var variant = root.inspectorBridgeRef ? root.inspectorBridgeRef.property_pane_variant : "smart_groups"
-                            switch (String(variant || "")) {
-                                case "accordion_cards": return accordionCardsBodyComponent
-                                case "palette":         return paletteBodyComponent
-                                case "smart_groups":
-                                default:                return smartGroupsBodyComponent
-                            }
-                        }
-
-                        Component {
-                            id: smartGroupsBodyComponent
-                            InspectorSmartGroupsBody {
-                                pane: inspectorPropertyVariantLoader.paneRef
-                                propertyItems: inspectorPropertyVariantLoader.propertyItems
-                            }
-                        }
-
-                        Component {
-                            id: accordionCardsBodyComponent
-                            InspectorAccordionCardsBody {
-                                pane: inspectorPropertyVariantLoader.paneRef
-                                propertyItems: inspectorPropertyVariantLoader.propertyItems
-                            }
-                        }
-
-                        Component {
-                            id: paletteBodyComponent
-                            InspectorPaletteBody {
-                                pane: inspectorPropertyVariantLoader.paneRef
-                                propertyItems: inspectorPropertyVariantLoader.propertyItems
-                            }
-                        }
-                    }
-
-                    InspectorPortManagementSection {
-                        pane: root
-                        width: inspectorColumn.width
-                    }
+                HelpPane {
+                    objectName: "inspectorHelpSurface"
                 }
             }
         }
     ]
+
+    Connections {
+        target: root.helpBridgeRef
+        function onHelp_visible_changed() {
+            if (root.helpBridgeRef && root.helpBridgeRef.visible) {
+                root.activeTabIndex = 1
+                if (root.paneCollapsed)
+                    root.expandPane()
+            }
+        }
+    }
 
     Connections {
         target: root.inspectorBridgeRef

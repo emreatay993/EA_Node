@@ -20,6 +20,17 @@ def format_recent_project_menu_label(index: int, project_path: str) -> str:
     return f"{index}. {path.name} [{parent}]"
 
 
+def _trigger_help_for_selected_node(window: ShellWindow) -> None:
+    help_bridge = getattr(window, "help_bridge", None)
+    if help_bridge is None:
+        return
+    scene = getattr(window, "scene", None)
+    node_id = str(scene.selected_node_id() or "") if scene is not None else ""
+    if not node_id:
+        return
+    help_bridge.show_help_for_node(node_id)
+
+
 def _recent_project_tooltip_text(window: ShellWindow, project_path: str) -> str:
     tooltip_manager = getattr(window, "tooltip_manager", None)
     if tooltip_manager is None:
@@ -212,6 +223,10 @@ def create_window_actions(window: ShellWindow) -> None:
     window.action_graph_search.setShortcut(QKeySequence("Ctrl+K"))
     window.action_graph_search.triggered.connect(window.request_open_graph_search)
 
+    window.action_show_help = QAction("Help", window)
+    window.action_show_help.setShortcut(QKeySequence("F1"))
+    window.action_show_help.triggered.connect(lambda: _trigger_help_for_selected_node(window))
+
     window.action_new_view = QAction("New View", window)
     window.action_new_view.setShortcut(QKeySequence("Ctrl+Shift+V"))
     window.action_new_view.triggered.connect(window._create_view)
@@ -287,6 +302,7 @@ def create_window_actions(window: ShellWindow) -> None:
         window.action_scope_parent,
         window.action_scope_root,
         window.action_graph_search,
+        window.action_show_help,
         window.action_new_view,
         window.action_duplicate_workspace,
         window.action_rename_workspace,

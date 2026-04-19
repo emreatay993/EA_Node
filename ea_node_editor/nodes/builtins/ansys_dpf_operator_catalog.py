@@ -62,6 +62,7 @@ _ADVANCED_OPERATOR_FAMILIES = frozenset({"compression", "serialization", "server
 _PRIMITIVE_PROPERTY_TYPES = frozenset({"bool", "int", "float", "str", "json"})
 _FAMILY_ORDER_INDEX = {family: index for index, family in enumerate(DPF_OPERATOR_FAMILY_ORDER)}
 _KEY_SANITIZE_RE = re.compile(r"[^0-9a-zA-Z_]+")
+_USER_NAME_SYMBOL_RE = re.compile(r"[^0-9A-Za-z_\s]")
 _OBJECT_HANDLE_DATA_TYPES = frozenset(
     {
         DPF_DATA_SOURCES_DATA_TYPE,
@@ -401,7 +402,11 @@ def _operator_display_name(properties: Mapping[str, Any], module_name: str) -> s
     if scripting_name:
         return humanize_dpf_symbol_name(scripting_name)
     user_name = str(properties.get("user_name", "") or "").strip()
-    if user_name and any(ch.isalnum() for ch in user_name):
+    # If user_name carries math/punctuation symbols (e.g. "+ (fields container)",
+    # "^2 (field)"), the humanizer strips them and the result loses the operator
+    # identity (add_fc → "Fields Container"). Fall back to the module name in
+    # that case so the technical identifier remains discoverable in the palette.
+    if user_name and any(ch.isalnum() for ch in user_name) and not _USER_NAME_SYMBOL_RE.search(user_name):
         return humanize_dpf_symbol_name(user_name)
     return humanize_dpf_symbol_name(module_name)
 

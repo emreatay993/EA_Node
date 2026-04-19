@@ -46,6 +46,7 @@ _FOUNDATIONAL_HELPER_TYPE_IDS = (
 _GENERATED_HELPER_TYPE_IDS = (
     "dpf.helper.data_sources.data_sources",
     "dpf.helper.data_sources.set_result_file_path",
+    "dpf.helper.data_sources.add_upstream",
     "dpf.helper.streams_container.streams_container",
     "dpf.helper.model.model",
     "dpf.helper.workflow.workflow",
@@ -73,6 +74,7 @@ class DpfGeneratedHelperCatalogTests(unittest.TestCase):
 
         self.assertEqual(descriptors["dpf.helper.data_sources.data_sources"].category_path, (*DPF_INPUTS_CATEGORY_PATH, "Result Setup"))
         self.assertEqual(descriptors["dpf.helper.data_sources.set_result_file_path"].category_path, (*DPF_INPUTS_CATEGORY_PATH, "Result Setup"))
+        self.assertEqual(descriptors["dpf.helper.data_sources.add_upstream"].category_path, (*DPF_INPUTS_CATEGORY_PATH, "Result Setup"))
         self.assertEqual(descriptors["dpf.helper.streams_container.streams_container"].category_path, DPF_HELPERS_CONTAINERS_CATEGORY_PATH)
         self.assertEqual(descriptors["dpf.helper.model.model"].category_path, DPF_HELPERS_MODELS_CATEGORY_PATH)
         self.assertEqual(descriptors["dpf.helper.workflow.workflow"].category_path, (*DPF_WORKFLOW_CATEGORY_PATH, "Build"))
@@ -116,6 +118,31 @@ class DpfGeneratedHelperCatalogTests(unittest.TestCase):
             "receiver",
         )
         self.assertEqual(mutator_ports["updated_receiver"].data_type, DPF_OBJECT_HANDLE_DATA_TYPE)
+
+        add_upstream = descriptors["dpf.helper.data_sources.add_upstream"]
+        add_upstream_ports = {port.key: port for port in add_upstream.ports}
+        add_upstream_properties = {prop.key: prop for prop in add_upstream.properties}
+        self.assertEqual(add_upstream.source_metadata.callable_kind, "mutator")
+        self.assertEqual(
+            add_upstream.source_metadata.source_path,
+            "ansys.dpf.core.data_sources.DataSources.add_upstream",
+        )
+        self.assertEqual(add_upstream_ports["receiver"].accepted_data_types, (DPF_DATA_SOURCES_DATA_TYPE,))
+        self.assertEqual(
+            add_upstream_ports["receiver"].source_metadata.callable_binding.binding_kind,
+            "receiver",
+        )
+        self.assertTrue(add_upstream_ports["upstream_data_sources"].required)
+        self.assertEqual(
+            add_upstream_ports["upstream_data_sources"].accepted_data_types,
+            (DPF_DATA_SOURCES_DATA_TYPE,),
+        )
+        self.assertEqual(
+            add_upstream_ports["upstream_data_sources"].source_metadata.callable_binding.binding_name,
+            "upstream_data_sources",
+        )
+        self.assertEqual(add_upstream_ports["updated_receiver"].data_type, DPF_OBJECT_HANDLE_DATA_TYPE)
+        self.assertEqual(add_upstream_properties["result_key"].type, "str")
 
         model = descriptors["dpf.helper.model.model"]
         model_ports = {port.key: port for port in model.ports}

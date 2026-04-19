@@ -1,0 +1,117 @@
+---
+category: result
+plugin: mapdl
+license: None
+---
+
+# result:smisc
+
+**Version: 0.0.0**
+
+## Description
+
+Read SMISC results from the RST file. On demand expansion and cyclic expansion procedures are supported, however, you should verify that the linear combination is applicable for the associated element according to the MAPDL documentation description of each item.
+
+## Inputs
+
+| Input | Name | Expected type(s) | Description |
+|-------|-------|------------------|-------------|
+| <strong>Pin 0</strong>|  time_scoping |[`scoping`](../../core-concepts/dpf-types.md#scoping), [`vector<int32>`](../../core-concepts/dpf-types.md#standard-types) |  |
+| <strong>Pin 1</strong>|  mesh_scoping |[`scopings_container`](../../core-concepts/dpf-types.md#scopings-container), [`scoping`](../../core-concepts/dpf-types.md#scoping), [`vector<int32>`](../../core-concepts/dpf-types.md#standard-types) |  |
+| <strong>Pin 2</strong>|  fields_container |[`fields_container`](../../core-concepts/dpf-types.md#fields-container) | FieldsContainer already allocated modified inplace |
+| <strong>Pin 3</strong>|  streams_container |[`streams_container`](../../core-concepts/dpf-types.md#streams-container), `stream` | Streams containing the result file. |
+| <strong>Pin 4</strong> <br><span style="background-color:#d93025; color:white; padding:2px 6px; border-radius:3px; font-size:0.75em;">Required</span>|  data_sources |[`data_sources`](../../core-concepts/dpf-types.md#data-sources) | data sources containing the result file. |
+| <strong>Pin 7</strong>|  mesh |[`abstract_meshed_region`](../../core-concepts/dpf-types.md#meshed-region) |  |
+| <strong>Pin 10</strong>|  item_index |[`int32`](../../core-concepts/dpf-types.md#standard-types), [`vector<int32>`](../../core-concepts/dpf-types.md#standard-types) | 1-Based Index of requested item. A List of 1-Based Indexes can be provided for items at several locations in the SMisc Table |
+| <strong>Pin 11</strong>|  num_components |[`int32`](../../core-concepts/dpf-types.md#standard-types) | Number of components for the requested item. |
+
+## Outputs
+
+| Output |  Name | Expected type(s) | Description |
+|-------|------|------------------|-------------|
+|  **Pin 0**| fields_container |[`fields_container`](../../core-concepts/dpf-types.md#fields-container) | FieldsContainer filled in |
+
+## Configurations
+
+| Name| Expected type(s) | Default value | Description |
+|-----|------|----------|-------------|
+| **mutex** |[`bool`](../../core-concepts/dpf-types.md#standard-types) | false | If this option is set to true, the shared memory is prevented from being simultaneously accessed by multiple threads. |
+
+## Scripting
+
+ **Category**: result
+
+ **Plugin**: mapdl
+
+ **Scripting name**: smisc
+
+ **Full name**: result.smisc
+
+ **Internal name**: mapdl::rth::SMISC
+
+ **License**: None
+
+## Examples
+
+<details>
+<summary>C++</summary>
+
+```cpp
+#include "dpf_api.h"
+
+ansys::dpf::Operator op("mapdl::rth::SMISC"); // operator instantiation
+op.connect(0, my_time_scoping);
+op.connect(1, my_mesh_scoping);
+op.connect(2, my_fields_container);
+op.connect(3, my_streams_container);
+op.connect(4, my_data_sources);
+op.connect(7, my_mesh);
+op.connect(10, my_item_index);
+op.connect(11, my_num_components);
+ansys::dpf::FieldsContainer my_fields_container = op.getOutput<ansys::dpf::FieldsContainer>(0);
+```
+</details>
+
+<details>
+<summary>CPython</summary>
+
+```python
+import ansys.dpf.core as dpf
+
+op = dpf.operators.result.smisc() # operator instantiation
+op.inputs.time_scoping.connect(my_time_scoping)
+op.inputs.mesh_scoping.connect(my_mesh_scoping)
+op.inputs.fields_container.connect(my_fields_container)
+op.inputs.streams_container.connect(my_streams_container)
+op.inputs.data_sources.connect(my_data_sources)
+op.inputs.mesh.connect(my_mesh)
+op.inputs.item_index.connect(my_item_index)
+op.inputs.num_components.connect(my_num_components)
+my_fields_container = op.outputs.fields_container()
+```
+</details>
+
+<details>
+<summary>IPython</summary>
+
+```python
+import mech_dpf
+import Ans.DataProcessing as dpf
+
+op = dpf.operators.result.smisc() # operator instantiation
+op.inputs.time_scoping.Connect(my_time_scoping)
+op.inputs.mesh_scoping.Connect(my_mesh_scoping)
+op.inputs.fields_container.Connect(my_fields_container)
+op.inputs.streams_container.Connect(my_streams_container)
+op.inputs.data_sources.Connect(my_data_sources)
+op.inputs.mesh.Connect(my_mesh)
+op.inputs.item_index.Connect(my_item_index)
+op.inputs.num_components.Connect(my_num_components)
+my_fields_container = op.outputs.fields_container.GetData()
+```
+</details>
+<br>
+
+## Changelog
+
+- Version 0.0.0: Initial release.

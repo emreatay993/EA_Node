@@ -1,0 +1,17 @@
+# Server operators
+
+- [grpc copy to](grpc_copy_to.md)
+- [grpc remote data receiver](grpc_remote_data_receiver.md)
+- [grpc remote data sender](grpc_remote_data_sender.md)
+- [grpc remote operator connect](grpc_remote_operator_connect.md)
+- [grpc remote operator instantiate](grpc_remote_operator_instantiate.md)
+- [grpc remote operator release](grpc_remote_operator_release.md)
+- [grpc remote workflow connect](grpc_remote_workflow_connect.md)
+- [grpc remote workflow erase pin](grpc_remote_workflow_erase_pin.md)
+- [grpc remote workflow expose pin](grpc_remote_workflow_expose_pin.md)
+- [grpc remote workflow get status](grpc_remote_workflow_get_status.md)
+- [grpc remote workflow info](grpc_remote_workflow_info.md)
+- [grpc remote workflow instantiate](grpc_remote_workflow_instantiate.md)
+- [grpc remote workflow release](grpc_remote_workflow_release.md)
+- [grpc shutdown server](grpc_shutdown_server.md)
+- [grpc start server](grpc_start_server.md)

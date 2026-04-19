@@ -102,6 +102,16 @@ Item {
         readonly property bool isPeekedComment: root.canvasItem
             ? root._activeCommentPeekNodeId() === String(root.canvasItem.nodeContextNodeId || "").trim()
             : false
+        readonly property bool canShowHelp: {
+            if (typeof helpBridge === "undefined" || !helpBridge)
+                return false;
+            if (!root.canvasItem)
+                return false;
+            var nodeId = String(root.canvasItem.nodeContextNodeId || "").trim();
+            if (!nodeId.length)
+                return false;
+            return Boolean(helpBridge.can_show_help_for_node(nodeId));
+        }
         actions: [
             { "actionId": "enter_subnode", "text": "Enter Subnode", "visible": nodeContextPopup.canEnterScope },
             { "actionId": "add_to_workflows", "text": "Add to Workflows", "visible": nodeContextPopup.canEnterScope },
@@ -112,6 +122,7 @@ Item {
             { "actionId": "copy_node_style", "text": "Copy Style", "visible": nodeContextPopup.isPassiveNode },
             { "actionId": "paste_node_style", "text": "Paste Style", "visible": nodeContextPopup.isPassiveNode },
             { "actionId": "rename_node", "text": "Rename Node" },
+            { "actionId": "show_help", "text": "Help", "visible": nodeContextPopup.canShowHelp },
             { "actionId": "ungroup_subnode", "text": "Ungroup Subnode", "visible": nodeContextPopup.canEnterScope, "destructive": true },
             { "actionId": "remove_node", "text": "Remove Node", "destructive": true }
         ]
@@ -153,6 +164,9 @@ Item {
                 if (root.canvasItem.requestInlineRenameForNode)
                     root.canvasItem.requestInlineRenameForNode(renameTargetId)
                 return
+            } else if (actionId === "show_help") {
+                if (typeof helpBridge !== "undefined" && helpBridge)
+                    helpBridge.show_help_for_node(root.canvasItem.nodeContextNodeId)
             } else if (actionId === "ungroup_subnode") {
                 root.commandBridge.request_ungroup_node(root.canvasItem.nodeContextNodeId)
             } else if (actionId === "remove_node") {
