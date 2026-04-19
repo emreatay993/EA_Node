@@ -5,47 +5,47 @@
 - Packet: `P07`
 - Branch Label: `codex/addon-manager-backend-preparation/p07-addon-manager-variant4-surface`
 - Commit Owner: `worker`
-- Commit SHA: `36cd6f4eafcf3032d23fd5286ac0974669033531`
-- Changed Files: `docs/specs/work_packets/addon_manager_backend_preparation/P07_addon_manager_variant4_surface_WRAPUP.md`, `ea_node_editor/ui/shell/presenters/__init__.py`, `ea_node_editor/ui/shell/presenters/addon_manager_presenter.py`, `ea_node_editor/ui_qml/MainShell.qml`, `ea_node_editor/ui_qml/components/shell/AddOnManagerPane.qml`, `ea_node_editor/ui_qml/shell_addon_manager_bridge.py`, `tests/test_main_window_shell.py`, `tests/main_window_shell/shell_basics_and_search.py`, `tests/main_window_shell/bridge_qml_boundaries.py`
-- Artifacts Produced: `docs/specs/work_packets/addon_manager_backend_preparation/P07_addon_manager_variant4_surface_WRAPUP.md`, `ea_node_editor/ui/shell/presenters/__init__.py`, `ea_node_editor/ui/shell/presenters/addon_manager_presenter.py`, `ea_node_editor/ui_qml/MainShell.qml`, `ea_node_editor/ui_qml/components/shell/AddOnManagerPane.qml`, `ea_node_editor/ui_qml/shell_addon_manager_bridge.py`, `tests/test_main_window_shell.py`, `tests/main_window_shell/shell_basics_and_search.py`, `tests/main_window_shell/bridge_qml_boundaries.py`
+- Commit SHA: `68f9aa8fe56e165967ca2a6730d9c0ec6594c526`
+- Changed Files: `docs/specs/work_packets/addon_manager_backend_preparation/P07_addon_manager_variant4_surface_WRAPUP.md`, `ea_node_editor/ui/shell/presenters/__init__.py`, `ea_node_editor/ui/shell/presenters/_addon_manager_payloads.py`, `ea_node_editor/ui/shell/presenters/addon_manager_presenter.py`, `ea_node_editor/ui_qml/MainShell.qml`, `ea_node_editor/ui_qml/components/shell/AddOnManagerPane.qml`, `ea_node_editor/ui_qml/graph_scene_mutation/alignment_and_distribution_ops.py`, `ea_node_editor/ui_qml/shell_addon_manager_bridge.py`, `tests/main_window_shell/bridge_qml_boundaries.py`, `tests/main_window_shell/shell_basics_and_search.py`, `tests/test_main_window_shell.py`
+- Artifacts Produced: `docs/specs/work_packets/addon_manager_backend_preparation/P07_addon_manager_variant4_surface_WRAPUP.md`, `ea_node_editor/ui/shell/presenters/__init__.py`, `ea_node_editor/ui/shell/presenters/_addon_manager_payloads.py`, `ea_node_editor/ui/shell/presenters/addon_manager_presenter.py`, `ea_node_editor/ui_qml/MainShell.qml`, `ea_node_editor/ui_qml/components/shell/AddOnManagerPane.qml`, `ea_node_editor/ui_qml/graph_scene_mutation/alignment_and_distribution_ops.py`, `ea_node_editor/ui_qml/shell_addon_manager_bridge.py`, `tests/main_window_shell/bridge_qml_boundaries.py`, `tests/main_window_shell/shell_basics_and_search.py`, `tests/test_main_window_shell.py`
 
-- Replaced the temporary P02 placeholder overlay with a packet-owned Variant 4 inspector-style Add-On Manager surface wired into `MainShell.qml`, including the left list, right detail pane, badge/banner semantics, tabs, close path, and the retained Workflow Settings fallback entry.
-- Added a packet-owned presenter plus Python/QML bridge that read the P01 add-on contract, resolve add-on focus requests from the shell entry point introduced in P02, and project stable row/detail payloads for the manager surface.
-- Wired the DPF add-on toggle through the P06 hot-apply lifecycle so the manager can refresh add-on state, rebuild the live registry, update serializer/session references, and surface restart/pending-restart status in the Variant 4 UI.
-- Refreshed the packet-owned shell tests to validate the new surface, bridge registration, presenter package export, and the menubar-to-surface open/focus flow for the canonical DPF add-on id.
+- Corrected the packet surface toward the authoritative Variant 4 handoff by keeping the Add-On Manager as an inspector-style right drawer, aligning the top action bar semantics, enriching list rows with category/status metadata, and expanding the detail pane tabs with contract-backed dependency, node, runtime, and changelog facts.
+- Split the add-on payload shaping into a private presenter helper so the richer Variant 4 data model stays inside the curated presenter package line budget while preserving the packet-owned shell bridge and presenter contract.
+- Applied the user-authorized verification stabilization outside the original packet scope in `alignment_and_distribution_ops.py` so direct geometry commits clamp comment backdrops to the same minimum size rules already enforced by the resize path.
+- Refreshed the packet-owned shell tests to cover the drawer-style presentation, menu open/focus flow, and updated QML boundary markers for the Variant 4 surface.
 
 ## Verification
 
+- PASS: `.\venv\Scripts\python.exe -m pytest tests/main_window_shell/shell_basics_and_search.py -k addon_manager --ignore=venv -q`
+- PASS: `.\venv\Scripts\python.exe -m pytest tests/test_main_window_shell.py -k 'test_backdrop_resize_recomputes_nested_membership_without_moving_unrelated_nodes' --ignore=venv -q`
+- PASS: `.\venv\Scripts\python.exe -m pytest tests/test_main_window_shell.py tests/main_window_shell/shell_basics_and_search.py tests/main_window_shell/bridge_qml_boundaries.py --ignore=venv -q`
 - PASS: `.\venv\Scripts\python.exe -m pytest tests/main_window_shell/bridge_qml_boundaries.py --ignore=venv -q`
-- PASS: `.\venv\Scripts\python.exe -m pytest tests/main_window_shell/shell_basics_and_search.py -k addon_manager -q --ignore=venv`
-- FAIL: `.\venv\Scripts\python.exe -m pytest tests/test_main_window_shell.py tests/main_window_shell/shell_basics_and_search.py tests/main_window_shell/bridge_qml_boundaries.py --ignore=venv -q` (`tests/test_main_window_shell.py::MainWindowShellCommentBackdropWorkflowTests::test_backdrop_resize_recomputes_nested_membership_without_moving_unrelated_nodes` timed out waiting for backdrop resize to update the workspace model)
-- PASS: `.\venv\Scripts\python.exe -m pytest tests/main_window_shell/bridge_qml_boundaries.py --ignore=venv -q`
-- Final Verification Verdict: FAIL
+- Final Verification Verdict: PASS
 
 ## Manual Test Directives
 
 Ready for manual testing
 
-Prerequisite: launch the packet worktree from `C:\w\ea_node_ed-p07` with `.\venv\Scripts\python.exe main.py` in a normal desktop session. Keep manual focus on the Add-On Manager surface; the known automated failure in this worktree is in an unrelated comment-backdrop resize path.
+Prerequisite: launch the packet worktree from `C:\w\ea_node_ed-p07` with `.\venv\Scripts\python.exe main.py` in a normal desktop session.
 
-1. Menubar open and close
-Action: start the app, open `Add-On Manager` from the top-level menubar, then close it with the surface `Close` button and with `Esc`.
-Expected result: the Variant 4 inspector-style manager opens between the main toolbar and status strip, the workspace row is hidden while it is open, and the previous shell layout returns when it closes.
+1. Drawer open and close
+Action: open `Add-On Manager` from the top-level menubar, then dismiss it once by clicking the dark scrim outside the drawer and once by pressing `Esc`.
+Expected result: the Variant 4 manager opens as a right-side inspector drawer between the main toolbar and status strip, the workspace row remains in place behind the scrim, and both close paths return the shell to its prior state.
 
-2. Variant 4 detail surface smoke
-Action: reopen `Add-On Manager`, select the `ANSYS DPF` row in the left pane, and inspect the right pane.
-Expected result: the right pane shows the `ANSYS DPF` title, vendor/id metadata, the policy badge, the `About`, `Dependencies`, `Nodes`, and `Changelog` tabs, and the dependency/node content reflects the live add-on contract instead of placeholder copy.
+2. Variant 4 fidelity smoke
+Action: reopen `Add-On Manager`, select `ANSYS DPF` in the left pane, and inspect the toolbar, row presentation, and detail pane.
+Expected result: the toolbar shows `Check for updates`, `Install from File...`, the conditional restart affordance, and the temporary `Workflow Settings` fallback; list rows show category glyphs, summary, version/node metadata, and state badges; the right pane exposes `About`, `Dependencies`, `Nodes`, and `Changelog` with vendor, id, category, dependency, and node facts from the live add-on contract.
 
-3. DPF toggle lifecycle
-Action: if the `ANSYS DPF` row is available, use the row toggle or the primary `Enable`/`Disable` button to flip its enabled state, then flip it back.
-Expected result: the manager stays open, the selected add-on stays focused, the enabled state updates in place, and the shell remains responsive while the live registry-backed surface refreshes. If the add-on is unavailable in the local environment, the toggle remains disabled and the availability message explains why.
+3. Toggle and pending-restart behavior
+Action: if `ANSYS DPF` is available, use the row toggle or the primary enable/disable action to change its state and then restore it. If a pending-restart state appears, inspect the banner and toolbar restart affordances.
+Expected result: the drawer stays open, the selected add-on remains focused, live hot-apply changes refresh the row and detail state in place, unavailable add-ons keep their toggle disabled with an explanation, and pending-restart status appears with the Variant 4 badge/banner semantics while restart controls remain visible until later backend wiring enables them.
 
 ## Residual Risks
 
-- The required full packet verification command is blocked by `tests/test_main_window_shell.py::MainWindowShellCommentBackdropWorkflowTests::test_backdrop_resize_recomputes_nested_membership_without_moving_unrelated_nodes`, which exercises comment-backdrop resize behavior outside this packet's write scope.
-- The current catalog in this worktree still exposes only the DPF-backed add-on path, so the restart-required badge/banner semantics remain exercised primarily through the stable contract and UI projection rather than through a second live restart-only add-on.
-- The `Workflow Settings` button remains a temporary fallback path until a later packet replaces the legacy plugin list with the manager-native configuration flow.
+- `Check for updates`, `Install from File...`, and `Restart Runtime` now match the Variant 4 surface semantics, but they remain intentionally disabled until follow-on backend packets wire those actions.
+- The current workspace still exposes a narrow live add-on set, so some richer restart-only permutations are represented through the stable contract and UI state rather than through multiple real add-ons.
+- The comment-backdrop clamp fix in `ea_node_editor/ui_qml/graph_scene_mutation/alignment_and_distribution_ops.py` is a user-authorized stabilization outside the original P07 scope; it is intentionally minimal and targeted at the required verification path.
 
 ## Ready for Integration
 
-- No: the packet-owned Add-On Manager implementation and review gate pass, but the required full verification command still fails on an unrelated comment-backdrop resize test outside the packet scope.
+- Yes: the Variant 4 surface is aligned to the authoritative handoff within the current contracts, the required packet verification command passes, and the review gate passes.
