@@ -1841,5 +1841,265 @@ class GraphSurfaceLockedInputControlsTests(GraphSurfaceInputContractTestBase):
         )
 
 
+class GraphSurfaceLockedNodeCanvasRoutingTests(GraphSurfaceInputContractTestBase):
+    def test_locked_node_context_menu_only_exposes_addon_manager_affordance(self) -> None:
+        self._run_qml_probe(
+            "locked-node-context-menu-routing",
+            """
+            import textwrap
+
+            from PyQt6.QtCore import QObject, pyqtSlot, QUrl
+            from PyQt6.QtQml import QQmlComponent
+
+            class AddonManagerBridgeStub(QObject):
+                def __init__(self):
+                    super().__init__()
+                    self.requests = []
+
+                @pyqtSlot(str)
+                def requestOpen(self, focus_addon_id):
+                    self.requests.append(str(focus_addon_id))
+
+            addon_bridge = AddonManagerBridgeStub()
+            engine.rootContext().setContextProperty("addonManagerBridge", addon_bridge)
+
+            menus_qml_path = components_dir / "graph_canvas" / "GraphCanvasContextMenus.qml"
+            payload = node_payload()
+            payload["node_id"] = "node_locked_context"
+            payload["read_only"] = True
+            payload["unresolved"] = True
+            payload["addon_id"] = "tests.addons.signal_pack"
+            payload["locked_state"] = {
+                "focus_addon_id": "tests.addons.signal_pack",
+                "label": "Requires add-on",
+            }
+            canvas_component = QQmlComponent(engine)
+            canvas_component.setData(
+                textwrap.dedent(
+                    '''
+                    import QtQuick 2.15
+
+                    Item {
+                        property bool nodeContextVisible: true
+                        property real contextMenuX: 16
+                        property real contextMenuY: 22
+                        property string nodeContextNodeId: "node_locked_context"
+                        property var payload: ({})
+                        property int closeCalls: 0
+
+                        function _sceneNodePayload(nodeId) {
+                            return String(nodeId || "") === nodeContextNodeId ? payload : ({})
+                        }
+
+                        function _nodeCanEnterScope(nodeId) {
+                            return String(nodeId || "") === nodeContextNodeId
+                        }
+
+                        function _nodeSupportsPassiveStyle(nodeId) {
+                            return String(nodeId || "") === nodeContextNodeId
+                        }
+
+                        function selectedNodeIds() {
+                            return []
+                        }
+
+                        function _closeContextMenus() {
+                            closeCalls += 1
+                            nodeContextVisible = false
+                        }
+                    }
+                    '''
+                ).encode("utf-8"),
+                QUrl.fromLocalFile(str(repo_root) + "/"),
+            )
+            if canvas_component.status() != QQmlComponent.Status.Ready:
+                errors = "\\n".join(error.toString() for error in canvas_component.errors())
+                raise AssertionError("Failed to load canvas stub QML:\\n" + errors)
+            canvas_item = canvas_component.create()
+            if canvas_item is None:
+                errors = "\\n".join(error.toString() for error in canvas_component.errors())
+                raise AssertionError("Failed to instantiate canvas stub QML:\\n" + errors)
+            canvas_item.setProperty("payload", payload)
+            menus = create_component(menus_qml_path, {"canvasItem": canvas_item})
+            popup = menus.findChild(QObject, "graphCanvasNodeContextPopup")
+            assert popup is not None
+
+            visible_actions = [variant_value(action) for action in variant_list(popup.property("visibleActions"))]
+            action_texts = [str(action.get("text", "")) for action in visible_actions]
+            assert action_texts == ["Open Add-On Manager"], action_texts
+
+            popup.actionTriggered.emit("open_addon_manager")
+            settle_events(2)
+
+            assert addon_bridge.requests == ["tests.addons.signal_pack"]
+            assert int(canvas_item.property("closeCalls")) == 1
+            assert bool(canvas_item.property("nodeContextVisible")) is False
+
+            menus.deleteLater()
+            canvas_item.deleteLater()
+            engine.deleteLater()
+            app.processEvents()
+            """,
+        )
+
+    def test_locked_node_surface_bridge_rejects_mutating_requests(self) -> None:
+        self._run_qml_probe(
+            "locked-node-surface-bridge-guards",
+            """
+            from PyQt6.QtCore import QObject, pyqtProperty, pyqtSlot
+
+            class SceneCommandBridgeStub(QObject):
+                def __init__(self):
+                    super().__init__()
+                    self.select_calls = []
+                    self.property_calls = []
+                    self.port_label_calls = []
+                    self.property_batch_calls = []
+                    self.pending_calls = []
+
+                @pyqtSlot(str, bool)
+                def select_node(self, node_id, additive):
+                    self.select_calls.append((str(node_id), bool(additive)))
+
+                @pyqtSlot(str, str, "QVariant")
+                def set_node_property(self, node_id, key, value):
+                    self.property_calls.append((str(node_id), str(key), variant_value(value)))
+
+                @pyqtSlot(str, str, str)
+                def set_node_port_label(self, node_id, port_key, label):
+                    self.port_label_calls.append((str(node_id), str(port_key), str(label)))
+
+                @pyqtSlot(str, "QVariantMap", result=bool)
+                def set_node_properties(self, node_id, properties):
+                    self.property_batch_calls.append((str(node_id), dict(properties or {})))
+                    return True
+
+                @pyqtSlot(str)
+                def set_pending_surface_action(self, node_id):
+                    self.pending_calls.append(str(node_id))
+
+                @pyqtSlot(str, result=bool)
+                def consume_pending_surface_action(self, _node_id):
+                    return False
+
+            class ShellCommandBridgeStub(QObject):
+                def __init__(self):
+                    super().__init__()
+                    self.open_scope_calls = []
+                    self.browse_calls = []
+                    self.color_calls = []
+
+                @pyqtSlot(str, result=bool)
+                def request_open_subnode_scope(self, node_id):
+                    self.open_scope_calls.append(str(node_id))
+                    return True
+
+                @pyqtSlot(str, str, str, result=str)
+                def browse_node_property_path(self, node_id, key, current_path):
+                    self.browse_calls.append((str(node_id), str(key), str(current_path)))
+                    return "C:/tmp/example.txt"
+
+                @pyqtSlot(str, str, str, result=str)
+                def pick_node_property_color(self, node_id, key, current_value):
+                    self.color_calls.append((str(node_id), str(key), str(current_value)))
+                    return "#abcdef"
+
+                @pyqtSlot(int)
+                def set_graph_cursor_shape(self, _cursor_shape):
+                    pass
+
+                @pyqtSlot()
+                def clear_graph_cursor_shape(self):
+                    pass
+
+                @pyqtSlot(str, "QVariant", result="QVariantMap")
+                def describe_pdf_preview(self, _source, _page_number):
+                    return {}
+
+            class CanvasItemStub(QObject):
+                def __init__(self, payload, scene_bridge, shell_bridge):
+                    super().__init__()
+                    self._payload = payload
+                    self._scene_bridge = scene_bridge
+                    self._shell_bridge = shell_bridge
+                    self.close_calls = 0
+                    self.pending_clear_calls = 0
+                    self.edge_clear_calls = 0
+                    self.cancel_wire_drag_calls = 0
+
+                @pyqtProperty(QObject, constant=True)
+                def _canvasSceneCommandBridgeRef(self):
+                    return self._scene_bridge
+
+                @pyqtProperty(QObject, constant=True)
+                def _canvasShellCommandBridgeRef(self):
+                    return self._shell_bridge
+
+                @pyqtSlot(str, result="QVariantMap")
+                def _sceneNodePayload(self, node_id):
+                    if str(node_id) == "node_locked_bridge":
+                        return self._payload
+                    return {}
+
+                @pyqtSlot()
+                def _closeContextMenus(self):
+                    self.close_calls += 1
+
+                @pyqtSlot()
+                def clearPendingConnection(self):
+                    self.pending_clear_calls += 1
+
+                @pyqtSlot()
+                def clearEdgeSelection(self):
+                    self.edge_clear_calls += 1
+
+                @pyqtSlot()
+                def cancelWireDrag(self):
+                    self.cancel_wire_drag_calls += 1
+
+                @pyqtSlot(result="QVariantList")
+                def selectedNodeIds(self):
+                    return []
+
+            bridge_qml_path = components_dir / "graph_canvas" / "GraphCanvasNodeSurfaceBridge.qml"
+            payload = node_payload()
+            payload["node_id"] = "node_locked_bridge"
+            payload["read_only"] = True
+            payload["unresolved"] = True
+            scene_bridge = SceneCommandBridgeStub()
+            shell_bridge = ShellCommandBridgeStub()
+            canvas_item = CanvasItemStub(payload, scene_bridge, shell_bridge)
+            bridge = create_component(bridge_qml_path, {"canvasItem": canvas_item})
+
+            assert bool(bridge.requestOpenSubnodeScope("node_locked_bridge")) is False
+            assert bool(bridge.commitNodeSurfaceProperty("node_locked_bridge", "message", "blocked")) is False
+            assert bool(bridge.commitNodePortLabel("node_locked_bridge", "message", "Blocked")) is False
+            assert bool(bridge.requestNodeSurfaceCropEdit("node_locked_bridge")) is False
+            assert bool(bridge.commitNodeSurfaceProperties("node_locked_bridge", {"message": "blocked"})) is False
+            assert str(bridge.browseNodePropertyPath("node_locked_bridge", "source_path", "")) == ""
+            assert str(bridge.pickNodePropertyColor("node_locked_bridge", "accent", "#000000")) == ""
+
+            settle_events(2)
+
+            assert scene_bridge.select_calls == []
+            assert scene_bridge.property_calls == []
+            assert scene_bridge.port_label_calls == []
+            assert scene_bridge.property_batch_calls == []
+            assert scene_bridge.pending_calls == []
+            assert shell_bridge.open_scope_calls == []
+            assert shell_bridge.browse_calls == []
+            assert shell_bridge.color_calls == []
+            assert canvas_item.close_calls == 0
+            assert canvas_item.pending_clear_calls == 0
+            assert canvas_item.edge_clear_calls == 0
+            assert canvas_item.cancel_wire_drag_calls == 0
+
+            bridge.deleteLater()
+            engine.deleteLater()
+            app.processEvents()
+            """,
+        )
+
+
 if __name__ == "__main__":
     unittest.main()
