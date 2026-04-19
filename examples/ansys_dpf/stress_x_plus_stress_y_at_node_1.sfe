@@ -1,0 +1,331 @@
+{
+  "active_workspace_id": "ws_dpf_stress_xy_add",
+  "metadata": {
+    "artifact_store": {
+      "artifacts": {},
+      "staged": {}
+    },
+    "custom_workflows": [],
+    "ui": {
+      "passive_style_presets": {
+        "edge_presets": [],
+        "node_presets": []
+      },
+      "script_editor": {
+        "floating": false,
+        "visible": false
+      }
+    },
+    "workflow_settings": {
+      "environment": {
+        "python_path": "",
+        "working_directory": ""
+      },
+      "general": {
+        "author": "",
+        "description": "Reproduces the Mechanical 'stress_X + stress_Y at node 1' DPF snippet as a visual graph.",
+        "project_name": "DPF Stress X + Stress Y at Node 1 Example"
+      },
+      "logging": {
+        "capture_console": true,
+        "level": "info"
+      },
+      "plugins": {
+        "enabled": []
+      },
+      "solver_config": {
+        "enable_parallel": true,
+        "memory_limit_gb": 12,
+        "thread_count": 8
+      }
+    },
+    "workspace_order": [
+      "ws_dpf_stress_xy_add"
+    ]
+  },
+  "name": "DPF Stress X + Stress Y at Node 1 Example",
+  "project_id": "proj_example_dpf_stress_xy_add",
+  "schema_version": 4,
+  "workspace_order": [
+    "ws_dpf_stress_xy_add"
+  ],
+  "workspaces": [
+    {
+      "active_view_id": "view_dpf_stress_xy_add",
+      "dirty": false,
+      "edges": [
+        {
+          "edge_id": "edge_start_to_ds_exec",
+          "label": "",
+          "source_node_id": "node_start",
+          "source_port_key": "exec_out",
+          "target_node_id": "node_data_sources",
+          "target_port_key": "exec_in",
+          "visual_style": {}
+        },
+        {
+          "edge_id": "edge_ds_to_scoping_exec",
+          "label": "",
+          "source_node_id": "node_data_sources",
+          "source_port_key": "exec_out",
+          "target_node_id": "node_scoping",
+          "target_port_key": "exec_in",
+          "visual_style": {}
+        },
+        {
+          "edge_id": "edge_scoping_to_sx_exec",
+          "label": "",
+          "source_node_id": "node_scoping",
+          "source_port_key": "exec_out",
+          "target_node_id": "node_stress_x",
+          "target_port_key": "exec_in",
+          "visual_style": {}
+        },
+        {
+          "edge_id": "edge_sx_to_sy_exec",
+          "label": "",
+          "source_node_id": "node_stress_x",
+          "source_port_key": "exec_out",
+          "target_node_id": "node_stress_y",
+          "target_port_key": "exec_in",
+          "visual_style": {}
+        },
+        {
+          "edge_id": "edge_sy_to_add_exec",
+          "label": "",
+          "source_node_id": "node_stress_y",
+          "source_port_key": "exec_out",
+          "target_node_id": "node_add",
+          "target_port_key": "exec_in",
+          "visual_style": {}
+        },
+        {
+          "edge_id": "edge_ds_to_sx_data",
+          "label": "",
+          "source_node_id": "node_data_sources",
+          "source_port_key": "data_sources",
+          "target_node_id": "node_stress_x",
+          "target_port_key": "data_sources",
+          "visual_style": {}
+        },
+        {
+          "edge_id": "edge_ds_to_sy_data",
+          "label": "",
+          "source_node_id": "node_data_sources",
+          "source_port_key": "data_sources",
+          "target_node_id": "node_stress_y",
+          "target_port_key": "data_sources",
+          "visual_style": {}
+        },
+        {
+          "edge_id": "edge_scoping_to_sx_mesh",
+          "label": "",
+          "source_node_id": "node_scoping",
+          "source_port_key": "scoping",
+          "target_node_id": "node_stress_x",
+          "target_port_key": "mesh_scoping",
+          "visual_style": {}
+        },
+        {
+          "edge_id": "edge_scoping_to_sy_mesh",
+          "label": "",
+          "source_node_id": "node_scoping",
+          "source_port_key": "scoping",
+          "target_node_id": "node_stress_y",
+          "target_port_key": "mesh_scoping",
+          "visual_style": {}
+        },
+        {
+          "edge_id": "edge_sx_to_add_a",
+          "label": "",
+          "source_node_id": "node_stress_x",
+          "source_port_key": "fields_container_2",
+          "target_node_id": "node_add",
+          "target_port_key": "fielda",
+          "visual_style": {}
+        },
+        {
+          "edge_id": "edge_sy_to_add_b",
+          "label": "",
+          "source_node_id": "node_stress_y",
+          "source_port_key": "fields_container_2",
+          "target_node_id": "node_add",
+          "target_port_key": "fieldb",
+          "visual_style": {}
+        }
+      ],
+      "name": "Stress X + Stress Y at Node 1",
+      "nodes": [
+        {
+          "collapsed": false,
+          "custom_height": null,
+          "custom_width": null,
+          "exposed_ports": {
+            "exec_out": true,
+            "trigger": true
+          },
+          "locked_ports": {},
+          "node_id": "node_start",
+          "parent_node_id": null,
+          "port_labels": {},
+          "properties": {},
+          "title": "Start",
+          "type_id": "core.start",
+          "visual_style": {},
+          "x": -900.0,
+          "y": 0.0
+        },
+        {
+          "collapsed": false,
+          "custom_height": null,
+          "custom_width": null,
+          "exposed_ports": {
+            "data_sources": true,
+            "exec_in": true,
+            "exec_out": true
+          },
+          "locked_ports": {},
+          "node_id": "node_data_sources",
+          "parent_node_id": null,
+          "port_labels": {},
+          "properties": {
+            "key": "",
+            "result_path": "C:/path/to/your/file.rst"
+          },
+          "title": "DPF Data Sources",
+          "type_id": "dpf.helper.data_sources.data_sources",
+          "visual_style": {},
+          "x": -600.0,
+          "y": -120.0
+        },
+        {
+          "collapsed": false,
+          "custom_height": null,
+          "custom_width": null,
+          "exposed_ports": {
+            "exec_in": true,
+            "exec_out": true,
+            "scoping": true
+          },
+          "locked_ports": {},
+          "node_id": "node_scoping",
+          "parent_node_id": null,
+          "port_labels": {},
+          "properties": {
+            "element_ids": "",
+            "location": "nodal",
+            "named_selection": "",
+            "node_ids": "1",
+            "output_mode": "memory",
+            "selection_mode": "node_ids",
+            "set_ids": "",
+            "time_values": ""
+          },
+          "title": "DPF Mesh Scoping",
+          "type_id": "dpf.scoping.mesh",
+          "visual_style": {},
+          "x": -600.0,
+          "y": 120.0
+        },
+        {
+          "collapsed": false,
+          "custom_height": null,
+          "custom_width": null,
+          "exposed_ports": {
+            "data_sources": true,
+            "exec_in": true,
+            "exec_out": true,
+            "fields_container_2": true,
+            "mesh_scoping": true
+          },
+          "locked_ports": {},
+          "node_id": "node_stress_x",
+          "parent_node_id": null,
+          "port_labels": {},
+          "properties": {},
+          "title": "Stress X",
+          "type_id": "dpf.op.result.stress_x",
+          "visual_style": {},
+          "x": -200.0,
+          "y": -100.0
+        },
+        {
+          "collapsed": false,
+          "custom_height": null,
+          "custom_width": null,
+          "exposed_ports": {
+            "data_sources": true,
+            "exec_in": true,
+            "exec_out": true,
+            "fields_container_2": true,
+            "mesh_scoping": true
+          },
+          "locked_ports": {},
+          "node_id": "node_stress_y",
+          "parent_node_id": null,
+          "port_labels": {},
+          "properties": {},
+          "title": "Stress Y",
+          "type_id": "dpf.op.result.stress_y",
+          "visual_style": {},
+          "x": -200.0,
+          "y": 100.0
+        },
+        {
+          "collapsed": false,
+          "custom_height": null,
+          "custom_width": null,
+          "exposed_ports": {
+            "exec_in": true,
+            "exec_out": true,
+            "field": true,
+            "fielda": true,
+            "fieldb": true
+          },
+          "locked_ports": {},
+          "node_id": "node_add",
+          "parent_node_id": null,
+          "port_labels": {},
+          "properties": {},
+          "title": "Add",
+          "type_id": "dpf.op.math.add",
+          "visual_style": {},
+          "x": 220.0,
+          "y": 0.0
+        },
+        {
+          "collapsed": false,
+          "custom_height": 220.0,
+          "custom_width": 1280.0,
+          "exposed_ports": {},
+          "locked_ports": {},
+          "node_id": "node_comment_backdrop",
+          "parent_node_id": null,
+          "port_labels": {},
+          "properties": {
+            "body": "Visual equivalent of:\n\n    dataSources = dpf.DataSources(<rst path>)\n    scoping = dpf.Scoping(); scoping.Ids = [1]; scoping.Location = 'Nodal'\n    sX = dpf.operators.result.stress_X(data_sources=dataSources, mesh_scoping=scoping).outputs.fields_container.GetData()\n    sY = dpf.operators.result.stress_Y(data_sources=dataSources, mesh_scoping=scoping).outputs.fields_container.GetData()\n    addSxSy = dpf.operators.math.add(fieldA=sX, fieldB=sY).outputs.field.GetData()\n    print(addSxSy.Data)\n\nSet the DPF Data Sources 'Result File' property to your .rst file before running. The Add node's 'field' output holds stress_X + stress_Y at node 1.",
+            "title": "DPF Workflow Example: stress_X + stress_Y at node 1"
+          },
+          "title": "DPF Workflow Example: stress_X + stress_Y at node 1",
+          "type_id": "passive.annotation.comment_backdrop",
+          "visual_style": {},
+          "x": -940.0,
+          "y": -280.0
+        }
+      ],
+      "views": [
+        {
+          "hide_locked_ports": false,
+          "hide_optional_ports": true,
+          "name": "V1",
+          "pan_x": 780.0,
+          "pan_y": 300.0,
+          "scope_path": [],
+          "view_id": "view_dpf_stress_xy_add",
+          "zoom": 1.0
+        }
+      ],
+      "workspace_id": "ws_dpf_stress_xy_add"
+    }
+  ]
+}

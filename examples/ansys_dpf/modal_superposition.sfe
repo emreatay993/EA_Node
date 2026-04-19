@@ -1,0 +1,454 @@
+{
+  "active_workspace_id": "ws_dpf_modal_superposition",
+  "metadata": {
+    "artifact_store": {
+      "artifacts": {},
+      "staged": {}
+    },
+    "custom_workflows": [],
+    "ui": {
+      "passive_style_presets": {
+        "edge_presets": [],
+        "node_presets": []
+      },
+      "script_editor": {
+        "floating": false,
+        "visible": false
+      }
+    },
+    "workflow_settings": {
+      "environment": {
+        "python_path": "",
+        "working_directory": ""
+      },
+      "general": {
+        "author": "",
+        "description": "Reproduces the PyDPF-Core 'modal superposition' harmonic-analysis example (https://dpf.docs.pyansys.com/version/stable/examples/03-harmonic_analyses/01-modal_superposition.html) as a visual graph.",
+        "project_name": "DPF Modal Superposition Example"
+      },
+      "logging": {
+        "capture_console": true,
+        "level": "info"
+      },
+      "plugins": {
+        "enabled": []
+      },
+      "solver_config": {
+        "enable_parallel": true,
+        "memory_limit_gb": 12,
+        "thread_count": 8
+      }
+    },
+    "workspace_order": [
+      "ws_dpf_modal_superposition"
+    ]
+  },
+  "name": "DPF Modal Superposition Example",
+  "project_id": "proj_example_dpf_modal_superposition",
+  "schema_version": 4,
+  "workspace_order": [
+    "ws_dpf_modal_superposition"
+  ],
+  "workspaces": [
+    {
+      "active_view_id": "view_dpf_modal_superposition",
+      "dirty": false,
+      "edges": [
+        {
+          "edge_id": "edge_start_to_primary_exec",
+          "label": "",
+          "source_node_id": "node_start",
+          "source_port_key": "exec_out",
+          "target_node_id": "node_primary_data_sources",
+          "target_port_key": "exec_in",
+          "visual_style": {}
+        },
+        {
+          "edge_id": "edge_primary_to_upstream_exec",
+          "label": "",
+          "source_node_id": "node_primary_data_sources",
+          "source_port_key": "exec_out",
+          "target_node_id": "node_upstream_data_sources",
+          "target_port_key": "exec_in",
+          "visual_style": {}
+        },
+        {
+          "edge_id": "edge_upstream_to_addfile_exec",
+          "label": "",
+          "source_node_id": "node_upstream_data_sources",
+          "source_port_key": "exec_out",
+          "target_node_id": "node_add_rst_file_path",
+          "target_port_key": "exec_in",
+          "visual_style": {}
+        },
+        {
+          "edge_id": "edge_upstream_to_addfile_receiver",
+          "label": "",
+          "source_node_id": "node_upstream_data_sources",
+          "source_port_key": "data_sources",
+          "target_node_id": "node_add_rst_file_path",
+          "target_port_key": "receiver",
+          "visual_style": {}
+        },
+        {
+          "edge_id": "edge_addfile_to_addupstream_exec",
+          "label": "",
+          "source_node_id": "node_add_rst_file_path",
+          "source_port_key": "exec_out",
+          "target_node_id": "node_add_upstream",
+          "target_port_key": "exec_in",
+          "visual_style": {}
+        },
+        {
+          "edge_id": "edge_primary_to_addupstream_receiver",
+          "label": "",
+          "source_node_id": "node_primary_data_sources",
+          "source_port_key": "data_sources",
+          "target_node_id": "node_add_upstream",
+          "target_port_key": "receiver",
+          "visual_style": {}
+        },
+        {
+          "edge_id": "edge_addfile_to_addupstream_upstream",
+          "label": "",
+          "source_node_id": "node_add_rst_file_path",
+          "source_port_key": "updated_receiver",
+          "target_node_id": "node_add_upstream",
+          "target_port_key": "upstream_data_sources",
+          "visual_style": {}
+        },
+        {
+          "edge_id": "edge_addupstream_to_model_exec",
+          "label": "",
+          "source_node_id": "node_add_upstream",
+          "source_port_key": "exec_out",
+          "target_node_id": "node_model",
+          "target_port_key": "exec_in",
+          "visual_style": {}
+        },
+        {
+          "edge_id": "edge_addupstream_to_model_data",
+          "label": "",
+          "source_node_id": "node_add_upstream",
+          "source_port_key": "updated_receiver",
+          "target_node_id": "node_model",
+          "target_port_key": "data_sources",
+          "visual_style": {}
+        },
+        {
+          "edge_id": "edge_model_to_scoping_exec",
+          "label": "",
+          "source_node_id": "node_model",
+          "source_port_key": "exec_out",
+          "target_node_id": "node_all_time_scoping",
+          "target_port_key": "exec_in",
+          "visual_style": {}
+        },
+        {
+          "edge_id": "edge_model_to_scoping_obj",
+          "label": "",
+          "source_node_id": "node_model",
+          "source_port_key": "model",
+          "target_node_id": "node_all_time_scoping",
+          "target_port_key": "obj",
+          "visual_style": {}
+        },
+        {
+          "edge_id": "edge_scoping_to_disp_exec",
+          "label": "",
+          "source_node_id": "node_all_time_scoping",
+          "source_port_key": "exec_out",
+          "target_node_id": "node_displacement",
+          "target_port_key": "exec_in",
+          "visual_style": {}
+        },
+        {
+          "edge_id": "edge_scoping_to_disp_time",
+          "label": "",
+          "source_node_id": "node_all_time_scoping",
+          "source_port_key": "scoping",
+          "target_node_id": "node_displacement",
+          "target_port_key": "time_scoping",
+          "visual_style": {}
+        },
+        {
+          "edge_id": "edge_addupstream_to_disp_data",
+          "label": "",
+          "source_node_id": "node_add_upstream",
+          "source_port_key": "updated_receiver",
+          "target_node_id": "node_displacement",
+          "target_port_key": "data_sources",
+          "visual_style": {}
+        },
+        {
+          "edge_id": "edge_disp_to_viewer_exec",
+          "label": "",
+          "source_node_id": "node_displacement",
+          "source_port_key": "exec_out",
+          "target_node_id": "node_viewer",
+          "target_port_key": "exec_in",
+          "visual_style": {}
+        },
+        {
+          "edge_id": "edge_disp_to_viewer_field",
+          "label": "",
+          "source_node_id": "node_displacement",
+          "source_port_key": "fields_container_2",
+          "target_node_id": "node_viewer",
+          "target_port_key": "field",
+          "visual_style": {}
+        },
+        {
+          "edge_id": "edge_model_to_viewer_model",
+          "label": "",
+          "source_node_id": "node_model",
+          "source_port_key": "model",
+          "target_node_id": "node_viewer",
+          "target_port_key": "model",
+          "visual_style": {}
+        }
+      ],
+      "name": "Modal Superposition",
+      "nodes": [
+        {
+          "collapsed": false,
+          "custom_height": null,
+          "custom_width": null,
+          "exposed_ports": {
+            "exec_out": true,
+            "trigger": true
+          },
+          "locked_ports": {},
+          "node_id": "node_start",
+          "parent_node_id": null,
+          "port_labels": {},
+          "properties": {},
+          "title": "Start",
+          "type_id": "core.start",
+          "visual_style": {},
+          "x": -940.0,
+          "y": -40.0
+        },
+        {
+          "collapsed": false,
+          "custom_height": null,
+          "custom_width": null,
+          "exposed_ports": {
+            "data_sources": true,
+            "exec_in": true,
+            "exec_out": true
+          },
+          "locked_ports": {},
+          "node_id": "node_primary_data_sources",
+          "parent_node_id": null,
+          "port_labels": {},
+          "properties": {
+            "key": "rfrq",
+            "result_path": "C:/path/to/your/file.rfrq"
+          },
+          "title": "DPF Data Sources (rfrq)",
+          "type_id": "dpf.helper.data_sources.data_sources",
+          "visual_style": {},
+          "x": -620.0,
+          "y": -200.0
+        },
+        {
+          "collapsed": false,
+          "custom_height": null,
+          "custom_width": null,
+          "exposed_ports": {
+            "data_sources": true,
+            "exec_in": true,
+            "exec_out": true
+          },
+          "locked_ports": {},
+          "node_id": "node_upstream_data_sources",
+          "parent_node_id": null,
+          "port_labels": {},
+          "properties": {
+            "key": "mode",
+            "result_path": "C:/path/to/your/file.mode"
+          },
+          "title": "DPF Data Sources (upstream mode)",
+          "type_id": "dpf.helper.data_sources.data_sources",
+          "visual_style": {},
+          "x": -620.0,
+          "y": 140.0
+        },
+        {
+          "collapsed": false,
+          "custom_height": null,
+          "custom_width": null,
+          "exposed_ports": {
+            "exec_in": true,
+            "exec_out": true,
+            "receiver": true,
+            "result_path": true,
+            "updated_receiver": true
+          },
+          "locked_ports": {},
+          "node_id": "node_add_rst_file_path",
+          "parent_node_id": null,
+          "port_labels": {},
+          "properties": {
+            "key": "rst",
+            "result_path": "C:/path/to/your/file.rst"
+          },
+          "title": "DPF Set Result File Path (add .rst)",
+          "type_id": "dpf.helper.data_sources.set_result_file_path",
+          "visual_style": {},
+          "x": -300.0,
+          "y": 140.0
+        },
+        {
+          "collapsed": false,
+          "custom_height": null,
+          "custom_width": null,
+          "exposed_ports": {
+            "exec_in": true,
+            "exec_out": true,
+            "receiver": true,
+            "updated_receiver": true,
+            "upstream_data_sources": true
+          },
+          "locked_ports": {},
+          "node_id": "node_add_upstream",
+          "parent_node_id": null,
+          "port_labels": {},
+          "properties": {
+            "result_key": ""
+          },
+          "title": "DPF Add Upstream Data Sources",
+          "type_id": "dpf.helper.data_sources.add_upstream",
+          "visual_style": {},
+          "x": 20.0,
+          "y": -40.0
+        },
+        {
+          "collapsed": false,
+          "custom_height": null,
+          "custom_width": null,
+          "exposed_ports": {
+            "data_sources": true,
+            "exec_in": true,
+            "exec_out": true,
+            "model": true
+          },
+          "locked_ports": {},
+          "node_id": "node_model",
+          "parent_node_id": null,
+          "port_labels": {},
+          "properties": {},
+          "title": "DPF Model",
+          "type_id": "dpf.helper.model.model",
+          "visual_style": {},
+          "x": 340.0,
+          "y": -200.0
+        },
+        {
+          "collapsed": false,
+          "custom_height": null,
+          "custom_width": null,
+          "exposed_ports": {
+            "exec_in": true,
+            "exec_out": true,
+            "obj": true,
+            "scoping": true
+          },
+          "locked_ports": {},
+          "node_id": "node_all_time_scoping",
+          "parent_node_id": null,
+          "port_labels": {},
+          "properties": {},
+          "title": "All Time Freq Scoping",
+          "type_id": "dpf.helper.time_freq_scoping_factory.scoping_on_all_time_freqs",
+          "visual_style": {},
+          "x": 680.0,
+          "y": -200.0
+        },
+        {
+          "collapsed": false,
+          "custom_height": null,
+          "custom_width": null,
+          "exposed_ports": {
+            "data_sources": true,
+            "exec_in": true,
+            "exec_out": true,
+            "fields_container_2": true,
+            "time_scoping": true
+          },
+          "locked_ports": {},
+          "node_id": "node_displacement",
+          "parent_node_id": null,
+          "port_labels": {},
+          "properties": {
+            "bool_rotate_to_global": false,
+            "phi": 0.0,
+            "read_cyclic": 0
+          },
+          "title": "Displacement",
+          "type_id": "dpf.op.result.displacement",
+          "visual_style": {},
+          "x": 1020.0,
+          "y": -200.0
+        },
+        {
+          "collapsed": false,
+          "custom_height": null,
+          "custom_width": null,
+          "exposed_ports": {
+            "exec_in": true,
+            "exec_out": true,
+            "field": true,
+            "model": true,
+            "session": true
+          },
+          "locked_ports": {},
+          "node_id": "node_viewer",
+          "parent_node_id": null,
+          "port_labels": {},
+          "properties": {
+            "output_mode": "both"
+          },
+          "title": "DPF Viewer",
+          "type_id": "dpf.viewer",
+          "visual_style": {},
+          "x": 1380.0,
+          "y": -200.0
+        },
+        {
+          "collapsed": false,
+          "custom_height": 340.0,
+          "custom_width": 2480.0,
+          "exposed_ports": {},
+          "locked_ports": {},
+          "node_id": "node_comment_backdrop",
+          "parent_node_id": null,
+          "port_labels": {},
+          "properties": {
+            "body": "Visual equivalent of the PyDPF-Core 'modal superposition' example:\n\n    data_sources           = dpf.DataSources(msup_files[\"rfrq\"])\n    up_stream_data_sources = dpf.DataSources(msup_files[\"mode\"])\n    up_stream_data_sources.add_file_path(msup_files[\"rst\"])\n    data_sources.add_upstream(up_stream_data_sources)\n\n    model = dpf.Model(data_sources)\n    disp  = model.results.displacement.on_all_time_freqs.eval()\n    freq_scoping = disp.get_time_scoping()\n    for freq_set in freq_scoping:\n        model.metadata.meshed_region.plot(disp.get_field_by_time_complex_ids(freq_set, 0))\n\nMapping:\n  - Two DPF Data Sources nodes = the two DataSources() constructors (keys rfrq / mode).\n  - DPF Set Result File Path (key=\"rst\") = add_file_path(msup_files[\"rst\"]) on the upstream data sources.\n  - DPF Add Upstream Data Sources = data_sources.add_upstream(up_stream_data_sources); its updated_receiver feeds\n    both DPF Model and the Displacement operator's data_sources input.\n  - All Time Freq Scoping = disp.get_time_scoping() / .on_all_time_freqs on the displacement operator.\n  - Displacement.time_scoping receives the scoping, emulating model.results.displacement.on_all_time_freqs.eval().\n  - DPF Viewer = the mesh.plot(...) loop over every frequency set.\n\nBefore running, set each DPF Data Sources 'Result File' property to your actual .rfrq / .mode / .rst files.",
+            "title": "DPF Workflow Example: modal superposition (displacement on all freqs -> mesh plot)"
+          },
+          "title": "DPF Workflow Example: modal superposition (displacement on all freqs -> mesh plot)",
+          "type_id": "passive.annotation.comment_backdrop",
+          "visual_style": {},
+          "x": -980.0,
+          "y": -360.0
+        }
+      ],
+      "views": [
+        {
+          "hide_locked_ports": false,
+          "hide_optional_ports": true,
+          "name": "V1",
+          "pan_x": 1240.0,
+          "pan_y": 380.0,
+          "scope_path": [],
+          "view_id": "view_dpf_modal_superposition",
+          "zoom": 1.0
+        }
+      ],
+      "workspace_id": "ws_dpf_modal_superposition"
+    }
+  ]
+}

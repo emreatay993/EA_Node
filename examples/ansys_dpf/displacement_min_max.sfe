@@ -1,0 +1,229 @@
+{
+  "active_workspace_id": "ws_dpf_min_max",
+  "metadata": {
+    "artifact_store": {
+      "artifacts": {},
+      "staged": {}
+    },
+    "custom_workflows": [],
+    "ui": {
+      "passive_style_presets": {
+        "edge_presets": [],
+        "node_presets": []
+      },
+      "script_editor": {
+        "floating": false,
+        "visible": false
+      }
+    },
+    "workflow_settings": {
+      "environment": {
+        "python_path": "",
+        "working_directory": ""
+      },
+      "general": {
+        "author": "",
+        "description": "Reproduces the ansys.dpf.core 'displacement -> min_max_fc' workflow snippet as a visual graph.",
+        "project_name": "DPF Displacement Min/Max Example"
+      },
+      "logging": {
+        "capture_console": true,
+        "level": "info"
+      },
+      "plugins": {
+        "enabled": []
+      },
+      "solver_config": {
+        "enable_parallel": true,
+        "memory_limit_gb": 12,
+        "thread_count": 8
+      }
+    },
+    "workspace_order": [
+      "ws_dpf_min_max"
+    ]
+  },
+  "name": "DPF Displacement Min/Max Example",
+  "project_id": "proj_example_dpf_min_max",
+  "schema_version": 4,
+  "workspace_order": [
+    "ws_dpf_min_max"
+  ],
+  "workspaces": [
+    {
+      "active_view_id": "view_dpf_min_max",
+      "dirty": false,
+      "edges": [
+        {
+          "edge_id": "edge_start_to_ds_exec",
+          "label": "",
+          "source_node_id": "node_start",
+          "source_port_key": "exec_out",
+          "target_node_id": "node_data_sources",
+          "target_port_key": "exec_in",
+          "visual_style": {}
+        },
+        {
+          "edge_id": "edge_ds_to_disp_exec",
+          "label": "",
+          "source_node_id": "node_data_sources",
+          "source_port_key": "exec_out",
+          "target_node_id": "node_displacement",
+          "target_port_key": "exec_in",
+          "visual_style": {}
+        },
+        {
+          "edge_id": "edge_ds_to_disp_data",
+          "label": "",
+          "source_node_id": "node_data_sources",
+          "source_port_key": "data_sources",
+          "target_node_id": "node_displacement",
+          "target_port_key": "data_sources",
+          "visual_style": {}
+        },
+        {
+          "edge_id": "edge_disp_to_mm_exec",
+          "label": "",
+          "source_node_id": "node_displacement",
+          "source_port_key": "exec_out",
+          "target_node_id": "node_min_max_fc",
+          "target_port_key": "exec_in",
+          "visual_style": {}
+        },
+        {
+          "edge_id": "edge_disp_to_mm_fc",
+          "label": "",
+          "source_node_id": "node_displacement",
+          "source_port_key": "fields_container_2",
+          "target_node_id": "node_min_max_fc",
+          "target_port_key": "fields_container",
+          "visual_style": {}
+        }
+      ],
+      "name": "Displacement Min/Max",
+      "nodes": [
+        {
+          "collapsed": false,
+          "custom_height": null,
+          "custom_width": null,
+          "exposed_ports": {
+            "exec_out": true,
+            "trigger": true
+          },
+          "locked_ports": {},
+          "node_id": "node_start",
+          "parent_node_id": null,
+          "port_labels": {},
+          "properties": {},
+          "title": "Start",
+          "type_id": "core.start",
+          "visual_style": {},
+          "x": -700.0,
+          "y": -40.0
+        },
+        {
+          "collapsed": false,
+          "custom_height": null,
+          "custom_width": null,
+          "exposed_ports": {
+            "data_sources": true,
+            "exec_in": true,
+            "exec_out": true
+          },
+          "locked_ports": {},
+          "node_id": "node_data_sources",
+          "parent_node_id": null,
+          "port_labels": {},
+          "properties": {
+            "key": "",
+            "result_path": "C:/path/to/your/file.rst"
+          },
+          "title": "DPF Data Sources",
+          "type_id": "dpf.helper.data_sources.data_sources",
+          "visual_style": {},
+          "x": -380.0,
+          "y": -40.0
+        },
+        {
+          "collapsed": false,
+          "custom_height": null,
+          "custom_width": null,
+          "exposed_ports": {
+            "data_sources": true,
+            "exec_in": true,
+            "exec_out": true,
+            "fields_container_2": true
+          },
+          "locked_ports": {},
+          "node_id": "node_displacement",
+          "parent_node_id": null,
+          "port_labels": {},
+          "properties": {
+            "bool_rotate_to_global": false,
+            "phi": 0.0,
+            "read_cyclic": 0
+          },
+          "title": "Displacement",
+          "type_id": "dpf.op.result.displacement",
+          "visual_style": {},
+          "x": -40.0,
+          "y": -40.0
+        },
+        {
+          "collapsed": false,
+          "custom_height": null,
+          "custom_width": null,
+          "exposed_ports": {
+            "exec_in": true,
+            "exec_out": true,
+            "field_max": true,
+            "field_min": true,
+            "fields_container": true
+          },
+          "locked_ports": {},
+          "node_id": "node_min_max_fc",
+          "parent_node_id": null,
+          "port_labels": {},
+          "properties": {},
+          "title": "Min Max FC",
+          "type_id": "dpf.op.min_max.min_max_fc",
+          "visual_style": {},
+          "x": 320.0,
+          "y": -40.0
+        },
+        {
+          "collapsed": false,
+          "custom_height": 220.0,
+          "custom_width": 1180.0,
+          "exposed_ports": {},
+          "locked_ports": {},
+          "node_id": "node_comment_backdrop",
+          "parent_node_id": null,
+          "port_labels": {},
+          "properties": {
+            "body": "Visual equivalent of:\n\n    disp_op   = dpf.operators.result.displacement()\n    max_fc_op = dpf.operators.min_max.min_max_fc(disp_op)\n    data_src  = dpf.DataSources(<.rst path>)\n    # connections (data_sources -> displacement.data_sources,\n    #              displacement.fields_container -> min_max_fc.fields_container)\n\nThe red 'field_min' / 'field_max' outputs on the right are the equivalent of\nworkflow.get_output(\"min\", dpf.types.field) / workflow.get_output(\"max\", dpf.types.field).\n\nSet the DPF Data Sources 'Result File' property to your .rst file before running.",
+            "title": "DPF Workflow Example: displacement -> min_max_fc"
+          },
+          "title": "DPF Workflow Example: displacement -> min_max_fc",
+          "type_id": "passive.annotation.comment_backdrop",
+          "visual_style": {},
+          "x": -740.0,
+          "y": -200.0
+        }
+      ],
+      "views": [
+        {
+          "hide_locked_ports": false,
+          "hide_optional_ports": true,
+          "name": "V1",
+          "pan_x": 740.0,
+          "pan_y": 240.0,
+          "scope_path": [],
+          "view_id": "view_dpf_min_max",
+          "zoom": 1.0
+        }
+      ],
+      "workspace_id": "ws_dpf_min_max"
+    }
+  ]
+}

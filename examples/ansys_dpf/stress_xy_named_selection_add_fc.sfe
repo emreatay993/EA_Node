@@ -1,0 +1,445 @@
+{
+  "active_workspace_id": "ws_dpf_stress_xy_add",
+  "metadata": {
+    "artifact_store": {
+      "artifacts": {},
+      "staged": {}
+    },
+    "custom_workflows": [],
+    "ui": {
+      "passive_style_presets": {
+        "edge_presets": [],
+        "node_presets": []
+      },
+      "script_editor": {
+        "floating": false,
+        "visible": false
+      }
+    },
+    "workflow_settings": {
+      "environment": {
+        "python_path": "",
+        "working_directory": ""
+      },
+      "general": {
+        "author": "",
+        "description": "Reproduces a Mechanical-embedded mech_dpf snippet that scopes Stress X and Stress Y on a named selection over all time sets and adds the two fields containers.",
+        "project_name": "DPF Stress X + Stress Y on Named Selection (add_fc)"
+      },
+      "logging": {
+        "capture_console": true,
+        "level": "info"
+      },
+      "plugins": {
+        "enabled": []
+      },
+      "solver_config": {
+        "enable_parallel": true,
+        "memory_limit_gb": 12,
+        "thread_count": 8
+      }
+    },
+    "workspace_order": [
+      "ws_dpf_stress_xy_add"
+    ]
+  },
+  "name": "DPF Stress X + Stress Y on Named Selection (add_fc)",
+  "project_id": "proj_example_dpf_stress_xy_add",
+  "schema_version": 4,
+  "workspace_order": [
+    "ws_dpf_stress_xy_add"
+  ],
+  "workspaces": [
+    {
+      "active_view_id": "view_dpf_stress_xy_add",
+      "dirty": false,
+      "edges": [
+        {
+          "edge_id": "edge_start_to_ds_exec",
+          "label": "",
+          "source_node_id": "node_start",
+          "source_port_key": "exec_out",
+          "target_node_id": "node_data_sources",
+          "target_port_key": "exec_in",
+          "visual_style": {}
+        },
+        {
+          "edge_id": "edge_ds_to_model_exec",
+          "label": "",
+          "source_node_id": "node_data_sources",
+          "source_port_key": "exec_out",
+          "target_node_id": "node_model",
+          "target_port_key": "exec_in",
+          "visual_style": {}
+        },
+        {
+          "edge_id": "edge_ds_to_model_data",
+          "label": "",
+          "source_node_id": "node_data_sources",
+          "source_port_key": "data_sources",
+          "target_node_id": "node_model",
+          "target_port_key": "data_sources",
+          "visual_style": {}
+        },
+        {
+          "edge_id": "edge_model_to_time_scoping_exec",
+          "label": "",
+          "source_node_id": "node_model",
+          "source_port_key": "exec_out",
+          "target_node_id": "node_time_scoping",
+          "target_port_key": "exec_in",
+          "visual_style": {}
+        },
+        {
+          "edge_id": "edge_model_to_time_scoping_obj",
+          "label": "",
+          "source_node_id": "node_model",
+          "source_port_key": "model",
+          "target_node_id": "node_time_scoping",
+          "target_port_key": "obj",
+          "visual_style": {}
+        },
+        {
+          "edge_id": "edge_ds_to_named_sel_exec",
+          "label": "",
+          "source_node_id": "node_data_sources",
+          "source_port_key": "exec_out",
+          "target_node_id": "node_named_selection",
+          "target_port_key": "exec_in",
+          "visual_style": {}
+        },
+        {
+          "edge_id": "edge_ds_to_named_sel_data",
+          "label": "",
+          "source_node_id": "node_data_sources",
+          "source_port_key": "data_sources",
+          "target_node_id": "node_named_selection",
+          "target_port_key": "data_sources",
+          "visual_style": {}
+        },
+        {
+          "edge_id": "edge_time_to_stress_x_exec",
+          "label": "",
+          "source_node_id": "node_time_scoping",
+          "source_port_key": "exec_out",
+          "target_node_id": "node_stress_x",
+          "target_port_key": "exec_in",
+          "visual_style": {}
+        },
+        {
+          "edge_id": "edge_time_to_stress_x_time",
+          "label": "",
+          "source_node_id": "node_time_scoping",
+          "source_port_key": "scoping",
+          "target_node_id": "node_stress_x",
+          "target_port_key": "time_scoping",
+          "visual_style": {}
+        },
+        {
+          "edge_id": "edge_named_to_stress_x_mesh",
+          "label": "",
+          "source_node_id": "node_named_selection",
+          "source_port_key": "mesh_scoping",
+          "target_node_id": "node_stress_x",
+          "target_port_key": "mesh_scoping",
+          "visual_style": {}
+        },
+        {
+          "edge_id": "edge_ds_to_stress_x_data",
+          "label": "",
+          "source_node_id": "node_data_sources",
+          "source_port_key": "data_sources",
+          "target_node_id": "node_stress_x",
+          "target_port_key": "data_sources",
+          "visual_style": {}
+        },
+        {
+          "edge_id": "edge_time_to_stress_y_exec",
+          "label": "",
+          "source_node_id": "node_time_scoping",
+          "source_port_key": "exec_out",
+          "target_node_id": "node_stress_y",
+          "target_port_key": "exec_in",
+          "visual_style": {}
+        },
+        {
+          "edge_id": "edge_time_to_stress_y_time",
+          "label": "",
+          "source_node_id": "node_time_scoping",
+          "source_port_key": "scoping",
+          "target_node_id": "node_stress_y",
+          "target_port_key": "time_scoping",
+          "visual_style": {}
+        },
+        {
+          "edge_id": "edge_named_to_stress_y_mesh",
+          "label": "",
+          "source_node_id": "node_named_selection",
+          "source_port_key": "mesh_scoping",
+          "target_node_id": "node_stress_y",
+          "target_port_key": "mesh_scoping",
+          "visual_style": {}
+        },
+        {
+          "edge_id": "edge_ds_to_stress_y_data",
+          "label": "",
+          "source_node_id": "node_data_sources",
+          "source_port_key": "data_sources",
+          "target_node_id": "node_stress_y",
+          "target_port_key": "data_sources",
+          "visual_style": {}
+        },
+        {
+          "edge_id": "edge_stress_x_to_add_exec",
+          "label": "",
+          "source_node_id": "node_stress_x",
+          "source_port_key": "exec_out",
+          "target_node_id": "node_add_fc",
+          "target_port_key": "exec_in",
+          "visual_style": {}
+        },
+        {
+          "edge_id": "edge_stress_x_to_add_fc",
+          "label": "sX",
+          "source_node_id": "node_stress_x",
+          "source_port_key": "fields_container_2",
+          "target_node_id": "node_add_fc",
+          "target_port_key": "fields_container",
+          "visual_style": {}
+        },
+        {
+          "edge_id": "edge_stress_y_to_add_fc",
+          "label": "sY",
+          "source_node_id": "node_stress_y",
+          "source_port_key": "fields_container_2",
+          "target_node_id": "node_add_fc",
+          "target_port_key": "fields_container",
+          "visual_style": {}
+        }
+      ],
+      "name": "Stress X + Y on Named Selection",
+      "nodes": [
+        {
+          "collapsed": false,
+          "custom_height": null,
+          "custom_width": null,
+          "exposed_ports": {
+            "exec_out": true,
+            "trigger": true
+          },
+          "locked_ports": {},
+          "node_id": "node_start",
+          "parent_node_id": null,
+          "port_labels": {},
+          "properties": {},
+          "title": "Start",
+          "type_id": "core.start",
+          "visual_style": {},
+          "x": -1180.0,
+          "y": -40.0
+        },
+        {
+          "collapsed": false,
+          "custom_height": null,
+          "custom_width": null,
+          "exposed_ports": {
+            "data_sources": true,
+            "exec_in": true,
+            "exec_out": true
+          },
+          "locked_ports": {},
+          "node_id": "node_data_sources",
+          "parent_node_id": null,
+          "port_labels": {},
+          "properties": {
+            "key": "",
+            "result_path": "C:/path/to/your/file.rst"
+          },
+          "title": "DPF Data Sources",
+          "type_id": "dpf.helper.data_sources.data_sources",
+          "visual_style": {},
+          "x": -880.0,
+          "y": -40.0
+        },
+        {
+          "collapsed": false,
+          "custom_height": null,
+          "custom_width": null,
+          "exposed_ports": {
+            "data_sources": true,
+            "exec_in": true,
+            "exec_out": true,
+            "model": true
+          },
+          "locked_ports": {},
+          "node_id": "node_model",
+          "parent_node_id": null,
+          "port_labels": {},
+          "properties": {},
+          "title": "DPF Model",
+          "type_id": "dpf.helper.model.model",
+          "visual_style": {},
+          "x": -560.0,
+          "y": -200.0
+        },
+        {
+          "collapsed": false,
+          "custom_height": null,
+          "custom_width": null,
+          "exposed_ports": {
+            "data_sources": true,
+            "exec_in": true,
+            "exec_out": true,
+            "mesh_scoping": true,
+            "named_selection_name": true,
+            "requested_location": true
+          },
+          "locked_ports": {},
+          "node_id": "node_named_selection",
+          "parent_node_id": null,
+          "port_labels": {},
+          "properties": {
+            "int_inclusive": 0,
+            "named_selection_name": "NODE1",
+            "requested_location": "Nodal"
+          },
+          "title": "Scoping On Named Selection",
+          "type_id": "dpf.op.scoping.on_named_selection",
+          "visual_style": {},
+          "x": -560.0,
+          "y": 120.0
+        },
+        {
+          "collapsed": false,
+          "custom_height": null,
+          "custom_width": null,
+          "exposed_ports": {
+            "exec_in": true,
+            "exec_out": true,
+            "obj": true,
+            "scoping": true
+          },
+          "locked_ports": {},
+          "node_id": "node_time_scoping",
+          "parent_node_id": null,
+          "port_labels": {},
+          "properties": {},
+          "title": "Scoping On All Time Freqs",
+          "type_id": "dpf.helper.time_freq_scoping_factory.scoping_on_all_time_freqs",
+          "visual_style": {},
+          "x": -240.0,
+          "y": -200.0
+        },
+        {
+          "collapsed": false,
+          "custom_height": null,
+          "custom_width": null,
+          "exposed_ports": {
+            "data_sources": true,
+            "exec_in": true,
+            "exec_out": true,
+            "fields_container_2": true,
+            "mesh_scoping": true,
+            "time_scoping": true
+          },
+          "locked_ports": {},
+          "node_id": "node_stress_x",
+          "parent_node_id": null,
+          "port_labels": {},
+          "properties": {
+            "bool_rotate_to_global": false,
+            "read_beams": false,
+            "read_cyclic": 0,
+            "requested_location": ""
+          },
+          "title": "Stress X",
+          "type_id": "dpf.op.result.stress_x",
+          "visual_style": {},
+          "x": 120.0,
+          "y": -200.0
+        },
+        {
+          "collapsed": false,
+          "custom_height": null,
+          "custom_width": null,
+          "exposed_ports": {
+            "data_sources": true,
+            "exec_in": true,
+            "exec_out": true,
+            "fields_container_2": true,
+            "mesh_scoping": true,
+            "time_scoping": true
+          },
+          "locked_ports": {},
+          "node_id": "node_stress_y",
+          "parent_node_id": null,
+          "port_labels": {},
+          "properties": {
+            "bool_rotate_to_global": false,
+            "read_beams": false,
+            "read_cyclic": 0,
+            "requested_location": ""
+          },
+          "title": "Stress Y",
+          "type_id": "dpf.op.result.stress_y",
+          "visual_style": {},
+          "x": 120.0,
+          "y": 120.0
+        },
+        {
+          "collapsed": false,
+          "custom_height": null,
+          "custom_width": null,
+          "exposed_ports": {
+            "exec_in": true,
+            "exec_out": true,
+            "fields_container": true,
+            "fields_container_2": true
+          },
+          "locked_ports": {},
+          "node_id": "node_add_fc",
+          "parent_node_id": null,
+          "port_labels": {},
+          "properties": {},
+          "title": "Add FC (sX + sY)",
+          "type_id": "dpf.op.math.add_fc",
+          "visual_style": {},
+          "x": 480.0,
+          "y": -40.0
+        },
+        {
+          "collapsed": false,
+          "custom_height": 260.0,
+          "custom_width": 1820.0,
+          "exposed_ports": {},
+          "locked_ports": {},
+          "node_id": "node_comment_backdrop",
+          "parent_node_id": null,
+          "port_labels": {},
+          "properties": {
+            "body": "Visual equivalent of the mech_dpf snippet:\n\n    dataSources = dpf.DataSources();  dataSources.SetResultFilePath(filepath)\n    model       = dpf.Model(dataSources)\n    time_scoping = <range(1, model.TimeFreqSupport.NumberSets + 1)>           # == scoping_on_all_time_freqs(model)\n    my_mesh_scoping = dpf.operators.scoping.on_named_selection(\n        requested_location='Nodal', named_selection_name='NODE1', data_sources=dataSources)\n    sX = dpf.operators.result.stress_X(data_sources=dataSources, mesh_scoping=my_mesh_scoping, time_scoping=time_scoping)\n    sY = dpf.operators.result.stress_Y(data_sources=dataSources, mesh_scoping=my_mesh_scoping, time_scoping=time_scoping)\n    addSxSy = dpf.operators.math.add_fc(sX, sY)\n\nSet the DPF Data Sources 'Result File' property to your .rst, and edit Scoping On Named Selection's 'Named Selection Name' if it isn't 'NODE1'.\n\nNOTE on the Add FC node: DPF's add_fc takes a *variadic* pin (pin 0). The editor's catalog currently exposes it as a single input port 'fields_container' and the runtime rejects two edges into the same pin (operations.py rejects duplicate pin bindings). Both Stress X and Stress Y are wired to that port to mirror the snippet visually, but to actually evaluate Add FC you need either a small variadic-pin extension to the catalog (mapping pin 0 to fields_container1 / fields_container2 / ...) or a custom 'Add Fields Containers (2 inputs)' wrapper node. The Stress X and Stress Y outputs themselves are independently usable.",
+            "title": "DPF Workflow Example: Stress X + Stress Y on a Named Selection (add_fc)"
+          },
+          "title": "DPF Workflow Example: Stress X + Stress Y on a Named Selection (add_fc)",
+          "type_id": "passive.annotation.comment_backdrop",
+          "visual_style": {},
+          "x": -1220.0,
+          "y": -380.0
+        }
+      ],
+      "views": [
+        {
+          "hide_locked_ports": false,
+          "hide_optional_ports": true,
+          "name": "V1",
+          "pan_x": 1280.0,
+          "pan_y": 420.0,
+          "scope_path": [],
+          "view_id": "view_dpf_stress_xy_add",
+          "zoom": 1.0
+        }
+      ],
+      "workspace_id": "ws_dpf_stress_xy_add"
+    }
+  ]
+}
