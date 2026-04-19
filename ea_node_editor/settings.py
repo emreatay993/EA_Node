@@ -20,7 +20,7 @@ PROJECT_ARTIFACT_SESSION_STAGING_DIRNAME = "project_artifact_staging"
 SCHEMA_VERSION = 4
 AUTOSAVE_INTERVAL_MS = 30_000
 APP_PREFERENCES_KIND = "ea-node-editor/app-preferences"
-APP_PREFERENCES_VERSION = 2
+APP_PREFERENCES_VERSION = 3
 
 DEFAULT_WORKFLOW_SETTINGS = {
     "general": {
@@ -192,6 +192,15 @@ DEFAULT_ANSYS_DPF_PLUGIN_SETTINGS = {
     "catalog_cache_version": "",
 }
 
+DEFAULT_ADDON_STATE = {
+    "enabled": True,
+    "pending_restart": False,
+}
+
+DEFAULT_ADDON_SETTINGS = {
+    "states": {},
+}
+
 DEFAULT_PLUGIN_SETTINGS = {
     "ansys_dpf": DEFAULT_ANSYS_DPF_PLUGIN_SETTINGS,
 }
@@ -200,6 +209,7 @@ DEFAULT_APP_PREFERENCES = {
     "kind": APP_PREFERENCES_KIND,
     "version": APP_PREFERENCES_VERSION,
     "graphics": DEFAULT_GRAPHICS_SETTINGS,
+    "addons": DEFAULT_ADDON_SETTINGS,
     "plugins": DEFAULT_PLUGIN_SETTINGS,
     "source_import": DEFAULT_SOURCE_IMPORT_SETTINGS,
 }
