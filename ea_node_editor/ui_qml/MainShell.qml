@@ -76,39 +76,44 @@ Rectangle {
         id: connectionQuickInsertOverlay
     }
 
-    Rectangle {
-        id: addonManagerScrim
-        objectName: "addonManagerScrim"
-        anchors.left: parent.left
-        anchors.right: parent.right
-        anchors.top: shellRunToolbar.bottom
-        anchors.bottom: shellStatusStrip.top
+    Item {
+        id: addonManagerOverlayHost
+        objectName: "addonManagerOverlayHost"
+        x: 0
+        y: shellWorkspaceRow.y
+        width: root.width
+        height: shellWorkspaceRow.height
         visible: addonManagerBridge.open
         z: 70
-        color: Qt.alpha(themePalette.app_bg, 0.68)
 
-        MouseArea {
+        Rectangle {
+            id: addonManagerScrim
+            objectName: "addonManagerScrim"
             anchors.fill: parent
-            enabled: parent.visible
-            onClicked: addonManagerBridge.requestClose()
-        }
-    }
+            color: Qt.alpha(themePalette.app_bg, 0.68)
 
-    AddOnManagerPane {
-        id: addonManagerPane
-        objectName: "addonManagerPane"
-        anchors.top: shellRunToolbar.bottom
-        anchors.right: parent.right
-        anchors.bottom: shellStatusStrip.top
-        anchors.topMargin: 10
-        anchors.rightMargin: 12
-        anchors.bottomMargin: 10
-        width: Math.min(parent.width - 24, 1040)
-        visible: addonManagerBridge.open
-        z: 80
-        requestBridge: addonManagerBridge
-        workspaceBridge: shellWorkspaceBridge
-        viewerHostServiceRef: viewerHostService
+            MouseArea {
+                anchors.fill: parent
+                enabled: parent.visible
+                onClicked: addonManagerBridge.requestClose()
+            }
+        }
+
+        AddOnManagerPane {
+            id: addonManagerPane
+            objectName: "addonManagerPane"
+            anchors.top: parent.top
+            anchors.right: parent.right
+            anchors.bottom: parent.bottom
+            anchors.topMargin: 10
+            anchors.rightMargin: 12
+            anchors.bottomMargin: 10
+            width: Math.min(parent.width - 24, 1040)
+            requestBridge: addonManagerBridge
+            workspaceBridge: shellWorkspaceBridge
+            viewerHostServiceRef: viewerHostService
+            z: 1
+        }
     }
 
     ScriptEditorOverlay {

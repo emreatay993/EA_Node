@@ -200,15 +200,17 @@ class MainWindowShellBasicsAndSearchTests(SharedMainWindowShellTestBase):
             self.fail("Expected the shell root object to be available.")
 
         surface = root_object.findChild(QObject, "addonManagerPane")
+        scrim = root_object.findChild(QObject, "addonManagerScrim")
         workspace_row = root_object.findChild(QObject, "shellWorkspaceRow")
         controller = root_object.findChild(QObject, "shellAddOnManagerBridge")
         detail_title = root_object.findChild(QObject, "addonManagerDetailTitle")
         self.assertIsNotNone(surface)
+        self.assertIsNotNone(scrim)
         self.assertIsNotNone(workspace_row)
         self.assertIsNotNone(controller)
         self.assertIsNotNone(detail_title)
         self.assertIsInstance(controller, ShellAddOnManagerBridge)
-        if surface is None or workspace_row is None or controller is None or detail_title is None:
+        if surface is None or scrim is None or workspace_row is None or controller is None or detail_title is None:
             self.fail("Expected the packet-owned Add-On Manager surface to exist.")
 
         self.assertFalse(self.window.addon_manager_open)
@@ -228,6 +230,9 @@ class MainWindowShellBasicsAndSearchTests(SharedMainWindowShellTestBase):
             {"open": True, "focus_addon_id": "", "request_serial": initial_serial + 1},
         )
         self.assertTrue(bool(surface.property("visible")))
+        self.assertTrue(bool(scrim.property("visible")))
+        self.assertGreater(float(surface.property("height")), 0.0)
+        self.assertGreater(float(scrim.property("height")), 0.0)
         self.assertTrue(bool(workspace_row.property("visible")))
         self.assertGreaterEqual(controller.rowCount, 1)
         self.assertEqual(controller.selectedAddonId, "ea_node_editor.builtins.ansys_dpf")
@@ -257,6 +262,7 @@ class MainWindowShellBasicsAndSearchTests(SharedMainWindowShellTestBase):
             {"open": False, "focus_addon_id": "", "request_serial": initial_serial + 2},
         )
         self.assertFalse(bool(surface.property("visible")))
+        self.assertFalse(bool(scrim.property("visible")))
         self.assertTrue(bool(workspace_row.property("visible")))
 
     def test_graphics_settings_properties_are_exposed_to_qml(self) -> None:
