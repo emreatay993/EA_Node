@@ -72,6 +72,78 @@ Rectangle {
         id: connectionQuickInsertOverlay
     }
 
+    Rectangle {
+        id: addonManagerPlaceholderOverlay
+        objectName: "addonManagerPlaceholderOverlay"
+        anchors.fill: parent
+        visible: addonManagerBridge.open
+        z: 80
+        color: Qt.alpha(themePalette.app_bg, 0.76)
+
+        MouseArea {
+            anchors.fill: parent
+            onClicked: addonManagerBridge.requestClose()
+        }
+
+        Rectangle {
+            id: addonManagerPlaceholderPanel
+            objectName: "addonManagerPlaceholderPanel"
+            width: Math.min(root.width - 48, 520)
+            height: addonManagerPlaceholderBody.implicitHeight + 40
+            anchors.centerIn: parent
+            radius: 8
+            color: themePalette.panel_bg
+            border.color: themePalette.accent
+
+            Column {
+                id: addonManagerPlaceholderBody
+                anchors.fill: parent
+                anchors.margins: 20
+                spacing: 12
+
+                Text {
+                    objectName: "addonManagerPlaceholderTitle"
+                    text: "Add-On Manager"
+                    color: root.themePalette.panel_title_fg
+                    font.pixelSize: 18
+                    font.bold: true
+                }
+
+                Text {
+                    objectName: "addonManagerPlaceholderMessage"
+                    width: parent.width
+                    wrapMode: Text.Wrap
+                    text: addonManagerBridge.focusAddonId
+                        ? "Requested add-on: " + addonManagerBridge.focusAddonId
+                        : "Manager request is ready."
+                    color: root.themePalette.muted_fg
+                    font.pixelSize: 13
+                }
+
+                Text {
+                    objectName: "addonManagerPlaceholderRevision"
+                    text: "Request " + addonManagerBridge.requestSerial
+                    color: root.themePalette.muted_fg
+                    font.pixelSize: 12
+                }
+
+                RowLayout {
+                    width: parent.width
+
+                    Item {
+                        Layout.fillWidth: true
+                    }
+
+                    ShellButton {
+                        objectName: "addonManagerPlaceholderCloseButton"
+                        text: "Close"
+                        onClicked: addonManagerBridge.requestClose()
+                    }
+                }
+            }
+        }
+    }
+
     ScriptEditorOverlay {
         id: scriptOverlay
         scriptEditorBridgeRef: scriptEditorBridge

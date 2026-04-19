@@ -47,6 +47,22 @@ def _qt_graphics_expand_collision_avoidance(self: "ShellWindow") -> dict[str, An
     return self.shell_workspace_presenter.graphics_expand_collision_avoidance
 
 
+def _qt_addon_manager_request(self: "ShellWindow") -> dict[str, Any]:
+    return self.addon_manager_request_snapshot()
+
+
+def _qt_addon_manager_open(self: "ShellWindow") -> bool:
+    return bool(self._addon_manager_open)
+
+
+def _qt_addon_manager_focus_addon_id(self: "ShellWindow") -> str:
+    return str(self._addon_manager_focus_addon_id)
+
+
+def _qt_addon_manager_request_serial(self: "ShellWindow") -> int:
+    return int(self._addon_manager_request_serial)
+
+
 class ShellWindow(QMainWindow):
     execution_event = pyqtSignal(dict)
     node_library_changed = pyqtSignal()
@@ -62,6 +78,7 @@ class ShellWindow(QMainWindow):
     node_execution_state_changed = pyqtSignal()
     snap_to_grid_changed = pyqtSignal()
     graphics_preferences_changed = pyqtSignal()
+    addon_manager_request_changed = pyqtSignal(name="addonManagerRequestChanged")
 
     _RUN_SCOPED_EVENT_TYPES = {
         "run_started",
@@ -192,6 +209,26 @@ class ShellWindow(QMainWindow):
         bool,
         fget=state_helpers._qt_graph_hint_visible,
         notify=graph_hint_changed,
+    )
+    addon_manager_request = pyqtProperty(
+        "QVariantMap",
+        fget=_qt_addon_manager_request,
+        notify=addon_manager_request_changed,
+    )
+    addon_manager_open = pyqtProperty(
+        bool,
+        fget=_qt_addon_manager_open,
+        notify=addon_manager_request_changed,
+    )
+    addon_manager_focus_addon_id = pyqtProperty(
+        str,
+        fget=_qt_addon_manager_focus_addon_id,
+        notify=addon_manager_request_changed,
+    )
+    addon_manager_request_serial = pyqtProperty(
+        int,
+        fget=_qt_addon_manager_request_serial,
+        notify=addon_manager_request_changed,
     )
     graphics_show_grid = pyqtProperty(
         bool,
@@ -392,6 +429,9 @@ class ShellWindow(QMainWindow):
         self._viewer_window_active = True
         self._application_state_signal_connected = False
         self._shell_teardown_started = False
+        self._addon_manager_open = False
+        self._addon_manager_focus_addon_id = ""
+        self._addon_manager_request_serial = 0
         self.tooltip_manager = TooltipManager(
             info_tooltips_enabled=bool(DEFAULT_GRAPHICS_SETTINGS["shell"]["show_tooltips"])
         )
@@ -400,6 +440,31 @@ class ShellWindow(QMainWindow):
         resolved_composition = composition or build_shell_window_composition(self)
         bootstrap_shell_window(self, resolved_composition)
         self._connect_application_state_signal()
+
+    def addon_manager_request_snapshot(self) -> dict[str, Any]:
+        return {
+            "open": bool(self._addon_manager_open),
+            "focus_addon_id": str(self._addon_manager_focus_addon_id),
+            "request_serial": int(self._addon_manager_request_serial),
+        }
+
+    def request_open_addon_manager(self, focus_addon_id: str | None = None) -> None:
+        normalized_focus_addon_id = str(focus_addon_id or "").strip()
+        self._addon_manager_open = True
+        self._addon_manager_focus_addon_id = normalized_focus_addon_id
+        self._addon_manager_request_serial += 1
+        self.addon_manager_request_changed.emit()
+
+    def request_close_addon_manager(self) -> None:
+        if (
+            not self._addon_manager_open
+            and not self._addon_manager_focus_addon_id
+            and self._addon_manager_request_serial == 0
+        ):
+            return
+        self._addon_manager_open = False
+        self._addon_manager_focus_addon_id = ""
+        self.addon_manager_request_changed.emit()
 
     @property
     def embedded_viewer_overlay_manager(self) -> EmbeddedViewerOverlayManager | None:

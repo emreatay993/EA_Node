@@ -146,6 +146,20 @@ class MainWindowShellBasicsAndSearchTests(SharedMainWindowShellTestBase):
         ]
         self.assertEqual(settings_entries, ["Workflow Settings", "Graphics Settings"])
 
+    def test_menu_bar_exposes_top_level_addon_manager_entry_before_settings(self) -> None:
+        top_level_entries = [
+            action.text()
+            for action in self.window.menuBar().actions()
+            if not action.isSeparator()
+        ]
+
+        self.assertEqual(
+            top_level_entries,
+            ["&File", "&Edit", "&View", "&Run", "&Workspace", "Add-On Manager", "&Settings"],
+        )
+        self.assertIs(self.window.menuBar().actions()[5], self.window.action_addon_manager)
+        self.assertIsNone(self.window.action_addon_manager.menu())
+
     def test_view_menu_exposes_port_labels_and_tooltip_toggles(self) -> None:
         menu_actions = {
             action.text(): action.menu()
@@ -175,6 +189,63 @@ class MainWindowShellBasicsAndSearchTests(SharedMainWindowShellTestBase):
         self.assertTrue(self.window.action_show_port_labels.isChecked())
         self.assertTrue(self.window.action_show_tooltips.isCheckable())
         self.assertTrue(self.window.action_show_tooltips.isChecked())
+
+    def test_addon_manager_action_updates_request_state_and_overlay_without_final_surface(self) -> None:
+        root_object = self.window.quick_widget.rootObject()
+        initial_serial = int(self.window.addon_manager_request_serial)
+        self.assertIsNotNone(root_object)
+        overlay = root_object.findChild(QObject, "addonManagerPlaceholderOverlay")
+        message = root_object.findChild(QObject, "addonManagerPlaceholderMessage")
+        revision = root_object.findChild(QObject, "addonManagerPlaceholderRevision")
+        self.assertIsNotNone(overlay)
+        self.assertIsNotNone(message)
+        self.assertIsNotNone(revision)
+        if overlay is None or message is None or revision is None:
+            self.fail("Expected the packet-owned Add-On Manager placeholder overlay to exist.")
+
+        self.assertFalse(self.window.addon_manager_open)
+        self.assertEqual(self.window.addon_manager_focus_addon_id, "")
+        self.assertEqual(self.window.addon_manager_request_serial, initial_serial)
+        self.assertFalse(bool(overlay.property("visible")))
+
+        self.window.action_addon_manager.trigger()
+        self.app.processEvents()
+
+        self.assertTrue(self.window.addon_manager_open)
+        self.assertEqual(self.window.addon_manager_focus_addon_id, "")
+        self.assertEqual(self.window.addon_manager_request_serial, initial_serial + 1)
+        self.assertEqual(
+            self.window.addon_manager_request,
+            {"open": True, "focus_addon_id": "", "request_serial": initial_serial + 1},
+        )
+        self.assertTrue(bool(overlay.property("visible")))
+        self.assertEqual(str(message.property("text")), "Manager request is ready.")
+        self.assertEqual(str(revision.property("text")), f"Request {initial_serial + 1}")
+
+        self.window.request_open_addon_manager("ansys.dpf")
+        self.app.processEvents()
+
+        self.assertTrue(self.window.addon_manager_open)
+        self.assertEqual(self.window.addon_manager_focus_addon_id, "ansys.dpf")
+        self.assertEqual(self.window.addon_manager_request_serial, initial_serial + 2)
+        self.assertEqual(
+            self.window.addon_manager_request,
+            {"open": True, "focus_addon_id": "ansys.dpf", "request_serial": initial_serial + 2},
+        )
+        self.assertEqual(str(message.property("text")), "Requested add-on: ansys.dpf")
+        self.assertEqual(str(revision.property("text")), f"Request {initial_serial + 2}")
+
+        self.window.request_close_addon_manager()
+        self.app.processEvents()
+
+        self.assertFalse(self.window.addon_manager_open)
+        self.assertEqual(self.window.addon_manager_focus_addon_id, "")
+        self.assertEqual(self.window.addon_manager_request_serial, initial_serial + 2)
+        self.assertEqual(
+            self.window.addon_manager_request,
+            {"open": False, "focus_addon_id": "", "request_serial": initial_serial + 2},
+        )
+        self.assertFalse(bool(overlay.property("visible")))
 
     def test_graphics_settings_properties_are_exposed_to_qml(self) -> None:
         meta = self.window.metaObject()
