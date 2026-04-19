@@ -5,14 +5,16 @@
 - Packet: `P03`
 - Branch Label: `codex/addon-manager-backend-preparation/p03-generic-missing-addon-placeholder-projection`
 - Commit Owner: `worker`
-- Commit SHA: `0bd94d2971e04c48c1887bf377c9937e4a5c9569`
+- Commit SHA: `2f41ad61d961fa875e44187364a50b409245eb99`
 - Changed Files: `docs/specs/work_packets/addon_manager_backend_preparation/P03_generic_missing_addon_placeholder_projection_WRAPUP.md`, `ea_node_editor/graph/normalization.py`, `ea_node_editor/persistence/overlay.py`, `ea_node_editor/persistence/project_codec.py`, `ea_node_editor/ui_qml/graph_scene_payload_builder.py`, `tests/serializer/schema_cases.py`, `tests/test_graph_scene_bridge_bind_regression.py`, `tests/test_registry_validation.py`, `tests/test_serializer.py`, `tests/test_serializer_schema_migration.py`
 - Artifacts Produced: `docs/specs/work_packets/addon_manager_backend_preparation/P03_generic_missing_addon_placeholder_projection_WRAPUP.md`, `ea_node_editor/graph/normalization.py`, `ea_node_editor/persistence/overlay.py`, `ea_node_editor/persistence/project_codec.py`, `ea_node_editor/ui_qml/graph_scene_payload_builder.py`, `tests/serializer/schema_cases.py`, `tests/test_graph_scene_bridge_bind_regression.py`, `tests/test_registry_validation.py`, `tests/test_serializer.py`, `tests/test_serializer_schema_migration.py`
 
 - Introduced a generic missing-add-on placeholder contract in persistence so unresolved add-on-backed node docs now carry stable add-on identity, apply policy, status, unavailable summary, and locked-state metadata without changing existing non-add-on unresolved payloads.
 - Replaced the DPF-only scene projection path with generic placeholder projection driven by that contract, so missing add-on nodes from any registered add-on remain visible on the canvas with their saved titles, properties, hidden-port state, and surviving unresolved edges.
 - Updated normalization and codec flows so unresolved add-on docs are enriched consistently on load, save, runtime-envelope capture, and live registry normalization, while preserving later rebind of nodes and edges when descriptors return.
+- Added a registration-backed unavailable-add-on type-id fallback in `overlay.py`, combining backend-published static descriptors with DPF catalog constants and operator-doc identities so first-load placeholder enrichment still resolves when `discover_addon_records()` reports `status=unavailable` with zero `provided_node_type_ids`.
 - Refreshed the inherited serializer, migration, registry-validation, and scene-bridge anchors to cover the generic placeholder contract and to keep the packet review gate stable in environments where the local DPF catalog surface is broader than the foundational baseline.
+- Added an unavailable-add-on regression that patches the DPF backend to `status=unavailable`, verifies `discover_addon_records()` still yields zero provided ids, and confirms first-load serializer plus scene projection now preserve placeholder metadata and visibility.
 
 ## Verification
 
