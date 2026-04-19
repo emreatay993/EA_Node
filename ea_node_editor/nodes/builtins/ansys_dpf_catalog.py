@@ -2,16 +2,20 @@ from __future__ import annotations
 
 import importlib.util
 
+from ea_node_editor.addons.ansys_dpf.helper_catalog import (
+    load_ansys_dpf_helper_plugin_descriptors,
+)
+from ea_node_editor.addons.ansys_dpf.metadata import (
+    ANSYS_DPF_ADDON_MANIFEST,
+    ANSYS_DPF_DEPENDENCY,
+)
+from ea_node_editor.addons.ansys_dpf.operator_catalog import (
+    load_ansys_dpf_operator_plugin_descriptors,
+)
 from ea_node_editor.app_preferences import (
     AppPreferencesStore,
     ansys_dpf_plugin_state,
     set_ansys_dpf_plugin_state,
-)
-from ea_node_editor.nodes.builtins.ansys_dpf_helper_catalog import (
-    load_ansys_dpf_helper_plugin_descriptors,
-)
-from ea_node_editor.nodes.builtins.ansys_dpf_operator_catalog import (
-    load_ansys_dpf_operator_plugin_descriptors,
 )
 from ea_node_editor.nodes.plugin_contracts import (
     PluginAvailability,
@@ -19,7 +23,6 @@ from ea_node_editor.nodes.plugin_contracts import (
     PluginDescriptor,
 )
 
-ANSYS_DPF_DEPENDENCY = "ansys.dpf.core"
 _CACHED_DESCRIPTOR_VERSION: str | None = None
 _CACHED_PLUGIN_DESCRIPTORS: tuple[PluginDescriptor, ...] | None = None
 
@@ -105,10 +108,11 @@ def sync_ansys_dpf_plugin_state(
 
 
 ANSYS_DPF_PLUGIN_BACKEND = PluginBackendDescriptor(
-    plugin_id="ea_node_editor.builtins.ansys_dpf",
-    display_name="ANSYS DPF",
+    plugin_id=ANSYS_DPF_ADDON_MANIFEST.addon_id,
+    display_name=ANSYS_DPF_ADDON_MANIFEST.display_name,
     get_availability=get_ansys_dpf_plugin_availability,
     load_descriptors=load_ansys_dpf_plugin_descriptors,
+    addon_manifest=ANSYS_DPF_ADDON_MANIFEST,
 )
 PLUGIN_BACKENDS = (ANSYS_DPF_PLUGIN_BACKEND,)
 

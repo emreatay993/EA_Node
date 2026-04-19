@@ -16,6 +16,13 @@ try:
 except ModuleNotFoundError:  # pragma: no cover - optional dependency guard
     dpf = None
 
+from ea_node_editor.addons.ansys_dpf.metadata import ANSYS_DPF_ADDON_MANIFEST
+from ea_node_editor.addons.ansys_dpf.helper_catalog import (
+    load_ansys_dpf_helper_plugin_descriptors,
+)
+from ea_node_editor.addons.ansys_dpf.operator_catalog import (
+    load_ansys_dpf_operator_plugin_descriptors,
+)
 from ea_node_editor.app_preferences import (
     AppPreferencesStore,
     default_app_preferences_document,
@@ -283,6 +290,14 @@ class DpfNodeCatalogTests(unittest.TestCase):
             self.assertEqual(getattr(ansys_dpf_module, "ANSYS_DPF_PLUGIN_DESCRIPTORS"), ())
             self.assertEqual(getattr(ansys_dpf_module, "ANSYS_DPF_NODE_PLUGINS"), ())
 
+    def test_dpf_backend_uses_package_owned_addon_manifest_metadata(self) -> None:
+        backend = ansys_dpf_catalog.ANSYS_DPF_PLUGIN_BACKEND
+
+        self.assertIsNotNone(backend.addon_manifest)
+        self.assertEqual(backend.addon_manifest, ANSYS_DPF_ADDON_MANIFEST)
+        self.assertEqual(backend.plugin_id, ANSYS_DPF_ADDON_MANIFEST.addon_id)
+        self.assertEqual(backend.display_name, ANSYS_DPF_ADDON_MANIFEST.display_name)
+
     def test_default_registry_keeps_non_dpf_nodes_when_backend_is_missing(self) -> None:
         with patch.object(ansys_dpf_catalog, "_find_spec", return_value=None):
             registry = build_default_registry(app_preferences_store=self._store)
@@ -549,7 +564,24 @@ class DpfNodeCatalogTests(unittest.TestCase):
             return
 
         actual_type_ids = tuple(descriptor.spec.type_id for descriptor in descriptors)
-        self.assertEqual(actual_type_ids[: len(_EXPECTED_DPF_DESCRIPTOR_ORDER)], _EXPECTED_DPF_DESCRIPTOR_ORDER)
+        helper_type_ids = tuple(
+            descriptor.spec.type_id
+            for descriptor in load_ansys_dpf_helper_plugin_descriptors()
+        )
+        operator_type_ids = tuple(
+            descriptor.spec.type_id
+            for descriptor in load_ansys_dpf_operator_plugin_descriptors()
+        )
+
+        self.assertEqual(actual_type_ids[: len(helper_type_ids)], helper_type_ids)
+        self.assertEqual(
+            actual_type_ids[len(helper_type_ids) : len(helper_type_ids) + len(operator_type_ids)],
+            operator_type_ids,
+        )
+        self.assertEqual(
+            operator_type_ids[:2],
+            (DPF_RESULT_FIELD_NODE_TYPE_ID, DPF_FIELD_OPS_NODE_TYPE_ID),
+        )
         self.assertIn(_GENERATED_DPF_RESULT_OPERATOR_TYPE_ID, actual_type_ids)
         self.assertIn(_GENERATED_DPF_MATH_OPERATOR_TYPE_ID, actual_type_ids)
         self.assertTrue(any(type_id.startswith("dpf.op.") for type_id in actual_type_ids))

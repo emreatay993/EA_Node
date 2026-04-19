@@ -2,6 +2,9 @@ from __future__ import annotations
 
 import unittest
 
+from ea_node_editor.addons.ansys_dpf.helper_catalog import (
+    load_ansys_dpf_helper_plugin_descriptors,
+)
 from ea_node_editor.nodes.builtins.ansys_dpf_common import (
     DPF_EXPORT_NODE_TYPE_ID,
     DPF_MESH_EXTRACT_NODE_TYPE_ID,
@@ -10,9 +13,6 @@ from ea_node_editor.nodes.builtins.ansys_dpf_common import (
     DPF_RESULT_FILE_NODE_TYPE_ID,
     DPF_TIME_SCOPING_NODE_TYPE_ID,
     DPF_VIEWER_NODE_TYPE_ID,
-)
-from ea_node_editor.nodes.builtins.ansys_dpf_helper_catalog import (
-    load_ansys_dpf_helper_plugin_descriptors,
 )
 from ea_node_editor.nodes.builtins.ansys_dpf_taxonomy import (
     DPF_HELPERS_CONTAINERS_CATEGORY_PATH,
