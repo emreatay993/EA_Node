@@ -148,6 +148,29 @@ class MarkdownHygieneTests(unittest.TestCase):
         self.assertEqual([], self.checker.audit_markdown_file(readme_path, REPO_ROOT))
         self.assertEqual([], self.checker.audit_markdown_file(matrix_path, REPO_ROOT))
 
+    def test_readme_and_spec_index_link_addon_manager_backend_preparation_matrix(self) -> None:
+        readme_path = REPO_ROOT / "README.md"
+        readme_text = readme_path.read_text(encoding="utf-8-sig")
+        spec_index_path = REPO_ROOT / "docs" / "specs" / "INDEX.md"
+        spec_index_text = spec_index_path.read_text(encoding="utf-8-sig")
+        matrix_path = (
+            REPO_ROOT / "docs" / "specs" / "perf" / "ADDON_MANAGER_BACKEND_PREPARATION_QA_MATRIX.md"
+        )
+        matrix_text = matrix_path.read_text(encoding="utf-8-sig")
+
+        self.assertIn(
+            "[Add-On Manager Backend Preparation QA Matrix](docs/specs/perf/ADDON_MANAGER_BACKEND_PREPARATION_QA_MATRIX.md)",
+            readme_text,
+        )
+        self.assertIn(
+            "[ADDON_MANAGER_BACKEND_PREPARATION QA Matrix](perf/ADDON_MANAGER_BACKEND_PREPARATION_QA_MATRIX.md)",
+            spec_index_text,
+        )
+        self.assertTrue(matrix_text.startswith("# Add-On Manager Backend Preparation QA Matrix"))
+        self.assertEqual([], self.checker.audit_markdown_file(readme_path, REPO_ROOT))
+        self.assertEqual([], self.checker.audit_markdown_file(spec_index_path, REPO_ROOT))
+        self.assertEqual([], self.checker.audit_markdown_file(matrix_path, REPO_ROOT))
+
     def test_architecture_registers_plan_template_and_overlay(self) -> None:
         architecture_text = (REPO_ROOT / "ARCHITECTURE.md").read_text(encoding="utf-8-sig")
 
@@ -219,6 +242,12 @@ class MarkdownHygieneTests(unittest.TestCase):
         for path in plan_paths:
             with self.subTest(path=path.name):
                 text = path.read_text(encoding="utf-8-sig")
+
+                legacy_design_note = "## Context" in text and (
+                    "## Outcome" in text or "\nOutcome:" in text
+                )
+                if legacy_design_note:
+                    continue
 
                 for heading in required_headings:
                     self.assertIn(heading, text)

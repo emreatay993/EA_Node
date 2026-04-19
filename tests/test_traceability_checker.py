@@ -704,6 +704,271 @@ ANSYS_DPF_FULL_PLUGIN_ROLLOUT_QA_MATRIX_TOKENS = (
     ANSYS_DPF_FULL_PLUGIN_ROLLOUT_TRACEABILITY_COMMAND,
 )
 
+ADDON_MANAGER_BACKEND_PREPARATION_QA_MATRIX = (
+    REPO_ROOT / "docs/specs/perf/ADDON_MANAGER_BACKEND_PREPARATION_QA_MATRIX.md"
+)
+ADDON_MANAGER_BACKEND_PREPARATION_P01_COMMAND = (
+    r".\venv\Scripts\python.exe -m pytest tests/test_plugin_loader.py --ignore=venv -q"
+)
+ADDON_MANAGER_BACKEND_PREPARATION_P02_COMMAND = (
+    r".\venv\Scripts\python.exe -m pytest tests/test_main_window_shell.py "
+    r"tests/main_window_shell/shell_basics_and_search.py --ignore=venv -q"
+)
+ADDON_MANAGER_BACKEND_PREPARATION_P03_COMMAND = (
+    r".\venv\Scripts\python.exe -m pytest tests/test_serializer.py "
+    r"tests/test_serializer_schema_migration.py tests/test_registry_validation.py "
+    r"tests/test_graph_scene_bridge_bind_regression.py --ignore=venv -q"
+)
+ADDON_MANAGER_BACKEND_PREPARATION_P04_COMMAND = (
+    r".\venv\Scripts\python.exe -m pytest tests/test_graph_surface_input_contract.py "
+    r"tests/test_graph_surface_input_controls.py tests/test_graph_surface_input_inline.py "
+    r"tests/test_passive_graph_surface_host.py --ignore=venv -q"
+)
+ADDON_MANAGER_BACKEND_PREPARATION_P05_COMMAND = (
+    r".\venv\Scripts\python.exe -m pytest tests/test_dpf_node_catalog.py "
+    r"tests/test_dpf_generated_helper_catalog.py tests/test_dpf_generated_operator_catalog.py "
+    r"tests/test_dpf_operator_help_lookup.py --ignore=venv -q"
+)
+ADDON_MANAGER_BACKEND_PREPARATION_P06_COMMAND = (
+    "./venv/Scripts/python.exe -m pytest tests/test_dpf_runtime_service.py "
+    "tests/test_execution_viewer_service.py tests/test_viewer_host_service.py "
+    "tests/test_dpf_viewer_node.py tests/test_dpf_viewer_widget_binder.py "
+    "--ignore=venv -q"
+)
+ADDON_MANAGER_BACKEND_PREPARATION_P07_COMMAND = (
+    r".\venv\Scripts\python.exe -m pytest tests/test_main_window_shell.py "
+    r"tests/main_window_shell/shell_basics_and_search.py "
+    r"tests/main_window_shell/bridge_qml_boundaries.py --ignore=venv -q"
+)
+ADDON_MANAGER_BACKEND_PREPARATION_CLOSEOUT_PYTEST_COMMAND = (
+    "./venv/Scripts/python.exe -m pytest tests/test_traceability_checker.py "
+    "tests/test_markdown_hygiene.py --ignore=venv -q"
+)
+ADDON_MANAGER_BACKEND_PREPARATION_TRACEABILITY_COMMAND = (
+    "./venv/Scripts/python.exe scripts/check_traceability.py"
+)
+ADDON_MANAGER_BACKEND_PREPARATION_MARKDOWN_COMMAND = (
+    "./venv/Scripts/python.exe scripts/check_markdown_links.py"
+)
+ADDON_MANAGER_BACKEND_PREPARATION_INDEX_TOKENS = (
+    "[ADDON_MANAGER_BACKEND_PREPARATION Work Packet Manifest](work_packets/addon_manager_backend_preparation/ADDON_MANAGER_BACKEND_PREPARATION_MANIFEST.md)",
+    "[ADDON_MANAGER_BACKEND_PREPARATION Status Ledger](work_packets/addon_manager_backend_preparation/ADDON_MANAGER_BACKEND_PREPARATION_STATUS.md)",
+    "[ADDON_MANAGER_BACKEND_PREPARATION QA Matrix](perf/ADDON_MANAGER_BACKEND_PREPARATION_QA_MATRIX.md)",
+)
+ADDON_MANAGER_BACKEND_PREPARATION_PUBLIC_DOC_TOKENS: dict[str, tuple[str, ...]] = {
+    "README.md": (
+        "Add-On Manager",
+        "Variant 4 inspector-style drawer",
+        "`hot_apply` or `restart_required`",
+        "ADDON_MANAGER_BACKEND_PREPARATION_QA_MATRIX.md",
+    ),
+    "ARCHITECTURE.md": (
+        "## Add-on backend preparation",
+        "Variant 4 inspector-style right drawer",
+        "locked Mockup B placeholders",
+        "ADDON_MANAGER_BACKEND_PREPARATION_QA_MATRIX.md",
+    ),
+}
+ADDON_MANAGER_BACKEND_PREPARATION_REQUIREMENT_TOKENS: dict[str, dict[str, tuple[str, ...]]] = {
+    "docs/specs/requirements/20_UI_UX.md": {
+        "REQ-UI-041": (
+            "Add-On Manager",
+            "Variant 4 inspector-style right drawer",
+            "focus_addon_id",
+            "`About` / `Dependencies` / `Nodes` / `Changelog`",
+        ),
+        "REQ-UI-042": (
+            "locked Mockup B placeholders",
+            "`LOCKED` badge",
+            "`Load missing add-ons`",
+            "drag, and resize mutations",
+        ),
+        "AC-REQ-UI-041-01": (
+            "Variant 4 drawer fidelity",
+            "ADDON_MANAGER_BACKEND_PREPARATION_QA_MATRIX.md",
+        ),
+        "AC-REQ-UI-042-01": (
+            "locked placeholders",
+            "ADDON_MANAGER_BACKEND_PREPARATION_QA_MATRIX.md",
+        ),
+    },
+    "docs/specs/requirements/60_PERSISTENCE.md": {
+        "REQ-PERSIST-023": (
+            "pending-restart intent",
+            "locked placeholders",
+            "rebind them when the add-on returns",
+            "editable live schema",
+        ),
+        "AC-REQ-PERSIST-023-01": (
+            "plugin-loader",
+            "schema-migration",
+            "ADDON_MANAGER_BACKEND_PREPARATION_QA_MATRIX.md",
+        ),
+    },
+    "docs/specs/requirements/70_INTEGRATIONS.md": {
+        "REQ-INT-011": (
+            "stable id, name, version, category, dependency, and availability facts",
+            "`hot_apply` or `restart_required`",
+            "open-manager requests",
+            "add-on ids",
+        ),
+        "REQ-INT-012": (
+            "first repo-local `hot_apply` add-on",
+            "`ea_node_editor.addons.ansys_dpf`",
+            "locked placeholders",
+            "full app restart",
+        ),
+        "AC-REQ-INT-011-01": (
+            "generic add-on catalog",
+            "shell focus-target plumbing",
+            "ADDON_MANAGER_BACKEND_PREPARATION_QA_MATRIX.md",
+        ),
+        "AC-REQ-INT-012-01": (
+            "repo-local `ANSYS DPF` add-on package",
+            "hot-apply lifecycle",
+            "ADDON_MANAGER_BACKEND_PREPARATION_QA_MATRIX.md",
+        ),
+    },
+    "docs/specs/requirements/90_QA_ACCEPTANCE.md": {
+        "REQ-QA-040": (
+            "ADDON_MANAGER_BACKEND_PREPARATION",
+            "generic add-on contract and persisted state model",
+            "Mockup B locked-node behavior",
+            "Variant 4 manager surface",
+        ),
+        "REQ-QA-041": (
+            "ADDON_MANAGER_BACKEND_PREPARATION_QA_MATRIX.md",
+            "`P01` through `P07`",
+            "`P08` traceability, markdown-hygiene, and markdown-link closeout commands",
+            "menu open/toggle/placeholder/DPF flows",
+        ),
+        "AC-REQ-QA-040-01": (
+            ADDON_MANAGER_BACKEND_PREPARATION_P01_COMMAND,
+            ADDON_MANAGER_BACKEND_PREPARATION_P07_COMMAND,
+            "ADDON_MANAGER_BACKEND_PREPARATION_QA_MATRIX.md",
+        ),
+        "AC-REQ-QA-041-01": (
+            ADDON_MANAGER_BACKEND_PREPARATION_CLOSEOUT_PYTEST_COMMAND,
+            ADDON_MANAGER_BACKEND_PREPARATION_TRACEABILITY_COMMAND,
+            ADDON_MANAGER_BACKEND_PREPARATION_MARKDOWN_COMMAND,
+            "ADDON_MANAGER_BACKEND_PREPARATION_QA_MATRIX.md",
+        ),
+    },
+}
+ADDON_MANAGER_BACKEND_PREPARATION_TRACEABILITY_ROW_TOKENS: dict[str, tuple[str, ...]] = {
+    "REQ-UI-041": (
+        "window_actions.py",
+        "addon_manager_presenter.py",
+        "AddOnManagerPane.qml",
+        "docs/specs/perf/ADDON_MANAGER_BACKEND_PREPARATION_QA_MATRIX.md",
+    ),
+    "AC-REQ-UI-041-01": (
+        "tests/test_main_window_shell.py",
+        "tests/main_window_shell/shell_basics_and_search.py",
+        "tests/main_window_shell/bridge_qml_boundaries.py",
+        "docs/specs/perf/ADDON_MANAGER_BACKEND_PREPARATION_QA_MATRIX.md",
+    ),
+    "REQ-UI-042": (
+        "graph/normalization.py",
+        "GraphNodeHost.qml",
+        "GraphNodeHeaderLayer.qml",
+        "docs/specs/perf/ADDON_MANAGER_BACKEND_PREPARATION_QA_MATRIX.md",
+    ),
+    "AC-REQ-UI-042-01": (
+        "tests/test_serializer.py",
+        "tests/test_graph_surface_input_contract.py",
+        "tests/test_graph_surface_input_controls.py",
+        "docs/specs/perf/ADDON_MANAGER_BACKEND_PREPARATION_QA_MATRIX.md",
+    ),
+    "REQ-PERSIST-023": (
+        "app_preferences.py",
+        "settings.py",
+        "project_codec.py",
+        "docs/specs/perf/ADDON_MANAGER_BACKEND_PREPARATION_QA_MATRIX.md",
+    ),
+    "AC-REQ-PERSIST-023-01": (
+        "tests/test_plugin_loader.py",
+        "tests/test_serializer_schema_migration.py",
+        "tests/test_registry_validation.py",
+        "docs/specs/perf/ADDON_MANAGER_BACKEND_PREPARATION_QA_MATRIX.md",
+    ),
+    "REQ-INT-011": (
+        "addons/catalog.py",
+        "plugin_contracts.py",
+        "plugin_loader.py",
+        "docs/specs/perf/ADDON_MANAGER_BACKEND_PREPARATION_QA_MATRIX.md",
+    ),
+    "AC-REQ-INT-011-01": (
+        "tests/test_plugin_loader.py",
+        "tests/test_main_window_shell.py",
+        "docs/specs/perf/ADDON_MANAGER_BACKEND_PREPARATION_QA_MATRIX.md",
+    ),
+    "REQ-INT-012": (
+        "ansys_dpf/catalog.py",
+        "hot_apply.py",
+        "worker_services.py",
+        "docs/specs/perf/ADDON_MANAGER_BACKEND_PREPARATION_QA_MATRIX.md",
+    ),
+    "AC-REQ-INT-012-01": (
+        "tests/test_dpf_node_catalog.py",
+        "tests/test_dpf_runtime_service.py",
+        "tests/test_viewer_host_service.py",
+        "docs/specs/perf/ADDON_MANAGER_BACKEND_PREPARATION_QA_MATRIX.md",
+    ),
+    "REQ-QA-040": (
+        "docs/specs/perf/ADDON_MANAGER_BACKEND_PREPARATION_QA_MATRIX.md",
+        "20_UI_UX.md",
+        "70_INTEGRATIONS.md",
+        "tests/test_traceability_checker.py",
+        "scripts/check_traceability.py",
+    ),
+    "AC-REQ-QA-040-01": (
+        ADDON_MANAGER_BACKEND_PREPARATION_P01_COMMAND,
+        ADDON_MANAGER_BACKEND_PREPARATION_P06_COMMAND,
+        ADDON_MANAGER_BACKEND_PREPARATION_P07_COMMAND,
+        "docs/specs/perf/ADDON_MANAGER_BACKEND_PREPARATION_QA_MATRIX.md",
+    ),
+    "REQ-QA-041": (
+        "ARCHITECTURE.md",
+        "README.md",
+        "docs/specs/INDEX.md",
+        "docs/specs/perf/ADDON_MANAGER_BACKEND_PREPARATION_QA_MATRIX.md",
+        "tests/test_markdown_hygiene.py",
+        "scripts/check_markdown_links.py",
+    ),
+    "AC-REQ-QA-041-01": (
+        ADDON_MANAGER_BACKEND_PREPARATION_CLOSEOUT_PYTEST_COMMAND,
+        ADDON_MANAGER_BACKEND_PREPARATION_TRACEABILITY_COMMAND,
+        ADDON_MANAGER_BACKEND_PREPARATION_MARKDOWN_COMMAND,
+        "docs/specs/perf/ADDON_MANAGER_BACKEND_PREPARATION_QA_MATRIX.md",
+    ),
+}
+ADDON_MANAGER_BACKEND_PREPARATION_QA_MATRIX_TOKENS = (
+    "Add-On Manager Backend Preparation QA Matrix",
+    "## Locked Scope",
+    "## Retained Automated Verification",
+    "## Final Closeout Commands",
+    "## 2026-04-20 Execution Results",
+    "## Remaining Manual Desktop Checks",
+    "## Residual Risks",
+    "Variant 4 inspector-style right drawer",
+    "Mockup B placeholders",
+    "`hot_apply`",
+    "`restart_required`",
+    "P01_addon_contracts_and_state_model_WRAPUP.md",
+    "P07_addon_manager_variant4_surface_WRAPUP.md",
+    ADDON_MANAGER_BACKEND_PREPARATION_P01_COMMAND,
+    ADDON_MANAGER_BACKEND_PREPARATION_P02_COMMAND,
+    ADDON_MANAGER_BACKEND_PREPARATION_P03_COMMAND,
+    ADDON_MANAGER_BACKEND_PREPARATION_P04_COMMAND,
+    ADDON_MANAGER_BACKEND_PREPARATION_P05_COMMAND,
+    ADDON_MANAGER_BACKEND_PREPARATION_P06_COMMAND,
+    ADDON_MANAGER_BACKEND_PREPARATION_P07_COMMAND,
+    ADDON_MANAGER_BACKEND_PREPARATION_CLOSEOUT_PYTEST_COMMAND,
+    ADDON_MANAGER_BACKEND_PREPARATION_TRACEABILITY_COMMAND,
+    ADDON_MANAGER_BACKEND_PREPARATION_MARKDOWN_COMMAND,
+)
+
 GLOBAL_GAP_BREAK_EDGE_CROSSING_VARIANT_QA_MATRIX = (
     REPO_ROOT / "docs/specs/perf/GLOBAL_GAP_BREAK_EDGE_CROSSING_VARIANT_QA_MATRIX.md"
 )
@@ -2587,6 +2852,7 @@ class TraceabilityCheckerTests(unittest.TestCase):
         required_paths.update(self.checker.P08_REQUIRED_ARTIFACTS)
         required_paths.update(self.checker.P10_REQUIREMENT_DOC_TOKENS.keys())
         required_paths.update(DPF_OPERATOR_PLUGIN_BACKEND_REQUIREMENT_TOKENS.keys())
+        required_paths.update(ADDON_MANAGER_BACKEND_PREPARATION_REQUIREMENT_TOKENS.keys())
         for relative_path in required_paths:
             source = REPO_ROOT / relative_path
             target = root / relative_path
@@ -3085,6 +3351,47 @@ class TraceabilityCheckerTests(unittest.TestCase):
     def test_ansys_dpf_full_plugin_rollout_qa_matrix_records_commands_and_manual_checks(self) -> None:
         text = ANSYS_DPF_FULL_PLUGIN_ROLLOUT_QA_MATRIX.read_text(encoding="utf-8-sig")
         for token in ANSYS_DPF_FULL_PLUGIN_ROLLOUT_QA_MATRIX_TOKENS:
+            self.assertIn(token, text)
+
+    def test_addon_manager_backend_preparation_spec_index_registers_packet_set(self) -> None:
+        text = (REPO_ROOT / "docs/specs/INDEX.md").read_text(encoding="utf-8-sig")
+        for token in ADDON_MANAGER_BACKEND_PREPARATION_INDEX_TOKENS:
+            self.assertIn(token, text)
+
+    def test_addon_manager_backend_preparation_docs_record_closeout_scope_tokens(self) -> None:
+        for relative_path, tokens in ADDON_MANAGER_BACKEND_PREPARATION_PUBLIC_DOC_TOKENS.items():
+            text = (REPO_ROOT / relative_path).read_text(encoding="utf-8-sig")
+            for token in tokens:
+                self.assertIn(token, text, msg=f"{relative_path} missing token {token!r}")
+
+        for (
+            relative_path,
+            requirement_tokens,
+        ) in ADDON_MANAGER_BACKEND_PREPARATION_REQUIREMENT_TOKENS.items():
+            path = REPO_ROOT / relative_path
+            for requirement_id, tokens in requirement_tokens.items():
+                body = requirement_line(path, requirement_id)
+                for token in tokens:
+                    self.assertIn(
+                        token,
+                        body,
+                        msg=f"{relative_path} {requirement_id} missing token {token!r}",
+                    )
+
+    def test_addon_manager_backend_preparation_traceability_rows_reference_packet_artifacts(
+        self,
+    ) -> None:
+        traceability_path = REPO_ROOT / "docs/specs/requirements/TRACEABILITY_MATRIX.md"
+        for row_id, tokens in ADDON_MANAGER_BACKEND_PREPARATION_TRACEABILITY_ROW_TOKENS.items():
+            row_text = traceability_row(traceability_path, row_id)
+            for token in tokens:
+                self.assertIn(token, row_text, msg=f"traceability row {row_id} missing token {token!r}")
+
+    def test_addon_manager_backend_preparation_qa_matrix_records_commands_and_manual_checks(
+        self,
+    ) -> None:
+        text = ADDON_MANAGER_BACKEND_PREPARATION_QA_MATRIX.read_text(encoding="utf-8-sig")
+        for token in ADDON_MANAGER_BACKEND_PREPARATION_QA_MATRIX_TOKENS:
             self.assertIn(token, text)
 
     def test_global_gap_break_edge_crossing_variant_docs_record_closeout_scope_tokens(self) -> None:
