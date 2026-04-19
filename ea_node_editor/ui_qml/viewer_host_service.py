@@ -9,6 +9,7 @@ from PyQt6.QtCore import QObject, QTimer, pyqtProperty, pyqtSignal, pyqtSlot
 from PyQt6.QtGui import QImage
 from PyQt6.QtWidgets import QWidget
 
+from ea_node_editor.addons.catalog import create_live_viewer_widget_binders
 from ea_node_editor.execution.viewer_session_service import (
     VIEWER_SESSION_MODEL_KEY,
     coerce_viewer_session_model,
@@ -178,6 +179,7 @@ class ViewerHostService(QObject):
         self._overlay_manager = overlay_manager
         self._content_fullscreen_bridge: QObject | None = None
         self._binder_registry = ViewerWidgetBinderRegistry()
+        self._custom_binders: dict[str, ViewerWidgetBinder] = {}
         self._bound_overlays: dict[_OverlayKey, _BoundOverlay] = {}
         self._last_error = ""
         self._sync_queued = False
@@ -293,20 +295,28 @@ class ViewerHostService(QObject):
     def register_binder(self, backend_id: str, binder: ViewerWidgetBinder) -> None:
         if self._shutdown:
             return
-        self._binder_registry.register(backend_id, binder)
+        normalized_backend_id = _string(backend_id)
+        if not normalized_backend_id:
+            raise ValueError("viewer widget binder backend_id is required")
+        self._custom_binders[normalized_backend_id] = binder
+        self._binder_registry.register(normalized_backend_id, binder)
         self._schedule_sync()
 
-    def _register_builtin_binders(self) -> None:
-        try:
-            from ea_node_editor.ui_qml.dpf_viewer_widget_binder import DpfViewerWidgetBinder
-        except Exception:
+    def rebuild_addon_binders(self, *, preferences_document: Any = None, reason: str = "") -> None:
+        if self._shutdown:
             return
-        if self._binder_registry.lookup(DpfViewerWidgetBinder.backend_id) is not None:
-            return
-        self._binder_registry.register(
-            DpfViewerWidgetBinder.backend_id,
-            DpfViewerWidgetBinder(),
-        )
+        self.reset(reason=reason or "addon_runtime_rebuild")
+        self._binder_registry = ViewerWidgetBinderRegistry()
+        self._register_builtin_binders(preferences_document=preferences_document)
+        for backend_id, binder in self._custom_binders.items():
+            self._binder_registry.register(backend_id, binder)
+        self._schedule_sync()
+
+    def _register_builtin_binders(self, *, preferences_document: Any = None) -> None:
+        for backend_id, binder in create_live_viewer_widget_binders(
+            preferences_document=preferences_document,
+        ):
+            self._binder_registry.register(backend_id, binder)
 
     def set_overlay_manager(self, overlay_manager: EmbeddedViewerOverlayManager | None) -> None:
         if self._shutdown:

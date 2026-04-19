@@ -14,6 +14,9 @@ if str(_TESTS_ROOT) not in sys.path:
 
 dpf = pytest.importorskip("ansys.dpf.core")
 
+from ea_node_editor.addons.catalog import ANSYS_DPF_ADDON_ID, AddOnRegistration
+from ea_node_editor.addons.hot_apply import apply_addon_enabled_state
+from ea_node_editor.app_preferences import addon_state, default_app_preferences_document
 from ansys_dpf_core.fixture_paths import MODAL_ANALYSIS_RST, STATIC_ANALYSIS_RST, THERMAL_ANALYSIS_RTH
 from ea_node_editor.execution.dpf_runtime.contracts import (
     DPF_OBJECT_HANDLE_KIND,
@@ -31,11 +34,13 @@ from ea_node_editor.execution.dpf_runtime_service import (
     DpfRuntimeUnavailableError,
 )
 from ea_node_editor.execution.handle_registry import StaleHandleError
+from ea_node_editor.execution.viewer_backend_dpf import DPF_EXECUTION_VIEWER_BACKEND_ID
 from ea_node_editor.execution.worker_services import WorkerServices
 from ea_node_editor.nodes.node_specs import (
     DPF_DATA_SOURCES_DATA_TYPE,
     DPF_STREAMS_CONTAINER_DATA_TYPE,
 )
+from ea_node_editor.nodes.plugin_contracts import AddOnManifest
 
 
 class _FakeScoping:
@@ -227,6 +232,69 @@ class DpfRuntimeServiceTests(unittest.TestCase):
         self.assertNotEqual(model_ref.handle_id, reloaded_ref.handle_id)
         reloaded_model = services.resolve_handle(reloaded_ref, expected_kind=DPF_MODEL_HANDLE_KIND)
         self.assertEqual(reloaded_model.metadata.time_freq_support.n_sets, 2)
+
+    def test_hot_apply_disable_rebuilds_worker_runtime_and_reenable_restores_dpf_services(self) -> None:
+        services = WorkerServices()
+        model_ref = services.dpf_runtime_service.load_model(STATIC_ANALYSIS_RST)
+        services.viewer_backend_registry.resolve(DPF_EXECUTION_VIEWER_BACKEND_ID)
+
+        disabled = apply_addon_enabled_state(
+            ANSYS_DPF_ADDON_ID,
+            enabled=False,
+            preferences_document=default_app_preferences_document(),
+            worker_services=services,
+        )
+
+        self.assertFalse(disabled.restart_required)
+        self.assertFalse(addon_state(disabled.preferences_document, ANSYS_DPF_ADDON_ID)["enabled"])
+        with self.assertRaisesRegex(StaleHandleError, "worker_generation is stale"):
+            services.resolve_handle(model_ref, expected_kind=DPF_MODEL_HANDLE_KIND)
+        with self.assertRaises(LookupError):
+            services.viewer_backend_registry.resolve(DPF_EXECUTION_VIEWER_BACKEND_ID)
+
+        reenabled = apply_addon_enabled_state(
+            ANSYS_DPF_ADDON_ID,
+            enabled=True,
+            preferences_document=disabled.preferences_document,
+            worker_services=services,
+        )
+
+        self.assertFalse(reenabled.restart_required)
+        self.assertTrue(addon_state(reenabled.preferences_document, ANSYS_DPF_ADDON_ID)["enabled"])
+        self.assertEqual(
+            services.viewer_backend_registry.resolve(DPF_EXECUTION_VIEWER_BACKEND_ID).backend_id,
+            DPF_EXECUTION_VIEWER_BACKEND_ID,
+        )
+        reloaded_ref = services.dpf_runtime_service.load_model(STATIC_ANALYSIS_RST)
+        reloaded_model = services.resolve_handle(reloaded_ref, expected_kind=DPF_MODEL_HANDLE_KIND)
+        self.assertEqual(reloaded_model.metadata.time_freq_support.n_sets, 2)
+
+    def test_restart_required_apply_only_persists_pending_restart_state(self) -> None:
+        restart_registration = AddOnRegistration(
+            manifest=AddOnManifest(
+                addon_id="tests.addons.restart_only",
+                display_name="Restart Only",
+                apply_policy="restart_required",
+            ),
+            backend_module="tests.addons.restart_only",
+            backend_id="tests.addons.restart_only",
+        )
+
+        with mock.patch(
+            "ea_node_editor.addons.hot_apply.registered_addon_registration_by_id",
+            return_value=restart_registration,
+        ):
+            result = apply_addon_enabled_state(
+                "tests.addons.restart_only",
+                enabled=False,
+                preferences_document=default_app_preferences_document(),
+            )
+
+        self.assertTrue(result.restart_required)
+        self.assertIsNone(result.registry)
+        persisted_state = addon_state(result.preferences_document, "tests.addons.restart_only")
+        self.assertFalse(persisted_state["enabled"])
+        self.assertTrue(persisted_state["pending_restart"])
 
     def test_field_extraction_field_ops_and_mesh_extraction_use_worker_local_handles(self) -> None:
         services = WorkerServices()

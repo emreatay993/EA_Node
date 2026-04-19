@@ -17,6 +17,18 @@ from ea_node_editor.nodes.builtins.ansys_dpf_catalog import (
 )
 
 
+def create_ansys_dpf_execution_viewer_backend(worker_services):
+    from ea_node_editor.execution.viewer_backend_dpf import DpfExecutionViewerBackend
+
+    return DpfExecutionViewerBackend(worker_services)
+
+
+def create_ansys_dpf_viewer_widget_binder():
+    from ea_node_editor.ui_qml.dpf_viewer_widget_binder import DpfViewerWidgetBinder
+
+    return DpfViewerWidgetBinder()
+
+
 def __getattr__(name: str):
     if name in {
         "ANSYS_DPF_NODE_PLUGINS",
@@ -36,6 +48,8 @@ __all__ = [
     "ANSYS_DPF_PLUGIN_DESCRIPTORS",
     "PLUGIN_BACKENDS",
     "PLUGIN_DESCRIPTORS",
+    "create_ansys_dpf_execution_viewer_backend",
+    "create_ansys_dpf_viewer_widget_binder",
     "get_ansys_dpf_plugin_availability",
     "invalidate_ansys_dpf_descriptor_cache",
     "load_ansys_dpf_plugin_descriptors",
