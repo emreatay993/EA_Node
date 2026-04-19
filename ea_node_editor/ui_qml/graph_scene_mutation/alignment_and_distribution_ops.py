@@ -39,19 +39,12 @@ def resize_node(self, node_id: str, width: float, height: float) -> None:
     node = self._node(node_id)
     if node is None:
         return
-    self.set_node_geometry(node_id, float(node.x), float(node.y), width, height)
-
-
-def set_node_geometry(self, node_id: str, x: float, y: float, width: float, height: float) -> None:
     model = self._scene_context.model
     registry = self._scene_context.registry
     if model is None:
         return
     workspace = model.project.workspaces.get(self._scene_context.workspace_id)
     if workspace is None:
-        return
-    node = self._node(node_id)
-    if node is None:
         return
     if not is_node_in_scope(workspace, node_id, self._scene_context.scope_path):
         return
@@ -67,10 +60,27 @@ def set_node_geometry(self, node_id: str, x: float, y: float, width: float, heig
         )
         min_width = float(metrics.min_width)
         min_height = float(metrics.min_height)
+    final_width = max(min_width, float(width))
+    final_height = max(min_height, float(height))
+    self.set_node_geometry(node_id, float(node.x), float(node.y), final_width, final_height)
+
+
+def set_node_geometry(self, node_id: str, x: float, y: float, width: float, height: float) -> None:
+    model = self._scene_context.model
+    if model is None:
+        return
+    workspace = model.project.workspaces.get(self._scene_context.workspace_id)
+    if workspace is None:
+        return
+    node = self._node(node_id)
+    if node is None:
+        return
+    if not is_node_in_scope(workspace, node_id, self._scene_context.scope_path):
+        return
     final_x = float(x)
     final_y = float(y)
-    final_w = max(min_width, float(width))
-    final_h = max(min_height, float(height))
+    final_w = float(width)
+    final_h = float(height)
     if (
         float(node.x) == final_x
         and float(node.y) == final_y
