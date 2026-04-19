@@ -1,9 +1,11 @@
+# P04 Locked Node Graph Host And Mockup B Visuals Wrap-Up
+
 ## Implementation Summary
 
 - Packet: `P04`
 - Branch Label: `codex/addon-manager-backend-preparation/p04-locked-node-graph-host-and-mockup-b-visuals`
 - Commit Owner: `worker`
-- Commit SHA: `61c308e02a2fd468d5d9065d38d56b8fa80313c6`
+- Commit SHA: `61c308e54e98c48b715c589b543b5b1b59190336`
 - Changed Files: `docs/specs/work_packets/addon_manager_backend_preparation/ADDON_MANAGER_BACKEND_PREPARATION_P04_locked_node_graph_host_and_mockup_b_visuals.md`, `docs/specs/work_packets/addon_manager_backend_preparation/P04_locked_node_graph_host_and_mockup_b_visuals_WRAPUP.md`, `ea_node_editor/ui_qml/components/GraphCanvas.qml`, `ea_node_editor/ui_qml/components/graph/GraphNodeHeaderLayer.qml`, `ea_node_editor/ui_qml/components/graph/GraphNodeHost.qml`, `ea_node_editor/ui_qml/components/graph/GraphNodePortsLayer.qml`, `ea_node_editor/ui_qml/components/graph/GraphNodeSurfaceLoader.qml`, `ea_node_editor/ui_qml/components/graph_canvas/GraphCanvasContextMenus.qml`, `ea_node_editor/ui_qml/components/graph_canvas/GraphCanvasNodeSurfaceBridge.qml`, `ea_node_editor/ui_qml/graph_geometry/standard_metrics.py`, `ea_node_editor/ui_qml/graph_scene_mutation/alignment_and_distribution_ops.py`, `tests/test_graph_surface_input_contract.py`, `tests/test_graph_surface_input_controls.py`, `tests/test_passive_graph_surface_host.py`
 - Artifacts Produced: `docs/specs/work_packets/addon_manager_backend_preparation/ADDON_MANAGER_BACKEND_PREPARATION_P04_locked_node_graph_host_and_mockup_b_visuals.md`, `docs/specs/work_packets/addon_manager_backend_preparation/P04_locked_node_graph_host_and_mockup_b_visuals_WRAPUP.md`, `ea_node_editor/ui_qml/components/GraphCanvas.qml`, `ea_node_editor/ui_qml/components/graph/GraphNodeHeaderLayer.qml`, `ea_node_editor/ui_qml/components/graph/GraphNodeHost.qml`, `ea_node_editor/ui_qml/components/graph/GraphNodePortsLayer.qml`, `ea_node_editor/ui_qml/components/graph/GraphNodeSurfaceLoader.qml`, `ea_node_editor/ui_qml/components/graph_canvas/GraphCanvasContextMenus.qml`, `ea_node_editor/ui_qml/components/graph_canvas/GraphCanvasNodeSurfaceBridge.qml`, `ea_node_editor/ui_qml/graph_geometry/standard_metrics.py`, `ea_node_editor/ui_qml/graph_scene_mutation/alignment_and_distribution_ops.py`, `tests/test_graph_surface_input_contract.py`, `tests/test_graph_surface_input_controls.py`, `tests/test_passive_graph_surface_host.py`
 
@@ -48,4 +50,4 @@ Expected result: transient degradation clears promptly after interaction, shadow
 
 ## Ready for Integration
 
-- Yes: the latest substantive packet commit is `61c308e02a2fd468d5d9065d38d56b8fa80313c6`, the wrap-up matches the latest Mockup B fidelity pass, and the required packet verification and review-gate commands both pass in the assigned worktree.
+- Yes: the latest substantive packet commit is `61c308e54e98c48b715c589b543b5b1b59190336`, the wrap-up matches the latest Mockup B fidelity pass, and the required packet verification and review-gate commands both pass in the assigned worktree.
