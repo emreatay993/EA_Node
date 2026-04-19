@@ -24,6 +24,10 @@ def _trigger_help_for_selected_node(window: ShellWindow) -> None:
     help_bridge = getattr(window, "help_bridge", None)
     if help_bridge is None:
         return
+    show_help_for_selected_node = getattr(help_bridge, "show_help_for_selected_node", None)
+    if callable(show_help_for_selected_node):
+        show_help_for_selected_node()
+        return
     scene = getattr(window, "scene", None)
     node_id = str(scene.selected_node_id() or "") if scene is not None else ""
     if not node_id:

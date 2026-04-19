@@ -30,6 +30,7 @@ if TYPE_CHECKING:
 class HelpBridge(QObject):
     help_changed = pyqtSignal()
     help_visible_changed = pyqtSignal()
+    help_tab_requested = pyqtSignal()
 
     def __init__(
         self,
@@ -79,6 +80,29 @@ class HelpBridge(QObject):
         self._apply(markdown=markdown, type_id=type_id, title=display_name)
         self._set_visible(True)
         return True
+
+    @pyqtSlot(result=bool)
+    def show_help_for_selected_node(self) -> bool:
+        self.help_tab_requested.emit()
+        scene = getattr(getattr(self._shell_window, "scene", None), "selected_node_id", None)
+        if scene is None or not callable(scene):
+            return False
+        node_id = str(scene() or "")
+        if not node_id:
+            return False
+        if not self.can_show_help_for_node(node_id):
+            return False
+        return self.show_help_for_node(node_id)
+
+    @pyqtSlot(result=bool)
+    def can_show_help_for_selected_node(self) -> bool:
+        if self._shell_window is None:
+            return False
+        scene = getattr(self._shell_window, "scene", None)
+        if scene is None:
+            return False
+        node_id = str(getattr(scene, "selected_node_id", lambda: "")() or "")
+        return self.can_show_help_for_node(node_id)
 
     @pyqtSlot(str, result=bool)
     def show_help_for_type(self, type_id: str) -> bool:

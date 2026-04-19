@@ -204,7 +204,12 @@ ShellCollapsibleSidePane {
                         MouseArea {
                             anchors.fill: parent
                             cursorShape: Qt.PointingHandCursor
-                            onClicked: root.activeTabIndex = modelData.index
+                            onClicked: {
+                                root.activeTabIndex = modelData.index
+                                if (modelData.index === 1 && root.helpBridgeRef) {
+                                    root.helpBridgeRef.show_help_for_selected_node()
+                                }
+                            }
                         }
                     }
                 }
@@ -345,6 +350,11 @@ ShellCollapsibleSidePane {
                 if (root.paneCollapsed)
                     root.expandPane()
             }
+        }
+        function onHelp_tab_requested() {
+            root.activeTabIndex = 1
+            if (root.paneCollapsed)
+                root.expandPane()
         }
     }
 
