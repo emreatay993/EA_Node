@@ -56,6 +56,7 @@ class LockedPlaceholderGraphHostTests(GraphSurfaceInputContractTestBase):
             locked_label = named_item(host, "graphNodeLockedPlaceholderLabel")
             package_label = named_item(host, "graphNodeLockedPlaceholderPackage")
             manager_button = named_item(host, "graphNodeLockedPlaceholderButton")
+            manager_button_text = named_item(host, "graphNodeLockedPlaceholderButtonText")
             locked_overlay = named_item(host, "graphNodeLockedOverlay")
             input_padlock = named_item(host, "graphNodeInputPortPadlock", "message")
             output_padlock = named_item(host, "graphNodeOutputPortPadlock", "result")
@@ -75,6 +76,7 @@ class LockedPlaceholderGraphHostTests(GraphSurfaceInputContractTestBase):
             assert str(locked_label.property("text") or "") == "Requires add-on"
             assert str(package_label.property("text") or "") == "Signal Pack v2.4.1"
             assert bool(manager_button.property("visible")) is True
+            assert str(manager_button_text.property("text") or "") == "Load..."
             assert bool(locked_overlay.property("visible")) is True
             assert bool(input_padlock.property("visible")) is True
             assert bool(output_padlock.property("visible")) is True
@@ -85,6 +87,7 @@ class LockedPlaceholderGraphHostTests(GraphSurfaceInputContractTestBase):
             common_actions = [variant_value(action) for action in variant_list(host.property("commonNodeActions"))]
             assert len(common_actions) == 1
             assert common_actions[0]["id"] == "openAddonManager"
+            assert common_actions[0]["label"] == "Load..."
             assert common_actions[0]["enabled"] is True
 
             requested_actions = []

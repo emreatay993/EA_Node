@@ -694,7 +694,7 @@ Item {
             if (card.lockedPlaceholderActive) {
                 actions.push({
                     id: "openAddonManager",
-                    label: "Add-On Manager",
+                    label: "Load...",
                     icon: "open-session",
                     kind: "common",
                     enabled: card.lockedPlaceholderManagerAvailable,
