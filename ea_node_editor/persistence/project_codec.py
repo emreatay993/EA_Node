@@ -30,6 +30,7 @@ from ea_node_editor.persistence.overlay import (
     LEGACY_RUNTIME_PERSISTENCE_KEY,
     PERSISTENCE_ENVELOPE_KEY,
     restore_workspace_persistence_state,
+    with_missing_addon_placeholder,
     WorkspacePersistenceState,
     WorkspacePersistenceEnvelope,
 )
@@ -516,7 +517,9 @@ class JsonProjectCodec:
         if self._registry is not None:
             spec = self._registry.spec_or_none(type_id)
             if spec is None:
-                persistence_envelope.unresolved_node_docs[node_id] = sanitized_node_doc
+                persistence_envelope.unresolved_node_docs[node_id] = with_missing_addon_placeholder(
+                    sanitized_node_doc
+                )
                 return
             if not str(sanitized_node_doc.get("title", "")).strip():
                 sanitized_node_doc["title"] = spec.display_name

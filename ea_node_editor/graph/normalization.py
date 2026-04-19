@@ -47,6 +47,7 @@ from ea_node_editor.graph.port_locking import (
 )
 from ea_node_editor.nodes.registry import NodeRegistry
 from ea_node_editor.nodes.types import NodeTypeSpec
+from ea_node_editor.persistence.overlay import with_missing_addon_placeholder
 
 GRAPH_FRAGMENT_KIND = "ea-node-editor/graph-fragment"
 GRAPH_FRAGMENT_VERSION = 1
@@ -556,7 +557,9 @@ class GraphInvariantKernel:
                 node = workspace.nodes.pop(node_id, None)
                 if node is None:
                     continue
-                persistence_state.unresolved_node_docs[node_id] = node_instance_to_mapping(node)
+                persistence_state.unresolved_node_docs[node_id] = with_missing_addon_placeholder(
+                    node_instance_to_mapping(node)
+                )
 
             resolved_nodes = kernel.resolve_registry_nodes()
             for edge_id, edge in list(workspace.edges.items()):

@@ -1,8 +1,12 @@
 from __future__ import annotations
 
+from unittest import mock
+
 from ea_node_editor.execution.compiler import compile_workspace_document
 from ea_node_editor.graph.normalization import normalize_project_for_registry
 from ea_node_editor.nodes.bootstrap import build_default_registry
+from ea_node_editor.nodes.plugin_contracts import AddOnManifest, AddOnRecord, AddOnState, PluginAvailability
+from ea_node_editor.persistence.overlay import MISSING_ADDON_PLACEHOLDER_KEY
 from ea_node_editor.persistence.project_codec import ProjectDocumentFlavor, ProjectPersistenceEnvelope
 from ea_node_editor.persistence.serializer import JsonProjectSerializer
 from ea_node_editor.settings import SCHEMA_VERSION
@@ -12,6 +16,102 @@ from tests.serializer.base_cases import (
     _missing_plugin_parent_payload,
     _missing_plugin_round_trip_payload,
 )
+
+
+def _missing_addon_round_trip_payload() -> dict[str, object]:
+    return {
+        "schema_version": SCHEMA_VERSION,
+        "project_id": "proj_missing_addon_round_trip",
+        "name": "Missing Add-On Round Trip",
+        "active_workspace_id": "ws_addon",
+        "workspace_order": ["ws_addon"],
+        "workspaces": [
+            {
+                "workspace_id": "ws_addon",
+                "name": "Workspace Add-On",
+                "active_view_id": "view_addon",
+                "views": [
+                    {
+                        "view_id": "view_addon",
+                        "name": "V1",
+                        "zoom": 1.0,
+                        "pan_x": 0.0,
+                        "pan_y": 0.0,
+                    }
+                ],
+                "nodes": [
+                    {
+                        "node_id": "node_start",
+                        "type_id": "core.start",
+                        "title": "Start",
+                        "x": 0.0,
+                        "y": 0.0,
+                        "collapsed": False,
+                        "properties": {},
+                        "exposed_ports": {"exec_out": True, "trigger": True},
+                        "parent_node_id": None,
+                    },
+                    {
+                        "node_id": "node_signal_transform",
+                        "type_id": "addons.signal.transform",
+                        "title": "Signal Transform",
+                        "x": 160.0,
+                        "y": 0.0,
+                        "collapsed": True,
+                        "properties": {"gain": 1.5},
+                        "exposed_ports": {"signal_in": False, "signal_out": True},
+                        "port_labels": {
+                            "signal_in": "Signal In",
+                            "signal_out": "Signal Out",
+                        },
+                        "visual_style": {"fill": "#225588"},
+                        "parent_node_id": None,
+                        "plugin_payload": {"preset": "band-pass"},
+                    },
+                    {
+                        "node_id": "node_end",
+                        "type_id": "core.end",
+                        "title": "End",
+                        "x": 340.0,
+                        "y": 0.0,
+                        "collapsed": False,
+                        "properties": {},
+                        "exposed_ports": {"exec_in": True},
+                        "parent_node_id": None,
+                    },
+                ],
+                "edges": [
+                    {
+                        "edge_id": "edge_signal_to_end",
+                        "source_node_id": "node_signal_transform",
+                        "source_port_key": "signal_out",
+                        "target_node_id": "node_end",
+                        "target_port_key": "exec_in",
+                        "label": "Signal path",
+                        "visual_style": {"stroke": "dashed"},
+                    }
+                ],
+            }
+        ],
+        "metadata": {},
+    }
+
+
+def _test_addon_record() -> AddOnRecord:
+    return AddOnRecord(
+        manifest=AddOnManifest(
+            addon_id="tests.addons.signal_pack",
+            display_name="Signal Pack",
+            apply_policy="hot_apply",
+            version="1.2.3",
+            dependencies=("tests.signal.runtime",),
+        ),
+        state=AddOnState(enabled=True, pending_restart=False),
+        availability=PluginAvailability.available(
+            summary="Signal Pack is not loaded in this session."
+        ),
+        provided_node_type_ids=("addons.signal.transform",),
+    )
 
 
 class SerializerSchemaMixin:
@@ -313,6 +413,59 @@ class SerializerSchemaMixin:
                 "label": "",
                 "visual_style": {},
             },
+        )
+
+    def test_round_trip_preserves_missing_addon_placeholder_contract_across_normalization(self) -> None:
+        registry = build_default_registry()
+        serializer = JsonProjectSerializer(registry)
+        payload = _missing_addon_round_trip_payload()
+
+        with mock.patch(
+            "ea_node_editor.persistence.overlay.discover_addon_records",
+            return_value=(_test_addon_record(),),
+        ):
+            project = serializer.from_document(payload)
+            workspace = project.workspaces["ws_addon"]
+
+            self.assertNotIn("node_signal_transform", workspace.nodes)
+            placeholder_doc = workspace.unresolved_node_docs["node_signal_transform"]
+            placeholder = placeholder_doc[MISSING_ADDON_PLACEHOLDER_KEY]
+            self.assertEqual(placeholder["addon_id"], "tests.addons.signal_pack")
+            self.assertEqual(placeholder["display_name"], "Signal Pack")
+            self.assertEqual(placeholder["version"], "1.2.3")
+            self.assertEqual(placeholder["apply_policy"], "hot_apply")
+            self.assertEqual(placeholder["status"], "installed")
+            self.assertEqual(
+                placeholder["unavailable_reason"],
+                "Signal Pack is not loaded in this session.",
+            )
+
+            normalize_project_for_registry(project, registry)
+            workspace = project.workspaces["ws_addon"]
+            self.assertEqual(set(workspace.unresolved_node_docs), {"node_signal_transform"})
+            self.assertEqual(set(workspace.unresolved_edge_docs), {"edge_signal_to_end"})
+
+            runtime_doc = serializer.to_document(project)
+            runtime_envelope = ProjectPersistenceEnvelope.from_document(runtime_doc)
+            runtime_placeholder = runtime_envelope.workspace_envelope("ws_addon").unresolved_node_docs[
+                "node_signal_transform"
+            ][MISSING_ADDON_PLACEHOLDER_KEY]
+            self.assertEqual(runtime_placeholder["addon_id"], "tests.addons.signal_pack")
+            self.assertEqual(
+                runtime_placeholder["locked_state"]["focus_addon_id"],
+                "tests.addons.signal_pack",
+            )
+
+            authored_doc = serializer.to_persistent_document(project)
+
+        workspace_doc = authored_doc["workspaces"][0]
+        nodes_by_id = {node["node_id"]: node for node in workspace_doc["nodes"]}
+        node_doc = nodes_by_id["node_signal_transform"]
+        self.assertEqual(node_doc["plugin_payload"], {"preset": "band-pass"})
+        self.assertEqual(node_doc[MISSING_ADDON_PLACEHOLDER_KEY]["addon_id"], "tests.addons.signal_pack")
+        self.assertEqual(
+            node_doc[MISSING_ADDON_PLACEHOLDER_KEY]["locked_state"]["label"],
+            "Requires add-on",
         )
 
     def test_from_document_sanitizes_live_parent_links_to_unresolved_nodes(self) -> None:
