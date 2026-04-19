@@ -5,10 +5,12 @@ import json
 from pathlib import Path
 from unittest.mock import patch
 
+from PyQt6.QtCore import QObject
 from PyQt6.QtGui import QColor
 from PyQt6.QtQml import QJSValue
 from PyQt6.QtQuick import QQuickItem
 
+from ea_node_editor.ui_qml.shell_addon_manager_bridge import ShellAddOnManagerBridge
 from tests.main_window_shell.base import *  # noqa: F401,F403
 from tests.main_window_shell.base import _action_shortcuts
 from tests.qt_wait import wait_for_condition_or_raise
@@ -190,23 +192,30 @@ class MainWindowShellBasicsAndSearchTests(SharedMainWindowShellTestBase):
         self.assertTrue(self.window.action_show_tooltips.isCheckable())
         self.assertTrue(self.window.action_show_tooltips.isChecked())
 
-    def test_addon_manager_action_updates_request_state_and_overlay_without_final_surface(self) -> None:
+    def test_addon_manager_action_updates_request_state_and_variant4_surface_focus(self) -> None:
         root_object = self.window.quick_widget.rootObject()
         initial_serial = int(self.window.addon_manager_request_serial)
         self.assertIsNotNone(root_object)
-        overlay = root_object.findChild(QObject, "addonManagerPlaceholderOverlay")
-        message = root_object.findChild(QObject, "addonManagerPlaceholderMessage")
-        revision = root_object.findChild(QObject, "addonManagerPlaceholderRevision")
-        self.assertIsNotNone(overlay)
-        self.assertIsNotNone(message)
-        self.assertIsNotNone(revision)
-        if overlay is None or message is None or revision is None:
-            self.fail("Expected the packet-owned Add-On Manager placeholder overlay to exist.")
+        if root_object is None:
+            self.fail("Expected the shell root object to be available.")
+
+        surface = root_object.findChild(QObject, "addonManagerPane")
+        workspace_row = root_object.findChild(QObject, "shellWorkspaceRow")
+        controller = root_object.findChild(QObject, "shellAddOnManagerBridge")
+        detail_title = root_object.findChild(QObject, "addonManagerDetailTitle")
+        self.assertIsNotNone(surface)
+        self.assertIsNotNone(workspace_row)
+        self.assertIsNotNone(controller)
+        self.assertIsNotNone(detail_title)
+        self.assertIsInstance(controller, ShellAddOnManagerBridge)
+        if surface is None or workspace_row is None or controller is None or detail_title is None:
+            self.fail("Expected the packet-owned Add-On Manager surface to exist.")
 
         self.assertFalse(self.window.addon_manager_open)
         self.assertEqual(self.window.addon_manager_focus_addon_id, "")
         self.assertEqual(self.window.addon_manager_request_serial, initial_serial)
-        self.assertFalse(bool(overlay.property("visible")))
+        self.assertFalse(bool(surface.property("visible")))
+        self.assertTrue(bool(workspace_row.property("visible")))
 
         self.window.action_addon_manager.trigger()
         self.app.processEvents()
@@ -218,9 +227,10 @@ class MainWindowShellBasicsAndSearchTests(SharedMainWindowShellTestBase):
             self.window.addon_manager_request,
             {"open": True, "focus_addon_id": "", "request_serial": initial_serial + 1},
         )
-        self.assertTrue(bool(overlay.property("visible")))
-        self.assertEqual(str(message.property("text")), "Manager request is ready.")
-        self.assertEqual(str(revision.property("text")), f"Request {initial_serial + 1}")
+        self.assertTrue(bool(surface.property("visible")))
+        self.assertTrue(bool(workspace_row.property("visible")))
+        self.assertGreaterEqual(controller.rowCount, 1)
+        self.assertEqual(controller.selectedAddonId, "ea_node_editor.builtins.ansys_dpf")
 
         self.window.request_open_addon_manager("ansys.dpf")
         self.app.processEvents()
@@ -232,8 +242,9 @@ class MainWindowShellBasicsAndSearchTests(SharedMainWindowShellTestBase):
             self.window.addon_manager_request,
             {"open": True, "focus_addon_id": "ansys.dpf", "request_serial": initial_serial + 2},
         )
-        self.assertEqual(str(message.property("text")), "Requested add-on: ansys.dpf")
-        self.assertEqual(str(revision.property("text")), f"Request {initial_serial + 2}")
+        self.assertEqual(controller.selectedAddonId, "ea_node_editor.builtins.ansys_dpf")
+        self.assertEqual(str(detail_title.property("text")), "ANSYS DPF")
+        self.assertTrue(bool(workspace_row.property("visible")))
 
         self.window.request_close_addon_manager()
         self.app.processEvents()
@@ -245,7 +256,8 @@ class MainWindowShellBasicsAndSearchTests(SharedMainWindowShellTestBase):
             self.window.addon_manager_request,
             {"open": False, "focus_addon_id": "", "request_serial": initial_serial + 2},
         )
-        self.assertFalse(bool(overlay.property("visible")))
+        self.assertFalse(bool(surface.property("visible")))
+        self.assertTrue(bool(workspace_row.property("visible")))
 
     def test_graphics_settings_properties_are_exposed_to_qml(self) -> None:
         meta = self.window.metaObject()

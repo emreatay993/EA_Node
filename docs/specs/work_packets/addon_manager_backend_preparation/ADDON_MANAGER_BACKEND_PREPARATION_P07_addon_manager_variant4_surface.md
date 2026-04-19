@@ -22,10 +22,12 @@
 ## Target Subsystems
 
 - `ea_node_editor/ui/shell/presenters/__init__.py`
+- `ea_node_editor/ui/shell/presenters/_addon_manager_payloads.py`
 - `ea_node_editor/ui/shell/presenters/addon_manager_presenter.py`
 - `ea_node_editor/ui_qml/MainShell.qml`
 - `ea_node_editor/ui_qml/components/shell/InspectorPane.qml`
 - `ea_node_editor/ui_qml/components/shell/AddOnManagerPane.qml`
+- `ea_node_editor/ui_qml/graph_scene_mutation/alignment_and_distribution_ops.py`
 - `ea_node_editor/ui_qml/shell_addon_manager_bridge.py`
 - `tests/test_main_window_shell.py`
 - `tests/main_window_shell/shell_basics_and_search.py`
@@ -34,14 +36,17 @@
 ## Conservative Write Scope
 
 - `ea_node_editor/ui/shell/presenters/__init__.py`
+- `ea_node_editor/ui/shell/presenters/_addon_manager_payloads.py`
 - `ea_node_editor/ui/shell/presenters/addon_manager_presenter.py`
 - `ea_node_editor/ui_qml/MainShell.qml`
 - `ea_node_editor/ui_qml/components/shell/InspectorPane.qml`
 - `ea_node_editor/ui_qml/components/shell/AddOnManagerPane.qml`
+- `ea_node_editor/ui_qml/graph_scene_mutation/alignment_and_distribution_ops.py`
 - `ea_node_editor/ui_qml/shell_addon_manager_bridge.py`
 - `tests/test_main_window_shell.py`
 - `tests/main_window_shell/shell_basics_and_search.py`
 - `tests/main_window_shell/bridge_qml_boundaries.py`
+- `docs/specs/work_packets/addon_manager_backend_preparation/ADDON_MANAGER_BACKEND_PREPARATION_P07_addon_manager_variant4_surface.md`
 - `docs/specs/work_packets/addon_manager_backend_preparation/P07_addon_manager_variant4_surface_WRAPUP.md`
 
 ## Required Behavior
