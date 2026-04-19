@@ -1,3 +1,5 @@
+# P02 Add-On Manager Entry And Open-Request Plumbing Wrap-Up
+
 ## Implementation Summary
 
 - Packet: `P02`
@@ -5,7 +7,7 @@
 - Commit Owner: `worker`
 - Commit SHA: `0bf01e34f3738b1928cdb944f9ce34c2f13a664f`
 - Changed Files: `docs/specs/work_packets/addon_manager_backend_preparation/P02_addon_manager_entry_and_open_request_plumbing_WRAPUP.md`, `ea_node_editor/ui/shell/composition.py`, `ea_node_editor/ui/shell/window.py`, `ea_node_editor/ui/shell/window_actions.py`, `ea_node_editor/ui_qml/MainShell.qml`, `tests/main_window_shell/shell_basics_and_search.py`, `tests/test_main_window_shell.py`
-- Artifacts Produced: `docs/specs/work_packets/addon_manager_backend_preparation/P02_addon_manager_entry_and_open_request_plumbing_WRAPUP.md`
+- Artifacts Produced: `docs/specs/work_packets/addon_manager_backend_preparation/P02_addon_manager_entry_and_open_request_plumbing_WRAPUP.md`, `ea_node_editor/ui/shell/composition.py`, `ea_node_editor/ui/shell/window.py`, `ea_node_editor/ui/shell/window_actions.py`, `ea_node_editor/ui_qml/MainShell.qml`, `tests/main_window_shell/shell_basics_and_search.py`, `tests/test_main_window_shell.py`
 
 - Added a top-level `Add-On Manager` menubar action with stable shell action naming and placement before `Settings`, preserving the existing workflow-settings and shell startup paths.
 - Introduced a shell-owned add-on manager request seam on `ShellWindow` that preserves `open`, `focus_addon_id`, and a monotonic request serial so later graph affordances and the final manager surface can reopen or retarget the same add-on deterministically.
