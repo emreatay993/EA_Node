@@ -204,6 +204,52 @@ class ShellInspectorBridgeQmlBoundaryTests(unittest.TestCase):
                     self.assertIn(snippet, qml_text)
 
 
+class ShellAddOnManagerQmlBoundaryTests(unittest.TestCase):
+    def test_addon_manager_surface_routes_variant4_concerns_through_packet_owned_bridge(self) -> None:
+        expectations = {
+            "ea_node_editor/ui_qml/MainShell.qml": (
+                (
+                    'objectName: "addonManagerPlaceholderOverlay"',
+                    'objectName: "addonManagerPlaceholderMessage"',
+                    'objectName: "addonManagerPlaceholderRevision"',
+                ),
+                (
+                    "AddOnManagerPane {",
+                    'objectName: "addonManagerPane"',
+                    "visible: addonManagerBridge.open",
+                    "requestBridge: addonManagerBridge",
+                    "workspaceBridge: shellWorkspaceBridge",
+                    "viewerHostServiceRef: viewerHostService",
+                ),
+            ),
+            "ea_node_editor/ui_qml/components/shell/AddOnManagerPane.qml": (
+                (),
+                (
+                    "import EA.NodeEditor 1.0",
+                    "ShellAddOnManagerBridge {",
+                    'objectName: "shellAddOnManagerBridge"',
+                    "requestBridge: root.requestBridge",
+                    "workspaceBridge: root.workspaceBridge",
+                    "viewerHostServiceRef: root.viewerHostServiceRef",
+                    'objectName: "addonManagerToolbar"',
+                    'objectName: "addonManagerPendingBadge"',
+                    'objectName: "addonManagerPrimaryToggleButton"',
+                    'objectName: "addonManagerPendingBanner"',
+                    'objectName: "addonManagerTab" + modelData.label',
+                ),
+            ),
+        }
+
+        for relative_path, (absent_snippets, present_snippets) in expectations.items():
+            qml_text = (_REPO_ROOT / relative_path).read_text(encoding="utf-8")
+            for snippet in absent_snippets:
+                with self.subTest(path=relative_path, snippet=snippet, expectation="absent"):
+                    self.assertNotIn(snippet, qml_text)
+            for snippet in present_snippets:
+                with self.subTest(path=relative_path, snippet=snippet, expectation="present"):
+                    self.assertIn(snippet, qml_text)
+
+
 class ShellWorkspaceBridgeQmlBoundaryTests(unittest.TestCase):
     def test_workspace_run_title_and_console_qml_routes_owned_concerns_through_shell_workspace_bridge(self) -> None:
         expectations = {

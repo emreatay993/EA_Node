@@ -15,9 +15,11 @@ from ea_node_editor.ui.shell.runtime_clipboard import (
     serialize_graph_fragment_payload,
 )
 from ea_node_editor.ui.shell.composition import AddonManagerBridge
+from ea_node_editor.ui.shell.presenters.addon_manager_presenter import AddOnManagerPresenter
 from ea_node_editor.ui_qml.content_fullscreen_bridge import ContentFullscreenBridge
 from ea_node_editor.ui_qml.graph_canvas_command_bridge import GraphCanvasCommandBridge
 from ea_node_editor.ui_qml.graph_canvas_state_bridge import GraphCanvasStateBridge
+from ea_node_editor.ui_qml.shell_addon_manager_bridge import ShellAddOnManagerBridge
 from ea_node_editor.ui_qml.shell_inspector_bridge import ShellInspectorBridge
 from ea_node_editor.ui_qml.shell_library_bridge import ShellLibraryBridge
 from ea_node_editor.ui_qml.shell_workspace_bridge import ShellWorkspaceBridge
@@ -245,6 +247,17 @@ class MainWindowShellContextBootstrapTests(SharedMainWindowShellTestBase):
         self.assertIs(context_bindings["viewerSessionBridge"], viewer_session_bridge)
         self.assertIs(context_bindings["viewerHostService"], viewer_host_service)
 
+        root_object = self.window.quick_widget.rootObject()
+        self.assertIsNotNone(root_object)
+        if root_object is None:
+            self.fail("Expected the shell root object to be available.")
+
+        addon_surface = root_object.findChild(QObject, "addonManagerPane")
+        addon_surface_bridge = root_object.findChild(QObject, "shellAddOnManagerBridge")
+        self.assertIsNotNone(addon_surface)
+        self.assertIsNotNone(addon_surface_bridge)
+        self.assertIsInstance(addon_surface_bridge, ShellAddOnManagerBridge)
+
     def test_addon_manager_bridge_tracks_shell_open_request_contract(self) -> None:
         context = self.window.quick_widget.rootContext()
         bridge = context.contextProperty("addonManagerBridge")
@@ -341,6 +354,7 @@ class PresenterPackageBoundaryTests(unittest.TestCase):
         self.assertTrue(str(module.__file__ or "").replace("\\", "/").endswith("/ui/shell/presenters/__init__.py"))
 
         expected_exports = {
+            "AddOnManagerPresenter",
             "GraphCanvasHostPresenter",
             "GraphCanvasPresenter",
             "ShellInspectorPresenter",
@@ -354,9 +368,11 @@ class PresenterPackageBoundaryTests(unittest.TestCase):
         for name in expected_exports:
             with self.subTest(name=name):
                 self.assertTrue(hasattr(module, name))
+        self.assertIs(AddOnManagerPresenter, getattr(module, "AddOnManagerPresenter"))
 
         for relative_path, max_lines in {
             "__init__.py": 120,
+            "addon_manager_presenter.py": 450,
             "library_presenter.py": 450,
             "workspace_presenter.py": 450,
             "inspector_presenter.py": 450,
