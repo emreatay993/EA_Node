@@ -1,8 +1,14 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Any
 
 from ea_node_editor.app_preferences import AppPreferencesStore
+from ea_node_editor.addons.catalog import (
+    import_addon_backend_module,
+    live_addon_registrations,
+    sync_live_addon_state,
+)
 from ea_node_editor.nodes.builtins.core import (
     BranchNodePlugin,
     ConstantNodePlugin,
@@ -41,6 +47,7 @@ def build_default_registry(
     extra_plugin_dirs: list[Path] | None = None,
     *,
     app_preferences_store: AppPreferencesStore | None = None,
+    preferences_document: Any = None,
 ) -> NodeRegistry:
     registry = NodeRegistry()
     registry.register(StartNodePlugin)
@@ -72,17 +79,22 @@ def build_default_registry(
     for plugin in PASSIVE_MEDIA_NODE_PLUGINS:
         registry.register(plugin)
 
-    from ea_node_editor.addons.ansys_dpf.catalog import (
-        PLUGIN_BACKENDS as ANSYS_DPF_PLUGIN_BACKENDS,
-        sync_ansys_dpf_plugin_state,
-    )
     from ea_node_editor.nodes.plugin_loader import discover_and_load_plugins, register_plugin_backends
 
-    sync_ansys_dpf_plugin_state(store=app_preferences_store)
-    register_plugin_backends(
-        ANSYS_DPF_PLUGIN_BACKENDS,
-        registry,
-        "ea_node_editor.addons.ansys_dpf.catalog",
+    sync_live_addon_state(
+        store=app_preferences_store,
+        preferences_document=preferences_document,
     )
+    for registration in live_addon_registrations(
+        preferences_document=preferences_document,
+        store=app_preferences_store,
+    ):
+        module = import_addon_backend_module(registration)
+        backends = getattr(module, registration.backend_collection_attr, ())
+        register_plugin_backends(
+            backends,
+            registry,
+            str(registration.backend_module).strip(),
+        )
     discover_and_load_plugins(registry, extra_dirs=extra_plugin_dirs)
     return registry

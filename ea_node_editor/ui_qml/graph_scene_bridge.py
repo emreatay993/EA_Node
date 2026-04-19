@@ -3,6 +3,8 @@ from __future__ import annotations
 from PyQt6.QtCore import QObject
 
 from ea_node_editor.graph.boundary_adapters import build_graph_boundary_adapters
+from ea_node_editor.graph.normalization import normalize_project_for_registry
+from ea_node_editor.nodes.registry import NodeRegistry
 from ea_node_editor.ui.pdf_preview_provider import clamp_pdf_page_number
 from ea_node_editor.ui_qml.edge_routing import node_size
 from ea_node_editor.ui_qml.graph_scene import (
@@ -56,6 +58,13 @@ class GraphSceneBridge(GraphSceneBridgeBase):
             pending_surface_action=self._pending_surface_action,
         )
         self._policy_bridge = GraphScenePolicyBridge(self, self._policy_boundary)
+
+    def rebuild_registry(self, registry: NodeRegistry) -> None:
+        self._registry = registry
+        if self._model is None or self._registry is None:
+            return
+        normalize_project_for_registry(self._model.project, self._registry)
+        self._scene_context.rebuild_models()
 
 
 __all__ = [

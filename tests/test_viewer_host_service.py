@@ -8,6 +8,8 @@ from PyQt6.QtGui import QImage
 from PyQt6.QtQuick import QQuickItem
 from PyQt6.QtWidgets import QWidget
 
+from ea_node_editor.addons.catalog import ANSYS_DPF_ADDON_ID
+from ea_node_editor.app_preferences import default_app_preferences_document, set_addon_state
 from ea_node_editor.nodes.builtins.ansys_dpf_common import DPF_VIEWER_NODE_TYPE_ID
 from ea_node_editor.nodes.types import NodeRenderQualitySpec, NodeResult, NodeTypeSpec, PortSpec
 from ea_node_editor.ui_qml.dpf_viewer_widget_binder import DpfViewerWidgetBinder
@@ -357,6 +359,41 @@ class ViewerHostServiceTests(MainWindowShellTestBase):
         self.assertIsInstance(
             self.host_service.binder_registry.lookup(DpfViewerWidgetBinder.backend_id),
             DpfViewerWidgetBinder,
+        )
+
+    def test_rebuild_addon_binders_removes_disabled_dpf_binder_and_preserves_custom_binders(self) -> None:
+        custom_binder = _RecordingBinder()
+        self.host_service.register_binder("tests.viewer_backend.custom", custom_binder)
+        disabled_preferences = set_addon_state(
+            default_app_preferences_document(),
+            ANSYS_DPF_ADDON_ID,
+            enabled=False,
+            pending_restart=False,
+        )
+
+        self.host_service.rebuild_addon_binders(preferences_document=disabled_preferences)
+
+        self.assertIsNone(self.host_service.binder_registry.lookup(DpfViewerWidgetBinder.backend_id))
+        self.assertIs(
+            self.host_service.binder_registry.lookup("tests.viewer_backend.custom"),
+            custom_binder,
+        )
+
+        reenabled_preferences = set_addon_state(
+            disabled_preferences,
+            ANSYS_DPF_ADDON_ID,
+            enabled=True,
+            pending_restart=False,
+        )
+        self.host_service.rebuild_addon_binders(preferences_document=reenabled_preferences)
+
+        self.assertIsInstance(
+            self.host_service.binder_registry.lookup(DpfViewerWidgetBinder.backend_id),
+            DpfViewerWidgetBinder,
+        )
+        self.assertIs(
+            self.host_service.binder_registry.lookup("tests.viewer_backend.custom"),
+            custom_binder,
         )
 
     def test_focus_only_projection_keeps_one_bound_overlay_until_keep_live_enabled(self) -> None:

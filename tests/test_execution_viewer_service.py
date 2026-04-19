@@ -5,6 +5,9 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
+from ea_node_editor.addons.catalog import ANSYS_DPF_ADDON_ID
+from ea_node_editor.addons.hot_apply import apply_addon_enabled_state
+from ea_node_editor.app_preferences import default_app_preferences_document
 from ea_node_editor.execution.dpf_runtime.viewer_session_backend import (
     ViewerSessionMaterializationResult,
 )
@@ -633,6 +636,110 @@ class ViewerSessionServiceTests(unittest.TestCase):
             self.assertNotIn("dataset", reopened.data_refs)
             self.assertEqual(reopened.options["live_mode"], "proxy")
             self.assertIn("dataset", reopened.summary["stale_ref_keys"])
+
+    def test_hot_apply_rebuild_clears_cached_dpf_transport_and_restores_live_materialization(self) -> None:
+        calls: list[dict[str, object]] = []
+        with (
+            mock.patch.object(
+                self.services.dpf_runtime_service,
+                "materialize_viewer_dataset",
+                side_effect=self._fake_materialize(calls),
+            ),
+            mock.patch.object(
+                self.services.dpf_runtime_service,
+                "export_viewer_transport_bundle",
+                side_effect=self._fake_export_transport_bundle,
+            ),
+        ):
+            fields_ref = self.services.register_handle(
+                _FakeDpfObject("fields_cached"),
+                kind=DPF_FIELDS_CONTAINER_HANDLE_KIND,
+                owner_scope="cache:tests:viewer_fields",
+            )
+            model_ref = self.services.register_handle(
+                _FakeDpfObject("model_cached"),
+                kind=DPF_MODEL_HANDLE_KIND,
+                owner_scope="cache:tests:viewer_model",
+            )
+
+            self.service.open_session(
+                OpenViewerSessionCommand(
+                    request_id="viewer_req_open",
+                    workspace_id="ws_main",
+                    node_id="node_viewer",
+                    session_id="session_live_toggle",
+                    data_refs={"fields": fields_ref, "model": model_ref},
+                )
+            )
+            materialized = self.service.materialize_data(
+                MaterializeViewerDataCommand(
+                    request_id="viewer_req_materialize",
+                    workspace_id="ws_main",
+                    node_id="node_viewer",
+                    session_id="session_live_toggle",
+                    options={"output_profile": "memory"},
+                )
+            )
+
+            manifest_path = Path(materialized.transport["manifest_path"])
+            entry_path = Path(materialized.transport["entry_path"])
+            self.assertTrue(manifest_path.is_file())
+            self.assertTrue(entry_path.is_file())
+
+            disabled = apply_addon_enabled_state(
+                ANSYS_DPF_ADDON_ID,
+                enabled=False,
+                preferences_document=default_app_preferences_document(),
+                worker_services=self.services,
+            )
+
+            self.assertFalse(manifest_path.exists())
+            self.assertFalse(entry_path.exists())
+            with self.assertRaises(LookupError):
+                self.services.viewer_backend_registry.resolve(DPF_EXECUTION_VIEWER_BACKEND_ID)
+
+            reenabled = apply_addon_enabled_state(
+                ANSYS_DPF_ADDON_ID,
+                enabled=True,
+                preferences_document=disabled.preferences_document,
+                worker_services=self.services,
+            )
+
+            fields_ref = self.services.register_handle(
+                _FakeDpfObject("fields_reenabled"),
+                kind=DPF_FIELDS_CONTAINER_HANDLE_KIND,
+                owner_scope="cache:tests:viewer_fields_reenabled",
+            )
+            model_ref = self.services.register_handle(
+                _FakeDpfObject("model_reenabled"),
+                kind=DPF_MODEL_HANDLE_KIND,
+                owner_scope="cache:tests:viewer_model_reenabled",
+            )
+            self.service.open_session(
+                OpenViewerSessionCommand(
+                    request_id="viewer_req_open_reenabled",
+                    workspace_id="ws_main",
+                    node_id="node_viewer",
+                    session_id="session_live_toggle_reenabled",
+                    data_refs={"fields": fields_ref, "model": model_ref},
+                )
+            )
+            rematerialized = self.service.materialize_data(
+                MaterializeViewerDataCommand(
+                    request_id="viewer_req_materialize_reenabled",
+                    workspace_id="ws_main",
+                    node_id="node_viewer",
+                    session_id="session_live_toggle_reenabled",
+                    options={"output_profile": "memory"},
+                )
+            )
+
+        self.assertEqual(reenabled.apply_policy, "hot_apply")
+        self.assertTrue(
+            Path(rematerialized.transport["manifest_path"]).is_file()
+        )
+        self.assertTrue(Path(rematerialized.transport["entry_path"]).is_file())
+        self.assertNotEqual(rematerialized.transport["manifest_path"], str(manifest_path))
 
     def test_materialize_fails_after_workspace_invalidation(self) -> None:
         fields_ref = self.services.register_handle(
