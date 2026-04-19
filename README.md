@@ -364,6 +364,8 @@ for the frozen preparation contract, and the
 [ANSYS DPF Full Plugin Rollout QA Matrix](docs/specs/perf/ANSYS_DPF_FULL_PLUGIN_ROLLOUT_QA_MATRIX.md)
 for the retained rollout proof surface.
 
+The shipped add-on backend now exposes `Add-On Manager` as a top-level menubar entry and ships the Variant 4 inspector-style drawer on top of the generic add-on catalog. Add-ons carry stable ids, dependency facts, and exactly one apply policy (`hot_apply` or `restart_required`); missing add-on nodes stay visible as locked Mockup B placeholders instead of disappearing from the canvas; and ANSYS DPF is the first repo-local `hot_apply` add-on wired through the rebuild-based lifecycle. The retained packet evidence, closeout commands, and manual smoke guidance for that baseline live in the [Add-On Manager Backend Preparation QA Matrix](docs/specs/perf/ADDON_MANAGER_BACKEND_PREPARATION_QA_MATRIX.md).
+
 For new plugin modules or installed packages, prefer exporting
 `PLUGIN_DESCRIPTORS` so the loader can register descriptors and provenance
 without constructor probing. The legacy class scan remains supported for older
@@ -576,6 +578,7 @@ Regenerate the committed app icon asset set with:
 - [DPF Operator Backend Review](docs/DPF_OPERATOR_PLUGIN_BACKEND_REVIEW_2026-04-12.md) -- locked optional-DPF preparation contract, explicit deferrals, and later operator-rollout assumptions
 - [DPF Operator Backend QA Matrix](docs/specs/perf/DPF_OPERATOR_PLUGIN_BACKEND_REFACTOR_QA_MATRIX.md) -- retained `P01` through `P04` DPF backend verification plus the `P05` traceability and markdown closeout commands
 - [ANSYS DPF Full Plugin Rollout QA Matrix](docs/specs/perf/ANSYS_DPF_FULL_PLUGIN_ROLLOUT_QA_MATRIX.md) -- retained `P00` through `P07` rollout verification, workflow-first taxonomy proof, generated operator/helper evidence, and the remaining raw-API deferral
+- [Add-On Manager Backend Preparation QA Matrix](docs/specs/perf/ADDON_MANAGER_BACKEND_PREPARATION_QA_MATRIX.md) -- retained `P01` through `P07` add-on backend verification, Variant 4 manager proof, locked-placeholder behavior, DPF hot-apply lifecycle evidence, and the exact `P08` closeout commands
 - [Passive Visual Checklist](docs/specs/perf/PASSIVE_NODES_VISUAL_CHECKLIST.md) -- short manual pass for passive flowchart/media styling and reopen checks
 - [Graph Surface Input QA Matrix](docs/specs/perf/GRAPH_SURFACE_INPUT_QA_MATRIX.md) -- current host/inline/media/shell coverage and shell-module verification status
 - [Verification Speed QA Matrix](docs/specs/perf/VERIFICATION_SPEED_QA_MATRIX.md) -- approved `fast`/`gui`/`slow`/`full` workflow, dedicated shell-isolation phase, benchmark evidence, proof-audit command, and baseline-status notes
