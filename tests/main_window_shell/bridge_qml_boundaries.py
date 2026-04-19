@@ -215,6 +215,8 @@ class ShellAddOnManagerQmlBoundaryTests(unittest.TestCase):
                 ),
                 (
                     "AddOnManagerPane {",
+                    'objectName: "shellWorkspaceRow"',
+                    'objectName: "addonManagerScrim"',
                     'objectName: "addonManagerPane"',
                     "visible: addonManagerBridge.open",
                     "requestBridge: addonManagerBridge",
@@ -233,6 +235,8 @@ class ShellAddOnManagerQmlBoundaryTests(unittest.TestCase):
                     "viewerHostServiceRef: root.viewerHostServiceRef",
                     'objectName: "addonManagerToolbar"',
                     'objectName: "addonManagerPendingBadge"',
+                    'objectName: "addonManagerRestartRuntimeButton"',
+                    'objectName: "addonManagerFallbackWorkflowSettingsButton"',
                     'objectName: "addonManagerPrimaryToggleButton"',
                     'objectName: "addonManagerPendingBanner"',
                     'objectName: "addonManagerTab" + modelData.label',

@@ -13,18 +13,33 @@ Rectangle {
     readonly property var selectedAddon: controller.selectedAddon
     color: themePalette.app_bg
     border.color: themePalette.border
+    border.width: 1
+    radius: 6
+    clip: true
     focus: visible
 
     Keys.onEscapePressed: controller.requestClose()
+
+    function categoryAccent(categoryKey) {
+        if (categoryKey === "dpf")
+            return themePalette.accent
+        if (categoryKey === "core")
+            return themePalette.accent_strong
+        if (categoryKey === "io")
+            return themePalette.run_completed
+        if (categoryKey === "logic")
+            return themePalette.node_card_border
+        if (categoryKey === "physics")
+            return themePalette.edge_warning
+        return themePalette.border
+    }
 
     function rowAccent(row) {
         if (!row)
             return themePalette.border
         if (row.pendingRestart)
             return themePalette.edge_warning
-        if (row.supportsHotApply)
-            return themePalette.run_completed
-        return themePalette.accent
+        return categoryAccent(String(row.categoryKey || ""))
     }
 
     function statusText(row) {
@@ -35,6 +50,30 @@ Rectangle {
         if (row.unavailable)
             return "Unavailable"
         return row.enabled ? "Enabled" : "Disabled"
+    }
+
+    function badgeFill(tone) {
+        if (tone === "warn")
+            return Qt.alpha(themePalette.edge_warning, 0.14)
+        if (tone === "core")
+            return Qt.alpha(themePalette.accent, 0.14)
+        return Qt.alpha(themePalette.run_completed, 0.14)
+    }
+
+    function badgeBorder(tone) {
+        if (tone === "warn")
+            return Qt.alpha(themePalette.edge_warning, 0.38)
+        if (tone === "core")
+            return Qt.alpha(themePalette.accent, 0.38)
+        return Qt.alpha(themePalette.run_completed, 0.38)
+    }
+
+    function badgeForeground(tone) {
+        if (tone === "warn")
+            return themePalette.edge_warning
+        if (tone === "core")
+            return themePalette.accent
+        return themePalette.run_completed
     }
 
     ShellAddOnManagerBridge {
@@ -70,7 +109,7 @@ Rectangle {
 
                 Text {
                     anchors.centerIn: parent
-                    text: "+"
+                    text: "C"
                     color: themePalette.panel_title_fg
                     font.pixelSize: 13
                     font.bold: true
@@ -118,25 +157,40 @@ Rectangle {
             }
 
             ShellButton {
-                text: "Workflow Settings"
-                tooltipText: "Open the temporary plugin fallback in Workflow Settings."
-                onClicked: controller.requestOpenWorkflowSettings()
-            }
-
-            ShellButton {
+                objectName: "addonManagerCheckUpdatesButton"
                 text: "Check for updates"
                 enabled: false
             }
 
             ShellButton {
+                objectName: "addonManagerInstallFromFileButton"
                 text: "Install from File..."
                 enabled: false
             }
 
             ShellButton {
-                objectName: "addonManagerCloseButton"
-                text: "Close"
-                onClicked: controller.requestClose()
+                objectName: "addonManagerRestartRuntimeButton"
+                visible: controller.pendingRestartCount > 0
+                text: "Restart Runtime"
+                enabled: false
+                selectedStyle: visible
+                tooltipText: "Runtime restart wiring is not exposed on this surface yet."
+            }
+
+            Rectangle {
+                Layout.preferredWidth: 1
+                Layout.preferredHeight: 18
+                color: themePalette.border
+                visible: fallbackWorkflowSettingsButton.visible
+            }
+
+            ShellButton {
+                id: fallbackWorkflowSettingsButton
+                objectName: "addonManagerFallbackWorkflowSettingsButton"
+                text: "Workflow Settings"
+                opacity: 0.82
+                tooltipText: "Temporary fallback while add-on-specific settings still live under Workflow Settings."
+                onClicked: controller.requestOpenWorkflowSettings()
             }
         }
     }
@@ -238,7 +292,7 @@ Rectangle {
                                     id: rowCard
                                     objectName: "addonManagerRow"
                                     width: parent.width
-                                    height: 66
+                                    height: 84
                                     color: modelData.selected
                                         ? themePalette.inspector_selected_bg
                                         : themePalette.panel_bg
@@ -267,8 +321,8 @@ Rectangle {
                                         spacing: 10
 
                                         Rectangle {
-                                            Layout.preferredWidth: 26
-                                            Layout.preferredHeight: 26
+                                            Layout.preferredWidth: 28
+                                            Layout.preferredHeight: 28
                                             radius: 4
                                             color: themePalette.node_header_bg
                                             border.color: themePalette.node_card_border
@@ -283,7 +337,7 @@ Rectangle {
 
                                             Text {
                                                 anchors.centerIn: parent
-                                                text: "A"
+                                                text: String(modelData.iconGlyph || "A")
                                                 color: themePalette.node_header_fg
                                                 font.pixelSize: 11
                                                 font.bold: true
@@ -292,23 +346,56 @@ Rectangle {
 
                                         Column {
                                             Layout.fillWidth: true
-                                            spacing: 2
-
-                                            Text {
-                                                objectName: "addonManagerRowTitle"
-                                                width: rowCard.width - 120
-                                                text: String(modelData.displayName || "")
-                                                color: themePalette.panel_title_fg
-                                                font.pixelSize: 12
-                                                font.bold: true
-                                                elide: Text.ElideRight
-                                            }
+                                            spacing: 4
 
                                             Row {
                                                 spacing: 6
 
                                                 Text {
-                                                    text: String(modelData.vendor || "")
+                                                    objectName: "addonManagerRowTitle"
+                                                    width: rowCard.width - 190
+                                                    text: String(modelData.displayName || "")
+                                                    color: themePalette.panel_title_fg
+                                                    font.pixelSize: 12
+                                                    font.bold: true
+                                                    elide: Text.ElideRight
+                                                }
+
+                                                Repeater {
+                                                    model: modelData.stateBadges || []
+
+                                                    delegate: Rectangle {
+                                                        height: 16
+                                                        width: badgeText.implicitWidth + 10
+                                                        radius: 3
+                                                        color: root.badgeFill(String(modelData.tone || "core"))
+                                                        border.color: root.badgeBorder(String(modelData.tone || "core"))
+
+                                                        Text {
+                                                            id: badgeText
+                                                            anchors.centerIn: parent
+                                                            text: String(modelData.label || "")
+                                                            color: root.badgeForeground(String(modelData.tone || "core"))
+                                                            font.pixelSize: 8
+                                                            font.bold: true
+                                                        }
+                                                    }
+                                                }
+                                            }
+
+                                            Text {
+                                                width: rowCard.width - 156
+                                                text: String(modelData.summary || modelData.details || "")
+                                                color: themePalette.app_fg
+                                                font.pixelSize: 10
+                                                elide: Text.ElideRight
+                                            }
+
+                                            Row {
+                                                spacing: 8
+
+                                                Text {
+                                                    text: String(modelData.categoryLabel || "")
                                                         + (String(modelData.version || "").length > 0
                                                             ? " - v" + String(modelData.version || "")
                                                             : "")
@@ -318,27 +405,61 @@ Rectangle {
                                                 }
 
                                                 Text {
-                                                    text: root.statusText(modelData)
-                                                    color: modelData.pendingRestart
-                                                        ? themePalette.edge_warning
-                                                        : (modelData.enabled
-                                                            ? themePalette.run_completed
-                                                            : themePalette.muted_fg)
+                                                    text: String(modelData.nodeCount || 0) + " nodes"
+                                                    color: themePalette.muted_fg
                                                     font.pixelSize: 10
-                                                    font.bold: true
+                                                }
+
+                                                Rectangle {
+                                                    height: 16
+                                                    width: policyBadgeText.implicitWidth + 10
+                                                    radius: 3
+                                                    color: modelData.supportsHotApply
+                                                        ? Qt.alpha(themePalette.run_completed, 0.14)
+                                                        : Qt.alpha(themePalette.edge_warning, 0.14)
+                                                    border.color: modelData.supportsHotApply
+                                                        ? Qt.alpha(themePalette.run_completed, 0.38)
+                                                        : Qt.alpha(themePalette.edge_warning, 0.38)
+
+                                                    Text {
+                                                        id: policyBadgeText
+                                                        anchors.centerIn: parent
+                                                        text: String(modelData.policyBadgeLabel || "")
+                                                        color: modelData.supportsHotApply
+                                                            ? themePalette.run_completed
+                                                            : themePalette.edge_warning
+                                                        font.pixelSize: 8
+                                                        font.bold: true
+                                                    }
                                                 }
                                             }
                                         }
 
-                                        Switch {
-                                            id: rowToggle
-                                            objectName: "addonManagerRowToggle"
-                                            enabled: !modelData.unavailable
-                                            checked: Boolean(modelData.enabled)
-                                            onToggled: controller.setAddonEnabled(
-                                                String(modelData.addonId || ""),
-                                                checked
-                                            )
+                                        Column {
+                                            spacing: 6
+
+                                            Text {
+                                                text: root.statusText(modelData)
+                                                color: modelData.pendingRestart
+                                                    ? themePalette.edge_warning
+                                                    : (modelData.enabled
+                                                        ? themePalette.run_completed
+                                                        : themePalette.muted_fg)
+                                                font.pixelSize: 10
+                                                font.bold: true
+                                                horizontalAlignment: Text.AlignRight
+                                            }
+
+                                            Switch {
+                                                id: rowToggle
+                                                objectName: "addonManagerRowToggle"
+                                                enabled: !modelData.unavailable
+                                                checked: Boolean(modelData.enabled)
+                                                onToggled: controller.setAddonEnabled(
+                                                    String(modelData.addonId || ""),
+                                                    checked
+                                                )
+                                            }
                                         }
                                     }
                                 }
@@ -403,7 +524,7 @@ Rectangle {
 
                                         Text {
                                             anchors.centerIn: parent
-                                            text: "A"
+                                            text: String(selectedAddon.iconGlyph || "A")
                                             color: themePalette.node_header_fg
                                             font.pixelSize: 18
                                             font.bold: true
@@ -432,6 +553,27 @@ Rectangle {
                                                 color: themePalette.muted_fg
                                                 font.pixelSize: 11
                                             }
+
+                                            Repeater {
+                                                model: selectedAddon.statusBadges || []
+
+                                                delegate: Rectangle {
+                                                    height: 18
+                                                    width: detailBadgeText.implicitWidth + 10
+                                                    radius: 3
+                                                    color: root.badgeFill(String(modelData.tone || "core"))
+                                                    border.color: root.badgeBorder(String(modelData.tone || "core"))
+
+                                                    Text {
+                                                        id: detailBadgeText
+                                                        anchors.centerIn: parent
+                                                        text: String(modelData.label || "")
+                                                        color: root.badgeForeground(String(modelData.tone || "core"))
+                                                        font.pixelSize: 8
+                                                        font.bold: true
+                                                    }
+                                                }
+                                            }
                                         }
 
                                         Row {
@@ -452,7 +594,7 @@ Rectangle {
                                                 Text {
                                                     id: policyLabel
                                                     anchors.centerIn: parent
-                                                    text: String(selectedAddon.policyLabel || "")
+                                                    text: String(selectedAddon.policyBadgeLabel || "")
                                                     color: selectedAddon.supportsHotApply
                                                         ? themePalette.run_completed
                                                         : themePalette.edge_warning
@@ -482,6 +624,9 @@ Rectangle {
 
                                         Text {
                                             text: String(selectedAddon.vendor || "")
+                                                + (String(selectedAddon.categoryLabel || "").length > 0
+                                                    ? " - " + String(selectedAddon.categoryLabel || "")
+                                                    : "")
                                                 + (String(selectedAddon.addonId || "").length > 0
                                                     ? " - " + String(selectedAddon.addonId || "")
                                                     : "")
@@ -552,7 +697,7 @@ Rectangle {
                                     }
 
                                     ShellButton {
-                                        text: "Restart Required"
+                                        text: "Restart now"
                                         enabled: false
                                     }
                                 }
@@ -693,25 +838,22 @@ Rectangle {
                                 }
 
                                 GridLayout {
-                                    columns: 4
+                                    columns: 5
                                     rowSpacing: 10
                                     columnSpacing: 10
                                     width: parent.width
 
                                     Repeater {
-                                        model: [
-                                            { "label": "Activation", "value": String(selectedAddon.policyLabel || "") },
-                                            { "label": "Status", "value": String(selectedAddon.statusLabel || "") },
-                                            { "label": "Nodes", "value": String(selectedAddon.nodeCount || 0) },
-                                            { "label": "Dependencies", "value": String((selectedAddon.dependencyItems || []).length) }
-                                        ]
+                                        model: selectedAddon.aboutFacts || []
 
                                         delegate: Rectangle {
                                             Layout.fillWidth: true
                                             Layout.preferredHeight: 76
                                             radius: 6
                                             color: themePalette.inspector_card_bg
-                                            border.color: themePalette.border
+                                            border.color: String(modelData.label || "") === "Activation"
+                                                ? root.rowAccent(selectedAddon)
+                                                : themePalette.border
 
                                             Column {
                                                 anchors.fill: parent
@@ -747,10 +889,47 @@ Rectangle {
                                         spacing: 8
 
                                         Text {
-                                            text: "Availability"
+                                            text: "Python requirement"
                                             color: themePalette.muted_fg
                                             font.pixelSize: 10
                                             font.bold: true
+                                        }
+
+                                        Text {
+                                            width: parent.width
+                                            wrapMode: Text.WordWrap
+                                            text: String(selectedAddon.pythonRequirement || "")
+                                            color: themePalette.app_fg
+                                            font.pixelSize: 12
+                                            font.family: "Consolas"
+                                        }
+                                    }
+                                }
+
+                                Rectangle {
+                                    width: parent.width
+                                    radius: 6
+                                    color: themePalette.inspector_card_bg
+                                    border.color: themePalette.border
+
+                                    Column {
+                                        anchors.fill: parent
+                                        anchors.margins: 12
+                                        spacing: 8
+
+                                        Text {
+                                            text: "Runtime facts"
+                                            color: themePalette.muted_fg
+                                            font.pixelSize: 10
+                                            font.bold: true
+                                        }
+
+                                        Text {
+                                            width: parent.width
+                                            wrapMode: Text.WordWrap
+                                            text: String(selectedAddon.policyCopy || "")
+                                            color: themePalette.app_fg
+                                            font.pixelSize: 12
                                         }
 
                                         Text {
@@ -777,7 +956,7 @@ Rectangle {
                                     delegate: Rectangle {
                                         visible: (selectedAddon.dependencyItems || []).length > 0
                                         width: parent.width
-                                        height: 38
+                                        height: 42
                                         radius: 4
                                         color: themePalette.inspector_card_bg
                                         border.color: themePalette.border
@@ -792,14 +971,25 @@ Rectangle {
                                                 Layout.preferredWidth: 6
                                                 Layout.preferredHeight: 6
                                                 radius: 3
-                                                color: themePalette.run_completed
+                                                color: Boolean(modelData.satisfied)
+                                                    ? themePalette.run_completed
+                                                    : themePalette.edge_warning
                                             }
 
                                             Text {
                                                 Layout.fillWidth: true
-                                                text: String(modelData || "")
+                                                text: String(modelData.name || "")
                                                 color: themePalette.app_fg
                                                 font.pixelSize: 12
+                                            }
+
+                                            Text {
+                                                text: String(modelData.statusLabel || "")
+                                                color: Boolean(modelData.satisfied)
+                                                    ? themePalette.muted_fg
+                                                    : themePalette.edge_warning
+                                                font.pixelSize: 10
+                                                font.family: "Consolas"
                                             }
                                         }
                                     }
@@ -818,6 +1008,34 @@ Rectangle {
                                         text: "No external dependencies declared."
                                         color: themePalette.muted_fg
                                         font.pixelSize: 12
+                                    }
+                                }
+
+                                Rectangle {
+                                    width: parent.width
+                                    radius: 6
+                                    color: themePalette.inspector_card_bg
+                                    border.color: themePalette.border
+
+                                    Column {
+                                        anchors.fill: parent
+                                        anchors.margins: 12
+                                        spacing: 6
+
+                                        Text {
+                                            text: "Availability"
+                                            color: themePalette.muted_fg
+                                            font.pixelSize: 10
+                                            font.bold: true
+                                        }
+
+                                        Text {
+                                            width: parent.width
+                                            wrapMode: Text.WordWrap
+                                            text: String(selectedAddon.availabilitySummary || "")
+                                            color: themePalette.app_fg
+                                            font.pixelSize: 12
+                                        }
                                     }
                                 }
 
@@ -856,15 +1074,24 @@ Rectangle {
                                 width: parent.width
                                 spacing: 8
 
+                                Text {
+                                    visible: (selectedAddon.nodeItems || []).length > 0
+                                    text: "Showing " + String(Math.min((selectedAddon.nodeItems || []).length, selectedAddon.nodeCount || 0))
+                                        + " of " + String(selectedAddon.nodeCount || 0)
+                                        + " descriptors registered by this add-on."
+                                    color: themePalette.muted_fg
+                                    font.pixelSize: 11
+                                }
+
                                 Repeater {
-                                    model: (selectedAddon.providedNodeTypeIds || []).length > 0
-                                        ? selectedAddon.providedNodeTypeIds
+                                    model: (selectedAddon.nodeItems || []).length > 0
+                                        ? selectedAddon.nodeItems
                                         : [""]
 
                                     delegate: Rectangle {
-                                        visible: (selectedAddon.providedNodeTypeIds || []).length > 0
+                                        visible: (selectedAddon.nodeItems || []).length > 0
                                         width: parent.width
-                                        height: 36
+                                        height: 44
                                         radius: 4
                                         color: index % 2 === 0 ? themePalette.panel_bg : themePalette.panel_alt_bg
                                         border.color: themePalette.border
@@ -875,17 +1102,56 @@ Rectangle {
                                             anchors.rightMargin: 12
                                             spacing: 10
 
+                                            Rectangle {
+                                                Layout.preferredWidth: 22
+                                                Layout.preferredHeight: 22
+                                                radius: 4
+                                                color: themePalette.node_header_bg
+                                                border.color: themePalette.node_card_border
+
+                                                Text {
+                                                    anchors.centerIn: parent
+                                                    text: String(modelData.displayName || "").length > 0
+                                                        ? String(modelData.displayName || "").slice(0, 1).toUpperCase()
+                                                        : "N"
+                                                    color: themePalette.node_header_fg
+                                                    font.pixelSize: 10
+                                                    font.bold: true
+                                                }
+                                            }
+
+                                            Column {
+                                                Layout.fillWidth: true
+                                                spacing: 2
+
+                                                Text {
+                                                    text: String(modelData.displayName || "")
+                                                    color: themePalette.app_fg
+                                                    font.pixelSize: 11
+                                                }
+
+                                                Text {
+                                                    text: String(modelData.category || "")
+                                                        + (String(modelData.runtimeBehavior || "").length > 0
+                                                            ? " - " + String(modelData.runtimeBehavior || "")
+                                                            : "")
+                                                    color: themePalette.muted_fg
+                                                    font.pixelSize: 10
+                                                }
+                                            }
+
                                             Text {
-                                                text: String(modelData || "")
-                                                color: themePalette.app_fg
-                                                font.pixelSize: 11
+                                                text: String(modelData.typeId || "")
+                                                color: themePalette.muted_fg
+                                                font.pixelSize: 10
+                                                font.family: "Consolas"
                                             }
                                         }
                                     }
                                 }
 
                                 Rectangle {
-                                    visible: (selectedAddon.providedNodeTypeIds || []).length === 0
+                                    visible: (selectedAddon.nodeItems || []).length === 0
                                     width: parent.width
                                     height: 70
                                     radius: 6
@@ -901,34 +1167,73 @@ Rectangle {
                                 }
                             }
 
-                            Rectangle {
+                            Column {
                                 visible: controller.hasSelection && controller.activeTab === "changelog"
                                 width: parent.width
-                                height: 100
-                                radius: 6
-                                color: themePalette.inspector_card_bg
-                                border.color: themePalette.border
+                                spacing: 10
 
-                                Column {
-                                    anchors.fill: parent
-                                    anchors.margins: 12
-                                    spacing: 6
+                                Repeater {
+                                    model: selectedAddon.changelogEntries || []
 
-                                    Text {
-                                        text: String(selectedAddon.version || "").length > 0
-                                            ? "Current version: v" + String(selectedAddon.version || "")
-                                            : "Current version"
-                                        color: themePalette.panel_title_fg
-                                        font.pixelSize: 12
-                                        font.bold: true
-                                    }
-
-                                    Text {
+                                    delegate: Rectangle {
                                         width: parent.width
-                                        wrapMode: Text.WordWrap
-                                        text: "This build does not publish per-add-on changelog entries yet."
-                                        color: themePalette.muted_fg
-                                        font.pixelSize: 11
+                                        radius: 6
+                                        color: themePalette.inspector_card_bg
+                                        border.color: themePalette.border
+
+                                        Column {
+                                            anchors.fill: parent
+                                            anchors.margins: 12
+                                            spacing: 6
+
+                                            Row {
+                                                spacing: 8
+
+                                                Text {
+                                                    text: String(modelData.versionLabel || "")
+                                                    color: themePalette.accent
+                                                    font.pixelSize: 12
+                                                    font.bold: true
+                                                    font.family: "Consolas"
+                                                }
+
+                                                Text {
+                                                    text: String(modelData.dateLabel || "")
+                                                    color: themePalette.muted_fg
+                                                    font.pixelSize: 11
+                                                }
+                                            }
+
+                                            Text {
+                                                text: String(modelData.title || "")
+                                                color: themePalette.panel_title_fg
+                                                font.pixelSize: 12
+                                                font.bold: true
+                                            }
+
+                                            Repeater {
+                                                model: modelData.bullets || []
+
+                                                delegate: Row {
+                                                    width: parent.width
+                                                    spacing: 8
+
+                                                    Text {
+                                                        text: "-"
+                                                        color: themePalette.muted_fg
+                                                        font.pixelSize: 11
+                                                    }
+
+                                                    Text {
+                                                        width: detailScroll.availableWidth - 90
+                                                        wrapMode: Text.WordWrap
+                                                        text: String(modelData || "")
+                                                        color: themePalette.app_fg
+                                                        font.pixelSize: 11
+                                                    }
+                                                }
+                                            }
+                                        }
                                     }
                                 }
                             }

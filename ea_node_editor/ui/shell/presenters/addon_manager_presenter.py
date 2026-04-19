@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import copy
-import re
 from typing import Any
 
 from ea_node_editor.addons.catalog import ANSYS_DPF_ADDON_ID
@@ -9,60 +8,11 @@ from ea_node_editor.addons.hot_apply import apply_addon_enabled_state
 from ea_node_editor.nodes.plugin_contracts import AddOnRecord
 from ea_node_editor.nodes.plugin_loader import discover_addon_records
 from ea_node_editor.persistence.serializer import JsonProjectSerializer
-
-_VALID_TABS = ("about", "dependencies", "nodes", "changelog")
-_VALID_FILTERS = ("all", "enabled", "disabled")
-_NON_ALNUM_RE = re.compile(r"[^0-9a-z]+")
-
-
-def _canonical_token(value: object) -> str:
-    normalized = str(value or "").strip().lower()
-    return _NON_ALNUM_RE.sub("", normalized)
-
-
-def _normalized_filter(value: object) -> str:
-    normalized = str(value or "").strip().lower()
-    if normalized in _VALID_FILTERS:
-        return normalized
-    return "all"
-
-
-def _normalized_tab(value: object) -> str:
-    normalized = str(value or "").strip().lower()
-    if normalized in _VALID_TABS:
-        return normalized
-    return "about"
-
-
-def _status_label(record: AddOnRecord) -> str:
-    if record.status == "pending_restart":
-        return "Pending restart"
-    if record.status == "disabled":
-        return "Disabled"
-    if record.status == "unavailable":
-        return "Unavailable"
-    return "Loaded"
-
-
-def _policy_label(record: AddOnRecord) -> str:
-    if record.apply_policy == "hot_apply":
-        return "Hot apply"
-    return "Requires restart"
-
-
-def _policy_copy(record: AddOnRecord) -> str:
-    if record.apply_policy == "hot_apply":
-        return "Applies immediately to the live registry."
-    return "Applies after the next COREX restart."
-
-
-def _availability_copy(record: AddOnRecord) -> str:
-    summary = str(record.availability.summary or "").strip()
-    if summary:
-        return summary
-    if record.availability.missing_dependencies:
-        return "Missing dependencies: " + ", ".join(record.availability.missing_dependencies)
-    return "The add-on is available."
+from ._addon_manager_payloads import canonical_token
+from ._addon_manager_payloads import detail_payload
+from ._addon_manager_payloads import normalized_filter
+from ._addon_manager_payloads import normalized_tab
+from ._addon_manager_payloads import row_payload
 
 
 class AddOnManagerPresenter:
@@ -75,6 +25,8 @@ class AddOnManagerPresenter:
         self._status_filter = "all"
         self._last_error = ""
         self._request_serial = 0
+        self._filtered_rows_cache: list[dict[str, Any]] = []
+        self._selected_payload_cache: dict[str, Any] = {}
 
     def bind(self, *, shell_window=None, viewer_host_service=None) -> None:  # noqa: ANN001
         self._shell_window = shell_window
@@ -102,7 +54,7 @@ class AddOnManagerPresenter:
 
     @property
     def row_count(self) -> int:
-        return len(self.filtered_rows())
+        return len(self._filtered_rows_cache)
 
     @property
     def pending_restart_count(self) -> int:
@@ -126,13 +78,10 @@ class AddOnManagerPresenter:
         return None
 
     def filtered_rows(self) -> list[dict[str, Any]]:
-        return [self._row_payload(record) for record in self._filtered_records()]
+        return list(self._filtered_rows_cache)
 
     def selected_payload(self) -> dict[str, Any]:
-        record = self.selected_record()
-        if record is None:
-            return {}
-        return self._detail_payload(record)
+        return dict(self._selected_payload_cache)
 
     def sync_request(self, *, open_: bool, focus_addon_id: str, request_serial: int) -> None:
         self._request_serial = int(request_serial)
@@ -148,6 +97,7 @@ class AddOnManagerPresenter:
         if shell_window is None:
             self._records = ()
             self._selected_addon_id = ""
+            self._rebuild_payload_caches()
             return
         document = (
             shell_window.app_preferences_controller.document()
@@ -165,28 +115,33 @@ class AddOnManagerPresenter:
             self._selected_addon_id = normalized_focus
             self._active_tab = "about"
         self._realign_selection()
+        self._rebuild_payload_caches()
         if self._last_error:
             self._last_error = ""
 
     def set_status_filter(self, filter_id: str) -> None:
-        normalized = _normalized_filter(filter_id)
+        normalized = normalized_filter(filter_id)
         if normalized == self._status_filter:
             return
         self._status_filter = normalized
         self._realign_selection()
+        self._rebuild_payload_caches()
 
     def set_active_tab(self, tab_id: str) -> None:
-        self._active_tab = _normalized_tab(tab_id)
+        self._active_tab = normalized_tab(tab_id)
 
     def select_addon(self, addon_id: str) -> None:
         normalized = self._resolve_focus_addon_id(addon_id)
         if normalized:
             self._selected_addon_id = normalized
+            self._rebuild_payload_caches()
             return
         if any(record.addon_id == addon_id for record in self._records):
             self._selected_addon_id = str(addon_id)
+            self._rebuild_payload_caches()
             return
         self._realign_selection()
+        self._rebuild_payload_caches()
 
     def set_addon_enabled(self, addon_id: str, enabled: bool) -> bool:
         shell_window = self._shell_window
@@ -248,6 +203,19 @@ class AddOnManagerPresenter:
             return
         self._selected_addon_id = self._records[0].addon_id
 
+    def _rebuild_payload_caches(self) -> None:
+        registry = getattr(self._shell_window, "registry", None) if self._shell_window is not None else None
+        self._filtered_rows_cache = [
+            row_payload(record, selected_addon_id=self._selected_addon_id, registry=registry)
+            for record in self._filtered_records()
+        ]
+        record = self.selected_record()
+        self._selected_payload_cache = (
+            {}
+            if record is None
+            else detail_payload(record, selected_addon_id=self._selected_addon_id, registry=registry)
+        )
+
     def _resolve_focus_addon_id(self, addon_id: str) -> str:
         normalized = str(addon_id or "").strip()
         if not normalized:
@@ -261,62 +229,14 @@ class AddOnManagerPresenter:
         }
         if normalized in aliases:
             return aliases[normalized]
-        requested_token = _canonical_token(normalized)
+        requested_token = canonical_token(normalized)
         if not requested_token:
             return ""
         for record in self._records:
-            record_token = _canonical_token(record.addon_id)
+            record_token = canonical_token(record.addon_id)
             if record_token.endswith(requested_token) or requested_token.endswith(record_token):
                 return record.addon_id
         return ""
-
-    def _row_payload(self, record: AddOnRecord) -> dict[str, Any]:
-        return {
-            "addonId": record.addon_id,
-            "displayName": record.display_name,
-            "vendor": record.vendor,
-            "version": record.version,
-            "summary": record.summary,
-            "enabled": bool(record.state.enabled),
-            "status": record.status,
-            "statusLabel": _status_label(record),
-            "applyPolicy": record.apply_policy,
-            "policyLabel": _policy_label(record),
-            "pendingRestart": record.status == "pending_restart",
-            "requiresRestart": record.apply_policy == "restart_required",
-            "supportsHotApply": record.apply_policy == "hot_apply",
-            "available": bool(record.availability.is_available),
-            "unavailable": not record.availability.is_available,
-            "selected": record.addon_id == self._selected_addon_id,
-            "nodeCount": len(record.provided_node_type_ids),
-        }
-
-    def _detail_payload(self, record: AddOnRecord) -> dict[str, Any]:
-        return {
-            "addonId": record.addon_id,
-            "displayName": record.display_name,
-            "vendor": record.vendor,
-            "version": record.version,
-            "summary": record.summary,
-            "details": record.details or record.summary,
-            "enabled": bool(record.state.enabled),
-            "status": record.status,
-            "statusLabel": _status_label(record),
-            "applyPolicy": record.apply_policy,
-            "policyLabel": _policy_label(record),
-            "policyCopy": _policy_copy(record),
-            "pendingRestart": record.status == "pending_restart",
-            "requiresRestart": record.apply_policy == "restart_required",
-            "supportsHotApply": record.apply_policy == "hot_apply",
-            "available": bool(record.availability.is_available),
-            "unavailable": not record.availability.is_available,
-            "availabilitySummary": _availability_copy(record),
-            "dependencyItems": list(record.manifest.dependencies),
-            "missingDependencies": list(record.availability.missing_dependencies),
-            "providedNodeTypeIds": list(record.provided_node_type_ids),
-            "nodeCount": len(record.provided_node_type_ids),
-            "hasChangelog": False,
-        }
 
     def _on_registry_rebuilt(self, rebuilt_registry) -> None:  # noqa: ANN001
         shell_window = self._shell_window
