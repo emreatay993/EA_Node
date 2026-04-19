@@ -19,6 +19,7 @@
 
 ## Target Subsystems
 
+- `ea_node_editor/ui_qml/components/GraphCanvas.qml`
 - `ea_node_editor/ui_qml/components/graph/GraphNodeHost.qml`
 - `ea_node_editor/ui_qml/components/graph/GraphNodeSurfaceLoader.qml`
 - `ea_node_editor/ui_qml/components/graph/GraphNodeHeaderLayer.qml`
@@ -26,6 +27,8 @@
 - `ea_node_editor/ui_qml/components/graph/viewer/GraphViewerSurfaceBody.qml`
 - `ea_node_editor/ui_qml/components/graph_canvas/GraphCanvasContextMenus.qml`
 - `ea_node_editor/ui_qml/components/graph_canvas/GraphCanvasNodeSurfaceBridge.qml`
+- `ea_node_editor/ui_qml/graph_geometry/standard_metrics.py`
+- `ea_node_editor/ui_qml/graph_scene_mutation/alignment_and_distribution_ops.py`
 - `tests/test_graph_surface_input_contract.py`
 - `tests/test_graph_surface_input_controls.py`
 - `tests/test_graph_surface_input_inline.py`
@@ -33,6 +36,7 @@
 
 ## Conservative Write Scope
 
+- `ea_node_editor/ui_qml/components/GraphCanvas.qml`
 - `ea_node_editor/ui_qml/components/graph/GraphNodeHost.qml`
 - `ea_node_editor/ui_qml/components/graph/GraphNodeSurfaceLoader.qml`
 - `ea_node_editor/ui_qml/components/graph/GraphNodeHeaderLayer.qml`
@@ -40,6 +44,8 @@
 - `ea_node_editor/ui_qml/components/graph/viewer/GraphViewerSurfaceBody.qml`
 - `ea_node_editor/ui_qml/components/graph_canvas/GraphCanvasContextMenus.qml`
 - `ea_node_editor/ui_qml/components/graph_canvas/GraphCanvasNodeSurfaceBridge.qml`
+- `ea_node_editor/ui_qml/graph_geometry/standard_metrics.py`
+- `ea_node_editor/ui_qml/graph_scene_mutation/alignment_and_distribution_ops.py`
 - `tests/test_graph_surface_input_contract.py`
 - `tests/test_graph_surface_input_controls.py`
 - `tests/test_graph_surface_input_inline.py`
