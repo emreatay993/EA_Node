@@ -178,11 +178,20 @@ Item {
     readonly property color flowchartDefaultOutlineColor: themeState.flowchartDefaultOutlineColor
     readonly property color flowchartDefaultSelectedOutlineColor: themeState.flowchartDefaultSelectedOutlineColor
     readonly property color flowchartDefaultTextColor: themeState.flowchartDefaultTextColor
-    readonly property color surfaceColor: themeState.surfaceColor
-    readonly property color outlineColor: themeState.outlineColor
+    // readonly property color surfaceColor: themeState.surfaceColor
+    readonly property color surfaceColor: card.lockedPlaceholderActive
+        ? card.lockedPlaceholderSurfaceColor
+        : themeState.surfaceColor
+    readonly property color outlineColor: card.lockedPlaceholderActive
+        ? card.lockedPlaceholderOutlineColor
+        : themeState.outlineColor
     readonly property color selectedOutlineColor: themeState.selectedOutlineColor
-    readonly property color headerColor: themeState.headerColor
-    readonly property color headerTextColor: themeState.headerTextColor
+    readonly property color headerColor: card.lockedPlaceholderActive
+        ? card.lockedPlaceholderHeaderColor
+        : themeState.headerColor
+    readonly property color headerTextColor: card.lockedPlaceholderActive
+        ? card.lockedPlaceholderHeaderTextColor
+        : themeState.headerTextColor
     readonly property color scopeBadgeColor: themeState.scopeBadgeColor
     readonly property color scopeBadgeBorderColor: themeState.scopeBadgeBorderColor
     readonly property color scopeBadgeTextColor: themeState.scopeBadgeTextColor
@@ -193,7 +202,9 @@ Item {
     readonly property color inlineInputBackgroundColor: themeState.inlineInputBackgroundColor
     readonly property color inlineInputBorderColor: themeState.inlineInputBorderColor
     readonly property color inlineDrivenTextColor: themeState.inlineDrivenTextColor
-    readonly property color portLabelColor: themeState.portLabelColor
+    readonly property color portLabelColor: card.lockedPlaceholderActive
+        ? card.lockedPlaceholderLabelColor
+        : themeState.portLabelColor
     readonly property color portInteractiveFillColor: themeState.portInteractiveFillColor
     readonly property color portInteractiveBorderColor: themeState.portInteractiveBorderColor
     readonly property color portInteractiveRingFillColor: themeState.portInteractiveRingFillColor
@@ -229,13 +240,52 @@ Item {
         card._liveGeometryActive ? card._liveHeight : (card.nodeData ? card.nodeData.height : undefined),
         card.effectiveGraphLabelPixelSize
     )
-    readonly property bool surfaceInteractionLocked: Boolean(surfaceLoader.blocksHostInteraction)
+    readonly property bool graphReadOnly: !!nodeData && Boolean(nodeData.read_only)
+    readonly property bool lockedPlaceholderActive: graphReadOnly && !!nodeData && Boolean(nodeData.unresolved)
+    readonly property var lockedStatePayload: lockedPlaceholderActive && nodeData && nodeData.locked_state
+        ? nodeData.locked_state
+        : ({})
+    readonly property string lockedPlaceholderReason: String(lockedStatePayload.reason || "")
+    readonly property string lockedPlaceholderLabel: String(lockedStatePayload.label || "Requires add-on")
+    readonly property string lockedPlaceholderSummary: String(
+        lockedStatePayload.summary
+        || (nodeData ? nodeData.unavailable_reason || "" : "")
+    )
+    readonly property string lockedPlaceholderFocusAddonId: String(
+        lockedStatePayload.focus_addon_id
+        || (nodeData ? nodeData.addon_id || "" : "")
+    )
+    readonly property string lockedPlaceholderAddonName: String(
+        (nodeData ? nodeData.addon_display_name || "" : "")
+        || lockedPlaceholderFocusAddonId
+    )
+    readonly property string lockedPlaceholderAddonVersion: String(nodeData ? nodeData.addon_version || "" : "")
+    readonly property string lockedPlaceholderPackageText: {
+        var addonName = String(card.lockedPlaceholderAddonName || "");
+        var addonVersion = String(card.lockedPlaceholderAddonVersion || "");
+        if (!addonVersion.length)
+            return addonName;
+        if (!addonName.length)
+            return "v" + addonVersion;
+        return addonName + " v" + addonVersion;
+    }
+    readonly property bool lockedPlaceholderManagerAvailable: typeof addonManagerBridge !== "undefined"
+        && addonManagerBridge
+        && addonManagerBridge.requestOpen
+        && card.lockedPlaceholderFocusAddonId.length > 0
+    readonly property color lockedPlaceholderSurfaceColor: "#161b23"
+    readonly property color lockedPlaceholderOutlineColor: "#5b6474"
+    readonly property color lockedPlaceholderHeaderColor: "#2d3543"
+    readonly property color lockedPlaceholderHeaderTextColor: "#e7edf8"
+    readonly property color lockedPlaceholderLabelColor: "#b0bacb"
+    readonly property bool surfaceInteractionLocked: card.graphReadOnly || Boolean(surfaceLoader.blocksHostInteraction)
     readonly property var viewerSurfaceContract: surfaceLoader.viewerSurfaceContract
     readonly property rect viewerBodyRect: surfaceLoader.viewerBodyRect
     readonly property rect viewerProxySurfaceRect: surfaceLoader.viewerProxySurfaceRect
     readonly property rect viewerLiveSurfaceRect: surfaceLoader.viewerLiveSurfaceRect
     readonly property var viewerBridgeBinding: surfaceLoader.viewerBridgeBinding
     readonly property var viewerInteractiveRects: surfaceLoader.viewerInteractiveRects
+    readonly property rect lockedPlaceholderActionRect: surfaceLoader.lockedPlaceholderActionRect
     readonly property bool isCollapsed: !!nodeData && !!nodeData.collapsed
     readonly property color color: card._useHostChrome ? card.surfaceColor : "transparent"
     readonly property real radius: card._useHostChrome ? card.resolvedCornerRadius : 0
@@ -339,8 +389,8 @@ Item {
     }
     readonly property real inlineBodyHeight: Number(surfaceMetrics.body_height)
     readonly property real _portDragThreshold: 2
-    readonly property bool canEnterScope: !!card.nodeData && !!card.nodeData.can_enter_scope
-    readonly property bool sharedHeaderTitleEditable: !!card.nodeData
+    readonly property bool canEnterScope: !!card.nodeData && !!card.nodeData.can_enter_scope && !card.graphReadOnly
+    readonly property bool sharedHeaderTitleEditable: !!card.nodeData && !card.graphReadOnly
     readonly property bool flowchartTitleEditable: card.isFlowchartSurface && card.sharedHeaderTitleEditable
     readonly property bool _useHostChrome: chromeLayout.useHostChrome
     readonly property bool _showAccentBar: chromeLayout.showAccentBar
@@ -585,6 +635,19 @@ Item {
         return minutes + "m " + (seconds < 10 ? "0" : "") + seconds + "s";
     }
 
+    function lockedPlaceholderActionContains(localX, localY) {
+        if (!card.lockedPlaceholderActive || !card.lockedPlaceholderManagerAvailable)
+            return false;
+        return card._pointInRect(localX, localY, card.lockedPlaceholderActionRect);
+    }
+
+    function requestLockedPlaceholderManager() {
+        if (!card.lockedPlaceholderManagerAvailable)
+            return false;
+        addonManagerBridge.requestOpen(card.lockedPlaceholderFocusAddonId);
+        return true;
+    }
+
     HoverHandler {
         id: cardHoverHandler
     }
@@ -627,6 +690,19 @@ Item {
     // via card.surfaceActions; availableActions is the concatenation.
     readonly property var commonNodeActions: {
         var actions = [];
+        if (card.graphReadOnly) {
+            if (card.lockedPlaceholderActive) {
+                actions.push({
+                    id: "openAddonManager",
+                    label: "Add-On Manager",
+                    icon: "open-session",
+                    kind: "common",
+                    enabled: card.lockedPlaceholderManagerAvailable,
+                    primary: true,
+                });
+            }
+            return actions;
+        }
         actions.push({
             id: "rename",
             label: "Rename",
@@ -724,10 +800,19 @@ Item {
     function dispatchNodeAction(actionId, payload) {
         if (!card.nodeData)
             return;
-        card.nodeActionRequested(String(card.nodeData.node_id || ""), String(actionId || ""), payload || null);
+        var normalized = String(actionId || "");
+        if (normalized === "openAddonManager") {
+            card.requestLockedPlaceholderManager();
+            return;
+        }
+        if (card.graphReadOnly)
+            return;
+        card.nodeActionRequested(String(card.nodeData.node_id || ""), normalized, payload || null);
     }
 
     function dispatchSurfaceAction(actionId) {
+        if (card.graphReadOnly)
+            return false;
         if (!surfaceLoader || !surfaceLoader.dispatchSurfaceAction)
             return false;
         return Boolean(surfaceLoader.dispatchSurfaceAction(actionId));
@@ -857,6 +942,50 @@ Item {
     GraphNodePortsLayer {
         anchors.fill: parent
         host: card
+    }
+
+    MouseArea {
+        id: lockedNodeOverlay
+        objectName: "graphNodeLockedOverlay"
+        visible: !!card.nodeData && card.graphReadOnly
+        enabled: visible
+        anchors.fill: parent
+        z: 6
+        acceptedButtons: Qt.LeftButton | Qt.RightButton
+        hoverEnabled: true
+        preventStealing: true
+        cursorShape: card.lockedPlaceholderActionContains(mouseX, mouseY)
+            ? Qt.PointingHandCursor
+            : Qt.ArrowCursor
+
+        onPressed: function(mouse) {
+            if (!card.nodeData)
+                return;
+            if (mouse.button === Qt.RightButton) {
+                card.nodeContextRequested(card.nodeData.node_id, mouse.x, mouse.y);
+                mouse.accepted = true;
+                return;
+            }
+            mouse.accepted = true;
+        }
+
+        onClicked: function(mouse) {
+            if (!card.nodeData || mouse.button !== Qt.LeftButton)
+                return;
+            var additive = Boolean((mouse.modifiers & Qt.ControlModifier) || (mouse.modifiers & Qt.ShiftModifier));
+            card.nodeClicked(card.nodeData.node_id, additive);
+            if (card.lockedPlaceholderActionContains(mouse.x, mouse.y))
+                card.requestLockedPlaceholderManager();
+            mouse.accepted = true;
+        }
+
+        onDoubleClicked: function(mouse) {
+            if (mouse.button !== Qt.LeftButton)
+                return;
+            if (card.lockedPlaceholderActionContains(mouse.x, mouse.y))
+                card.requestLockedPlaceholderManager();
+            mouse.accepted = true;
+        }
     }
 
     GraphNodeResizeHandle {

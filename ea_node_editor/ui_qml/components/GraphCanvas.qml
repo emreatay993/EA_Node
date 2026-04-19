@@ -66,6 +66,7 @@ Item {
     readonly property bool viewportInteractionWorldCacheActive: rootBindings.viewportInteractionWorldCacheActive
     readonly property bool highQualityRendering: rootBindings.highQualityRendering
     readonly property int interactionIdleDelayMs: 2000
+    readonly property int transientRecoveryDelayMs: 150
     readonly property real wireDragThreshold: 2
     readonly property real boxZoomDragThreshold: 4
     readonly property real boxZoomPaddingPx: 24
@@ -93,7 +94,7 @@ Item {
         sceneBridge: root.sceneStateBridge
         edgeLayerItem: rootLayers.edgeLayerItem
         interactionIdleTimer: interactionIdleTimer
-        interactionIdleDelayMs: root.interactionIdleDelayMs
+        interactionIdleDelayMs: root.transientRecoveryDelayMs
         wireDragThreshold: root.wireDragThreshold
     }
 
@@ -169,7 +170,7 @@ Item {
 
     Timer {
         id: structuralMutationIdleTimer
-        interval: root.interactionIdleDelayMs
+        interval: root.transientRecoveryDelayMs
         repeat: false
         onTriggered: canvasPerformancePolicy.mutationBurstActive = false
     }
@@ -202,7 +203,7 @@ Item {
 
     Timer {
         id: interactionIdleTimer
-        interval: root.interactionIdleDelayMs
+        interval: root.transientRecoveryDelayMs
         repeat: false
         onTriggered: interactionState.endViewportInteraction()
     }

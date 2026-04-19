@@ -18,6 +18,7 @@ Item {
     readonly property bool commentTitleIconVisible: host
         ? root.isCommentBackdropNode && host.isCollapsed
         : false
+    readonly property bool lockedPlaceholderActive: host ? Boolean(host.lockedPlaceholderActive) : false
     readonly property int commentTitleIconSize: 14
     readonly property int commentTitleIconSpacing: 6
     readonly property real _titleBandHeight: root.host ? Math.max(0, Number(root.host._titleHeight)) : 0
@@ -53,7 +54,8 @@ Item {
     readonly property real _titleLeadingIconReserveWidth: root.commentTitleIconVisible
         ? root._commentTitleIconReserveWidth
         : root._nodeTitleIconReserveWidth
-    readonly property real _headerBadgeReserveWidth: (root.host && root.host.canEnterScope ? 56 : 0)
+    readonly property real _headerBadgeReserveWidth: (root.lockedPlaceholderActive ? 82 : 0)
+        + (root.host && root.host.canEnterScope ? 56 : 0)
         + (root.host && root.host.isFailedNode ? 70 : 0)
     readonly property string currentTitle: root.host && root.host.nodeData
         ? String(root.host.nodeData.title || "")
@@ -180,13 +182,47 @@ Item {
     }
 
     Rectangle {
-        visible: root.host ? root.host._showAccentBar : false
+        visible: root.host ? (root.host._showAccentBar && !root.lockedPlaceholderActive) : false
         anchors.left: parent.left
         anchors.right: parent.right
         anchors.top: parent.top
         height: 4
         radius: 4
         color: root.host && root.host.nodeData ? root.host.nodeData.accent : "#4AA9D6"
+    }
+
+    Loader {
+        id: lockedAccentStripeLoader
+        active: root.host ? (root.host._showAccentBar && root.lockedPlaceholderActive) : false
+        anchors.left: parent.left
+        anchors.right: parent.right
+        anchors.top: parent.top
+        height: 4
+        sourceComponent: Component {
+            Canvas {
+                objectName: "graphNodeLockedAccentStripe"
+                antialiasing: false
+
+                onPaint: {
+                    var ctx = getContext("2d");
+                    ctx.clearRect(0, 0, width, height);
+                    if (width <= 0 || height <= 0)
+                        return;
+                    var dashWidth = 10;
+                    var gapWidth = 6;
+                    var fill = root.host && root.host.nodeData
+                        ? String(Qt.alpha(root.host.nodeData.accent || "#4AA9D6", 0.90))
+                        : "#7f96b8";
+                    ctx.fillStyle = fill;
+                    for (var x = 0; x < width; x += dashWidth + gapWidth)
+                        ctx.fillRect(x, 0, Math.min(dashWidth, width - x), height);
+                }
+
+                Component.onCompleted: requestPaint()
+                onWidthChanged: requestPaint()
+                onHeightChanged: requestPaint()
+            }
+        }
     }
 
     Rectangle {
@@ -341,8 +377,10 @@ Item {
         id: failureBadge
         objectName: "graphNodeFailureBadge"
         visible: root.host ? root.host.isFailedNode : false
-        anchors.right: openBadge.visible ? openBadge.left : parent.right
-        anchors.rightMargin: openBadge.visible ? 6 : 8
+        anchors.right: openBadge.visible
+            ? openBadge.left
+            : (lockedBadge.visible ? lockedBadge.left : parent.right)
+        anchors.rightMargin: openBadge.visible || lockedBadge.visible ? 6 : 8
         y: root.host ? root.host._titleTop + Math.max(0, (root.host._titleHeight - height) * 0.5) : 0
         width: 62
         height: 18
@@ -356,6 +394,30 @@ Item {
             anchors.centerIn: parent
             text: "HALTED"
             color: root.host ? root.host.failureBadgeTextColor : "#FFE5DE"
+            font.pixelSize: root.graphSharedTypography ? root.graphSharedTypography.badgePixelSize : 9
+            font.weight: root.graphSharedTypography ? root.graphSharedTypography.badgeFontWeight : Font.Bold
+            renderType: root.host ? root.host.nodeTextRenderType : Text.CurveRendering
+        }
+    }
+
+    Rectangle {
+        id: lockedBadge
+        objectName: "graphNodeLockedChip"
+        visible: root.lockedPlaceholderActive
+        anchors.right: openBadge.visible ? openBadge.left : parent.right
+        anchors.rightMargin: openBadge.visible ? 6 : 8
+        y: root.host ? root.host._titleTop + Math.max(0, (root.host._titleHeight - height) * 0.5) : 0
+        width: 74
+        height: 18
+        radius: 9
+        color: "#233146"
+        border.color: "#6b88ba"
+
+        Text {
+            objectName: "graphNodeLockedChipText"
+            anchors.centerIn: parent
+            text: "LOCKED"
+            color: root.host ? root.host.headerTextColor : "#eef3ff"
             font.pixelSize: root.graphSharedTypography ? root.graphSharedTypography.badgePixelSize : 9
             font.weight: root.graphSharedTypography ? root.graphSharedTypography.badgeFontWeight : Font.Bold
             renderType: root.host ? root.host.nodeTextRenderType : Text.CurveRendering
