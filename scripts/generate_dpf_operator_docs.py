@@ -31,25 +31,16 @@ from ansys.dpf.core.documentation.generate_operators_doc import (
 )
 from ansys.dpf.core.dpf_operator import available_operator_names
 from ansys.dpf.core.documentation import generate_operators_doc as _gen_module
+from ea_node_editor.addons.ansys_dpf.doc_generation import (
+    _DOC_INDEX_FILENAME,
+    _UNCATEGORIZED,
+    operator_doc_relative_path,
+    sanitize_operator_doc_filename,
+)
 
 _TEMPLATE_DIR = Path(_gen_module.__file__).parent
 _OPERATOR_TEMPLATE = _TEMPLATE_DIR / "operator_doc_template.j2"
 _TOC_TEMPLATE = _TEMPLATE_DIR / "toc_template.j2"
-_WINDOWS_INVALID = '<>:"/\\|?*'
-_UNCATEGORIZED = "_uncategorized"
-_DOC_INDEX_FILENAME = "doc_index.json"
-
-
-def _sanitize_filename(name: str) -> str:
-    name = name.replace("::", "_")
-    for bad in _WINDOWS_INVALID:
-        name = name.replace(bad, "_")
-    return name
-
-
-def _operator_doc_relative_path(operator_name: str, scripting_name: str, category: str) -> str:
-    file_name = _sanitize_filename(scripting_name or operator_name)
-    return f"{category or _UNCATEGORIZED}/{file_name}.md"
 
 
 def _write_operator_page(
@@ -81,12 +72,16 @@ def _write_operator_page(
 
     scripting_name = info["scripting_info"]["scripting_name"]
     category = info["scripting_info"]["category"] or _UNCATEGORIZED
-    file_name = _sanitize_filename(scripting_name or operator_name)
+    file_name = sanitize_operator_doc_filename(scripting_name or operator_name)
 
     category_dir = output_path / "operator-specifications" / category
     category_dir.mkdir(parents=True, exist_ok=True)
     (category_dir / f"{file_name}.md").write_text(template.render(info), encoding="utf-8")
-    index[operator_name] = f"{category}/{file_name}.md"
+    index[operator_name] = operator_doc_relative_path(
+        operator_name=operator_name,
+        scripting_name=scripting_name,
+        category=category,
+    )
 
 
 def _write_doc_index(output_path: Path, index: dict[str, str]) -> None:

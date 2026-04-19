@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from ea_node_editor.nodes.builtins import ansys_dpf_catalog
+from ea_node_editor.addons.ansys_dpf import catalog as ansys_dpf_catalog
 
 _CATALOG_EXPORTS = {
     "ANSYS_DPF_DEPENDENCY",

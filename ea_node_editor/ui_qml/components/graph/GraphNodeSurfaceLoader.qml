@@ -18,6 +18,7 @@ Item {
     readonly property string resolvedQualityTier: host ? host.resolvedQualityTier : "full"
     readonly property bool proxySurfaceRequested: host ? Boolean(host.proxySurfaceRequested) : false
     readonly property bool renderActive: host ? Boolean(host.renderActive) : true
+    readonly property bool hostReadOnly: host ? Boolean(host.graphReadOnly) : false
     readonly property bool surfaceLoaded: !!loader.item
     readonly property bool proxySurfaceActive: proxySurfaceRequested && loader.item
         ? Boolean(loader.item.proxySurfaceActive)
@@ -82,19 +83,30 @@ Item {
             return Number(host.surfaceMetrics.body_height || 0.0);
         return 0.0;
     }
-    readonly property bool blocksHostInteraction: loader.item ? Boolean(loader.item.blocksHostInteraction) : false
+    readonly property bool blocksHostInteraction: hostReadOnly || (loader.item ? Boolean(loader.item.blocksHostInteraction) : false)
+    readonly property rect lockedPlaceholderActionRect: {
+        if (!loader.item || loader.item.lockedPlaceholderActionRect === undefined || loader.item.lockedPlaceholderActionRect === null)
+            return Qt.rect(0.0, 0.0, 0.0, 0.0);
+        return _rectValue(loader.item.lockedPlaceholderActionRect);
+    }
     readonly property var embeddedInteractiveRects: {
+        if (hostReadOnly)
+            return [];
         if (!loader.item || loader.item.embeddedInteractiveRects === undefined || loader.item.embeddedInteractiveRects === null)
             return [];
         return loader.item.embeddedInteractiveRects;
     }
     readonly property var surfaceActions: {
+        if (hostReadOnly)
+            return [];
         if (!loader.item || loader.item.surfaceActions === undefined || loader.item.surfaceActions === null)
             return [];
         return loader.item.surfaceActions;
     }
 
     function dispatchSurfaceAction(actionId) {
+        if (hostReadOnly)
+            return false;
         if (loader.item && loader.item.dispatchSurfaceAction)
             return Boolean(loader.item.dispatchSurfaceAction(actionId));
         return false;
@@ -155,6 +167,8 @@ Item {
         anchors.fill: parent
         active: !!root.host && !!root.nodeData && !Boolean(root.nodeData.collapsed) && root.renderActive
         sourceComponent: {
+            if (root.host && root.host.lockedPlaceholderActive)
+                return lockedPlaceholderComponent;
             if (root.loadedSurfaceKey === "flowchart")
                 return flowchartSurfaceComponent;
             if (root.loadedSurfaceKey === "planning")
@@ -168,6 +182,101 @@ Item {
             if (root.loadedSurfaceKey === "viewer")
                 return viewerSurfaceComponent;
             return standardSurfaceComponent;
+        }
+    }
+
+    Component {
+        id: lockedPlaceholderComponent
+
+        Item {
+            id: lockedPlaceholderSurface
+            objectName: "graphNodeLockedPlaceholderSurface"
+            property Item host: root.host
+            readonly property var metrics: host && host.surfaceMetrics ? host.surfaceMetrics : ({})
+            readonly property real bodyLeftMargin: Math.max(0.0, Number(metrics.body_left_margin || 0.0))
+            readonly property real bodyRightMargin: Math.max(0.0, Number(metrics.body_right_margin || 0.0))
+            readonly property real bodyTop: Math.max(0.0, Number(metrics.body_top || 0.0))
+            readonly property real bodyHeight: Math.max(0.0, Number(metrics.body_height || 0.0))
+            readonly property real ribbonHeight: Math.max(24.0, Math.min(32.0, bodyHeight > 0.0 ? bodyHeight - 2.0 : 28.0))
+            readonly property real ribbonWidth: Math.max(0.0, width - bodyLeftMargin - bodyRightMargin)
+            readonly property real ribbonY: bodyTop + Math.max(0.0, (bodyHeight - ribbonHeight) * 0.5)
+            readonly property rect lockedPlaceholderActionRect: openManagerButton.visible
+                ? Qt.rect(
+                    ribbon.x + openManagerButton.x,
+                    ribbon.y + openManagerButton.y,
+                    openManagerButton.width,
+                    openManagerButton.height
+                )
+                : Qt.rect(0.0, 0.0, 0.0, 0.0)
+            readonly property bool blocksHostInteraction: true
+            readonly property var embeddedInteractiveRects: []
+            readonly property var surfaceActions: []
+
+            Rectangle {
+                id: ribbon
+                objectName: "graphNodeLockedPlaceholderRibbon"
+                x: lockedPlaceholderSurface.bodyLeftMargin
+                y: lockedPlaceholderSurface.ribbonY
+                width: lockedPlaceholderSurface.ribbonWidth
+                height: lockedPlaceholderSurface.ribbonHeight
+                radius: 6
+                color: "#1d2430"
+                border.width: 1
+                border.color: "#4e596d"
+
+                Text {
+                    id: lockedLabel
+                    objectName: "graphNodeLockedPlaceholderLabel"
+                    anchors.left: parent.left
+                    anchors.leftMargin: 10
+                    anchors.verticalCenter: parent.verticalCenter
+                    text: host ? host.lockedPlaceholderLabel : "Requires add-on"
+                    color: host ? host.headerTextColor : "#e7edf8"
+                    font.pixelSize: 10
+                    font.bold: true
+                    renderType: host ? host.nodeTextRenderType : Text.CurveRendering
+                }
+
+                Text {
+                    id: packageLabel
+                    objectName: "graphNodeLockedPlaceholderPackage"
+                    anchors.left: lockedLabel.right
+                    anchors.leftMargin: 8
+                    anchors.right: openManagerButton.visible ? openManagerButton.left : parent.right
+                    anchors.rightMargin: openManagerButton.visible ? 8 : 10
+                    anchors.verticalCenter: parent.verticalCenter
+                    text: host ? host.lockedPlaceholderPackageText : ""
+                    color: host ? host.portLabelColor : "#b0bacb"
+                    font.pixelSize: 10
+                    elide: Text.ElideRight
+                    renderType: host ? host.nodeTextRenderType : Text.CurveRendering
+                }
+
+                Rectangle {
+                    id: openManagerButton
+                    objectName: "graphNodeLockedPlaceholderButton"
+                    visible: host ? host.lockedPlaceholderManagerAvailable : false
+                    anchors.right: parent.right
+                    anchors.rightMargin: 6
+                    anchors.verticalCenter: parent.verticalCenter
+                    width: Math.max(44, Math.ceil(openManagerButtonText.implicitWidth) + 10)
+                    height: Math.max(20, parent.height - 8)
+                    radius: 5
+                    color: "transparent"
+                    border.width: 0
+
+                    Text {
+                        id: openManagerButtonText
+                        objectName: "graphNodeLockedPlaceholderButtonText"
+                        anchors.centerIn: parent
+                        text: "Load..."
+                        color: "#60cdff"
+                        font.pixelSize: 10
+                        font.bold: true
+                        renderType: host ? host.nodeTextRenderType : Text.CurveRendering
+                    }
+                }
+            }
         }
     }
 

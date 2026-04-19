@@ -14,9 +14,12 @@ from ea_node_editor.ui.shell.runtime_clipboard import (
     build_graph_fragment_payload,
     serialize_graph_fragment_payload,
 )
+from ea_node_editor.ui.shell.composition import AddonManagerBridge
+from ea_node_editor.ui.shell.presenters.addon_manager_presenter import AddOnManagerPresenter
 from ea_node_editor.ui_qml.content_fullscreen_bridge import ContentFullscreenBridge
 from ea_node_editor.ui_qml.graph_canvas_command_bridge import GraphCanvasCommandBridge
 from ea_node_editor.ui_qml.graph_canvas_state_bridge import GraphCanvasStateBridge
+from ea_node_editor.ui_qml.shell_addon_manager_bridge import ShellAddOnManagerBridge
 from ea_node_editor.ui_qml.shell_inspector_bridge import ShellInspectorBridge
 from ea_node_editor.ui_qml.shell_library_bridge import ShellLibraryBridge
 from ea_node_editor.ui_qml.shell_workspace_bridge import ShellWorkspaceBridge
@@ -142,6 +145,7 @@ class MainWindowShellContextBootstrapTests(SharedMainWindowShellTestBase):
             "shellLibraryBridge",
             "shellWorkspaceBridge",
             "shellInspectorBridge",
+            "addonManagerBridge",
             "graphCanvasStateBridge",
             "graphCanvasCommandBridge",
             "graphCanvasViewBridge",
@@ -183,6 +187,13 @@ class MainWindowShellContextBootstrapTests(SharedMainWindowShellTestBase):
         self.assertIs(shell_inspector_bridge.shell_window, self.window)
         self.assertIs(shell_inspector_bridge.inspector_source, self.window.shell_inspector_presenter)
         self.assertIs(shell_inspector_bridge.scene_bridge, self.window.scene)
+
+        addon_manager_bridge = context.contextProperty("addonManagerBridge")
+        self.assertIsInstance(addon_manager_bridge, AddonManagerBridge)
+        self.assertIs(addon_manager_bridge.parent(), self.window)
+        self.assertFalse(addon_manager_bridge.open)
+        self.assertEqual(addon_manager_bridge.focusAddonId, "")
+        self.assertEqual(addon_manager_bridge.requestSerial, self.window.addon_manager_request_serial)
 
         graph_canvas_state_bridge = context.contextProperty("graphCanvasStateBridge")
         self.assertIsInstance(graph_canvas_state_bridge, GraphCanvasStateBridge)
@@ -228,12 +239,76 @@ class MainWindowShellContextBootstrapTests(SharedMainWindowShellTestBase):
         self.assertIs(context_bindings["shellLibraryBridge"], shell_library_bridge)
         self.assertIs(context_bindings["shellWorkspaceBridge"], shell_workspace_bridge)
         self.assertIs(context_bindings["shellInspectorBridge"], shell_inspector_bridge)
+        self.assertIs(context_bindings["addonManagerBridge"], addon_manager_bridge)
         self.assertIs(context_bindings["graphCanvasStateBridge"], graph_canvas_state_bridge)
         self.assertIs(context_bindings["graphCanvasCommandBridge"], graph_canvas_command_bridge)
         self.assertIs(context_bindings["graphCanvasViewBridge"], graph_canvas_view_bridge)
         self.assertIs(context_bindings["contentFullscreenBridge"], content_fullscreen_bridge)
         self.assertIs(context_bindings["viewerSessionBridge"], viewer_session_bridge)
         self.assertIs(context_bindings["viewerHostService"], viewer_host_service)
+
+        root_object = self.window.quick_widget.rootObject()
+        self.assertIsNotNone(root_object)
+        if root_object is None:
+            self.fail("Expected the shell root object to be available.")
+
+        addon_surface = root_object.findChild(QObject, "addonManagerPane")
+        addon_surface_bridge = root_object.findChild(QObject, "shellAddOnManagerBridge")
+        self.assertIsNotNone(addon_surface)
+        self.assertIsNotNone(addon_surface_bridge)
+        self.assertIsInstance(addon_surface_bridge, ShellAddOnManagerBridge)
+
+    def test_addon_manager_bridge_tracks_shell_open_request_contract(self) -> None:
+        context = self.window.quick_widget.rootContext()
+        bridge = context.contextProperty("addonManagerBridge")
+        initial_serial = int(bridge.requestSerial)
+
+        self.assertIsInstance(bridge, AddonManagerBridge)
+        self.assertEqual(
+            bridge.request,
+            {
+                "open": False,
+                "focus_addon_id": "",
+                "request_serial": initial_serial,
+            },
+        )
+
+        self.window.request_open_addon_manager("ansys.dpf")
+        self.app.processEvents()
+
+        self.assertTrue(bridge.open)
+        self.assertEqual(bridge.focusAddonId, "ansys.dpf")
+        self.assertEqual(bridge.requestSerial, initial_serial + 1)
+        self.assertEqual(
+            bridge.request,
+            {
+                "open": True,
+                "focus_addon_id": "ansys.dpf",
+                "request_serial": initial_serial + 1,
+            },
+        )
+
+        bridge.requestOpen("ansys.dpf")
+        self.app.processEvents()
+
+        self.assertTrue(bridge.open)
+        self.assertEqual(bridge.focusAddonId, "ansys.dpf")
+        self.assertEqual(bridge.requestSerial, initial_serial + 2)
+
+        bridge.requestClose()
+        self.app.processEvents()
+
+        self.assertFalse(bridge.open)
+        self.assertEqual(bridge.focusAddonId, "")
+        self.assertEqual(bridge.requestSerial, initial_serial + 2)
+        self.assertEqual(
+            bridge.request,
+            {
+                "open": False,
+                "focus_addon_id": "",
+                "request_serial": initial_serial + 2,
+            },
+        )
 
     def test_content_fullscreen_bridge_context_property_registers_shell_owned_contract(self) -> None:
         context = self.window.quick_widget.rootContext()
@@ -279,6 +354,7 @@ class PresenterPackageBoundaryTests(unittest.TestCase):
         self.assertTrue(str(module.__file__ or "").replace("\\", "/").endswith("/ui/shell/presenters/__init__.py"))
 
         expected_exports = {
+            "AddOnManagerPresenter",
             "GraphCanvasHostPresenter",
             "GraphCanvasPresenter",
             "ShellInspectorPresenter",
@@ -292,9 +368,11 @@ class PresenterPackageBoundaryTests(unittest.TestCase):
         for name in expected_exports:
             with self.subTest(name=name):
                 self.assertTrue(hasattr(module, name))
+        self.assertIs(AddOnManagerPresenter, getattr(module, "AddOnManagerPresenter"))
 
         for relative_path, max_lines in {
             "__init__.py": 120,
+            "addon_manager_presenter.py": 450,
             "library_presenter.py": 450,
             "workspace_presenter.py": 450,
             "inspector_presenter.py": 450,

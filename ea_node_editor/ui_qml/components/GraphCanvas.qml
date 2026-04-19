@@ -35,6 +35,7 @@ Item {
     readonly property var completedNodeLookup: rootBindings.completedNodeLookup
     readonly property bool hideLockedPorts: rootBindings.hideLockedPorts
     readonly property bool hideOptionalPorts: rootBindings.hideOptionalPorts
+    readonly property var sceneNodesModel: root.sceneStateBridge ? root.sceneStateBridge.nodes_model : []
     readonly property var runningNodeStartedAtMsLookup: rootBindings.runningNodeStartedAtMsLookup
     readonly property var nodeElapsedMsLookup: rootBindings.nodeElapsedMsLookup
     readonly property var progressedExecutionEdgeLookup: rootBindings.progressedExecutionEdgeLookup
@@ -66,6 +67,7 @@ Item {
     readonly property bool viewportInteractionWorldCacheActive: rootBindings.viewportInteractionWorldCacheActive
     readonly property bool highQualityRendering: rootBindings.highQualityRendering
     readonly property int interactionIdleDelayMs: 2000
+    readonly property int transientRecoveryDelayMs: 150
     readonly property real wireDragThreshold: 2
     readonly property real boxZoomDragThreshold: 4
     readonly property real boxZoomPaddingPx: 24
@@ -76,6 +78,63 @@ Item {
     readonly property real minimapCollapsedWidth: 28
     readonly property real minimapCollapsedHeight: 28
     readonly property string gridStyle: rootBindings.gridStyle
+    readonly property var lockedNodeStatusSummary: {
+        var payloads = root.sceneNodesModel || [];
+        var lockedNodeCount = 0;
+        var focusAddonIds = [];
+        var seenFocusAddonIds = ({});
+        for (var index = 0; index < payloads.length; ++index) {
+            var payload = payloads[index];
+            if (!payload || !Boolean(payload.read_only) || !Boolean(payload.unresolved))
+                continue;
+            lockedNodeCount += 1;
+            var lockedState = payload.locked_state || ({});
+            var focusAddonId = String(lockedState.focus_addon_id || payload.addon_id || "").trim();
+            if (!focusAddonId.length || seenFocusAddonIds[focusAddonId])
+                continue;
+            seenFocusAddonIds[focusAddonId] = true;
+            focusAddonIds.push(focusAddonId);
+        }
+        return {
+            "lockedNodeCount": lockedNodeCount,
+            "missingAddonCount": focusAddonIds.length,
+            "focusAddonIds": focusAddonIds,
+            "focusAddonId": focusAddonIds.length === 1 ? focusAddonIds[0] : "",
+        };
+    }
+    readonly property int lockedNodeCount: Math.max(0, Number(lockedNodeStatusSummary.lockedNodeCount || 0))
+    readonly property int missingAddonCount: Math.max(0, Number(lockedNodeStatusSummary.missingAddonCount || 0))
+    readonly property string lockedNodeStatusFocusAddonId: String(lockedNodeStatusSummary.focusAddonId || "")
+    readonly property bool lockedNodeStatusVisible: lockedNodeCount > 0
+    readonly property bool lockedNodeStatusActionVisible: lockedNodeStatusVisible
+        && typeof addonManagerBridge !== "undefined"
+        && addonManagerBridge
+        && addonManagerBridge.requestOpen
+    readonly property string lockedNodeStatusText: {
+        if (root.lockedNodeCount <= 0)
+            return "";
+        var lockedNodeText = root.lockedNodeCount === 1
+            ? "1 locked node"
+            : root.lockedNodeCount + " locked nodes";
+        if (root.missingAddonCount <= 0)
+            return lockedNodeText;
+        var missingAddonText = root.missingAddonCount === 1
+            ? "1 add-on missing"
+            : root.missingAddonCount + " add-ons missing";
+        return lockedNodeText + ", " + missingAddonText;
+    }
+    readonly property color lockedNodeStatusMutedTextColor: typeof themeBridge !== "undefined"
+        && themeBridge
+        && themeBridge.palette
+        && themeBridge.palette.muted_fg
+        ? themeBridge.palette.muted_fg
+        : "#95a0b8"
+    readonly property color lockedNodeStatusActionColor: typeof themeBridge !== "undefined"
+        && themeBridge
+        && themeBridge.palette
+        && themeBridge.palette.accent
+        ? themeBridge.palette.accent
+        : "#2F89FF"
 
     GraphCanvasComponents.GraphCanvasRootBindings {
         id: rootBindings
@@ -93,7 +152,7 @@ Item {
         sceneBridge: root.sceneStateBridge
         edgeLayerItem: rootLayers.edgeLayerItem
         interactionIdleTimer: interactionIdleTimer
-        interactionIdleDelayMs: root.interactionIdleDelayMs
+        interactionIdleDelayMs: root.transientRecoveryDelayMs
         wireDragThreshold: root.wireDragThreshold
     }
 
@@ -169,7 +228,7 @@ Item {
 
     Timer {
         id: structuralMutationIdleTimer
-        interval: root.interactionIdleDelayMs
+        interval: root.transientRecoveryDelayMs
         repeat: false
         onTriggered: canvasPerformancePolicy.mutationBurstActive = false
     }
@@ -202,7 +261,7 @@ Item {
 
     Timer {
         id: interactionIdleTimer
-        interval: root.interactionIdleDelayMs
+        interval: root.transientRecoveryDelayMs
         repeat: false
         onTriggered: interactionState.endViewportInteraction()
     }
@@ -346,6 +405,12 @@ Item {
     function _openEdgeContext(edgeId, x, y) { GraphCanvasRootApi.invoke(interactionState, "_openEdgeContext", [edgeId, x, y]); }
     function _openNodeContext(nodeId, x, y) { GraphCanvasRootApi.invoke(interactionState, "_openNodeContext", [nodeId, x, y]); }
     function _openSelectionContext(x, y) { GraphCanvasRootApi.invoke(interactionState, "_openSelectionContext", [x, y]); }
+    function requestOpenLockedNodeStatusAction() {
+        if (!root.lockedNodeStatusActionVisible)
+            return false;
+        addonManagerBridge.requestOpen(root.lockedNodeStatusFocusAddonId);
+        return true;
+    }
 
     GraphCanvasComponents.GraphCanvasRootLayers {
         id: rootLayers
@@ -354,6 +419,78 @@ Item {
         viewStateBridge: root._canvasViewStateBridgeRef
         viewCommandBridge: root._canvasViewCommandBridgeRef
         minimapSimplificationActive: root.minimapSimplificationActive
+    }
+
+    Item {
+        id: lockedNodeStatusRibbon
+        objectName: "graphCanvasLockedNodeStatusRibbon"
+        visible: root.lockedNodeStatusVisible
+        anchors.left: parent.left
+        anchors.right: parent.right
+        anchors.top: parent.top
+        anchors.leftMargin: 14
+        anchors.rightMargin: 14
+        anchors.topMargin: 12
+        height: 28
+        z: 7
+
+        Rectangle {
+            id: lockedNodeStatusPill
+            objectName: "graphCanvasLockedNodeStatusPill"
+            anchors.left: parent.left
+            anchors.verticalCenter: parent.verticalCenter
+            width: Math.ceil(lockedNodeStatusTextItem.implicitWidth) + 20
+            height: 24
+            radius: 4
+            color: "#151b26"
+            opacity: 0.84
+            border.width: 1
+            border.color: "#2d3442"
+
+            Text {
+                id: lockedNodeStatusTextItem
+                objectName: "graphCanvasLockedNodeStatusText"
+                anchors.centerIn: parent
+                text: root.lockedNodeStatusText
+                color: root.lockedNodeStatusMutedTextColor
+                font.pixelSize: 11
+                font.weight: Font.Medium
+                renderType: Text.CurveRendering
+            }
+        }
+
+        Rectangle {
+            id: lockedNodeStatusAction
+            objectName: "graphCanvasLockedNodeStatusAction"
+            visible: root.lockedNodeStatusActionVisible
+            anchors.right: parent.right
+            anchors.verticalCenter: parent.verticalCenter
+            width: Math.ceil(lockedNodeStatusActionText.implicitWidth) + 22
+            height: 24
+            radius: 4
+            color: root.lockedNodeStatusActionColor
+            border.width: 1
+            border.color: Qt.lighter(root.lockedNodeStatusActionColor, 1.12)
+
+            Text {
+                id: lockedNodeStatusActionText
+                objectName: "graphCanvasLockedNodeStatusActionText"
+                anchors.centerIn: parent
+                text: "Load missing add-ons"
+                color: "#f7fbff"
+                font.pixelSize: 11
+                font.weight: Font.DemiBold
+                renderType: Text.CurveRendering
+            }
+
+            MouseArea {
+                objectName: "graphCanvasLockedNodeStatusActionMouseArea"
+                anchors.fill: parent
+                hoverEnabled: true
+                cursorShape: Qt.PointingHandCursor
+                onClicked: root.requestOpenLockedNodeStatusAction()
+            }
+        }
     }
 
     function hostForNodeId(nodeId) {

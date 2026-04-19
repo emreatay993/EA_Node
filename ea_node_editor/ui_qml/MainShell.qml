@@ -25,11 +25,14 @@ Rectangle {
         }
 
         ShellRunToolbar {
+            id: shellRunToolbar
             viewBridgeRef: root.canvasViewBridgeRef
             scriptEditorBridgeRef: scriptEditorBridge
         }
 
         RowLayout {
+            id: shellWorkspaceRow
+            objectName: "shellWorkspaceRow"
             Layout.fillWidth: true
             Layout.fillHeight: true
             spacing: 0
@@ -55,6 +58,7 @@ Rectangle {
         }
 
         ShellStatusStrip {
+            id: shellStatusStrip
             canvasStateBridgeRef: root.canvasStateBridgeRef
             canvasCommandBridgeRef: root.canvasCommandBridgeRef
             statusEngineRef: statusEngine
@@ -70,6 +74,41 @@ Rectangle {
 
     ConnectionQuickInsertOverlay {
         id: connectionQuickInsertOverlay
+    }
+
+    Rectangle {
+        id: addonManagerScrim
+        objectName: "addonManagerScrim"
+        anchors.left: parent.left
+        anchors.right: parent.right
+        anchors.top: shellRunToolbar.bottom
+        anchors.bottom: shellStatusStrip.top
+        visible: addonManagerBridge.open
+        z: 70
+        color: Qt.alpha(themePalette.app_bg, 0.68)
+
+        MouseArea {
+            anchors.fill: parent
+            enabled: parent.visible
+            onClicked: addonManagerBridge.requestClose()
+        }
+    }
+
+    AddOnManagerPane {
+        id: addonManagerPane
+        objectName: "addonManagerPane"
+        anchors.top: shellRunToolbar.bottom
+        anchors.right: parent.right
+        anchors.bottom: shellStatusStrip.top
+        anchors.topMargin: 10
+        anchors.rightMargin: 12
+        anchors.bottomMargin: 10
+        width: Math.min(parent.width - 24, 1040)
+        visible: addonManagerBridge.open
+        z: 80
+        requestBridge: addonManagerBridge
+        workspaceBridge: shellWorkspaceBridge
+        viewerHostServiceRef: viewerHostService
     }
 
     ScriptEditorOverlay {

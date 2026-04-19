@@ -32,6 +32,17 @@ Item {
         return hostInteraction.pdfPreviewBridge();
     }
 
+    function _sceneNodePayload(nodeId) {
+        if (!root.canvasItem || !root.canvasItem._sceneNodePayload)
+            return null;
+        return root.canvasItem._sceneNodePayload(String(nodeId || "").trim());
+    }
+
+    function _nodeReadOnly(nodeId) {
+        var payload = root._sceneNodePayload(nodeId);
+        return !!payload && Boolean(payload.read_only);
+    }
+
     function requestOpenSubnodeScope(nodeId) {
         if (!root.canvasItem)
             return false;
@@ -40,6 +51,8 @@ Item {
             return false;
         var normalized = String(nodeId || "").trim();
         if (!normalized)
+            return false;
+        if (root._nodeReadOnly(normalized))
             return false;
         var opened = bridge.request_open_subnode_scope(normalized);
         if (!opened)
@@ -70,6 +83,8 @@ Item {
         var normalizedKey = String(key || "").trim();
         if (!normalizedNodeId || !normalizedKey)
             return false;
+        if (root._nodeReadOnly(normalizedNodeId))
+            return false;
         root.prepareNodeSurfaceControlInteraction(normalizedNodeId);
         var bridge = root.canvasItem._canvasSceneCommandBridgeRef;
         if (!bridge || !bridge.set_node_property)
@@ -85,6 +100,8 @@ Item {
         var normalizedPortKey = String(portKey || "").trim();
         if (!normalizedNodeId || !normalizedPortKey)
             return false;
+        if (root._nodeReadOnly(normalizedNodeId))
+            return false;
         root.prepareNodeSurfaceControlInteraction(normalizedNodeId);
         var bridge = root.canvasItem._canvasSceneCommandBridgeRef;
         if (!bridge || !bridge.set_node_port_label)
@@ -98,6 +115,8 @@ Item {
             return false;
         var normalized = String(nodeId || "").trim();
         if (!normalized)
+            return false;
+        if (root._nodeReadOnly(normalized))
             return false;
         var selectionBridge = root._sceneSelectionBridge();
         var needsSelection = hostInteraction.selectedNodeIds().indexOf(normalized) < 0;
@@ -129,6 +148,8 @@ Item {
             return false;
         var normalized = String(nodeId || "").trim();
         if (!normalized)
+            return false;
+        if (root._nodeReadOnly(normalized))
             return false;
         root.prepareNodeSurfaceControlInteraction(normalized);
         var bridge = root._propertyBridge();
@@ -179,6 +200,8 @@ Item {
         var bridge = root.canvasItem._canvasShellCommandBridgeRef;
         if (!normalizedNodeId || !normalizedKey || !bridge || !bridge.browse_node_property_path)
             return "";
+        if (root._nodeReadOnly(normalizedNodeId))
+            return "";
         root.prepareNodeSurfaceControlInteraction(normalizedNodeId);
         return String(bridge.browse_node_property_path(
             normalizedNodeId,
@@ -194,6 +217,8 @@ Item {
         var normalizedKey = String(key || "").trim();
         var bridge = root.canvasItem._canvasShellCommandBridgeRef;
         if (!normalizedNodeId || !normalizedKey || !bridge || !bridge.pick_node_property_color)
+            return "";
+        if (root._nodeReadOnly(normalizedNodeId))
             return "";
         root.prepareNodeSurfaceControlInteraction(normalizedNodeId);
         return String(bridge.pick_node_property_color(

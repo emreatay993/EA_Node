@@ -5,10 +5,10 @@ from dataclasses import dataclass, field
 from typing import Any
 from typing import TYPE_CHECKING
 
+from ea_node_editor.addons.catalog import create_live_execution_viewer_backends
 from ea_node_editor.execution.dpf_runtime import create_dpf_runtime_service
 from ea_node_editor.execution.handle_registry import HandleRegistry
 from ea_node_editor.execution.viewer_backend import ViewerBackendRegistry
-from ea_node_editor.execution.viewer_backend_dpf import DpfExecutionViewerBackend
 from ea_node_editor.nodes.types import RuntimeHandleRef, coerce_runtime_handle_ref
 
 if TYPE_CHECKING:
@@ -41,9 +41,7 @@ class WorkerServices:
     @property
     def viewer_backend_registry(self) -> ViewerBackendRegistry:
         if self._viewer_backend_registry is None:
-            registry = ViewerBackendRegistry()
-            registry.register(DpfExecutionViewerBackend(self))
-            self._viewer_backend_registry = registry
+            self._viewer_backend_registry = self._build_viewer_backend_registry()
         return self._viewer_backend_registry
 
     @property
@@ -126,6 +124,26 @@ class WorkerServices:
         if self._viewer_session_service is not None:
             self._viewer_session_service.reset()
         return released_count
+
+    def rebuild_addon_runtime(self, *, preferences_document: Any = None) -> int:
+        released_count = self.reset()
+        self._viewer_backend_registry = self._build_viewer_backend_registry(
+            preferences_document=preferences_document
+        )
+        return released_count
+
+    def _build_viewer_backend_registry(
+        self,
+        *,
+        preferences_document: Any = None,
+    ) -> ViewerBackendRegistry:
+        registry = ViewerBackendRegistry()
+        for backend in create_live_execution_viewer_backends(
+            self,
+            preferences_document=preferences_document,
+        ):
+            registry.register(backend)
+        return registry
 
 
 __all__ = [

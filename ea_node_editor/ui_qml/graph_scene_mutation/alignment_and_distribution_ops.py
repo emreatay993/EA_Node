@@ -13,6 +13,27 @@ from ea_node_editor.ui_qml.graph_surface_metrics import node_surface_metrics
 SNAP_GRID_SIZE = 20.0
 
 
+def _minimum_node_size(self, node) -> tuple[float, float]:  # noqa: ANN001
+    registry = self._scene_context.registry
+    model = self._scene_context.model
+    if registry is None or model is None:
+        return 0.0, 0.0
+    workspace = model.project.workspaces.get(self._scene_context.workspace_id)
+    if workspace is None:
+        return 0.0, 0.0
+    spec_or_none = getattr(registry, "spec_or_none", None)
+    spec = spec_or_none(node.type_id) if callable(spec_or_none) else None
+    if spec is None:
+        return 0.0, 0.0
+    metrics = node_surface_metrics(
+        node,
+        spec,
+        workspace.nodes,
+        show_port_labels=self._scene_context.graphics_show_port_labels,
+    )
+    return float(metrics.min_width), float(metrics.min_height)
+
+
 def move_node(self, node_id: str, x: float, y: float) -> None:
     model = self._scene_context.model
     if model is None:
@@ -39,12 +60,22 @@ def resize_node(self, node_id: str, width: float, height: float) -> None:
     node = self._node(node_id)
     if node is None:
         return
-    self.set_node_geometry(node_id, float(node.x), float(node.y), width, height)
+    model = self._scene_context.model
+    if model is None:
+        return
+    workspace = model.project.workspaces.get(self._scene_context.workspace_id)
+    if workspace is None:
+        return
+    if not is_node_in_scope(workspace, node_id, self._scene_context.scope_path):
+        return
+    min_width, min_height = _minimum_node_size(self, node)
+    final_width = max(min_width, float(width))
+    final_height = max(min_height, float(height))
+    self.set_node_geometry(node_id, float(node.x), float(node.y), final_width, final_height)
 
 
 def set_node_geometry(self, node_id: str, x: float, y: float, width: float, height: float) -> None:
     model = self._scene_context.model
-    registry = self._scene_context.registry
     if model is None:
         return
     workspace = model.project.workspaces.get(self._scene_context.workspace_id)
@@ -55,20 +86,9 @@ def set_node_geometry(self, node_id: str, x: float, y: float, width: float, heig
         return
     if not is_node_in_scope(workspace, node_id, self._scene_context.scope_path):
         return
-    spec = registry.get_spec(node.type_id) if registry is not None else None
-    min_width = 0.0
-    min_height = 0.0
-    if spec is not None:
-        metrics = node_surface_metrics(
-            node,
-            spec,
-            workspace.nodes,
-            show_port_labels=self._scene_context.graphics_show_port_labels,
-        )
-        min_width = float(metrics.min_width)
-        min_height = float(metrics.min_height)
     final_x = float(x)
     final_y = float(y)
+    min_width, min_height = _minimum_node_size(self, node)
     final_w = max(min_width, float(width))
     final_h = max(min_height, float(height))
     if (

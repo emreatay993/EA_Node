@@ -9,9 +9,13 @@ from PyQt6.QtCore import QObject
 
 from ea_node_editor.graph.model import GraphModel
 from ea_node_editor.graph.mutation_service import WorkspaceMutationService, create_workspace_mutation_service
-from ea_node_editor.nodes.builtins.ansys_dpf_catalog import ANSYS_DPF_DEPENDENCY
 from ea_node_editor.nodes.bootstrap import build_default_registry
-from ea_node_editor.nodes.plugin_contracts import PluginAvailability
+from ea_node_editor.nodes.plugin_contracts import (
+    AddOnManifest,
+    AddOnRecord,
+    AddOnState,
+    PluginAvailability,
+)
 from ea_node_editor.nodes.registry import NodeRegistry
 from ea_node_editor.persistence.serializer import JsonProjectSerializer
 from ea_node_editor.settings import SCHEMA_VERSION
@@ -31,21 +35,21 @@ class _ExpandCollisionPreferenceSource(QObject):
         self.graphics_expand_collision_avoidance = dict(settings)
 
 
-def _missing_dpf_scene_payload() -> dict[str, object]:
+def _missing_addon_scene_payload() -> dict[str, object]:
     return {
         "schema_version": SCHEMA_VERSION,
-        "project_id": "proj_missing_dpf_scene",
-        "name": "Missing DPF Scene",
-        "active_workspace_id": "ws_dpf",
-        "workspace_order": ["ws_dpf"],
+        "project_id": "proj_missing_addon_scene",
+        "name": "Missing Add-On Scene",
+        "active_workspace_id": "ws_addon",
+        "workspace_order": ["ws_addon"],
         "workspaces": [
             {
-                "workspace_id": "ws_dpf",
-                "name": "Workspace DPF",
-                "active_view_id": "view_dpf",
+                "workspace_id": "ws_addon",
+                "name": "Workspace Add-On",
+                "active_view_id": "view_addon",
                 "views": [
                     {
-                        "view_id": "view_dpf",
+                        "view_id": "view_addon",
                         "name": "V1",
                         "zoom": 1.0,
                         "pan_x": 0.0,
@@ -54,40 +58,40 @@ def _missing_dpf_scene_payload() -> dict[str, object]:
                 ],
                 "nodes": [
                     {
-                        "node_id": "node_result",
-                        "type_id": "dpf.result_file",
-                        "title": "Result File",
+                        "node_id": "node_source",
+                        "type_id": "addons.signal.source",
+                        "title": "Signal Source",
                         "x": 0.0,
                         "y": 0.0,
                         "collapsed": False,
-                        "properties": {"path": "C:/tmp/example.rst"},
-                        "exposed_ports": {"result_file": True, "exec_out": True},
-                        "port_labels": {"result_file": "Saved Result File"},
+                        "properties": {"path": "C:/tmp/example.signal"},
+                        "exposed_ports": {"signal_out": True, "exec_out": True},
+                        "port_labels": {"signal_out": "Saved Signal"},
                         "parent_node_id": None,
                     },
                     {
-                        "node_id": "node_model",
-                        "type_id": "dpf.model",
-                        "title": "Model",
+                        "node_id": "node_transform",
+                        "type_id": "addons.signal.transform",
+                        "title": "Signal Transform",
                         "x": 320.0,
                         "y": 0.0,
                         "collapsed": False,
-                        "properties": {},
-                        "exposed_ports": {"result_file": False, "model": True},
+                        "properties": {"gain": 1.5},
+                        "exposed_ports": {"signal_in": False, "signal_out": True},
                         "port_labels": {
-                            "result_file": "Hidden Saved Result File",
-                            "model": "Saved Model",
+                            "signal_in": "Hidden Saved Signal",
+                            "signal_out": "Saved Result",
                         },
                         "parent_node_id": None,
                     },
                 ],
                 "edges": [
                     {
-                        "edge_id": "edge_result_data",
-                        "source_node_id": "node_result",
-                        "source_port_key": "result_file",
-                        "target_node_id": "node_model",
-                        "target_port_key": "result_file",
+                        "edge_id": "edge_signal_data",
+                        "source_node_id": "node_source",
+                        "source_port_key": "signal_out",
+                        "target_node_id": "node_transform",
+                        "target_port_key": "signal_in",
                     }
                 ],
             }
@@ -96,45 +100,73 @@ def _missing_dpf_scene_payload() -> dict[str, object]:
     }
 
 
-class GraphSceneBridgeBindRegressionTests(unittest.TestCase):
-    def test_scene_bridge_projects_missing_dpf_nodes_as_read_only_placeholder_payloads(self) -> None:
-        serializer = JsonProjectSerializer(NodeRegistry())
-        project = serializer.from_document(_missing_dpf_scene_payload())
-        model = GraphModel(project)
-        scene = GraphSceneBridge()
+def _test_addon_record() -> AddOnRecord:
+    return AddOnRecord(
+        manifest=AddOnManifest(
+            addon_id="tests.addons.signal_pack",
+            display_name="Signal Pack",
+            apply_policy="hot_apply",
+            version="1.2.3",
+            dependencies=("tests.signal.runtime",),
+        ),
+        state=AddOnState(enabled=True, pending_restart=False),
+        availability=PluginAvailability.available(
+            summary="Signal Pack is not loaded in this session."
+        ),
+        provided_node_type_ids=("addons.signal.source", "addons.signal.transform"),
+    )
 
+
+class GraphSceneBridgeBindRegressionTests(unittest.TestCase):
+    def test_scene_bridge_projects_missing_addon_nodes_as_read_only_placeholder_payloads(self) -> None:
+        serializer = JsonProjectSerializer(NodeRegistry())
         with patch(
-            "ea_node_editor.ui_qml.graph_scene_payload_builder.get_ansys_dpf_plugin_availability",
-            return_value=PluginAvailability.missing_dependency(
-                ANSYS_DPF_DEPENDENCY,
-                summary="ansys.dpf.core is not installed; the DPF node family remains unavailable.",
-            ),
+            "ea_node_editor.persistence.overlay.discover_addon_records",
+            return_value=(_test_addon_record(),),
         ):
-            scene.set_workspace(model, NodeRegistry(), "ws_dpf")
+            project = serializer.from_document(_missing_addon_scene_payload())
+            model = GraphModel(project)
+            scene = GraphSceneBridge()
+            scene.set_workspace(model, NodeRegistry(), "ws_addon")
             nodes_by_id = {payload["node_id"]: payload for payload in scene.nodes_model}
             edges_by_id = {payload["edge_id"]: payload for payload in scene.edges_model}
 
-        self.assertEqual(set(nodes_by_id), {"node_model", "node_result"})
-        self.assertEqual(set(edges_by_id), {"edge_result_data"})
-        self.assertTrue(nodes_by_id["node_model"]["unresolved"])
-        self.assertTrue(nodes_by_id["node_model"]["read_only"])
+        self.assertEqual(set(nodes_by_id), {"node_source", "node_transform"})
+        self.assertEqual(set(edges_by_id), {"edge_signal_data"})
+        self.assertTrue(nodes_by_id["node_transform"]["unresolved"])
+        self.assertTrue(nodes_by_id["node_transform"]["read_only"])
+        self.assertEqual(nodes_by_id["node_transform"]["addon_id"], "tests.addons.signal_pack")
+        self.assertEqual(nodes_by_id["node_transform"]["addon_display_name"], "Signal Pack")
+        self.assertEqual(nodes_by_id["node_transform"]["addon_version"], "1.2.3")
+        self.assertEqual(nodes_by_id["node_transform"]["addon_apply_policy"], "hot_apply")
+        self.assertEqual(nodes_by_id["node_transform"]["addon_status"], "installed")
         self.assertEqual(
-            nodes_by_id["node_model"]["unavailable_reason"],
-            "ansys.dpf.core is not installed; the DPF node family remains unavailable.",
+            nodes_by_id["node_transform"]["unavailable_reason"],
+            "Signal Pack is not loaded in this session.",
         )
         self.assertEqual(
             {
                 port["key"]: port["label"]
-                for port in nodes_by_id["node_result"]["ports"]
-            }["result_file"],
-            "Saved Result File",
+                for port in nodes_by_id["node_source"]["ports"]
+            }["signal_out"],
+            "Saved Signal",
         )
-        model_ports = {
+        transform_ports = {
             port["key"]: port["label"]
-            for port in nodes_by_id["node_model"]["ports"]
+            for port in nodes_by_id["node_transform"]["ports"]
         }
-        self.assertNotIn("result_file", model_ports)
-        self.assertEqual(model_ports["model"], "Saved Model")
+        self.assertNotIn("signal_in", transform_ports)
+        self.assertEqual(transform_ports["signal_out"], "Saved Result")
+        self.assertEqual(
+            nodes_by_id["node_transform"]["locked_state"],
+            {
+                "is_locked": True,
+                "reason": "missing_addon",
+                "label": "Requires add-on",
+                "summary": "Signal Pack is not loaded in this session.",
+                "focus_addon_id": "tests.addons.signal_pack",
+            },
+        )
 
     def test_scene_bridge_routes_fragment_and_delete_flows_through_authoring_boundary(self) -> None:
         support_text = (

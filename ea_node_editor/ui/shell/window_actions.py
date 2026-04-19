@@ -107,6 +107,9 @@ def create_window_actions(window: ShellWindow) -> None:
     window.action_graphics_settings = QAction("Graphics Settings", window)
     window.action_graphics_settings.triggered.connect(window.show_graphics_settings_dialog)
 
+    window.action_addon_manager = QAction("Add-On Manager", window)
+    window.action_addon_manager.triggered.connect(window.request_open_addon_manager)
+
     window.action_toggle_script_editor = QAction("Script Editor", window)
     window.action_toggle_script_editor.setCheckable(True)
     window.action_toggle_script_editor.setShortcut(QKeySequence("Ctrl+Shift+E"))
@@ -277,6 +280,7 @@ def create_window_actions(window: ShellWindow) -> None:
         window.action_clear_recent_projects,
         window.action_workflow_settings,
         window.action_graphics_settings,
+        window.action_addon_manager,
         window.action_toggle_script_editor,
         window.action_run,
         window.action_stop,
@@ -393,6 +397,8 @@ def build_window_menu_bar(window: ShellWindow) -> None:
     workspace_menu.addSeparator()
     workspace_menu.addAction(window.action_next_workspace)
     workspace_menu.addAction(window.action_prev_workspace)
+
+    menu_bar.addAction(window.action_addon_manager)
 
     settings_menu = menu_bar.addMenu("&Settings")
     settings_menu.addAction(window.action_workflow_settings)

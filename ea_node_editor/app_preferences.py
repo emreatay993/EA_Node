@@ -11,6 +11,8 @@ from ea_node_editor.persistence.utils import write_json_atomic
 from ea_node_editor.settings import (
     APP_PREFERENCES_KIND,
     APP_PREFERENCES_VERSION,
+    DEFAULT_ADDON_SETTINGS,
+    DEFAULT_ADDON_STATE,
     DEFAULT_APP_PREFERENCES,
     DEFAULT_ANSYS_DPF_PLUGIN_SETTINGS,
     DEFAULT_EDGE_CROSSING_STYLE,
@@ -288,6 +290,38 @@ def normalize_source_import_settings(payload: Any) -> dict[str, Any]:
     return normalized
 
 
+def normalize_addon_state(payload: Any) -> dict[str, bool]:
+    defaults = DEFAULT_ADDON_STATE
+    if not isinstance(payload, Mapping):
+        return copy.deepcopy(defaults)
+
+    normalized = copy.deepcopy(defaults)
+    normalized["enabled"] = _normalize_bool(payload.get("enabled"), defaults["enabled"])
+    normalized["pending_restart"] = _normalize_bool(
+        payload.get("pending_restart"),
+        defaults["pending_restart"],
+    )
+    return normalized
+
+
+def normalize_addon_settings(payload: Any) -> dict[str, Any]:
+    defaults = DEFAULT_ADDON_SETTINGS
+    if not isinstance(payload, Mapping):
+        return copy.deepcopy(defaults)
+
+    normalized = copy.deepcopy(defaults)
+    states_payload = payload.get("states")
+    normalized_states: dict[str, dict[str, bool]] = {}
+    if isinstance(states_payload, Mapping):
+        for raw_addon_id, raw_state in states_payload.items():
+            addon_id = _normalize_preference_key(raw_addon_id)
+            if not addon_id:
+                continue
+            normalized_states[addon_id] = normalize_addon_state(raw_state)
+    normalized["states"] = normalized_states
+    return normalized
+
+
 def normalize_ansys_dpf_plugin_version(value: Any) -> str:
     if value is None:
         return ""
@@ -334,10 +368,11 @@ def normalize_app_preferences_document(payload: Any) -> dict[str, Any]:
 
     if kind != APP_PREFERENCES_KIND:
         return normalized
-    if version not in {_APP_PREFERENCES_MIGRATION_VERSION, APP_PREFERENCES_VERSION}:
+    if version not in {_APP_PREFERENCES_MIGRATION_VERSION, 2, APP_PREFERENCES_VERSION}:
         return normalized
 
     normalized["graphics"] = normalize_graphics_settings(payload.get("graphics"))
+    normalized["addons"] = normalize_addon_settings(payload.get("addons"))
     normalized["plugins"] = normalize_plugin_settings(payload.get("plugins"))
     normalized["source_import"] = normalize_source_import_settings(payload.get("source_import"))
     return normalized
@@ -370,6 +405,37 @@ class AppPreferencesStore:
 def ansys_dpf_plugin_state(document: Any) -> dict[str, str]:
     normalized = normalize_app_preferences_document(document)
     return copy.deepcopy(normalized["plugins"]["ansys_dpf"])
+
+
+def addon_state(document: Any, addon_id: Any) -> dict[str, bool]:
+    normalized = normalize_app_preferences_document(document)
+    normalized_addon_id = _normalize_preference_key(addon_id)
+    if not normalized_addon_id:
+        return copy.deepcopy(DEFAULT_ADDON_STATE)
+    stored_state = normalized["addons"]["states"].get(normalized_addon_id)
+    if stored_state is None:
+        return copy.deepcopy(DEFAULT_ADDON_STATE)
+    return copy.deepcopy(stored_state)
+
+
+def set_addon_state(
+    document: Any,
+    addon_id: Any,
+    *,
+    enabled: Any,
+    pending_restart: Any,
+) -> dict[str, Any]:
+    normalized_addon_id = _normalize_preference_key(addon_id)
+    if not normalized_addon_id:
+        raise ValueError("addon_id must be a non-empty string")
+    normalized = normalize_app_preferences_document(document)
+    normalized["addons"]["states"][normalized_addon_id] = normalize_addon_state(
+        {
+            "enabled": enabled,
+            "pending_restart": pending_restart,
+        }
+    )
+    return normalized
 
 
 def set_ansys_dpf_plugin_state(
@@ -409,6 +475,10 @@ def resolve_startup_theme_id(
 
 def _normalize_bool(value: Any, default: bool) -> bool:
     return value if isinstance(value, bool) else default
+
+
+def _normalize_preference_key(value: Any) -> str:
+    return str(value).strip()
 
 
 def _normalize_int(value: Any, default: int, lo: int, hi: int) -> int:
@@ -565,9 +635,12 @@ def normalize_source_import_mode(value: Any, default: str = DEFAULT_SOURCE_IMPOR
 
 __all__ = [
     "AppPreferencesStore",
+    "addon_state",
     "ansys_dpf_plugin_state",
     "default_app_preferences_document",
     "normalize_app_preferences_document",
+    "normalize_addon_settings",
+    "normalize_addon_state",
     "normalize_ansys_dpf_plugin_settings",
     "normalize_ansys_dpf_plugin_version",
     "normalize_edge_crossing_style",
@@ -586,5 +659,6 @@ __all__ = [
     "normalize_source_import_mode",
     "normalize_source_import_settings",
     "resolve_startup_theme_id",
+    "set_addon_state",
     "set_ansys_dpf_plugin_state",
 ]

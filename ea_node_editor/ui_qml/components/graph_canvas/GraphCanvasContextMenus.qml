@@ -22,6 +22,40 @@ Item {
         return root.canvasItem._sceneNodePayload(nodeId);
     }
 
+    function _nodeReadOnly(nodeId) {
+        var payload = root._nodePayload(nodeId);
+        return !!payload && Boolean(payload.read_only);
+    }
+
+    function _nodeLockedState(nodeId) {
+        var payload = root._nodePayload(nodeId);
+        if (!payload || !payload.locked_state)
+            return ({});
+        return payload.locked_state;
+    }
+
+    function _nodeAddonFocusId(nodeId) {
+        var payload = root._nodePayload(nodeId);
+        if (!payload)
+            return "";
+        var lockedState = root._nodeLockedState(nodeId);
+        return String(lockedState.focus_addon_id || payload.addon_id || "").trim();
+    }
+
+    function _addonManagerAvailable() {
+        return typeof addonManagerBridge !== "undefined"
+            && addonManagerBridge
+            && addonManagerBridge.requestOpen;
+    }
+
+    function requestOpenAddonManagerForNode(nodeId) {
+        var focusAddonId = root._nodeAddonFocusId(nodeId);
+        if (!focusAddonId.length || !root._addonManagerAvailable())
+            return false;
+        addonManagerBridge.requestOpen(focusAddonId);
+        return true;
+    }
+
     function _isCollapsedCommentBackdrop(payload) {
         return !!payload
             && String(payload.surface_family || "").trim() === "comment_backdrop"
@@ -91,9 +125,12 @@ Item {
         visible: root.canvasItem ? root.canvasItem.nodeContextVisible : false
         x: root.canvasItem ? root.canvasItem.contextMenuX : 0
         y: root.canvasItem ? root.canvasItem.contextMenuY : 0
-        minimumWidth: 188
+        minimumWidth: nodeContextPopup.isReadOnlyNode ? 210 : 188
         property bool canEnterScope: root.canvasItem
             ? root.canvasItem._nodeCanEnterScope(root.canvasItem.nodeContextNodeId)
+            : false
+        readonly property bool isReadOnlyNode: root.canvasItem
+            ? root._nodeReadOnly(root.canvasItem.nodeContextNodeId)
             : false
         readonly property bool isPassiveNode: root.canvasItem
             ? root.canvasItem._nodeSupportsPassiveStyle(root.canvasItem.nodeContextNodeId)
@@ -102,6 +139,9 @@ Item {
         readonly property bool isPeekedComment: root.canvasItem
             ? root._activeCommentPeekNodeId() === String(root.canvasItem.nodeContextNodeId || "").trim()
             : false
+        readonly property bool canOpenAddonManager: nodeContextPopup.isReadOnlyNode
+            && root._addonManagerAvailable()
+            && root._nodeAddonFocusId(root.canvasItem ? root.canvasItem.nodeContextNodeId : "").length > 0
         readonly property bool canShowHelp: {
             if (typeof helpBridge === "undefined" || !helpBridge)
                 return false;
@@ -113,22 +153,28 @@ Item {
             return Boolean(helpBridge.can_show_help_for_node(nodeId));
         }
         actions: [
-            { "actionId": "enter_subnode", "text": "Enter Subnode", "visible": nodeContextPopup.canEnterScope },
-            { "actionId": "add_to_workflows", "text": "Add to Workflows", "visible": nodeContextPopup.canEnterScope },
-            { "actionId": "peek_comment", "text": "Peek Inside", "visible": nodeContextPopup.canPeekComment },
-            { "actionId": "exit_comment_peek", "text": "Exit Peek", "visible": nodeContextPopup.isPeekedComment },
-            { "actionId": "edit_node_style", "text": "Edit Style...", "visible": nodeContextPopup.isPassiveNode },
-            { "actionId": "reset_node_style", "text": "Reset Style", "visible": nodeContextPopup.isPassiveNode },
-            { "actionId": "copy_node_style", "text": "Copy Style", "visible": nodeContextPopup.isPassiveNode },
-            { "actionId": "paste_node_style", "text": "Paste Style", "visible": nodeContextPopup.isPassiveNode },
-            { "actionId": "rename_node", "text": "Rename Node" },
-            { "actionId": "show_help", "text": "Help", "visible": nodeContextPopup.canShowHelp },
-            { "actionId": "ungroup_subnode", "text": "Ungroup Subnode", "visible": nodeContextPopup.canEnterScope, "destructive": true },
-            { "actionId": "remove_node", "text": "Remove Node", "destructive": true }
+            { "actionId": "open_addon_manager", "text": "Open Add-On Manager", "visible": nodeContextPopup.canOpenAddonManager },
+            { "actionId": "enter_subnode", "text": "Enter Subnode", "visible": !nodeContextPopup.isReadOnlyNode && nodeContextPopup.canEnterScope },
+            { "actionId": "add_to_workflows", "text": "Add to Workflows", "visible": !nodeContextPopup.isReadOnlyNode && nodeContextPopup.canEnterScope },
+            { "actionId": "peek_comment", "text": "Peek Inside", "visible": !nodeContextPopup.isReadOnlyNode && nodeContextPopup.canPeekComment },
+            { "actionId": "exit_comment_peek", "text": "Exit Peek", "visible": !nodeContextPopup.isReadOnlyNode && nodeContextPopup.isPeekedComment },
+            { "actionId": "edit_node_style", "text": "Edit Style...", "visible": !nodeContextPopup.isReadOnlyNode && nodeContextPopup.isPassiveNode },
+            { "actionId": "reset_node_style", "text": "Reset Style", "visible": !nodeContextPopup.isReadOnlyNode && nodeContextPopup.isPassiveNode },
+            { "actionId": "copy_node_style", "text": "Copy Style", "visible": !nodeContextPopup.isReadOnlyNode && nodeContextPopup.isPassiveNode },
+            { "actionId": "paste_node_style", "text": "Paste Style", "visible": !nodeContextPopup.isReadOnlyNode && nodeContextPopup.isPassiveNode },
+            { "actionId": "rename_node", "text": "Rename Node", "visible": !nodeContextPopup.isReadOnlyNode },
+            { "actionId": "show_help", "text": "Help", "visible": !nodeContextPopup.isReadOnlyNode && nodeContextPopup.canShowHelp },
+            { "actionId": "ungroup_subnode", "text": "Ungroup Subnode", "visible": !nodeContextPopup.isReadOnlyNode && nodeContextPopup.canEnterScope, "destructive": true },
+            { "actionId": "remove_node", "text": "Remove Node", "visible": !nodeContextPopup.isReadOnlyNode, "destructive": true }
         ]
         onActionTriggered: function(actionId) {
             if (!root.canvasItem)
                 return
+            if (actionId === "open_addon_manager") {
+                if (root.requestOpenAddonManagerForNode(root.canvasItem.nodeContextNodeId))
+                    root.canvasItem._closeContextMenus()
+                return
+            }
             if (actionId === "enter_subnode") {
                 if (!root.canvasItem.nodeContextNodeId)
                     return

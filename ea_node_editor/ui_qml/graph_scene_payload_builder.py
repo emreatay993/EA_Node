@@ -5,7 +5,6 @@ import math
 import re
 from collections.abc import Mapping
 from dataclasses import dataclass
-from functools import lru_cache
 from typing import TYPE_CHECKING, Any
 from urllib.parse import quote
 
@@ -34,11 +33,6 @@ from ea_node_editor.graph.model import (
     node_instance_from_mapping,
 )
 from ea_node_editor.graph.port_locking import lockable_port_keys
-from ea_node_editor.nodes.builtins.ansys_dpf_catalog import (
-    ANSYS_DPF_DEPENDENCY,
-    get_ansys_dpf_plugin_availability,
-    load_ansys_dpf_plugin_descriptors,
-)
 from ea_node_editor.nodes.builtins.passive_media import (
     PASSIVE_MEDIA_IMAGE_PANEL_TYPE_ID,
     PASSIVE_MEDIA_PDF_PANEL_TYPE_ID,
@@ -47,6 +41,10 @@ from ea_node_editor.nodes.builtins.subnode import is_subnode_shell_type
 from ea_node_editor.nodes.plugin_contracts import PluginProvenance
 from ea_node_editor.nodes.registry import NodeRegistry
 from ea_node_editor.nodes.types import NodeTypeSpec, PortSpec
+from ea_node_editor.persistence.overlay import (
+    missing_addon_placeholder_payload,
+    with_missing_addon_placeholder,
+)
 from ea_node_editor.settings import (
     DEFAULT_GRAPH_LABEL_PIXEL_SIZE,
     GRAPH_LABEL_PIXEL_SIZE_MAX,
@@ -282,44 +280,13 @@ def _uses_dynamic_title_band_surface(spec: NodeTypeSpec) -> bool:
 @dataclass(slots=True, frozen=True)
 class _PlaceholderNodeContext:
     spec: NodeTypeSpec
+    addon_id: str
+    addon_display_name: str
+    addon_version: str
+    addon_apply_policy: str
+    addon_status: str
     unavailable_reason: str
-
-
-def _placeholder_unavailable_reason() -> str:
-    availability = get_ansys_dpf_plugin_availability()
-    if availability.is_available:
-        return ""
-    if availability.summary:
-        return availability.summary
-    if availability.missing_dependencies:
-        return ", ".join(availability.missing_dependencies)
-    return f"{ANSYS_DPF_DEPENDENCY} is unavailable."
-
-
-def _placeholder_spec_from_live_spec(spec: NodeTypeSpec) -> NodeTypeSpec:
-    return NodeTypeSpec(
-        type_id=spec.type_id,
-        display_name=spec.display_name,
-        category_path=spec.category_path,
-        icon=spec.icon,
-        ports=spec.ports,
-        properties=(),
-        collapsible=spec.collapsible,
-        description=spec.description,
-        runtime_behavior="passive",
-        surface_family="standard",
-    )
-
-
-@lru_cache(maxsize=1)
-def _dpf_placeholder_specs_by_type_id() -> dict[str, NodeTypeSpec]:
-    try:
-        return {
-            descriptor.spec.type_id: _placeholder_spec_from_live_spec(descriptor.spec)
-            for descriptor in load_ansys_dpf_plugin_descriptors()
-        }
-    except Exception:  # noqa: BLE001
-        return {}
+    locked_state: dict[str, Any]
 
 
 def _fallback_placeholder_spec(
@@ -327,6 +294,7 @@ def _fallback_placeholder_spec(
     node_id: str,
     node_doc: Mapping[str, Any],
     unresolved_edge_docs: Mapping[str, Mapping[str, Any]],
+    category_label: str,
 ) -> NodeTypeSpec:
     port_labels = {
         str(key).strip(): str(value).strip()
@@ -368,11 +336,11 @@ def _fallback_placeholder_spec(
         )
 
     title = str(node_doc.get("title", "")).strip()
-    type_id = str(node_doc.get("type_id", "")).strip() or f"dpf.placeholder.{node_id}"
+    type_id = str(node_doc.get("type_id", "")).strip() or f"missing-addon.placeholder.{node_id}"
     return NodeTypeSpec(
         type_id=type_id,
         display_name=title or type_id,
-        category_path=("Ansys DPF",),
+        category_path=(category_label,),
         icon="warning",
         ports=tuple(port_specs),
         properties=(),
@@ -387,21 +355,28 @@ def _placeholder_context_for_node(
     node_doc: Mapping[str, Any],
     unresolved_edge_docs: Mapping[str, Mapping[str, Any]],
 ) -> _PlaceholderNodeContext | None:
-    type_id = str(node_doc.get("type_id", "")).strip()
-    if not type_id:
-        return None
-    spec = _dpf_placeholder_specs_by_type_id().get(type_id)
-    if spec is None and not type_id.casefold().startswith("dpf."):
-        return None
-    if spec is None:
-        spec = _fallback_placeholder_spec(
-            node_id=node_id,
-            node_doc=node_doc,
-            unresolved_edge_docs=unresolved_edge_docs,
+    placeholder_payload = missing_addon_placeholder_payload(node_doc)
+    if placeholder_payload is None:
+        placeholder_payload = missing_addon_placeholder_payload(
+            with_missing_addon_placeholder(node_doc)
         )
+    if placeholder_payload is None:
+        return None
+    spec = _fallback_placeholder_spec(
+        node_id=node_id,
+        node_doc=node_doc,
+        unresolved_edge_docs=unresolved_edge_docs,
+        category_label=str(placeholder_payload.get("display_name", "")).strip() or "Add-On",
+    )
     return _PlaceholderNodeContext(
         spec=spec,
-        unavailable_reason=_placeholder_unavailable_reason(),
+        addon_id=str(placeholder_payload.get("addon_id", "")).strip(),
+        addon_display_name=str(placeholder_payload.get("display_name", "")).strip(),
+        addon_version=str(placeholder_payload.get("version", "")).strip(),
+        addon_apply_policy=str(placeholder_payload.get("apply_policy", "")).strip(),
+        addon_status=str(placeholder_payload.get("status", "")).strip(),
+        unavailable_reason=str(placeholder_payload.get("unavailable_reason", "")).strip(),
+        locked_state=copy.deepcopy(dict(placeholder_payload.get("locked_state", {}))),
     )
 
 
@@ -600,10 +575,28 @@ class _GraphSceneNodePayloadFactory:
             "can_enter_scope": is_subnode_shell_type(node.type_id),
             "unresolved": placeholder_context is not None,
             "read_only": placeholder_context is not None,
+            "addon_id": placeholder_context.addon_id if placeholder_context is not None else "",
+            "addon_display_name": (
+                placeholder_context.addon_display_name
+                if placeholder_context is not None
+                else ""
+            ),
+            "addon_version": placeholder_context.addon_version if placeholder_context is not None else "",
+            "addon_apply_policy": (
+                placeholder_context.addon_apply_policy
+                if placeholder_context is not None
+                else ""
+            ),
+            "addon_status": placeholder_context.addon_status if placeholder_context is not None else "",
             "unavailable_reason": (
                 placeholder_context.unavailable_reason
                 if placeholder_context is not None
                 else ""
+            ),
+            "locked_state": (
+                copy.deepcopy(placeholder_context.locked_state)
+                if placeholder_context is not None
+                else {}
             ),
             "ports": self.build_ports_payload(
                 node=node,
