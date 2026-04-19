@@ -19,6 +19,7 @@
 
 ## Target Subsystems
 
+- `docs/specs/work_packets/addon_manager_backend_preparation/ADDON_MANAGER_BACKEND_PREPARATION_P04_locked_node_graph_host_and_mockup_b_visuals.md`
 - `ea_node_editor/ui_qml/components/GraphCanvas.qml`
 - `ea_node_editor/ui_qml/components/graph/GraphNodeHost.qml`
 - `ea_node_editor/ui_qml/components/graph/GraphNodeSurfaceLoader.qml`
@@ -36,6 +37,7 @@
 
 ## Conservative Write Scope
 
+- `docs/specs/work_packets/addon_manager_backend_preparation/ADDON_MANAGER_BACKEND_PREPARATION_P04_locked_node_graph_host_and_mockup_b_visuals.md`
 - `ea_node_editor/ui_qml/components/GraphCanvas.qml`
 - `ea_node_editor/ui_qml/components/graph/GraphNodeHost.qml`
 - `ea_node_editor/ui_qml/components/graph/GraphNodeSurfaceLoader.qml`
