@@ -72,7 +72,7 @@ def build_default_registry(
     for plugin in PASSIVE_MEDIA_NODE_PLUGINS:
         registry.register(plugin)
 
-    from ea_node_editor.nodes.builtins.ansys_dpf_catalog import (
+    from ea_node_editor.addons.ansys_dpf.catalog import (
         PLUGIN_BACKENDS as ANSYS_DPF_PLUGIN_BACKENDS,
         sync_ansys_dpf_plugin_state,
     )
@@ -82,7 +82,7 @@ def build_default_registry(
     register_plugin_backends(
         ANSYS_DPF_PLUGIN_BACKENDS,
         registry,
-        "ea_node_editor.nodes.builtins.ansys_dpf",
+        "ea_node_editor.addons.ansys_dpf.catalog",
     )
     discover_and_load_plugins(registry, extra_dirs=extra_plugin_dirs)
     return registry

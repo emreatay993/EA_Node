@@ -12,10 +12,10 @@ try:
 except ModuleNotFoundError:  # pragma: no cover - optional dependency guard
     dpf_operators = None
 
-from ea_node_editor.execution.worker_services import WorkerServices
-from ea_node_editor.nodes.builtins.ansys_dpf_operator_catalog import (
+from ea_node_editor.addons.ansys_dpf.operator_catalog import (
     load_ansys_dpf_operator_plugin_descriptors,
 )
+from ea_node_editor.execution.worker_services import WorkerServices
 from ea_node_editor.nodes.execution_context import ExecutionContext
 from ea_node_editor.nodes.builtins.ansys_dpf_taxonomy import (
     DPF_OPERATOR_FAMILY_ORDER,

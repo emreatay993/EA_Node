@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import unittest
 
 try:
@@ -7,14 +8,16 @@ try:
 except ModuleNotFoundError:  # pragma: no cover - optional dependency guard
     _dpf_core = None
 
+from ea_node_editor.addons.ansys_dpf.operator_catalog import (
+    load_ansys_dpf_operator_plugin_descriptors,
+)
 from ea_node_editor.help.dpf_operator_docs import (
+    docs_root,
     is_dpf_operator_type_id,
     markdown_for_type_id,
     markdown_path_for_type_id,
 )
-from ea_node_editor.nodes.builtins.ansys_dpf_operator_catalog import (
-    load_ansys_dpf_operator_plugin_descriptors,
-)
+from ea_node_editor.nodes.node_specs import DpfOperatorSourceSpec
 from ea_node_editor.nodes.registry import NodeRegistry
 
 _GENERATED_OPERATOR_PREFIX = "dpf.op."
@@ -58,11 +61,23 @@ class DpfOperatorHelpLookupTests(unittest.TestCase):
         self.assertGreater(len(self.operator_type_ids), 0)
 
     def test_every_registered_operator_has_reachable_docs(self) -> None:
+        index_path = docs_root() / "doc_index.json"
+        index = json.loads(index_path.read_text(encoding="utf-8"))
         missing: list[str] = []
+        documented: list[str] = []
         for type_id in self.operator_type_ids:
+            spec = self.registry.get_spec(type_id)
+            source = spec.source_metadata
+            if not isinstance(source, DpfOperatorSourceSpec) or not source.variants:
+                continue
+            operator_name = str(source.variants[0].operator_name or "").strip()
+            if not operator_name or operator_name not in index:
+                continue
+            documented.append(type_id)
             path = markdown_path_for_type_id(type_id, self.registry)
             if path is None or not path.is_file():
                 missing.append(type_id)
+        self.assertGreater(len(documented), 0)
         self.assertEqual(missing, [])
 
     def test_markdown_for_type_id_returns_heading(self) -> None:

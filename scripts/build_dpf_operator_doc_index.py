@@ -4,7 +4,7 @@ The main doc generator [generate_dpf_operator_docs.py](./generate_dpf_operator_d
 emits the JSON index as part of a full Markdown regeneration pass. This helper
 produces the same file without regenerating the 2,270 Markdown pages — it walks
 the generated operator definitions discovered by
-``ea_node_editor.nodes.builtins.ansys_dpf_operator_catalog`` and reuses each
+``ea_node_editor.addons.ansys_dpf.operator_catalog`` and reuses each
 operator's specification to derive the file path.
 
 Run once (from the project root)::
@@ -21,13 +21,13 @@ import argparse
 import json
 from pathlib import Path
 
-from ea_node_editor.nodes.builtins.ansys_dpf_operator_catalog import (
-    _discovered_generated_operator_definitions,
-)
-from scripts.generate_dpf_operator_docs import (
+from ea_node_editor.addons.ansys_dpf.doc_generation import (
     _DOC_INDEX_FILENAME,
     _UNCATEGORIZED,
-    _operator_doc_relative_path,
+    operator_doc_relative_path,
+)
+from ea_node_editor.addons.ansys_dpf.operator_catalog import (
+    _discovered_generated_operator_definitions,
 )
 
 
@@ -37,7 +37,7 @@ def build_index() -> dict[str, str]:
         properties = getattr(definition.specification, "properties", {}) or {}
         scripting_name = str(properties.get("scripting_name", "") or "").strip()
         category = str(properties.get("category", "") or definition.family or "").strip() or _UNCATEGORIZED
-        index[definition.operator_name] = _operator_doc_relative_path(
+        index[definition.operator_name] = operator_doc_relative_path(
             operator_name=definition.operator_name,
             scripting_name=scripting_name,
             category=category,
