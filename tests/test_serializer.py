@@ -6,8 +6,10 @@ from unittest import mock
 
 from ea_node_editor.addons.catalog import ANSYS_DPF_ADDON_ID
 from ea_node_editor.graph.model import GraphModel
+from ea_node_editor.nodes.builtins import ansys_dpf_catalog
 from ea_node_editor.nodes.bootstrap import build_default_registry
 from ea_node_editor.nodes.plugin_contracts import AddOnManifest, AddOnRecord, AddOnState, PluginAvailability
+from ea_node_editor.nodes.plugin_loader import discover_addon_records
 from ea_node_editor.nodes.registry import NodeRegistry
 from ea_node_editor.persistence.overlay import MISSING_ADDON_PLACEHOLDER_KEY
 from ea_node_editor.persistence.project_codec import ProjectPersistenceEnvelope
@@ -58,6 +60,31 @@ def _assert_dpf_placeholder_contract(test_case: unittest.TestCase, node_doc: dic
             "reason": "missing_addon",
             "label": "Requires add-on",
             "summary": "ANSYS DPF is not loaded in this session.",
+            "focus_addon_id": ANSYS_DPF_ADDON_ID,
+        },
+    )
+
+
+def _assert_unavailable_dpf_placeholder_contract(
+    test_case: unittest.TestCase,
+    node_doc: dict[str, object],
+) -> None:
+    placeholder = node_doc[MISSING_ADDON_PLACEHOLDER_KEY]
+    test_case.assertEqual(placeholder["addon_id"], ANSYS_DPF_ADDON_ID)
+    test_case.assertEqual(placeholder["display_name"], "ANSYS DPF")
+    test_case.assertEqual(placeholder["apply_policy"], "hot_apply")
+    test_case.assertEqual(placeholder["status"], "unavailable")
+    test_case.assertEqual(
+        placeholder["unavailable_reason"],
+        "ansys.dpf.core is not installed; the DPF node family remains unavailable.",
+    )
+    test_case.assertEqual(
+        placeholder["locked_state"],
+        {
+            "is_locked": True,
+            "reason": "missing_addon",
+            "label": "Requires add-on",
+            "summary": "ansys.dpf.core is not installed; the DPF node family remains unavailable.",
             "focus_addon_id": ANSYS_DPF_ADDON_ID,
         },
     )
@@ -425,6 +452,48 @@ class SerializerPortLockingTests(unittest.TestCase):
 
 
 class SerializerDpfPlaceholderTests(unittest.TestCase):
+    def test_unavailable_registered_addon_still_projects_first_load_placeholder_metadata(self) -> None:
+        serializer = JsonProjectSerializer(NodeRegistry())
+        payload = _dpf_placeholder_round_trip_payload()
+
+        with mock.patch.object(ansys_dpf_catalog, "_find_spec", return_value=None):
+            records = discover_addon_records()
+            dpf_record = next(record for record in records if record.addon_id == ANSYS_DPF_ADDON_ID)
+            self.assertEqual(dpf_record.status, "unavailable")
+            self.assertEqual(dpf_record.provided_node_type_ids, ())
+
+            project = serializer.from_document(copy.deepcopy(payload))
+            workspace = project.workspaces["ws_dpf"]
+            self.assertEqual(set(workspace.unresolved_node_docs), {"node_dpf_model"})
+            _assert_unavailable_dpf_placeholder_contract(
+                self,
+                workspace.unresolved_node_docs["node_dpf_model"],
+            )
+
+            scene = GraphSceneBridge()
+            scene.set_workspace(GraphModel(project), NodeRegistry(), "ws_dpf")
+            payloads = {node_payload["node_id"]: node_payload for node_payload in scene.nodes_model}
+            node_payload = payloads["node_dpf_model"]
+
+            self.assertTrue(node_payload["unresolved"])
+            self.assertTrue(node_payload["read_only"])
+            self.assertEqual(node_payload["addon_id"], ANSYS_DPF_ADDON_ID)
+            self.assertEqual(node_payload["addon_status"], "unavailable")
+            self.assertEqual(
+                node_payload["unavailable_reason"],
+                "ansys.dpf.core is not installed; the DPF node family remains unavailable.",
+            )
+            self.assertEqual(
+                node_payload["locked_state"],
+                {
+                    "is_locked": True,
+                    "reason": "missing_addon",
+                    "label": "Requires add-on",
+                    "summary": "ansys.dpf.core is not installed; the DPF node family remains unavailable.",
+                    "focus_addon_id": ANSYS_DPF_ADDON_ID,
+                },
+            )
+
     def test_persistent_document_round_trip_preserves_unresolved_dpf_node_payload(self) -> None:
         serializer = JsonProjectSerializer(NodeRegistry())
         payload = _dpf_placeholder_round_trip_payload()
