@@ -1942,6 +1942,144 @@ class GraphSurfaceLockedNodeCanvasRoutingTests(GraphSurfaceInputContractTestBase
             """,
         )
 
+    def test_graph_canvas_exposes_locked_node_status_ribbon_and_action(self) -> None:
+        self._run_qml_probe(
+            "locked-node-canvas-status-ribbon",
+            """
+            from PyQt6.QtCore import QObject, pyqtSlot
+
+            from ea_node_editor.graph.model import GraphModel
+            from ea_node_editor.nodes.registry import NodeRegistry
+            from ea_node_editor.persistence.serializer import JsonProjectSerializer
+            from ea_node_editor.settings import SCHEMA_VERSION
+            from ea_node_editor.ui_qml.graph_scene_bridge import GraphSceneBridge
+            from ea_node_editor.ui_qml.viewport_bridge import ViewportBridge
+
+            class AddonManagerBridgeStub(QObject):
+                def __init__(self):
+                    super().__init__()
+                    self.requests = []
+
+                @pyqtSlot(str)
+                def requestOpen(self, focus_addon_id):
+                    self.requests.append(str(focus_addon_id))
+
+            addon_bridge = AddonManagerBridgeStub()
+            engine.rootContext().setContextProperty("addonManagerBridge", addon_bridge)
+
+            missing_addon_placeholder = {
+                "addon_id": "tests.addons.signal_pack",
+                "display_name": "Signal Pack",
+                "version": "2.4.1",
+                "apply_policy": "manual",
+                "status": "unavailable",
+                "unavailable_reason": "Signal Pack is not loaded in this session.",
+                "locked_state": {
+                    "reason": "missing_addon",
+                    "label": "Requires add-on",
+                    "summary": "Signal Pack is not loaded in this session.",
+                    "focus_addon_id": "tests.addons.signal_pack",
+                },
+            }
+            document = {
+                "schema_version": SCHEMA_VERSION,
+                "project_id": "proj_locked_node_canvas_ribbon",
+                "name": "Locked Node Canvas Ribbon",
+                "active_workspace_id": "ws_locked",
+                "workspace_order": ["ws_locked"],
+                "workspaces": [{
+                    "workspace_id": "ws_locked",
+                    "name": "Workspace Locked",
+                    "active_view_id": "view_locked",
+                    "views": [{"view_id": "view_locked", "name": "V1", "zoom": 1.0, "pan_x": 0.0, "pan_y": 0.0}],
+                    "nodes": [
+                        {
+                            "node_id": "node_active",
+                            "type_id": "core.logger",
+                            "title": "Logger",
+                            "x": 40.0,
+                            "y": 120.0,
+                            "collapsed": False,
+                            "properties": {"message": "ready"},
+                            "parent_node_id": None,
+                        },
+                        {
+                            "node_id": "node_locked_a",
+                            "type_id": "addons.signal.transform",
+                            "title": "Modal Projection",
+                            "x": 300.0,
+                            "y": 120.0,
+                            "collapsed": False,
+                            "properties": {},
+                            "parent_node_id": None,
+                            "_missing_addon_placeholder": dict(missing_addon_placeholder),
+                        },
+                        {
+                            "node_id": "node_locked_b",
+                            "type_id": "addons.signal.response",
+                            "title": "Harmonic Response",
+                            "x": 580.0,
+                            "y": 120.0,
+                            "collapsed": False,
+                            "properties": {},
+                            "parent_node_id": None,
+                            "_missing_addon_placeholder": dict(missing_addon_placeholder),
+                        },
+                    ],
+                    "edges": [],
+                }],
+                "metadata": {},
+            }
+            serializer = JsonProjectSerializer(NodeRegistry())
+            project = serializer.from_document(document)
+            scene = GraphSceneBridge()
+            scene.set_workspace(GraphModel(project), NodeRegistry(), "ws_locked")
+
+            view = ViewportBridge()
+            view.set_viewport_size(960.0, 540.0)
+            canvas_state_bridge, canvas_command_bridge = build_canvas_bridges(
+                scene_bridge=scene,
+                view_bridge=view,
+            )
+            canvas = create_component(
+                graph_canvas_qml_path,
+                {
+                    "canvasStateBridge": canvas_state_bridge,
+                    "canvasCommandBridge": canvas_command_bridge,
+                    "width": 960.0,
+                    "height": 540.0,
+                },
+            )
+            settle_events(4)
+
+            ribbon = named_item(canvas, "graphCanvasLockedNodeStatusRibbon")
+            ribbon_text = named_item(canvas, "graphCanvasLockedNodeStatusText")
+            action_button = named_item(canvas, "graphCanvasLockedNodeStatusAction")
+            action_text = named_item(canvas, "graphCanvasLockedNodeStatusActionText")
+
+            assert bool(ribbon.property("visible")) is True
+            assert str(ribbon_text.property("text") or "") == "2 locked nodes, 1 add-on missing"
+            assert bool(action_button.property("visible")) is True
+            assert str(action_text.property("text") or "") == "Load missing add-ons"
+
+            assert bool(canvas.requestOpenLockedNodeStatusAction()) is True
+            settle_events(2)
+            assert addon_bridge.requests == ["tests.addons.signal_pack"]
+
+            window = attach_host_to_window(canvas, 1024, 640)
+            mouse_click(window, item_scene_point(action_button))
+            settle_events(4)
+            assert addon_bridge.requests == [
+                "tests.addons.signal_pack",
+                "tests.addons.signal_pack",
+            ]
+
+            dispose_host_window(canvas, window)
+            engine.deleteLater()
+            app.processEvents()
+            """,
+        )
+
     def test_locked_node_surface_bridge_rejects_mutating_requests(self) -> None:
         self._run_qml_probe(
             "locked-node-surface-bridge-guards",

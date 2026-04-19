@@ -259,17 +259,18 @@ Item {
                     anchors.right: parent.right
                     anchors.rightMargin: 6
                     anchors.verticalCenter: parent.verticalCenter
-                    width: 70
+                    width: Math.max(44, Math.ceil(openManagerButtonText.implicitWidth) + 10)
                     height: Math.max(20, parent.height - 8)
                     radius: 5
-                    color: "#253349"
-                    border.width: 1
-                    border.color: "#5d86c6"
+                    color: "transparent"
+                    border.width: 0
 
                     Text {
+                        id: openManagerButtonText
+                        objectName: "graphNodeLockedPlaceholderButtonText"
                         anchors.centerIn: parent
-                        text: "Manager"
-                        color: "#eef3ff"
+                        text: "Load..."
+                        color: "#60cdff"
                         font.pixelSize: 10
                         font.bold: true
                         renderType: host ? host.nodeTextRenderType : Text.CurveRendering
