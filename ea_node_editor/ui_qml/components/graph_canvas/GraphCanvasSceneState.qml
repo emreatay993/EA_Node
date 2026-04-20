@@ -155,6 +155,28 @@ QtObject {
         return !!payload && String(payload.surface_family || "").trim() === "comment_backdrop";
     }
 
+    function _nodeVisiblePorts(payload) {
+        if (!payload)
+            return [];
+        var ports = payload.ports || [];
+        var visiblePorts = [];
+        for (var i = 0; i < ports.length; i++) {
+            var port = ports[i];
+            if (port && port.exposed !== false)
+                visiblePorts.push(port);
+        }
+        return visiblePorts;
+    }
+
+    function nodeCanAffectEdgeGeometry(nodeId) {
+        var payload = root.sceneNodePayload(nodeId);
+        if (!payload)
+            return true;
+        if (root.isCommentBackdropPayload(payload))
+            return false;
+        return root._nodeVisiblePorts(payload).length > 0;
+    }
+
     function _appendBackdropDragDescendants(nodeIds, seenNodeIds, backdropNodeId) {
         var payload = root.sceneNodePayload(backdropNodeId);
         if (!root.isCommentBackdropPayload(payload))
@@ -240,6 +262,7 @@ QtObject {
         var normalized = String(nodeId || "").trim();
         if (!normalized)
             return;
+        var redrawEdges = root.nodeCanAffectEdgeGeometry(normalized);
         var next = {};
         var source = root.liveNodeGeometry || {};
         for (var key in source) {
@@ -257,7 +280,8 @@ QtObject {
             delete next[normalized];
         }
         root.liveNodeGeometry = next;
-        root._requestEdgeRedraw();
+        if (redrawEdges)
+            root._requestEdgeRedraw();
     }
 
     function clearLiveNodeGeometry() {

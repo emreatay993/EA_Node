@@ -11,7 +11,15 @@ Item {
     readonly property bool inputOverlayMode: host
         ? String(host.surfaceVariant || "") === "comment_backdrop_input_overlay"
         : false
+    // During a live resize both backdrop hosts should exit their expensive
+    // text/editor paths. The main backdrop instance keeps a lightweight shell
+    // visible underneath the edge layer while the input overlay host drops its
+    // inline editor until the resize completes.
+    readonly property bool livePreviewActive: host && host._liveGeometryActive
+    readonly property bool livePreviewShellVisible: surface.livePreviewActive && !surface.inputOverlayMode
+    readonly property bool heavyContentVisible: !surface.inputOverlayMode && !surface.livePreviewActive
     readonly property bool editingShellVisible: surface.inputOverlayMode
+        && !surface.livePreviewActive
         && (host ? (host.canvasItem ? host.isSelected : true) : false)
     readonly property string bodyValue: _value("body")
     readonly property var embeddedInteractiveRects: surface.editingShellVisible
@@ -75,7 +83,7 @@ Item {
     }
 
     Rectangle {
-        visible: !surface.inputOverlayMode
+        visible: surface.heavyContentVisible
         anchors.fill: parent
         radius: host ? Math.max(8, Number(host.resolvedCornerRadius || 10) + 2) : 10
         color: "transparent"
@@ -89,7 +97,7 @@ Item {
     }
 
     Rectangle {
-        visible: !surface.inputOverlayMode
+        visible: surface.heavyContentVisible
         anchors.fill: parent
         anchors.margins: 1
         radius: host ? Math.max(7, Number(host.resolvedCornerRadius || 10) + 1) : 9
@@ -99,7 +107,7 @@ Item {
     }
 
     Rectangle {
-        visible: !surface.inputOverlayMode
+        visible: surface.heavyContentVisible
         anchors.left: parent.left
         anchors.right: parent.right
         anchors.top: parent.top
@@ -113,7 +121,7 @@ Item {
     }
 
     Rectangle {
-        visible: !surface.inputOverlayMode
+        visible: surface.heavyContentVisible
         anchors.fill: parent
         radius: host ? Math.max(8, Number(host.resolvedCornerRadius || 10) + 2) : 10
         color: "transparent"
@@ -124,7 +132,7 @@ Item {
     }
 
     Rectangle {
-        visible: !surface.inputOverlayMode
+        visible: surface.heavyContentVisible
         anchors.left: parent.left
         anchors.right: parent.right
         anchors.top: parent.top
@@ -133,7 +141,27 @@ Item {
         opacity: 0.7
     }
 
+    Rectangle {
+        visible: surface.livePreviewShellVisible
+        anchors.fill: parent
+        radius: host ? Math.max(8, Number(host.resolvedCornerRadius || 10) + 2) : 10
+        color: surface.backdropFillColor
+        border.width: host ? Number(host.resolvedBorderWidth || 1) : 1
+        border.color: surface.backdropBorderColor
+    }
+
+    Rectangle {
+        visible: surface.livePreviewShellVisible
+        anchors.left: parent.left
+        anchors.right: parent.right
+        anchors.top: parent.top
+        height: Math.max(32, host ? Number(host.surfaceMetrics.body_top || 52) - 12 : 40)
+        color: surface.accentColor
+        opacity: 0.55
+    }
+
     Item {
+        visible: !surface.livePreviewActive
         anchors.left: parent.left
         anchors.leftMargin: host ? Number(host.surfaceMetrics.body_left_margin || 18) : 18
         anchors.right: parent.right

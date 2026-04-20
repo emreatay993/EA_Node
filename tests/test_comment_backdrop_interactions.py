@@ -4,7 +4,7 @@ import time
 import unittest
 from pathlib import Path
 
-from PyQt6.QtCore import QObject, QUrl, pyqtProperty, pyqtSignal
+from PyQt6.QtCore import QObject, QUrl, pyqtProperty, pyqtSignal, pyqtSlot
 from PyQt6.QtQml import QQmlComponent, QQmlEngine
 from PyQt6.QtQuick import QQuickItem, QQuickWindow
 from PyQt6.QtTest import QTest
@@ -181,6 +181,135 @@ class CommentBackdropInteractionTests(unittest.TestCase):
         self.addCleanup(window.deleteLater)
         return canvas, window
 
+    def test_graph_canvas_scene_state_skips_edge_redraw_for_comment_backdrop_live_resize(self) -> None:
+        class _EdgeLayerCounter(QObject):
+            def __init__(self) -> None:
+                super().__init__()
+                self.request_count = 0
+
+            @pyqtSlot()
+            def requestRedraw(self) -> None:
+                self.request_count += 1
+
+        class _SceneStateBridgeStub(QObject):
+            def __init__(self, nodes_model: list[dict], backdrop_nodes_model: list[dict]) -> None:
+                super().__init__()
+                self._nodes_model = list(nodes_model)
+                self._backdrop_nodes_model = list(backdrop_nodes_model)
+
+            @pyqtProperty("QVariantList", constant=True)
+            def nodes_model(self) -> list[dict]:
+                return self._nodes_model
+
+            @pyqtProperty("QVariantList", constant=True)
+            def backdrop_nodes_model(self) -> list[dict]:
+                return self._backdrop_nodes_model
+
+        class _CanvasItemStub(QObject):
+            def __init__(self, scene_state_bridge: QObject) -> None:
+                super().__init__()
+                self._scene_state_bridge = scene_state_bridge
+
+            @pyqtProperty(QObject, constant=True)
+            def _canvasSceneStateBridgeRef(self) -> QObject:
+                return self._scene_state_bridge
+
+            @pyqtProperty("QVariantList", constant=True)
+            def edgePayload(self) -> list[dict]:
+                return []
+
+        graph_canvas_scene_state_qml = (
+            _REPO_ROOT
+            / "ea_node_editor"
+            / "ui_qml"
+            / "components"
+            / "graph_canvas"
+            / "GraphCanvasSceneState.qml"
+        )
+        standard_payload = {
+            "node_id": "standard_resize_node",
+            "surface_family": "standard",
+            "ports": [
+                {
+                    "key": "exec_in",
+                    "direction": "in",
+                    "kind": "exec",
+                    "data_type": "exec",
+                    "connected": False,
+                },
+                {
+                    "key": "exec_out",
+                    "direction": "out",
+                    "kind": "exec",
+                    "data_type": "exec",
+                    "connected": False,
+                },
+            ],
+        }
+        comment_backdrop_payload = {
+            "node_id": "comment_backdrop_resize_node",
+            "surface_family": "comment_backdrop",
+            "surface_variant": "comment_backdrop",
+            "ports": [],
+        }
+
+        scene_state_bridge = _SceneStateBridgeStub([standard_payload], [comment_backdrop_payload])
+        canvas_item = _CanvasItemStub(scene_state_bridge)
+        edge_counter = _EdgeLayerCounter()
+
+        engine = QQmlEngine()
+        self.addCleanup(engine.deleteLater)
+        component = QQmlComponent(engine, QUrl.fromLocalFile(str(graph_canvas_scene_state_qml)))
+        if component.status() != QQmlComponent.Status.Ready:
+            errors = "\n".join(error.toString() for error in component.errors())
+            self.fail(f"Failed to load GraphCanvasSceneState.qml:\n{errors}")
+        state = component.createWithInitialProperties(
+            {
+                "canvasItem": canvas_item,
+                "edgeLayerItem": edge_counter,
+            }
+        )
+        self.addCleanup(lambda: state.deleteLater() if state is not None else None)
+        if state is None:
+            errors = "\n".join(error.toString() for error in component.errors())
+            self.fail(f"Failed to instantiate GraphCanvasSceneState.qml:\n{errors}")
+
+        state.setLiveNodeGeometry("comment_backdrop_resize_node", 18.0, 26.0, 320.0, 180.0, True)
+        self.app.processEvents()
+        self.assertEqual(
+            _variant_value(state.property("liveNodeGeometry"))["comment_backdrop_resize_node"],
+            {
+                "x": 18.0,
+                "y": 26.0,
+                "width": 320.0,
+                "height": 180.0,
+            },
+        )
+        self.assertEqual(edge_counter.request_count, 0)
+
+        state.setLiveNodeGeometry("comment_backdrop_resize_node", 18.0, 26.0, 320.0, 180.0, False)
+        self.app.processEvents()
+        self.assertEqual(_variant_value(state.property("liveNodeGeometry")), {})
+        self.assertEqual(edge_counter.request_count, 0)
+
+        state.setLiveNodeGeometry("standard_resize_node", 42.0, 64.0, 260.0, 120.0, True)
+        self.app.processEvents()
+        self.assertEqual(
+            _variant_value(state.property("liveNodeGeometry"))["standard_resize_node"],
+            {
+                "x": 42.0,
+                "y": 64.0,
+                "width": 260.0,
+                "height": 120.0,
+            },
+        )
+        self.assertEqual(edge_counter.request_count, 1)
+
+        state.setLiveNodeGeometry("standard_resize_node", 42.0, 64.0, 260.0, 120.0, False)
+        self.app.processEvents()
+        self.assertEqual(_variant_value(state.property("liveNodeGeometry")), {})
+        self.assertEqual(edge_counter.request_count, 2)
+
     def test_graph_canvas_dragging_backdrop_moves_nested_descendants_once_and_preserves_selection(self) -> None:
         outer_id = self._add_backdrop(40.0, 40.0, 760.0, 520.0)
         inner_id = self._add_backdrop(140.0, 130.0, 320.0, 240.0)
@@ -252,6 +381,91 @@ class CommentBackdropInteractionTests(unittest.TestCase):
         self.assertAlmostEqual(float(workspace.nodes[inner_id].y), 180.0, places=6)
         self.assertAlmostEqual(float(workspace.nodes[inner_logger_id].x), 270.0, places=6)
         self.assertAlmostEqual(float(workspace.nodes[inner_logger_id].y), 230.0, places=6)
+
+    def test_graph_canvas_live_resize_hides_comment_backdrop_editor_and_mirrors_geometry(self) -> None:
+        backdrop_id = self._add_backdrop(160.0, 120.0, 380.0, 260.0)
+        self.scene.set_node_property(backdrop_id, "body", "Backdrop note body")
+        self.scene.select_node(backdrop_id, False)
+        workspace = self._workspace()
+        canvas, _window = self._create_canvas()
+
+        _wait_for(
+            lambda: len(_named_child_items(canvas, "graphCommentBackdropInputCard")) == 1,
+            timeout_ms=1500,
+            app=self.app,
+            message="Timed out waiting for the selected comment backdrop input host to appear.",
+        )
+
+        backdrop_host = _node_host(canvas, backdrop_id)
+        backdrop_input_host = _node_host(canvas, backdrop_id, object_name="graphCommentBackdropInputCard")
+        body_editor = backdrop_input_host.findChild(QObject, "graphCommentBackdropBodyEditor")
+        surface = backdrop_input_host.findChild(QObject, "graphNodeCommentBackdropSurface")
+        self.assertIsNotNone(body_editor)
+        self.assertIsNotNone(surface)
+
+        _wait_for(
+            lambda: bool(body_editor.property("visible")),
+            timeout_ms=1000,
+            app=self.app,
+            message="Timed out waiting for the selected comment backdrop editor to become visible.",
+        )
+
+        backdrop_input_host.resizePreviewChanged.emit(backdrop_id, 190.0, 140.0, 420.0, 310.0, True)
+
+        _wait_for(
+            lambda: (
+                bool(backdrop_host.property("_liveGeometryActive"))
+                and bool(backdrop_input_host.property("_liveGeometryActive"))
+                and bool(surface.property("livePreviewActive"))
+            ),
+            timeout_ms=1000,
+            app=self.app,
+            message="Timed out waiting for comment backdrop live-resize preview to activate.",
+        )
+
+        live_geometry = _variant_value(canvas.property("liveNodeGeometry"))
+        self.assertEqual(
+            live_geometry[backdrop_id],
+            {
+                "x": 190.0,
+                "y": 140.0,
+                "width": 420.0,
+                "height": 310.0,
+            },
+        )
+        self.assertAlmostEqual(float(backdrop_host.property("_liveX")), 190.0, places=6)
+        self.assertAlmostEqual(float(backdrop_host.property("_liveY")), 140.0, places=6)
+        self.assertAlmostEqual(float(backdrop_host.property("_liveWidth")), 420.0, places=6)
+        self.assertAlmostEqual(float(backdrop_host.property("_liveHeight")), 310.0, places=6)
+        self.assertAlmostEqual(float(backdrop_input_host.property("_liveWidth")), 420.0, places=6)
+        self.assertAlmostEqual(float(backdrop_input_host.property("_liveHeight")), 310.0, places=6)
+        self.assertFalse(bool(body_editor.property("visible")))
+
+        backdrop_input_host.resizeFinished.emit(backdrop_id, 190.0, 140.0, 420.0, 310.0)
+
+        _wait_for(
+            lambda: (
+                _variant_value(canvas.property("liveNodeGeometry")) == {}
+                and abs(float(workspace.nodes[backdrop_id].x) - 190.0) < 0.01
+                and abs(float(workspace.nodes[backdrop_id].y) - 140.0) < 0.01
+            ),
+            timeout_ms=1500,
+            app=self.app,
+            message="Timed out waiting for comment backdrop live-resize preview to settle.",
+        )
+
+        refreshed_backdrop_host = _node_host(canvas, backdrop_id)
+        refreshed_backdrop_input_host = _node_host(canvas, backdrop_id, object_name="graphCommentBackdropInputCard")
+        refreshed_body_editor = refreshed_backdrop_input_host.findChild(QObject, "graphCommentBackdropBodyEditor")
+        self.assertIsNotNone(refreshed_body_editor)
+
+        self.assertFalse(bool(refreshed_backdrop_host.property("_liveGeometryActive")))
+        self.assertFalse(bool(refreshed_backdrop_input_host.property("_liveGeometryActive")))
+        self.assertTrue(bool(refreshed_body_editor.property("visible")))
+        self.assertAlmostEqual(float(workspace.nodes[backdrop_id].x), 190.0, places=6)
+        self.assertAlmostEqual(float(workspace.nodes[backdrop_id].y), 140.0, places=6)
+        self.assertAlmostEqual(float(workspace.nodes[backdrop_id].custom_width or 0.0), 420.0, places=6)
+        self.assertAlmostEqual(float(workspace.nodes[backdrop_id].custom_height or 0.0), 310.0, places=6)
 
     def test_scene_resize_backdrop_recomputes_nested_membership_without_moving_other_nodes(self) -> None:
         outer_id = self._add_backdrop(100.0, 100.0, 760.0, 520.0)
