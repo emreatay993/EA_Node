@@ -5,12 +5,14 @@ import json
 import queue
 import smtplib
 import tempfile
+import types
 import unittest
 from pathlib import Path
 from unittest import mock
 
 from ea_node_editor.execution.worker import run_workflow
 from ea_node_editor.execution.runtime_snapshot import build_runtime_snapshot
+from ea_node_editor.graph.boundary_adapters import _fallback_node_size
 from ea_node_editor.graph.model import GraphModel
 from ea_node_editor.nodes.bootstrap import build_default_registry
 from ea_node_editor.nodes.builtins import integrations_email, integrations_spreadsheet
@@ -306,11 +308,95 @@ class PathPointerNodeTests(unittest.TestCase):
         # All properties live in the single "Source" group
         self.assertEqual(
             {prop.key for prop in spec.properties},
-            {"mode", "path", "must_exist"},
+            {"mode", "path", "must_exist", "show_full_path"},
         )
         for prop in spec.properties:
             self.assertEqual(prop.group, "Source", f"property {prop.key} not in Source group")
         self.assertEqual(spec.runtime_behavior, "passive")
+        # Folder icon requested by the user.
+        self.assertEqual(spec.icon, "integrations/folder.svg")
+
+    def test_path_pointer_show_full_path_property_defaults_to_false(self) -> None:
+        spec = PathPointerNodePlugin().spec()
+        show_full = next(p for p in spec.properties if p.key == "show_full_path")
+        self.assertEqual(show_full.type, "bool")
+        self.assertEqual(show_full.default, False)
+        self.assertEqual(show_full.inspector_editor, "toggle")
+        self.assertEqual(show_full.group, "Source")
+
+
+class PathPointerWidthResolverTests(unittest.TestCase):
+    """Tests for the dynamic node width when ``show_full_path`` is toggled."""
+
+    @staticmethod
+    def _node(properties: dict | None = None, *, custom_width: float | None = None) -> types.SimpleNamespace:
+        """Lightweight NodeInstance stand-in — resolver only reads these attrs."""
+        return types.SimpleNamespace(
+            properties=dict(properties or {}),
+            custom_width=custom_width,
+            custom_height=None,
+        )
+
+    def _spec(self):
+        return PathPointerNodePlugin().spec()
+
+    def test_show_full_path_false_returns_base_width(self) -> None:
+        node = self._node({"show_full_path": False, "path": "C:/some/very/long/path/here.rst"})
+        width, height = _fallback_node_size(node, self._spec())
+        # Base default width is 240 (no custom_width set).
+        self.assertEqual(width, 240.0)
+        self.assertEqual(height, 160.0)
+
+    def test_show_full_path_true_expands_width_for_long_path(self) -> None:
+        long_path = "C:/runs/job_042/results/deep/nested/folder/file.rst"  # 52 chars
+        node = self._node({"show_full_path": True, "path": long_path})
+        width, _height = _fallback_node_size(node, self._spec())
+        # Must be wider than the default 240 for a 52-char path.
+        self.assertGreater(width, 240.0)
+        # And wide enough to comfortably fit the path (>= chrome + char_w * len).
+        self.assertGreaterEqual(width, 56.0 + 7.0 * len(long_path))
+
+    def test_show_full_path_true_short_path_does_not_shrink_below_base(self) -> None:
+        node = self._node({"show_full_path": True, "path": "a.txt"})
+        width, _height = _fallback_node_size(node, self._spec())
+        # Base width (240) already fits a 5-char path; width must not shrink.
+        self.assertEqual(width, 240.0)
+
+    def test_show_full_path_true_respects_user_custom_width_when_larger(self) -> None:
+        node = self._node(
+            {"show_full_path": True, "path": "a.txt"},
+            custom_width=500.0,
+        )
+        width, _height = _fallback_node_size(node, self._spec())
+        # User's drag-resize wider than computed must win.
+        self.assertEqual(width, 500.0)
+
+    def test_show_full_path_true_empty_path_returns_base_width(self) -> None:
+        node = self._node({"show_full_path": True, "path": ""})
+        width, _height = _fallback_node_size(node, self._spec())
+        self.assertEqual(width, 240.0)
+
+    def test_show_full_path_true_width_is_capped(self) -> None:
+        node = self._node({"show_full_path": True, "path": "x" * 5000})
+        width, _height = _fallback_node_size(node, self._spec())
+        # Cap is 1200 px; 5000 chars at 7.2 px/char would otherwise be 36000 px.
+        self.assertLessEqual(width, 1200.0)
+        self.assertGreater(width, 240.0)
+
+    def test_toggle_off_restores_last_user_custom_width(self) -> None:
+        """Per user intent: flipping show_full_path off reverts to default, or user's last resize."""
+        # User resized to 320 before ever turning the toggle on.
+        node = self._node({"show_full_path": False, "path": "C:/very/long/path.rst"}, custom_width=320.0)
+        width, _h = _fallback_node_size(node, self._spec())
+        self.assertEqual(width, 320.0)
+
+    def test_path_pointer_resolver_does_not_affect_other_node_types(self) -> None:
+        """Sanity: the per-type override is keyed by type_id and must not leak."""
+        other_spec = FileReadNodePlugin().spec()
+        node = self._node({"show_full_path": True, "path": "C:/anything/at/all.txt"}, custom_width=200.0)
+        width, _h = _fallback_node_size(node, other_spec)
+        # FileReadNodePlugin has no override, so base/custom width is returned untouched.
+        self.assertEqual(width, 200.0)
 
 
 class IntegrationFlowSmokeTests(unittest.TestCase):

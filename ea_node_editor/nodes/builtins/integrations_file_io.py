@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+from ea_node_editor.graph.boundary_adapters import register_node_type_size_resolver
 from ea_node_editor.nodes.builtins.integrations_common import pick_optional_path, pick_path, require_existing_file
 from ea_node_editor.nodes.output_artifacts import write_managed_output
 from ea_node_editor.nodes.execution_context import NodeResult
@@ -107,6 +108,12 @@ class PathPointerNodePlugin:
 
     Acts as a passive data source: one editable path feeds many consumers, so a
     path referenced by several nodes has a single edit point.
+
+    The ``show_full_path`` toggle expands the rendered node width just enough to
+    show the full path string. When toggled off, the node reverts to its base
+    size (the user's last drag-resize if any, otherwise the default). The width
+    override is applied via ``_path_pointer_node_size`` below, registered with
+    ``register_node_type_size_resolver`` at module-import time.
     """
 
     def spec(self) -> NodeTypeSpec:
@@ -114,7 +121,7 @@ class PathPointerNodePlugin:
             type_id="io.path_pointer",
             display_name="Path Pointer",
             category_path=("Input / Output",),
-            icon="integrations/description.svg",
+            icon="integrations/folder.svg",
             description="Holds a file or folder path for reuse across nodes.",
             runtime_behavior="passive",
             ports=(
@@ -146,6 +153,15 @@ class PathPointerNodePlugin:
                     "bool",
                     True,
                     "Must Exist",
+                    inspector_editor="toggle",
+                    group="Source",
+                ),
+                PropertySpec(
+                    "show_full_path",
+                    "bool",
+                    False,
+                    "Show Full Path",
+                    inline_editor="toggle",
                     inspector_editor="toggle",
                     group="Source",
                 ),
@@ -186,3 +202,39 @@ class PathPointerNodePlugin:
         return NodeResult(
             outputs={"path": str(path), "exists": bool(exists and type_ok)}
         )
+
+
+# --- Dynamic width for io.path_pointer when "Show Full Path" is enabled -------
+#
+# Width heuristic: chrome + per-character estimate, capped to a sane maximum.
+# The renderer uses real font metrics for the text itself; our job here is only
+# to pick a node width that is "wide enough". A slight over-estimate is fine
+# (the path field just gets a bit of trailing room); under-estimating would
+# clip the path, which is exactly what the toggle is meant to prevent.
+_PATH_POINTER_WIDTH_CHROME_PX = 56.0
+_PATH_POINTER_CHAR_WIDTH_PX = 7.2
+_PATH_POINTER_MAX_WIDTH_PX = 1200.0
+
+
+def _path_pointer_node_size(node, _spec, *, base_width: float, base_height: float) -> tuple[float, float]:
+    """Width override for the ``io.path_pointer`` node.
+
+    When ``show_full_path`` is ``True``, return a width large enough to show
+    the full path text, but never smaller than ``base_width`` so that a user
+    drag-resize wider than needed is still honored. When ``False``, defer to
+    ``base_width`` unchanged — so toggling off restores the user's last
+    custom width (or the default when they haven't resized).
+    """
+    properties = getattr(node, "properties", {}) or {}
+    show_full = bool(properties.get("show_full_path", False))
+    if not show_full:
+        return base_width, base_height
+    path_text = str(properties.get("path", "") or "")
+    if not path_text:
+        return base_width, base_height
+    estimated = _PATH_POINTER_WIDTH_CHROME_PX + _PATH_POINTER_CHAR_WIDTH_PX * len(path_text)
+    capped = min(_PATH_POINTER_MAX_WIDTH_PX, estimated)
+    return max(base_width, capped), base_height
+
+
+register_node_type_size_resolver("io.path_pointer", _path_pointer_node_size)
