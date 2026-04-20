@@ -11,16 +11,23 @@ Item {
     readonly property bool inputOverlayMode: host
         ? String(host.surfaceVariant || "") === "comment_backdrop_input_overlay"
         : false
-    // During a live resize both backdrop hosts should exit their expensive
-    // text/editor paths. The main backdrop instance keeps a lightweight shell
-    // visible underneath the edge layer while the input overlay host drops its
-    // inline editor until the resize completes.
+    // During a live resize the selected overlay host drops the inline editor,
+    // but keeps a cheap wrapped-text preview so the user can still tune line
+    // wrapping while dragging.
     readonly property bool livePreviewActive: host && host._liveGeometryActive
     readonly property bool livePreviewShellVisible: surface.livePreviewActive && !surface.inputOverlayMode
     readonly property bool heavyContentVisible: !surface.inputOverlayMode && !surface.livePreviewActive
+    readonly property bool selectedHost: host ? (host.canvasItem ? host.isSelected : true) : false
     readonly property bool editingShellVisible: surface.inputOverlayMode
         && !surface.livePreviewActive
-        && (host ? (host.canvasItem ? host.isSelected : true) : false)
+        && surface.selectedHost
+    readonly property bool overlayPreviewTextVisible: surface.inputOverlayMode
+        && surface.livePreviewActive
+        && surface.selectedHost
+    readonly property bool primaryReadOnlyTextVisible: !surface.inputOverlayMode
+        && (!surface.livePreviewActive || !surface.selectedHost)
+    readonly property bool readOnlyTextVisible: surface.overlayPreviewTextVisible
+        || surface.primaryReadOnlyTextVisible
     readonly property string bodyValue: _value("body")
     readonly property var embeddedInteractiveRects: surface.editingShellVisible
         ? bodyEditor.embeddedInteractiveRects
@@ -161,7 +168,6 @@ Item {
     }
 
     Item {
-        visible: !surface.livePreviewActive
         anchors.left: parent.left
         anchors.leftMargin: host ? Number(host.surfaceMetrics.body_left_margin || 18) : 18
         anchors.right: parent.right
@@ -177,7 +183,7 @@ Item {
             spacing: 10
 
             Text {
-                visible: !surface.editingShellVisible && surface.bodyValue.length > 0
+                visible: surface.readOnlyTextVisible && surface.bodyValue.length > 0
                 objectName: "graphNodeCommentBackdropBodyText"
                 width: parent.width
                 text: surface.bodyValue
@@ -191,7 +197,7 @@ Item {
             }
 
             Text {
-                visible: !surface.editingShellVisible && surface.bodyValue.length === 0
+                visible: surface.readOnlyTextVisible && surface.bodyValue.length === 0
                 width: parent.width
                 text: "Backdrop notes stay on the standard graph document path in P01."
                 color: surface.mutedTextColor

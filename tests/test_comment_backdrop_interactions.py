@@ -382,7 +382,7 @@ class CommentBackdropInteractionTests(unittest.TestCase):
         self.assertAlmostEqual(float(workspace.nodes[inner_logger_id].x), 270.0, places=6)
         self.assertAlmostEqual(float(workspace.nodes[inner_logger_id].y), 230.0, places=6)
 
-    def test_graph_canvas_live_resize_hides_comment_backdrop_editor_and_mirrors_geometry(self) -> None:
+    def test_graph_canvas_live_resize_keeps_wrapped_text_preview_and_mirrors_geometry(self) -> None:
         backdrop_id = self._add_backdrop(160.0, 120.0, 380.0, 260.0)
         self.scene.set_node_property(backdrop_id, "body", "Backdrop note body")
         self.scene.select_node(backdrop_id, False)
@@ -399,8 +399,10 @@ class CommentBackdropInteractionTests(unittest.TestCase):
         backdrop_host = _node_host(canvas, backdrop_id)
         backdrop_input_host = _node_host(canvas, backdrop_id, object_name="graphCommentBackdropInputCard")
         body_editor = backdrop_input_host.findChild(QObject, "graphCommentBackdropBodyEditor")
+        body_text = backdrop_input_host.findChild(QObject, "graphNodeCommentBackdropBodyText")
         surface = backdrop_input_host.findChild(QObject, "graphNodeCommentBackdropSurface")
         self.assertIsNotNone(body_editor)
+        self.assertIsNotNone(body_text)
         self.assertIsNotNone(surface)
 
         _wait_for(
@@ -440,6 +442,7 @@ class CommentBackdropInteractionTests(unittest.TestCase):
         self.assertAlmostEqual(float(backdrop_input_host.property("_liveWidth")), 420.0, places=6)
         self.assertAlmostEqual(float(backdrop_input_host.property("_liveHeight")), 310.0, places=6)
         self.assertFalse(bool(body_editor.property("visible")))
+        self.assertTrue(bool(body_text.property("visible")))
 
         backdrop_input_host.resizeFinished.emit(backdrop_id, 190.0, 140.0, 420.0, 310.0)
 
@@ -457,11 +460,14 @@ class CommentBackdropInteractionTests(unittest.TestCase):
         refreshed_backdrop_host = _node_host(canvas, backdrop_id)
         refreshed_backdrop_input_host = _node_host(canvas, backdrop_id, object_name="graphCommentBackdropInputCard")
         refreshed_body_editor = refreshed_backdrop_input_host.findChild(QObject, "graphCommentBackdropBodyEditor")
+        refreshed_body_text = refreshed_backdrop_input_host.findChild(QObject, "graphNodeCommentBackdropBodyText")
         self.assertIsNotNone(refreshed_body_editor)
+        self.assertIsNotNone(refreshed_body_text)
 
         self.assertFalse(bool(refreshed_backdrop_host.property("_liveGeometryActive")))
         self.assertFalse(bool(refreshed_backdrop_input_host.property("_liveGeometryActive")))
         self.assertTrue(bool(refreshed_body_editor.property("visible")))
+        self.assertFalse(bool(refreshed_body_text.property("visible")))
         self.assertAlmostEqual(float(workspace.nodes[backdrop_id].x), 190.0, places=6)
         self.assertAlmostEqual(float(workspace.nodes[backdrop_id].y), 140.0, places=6)
         self.assertAlmostEqual(float(workspace.nodes[backdrop_id].custom_width or 0.0), 420.0, places=6)
