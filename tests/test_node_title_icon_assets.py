@@ -31,7 +31,11 @@ from ea_node_editor.nodes.builtins.hpc import (
     HPCSubmitNodePlugin,
 )
 from ea_node_editor.nodes.builtins.integrations_email import EmailSendNodePlugin
-from ea_node_editor.nodes.builtins.integrations_file_io import FileReadNodePlugin, FileWriteNodePlugin
+from ea_node_editor.nodes.builtins.integrations_file_io import (
+    FileReadNodePlugin,
+    FileWriteNodePlugin,
+    PathPointerNodePlugin,
+)
 from ea_node_editor.nodes.builtins.integrations_process import ProcessRunNodePlugin
 from ea_node_editor.nodes.builtins.integrations_spreadsheet import (
     ExcelReadNodePlugin,
@@ -71,6 +75,7 @@ _MIGRATED_TITLE_ICON_SPECS = {
     "io.email_send": (EmailSendNodePlugin, "integrations/mail.svg"),
     "io.file_read": (FileReadNodePlugin, "integrations/description.svg"),
     "io.file_write": (FileWriteNodePlugin, "integrations/save.svg"),
+    "io.path_pointer": (PathPointerNodePlugin, "integrations/folder.svg"),
     "io.process_run": (ProcessRunNodePlugin, "integrations/terminal.svg"),
     "io.excel_read": (ExcelReadNodePlugin, "integrations/table_view.svg"),
     "io.excel_write": (ExcelWriteNodePlugin, "integrations/download.svg"),
@@ -138,7 +143,17 @@ class NodeTitleIconAssetTests(unittest.TestCase):
             observed_specs[spec.type_id] = spec
             self.assertEqual(spec.type_id, expected_type_id)
             self.assertEqual(spec.icon, expected_icon_path)
-            self.assertIn(spec.runtime_behavior, {"active", "compile_only"})
+            # Icons render for active/compile_only specs by default; passive
+            # specs must opt in via ``show_title_icon`` (e.g. io.path_pointer).
+            self.assertTrue(
+                spec.runtime_behavior in {"active", "compile_only"}
+                or spec.show_title_icon,
+                msg=(
+                    f"{spec.type_id} has runtime_behavior={spec.runtime_behavior!r} "
+                    f"and show_title_icon={spec.show_title_icon!r}; its icon "
+                    "would never render in the node header."
+                ),
+            )
 
             asset_path = NODE_TITLE_ICON_ASSET_ROOT / expected_icon_path
             self.assertTrue(asset_path.is_file(), msg=f"missing asset for {spec.type_id}: {asset_path}")
