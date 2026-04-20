@@ -8,25 +8,88 @@ import subprocess
 import sys
 import unittest
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any
 from unittest.mock import patch
 
 from PyQt6.QtCore import QEvent, QUrl
 from PyQt6.QtWidgets import QMessageBox
 
+from ea_node_editor.addons.catalog import AddOnRegistration
+from ea_node_editor.app_preferences import default_app_preferences_document, set_addon_state
 from ea_node_editor.execution.viewer_backend_dpf import DPF_EXECUTION_VIEWER_BACKEND_ID
 from ea_node_editor.graph.model import GraphModel
+from ea_node_editor.nodes.bootstrap import build_default_registry
+from ea_node_editor.nodes.node_specs import NodeTypeSpec, PortSpec, PropertySpec
+from ea_node_editor.nodes.plugin_contracts import (
+    AddOnManifest,
+    PluginAvailability,
+    PluginBackendDescriptor,
+    PluginDescriptor,
+)
 from ea_node_editor.persistence.artifact_refs import (
     format_managed_artifact_ref,
     format_staged_artifact_ref,
 )
 from ea_node_editor.persistence.artifact_store import ProjectArtifactStore
+from ea_node_editor.persistence.overlay import MISSING_ADDON_PLACEHOLDER_KEY
+from ea_node_editor.persistence.serializer import JsonProjectSerializer
 from ea_node_editor.ui.dialogs.project_save_as_dialog import ProjectSaveAsDialog
+from ea_node_editor.ui.shell.composition import create_shell_window
 from ea_node_editor.ui.shell.window import ShellWindow
 from tests.main_window_shell.base import MainWindowShellTestBase
 
 _SCENARIO_ARG = "--scenario"
 _PROJECT_ROOT = Path(__file__).resolve().parents[1]
+_FAKE_REOPEN_ADDON_ID = "tests.addons.reopen_lock"
+_FAKE_REOPEN_BACKEND_MODULE = "tests.addons.reopen_lock.module"
+_FAKE_REOPEN_NODE_TYPE_ID = "tests.addons.reopen_lock.node"
+
+
+def _fake_reopen_plugin_descriptor() -> PluginDescriptor:
+    class _FakeReopenPlugin:
+        def spec(self) -> NodeTypeSpec:
+            return NodeTypeSpec(
+                type_id=_FAKE_REOPEN_NODE_TYPE_ID,
+                display_name="Reopen Lock Node",
+                category_path=("Tests", "Add-Ons"),
+                icon="",
+                ports=(PortSpec("message", "in", "data", "str", "Message"),),
+                properties=(PropertySpec("message", "str", "", "Message"),),
+            )
+
+        def execute(self, ctx):  # noqa: ANN001
+            from ea_node_editor.nodes.types import NodeResult
+
+            return NodeResult()
+
+    return PluginDescriptor(spec=_FakeReopenPlugin().spec(), factory=_FakeReopenPlugin)
+
+
+def _fake_reopen_addon_registration() -> AddOnRegistration:
+    return AddOnRegistration(
+        manifest=AddOnManifest(
+            addon_id=_FAKE_REOPEN_ADDON_ID,
+            display_name="Reopen Lock Add-On",
+            apply_policy="hot_apply",
+            vendor="Tests",
+            summary="Synthetic hot-apply add-on used for startup reopen coverage.",
+            details="Provides a single synthetic node type for reopen-state regression coverage.",
+        ),
+        backend_module=_FAKE_REOPEN_BACKEND_MODULE,
+        backend_id=_FAKE_REOPEN_ADDON_ID,
+    )
+
+
+def _fake_reopen_addon_module(registration: AddOnRegistration) -> SimpleNamespace:
+    backend = PluginBackendDescriptor(
+        plugin_id=registration.manifest.addon_id,
+        display_name=registration.manifest.display_name,
+        get_availability=lambda: PluginAvailability.available("ready"),
+        load_descriptors=lambda: (_fake_reopen_plugin_descriptor(),),
+        addon_manifest=registration.manifest,
+    )
+    return SimpleNamespace(PLUGIN_BACKENDS=(backend,))
 
 
 class _ViewerExecutionClientStub:
@@ -215,6 +278,69 @@ class _ShellProjectSessionControllerScenarios(MainWindowShellTestBase):
             return
         autosave_doc = json.loads(self._autosave_path.read_text(encoding="utf-8"))
         self.assertEqual(autosave_doc, window.serializer.to_document(window.model.project))
+
+    def test_open_project_keeps_addon_placeholder_locked_when_startup_preferences_disable_addon(self) -> None:
+        registration = _fake_reopen_addon_registration()
+        fake_module = _fake_reopen_addon_module(registration)
+        disabled_preferences = set_addon_state(
+            default_app_preferences_document(),
+            registration.manifest.addon_id,
+            enabled=False,
+            pending_restart=False,
+        )
+        real_import_module = importlib.import_module
+
+        def _import_fake_module(module_name: str):
+            if module_name == registration.backend_module:
+                return fake_module
+            return real_import_module(module_name)
+
+        project_path = Path(self._temp_dir.name) / "projects" / "disabled_addon_reopen.sfe"
+        project_path.parent.mkdir(parents=True, exist_ok=True)
+
+        with (
+            patch("ea_node_editor.addons.catalog.REGISTERED_ADDON_REGISTRATIONS", (registration,)),
+            patch("ea_node_editor.addons.catalog.importlib.import_module", side_effect=_import_fake_module),
+            patch("ea_node_editor.nodes.plugin_loader.importlib.import_module", side_effect=_import_fake_module),
+        ):
+            enabled_registry = build_default_registry()
+            self.assertIsNotNone(enabled_registry.spec_or_none(_FAKE_REOPEN_NODE_TYPE_ID))
+            serializer = JsonProjectSerializer(enabled_registry)
+            model = GraphModel()
+            workspace = model.active_workspace
+            node = model.add_node(
+                workspace.workspace_id,
+                _FAKE_REOPEN_NODE_TYPE_ID,
+                "Reopen Lock Node",
+                120.0,
+                80.0,
+                properties={"message": "locked"},
+            )
+            node.locked_ports = {"message": True}
+            serializer.save_document(str(project_path), serializer.to_document(model.project))
+
+            reopened_window = create_shell_window(preferences_document=disabled_preferences)
+            reopened_window.resize(1200, 800)
+            reopened_window.show()
+            self.app.processEvents()
+            try:
+                self.assertTrue(reopened_window._open_project_path(str(project_path)))
+                self.app.processEvents()
+
+                reopened_workspace = reopened_window.model.active_workspace
+                self.assertNotIn(node.node_id, reopened_workspace.nodes)
+                placeholder_doc = reopened_workspace.unresolved_node_docs[node.node_id]
+                self.assertEqual(placeholder_doc["locked_ports"], {"message": True})
+
+                placeholder = placeholder_doc[MISSING_ADDON_PLACEHOLDER_KEY]
+                self.assertEqual(placeholder["addon_id"], registration.manifest.addon_id)
+                self.assertEqual(placeholder["status"], "disabled")
+                self.assertEqual(
+                    placeholder["locked_state"]["focus_addon_id"],
+                    registration.manifest.addon_id,
+                )
+            finally:
+                self._dispose_secondary_window(reopened_window)
 
     def test_saved_project_reopen_seeds_run_required_viewer_projection_without_persisting_live_transport(self) -> None:
         self.window.execution_client = _ViewerExecutionClientStub()

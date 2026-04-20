@@ -15,6 +15,7 @@ bootstrap_module = importlib.import_module("ea_node_editor.bootstrap")
 app_module = importlib.import_module("ea_node_editor.app")
 shell_composition_module = importlib.import_module("ea_node_editor.ui.shell.composition")
 shell_presenters_module = importlib.import_module("ea_node_editor.ui.shell.presenters")
+registry_loader_module = importlib.import_module("ea_node_editor.ui.splash.registry_loader")
 shell_window_module = importlib.import_module("ea_node_editor.ui.shell.window")
 
 
@@ -131,15 +132,26 @@ class AppBootstrapTests(unittest.TestCase):
 
     def test_build_and_show_shell_window_uses_composition_root(self) -> None:
         fake_window = Mock()
+        preferences_document = {"graphics": {"theme": {"theme_id": "packet-theme"}}}
 
-        with patch.object(app_module, "create_shell_window", return_value=fake_window) as create_shell_window_mock:
+        with patch.object(
+            app_module,
+            "_load_startup_preferences_document",
+            return_value=preferences_document,
+        ) as load_preferences_mock, patch.object(
+            app_module,
+            "create_shell_window",
+            return_value=fake_window,
+        ) as create_shell_window_mock:
             self.assertIs(app_module.build_and_show_shell_window(), fake_window)
 
-        create_shell_window_mock.assert_called_once_with()
+        load_preferences_mock.assert_called_once_with()
+        create_shell_window_mock.assert_called_once_with(preferences_document=preferences_document)
         fake_window.show.assert_called_once_with()
 
     def test_create_shell_window_builds_composition_before_bootstrap(self) -> None:
         composition = object()
+        preferences_document = {"graphics": {"theme": {"theme_id": "packet-theme"}}}
         with patch.object(
             shell_composition_module,
             "build_shell_window_composition",
@@ -148,15 +160,37 @@ class AppBootstrapTests(unittest.TestCase):
             shell_composition_module,
             "bootstrap_shell_window",
         ) as bootstrap_mock:
-            window = shell_composition_module.create_shell_window()
+            window = shell_composition_module.create_shell_window(preferences_document=preferences_document)
 
         self.assertIsInstance(window, shell_window_module.ShellWindow)
-        build_composition_mock.assert_called_once_with(window, registry=None)
+        build_composition_mock.assert_called_once_with(
+            window,
+            registry=None,
+            preferences_document=preferences_document,
+        )
         bootstrap_mock.assert_called_once_with(window, composition)
         window.close()
         window.deleteLater()
         self.app.sendPostedEvents()
         self.app.processEvents()
+
+    def test_registry_loader_builds_default_registry_with_preloaded_preferences_document(self) -> None:
+        preferences_document = {"addons": {"states": {"tests.addon": {"enabled": False, "pending_restart": False}}}}
+        sentinel_registry = object()
+        captured: list[object] = []
+
+        loader = registry_loader_module.RegistryLoader(preferences_document=preferences_document)
+        loader.ready.connect(captured.append)
+
+        with patch.object(
+            registry_loader_module,
+            "build_default_registry",
+            return_value=sentinel_registry,
+        ) as build_registry_mock:
+            loader._worker.run()
+
+        build_registry_mock.assert_called_once_with(preferences_document=preferences_document)
+        self.assertEqual(captured, [sentinel_registry])
 
     def test_build_shell_window_composition_returns_typed_contract(self) -> None:
         window = shell_window_module.ShellWindow(_defer_bootstrap=True)
@@ -258,6 +292,7 @@ class AppBootstrapTests(unittest.TestCase):
         fake_app.exec.return_value = 17
         fake_splash = Mock()
         fake_loader = Mock()
+        preferences_document = {"graphics": {"theme": {"theme_id": "packet-theme"}}}
 
         with patch.object(app_module.mp, "freeze_support") as freeze_support_mock, patch.object(
             app_module,
@@ -267,6 +302,10 @@ class AppBootstrapTests(unittest.TestCase):
             app_module,
             "_startup_theme_id",
             return_value="packet-theme",
+        ) as startup_theme_mock, patch.object(
+            app_module,
+            "_load_startup_preferences_document",
+            return_value=preferences_document,
         ), patch.object(
             app_module,
             "build_theme_stylesheet",
@@ -292,15 +331,95 @@ class AppBootstrapTests(unittest.TestCase):
         app_ctor.assert_called_once()
         fake_app.setApplicationName.assert_called_once_with("COREX Node Editor")
         fake_app.setStyleSheet.assert_called_once_with("stylesheet:packet-theme")
+        startup_theme_mock.assert_called_once_with(preferences_document=preferences_document)
         splash_ctor.assert_called_once_with()
         fake_splash.show_centered.assert_called_once_with()
-        loader_ctor.assert_called_once_with()
+        loader_ctor.assert_called_once_with(preferences_document=preferences_document)
         fake_splash.boot_completed.connect.assert_called_once()
         fake_loader.ready.connect.assert_called_once()
         fake_loader.failed.connect.assert_called_once()
         fake_loader.start.assert_called_once_with()
         create_shell_window_mock.assert_not_called()
         fake_app.exec.assert_called_once_with()
+
+    def test_run_registry_failure_falls_back_to_shell_build_with_preloaded_preferences_document(self) -> None:
+        class _Signal:
+            def __init__(self) -> None:
+                self._callbacks: list[object] = []
+
+            def connect(self, callback) -> None:  # noqa: ANN001
+                self._callbacks.append(callback)
+
+            def emit(self, *args, **kwargs) -> None:  # noqa: ANN003, ANN002
+                for callback in list(self._callbacks):
+                    callback(*args, **kwargs)
+
+        class _SplashStub:
+            def __init__(self) -> None:
+                self.boot_completed = _Signal()
+                self.finish = Mock()
+
+            def show_centered(self) -> None:
+                return None
+
+        class _LoaderStub:
+            def __init__(self) -> None:
+                self.ready = _Signal()
+                self.failed = _Signal()
+
+            def start(self) -> None:
+                return None
+
+        fake_app = Mock()
+        fake_splash = _SplashStub()
+        fake_loader = _LoaderStub()
+        preferences_document = {"graphics": {"theme": {"theme_id": "packet-theme"}}}
+
+        def _exec() -> int:
+            fake_splash.boot_completed.emit()
+            fake_loader.failed.emit("traceback")
+            return 17
+
+        fake_app.exec.side_effect = _exec
+
+        with patch.object(app_module.mp, "freeze_support"), patch.object(
+            app_module,
+            "QApplication",
+            return_value=fake_app,
+        ), patch.object(
+            app_module,
+            "_startup_theme_id",
+            return_value="packet-theme",
+        ), patch.object(
+            app_module,
+            "_load_startup_preferences_document",
+            return_value=preferences_document,
+        ), patch.object(
+            app_module,
+            "build_theme_stylesheet",
+            side_effect=lambda theme_id: f"stylesheet:{theme_id}",
+        ), patch.object(
+            app_module,
+            "apply_application_icon",
+        ), patch.object(
+            app_module,
+            "OpeningSplash",
+            return_value=fake_splash,
+        ), patch.object(
+            app_module,
+            "RegistryLoader",
+            return_value=fake_loader,
+        ), patch.object(
+            app_module,
+            "create_shell_window",
+            return_value=Mock(),
+        ) as create_shell_window_mock:
+            self.assertEqual(app_module.run(), 17)
+
+        create_shell_window_mock.assert_called_once_with(
+            registry=None,
+            preferences_document=preferences_document,
+        )
 
     def test_shell_window_configuration_applies_title_size_and_icon(self) -> None:
         host = Mock()

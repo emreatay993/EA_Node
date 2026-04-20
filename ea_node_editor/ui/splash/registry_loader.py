@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 import traceback
+from typing import Any
 
 from PyQt6.QtCore import QObject, QThread, pyqtSignal
 
@@ -32,10 +33,14 @@ class _RegistryWorker(QObject):
     ready = pyqtSignal(object)  # NodeRegistry
     failed = pyqtSignal(str)  # formatted traceback
 
+    def __init__(self, *, preferences_document: Any = None) -> None:
+        super().__init__()
+        self._preferences_document = preferences_document
+
     def run(self) -> None:
         try:
             with phase("thread.build_default_registry"):
-                registry = build_default_registry()
+                registry = build_default_registry(preferences_document=self._preferences_document)
         except Exception:
             tb = traceback.format_exc()
             logger.exception("Background registry build failed")
@@ -55,10 +60,10 @@ class RegistryLoader(QObject):
     ready = pyqtSignal(object)  # NodeRegistry
     failed = pyqtSignal(str)
 
-    def __init__(self, parent: QObject | None = None) -> None:
+    def __init__(self, parent: QObject | None = None, *, preferences_document: Any = None) -> None:
         super().__init__(parent)
         self._thread = QThread(self)
-        self._worker = _RegistryWorker()
+        self._worker = _RegistryWorker(preferences_document=preferences_document)
         self._worker.moveToThread(self._thread)
         self._thread.started.connect(self._worker.run)
         self._worker.ready.connect(self._on_ready)

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from PyQt6.QtCore import QObject, QTimer, Qt, pyqtProperty, pyqtSignal, pyqtSlot
 from PyQt6.QtQuickWidgets import QQuickWidget
@@ -364,9 +364,16 @@ class ShellWindowComposition:
 
 
 class ShellWindowDependencyFactory:
-    def __init__(self, host: "ShellWindow", registry: NodeRegistry | None = None) -> None:
+    def __init__(
+        self,
+        host: "ShellWindow",
+        registry: NodeRegistry | None = None,
+        *,
+        preferences_document: Any = None,
+    ) -> None:
         self._host = host
         self._registry = registry
+        self._preferences_document = preferences_document
 
     def build_composition(self) -> ShellWindowComposition:
         with phase("factory.state"):
@@ -394,10 +401,19 @@ class ShellWindowDependencyFactory:
         return _create_shell_state_dependencies()
 
     def create_primitive_dependencies(self, state: ShellStateDependencies) -> ShellPrimitiveDependencies:
-        return _create_shell_primitive_dependencies(self._host, state, registry=self._registry)
+        return _create_shell_primitive_dependencies(
+            self._host,
+            state,
+            registry=self._registry,
+            preferences_document=self._preferences_document,
+        )
 
     def create_controller_dependencies(self, state: ShellStateDependencies) -> ShellControllerDependencies:
-        return _create_shell_controller_dependencies(self._host, state)
+        return _create_shell_controller_dependencies(
+            self._host,
+            state,
+            preferences_document=self._preferences_document,
+        )
 
     def create_presenter_dependencies(self, state: ShellStateDependencies) -> ShellPresenterDependencies:
         return _create_shell_presenter_dependencies(self._host, state)
@@ -431,7 +447,11 @@ class ShellWindowBootstrapCoordinator:
         return _create_shell_timer_dependencies(host)
 
 
-def create_shell_window(registry: NodeRegistry | None = None) -> "ShellWindow":
+def create_shell_window(
+    registry: NodeRegistry | None = None,
+    *,
+    preferences_document: Any = None,
+) -> "ShellWindow":
     """Build the shell window, optionally reusing a pre-built node registry.
 
     Pass ``registry`` to skip the blocking ``build_default_registry()`` call —
@@ -443,7 +463,11 @@ def create_shell_window(registry: NodeRegistry | None = None) -> "ShellWindow":
     with phase("shell.ShellWindow()"):
         host = ShellWindow(_defer_bootstrap=True)
     with phase("shell.build_composition"):
-        composition = build_shell_window_composition(host, registry=registry)
+        composition = build_shell_window_composition(
+            host,
+            registry=registry,
+            preferences_document=preferences_document,
+        )
     with phase("shell.bootstrap"):
         bootstrap_shell_window(host, composition)
     with phase("shell.connect_state_signal"):
@@ -452,9 +476,16 @@ def create_shell_window(registry: NodeRegistry | None = None) -> "ShellWindow":
 
 
 def build_shell_window_composition(
-    host: "ShellWindow", registry: NodeRegistry | None = None
+    host: "ShellWindow",
+    registry: NodeRegistry | None = None,
+    *,
+    preferences_document: Any = None,
 ) -> ShellWindowComposition:
-    return ShellWindowDependencyFactory(host, registry=registry).build_composition()
+    return ShellWindowDependencyFactory(
+        host,
+        registry=registry,
+        preferences_document=preferences_document,
+    ).build_composition()
 
 
 def bootstrap_shell_window(host: "ShellWindow", composition: ShellWindowComposition) -> None:
@@ -494,10 +525,11 @@ def _create_shell_primitive_dependencies(
     state: ShellStateDependencies,
     *,
     registry: NodeRegistry | None = None,
+    preferences_document: Any = None,
 ) -> ShellPrimitiveDependencies:
     with phase("prim.build_default_registry"):
         if registry is None:
-            registry = build_default_registry()
+            registry = build_default_registry(preferences_document=preferences_document)
     with phase("prim.JsonProjectSerializer"):
         serializer = JsonProjectSerializer(registry)
     with phase("prim.session_store"):
@@ -586,12 +618,14 @@ def _create_shell_primitive_dependencies(
 def _create_shell_controller_dependencies(
     host: "ShellWindow",
     state: ShellStateDependencies,
+    *,
+    preferences_document: Any = None,
 ) -> ShellControllerDependencies:
     search_scope_controller = WindowSearchScopeController(host, state.search_scope_state)
     workspace_library_controller = WorkspaceLibraryController(_WorkspaceLibraryControllerHostAdapter(host))
     project_session_controller = ProjectSessionController(_ProjectSessionControllerHostAdapter(host))
     run_controller = RunController(_RunControllerHostAdapter(host))
-    app_preferences_controller = AppPreferencesController()
+    app_preferences_controller = AppPreferencesController(preloaded_document=preferences_document)
     execution_client = host._create_execution_client()
     execution_client.subscribe(host.execution_event.emit)
     host.execution_event.connect(host._handle_execution_event, Qt.ConnectionType.QueuedConnection)

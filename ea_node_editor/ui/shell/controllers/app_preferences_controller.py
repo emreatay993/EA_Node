@@ -36,16 +36,22 @@ class AppPreferencesController:
         self,
         *,
         store: AppPreferencesStore | None = None,
+        preloaded_document: Any | None = None,
     ) -> None:
         self._store = store or AppPreferencesStore(path_provider=app_preferences_path)
-        self._document: dict[str, Any] | None = None
+        self._document: dict[str, Any] | None = (
+            normalize_app_preferences_document(preloaded_document)
+            if preloaded_document is not None
+            else None
+        )
 
-    def load(self) -> dict[str, Any]:
-        self._document = self._store.load_document()
+    def load(self, *, reload_from_store: bool = False) -> dict[str, Any]:
+        if reload_from_store or self._document is None:
+            self._document = self._store.load_document()
         return copy.deepcopy(self._document)
 
-    def load_into_host(self, host: ShellWindow) -> dict[str, Any]:
-        self._document = self._store.load_document()
+    def load_into_host(self, host: ShellWindow, *, reload_from_store: bool = False) -> dict[str, Any]:
+        self.load(reload_from_store=reload_from_store)
         return self.apply_graphics_settings_to_host(host)
 
     def document(self) -> dict[str, Any]:
