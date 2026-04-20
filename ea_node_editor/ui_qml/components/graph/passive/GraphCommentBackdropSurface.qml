@@ -13,9 +13,11 @@ Item {
         : false
     // During a live resize the selected overlay host drops the inline editor,
     // but keeps a cheap wrapped-text preview so the user can still tune line
-    // wrapping while dragging.
+    // wrapping while dragging. The main backdrop host keeps a simplified shell
+    // plus a lightweight shadow approximation for depth feedback.
     readonly property bool livePreviewActive: host && host._liveGeometryActive
     readonly property bool livePreviewShellVisible: surface.livePreviewActive && !surface.inputOverlayMode
+    readonly property bool livePreviewShadowVisible: surface.livePreviewShellVisible
     readonly property bool heavyContentVisible: !surface.inputOverlayMode && !surface.livePreviewActive
     readonly property bool selectedHost: host ? (host.canvasItem ? host.isSelected : true) : false
     readonly property bool editingShellVisible: surface.inputOverlayMode
@@ -47,6 +49,13 @@ Item {
     readonly property color backdropInnerBorderColor: host
         ? Qt.rgba(1.0, 1.0, 1.0, host.isSelected ? 0.18 : 0.11)
         : Qt.rgba(1.0, 1.0, 1.0, 0.11)
+    readonly property color livePreviewShadowColor: host
+        ? Qt.rgba(0.0, 0.0, 0.0, Math.max(0.12, Math.min(0.22, Number(host.shadowStrength || 70) / 420.0)))
+        : Qt.rgba(0.0, 0.0, 0.0, 0.16)
+    readonly property color livePreviewAmbientShadowColor: host
+        ? Qt.rgba(0.0, 0.0, 0.0, Math.max(0.05, Math.min(0.11, Number(host.shadowStrength || 70) / 900.0)))
+        : Qt.rgba(0.0, 0.0, 0.0, 0.08)
+    readonly property real livePreviewShadowOffset: host ? Math.max(2, Number(host.shadowOffset || 4)) : 4
     readonly property color accentColor: host
         ? Qt.alpha(host.scopeBadgeColor, host.isSelected ? 0.28 : 0.18)
         : "#4d9fff"
@@ -149,6 +158,27 @@ Item {
     }
 
     Rectangle {
+        visible: surface.livePreviewShadowVisible
+        objectName: "graphCommentBackdropLivePreviewShadow"
+        x: -2
+        y: surface.livePreviewShadowOffset
+        width: parent.width + 4
+        height: parent.height + 2
+        radius: host ? Math.max(10, Number(host.resolvedCornerRadius || 10) + 4) : 12
+        color: surface.livePreviewShadowColor
+    }
+
+    Rectangle {
+        visible: surface.livePreviewShadowVisible
+        x: -6
+        y: surface.livePreviewShadowOffset + 4
+        width: parent.width + 12
+        height: parent.height + 6
+        radius: host ? Math.max(12, Number(host.resolvedCornerRadius || 10) + 8) : 14
+        color: surface.livePreviewAmbientShadowColor
+    }
+
+    Rectangle {
         visible: surface.livePreviewShellVisible
         anchors.fill: parent
         radius: host ? Math.max(8, Number(host.resolvedCornerRadius || 10) + 2) : 10
@@ -217,7 +247,6 @@ Item {
                 host: surface.host
                 propertyKey: "body"
                 committedText: surface.bodyValue
-                showActionButtons: false
                 fieldFont.pixelSize: surface.bodyFontSize
                 fieldFont.bold: surface.bodyFontBold
                 fieldTextColor: surface.bodyTextColor
@@ -229,8 +258,6 @@ Item {
                 fieldTopPadding: 0
                 fieldBottomPadding: 0
                 fieldObjectName: "graphCommentBackdropBodyEditorField"
-                applyButtonObjectName: "graphCommentBackdropBodyApplyButton"
-                resetButtonObjectName: "graphCommentBackdropBodyResetButton"
                 onControlStarted: surface._beginInteraction()
                 onCommitRequested: function(value) {
                     surface._commitBody(value);

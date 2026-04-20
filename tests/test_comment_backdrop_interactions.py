@@ -400,9 +400,11 @@ class CommentBackdropInteractionTests(unittest.TestCase):
         backdrop_input_host = _node_host(canvas, backdrop_id, object_name="graphCommentBackdropInputCard")
         body_editor = backdrop_input_host.findChild(QObject, "graphCommentBackdropBodyEditor")
         body_text = backdrop_input_host.findChild(QObject, "graphNodeCommentBackdropBodyText")
+        preview_shadow = backdrop_host.findChild(QObject, "graphCommentBackdropLivePreviewShadow")
         surface = backdrop_input_host.findChild(QObject, "graphNodeCommentBackdropSurface")
         self.assertIsNotNone(body_editor)
         self.assertIsNotNone(body_text)
+        self.assertIsNotNone(preview_shadow)
         self.assertIsNotNone(surface)
 
         _wait_for(
@@ -441,6 +443,7 @@ class CommentBackdropInteractionTests(unittest.TestCase):
         self.assertAlmostEqual(float(backdrop_host.property("_liveHeight")), 310.0, places=6)
         self.assertAlmostEqual(float(backdrop_input_host.property("_liveWidth")), 420.0, places=6)
         self.assertAlmostEqual(float(backdrop_input_host.property("_liveHeight")), 310.0, places=6)
+        self.assertTrue(bool(preview_shadow.property("visible")))
         self.assertFalse(bool(body_editor.property("visible")))
         self.assertTrue(bool(body_text.property("visible")))
 
@@ -461,11 +464,14 @@ class CommentBackdropInteractionTests(unittest.TestCase):
         refreshed_backdrop_input_host = _node_host(canvas, backdrop_id, object_name="graphCommentBackdropInputCard")
         refreshed_body_editor = refreshed_backdrop_input_host.findChild(QObject, "graphCommentBackdropBodyEditor")
         refreshed_body_text = refreshed_backdrop_input_host.findChild(QObject, "graphNodeCommentBackdropBodyText")
+        refreshed_preview_shadow = refreshed_backdrop_host.findChild(QObject, "graphCommentBackdropLivePreviewShadow")
         self.assertIsNotNone(refreshed_body_editor)
         self.assertIsNotNone(refreshed_body_text)
+        self.assertIsNotNone(refreshed_preview_shadow)
 
         self.assertFalse(bool(refreshed_backdrop_host.property("_liveGeometryActive")))
         self.assertFalse(bool(refreshed_backdrop_input_host.property("_liveGeometryActive")))
+        self.assertFalse(bool(refreshed_preview_shadow.property("visible")))
         self.assertTrue(bool(refreshed_body_editor.property("visible")))
         self.assertFalse(bool(refreshed_body_text.property("visible")))
         self.assertAlmostEqual(float(workspace.nodes[backdrop_id].x), 190.0, places=6)
