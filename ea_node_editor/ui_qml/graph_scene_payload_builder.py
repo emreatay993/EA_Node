@@ -331,7 +331,6 @@ def _fallback_placeholder_spec(
                 label=port_labels.get(port_key, port_key),
                 exposed=exposed_ports.get(port_key, port_key in incoming_port_keys or port_key in outgoing_port_keys),
                 allow_multiple_connections=direction != "in",
-                side="left" if direction == "in" else "right",
             )
         )
 

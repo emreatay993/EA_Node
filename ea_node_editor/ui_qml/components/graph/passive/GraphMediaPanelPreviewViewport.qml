@@ -294,8 +294,6 @@ Rectangle {
             propertyKey: "caption"
             committedText: root.surface ? root.surface.captionText : ""
             fieldObjectName: "graphNodeInlineTextareaEditor"
-            applyButtonObjectName: "graphNodeInlineTextareaApplyButton"
-            resetButtonObjectName: "graphNodeInlineTextareaResetButton"
             onControlStarted: root.surface._beginInlineInteraction()
             onCommitRequested: function(value) {
                 root.surface._commitInlineProperty("caption", value);

@@ -263,8 +263,8 @@
         },
         {
           "collapsed": false,
-          "custom_height": 320.0,
-          "custom_width": 2100.0,
+          "custom_height": 289.7439196189704,
+          "custom_width": 964.1286240238057,
           "exposed_ports": {},
           "locked_ports": {},
           "node_id": "node_comment_backdrop",
@@ -540,11 +540,11 @@
           "hide_locked_ports": false,
           "hide_optional_ports": false,
           "name": "V1",
-          "pan_x": -407.59333026979965,
-          "pan_y": 105.18283684321463,
+          "pan_x": -52.621453207043075,
+          "pan_y": 83.25890562019804,
           "scope_path": [],
           "view_id": "view_dpf_multistage_cyclic",
-          "zoom": 0.5671077504725903
+          "zoom": 0.37288255147371774
         }
       ],
       "workspace_id": "ws_dpf_multistage_cyclic"

@@ -272,5 +272,68 @@ Item {
         border.color: root.effectiveOutlineColor
         radius: root.host ? root.host.resolvedCornerRadius : 0
         layer.enabled: root.chromeCacheActive
+
+        Loader {
+            id: lockedHatchLoader
+            anchors.fill: parent
+            active: root.host ? root.host.lockedPlaceholderActive : false
+            asynchronous: true
+            visible: active
+
+            sourceComponent: Canvas {
+                objectName: "graphNodeLockedHatchOverlay"
+                antialiasing: true
+                opacity: 0.22
+                renderTarget: Canvas.FramebufferObject
+                renderStrategy: Canvas.Cooperative
+                layer.enabled: true
+                layer.smooth: true
+
+                readonly property real cornerRadius: root.host ? Number(root.host.resolvedCornerRadius) : 8
+                readonly property color hatchColor: "#e8a838"
+                readonly property real hatchSpacing: 8.0
+
+                onPaint: {
+                    var ctx = getContext("2d");
+                    ctx.reset();
+                    if (width <= 2 || height <= 2)
+                        return;
+
+                    var r = Math.max(0, Math.min(cornerRadius, Math.min(width, height) / 2));
+                    ctx.beginPath();
+                    ctx.moveTo(r, 0);
+                    ctx.lineTo(width - r, 0);
+                    ctx.quadraticCurveTo(width, 0, width, r);
+                    ctx.lineTo(width, height - r);
+                    ctx.quadraticCurveTo(width, height, width - r, height);
+                    ctx.lineTo(r, height);
+                    ctx.quadraticCurveTo(0, height, 0, height - r);
+                    ctx.lineTo(0, r);
+                    ctx.quadraticCurveTo(0, 0, r, 0);
+                    ctx.closePath();
+                    ctx.clip();
+
+                    ctx.strokeStyle = String(hatchColor);
+                    ctx.lineWidth = 1;
+
+                    ctx.translate(width / 2, height / 2);
+                    ctx.rotate(Math.PI / 4);
+                    ctx.translate(-width / 2, -height / 2);
+
+                    var diag = Math.ceil(Math.sqrt(width * width + height * height)) + 16;
+                    ctx.beginPath();
+                    for (var x = -diag; x <= width + diag; x += hatchSpacing) {
+                        ctx.moveTo(x + 0.5, -diag);
+                        ctx.lineTo(x + 0.5, height + diag);
+                    }
+                    ctx.stroke();
+                }
+
+                onWidthChanged: requestPaint()
+                onHeightChanged: requestPaint()
+                onCornerRadiusChanged: requestPaint()
+                Component.onCompleted: requestPaint()
+            }
+        }
     }
 }

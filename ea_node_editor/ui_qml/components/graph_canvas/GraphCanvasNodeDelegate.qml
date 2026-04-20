@@ -30,7 +30,11 @@ GraphComponents.GraphNodeHost {
     snapshotReuseActive: canvasItem
         ? (canvasItem.snapshotProxyReuseActive && !canvasItem.viewportInteractionWorldCacheActive)
         : false
-    shadowSimplificationActive: canvasItem ? canvasItem.shadowSimplificationActive : false
+    // Comment backdrops use a large soft shadow (softness ~1.45x, min 78). Re-rasterising
+    // that blur on every frame of a live resize dominates the frame budget, so suppress
+    // the shadow while the geometry is changing. The shadow returns on release.
+    shadowSimplificationActive: (canvasItem ? canvasItem.shadowSimplificationActive : false)
+        || (nodeCard._commentBackdropNode && nodeCard._liveGeometryActive)
     fullFidelityMode: canvasItem ? canvasItem.fullFidelityMode : true
     renderActivationSceneRectPayload: canvasItem ? canvasItem.nodeRenderActivationSceneRectPayload : ({})
     contextTargetNodeId: canvasItem ? canvasItem.nodeContextNodeId : ""
@@ -39,6 +43,31 @@ GraphComponents.GraphNodeHost {
     opacity: nodeCard.backdropInputOverlay
         ? (nodeCard.renderActive ? 1.0 : 0.001)
         : 1.0
+
+    // Backdrop nodes render in two stacked layers (main + input overlay), each a
+    // separate GraphNodeHost instance. The resize handle updates only its own
+    // host's _liveGeometry* properties, so the sibling instance would stay at the
+    // committed model size until release. Mirroring the central liveNodeGeometry
+    // map into every delegate keeps both instances in sync during the drag.
+    Connections {
+        target: nodeCard.canvasItem
+        enabled: !!nodeCard.canvasItem && !!nodeCard.nodeData
+        function onLiveNodeGeometryChanged() {
+            if (!nodeCard.canvasItem || !nodeCard.nodeData)
+                return;
+            var map = nodeCard.canvasItem.liveNodeGeometry || ({});
+            var entry = map[String(nodeCard.nodeData.node_id || "")];
+            if (entry) {
+                nodeCard._liveX = Number(entry.x);
+                nodeCard._liveY = Number(entry.y);
+                nodeCard._liveWidth = Number(entry.width);
+                nodeCard._liveHeight = Number(entry.height);
+                nodeCard._liveGeometryActive = true;
+            } else if (nodeCard._liveGeometryActive) {
+                nodeCard._liveGeometryActive = false;
+            }
+        }
+    }
 
     onNodeClicked: function(nodeId, additive) {
         if (!canvasItem)

@@ -585,8 +585,8 @@
           "title": "DPF Result File",
           "type_id": "dpf.result_file",
           "visual_style": {},
-          "x": 260.0,
-          "y": 0.0
+          "x": 256.9582499999997,
+          "y": -0.76043750000008
         },
         {
           "collapsed": false,
@@ -652,8 +652,9 @@
           "parent_node_id": null,
           "port_labels": {},
           "properties": {
-            "output_mode": "memory",
-            "set_ids": "2"
+            "output_mode": "both",
+            "set_ids": "2",
+            "time_values": "2"
           },
           "title": "DPF Time Scoping",
           "type_id": "dpf.scoping.time",
@@ -703,6 +704,31 @@
           "visual_style": {},
           "x": 0.0,
           "y": 0.0
+        },
+        {
+          "collapsed": false,
+          "custom_height": null,
+          "custom_width": null,
+          "exposed_ports": {
+            "exec_in": true,
+            "exec_out": true,
+            "message": true
+          },
+          "locked_ports": {
+            "message": true
+          },
+          "node_id": "node_ceb8a95d1f",
+          "parent_node_id": null,
+          "port_labels": {},
+          "properties": {
+            "level": "info",
+            "message": "log messaged"
+          },
+          "title": "Logger",
+          "type_id": "core.logger",
+          "visual_style": {},
+          "x": 93.90215247177002,
+          "y": -291.04013949519504
         }
       ],
       "views": [
@@ -710,11 +736,11 @@
           "hide_locked_ports": false,
           "hide_optional_ports": false,
           "name": "V1",
-          "pan_x": 963.4149081875004,
-          "pan_y": 61.725362999999895,
+          "pan_x": 822.1745442427069,
+          "pan_y": 44.237497043701985,
           "scope_path": [],
           "view_id": "view_2231c083a1",
-          "zoom": 0.6575162324319884
+          "zoom": 0.5717532455930336
         }
       ],
       "workspace_id": "ws_d7a12db805"

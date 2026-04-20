@@ -21,6 +21,8 @@ Item {
     readonly property bool lockedPlaceholderActive: host ? Boolean(host.lockedPlaceholderActive) : false
     readonly property int commentTitleIconSize: 14
     readonly property int commentTitleIconSpacing: 6
+    readonly property int lockedTitleIconSize: 13
+    readonly property int lockedTitleIconSpacing: 8
     readonly property real _titleBandHeight: root.host ? Math.max(0, Number(root.host._titleHeight)) : 0
     readonly property int nodeTitleIconSize: root.graphSharedTypography
         ? root.graphSharedTypography.nodeTitleIconPixelSize
@@ -33,10 +35,19 @@ Item {
         0,
         Math.floor(Math.min(root.commentTitleIconSize, root._titleBandHeight))
     )
+    readonly property bool lockedTitleIconVisible: root.lockedPlaceholderActive && root.headerTitleVisible
+    readonly property int lockedTitleIconRenderSize: Math.max(
+        0,
+        Math.floor(Math.min(root.lockedTitleIconSize, root._titleBandHeight))
+    )
     readonly property int nodeTitleIconSpacing: 6
     readonly property real _commentTitleIconReserveWidth: root.commentTitleIconVisible
         && root.commentTitleIconRenderSize > 0
         ? root.commentTitleIconRenderSize + root.commentTitleIconSpacing
+        : 0
+    readonly property real _lockedTitleIconReserveWidth: root.lockedTitleIconVisible
+        && root.lockedTitleIconRenderSize > 0
+        ? root.lockedTitleIconRenderSize + root.lockedTitleIconSpacing
         : 0
     readonly property string nodeTitleIconSource: root.host && root.host.nodeData
         ? String(root.host.nodeData.icon_source || "")
@@ -51,10 +62,12 @@ Item {
         && root.nodeTitleIconRenderSize > 0
         ? root.nodeTitleIconRenderSize + root.nodeTitleIconSpacing
         : 0
-    readonly property real _titleLeadingIconReserveWidth: root.commentTitleIconVisible
-        ? root._commentTitleIconReserveWidth
-        : root._nodeTitleIconReserveWidth
-    readonly property real _headerBadgeReserveWidth: (root.lockedPlaceholderActive ? 82 : 0)
+    readonly property real _titleLeadingIconReserveWidth: root.lockedTitleIconVisible
+        ? root._lockedTitleIconReserveWidth
+        : (root.commentTitleIconVisible
+            ? root._commentTitleIconReserveWidth
+            : root._nodeTitleIconReserveWidth)
+    readonly property real _headerBadgeReserveWidth: (root.lockedPlaceholderActive ? 64 : 0)
         + (root.host && root.host.canEnterScope ? 56 : 0)
         + (root.host && root.host.isFailedNode ? 70 : 0)
     readonly property string currentTitle: root.host && root.host.nodeData
@@ -73,6 +86,9 @@ Item {
     }
     readonly property string commentTitleIconSource: root.commentTitleIconVisible
         ? uiIcons.sourceSized("comment", root.commentTitleIconSize, String(root.host ? root.host.headerTextColor : "#f0f4fb"))
+        : ""
+    readonly property string lockedTitleIconSource: root.lockedTitleIconVisible
+        ? uiIcons.sourceSized("lock", root.lockedTitleIconSize, String(root.host ? root.host.headerTextColor : "#b0b7c3"))
         : ""
     readonly property real _titleEditorLeftPadding: root.host && root.host._titleCentered
         ? (root._titleLeadingIconReserveWidth * 0.5)
@@ -193,11 +209,12 @@ Item {
 
     Loader {
         id: lockedAccentStripeLoader
-        active: root.host ? (root.host._showAccentBar && root.lockedPlaceholderActive) : false
-        anchors.left: parent.left
-        anchors.right: parent.right
-        anchors.top: parent.top
-        height: 4
+        active: root.lockedPlaceholderActive && root.host && root.host._showHeaderBackground
+        x: 2
+        y: root.host ? Number(root.host.surfaceMetrics.header_top_margin) : 0
+        width: 4
+        height: root.host ? Number(root.host.surfaceMetrics.header_height) : 0
+        z: 2
         sourceComponent: Component {
             Canvas {
                 objectName: "graphNodeLockedAccentStripe"
@@ -208,14 +225,13 @@ Item {
                     ctx.clearRect(0, 0, width, height);
                     if (width <= 0 || height <= 0)
                         return;
-                    var dashWidth = 10;
-                    var gapWidth = 6;
-                    var fill = root.host && root.host.nodeData
-                        ? String(Qt.alpha(root.host.nodeData.accent || "#4AA9D6", 0.90))
-                        : "#7f96b8";
-                    ctx.fillStyle = fill;
-                    for (var x = 0; x < width; x += dashWidth + gapWidth)
-                        ctx.fillRect(x, 0, Math.min(dashWidth, width - x), height);
+                    var dashHeight = 4;
+                    var gapHeight = 3;
+                    ctx.fillStyle = root.host
+                        ? String(root.host.lockedPlaceholderAccentDashColor)
+                        : "#6b7280";
+                    for (var y = 0; y < height; y += dashHeight + gapHeight)
+                        ctx.fillRect(0, y, width, Math.min(dashHeight, height - y));
                 }
 
                 Component.onCompleted: requestPaint()
@@ -279,6 +295,24 @@ Item {
             mipmap: root.highQualityRendering
             sourceSize.width: root.commentTitleIconRenderSize
             sourceSize.height: root.commentTitleIconRenderSize
+        }
+
+        Image {
+            id: lockedTitleIcon
+            objectName: "graphNodeLockedTitleIcon"
+            visible: root.lockedTitleIconVisible
+                && root.lockedTitleIconRenderSize > 0
+                && root.lockedTitleIconSource.length > 0
+            source: root.lockedTitleIconSource
+            x: root._titleLeadingIconX(width, root.lockedTitleIconSpacing)
+            y: Math.round((titleDisplay.height - height) * 0.5)
+            width: root.lockedTitleIconRenderSize
+            height: root.lockedTitleIconRenderSize
+            fillMode: Image.PreserveAspectFit
+            smooth: root.highQualityRendering
+            mipmap: root.highQualityRendering
+            sourceSize.width: root.lockedTitleIconRenderSize
+            sourceSize.height: root.lockedTitleIconRenderSize
         }
 
         Text {
@@ -407,19 +441,21 @@ Item {
         anchors.right: openBadge.visible ? openBadge.left : parent.right
         anchors.rightMargin: openBadge.visible ? 6 : 8
         y: root.host ? root.host._titleTop + Math.max(0, (root.host._titleHeight - height) * 0.5) : 0
-        width: 74
+        width: Math.ceil(lockedBadgeText.implicitWidth) + 12
         height: 18
-        radius: 9
-        color: "#233146"
-        border.color: "#6b88ba"
+        radius: 3
+        color: root.host ? root.host.lockedPlaceholderChipColor : "#3a3d45"
+        border.width: 0
 
         Text {
+            id: lockedBadgeText
             objectName: "graphNodeLockedChipText"
             anchors.centerIn: parent
             text: "LOCKED"
-            color: root.host ? root.host.headerTextColor : "#eef3ff"
+            color: root.host ? root.host.lockedPlaceholderChipTextColor : "#d0d5de"
             font.pixelSize: root.graphSharedTypography ? root.graphSharedTypography.badgePixelSize : 9
             font.weight: root.graphSharedTypography ? root.graphSharedTypography.badgeFontWeight : Font.Bold
+            font.letterSpacing: 0.6
             renderType: root.host ? root.host.nodeTextRenderType : Text.CurveRendering
         }
     }

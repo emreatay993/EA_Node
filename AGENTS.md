@@ -33,3 +33,5 @@
 - Questions like "where is the context menu or action wiring for comment nodes or graph items defined, and what is the likely insertion point for a comment-node-only action?" must start with `gpt-5.4-mini`, not Spark.
 - In this workspace's PowerShell environment, the Codex-bundled `rg.exe` resolves on `PATH` but is not runnable and fails with `Access is denied`. Do not probe or prefer `rg` here unless a different working `rg.exe` is installed earlier on `PATH`; use PowerShell-native search commands (`Get-ChildItem`, `Select-String`) by default.
 - Do not bundle many large file additions into one patch.
+- Perform exact file move/copy operations from the terminal rather than by AI rewrite, because rewrites can miss details in long documents.
+- When a task requires a file move or an exact file copy, perform that operation directly from the terminal with native file commands such as `Move-Item` or `Copy-Item` instead of rewriting the document through the model, because long-document rewrites can miss details.

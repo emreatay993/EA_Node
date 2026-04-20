@@ -289,14 +289,13 @@ Item {
                         id: textareaEditor
                         visible: modelData.inline_editor === "textarea"
                         Layout.fillWidth: true
+                        Layout.fillHeight: true
                         Layout.alignment: Qt.AlignTop
                         enabled: !modelData.overridden_by_input
                         host: root.host
                         propertyKey: String(modelData.key || "")
                         committedText: host ? host.inlineEditorText(modelData) : ""
                         fieldObjectName: "graphNodeInlineTextareaEditor"
-                        applyButtonObjectName: "graphNodeInlineTextareaApplyButton"
-                        resetButtonObjectName: "graphNodeInlineTextareaResetButton"
                         onControlStarted: root._beginInteraction()
                         onCommitRequested: function(value) {
                             root._commitInlineProperty(modelData.key, value);

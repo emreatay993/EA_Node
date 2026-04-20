@@ -119,6 +119,7 @@ class GraphSurfaceInputInlineTests(unittest.TestCase):
             probe_qml = textwrap.dedent(
                 '''
                 import QtQuick 2.15
+                import QtQuick.Controls 2.15
                 import "ea_node_editor/ui_qml/components/graph" as GraphComponents
 
                 Item {
@@ -126,9 +127,17 @@ class GraphSurfaceInputInlineTests(unittest.TestCase):
                     width: 480
                     height: 360
 
+                    QtObject {
+                        id: sceneBridgeProxy
+                        property var selected_node_lookup: ({
+                            "node_inline_test": true
+                        })
+                    }
+
                     Item {
                         id: canvasProxy
                         objectName: "canvasProxy"
+                        property var sceneBridge: sceneBridgeProxy
                         property string browseResultPath: ""
                         property string colorResult: ""
                         property var lastBrowseCall: ({})
@@ -151,6 +160,16 @@ class GraphSurfaceInputInlineTests(unittest.TestCase):
                             };
                             return colorResult;
                         }
+                    }
+
+                    TextField {
+                        id: focusSink
+                        objectName: "probeFocusSink"
+                        anchors.left: parent.left
+                        anchors.top: parent.top
+                        width: 1
+                        height: 1
+                        opacity: 0
                     }
 
                     function nodePayload() {
@@ -342,6 +361,7 @@ class GraphSurfaceInputInlineTests(unittest.TestCase):
             probe_qml = textwrap.dedent(
                 '''
                 import QtQuick 2.15
+                import QtQuick.Controls 2.15
                 import "ea_node_editor/ui_qml/components/graph" as GraphComponents
 
                 Item {
@@ -364,6 +384,16 @@ class GraphSurfaceInputInlineTests(unittest.TestCase):
                         function browseNodePropertyPath(nodeId, key, currentPath) {
                             return currentPath;
                         }
+                    }
+
+                    TextField {
+                        id: focusSink
+                        objectName: "probeFocusSink"
+                        anchors.left: parent.left
+                        anchors.top: parent.top
+                        width: 1
+                        height: 1
+                        opacity: 0
                     }
 
                     function nodePayload() {
@@ -454,7 +484,7 @@ class GraphSurfaceInputInlineTests(unittest.TestCase):
             assert loader is not None
 
             embedded_rects = variant_list(loader.property("embeddedInteractiveRects"))
-            assert len(embedded_rects) == 4, embedded_rects
+            assert len(embedded_rects) == 2, embedded_rects
 
             widths = [rect_field(rect, "width") for rect in embedded_rects]
             heights = [rect_field(rect, "height") for rect in embedded_rects]
@@ -463,11 +493,8 @@ class GraphSurfaceInputInlineTests(unittest.TestCase):
             assert widths[0] > 60.0, (widths, heights, ys, embedded_rects)
             assert heights[0] >= 18.0, (widths, heights, ys, embedded_rects)
             assert widths[1] > 120.0, (widths, heights, ys, embedded_rects)
-            assert heights[1] > 60.0, (widths, heights, ys, embedded_rects)
-            assert widths[2] < 90.0, (widths, heights, ys, embedded_rects)
-            assert widths[3] < 90.0, (widths, heights, ys, embedded_rects)
-            assert ys[0] < ys[1] < ys[2], (widths, heights, ys, embedded_rects)
-            assert max(ys[2:]) - min(ys[2:]) <= 1.0, (widths, heights, ys, embedded_rects)
+            assert heights[1] > 90.0, (widths, heights, ys, embedded_rects)
+            assert ys[0] < ys[1], (widths, heights, ys, embedded_rects)
             """,
         )
 
@@ -489,7 +516,7 @@ class GraphSurfaceInputInlineTests(unittest.TestCase):
             assert float(host.property("_inlineTextareaRowHeight")) == float(typography.property("inlineTextareaRowHeight"))
 
             rects_before = variant_list(loader.property("embeddedInteractiveRects"))
-            assert len(rects_before) == 4, rects_before
+            assert len(rects_before) == 2, rects_before
             path_y_before = rect_field(rects_before[0], "y")
 
             assert source_label.property("font").pixelSize() == int(typography.property("inlinePropertyPixelSize"))
@@ -520,8 +547,7 @@ class GraphSurfaceInputInlineTests(unittest.TestCase):
             assert textarea.property("font").weight() == int(typography.property("inlinePropertyFontWeight"))
 
             rects_after = variant_list(loader.property("embeddedInteractiveRects"))
-            assert len(rects_after) == 4, rects_after
-            assert rect_field(rects_after[0], "y") > path_y_before
+            assert len(rects_after) == 2, rects_after
             """,
         )
 
@@ -530,9 +556,11 @@ class GraphSurfaceInputInlineTests(unittest.TestCase):
             "inline-textarea",
             """
             host = probe.findChild(QObject, "probeHost")
+            focus_sink = probe.findChild(QObject, "probeFocusSink")
             textarea = named_item(probe, "graphNodeInlineTextareaEditor", "caption")
-            apply_button = named_item(probe, "graphNodeInlineTextareaApplyButton", "caption")
-            reset_button = named_item(probe, "graphNodeInlineTextareaResetButton", "caption")
+            assert focus_sink is not None
+            assert probe.findChild(QObject, "graphNodeInlineTextareaApplyButton") is None
+            assert probe.findChild(QObject, "graphNodeInlineTextareaResetButton") is None
 
             commits = []
             host.inlinePropertyCommitted.connect(lambda node_id, key, value: commits.append((node_id, key, value)))
@@ -541,12 +569,10 @@ class GraphSurfaceInputInlineTests(unittest.TestCase):
 
             textarea.forceActiveFocus()
             app.processEvents()
-            textarea.setProperty("text", "Line one updated")
+            textarea.setProperty("text", "Line one draft")
             app.processEvents()
 
-            assert str(textarea.property("text")) == "Line one updated"
-            assert bool(apply_button.property("enabled"))
-            assert bool(reset_button.property("enabled"))
+            assert str(textarea.property("text")) == "Line one draft"
 
             app.sendEvent(
                 textarea,
@@ -559,7 +585,6 @@ class GraphSurfaceInputInlineTests(unittest.TestCase):
             app.processEvents()
 
             assert str(textarea.property("text")) == "Line one"
-            assert not bool(apply_button.property("enabled"))
             assert commits == []
 
             textarea.forceActiveFocus()
@@ -580,6 +605,94 @@ class GraphSurfaceInputInlineTests(unittest.TestCase):
             dispose_host_window(host, window)
             engine.deleteLater()
             app.processEvents()
+            """,
+        )
+
+    def test_media_proxy_preview_caption_editor_commits_on_focus_loss(self) -> None:
+        self._run_qml_probe(
+            "media-proxy-inline-textarea",
+            """
+            import tempfile
+
+            from PyQt6.QtGui import QColor, QImage
+
+            host = probe.findChild(QObject, "probeHost")
+            payload = variant_value(host.property("nodeData"))
+            payload["runtime_behavior"] = "passive"
+            payload["type_id"] = "passive.media.image_panel"
+            payload["title"] = "Image Panel"
+            payload["width"] = 296.0
+            payload["height"] = 236.0
+            payload["surface_family"] = "media"
+            payload["surface_variant"] = "image_panel"
+            payload["surface_metrics"] = {
+                "body_height": 180.0,
+            }
+            payload["ports"] = []
+            payload["inline_properties"] = []
+            payload["render_quality"] = {
+                "weight_class": "heavy",
+                "max_performance_strategy": "proxy_surface",
+                "supported_quality_tiers": ["full", "proxy"],
+            }
+
+            with tempfile.TemporaryDirectory() as temp_dir:
+                image_path = Path(temp_dir) / "proxy-image.png"
+                image = QImage(24, 18, QImage.Format.Format_ARGB32)
+                image.fill(QColor("#2c85bf"))
+                assert image.save(str(image_path))
+                payload["properties"] = {
+                    "source_path": str(image_path),
+                    "caption": "Proxy caption",
+                    "fit_mode": "contain",
+                }
+                host.setProperty("nodeData", payload)
+                host.setProperty("snapshotReuseActive", True)
+                host.setProperty("shadowSimplificationActive", True)
+                app.processEvents()
+
+                surface = host.findChild(QObject, "graphNodeMediaSurface")
+                proxy_preview = host.findChild(QObject, "graphNodeMediaProxyPreview")
+                assert surface is not None
+                assert proxy_preview is not None
+
+                for _index in range(50):
+                    app.processEvents()
+                    if str(surface.property("previewState")) == "ready":
+                        break
+
+                surface.setProperty("inlineEditorsOpened", True)
+                app.processEvents()
+
+                path_field = named_item(probe, "graphNodeInlinePathEditor", "source_path")
+                textarea = named_item(probe, "graphNodeInlineTextareaEditor", "caption")
+                assert bool(surface.property("proxySurfaceActive"))
+                assert bool(proxy_preview.property("visible"))
+                assert bool(textarea.property("visible"))
+                assert probe.findChild(QObject, "graphNodeInlineTextareaApplyButton") is None
+                assert probe.findChild(QObject, "graphNodeInlineTextareaResetButton") is None
+
+                interactions = []
+                commits = []
+                host.surfaceControlInteractionStarted.connect(lambda node_id: interactions.append(node_id))
+                host.inlinePropertyCommitted.connect(lambda node_id, key, value: commits.append((node_id, key, value)))
+
+                window = attach_host_to_window(host, 560, 420)
+
+                textarea.forceActiveFocus()
+                app.processEvents()
+                textarea.setProperty("text", "Updated proxy caption")
+                app.processEvents()
+                path_field.forceActiveFocus()
+                app.processEvents()
+
+                assert not bool(textarea.property("activeFocus"))
+                assert "node_inline_test" in interactions
+                assert commits == [("node_inline_test", "caption", "Updated proxy caption")]
+
+                dispose_host_window(host, window)
+                engine.deleteLater()
+                app.processEvents()
             """,
         )
 
@@ -671,18 +784,17 @@ class GraphSurfaceInputInlineTests(unittest.TestCase):
             host = probe.findChild(QObject, "probeHost")
             loader = host.findChild(QObject, "graphNodeSurfaceLoader")
             editor = named_item(probe, "graphCommentBackdropBodyEditor")
+            focus_sink = probe.findChild(QObject, "probeFocusSink")
             textarea = named_item(probe, "graphCommentBackdropBodyEditorField", "body")
-            apply_button = named_item(probe, "graphCommentBackdropBodyApplyButton", "body")
-            reset_button = named_item(probe, "graphCommentBackdropBodyResetButton", "body")
             assert loader is not None
             assert editor is not None
+            assert focus_sink is not None
 
             textarea_font = textarea.property("font")
             assert textarea_font.pixelSize() == int(round(float(host.property("passiveFontPixelSize"))))
             assert not textarea_font.bold()
-            assert not bool(editor.property("showActionButtons"))
-            assert not bool(apply_button.property("visible"))
-            assert not bool(reset_button.property("visible"))
+            assert probe.findChild(QObject, "graphCommentBackdropBodyApplyButton") is None
+            assert probe.findChild(QObject, "graphCommentBackdropBodyResetButton") is None
 
             embedded_rects = variant_list(loader.property("embeddedInteractiveRects"))
             assert len(embedded_rects) == 1, embedded_rects
@@ -697,9 +809,6 @@ class GraphSurfaceInputInlineTests(unittest.TestCase):
             app.processEvents()
             textarea.setProperty("text", "Grouped note draft")
             app.processEvents()
-
-            assert not bool(apply_button.property("enabled"))
-            assert not bool(reset_button.property("enabled"))
 
             app.sendEvent(
                 textarea,

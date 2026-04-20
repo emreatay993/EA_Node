@@ -166,6 +166,7 @@ Item {
     function _portScenePoint(node, portKey) {
         if (!node || !portKey)
             return null;
+        var isLockedPlaceholder = Boolean(node.read_only) && Boolean(node.unresolved);
         var ports = node.ports || [];
         var inputRow = 0;
         var outputRow = 0;
@@ -173,8 +174,11 @@ Item {
             var port = ports[i];
             if (!port)
                 continue;
-            if (String(port.key || "") === String(portKey))
+            if (String(port.key || "") === String(portKey)) {
+                if (isLockedPlaceholder)
+                    return GraphNodeSurfaceMetrics.portScenePointForPort(node, port, 0, 0);
                 return GraphNodeSurfaceMetrics.portScenePointForPort(node, port, inputRow, outputRow);
+            }
             var direction = GraphNodeSurfaceMetrics.portLayoutDirection(port);
             if (direction === "in")
                 inputRow += 1;

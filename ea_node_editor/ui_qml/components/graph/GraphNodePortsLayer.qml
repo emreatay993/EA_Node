@@ -10,6 +10,22 @@ Item {
     property string editingPortDirection: ""
     readonly property var graphSharedTypography: root.host ? root.host.graphSharedTypography : null
     readonly property bool hostLockedPlaceholder: root.host ? Boolean(root.host.lockedPlaceholderActive) : false
+    readonly property var _visibleInputPorts: {
+        if (!root.host)
+            return [];
+        var list = root.host.inputPorts || [];
+        if (root.hostLockedPlaceholder && list.length > 1)
+            return [list[0]];
+        return list;
+    }
+    readonly property var _visibleOutputPorts: {
+        if (!root.host)
+            return [];
+        var list = root.host.outputPorts || [];
+        if (root.hostLockedPlaceholder && list.length > 1)
+            return [list[0]];
+        return list;
+    }
     z: 5
 
     function _isEditablePort(portData) {
@@ -128,7 +144,7 @@ Item {
     visible: root.host && root.host.nodeData ? !root.host.nodeData.collapsed : false
 
     Repeater {
-        model: root.host ? root.host.inputPorts : []
+        model: root._visibleInputPorts
 
         delegate: Item {
             id: inputPortRow
@@ -152,7 +168,7 @@ Item {
             Rectangle {
                 objectName: "graphNodeInputPortLockedRowTint"
                 property string propertyKey: inputPortRow.propertyKey
-                visible: inputPortRow.lockedState
+                visible: inputPortRow.lockedState && !inputPortRow.placeholderLockedState
                 anchors.fill: parent
                 anchors.leftMargin: 1
                 anchors.rightMargin: 1
@@ -171,6 +187,7 @@ Item {
                 readonly property bool inactiveState: root._portInactive(modelData)
                 property bool lockableState: inputPortRow.lockableState
                 property bool lockedState: inputPortRow.lockedState
+                property bool placeholderLockedState: inputPortRow.placeholderLockedState
                 property bool interactionBlockedState: inactiveState || lockedState
                 property bool hoveredState: !interactionBlockedState && root.host ? root.host.isHoveredPort(parent.interactionDirection, modelData.key) : false
                 property bool pendingState: !interactionBlockedState && root.host ? root.host.isPendingPort(parent.interactionDirection, modelData.key) : false
@@ -181,7 +198,7 @@ Item {
                 property bool revealState: root._flowEdgePortRevealActive(modelData, attentionState, selectedState)
                 property bool connectedState: root.host ? root.host.isConnectedPort(modelData) : false
                 property color portColor: root.host ? root.host.basePortColor(modelData.kind) : "#7AA8FF"
-                property real lockedDiameter: 12
+                property real lockedDiameter: placeholderLockedState ? 18 : 12
                 property real restDiameter: root.host && root.host.usesCardinalNeutralFlowHandles
                     ? (connectedState ? root.host.flowchartConnectedPortDiameter : root.host.flowchartRestPortDiameter)
                     : 8
@@ -195,9 +212,11 @@ Item {
                 anchors.verticalCenter: parent.verticalCenter
                 width: lockedState ? lockedDiameter : (interactiveState ? activeDiameter : restDiameter)
                 height: width
-                radius: lockedState ? 0 : width * 0.5
+                radius: placeholderLockedState ? width * 0.5 : (lockedState ? 0 : width * 0.5)
                 opacity: lockedState ? 1.0 : (revealState ? (inactiveState ? 0.46 : (interactionBlockedState ? 0.72 : 1.0)) : 0.0)
-                color: lockedState
+                color: placeholderLockedState
+                    ? "#2a2d34"
+                    : (lockedState
                     ? "transparent"
                     : (root.host && root.host.usesCardinalNeutralFlowHandles
                     ? (attentionState
@@ -205,17 +224,21 @@ Item {
                         : ((selectedState || connectedState) ? root.host.flowchartConnectedPortFillColor : "transparent"))
                     : (interactiveState
                         ? (root.host ? root.host.portInteractiveFillColor : "#FFDA6B")
-                        : (connectedState ? portColor : "transparent")))
-                border.width: lockedState
+                        : (connectedState ? portColor : "transparent"))))
+                border.width: placeholderLockedState
+                    ? 1.5
+                    : (lockedState
                     ? 0
-                    : (root.host && root.host.usesCardinalNeutralFlowHandles ? (attentionState ? 1.8 : 1.1) : (interactiveState ? 2 : 1))
-                border.color: lockedState
+                    : (root.host && root.host.usesCardinalNeutralFlowHandles ? (attentionState ? 1.8 : 1.1) : (interactiveState ? 2 : 1)))
+                border.color: placeholderLockedState
+                    ? "#5a606c"
+                    : (lockedState
                     ? "transparent"
                     : (attentionState
                     ? (root.host ? root.host.portInteractiveBorderColor : portColor)
                     : (root.host && root.host.usesCardinalNeutralFlowHandles && selectedState
                         ? root.host.selectedOutlineColor
-                        : portColor))
+                        : portColor)))
 
                 Rectangle {
                     objectName: "graphNodeInputPortRing"
@@ -413,7 +436,9 @@ Item {
                     && (root.host ? root.host._portLabelsVisible : true)
                 readonly property bool lockableState: inputPortRow.lockableState
                 readonly property bool lockedState: inputPortRow.lockedState
-                readonly property bool labelTextVisible: root.host ? (root.host._portLabelsVisible || lockedState) : true
+                readonly property bool labelTextVisible: root.hostLockedPlaceholder
+                    ? false
+                    : (root.host ? (root.host._portLabelsVisible || lockedState) : true)
                 readonly property real lockGlyphWidth: 0
                 readonly property real lockGlyphGap: 0
                 readonly property real textLeftInset: 0
@@ -432,7 +457,8 @@ Item {
                     )
                     : 0.0
                 readonly property real availableWidth: standardColumnsActive ? standardAvailableWidth : rawAvailableWidth
-                visible: root.host ? (root.host._portLabelsVisible || lockedState) : true
+                visible: !root.hostLockedPlaceholder
+                    && (root.host ? (root.host._portLabelsVisible || lockedState) : true)
                 anchors.verticalCenter: parent.verticalCenter
                 x: labelX
                 width: availableWidth
@@ -443,6 +469,7 @@ Item {
                     objectName: "graphNodeInputPortPadlock"
                     property string propertyKey: inputLabelContainer.propertyKey
                     readonly property bool lockedState: inputLabelContainer.lockedState
+                    readonly property bool placeholderLockedState: root.hostLockedPlaceholder
                     parent: inputLabelContainer.lockedState ? inputDot : inputLabelContainer
                     visible: inputLabelContainer.lockedState
                     x: inputLabelContainer.lockedState ? Math.round((parent.width - width) * 0.5) : 0
@@ -462,9 +489,15 @@ Item {
                         var accentStrokeAlpha = lockedState ? 1.0 : 0.68;
                         var accentFillAlpha = lockedState ? 0.38 : 0.18;
                         var outlineAlpha = lockedState ? 0.92 : 0.58;
-                        var outlineStroke = Qt.rgba(0.10, 0.07, 0.03, outlineAlpha);
-                        var accentStroke = Qt.rgba(1.0, 0.82, 0.34, accentStrokeAlpha);
-                        var accentFill = Qt.rgba(1.0, 0.88, 0.52, accentFillAlpha);
+                        var outlineStroke = placeholderLockedState
+                            ? Qt.rgba(0.0, 0.0, 0.0, 0.0)
+                            : Qt.rgba(0.10, 0.07, 0.03, outlineAlpha);
+                        var accentStroke = placeholderLockedState
+                            ? Qt.rgba(0.54, 0.58, 0.64, accentStrokeAlpha)
+                            : Qt.rgba(1.0, 0.82, 0.34, accentStrokeAlpha);
+                        var accentFill = placeholderLockedState
+                            ? Qt.rgba(0.16, 0.18, 0.21, 1.0)
+                            : Qt.rgba(1.0, 0.88, 0.52, accentFillAlpha);
 
                         function drawShackle(strokeStyle, lineWidth) {
                             ctx.beginPath();
@@ -511,6 +544,7 @@ Item {
                     Component.onCompleted: requestPaint()
                     onVisibleChanged: requestPaint()
                     onLockedStateChanged: requestPaint()
+                    onPlaceholderLockedStateChanged: requestPaint()
                 }
 
                 MouseArea {
@@ -646,7 +680,7 @@ Item {
     }
 
     Repeater {
-        model: root.host ? root.host.outputPorts : []
+        model: root._visibleOutputPorts
 
         delegate: Item {
             property int rowIndex: index
@@ -667,6 +701,7 @@ Item {
                 objectName: "graphNodeOutputPortDot"
                 readonly property string interactionDirection: parent.interactionDirection
                 property bool lockedState: parent.placeholderLockedState
+                property bool placeholderLockedState: parent.placeholderLockedState
                 property bool hoveredState: root.host ? root.host.isHoveredPort(parent.interactionDirection, modelData.key) : false
                 property bool pendingState: root.host ? root.host.isPendingPort(parent.interactionDirection, modelData.key) : false
                 property bool dragSourceState: root.host ? root.host.isDragSourcePort(parent.interactionDirection, modelData.key) : false
@@ -676,7 +711,7 @@ Item {
                 property bool revealState: root._flowEdgePortRevealActive(modelData, attentionState, selectedState)
                 property bool connectedState: root.host ? root.host.isConnectedPort(modelData) : false
                 property color portColor: root.host ? root.host.basePortColor(modelData.kind) : "#7AA8FF"
-                property real lockedDiameter: 12
+                property real lockedDiameter: placeholderLockedState ? 18 : 12
                 property real restDiameter: root.host && root.host.usesCardinalNeutralFlowHandles
                     ? (connectedState ? root.host.flowchartConnectedPortDiameter : root.host.flowchartRestPortDiameter)
                     : 8
@@ -690,21 +725,27 @@ Item {
                 anchors.verticalCenter: parent.verticalCenter
                 width: lockedState ? lockedDiameter : (interactiveState ? activeDiameter : restDiameter)
                 height: width
-                radius: lockedState ? 0 : width * 0.5
+                radius: placeholderLockedState ? width * 0.5 : (lockedState ? 0 : width * 0.5)
                 opacity: lockedState ? 1.0 : (revealState ? 1.0 : 0.0)
-                color: lockedState ? "transparent" : (root.host && root.host.usesCardinalNeutralFlowHandles
+                color: placeholderLockedState
+                    ? "#2a2d34"
+                    : (lockedState ? "transparent" : (root.host && root.host.usesCardinalNeutralFlowHandles
                     ? (attentionState
                         ? root.host.portInteractiveFillColor
                         : ((selectedState || connectedState) ? root.host.flowchartConnectedPortFillColor : "transparent"))
                     : (interactiveState
                         ? (root.host ? root.host.portInteractiveFillColor : "#FFDA6B")
-                        : (connectedState ? portColor : "transparent")))
-                border.width: lockedState ? 0 : (root.host && root.host.usesCardinalNeutralFlowHandles ? (attentionState ? 1.8 : 1.1) : (interactiveState ? 2 : 1))
-                border.color: lockedState ? "transparent" : (attentionState
+                        : (connectedState ? portColor : "transparent"))))
+                border.width: placeholderLockedState
+                    ? 1.5
+                    : (lockedState ? 0 : (root.host && root.host.usesCardinalNeutralFlowHandles ? (attentionState ? 1.8 : 1.1) : (interactiveState ? 2 : 1)))
+                border.color: placeholderLockedState
+                    ? "#5a606c"
+                    : (lockedState ? "transparent" : (attentionState
                     ? (root.host ? root.host.portInteractiveBorderColor : portColor)
                     : (root.host && root.host.usesCardinalNeutralFlowHandles && selectedState
                         ? root.host.selectedOutlineColor
-                        : portColor))
+                        : portColor)))
 
                 Rectangle {
                     objectName: "graphNodeOutputPortRing"
@@ -903,7 +944,8 @@ Item {
                     )
                     : 0.0
                 readonly property real availableWidth: standardColumnsActive ? standardAvailableWidth : rawAvailableWidth
-                visible: root.host ? (root.host._portLabelsVisible || outputDot.lockedState) : true
+                visible: !root.hostLockedPlaceholder
+                    && (root.host ? (root.host._portLabelsVisible || outputDot.lockedState) : true)
                 anchors.verticalCenter: parent.verticalCenter
                 width: availableWidth
                 height: parent.height
@@ -924,6 +966,7 @@ Item {
                         Canvas {
                             objectName: "graphNodeOutputPortPadlock"
                             property string propertyKey: outputLabelContainer.propertyKey
+                            property bool placeholderLockedState: root.hostLockedPlaceholder
                             antialiasing: true
                             opacity: 0.96
 
@@ -932,9 +975,15 @@ Item {
                                 ctx.clearRect(0, 0, width, height);
                                 if (width <= 0 || height <= 0)
                                     return;
-                                var outlineStroke = Qt.rgba(0.10, 0.07, 0.03, 0.92);
-                                var accentStroke = Qt.rgba(1.0, 0.82, 0.34, 1.0);
-                                var accentFill = Qt.rgba(1.0, 0.88, 0.52, 0.38);
+                                var outlineStroke = placeholderLockedState
+                                    ? Qt.rgba(0.0, 0.0, 0.0, 0.0)
+                                    : Qt.rgba(0.10, 0.07, 0.03, 0.92);
+                                var accentStroke = placeholderLockedState
+                                    ? Qt.rgba(0.54, 0.58, 0.64, 1.0)
+                                    : Qt.rgba(1.0, 0.82, 0.34, 1.0);
+                                var accentFill = placeholderLockedState
+                                    ? Qt.rgba(0.16, 0.18, 0.21, 1.0)
+                                    : Qt.rgba(1.0, 0.88, 0.52, 0.38);
 
                                 function drawShackle(strokeStyle, lineWidth) {
                                     ctx.beginPath();
@@ -976,6 +1025,7 @@ Item {
                             Component.onCompleted: requestPaint()
                             onWidthChanged: requestPaint()
                             onHeightChanged: requestPaint()
+                            onPlaceholderLockedStateChanged: requestPaint()
                         }
                     }
                 }

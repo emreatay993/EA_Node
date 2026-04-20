@@ -273,11 +273,18 @@ Item {
         && addonManagerBridge
         && addonManagerBridge.requestOpen
         && card.lockedPlaceholderFocusAddonId.length > 0
-    readonly property color lockedPlaceholderSurfaceColor: "#161b23"
-    readonly property color lockedPlaceholderOutlineColor: "#5b6474"
-    readonly property color lockedPlaceholderHeaderColor: "#2d3543"
-    readonly property color lockedPlaceholderHeaderTextColor: "#e7edf8"
-    readonly property color lockedPlaceholderLabelColor: "#b0bacb"
+    readonly property color lockedPlaceholderSurfaceColor: "#1b1d22"
+    readonly property color lockedPlaceholderOutlineColor: "#3a3d45"
+    readonly property color lockedPlaceholderHeaderColor: "#25272d"
+    readonly property color lockedPlaceholderHeaderTextColor: "#b0b7c3"
+    readonly property color lockedPlaceholderLabelColor: "#8a93a3"
+    readonly property color lockedPlaceholderAccentDashColor: "#6b7280"
+    readonly property color lockedPlaceholderRibbonFillColor: "#1a1c21"
+    readonly property color lockedPlaceholderRibbonBorderColor: "#4a4f5a"
+    readonly property color lockedPlaceholderPackageTextColor: "#d0d5de"
+    readonly property color lockedPlaceholderChipColor: "#3a3d45"
+    readonly property color lockedPlaceholderChipTextColor: "#d0d5de"
+    readonly property color lockedPlaceholderLinkColor: "#60cdff"
     readonly property bool surfaceInteractionLocked: card.graphReadOnly || Boolean(surfaceLoader.blocksHostInteraction)
     readonly property var viewerSurfaceContract: surfaceLoader.viewerSurfaceContract
     readonly property rect viewerBodyRect: surfaceLoader.viewerBodyRect
@@ -355,7 +362,18 @@ Item {
     readonly property real _minNodeWidth: Number(surfaceMetrics.min_width)
     readonly property real _minNodeHeight: Number(surfaceMetrics.min_height)
     readonly property bool _viewerSurfaceHeightClamped: card.surfaceFamily === "viewer"
+    readonly property real lockedPlaceholderCompactHeight: {
+        var bodyTop = Number(surfaceMetrics.body_top) || 30;
+        var bodyPad = 8;
+        var ribbonH = 38;
+        var loadRowH = 14;
+        var gap = 6;
+        var bottomPad = Number(surfaceMetrics.body_bottom_margin || surfaceMetrics.bottom_padding) || 8;
+        return bodyTop + bodyPad + ribbonH + gap + loadRowH + bodyPad + bottomPad;
+    }
     readonly property real _resolvedNodeHeight: {
+        if (card.lockedPlaceholderActive)
+            return card.lockedPlaceholderCompactHeight;
         var numeric = card._liveGeometryActive
             ? Number(card._liveHeight)
             : (card.nodeData ? Number(card.nodeData.height) : Number(surfaceMetrics.default_height));

@@ -191,21 +191,27 @@ Item {
         Item {
             id: lockedPlaceholderSurface
             objectName: "graphNodeLockedPlaceholderSurface"
+            anchors.fill: parent
             property Item host: root.host
             readonly property var metrics: host && host.surfaceMetrics ? host.surfaceMetrics : ({})
             readonly property real bodyLeftMargin: Math.max(0.0, Number(metrics.body_left_margin || 0.0))
             readonly property real bodyRightMargin: Math.max(0.0, Number(metrics.body_right_margin || 0.0))
             readonly property real bodyTop: Math.max(0.0, Number(metrics.body_top || 0.0))
-            readonly property real bodyHeight: Math.max(0.0, Number(metrics.body_height || 0.0))
-            readonly property real ribbonHeight: Math.max(24.0, Math.min(32.0, bodyHeight > 0.0 ? bodyHeight - 2.0 : 28.0))
+            readonly property real bodyBottomMargin: Math.max(0.0, Number(metrics.body_bottom_margin || 0.0))
+            readonly property real bodyInnerPadding: 8.0
+            readonly property real loadRowHeight: 14.0
+            readonly property real loadRowSpacing: 6.0
+            readonly property real ribbonNaturalHeight: 38.0
+            readonly property bool loadRowVisible: host ? Boolean(host.lockedPlaceholderManagerAvailable) : false
+            readonly property real ribbonHeight: ribbonNaturalHeight
             readonly property real ribbonWidth: Math.max(0.0, width - bodyLeftMargin - bodyRightMargin)
-            readonly property real ribbonY: bodyTop + Math.max(0.0, (bodyHeight - ribbonHeight) * 0.5)
-            readonly property rect lockedPlaceholderActionRect: openManagerButton.visible
+            readonly property real ribbonY: bodyTop + bodyInnerPadding
+            readonly property rect lockedPlaceholderActionRect: loadLinkRow.visible
                 ? Qt.rect(
-                    ribbon.x + openManagerButton.x,
-                    ribbon.y + openManagerButton.y,
-                    openManagerButton.width,
-                    openManagerButton.height
+                    loadLinkRow.x + loadLink.x,
+                    loadLinkRow.y + loadLink.y,
+                    loadLink.width,
+                    loadLink.height
                 )
                 : Qt.rect(0.0, 0.0, 0.0, 0.0)
             readonly property bool blocksHostInteraction: true
@@ -219,62 +225,111 @@ Item {
                 y: lockedPlaceholderSurface.ribbonY
                 width: lockedPlaceholderSurface.ribbonWidth
                 height: lockedPlaceholderSurface.ribbonHeight
-                radius: 6
-                color: "#1d2430"
+                radius: 4
+                color: host ? host.lockedPlaceholderRibbonFillColor : "#1a1c21"
                 border.width: 1
-                border.color: "#4e596d"
+                border.color: host ? host.lockedPlaceholderRibbonBorderColor : "#4a4f5a"
+
+                Canvas {
+                    id: ribbonDashedBorder
+                    objectName: "graphNodeLockedPlaceholderRibbonDashedBorder"
+                    anchors.fill: parent
+                    antialiasing: false
+
+                    property color dashColor: host
+                        ? host.lockedPlaceholderRibbonBorderColor
+                        : "#4a4f5a"
+
+                    onPaint: {
+                        var ctx = getContext("2d");
+                        ctx.clearRect(0, 0, width, height);
+                        if (width <= 2 || height <= 2)
+                            return;
+                        ctx.strokeStyle = String(dashColor);
+                        ctx.lineWidth = 1;
+                        ctx.setLineDash([3, 3]);
+                        ctx.strokeRect(0.5, 0.5, width - 1, height - 1);
+                    }
+
+                    Component.onCompleted: requestPaint()
+                    onWidthChanged: requestPaint()
+                    onHeightChanged: requestPaint()
+                    onDashColorChanged: requestPaint()
+                }
+
+                Image {
+                    id: ribbonPlugIcon
+                    objectName: "graphNodeLockedPlaceholderPlugIcon"
+                    anchors.left: parent.left
+                    anchors.leftMargin: 8
+                    anchors.verticalCenter: parent.verticalCenter
+                    width: 11
+                    height: 11
+                    sourceSize.width: 11
+                    sourceSize.height: 11
+                    fillMode: Image.PreserveAspectFit
+                    smooth: host ? host.highQualityRendering : true
+                    mipmap: host ? host.highQualityRendering : true
+                    source: (typeof uiIcons !== "undefined" && uiIcons && uiIcons.has && uiIcons.has("plug"))
+                        ? uiIcons.sourceSized("plug", 11, String(host ? host.lockedPlaceholderLabelColor : "#8a93a3"))
+                        : ""
+                }
+
+                Column {
+                    anchors.left: ribbonPlugIcon.right
+                    anchors.leftMargin: 8
+                    anchors.right: parent.right
+                    anchors.rightMargin: 8
+                    anchors.verticalCenter: parent.verticalCenter
+                    spacing: 2
+
+                    Text {
+                        id: lockedLabel
+                        objectName: "graphNodeLockedPlaceholderLabel"
+                        width: parent.width
+                        text: host ? host.lockedPlaceholderLabel : "Requires add-on"
+                        color: host ? host.lockedPlaceholderLabelColor : "#8a93a3"
+                        font.pixelSize: 9
+                        font.letterSpacing: 0.3
+                        font.capitalization: Font.AllUppercase
+                        elide: Text.ElideRight
+                        renderType: host ? host.nodeTextRenderType : Text.CurveRendering
+                    }
+
+                    Text {
+                        id: packageLabel
+                        objectName: "graphNodeLockedPlaceholderPackage"
+                        width: parent.width
+                        text: host ? host.lockedPlaceholderPackageText : ""
+                        color: host ? host.lockedPlaceholderPackageTextColor : "#d0d5de"
+                        font.family: "Cascadia Mono, Cascadia Code, Consolas, monospace"
+                        font.pixelSize: 10
+                        elide: Text.ElideRight
+                        renderType: host ? host.nodeTextRenderType : Text.CurveRendering
+                    }
+                }
+            }
+
+            Item {
+                id: loadLinkRow
+                objectName: "graphNodeLockedPlaceholderButton"
+                visible: lockedPlaceholderSurface.loadRowVisible
+                x: lockedPlaceholderSurface.bodyLeftMargin
+                y: ribbon.y + ribbon.height + lockedPlaceholderSurface.loadRowSpacing
+                width: lockedPlaceholderSurface.ribbonWidth
+                height: lockedPlaceholderSurface.loadRowHeight
 
                 Text {
-                    id: lockedLabel
-                    objectName: "graphNodeLockedPlaceholderLabel"
-                    anchors.left: parent.left
-                    anchors.leftMargin: 10
+                    id: loadLink
+                    objectName: "graphNodeLockedPlaceholderButtonText"
+                    anchors.right: parent.right
+                    anchors.rightMargin: 2
                     anchors.verticalCenter: parent.verticalCenter
-                    text: host ? host.lockedPlaceholderLabel : "Requires add-on"
-                    color: host ? host.headerTextColor : "#e7edf8"
+                    text: "Load..."
+                    color: host ? host.lockedPlaceholderLinkColor : "#60cdff"
                     font.pixelSize: 10
                     font.bold: true
                     renderType: host ? host.nodeTextRenderType : Text.CurveRendering
-                }
-
-                Text {
-                    id: packageLabel
-                    objectName: "graphNodeLockedPlaceholderPackage"
-                    anchors.left: lockedLabel.right
-                    anchors.leftMargin: 8
-                    anchors.right: openManagerButton.visible ? openManagerButton.left : parent.right
-                    anchors.rightMargin: openManagerButton.visible ? 8 : 10
-                    anchors.verticalCenter: parent.verticalCenter
-                    text: host ? host.lockedPlaceholderPackageText : ""
-                    color: host ? host.portLabelColor : "#b0bacb"
-                    font.pixelSize: 10
-                    elide: Text.ElideRight
-                    renderType: host ? host.nodeTextRenderType : Text.CurveRendering
-                }
-
-                Rectangle {
-                    id: openManagerButton
-                    objectName: "graphNodeLockedPlaceholderButton"
-                    visible: host ? host.lockedPlaceholderManagerAvailable : false
-                    anchors.right: parent.right
-                    anchors.rightMargin: 6
-                    anchors.verticalCenter: parent.verticalCenter
-                    width: Math.max(44, Math.ceil(openManagerButtonText.implicitWidth) + 10)
-                    height: Math.max(20, parent.height - 8)
-                    radius: 5
-                    color: "transparent"
-                    border.width: 0
-
-                    Text {
-                        id: openManagerButtonText
-                        objectName: "graphNodeLockedPlaceholderButtonText"
-                        anchors.centerIn: parent
-                        text: "Load..."
-                        color: "#60cdff"
-                        font.pixelSize: 10
-                        font.bold: true
-                        renderType: host ? host.nodeTextRenderType : Text.CurveRendering
-                    }
                 }
             }
         }
