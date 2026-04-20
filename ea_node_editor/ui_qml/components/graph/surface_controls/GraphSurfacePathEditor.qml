@@ -7,11 +7,13 @@ Item {
     property Item host: null
     property string propertyKey: ""
     property string committedText: ""
+    property bool shortenDisplayPathWhenInactive: false
     property string fieldObjectName: "graphSurfacePathEditorField"
     property string browseButtonObjectName: "graphSurfacePathEditorBrowseButton"
     property string browseButtonText: "Browse"
     property var browsePathResolver: null
-    readonly property string text: pathField.text
+    property string rawText: String(committedText || "")
+    readonly property string text: rawText
     readonly property var embeddedInteractiveRects: SurfaceControlGeometry.combineRectLists(
         [pathField.embeddedInteractiveRects, browseButton.embeddedInteractiveRects]
     )
@@ -27,9 +29,34 @@ Item {
         return String(browsePathResolver(String(currentPath || "")) || "");
     }
 
+    function _shortDisplayPath(pathText) {
+        var text = String(pathText || "");
+        if (!text.length)
+            return "";
+        var trimmed = text.replace(/[\\/]+$/, "");
+        if (!trimmed.length)
+            return text;
+        var segments = trimmed.split(/[\\/]/);
+        var tail = segments.length > 0 ? segments[segments.length - 1] : trimmed;
+        return tail.length ? tail : trimmed;
+    }
+
+    function _displayTextForRaw(rawText) {
+        var text = String(rawText || "");
+        if (!shortenDisplayPathWhenInactive)
+            return text;
+        return _shortDisplayPath(text);
+    }
+
+    function _syncFieldTextFromRaw() {
+        var nextText = pathField.activeFocus ? rawText : _displayTextForRaw(rawText);
+        if (pathField.text !== nextText)
+            pathField.text = nextText;
+    }
+
     function syncTextToCommitted() {
-        if (pathField.text !== committedText)
-            pathField.text = committedText;
+        rawText = String(committedText || "");
+        _syncFieldTextFromRaw();
     }
 
     onCommittedTextChanged: {
@@ -37,7 +64,15 @@ Item {
             syncTextToCommitted();
     }
 
-    Component.onCompleted: syncTextToCommitted()
+    onShortenDisplayPathWhenInactiveChanged: {
+        if (!pathField.activeFocus)
+            _syncFieldTextFromRaw();
+    }
+
+    Component.onCompleted: {
+        syncTextToCommitted();
+        Qt.callLater(root._syncFieldTextFromRaw);
+    }
 
     RowLayout {
         id: editorRow
@@ -56,8 +91,10 @@ Item {
             // soon as the user types or a path is committed.
             placeholderText: "..."
             onControlStarted: root.controlStarted()
-            onAccepted: root.commitRequested(text)
-            onEditingFinished: root.commitRequested(text)
+            onTextEdited: root.rawText = text
+            onActiveFocusChanged: root._syncFieldTextFromRaw()
+            onAccepted: root.commitRequested(root.rawText)
+            onEditingFinished: root.commitRequested(root.rawText)
         }
 
         GraphSurfaceButton {
@@ -70,12 +107,12 @@ Item {
             text: root.browseButtonText
             onControlStarted: root.controlStarted()
             onClicked: {
-                var selectedPath = root._resolveBrowsePath(pathField.text);
+                var selectedPath = root._resolveBrowsePath(root.rawText);
                 if (!selectedPath.length)
                     return;
-                if (pathField.text !== selectedPath)
-                    pathField.text = selectedPath;
-                root.commitRequested(pathField.text);
+                root.rawText = selectedPath;
+                root._syncFieldTextFromRaw();
+                root.commitRequested(root.rawText);
             }
         }
     }

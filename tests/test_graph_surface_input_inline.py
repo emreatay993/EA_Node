@@ -727,6 +727,113 @@ class GraphSurfaceInputInlineTests(unittest.TestCase):
             """,
         )
 
+    def test_path_pointer_inline_path_row_shortens_display_but_keeps_raw_browse_and_commit_values(self) -> None:
+        self._run_qml_probe(
+            "path-pointer-inline-display",
+            """
+            host = probe.findChild(QObject, "probeHost")
+            canvas_proxy = probe.findChild(QObject, "canvasProxy")
+            focus_sink = probe.findChild(QObject, "probeFocusSink")
+            payload = variant_value(host.property("nodeData"))
+            payload["type_id"] = "io.path_pointer"
+            payload["title"] = "Path Pointer"
+            payload["runtime_behavior"] = "passive"
+            payload["properties"] = {
+                "mode": "folder",
+                "path": "/fixtures/projects/demo/results/output",
+                "show_full_path": False,
+            }
+            payload["inline_properties"] = [
+                {
+                    "key": "mode",
+                    "label": "Mode",
+                    "inline_editor": "enum",
+                    "value": "folder",
+                    "enum_values": ["file", "folder"],
+                    "overridden_by_input": False,
+                    "input_port_label": "mode",
+                },
+                {
+                    "key": "path",
+                    "label": "Path",
+                    "inline_editor": "path",
+                    "value": "/fixtures/projects/demo/results/output",
+                    "overridden_by_input": False,
+                    "input_port_label": "path",
+                },
+                {
+                    "key": "show_full_path",
+                    "label": "Show Full Path",
+                    "inline_editor": "toggle",
+                    "value": False,
+                    "overridden_by_input": False,
+                    "input_port_label": "show_full_path",
+                },
+            ]
+            host.setProperty("nodeData", payload)
+            app.processEvents()
+
+            window = attach_host_to_window(host, 520, 420)
+            focus_sink.setParentItem(window.contentItem())
+            path_field = named_item(host, "graphNodeInlinePathEditor", "path")
+            browse_button = named_item(host, "graphNodeInlinePathBrowseButton", "path")
+
+            assert host.property("inlineRowColor").name().lower() == host.property("themeInlineRowColor").name().lower(), (
+                host.property("inlineRowColor").name(),
+                host.property("themeInlineRowColor").name(),
+            )
+            assert host.property("inlineInputBackgroundColor").name().lower() == host.property("themeInlineInputBackgroundColor").name().lower(), (
+                host.property("inlineInputBackgroundColor").name(),
+                host.property("themeInlineInputBackgroundColor").name(),
+            )
+            assert path_field.property("fillColor").name().lower() == host.property("themeInlineInputBackgroundColor").name().lower(), (
+                path_field.property("fillColor").name(),
+                host.property("themeInlineInputBackgroundColor").name(),
+            )
+            focus_sink.forceActiveFocus()
+            app.processEvents()
+            assert str(path_field.property("text")) == "output", str(path_field.property("text"))
+
+            path_field.forceActiveFocus()
+            app.processEvents()
+            assert str(path_field.property("text")) == "/fixtures/projects/demo/results/output", (
+                str(path_field.property("text"))
+            )
+
+            focus_sink.forceActiveFocus()
+            app.processEvents()
+            assert str(path_field.property("text")) == "output", str(path_field.property("text"))
+
+            interactions = []
+            commits = []
+            host.surfaceControlInteractionStarted.connect(lambda node_id: interactions.append(node_id))
+            host.inlinePropertyCommitted.connect(lambda node_id, key, value: commits.append((node_id, key, value)))
+            canvas_proxy.setProperty("browseResultPath", "/tmp/selected/deeper/folder")
+
+            mouse_click(window, item_scene_point(browse_button))
+
+            browse_call = variant_value(canvas_proxy.property("lastBrowseCall"))
+            assert browse_call["nodeId"] == "node_inline_test", browse_call
+            assert browse_call["key"] == "path", browse_call
+            assert browse_call["currentPath"] == "/fixtures/projects/demo/results/output", browse_call
+            assert interactions == ["node_inline_test"], interactions
+            assert commits == [("node_inline_test", "path", "/tmp/selected/deeper/folder")], commits
+            assert str(path_field.property("text")) == "folder", str(path_field.property("text"))
+
+            payload = variant_value(host.property("nodeData"))
+            payload["properties"]["path"] = "/tmp/selected/deeper/folder"
+            payload["properties"]["show_full_path"] = True
+            host.setProperty("nodeData", payload)
+            app.processEvents()
+
+            assert str(path_field.property("text")) == "/tmp/selected/deeper/folder", str(path_field.property("text"))
+
+            dispose_host_window(host, window)
+            engine.deleteLater()
+            app.processEvents()
+            """,
+        )
+
     def test_inline_color_picker_routes_by_node_id_and_commits_selected_color(self) -> None:
         self._run_qml_probe(
             "inline-color-picker",

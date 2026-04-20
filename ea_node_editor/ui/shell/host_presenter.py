@@ -106,11 +106,27 @@ class ShellHostPresenter(QObject):
                 return str(parent)
         return str(Path.cwd())
 
-    def browse_property_path_dialog(self, property_label: str, current_path: str) -> str:
+    def browse_property_path_dialog(
+        self,
+        property_label: str,
+        current_path: str,
+        *,
+        dialog_mode: str = "file",
+    ) -> str:
+        normalized_dialog_mode = str(dialog_mode or "file").strip().lower()
+        start_path = self._path_dialog_start_path(current_path)
+        if normalized_dialog_mode == "folder":
+            selected_path = QFileDialog.getExistingDirectory(
+                self._host,
+                f"Choose {property_label}",
+                start_path,
+            )
+            return str(selected_path or "").strip()
+
         selected_path, _selected_filter = QFileDialog.getOpenFileName(
             self._host,
             f"Choose {property_label}",
-            self._path_dialog_start_path(current_path),
+            start_path,
         )
         normalized_path = str(selected_path or "").strip()
         if not normalized_path:

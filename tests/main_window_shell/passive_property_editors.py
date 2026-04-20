@@ -75,6 +75,64 @@ class MainWindowShellPassivePropertyEditorsTests(SharedMainWindowShellTestBase):
         self.assertEqual(node.properties["media_ref"], str(picked_path))
         self.assertEqual(str(path_editor.property("text")), str(picked_path))
 
+    def test_path_pointer_file_mode_browse_uses_file_picker(self) -> None:
+        workspace_id = self.window.workspace_manager.active_workspace_id()
+        node_id = self.window.scene.add_node_from_type("io.path_pointer", x=120.0, y=80.0)
+        self.window.scene.focus_node(node_id)
+        self.app.processEvents()
+
+        picked_path = Path(self._env.temp_path) / "picked-path-pointer.txt"
+        picked_path.write_text("fixture", encoding="utf-8")
+
+        path_editor = self._inspector_property_object("inspectorPathEditor", "path")
+        browse_button = self._inspector_property_object("inspectorPathBrowseButton", "path")
+
+        with (
+            patch(
+                "ea_node_editor.ui.shell.host_presenter.QFileDialog.getOpenFileName",
+                return_value=(str(picked_path), ""),
+            ) as open_file_dialog,
+            patch("ea_node_editor.ui.shell.host_presenter.QFileDialog.getExistingDirectory") as open_directory_dialog,
+        ):
+            QMetaObject.invokeMethod(browse_button, "click")
+            self.app.processEvents()
+
+        node = self.window.model.project.workspaces[workspace_id].nodes[node_id]
+        self.assertEqual(node.properties["path"], str(picked_path))
+        self.assertEqual(str(path_editor.property("text")), str(picked_path))
+        open_file_dialog.assert_called_once()
+        open_directory_dialog.assert_not_called()
+
+    def test_path_pointer_folder_mode_browse_uses_directory_picker(self) -> None:
+        workspace_id = self.window.workspace_manager.active_workspace_id()
+        node_id = self.window.scene.add_node_from_type("io.path_pointer", x=120.0, y=80.0)
+        self.window.scene.focus_node(node_id)
+        self.app.processEvents()
+        self.window.set_selected_node_property("mode", "folder")
+        self.app.processEvents()
+
+        picked_directory = Path(self._env.temp_path) / "picked-path-pointer-folder"
+        picked_directory.mkdir(parents=True, exist_ok=True)
+
+        path_editor = self._inspector_property_object("inspectorPathEditor", "path")
+        browse_button = self._inspector_property_object("inspectorPathBrowseButton", "path")
+
+        with (
+            patch("ea_node_editor.ui.shell.host_presenter.QFileDialog.getOpenFileName") as open_file_dialog,
+            patch(
+                "ea_node_editor.ui.shell.host_presenter.QFileDialog.getExistingDirectory",
+                return_value=str(picked_directory),
+            ) as open_directory_dialog,
+        ):
+            QMetaObject.invokeMethod(browse_button, "click")
+            self.app.processEvents()
+
+        node = self.window.model.project.workspaces[workspace_id].nodes[node_id]
+        self.assertEqual(node.properties["path"], str(picked_directory))
+        self.assertEqual(str(path_editor.property("text")), str(picked_directory))
+        open_directory_dialog.assert_called_once()
+        open_file_dialog.assert_not_called()
+
     def test_qml_color_editor_picker_commits_selected_hex(self) -> None:
         workspace_id = self.window.workspace_manager.active_workspace_id()
         node_id = self.window.scene.add_node_from_type("tests.passive_editor_fixture", x=120.0, y=80.0)

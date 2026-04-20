@@ -203,6 +203,17 @@ class ShellInspectorPresenter(QObject):
         node, _spec = selected
         return self._node_property_spec(node.node_id, key)
 
+    @staticmethod
+    def _path_dialog_mode(node: Any, property_spec: Any) -> str:
+        if str(getattr(node, "type_id", "")).strip() != "io.path_pointer":
+            return "file"
+        if str(getattr(property_spec, "key", "")).strip() != "path":
+            return "file"
+        properties = getattr(node, "properties", None)
+        if not hasattr(properties, "get"):
+            return "file"
+        return "folder" if str(properties.get("mode", "file")).strip().lower() == "folder" else "file"
+
     def _path_dialog_start_path(self, current_path: str) -> str:
         normalized_current = str(current_path or "").strip()
         if normalized_current:
@@ -231,15 +242,26 @@ class ShellInspectorPresenter(QObject):
         property_spec = self._selected_node_property_spec(key)
         if property_spec is None or str(property_spec.type) != "path":
             return ""
+        dialog_mode = self._path_dialog_mode(node, property_spec)
         repair_request = decode_file_repair_request(current_path)
         if repair_request is not None:
+            if dialog_mode == "folder":
+                return self._host.shell_host_presenter.browse_property_path_dialog(
+                    property_spec.label,
+                    repair_request.current_value,
+                    dialog_mode=dialog_mode,
+                )
             return self._host._repair_property_path_dialog(
                 node_type_id=node.type_id,
                 property_key=property_spec.key,
                 property_label=property_spec.label,
                 current_path=repair_request.current_value,
             )
-        return self._host.shell_host_presenter.browse_property_path_dialog(property_spec.label, current_path)
+        return self._host.shell_host_presenter.browse_property_path_dialog(
+            property_spec.label,
+            current_path,
+            dialog_mode=dialog_mode,
+        )
 
     def browse_node_property_path(self, node_id: str, key: str, current_path: str) -> str:
         node_context = self._node_context_by_id(node_id)
@@ -249,15 +271,26 @@ class ShellInspectorPresenter(QObject):
         property_spec = self._node_property_spec(node_id, key)
         if property_spec is None or str(property_spec.type) != "path":
             return ""
+        dialog_mode = self._path_dialog_mode(node, property_spec)
         repair_request = decode_file_repair_request(current_path)
         if repair_request is not None:
+            if dialog_mode == "folder":
+                return self._host.shell_host_presenter.browse_property_path_dialog(
+                    property_spec.label,
+                    repair_request.current_value,
+                    dialog_mode=dialog_mode,
+                )
             return self._host._repair_property_path_dialog(
                 node_type_id=node.type_id,
                 property_key=property_spec.key,
                 property_label=property_spec.label,
                 current_path=repair_request.current_value,
             )
-        return self._host.shell_host_presenter.browse_property_path_dialog(property_spec.label, current_path)
+        return self._host.shell_host_presenter.browse_property_path_dialog(
+            property_spec.label,
+            current_path,
+            dialog_mode=dialog_mode,
+        )
 
     def pick_selected_node_property_color(self, key: str, current_value: str) -> str:
         property_spec = self._selected_node_property_spec(key)

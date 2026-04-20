@@ -89,6 +89,19 @@ Item {
         return host ? host.inlineLabelColor : "#d0d5de";
     }
 
+    function _isPathPointerPathProperty(modelData) {
+        if (!host || !host.nodeData)
+            return false;
+        return String(host.nodeData.type_id || "") === "io.path_pointer"
+            && String(modelData && modelData.key || "") === "path";
+    }
+
+    function _pathPointerShowFullPath() {
+        if (!host || !host.nodeData || !host.nodeData.properties)
+            return false;
+        return !!host.nodeData.properties.show_full_path;
+    }
+
     function _embeddedInteractiveRects() {
         if (!host || inlinePropertyRepeater.count <= 0)
             return [];
@@ -251,6 +264,8 @@ Item {
                         host: root.host
                         propertyKey: String(modelData.key || "")
                         committedText: host ? host.inlineEditorText(modelData) : ""
+                        shortenDisplayPathWhenInactive: root._isPathPointerPathProperty(modelData)
+                            && !root._pathPointerShowFullPath()
                         fieldObjectName: "graphNodeInlinePathEditor"
                         browseButtonObjectName: "graphNodeInlinePathBrowseButton"
                         browsePathResolver: function(currentPath) {

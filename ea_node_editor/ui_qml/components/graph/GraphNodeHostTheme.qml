@@ -17,6 +17,10 @@ QtObject {
     readonly property bool hasPassiveTextOverride: !!host && host.isPassiveNode && root.passiveTextOverride.length > 0
     readonly property bool hasPassiveAccentOverride: !!host && host.isPassiveNode && root.passiveAccentOverride.length > 0
     readonly property bool hasPassiveHeaderOverride: !!host && host.isPassiveNode && root.passiveHeaderOverride.length > 0
+    readonly property bool usesPathPointerActiveInlineContrast: !!host
+        && host.isPassiveNode
+        && host.nodeData
+        && String(host.nodeData.type_id || "") === "io.path_pointer"
 
     readonly property color themeSurfaceColor: host && host.nodePalette ? (host.nodePalette.card_bg || "#1b1d22") : "#1b1d22"
     readonly property color themeOutlineColor: host && host.nodePalette ? (host.nodePalette.card_border || "#3a3d45") : "#3a3d45"
@@ -104,25 +108,39 @@ QtObject {
         ? Qt.lighter(root.scopeBadgeColor, 1.16)
         : root.themeScopeBadgeBorderColor
     readonly property color scopeBadgeTextColor: host && host.isPassiveNode ? "#f2f4f8" : root.themeScopeBadgeTextColor
-    readonly property color inlineRowColor: host && host.isPassiveNode ? Qt.darker(root.surfaceColor, 1.04) : root.themeInlineRowColor
-    readonly property color inlineRowBorderColor: host && host.isPassiveNode
+    readonly property color inlineRowColor: root.usesPathPointerActiveInlineContrast
+        ? root.themeInlineRowColor
+        : (host && host.isPassiveNode ? Qt.darker(root.surfaceColor, 1.04) : root.themeInlineRowColor)
+    readonly property color inlineRowBorderColor: root.usesPathPointerActiveInlineContrast
+        ? root.themeInlineRowBorderColor
+        : (host && host.isPassiveNode
         ? Qt.alpha(root.outlineColor, 0.85)
-        : root.themeInlineRowBorderColor
-    readonly property color inlineLabelColor: host && host.isPassiveNode
+        : root.themeInlineRowBorderColor)
+    readonly property color inlineLabelColor: root.usesPathPointerActiveInlineContrast
+        ? root.themeInlineLabelColor
+        : (host && host.isPassiveNode
         ? Qt.alpha(root.headerTextColor, 0.82)
-        : root.themeInlineLabelColor
-    readonly property color inlineInputTextColor: host && host.isPassiveNode
+        : root.themeInlineLabelColor)
+    readonly property color inlineInputTextColor: root.usesPathPointerActiveInlineContrast
+        ? root.themeInlineInputTextColor
+        : (host && host.isPassiveNode
         ? root.headerTextColor
-        : root.themeInlineInputTextColor
-    readonly property color inlineInputBackgroundColor: host && host.isPassiveNode
+        : root.themeInlineInputTextColor)
+    readonly property color inlineInputBackgroundColor: root.usesPathPointerActiveInlineContrast
+        ? root.themeInlineInputBackgroundColor
+        : (host && host.isPassiveNode
         ? Qt.darker(root.surfaceColor, 1.08)
-        : root.themeInlineInputBackgroundColor
-    readonly property color inlineInputBorderColor: host && host.isPassiveNode
+        : root.themeInlineInputBackgroundColor)
+    readonly property color inlineInputBorderColor: root.usesPathPointerActiveInlineContrast
+        ? root.themeInlineInputBorderColor
+        : (host && host.isPassiveNode
         ? Qt.alpha(root.outlineColor, 0.9)
-        : root.themeInlineInputBorderColor
-    readonly property color inlineDrivenTextColor: host && host.isPassiveNode
+        : root.themeInlineInputBorderColor)
+    readonly property color inlineDrivenTextColor: root.usesPathPointerActiveInlineContrast
+        ? root.themeInlineDrivenTextColor
+        : (host && host.isPassiveNode
         ? Qt.alpha(root.headerTextColor, 0.72)
-        : root.themeInlineDrivenTextColor
+        : root.themeInlineDrivenTextColor)
     readonly property color portLabelColor: host && host.isPassiveNode
         ? Qt.alpha(root.headerTextColor, host.usesCardinalNeutralFlowHandles ? 0.74 : 0.84)
         : root.themePortLabelColor
