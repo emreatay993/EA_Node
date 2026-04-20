@@ -70,6 +70,7 @@ ea_node_editor = [
     "ui_qml/**/*.qml",
     "ui_qml/**/*.js",
     "ui_qml/**/*.svg",
+    "ui_qml/**/*.json",
     "ui/theme/icons/*.svg",
 ]
 

@@ -160,7 +160,12 @@ if _module_available("paramiko"):
 datas = []
 datas += collect_data_files(
     "ea_node_editor.ui_qml",
-    includes=["*.qml", "**/*.qml", "*.js", "**/*.js", "*.svg", "**/*.svg"],
+    includes=[
+        "*.qml", "**/*.qml",
+        "*.js", "**/*.js",
+        "*.svg", "**/*.svg",
+        "*.json", "**/*.json",
+    ],
 )
 datas += collect_data_files(
     "ea_node_editor.ui.theme",
