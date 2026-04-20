@@ -515,7 +515,7 @@ class WorkspaceViewNavOps:
             else:
                 self._host.show_graph_hint("Execution halted at the failed node.", 4800)
         if error:
-            QMessageBox.critical(self._host, "Workflow Error", error)
+            QMessageBox.critical(self._host, "Workflow Error", str(error))
 
     def reveal_parent_chain(self, workspace_id: str, node_id: str) -> list[str]:
         if not workspace_id or not node_id:
