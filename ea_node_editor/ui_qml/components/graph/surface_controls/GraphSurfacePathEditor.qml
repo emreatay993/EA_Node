@@ -52,6 +52,9 @@ Item {
             visible: root.visible
             enabled: root.enabled
             host: root.host
+            // Read-only hint shown when no path is set yet; disappears as
+            // soon as the user types or a path is committed.
+            placeholderText: "..."
             onControlStarted: root.controlStarted()
             onAccepted: root.commitRequested(text)
             onEditingFinished: root.commitRequested(text)

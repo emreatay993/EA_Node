@@ -36,6 +36,7 @@ def _spec(
     icon: str,
     *,
     runtime_behavior: str = "active",
+    show_title_icon: bool = False,
 ) -> NodeTypeSpec:
     return NodeTypeSpec(
         type_id=type_id,
@@ -45,6 +46,7 @@ def _spec(
         ports=(PortSpec("value", "out", "data", "any"),),
         properties=(),
         runtime_behavior=runtime_behavior,  # type: ignore[arg-type]
+        show_title_icon=show_title_icon,
     )
 
 
@@ -177,6 +179,34 @@ def test_title_icon_source_for_node_payload_allows_only_active_and_compile_only_
     assert title_icon_source_for_node_payload(active_spec) == icon_path.resolve().as_uri()
     assert title_icon_source_for_node_payload(compile_only_spec) == icon_path.resolve().as_uri()
     assert title_icon_source_for_node_payload(passive_spec) == ""
+
+
+def test_title_icon_source_for_passive_spec_honors_show_title_icon_opt_in(
+    tmp_path: Path,
+) -> None:
+    """Passive specs that set ``show_title_icon=True`` render their icon.
+
+    Default-passive suppression exists for flowchart/planning/annotation/
+    media families that draw their own body art; data-source-style passive
+    nodes (``io.path_pointer``) opt back in via this flag.
+    """
+    icon_path = tmp_path / "passive.svg"
+    icon_path.write_bytes(b"icon")
+
+    opted_in = _spec(
+        "tests.title_icon.passive.opted_in",
+        str(icon_path),
+        runtime_behavior="passive",
+        show_title_icon=True,
+    )
+    default = _spec(
+        "tests.title_icon.passive.default",
+        str(icon_path),
+        runtime_behavior="passive",
+    )
+
+    assert title_icon_source_for_node_payload(opted_in) == icon_path.resolve().as_uri()
+    assert title_icon_source_for_node_payload(default) == ""
 
 
 def test_title_icon_scene_payload_uses_registry_provenance_without_persistence_fields(

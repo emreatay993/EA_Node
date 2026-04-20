@@ -630,6 +630,16 @@ class NodeTypeSpec:
     surface_variant: str = ""
     render_quality: NodeRenderQualitySpec = field(default_factory=NodeRenderQualitySpec)
     source_metadata: DpfOperatorSourceSpec | DpfCallableSourceSpec | None = None
+    # Opt-in title-icon override for passive nodes.
+    #
+    # By default, passive nodes suppress the header icon (see
+    # ``title_icon_source_for_node_payload``) because the passive flowchart,
+    # planning, annotation, and media families draw their own body art and a
+    # title-bar icon would clash. Data-source-style passive nodes (e.g.
+    # ``io.path_pointer``) have no such body art and benefit from the icon,
+    # so they set this flag to opt back in. Active and compile_only nodes
+    # show their icon regardless; this flag is a no-op for them.
+    show_title_icon: bool = False
 
     def __post_init__(self) -> None:
         object.__setattr__(

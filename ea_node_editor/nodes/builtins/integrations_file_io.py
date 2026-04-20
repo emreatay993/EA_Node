@@ -124,6 +124,11 @@ class PathPointerNodePlugin:
             icon="integrations/folder.svg",
             description="Holds a file or folder path for reuse across nodes.",
             runtime_behavior="passive",
+            # Passive data-source: opt back into the title-bar icon. The
+            # default passive suppression targets flowchart/planning/
+            # annotation/media families that draw their own body art, which
+            # this node does not. See ``NodeTypeSpec.show_title_icon``.
+            show_title_icon=True,
             ports=(
                 PortSpec("path", "out", "data", "path", exposed=True),
                 PortSpec("exists", "out", "data", "bool", exposed=True),

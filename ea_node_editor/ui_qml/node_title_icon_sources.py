@@ -44,7 +44,13 @@ def title_icon_source_for_node_payload(
     *,
     provenance: PluginProvenance | None = None,
 ) -> str:
-    if spec.runtime_behavior not in TITLE_ICON_RUNTIME_BEHAVIORS:
+    # Passive nodes suppress the title icon by default (flowchart, planning,
+    # annotation, and media families draw their own body art). Data-source-
+    # style passive nodes can opt back in via ``NodeTypeSpec.show_title_icon``.
+    if (
+        spec.runtime_behavior not in TITLE_ICON_RUNTIME_BEHAVIORS
+        and not getattr(spec, "show_title_icon", False)
+    ):
         return ""
     return resolve_node_title_icon_source(spec.icon, provenance=provenance)
 

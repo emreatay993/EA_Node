@@ -315,6 +315,9 @@ class PathPointerNodeTests(unittest.TestCase):
         self.assertEqual(spec.runtime_behavior, "passive")
         # Folder icon requested by the user.
         self.assertEqual(spec.icon, "integrations/folder.svg")
+        # Passive nodes suppress title icons by default; Path Pointer opts
+        # back in so the folder glyph actually renders in the node header.
+        self.assertTrue(spec.show_title_icon)
 
     def test_path_pointer_show_full_path_property_defaults_to_false(self) -> None:
         spec = PathPointerNodePlugin().spec()
