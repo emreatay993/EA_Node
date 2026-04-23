@@ -44,6 +44,17 @@ from ea_node_editor.ui_qml.viewport_bridge import ViewportBridge
 
 _DEFAULT_BENCHMARK_SCENARIO = "synthetic_exec"
 _BENCHMARK_SCENARIOS = (_DEFAULT_BENCHMARK_SCENARIO, "heavy_media")
+_TARGETED_PROFILING_PHASES = ("pan", "zoom")
+_TARGETED_TIMING_SUFFIXES = (
+    "edge_snapshot_build_ms",
+    "grid_paint_ms",
+)
+_TARGETED_COUNT_SUFFIXES = (
+    "visible_node_card_count",
+    "active_node_surface_count",
+    "visible_edge_label_count",
+    "visible_edge_count",
+)
 
 
 @dataclass(slots=True, frozen=True)
@@ -63,6 +74,12 @@ class BenchmarkConfig:
     performance_mode: str = "full_fidelity"
     scenario: str = _DEFAULT_BENCHMARK_SCENARIO
     interaction_warmup_samples: int = 3
+
+
+@dataclass(slots=True, frozen=True)
+class _MeasuredInteractionStep:
+    elapsed_ms: float
+    profiling_snapshot: dict[str, float]
 
 
 @dataclass(slots=True)
@@ -90,6 +107,7 @@ class _InteractionBenchmarkSamples:
     pan_ms: list[float]
     zoom_ms: list[float]
     node_drag_control_ms: list[float]
+    targeted_profiling_samples: dict[str, list[float]]
     warmup_samples: int
     performance_mode: str
     resolved_performance_mode: str
@@ -121,7 +139,17 @@ class _InteractionBenchmarkSamples:
                 "samples": self.node_drag_control_ms,
                 "summary": _metric_summary_ms(self.node_drag_control_ms),
             },
+            **_targeted_profiling_payload(
+                self.targeted_profiling_samples,
+                suffixes=_TARGETED_TIMING_SUFFIXES,
+            ),
         }
+
+    def targeted_profiling_counts_payload(self) -> dict[str, Any]:
+        return _targeted_profiling_payload(
+            self.targeted_profiling_samples,
+            suffixes=_TARGETED_COUNT_SUFFIXES,
+        )
 
     def benchmark_payload(self) -> dict[str, Any]:
         return {
@@ -156,6 +184,7 @@ class _InteractionBenchmarkSamples:
             "combined_ms": self.combined_ms(),
             "node_drag_control_ms": self.node_drag_control_ms,
             "phase_timings_ms": self.phase_timings_payload(),
+            "profiling_counts": self.targeted_profiling_counts_payload(),
             "benchmark": self.benchmark_payload(),
         }
 
@@ -229,6 +258,49 @@ def _metric_summary_ms(samples: list[float]) -> dict[str, float]:
         "p50": _percentile(samples, 50.0),
         "p95": _percentile(samples, 95.0),
     }
+
+
+def _targeted_profiling_metric_key(phase: str, suffix: str) -> str:
+    return f"{phase}_{suffix}"
+
+
+def _targeted_profiling_payload(
+    samples_by_metric: dict[str, list[float]],
+    *,
+    suffixes: tuple[str, ...],
+) -> dict[str, Any]:
+    payload: dict[str, Any] = {}
+    for phase in _TARGETED_PROFILING_PHASES:
+        for suffix in suffixes:
+            metric_key = _targeted_profiling_metric_key(phase, suffix)
+            metric_samples = [float(value) for value in samples_by_metric.get(metric_key, [])]
+            payload[metric_key] = {
+                "samples": metric_samples,
+                "summary": _metric_summary_ms(metric_samples),
+            }
+    return payload
+
+
+def _initialize_targeted_profiling_samples() -> dict[str, list[float]]:
+    metric_keys = tuple(
+        _targeted_profiling_metric_key(phase, suffix)
+        for phase in _TARGETED_PROFILING_PHASES
+        for suffix in (*_TARGETED_TIMING_SUFFIXES, *_TARGETED_COUNT_SUFFIXES)
+    )
+    return {metric_key: [] for metric_key in metric_keys}
+
+
+def _append_targeted_profiling_sample(
+    targeted_samples: dict[str, list[float]],
+    *,
+    phase: str,
+    snapshot: dict[str, float],
+) -> None:
+    for suffix, value in snapshot.items():
+        metric_key = _targeted_profiling_metric_key(phase, suffix)
+        if metric_key not in targeted_samples:
+            targeted_samples[metric_key] = []
+        targeted_samples[metric_key].append(float(value))
 
 
 def _coefficient_of_variation(values: list[float]) -> float:
@@ -992,6 +1064,76 @@ class _GraphCanvasBenchmarkHost:
             if str(item.objectName() or "") == "graphNodeCard"
         ]
 
+    def collect_targeted_profiling_snapshot(self) -> dict[str, float]:
+        if getattr(self, "canvas", None) is None:
+            return {
+                "edge_snapshot_build_ms": 0.0,
+                "grid_paint_ms": 0.0,
+                "visible_node_card_count": 0.0,
+                "active_node_surface_count": 0.0,
+                "visible_edge_label_count": 0.0,
+                "visible_edge_count": 0.0,
+            }
+
+        visible_rect = self.visible_scene_rect()
+        items = _iter_quick_item_tree(self.canvas)
+        background_layer: QQuickItem | None = None
+        edge_layer: QQuickItem | None = None
+        visible_node_card_count = 0
+        active_node_surface_count = 0
+        visible_edge_label_count = 0
+
+        for item in items:
+            object_name = str(item.objectName() or "")
+            if object_name == "graphCanvasBackground":
+                background_layer = item
+                continue
+            if object_name == "graphCanvasEdgeLayer":
+                edge_layer = item
+                continue
+            if object_name == "graphEdgeFlowLabelItem":
+                if bool(item.property("visible")):
+                    visible_edge_label_count += 1
+                continue
+
+            if object_name not in {"graphNodeCard", "graphNodeSurfaceLoader"}:
+                continue
+
+            node_data = item.property("nodeData") or {}
+            node_rect = _node_payload_scene_rect(
+                node_data,
+                fallback_width=item.width(),
+                fallback_height=item.height(),
+            )
+            if not visible_rect.intersects(node_rect):
+                continue
+
+            if object_name == "graphNodeCard":
+                visible_node_card_count += 1
+                continue
+
+            if bool(item.property("renderActive")) and bool(item.property("surfaceLoaded")):
+                active_node_surface_count += 1
+
+        edge_snapshot_build_ms = 0.0
+        visible_edge_count = 0.0
+        if edge_layer is not None:
+            edge_snapshot_build_ms = float(edge_layer.property("profileLastSnapshotBuildMs") or 0.0)
+            visible_edge_count = float(edge_layer.property("profileLastVisibleEdgeCount") or 0.0)
+
+        grid_paint_ms = 0.0
+        if background_layer is not None:
+            grid_paint_ms = float(background_layer.property("profileLastGridPaintMs") or 0.0)
+
+        return {
+            "edge_snapshot_build_ms": edge_snapshot_build_ms,
+            "grid_paint_ms": grid_paint_ms,
+            "visible_node_card_count": float(visible_node_card_count),
+            "active_node_surface_count": float(active_node_surface_count),
+            "visible_edge_label_count": float(visible_edge_label_count),
+            "visible_edge_count": visible_edge_count,
+        }
+
     def media_node_scene_rect(self) -> QRectF:
         media_scene_rect = QRectF()
         found_media = False
@@ -1173,22 +1315,30 @@ def _measure_pan_zoom_step(
     pan_to_x: float,
     pan_to_y: float,
     zoom_to: float,
-) -> tuple[float, float]:
+) -> tuple[_MeasuredInteractionStep, _MeasuredInteractionStep]:
     canvas_host.begin_viewport_interaction()
     started = time.perf_counter()
     canvas_host.view.centerOn(pan_to_x, pan_to_y)
     canvas_host.note_viewport_interaction()
     canvas_host.render_frame()
     pan_elapsed_ms = (time.perf_counter() - started) * 1000.0
+    pan_step = _MeasuredInteractionStep(
+        elapsed_ms=pan_elapsed_ms,
+        profiling_snapshot=canvas_host.collect_targeted_profiling_snapshot(),
+    )
 
     started = time.perf_counter()
     canvas_host.view.set_zoom(zoom_to)
     canvas_host.note_viewport_interaction()
     canvas_host.render_frame()
     zoom_elapsed_ms = (time.perf_counter() - started) * 1000.0
+    zoom_step = _MeasuredInteractionStep(
+        elapsed_ms=zoom_elapsed_ms,
+        profiling_snapshot=canvas_host.collect_targeted_profiling_snapshot(),
+    )
     canvas_host.finish_viewport_interaction()
     canvas_host.wait_for_viewport_interaction_idle()
-    return pan_elapsed_ms, zoom_elapsed_ms
+    return pan_step, zoom_step
 
 
 def _node_drag_delta(sample_index: int) -> tuple[float, float]:
@@ -1249,6 +1399,7 @@ def benchmark_pan_zoom_ms(
     node_drag_control_samples_ms: list[float] = []
     setup_samples_ms: list[float] = []
     warmup_phase_samples_ms: list[float] = []
+    targeted_profiling_samples = _initialize_targeted_profiling_samples()
     resolved_performance_mode = ""
     random_gen = random.Random(seed)
     left = right = top = bottom = 0.0
@@ -1323,14 +1474,24 @@ def benchmark_pan_zoom_ms(
                 zoom_min=zoom_min,
                 zoom_max=zoom_max,
             )
-            pan_elapsed_ms, zoom_elapsed_ms = _measure_pan_zoom_step(
+            pan_step, zoom_step = _measure_pan_zoom_step(
                 canvas_host,
                 pan_to_x=pan_x,
                 pan_to_y=pan_y,
                 zoom_to=zoom,
             )
-            pan_samples_ms.append(pan_elapsed_ms)
-            zoom_samples_ms.append(zoom_elapsed_ms)
+            pan_samples_ms.append(pan_step.elapsed_ms)
+            zoom_samples_ms.append(zoom_step.elapsed_ms)
+            _append_targeted_profiling_sample(
+                targeted_profiling_samples,
+                phase="pan",
+                snapshot=pan_step.profiling_snapshot,
+            )
+            _append_targeted_profiling_sample(
+                targeted_profiling_samples,
+                phase="zoom",
+                snapshot=zoom_step.profiling_snapshot,
+            )
             current_center_x = pan_x
             current_center_y = pan_y
             current_zoom = zoom
@@ -1344,6 +1505,7 @@ def benchmark_pan_zoom_ms(
         pan_ms=pan_samples_ms,
         zoom_ms=zoom_samples_ms,
         node_drag_control_ms=node_drag_control_samples_ms,
+        targeted_profiling_samples=targeted_profiling_samples,
         warmup_samples=warmup_samples,
         performance_mode=performance_mode,
         resolved_performance_mode=resolved_performance_mode,
@@ -1412,6 +1574,7 @@ def _run_single_benchmark(config: BenchmarkConfig) -> dict[str, Any]:
         },
         "interaction_benchmark": interaction_samples["benchmark"],
         "phase_timings_ms": phase_timings_ms,
+        "profiling_counts": interaction_samples["profiling_counts"],
         "metrics": {
             "project_graph_load_ms": {
                 "samples": load_samples,
@@ -1651,6 +1814,7 @@ def _write_markdown_report(report: dict[str, Any], path: Path) -> None:
     combined = metrics["pan_zoom_combined_ms"]["summary"]
     node_drag_control = metrics["node_drag_control_ms"]["summary"]
     phase_timings = report.get("phase_timings_ms", {})
+    profiling_counts = report.get("profiling_counts", {})
     baseline_series = report.get("baseline_series", {})
     interaction_benchmark = report.get("interaction_benchmark", {})
 
@@ -1735,6 +1899,10 @@ def _write_markdown_report(report: dict[str, Any], path: Path) -> None:
             "pan_interaction_ms",
             "zoom_interaction_ms",
             "node_drag_control_ms",
+            "pan_edge_snapshot_build_ms",
+            "zoom_edge_snapshot_build_ms",
+            "pan_grid_paint_ms",
+            "zoom_grid_paint_ms",
         ):
             phase_entry = phase_timings.get(phase_key, {})
             summary = phase_entry.get("summary", {})
@@ -1748,6 +1916,35 @@ def _write_markdown_report(report: dict[str, Any], path: Path) -> None:
                 f"{float(summary.get('min', 0.0)):.3f} | "
                 f"{float(summary.get('max', 0.0)):.3f} | "
                 f"{len(phase_samples)} |"
+            )
+        lines.append("")
+    if profiling_counts:
+        lines.append("## Targeted Profiling (Counts)")
+        lines.append("")
+        lines.append("| Metric | p50 | p95 | Mean | Min | Max | Samples |")
+        lines.append("|---|---:|---:|---:|---:|---:|---:|")
+        for metric_key in (
+            "pan_visible_node_card_count",
+            "zoom_visible_node_card_count",
+            "pan_active_node_surface_count",
+            "zoom_active_node_surface_count",
+            "pan_visible_edge_label_count",
+            "zoom_visible_edge_label_count",
+            "pan_visible_edge_count",
+            "zoom_visible_edge_count",
+        ):
+            metric_entry = profiling_counts.get(metric_key, {})
+            summary = metric_entry.get("summary", {})
+            metric_samples = metric_entry.get("samples", [])
+            lines.append(
+                "| "
+                f"{metric_key} | "
+                f"{float(summary.get('p50', 0.0)):.3f} | "
+                f"{float(summary.get('p95', 0.0)):.3f} | "
+                f"{float(summary.get('mean', 0.0)):.3f} | "
+                f"{float(summary.get('min', 0.0)):.3f} | "
+                f"{float(summary.get('max', 0.0)):.3f} | "
+                f"{len(metric_samples)} |"
             )
         lines.append("")
     lines.append("## Metrics (ms)")

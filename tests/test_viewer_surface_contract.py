@@ -470,6 +470,34 @@ class ViewerSurfaceContractTests(unittest.TestCase):
             """,
         )
 
+    def test_graph_node_host_demotes_viewer_surface_during_max_performance_viewport_interaction(self) -> None:
+        self._run_qml_probe(
+            "viewer-surface-viewport-interaction-proxy",
+            """
+            host = create_component(
+                graph_node_host_qml_path,
+                {
+                    "nodeData": viewer_payload(),
+                    "fullFidelityMode": False,
+                    "viewportInteractionCacheActive": True,
+                },
+            )
+            loader = host.findChild(QObject, "graphNodeSurfaceLoader")
+            surface = host.findChild(QObject, "graphNodeViewerSurface")
+            assert loader is not None
+            assert surface is not None
+
+            assert host.property("requestedQualityTier") == "reduced"
+            assert host.property("resolvedQualityTier") == "proxy"
+            assert bool(host.property("proxySurfaceRequested"))
+            assert loader.property("requestedQualityTier") == "reduced"
+            assert loader.property("resolvedQualityTier") == "proxy"
+            assert bool(loader.property("proxySurfaceRequested"))
+            assert bool(surface.property("proxySurfaceActive"))
+            assert not bool(surface.property("liveSurfaceActive"))
+            """,
+        )
+
     def test_viewer_ports_follow_live_resize_preview(self) -> None:
         self._run_qml_probe(
             "viewer-live-resize-port-preview",

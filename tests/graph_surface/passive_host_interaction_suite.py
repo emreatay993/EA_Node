@@ -1714,7 +1714,7 @@ class PassiveGraphSurfaceHostTests(PassiveGraphSurfaceHostTestBase):
             """,
         )
 
-    def test_graph_canvas_media_performance_mode_keeps_full_surface_during_wheel_zoom_and_recovers(self) -> None:
+    def test_graph_canvas_media_performance_mode_uses_proxy_surface_during_wheel_zoom_and_recovers(self) -> None:
         self._run_qml_probe(
             "graph-canvas-media-max-performance-wheel-cache",
             """
@@ -1802,16 +1802,16 @@ class PassiveGraphSurfaceHostTests(PassiveGraphSurfaceHostTestBase):
                         bool(canvas.property("transientDegradedWindowActive"))
                         and bool(node_card.property("viewportInteractionCacheActive"))
                         and not bool(node_card.property("snapshotReuseActive"))
-                        and node_card.property("resolvedQualityTier") == "full"
-                        and not bool(node_card.property("proxySurfaceRequested"))
-                        and not bool(surface.property("proxySurfaceActive"))
-                        and not bool(loader.property("proxySurfaceActive"))
-                        and not bool(proxy_preview.property("visible"))
-                        and bool(applied_viewport.property("visible"))
+                        and node_card.property("resolvedQualityTier") == "proxy"
+                        and bool(node_card.property("proxySurfaceRequested"))
+                        and bool(surface.property("proxySurfaceActive"))
+                        and bool(loader.property("proxySurfaceActive"))
+                        and bool(proxy_preview.property("visible"))
+                        and not bool(applied_viewport.property("visible"))
                     ),
                     timeout_ms=240,
                     app=app,
-                    timeout_message="Timed out waiting for media viewport cache activation.",
+                    timeout_message="Timed out waiting for media viewport proxy activation.",
                 )
 
                 wait_for_condition_or_raise(
@@ -1828,7 +1828,7 @@ class PassiveGraphSurfaceHostTests(PassiveGraphSurfaceHostTestBase):
                     ),
                     timeout_ms=400,
                     app=app,
-                    timeout_message="Timed out waiting for media viewport cache recovery.",
+                    timeout_message="Timed out waiting for media viewport proxy recovery.",
                 )
 
                 canvas.deleteLater()

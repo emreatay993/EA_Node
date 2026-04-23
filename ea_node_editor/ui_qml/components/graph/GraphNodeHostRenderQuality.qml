@@ -7,7 +7,22 @@ QtObject {
     readonly property var renderQuality: root.normalizedRenderQuality(
         root.host && root.host.nodeData ? root.host.nodeData.render_quality : null
     )
-    readonly property bool reducedQualityRequested: root.host ? root.host.snapshotReuseActive : false
+    readonly property bool viewportInteractionProxyEligible: {
+        if (!root.host)
+            return false;
+        if (root.host.fullFidelityMode || !root.host.viewportInteractionCacheActive)
+            return false;
+        if (!root.proxySurfaceCapable || root.renderQuality.weight_class !== "heavy")
+            return false;
+        var surfaceFamily = String(root.host.surfaceFamily || "").trim();
+        return surfaceFamily === "media" || surfaceFamily === "viewer";
+    }
+    // Heavy media/viewer surfaces still pay significant bitmap resampling cost
+    // during viewport interaction, so let them reuse the existing proxy path in
+    // transient max-performance windows instead of staying at full quality.
+    readonly property bool reducedQualityRequested: root.host
+        ? (root.host.snapshotReuseActive || root.viewportInteractionProxyEligible)
+        : false
     readonly property string requestedQualityTier: root.reducedQualityRequested ? "reduced" : "full"
     readonly property bool proxySurfaceCapable: root.renderQuality.max_performance_strategy === "proxy_surface"
         && root.supportsRenderQualityTier("proxy")

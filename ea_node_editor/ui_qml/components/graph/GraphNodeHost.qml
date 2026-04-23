@@ -135,8 +135,10 @@ Item {
     readonly property string surfaceFamily: String(surfaceFamilyOverride || (nodeData ? nodeData.surface_family || "standard" : "standard"))
     readonly property string surfaceVariant: String(surfaceVariantOverride || (nodeData ? nodeData.surface_variant || "" : ""))
     readonly property var renderQuality: renderQualityState.renderQuality
-    // Reduced/proxy surface negotiation is only worthwhile when we are reusing
-    // a degraded snapshot; viewport pan/zoom already has a separate world-cache path.
+    // Most nodes only negotiate reduced/proxy quality during snapshot reuse.
+    // Heavy proxy-capable media/viewer surfaces also demote during transient
+    // max-performance viewport interaction because the world cache alone does
+    // not avoid their bitmap resampling cost.
     readonly property bool reducedQualityRequested: renderQualityState.reducedQualityRequested
     readonly property string requestedQualityTier: renderQualityState.requestedQualityTier
     readonly property bool proxySurfaceCapable: renderQualityState.proxySurfaceCapable

@@ -11,6 +11,8 @@ Item {
     property int _redrawRequestCount: 0
     property bool _viewStateRedrawDirty: false
     property int _gridCacheBuildCount: 0
+    property real profileLastGridPaintMs: 0.0
+    property int profileGridPaintCount: 0
     property real _zoomBucketScaleLimit: 1.15
     property real _committedZoom: 1.0
     property real _committedCenterX: 0.0
@@ -220,8 +222,10 @@ Item {
         }
 
         onPaint: {
+            var startedMs = Date.now();
             var ctx = getContext("2d");
             ctx.reset();
+            root.profileLastGridPaintMs = 0.0;
 
             if (!root.effectiveShowGrid)
                 return;
@@ -235,6 +239,9 @@ Item {
                 drawPointGrid(ctx, minorStep, majorStep);
             else
                 drawLineGrid(ctx, minorStep, majorStep);
+
+            root.profileGridPaintCount += 1;
+            root.profileLastGridPaintMs = Math.max(0.0, Date.now() - startedMs);
         }
 
     }

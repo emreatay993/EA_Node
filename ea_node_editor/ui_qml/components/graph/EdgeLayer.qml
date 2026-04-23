@@ -37,6 +37,9 @@ Item {
     property bool inputEnabled: true
     property int _redrawRequestCount: 0
     property bool _viewStateRedrawDirty: false
+    property real profileLastSnapshotBuildMs: 0.0
+    property int profileSnapshotRefreshCount: 0
+    property int profileLastVisibleEdgeCount: 0
     property real viewportCullMarginPx: 96.0
     property var _cachedNodeMap: null
     property var _cachedEdgeGeometries: ({})
@@ -64,8 +67,20 @@ Item {
     signal edgeClicked(string edgeId, bool additive)
     signal edgeContextRequested(string edgeId, real screenX, real screenY)
     function requestRedraw() {
+        var startedMs = Date.now();
         root._viewStateRedrawDirty = false;
         EdgeSnapshotCache.refreshVisibleEdgeSnapshots(root, edgeCanvasLayer, flowLabelLayer);
+        var snapshots = root._visibleEdgeSnapshots || [];
+        var visibleEdgeCount = 0;
+        for (var i = 0; i < snapshots.length; i++) {
+            var snapshot = snapshots[i];
+            if (!snapshot || Boolean(snapshot.culled))
+                continue;
+            visibleEdgeCount += 1;
+        }
+        root.profileLastSnapshotBuildMs = Math.max(0.0, Date.now() - startedMs);
+        root.profileSnapshotRefreshCount += 1;
+        root.profileLastVisibleEdgeCount = visibleEdgeCount;
         root._redrawRequestCount += 1;
         edgeCanvasLayer.requestCanvasPaint();
     }
