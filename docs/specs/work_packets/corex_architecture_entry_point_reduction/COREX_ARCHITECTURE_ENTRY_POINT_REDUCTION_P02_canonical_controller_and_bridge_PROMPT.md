@@ -1,0 +1,9 @@
+# COREX_ARCHITECTURE_ENTRY_POINT_REDUCTION P02 Canonical Controller and Bridge Prompt
+
+```text
+Implement COREX_ARCHITECTURE_ENTRY_POINT_REDUCTION_P02_canonical_controller_and_bridge.md exactly. Before editing, read COREX_ARCHITECTURE_ENTRY_POINT_REDUCTION_MANIFEST.md, COREX_ARCHITECTURE_ENTRY_POINT_REDUCTION_STATUS.md, and COREX_ARCHITECTURE_ENTRY_POINT_REDUCTION_P02_canonical_controller_and_bridge.md. Implement only P02. Stay inside the packet write scope, preserve documented external contracts and locked defaults, run the full Verification Commands, run the Review Gate before marking the packet done when it is not `none`, create the required packet wrap-up artifact, update COREX_ARCHITECTURE_ENTRY_POINT_REDUCTION_STATUS.md with branch label, accepted commit sha, commands, tests, artifacts, and residual risks, commit packet-local changes on the packet branch when you own the final substantive state, and stop after P02; do not start P03.
+
+Use implementation and remediation model `gpt-5.5` with `xhigh`. Use optional exploration subagents only for non-editing ownership or insertion-point discovery. Create `docs/specs/work_packets/corex_architecture_entry_point_reduction/P02_canonical_controller_and_bridge_WRAPUP.md`.
+
+The wrap-up must include `Implementation Summary`, `Verification`, `Manual Test Directives`, `Residual Risks`, and `Ready for Integration`. At the top of `Implementation Summary`, include `Packet`, `Branch Label`, `Commit Owner`, `Commit SHA`, `Changed Files`, and `Artifacts Produced`. `Commit Owner` must be `worker`, `executor`, or `executor-pending`; it is not a username or email. `Commit SHA` must be the full 40-character substantive packet commit SHA. End `Verification` with `Final Verification Verdict: PASS` or `Final Verification Verdict: FAIL`. Begin `Ready for Integration` with `Yes:` or `No:`.
+```
