@@ -4,6 +4,7 @@ from collections.abc import Mapping
 from functools import lru_cache
 from typing import Any
 
+from ea_node_editor.graph.boundary_adapters import resolve_node_type_size_override
 from ea_node_editor.graph.effective_ports import visible_ports
 from ea_node_editor.graph.model import NodeInstance
 from ea_node_editor.nodes.builtins.subnode import is_subnode_shell_type
@@ -477,6 +478,15 @@ def resolved_node_surface_size(
         ):
             resolved_height = float(metrics.default_height)
     if clamp_height:
+        resolved_height = max(float(metrics.min_height), resolved_height)
+    resolved_width, resolved_height = resolve_node_type_size_override(
+        node,
+        spec,
+        base_width=resolved_width,
+        base_height=resolved_height,
+    )
+    resolved_width = max(float(metrics.min_width), resolved_width)
+    if node.custom_height is None or clamp_height:
         resolved_height = max(float(metrics.min_height), resolved_height)
     return resolved_width, resolved_height
 

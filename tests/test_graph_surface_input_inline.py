@@ -823,10 +823,37 @@ class GraphSurfaceInputInlineTests(unittest.TestCase):
             payload = variant_value(host.property("nodeData"))
             payload["properties"]["path"] = "/tmp/selected/deeper/folder"
             payload["properties"]["show_full_path"] = True
+            payload["width"] = 760.0
+            host.setProperty("graphLabelPixelSize", 18)
             host.setProperty("nodeData", payload)
             app.processEvents()
+            settle_events(5)
 
+            show_full_label = named_item(host, "graphNodeInlinePropertyLabel", "show_full_path")
+            show_full_toggle = named_item(host, "graphNodeInlineToggleEditor", "show_full_path")
             assert str(path_field.property("text")) == "/tmp/selected/deeper/folder", str(path_field.property("text"))
+            assert float(show_full_label.width()) + 0.5 >= float(show_full_label.property("implicitWidth")), (
+                show_full_label.width(),
+                show_full_label.property("implicitWidth"),
+                show_full_label.property("text"),
+            )
+            assert not bool(show_full_label.property("truncated")), (
+                show_full_label.width(),
+                show_full_label.property("implicitWidth"),
+                show_full_label.property("text"),
+            )
+            label_right = show_full_label.mapToScene(QPointF(show_full_label.width(), 0)).x()
+            toggle_left = show_full_toggle.mapToScene(QPointF(0, 0)).x()
+            assert 0.0 <= toggle_left - label_right <= 12.0, (
+                label_right,
+                toggle_left,
+                show_full_label.property("text"),
+            )
+            assert float(path_field.width()) + 0.5 >= float(path_field.property("contentWidth")), (
+                path_field.width(),
+                path_field.property("contentWidth"),
+                path_field.property("text"),
+            )
 
             dispose_host_window(host, window)
             engine.deleteLater()

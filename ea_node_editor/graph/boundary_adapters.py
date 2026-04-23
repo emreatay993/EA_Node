@@ -42,6 +42,21 @@ def unregister_node_type_size_resolver(type_id: str) -> None:
     _NODE_TYPE_SIZE_RESOLVERS.pop(type_id, None)
 
 
+def resolve_node_type_size_override(
+    node: NodeInstance,
+    spec: NodeTypeSpec,
+    *,
+    base_width: float,
+    base_height: float,
+) -> tuple[float, float]:
+    """Apply the registered per-type size override, if one exists."""
+    override = _NODE_TYPE_SIZE_RESOLVERS.get(spec.type_id)
+    if override is None:
+        return max(1.0, float(base_width)), max(1.0, float(base_height))
+    width, height = override(node, spec, base_width=base_width, base_height=base_height)
+    return max(1.0, float(width)), max(1.0, float(height))
+
+
 def _fallback_node_size(
     node: NodeInstance,
     spec: NodeTypeSpec,
@@ -52,11 +67,12 @@ def _fallback_node_size(
     del show_port_labels
     base_width = float(node.custom_width) if node.custom_width is not None else _DEFAULT_FALLBACK_NODE_WIDTH
     base_height = float(node.custom_height) if node.custom_height is not None else _DEFAULT_FALLBACK_NODE_HEIGHT
-    override = _NODE_TYPE_SIZE_RESOLVERS.get(spec.type_id)
-    if override is not None:
-        width, height = override(node, spec, base_width=base_width, base_height=base_height)
-        return max(1.0, float(width)), max(1.0, float(height))
-    return max(1.0, base_width), max(1.0, base_height)
+    return resolve_node_type_size_override(
+        node,
+        spec,
+        base_width=base_width,
+        base_height=base_height,
+    )
 
 
 def _fallback_clamp_pdf_page_number(source: str, page_number: Any) -> int | None:
@@ -118,5 +134,6 @@ __all__ = [
     "build_graph_boundary_adapters",
     "fallback_graph_boundary_adapters",
     "register_node_type_size_resolver",
+    "resolve_node_type_size_override",
     "unregister_node_type_size_resolver",
 ]

@@ -13,7 +13,7 @@ from unittest import mock
 from ea_node_editor.execution.worker import run_workflow
 from ea_node_editor.execution.runtime_snapshot import build_runtime_snapshot
 from ea_node_editor.graph.boundary_adapters import _fallback_node_size
-from ea_node_editor.graph.model import GraphModel
+from ea_node_editor.graph.model import GraphModel, NodeInstance
 from ea_node_editor.nodes.bootstrap import build_default_registry
 from ea_node_editor.nodes.builtins import integrations_email, integrations_spreadsheet
 from ea_node_editor.nodes.builtins.core import PythonScriptNodePlugin
@@ -25,8 +25,14 @@ from ea_node_editor.nodes.builtins.integrations import (
     FileWriteNodePlugin,
     PathPointerNodePlugin,
 )
+from ea_node_editor.nodes.builtins.integrations_file_io import (
+    _PATH_POINTER_CHAR_WIDTH_PX,
+    _PATH_POINTER_MAX_WIDTH_PX,
+    _PATH_POINTER_WIDTH_CHROME_PX,
+)
 from ea_node_editor.nodes.types import ExecutionContext
 from ea_node_editor.persistence.serializer import JsonProjectSerializer
+from ea_node_editor.ui_qml.graph_geometry.standard_metrics import resolved_node_surface_size
 
 
 def _context(
@@ -356,8 +362,29 @@ class PathPointerWidthResolverTests(unittest.TestCase):
         width, _height = _fallback_node_size(node, self._spec())
         # Must be wider than the default 240 for a 52-char path.
         self.assertGreater(width, 240.0)
-        # And wide enough to comfortably fit the path (>= chrome + char_w * len).
-        self.assertGreaterEqual(width, 56.0 + 7.0 * len(long_path))
+        # And wide enough to fit the path plus the graph row chrome.
+        expected_width = _PATH_POINTER_WIDTH_CHROME_PX + _PATH_POINTER_CHAR_WIDTH_PX * len(long_path)
+        self.assertGreaterEqual(width, expected_width)
+
+    def test_show_full_path_true_expands_standard_surface_size_for_graph_payload(self) -> None:
+        long_path = "C:/runs/job_042/results/deep/nested/folder/file.rst"
+        node = NodeInstance(
+            node_id="path_pointer",
+            type_id="io.path_pointer",
+            title="Path Pointer",
+            x=0.0,
+            y=0.0,
+            properties={"show_full_path": True, "path": long_path},
+        )
+        width, _height = resolved_node_surface_size(node, self._spec())
+        expected_width = _PATH_POINTER_WIDTH_CHROME_PX + _PATH_POINTER_CHAR_WIDTH_PX * len(long_path)
+        self.assertGreaterEqual(width, expected_width)
+
+    def test_show_full_path_true_uses_tight_width_for_typical_absolute_path(self) -> None:
+        path = "C:/Users/emre_/PycharmProjects/EA_Node_Editor/examples/ansys_dpf/modal_superposition.sfe"
+        node = self._node({"show_full_path": True, "path": path})
+        width, _height = _fallback_node_size(node, self._spec())
+        self.assertLessEqual(width, 925.0)
 
     def test_show_full_path_true_short_path_does_not_shrink_below_base(self) -> None:
         node = self._node({"show_full_path": True, "path": "a.txt"})
@@ -382,8 +409,8 @@ class PathPointerWidthResolverTests(unittest.TestCase):
     def test_show_full_path_true_width_is_capped(self) -> None:
         node = self._node({"show_full_path": True, "path": "x" * 5000})
         width, _height = _fallback_node_size(node, self._spec())
-        # Cap is 1200 px; 5000 chars at 7.2 px/char would otherwise be 36000 px.
-        self.assertLessEqual(width, 1200.0)
+        # Very long paths are capped so the graph remains navigable.
+        self.assertLessEqual(width, _PATH_POINTER_MAX_WIDTH_PX)
         self.assertGreater(width, 240.0)
 
     def test_toggle_off_restores_last_user_custom_width(self) -> None:

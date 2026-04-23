@@ -10,6 +10,10 @@ Item {
     property Item host: null
     readonly property var graphSharedTypography: root.host ? root.host.graphSharedTypography : null
     readonly property var inlineProperties: host ? host.inlineProperties : []
+    readonly property real _inlineLabelMinWidth: 78
+    readonly property real _inlineLabelMaxWidth: 320
+    readonly property real _inlineLabelMaxRowFraction: 0.42
+    readonly property real _inlineToggleControlReserveWidth: 32
     readonly property real _textareaRowHeight: {
         var numeric = Number(root.graphSharedTypography ? root.graphSharedTypography.inlineTextareaRowHeight : NaN);
         return isFinite(numeric) ? numeric : 104;
@@ -158,9 +162,24 @@ Item {
                     spacing: 6
 
                     Text {
+                        id: inlineLabel
                         objectName: "graphNodeInlinePropertyLabel"
                         property string propertyKey: String(modelData.key || "")
-                        Layout.preferredWidth: 78
+                        readonly property real resolvedPreferredWidth: {
+                            var desired = inlineLabel.implicitWidth + 4;
+                            var rowWidth = Number(inlineRow.width);
+                            var cap = root._inlineLabelMaxWidth;
+                            if (isFinite(rowWidth) && rowWidth > 0) {
+                                var rowCap = rowWidth * root._inlineLabelMaxRowFraction;
+                                if (modelData.inline_editor === "toggle")
+                                    rowCap = rowWidth - root._inlineToggleControlReserveWidth;
+                                cap = Math.min(cap, Math.max(root._inlineLabelMinWidth, rowCap));
+                            }
+                            return Math.min(Math.max(root._inlineLabelMinWidth, desired), cap);
+                        }
+                        Layout.preferredWidth: resolvedPreferredWidth
+                        Layout.minimumWidth: Math.min(root._inlineLabelMinWidth, resolvedPreferredWidth)
+                        Layout.maximumWidth: resolvedPreferredWidth
                         Layout.alignment: modelData.inline_editor === "textarea"
                             ? Qt.AlignTop
                             : Qt.AlignVCenter
@@ -176,16 +195,29 @@ Item {
                         renderType: host ? host.nodeTextRenderType : Text.CurveRendering
                     }
 
-                    SurfaceControls.GraphSurfaceCheckBox {
-                        id: toggleEditor
+                    Item {
+                        id: toggleEditorSlot
                         visible: modelData.inline_editor === "toggle"
-                        enabled: !modelData.overridden_by_input
-                        checked: !!modelData.value
-                        host: root.host
-                        text: ""
-                        onControlStarted: root._beginInteraction()
-                        onClicked: {
-                            root._commitInlineProperty(modelData.key, checked);
+                        Layout.fillWidth: true
+                        Layout.alignment: Qt.AlignVCenter
+                        implicitWidth: toggleEditor.implicitWidth
+                        implicitHeight: toggleEditor.implicitHeight
+
+                        SurfaceControls.GraphSurfaceCheckBox {
+                            id: toggleEditor
+                            objectName: "graphNodeInlineToggleEditor"
+                            property string propertyKey: String(modelData.key || "")
+                            anchors.left: parent.left
+                            anchors.verticalCenter: parent.verticalCenter
+                            visible: toggleEditorSlot.visible
+                            enabled: !modelData.overridden_by_input
+                            checked: !!modelData.value
+                            host: root.host
+                            text: ""
+                            onControlStarted: root._beginInteraction()
+                            onClicked: {
+                                root._commitInlineProperty(modelData.key, checked);
+                            }
                         }
                     }
 

@@ -211,14 +211,30 @@ class PathPointerNodePlugin:
 
 # --- Dynamic width for io.path_pointer when "Show Full Path" is enabled -------
 #
-# Width heuristic: chrome + per-character estimate, capped to a sane maximum.
-# The renderer uses real font metrics for the text itself; our job here is only
-# to pick a node width that is "wide enough". A slight over-estimate is fine
-# (the path field just gets a bit of trailing room); under-estimating would
-# clip the path, which is exactly what the toggle is meant to prevent.
-_PATH_POINTER_WIDTH_CHROME_PX = 56.0
-_PATH_POINTER_CHAR_WIDTH_PX = 7.2
-_PATH_POINTER_MAX_WIDTH_PX = 1200.0
+# Width heuristic: graph-row chrome + per-character estimate, capped to a sane
+# maximum. The renderer uses real font metrics for the text itself; our job here
+# is only to pick a node width that is "wide enough". The chrome estimate mirrors
+# the inline Path row: body margins, row margins, the label column, path-field
+# padding, the Browse button, row gaps, and a small safety pad.
+_PATH_POINTER_BODY_HORIZONTAL_MARGINS_PX = 16.0
+_PATH_POINTER_INLINE_ROW_HORIZONTAL_MARGINS_PX = 12.0
+_PATH_POINTER_INLINE_LABEL_WIDTH_PX = 78.0
+_PATH_POINTER_ROW_GAPS_PX = 18.0
+_PATH_POINTER_FIELD_HORIZONTAL_PADDING_PX = 16.0
+_PATH_POINTER_BROWSE_BUTTON_WIDTH_PX = 74.0
+_PATH_POINTER_WIDTH_SAFETY_PAD_PX = 12.0
+_PATH_POINTER_BASE_TEXT_FIT_PX = 96.0
+_PATH_POINTER_WIDTH_CHROME_PX = (
+    _PATH_POINTER_BODY_HORIZONTAL_MARGINS_PX
+    + _PATH_POINTER_INLINE_ROW_HORIZONTAL_MARGINS_PX
+    + _PATH_POINTER_INLINE_LABEL_WIDTH_PX
+    + _PATH_POINTER_ROW_GAPS_PX
+    + _PATH_POINTER_FIELD_HORIZONTAL_PADDING_PX
+    + _PATH_POINTER_BROWSE_BUTTON_WIDTH_PX
+    + _PATH_POINTER_WIDTH_SAFETY_PAD_PX
+)
+_PATH_POINTER_CHAR_WIDTH_PX = 7.6
+_PATH_POINTER_MAX_WIDTH_PX = 1400.0
 
 
 def _path_pointer_node_size(node, _spec, *, base_width: float, base_height: float) -> tuple[float, float]:
@@ -237,7 +253,10 @@ def _path_pointer_node_size(node, _spec, *, base_width: float, base_height: floa
     path_text = str(properties.get("path", "") or "")
     if not path_text:
         return base_width, base_height
-    estimated = _PATH_POINTER_WIDTH_CHROME_PX + _PATH_POINTER_CHAR_WIDTH_PX * len(path_text)
+    estimated_text_width = _PATH_POINTER_CHAR_WIDTH_PX * len(path_text)
+    if estimated_text_width <= _PATH_POINTER_BASE_TEXT_FIT_PX:
+        return base_width, base_height
+    estimated = _PATH_POINTER_WIDTH_CHROME_PX + estimated_text_width
     capped = min(_PATH_POINTER_MAX_WIDTH_PX, estimated)
     return max(base_width, capped), base_height
 
