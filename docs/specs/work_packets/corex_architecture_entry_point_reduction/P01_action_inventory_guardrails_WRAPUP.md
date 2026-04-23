@@ -5,16 +5,16 @@
 - Packet: `P01`
 - Branch Label: `codex/corex-architecture-entry-point-reduction/p01-action-inventory-guardrails`
 - Commit Owner: `executor`
-- Commit SHA: `cc213c63e3ff633c58f22470da1ddb1ddb57f9d5`
+- Commit SHA: `b447a9dcf4b01f2dabc353d95de345d8120d70b4`
 - Changed Files: `docs/specs/work_packets/corex_architecture_entry_point_reduction/P01_action_inventory_guardrails_WRAPUP.md`, `ea_node_editor/ui/shell/graph_action_contracts.py`, `tests/test_graph_action_contracts.py`
 - Artifacts Produced: `docs/specs/work_packets/corex_architecture_entry_point_reduction/P01_action_inventory_guardrails_WRAPUP.md`, `ea_node_editor/ui/shell/graph_action_contracts.py`, `tests/test_graph_action_contracts.py`
 
-Added an inventory-only graph action contract with canonical string action ids, graph action specs, surface ownership, destructive flags, required payload keys, and legacy route names for the current PyQt and QML graph action surfaces. Added static guardrail tests that bind current QML action literals and PyQt graph action labels/shortcuts to that contract.
+Added an inventory-only graph action contract with canonical string action ids, graph action specs, surface ownership, destructive flags, required payload keys, and legacy route names for the current PyQt and QML graph action surfaces. Added static guardrail tests that bind current QML action literals, PyQt graph menu actions, and PyQt graph action labels/shortcuts to that contract.
 
 ## Verification
 
-- PASS: `.\venv\Scripts\python.exe -m pytest tests/test_graph_action_contracts.py --ignore=venv -q` (`6 passed in 3.41s`)
-- PASS: `.\venv\Scripts\python.exe -m pytest tests/test_graph_action_contracts.py --ignore=venv -q` (`6 passed in 3.25s`; Review Gate)
+- PASS: `.\venv\Scripts\python.exe -m pytest tests/test_graph_action_contracts.py --ignore=venv -q` (`7 passed in 3.81s`)
+- PASS: `.\venv\Scripts\python.exe -m pytest tests/test_graph_action_contracts.py --ignore=venv -q` (`7 passed in 3.13s`; Review Gate)
 - Final Verification Verdict: `PASS`
 
 ## Manual Test Directives
