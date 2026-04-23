@@ -53,6 +53,19 @@ PYQT_GRAPH_ACTIONS: dict[str, GraphActionId] = {
     "action_show_help": GraphActionId.SHOW_NODE_HELP,
 }
 
+PYQT_MENU_ACTION_EXCEPTIONS = {
+    "action_undo",
+    "action_redo",
+    "action_snap_to_grid",
+    "action_graph_search",
+    "action_toggle_script_editor",
+    "action_show_port_labels",
+    "action_show_tooltips",
+    "action_frame_all",
+    "action_frame_selection",
+    "action_center_selection",
+}
+
 STANDARD_KEY_SHORTCUTS = {
     "Copy": "Ctrl+C",
     "Cut": "Ctrl+X",
@@ -109,6 +122,28 @@ def _window_action_shortcuts() -> dict[str, str]:
         if shortcut is not None:
             shortcuts[owner.attr] = shortcut
     return shortcuts
+
+
+def _window_graph_menu_actions() -> set[str]:
+    tree = ast.parse(_source(WINDOW_ACTIONS), filename=str(WINDOW_ACTIONS))
+    actions: set[str] = set()
+    graph_menu_names = {"edit_menu", "layout_menu", "view_menu"}
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Expr) or not isinstance(node.value, ast.Call):
+            continue
+        call = node.value
+        if not isinstance(call.func, ast.Attribute) or call.func.attr != "addAction":
+            continue
+        if not isinstance(call.func.value, ast.Name) or call.func.value.id not in graph_menu_names:
+            continue
+        if not call.args:
+            continue
+        action = call.args[0]
+        if not isinstance(action, ast.Attribute):
+            continue
+        if isinstance(action.value, ast.Name) and action.value.id == "window":
+            actions.add(action.attr)
+    return actions - PYQT_MENU_ACTION_EXCEPTIONS
 
 
 def _is_qaction_constructor(call: ast.Call) -> bool:
@@ -182,6 +217,11 @@ def test_pyqt_graph_action_labels_and_shortcuts_match_contract() -> None:
         assert _qaction_label(assignments[pyqt_action_name]) in labels
         if spec.shortcut is not None:
             assert shortcuts.get(pyqt_action_name) == spec.shortcut
+
+
+def test_pyqt_graph_menu_actions_are_mapped_to_contract() -> None:
+    missing = _window_graph_menu_actions() - set(PYQT_GRAPH_ACTIONS)
+    assert missing == set()
 
 
 def test_pyqt_graph_action_declarations_are_in_legacy_routes() -> None:
