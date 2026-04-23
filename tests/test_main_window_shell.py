@@ -16,6 +16,7 @@ from ea_node_editor.ui.shell.runtime_clipboard import (
 )
 from ea_node_editor.ui.shell.composition import AddonManagerBridge
 from ea_node_editor.ui.shell.presenters.addon_manager_presenter import AddOnManagerPresenter
+from ea_node_editor.ui_qml.graph_action_bridge import GraphActionBridge
 from ea_node_editor.ui_qml.content_fullscreen_bridge import ContentFullscreenBridge
 from ea_node_editor.ui_qml.graph_canvas_command_bridge import GraphCanvasCommandBridge
 from ea_node_editor.ui_qml.graph_canvas_state_bridge import GraphCanvasStateBridge
@@ -84,6 +85,18 @@ def _pop_isolated_imported_shell_cases() -> dict[str, type[MainWindowShellTestBa
 
 _load_shell_test_modules()
 _ISOLATED_IMPORTED_SHELL_CASES = _pop_isolated_imported_shell_cases()
+_ORIGINAL_RESET_SHARED_SHELL_STATE = SharedMainWindowShellTestBase._reset_shared_shell_state
+
+
+def _reset_shared_shell_state_with_reloaded_preferences(self: SharedMainWindowShellTestBase) -> None:
+    # The shared reset deletes the temp preferences file; reload so the
+    # in-memory document cannot bleed between tests.
+    _ORIGINAL_RESET_SHARED_SHELL_STATE(self)
+    self.window.app_preferences_controller.load_into_host(self.window, reload_from_store=True)
+    self.app.processEvents()
+
+
+SharedMainWindowShellTestBase._reset_shared_shell_state = _reset_shared_shell_state_with_reloaded_preferences
 
 
 def _assert_text_snippets(
@@ -146,6 +159,7 @@ class MainWindowShellContextBootstrapTests(SharedMainWindowShellTestBase):
             "shellWorkspaceBridge",
             "shellInspectorBridge",
             "addonManagerBridge",
+            "graphActionBridge",
             "graphCanvasStateBridge",
             "graphCanvasCommandBridge",
             "graphCanvasViewBridge",
@@ -195,6 +209,12 @@ class MainWindowShellContextBootstrapTests(SharedMainWindowShellTestBase):
         self.assertEqual(addon_manager_bridge.focusAddonId, "")
         self.assertEqual(addon_manager_bridge.requestSerial, self.window.addon_manager_request_serial)
 
+        graph_action_bridge = context.contextProperty("graphActionBridge")
+        self.assertIsInstance(graph_action_bridge, GraphActionBridge)
+        self.assertIs(graph_action_bridge.parent(), self.window)
+        self.assertIs(graph_action_bridge.controller, self.window.graph_action_controller)
+        self.assertIn("remove_edge", graph_action_bridge.action_metadata("remove_edge")["legacyRouteNames"])
+
         graph_canvas_state_bridge = context.contextProperty("graphCanvasStateBridge")
         self.assertIsInstance(graph_canvas_state_bridge, GraphCanvasStateBridge)
         self.assertIs(graph_canvas_state_bridge.parent(), self.window)
@@ -240,6 +260,7 @@ class MainWindowShellContextBootstrapTests(SharedMainWindowShellTestBase):
         self.assertIs(context_bindings["shellWorkspaceBridge"], shell_workspace_bridge)
         self.assertIs(context_bindings["shellInspectorBridge"], shell_inspector_bridge)
         self.assertIs(context_bindings["addonManagerBridge"], addon_manager_bridge)
+        self.assertIs(context_bindings["graphActionBridge"], graph_action_bridge)
         self.assertIs(context_bindings["graphCanvasStateBridge"], graph_canvas_state_bridge)
         self.assertIs(context_bindings["graphCanvasCommandBridge"], graph_canvas_command_bridge)
         self.assertIs(context_bindings["graphCanvasViewBridge"], graph_canvas_view_bridge)
@@ -334,6 +355,10 @@ class MainWindowShellContextBootstrapTests(SharedMainWindowShellTestBase):
         self.assertIs(self.window.shell_inspector_bridge, bridges.shell_inspector_bridge)
         self.assertIs(self.window.graph_canvas_state_bridge, bridges.graph_canvas_state_bridge)
         self.assertIs(self.window.graph_canvas_command_bridge, bridges.graph_canvas_command_bridge)
+        self.assertIs(
+            self.window.graph_action_bridge,
+            dict(self.window._shell_qml_context_property_bindings)["graphActionBridge"],
+        )
         self.assertIs(
             self.window.viewer_session_bridge,
             dict(self.window._shell_qml_context_property_bindings)["viewerSessionBridge"],
@@ -473,12 +498,16 @@ class MainWindowBridgeContractPacketBoundaryTests(unittest.TestCase):
 
 
 class MainWindowGraphCanvasBridgeTests(SharedMainWindowShellTestBase):
-    def test_qml_context_registers_only_state_command_and_view_canvas_bridges(self) -> None:
+    def test_qml_context_registers_action_state_command_and_view_canvas_bridges(self) -> None:
         context = self.window.quick_widget.rootContext()
+        graph_action_bridge = context.contextProperty("graphActionBridge")
         graph_canvas_state_bridge = context.contextProperty("graphCanvasStateBridge")
         graph_canvas_command_bridge = context.contextProperty("graphCanvasCommandBridge")
         graph_canvas_view_bridge = context.contextProperty("graphCanvasViewBridge")
 
+        self.assertIsInstance(graph_action_bridge, GraphActionBridge)
+        self.assertIs(graph_action_bridge.parent(), self.window)
+        self.assertIs(graph_action_bridge.controller, self.window.graph_action_controller)
         self.assertIsInstance(graph_canvas_state_bridge, GraphCanvasStateBridge)
         self.assertIs(graph_canvas_state_bridge.parent(), self.window)
         self.assertIs(graph_canvas_state_bridge.shell_window, self.window)
@@ -501,6 +530,7 @@ class MainWindowGraphCanvasBridgeTests(SharedMainWindowShellTestBase):
     def test_shell_window_keeps_graph_canvas_state_command_bridge_aliases_in_sync_with_context_bundle(self) -> None:
         bridges = self.window._shell_context_bridges
 
+        self.assertIs(self.window.graph_action_bridge.controller, self.window.graph_action_controller)
         self.assertIs(self.window.graph_canvas_state_bridge, bridges.graph_canvas_state_bridge)
         self.assertIs(self.window.graph_canvas_command_bridge, bridges.graph_canvas_command_bridge)
 
@@ -787,6 +817,7 @@ class ShellWorkspaceBridgeQmlBoundaryTests(unittest.TestCase):
             "canvasBridgeRef: root.canvasBridgeRef",
         )
         present_snippets = (
+            "readonly property var graphActionBridgeRef: graphActionBridge",
             "readonly property var canvasStateBridgeRef: graphCanvasStateBridge",
             "readonly property var canvasCommandBridgeRef: graphCanvasCommandBridge",
             "readonly property var canvasViewBridgeRef: graphCanvasViewBridge",

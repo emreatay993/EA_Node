@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass
 from enum import Enum
 
@@ -360,6 +361,16 @@ GRAPH_ACTION_SPECS: tuple[GraphActionSpec, ...] = (
 GRAPH_ACTION_SPECS_BY_ID: dict[GraphActionId, GraphActionSpec] = {
     spec.action_id: spec for spec in GRAPH_ACTION_SPECS
 }
+GRAPH_ACTION_SPECS_BY_LITERAL: dict[str, GraphActionSpec] = {
+    spec.action_id.value: spec for spec in GRAPH_ACTION_SPECS
+}
+GRAPH_ACTION_SPECS_BY_LITERAL.update(
+    {
+        route: spec
+        for spec in GRAPH_ACTION_SPECS
+        for route in spec.legacy_route_names
+    }
+)
 GRAPH_ACTION_IDS: frozenset[str] = frozenset(spec.action_id.value for spec in GRAPH_ACTION_SPECS)
 GRAPH_ACTION_LEGACY_ROUTE_NAMES: frozenset[str] = frozenset(
     route for spec in GRAPH_ACTION_SPECS for route in spec.legacy_route_names
@@ -374,14 +385,72 @@ def graph_action_spec(action_id: GraphActionId | str) -> GraphActionSpec:
     return GRAPH_ACTION_SPECS_BY_ID[GraphActionId(action_id)]
 
 
+def graph_action_spec_for_literal(action_id: GraphActionId | str) -> GraphActionSpec | None:
+    try:
+        literal = action_id.value if isinstance(action_id, GraphActionId) else str(action_id or "").strip()
+    except ValueError:
+        return None
+    return GRAPH_ACTION_SPECS_BY_LITERAL.get(literal)
+
+
+def normalize_graph_action_id(action_id: GraphActionId | str) -> GraphActionId | None:
+    spec = graph_action_spec_for_literal(action_id)
+    if spec is None:
+        return None
+    return spec.action_id
+
+
+def normalize_graph_action_payload(
+    action_id: GraphActionId | str,
+    payload: Mapping[str, object] | None = None,
+) -> dict[str, object] | None:
+    spec = graph_action_spec_for_literal(action_id)
+    if spec is None:
+        return None
+    if payload is None:
+        normalized: dict[str, object] = {}
+    elif isinstance(payload, Mapping):
+        normalized = dict(payload)
+    else:
+        return None
+
+    for key in spec.required_payload_keys:
+        value = normalized.get(key)
+        if not isinstance(value, str):
+            return None
+        normalized_value = value.strip()
+        if not normalized_value:
+            return None
+        normalized[key] = normalized_value
+    return normalized
+
+
+def graph_action_metadata(spec: GraphActionSpec) -> dict[str, object]:
+    return {
+        "actionId": spec.action_id.value,
+        "label": spec.label or "",
+        "shortcut": spec.shortcut or "",
+        "surfaces": list(spec.surfaces),
+        "destructive": bool(spec.destructive),
+        "requiredPayloadKeys": list(spec.required_payload_keys),
+        "legacyRouteNames": list(spec.legacy_route_names),
+        "legacyLabels": list(spec.legacy_labels),
+    }
+
+
 __all__ = [
     "GRAPH_ACTION_IDS",
     "GRAPH_ACTION_LEGACY_ROUTE_NAMES",
     "GRAPH_ACTION_LITERAL_NAMES",
     "GRAPH_ACTION_SPECS",
     "GRAPH_ACTION_SPECS_BY_ID",
+    "GRAPH_ACTION_SPECS_BY_LITERAL",
     "LOW_LEVEL_QML_ACTION_EXCEPTIONS",
     "GraphActionId",
     "GraphActionSpec",
+    "graph_action_metadata",
     "graph_action_spec",
+    "graph_action_spec_for_literal",
+    "normalize_graph_action_id",
+    "normalize_graph_action_payload",
 ]

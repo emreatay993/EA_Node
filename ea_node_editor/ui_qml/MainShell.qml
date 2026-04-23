@@ -8,6 +8,7 @@ Rectangle {
     id: root
     readonly property var themePalette: themeBridge.palette
     color: themePalette.app_bg
+    readonly property var graphActionBridgeRef: graphActionBridge
     readonly property var canvasStateBridgeRef: graphCanvasStateBridge
     readonly property var canvasCommandBridgeRef: graphCanvasCommandBridge
     readonly property var canvasViewBridgeRef: graphCanvasViewBridge

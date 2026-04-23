@@ -7,9 +7,12 @@ from pathlib import Path
 from ea_node_editor.ui.shell.graph_action_contracts import (
     GRAPH_ACTION_LITERAL_NAMES,
     GRAPH_ACTION_SPECS,
+    GRAPH_ACTION_SPECS_BY_LITERAL,
     LOW_LEVEL_QML_ACTION_EXCEPTIONS,
     GraphActionId,
     graph_action_spec,
+    normalize_graph_action_id,
+    normalize_graph_action_payload,
 )
 
 
@@ -260,3 +263,21 @@ def test_required_payload_keys_are_declared_for_payload_actions() -> None:
         if not graph_action_spec(action_id).required_payload_keys
     }
     assert missing == set()
+
+
+def test_graph_action_literals_resolve_to_canonical_action_ids() -> None:
+    assert normalize_graph_action_id("remove_edge") is GraphActionId.REMOVE_EDGE
+    assert normalize_graph_action_id("request_remove_edge") is GraphActionId.REMOVE_EDGE
+    assert normalize_graph_action_id(GraphActionId.REMOVE_EDGE) is GraphActionId.REMOVE_EDGE
+    assert normalize_graph_action_id("not_a_graph_action") is None
+    assert GRAPH_ACTION_SPECS_BY_LITERAL["show_help"].action_id is GraphActionId.SHOW_NODE_HELP
+
+
+def test_graph_action_payload_normalization_rejects_invalid_required_payloads() -> None:
+    assert normalize_graph_action_payload(GraphActionId.REMOVE_EDGE, {"edge_id": " edge-1 "}) == {
+        "edge_id": "edge-1"
+    }
+    assert normalize_graph_action_payload("remove_edge", {"edge_id": ""}) is None
+    assert normalize_graph_action_payload("remove_edge", {"node_id": "node-1"}) is None
+    assert normalize_graph_action_payload("remove_edge", {"edge_id": 123}) is None
+    assert normalize_graph_action_payload("copy_selection", None) == {}

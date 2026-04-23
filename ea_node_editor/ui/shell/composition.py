@@ -28,6 +28,7 @@ from ea_node_editor.ui.shell.controllers import (
     RunController,
     WorkspaceLibraryController,
 )
+from ea_node_editor.ui.shell.controllers.graph_action_controller import GraphActionController
 from ea_node_editor.ui.shell.context_bridges import ShellContextBridges
 from ea_node_editor.ui.shell.host_presenter import ShellHostPresenter
 from ea_node_editor.ui.shell.presenters import (
@@ -43,6 +44,7 @@ from ea_node_editor.ui.shell.state import ShellState
 from ea_node_editor.ui.shell.window_search_scope_state import WindowSearchScopeController
 from ea_node_editor.ui_qml.console_model import ConsoleModel
 from ea_node_editor.ui_qml.content_fullscreen_bridge import ContentFullscreenBridge
+from ea_node_editor.ui_qml.graph_action_bridge import GraphActionBridge
 from ea_node_editor.ui_qml.graph_canvas_bridge import GraphCanvasBridge
 from ea_node_editor.ui_qml.graph_canvas_command_bridge import GraphCanvasCommandBridge
 from ea_node_editor.ui_qml.graph_scene_bridge import GraphSceneBridge
@@ -259,6 +261,7 @@ class ShellPrimitiveDependencies:
 class ShellControllerDependencies:
     search_scope_controller: WindowSearchScopeController
     workspace_library_controller: WorkspaceLibraryController
+    graph_action_controller: GraphActionController
     project_session_controller: ProjectSessionController
     run_controller: RunController
     app_preferences_controller: AppPreferencesController
@@ -271,6 +274,7 @@ class ShellControllerDependencies:
         host.workspace_navigation_controller = self.workspace_library_controller.workspace_navigation_controller
         host.workspace_graph_edit_controller = self.workspace_library_controller.workspace_graph_edit_controller
         host.workspace_package_io_controller = self.workspace_library_controller.workspace_package_io_controller
+        host.graph_action_controller = self.graph_action_controller
         host.project_session_controller = self.project_session_controller
         host.run_controller = self.run_controller
         host.app_preferences_controller = self.app_preferences_controller
@@ -314,6 +318,7 @@ class ShellContextBridgeDependencies:
     shell_workspace_bridge: ShellWorkspaceBridge
     shell_inspector_bridge: ShellInspectorBridge
     addon_manager_bridge: AddonManagerBridge
+    graph_action_bridge: GraphActionBridge
     graph_canvas_state_bridge: GraphCanvasStateBridge
     graph_canvas_command_bridge: GraphCanvasCommandBridge
     graph_canvas_bridge: GraphCanvasBridge
@@ -327,6 +332,7 @@ class ShellContextBridgeDependencies:
         host.shell_workspace_bridge = self.shell_workspace_bridge
         host.shell_inspector_bridge = self.shell_inspector_bridge
         host.addon_manager_bridge = self.addon_manager_bridge
+        host.graph_action_bridge = self.graph_action_bridge
         host.graph_canvas_state_bridge = self.graph_canvas_state_bridge
         host.graph_canvas_command_bridge = self.graph_canvas_command_bridge
         host.graph_canvas_bridge = self.graph_canvas_bridge
@@ -387,7 +393,7 @@ class ShellWindowDependencyFactory:
         with phase("factory.runtime"):
             runtime = self.create_runtime_dependencies(primitives)
         with phase("factory.context_bridges"):
-            context_bridges = self.create_context_bridge_dependencies(primitives, presenters, runtime)
+            context_bridges = self.create_context_bridge_dependencies(primitives, controllers, presenters, runtime)
         return ShellWindowComposition(
             state=state,
             primitives=primitives,
@@ -424,10 +430,11 @@ class ShellWindowDependencyFactory:
     def create_context_bridge_dependencies(
         self,
         primitives: ShellPrimitiveDependencies,
+        controllers: ShellControllerDependencies,
         presenters: ShellPresenterDependencies,
         runtime: ShellRuntimeDependencies,
     ) -> ShellContextBridgeDependencies:
-        return _create_shell_context_bridge_dependencies(self._host, primitives, presenters, runtime)
+        return _create_shell_context_bridge_dependencies(self._host, primitives, controllers, presenters, runtime)
 
 
 class ShellWindowBootstrapCoordinator:
@@ -623,6 +630,7 @@ def _create_shell_controller_dependencies(
 ) -> ShellControllerDependencies:
     search_scope_controller = WindowSearchScopeController(host, state.search_scope_state)
     workspace_library_controller = WorkspaceLibraryController(_WorkspaceLibraryControllerHostAdapter(host))
+    graph_action_controller = GraphActionController(shell_window=host)
     project_session_controller = ProjectSessionController(_ProjectSessionControllerHostAdapter(host))
     run_controller = RunController(_RunControllerHostAdapter(host))
     app_preferences_controller = AppPreferencesController(preloaded_document=preferences_document)
@@ -632,6 +640,7 @@ def _create_shell_controller_dependencies(
     return ShellControllerDependencies(
         search_scope_controller=search_scope_controller,
         workspace_library_controller=workspace_library_controller,
+        graph_action_controller=graph_action_controller,
         project_session_controller=project_session_controller,
         run_controller=run_controller,
         app_preferences_controller=app_preferences_controller,
@@ -699,6 +708,7 @@ def _create_shell_runtime_dependencies(
 def _create_shell_context_bridge_dependencies(
     host: "ShellWindow",
     primitives: ShellPrimitiveDependencies,
+    controllers: ShellControllerDependencies,
     presenters: ShellPresenterDependencies,
     runtime: ShellRuntimeDependencies,
 ) -> ShellContextBridgeDependencies:
@@ -751,12 +761,14 @@ def _create_shell_context_bridge_dependencies(
     )
     help_bridge = HelpBridge(host, shell_window=host)
     addon_manager_bridge = AddonManagerBridge(host, parent=host)
+    graph_action_bridge = GraphActionBridge(host, controller=controllers.graph_action_controller)
     return ShellContextBridgeDependencies(
         shell_context_bridges=shell_context_bridges,
         shell_library_bridge=shell_context_bridges.shell_library_bridge,
         shell_workspace_bridge=shell_context_bridges.shell_workspace_bridge,
         shell_inspector_bridge=shell_context_bridges.shell_inspector_bridge,
         addon_manager_bridge=addon_manager_bridge,
+        graph_action_bridge=graph_action_bridge,
         graph_canvas_state_bridge=graph_canvas_state_bridge,
         graph_canvas_command_bridge=graph_canvas_command_bridge,
         graph_canvas_bridge=shell_context_bridges.graph_canvas_bridge,
@@ -764,6 +776,7 @@ def _create_shell_context_bridge_dependencies(
         qml_context_property_bindings=_build_shell_context_property_bindings(
             shell_context_bridges,
             addon_manager_bridge,
+            graph_action_bridge,
             primitives,
             runtime,
             help_bridge,
@@ -774,6 +787,7 @@ def _create_shell_context_bridge_dependencies(
 def _build_shell_context_property_bindings(
     bridges: ShellContextBridges,
     addon_manager_bridge: AddonManagerBridge,
+    graph_action_bridge: GraphActionBridge,
     primitives: ShellPrimitiveDependencies,
     runtime: ShellRuntimeDependencies,
     help_bridge: HelpBridge,
@@ -783,6 +797,7 @@ def _build_shell_context_property_bindings(
         ("shellWorkspaceBridge", bridges.shell_workspace_bridge),
         ("shellInspectorBridge", bridges.shell_inspector_bridge),
         ("addonManagerBridge", addon_manager_bridge),
+        ("graphActionBridge", graph_action_bridge),
         ("graphCanvasStateBridge", bridges.graph_canvas_state_bridge),
         ("graphCanvasCommandBridge", bridges.graph_canvas_command_bridge),
         ("graphCanvasViewBridge", primitives.view),
