@@ -404,7 +404,7 @@
           "parent_node_id": null,
           "port_labels": {},
           "properties": {
-            "indices": "a"
+            "indices": ""
           },
           "title": "Extract Field",
           "type_id": "dpf.op.utility.extract_field",
@@ -540,11 +540,11 @@
           "hide_locked_ports": false,
           "hide_optional_ports": false,
           "name": "V1",
-          "pan_x": -52.621453207043075,
-          "pan_y": 83.25890562019804,
+          "pan_x": 586.0441057347253,
+          "pan_y": 262.86584635718543,
           "scope_path": [],
           "view_id": "view_dpf_multistage_cyclic",
-          "zoom": 0.37288255147371774
+          "zoom": 0.2787776602011415
         }
       ],
       "workspace_id": "ws_dpf_multistage_cyclic"

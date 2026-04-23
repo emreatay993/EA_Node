@@ -1,43 +1,41 @@
 flowchart TD
-    A[App start main.py to app.run] --> B[Read startup theme id from app_preferences.json]
-    B --> C[Create QApplication with active theme stylesheet]
-    C --> D[ShellWindow init]
-    D --> E[Build registry, serializer, session store, graph model, runtime history, and app preferences controller]
-    E --> F[Build theme bridge plus other controllers and QML bridges/models]
-    F --> G[Load graphics preferences into shell state]
-    G --> H[Load MainShell + GraphCanvas composition components]
-    H --> I[Restore session and optional autosave recovery]
-    I --> J[Switch workspace and restore view and scope camera]
-    J --> K[QML renders nodes_model, edges_model, minimap payloads, scope breadcrumbs, user-facing node labels, ThemeBridge chrome palettes, and graphThemeBridge node/edge palettes]
+    A[App start main.py] --> B[bootstrap.main chooses preferred venv and imports app.run]
+    B --> C[app.run loads startup preferences, creates QApplication, applies icon and stylesheet]
+    C --> D[Show OpeningSplash and start RegistryLoader]
+    D --> E[When boot animation and registry are ready, create_shell_window]
+    E --> F[ShellWindow builds serializer, session store, graph model, workspace manager, runtime history, controllers, bridges, and execution client]
+    F --> G[Load MainShell.qml with focused context properties and GraphCanvas]
+    G --> H[Startup sequence restores session, metadata defaults, workspace tabs, active workspace, and script editor state]
+    H --> I[GraphCanvas composes root bindings, scene and interaction state, viewport controller, root layers, input layers, and context menus]
+    I --> J[QML renders nodes, edges, backdrop layers, minimap, shell overlays, user-facing node labels, ThemeBridge chrome palettes, and graphThemeBridge node and edge palettes]
 
-    K --> L[User edits graph, runs scoped graph search, navigates scope, or opens Graphics Settings]
-    L --> M[GraphCanvas input/context layers dispatch request_* calls to ShellWindow]
-    M --> N[ShellWindow delegates to WorkspaceLibraryController and scope/search helpers]
-    M --> NQ[Optional dangling wire release opens quick insert]
-    NQ --> N
-    N --> O[GraphSceneBridge or GraphInteractions mutate GraphModel]
-    O --> P[RuntimeGraphHistory records undo/redo snapshots]
-    P --> Q[Scene rebuild publishes nodes, edges, minimap payloads]
-    Q --> K
+    J --> K[User edits graph, runs scoped graph search, toggles add-ons, navigates scope, or opens Graphics Settings]
+    K --> L[GraphCanvasInputLayers, GraphCanvasNodeDelegate or GraphNodeHost, and EdgeLayer issue bridge requests]
+    L --> M[ShellWindow delegates to controllers, GraphSceneBridge helpers, GraphInteractions, and workspace ops]
+    L --> MQ[Optional dangling wire release opens quick insert]
+    MQ --> M
+    M --> N[GraphModel mutates and RuntimeGraphHistory records undo or redo snapshots]
+    N --> O[Scene payloads, workspace ownership, and view state republish through graphCanvasStateBridge and graphCanvasViewBridge]
+    O --> J
 
-    K --> KP[Graphics Settings dialog updates app_preferences.json]
-    KP --> KR[ShellWindow reapplies graphics flags plus shell theme bridge and stylesheet and resolves graphThemeBridge]
-    KR --> K
+    J --> GP[Graphics Settings dialog updates app_preferences.json]
+    GP --> GQ[ShellWindow reapplies graphics flags plus shell theme bridge and stylesheet and resolves graphThemeBridge]
+    GQ --> J
 
-    K --> R[Inline property payloads rendered in NodeCard]
-    R --> N
+    J --> R[Inline property payloads render inside GraphNodeHost standard surfaces]
+    R --> M
 
-    K --> S[Optional publish subnode as custom workflow]
-    S --> T[Snapshot fragment stored in metadata.custom_workflows]
-    T --> U[Node library refresh includes custom workflow entries]
+    J --> S[Optional publish subnode as custom workflow]
+    S --> T[Snapshot fragment stored in metadata.custom_workflows and merged with custom_workflows_global.json]
+    T --> U[Node library refresh includes local and global workflow entries]
 
-    K --> V[User clicks Run]
-    V --> W[RunController builds trigger with workflow settings and project_doc]
-    W --> X[Execution client starts worker run]
-    X --> Y[Worker compiles workspace document and executes nodes]
+    J --> V[User clicks Run]
+    V --> W[RunController builds workflow settings plus runtime_snapshot]
+    W --> X[Execution client validates trigger and posts StartRunCommand]
+    X --> Y[Worker loads runtime_snapshot or project_path fallback, compiles the selected workspace, and executes nodes]
     Y --> Z[Run events and logs stream to RunController]
     Z --> ZA[Status, console, failed-node focus, and actions updated]
 
-    K --> ZB[Autosave tick or manual save]
-    ZB --> ZC[ProjectSessionController persists view and script editor state]
-    ZC --> ZD[Serializer and session store write project, session, autosave files]
+    J --> ZB[Autosave tick or manual save]
+    ZB --> ZC[ProjectSessionController persists view state, script editor state, workspace ownership, and artifact refs]
+    ZC --> ZD[Serializer and session store write project, session, and autosave documents]

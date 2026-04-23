@@ -12,10 +12,11 @@ sequenceDiagram
     User->>QML: Click Run
     QML->>SW: request_run_workflow()
     SW->>RC: run_workflow()
-    RC->>RC: serializer.to_document() + workflow_settings_payload()
-    RC->>EC: start_run(project_path, workspace_id, trigger)
+    RC->>RC: build_runtime_snapshot(...) + workflow_settings_payload()
+    RC->>EC: start_run(project_path, workspace_id, {trigger, runtime_snapshot})
     EC->>W: StartRunCommand (queue)
     W->>EC: run_started + run_state(running)
+    W->>W: load_runtime_snapshot()
 
     loop per ready node
         W->>R: create(node.type_id)
