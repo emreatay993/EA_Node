@@ -1,0 +1,222 @@
+from __future__ import annotations
+
+import ast
+import re
+from pathlib import Path
+
+from ea_node_editor.ui.shell.graph_action_contracts import (
+    GRAPH_ACTION_LITERAL_NAMES,
+    GRAPH_ACTION_SPECS,
+    LOW_LEVEL_QML_ACTION_EXCEPTIONS,
+    GraphActionId,
+    graph_action_spec,
+)
+
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
+CONTEXT_MENUS_QML = (
+    REPO_ROOT
+    / "ea_node_editor"
+    / "ui_qml"
+    / "components"
+    / "graph_canvas"
+    / "GraphCanvasContextMenus.qml"
+)
+NODE_DELEGATE_QML = (
+    REPO_ROOT
+    / "ea_node_editor"
+    / "ui_qml"
+    / "components"
+    / "graph_canvas"
+    / "GraphCanvasNodeDelegate.qml"
+)
+WINDOW_ACTIONS = REPO_ROOT / "ea_node_editor" / "ui" / "shell" / "window_actions.py"
+
+
+PYQT_GRAPH_ACTIONS: dict[str, GraphActionId] = {
+    "action_connect_selected": GraphActionId.CONNECT_SELECTED,
+    "action_copy_selection": GraphActionId.COPY_SELECTION,
+    "action_cut_selection": GraphActionId.CUT_SELECTION,
+    "action_paste_selection": GraphActionId.PASTE_SELECTION,
+    "action_duplicate_selection": GraphActionId.DUPLICATE_SELECTION,
+    "action_wrap_selection_in_comment_backdrop": GraphActionId.WRAP_SELECTION_IN_COMMENT_BACKDROP,
+    "action_group_selection": GraphActionId.GROUP_SELECTION,
+    "action_ungroup_selection": GraphActionId.UNGROUP_SELECTION,
+    "action_align_left": GraphActionId.ALIGN_SELECTION_LEFT,
+    "action_align_right": GraphActionId.ALIGN_SELECTION_RIGHT,
+    "action_align_top": GraphActionId.ALIGN_SELECTION_TOP,
+    "action_align_bottom": GraphActionId.ALIGN_SELECTION_BOTTOM,
+    "action_distribute_horizontally": GraphActionId.DISTRIBUTE_SELECTION_HORIZONTALLY,
+    "action_distribute_vertically": GraphActionId.DISTRIBUTE_SELECTION_VERTICALLY,
+    "action_scope_parent": GraphActionId.NAVIGATE_SCOPE_PARENT,
+    "action_scope_root": GraphActionId.NAVIGATE_SCOPE_ROOT,
+    "action_show_help": GraphActionId.SHOW_NODE_HELP,
+}
+
+STANDARD_KEY_SHORTCUTS = {
+    "Copy": "Ctrl+C",
+    "Cut": "Ctrl+X",
+    "Paste": "Ctrl+V",
+}
+
+
+def _source(path: Path) -> str:
+    return path.read_text(encoding="utf-8")
+
+
+def _qml_context_action_ids() -> set[str]:
+    return set(re.findall(r'"actionId"\s*:\s*"([^"]+)"', _source(CONTEXT_MENUS_QML)))
+
+
+def _qml_node_delegate_action_literals() -> set[str]:
+    source = _source(NODE_DELEGATE_QML)
+    return set(re.findall(r'normalized\s*===\s*"([^"]+)"', source))
+
+
+def _window_action_assignments() -> dict[str, ast.Call]:
+    tree = ast.parse(_source(WINDOW_ACTIONS), filename=str(WINDOW_ACTIONS))
+    assignments: dict[str, ast.Call] = {}
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Assign) or not isinstance(node.value, ast.Call):
+            continue
+        if not _is_qaction_constructor(node.value):
+            continue
+        for target in node.targets:
+            if not isinstance(target, ast.Attribute):
+                continue
+            if isinstance(target.value, ast.Name) and target.value.id == "window":
+                assignments[target.attr] = node.value
+    return assignments
+
+
+def _window_action_shortcuts() -> dict[str, str]:
+    tree = ast.parse(_source(WINDOW_ACTIONS), filename=str(WINDOW_ACTIONS))
+    shortcuts: dict[str, str] = {}
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Expr) or not isinstance(node.value, ast.Call):
+            continue
+        call = node.value
+        if not isinstance(call.func, ast.Attribute):
+            continue
+        if call.func.attr not in {"setShortcut", "setShortcuts"}:
+            continue
+        owner = call.func.value
+        if not isinstance(owner, ast.Attribute):
+            continue
+        if not isinstance(owner.value, ast.Name) or owner.value.id != "window":
+            continue
+        shortcut = _shortcut_from_call(call)
+        if shortcut is not None:
+            shortcuts[owner.attr] = shortcut
+    return shortcuts
+
+
+def _is_qaction_constructor(call: ast.Call) -> bool:
+    return isinstance(call.func, ast.Name) and call.func.id == "QAction"
+
+
+def _shortcut_from_call(call: ast.Call) -> str | None:
+    if not call.args:
+        return None
+    first = call.args[0]
+    if call.func.attr == "setShortcuts":
+        return None
+    if isinstance(first, ast.Attribute):
+        return _standard_key_shortcut(first)
+    if not isinstance(first, ast.Call):
+        return None
+    if not isinstance(first.func, ast.Name) or first.func.id != "QKeySequence":
+        return None
+    if not first.args:
+        return None
+    value = first.args[0]
+    if isinstance(value, ast.Constant) and isinstance(value.value, str):
+        return value.value
+    if isinstance(value, ast.Attribute) and isinstance(value.value, ast.Attribute):
+        return _standard_key_shortcut(value)
+    return None
+
+
+def _standard_key_shortcut(value: ast.Attribute) -> str | None:
+    if not isinstance(value.value, ast.Attribute):
+        return None
+    if not isinstance(value.value.value, ast.Name) or value.value.value.id != "QKeySequence":
+        return None
+    if value.value.attr != "StandardKey":
+        return None
+    return STANDARD_KEY_SHORTCUTS.get(value.attr)
+
+
+def _qaction_label(call: ast.Call) -> str:
+    assert call.args, "QAction constructor is missing text"
+    text_arg = call.args[0]
+    assert isinstance(text_arg, ast.Constant) and isinstance(text_arg.value, str)
+    return text_arg.value
+
+
+def test_graph_action_ids_are_unique() -> None:
+    ids = [spec.action_id.value for spec in GRAPH_ACTION_SPECS]
+    assert len(ids) == len(set(ids))
+
+
+def test_qml_action_literals_are_represented_by_contract() -> None:
+    qml_literals = _qml_context_action_ids() | _qml_node_delegate_action_literals()
+    missing = qml_literals - GRAPH_ACTION_LITERAL_NAMES - LOW_LEVEL_QML_ACTION_EXCEPTIONS
+    assert missing == set()
+
+
+def test_low_level_qml_action_exceptions_are_current() -> None:
+    qml_literals = _qml_context_action_ids() | _qml_node_delegate_action_literals()
+    assert LOW_LEVEL_QML_ACTION_EXCEPTIONS <= qml_literals
+
+
+def test_pyqt_graph_action_labels_and_shortcuts_match_contract() -> None:
+    assignments = _window_action_assignments()
+    shortcuts = _window_action_shortcuts()
+    missing_actions = set(PYQT_GRAPH_ACTIONS) - set(assignments)
+    assert missing_actions == set()
+
+    for pyqt_action_name, action_id in PYQT_GRAPH_ACTIONS.items():
+        spec = graph_action_spec(action_id)
+        labels = {spec.label, *spec.legacy_labels}
+        assert _qaction_label(assignments[pyqt_action_name]) in labels
+        if spec.shortcut is not None:
+            assert shortcuts.get(pyqt_action_name) == spec.shortcut
+
+
+def test_pyqt_graph_action_declarations_are_in_legacy_routes() -> None:
+    missing = {
+        pyqt_action_name
+        for pyqt_action_name, action_id in PYQT_GRAPH_ACTIONS.items()
+        if pyqt_action_name not in graph_action_spec(action_id).legacy_route_names
+    }
+    assert missing == set()
+
+
+def test_required_payload_keys_are_declared_for_payload_actions() -> None:
+    payload_action_ids = {
+        GraphActionId.OPEN_ADDON_MANAGER_FOR_NODE,
+        GraphActionId.OPEN_SUBNODE_SCOPE,
+        GraphActionId.PUBLISH_CUSTOM_WORKFLOW_FROM_NODE,
+        GraphActionId.OPEN_COMMENT_PEEK,
+        GraphActionId.EDIT_PASSIVE_NODE_STYLE,
+        GraphActionId.RESET_PASSIVE_NODE_STYLE,
+        GraphActionId.COPY_PASSIVE_NODE_STYLE,
+        GraphActionId.PASTE_PASSIVE_NODE_STYLE,
+        GraphActionId.RENAME_NODE,
+        GraphActionId.UNGROUP_NODE,
+        GraphActionId.REMOVE_NODE,
+        GraphActionId.DUPLICATE_NODE,
+        GraphActionId.EDIT_FLOW_EDGE_STYLE,
+        GraphActionId.EDIT_FLOW_EDGE_LABEL,
+        GraphActionId.RESET_FLOW_EDGE_STYLE,
+        GraphActionId.COPY_FLOW_EDGE_STYLE,
+        GraphActionId.PASTE_FLOW_EDGE_STYLE,
+        GraphActionId.REMOVE_EDGE,
+    }
+    missing = {
+        action_id.value
+        for action_id in payload_action_ids
+        if not graph_action_spec(action_id).required_payload_keys
+    }
+    assert missing == set()
