@@ -16,7 +16,7 @@ Removed descendant matching through legacy flat `category` filters while preserv
 - PASS: `.\venv\Scripts\python.exe -m pytest tests/test_registry_validation.py tests/test_registry_filters.py tests/test_passive_node_contracts.py tests/test_port_labels.py tests/test_execution_artifact_refs.py tests/test_execution_handle_refs.py --ignore=venv -q` (`83 passed, 5 subtests passed, 32 warnings`)
 - PASS: `.\venv\Scripts\python.exe -m pytest tests/test_registry_validation.py tests/test_registry_filters.py --ignore=venv -q` (`53 passed, 5 subtests passed, 32 warnings`)
 - PASS: `git diff --check`
-Final Verification Verdict: PASS
+- Final Verification Verdict: PASS
 
 ## Manual Test Directives
 
@@ -35,4 +35,4 @@ Ready for manual testing.
 
 ## Ready for Integration
 
-Yes: P09 code, packet-owned tests, wrap-up artifact, full verification command, and review gate are complete on the assigned packet branch.
+- Yes: P09 code, packet-owned tests, wrap-up artifact, full verification command, and review gate are complete on the assigned packet branch.
