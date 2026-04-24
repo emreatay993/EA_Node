@@ -324,9 +324,9 @@ class ViewerSessionBridgeUnitTests(unittest.TestCase):
         facade_text = facade_path.read_text(encoding="utf-8")
 
         self.assertFalse(support_path.exists())
-        self.assertIn("base64.b85decode", facade_text)
-        self.assertIn("zlib.decompress", facade_text)
-        self.assertLessEqual(len(facade_text.splitlines()), 550)
+        self.assertNotIn("base64.b85decode", facade_text)
+        self.assertNotIn("zlib.decompress", facade_text)
+        self.assertIn("class ViewerSessionBridge", facade_text)
 
     def _open_live_session(self, node_id: str = "node_viewer") -> str:
         self.host.scene.set_selected(node_id)
@@ -419,8 +419,8 @@ class ViewerSessionBridgeUnitTests(unittest.TestCase):
         self.assertEqual(opening_state["playback_state"], "paused")
         self.assertEqual(opening_state["step_index"], 3)
         self.assertEqual(opening_state["backend_id"], "backend.custom")
-        self.assertEqual(opening_state["session_model"]["phase"], "opening")
-        self.assertEqual(opening_state["session_model"]["live_mode"], "full")
+        self.assertNotIn("session_model", opening_state)
+        self.assertEqual(opening_state["live_mode"], "full")
 
         self.host.execution_event.emit(
             _viewer_opened_event(
@@ -451,9 +451,9 @@ class ViewerSessionBridgeUnitTests(unittest.TestCase):
         self.assertEqual(opened_state["live_open_status"], "ready")
         self.assertEqual(opened_state["transport"]["bundle_path"], "C:/temp/viewer_bundle")
         self.assertEqual(opened_state["camera_state"], {"zoom": 2.0})
-        self.assertEqual(opened_state["session_model"]["phase"], "open")
-        self.assertEqual(opened_state["session_model"]["transport_revision"], 7)
-        self.assertEqual(opened_state["session_model"]["summary"]["result_name"], "displacement")
+        self.assertNotIn("session_model", opened_state)
+        self.assertEqual(opened_state["transport_revision"], 7)
+        self.assertEqual(opened_state["summary"]["result_name"], "displacement")
 
         self.assertTrue(self.bridge.play("node_viewer"))
         self.assertEqual(self.host.execution_client.update_calls[-1]["options"]["playback_state"], "playing")
@@ -497,10 +497,10 @@ class ViewerSessionBridgeUnitTests(unittest.TestCase):
         closed_state = self.bridge.session_state("node_viewer")
         self.assertEqual(closed_state["phase"], "closed")
         self.assertEqual(closed_state["close_reason"], "user_close")
-        self.assertEqual(closed_state["session_model"]["phase"], "closed")
-        self.assertEqual(closed_state["session_model"]["close_reason"], "user_close")
+        self.assertNotIn("session_model", closed_state)
+        self.assertEqual(closed_state["close_reason"], "user_close")
 
-    def test_summary_embedded_session_model_remains_authoritative_over_stale_top_level_fields(self) -> None:
+    def test_current_top_level_projection_is_authoritative_over_summary_options(self) -> None:
         self.host.scene.set_selected("node_viewer")
         session_id = self.bridge.open("node_viewer", {"data_refs": {"fields": "fields_ref"}})
         open_call = self.host.execution_client.open_calls[-1]
@@ -512,54 +512,25 @@ class ViewerSessionBridgeUnitTests(unittest.TestCase):
                 "workspace_id": "ws_main",
                 "node_id": "node_viewer",
                 "session_id": session_id,
-                "backend_id": "backend.stale",
-                "transport_revision": 1,
-                "live_open_status": "blocked",
+                "backend_id": "backend.authoritative",
+                "transport_revision": 9,
+                "live_open_status": "ready",
+                "cache_state": "live_ready",
+                "live_mode": "full",
+                "data_refs": {"dataset": {"kind": "mock_dataset"}},
+                "transport": {
+                    "kind": "bundle",
+                    "backend_id": "backend.authoritative",
+                    "bundle_path": "C:/temp/viewer_bundle",
+                },
+                "camera_state": {"zoom": 1.4},
                 "summary": {
                     "result_name": "displacement",
-                    "session_model": {
-                        "workspace_id": "ws_main",
-                        "node_id": "node_viewer",
-                        "session_id": session_id,
-                        "phase": "open",
-                        "request_id": open_call["request_id"],
-                        "last_command": "open",
-                        "last_error": "",
-                        "playback_state": "paused",
-                        "step_index": 0,
-                        "playback": {"state": "paused", "step_index": 0},
-                        "live_policy": "focus_only",
-                        "keep_live": False,
-                        "cache_state": "live_ready",
-                        "invalidated_reason": "",
-                        "close_reason": "",
-                        "backend_id": "backend.authoritative",
-                        "transport_revision": 9,
-                        "live_mode": "full",
-                        "live_open_status": "ready",
-                        "live_open_blocker": {},
-                        "data_refs": {"dataset": {"kind": "mock_dataset"}},
-                        "transport": {
-                            "kind": "bundle",
-                            "backend_id": "backend.authoritative",
-                            "bundle_path": "C:/temp/viewer_bundle",
-                        },
-                        "camera_state": {"zoom": 1.4},
-                        "summary": {
-                            "cache_state": "live_ready",
-                            "result_name": "displacement",
-                        },
-                        "options": {
-                            "live_mode": "full",
-                            "playback_state": "paused",
-                            "step_index": 0,
-                            "backend_id": "backend.authoritative",
-                            "transport_revision": 9,
-                            "live_open_status": "ready",
-                        },
-                    },
+                    "backend_id": "backend.stale",
+                    "transport_revision": 1,
+                    "live_open_status": "blocked",
                 },
-                "options": {"live_mode": "proxy"},
+                "options": {"live_mode": "proxy", "backend_id": "backend.stale"},
             }
         )
 
@@ -569,6 +540,7 @@ class ViewerSessionBridgeUnitTests(unittest.TestCase):
         self.assertEqual(opened_state["live_open_status"], "ready")
         self.assertEqual(opened_state["options"]["live_mode"], "full")
         self.assertEqual(opened_state["transport"]["backend_id"], "backend.authoritative")
+        self.assertNotIn("session_model", opened_state)
 
     def test_node_mutation_keeps_live_session_and_prunes_removed_node_projection(self) -> None:
         self.host.scene.set_selected("node_viewer")

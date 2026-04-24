@@ -6,6 +6,7 @@ from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 from typing import Any
+from weakref import WeakKeyDictionary
 
 from PyQt6.QtGui import QImage
 from PyQt6.QtWidgets import QWidget
@@ -21,12 +22,6 @@ from ea_node_editor.ui_qml.viewer_widget_binder import (
 
 _DPF_TRANSPORT_KIND = "dpf_transport_bundle"
 _DPF_TRANSPORT_SCHEMA = "ea.dpf.viewer_transport_bundle.v1"
-_BACKEND_PROPERTY = "ea.viewer.backend_id"
-_ENTRY_PATH_PROPERTY = "ea.viewer.entry_path"
-_MANIFEST_PATH_PROPERTY = "ea.viewer.manifest_path"
-_SESSION_PROPERTY = "ea.viewer.session_id"
-_STEP_INDEX_PROPERTY = "ea.viewer.step_index"
-_TRANSPORT_REVISION_PROPERTY = "ea.viewer.transport_revision"
 _VIEWER_METADATA_OVERLAY_NAME = "ea.dpf.viewer.metadata"
 
 
@@ -75,6 +70,16 @@ class _LoadedDpfTransport:
     scalars_name: str | None
 
 
+@dataclass(slots=True)
+class _DpfWidgetState:
+    backend_id: str
+    session_id: str = ""
+    transport_revision: int = 0
+    manifest_path: str = ""
+    entry_path: str = ""
+    step_index: int = 0
+
+
 class DpfViewerWidgetBinder:
     backend_id = DPF_EXECUTION_VIEWER_BACKEND_ID
 
@@ -86,6 +91,7 @@ class DpfViewerWidgetBinder:
     ) -> None:
         self._interactor_factory = interactor_factory or self._create_interactor
         self._dataset_loader = dataset_loader or self._load_dataset
+        self._widget_state: WeakKeyDictionary[QWidget, _DpfWidgetState] = WeakKeyDictionary()
 
     def bind_widget(self, request: ViewerWidgetBindRequest) -> QWidget:
         loaded_transport = self._load_transport_bundle(request)
@@ -106,7 +112,7 @@ class DpfViewerWidgetBinder:
         render = getattr(widget, "render", None)
         if callable(render):
             render()
-        self._set_widget_properties(
+        self._set_widget_state(
             widget,
             session_id="",
             transport_revision=0,
@@ -154,7 +160,14 @@ class DpfViewerWidgetBinder:
             raise TypeError("DPF viewer interactor factory must return a QWidget instance.")
         if container is not None and interactor.parent() is not container:
             interactor.setParent(container)
-        self._mark_backend(interactor)
+        self._set_widget_state(
+            interactor,
+            session_id="",
+            transport_revision=0,
+            manifest_path="",
+            entry_path="",
+            step_index=0,
+        )
         return interactor
 
     def _populate_interactor(
@@ -196,7 +209,7 @@ class DpfViewerWidgetBinder:
             viewport_width=viewport_width,
             viewport_height=viewport_height,
         )
-        self._set_widget_properties(
+        self._set_widget_state(
             interactor,
             session_id=request.session_id,
             transport_revision=request.transport_revision,
@@ -368,10 +381,6 @@ class DpfViewerWidgetBinder:
         return 10
 
     @staticmethod
-    def _mark_backend(widget: QWidget) -> None:
-        widget.setProperty(_BACKEND_PROPERTY, DpfViewerWidgetBinder.backend_id)
-
-    @staticmethod
     def _qimage_from_screenshot(value: Any) -> QImage:
         if isinstance(value, QImage):
             return value.copy()
@@ -417,16 +426,16 @@ class DpfViewerWidgetBinder:
             return QImage()
         return image.copy()
 
-    @staticmethod
-    def _is_reusable_interactor(widget: QWidget | None) -> bool:
+    def _is_reusable_interactor(self, widget: QWidget | None) -> bool:
         if not isinstance(widget, QWidget):
             return False
-        if _string(widget.property(_BACKEND_PROPERTY)) != DpfViewerWidgetBinder.backend_id:
+        state = self._widget_state.get(widget)
+        if state is None or state.backend_id != self.backend_id:
             return False
         return callable(getattr(widget, "clear", None)) and callable(getattr(widget, "add_mesh", None))
 
-    @staticmethod
-    def _set_widget_properties(
+    def _set_widget_state(
+        self,
         widget: QWidget,
         *,
         session_id: str,
@@ -435,12 +444,14 @@ class DpfViewerWidgetBinder:
         entry_path: str,
         step_index: int,
     ) -> None:
-        widget.setProperty(_BACKEND_PROPERTY, DpfViewerWidgetBinder.backend_id)
-        widget.setProperty(_SESSION_PROPERTY, session_id)
-        widget.setProperty(_TRANSPORT_REVISION_PROPERTY, int(transport_revision))
-        widget.setProperty(_MANIFEST_PATH_PROPERTY, manifest_path)
-        widget.setProperty(_ENTRY_PATH_PROPERTY, entry_path)
-        widget.setProperty(_STEP_INDEX_PROPERTY, int(step_index))
+        self._widget_state[widget] = _DpfWidgetState(
+            backend_id=self.backend_id,
+            session_id=str(session_id),
+            transport_revision=int(transport_revision),
+            manifest_path=str(manifest_path),
+            entry_path=str(entry_path),
+            step_index=int(step_index),
+        )
 
     @staticmethod
     def _create_interactor(container: QWidget | None) -> QWidget:

@@ -179,30 +179,6 @@ Rectangle {
                 enabled: false
             }
 
-            ShellButton {
-                objectName: "addonManagerRestartRuntimeButton"
-                visible: controller.pendingRestartCount > 0
-                text: "Restart Runtime"
-                enabled: false
-                selectedStyle: visible
-                tooltipText: "Runtime restart wiring is not exposed on this surface yet."
-            }
-
-            Rectangle {
-                Layout.preferredWidth: 1
-                Layout.preferredHeight: 18
-                color: themePalette.border
-                visible: fallbackWorkflowSettingsButton.visible
-            }
-
-            ShellButton {
-                id: fallbackWorkflowSettingsButton
-                objectName: "addonManagerFallbackWorkflowSettingsButton"
-                text: "Workflow Settings"
-                opacity: 0.82
-                tooltipText: "Temporary fallback while add-on-specific settings still live under Workflow Settings."
-                onClicked: controller.requestOpenWorkflowSettings()
-            }
         }
     }
 

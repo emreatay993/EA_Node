@@ -27,9 +27,7 @@ Item {
             return ({});
         return viewerSessionBridgeRef.session_state(surface.viewerNodeId);
     }
-    readonly property var viewerSessionModel: viewerSessionState.session_model
-        ? viewerSessionState.session_model
-        : viewerSessionState
+    readonly property var viewerSessionModel: viewerSessionState
     readonly property var viewerSummary: viewerSessionModel.summary ? viewerSessionModel.summary : ({})
     readonly property var viewerOptions: viewerSessionModel.options ? viewerSessionModel.options : ({})
     readonly property var viewerDataRefs: viewerSessionModel.data_refs ? viewerSessionModel.data_refs : ({})
@@ -65,10 +63,7 @@ Item {
     readonly property bool viewerKeepLive: Boolean(viewerSessionModel.keep_live)
     readonly property string viewerCacheState: String(viewerSessionModel.cache_state || "empty")
     readonly property string viewerBackendId: String(
-        viewerSessionModel.backend_id
-        || viewerSummary.backend_id
-        || viewerOptions.backend_id
-        || ""
+        viewerSessionModel.backend_id || ""
     )
     readonly property var viewerTransport: viewerSessionModel.transport
         ? viewerSessionModel.transport
@@ -77,43 +72,23 @@ Item {
     readonly property int viewerTransportRevision: Math.max(
         0,
         Math.floor(
-                _number(
-                viewerSessionModel.transport_revision !== undefined
-                    ? viewerSessionModel.transport_revision
-                    : (
-                        viewerSummary.transport_revision !== undefined
-                            ? viewerSummary.transport_revision
-                            : viewerOptions.transport_revision
-                    ),
-                0
-            )
+            _number(viewerSessionModel.transport_revision, 0)
         )
     )
     readonly property string viewerLiveOpenStatus: String(
-        viewerSessionModel.live_open_status
-        || viewerSummary.live_open_status
-        || viewerOptions.live_open_status
-        || ""
+        viewerSessionModel.live_open_status || ""
     )
     readonly property var viewerLiveOpenBlocker: viewerSessionModel.live_open_blocker
         ? viewerSessionModel.live_open_blocker
-        : (
-            viewerSummary.live_open_blocker
-                ? viewerSummary.live_open_blocker
-                : (viewerOptions.live_open_blocker ? viewerOptions.live_open_blocker : ({}))
-        )
+        : ({})
     readonly property string viewerTransportReleaseReason: String(
-        viewerSummary.live_transport_release_reason
-        || viewerOptions.live_transport_release_reason
-        || ""
+        viewerSummary.live_transport_release_reason || ""
     )
     readonly property bool viewerRunRequired: viewerPhase === "blocked"
         || viewerLiveOpenStatus === "blocked"
-        || Boolean(viewerSummary.rerun_required)
-        || Boolean(viewerOptions.rerun_required)
         || Boolean(viewerLiveOpenBlocker.rerun_required)
     readonly property string viewerLiveMode: {
-        var liveMode = String(surface.viewerSessionModel.live_mode || surface.viewerOptions.live_mode || "");
+        var liveMode = String(surface.viewerSessionModel.live_mode || "");
         if (liveMode.length > 0)
             return liveMode;
         if (surface.viewerPhase === "open")
@@ -146,7 +121,6 @@ Item {
         || viewerSummary.close_reason
         || ""
     )
-    readonly property string viewerDemotedReason: String(viewerSummary.demoted_reason || "")
     readonly property bool viewerSessionOpen: viewerPhase === "open"
     readonly property bool viewerSessionBusy: viewerPhase === "opening" || viewerPhase === "closing"
     readonly property bool viewerCanOpen: viewerBridgeAvailable
@@ -218,8 +192,6 @@ Item {
         }
         if (surface.viewerCloseReason.length > 0 && surface.viewerPhase === "closed")
             return "Closed: " + surface.viewerCloseReason;
-        if (surface.viewerDemotedReason.length > 0)
-            return "Demoted to proxy: " + surface.viewerDemotedReason;
         if (surface.viewerSessionOpen && surface.viewerLiveMode === "full")
             return "The node body stays reserved for a native viewer overlay handoff.";
         if (surface.viewerSessionOpen)

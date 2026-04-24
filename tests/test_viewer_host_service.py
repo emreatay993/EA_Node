@@ -126,7 +126,6 @@ class _RecordingBinder:
                 "camera_state": dict(request.camera_state),
                 "transport": dict(request.transport),
                 "options": dict(request.options),
-                "session_model": dict(request.session_model),
             }
         )
         if callable(self.no_bind_predicate) and self.no_bind_predicate(request):
@@ -343,9 +342,8 @@ class ViewerHostServiceTests(MainWindowShellTestBase):
         self.assertTrue(container.isVisible())
         self.assertEqual(self.host_service.active_overlay_count, 1)
         self.assertEqual(self.host_service.last_error, "")
-        self.assertEqual(binder.bind_calls[-1]["session_model"]["phase"], "open")
-        self.assertEqual(binder.bind_calls[-1]["session_model"]["live_mode"], "full")
-        self.assertEqual(binder.bind_calls[-1]["session_model"]["transport_revision"], 1)
+        self.assertEqual(binder.bind_calls[-1]["live_mode"], "full")
+        self.assertEqual(binder.bind_calls[-1]["transport_revision"], 1)
 
         self._close_viewer_session(node_id=node_id)
 
@@ -594,50 +592,21 @@ class ViewerHostServiceTests(MainWindowShellTestBase):
                 "node_id": "node_viewer",
                 "session_id": "session::node_viewer",
                 "phase": "open",
-                "cache_state": "proxy_ready",
-                "camera_state": {"position": [0.0, 0.0, 5.0]},
-                "summary": {"cache_state": "proxy_ready"},
+                "cache_state": "live_ready",
+                "backend_id": "tests.viewer_backend",
+                "transport_revision": 1,
+                "live_mode": "full",
+                "live_open_status": "ready",
+                "live_open_blocker": {},
+                "camera_state": {"position": [9.0, 8.0, 7.0], "view_angle": 24.0},
+                "playback": {"state": "paused", "step_index": 0},
+                "summary": {"cache_state": "live_ready"},
                 "options": {
-                    "backend_id": "tests.viewer_backend",
-                    "live_mode": "proxy",
-                    "live_open_status": "ready",
-                    "transport_revision": 1,
                     "playback_state": "paused",
                     "step_index": 0,
                 },
                 "transport": {"kind": "tests_transport_bundle", "backend_id": "tests.viewer_backend"},
                 "data_refs": {},
-                "session_model": {
-                    "workspace_id": "ws_main",
-                    "node_id": "node_viewer",
-                    "session_id": "session::node_viewer",
-                    "phase": "open",
-                    "playback_state": "paused",
-                    "step_index": 0,
-                    "playback": {"state": "paused", "step_index": 0},
-                    "live_policy": "focus_only",
-                    "keep_live": False,
-                    "cache_state": "live_ready",
-                    "invalidated_reason": "",
-                    "close_reason": "",
-                    "backend_id": "tests.viewer_backend",
-                    "transport_revision": 1,
-                    "live_mode": "full",
-                    "live_open_status": "ready",
-                    "live_open_blocker": {},
-                    "data_refs": {},
-                    "transport": {"kind": "tests_transport_bundle", "backend_id": "tests.viewer_backend"},
-                    "camera_state": {"position": [9.0, 8.0, 7.0], "view_angle": 24.0},
-                    "summary": {"cache_state": "live_ready"},
-                    "options": {
-                        "backend_id": "tests.viewer_backend",
-                        "live_mode": "full",
-                        "live_open_status": "ready",
-                        "transport_revision": 1,
-                        "playback_state": "paused",
-                        "step_index": 0,
-                    },
-                },
             }
         )
 

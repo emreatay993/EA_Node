@@ -105,10 +105,7 @@ Item {
     readonly property int missingAddonCount: Math.max(0, Number(lockedNodeStatusSummary.missingAddonCount || 0))
     readonly property string lockedNodeStatusFocusAddonId: String(lockedNodeStatusSummary.focusAddonId || "")
     readonly property bool lockedNodeStatusVisible: lockedNodeCount > 0
-    readonly property bool lockedNodeStatusActionVisible: lockedNodeStatusVisible
-        && typeof addonManagerBridge !== "undefined"
-        && addonManagerBridge
-        && addonManagerBridge.requestOpen
+    readonly property bool lockedNodeStatusActionVisible: false
     readonly property string lockedNodeStatusText: {
         if (root.lockedNodeCount <= 0)
             return "";
@@ -408,7 +405,6 @@ Item {
     function requestOpenLockedNodeStatusAction() {
         if (!root.lockedNodeStatusActionVisible)
             return false;
-        addonManagerBridge.requestOpen(root.lockedNodeStatusFocusAddonId);
         return true;
     }
 

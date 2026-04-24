@@ -1,8 +1,1325 @@
 from __future__ import annotations
 
-import base64
-import zlib
+import copy
+from collections.abc import Iterable, Mapping
+from dataclasses import dataclass, field
+from pathlib import Path
+from typing import TYPE_CHECKING, Any
+from uuid import uuid4
 
-exec(zlib.decompress(base64.b85decode(
-    b'c-rkfYjYbpj^FhwG`cV9S)D3#wVza_t@Xspjc+_j)^TPZu2h#SwG&-rNux(5Ua$ZA@l5~(*xi0)cjq!6CKj6nL68JM00ghL>+5b=ULE#_ZB>@t#r0;r-FK&})p|eOFV?GFr{l_I>&;E)O4pyQm&<Bqz7D6CGvDZBUu~zC%WBa5X}Z}gR_|@?`E);>EvLI(wevMY(V%;^sFrhEaWmb2SS~JorPu1G{jk5$(0uv%Utdqk=RZuI|9JB9zX#o;mBZ?ASj>GL{rB%Xw!E5_tM$AptNCKT-VUqJ)$E{gAAXpw=F6(wR__<P{r1MUeY2k~s~^m_$#%Qm)<D^8*ZZ}ih;QESbk%>)m+M{i^P>8-+P<lFJ5}-d`ubV{9hlEQO%<&c)8*ptuF|oh2&(aFQ?2CoZ#RmB8Tb(>=xILrRIT=~f^Vvk6~DfiE|&6Fji>z8;^{vZHKd$xuFCCUwO?FU!%qfGxwCM}%jxW6wF>i#I*CIxEB37V<xuVRHGMhwEZpyH;UmB;)sQ^w<JT|B$zLYV-=3emdRhK_GWql5to;7y`Hz#A$K}Z}3s?WW8>;mm_s*Fm(9w3kxSG!PXVuj}ZOCdnt32(>u&}Sx=DorjW@IL*-ID(Edi$~3+DUXj+-hq8%p<j1O*gv_>pdCA8&^D_1<%*3ef4?Ypod=#Mrx^SKP_gFP!`cQuC&uBk0&pV-kzS9uil=&etTZNK6~}z<aE*<cYD{>^?G~L>y&RMZ{FzHIXPCJCofL^qQ8=*2&=vP`RMfI_{hxY+2rVr`RDBIOWjPPwcAYfyi|$^HO&+@|1)`hu718gJ$gPl))3S@{IBA(s{LlE;LH_>pN`HaXD6!l-zLYUf^by+IQi=vRauef@6~Eo?fbVq&0f`Cy@3W%Y4r7<v)w0CvU;!o`LsXSf3ACX1%g|ipB=q?b253UDD~Q)$aJx<G?Ay<n{vBe@5{|}s}_d_c(pbwv6`)~H-~*?fImNd^`;rvZ8hDkR~pW?TB^VOTHYBr2EyxCXXlp4>i>Uwdvc}-@%`y5wT;dcuv@cUdNZ|9dLs=*QC?y5%VDuq^s^kw_oBX^E<ROVJHOricDmY`m9yA&53A`X#rL#0Q^IiGbs%<K192E3A^4;2`Swr^I(Hqnz5R^;^y+wWst2s6)i0!Lh2&DrsaXsqY4Q4pBlRaDkLmKZw^kfiQ%L{2u#-7c3>^HaN80UOF4u|&nLih+Pl}BhR;+(kTCDZ%6hH2C=G9fV)S|t-wnDqFsvfG5ma9egKmX93FJ}7-B_EBXeP`K+Vk#@WlU1j?{d6^}Y@;Cf3tLV9x2=?BvFhI5b>J@rum7>SDMm)C7|yF|qyOkH)VeCVY7KSO*FjhR>@HSa1AVA}?fS(XhjsbuV*g=%*q4a7O~$gB-YnPCxuP^fh5}X@Zq}Q=G_iy3%k|3DccXO8BD#i2FIIbi)}Z_CpsPMl56k^X4Rx>ZcxG@_e_I5VYLbvM0I?lbpJ&xZsUGJ_P#B$M(EV9|HGij*;rjE4g@s=(cI8s-h<+#;`5BE=Gss=8*Gse%Vhh^Yi|KM#nZl2Yl_s;E`%r!OUM=jN{-PIVuPBD<^J3F4JaF4c?Ha8dL`*Lanl1EVZ%P_1u9SE#wHC?uf~s)c8B(qky)!`KcL{={2u4V)Xk8dvN6cATfkLeZ_Yt&Ws3z)4X=VMwFeg(Zf(D-v71c(%HDrwX!A=iiS-qdmZb~gRY}s8zE>c{7Nj3=~P6SaDbQnP@X*@7kxM?&4bqn+IuvpGZB7N<?HZ8ujOgPHf#eAfv%oZD60hM?VsBrT^Aq9SKt(NC2X@2dPy*jV#)##1h!+tYtm3~o@`$j8+rDBx(irG)ye;Cf8n&^KVIJF7O&3d_*-2`}7>)Byfu2;(&2l=C7nr6F>%yv|D%<{1xXVck-%J=CYD3QJQje$fctvIBJ8$lv`^V)4nBsj637Mk3FtAU~ENenHOmh;)8Wxi^`W>7!u5;}+PR=RB)5;QE#hV^p{kgGqNUaPZjt2y2s)JjsUy;<$`#vHdB)D{KZYQ4R-=fKh|ddJ_)-+_w_mut1#6kkyc%j*)6&l3Pf2UvA;3QXiAO!ue*_}%T9gx%oHRAk!ShJJgdZqKZwK2zCpE?Y^f$J2vGDe`qg30FFRP}S~JT($bFKttJ{=_0f!g3KR3D=g4EIvBtM+)RNIe!c*UVCD=0bTfC0xJtJdSPB#YB2Gzvw5HzX5O@8X$K3J&326f-pzQdC>i)1?<`8w=d*BpBw*iwy=E@79eq${VG<CZ->B^N$_3zVF!XcARlNt$(z%7%u;Y-pco}NS<A!!4-X3`9PWLgIC<`x(z!CTi#JqjR7FxNg7V2zF&VvubX>9F<F3YqD#0uF8uP%Pq*%54WB{UE}ClHF4e6vcMJ4!Gz6V)x!D5d6$A+ZiYh+_nuJ#CjBd{K9}|X6O&yXZfzuHnhvMhQz3#=92A{)}~$3@7WH$D%7w?SKV}pPv1G{1%m>kL}qbF>(g<kHJEOZW}58~)=U;E_{MbtHM&eELv^Havb^7ejd}x_x`?+G?Vz`SD~J`h7_1y;SDyVOHjiq8ZmbU<{ZLeht+4V&`}JQhoGSKCgah=b42)Q(7NPu3@U@COHMO$A(o%mAn?4mI4IMl^BMn`BNk)ok|0NhH)8l;^DYAsd69u$mxZ?^e3St=?LY$2w9B$@P#c29)bz=cn-5k(VO?qYnRid55L5u|)L})y54PcSj#G0x>15?1_jM>X5%Uq;`TrD$UI_!-aFb_B`z<fsn>jl*#vmH@Z3u-||G7{JbsLn{@QC<$izMxbcNir2Q08D7avmj8JVI!kF6QQ)dw$2}p5!0%WbBuC)gKg*;z^Kjk2auw<Gy@?Xxi})_TE>GHS|~t888uWT;C8W!38t1S1l1h7#MNA(H+VSr!?xP3mwM$}cS&jd8hz+^VXR)>1bPEZx8Ls82Xz$NvDJ-PO#K<W7OJhbC-^R?xf&D3dw{edNBga;GNAobwoeVo_YNHaz(Zy~M;Do~+&d)fH`XP9@vs#M8m^``2S_yahw3MxDranTIN>9`FxBqY!20}re}(r>Ixo1ER=ep{<sAZHbvJSH$<_(z<_jH-2oP;hynC1rD^70g=E648;PoHGw9a<}cq!i*ry0U7iAG4&K<~N?4csI+D~Ifikr$OSP!FKb=4!fJ>Yg8B&jxEdH5A)#1?r5g=|2|Gn+ZYdZK}&46wbX3jryhJR0e>ZQP{Clx0M}-Y~J4U*@6tU4iPvS7L!n+4y6<l!O5dy7K>zUEg^@MOr8$le6iJ0F+4m<p&D2bdk3u_rdAl{JrFiCyRD;J4UodIhg}tL#gtV&Aj+uUWOP{^EPSQqm(#=k!+N{W@t>b!XGZtT_6RVPZ0iwycF~#7lChk&1<MSsGulpw41s8(bvitln8kh*Akv~J?hP>o1o=Xnu_51rcPQLvY=i+6_lB4P!X9!XiuDk)YJ%=$kR0~{`zFv9J0nJbD11<Fb^RD=F<sq6F5)yi%0*p>lm66?(9>}Z&;eCDy|zj*_ijYX7&3z+-98NYFO2kK&uHWyEhhAlx_PQq3K{s5j!Nk0!Q&!x4bDrrDi>N9YKYnr0)Zm5oFT}2l_@BE6k|HNMHP}bgXAj*#)vVtCTGwZh&8ETOn0LXYT#iMNog9?2Gp1|7@|HX;xXs}S&CSTg^BpjAfXrHRnH2EN_?@8<A9^hbihP@WIDN%Hx3<W2gV`Abqe%Fwdy79u3GLYc<4bfP4+mhRbwO*k?vRv9I?ez?WB<alKldYZ_uS4w{J1h=upRd^s+GsUV$^Sh`KVd1<dE5jT(D7BpxKdLkNl5=BWxSCy%lspe06F72d?>Y149LB+cyv&a2gavA_8zlQUYLABCC`+>>vyxFVfVshQGiyg+JGp|xzIYI=#?$=FRyFm2ddUj2u0I{w^X86&LFqmX@s7?j%tWQ-vs5}S)KG~wOLUBy?mK|n;3Ituh?JfH{52CX_^(U2ezJK3EB#w(%8pKLovsZJ`Z+3>HdHJE1<S${|T$lx|`)(U7&tc&EPVcg@!YZN(66|E?%plfOXe7o~@U3q6~t6rj?wRuOtS=*{Fvs%Z*Q5)T|%@F{;-Bt)dk8bnckZZVof5su)vN!8hZbw|CRFBE&B%&03xZ`H{0B<mme~}Y8lm_5X?)<-FW0GssOLQX3eVE$=V8p<4+?>474;`d<Zd?qhQ|I$IIa4)4hVgP^86T9C$W9SU1;hZJ?H1I4p7LDROpnnq(|q)tL_rRt8d)L?K6SZ|b6(pfQblt0;~JuPA!nuF-*2(!Oq4*g9Y=-oSdI=zgylFXiIszEe=LgVMCTm9umLrpi5AJtTRZqMxS$3;JQ0oI4<P^SG9M=q0*>xu6cZ3Gq!Lv@>%At5zl;l_Z|180f}&GFkX;k6Q_Dut!H;!Oki&VtS@ce{YK9M)v@J9;fJV$dLUslnyT>4**$RLndX@na1)3(S*1;RlkLDl-_s(3wVb%0b9=Y-@I*^esE$84y-eh;wiH${PaMZwY5J&Aj_9Excs`H`U!+l1ieYi8DCD;6>r-$5VM?w~Aj->wb1sqQr^hzUL^HK8QUb|FR4$DNL?4c#O!>^l}OQ>u#2BqS?!ZD<44kQ+%_Pz;4rj8GIoa&-`>+VL#alAGV6x||Wz?!*&Ky0c95U0<;L0ueB<SNsJtr2122FR&ezaWK3Z+L4hACQdKY^zXWv}Qxg+?ve=+_Odw(Otmafy8}~VEp@7!5Nx>s|m>^L*W)eygDyzIw>SRjf1b-9(57#%=UP&F@zG6*gYWU;Y}PAK(uD?ZHeI`nM`P-;2~IZL`*}%nIw>wO|1uPfVf$TOi~wO4}gHl(LFB~qYKq^h5dZU$M?W}H0U&Qowau+-SOs#G=l)PCV=b#^!U#PkqgIkiZ6Qz=T}T}$fmH!d76g;4$fSFIdhoJg_OsmB}!Dl9t)YZo}LFYr@-4g?(9|@|0=2hy+S&y<@W$NggoRl_s5XxufJQa_q(wcQ$@#=bW59V?a!W<xs+cc=xnmdQi9s=&jKi=*ofv1!!e|68$|)znUHskfM_-nmyqtPnyt4^^d#9ylH?>@ZW1f$eqCt^p{A;eg=y-Iy1a4*yg9qO3>Zmlv&q5OcdVq;S>@Jhl65sJoUcI+!TZ7h88z<THccv0lQl$28qyjCoZzE%bD9N40MH>(1p(4>dVM*cjwEr^M5X`>z#RxE4QWVPk13=iY26Yz@xo-8yk@n@X`ChnH2|Fd#`d6dc<QBEeyncvdZ-MBGIFYdI~8cdhCbbzRpW9N^>@|sirAIV9StG<qG>lwwogo!r1K#uMPsouHU-ORJQ6_Y#{ShHM%W*!I>_C_h8dV(8n^^VL(i&*MIEaPHj$Wt9Pc6VpbVw0sUgKGGA<Kw!O}B)iPt=Q30Wy@|IpTvWUYc0409XhaH+JZcq=PT4QFDKFY>ShDUyEN_N?zET8o&DP&7r>7GtWzmB+NvyTi?kCPTagPG?MLi-yfWV8~KuIWg_XNv??{1Fsrv&Zsv<nbzzL<2JjqE<J((B<Ux&)EgPQAh67(=+<U89$=C5$p>hW<!XYggg(-gF#-T+>uCxma3m~R_-=3|JB@0ARr5XrBla<MNqx&JeQ9#Pi_K6ssuB7f@@2ZH+m*m4eFja`7)RZ@VB0jwaM4M_MO9OZu|N-6%}|6ECZtZpaFJVuu97CHwH$c?OF6M?mhf7q(A4wVXkuqp54v{&%pFWpEEEd`osvns5wJ7{jn)V(i3=G4?#%c823s8?5zL$%{%VE*4%XIBaEvBG6yy~+8Y)g(wGd2_Wls_cb@sbDp^&%r=7mDeg3EC6wtTsjX}OLs<3kJIoXg19#0ZUx+vMP57MN^<=DW$*p;_DwSPY8t6n~F_@)TnPtx?|}u6Z}oGk85AXv!=H@dm9?5~=R7L7t6P2M&UV=2C4D5s~m8?3pr|l<2Yq_U`2sh-*x2UJdhfw#(IN#A*KQV8S-)lNB1Ox;o%AX<4(~srW!qq<z$7Db#)VI@vzFAWd=rH*tNW?hg$amS8JKaB}Es?gy>`T^Vq{(R$Wl0S97tFA2gR?gWMn;`-1AZ~dB>-a!0^I6$aLaNnUVKZz0{0fKygFd{JR4Suz8fwU789hk^wT$l3{@EnWuLHz*?7sC64aT64Q!^w4w#?@hOK#{l^5R`|t3tW$JG6-4)vsR3^p=PBxMNwEMUX8RWSu%Ht<AUY8QXB8c;ME7*D*86ywu;7+LLeKV7F~M4laZX*2HX*0Oc%<4Q=7(=;4tv1<4pa?((hgu83hSbD$QcCFH0lx2VL?s$%s5kVt7BkA!)`_(kD&E6cVZL*I{_eC}}_+rtvkS$$4`XUc(s+V26%C{TiP`LD0L#FX@1O)S8{{)lvt&t92_iP-_}gq`f%4?k&>$!)94op{h;41J+3cQoCU4TVdmzM99c3c&!|yxDwoAuk^Dy2GCZWbtQ#kYh6Yxj{iKh#F7vzCj+9a0Br@U828gvEFolV1*;hM(^YUEskVYUzmO7h*uyad#VMAM3t_-K55iat7_*Dd(Sv~z$^fNzTj}R{(pB9+`4!$)ko~h@MYnU($_?9jYPtA?vihvpms%d&O9>1Q1}V!R0RmeL-(%dX))v(Aqj5PXfg_s=A5hUBjX_a*5!*cIv{t&Gqe?(3Wm-ld5XORxcr<LE^Z>n6u%fpsF@#R)QJ_OON(L%RpmtEZ-;8SkQG+7ZN+ZQm%~PQ3fKgG6`r7L8FAN3E6}PJYCB|SvnI*)fC3+#CVC*=&oMrErm{}bQvyG9W>}5;~^3^@+W9b9Z89fhX=Oe0!n8oTRp@7>PzXtV%`BTgiUk5oHrCi)D8z(kfA3)qj$f4*C<i>|#C2DYD1g*|HFBqd%XnpbQ9ohAWy2-lMQ?^(gs&oT|pky4Y%$-27ibl3fLdvwJlHMOnYz!OQXXNB09T-OtDAacf2`DN$DZbE4JDe#f+df+@bs=Rc)9c>6`42Q;A2UcO#<e82L*m4QI3Z6Pi@m4il{(yf@LGG&*Dahvv}f2A{kw7ZyY!7VQY*3p)e{UV!P<x35#lB={<&lqJnE9|xs#(ove#_AlGxEiYJHgQ%rP%}95gqNO+?IySOsp<t(%23v;@Yp<{rtLn14(RS@%EGYWrn6>VAJZdG_qPq>qg{?}J%2)SbiKrq3U@>5gkQg?DJiVRO}n?QPVM2e6x;U_p0+s6_gTAUMi|H@U!UC&j`YEc86AS>53ESSdHIYdsKOJ?0~aob^jvtZZ!$sHp2lem^<WlTCHkx-ao5=uB7EI@z|T+^f==&H$4)rn$7g?R24z&Ea*){#EboYIoRdOl*RGKh<Fym%^=nw>SX%W_#BIs|ZaSSwrF~(921BeOes@rDv;0?0I(JT?dSI6YHsN&9lSoB<Rx*(!ks^k3PItBzbwIusdwQ+#$`(9fB-&>g?{HpPdgq39(<pzv5$o4VmQr!3bWi)UGaL4a5S1BBfK&U|Io~#Ap@B7kJBiBisToL^977X=XSCkF$cMatwKi@&_32Bx3zTiI0eP50Q}UF&Z@Dzar)8RXR_@3qZeUX98(#0x7-E%PPK2*Bzq@gXiN>a1prc)4h#<tNpBJak{iIAeTzRnRoZ=uxxKJdaC-ccQ3l56>n%XT`l(Z3}O}rRnZJ<kqm@>k0fC_uvLR=XlWDaK3YUvp|HFOE5_X_?sw{RGvIXc*h_w==x^~gLy6>R@f8JU3**U3TI8Hr(9Pr<w)Hfn?O10MPDkL{$gUyc$Mp?zu3T@&4U9Ht$c3w8z(>y|lcd>nLf%p1vs16vsXLR!DEszjpS;C6$N}E*L4i58B#CpnEy9&SPo7vb=-fjpWF<lat^_uvBX#|r#Lj{SUQirx<(hNPdI&p}wrILhUAy-CltDN50t&Nh83@8tB<vn$nv)Q<!4r69f>uk82t=>VoH`QC*4AyI+7e~VX^dV*)*K<6*b%$oPY+HhX(^t+%EJGDvXE$9U&Ub~aR_<9<H$othI+Axm3L7(60&|3l3#^ny^zGlEg~ajYgr;9P1WC`g!DFDYiZs2%W;H>+IT-wH^ysXqYJ8(vm+yqkE@>`m}b#sJP`gqj=l%$0d(4XEI2K|dn!ENaUt=zQoUad;DcYo<_XPYoxnuqZr)n{C_YF`TwIcvqA~x?1XY|bBYUD?stbS;MuWgy^yFda2NvkU)Lsoj*c#}#z3m2-J&q)<U2UGVAp|plSrU`_jf?QF68Ya&A}1aoAu=#X>71ttgw@4wpuulbV%wc7-3%42&YNnxTkQ6jJ>x7NS|VvL3Vp1VJZi&V1SW_{H-LQ~{ym)Xr=#=9*~!uA$=@b6UFFH-<$3w)wTbxpaq`zUo%D?o{r*of99ABZ$HUTAKz6MU`^{mm1G=u%)Pc2N6WZd>VbaOCf$H+va1?OCnz;UOg+3*q(FJgw-hhsat5g(;>(E`#VLDKaW_Gb%tI>g5IHU9u&fE&LFceovLnEqG1m%K3d?Gf{FN6s{#y`{Qm>OgJGv^muT;XAYXw;D~nz~~?&CCJ7cT!&^XIt>0uW2;ZBm3Td#=iC2L|QvH9KdlDYNd!LJ~*(^8U_?I`bWX!UL&e>{D552iAtdhn<TVi<AM}V&^dkL>nt=#r~)@ybk*kDp(d%EAP2_e_m|v7U`oeHXe!=jG%~6?-RZJ?fK)!5LC?JcQ6xt`r4zmPV$>RTYV~ihyHJWeHZ|E8FM<n@E&Uy@vzzM4!lhtfZUMA}nFIr_t^DXT1s*f@y(>g0QWjtl7|3dnK+QgTMIqv(DG973Pe2|T%?Oad6W-IIaMJ7x>9IV42wug>BFW@Wpm8rlv}TfZlmy<vskGN*Ygc|eQqjfG;0z_K9>Mm`tP56kBMXOV#y}<M?>M;0BBFX3uE1UePP<}6s(Tn~%=RmBNNmUPdMiD*;U(nrvcD@NI2S#{zA*DQ1`k}+xu4S`36}QP!r86itz9_BE@xE)3J{aaAz^}EXJXRC(YnQ`ebDz~cz9|zBx7=5Syr9NK_Wi4IiJqW#2(DQI-0(kwSFUJtwx&v1Mgvze7pn6B*a|19tbuL0thSlqb|7DJ{%6;4d?-GB;A}t@2q6g&Y%?fI{!}1k&HWrF~=`_M*~bwD$No3f5H&XEM@tpg4=PSHr%K^SK^|E)7v6KFW}IVS{d?~#nUIWO7U%4pIGm4YE2jm!%Fy8Ezi5jjZpSpu!%HDt~R?YcEa1z$*oZjnSRJZ#~0KaT{D&XiMO*`_g7@BZStAbXX>!Kn>-VCdsie@J0V~P^^)Z5Yij!ex(xFaI{-SW1IavN9!&<+=AIA%zQv}Az(9+18g+&98?G16?f4}Kc?Q7ydHe(B_y|9$n_BX!wlFYqkgtWBJdh#4O%C?<y^RDO^HwhZA_N23pXzIoW?sLQ@b(A3TA02f2kEXuRg3y;JixfxNrZ5%xV578dt0rksBJH1n~K<W;<c@4Z7Wv8aWdqQf(LlHep3<rFJ>@)eBt?&g7ZrW%|ed#AP+Ji!NW2w@xeH3OC~QlJeov8(x|0?uYbMuQRLNQ%c`f4Q%@tKo=!eJTsAqm^hZ66#q7G;e^}4sK|8rrnk2h*`{k;48?(q9m#@zzFHZh)cY8Q2=D+V3!w=Qxi_v%g_3o~h?@mlZVqW(sS87eTTq-6KVx-TvDNZrfgmW?2kP0ri&)(|w)ya9++>ZWPxAoVfZzCSYJqz#e5{g8q4Tmh>O^(APx$pQ3&~DIv3Gi2urGQ6pcbbL4zb{7z&)&z*(xL9Yt($i8o>FE#8t?xI=cFCoLXdYOaP75bWiH6`7CQL#V|BwXM)on8M#=cib#5QCL*jLg%j2W-BO9cXLp2*gBUr#1ShZ48gU}trX_$By;`-nNYLZIj@#MwP+tc&%)!XyeZ_jlatrsV!lR{o^9u-ACp>e}aNTP(u#1a#ol=i~SuU?;{4xgAy5zW*}1_TBLa=Z-+%dA3kqtT?SEJfl(E!yejvNB66{p_ZhkC_ATgOzfrjwt@grHgkc)rpQl(~H&;4Vxd<O8;>SMOQ1>ackp(sW>%P&h=j|ZjF6~0^l`N!%zxV-!w{Ahncp%s|xMNB=C@2S@5&Y?U*l~l_E(Bk+Np-?amgdE&NZwXYZTrB8+(8a=?cH(99Q2@=nOf7h0sD$l<PYpL|>?@k8>Sj7V|>i0~Io)<6TsaHQB}wOp^>@A7#X24-e&<-`ri#(_bzX2W>Q)15Ntng?2AraL03jR!lu>m!5*r}6fnqUg!ww?(XwRnn8Ed0XjELhkw&DpZ4;>Rvl&vGs`;5WK>h0?}!Gvd!%iye0%p|An9N;IjpFugtvlct0KuzqZRNr>QV`)fjV+dneEqMSc={yV3`xe%dmL=t$zwJZ$)(wuj8iXKX$@!{WgR{=sz0FrhRiL+bx2)6Au)I<rNijB_rAC7Bp8#&MY&za5!U-lK`a1*Q-u|5Fkq_I<rjOL_Ia_wZzqINk*sV6Jw;&HP5U%ILPV%h>Nr^GiA#@JYq}3!U&uLkE7&JTVG$wwra7yz_|@0CG1Y43>OaQExa@mCRiZ>3vV;4u)Q4pf#&upwV6UgIxMT69ZmMTbjv|NS^}mCqFxoK0tS%4aU_>2b6tWC;<RI4RryVQL+C<&%h4`m@$A1Vyd`;!70qwa5`7K+>O5BFnO{8Jd@Yne1ie#87$(OL=;aI9umy7*}xF+YI2iW_<dygrE-D`^FVT@H~bWGrXqdxI8#-A&7jHq1!5xi{Il19hctQN`t~lvO~Q2Y`~)Pmwb}Lj;>Gb(?jF><v~WXcpDj0R)_h52i#?`4$UT;@F^Z1J%J^KndUNA(H{9a>fiTvXh9M3pk_^8|=Jo=^Fps-oD45G7m)*(IY6*|0)_k#>O}8n<9{2i$=<7`HQKT9z;{^lQCO0UUD?ix4z%*s!ei3B0Sw}Fig_v2%e8oj|CsTc!zk$g;zv>`5UT~L5=O2;vF5f(|<mzOKEFT%x{0^zi<8pUMb9YIfpT2ricZ)Q=O`2v0YI!w*<b7lx^-cG76If*3*!RSs8xr1aV`}xVE$U0$j(D1D5hD2>;WkG;ZsLCU0_GtHy2Znuz^>3M^U&d)>S0Cq58Y=YHqUF#b)ejVF@~gbSY_(RSoFFe^h6opdJ;7O{>BL=a~g@>@a73IQZv^{I9wUUpz+lbV>^fnd!xH4T>jU`yLQs{E<kz#&cEOc@7by4oK|FFVv2@NGHH`LZyEOvnYIvf=P1A5ALCKg%jquV>AnMS?<QO$#x;q|3>;2B-DI2K=ZtlCxCB*8qD|uS$2AWi$A^r`jZl23z&M4sk1=AP7&W-sDv1?7JxiXF^v@^5?pe6#spUcAfGQud!?1M-eFTV+#H_fufegca;35AJPU-nq$R0&leKSt%pQHP6`RemV@vnt=BbkwdlB8g7H>dCwYH6Vot>`^J2G;Mo-;uK%V+9_yKn^|h!d1mblu*n#`8tn5PJuAu07jjAPXgFXZYPs#k5yB@3<!@9-;&Iw-@t>2SGt*-05km(?g%)(z>`Ew2)9dVHj?|M(c0AXE8omjlUn<JTDlb7=q{*U^p1b@2)~Cu@XZ;rwtRIyf^0x#HXk1*unh%bPDtckW&)Ck#B7Im9nPZE&cow}Zyq@?L6Hn8@zm7O51+v8x%l;~vva!w)c^nV_T+4GTz-H0>iLh8GcJk%m~p^Kv&MVZY9=F<l#X4x(PyT!cdCf#BO)R*bivgSv!OUkbqEIJR%_?*G`DsMJb)94g_y4^i_V9s!qvG<H3W##9SZxY(bpfSH?U@T@{DQ|+q|d&V}-(VZFgh{zas;+n?&O7)LjVV97@zdhlRE*MuIgY3Mo2j&M={n#`BY5N{W&n!q{(i;~d85Y8}db747?h6v9Zw(PF+JVr^8I9Nwe)t^gNv;Py<#(WBuk++fGL5}}iHVV&53oqS6-E%9~VD`W&GxezmuBW=!EKxrE*-Lwyt-urN7(%YVX+C2J}%~gSA^?o|LiOC6icXfS(`yU>1EA*{hd7e#PL?ou%7G+;b^3H;k3y+&DC&A+}QZvB7htwfwmsbn}Hlc06)fS`B)knv#N1X?T8#D<u@Hy^sX8$B~;OW8!+J_9d0if5X@xam3i;53Iva=~Z*<b-PHtKnO3KF0Y&$I)5w^Nn49%y0(fFxejY^Nl125<(8Uf}C$Kh+x(!SaPdmJQh_`9K8;`R_BP6~=wvJV=0X-+{+*rB{cw8$a^a8r3_E74rudzmTNob~o#dai$GwT=@n2gnMMUa7bDbCEj@Lhw`ny8FR7uwS(~O+u@obh$4He|2#8UDb1QqnV7S)>108YKGrm)gZY=7tTd!Tm@=o439ka&OD6*Wa&*%((sOl{CZ%B%oko-a9W*CSqc}@}BuvQY1NkO+JsvX2By@CS9CIRP{4m9OAdI<X)ITPNCW+rbC&7ECd3{h`1gC(UuGb$A8>4SXz>&t`Cu~1evJRwG;9l8qb(}ipZ_4;5uyL(Hd?>*$!+7mF(S!&N+5AealQ>0BUw%;Gbgj?F4<8j9w~E0HMPQGa1FBu(iAQ-`{Be&xG&gRWbB^|u*oWHTmd|@vgiNA#=W7NOwtN0j6wCwzZv@YaFd$)%3}-WovyVpuVse_<PurxSthp3Stj;-)p?o!%33UK$IF&B!TR!)^JF}lIR`-mJ6=n24EA$?X=E8++rh%Gr40={OglEF0>Vrfgqu~H#AF6K<T$@`hp3q)lcA#*Y|EBgd-`<D;pAdqx^>8BvLvWa;z*4&bd7ar&b3M3PByNhxz>hl2Nzjl|^w7eLBWd=W!~+%977xojPQJ_r&(kDx!t?)d5&9wiMWc0r8y1G-^}JRgMV?17hUDw&dTmm;^e)%?57cJd@Bn4()&2mL@L32X`yvMz%S8aEhXEj@AsY12mvPq*Y9zhlfl25t^QxYwE^UUtFi9SOQPXFy{bOrdbyNGWPF|={f;CF(!7EhU6z}$H8y(3`vAaJQ#;(VGkq}PXL)^f?Q$dtuQru<o(o)8Fksqx7?;WLAGKBoZ3rntLn7ql<BHB2#qL2%fZ$rdpR>a!ycq%d==cwm1P6JOIGp-!EWgeKY{)<1XI|#X?-M?Q`pm&q2ha^KcSUg{Ip#Qt)K<||0bh#|c!1;U5;NxS^etLC0In|eNT(C*+@~~LWOQ_qFI4f3ptybs~SI^aO=Ym`nms--qp-rzsU66Uu;STl4H&&}v-`;ip4>Xuc=>'
-)).decode('utf-8'), globals(), globals())
+from ea_node_editor.execution.handle_registry import StaleHandleError
+from ea_node_editor.execution.protocol import (
+    CloseViewerSessionCommand,
+    MaterializeViewerDataCommand,
+    OpenViewerSessionCommand,
+    UpdateViewerSessionCommand,
+    ViewerDataMaterializedEvent,
+    ViewerSessionClosedEvent,
+    ViewerSessionFailedEvent,
+    ViewerSessionOpenedEvent,
+    ViewerSessionUpdatedEvent,
+)
+from ea_node_editor.execution.viewer_backend import ViewerBackendMaterializationRequest
+from ea_node_editor.execution.viewer_backend_dpf import DPF_EXECUTION_VIEWER_BACKEND_ID
+from ea_node_editor.nodes.types import RuntimeArtifactRef, coerce_runtime_handle_ref
+
+if TYPE_CHECKING:
+    from ea_node_editor.execution.protocol import WorkerEvent, WorkerCommand
+    from ea_node_editor.execution.runtime_snapshot import RuntimeSnapshot, RuntimeSnapshotContext
+    from ea_node_editor.execution.worker_services import WorkerServices
+
+_DEFAULT_OUTPUT_PROFILE = "memory"
+_SESSION_ID_PREFIX = "viewer_session_"
+_SESSION_INVALIDATION_REASON_RERUN = "workspace_rerun"
+_SESSION_INVALIDATION_REASON_PROJECT_REPLACED = "project_replaced"
+_MATERIALIZED_DATA_KEYS = frozenset({"dataset", "preview", "csv", "png", "vtu", "vtm"})
+_MATERIALIZE_TRANSIENT_OPTION_KEYS = frozenset({"temporary_root_parent", "force_recompute"})
+_CLOSE_TRANSIENT_OPTION_KEYS = frozenset({"reason", "release_handles"})
+_TRANSPORT_RERUN_REQUIRED_BLOCKER = {
+    "code": "rerun_required",
+    "reason": "Live viewer transport is unavailable and requires rerun.",
+    "rerun_required": True,
+}
+_VALID_VIEWER_SESSION_PHASES = frozenset(
+    {"open", "opening", "closing", "closed", "blocked", "invalidated", "error"}
+)
+
+
+def _copy_mapping(value: Any) -> dict[str, Any]:
+    if not isinstance(value, Mapping):
+        return {}
+    return {str(key): copy.deepcopy(item) for key, item in value.items()}
+
+
+def _coerce_int(value: Any, *, default: int = 0) -> int:
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return default
+
+
+def _transport_is_live(transport: Mapping[str, Any]) -> bool:
+    if not transport:
+        return False
+    kind = str(transport.get("kind", "")).strip()
+    if kind == "dpf_transport_bundle":
+        manifest_path = str(transport.get("manifest_path", "")).strip()
+        entry_path = str(transport.get("entry_path", "")).strip()
+        if not manifest_path or not entry_path:
+            return False
+        return Path(manifest_path).is_file() and Path(entry_path).is_file()
+    return bool(kind)
+
+
+def build_viewer_session_model(
+    *,
+    workspace_id: str,
+    node_id: str,
+    session_id: str,
+    phase: str,
+    request_id: str = "",
+    last_command: str = "",
+    last_error: str = "",
+    playback_state: Mapping[str, Any] | None = None,
+    live_policy: str = "focus_only",
+    keep_live: bool = False,
+    cache_state: str = "empty",
+    invalidated_reason: str = "",
+    close_reason: str = "",
+    backend_id: str = "",
+    transport_revision: int = 0,
+    live_mode: str = "proxy",
+    live_open_status: str = "",
+    live_open_blocker: Mapping[str, Any] | None = None,
+    data_refs: Mapping[str, Any] | None = None,
+    transport: Mapping[str, Any] | None = None,
+    camera_state: Mapping[str, Any] | None = None,
+    summary: Mapping[str, Any] | None = None,
+    options: Mapping[str, Any] | None = None,
+) -> dict[str, Any]:
+    normalized_phase = str(phase).strip().lower() or "closed"
+    if normalized_phase not in _VALID_VIEWER_SESSION_PHASES:
+        normalized_phase = "closed"
+    normalized_playback = _copy_mapping(playback_state)
+    normalized_playback = {
+        "state": str(normalized_playback.get("state", "paused")).strip() or "paused",
+        "step_index": _coerce_int(normalized_playback.get("step_index"), default=0),
+    }
+    normalized_live_policy = str(live_policy).strip().lower() or "focus_only"
+    if normalized_live_policy not in {"focus_only", "keep_live"}:
+        normalized_live_policy = "focus_only"
+    normalized_live_mode = str(live_mode).strip().lower() or "proxy"
+    if normalized_live_mode not in {"proxy", "full"}:
+        normalized_live_mode = "proxy"
+
+    normalized_summary = _copy_mapping(summary)
+    normalized_options = _copy_mapping(options)
+    normalized_live_open_blocker = _copy_mapping(live_open_blocker)
+    normalized_data_refs = _copy_mapping(data_refs)
+    normalized_transport = _copy_mapping(transport)
+    normalized_camera_state = _copy_mapping(camera_state)
+    normalized_cache_state = str(cache_state).strip() or "empty"
+    normalized_backend_id = str(backend_id).strip()
+    normalized_transport_revision = _coerce_int(transport_revision)
+    normalized_live_open_status = str(live_open_status).strip()
+    normalized_invalidated_reason = str(invalidated_reason).strip()
+    normalized_close_reason = str(close_reason).strip()
+
+    if normalized_camera_state:
+        normalized_summary.setdefault("camera_state", copy.deepcopy(normalized_camera_state))
+        normalized_summary.setdefault("camera", copy.deepcopy(normalized_camera_state))
+
+    normalized_options["live_policy"] = normalized_live_policy
+    normalized_options["keep_live"] = bool(keep_live)
+    normalized_options["playback_state"] = normalized_playback["state"]
+    normalized_options["step_index"] = normalized_playback["step_index"]
+    normalized_options["playback"] = copy.deepcopy(normalized_playback)
+    normalized_options["live_mode"] = normalized_live_mode
+    return {
+        "workspace_id": str(workspace_id).strip(),
+        "node_id": str(node_id).strip(),
+        "session_id": str(session_id).strip(),
+        "phase": normalized_phase,
+        "request_id": str(request_id).strip(),
+        "last_command": str(last_command).strip(),
+        "last_error": str(last_error).strip(),
+        "playback_state": normalized_playback["state"],
+        "step_index": normalized_playback["step_index"],
+        "playback": copy.deepcopy(normalized_playback),
+        "live_policy": normalized_live_policy,
+        "keep_live": bool(keep_live),
+        "cache_state": normalized_cache_state,
+        "invalidated_reason": normalized_invalidated_reason,
+        "close_reason": normalized_close_reason,
+        "backend_id": normalized_backend_id,
+        "transport_revision": normalized_transport_revision,
+        "live_mode": normalized_live_mode,
+        "live_open_status": normalized_live_open_status,
+        "live_open_blocker": copy.deepcopy(normalized_live_open_blocker),
+        "data_refs": copy.deepcopy(normalized_data_refs),
+        "transport": copy.deepcopy(normalized_transport),
+        "camera_state": copy.deepcopy(normalized_camera_state),
+        "summary": normalized_summary,
+        "options": normalized_options,
+    }
+
+
+def projection_safe_viewer_transport(value: Any) -> dict[str, Any]:
+    transport = _copy_mapping(value)
+    projection: dict[str, Any] = {}
+    kind = str(transport.get("kind", "")).strip()
+    if kind:
+        projection["kind"] = kind
+    backend_id = str(transport.get("backend_id", "")).strip()
+    if backend_id:
+        projection["backend_id"] = backend_id
+    return projection
+
+
+def coerce_viewer_session_model(payload: Mapping[str, Any] | None) -> dict[str, Any]:
+    payload_map = _copy_mapping(payload)
+    if not payload_map:
+        return {}
+
+    summary = _copy_mapping(payload_map.get("summary"))
+    options = _copy_mapping(payload_map.get("options"))
+    playback = _copy_mapping(payload_map.get("playback"))
+    if not playback:
+        playback_state_payload = payload_map.get("playback_state")
+        playback = _copy_mapping(playback_state_payload)
+        if not playback:
+            playback = {
+                "state": str(playback_state_payload or "paused").strip()
+                or "paused",
+                "step_index": _coerce_int(
+                    payload_map.get("step_index", 0),
+                    default=0,
+                ),
+            }
+    camera_state = _copy_mapping(payload_map.get("camera_state"))
+    phase = str(payload_map.get("phase", "") or "").strip()
+    if not phase:
+        phase = "closed"
+
+    return build_viewer_session_model(
+        workspace_id=str(payload_map.get("workspace_id", "") or "").strip(),
+        node_id=str(payload_map.get("node_id", "") or "").strip(),
+        session_id=str(payload_map.get("session_id", "") or "").strip(),
+        phase=phase,
+        request_id=str(payload_map.get("request_id", "") or "").strip(),
+        last_command=str(payload_map.get("last_command", "") or "").strip(),
+        last_error=str(payload_map.get("last_error", "") or "").strip(),
+        playback_state=playback,
+        live_policy=payload_map.get("live_policy", ""),
+        keep_live=bool(payload_map.get("keep_live", False)),
+        cache_state=str(payload_map.get("cache_state", "") or "").strip(),
+        invalidated_reason=str(payload_map.get("invalidated_reason", "") or "").strip(),
+        close_reason=str(payload_map.get("close_reason", "") or "").strip(),
+        backend_id=str(payload_map.get("backend_id", "") or "").strip(),
+        transport_revision=payload_map.get("transport_revision", 0),
+        live_mode=payload_map.get("live_mode", ""),
+        live_open_status=str(payload_map.get("live_open_status", "") or "").strip(),
+        live_open_blocker=_copy_mapping(payload_map.get("live_open_blocker")),
+        data_refs=_copy_mapping(payload_map.get("data_refs")),
+        transport=_copy_mapping(payload_map.get("transport")),
+        camera_state=camera_state,
+        summary=summary,
+        options=options,
+    )
+
+
+def _viewer_session_has_proxy_projection(model: Mapping[str, Any]) -> bool:
+    return any(
+        (
+            bool(_copy_mapping(model.get("summary"))),
+            bool(_copy_mapping(model.get("options"))),
+            bool(_copy_mapping(model.get("camera_state"))),
+            _coerce_int(model.get("transport_revision"), default=0) > 0,
+            bool(str(model.get("backend_id", "")).strip()),
+        )
+    )
+
+
+def build_run_required_viewer_session_model(
+    payload: Mapping[str, Any] | None,
+    *,
+    reason: str,
+    run_id: str = "",
+    last_command: str = "run_required",
+) -> dict[str, Any]:
+    base_model = coerce_viewer_session_model(payload)
+    if not base_model:
+        return {}
+
+    blocker = copy.deepcopy(_TRANSPORT_RERUN_REQUIRED_BLOCKER)
+    summary = _copy_mapping(base_model.get("summary"))
+    options = _copy_mapping(base_model.get("options"))
+    cache_state = "proxy_ready" if _viewer_session_has_proxy_projection(base_model) else "empty"
+
+    summary["cache_state"] = cache_state
+    summary["live_open_status"] = "blocked"
+    summary["live_open_blocker"] = copy.deepcopy(blocker)
+    summary["rerun_required"] = True
+    backend_id = str(base_model.get("backend_id", "")).strip()
+    if backend_id:
+        summary["backend_id"] = backend_id
+    transport_revision = _coerce_int(base_model.get("transport_revision"), default=0)
+    if transport_revision > 0:
+        summary["transport_revision"] = transport_revision
+    if str(reason).strip():
+        summary["live_transport_release_reason"] = str(reason).strip()
+    if str(run_id).strip():
+        summary["run_id"] = str(run_id).strip()
+
+    options["cache_state"] = cache_state
+    options["live_mode"] = "proxy"
+    options["live_open_status"] = "blocked"
+    options["live_open_blocker"] = copy.deepcopy(blocker)
+    options["rerun_required"] = True
+    options["playback_state"] = str(base_model.get("playback_state", "paused")).strip() or "paused"
+    options["step_index"] = _coerce_int(base_model.get("step_index"), default=0)
+    options["live_policy"] = "focus_only"
+    options["keep_live"] = False
+    if backend_id:
+        options["backend_id"] = backend_id
+    if transport_revision > 0:
+        options["transport_revision"] = transport_revision
+
+    return build_viewer_session_model(
+        workspace_id=str(base_model.get("workspace_id", "")).strip(),
+        node_id=str(base_model.get("node_id", "")).strip(),
+        session_id=str(base_model.get("session_id", "")).strip(),
+        phase="blocked",
+        request_id="",
+        last_command=str(last_command).strip() or "run_required",
+        last_error="",
+        playback_state=_copy_mapping(base_model.get("playback")) or {
+            "state": str(base_model.get("playback_state", "paused")).strip() or "paused",
+            "step_index": _coerce_int(base_model.get("step_index"), default=0),
+        },
+        live_policy="focus_only",
+        keep_live=False,
+        cache_state=cache_state,
+        invalidated_reason=str(base_model.get("invalidated_reason", "")).strip(),
+        close_reason=str(base_model.get("close_reason", "")).strip(),
+        backend_id=backend_id,
+        transport_revision=transport_revision,
+        live_mode="proxy",
+        live_open_status="blocked",
+        live_open_blocker=blocker,
+        data_refs={},
+        transport=projection_safe_viewer_transport(base_model.get("transport")),
+        camera_state=_copy_mapping(base_model.get("camera_state")),
+        summary=summary,
+        options=options,
+    )
+
+
+@dataclass(slots=True)
+class _ViewerWorkspaceContext:
+    project_path: str = ""
+    runtime_snapshot: RuntimeSnapshot | None = None
+    runtime_snapshot_context: RuntimeSnapshotContext | None = None
+
+
+@dataclass(slots=True)
+class _ViewerSessionRecord:
+    workspace_id: str
+    node_id: str
+    session_id: str
+    owner_scope: str
+    backend_id: str = DPF_EXECUTION_VIEWER_BACKEND_ID
+    source_refs: dict[str, Any] = field(default_factory=dict)
+    materialized_refs: dict[str, Any] = field(default_factory=dict)
+    transport: dict[str, Any] = field(default_factory=dict)
+    transport_revision: int = 0
+    live_open_status: str = ""
+    live_open_blocker: dict[str, Any] = field(default_factory=dict)
+    camera_state: dict[str, Any] = field(default_factory=dict)
+    playback_state: dict[str, Any] = field(
+        default_factory=lambda: {
+            "state": "paused",
+            "step_index": 0,
+        }
+    )
+    summary: dict[str, Any] = field(default_factory=dict)
+    options: dict[str, Any] = field(default_factory=dict)
+    session_state: str = "open"
+    invalidated_reason: str = ""
+    rerun_required: bool = False
+    stale_ref_keys: set[str] = field(default_factory=set)
+
+    def has_live_dataset(self) -> bool:
+        return coerce_runtime_handle_ref(self.materialized_refs.get("dataset")) is not None
+
+    def cache_state(self) -> str:
+        if self.invalidated_reason:
+            return "invalidated"
+        if self.session_state == "closed":
+            return "closed"
+        if _transport_is_live(self.transport):
+            return "live_ready"
+        if self.source_refs or self.materialized_refs or self.transport or self.rerun_required:
+            return "proxy_ready"
+        return "empty"
+
+    def public_data_refs(self) -> dict[str, Any]:
+        return copy.deepcopy(self.materialized_refs)
+
+    def public_summary(self) -> dict[str, Any]:
+        summary = copy.deepcopy(self.summary)
+        summary["cache_state"] = self.cache_state()
+        summary["has_source_data"] = bool(self.source_refs)
+        summary["has_materialized_data"] = bool(self.materialized_refs)
+        summary["backend_id"] = self.backend_id
+        summary["transport_revision"] = self.transport_revision
+        summary["live_open_status"] = self.live_open_status
+        if self.invalidated_reason:
+            summary["invalidated_reason"] = self.invalidated_reason
+        if self.rerun_required:
+            summary["rerun_required"] = True
+        if self.live_open_blocker:
+            summary["live_open_blocker"] = copy.deepcopy(self.live_open_blocker)
+        if self.camera_state:
+            summary["camera"] = copy.deepcopy(self.camera_state)
+            summary["camera_state"] = copy.deepcopy(self.camera_state)
+        if self.stale_ref_keys:
+            summary["stale_ref_keys"] = sorted(self.stale_ref_keys)
+        artifact_formats = sorted(
+            key
+            for key, value in self.materialized_refs.items()
+            if isinstance(value, RuntimeArtifactRef)
+        )
+        if artifact_formats:
+            summary["artifact_formats"] = artifact_formats
+        if self.has_live_dataset():
+            summary["live_dataset_key"] = "dataset"
+        return summary
+
+    def public_options(self) -> dict[str, Any]:
+        options = copy.deepcopy(self.options)
+        requested_live_mode = str(options.get("live_mode", "")).strip() or "proxy"
+        live_ready = self.live_open_status == "ready" and not self.invalidated_reason
+        options["live_mode"] = requested_live_mode if live_ready else "proxy"
+        options["session_state"] = self.session_state
+        options["cache_state"] = self.cache_state()
+        options["backend_id"] = self.backend_id
+        options["transport_revision"] = self.transport_revision
+        options["live_open_status"] = self.live_open_status
+        options["rerun_required"] = self.rerun_required
+        if self.live_open_blocker:
+            options["live_open_blocker"] = copy.deepcopy(self.live_open_blocker)
+        playback_state = copy.deepcopy(self.playback_state)
+        options["playback_state"] = str(playback_state.get("state", "paused")).strip() or "paused"
+        options["step_index"] = _coerce_int(playback_state.get("step_index"), default=0)
+        options["playback"] = playback_state
+        return options
+
+    def public_phase(self) -> str:
+        if self.session_state == "closed":
+            return "closed"
+        if self.invalidated_reason:
+            if self.rerun_required or self.live_open_status == "blocked":
+                return "blocked"
+            return "invalidated"
+        if self.rerun_required and self.live_open_status == "blocked":
+            return "blocked"
+        return "open"
+
+    def public_projection(
+        self,
+        *,
+        summary: Mapping[str, Any] | None = None,
+        options: Mapping[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        resolved_summary = _copy_mapping(summary) if summary is not None else self.public_summary()
+        resolved_options = _copy_mapping(options) if options is not None else self.public_options()
+        return build_viewer_session_model(
+            workspace_id=self.workspace_id,
+            node_id=self.node_id,
+            session_id=self.session_id,
+            phase=self.public_phase(),
+            playback_state=self.playback_state,
+            live_policy=str(resolved_options.get("live_policy", self.options.get("live_policy", "focus_only"))),
+            keep_live=bool(resolved_options.get("keep_live", self.options.get("keep_live", False))),
+            cache_state=self.cache_state(),
+            invalidated_reason=self.invalidated_reason,
+            close_reason=str(
+                resolved_summary.get("close_reason") or self.summary.get("close_reason", "")
+            ).strip(),
+            backend_id=self.backend_id,
+            transport_revision=self.transport_revision,
+            live_mode=str(resolved_options.get("live_mode", self.options.get("live_mode", "proxy"))),
+            live_open_status=self.live_open_status,
+            live_open_blocker=self.live_open_blocker,
+            data_refs=self.public_data_refs(),
+            transport=self.transport,
+            camera_state=self.camera_state,
+            summary=resolved_summary,
+            options=resolved_options,
+        )
+
+
+class ViewerSessionService:
+    def __init__(self, worker_services: WorkerServices) -> None:
+        self._worker_services = worker_services
+        self._backend_registry = worker_services.viewer_backend_registry
+        self._sessions: dict[tuple[str, str], _ViewerSessionRecord] = {}
+        self._workspace_contexts: dict[str, _ViewerWorkspaceContext] = {}
+
+    def _public_event_contract(
+        self,
+        record: _ViewerSessionRecord,
+        *,
+        summary: Mapping[str, Any] | None = None,
+        options: Mapping[str, Any] | None = None,
+    ) -> tuple[dict[str, Any], dict[str, Any]]:
+        public_summary = _copy_mapping(summary) if summary is not None else record.public_summary()
+        public_options = _copy_mapping(options) if options is not None else record.public_options()
+        return public_summary, public_options
+
+    def prepare_workspace_context(
+        self,
+        *,
+        workspace_id: str,
+        project_path: str = "",
+        runtime_snapshot: RuntimeSnapshot | None = None,
+        runtime_snapshot_context: RuntimeSnapshotContext | None = None,
+        invalidate_existing: bool = False,
+    ) -> None:
+        normalized_workspace_id = self._normalize_required_string("workspace_id", workspace_id)
+        normalized_project_path = str(project_path).strip()
+        previous_context = self._workspace_contexts.get(normalized_workspace_id)
+        if (
+            previous_context is not None
+            and not invalidate_existing
+            and previous_context.project_path
+            and normalized_project_path
+            and previous_context.project_path != normalized_project_path
+        ):
+            self.invalidate_workspace(
+                normalized_workspace_id,
+                reason=_SESSION_INVALIDATION_REASON_PROJECT_REPLACED,
+            )
+        if invalidate_existing:
+            self.invalidate_workspace(
+                normalized_workspace_id,
+                reason=_SESSION_INVALIDATION_REASON_RERUN,
+            )
+        self._workspace_contexts[normalized_workspace_id] = _ViewerWorkspaceContext(
+            project_path=normalized_project_path,
+            runtime_snapshot=runtime_snapshot,
+            runtime_snapshot_context=runtime_snapshot_context,
+        )
+
+    def invalidate_workspace(self, workspace_id: str, *, reason: str) -> int:
+        normalized_workspace_id = self._normalize_required_string("workspace_id", workspace_id)
+        normalized_reason = self._normalize_required_string("reason", reason)
+        invalidated_count = 0
+        for session_key, record in self._sessions.items():
+            if session_key[0] != normalized_workspace_id:
+                continue
+            self._release_live_transport(
+                record,
+                reason=normalized_reason,
+                mark_rerun_required=True,
+            )
+            self._release_owner_scope(record.owner_scope)
+            record.source_refs.clear()
+            record.materialized_refs.clear()
+            record.session_state = "invalidated"
+            record.invalidated_reason = normalized_reason
+            record.rerun_required = True
+            record.stale_ref_keys.clear()
+            self._refresh_public_contract(record)
+            invalidated_count += 1
+        return invalidated_count
+
+    def reset(self) -> None:
+        for record in self._sessions.values():
+            self._release_live_transport(
+                record,
+                reason="worker_reset",
+                mark_rerun_required=False,
+            )
+        try:
+            dpf_backend = self._backend_registry.resolve(DPF_EXECUTION_VIEWER_BACKEND_ID)
+        except LookupError:
+            dpf_backend = None
+        if dpf_backend is not None and hasattr(dpf_backend, "reset"):
+            try:
+                dpf_backend.reset()
+            except Exception:  # noqa: BLE001
+                pass
+        released_owner_scopes = {record.owner_scope for record in self._sessions.values()}
+        for owner_scope in released_owner_scopes:
+            self._release_owner_scope(owner_scope)
+        self._sessions.clear()
+        self._workspace_contexts.clear()
+
+    def handle_command(self, command: WorkerCommand) -> WorkerEvent:
+        if isinstance(command, OpenViewerSessionCommand):
+            return self.open_session(command)
+        if isinstance(command, UpdateViewerSessionCommand):
+            return self.update_session(command)
+        if isinstance(command, CloseViewerSessionCommand):
+            return self.close_session(command)
+        if isinstance(command, MaterializeViewerDataCommand):
+            return self.materialize_data(command)
+        raise TypeError(f"Unsupported viewer session command: {type(command)!r}")
+
+    def open_session(self, command: OpenViewerSessionCommand) -> ViewerSessionOpenedEvent | ViewerSessionFailedEvent:
+        workspace_id, node_id = self._normalize_workspace_and_node(command)
+        if not workspace_id or not node_id:
+            return self._failure(command, "workspace_id and node_id are required.")
+
+        session_id = str(command.session_id).strip() or self._next_session_id()
+        session_key = (workspace_id, session_id)
+        record = self._sessions.get(session_key)
+        if record is None:
+            record = _ViewerSessionRecord(
+                workspace_id=workspace_id,
+                node_id=node_id,
+                session_id=session_id,
+                owner_scope=self._session_owner_scope(workspace_id, session_id),
+            )
+            self._sessions[session_key] = record
+        elif record.node_id != node_id:
+            return self._failure(
+                command,
+                f"session_id {session_id!r} is already bound to node_id {record.node_id!r}.",
+                session_id=session_id,
+            )
+
+        self._sanitize_record(record)
+        open_options = _copy_mapping(command.options)
+        open_options["live_policy"] = "focus_only"
+        open_options["keep_live"] = False
+        self._apply_session_payload(
+            record,
+            backend_id=command.backend_id,
+            data_refs=command.data_refs,
+            transport=command.transport,
+            transport_revision=command.transport_revision,
+            live_open_status=command.live_open_status,
+            live_open_blocker=command.live_open_blocker,
+            camera_state=command.camera_state,
+            playback_state=command.playback_state,
+            summary=command.summary,
+            options=open_options,
+        )
+        if command.data_refs or command.transport:
+            record.invalidated_reason = ""
+        record.session_state = "open"
+        self._refresh_public_contract(record)
+        public_summary, public_options = self._public_event_contract(record)
+        return ViewerSessionOpenedEvent(
+            request_id=command.request_id,
+            workspace_id=workspace_id,
+            node_id=node_id,
+            session_id=session_id,
+            backend_id=record.backend_id,
+            data_refs=record.public_data_refs(),
+            transport=copy.deepcopy(record.transport),
+            transport_revision=record.transport_revision,
+            live_open_status=record.live_open_status,
+            live_open_blocker=copy.deepcopy(record.live_open_blocker),
+            camera_state=copy.deepcopy(record.camera_state),
+            playback_state=copy.deepcopy(record.playback_state),
+            summary=public_summary,
+            options=public_options,
+        )
+
+    def update_session(self, command: UpdateViewerSessionCommand) -> ViewerSessionUpdatedEvent | ViewerSessionFailedEvent:
+        record = self._require_record(command)
+        if isinstance(record, ViewerSessionFailedEvent):
+            return record
+
+        self._sanitize_record(record)
+        self._apply_session_payload(
+            record,
+            backend_id=command.backend_id,
+            data_refs=command.data_refs,
+            transport=command.transport,
+            transport_revision=command.transport_revision,
+            live_open_status=command.live_open_status,
+            live_open_blocker=command.live_open_blocker,
+            camera_state=command.camera_state,
+            playback_state=command.playback_state,
+            summary=command.summary,
+            options=command.options,
+        )
+        if command.data_refs or command.transport:
+            record.invalidated_reason = ""
+        record.session_state = "open"
+        self._refresh_public_contract(record)
+        public_summary, public_options = self._public_event_contract(record)
+        return ViewerSessionUpdatedEvent(
+            request_id=command.request_id,
+            workspace_id=record.workspace_id,
+            node_id=record.node_id,
+            session_id=record.session_id,
+            backend_id=record.backend_id,
+            data_refs=record.public_data_refs(),
+            transport=copy.deepcopy(record.transport),
+            transport_revision=record.transport_revision,
+            live_open_status=record.live_open_status,
+            live_open_blocker=copy.deepcopy(record.live_open_blocker),
+            camera_state=copy.deepcopy(record.camera_state),
+            playback_state=copy.deepcopy(record.playback_state),
+            summary=public_summary,
+            options=public_options,
+        )
+
+    def close_session(self, command: CloseViewerSessionCommand) -> ViewerSessionClosedEvent | ViewerSessionFailedEvent:
+        record = self._require_record(command)
+        if isinstance(record, ViewerSessionFailedEvent):
+            return record
+
+        self._sanitize_record(record)
+        release_handles = bool(command.options.get("release_handles", False))
+        if release_handles:
+            self._release_materialized_handles(record)
+        else:
+            self._release_live_dataset_ref(record)
+
+        self._release_live_transport(
+            record,
+            reason="session_closed",
+            mark_rerun_required=True,
+        )
+
+        reason = str(command.options.get("reason", "")).strip()
+        if reason:
+            record.summary["close_reason"] = reason
+        record.session_state = "closed"
+        self._refresh_public_contract(record)
+
+        event_options = record.public_options()
+        if reason:
+            event_options["reason"] = reason
+        if "release_handles" in command.options:
+            event_options["release_handles"] = release_handles
+        public_summary, public_options = self._public_event_contract(
+            record,
+            options=event_options,
+        )
+        return ViewerSessionClosedEvent(
+            request_id=command.request_id,
+            workspace_id=record.workspace_id,
+            node_id=record.node_id,
+            session_id=record.session_id,
+            backend_id=record.backend_id,
+            transport=copy.deepcopy(record.transport),
+            transport_revision=record.transport_revision,
+            live_open_status=record.live_open_status,
+            live_open_blocker=copy.deepcopy(record.live_open_blocker),
+            camera_state=copy.deepcopy(record.camera_state),
+            playback_state=copy.deepcopy(record.playback_state),
+            summary=public_summary,
+            options=public_options,
+        )
+
+    def materialize_data(
+        self,
+        command: MaterializeViewerDataCommand,
+    ) -> ViewerDataMaterializedEvent | ViewerSessionFailedEvent:
+        record = self._require_record(command)
+        if isinstance(record, ViewerSessionFailedEvent):
+            return record
+
+        self._sanitize_record(record)
+        request_options = copy.deepcopy(command.options)
+        persistent_options = {
+            str(key): copy.deepcopy(value)
+            for key, value in request_options.items()
+            if str(key) not in _MATERIALIZE_TRANSIENT_OPTION_KEYS
+        }
+        if persistent_options:
+            record.options.update(persistent_options)
+
+        output_profile = self._resolve_output_profile(record, request_options)
+        export_formats = self._normalize_export_formats(request_options.get("export_formats", record.options.get("export_formats")))
+        if not bool(request_options.get("force_recompute", False)):
+            cached_event = self._cached_materialization_event(
+                record,
+                command=command,
+                output_profile=output_profile,
+                export_formats=export_formats,
+            )
+            if cached_event is not None:
+                record.session_state = "open"
+                return cached_event
+
+        if record.invalidated_reason and not record.source_refs:
+            return self._failure(
+                command,
+                f"Viewer session {record.session_id!r} is invalidated: {record.invalidated_reason}.",
+            )
+
+        context = self._workspace_contexts.get(record.workspace_id)
+        backend_id = str(command.backend_id).strip() or record.backend_id or DPF_EXECUTION_VIEWER_BACKEND_ID
+        try:
+            result_payload = self._materialize_backend_result(
+                record,
+                backend_id=backend_id,
+                request_options=request_options,
+                output_profile=output_profile,
+                export_formats=export_formats,
+                context=context,
+            )
+        except Exception as exc:  # noqa: BLE001
+            return self._failure(command, str(exc))
+
+        self._merge_record_refs(
+            record,
+            source_refs={},
+            materialized_refs=result_payload["data_refs"],
+        )
+        result_backend_id = str(result_payload["backend_id"]).strip() or backend_id
+        result_transport = _copy_mapping(result_payload["transport"])
+        result_transport_revision = _coerce_int(result_payload["transport_revision"])
+        result_camera_state = _copy_mapping(result_payload["camera_state"])
+        result_playback_state = _copy_mapping(result_payload["playback_state"])
+        result_live_open_status = str(result_payload["live_open_status"]).strip()
+        result_live_open_blocker = _copy_mapping(result_payload["live_open_blocker"])
+        record.backend_id = result_backend_id
+        self._set_transport_state(
+            record,
+            transport=result_transport,
+            transport_revision=result_transport_revision,
+        )
+        if result_camera_state:
+            record.camera_state = result_camera_state
+        if result_playback_state:
+            record.playback_state = self._normalize_playback_state(
+                result_playback_state,
+                fallback=record.playback_state,
+            )
+        record.summary.update(copy.deepcopy(result_payload["summary"]))
+        record.summary["materialized_output_profile"] = output_profile
+        record.invalidated_reason = ""
+        record.rerun_required = bool(result_live_open_blocker.get("rerun_required", False))
+        if not record.rerun_required and result_transport and not _transport_is_live(result_transport):
+            record.rerun_required = True
+        record.session_state = "open"
+        self._refresh_public_contract(
+            record,
+            live_open_status=result_live_open_status,
+            live_open_blocker=result_live_open_blocker,
+        )
+        public_summary, public_options = self._public_event_contract(record)
+        return ViewerDataMaterializedEvent(
+            request_id=command.request_id,
+            workspace_id=record.workspace_id,
+            node_id=record.node_id,
+            session_id=record.session_id,
+            backend_id=record.backend_id,
+            data_refs=record.public_data_refs(),
+            transport=copy.deepcopy(record.transport),
+            transport_revision=record.transport_revision,
+            live_open_status=record.live_open_status,
+            live_open_blocker=copy.deepcopy(record.live_open_blocker),
+            camera_state=copy.deepcopy(record.camera_state),
+            playback_state=copy.deepcopy(record.playback_state),
+            summary=public_summary,
+            options=public_options,
+        )
+
+    def _materialize_backend_result(
+        self,
+        record: _ViewerSessionRecord,
+        *,
+        backend_id: str,
+        request_options: Mapping[str, Any],
+        output_profile: str,
+        export_formats: tuple[str, ...],
+        context: _ViewerWorkspaceContext | None,
+    ) -> dict[str, Any]:
+        backend = self._backend_registry.resolve(backend_id)
+        result = backend.materialize(
+            ViewerBackendMaterializationRequest(
+                workspace_id=record.workspace_id,
+                node_id=record.node_id,
+                session_id=record.session_id,
+                owner_scope=record.owner_scope,
+                source_refs=record.source_refs,
+                session_summary={
+                    **copy.deepcopy(record.summary),
+                    "camera_state": copy.deepcopy(record.camera_state),
+                },
+                session_options=record.options,
+                request_options=request_options,
+                output_profile=output_profile,
+                export_formats=export_formats,
+                project_path=context.project_path if context is not None else "",
+                runtime_snapshot=context.runtime_snapshot if context is not None else None,
+                runtime_snapshot_context=context.runtime_snapshot_context if context is not None else None,
+            )
+        )
+        return {
+            "backend_id": str(result.backend_id).strip() or backend_id,
+            "data_refs": copy.deepcopy(result.data_refs),
+            "transport": _copy_mapping(result.transport),
+            "transport_revision": _coerce_int(result.transport_revision),
+            "camera_state": _copy_mapping(result.camera_state),
+            "playback_state": _copy_mapping(result.playback_state),
+            "live_open_status": str(result.live_open_status).strip(),
+            "live_open_blocker": _copy_mapping(result.live_open_blocker),
+            "summary": _copy_mapping(result.summary),
+        }
+
+    @staticmethod
+    def _next_session_id() -> str:
+        return f"{_SESSION_ID_PREFIX}{uuid4().hex[:12]}"
+
+    @staticmethod
+    def _normalize_required_string(field_name: str, value: Any) -> str:
+        normalized = str(value).strip()
+        if not normalized:
+            raise ValueError(f"{field_name} is required.")
+        return normalized
+
+    @staticmethod
+    def _normalize_workspace_and_node(command: Any) -> tuple[str, str]:
+        workspace_id = str(getattr(command, "workspace_id", "")).strip()
+        node_id = str(getattr(command, "node_id", "")).strip()
+        return workspace_id, node_id
+
+    @staticmethod
+    def _session_owner_scope(workspace_id: str, session_id: str) -> str:
+        return f"cache:viewer_session:{workspace_id}:{session_id}"
+
+    @staticmethod
+    def _is_materialized_ref(key: str, value: Any) -> bool:
+        return isinstance(value, RuntimeArtifactRef) or str(key) in _MATERIALIZED_DATA_KEYS
+
+    @staticmethod
+    def _resolve_output_profile(record: _ViewerSessionRecord, request_options: Mapping[str, Any]) -> str:
+        profile = str(request_options.get("output_profile", record.options.get("output_profile", _DEFAULT_OUTPUT_PROFILE))).strip()
+        return profile or _DEFAULT_OUTPUT_PROFILE
+
+    @staticmethod
+    def _normalize_export_formats(value: Any) -> tuple[str, ...]:
+        if isinstance(value, str):
+            normalized = value.strip()
+            return (normalized,) if normalized else ()
+        if not isinstance(value, Iterable) or isinstance(value, Mapping):
+            return ()
+        formats: list[str] = []
+        for item in value:
+            token = str(item).strip()
+            if token and token not in formats:
+                formats.append(token)
+        return tuple(formats)
+
+    def _require_record(self, command: Any) -> _ViewerSessionRecord | ViewerSessionFailedEvent:
+        workspace_id, node_id = self._normalize_workspace_and_node(command)
+        session_id = str(getattr(command, "session_id", "")).strip()
+        if not workspace_id or not node_id or not session_id:
+            return self._failure(command, "workspace_id, node_id, and session_id are required.")
+        record = self._sessions.get((workspace_id, session_id))
+        if record is None:
+            return self._failure(command, f"Unknown viewer session: {session_id!r}.")
+        if record.node_id != node_id:
+            return self._failure(
+                command,
+                f"Viewer session {session_id!r} belongs to node_id {record.node_id!r}, not {node_id!r}.",
+            )
+        return record
+
+    def _failure(self, command: Any, error: str, *, session_id: str = "") -> ViewerSessionFailedEvent:
+        return ViewerSessionFailedEvent(
+            request_id=str(getattr(command, "request_id", "")).strip(),
+            workspace_id=str(getattr(command, "workspace_id", "")).strip(),
+            node_id=str(getattr(command, "node_id", "")).strip(),
+            session_id=session_id or str(getattr(command, "session_id", "")).strip(),
+            command=str(getattr(command, "type", "")).strip(),
+            error=str(error).strip() or "viewer session command failed",
+        )
+
+    def _sanitize_record(self, record: _ViewerSessionRecord) -> None:
+        record.source_refs, stale_source = self._sanitize_ref_map(record.source_refs)
+        record.materialized_refs, stale_materialized = self._sanitize_ref_map(record.materialized_refs)
+        record.stale_ref_keys = stale_source | stale_materialized
+        if record.transport and not record.materialized_refs:
+            self._release_live_transport(
+                record,
+                reason="stale_materialized_refs",
+                mark_rerun_required=bool(record.source_refs),
+            )
+        elif record.transport and not self._is_transport_live(record.transport):
+            self._release_live_transport(
+                record,
+                reason="transport_missing",
+                mark_rerun_required=True,
+            )
+        self._refresh_transport_refs(record)
+        self._refresh_public_contract(record)
+
+    def _sanitize_ref_map(self, ref_map: Mapping[str, Any]) -> tuple[dict[str, Any], set[str]]:
+        sanitized: dict[str, Any] = {}
+        stale_keys: set[str] = set()
+        for key, value in ref_map.items():
+            runtime_ref = coerce_runtime_handle_ref(value)
+            if runtime_ref is None:
+                sanitized[str(key)] = copy.deepcopy(value)
+                continue
+            try:
+                self._worker_services.resolve_handle(runtime_ref, expected_kind=runtime_ref.kind)
+            except (StaleHandleError, TypeError):
+                stale_keys.add(str(key))
+                continue
+            sanitized[str(key)] = runtime_ref
+        return sanitized, stale_keys
+
+    def _apply_session_payload(
+        self,
+        record: _ViewerSessionRecord,
+        *,
+        backend_id: str,
+        data_refs: Mapping[str, Any],
+        transport: Mapping[str, Any],
+        transport_revision: int,
+        live_open_status: str,
+        live_open_blocker: Mapping[str, Any],
+        camera_state: Mapping[str, Any],
+        playback_state: Mapping[str, Any],
+        summary: Mapping[str, Any],
+        options: Mapping[str, Any],
+    ) -> None:
+        source_refs: dict[str, Any] = {}
+        materialized_refs: dict[str, Any] = {}
+        for key, value in data_refs.items():
+            normalized_key = str(key)
+            persisted_value = self._persist_ref_value(
+                value,
+                owner_scope=record.owner_scope,
+            )
+            if persisted_value is None:
+                record.stale_ref_keys.add(normalized_key)
+                continue
+            if self._is_materialized_ref(normalized_key, persisted_value):
+                materialized_refs[normalized_key] = persisted_value
+            else:
+                source_refs[normalized_key] = persisted_value
+            record.stale_ref_keys.discard(normalized_key)
+
+        self._merge_record_refs(
+            record,
+            source_refs=source_refs,
+            materialized_refs=materialized_refs,
+        )
+        normalized_backend_id = str(backend_id).strip()
+        if normalized_backend_id:
+            record.backend_id = normalized_backend_id
+
+        if isinstance(summary, Mapping):
+            record.summary.update(
+                {str(key): copy.deepcopy(value) for key, value in summary.items()}
+            )
+        if isinstance(options, Mapping):
+            record.options.update(
+                {
+                    str(key): copy.deepcopy(value)
+                    for key, value in options.items()
+                    if str(key) not in _CLOSE_TRANSIENT_OPTION_KEYS
+                }
+            )
+        if camera_state:
+            record.camera_state = _copy_mapping(camera_state)
+        else:
+            record.camera_state = _copy_mapping(record.summary.get("camera_state") or record.summary.get("camera"))
+        if playback_state:
+            record.playback_state = self._normalize_playback_state(
+                playback_state,
+                fallback=record.playback_state,
+            )
+        else:
+            record.playback_state = self._normalize_playback_state(
+                record.options,
+                fallback=record.playback_state,
+            )
+        normalized_transport = _copy_mapping(transport)
+        if normalized_transport or _coerce_int(transport_revision) > 0:
+            self._set_transport_state(
+                record,
+                transport=normalized_transport,
+                transport_revision=transport_revision,
+            )
+            if normalized_transport:
+                record.rerun_required = bool(_copy_mapping(live_open_blocker).get("rerun_required", False))
+                if not _transport_is_live(normalized_transport):
+                    record.rerun_required = True
+        elif data_refs:
+            record.rerun_required = False
+        self._refresh_public_contract(
+            record,
+            live_open_status=live_open_status,
+            live_open_blocker=live_open_blocker if live_open_status or live_open_blocker else None,
+        )
+
+    @staticmethod
+    def _normalize_playback_state(
+        value: Mapping[str, Any] | Any,
+        *,
+        fallback: Mapping[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        base = _copy_mapping(fallback)
+        payload = _copy_mapping(value)
+        state = str(payload.get("state", base.get("state", payload.get("playback_state", "paused")))).strip() or "paused"
+        step_index = _coerce_int(
+            payload.get("step_index", base.get("step_index", 0)),
+            default=_coerce_int(base.get("step_index"), default=0),
+        )
+        return {
+            "state": state,
+            "step_index": step_index,
+        }
+
+    def _set_transport_state(
+        self,
+        record: _ViewerSessionRecord,
+        *,
+        transport: Mapping[str, Any],
+        transport_revision: int,
+    ) -> None:
+        normalized_transport = _copy_mapping(transport)
+        if normalized_transport != record.transport:
+            if normalized_transport:
+                explicit_revision = _coerce_int(transport_revision)
+                record.transport_revision = explicit_revision if explicit_revision > 0 else record.transport_revision + 1
+            elif record.transport:
+                record.transport_revision += 1
+            record.transport = normalized_transport
+            return
+        explicit_revision = _coerce_int(transport_revision)
+        if explicit_revision > record.transport_revision:
+            record.transport_revision = explicit_revision
+
+    def _default_live_open_state(self, record: _ViewerSessionRecord) -> tuple[str, dict[str, Any]]:
+        if record.invalidated_reason:
+            blocker = {
+                "code": "session_invalidated",
+                "reason": record.invalidated_reason,
+            }
+            if record.invalidated_reason == _SESSION_INVALIDATION_REASON_RERUN:
+                blocker["rerun_required"] = True
+            return "blocked", blocker
+        if record.session_state == "closed":
+            return "blocked", {
+                "code": "session_closed",
+                "reason": str(record.summary.get("close_reason", "session_closed")).strip() or "session_closed",
+            }
+        if self._is_transport_live(record.transport):
+            return "ready", {}
+        if record.rerun_required:
+            return "blocked", copy.deepcopy(_TRANSPORT_RERUN_REQUIRED_BLOCKER)
+        if record.source_refs or record.materialized_refs:
+            return "blocked", copy.deepcopy(_TRANSPORT_RERUN_REQUIRED_BLOCKER)
+        return "blocked", {
+            "code": "no_source_data",
+            "reason": "Viewer session does not have source data.",
+        }
+
+    def _refresh_public_contract(
+        self,
+        record: _ViewerSessionRecord,
+        *,
+        live_open_status: str = "",
+        live_open_blocker: Mapping[str, Any] | None = None,
+    ) -> None:
+        default_status, default_blocker = self._default_live_open_state(record)
+        normalized_status = str(live_open_status).strip() or default_status
+        normalized_blocker = _copy_mapping(live_open_blocker if live_open_blocker is not None else default_blocker)
+        if normalized_status == "ready" and default_status != "ready":
+            normalized_status = default_status
+            normalized_blocker = copy.deepcopy(default_blocker)
+        elif normalized_status == "ready":
+            normalized_blocker = {}
+        elif not normalized_blocker:
+            normalized_blocker = copy.deepcopy(default_blocker)
+        record.live_open_status = normalized_status
+        record.live_open_blocker = normalized_blocker
+
+    def _refresh_transport_refs(self, record: _ViewerSessionRecord) -> None:
+        return
+
+    def _persist_ref_value(self, value: Any, *, owner_scope: str) -> Any | None:
+        runtime_ref = coerce_runtime_handle_ref(value)
+        if runtime_ref is None:
+            return copy.deepcopy(value)
+        try:
+            self._worker_services.resolve_handle(runtime_ref, expected_kind=runtime_ref.kind)
+        except (StaleHandleError, TypeError):
+            return None
+        if runtime_ref.owner_scope == owner_scope:
+            return runtime_ref
+        resolved_value = self._worker_services.resolve_handle(runtime_ref, expected_kind=runtime_ref.kind)
+        return self._worker_services.register_handle(
+            resolved_value,
+            kind=runtime_ref.kind,
+            owner_scope=owner_scope,
+            metadata=runtime_ref.metadata,
+        )
+
+    def _merge_record_refs(
+        self,
+        record: _ViewerSessionRecord,
+        *,
+        source_refs: Mapping[str, Any],
+        materialized_refs: Mapping[str, Any],
+    ) -> None:
+        for key, value in source_refs.items():
+            if key in record.materialized_refs:
+                self._release_session_handle(record.materialized_refs.pop(key), owner_scope=record.owner_scope)
+            previous = record.source_refs.get(key)
+            if previous != value:
+                self._release_session_handle(previous, owner_scope=record.owner_scope)
+            record.source_refs[str(key)] = value
+
+        for key, value in materialized_refs.items():
+            if key in record.source_refs:
+                self._release_session_handle(record.source_refs.pop(key), owner_scope=record.owner_scope)
+            previous = record.materialized_refs.get(key)
+            if previous != value:
+                self._release_session_handle(previous, owner_scope=record.owner_scope)
+            record.materialized_refs[str(key)] = value
+
+    def _release_live_dataset_ref(self, record: _ViewerSessionRecord) -> None:
+        dataset_ref = record.materialized_refs.pop("dataset", None)
+        self._release_session_handle(dataset_ref, owner_scope=record.owner_scope)
+        self._refresh_transport_refs(record)
+
+    def _release_live_transport(
+        self,
+        record: _ViewerSessionRecord,
+        *,
+        reason: str,
+        mark_rerun_required: bool,
+    ) -> None:
+        had_transport = bool(record.transport)
+        backend_id = str(record.backend_id).strip() or DPF_EXECUTION_VIEWER_BACKEND_ID
+        try:
+            backend = self._backend_registry.resolve(backend_id)
+        except LookupError:
+            backend = None
+        if backend is not None and hasattr(backend, "release_session_transport"):
+            try:
+                backend.release_session_transport(
+                    workspace_id=record.workspace_id,
+                    session_id=record.session_id,
+                )
+            except Exception:  # noqa: BLE001
+                pass
+
+        self._set_transport_state(
+            record,
+            transport={},
+            transport_revision=record.transport_revision + 1 if had_transport else record.transport_revision,
+        )
+        if str(reason).strip():
+            record.summary["live_transport_release_reason"] = str(reason).strip()
+        if mark_rerun_required and (had_transport or record.source_refs or record.materialized_refs):
+            record.rerun_required = True
+
+    @staticmethod
+    def _is_transport_live(transport: Mapping[str, Any]) -> bool:
+        return _transport_is_live(transport)
+
+    def _release_materialized_handles(self, record: _ViewerSessionRecord) -> None:
+        retained_refs: dict[str, Any] = {}
+        for key, value in record.materialized_refs.items():
+            runtime_ref = coerce_runtime_handle_ref(value)
+            if runtime_ref is None:
+                retained_refs[key] = value
+                continue
+            self._release_session_handle(runtime_ref, owner_scope=record.owner_scope)
+        record.materialized_refs = retained_refs
+        self._refresh_transport_refs(record)
+
+    def _release_session_handle(self, value: Any, *, owner_scope: str) -> None:
+        runtime_ref = coerce_runtime_handle_ref(value)
+        if runtime_ref is None or runtime_ref.owner_scope != owner_scope:
+            return
+        try:
+            self._worker_services.release_handle(runtime_ref)
+        except (StaleHandleError, TypeError):
+            return
+
+    def _release_owner_scope(self, owner_scope: str) -> None:
+        if not str(owner_scope).strip():
+            return
+        self._worker_services.handle_registry.release_owner_scope(owner_scope)
+
+    def _cached_materialization_event(
+        self,
+        record: _ViewerSessionRecord,
+        *,
+        command: MaterializeViewerDataCommand,
+        output_profile: str,
+        export_formats: tuple[str, ...],
+    ) -> ViewerDataMaterializedEvent | None:
+        if record.rerun_required or not self._is_transport_live(record.transport):
+            return None
+
+        cached_refs: dict[str, Any] = {}
+        if output_profile in {"memory", "both"}:
+            dataset_ref = record.materialized_refs.get("dataset")
+            if dataset_ref is not None:
+                cached_refs["dataset"] = dataset_ref
+            elif output_profile == "memory":
+                return None
+
+        requested_artifact_keys = export_formats or tuple(
+            key
+            for key, value in record.materialized_refs.items()
+            if isinstance(value, RuntimeArtifactRef)
+        )
+        if output_profile in {"stored", "both"}:
+            missing_artifacts = [
+                key for key in requested_artifact_keys
+                if not isinstance(record.materialized_refs.get(key), RuntimeArtifactRef)
+            ]
+            if missing_artifacts:
+                return None
+            cached_refs.update(
+                {
+                    key: record.materialized_refs[key]
+                    for key in requested_artifact_keys
+                    if key in record.materialized_refs
+                }
+            )
+
+        if not cached_refs:
+            return None
+
+        summary = record.public_summary()
+        summary["materialized_output_profile"] = output_profile
+        self._refresh_public_contract(record)
+        public_summary, public_options = self._public_event_contract(record, summary=summary)
+        return ViewerDataMaterializedEvent(
+            request_id=command.request_id,
+            workspace_id=record.workspace_id,
+            node_id=record.node_id,
+            session_id=record.session_id,
+            backend_id=record.backend_id,
+            data_refs=copy.deepcopy(cached_refs),
+            transport=copy.deepcopy(record.transport),
+            transport_revision=record.transport_revision,
+            live_open_status=record.live_open_status,
+            live_open_blocker=copy.deepcopy(record.live_open_blocker),
+            camera_state=copy.deepcopy(record.camera_state),
+            playback_state=copy.deepcopy(record.playback_state),
+            summary=public_summary,
+            options=public_options,
+        )
+
+
+__all__ = [
+    "build_run_required_viewer_session_model",
+    "build_viewer_session_model",
+    "coerce_viewer_session_model",
+    "projection_safe_viewer_transport",
+    "ViewerSessionService",
+]

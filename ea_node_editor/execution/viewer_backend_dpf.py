@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import copy
 from typing import TYPE_CHECKING
 
 from ea_node_editor.execution.dpf_runtime.viewer_session_backend import (
@@ -17,7 +16,7 @@ if TYPE_CHECKING:
 
 
 DPF_EXECUTION_VIEWER_BACKEND_ID = "dpf_embedded"
-DPF_EXECUTION_VIEWER_TRANSPORT_KIND = "dpf_handle_refs"
+DPF_EXECUTION_VIEWER_TRANSPORT_KIND = "dpf_transport_bundle"
 
 
 class DpfExecutionViewerBackend:
@@ -40,34 +39,37 @@ class DpfExecutionViewerBackend:
                 session_options=request.session_options,
                 request_options=request.request_options,
                 output_profile=request.output_profile,
+                camera_state=request.session_summary.get("camera_state", {}),
                 export_formats=request.export_formats,
                 project_path=request.project_path,
                 runtime_snapshot=request.runtime_snapshot,
                 runtime_snapshot_context=request.runtime_snapshot_context,
             )
         )
-        transport = {
-            "kind": DPF_EXECUTION_VIEWER_TRANSPORT_KIND,
-            "version": 1,
-            "backend_id": self.backend_id,
-            "data_refs": copy.deepcopy(result.data_refs),
-        }
-        has_live_dataset = "dataset" in result.data_refs
-        live_open_status = "ready" if has_live_dataset else "blocked"
-        live_open_blocker = {}
-        if not has_live_dataset:
-            live_open_blocker = {
-                "code": "transport_not_ready",
-                "reason": "Live viewer transport is not materialized.",
-            }
+        transport = dict(result.transport)
+        if transport:
+            transport["backend_id"] = self.backend_id
         return ViewerBackendMaterializationResult(
             backend_id=self.backend_id,
-            data_refs=copy.deepcopy(result.data_refs),
+            data_refs=dict(result.data_refs),
             transport=transport,
-            live_open_status=live_open_status,
-            live_open_blocker=live_open_blocker,
-            summary=copy.deepcopy(result.summary),
+            transport_revision=int(result.transport_revision),
+            live_open_status=str(result.live_open_status).strip(),
+            live_open_blocker=dict(result.live_open_blocker),
+            summary=dict(result.summary),
         )
+
+    def release_session_transport(self, *, workspace_id: str, session_id: str) -> None:
+        self._materialization_backend.release_session_transport(
+            workspace_id=workspace_id,
+            session_id=session_id,
+        )
+
+    def release_workspace_transport(self, *, workspace_id: str) -> None:
+        self._materialization_backend.release_workspace_transport(workspace_id=workspace_id)
+
+    def reset(self) -> None:
+        self._materialization_backend.reset()
 
 
 __all__ = [

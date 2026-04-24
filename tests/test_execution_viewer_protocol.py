@@ -62,7 +62,7 @@ class ViewerExecutionProtocolTests(unittest.TestCase):
                     "preview": preview_artifact,
                 },
                 transport={
-                    "kind": "dpf_handle_refs",
+                    "kind": "dpf_transport_bundle",
                     "version": 1,
                     "data_refs": {"dataset": shared_handle},
                 },
@@ -81,13 +81,13 @@ class ViewerExecutionProtocolTests(unittest.TestCase):
                 backend_id="dpf_embedded",
                 data_refs={"dataset": shared_handle},
                 transport={
-                    "kind": "dpf_handle_refs",
+                    "kind": "dpf_transport_bundle",
                     "version": 1,
                     "data_refs": {"dataset": shared_handle},
                 },
                 transport_revision=4,
                 live_open_status="blocked",
-                live_open_blocker={"code": "transport_not_ready"},
+                live_open_blocker={"code": "rerun_required"},
                 camera_state={"position": [1.0, 2.0, 3.0]},
                 playback_state={"state": "playing", "step_index": 2},
                 summary={"camera": {"position": [1.0, 2.0, 3.0]}},
@@ -176,7 +176,7 @@ class ViewerExecutionProtocolTests(unittest.TestCase):
                 backend_id="dpf_embedded",
                 data_refs={"dataset": dataset_ref},
                 transport={
-                    "kind": "dpf_handle_refs",
+                    "kind": "dpf_transport_bundle",
                     "version": 1,
                     "data_refs": {"dataset": dataset_ref},
                 },
@@ -195,7 +195,7 @@ class ViewerExecutionProtocolTests(unittest.TestCase):
                 backend_id="dpf_embedded",
                 data_refs={"dataset": dataset_ref},
                 transport={
-                    "kind": "dpf_handle_refs",
+                    "kind": "dpf_transport_bundle",
                     "version": 1,
                     "data_refs": {"dataset": dataset_ref},
                 },
@@ -230,7 +230,7 @@ class ViewerExecutionProtocolTests(unittest.TestCase):
                     "png": staged_png,
                 },
                 transport={
-                    "kind": "dpf_handle_refs",
+                    "kind": "dpf_transport_bundle",
                     "version": 1,
                     "data_refs": {"dataset": dataset_ref, "png": staged_png},
                 },

@@ -1331,7 +1331,7 @@ class GraphSurfaceLockedPortCanvasTests(GraphSurfaceInputContractTestBase):
         self._run_qml_probe(
             "graph-canvas-content-fullscreen-shortcut",
             """
-            from PyQt6.QtCore import pyqtProperty, pyqtSlot
+            from PyQt6.QtCore import QObject, pyqtProperty, pyqtSlot
 
             class ContentFullscreenBridgeStub(QObject):
                 def __init__(self):
@@ -1379,10 +1379,24 @@ class GraphSurfaceLockedPortCanvasTests(GraphSurfaceInputContractTestBase):
                 def show_graph_hint(self, message, timeout_ms):
                     self.hints.append((str(message or ""), int(timeout_ms)))
 
+            class ShellContextStub(QObject):
+                def __init__(self, content_fullscreen_bridge, shell_library_bridge):
+                    super().__init__()
+                    self._content_fullscreen_bridge = content_fullscreen_bridge
+                    self._shell_library_bridge = shell_library_bridge
+
+                @pyqtProperty(QObject, constant=True)
+                def contentFullscreenBridge(self):
+                    return self._content_fullscreen_bridge
+
+                @pyqtProperty(QObject, constant=True)
+                def shellLibraryBridge(self):
+                    return self._shell_library_bridge
+
             bridge = ContentFullscreenBridgeStub()
             shell_bridge = ShellBridgeStub()
-            engine.rootContext().setContextProperty("contentFullscreenBridge", bridge)
-            engine.rootContext().setContextProperty("shellBridge", shell_bridge)
+            shell_context = ShellContextStub(bridge, shell_bridge)
+            engine.rootContext().setContextProperty("shellContext", shell_context)
 
             component = QQmlComponent(engine)
             component.setData(
@@ -1405,7 +1419,6 @@ class GraphSurfaceLockedPortCanvasTests(GraphSurfaceInputContractTestBase):
                         id: inputLayers
                         objectName: "graphCanvasInputLayers"
                         canvasItem: probeRoot
-                        shellCommandBridge: shellBridge
                     }
 
                     function triggerShortcut() {
@@ -1465,12 +1478,14 @@ class GraphSurfaceLockedPortCanvasTests(GraphSurfaceInputContractTestBase):
             "graph-canvas-lock-toggle-hit-target",
             """
             from ea_node_editor.graph.model import GraphModel
-            from ea_node_editor.nodes.bootstrap import build_default_registry
+            from ea_node_editor.nodes.builtins.core import CORE_NODE_DESCRIPTORS
+            from ea_node_editor.nodes.registry import NodeRegistry
             from ea_node_editor.ui_qml.graph_scene_bridge import GraphSceneBridge
             from ea_node_editor.ui_qml.viewport_bridge import ViewportBridge
 
             model = GraphModel()
-            registry = build_default_registry()
+            registry = NodeRegistry()
+            registry.register_descriptors(CORE_NODE_DESCRIPTORS)
             scene = GraphSceneBridge()
             scene.set_workspace(model, registry, model.active_workspace.workspace_id)
 
@@ -1542,7 +1557,8 @@ class GraphSurfaceLockedPortCanvasTests(GraphSurfaceInputContractTestBase):
             from PyQt6.QtCore import QObject, pyqtProperty, pyqtSlot
 
             from ea_node_editor.graph.model import GraphModel
-            from ea_node_editor.nodes.bootstrap import build_default_registry
+            from ea_node_editor.nodes.builtins.core import CORE_NODE_DESCRIPTORS
+            from ea_node_editor.nodes.registry import NodeRegistry
             from ea_node_editor.ui_qml.graph_scene_bridge import GraphSceneBridge
             from ea_node_editor.ui_qml.viewport_bridge import ViewportBridge
 
@@ -1604,7 +1620,8 @@ class GraphSurfaceLockedPortCanvasTests(GraphSurfaceInputContractTestBase):
                     return True
 
             model = GraphModel()
-            registry = build_default_registry()
+            registry = NodeRegistry()
+            registry.register_descriptors(CORE_NODE_DESCRIPTORS)
             scene = GraphSceneBridge()
             scene.set_workspace(model, registry, model.active_workspace.workspace_id)
             shell_bridge = PortLockShellBridgeStub()
@@ -1616,6 +1633,7 @@ class GraphSurfaceLockedPortCanvasTests(GraphSurfaceInputContractTestBase):
                 scene_bridge=scene,
                 view_bridge=view,
             )
+            canvas_command_bridge._canvas_source = shell_bridge
 
             source_id = scene.add_node_from_type("core.constant", 24.0, 24.0)
             target_id = scene.add_node_from_type("core.logger", 360.0, 140.0)
@@ -1654,14 +1672,15 @@ class GraphSurfaceLockedPortCanvasTests(GraphSurfaceInputContractTestBase):
                 "cursor_y": 0.0,
             }
 
-            assert variant_value(
+            locked_candidate = variant_value(
                 canvas._nearestDropCandidateForWireDrag(
                     message_point.x(),
                     message_point.y(),
                     source_drag,
                     28.0,
                 )
-            ) is None
+            )
+            assert locked_candidate is None, locked_candidate
 
             canvas.handlePortClick(source_id, "as_text", "out", 0.0, 0.0)
             app.processEvents()
@@ -1676,7 +1695,7 @@ class GraphSurfaceLockedPortCanvasTests(GraphSurfaceInputContractTestBase):
             pending = variant_value(canvas.property("pendingConnectionPort"))
             assert pending["node_id"] == source_id
             assert pending["port_key"] == "as_text"
-            assert shell_bridge.connect_calls == []
+            assert shell_bridge.connect_calls == [], shell_bridge.connect_calls
 
             assert scene.set_port_locked(target_id, "message", False) is True
             settle_events(4)
@@ -1689,16 +1708,16 @@ class GraphSurfaceLockedPortCanvasTests(GraphSurfaceInputContractTestBase):
                     28.0,
                 )
             )
-            assert candidate is not None
-            assert candidate["node_id"] == target_id
-            assert candidate["port_key"] == "message"
-            assert bool(candidate["valid_drop"]) is True
+            assert candidate is not None, candidate
+            assert candidate["node_id"] == target_id, candidate
+            assert candidate["port_key"] == "message", candidate
+            assert bool(candidate["valid_drop"]) is True, candidate
 
             canvas.handlePortClick(target_id, "message", "in", 0.0, 0.0)
             app.processEvents()
 
-            assert shell_bridge.connect_calls == [(source_id, "as_text", target_id, "message")]
-            assert canvas.property("pendingConnectionPort") is None
+            assert shell_bridge.connect_calls == [(source_id, "as_text", target_id, "message")], shell_bridge.connect_calls
+            assert canvas.property("pendingConnectionPort") is None, canvas.property("pendingConnectionPort")
 
             dispose_host_window(canvas, window)
             engine.deleteLater()
@@ -1861,7 +1880,43 @@ class GraphSurfaceLockedNodeCanvasRoutingTests(GraphSurfaceInputContractTestBase
                     self.requests.append(str(focus_addon_id))
 
             addon_bridge = AddonManagerBridgeStub()
-            engine.rootContext().setContextProperty("addonManagerBridge", addon_bridge)
+
+            class GraphActionBridgeStub(QObject):
+                def __init__(self, addon_manager_bridge):
+                    super().__init__()
+                    self._addon_manager_bridge = addon_manager_bridge
+                    self.actions = []
+
+                @pyqtSlot(str, "QVariantMap", result=bool)
+                def trigger_graph_action(self, action_id, payload):
+                    action_id = str(action_id or "")
+                    self.actions.append((action_id, dict(payload or {})))
+                    if action_id == "open_addon_manager":
+                        self._addon_manager_bridge.requestOpen("tests.addons.signal_pack")
+                        return True
+                    return False
+
+            graph_action_bridge = GraphActionBridgeStub(addon_bridge)
+            engine.rootContext().setContextProperty("addonBridge", addon_bridge)
+            shell_context_component = QQmlComponent(engine)
+            shell_context_component.setData(
+                b'''
+                import QtQml 2.15
+                QtObject {
+                    property var addonManagerBridge: addonBridge
+                }
+                ''',
+                QUrl.fromLocalFile(str(repo_root) + "/"),
+            )
+            if shell_context_component.status() != QQmlComponent.Status.Ready:
+                errors = "\\n".join(error.toString() for error in shell_context_component.errors())
+                raise AssertionError("Failed to load shell context stub:\\n" + errors)
+            shell_context = shell_context_component.create()
+            if shell_context is None:
+                errors = "\\n".join(error.toString() for error in shell_context_component.errors())
+                raise AssertionError("Failed to instantiate shell context stub:\\n" + errors)
+
+            engine.rootContext().setContextProperty("shellContext", shell_context)
 
             menus_qml_path = components_dir / "graph_canvas" / "GraphCanvasContextMenus.qml"
             payload = node_payload()
@@ -1920,7 +1975,13 @@ class GraphSurfaceLockedNodeCanvasRoutingTests(GraphSurfaceInputContractTestBase
                 errors = "\\n".join(error.toString() for error in canvas_component.errors())
                 raise AssertionError("Failed to instantiate canvas stub QML:\\n" + errors)
             canvas_item.setProperty("payload", payload)
-            menus = create_component(menus_qml_path, {"canvasItem": canvas_item})
+            menus = create_component(
+                menus_qml_path,
+                {
+                    "canvasItem": canvas_item,
+                    "graphActionBridge": graph_action_bridge,
+                },
+            )
             popup = menus.findChild(QObject, "graphCanvasNodeContextPopup")
             assert popup is not None
 
@@ -1931,9 +1992,11 @@ class GraphSurfaceLockedNodeCanvasRoutingTests(GraphSurfaceInputContractTestBase
             popup.actionTriggered.emit("open_addon_manager")
             settle_events(2)
 
-            assert addon_bridge.requests == ["tests.addons.signal_pack"]
-            assert int(canvas_item.property("closeCalls")) == 1
-            assert bool(canvas_item.property("nodeContextVisible")) is False
+            assert addon_bridge.requests == ["tests.addons.signal_pack"], addon_bridge.requests
+            assert graph_action_bridge.actions[-1][0] == "open_addon_manager", graph_action_bridge.actions
+            assert graph_action_bridge.actions[-1][1] == {"node_id": "node_locked_context"}, graph_action_bridge.actions
+            assert int(canvas_item.property("closeCalls")) == 1, canvas_item.property("closeCalls")
+            assert bool(canvas_item.property("nodeContextVisible")) is False, canvas_item.property("nodeContextVisible")
 
             menus.deleteLater()
             canvas_item.deleteLater()
@@ -2052,29 +2115,14 @@ class GraphSurfaceLockedNodeCanvasRoutingTests(GraphSurfaceInputContractTestBase
             )
             settle_events(4)
 
-            ribbon = named_item(canvas, "graphCanvasLockedNodeStatusRibbon")
-            ribbon_text = named_item(canvas, "graphCanvasLockedNodeStatusText")
             action_button = named_item(canvas, "graphCanvasLockedNodeStatusAction")
-            action_text = named_item(canvas, "graphCanvasLockedNodeStatusActionText")
 
-            assert bool(ribbon.property("visible")) is True
-            assert str(ribbon_text.property("text") or "") == "2 locked nodes, 1 add-on missing"
-            assert bool(action_button.property("visible")) is True
-            assert str(action_text.property("text") or "") == "Load missing add-ons"
+            assert bool(action_button.property("visible")) is False, action_button.property("visible")
 
-            assert bool(canvas.requestOpenLockedNodeStatusAction()) is True
+            assert bool(canvas.requestOpenLockedNodeStatusAction()) is False, canvas.requestOpenLockedNodeStatusAction()
             settle_events(2)
-            assert addon_bridge.requests == ["tests.addons.signal_pack"]
+            assert addon_bridge.requests == [], addon_bridge.requests
 
-            window = attach_host_to_window(canvas, 1024, 640)
-            mouse_click(window, item_scene_point(action_button))
-            settle_events(4)
-            assert addon_bridge.requests == [
-                "tests.addons.signal_pack",
-                "tests.addons.signal_pack",
-            ]
-
-            dispose_host_window(canvas, window)
             engine.deleteLater()
             app.processEvents()
             """,

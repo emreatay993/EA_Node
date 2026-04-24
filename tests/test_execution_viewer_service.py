@@ -8,9 +8,6 @@ from unittest import mock
 from ea_node_editor.addons.catalog import ANSYS_DPF_ADDON_ID
 from ea_node_editor.addons.hot_apply import apply_addon_enabled_state
 from ea_node_editor.app_preferences import default_app_preferences_document
-from ea_node_editor.execution.dpf_runtime.viewer_session_backend import (
-    ViewerSessionMaterializationResult,
-)
 from ea_node_editor.execution.dpf_runtime_service import (
     DPF_FIELDS_CONTAINER_HANDLE_KIND,
     DPF_MODEL_HANDLE_KIND,
@@ -30,6 +27,7 @@ from ea_node_editor.execution.protocol import (
     event_to_dict,
 )
 from ea_node_editor.execution.viewer_backend_dpf import DPF_EXECUTION_VIEWER_BACKEND_ID
+from ea_node_editor.execution.viewer_backend import ViewerBackendMaterializationResult
 from ea_node_editor.execution.viewer_session_service import (
     build_run_required_viewer_session_model,
     coerce_viewer_session_model,
@@ -62,9 +60,9 @@ class ViewerSessionServiceTests(unittest.TestCase):
         facade_text = facade_path.read_text(encoding="utf-8")
 
         self.assertFalse(support_path.exists())
-        self.assertIn("base64.b85decode", facade_text)
-        self.assertIn("zlib.decompress", facade_text)
-        self.assertLessEqual(len(facade_text.splitlines()), 700)
+        self.assertNotIn("base64.b85decode", facade_text)
+        self.assertNotIn("zlib.decompress", facade_text)
+        self.assertIn("class ViewerSessionService", facade_text)
 
     def test_runtime_contract_viewer_helpers_preserve_projection_payload(self) -> None:
         session_id = default_viewer_session_id("ws_main", "node_viewer")
@@ -252,10 +250,9 @@ class ViewerSessionServiceTests(unittest.TestCase):
             self.assertTrue(opened.summary["has_source_data"])
             self.assertEqual(opened.options["live_mode"], "proxy")
             self.assertEqual(opened.live_open_status, "blocked")
-            self.assertEqual(opened.live_open_blocker["code"], "transport_not_ready")
-            self.assertEqual(opened.summary["session_model"]["phase"], "open")
-            self.assertEqual(opened.summary["session_model"]["live_mode"], "proxy")
-            self.assertEqual(opened.summary["session_model"]["summary"]["result_name"], "displacement")
+            self.assertEqual(opened.live_open_blocker["code"], "rerun_required")
+            self.assertNotIn("session_model", opened.summary)
+            self.assertEqual(opened.summary["result_name"], "displacement")
 
             self.services.cleanup_run("run_viewer_service")
             with self.assertRaisesRegex(StaleHandleError, "stale or unknown"):
@@ -314,9 +311,9 @@ class ViewerSessionServiceTests(unittest.TestCase):
             self.assertEqual(dataset_ref.owner_scope, "cache:viewer_session:ws_main:session_live")
             self.assertEqual(materialized.data_refs["png"].artifact_id, "viewer_preview_png")
             self.assertEqual(materialized.options["live_mode"], "full")
-            self.assertEqual(materialized.summary["session_model"]["phase"], "open")
-            self.assertEqual(materialized.summary["session_model"]["live_mode"], "full")
-            self.assertEqual(materialized.summary["session_model"]["transport_revision"], materialized.transport_revision)
+            self.assertNotIn("session_model", materialized.summary)
+            self.assertEqual(materialized.options["live_mode"], "full")
+            self.assertEqual(materialized.summary["transport_revision"], materialized.transport_revision)
             rematerialized_cached = self.service.materialize_data(
                 MaterializeViewerDataCommand(
                     request_id="viewer_req_materialize_cached",
@@ -348,8 +345,8 @@ class ViewerSessionServiceTests(unittest.TestCase):
 
             self.assertEqual(closed.summary["close_reason"], "node_hidden")
             self.assertEqual(closed.options["session_state"], "closed")
-            self.assertEqual(closed.summary["session_model"]["phase"], "closed")
-            self.assertEqual(closed.summary["session_model"]["close_reason"], "node_hidden")
+            self.assertNotIn("session_model", closed.summary)
+            self.assertEqual(closed.summary["close_reason"], "node_hidden")
             with self.assertRaisesRegex(StaleHandleError, "stale or unknown"):
                 self.services.resolve_handle(dataset_ref)
             self.assertFalse(transport_manifest_path.exists())
@@ -407,10 +404,12 @@ class ViewerSessionServiceTests(unittest.TestCase):
             metadata={"format": "png"},
         )
 
+        dpf_backend = self.services.viewer_backend_registry.resolve(DPF_EXECUTION_VIEWER_BACKEND_ID)
         with mock.patch.object(
-            self.service._materialization_backend,
+            dpf_backend,
             "materialize",
-            return_value=ViewerSessionMaterializationResult(
+            return_value=ViewerBackendMaterializationResult(
+                backend_id=DPF_EXECUTION_VIEWER_BACKEND_ID,
                 data_refs={"dataset": dataset_ref, "png": png_ref},
                 transport={
                     "kind": "dpf_transport_bundle",
@@ -442,7 +441,7 @@ class ViewerSessionServiceTests(unittest.TestCase):
         self.assertEqual(request.session_id, "session_backend")
         self.assertEqual(request.source_refs, {"fields": "fields_source", "model": "model_source"})
         self.assertEqual(request.output_profile, "both")
-        self.assertEqual(request.camera_state, {})
+        self.assertEqual(request.session_summary["camera_state"], {})
         self.assertEqual(request.export_formats, ("png",))
         self.assertEqual(request.project_path, "viewer_backend_demo.sfe")
         self.assertEqual(materialized.data_refs["dataset"], dataset_ref)
@@ -475,10 +474,13 @@ class ViewerSessionServiceTests(unittest.TestCase):
             )
         )
 
+        dpf_backend = self.services.viewer_backend_registry.resolve(DPF_EXECUTION_VIEWER_BACKEND_ID)
         with mock.patch.object(
-            self.service._materialization_backend,
+            dpf_backend,
             "materialize",
-            return_value=ViewerSessionMaterializationResult(),
+            return_value=ViewerBackendMaterializationResult(
+                backend_id=DPF_EXECUTION_VIEWER_BACKEND_ID,
+            ),
         ) as materialize:
             materialized = self.service.materialize_data(
                 MaterializeViewerDataCommand(
@@ -493,7 +495,7 @@ class ViewerSessionServiceTests(unittest.TestCase):
         self.assertIsInstance(materialized, ViewerDataMaterializedEvent)
         request = materialize.call_args.args[0]
         self.assertEqual(
-            request.camera_state,
+            request.session_summary["camera_state"],
             {
                 "position": [9.0, 8.0, 7.0],
                 "focal_point": [0.0, 0.0, 0.0],
@@ -779,58 +781,44 @@ class ViewerSessionServiceTests(unittest.TestCase):
         self.assertIsInstance(failed, ViewerSessionFailedEvent)
         self.assertIn("invalidated", failed.error)
 
-    def test_coerce_viewer_session_model_normalizes_summary_embedded_projection(self) -> None:
+    def test_coerce_viewer_session_model_normalizes_current_typed_projection(self) -> None:
         payload = {
             "request_id": "viewer_req_open",
             "workspace_id": "ws_main",
             "node_id": "node_viewer",
             "session_id": "session_authoritative",
-            "summary": {
-                "result_name": "displacement",
-                "cache_state": "live_ready",
-                "session_model": {
-                    "workspace_id": "ws_main",
-                    "node_id": "node_viewer",
-                    "session_id": "session_authoritative",
-                    "phase": "open",
-                    "request_id": "viewer_req_open",
-                    "last_command": "open",
-                    "last_error": "",
-                    "playback_state": "paused",
-                    "step_index": 2,
-                    "playback": {"state": "paused", "step_index": 2},
-                    "live_policy": "focus_only",
-                    "keep_live": False,
-                    "cache_state": "live_ready",
-                    "invalidated_reason": "",
-                    "close_reason": "",
-                    "backend_id": DPF_EXECUTION_VIEWER_BACKEND_ID,
-                    "transport_revision": 4,
-                    "live_mode": "full",
-                    "live_open_status": "ready",
-                    "live_open_blocker": {},
-                    "data_refs": {"dataset": {"kind": "tests.dataset"}},
-                    "transport": {
-                        "kind": "dpf_transport_bundle",
-                        "backend_id": DPF_EXECUTION_VIEWER_BACKEND_ID,
-                    },
-                    "camera_state": {"zoom": 1.25},
-                    "summary": {"result_name": "displacement", "cache_state": "live_ready"},
-                    "options": {"live_mode": "full", "playback_state": "paused", "step_index": 2},
-                },
+            "phase": "open",
+            "request_id": "viewer_req_open",
+            "playback_state": "paused",
+            "step_index": 2,
+            "playback": {"state": "paused", "step_index": 2},
+            "live_policy": "focus_only",
+            "keep_live": False,
+            "cache_state": "live_ready",
+            "backend_id": DPF_EXECUTION_VIEWER_BACKEND_ID,
+            "transport_revision": 4,
+            "live_mode": "full",
+            "live_open_status": "ready",
+            "live_open_blocker": {},
+            "data_refs": {"dataset": {"kind": "tests.dataset"}},
+            "transport": {
+                "kind": "dpf_transport_bundle",
+                "backend_id": DPF_EXECUTION_VIEWER_BACKEND_ID,
             },
+            "camera_state": {"zoom": 1.25},
+            "summary": {"result_name": "displacement", "cache_state": "live_ready"},
             "options": {"live_mode": "proxy", "playback_state": "playing"},
         }
 
-        session_model = coerce_viewer_session_model(payload)
+        session = coerce_viewer_session_model(payload)
 
-        self.assertEqual(session_model["phase"], "open")
-        self.assertEqual(session_model["backend_id"], DPF_EXECUTION_VIEWER_BACKEND_ID)
-        self.assertEqual(session_model["transport_revision"], 4)
-        self.assertEqual(session_model["live_mode"], "proxy")
-        self.assertEqual(session_model["playback"]["state"], "playing")
-        self.assertEqual(session_model["summary"]["result_name"], "displacement")
-        self.assertEqual(session_model["data_refs"], {"dataset": {"kind": "tests.dataset"}})
+        self.assertEqual(session["phase"], "open")
+        self.assertEqual(session["backend_id"], DPF_EXECUTION_VIEWER_BACKEND_ID)
+        self.assertEqual(session["transport_revision"], 4)
+        self.assertEqual(session["live_mode"], "full")
+        self.assertEqual(session["playback"]["state"], "paused")
+        self.assertEqual(session["summary"]["result_name"], "displacement")
+        self.assertEqual(session["data_refs"], {"dataset": {"kind": "tests.dataset"}})
 
     def test_build_run_required_viewer_session_model_clears_live_transport_but_keeps_projection_summary(self) -> None:
         session_model = build_run_required_viewer_session_model(

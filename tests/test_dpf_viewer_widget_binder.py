@@ -226,10 +226,11 @@ class DpfViewerWidgetBinderTests(unittest.TestCase):
         self.assertEqual(widget.camera.zoom_calls, [])
         self.assertEqual(widget.reset_camera_calls, 0)
         self.assertEqual(widget.render_calls, 1)
-        self.assertEqual(widget.property("ea.viewer.backend_id"), DpfViewerWidgetBinder.backend_id)
-        self.assertEqual(widget.property("ea.viewer.session_id"), "session-tests")
-        self.assertEqual(widget.property("ea.viewer.transport_revision"), 3)
-        self.assertEqual(widget.property("ea.viewer.step_index"), 1)
+        widget_state = binder._widget_state[widget]
+        self.assertEqual(widget_state.backend_id, DpfViewerWidgetBinder.backend_id)
+        self.assertEqual(widget_state.session_id, "session-tests")
+        self.assertEqual(widget_state.transport_revision, 3)
+        self.assertEqual(widget_state.step_index, 1)
 
     def test_bind_widget_reuses_current_interactor_for_rebinds(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -264,7 +265,7 @@ class DpfViewerWidgetBinderTests(unittest.TestCase):
         self.assertEqual(first_widget.clear_calls, 2)
         self.assertEqual(len(first_widget.add_mesh_calls), 2)
         self.assertIs(first_widget.add_mesh_calls[-1]["mesh"], blocks[2])
-        self.assertEqual(first_widget.property("ea.viewer.step_index"), 2)
+        self.assertEqual(binder._widget_state[first_widget].step_index, 2)
 
     def test_bind_widget_raises_no_bind_when_transport_is_unavailable(self) -> None:
         created_widgets: list[_FakeInteractor] = []
@@ -322,10 +323,11 @@ class DpfViewerWidgetBinderTests(unittest.TestCase):
 
         self.assertEqual(widget.clear_calls, 2)
         self.assertEqual(widget.render_calls, 2)
-        self.assertEqual(widget.property("ea.viewer.session_id"), "")
-        self.assertEqual(widget.property("ea.viewer.transport_revision"), 0)
-        self.assertEqual(widget.property("ea.viewer.manifest_path"), "")
-        self.assertEqual(widget.property("ea.viewer.entry_path"), "")
+        widget_state = binder._widget_state[widget]
+        self.assertEqual(widget_state.session_id, "")
+        self.assertEqual(widget_state.transport_revision, 0)
+        self.assertEqual(widget_state.manifest_path, "")
+        self.assertEqual(widget_state.entry_path, "")
 
     def test_capture_camera_state_reads_live_interactor_camera(self) -> None:
         binder = DpfViewerWidgetBinder(
@@ -338,7 +340,14 @@ class DpfViewerWidgetBinderTests(unittest.TestCase):
             (1.0, 1.5, 2.0),
             (0.0, 0.0, 1.0),
         ]
-        widget.setProperty("ea.viewer.backend_id", DpfViewerWidgetBinder.backend_id)
+        binder._set_widget_state(
+            widget,
+            session_id="session-tests",
+            transport_revision=1,
+            manifest_path="",
+            entry_path="",
+            step_index=0,
+        )
         widget.camera.parallel_projection = True
         widget.camera.parallel_scale = 2.5
         widget.camera.view_angle = 18.0
@@ -368,7 +377,14 @@ class DpfViewerWidgetBinderTests(unittest.TestCase):
             dataset_loader=lambda _path: _FakeMesh("stress"),
         )
         widget = _FakeInteractor()
-        widget.setProperty("ea.viewer.backend_id", DpfViewerWidgetBinder.backend_id)
+        binder._set_widget_state(
+            widget,
+            session_id="session-tests",
+            transport_revision=1,
+            manifest_path="",
+            entry_path="",
+            step_index=0,
+        )
 
         captured = binder.capture_preview_image(widget)
 

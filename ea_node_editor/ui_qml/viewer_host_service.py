@@ -10,10 +10,7 @@ from PyQt6.QtGui import QImage
 from PyQt6.QtWidgets import QWidget
 
 from ea_node_editor.addons.catalog import create_live_viewer_widget_binders
-from ea_node_editor.execution.viewer_session_service import (
-    VIEWER_SESSION_MODEL_KEY,
-    coerce_viewer_session_model,
-)
+from ea_node_editor.execution.viewer_session_service import coerce_viewer_session_model
 from ea_node_editor.ui_qml.embedded_viewer_overlay_manager import (
     EmbeddedViewerOverlayManager,
     EmbeddedViewerOverlaySpec,
@@ -60,27 +57,20 @@ def _freeze_value(value: Any) -> Any:
 
 def _playback_state_from_projection(
     state: Mapping[str, Any],
-    options: Mapping[str, Any],
-    fallback: Mapping[str, Any],
 ) -> dict[str, Any]:
-    playback = _mapping(options.get("playback"))
+    playback = _mapping(state.get("playback"))
     if playback:
         return playback
-    base = _mapping(fallback)
-    playback_state = _string(options.get("playback_state", state.get("playback_state", base.get("state", "paused"))))
-    step_index = _coerce_int(options.get("step_index", state.get("step_index", base.get("step_index", 0))), default=0)
+    playback_state = _string(state.get("playback_state", "paused"))
+    step_index = _coerce_int(state.get("step_index"), default=0)
     return {
         "state": playback_state or "paused",
         "step_index": step_index,
     }
 
 
-def _projected_session_model(projected_state: Mapping[str, Any]) -> dict[str, Any]:
-    session_model = coerce_viewer_session_model(projected_state)
-    if session_model:
-        return session_model
-    fallback = _mapping(projected_state.get(VIEWER_SESSION_MODEL_KEY))
-    return fallback if fallback else _mapping(projected_state)
+def _projected_session(projected_state: Mapping[str, Any]) -> dict[str, Any]:
+    return coerce_viewer_session_model(projected_state)
 
 
 @dataclass(slots=True, frozen=True)
@@ -101,7 +91,6 @@ class _ViewerHostSessionSnapshot:
     playback_state: dict[str, Any] = field(default_factory=dict)
     summary: dict[str, Any] = field(default_factory=dict)
     options: dict[str, Any] = field(default_factory=dict)
-    session_model: dict[str, Any] = field(default_factory=dict)
 
     @property
     def overlay_key(self) -> _OverlayKey:
@@ -131,7 +120,6 @@ class _ViewerHostSessionSnapshot:
             playback_state=copy.deepcopy(self.playback_state),
             summary=copy.deepcopy(self.summary),
             options=copy.deepcopy(self.options),
-            session_model=copy.deepcopy(self.session_model),
             container=container,
             current_widget=current_widget,
         )
@@ -147,7 +135,6 @@ class _ViewerHostSessionSnapshot:
             transport=copy.deepcopy(self.transport),
             summary=copy.deepcopy(self.summary),
             options=copy.deepcopy(self.options),
-            session_model=copy.deepcopy(self.session_model),
             container=container,
             widget=widget,
             reason=reason,
@@ -211,9 +198,7 @@ class ViewerHostService(QObject):
             return {}
         normalized_workspace_id = _string(workspace_id)
         if not normalized_workspace_id and self._viewer_session_bridge is not None:
-            normalized_workspace_id = _string(
-                getattr(self._viewer_session_bridge, "active_workspace_id", "")
-            )
+            normalized_workspace_id = _string(self._viewer_session_bridge.active_workspace_id)
         normalized_node_id = _string(node_id)
         if not normalized_workspace_id or not normalized_node_id:
             return {}
@@ -242,9 +227,7 @@ class ViewerHostService(QObject):
             return QImage()
         normalized_workspace_id = _string(workspace_id)
         if not normalized_workspace_id and self._viewer_session_bridge is not None:
-            normalized_workspace_id = _string(
-                getattr(self._viewer_session_bridge, "active_workspace_id", "")
-            )
+            normalized_workspace_id = _string(self._viewer_session_bridge.active_workspace_id)
         normalized_node_id = _string(node_id)
         if not normalized_workspace_id or not normalized_node_id:
             return QImage()
@@ -432,7 +415,7 @@ class ViewerHostService(QObject):
             return
 
         overlay_manager.set_content_fullscreen_target(self._content_fullscreen_overlay_spec())
-        projected_sessions = getattr(bridge, "sessions_model", [])
+        projected_sessions = bridge.sessions_model
         desired_overlays: dict[_OverlayKey, tuple[_ViewerHostSessionSnapshot, ViewerWidgetBinder]] = {}
         errors: list[str] = []
         for item in projected_sessions if isinstance(projected_sessions, list) else []:
@@ -605,57 +588,36 @@ class ViewerHostService(QObject):
         self,
         projected_state: Mapping[str, Any],
     ) -> _ViewerHostSessionSnapshot | None:
-        session_model = _projected_session_model(projected_state)
-        if not session_model:
+        session = _projected_session(projected_state)
+        if not session:
             return None
-        workspace_id = _string(session_model.get("workspace_id"))
-        node_id = _string(session_model.get("node_id"))
+        workspace_id = _string(session.get("workspace_id"))
+        node_id = _string(session.get("node_id"))
         if not workspace_id or not node_id:
             return None
-        summary = _mapping(session_model.get("summary"))
-        options = _mapping(session_model.get("options"))
-        data_refs = _mapping(session_model.get("data_refs"))
-        transport = _mapping(session_model.get("transport"))
-        live_open_blocker = (
-            _mapping(session_model.get("live_open_blocker"))
-            or _mapping(options.get("live_open_blocker"))
-            or _mapping(summary.get("live_open_blocker"))
-        )
-        camera_state = _mapping(session_model.get("camera_state"))
-        if not camera_state:
-            camera_state = _mapping(summary.get("camera_state") or summary.get("camera"))
-        playback_state = _mapping(session_model.get("playback"))
+        summary = _mapping(session.get("summary"))
+        options = _mapping(session.get("options"))
+        data_refs = _mapping(session.get("data_refs"))
+        transport = _mapping(session.get("transport"))
+        live_open_blocker = _mapping(session.get("live_open_blocker"))
+        camera_state = _mapping(session.get("camera_state"))
+        playback_state = _mapping(session.get("playback"))
         if not playback_state:
-            playback_state = _playback_state_from_projection(session_model, options, {})
-        backend_id = _string(
-            session_model.get("backend_id")
-            or options.get("backend_id")
-            or summary.get("backend_id")
-            or transport.get("backend_id")
-        )
+            playback_state = _playback_state_from_projection(session)
+        backend_id = _string(session.get("backend_id"))
         if not backend_id:
             return None
-        session_id = _string(session_model.get("session_id"))
-        transport_revision = _coerce_int(
-            session_model.get(
-                "transport_revision",
-                options.get("transport_revision", summary.get("transport_revision", 0)),
-            ),
-            default=0,
-        )
-        live_open_status = _string(
-            session_model.get("live_open_status")
-            or options.get("live_open_status")
-            or summary.get("live_open_status")
-        )
+        session_id = _string(session.get("session_id"))
+        transport_revision = _coerce_int(session.get("transport_revision"), default=0)
+        live_open_status = _string(session.get("live_open_status"))
         return _ViewerHostSessionSnapshot(
             workspace_id=workspace_id,
             node_id=node_id,
             session_id=session_id,
             backend_id=backend_id,
-            phase=_string(session_model.get("phase")),
-            cache_state=_string(session_model.get("cache_state") or summary.get("cache_state") or options.get("cache_state")),
-            live_mode=_string(session_model.get("live_mode") or options.get("live_mode")),
+            phase=_string(session.get("phase")),
+            cache_state=_string(session.get("cache_state")),
+            live_mode=_string(session.get("live_mode")),
             transport_revision=transport_revision,
             live_open_status=live_open_status,
             live_open_blocker=live_open_blocker,
@@ -665,28 +627,18 @@ class ViewerHostService(QObject):
             playback_state=playback_state,
             summary=summary,
             options=options,
-            session_model=_mapping(session_model),
         )
 
     @staticmethod
     def _should_host_overlay(projected_state: Mapping[str, Any]) -> bool:
-        session_model = _projected_session_model(projected_state)
-        if _string(session_model.get("phase")) != "open":
+        session = _projected_session(projected_state)
+        if _string(session.get("phase")) != "open":
             return False
-        options = _mapping(session_model.get("options"))
-        live_mode = _string(session_model.get("live_mode") or options.get("live_mode"))
+        live_mode = _string(session.get("live_mode"))
         if live_mode != "full":
             return False
-        live_open_status = _string(
-            session_model.get("live_open_status")
-            or options.get("live_open_status")
-            or _mapping(session_model.get("summary")).get("live_open_status")
-        )
-        cache_state = _string(
-            session_model.get("cache_state")
-            or options.get("cache_state")
-            or _mapping(session_model.get("summary")).get("cache_state")
-        )
+        live_open_status = _string(session.get("live_open_status"))
+        cache_state = _string(session.get("cache_state"))
         return live_open_status == "ready" or cache_state == "live_ready"
 
     @staticmethod
