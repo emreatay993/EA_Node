@@ -192,7 +192,8 @@ class WorkspaceNavigationController:
         normalized_view_id = str(view_id or "").strip()
         if workspace is None or not normalized_view_id:
             return False
-        workspace.ensure_default_view()
+        mutation_service = self._host.model.mutation_service(workspace_id)
+        mutation_service.active_view_state()
         if normalized_view_id not in workspace.views:
             return False
         if len(workspace.views) == 1:
@@ -200,7 +201,7 @@ class WorkspaceNavigationController:
             return False
 
         active_view_closed = workspace.active_view_id == normalized_view_id
-        self._host.workspace_manager.close_view(workspace_id, normalized_view_id)
+        mutation_service.close_view(normalized_view_id)
         if active_view_closed:
             self.restore_active_view_state()
             self._host.scene.sync_scope_with_active_view()
@@ -216,7 +217,8 @@ class WorkspaceNavigationController:
         normalized_view_id = str(view_id or "").strip()
         if workspace is None or not normalized_view_id:
             return False
-        workspace.ensure_default_view()
+        mutation_service = self._host.model.mutation_service(workspace_id)
+        mutation_service.active_view_state()
         view = workspace.views.get(normalized_view_id)
         if view is None:
             return False
@@ -239,7 +241,7 @@ class WorkspaceNavigationController:
         if not normalized_name or normalized_name == view.name:
             return False
 
-        self._host.workspace_manager.rename_view(workspace_id, normalized_view_id, normalized_name)
+        mutation_service.rename_view(normalized_view_id, normalized_name)
         self._host.workspace_state_changed.emit()
         return True
 
@@ -248,7 +250,8 @@ class WorkspaceNavigationController:
         workspace = self._host.model.project.workspaces.get(workspace_id)
         if workspace is None:
             return False
-        workspace.ensure_default_view()
+        mutation_service = self._host.model.mutation_service(workspace_id)
+        mutation_service.active_view_state()
         if len(workspace.views) < 2:
             return False
         if from_index < 0 or from_index >= len(workspace.views):
@@ -256,7 +259,7 @@ class WorkspaceNavigationController:
         bounded_index = max(0, min(int(to_index), len(workspace.views) - 1))
         if from_index == bounded_index:
             return False
-        self._host.workspace_manager.move_view(workspace_id, from_index, bounded_index)
+        mutation_service.move_view(from_index, bounded_index)
         self._host.workspace_state_changed.emit()
         return True
 

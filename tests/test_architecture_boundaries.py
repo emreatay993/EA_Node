@@ -454,6 +454,46 @@ class GraphArchitectureBoundaryTests(unittest.TestCase):
             call_names(method_node(mutation_tree, "WorkspaceMutationService", "active_view_state")),
         )
 
+    def test_workspace_manager_owns_order_not_view_lifecycle_mutation(self) -> None:
+        manager_tree = parse_module("ea_node_editor/workspace/manager.py")
+
+        self.assertIn(
+            "resolve_workspace_ownership",
+            imported_names_from(manager_tree, "ea_node_editor.workspace.ownership"),
+        )
+        self.assertNotIn(
+            "sync_project_workspace_ownership",
+            imported_names_from(manager_tree, "ea_node_editor.workspace.ownership"),
+        )
+        manager_methods = {
+            node.name
+            for node in class_node(manager_tree, "WorkspaceManager").body
+            if isinstance(node, ast.FunctionDef)
+        }
+        self.assertFalse(
+            {
+                "create_view",
+                "set_active_view",
+                "close_view",
+                "rename_view",
+                "move_view",
+            }
+            & manager_methods
+        )
+
+    def test_workspace_navigation_view_lifecycle_uses_mutation_service_boundary(self) -> None:
+        navigation_tree = parse_module("ea_node_editor/ui/shell/controllers/workspace_navigation_controller.py")
+
+        for method_name in {"close_view", "rename_view", "move_view"}:
+            with self.subTest(method=method_name):
+                method_calls = call_names(method_node(navigation_tree, "WorkspaceNavigationController", method_name))
+                self.assertIn("self._host.model.mutation_service", method_calls)
+
+        navigation_calls = call_names(navigation_tree)
+        self.assertNotIn("self._host.workspace_manager.close_view", navigation_calls)
+        self.assertNotIn("self._host.workspace_manager.rename_view", navigation_calls)
+        self.assertNotIn("self._host.workspace_manager.move_view", navigation_calls)
+
     def test_fragment_payload_helpers_share_model_mapping_parsers(self) -> None:
         normalization_tree = parse_module("ea_node_editor/graph/normalization.py")
         fragment_tree = parse_module("ea_node_editor/graph/transform_fragment_ops.py")
