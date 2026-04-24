@@ -7,6 +7,7 @@ from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QAction, QKeySequence
 
 from ea_node_editor.ui.icon_registry import qicon
+from ea_node_editor.ui.shell.graph_action_contracts import GraphActionId, graph_action_spec
 
 if TYPE_CHECKING:
     from ea_node_editor.ui.shell.window import ShellWindow
@@ -20,19 +21,22 @@ def format_recent_project_menu_label(index: int, project_path: str) -> str:
     return f"{index}. {path.name} [{parent}]"
 
 
-def _trigger_help_for_selected_node(window: ShellWindow) -> None:
-    help_bridge = getattr(window, "help_bridge", None)
-    if help_bridge is None:
-        return
-    show_help_for_selected_node = getattr(help_bridge, "show_help_for_selected_node", None)
-    if callable(show_help_for_selected_node):
-        show_help_for_selected_node()
-        return
-    scene = getattr(window, "scene", None)
-    node_id = str(scene.selected_node_id() or "") if scene is not None else ""
-    if not node_id:
-        return
-    help_bridge.show_help_for_node(node_id)
+def _trigger_graph_action(window: ShellWindow, action_id: GraphActionId) -> bool:
+    controller = getattr(window, "graph_action_controller", None)
+    if controller is None:
+        return False
+    return bool(controller.trigger(action_id.value))
+
+
+def _create_graph_action(window: ShellWindow, action_id: GraphActionId) -> QAction:
+    spec = graph_action_spec(action_id)
+    action = QAction(str(spec.label or action_id.value), window)
+    if spec.shortcut is not None:
+        action.setShortcut(QKeySequence(spec.shortcut))
+    action.triggered.connect(
+        lambda _checked=False, selected_action_id=action_id: _trigger_graph_action(window, selected_action_id)
+    )
+    return action
 
 
 def _recent_project_tooltip_text(window: ShellWindow, project_path: str) -> str:
@@ -130,45 +134,36 @@ def create_window_actions(window: ShellWindow) -> None:
     window.action_pause.setShortcut(QKeySequence("F6"))
     window.action_pause.triggered.connect(window._toggle_pause_resume)
 
-    window.action_connect_selected = QAction("Connect Selected", window)
-    window.action_connect_selected.setShortcut(QKeySequence("Ctrl+L"))
-    window.action_connect_selected.triggered.connect(window._connect_selected_nodes)
+    window.action_connect_selected = _create_graph_action(window, GraphActionId.CONNECT_SELECTED)
 
-    window.action_duplicate_selection = QAction("Duplicate Selection", window)
-    window.action_duplicate_selection.setShortcut(QKeySequence("Ctrl+D"))
-    window.action_duplicate_selection.triggered.connect(window._duplicate_selected_nodes)
+    window.action_duplicate_selection = _create_graph_action(window, GraphActionId.DUPLICATE_SELECTION)
 
-    window.action_wrap_selection_in_comment_backdrop = QAction("Wrap Selection in Comment Backdrop", window)
-    window.action_wrap_selection_in_comment_backdrop.setShortcut(QKeySequence("C"))
-    window.action_wrap_selection_in_comment_backdrop.triggered.connect(
-        window._wrap_selected_nodes_in_comment_backdrop
+    window.action_wrap_selection_in_comment_backdrop = _create_graph_action(
+        window,
+        GraphActionId.WRAP_SELECTION_IN_COMMENT_BACKDROP,
     )
 
-    window.action_group_selection = QAction("Group Selection", window)
-    window.action_group_selection.setShortcut(QKeySequence("Ctrl+G"))
-    window.action_group_selection.triggered.connect(window._group_selected_nodes)
+    window.action_group_selection = _create_graph_action(window, GraphActionId.GROUP_SELECTION)
 
-    window.action_ungroup_selection = QAction("Ungroup Selection", window)
-    window.action_ungroup_selection.setShortcut(QKeySequence("Ctrl+Shift+G"))
-    window.action_ungroup_selection.triggered.connect(window._ungroup_selected_nodes)
+    window.action_ungroup_selection = _create_graph_action(window, GraphActionId.UNGROUP_SELECTION)
 
-    window.action_align_left = QAction("Align Left", window)
-    window.action_align_left.triggered.connect(window._align_selection_left)
+    window.action_align_left = _create_graph_action(window, GraphActionId.ALIGN_SELECTION_LEFT)
 
-    window.action_align_right = QAction("Align Right", window)
-    window.action_align_right.triggered.connect(window._align_selection_right)
+    window.action_align_right = _create_graph_action(window, GraphActionId.ALIGN_SELECTION_RIGHT)
 
-    window.action_align_top = QAction("Align Top", window)
-    window.action_align_top.triggered.connect(window._align_selection_top)
+    window.action_align_top = _create_graph_action(window, GraphActionId.ALIGN_SELECTION_TOP)
 
-    window.action_align_bottom = QAction("Align Bottom", window)
-    window.action_align_bottom.triggered.connect(window._align_selection_bottom)
+    window.action_align_bottom = _create_graph_action(window, GraphActionId.ALIGN_SELECTION_BOTTOM)
 
-    window.action_distribute_horizontally = QAction("Distribute Horizontally", window)
-    window.action_distribute_horizontally.triggered.connect(window._distribute_selection_horizontally)
+    window.action_distribute_horizontally = _create_graph_action(
+        window,
+        GraphActionId.DISTRIBUTE_SELECTION_HORIZONTALLY,
+    )
 
-    window.action_distribute_vertically = QAction("Distribute Vertically", window)
-    window.action_distribute_vertically.triggered.connect(window._distribute_selection_vertically)
+    window.action_distribute_vertically = _create_graph_action(
+        window,
+        GraphActionId.DISTRIBUTE_SELECTION_VERTICALLY,
+    )
 
     window.action_snap_to_grid = QAction("Snap to Grid", window)
     window.action_snap_to_grid.setCheckable(True)
@@ -194,17 +189,11 @@ def create_window_actions(window: ShellWindow) -> None:
     window.action_redo.setShortcuts([QKeySequence("Ctrl+Shift+Z"), QKeySequence("Ctrl+Y")])
     window.action_redo.triggered.connect(window._redo)
 
-    window.action_copy_selection = QAction("Copy Selection", window)
-    window.action_copy_selection.setShortcut(QKeySequence.StandardKey.Copy)
-    window.action_copy_selection.triggered.connect(window._copy_selected_nodes_to_clipboard)
+    window.action_copy_selection = _create_graph_action(window, GraphActionId.COPY_SELECTION)
 
-    window.action_cut_selection = QAction("Cut Selection", window)
-    window.action_cut_selection.setShortcut(QKeySequence.StandardKey.Cut)
-    window.action_cut_selection.triggered.connect(window._cut_selected_nodes_to_clipboard)
+    window.action_cut_selection = _create_graph_action(window, GraphActionId.CUT_SELECTION)
 
-    window.action_paste_selection = QAction("Paste Selection", window)
-    window.action_paste_selection.setShortcut(QKeySequence.StandardKey.Paste)
-    window.action_paste_selection.triggered.connect(window._paste_nodes_from_clipboard)
+    window.action_paste_selection = _create_graph_action(window, GraphActionId.PASTE_SELECTION)
 
     window.action_frame_all = QAction("Frame All", window)
     window.action_frame_all.setShortcut(QKeySequence("A"))
@@ -218,21 +207,15 @@ def create_window_actions(window: ShellWindow) -> None:
     window.action_center_selection.setShortcut(QKeySequence("Shift+F"))
     window.action_center_selection.triggered.connect(window._center_on_selection)
 
-    window.action_scope_parent = QAction("Scope Parent", window)
-    window.action_scope_parent.setShortcut(QKeySequence("Alt+Left"))
-    window.action_scope_parent.triggered.connect(window.request_navigate_scope_parent)
+    window.action_scope_parent = _create_graph_action(window, GraphActionId.NAVIGATE_SCOPE_PARENT)
 
-    window.action_scope_root = QAction("Scope Root", window)
-    window.action_scope_root.setShortcut(QKeySequence("Alt+Home"))
-    window.action_scope_root.triggered.connect(window.request_navigate_scope_root)
+    window.action_scope_root = _create_graph_action(window, GraphActionId.NAVIGATE_SCOPE_ROOT)
 
     window.action_graph_search = QAction("Graph Search", window)
     window.action_graph_search.setShortcut(QKeySequence("Ctrl+K"))
     window.action_graph_search.triggered.connect(window.request_open_graph_search)
 
-    window.action_show_help = QAction("Help", window)
-    window.action_show_help.setShortcut(QKeySequence("F1"))
-    window.action_show_help.triggered.connect(lambda: _trigger_help_for_selected_node(window))
+    window.action_show_help = _create_graph_action(window, GraphActionId.SHOW_NODE_HELP)
 
     window.action_new_view = QAction("New View", window)
     window.action_new_view.setShortcut(QKeySequence("Ctrl+Shift+V"))

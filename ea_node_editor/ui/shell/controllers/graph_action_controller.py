@@ -28,11 +28,6 @@ _WORKSPACE_ACTION_METHODS: dict[GraphActionId, tuple[str, bool]] = {
     GraphActionId.DISTRIBUTE_SELECTION_VERTICALLY: ("distribute_selection_vertically", False),
 }
 
-_HOST_NO_PAYLOAD_METHODS: dict[GraphActionId, str] = {
-    GraphActionId.NAVIGATE_SCOPE_PARENT: "request_navigate_scope_parent",
-    GraphActionId.NAVIGATE_SCOPE_ROOT: "request_navigate_scope_root",
-}
-
 _NODE_HOST_ACTION_METHODS: dict[GraphActionId, str] = {
     GraphActionId.EDIT_PASSIVE_NODE_STYLE: "request_edit_passive_node_style",
     GraphActionId.RESET_PASSIVE_NODE_STYLE: "request_reset_passive_node_style",
@@ -93,6 +88,8 @@ class GraphActionController:
         normalized_action_id = normalize_graph_action_id(action_id)
         if normalized_action_id is None:
             return False
+        if normalized_action_id is GraphActionId.SHOW_NODE_HELP and payload is None:
+            return self._trigger_show_help_for_selected_node()
         normalized_payload = normalize_graph_action_payload(normalized_action_id, payload)
         if normalized_payload is None:
             return False
@@ -113,11 +110,10 @@ class GraphActionController:
                 self._workspace_graph_edit_controller_source(),
                 "wrap_selected_nodes_in_comment_backdrop",
             )
-        if action_id in _HOST_NO_PAYLOAD_METHODS:
-            return self._invoke_bool(
-                self._graph_canvas_host_presenter_source(),
-                _HOST_NO_PAYLOAD_METHODS[action_id],
-            ) or self._invoke_bool(self._shell_window, _HOST_NO_PAYLOAD_METHODS[action_id])
+        if action_id is GraphActionId.NAVIGATE_SCOPE_PARENT:
+            return self._trigger_navigate_scope("request_navigate_scope_parent", "navigate_scope_parent")
+        if action_id is GraphActionId.NAVIGATE_SCOPE_ROOT:
+            return self._trigger_navigate_scope("request_navigate_scope_root", "navigate_scope_root")
         if action_id is GraphActionId.OPEN_ADDON_MANAGER_FOR_NODE:
             return self._trigger_open_addon_manager_for_node(payload)
         if action_id is GraphActionId.OPEN_SUBNODE_SCOPE:
@@ -146,7 +142,36 @@ class GraphActionController:
             self._graph_canvas_host_presenter_source(),
             "request_delete_selected_graph_items",
             edge_ids,
-        ) or self._invoke_bool(self._shell_window, "request_delete_selected_graph_items", edge_ids)
+        ) or self._invoke_bool(
+            self._workspace_library_controller_source(),
+            "request_delete_selected_graph_items",
+            edge_ids,
+        )
+
+    def _trigger_navigate_scope(self, host_method_name: str, scene_method_name: str) -> bool:
+        if self._invoke_bool(self._graph_canvas_host_presenter_source(), host_method_name):
+            return True
+        shell_window = self._shell_window
+        scene = self._scene_bridge_source()
+        navigate_fn = getattr(scene, scene_method_name, None) if scene is not None else None
+        if shell_window is None or not callable(navigate_fn):
+            return False
+        return self._invoke_bool(
+            _attr(shell_window, "search_scope_controller"),
+            "navigate_scope",
+            navigate_fn,
+        )
+
+    def _trigger_show_help_for_selected_node(self) -> bool:
+        help_bridge = self._help_bridge_source()
+        if self._invoke_bool(help_bridge, "show_help_for_selected_node"):
+            return True
+        scene = self._scene_bridge_source()
+        selected_node_id = getattr(scene, "selected_node_id", None) if scene is not None else None
+        node_id = str(selected_node_id() or "").strip() if callable(selected_node_id) else ""
+        if not node_id:
+            return False
+        return self._invoke_bool(help_bridge, "show_help_for_node", node_id)
 
     def _trigger_node_action_on_canvas_presenter(
         self,

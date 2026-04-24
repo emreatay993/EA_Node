@@ -36,25 +36,18 @@ NODE_DELEGATE_QML = (
 WINDOW_ACTIONS = REPO_ROOT / "ea_node_editor" / "ui" / "shell" / "window_actions.py"
 
 
-PYQT_GRAPH_ACTIONS: dict[str, GraphActionId] = {
-    "action_connect_selected": GraphActionId.CONNECT_SELECTED,
-    "action_copy_selection": GraphActionId.COPY_SELECTION,
-    "action_cut_selection": GraphActionId.CUT_SELECTION,
-    "action_paste_selection": GraphActionId.PASTE_SELECTION,
-    "action_duplicate_selection": GraphActionId.DUPLICATE_SELECTION,
-    "action_wrap_selection_in_comment_backdrop": GraphActionId.WRAP_SELECTION_IN_COMMENT_BACKDROP,
-    "action_group_selection": GraphActionId.GROUP_SELECTION,
-    "action_ungroup_selection": GraphActionId.UNGROUP_SELECTION,
-    "action_align_left": GraphActionId.ALIGN_SELECTION_LEFT,
-    "action_align_right": GraphActionId.ALIGN_SELECTION_RIGHT,
-    "action_align_top": GraphActionId.ALIGN_SELECTION_TOP,
-    "action_align_bottom": GraphActionId.ALIGN_SELECTION_BOTTOM,
-    "action_distribute_horizontally": GraphActionId.DISTRIBUTE_SELECTION_HORIZONTALLY,
-    "action_distribute_vertically": GraphActionId.DISTRIBUTE_SELECTION_VERTICALLY,
-    "action_scope_parent": GraphActionId.NAVIGATE_SCOPE_PARENT,
-    "action_scope_root": GraphActionId.NAVIGATE_SCOPE_ROOT,
-    "action_show_help": GraphActionId.SHOW_NODE_HELP,
-}
+def _pyqt_graph_actions_from_contract() -> dict[str, GraphActionId]:
+    actions: dict[str, GraphActionId] = {}
+    for spec in GRAPH_ACTION_SPECS:
+        if not any(surface.startswith("pyqt_") for surface in spec.surfaces):
+            continue
+        action_routes = [route for route in spec.legacy_route_names if route.startswith("action_")]
+        assert len(action_routes) == 1, spec.action_id.value
+        actions[action_routes[0]] = spec.action_id
+    return actions
+
+
+PYQT_GRAPH_ACTIONS: dict[str, GraphActionId] = _pyqt_graph_actions_from_contract()
 
 PYQT_MENU_ACTION_EXCEPTIONS = {
     "action_undo",
@@ -103,6 +96,36 @@ def _window_action_assignments() -> dict[str, ast.Call]:
             if isinstance(target.value, ast.Name) and target.value.id == "window":
                 assignments[target.attr] = node.value
     return assignments
+
+
+def _window_graph_action_contract_assignments() -> dict[str, GraphActionId]:
+    tree = ast.parse(_source(WINDOW_ACTIONS), filename=str(WINDOW_ACTIONS))
+    assignments: dict[str, GraphActionId] = {}
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Assign) or not isinstance(node.value, ast.Call):
+            continue
+        call = node.value
+        if not isinstance(call.func, ast.Name) or call.func.id != "_create_graph_action":
+            continue
+        if len(call.args) != 2:
+            continue
+        action_id = _graph_action_id_from_ast(call.args[1])
+        if action_id is None:
+            continue
+        for target in node.targets:
+            if not isinstance(target, ast.Attribute):
+                continue
+            if isinstance(target.value, ast.Name) and target.value.id == "window":
+                assignments[target.attr] = action_id
+    return assignments
+
+
+def _graph_action_id_from_ast(node: ast.AST) -> GraphActionId | None:
+    if not isinstance(node, ast.Attribute):
+        return None
+    if not isinstance(node.value, ast.Name) or node.value.id != "GraphActionId":
+        return None
+    return GraphActionId[node.attr]
 
 
 def _window_action_shortcuts() -> dict[str, str]:
@@ -208,18 +231,19 @@ def test_low_level_qml_action_exceptions_are_current() -> None:
     assert LOW_LEVEL_QML_ACTION_EXCEPTIONS <= qml_literals
 
 
-def test_pyqt_graph_action_labels_and_shortcuts_match_contract() -> None:
-    assignments = _window_action_assignments()
-    shortcuts = _window_action_shortcuts()
+def test_pyqt_graph_action_declarations_use_contract_ids() -> None:
+    assignments = _window_graph_action_contract_assignments()
     missing_actions = set(PYQT_GRAPH_ACTIONS) - set(assignments)
     assert missing_actions == set()
+    assert assignments == PYQT_GRAPH_ACTIONS
 
-    for pyqt_action_name, action_id in PYQT_GRAPH_ACTIONS.items():
-        spec = graph_action_spec(action_id)
-        labels = {spec.label, *spec.legacy_labels}
-        assert _qaction_label(assignments[pyqt_action_name]) in labels
-        if spec.shortcut is not None:
-            assert shortcuts.get(pyqt_action_name) == spec.shortcut
+
+def test_pyqt_graph_action_factory_uses_contract_labels_shortcuts_and_controller() -> None:
+    source = _source(WINDOW_ACTIONS)
+    assert "graph_action_spec(action_id)" in source
+    assert "QAction(str(spec.label or action_id.value), window)" in source
+    assert "action.setShortcut(QKeySequence(spec.shortcut))" in source
+    assert "controller.trigger(action_id.value)" in source
 
 
 def test_pyqt_graph_menu_actions_are_mapped_to_contract() -> None:
@@ -228,9 +252,10 @@ def test_pyqt_graph_menu_actions_are_mapped_to_contract() -> None:
 
 
 def test_pyqt_graph_action_declarations_are_in_legacy_routes() -> None:
+    assignments = _window_graph_action_contract_assignments()
     missing = {
         pyqt_action_name
-        for pyqt_action_name, action_id in PYQT_GRAPH_ACTIONS.items()
+        for pyqt_action_name, action_id in assignments.items()
         if pyqt_action_name not in graph_action_spec(action_id).legacy_route_names
     }
     assert missing == set()

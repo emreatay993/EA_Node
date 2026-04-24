@@ -12,6 +12,7 @@ from ea_node_editor.graph.file_issue_state import (
     preferred_repair_mode_for_value,
     repair_modes_for_node_property,
 )
+from ea_node_editor.ui.shell.graph_action_contracts import GraphActionId
 from ea_node_editor.ui.pdf_preview_provider import (
     describe_pdf_preview as build_pdf_preview_description,
 )
@@ -47,12 +48,12 @@ def request_open_scope_breadcrumb(self: "ShellWindow", node_id: str) -> bool:
 
 @pyqtSlot(result=bool)
 def request_navigate_scope_parent(self: "ShellWindow") -> bool:
-    return bool(self._navigate_scope(self.scene.navigate_scope_parent))
+    return bool(self.graph_action_controller.trigger(GraphActionId.NAVIGATE_SCOPE_PARENT.value))
 
 
 @pyqtSlot(result=bool)
 def request_navigate_scope_root(self: "ShellWindow") -> bool:
-    return bool(self._navigate_scope(self.scene.navigate_scope_root))
+    return bool(self.graph_action_controller.trigger(GraphActionId.NAVIGATE_SCOPE_ROOT.value))
 
 
 @pyqtSlot()
@@ -102,72 +103,72 @@ def request_move_view_tab(self: "ShellWindow", from_index: int, to_index: int) -
 
 @pyqtSlot(result=bool)
 def request_align_selection_left(self: "ShellWindow") -> bool:
-    return bool(self._align_selection_left())
+    return bool(self.graph_action_controller.trigger(GraphActionId.ALIGN_SELECTION_LEFT.value))
 
 
 @pyqtSlot(result=bool)
 def request_align_selection_right(self: "ShellWindow") -> bool:
-    return bool(self._align_selection_right())
+    return bool(self.graph_action_controller.trigger(GraphActionId.ALIGN_SELECTION_RIGHT.value))
 
 
 @pyqtSlot(result=bool)
 def request_align_selection_top(self: "ShellWindow") -> bool:
-    return bool(self._align_selection_top())
+    return bool(self.graph_action_controller.trigger(GraphActionId.ALIGN_SELECTION_TOP.value))
 
 
 @pyqtSlot(result=bool)
 def request_align_selection_bottom(self: "ShellWindow") -> bool:
-    return bool(self._align_selection_bottom())
+    return bool(self.graph_action_controller.trigger(GraphActionId.ALIGN_SELECTION_BOTTOM.value))
 
 
 @pyqtSlot(result=bool)
 def request_distribute_selection_horizontally(self: "ShellWindow") -> bool:
-    return bool(self._distribute_selection_horizontally())
+    return bool(self.graph_action_controller.trigger(GraphActionId.DISTRIBUTE_SELECTION_HORIZONTALLY.value))
 
 
 @pyqtSlot(result=bool)
 def request_distribute_selection_vertically(self: "ShellWindow") -> bool:
-    return bool(self._distribute_selection_vertically())
+    return bool(self.graph_action_controller.trigger(GraphActionId.DISTRIBUTE_SELECTION_VERTICALLY.value))
 
 
 @pyqtSlot()
 def request_connect_selected_nodes(self: "ShellWindow") -> None:
-    self._connect_selected_nodes()
+    self.graph_action_controller.trigger(GraphActionId.CONNECT_SELECTED.value)
 
 
 @pyqtSlot(result=bool)
 def request_duplicate_selected_nodes(self: "ShellWindow") -> bool:
-    return bool(self._duplicate_selected_nodes())
+    return bool(self.graph_action_controller.trigger(GraphActionId.DUPLICATE_SELECTION.value))
 
 
 @pyqtSlot(result=bool)
 def request_wrap_selected_nodes_in_comment_backdrop(self: "ShellWindow") -> bool:
-    return bool(self._wrap_selected_nodes_in_comment_backdrop())
+    return bool(self.graph_action_controller.trigger(GraphActionId.WRAP_SELECTION_IN_COMMENT_BACKDROP.value))
 
 
 @pyqtSlot(result=bool)
 def request_group_selected_nodes(self: "ShellWindow") -> bool:
-    return bool(self._group_selected_nodes())
+    return bool(self.graph_action_controller.trigger(GraphActionId.GROUP_SELECTION.value))
 
 
 @pyqtSlot(result=bool)
 def request_ungroup_selected_nodes(self: "ShellWindow") -> bool:
-    return bool(self.shell_inspector_presenter.request_ungroup_selected_nodes())
+    return bool(self.graph_action_controller.trigger(GraphActionId.UNGROUP_SELECTION.value))
 
 
 @pyqtSlot(result=bool)
 def request_copy_selected_nodes(self: "ShellWindow") -> bool:
-    return bool(self._copy_selected_nodes_to_clipboard())
+    return bool(self.graph_action_controller.trigger(GraphActionId.COPY_SELECTION.value))
 
 
 @pyqtSlot(result=bool)
 def request_cut_selected_nodes(self: "ShellWindow") -> bool:
-    return bool(self._cut_selected_nodes_to_clipboard())
+    return bool(self.graph_action_controller.trigger(GraphActionId.CUT_SELECTION.value))
 
 
 @pyqtSlot(result=bool)
 def request_paste_selected_nodes(self: "ShellWindow") -> bool:
-    return bool(self._paste_nodes_from_clipboard())
+    return bool(self.graph_action_controller.trigger(GraphActionId.PASTE_SELECTION.value))
 
 
 @pyqtSlot(result=bool)
@@ -234,7 +235,12 @@ def request_remove_selected_port(self: "ShellWindow", key: str) -> bool:
 
 @pyqtSlot("QVariantList", result=bool)
 def request_delete_selected_graph_items(self: "ShellWindow", edge_ids: list[Any]) -> bool:
-    return bool(self.workspace_library_controller.request_delete_selected_graph_items(edge_ids).payload)
+    return bool(
+        self.graph_action_controller.trigger(
+            GraphActionId.DELETE_SELECTION.value,
+            {"edge_ids": edge_ids},
+        )
+    )
 
 
 @pyqtSlot(str, "QVariant")
@@ -498,62 +504,6 @@ def _on_port_exposed_changed(self: "ShellWindow", node_id, key, exposed):
 
 def _on_node_collapse_changed(self: "ShellWindow", node_id, collapsed):
     return self.workspace_library_controller.on_node_collapse_changed(node_id, collapsed)
-
-
-def _connect_selected_nodes(self: "ShellWindow"):
-    return self.workspace_library_controller.connect_selected_nodes()
-
-
-def _duplicate_selected_nodes(self: "ShellWindow"):
-    return self.workspace_library_controller.duplicate_selected_nodes()
-
-
-def _wrap_selected_nodes_in_comment_backdrop(self: "ShellWindow"):
-    return self.workspace_graph_edit_controller.wrap_selected_nodes_in_comment_backdrop()
-
-
-def _group_selected_nodes(self: "ShellWindow"):
-    return self.workspace_library_controller.group_selected_nodes()
-
-
-def _ungroup_selected_nodes(self: "ShellWindow"):
-    return self.workspace_library_controller.ungroup_selected_nodes()
-
-
-def _align_selection_left(self: "ShellWindow"):
-    return self.workspace_library_controller.align_selection_left()
-
-
-def _align_selection_right(self: "ShellWindow"):
-    return self.workspace_library_controller.align_selection_right()
-
-
-def _align_selection_top(self: "ShellWindow"):
-    return self.workspace_library_controller.align_selection_top()
-
-
-def _align_selection_bottom(self: "ShellWindow"):
-    return self.workspace_library_controller.align_selection_bottom()
-
-
-def _distribute_selection_horizontally(self: "ShellWindow"):
-    return self.workspace_library_controller.distribute_selection_horizontally()
-
-
-def _distribute_selection_vertically(self: "ShellWindow"):
-    return self.workspace_library_controller.distribute_selection_vertically()
-
-
-def _copy_selected_nodes_to_clipboard(self: "ShellWindow"):
-    return self.workspace_library_controller.copy_selected_nodes_to_clipboard()
-
-
-def _cut_selected_nodes_to_clipboard(self: "ShellWindow"):
-    return self.workspace_library_controller.cut_selected_nodes_to_clipboard()
-
-
-def _paste_nodes_from_clipboard(self: "ShellWindow"):
-    return self.workspace_library_controller.paste_nodes_from_clipboard()
 
 
 def _undo(self: "ShellWindow"):

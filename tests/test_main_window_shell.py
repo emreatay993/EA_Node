@@ -15,6 +15,7 @@ from ea_node_editor.ui.shell.runtime_clipboard import (
     serialize_graph_fragment_payload,
 )
 from ea_node_editor.ui.shell.composition import AddonManagerBridge
+from ea_node_editor.ui.shell.graph_action_contracts import GraphActionId
 from ea_node_editor.ui.shell.presenters.addon_manager_presenter import AddOnManagerPresenter
 from ea_node_editor.ui_qml.graph_action_bridge import GraphActionBridge
 from ea_node_editor.ui_qml.content_fullscreen_bridge import ContentFullscreenBridge
@@ -533,6 +534,95 @@ class MainWindowGraphCanvasBridgeTests(SharedMainWindowShellTestBase):
         self.assertIs(self.window.graph_action_bridge.controller, self.window.graph_action_controller)
         self.assertIs(self.window.graph_canvas_state_bridge, bridges.graph_canvas_state_bridge)
         self.assertIs(self.window.graph_canvas_command_bridge, bridges.graph_canvas_command_bridge)
+
+
+class MainWindowPyQtGraphActionRouteTests(SharedMainWindowShellTestBase):
+    def test_pyqt_duplicate_clipboard_comment_backdrop_group_align_scope_actions_dispatch_to_controller(self) -> None:
+        actions = (
+            (self.window.action_connect_selected, GraphActionId.CONNECT_SELECTED),
+            (self.window.action_duplicate_selection, GraphActionId.DUPLICATE_SELECTION),
+            (self.window.action_wrap_selection_in_comment_backdrop, GraphActionId.WRAP_SELECTION_IN_COMMENT_BACKDROP),
+            (self.window.action_group_selection, GraphActionId.GROUP_SELECTION),
+            (self.window.action_ungroup_selection, GraphActionId.UNGROUP_SELECTION),
+            (self.window.action_align_left, GraphActionId.ALIGN_SELECTION_LEFT),
+            (self.window.action_align_right, GraphActionId.ALIGN_SELECTION_RIGHT),
+            (self.window.action_align_top, GraphActionId.ALIGN_SELECTION_TOP),
+            (self.window.action_align_bottom, GraphActionId.ALIGN_SELECTION_BOTTOM),
+            (self.window.action_distribute_horizontally, GraphActionId.DISTRIBUTE_SELECTION_HORIZONTALLY),
+            (self.window.action_distribute_vertically, GraphActionId.DISTRIBUTE_SELECTION_VERTICALLY),
+            (self.window.action_copy_selection, GraphActionId.COPY_SELECTION),
+            (self.window.action_cut_selection, GraphActionId.CUT_SELECTION),
+            (self.window.action_paste_selection, GraphActionId.PASTE_SELECTION),
+            (self.window.action_scope_parent, GraphActionId.NAVIGATE_SCOPE_PARENT),
+            (self.window.action_scope_root, GraphActionId.NAVIGATE_SCOPE_ROOT),
+            (self.window.action_show_help, GraphActionId.SHOW_NODE_HELP),
+        )
+        calls: list[tuple[str, object | None]] = []
+
+        def record(action_id: str, payload: object | None = None) -> bool:
+            calls.append((action_id, payload))
+            return True
+
+        with patch.object(self.window.graph_action_controller, "trigger", side_effect=record):
+            for action, _action_id in actions:
+                action.trigger()
+
+        self.assertEqual(calls, [(action_id.value, None) for _action, action_id in actions])
+
+    def test_duplicate_clipboard_comment_backdrop_group_align_scope_request_slots_delegate_to_controller(self) -> None:
+        requests = (
+            (self.window.request_connect_selected_nodes, GraphActionId.CONNECT_SELECTED, None, None),
+            (self.window.request_duplicate_selected_nodes, GraphActionId.DUPLICATE_SELECTION, None, True),
+            (
+                self.window.request_wrap_selected_nodes_in_comment_backdrop,
+                GraphActionId.WRAP_SELECTION_IN_COMMENT_BACKDROP,
+                None,
+                True,
+            ),
+            (self.window.request_group_selected_nodes, GraphActionId.GROUP_SELECTION, None, True),
+            (self.window.request_ungroup_selected_nodes, GraphActionId.UNGROUP_SELECTION, None, True),
+            (self.window.request_align_selection_left, GraphActionId.ALIGN_SELECTION_LEFT, None, True),
+            (self.window.request_align_selection_right, GraphActionId.ALIGN_SELECTION_RIGHT, None, True),
+            (self.window.request_align_selection_top, GraphActionId.ALIGN_SELECTION_TOP, None, True),
+            (self.window.request_align_selection_bottom, GraphActionId.ALIGN_SELECTION_BOTTOM, None, True),
+            (
+                self.window.request_distribute_selection_horizontally,
+                GraphActionId.DISTRIBUTE_SELECTION_HORIZONTALLY,
+                None,
+                True,
+            ),
+            (
+                self.window.request_distribute_selection_vertically,
+                GraphActionId.DISTRIBUTE_SELECTION_VERTICALLY,
+                None,
+                True,
+            ),
+            (self.window.request_copy_selected_nodes, GraphActionId.COPY_SELECTION, None, True),
+            (self.window.request_cut_selected_nodes, GraphActionId.CUT_SELECTION, None, True),
+            (self.window.request_paste_selected_nodes, GraphActionId.PASTE_SELECTION, None, True),
+            (self.window.request_navigate_scope_parent, GraphActionId.NAVIGATE_SCOPE_PARENT, None, True),
+            (self.window.request_navigate_scope_root, GraphActionId.NAVIGATE_SCOPE_ROOT, None, True),
+            (
+                lambda: self.window.request_delete_selected_graph_items(["edge-1"]),
+                GraphActionId.DELETE_SELECTION,
+                {"edge_ids": ["edge-1"]},
+                True,
+            ),
+        )
+        calls: list[tuple[str, object | None]] = []
+
+        def record(action_id: str, payload: object | None = None) -> bool:
+            calls.append((action_id, payload))
+            return True
+
+        with patch.object(self.window.graph_action_controller, "trigger", side_effect=record):
+            results = [request() for request, _action_id, _payload, _expected in requests]
+
+        self.assertEqual(results, [expected for _request, _action_id, _payload, expected in requests])
+        self.assertEqual(
+            calls,
+            [(action_id.value, payload) for _request, action_id, payload, _expected in requests],
+        )
 
 
 class MainWindowGraphTypographyBridgeTests(SharedMainWindowShellTestBase):
