@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Any
 
 from ea_node_editor.nodes.builtins.integrations_common import pick_optional_path, pick_path, require_existing_file
+from ea_node_editor.nodes.decorators import plugin_descriptor
 from ea_node_editor.nodes.output_artifacts import write_managed_output
 from ea_node_editor.nodes.execution_context import NodeResult
 from ea_node_editor.nodes.node_specs import NodeTypeSpec, PortSpec, PropertySpec
@@ -208,3 +209,9 @@ class ExcelWriteNodePlugin:
 
         _write_rows_to_path(path, rows=rows, headers=headers)
         return NodeResult(outputs={"written_path": str(path), "exec_out": True})
+
+
+SPREADSHEET_NODE_DESCRIPTORS = (
+    plugin_descriptor(ExcelReadNodePlugin),
+    plugin_descriptor(ExcelWriteNodePlugin),
+)

@@ -8,6 +8,7 @@ import time
 from pathlib import Path
 from typing import Any
 
+from ea_node_editor.nodes.decorators import plugin_descriptor
 from ea_node_editor.nodes.execution_context import ExecutionContext, NodeResult
 from ea_node_editor.nodes.node_specs import NodeTypeSpec, PortSpec, PropertySpec
 
@@ -362,3 +363,11 @@ class HPCFetchResultNodePlugin:
 
         ctx.emit_log("info", f"Fetched {remote_path} -> {result_path}")
         return NodeResult(outputs={"local_path": result_path, "exec_out": True})
+
+
+HPC_NODE_DESCRIPTORS = (
+    plugin_descriptor(HPCSubmitNodePlugin),
+    plugin_descriptor(HPCMonitorNodePlugin),
+    plugin_descriptor(HPCOnStatusNodePlugin),
+    plugin_descriptor(HPCFetchResultNodePlugin),
+)

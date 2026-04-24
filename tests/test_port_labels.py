@@ -18,7 +18,7 @@ def _make_spec(*, label: str = "") -> NodeTypeSpec:
     return NodeTypeSpec(
         type_id="test.node",
         display_name="Test",
-        category="Test",
+        category_path=("Test",),
         icon="bug_report",
         ports=(
             PortSpec("exec_in", "in", "exec", "exec"),
@@ -66,17 +66,9 @@ class TestPortLabelsSerialization:
         assert restored is not None
         assert restored.port_labels == {"data_in": "My Input"}
 
-    def test_backward_compat_missing_key(self):
-        mapping = {
-            "node_id": "n1",
-            "type_id": "test.node",
-            "title": "Test",
-            "x": 0.0,
-            "y": 0.0,
-        }
-        node = node_instance_from_mapping(mapping)
-        assert node is not None
-        assert node.port_labels == {}
+    def test_current_schema_includes_empty_port_labels(self):
+        mapping = node_instance_to_mapping(_make_node())
+        assert mapping["port_labels"] == {}
 
     def test_empty_labels_stripped(self):
         mapping = {

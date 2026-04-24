@@ -5,6 +5,7 @@ from pathlib import Path
 
 from ea_node_editor.graph.boundary_adapters import register_node_type_size_resolver
 from ea_node_editor.nodes.builtins.integrations_common import pick_optional_path, pick_path, require_existing_file
+from ea_node_editor.nodes.decorators import plugin_descriptor
 from ea_node_editor.nodes.output_artifacts import write_managed_output
 from ea_node_editor.nodes.execution_context import NodeResult
 from ea_node_editor.nodes.node_specs import NodeTypeSpec, PortSpec, PropertySpec
@@ -262,3 +263,10 @@ def _path_pointer_node_size(node, _spec, *, base_width: float, base_height: floa
 
 
 register_node_type_size_resolver("io.path_pointer", _path_pointer_node_size)
+
+
+FILE_IO_NODE_DESCRIPTORS = (
+    plugin_descriptor(FileReadNodePlugin),
+    plugin_descriptor(FileWriteNodePlugin),
+    plugin_descriptor(PathPointerNodePlugin),
+)

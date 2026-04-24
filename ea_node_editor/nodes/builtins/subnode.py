@@ -22,7 +22,7 @@ from ea_node_editor.graph.subnode_contract import (
     normalize_subnode_pin_kind,
     resolve_subnode_pin_definition,
 )
-from ea_node_editor.nodes.decorators import in_port, node_type, out_port, prop_enum, prop_str
+from ea_node_editor.nodes.decorators import in_port, node_type, out_port, plugin_descriptor, prop_enum, prop_str
 from ea_node_editor.nodes.execution_context import ExecutionContext, NodeResult
 
 
@@ -89,6 +89,13 @@ class SubnodeOutputNodePlugin:
         return NodeResult(outputs={})
 
 
+SUBNODE_NODE_DESCRIPTORS = (
+    plugin_descriptor(SubnodeNodePlugin),
+    plugin_descriptor(SubnodeInputNodePlugin),
+    plugin_descriptor(SubnodeOutputNodePlugin),
+)
+
+
 __all__ = [
     "SUBNODE_AUTHORING_TYPE_IDS",
     "SUBNODE_PIN_DATA_TYPE_PROPERTY",
@@ -100,6 +107,7 @@ __all__ = [
     "SUBNODE_INPUT_TYPE_ID",
     "SUBNODE_OUTPUT_TYPE_ID",
     "SUBNODE_TYPE_ID",
+    "SUBNODE_NODE_DESCRIPTORS",
     "SubnodePinDefinition",
     "SubnodeInputNodePlugin",
     "SubnodeNodePlugin",

@@ -3,6 +3,7 @@ from __future__ import annotations
 import smtplib
 from email.message import EmailMessage
 
+from ea_node_editor.nodes.decorators import plugin_descriptor
 from ea_node_editor.nodes.execution_context import NodeResult
 from ea_node_editor.nodes.node_specs import NodeTypeSpec, PortSpec, PropertySpec
 
@@ -81,3 +82,6 @@ class EmailSendNodePlugin:
                 f"Email Send could not connect to SMTP server {smtp_host}:{smtp_port}: {exc}"
             ) from exc
         return NodeResult(outputs={"sent": True, "exec_out": True})
+
+
+EMAIL_NODE_DESCRIPTORS = (plugin_descriptor(EmailSendNodePlugin),)

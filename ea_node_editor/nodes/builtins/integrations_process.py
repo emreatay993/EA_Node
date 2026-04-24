@@ -11,6 +11,7 @@ from collections import deque
 from pathlib import Path
 from typing import Any
 
+from ea_node_editor.nodes.decorators import plugin_descriptor
 from ea_node_editor.nodes.output_artifacts import (
     artifact_store_for_context,
     write_managed_output,
@@ -445,3 +446,6 @@ class ProcessRunNodePlugin:
                     continue
             if not keep_stored_outputs:
                 _discard_stored_transcript_entries(ctx, stored_artifact_ids)
+
+
+PROCESS_NODE_DESCRIPTORS = (plugin_descriptor(ProcessRunNodePlugin),)

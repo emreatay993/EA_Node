@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from ea_node_editor.nodes.builtins.passive_flow_ports import CARDINAL_PASSIVE_FLOW_PORTS
-from ea_node_editor.nodes.decorators import node_type, prop_str
+from ea_node_editor.nodes.decorators import node_type, plugin_descriptor, prop_str
 from ea_node_editor.nodes.registry import NodeRegistry
 from ea_node_editor.nodes.execution_context import ExecutionContext, NodeResult
 
@@ -114,6 +114,10 @@ PASSIVE_ANNOTATION_NODE_PLUGINS = (
     PassiveAnnotationSectionHeaderNodePlugin,
     PassiveAnnotationCommentBackdropNodePlugin,
 )
+PASSIVE_ANNOTATION_NODE_DESCRIPTORS = tuple(
+    plugin_descriptor(plugin)
+    for plugin in PASSIVE_ANNOTATION_NODE_PLUGINS
+)
 
 
 __all__ = [
@@ -121,6 +125,7 @@ __all__ = [
     "PASSIVE_ANNOTATION_CATEGORY",
     "PASSIVE_ANNOTATION_COMMENT_BACKDROP_SURFACE_FAMILY",
     "PASSIVE_ANNOTATION_COMMENT_BACKDROP_TYPE_ID",
+    "PASSIVE_ANNOTATION_NODE_DESCRIPTORS",
     "PASSIVE_ANNOTATION_NODE_PLUGINS",
     "PASSIVE_ANNOTATION_SECTION_HEADER_TYPE_ID",
     "PASSIVE_ANNOTATION_STICKY_NOTE_TYPE_ID",

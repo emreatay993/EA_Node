@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from ea_node_editor.nodes.builtins.passive_flow_ports import CARDINAL_PASSIVE_FLOW_PORTS
-from ea_node_editor.nodes.decorators import node_type, prop_str
+from ea_node_editor.nodes.decorators import node_type, plugin_descriptor, prop_str
 from ea_node_editor.nodes.execution_context import ExecutionContext, NodeResult
 
 PASSIVE_FLOWCHART_CATEGORY = "Flowchart"
@@ -193,6 +193,10 @@ PASSIVE_FLOWCHART_NODE_PLUGINS = (
     PassiveFlowchartPredefinedProcessNodePlugin,
     PassiveFlowchartDatabaseNodePlugin,
 )
+PASSIVE_FLOWCHART_NODE_DESCRIPTORS = tuple(
+    plugin_descriptor(plugin)
+    for plugin in PASSIVE_FLOWCHART_NODE_PLUGINS
+)
 
 
 __all__ = [
@@ -203,6 +207,7 @@ __all__ = [
     "PASSIVE_FLOWCHART_DOCUMENT_TYPE_ID",
     "PASSIVE_FLOWCHART_END_TYPE_ID",
     "PASSIVE_FLOWCHART_INPUT_OUTPUT_TYPE_ID",
+    "PASSIVE_FLOWCHART_NODE_DESCRIPTORS",
     "PASSIVE_FLOWCHART_NODE_PLUGINS",
     "PASSIVE_FLOWCHART_PREDEFINED_PROCESS_TYPE_ID",
     "PASSIVE_FLOWCHART_PROCESS_TYPE_ID",

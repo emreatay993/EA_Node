@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from ea_node_editor.nodes.builtins.passive_flow_ports import CARDINAL_PASSIVE_FLOW_PORTS
-from ea_node_editor.nodes.decorators import node_type, prop_enum
+from ea_node_editor.nodes.decorators import node_type, plugin_descriptor, prop_enum
 from ea_node_editor.nodes.execution_context import ExecutionContext, NodeResult
 from ea_node_editor.nodes.node_specs import PropertySpec
 
@@ -94,12 +94,17 @@ PASSIVE_MEDIA_NODE_PLUGINS = (
     PassiveMediaImagePanelNodePlugin,
     PassiveMediaPdfPanelNodePlugin,
 )
+PASSIVE_MEDIA_NODE_DESCRIPTORS = tuple(
+    plugin_descriptor(plugin)
+    for plugin in PASSIVE_MEDIA_NODE_PLUGINS
+)
 
 
 __all__ = [
     "PASSIVE_MEDIA_CATEGORY",
     "PASSIVE_MEDIA_IMAGE_PANEL_TYPE_ID",
     "PASSIVE_MEDIA_PDF_PANEL_TYPE_ID",
+    "PASSIVE_MEDIA_NODE_DESCRIPTORS",
     "PASSIVE_MEDIA_NODE_PLUGINS",
     "PassiveMediaImagePanelNodePlugin",
     "PassiveMediaPdfPanelNodePlugin",

@@ -3,7 +3,7 @@ from __future__ import annotations
 import copy
 import json
 import re
-from collections.abc import Sequence
+from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
 from typing import Any, Callable
 
@@ -95,6 +95,10 @@ class NodeRegistry:
             provenance=provenance,
         )
 
+    def register_descriptors(self, descriptors: Iterable[PluginDescriptor]) -> None:
+        for descriptor in descriptors:
+            self.register_descriptor(descriptor)
+
     def create(self, type_id: str) -> NodePlugin:
         try:
             entry = self._entries[type_id]
@@ -171,18 +175,16 @@ class NodeRegistry:
         category_path: Sequence[str] | None = None,
     ) -> list[NodeTypeSpec]:
         text = query.strip().lower()
-        category_prefix = self._category_filter_prefix(
-            category_path=category_path,
-            category=category,
-        )
+        category_prefix = normalize_category_path(category_path) if category_path is not None else None
+        category_display_filter = str(category).strip().casefold()
         normalized_type = data_type.strip().lower()
         normalized_direction = direction.strip().lower()
         output: list[NodeTypeSpec] = []
         for spec in self.all_specs():
-            if category_prefix is not None and not category_path_matches_prefix(
-                spec.category_path,
-                category_prefix,
-            ):
+            if category_prefix is not None:
+                if not category_path_matches_prefix(spec.category_path, category_prefix):
+                    continue
+            elif category_display_filter and spec.category.casefold() != category_display_filter:
                 continue
             if text and not self._matches_text(spec, text):
                 continue
@@ -211,27 +213,6 @@ class NodeRegistry:
     def categories(self) -> list[str]:
         leaf_paths = {spec.category_path for spec in self.all_specs()}
         return [category_display(path) for path in sorted(leaf_paths, key=self._category_path_sort_key)]
-
-    def _category_filter_prefix(
-        self,
-        *,
-        category_path: Sequence[str] | None,
-        category: str,
-    ) -> CategoryPath | None:
-        if category_path is not None:
-            return normalize_category_path(category_path)
-
-        normalized_category = str(category).strip()
-        if not normalized_category:
-            return None
-        return self._category_path_for_compat_category(normalized_category)
-
-    def _category_path_for_compat_category(self, category: str) -> CategoryPath:
-        normalized_category = category.casefold()
-        for path in self.category_paths():
-            if category_display(path).casefold() == normalized_category:
-                return path
-        return normalize_category_path((category,))
 
     @staticmethod
     def _category_path_sort_key(path: Sequence[str]) -> tuple[tuple[str, ...], tuple[str, ...]]:

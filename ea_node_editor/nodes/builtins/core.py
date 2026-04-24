@@ -4,7 +4,14 @@ import json
 import traceback
 from typing import Any
 
-from ea_node_editor.nodes.decorators import node_type, in_port, out_port, prop_json, prop_bool
+from ea_node_editor.nodes.decorators import (
+    in_port,
+    node_type,
+    out_port,
+    plugin_descriptor,
+    prop_bool,
+    prop_json,
+)
 from ea_node_editor.nodes.execution_context import ExecutionContext, NodeResult
 from ea_node_editor.nodes.node_specs import NodeTypeSpec, PortSpec, PropertySpec
 
@@ -208,3 +215,14 @@ class BranchNodePlugin:
         if condition:
             return NodeResult(outputs={"true_out": True})
         return NodeResult(outputs={"false_out": True})
+
+
+CORE_NODE_DESCRIPTORS = (
+    plugin_descriptor(StartNodePlugin),
+    plugin_descriptor(EndNodePlugin),
+    plugin_descriptor(ConstantNodePlugin),
+    plugin_descriptor(LoggerNodePlugin),
+    plugin_descriptor(PythonScriptNodePlugin),
+    plugin_descriptor(OnFailureNodePlugin),
+    plugin_descriptor(BranchNodePlugin),
+)

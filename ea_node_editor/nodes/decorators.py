@@ -10,7 +10,7 @@ from ea_node_editor.nodes.node_specs import (
     PortSpec,
     PropertySpec,
 )
-from ea_node_editor.nodes.plugin_contracts import NodePlugin
+from ea_node_editor.nodes.plugin_contracts import NodePlugin, PluginDescriptor
 
 
 def in_port(
@@ -209,7 +209,15 @@ def node_type(
         def spec_method(self) -> NodeTypeSpec:  # noqa: ANN001
             return spec
 
+        setattr(cls, "__node_type_spec__", spec)
         setattr(cls, "spec", spec_method)
         return cls
 
     return decorator
+
+
+def plugin_descriptor(factory: Callable[[], NodePlugin]) -> PluginDescriptor:
+    spec = getattr(factory, "__node_type_spec__", None)
+    if not isinstance(spec, NodeTypeSpec):
+        spec = factory().spec()
+    return PluginDescriptor(spec=spec, factory=factory)

@@ -20,10 +20,18 @@ from ea_node_editor.graph.transform_fragment_ops import (
 from ea_node_editor.nodes.bootstrap import build_default_registry
 from ea_node_editor.nodes.builtins.ansys_dpf_common import (
     DPF_FIELD_OPS_VARIANT_NORM,
-    DPF_NODE_CATEGORY,
+    DPF_NODE_CATEGORY_PATH,
     DPF_RESULT_FIELD_OPERATOR_VARIANT_KEY,
     DPF_TIME_SELECTION_EXCLUSIVE_GROUP,
 )
+from ea_node_editor.nodes.builtins.core import CORE_NODE_DESCRIPTORS
+from ea_node_editor.nodes.builtins.hpc import HPC_NODE_DESCRIPTORS
+from ea_node_editor.nodes.builtins.integrations import INTEGRATION_NODE_DESCRIPTORS
+from ea_node_editor.nodes.builtins.passive_annotation import PASSIVE_ANNOTATION_NODE_DESCRIPTORS
+from ea_node_editor.nodes.builtins.passive_flowchart import PASSIVE_FLOWCHART_NODE_DESCRIPTORS
+from ea_node_editor.nodes.builtins.passive_media import PASSIVE_MEDIA_NODE_DESCRIPTORS
+from ea_node_editor.nodes.builtins.passive_planning import PASSIVE_PLANNING_NODE_DESCRIPTORS
+from ea_node_editor.nodes.builtins.subnode import SUBNODE_NODE_DESCRIPTORS
 from ea_node_editor.nodes import execution_context as node_execution_context
 from ea_node_editor.nodes import node_specs, plugin_contracts, runtime_refs, types as node_types
 from ea_node_editor.nodes.decorators import node_type
@@ -228,6 +236,12 @@ class RegistryValidationTests(unittest.TestCase):
         self.assertIs(node_types.ExecutionContext, node_execution_context.ExecutionContext)
         self.assertIs(node_types.RuntimeArtifactRef, runtime_refs.RuntimeArtifactRef)
         self.assertIs(node_types.PluginDescriptor, plugin_contracts.PluginDescriptor)
+        self.assertNotIn("category_key", node_types.__all__)
+        self.assertNotIn("category_path_matches_prefix", node_types.__all__)
+        self.assertNotIn("inline_property_specs", node_types.__all__)
+        self.assertNotIn("property_has_inline_editor", node_types.__all__)
+        self.assertNotIn("property_inspector_editor", node_types.__all__)
+        self.assertNotIn("property_visible_in_inspector", node_types.__all__)
 
         nodes_root = Path(__file__).resolve().parents[1] / "ea_node_editor" / "nodes"
         offenders = []
@@ -240,6 +254,25 @@ class RegistryValidationTests(unittest.TestCase):
 
         allowed_offenders = {"ea_node_editor\\nodes\\builtins\\ansys_dpf_helper_adapters.py"}
         self.assertEqual(sorted(set(offenders) - allowed_offenders), [])
+
+    def test_default_builtin_catalog_is_registered_from_descriptor_records(self) -> None:
+        descriptor_tables = (
+            CORE_NODE_DESCRIPTORS,
+            INTEGRATION_NODE_DESCRIPTORS,
+            HPC_NODE_DESCRIPTORS,
+            SUBNODE_NODE_DESCRIPTORS,
+            PASSIVE_FLOWCHART_NODE_DESCRIPTORS,
+            PASSIVE_PLANNING_NODE_DESCRIPTORS,
+            PASSIVE_ANNOTATION_NODE_DESCRIPTORS,
+            PASSIVE_MEDIA_NODE_DESCRIPTORS,
+        )
+        descriptors = [descriptor for table in descriptor_tables for descriptor in table]
+
+        self.assertTrue(descriptors)
+        self.assertTrue(all(isinstance(descriptor, PluginDescriptor) for descriptor in descriptors))
+        self.assertEqual(len({descriptor.spec.type_id for descriptor in descriptors}), len(descriptors))
+        self.assertIn("core.start", {descriptor.spec.type_id for descriptor in descriptors})
+        self.assertIn("io.path_pointer", {descriptor.spec.type_id for descriptor in descriptors})
 
     def test_nested_category_sdk_node_type_spec_accepts_one_level_path(self) -> None:
         spec = NodeTypeSpec(
@@ -1227,7 +1260,7 @@ class RegistryValidationTests(unittest.TestCase):
     def test_default_registry_accepts_foundational_dpf_port_types_in_filters(self) -> None:
         registry = build_default_registry()
 
-        category_specs = registry.filter_nodes(category=DPF_NODE_CATEGORY)
+        category_specs = registry.filter_nodes(category_path=DPF_NODE_CATEGORY_PATH)
         result_file_specs = registry.filter_nodes(data_type=DPF_RESULT_FILE_DATA_TYPE, direction="out")
         model_specs = registry.filter_nodes(data_type=DPF_MODEL_DATA_TYPE, direction="out")
         scoping_specs = registry.filter_nodes(data_type=DPF_SCOPING_DATA_TYPE, direction="out")

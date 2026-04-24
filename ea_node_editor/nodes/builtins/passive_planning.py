@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from ea_node_editor.nodes.builtins.passive_flow_ports import CARDINAL_PASSIVE_FLOW_PORTS
-from ea_node_editor.nodes.decorators import node_type, prop_enum, prop_str
+from ea_node_editor.nodes.decorators import node_type, plugin_descriptor, prop_enum, prop_str
 from ea_node_editor.nodes.execution_context import ExecutionContext, NodeResult
 
 PASSIVE_PLANNING_CATEGORY = "Planning"
@@ -132,12 +132,17 @@ PASSIVE_PLANNING_NODE_PLUGINS = (
     PassivePlanningRiskCardNodePlugin,
     PassivePlanningDecisionCardNodePlugin,
 )
+PASSIVE_PLANNING_NODE_DESCRIPTORS = tuple(
+    plugin_descriptor(plugin)
+    for plugin in PASSIVE_PLANNING_NODE_PLUGINS
+)
 
 
 __all__ = [
     "PASSIVE_PLANNING_CATEGORY",
     "PASSIVE_PLANNING_DECISION_CARD_TYPE_ID",
     "PASSIVE_PLANNING_MILESTONE_CARD_TYPE_ID",
+    "PASSIVE_PLANNING_NODE_DESCRIPTORS",
     "PASSIVE_PLANNING_NODE_PLUGINS",
     "PASSIVE_PLANNING_RISK_CARD_TYPE_ID",
     "PASSIVE_PLANNING_TASK_CARD_TYPE_ID",

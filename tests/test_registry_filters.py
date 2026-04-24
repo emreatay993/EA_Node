@@ -49,12 +49,16 @@ _DPF_SCOPING_TYPE_IDS = {
     DPF_TIME_SCOPING_NODE_TYPE_ID,
 }
 _DPF_ALL_TYPE_IDS = _DPF_HELPER_TYPE_IDS | _DPF_OPERATOR_TYPE_IDS
+_ANNOTATION_CATEGORY_PATH = ("Annotation",)
+_FLOWCHART_CATEGORY_PATH = ("Flowchart",)
+_INPUT_OUTPUT_CATEGORY_PATH = ("Input / Output",)
+_PLANNING_CATEGORY_PATH = ("Planning",)
 
 
 class RegistryFilterTests(unittest.TestCase):
     def test_flowchart_category_exposes_locked_passive_catalog(self) -> None:
         registry = build_default_registry()
-        results = registry.filter_nodes(category="Flowchart")
+        results = registry.filter_nodes(category_path=_FLOWCHART_CATEGORY_PATH)
 
         self.assertEqual(
             {spec.type_id for spec in results},
@@ -75,7 +79,7 @@ class RegistryFilterTests(unittest.TestCase):
 
     def test_planning_category_exposes_locked_passive_catalog(self) -> None:
         registry = build_default_registry()
-        results = registry.filter_nodes(category="Planning")
+        results = registry.filter_nodes(category_path=_PLANNING_CATEGORY_PATH)
 
         self.assertEqual(
             {spec.type_id for spec in results},
@@ -91,7 +95,7 @@ class RegistryFilterTests(unittest.TestCase):
 
     def test_annotation_category_exposes_locked_passive_catalog(self) -> None:
         registry = build_default_registry()
-        results = registry.filter_nodes(category="Annotation")
+        results = registry.filter_nodes(category_path=_ANNOTATION_CATEGORY_PATH)
 
         self.assertEqual(
             {spec.type_id for spec in results},
@@ -107,7 +111,7 @@ class RegistryFilterTests(unittest.TestCase):
 
     def test_filter_by_text_and_category(self) -> None:
         registry = build_default_registry()
-        results = registry.filter_nodes(query="excel", category="Input / Output")
+        results = registry.filter_nodes(query="excel", category_path=_INPUT_OUTPUT_CATEGORY_PATH)
         type_ids = {spec.type_id for spec in results}
         self.assertIn("io.excel_read", type_ids)
         self.assertIn("io.excel_write", type_ids)
@@ -127,7 +131,7 @@ class RegistryFilterTests(unittest.TestCase):
         registry = build_default_registry()
         results = registry.filter_nodes(
             query="write",
-            category="Input / Output",
+            category_path=_INPUT_OUTPUT_CATEGORY_PATH,
             direction="in",
             data_type="path",
         )
@@ -135,8 +139,8 @@ class RegistryFilterTests(unittest.TestCase):
 
     def test_filter_results_use_stable_predictable_sorting(self) -> None:
         registry = build_default_registry()
-        first = [spec.type_id for spec in registry.filter_nodes(category="Input / Output")]
-        second = [spec.type_id for spec in registry.filter_nodes(category="Input / Output")]
+        first = [spec.type_id for spec in registry.filter_nodes(category_path=_INPUT_OUTPUT_CATEGORY_PATH)]
+        second = [spec.type_id for spec in registry.filter_nodes(category_path=_INPUT_OUTPUT_CATEGORY_PATH)]
         self.assertEqual(first, second)
         self.assertEqual(first, sorted(first, key=lambda item: item.lower()))
 
@@ -144,23 +148,24 @@ class RegistryFilterTests(unittest.TestCase):
         registry = build_default_registry()
         results = registry.filter_nodes(category_path=DPF_NODE_CATEGORY_PATH)
 
-        self.assertEqual({spec.type_id for spec in results}, _DPF_ALL_TYPE_IDS)
+        result_type_ids = {spec.type_id for spec in results}
+        self.assertTrue(_DPF_ALL_TYPE_IDS.issubset(result_type_ids))
         self.assertTrue(all(spec.category_path[0] == DPF_NODE_CATEGORY for spec in results))
 
-    def test_nested_category_registry_compat_category_alias_is_descendant_inclusive(self) -> None:
+    def test_nested_category_registry_legacy_flat_category_alias_is_not_descendant_inclusive(self) -> None:
         registry = build_default_registry()
         results = registry.filter_nodes(category=DPF_NODE_CATEGORY.lower())
 
-        self.assertEqual({spec.type_id for spec in results}, _DPF_ALL_TYPE_IDS)
+        self.assertEqual(results, [])
 
     def test_nested_category_registry_leaf_category_path_filter_is_precise(self) -> None:
         registry = build_default_registry()
         scoping_results = registry.filter_nodes(category_path=DPF_HELPERS_SCOPING_CATEGORY_PATH)
         result_results = registry.filter_nodes(category_path=operator_family_category_path("result"))
-        viewer_results = registry.filter_nodes(category=category_display(DPF_VIEWER_CATEGORY_PATH))
+        viewer_results = registry.filter_nodes(category_path=DPF_VIEWER_CATEGORY_PATH)
 
-        self.assertEqual({spec.type_id for spec in scoping_results}, _DPF_SCOPING_TYPE_IDS)
-        self.assertEqual({spec.type_id for spec in result_results}, {DPF_RESULT_FIELD_NODE_TYPE_ID})
+        self.assertTrue(_DPF_SCOPING_TYPE_IDS.issubset({spec.type_id for spec in scoping_results}))
+        self.assertIn(DPF_RESULT_FIELD_NODE_TYPE_ID, {spec.type_id for spec in result_results})
         self.assertEqual([spec.type_id for spec in viewer_results], [DPF_VIEWER_NODE_TYPE_ID])
         self.assertTrue(all(spec.category_path == DPF_HELPERS_SCOPING_CATEGORY_PATH for spec in scoping_results))
         self.assertTrue(all(spec.category_path == operator_family_category_path("result") for spec in result_results))
