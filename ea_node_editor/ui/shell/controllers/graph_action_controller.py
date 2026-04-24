@@ -52,8 +52,8 @@ class GraphActionController:
     def __init__(
         self,
         *,
-        shell_window: object | None = None,
         workspace_library_controller: object | None = None,
+        workspace_graph_edit_controller: object | None = None,
         graph_canvas_presenter: object | None = None,
         graph_canvas_host_presenter: object | None = None,
         shell_library_presenter: object | None = None,
@@ -61,8 +61,8 @@ class GraphActionController:
         help_bridge: object | None = None,
         addon_manager_bridge: object | None = None,
     ) -> None:
-        self._shell_window = shell_window
         self._workspace_library_controller = workspace_library_controller
+        self._workspace_graph_edit_controller = workspace_graph_edit_controller
         self._graph_canvas_presenter = graph_canvas_presenter
         self._graph_canvas_host_presenter = graph_canvas_host_presenter
         self._shell_library_presenter = shell_library_presenter
@@ -70,9 +70,34 @@ class GraphActionController:
         self._help_bridge = help_bridge
         self._addon_manager_bridge = addon_manager_bridge
 
-    @property
-    def shell_window(self) -> object | None:
-        return self._shell_window
+    def bind_sources(
+        self,
+        *,
+        workspace_library_controller: object | None = None,
+        workspace_graph_edit_controller: object | None = None,
+        graph_canvas_presenter: object | None = None,
+        graph_canvas_host_presenter: object | None = None,
+        shell_library_presenter: object | None = None,
+        scene_bridge: object | None = None,
+        help_bridge: object | None = None,
+        addon_manager_bridge: object | None = None,
+    ) -> None:
+        if workspace_library_controller is not None:
+            self._workspace_library_controller = workspace_library_controller
+        if workspace_graph_edit_controller is not None:
+            self._workspace_graph_edit_controller = workspace_graph_edit_controller
+        if graph_canvas_presenter is not None:
+            self._graph_canvas_presenter = graph_canvas_presenter
+        if graph_canvas_host_presenter is not None:
+            self._graph_canvas_host_presenter = graph_canvas_host_presenter
+        if shell_library_presenter is not None:
+            self._shell_library_presenter = shell_library_presenter
+        if scene_bridge is not None:
+            self._scene_bridge = scene_bridge
+        if help_bridge is not None:
+            self._help_bridge = help_bridge
+        if addon_manager_bridge is not None:
+            self._addon_manager_bridge = addon_manager_bridge
 
     @property
     def available_action_ids(self) -> tuple[str, ...]:
@@ -109,9 +134,9 @@ class GraphActionController:
                 "wrap_selected_nodes_in_comment_backdrop",
             )
         if action_id is GraphActionId.NAVIGATE_SCOPE_PARENT:
-            return self._trigger_navigate_scope("request_navigate_scope_parent", "navigate_scope_parent")
+            return self._trigger_navigate_scope("request_navigate_scope_parent")
         if action_id is GraphActionId.NAVIGATE_SCOPE_ROOT:
-            return self._trigger_navigate_scope("request_navigate_scope_root", "navigate_scope_root")
+            return self._trigger_navigate_scope("request_navigate_scope_root")
         if action_id is GraphActionId.OPEN_ADDON_MANAGER_FOR_NODE:
             return self._trigger_open_addon_manager_for_node(payload)
         if action_id is GraphActionId.OPEN_SUBNODE_SCOPE:
@@ -148,19 +173,8 @@ class GraphActionController:
             edge_ids,
         )
 
-    def _trigger_navigate_scope(self, host_method_name: str, scene_method_name: str) -> bool:
-        if self._invoke_bool(self._graph_canvas_host_presenter_source(), host_method_name):
-            return True
-        shell_window = self._shell_window
-        scene = self._scene_bridge_source()
-        navigate_fn = getattr(scene, scene_method_name, None) if scene is not None else None
-        if shell_window is None or not callable(navigate_fn):
-            return False
-        return self._invoke_bool(
-            _attr(shell_window, "search_scope_controller"),
-            "navigate_scope",
-            navigate_fn,
-        )
+    def _trigger_navigate_scope(self, host_method_name: str) -> bool:
+        return self._invoke_bool(self._graph_canvas_host_presenter_source(), host_method_name)
 
     def _trigger_show_help_for_selected_node(self) -> bool:
         help_bridge = self._help_bridge_source()
@@ -183,7 +197,7 @@ class GraphActionController:
             self._graph_canvas_presenter_source(),
             method_name,
             node_id,
-        ) or self._invoke_bool(self._shell_window, method_name, node_id)
+        )
 
     def _trigger_publish_custom_workflow_from_node(self, payload: Mapping[str, object]) -> bool:
         node_id = _required_str(payload, "node_id")
@@ -198,7 +212,6 @@ class GraphActionController:
                 "publish_custom_workflow_from_node",
                 node_id,
             )
-            or self._invoke_bool(self._shell_window, "request_publish_custom_workflow_from_node", node_id)
         )
 
     def _trigger_node_action_on_host_presenter(
@@ -211,7 +224,7 @@ class GraphActionController:
             self._graph_canvas_host_presenter_source(),
             method_name,
             node_id,
-        ) or self._invoke_bool(self._shell_window, method_name, node_id)
+        )
 
     def _trigger_edge_action_on_host_presenter(
         self,
@@ -223,7 +236,7 @@ class GraphActionController:
             self._graph_canvas_host_presenter_source(),
             method_name,
             edge_id,
-        ) or self._invoke_bool(self._shell_window, method_name, edge_id)
+        )
 
     def _trigger_duplicate_node(self, payload: Mapping[str, object]) -> bool:
         node_id = _required_str(payload, "node_id")
@@ -240,7 +253,7 @@ class GraphActionController:
         addon_manager_bridge = self._addon_manager_bridge_source()
         if self._invoke_bool(addon_manager_bridge, "requestOpen", focus_addon_id, none_is_success=True):
             return True
-        return self._invoke_bool(self._shell_window, "request_open_addon_manager", focus_addon_id, none_is_success=True)
+        return False
 
     def _addon_focus_id(self, payload: Mapping[str, object]) -> str:
         explicit = _first_non_empty_str(payload, "focus_addon_id", "addon_id")
@@ -272,31 +285,31 @@ class GraphActionController:
         return {}
 
     def _workspace_library_controller_source(self) -> object | None:
-        return self._workspace_library_controller or _attr(self._shell_window, "workspace_library_controller")
+        return self._workspace_library_controller
 
     def _workspace_graph_edit_controller_source(self) -> object | None:
-        return _attr(self._shell_window, "workspace_graph_edit_controller") or _attr(
-            self._workspace_library_controller_source(),
-            "workspace_graph_edit_controller",
-        )
+        if self._workspace_graph_edit_controller is not None:
+            return self._workspace_graph_edit_controller
+        workspace_library_controller = self._workspace_library_controller_source()
+        return getattr(workspace_library_controller, "workspace_graph_edit_controller", None)
 
     def _graph_canvas_presenter_source(self) -> object | None:
-        return self._graph_canvas_presenter or _attr(self._shell_window, "graph_canvas_presenter")
+        return self._graph_canvas_presenter
 
     def _graph_canvas_host_presenter_source(self) -> object | None:
-        return self._graph_canvas_host_presenter or _attr(self._shell_window, "graph_canvas_host_presenter")
+        return self._graph_canvas_host_presenter
 
     def _shell_library_presenter_source(self) -> object | None:
-        return self._shell_library_presenter or _attr(self._shell_window, "shell_library_presenter")
+        return self._shell_library_presenter
 
     def _scene_bridge_source(self) -> object | None:
-        return self._scene_bridge or _attr(self._shell_window, "scene")
+        return self._scene_bridge
 
     def _help_bridge_source(self) -> object | None:
-        return self._help_bridge or _attr(self._shell_window, "help_bridge")
+        return self._help_bridge
 
     def _addon_manager_bridge_source(self) -> object | None:
-        return self._addon_manager_bridge or _attr(self._shell_window, "addon_manager_bridge")
+        return self._addon_manager_bridge
 
     @staticmethod
     def _invoke_bool(
@@ -310,11 +323,6 @@ class GraphActionController:
             return False
         result = callback(*args)
         return _result_bool(result, none_is_success=none_is_success)
-
-
-def _attr(source: object | None, name: str) -> object | None:
-    return getattr(source, name, None) if source is not None else None
-
 
 def _result_bool(result: object, *, none_is_success: bool = False) -> bool:
     if result is None:

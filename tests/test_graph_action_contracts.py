@@ -50,6 +50,14 @@ INPUT_LAYERS_QML = (
     / "GraphCanvasInputLayers.qml"
 )
 WINDOW_ACTIONS = REPO_ROOT / "ea_node_editor" / "ui" / "shell" / "window_actions.py"
+WORKSPACE_GRAPH_ACTIONS = (
+    REPO_ROOT
+    / "ea_node_editor"
+    / "ui"
+    / "shell"
+    / "window_state"
+    / "workspace_graph_actions.py"
+)
 
 RETIRED_QML_COMMAND_BRIDGE_ACTION_SLOTS = {
     "request_edit_flow_edge_style",
@@ -69,7 +77,25 @@ RETIRED_QML_COMMAND_BRIDGE_ACTION_SLOTS = {
     "request_duplicate_node",
     "request_wrap_selected_nodes_in_comment_backdrop",
 }
-P03_SHELL_GRAPH_ACTION_FACADE_ANCHOR = "P03"
+P03_RETIRED_SHELL_GRAPH_ACTION_FACADE_SLOTS = {
+    "request_navigate_scope_parent",
+    "request_navigate_scope_root",
+    "request_align_selection_left",
+    "request_align_selection_right",
+    "request_align_selection_top",
+    "request_align_selection_bottom",
+    "request_distribute_selection_horizontally",
+    "request_distribute_selection_vertically",
+    "request_connect_selected_nodes",
+    "request_duplicate_selected_nodes",
+    "request_wrap_selected_nodes_in_comment_backdrop",
+    "request_group_selected_nodes",
+    "request_ungroup_selected_nodes",
+    "request_copy_selected_nodes",
+    "request_cut_selected_nodes",
+    "request_paste_selected_nodes",
+    "request_delete_selected_graph_items",
+}
 
 
 def _pyqt_graph_actions_from_contract() -> dict[str, GraphActionId]:
@@ -327,14 +353,15 @@ def test_pyqt_graph_menu_actions_are_mapped_to_contract() -> None:
     assert missing == set()
 
 
-def test_pyqt_graph_action_declarations_are_p03_pre_cleanup_route_aliases() -> None:
-    assignments = _window_graph_action_contract_assignments()
-    missing = {
-        pyqt_action_name
-        for pyqt_action_name, action_id in assignments.items()
-        if pyqt_action_name not in graph_action_spec(action_id).legacy_route_names
+def test_p03_shell_graph_action_facades_are_retired_from_window_state_helpers() -> None:
+    source = _source(WORKSPACE_GRAPH_ACTIONS)
+    retired_definitions = {
+        slot_name
+        for slot_name in P03_RETIRED_SHELL_GRAPH_ACTION_FACADE_SLOTS
+        if f"def {slot_name}" in source
     }
-    assert missing == set(), P03_SHELL_GRAPH_ACTION_FACADE_ANCHOR
+    assert retired_definitions == set()
+    assert "graph_action_controller.trigger(GraphActionId" not in source
 
 
 def test_required_payload_keys_are_declared_for_payload_actions() -> None:

@@ -630,7 +630,10 @@ def _create_shell_controller_dependencies(
 ) -> ShellControllerDependencies:
     search_scope_controller = WindowSearchScopeController(host, state.search_scope_state)
     workspace_library_controller = WorkspaceLibraryController(_WorkspaceLibraryControllerHostAdapter(host))
-    graph_action_controller = GraphActionController(shell_window=host)
+    graph_action_controller = GraphActionController(
+        workspace_library_controller=workspace_library_controller,
+        workspace_graph_edit_controller=workspace_library_controller.workspace_graph_edit_controller,
+    )
     project_session_controller = ProjectSessionController(_ProjectSessionControllerHostAdapter(host))
     run_controller = RunController(_RunControllerHostAdapter(host))
     app_preferences_controller = AppPreferencesController(preloaded_document=preferences_document)
@@ -761,6 +764,16 @@ def _create_shell_context_bridge_dependencies(
     )
     help_bridge = HelpBridge(host, shell_window=host)
     addon_manager_bridge = AddonManagerBridge(host, parent=host)
+    controllers.graph_action_controller.bind_sources(
+        workspace_library_controller=controllers.workspace_library_controller,
+        workspace_graph_edit_controller=controllers.workspace_library_controller.workspace_graph_edit_controller,
+        graph_canvas_presenter=presenters.graph_canvas_presenter,
+        graph_canvas_host_presenter=presenters.graph_canvas_host_presenter,
+        shell_library_presenter=presenters.shell_library_presenter,
+        scene_bridge=primitives.scene,
+        help_bridge=help_bridge,
+        addon_manager_bridge=addon_manager_bridge,
+    )
     graph_action_bridge = GraphActionBridge(host, controller=controllers.graph_action_controller)
     return ShellContextBridgeDependencies(
         shell_context_bridges=shell_context_bridges,

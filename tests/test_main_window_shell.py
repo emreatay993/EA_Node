@@ -47,6 +47,26 @@ _SHELL_TEST_MODULES = (
     "tests.main_window_shell.shell_runtime_contracts",
 )
 
+P03_RETIRED_WINDOW_STATE_GRAPH_ACTION_FACADE_SLOTS = {
+    "request_navigate_scope_parent",
+    "request_navigate_scope_root",
+    "request_align_selection_left",
+    "request_align_selection_right",
+    "request_align_selection_top",
+    "request_align_selection_bottom",
+    "request_distribute_selection_horizontally",
+    "request_distribute_selection_vertically",
+    "request_connect_selected_nodes",
+    "request_duplicate_selected_nodes",
+    "request_wrap_selected_nodes_in_comment_backdrop",
+    "request_group_selected_nodes",
+    "request_ungroup_selected_nodes",
+    "request_copy_selected_nodes",
+    "request_cut_selected_nodes",
+    "request_paste_selected_nodes",
+    "request_delete_selected_graph_items",
+}
+
 pytestmark = pytest.mark.xdist_group("p03_main_window_shell")
 
 
@@ -449,6 +469,11 @@ class ShellWindowStateFacadeBoundaryTests(unittest.TestCase):
         self.assertIn("mark_node_execution_running", module.SHELL_WINDOW_FACADE_BINDINGS)
         self.assertIn("_save_project", module.SHELL_WINDOW_FACADE_BINDINGS)
         self.assertIn("_switch_workspace", module.SHELL_WINDOW_FACADE_BINDINGS)
+        self.assertTrue(
+            P03_RETIRED_WINDOW_STATE_GRAPH_ACTION_FACADE_SLOTS.isdisjoint(
+                module.SHELL_WINDOW_FACADE_BINDINGS
+            )
+        )
 
 
 class MainWindowBridgeContractPacketBoundaryTests(unittest.TestCase):
@@ -568,6 +593,14 @@ class MainWindowPyQtGraphActionRouteTests(SharedMainWindowShellTestBase):
                 action.trigger()
 
         self.assertEqual(calls, [(action_id.value, None) for _action, action_id in actions])
+
+    def test_public_graph_action_slots_are_direct_shell_window_entries(self) -> None:
+        for slot_name in sorted(P03_RETIRED_WINDOW_STATE_GRAPH_ACTION_FACADE_SLOTS):
+            with self.subTest(slot_name=slot_name):
+                self.assertEqual(
+                    getattr(type(self.window), slot_name).__module__,
+                    "ea_node_editor.ui.shell.window",
+                )
 
     def test_duplicate_clipboard_comment_backdrop_group_align_scope_request_slots_delegate_to_controller(self) -> None:
         requests = (

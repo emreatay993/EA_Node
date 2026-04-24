@@ -3,7 +3,7 @@ from __future__ import annotations
 import os
 from typing import Any
 
-from PyQt6.QtCore import QEvent, QTimer, Qt, QUrl, pyqtProperty, pyqtSignal
+from PyQt6.QtCore import QEvent, QTimer, Qt, QUrl, pyqtProperty, pyqtSignal, pyqtSlot
 from PyQt6.QtQuick import QQuickWindow, QSGRendererInterface
 from PyQt6.QtQuickWidgets import QQuickWidget
 from PyQt6.QtWidgets import QApplication, QFileDialog, QMainWindow
@@ -21,6 +21,7 @@ from ea_node_editor.ui.shell.composition import (
     bootstrap_shell_window,
     build_shell_window_composition,
 )
+from ea_node_editor.ui.shell.graph_action_contracts import GraphActionId
 from ea_node_editor.ui.shell.tooltip_manager import TooltipManager
 from ea_node_editor.ui_qml.embedded_viewer_overlay_manager import EmbeddedViewerOverlayManager
 
@@ -421,6 +422,80 @@ class ShellWindow(QMainWindow):
         fget=state_helpers._qt_selected_node_port_items,
         notify=selected_node_changed,
     )
+
+    # Current QML-facing graph action slots stay public; controller dispatch is canonical.
+    @pyqtSlot(result=bool)
+    def request_navigate_scope_parent(self) -> bool:
+        return bool(self.graph_action_controller.trigger(GraphActionId.NAVIGATE_SCOPE_PARENT.value))
+
+    @pyqtSlot(result=bool)
+    def request_navigate_scope_root(self) -> bool:
+        return bool(self.graph_action_controller.trigger(GraphActionId.NAVIGATE_SCOPE_ROOT.value))
+
+    @pyqtSlot(result=bool)
+    def request_align_selection_left(self) -> bool:
+        return bool(self.graph_action_controller.trigger(GraphActionId.ALIGN_SELECTION_LEFT.value))
+
+    @pyqtSlot(result=bool)
+    def request_align_selection_right(self) -> bool:
+        return bool(self.graph_action_controller.trigger(GraphActionId.ALIGN_SELECTION_RIGHT.value))
+
+    @pyqtSlot(result=bool)
+    def request_align_selection_top(self) -> bool:
+        return bool(self.graph_action_controller.trigger(GraphActionId.ALIGN_SELECTION_TOP.value))
+
+    @pyqtSlot(result=bool)
+    def request_align_selection_bottom(self) -> bool:
+        return bool(self.graph_action_controller.trigger(GraphActionId.ALIGN_SELECTION_BOTTOM.value))
+
+    @pyqtSlot(result=bool)
+    def request_distribute_selection_horizontally(self) -> bool:
+        return bool(self.graph_action_controller.trigger(GraphActionId.DISTRIBUTE_SELECTION_HORIZONTALLY.value))
+
+    @pyqtSlot(result=bool)
+    def request_distribute_selection_vertically(self) -> bool:
+        return bool(self.graph_action_controller.trigger(GraphActionId.DISTRIBUTE_SELECTION_VERTICALLY.value))
+
+    @pyqtSlot()
+    def request_connect_selected_nodes(self) -> None:
+        self.graph_action_controller.trigger(GraphActionId.CONNECT_SELECTED.value)
+
+    @pyqtSlot(result=bool)
+    def request_duplicate_selected_nodes(self) -> bool:
+        return bool(self.graph_action_controller.trigger(GraphActionId.DUPLICATE_SELECTION.value))
+
+    @pyqtSlot(result=bool)
+    def request_wrap_selected_nodes_in_comment_backdrop(self) -> bool:
+        return bool(self.graph_action_controller.trigger(GraphActionId.WRAP_SELECTION_IN_COMMENT_BACKDROP.value))
+
+    @pyqtSlot(result=bool)
+    def request_group_selected_nodes(self) -> bool:
+        return bool(self.graph_action_controller.trigger(GraphActionId.GROUP_SELECTION.value))
+
+    @pyqtSlot(result=bool)
+    def request_ungroup_selected_nodes(self) -> bool:
+        return bool(self.graph_action_controller.trigger(GraphActionId.UNGROUP_SELECTION.value))
+
+    @pyqtSlot(result=bool)
+    def request_copy_selected_nodes(self) -> bool:
+        return bool(self.graph_action_controller.trigger(GraphActionId.COPY_SELECTION.value))
+
+    @pyqtSlot(result=bool)
+    def request_cut_selected_nodes(self) -> bool:
+        return bool(self.graph_action_controller.trigger(GraphActionId.CUT_SELECTION.value))
+
+    @pyqtSlot(result=bool)
+    def request_paste_selected_nodes(self) -> bool:
+        return bool(self.graph_action_controller.trigger(GraphActionId.PASTE_SELECTION.value))
+
+    @pyqtSlot("QVariantList", result=bool)
+    def request_delete_selected_graph_items(self, edge_ids: list[Any]) -> bool:
+        return bool(
+            self.graph_action_controller.trigger(
+                GraphActionId.DELETE_SELECTION.value,
+                {"edge_ids": edge_ids},
+            )
+        )
 
     locals().update(state_helpers.SHELL_WINDOW_FACADE_BINDINGS)
 

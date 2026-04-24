@@ -80,6 +80,8 @@ class GraphCanvasBridgeTests(unittest.TestCase):
             addon_manager_bridge=addon_manager,
         )
 
+        self.assertFalse(hasattr(controller, "shell_window"))
+        self.assertFalse(hasattr(controller, "_shell_window"))
         self.assertTrue(controller.trigger(GraphActionId.COPY_SELECTION.value))
         self.assertTrue(controller.trigger(GraphActionId.ALIGN_SELECTION_LEFT.value))
         self.assertTrue(controller.trigger(GraphActionId.DELETE_SELECTION.value, {"edge_ids": ["edge-1"]}))
