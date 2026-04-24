@@ -5,7 +5,7 @@ Item {
     id: root
     readonly property var shellLibraryBridgeRef: shellLibraryBridge
     property string libraryContextWorkflowId: ""
-    property string libraryContextWorkflowScope: "local"
+    property string libraryContextWorkflowScope: ""
     readonly property var contextMenuActions: [
         { "actionId": "rename", "text": "Rename" },
         {
@@ -18,7 +18,7 @@ Item {
 
     function openPopup(workflowId, workflowScope, positionX, positionY) {
         libraryContextWorkflowId = String(workflowId || "")
-        libraryContextWorkflowScope = String(workflowScope || "local")
+        libraryContextWorkflowScope = String(workflowScope || "")
         var popupWidth = Math.max(1, Number(libraryContextPopup.implicitWidth) || 168)
         var popupHeight = Math.max(1, Number(libraryContextPopup.implicitHeight) || 114)
         libraryContextPopup.x = Math.max(0, Math.min(root.width - popupWidth, Math.round(Number(positionX) || 0)))

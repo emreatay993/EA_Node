@@ -6,6 +6,7 @@ from types import SimpleNamespace
 from ea_node_editor.graph.model import GraphModel
 from ea_node_editor.nodes.bootstrap import build_default_registry
 from ea_node_editor.ui.shell.controllers import WorkspaceLibraryController
+from ea_node_editor.ui.shell.controllers.project_session_controller import _WorkspaceSessionAdapter
 from ea_node_editor.ui.shell.controllers.workflow_library_controller import WorkflowLibraryController
 from ea_node_editor.ui.shell.controllers.workspace_drop_connect_ops import WorkspaceDropConnectOps
 from ea_node_editor.ui.shell.controllers.workspace_graph_edit_controller import WorkspaceGraphEditController
@@ -266,6 +267,45 @@ class _DropConnectSceneStub:
     def remove_edge(self, edge_id: str) -> None:
         self._model.remove_edge(self._workspace_id, edge_id)
         self.removed_edge_ids.append(edge_id)
+
+
+class _NavigationSurfaceStub:
+    def __init__(self) -> None:
+        self.calls: list[tuple[str, str | None]] = []
+
+    def save_active_view_state(self) -> None:
+        self.calls.append(("save", None))
+
+    def refresh_workspace_tabs(self) -> None:
+        self.calls.append(("refresh", None))
+
+    def switch_workspace(self, workspace_id: str) -> None:
+        self.calls.append(("switch", workspace_id))
+
+
+class ProjectSessionWorkspaceSurfaceTests(unittest.TestCase):
+    def test_project_session_adapter_requires_workspace_navigation_controller(self) -> None:
+        adapter = _WorkspaceSessionAdapter(SimpleNamespace(workspace_library_controller=object()))
+
+        with self.assertRaisesRegex(RuntimeError, "workspace surface"):
+            adapter.save_active_view_state()
+
+    def test_project_session_adapter_uses_workspace_navigation_controller_directly(self) -> None:
+        navigation = _NavigationSurfaceStub()
+        adapter = _WorkspaceSessionAdapter(SimpleNamespace(workspace_navigation_controller=navigation))
+
+        adapter.save_active_view_state()
+        adapter.refresh_workspace_tabs()
+        adapter.switch_workspace("ws-target")
+
+        self.assertEqual(
+            navigation.calls,
+            [
+                ("save", None),
+                ("refresh", None),
+                ("switch", "ws-target"),
+            ],
+        )
 
 
 class WorkspaceLibraryControllerCapabilityCompositionTests(unittest.TestCase):

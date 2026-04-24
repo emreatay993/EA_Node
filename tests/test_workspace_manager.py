@@ -11,7 +11,7 @@ from ea_node_editor.workspace.manager import WorkspaceManager
 
 
 class WorkspaceManagerTests(unittest.TestCase):
-    def test_manager_normalizes_workspace_order_and_active_workspace_from_project_state(self) -> None:
+    def test_manager_uses_workspace_records_not_metadata_order_as_live_authority(self) -> None:
         model = GraphModel()
         manager = WorkspaceManager(model)
         first = manager.active_workspace_id()
@@ -21,11 +21,11 @@ class WorkspaceManagerTests(unittest.TestCase):
         model.project.active_workspace_id = "missing"
         manager = WorkspaceManager(model)
 
-        self.assertEqual(model.project.metadata["workspace_order"], [third, first, second])
-        self.assertEqual(manager.active_workspace_id(), third)
+        self.assertEqual(model.project.metadata["workspace_order"], [first, second, third])
+        self.assertEqual(manager.active_workspace_id(), first)
         self.assertEqual(
             [workspace.workspace_id for workspace in manager.list_workspaces()],
-            [third, first, second],
+            [first, second, third],
         )
 
     def test_create_workspace_appends_to_authoritative_order_and_activates_the_new_workspace(self) -> None:

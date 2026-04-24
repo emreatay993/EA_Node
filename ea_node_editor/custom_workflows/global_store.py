@@ -26,19 +26,18 @@ def load_global_custom_workflow_definitions() -> list[dict[str, Any]]:
     except (OSError, json.JSONDecodeError):
         return []
 
-    if isinstance(raw_payload, dict):
-        try:
-            version = int(raw_payload.get("version", 0) or 0)
-        except (TypeError, ValueError):
-            return []
-        if (
-            str(raw_payload.get("kind", "")).strip() != _GLOBAL_CUSTOM_WORKFLOW_STORE_KIND
-            or version != _GLOBAL_CUSTOM_WORKFLOW_STORE_VERSION
-        ):
-            return []
-        definitions_payload = raw_payload.get("custom_workflows", [])
-    else:
-        definitions_payload = raw_payload
+    if not isinstance(raw_payload, dict):
+        return []
+    try:
+        version = int(raw_payload.get("version", 0) or 0)
+    except (TypeError, ValueError):
+        return []
+    if (
+        str(raw_payload.get("kind", "")).strip() != _GLOBAL_CUSTOM_WORKFLOW_STORE_KIND
+        or version != _GLOBAL_CUSTOM_WORKFLOW_STORE_VERSION
+    ):
+        return []
+    definitions_payload = raw_payload.get("custom_workflows", [])
     return normalize_custom_workflow_metadata(definitions_payload)
 
 

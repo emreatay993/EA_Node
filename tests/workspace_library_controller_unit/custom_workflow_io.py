@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import json
+
 from ea_node_editor.custom_workflows.global_store import (
     load_global_custom_workflow_definitions,
     save_global_custom_workflow_definitions,
@@ -47,6 +49,7 @@ class WorkspaceLibraryControllerCustomWorkflowIOTests(WorkspaceLibraryController
         definition = definitions[0]
         self.assertEqual(definition["name"], "Reusable Shell")
         self.assertEqual(definition["revision"], 1)
+        self.assertNotIn("source_shell_ref_id", definition)
         self.assertEqual(definition["ports"][0]["direction"], "out")
         self.assertEqual(definition["ports"][0]["kind"], "exec")
         self.assertEqual(definition["fragment"]["kind"], "ea-node-editor/graph-fragment")
@@ -241,7 +244,7 @@ class WorkspaceLibraryControllerCustomWorkflowIOTests(WorkspaceLibraryController
             },
         ]
 
-        deleted = controller.delete_custom_workflow("wf_delete")
+        deleted = controller.delete_custom_workflow("wf_delete", "local")
 
         self.assertTrue(deleted.ok)
         self.assertTrue(deleted.payload)
@@ -256,7 +259,7 @@ class WorkspaceLibraryControllerCustomWorkflowIOTests(WorkspaceLibraryController
         controller = WorkspaceLibraryController(host)  # type: ignore[arg-type]
         host.model.project.metadata["custom_workflows"] = []
 
-        deleted = controller.delete_custom_workflow("wf_missing")
+        deleted = controller.delete_custom_workflow("wf_missing", "local")
 
         self.assertFalse(deleted.ok)
         self.assertFalse(deleted.payload)
@@ -329,6 +332,36 @@ class WorkspaceLibraryControllerCustomWorkflowIOTests(WorkspaceLibraryController
                 self.assertEqual(definitions[0]["workflow_id"], "wf_global")
                 self.assertEqual(host.project_meta_changed.calls, 1)
                 self.assertEqual(host.node_library_changed.calls, 1)
+                self.assertEqual(load_global_custom_workflow_definitions(), [])
+
+    def test_global_custom_workflow_store_rejects_raw_list_payload(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            global_store_path = Path(temp_dir) / "custom_workflows_global.json"
+            with patch(
+                "ea_node_editor.custom_workflows.global_store.global_custom_workflows_path",
+                return_value=global_store_path,
+            ):
+                global_store_path.write_text(
+                    json.dumps(
+                        [
+                            {
+                                "workflow_id": "wf_raw",
+                                "name": "Raw",
+                                "description": "",
+                                "revision": 1,
+                                "ports": [],
+                                "fragment": {
+                                    "kind": "ea-node-editor/graph-fragment",
+                                    "version": 1,
+                                    "nodes": [],
+                                    "edges": [],
+                                },
+                            }
+                        ]
+                    ),
+                    encoding="utf-8",
+                )
+
                 self.assertEqual(load_global_custom_workflow_definitions(), [])
 
     def test_delete_custom_workflow_with_global_scope_removes_from_global_store_only(self) -> None:

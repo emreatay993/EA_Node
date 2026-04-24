@@ -431,11 +431,11 @@ class ShellLibraryPresenter(QObject):
         result = self._host.workspace_library_controller.publish_custom_workflow_from_node(node_id)
         return bool(result.payload)
 
-    def request_delete_custom_workflow_from_library(self, workflow_id: str, workflow_scope: str = "") -> bool:
+    def request_delete_custom_workflow_from_library(self, workflow_id: str, workflow_scope: str) -> bool:
         result = self._host.workspace_library_controller.delete_custom_workflow(workflow_id, workflow_scope)
         return bool(result.payload)
 
-    def request_rename_custom_workflow_from_library(self, workflow_id: str, workflow_scope: str = "") -> bool:
+    def request_rename_custom_workflow_from_library(self, workflow_id: str, workflow_scope: str) -> bool:
         result = self._host.workspace_library_controller.rename_custom_workflow(workflow_id, workflow_scope)
         return bool(result.payload)
 

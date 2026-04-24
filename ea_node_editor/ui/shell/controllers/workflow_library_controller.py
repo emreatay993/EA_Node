@@ -30,6 +30,11 @@ _WORKFLOW_SCOPE_LOCAL = "local"
 _WORKFLOW_SCOPE_GLOBAL = "global"
 
 
+def _published_workflow_id(shell_node_id: object) -> str:
+    normalized_shell_node_id = str(shell_node_id or "").strip()
+    return f"wf_shell_{normalized_shell_node_id}" if normalized_shell_node_id else ""
+
+
 class _WorkflowLibraryControllerProtocol(Protocol):
     def selected_node_context(self) -> tuple[NodeInstance, NodeTypeSpec] | None: ...
 
@@ -213,59 +218,52 @@ class WorkflowLibraryController:
     def delete_custom_workflow(
         self,
         workflow_id: str,
-        workflow_scope: str = "",
+        workflow_scope: str,
     ) -> ControllerResult[bool]:
         normalized_workflow_id = str(workflow_id or "").strip()
         normalized_scope = str(workflow_scope or "").strip().lower()
         if not normalized_workflow_id:
             return ControllerResult(False, "No custom workflow ID provided.", payload=False)
-        if normalized_scope and normalized_scope not in {_WORKFLOW_SCOPE_LOCAL, _WORKFLOW_SCOPE_GLOBAL}:
+        if normalized_scope not in {_WORKFLOW_SCOPE_LOCAL, _WORKFLOW_SCOPE_GLOBAL}:
             return ControllerResult(False, "Custom workflow scope is invalid.", payload=False)
 
-        removed_local = False
-        removed_global = False
-
-        if normalized_scope in {"", _WORKFLOW_SCOPE_LOCAL}:
+        if normalized_scope == _WORKFLOW_SCOPE_LOCAL:
             local_definitions = self.custom_workflow_definitions()
             remaining_local = [
                 definition
                 for definition in local_definitions
                 if str(definition.get("workflow_id", "")).strip() != normalized_workflow_id
             ]
-            if len(remaining_local) != len(local_definitions):
-                self.set_custom_workflow_definitions(remaining_local)
-                removed_local = True
-
-        if normalized_scope in {"", _WORKFLOW_SCOPE_GLOBAL} and not removed_local:
-            global_definitions = self.global_custom_workflow_definitions()
-            remaining_global = [
-                definition
-                for definition in global_definitions
-                if str(definition.get("workflow_id", "")).strip() != normalized_workflow_id
-            ]
-            if len(remaining_global) != len(global_definitions):
-                try:
-                    self.set_global_custom_workflow_definitions(remaining_global)
-                except OSError as exc:
-                    return ControllerResult(
-                        False,
-                        f"Could not save global custom workflows.\n{exc}",
-                        payload=False,
-                    )
-                removed_global = True
-
-        if not removed_local and not removed_global:
-            return ControllerResult(False, "Custom workflow not found.", payload=False)
-
-        if removed_local:
+            if len(remaining_local) == len(local_definitions):
+                return ControllerResult(False, "Project custom workflow not found.", payload=False)
+            self.set_custom_workflow_definitions(remaining_local)
             self._host.project_meta_changed.emit()
+            self._host.node_library_changed.emit()
+            return ControllerResult(True, payload=True)
+
+        global_definitions = self.global_custom_workflow_definitions()
+        remaining_global = [
+            definition
+            for definition in global_definitions
+            if str(definition.get("workflow_id", "")).strip() != normalized_workflow_id
+        ]
+        if len(remaining_global) == len(global_definitions):
+            return ControllerResult(False, "Global custom workflow not found.", payload=False)
+        try:
+            self.set_global_custom_workflow_definitions(remaining_global)
+        except OSError as exc:
+            return ControllerResult(
+                False,
+                f"Could not save global custom workflows.\n{exc}",
+                payload=False,
+            )
         self._host.node_library_changed.emit()
         return ControllerResult(True, payload=True)
 
     def rename_custom_workflow(
         self,
         workflow_id: str,
-        workflow_scope: str = "",
+        workflow_scope: str,
     ) -> ControllerResult[bool]:
         from PyQt6.QtWidgets import QInputDialog
 
@@ -273,7 +271,7 @@ class WorkflowLibraryController:
         normalized_scope = str(workflow_scope or "").strip().lower()
         if not normalized_workflow_id:
             return ControllerResult(False, "No custom workflow ID provided.", payload=False)
-        if normalized_scope and normalized_scope not in {_WORKFLOW_SCOPE_LOCAL, _WORKFLOW_SCOPE_GLOBAL}:
+        if normalized_scope not in {_WORKFLOW_SCOPE_LOCAL, _WORKFLOW_SCOPE_GLOBAL}:
             return ControllerResult(False, "Custom workflow scope is invalid.", payload=False)
 
         if normalized_scope == _WORKFLOW_SCOPE_GLOBAL:
@@ -286,13 +284,6 @@ class WorkflowLibraryController:
                 self.custom_workflow_definitions(),
                 normalized_workflow_id,
             )
-            if current_definition is None and not normalized_scope:
-                current_definition = find_custom_workflow_definition(
-                    self.global_custom_workflow_definitions(),
-                    normalized_workflow_id,
-                )
-                if current_definition is not None:
-                    normalized_scope = _WORKFLOW_SCOPE_GLOBAL
 
         if current_definition is None:
             return ControllerResult(False, "Custom workflow not found.", payload=False)
@@ -391,11 +382,11 @@ class WorkflowLibraryController:
 
         updated_definitions, _saved_definition = upsert_custom_workflow_definition(
             self.custom_workflow_definitions(),
+            workflow_id=_published_workflow_id(shell_node.node_id),
             name=shell_node.title,
             description=_CUSTOM_WORKFLOW_DESCRIPTION,
             ports=copy.deepcopy(snapshot.get("ports", [])),
             fragment=normalized_fragment,
-            source_shell_ref_id=shell_node.node_id,
         )
         self.set_custom_workflow_definitions(updated_definitions)
         self._host.project_meta_changed.emit()

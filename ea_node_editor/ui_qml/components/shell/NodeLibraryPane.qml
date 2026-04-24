@@ -133,7 +133,7 @@ ShellCollapsibleSidePane {
                 objectName: "nodeLibraryRow"
                 property bool isCategory: modelData.kind === "category"
                 property bool isCustomWorkflow: !isCategory && String(modelData.library_source || "") === "custom_workflow"
-                property string workflowScope: String(modelData.workflow_scope || "local")
+                property string workflowScope: String(modelData.workflow_scope || "")
                 property string rowCategoryKey: root.categoryKeyForRow(modelData)
                 property string rowTypeId: isCategory ? "" : String(modelData.type_id || "")
                 property int rowDepth: root.depthForRow(modelData)
@@ -146,7 +146,7 @@ ShellCollapsibleSidePane {
                     "library_source": String(modelData.library_source || ""),
                     "workflow_id": String(modelData.workflow_id || ""),
                     "revision": Number(modelData.revision || 1),
-                    "workflow_scope": String(modelData.workflow_scope || "local")
+                    "workflow_scope": String(modelData.workflow_scope || "")
                 }
                 width: ListView.view.width
                 height: hiddenByAncestors ? 0 : (isCategory ? 32 : 28)

@@ -523,7 +523,7 @@ class MainWindowShellDropConnectAndWorkflowIOTests(SharedMainWindowShellTestBase
         workflow_id = str(custom_item.get("workflow_id", ""))
         self.assertTrue(workflow_id)
 
-        deleted = self.window.request_delete_custom_workflow_from_library(workflow_id)
+        deleted = self.window.request_delete_custom_workflow_from_library(workflow_id, "local")
         self.assertTrue(deleted)
         self.app.processEvents()
 
@@ -554,7 +554,7 @@ class MainWindowShellDropConnectAndWorkflowIOTests(SharedMainWindowShellTestBase
         self.assertTrue(workflow_id)
 
         with patch("PyQt6.QtWidgets.QInputDialog.getText", return_value=("Renamed Workflow", True)):
-            renamed = self.window.request_rename_custom_workflow_from_library(workflow_id)
+            renamed = self.window.request_rename_custom_workflow_from_library(workflow_id, "local")
         self.assertTrue(renamed)
         self.app.processEvents()
 

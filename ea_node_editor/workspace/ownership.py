@@ -55,9 +55,14 @@ def sync_project_workspace_ownership(
     metadata = project.metadata if isinstance(project.metadata, dict) else {}
     ownership = resolve_workspace_ownership(
         project.workspaces,
-        order_sources=[*order_sources, metadata.get("workspace_order")],
+        order_sources=order_sources,
         active_workspace_id=project.active_workspace_id,
     )
+    project.workspaces = {
+        workspace_id: project.workspaces[workspace_id]
+        for workspace_id in ownership.workspace_order
+        if workspace_id in project.workspaces
+    }
     metadata["workspace_order"] = list(ownership.workspace_order)
     project.metadata = metadata
     project.active_workspace_id = ownership.active_workspace_id

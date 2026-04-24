@@ -56,9 +56,6 @@ def normalize_custom_workflow_metadata(value: Any) -> list[dict[str, Any]]:
                 "fragment": fragment,
             }
         )
-        source_shell_ref_id = str(raw_item.get("source_shell_ref_id", "")).strip()
-        if source_shell_ref_id:
-            definitions[-1]["source_shell_ref_id"] = source_shell_ref_id
     return definitions
 
 
@@ -125,7 +122,6 @@ def upsert_custom_workflow_definition(
     fragment: dict[str, Any] | None,
     description: object = "",
     workflow_id: object | None = None,
-    source_shell_ref_id: object | None = None,
 ) -> tuple[list[dict[str, Any]], dict[str, Any]]:
     definitions = normalize_custom_workflow_metadata(value)
     normalized_name = _coerce_workflow_name(name)
@@ -133,9 +129,6 @@ def upsert_custom_workflow_definition(
     normalized_ports = _normalize_port_preview_list(list(ports or []))
     normalized_fragment = copy.deepcopy(fragment if isinstance(fragment, Mapping) else {})
     normalized_workflow_id = str(workflow_id).strip() if workflow_id is not None else ""
-    normalized_source_shell_ref_id = (
-        str(source_shell_ref_id).strip() if source_shell_ref_id is not None else ""
-    )
 
     target_index = -1
     if normalized_workflow_id:
@@ -143,23 +136,6 @@ def upsert_custom_workflow_definition(
             if definition["workflow_id"] == normalized_workflow_id:
                 target_index = index
                 break
-
-    if target_index < 0 and normalized_source_shell_ref_id:
-        for index, definition in enumerate(definitions):
-            if str(definition.get("source_shell_ref_id", "")).strip() != normalized_source_shell_ref_id:
-                continue
-            target_index = index
-            normalized_workflow_id = definition["workflow_id"]
-            break
-
-    if target_index < 0 and not normalized_source_shell_ref_id:
-        normalized_name_lower = normalized_name.lower()
-        for index, definition in enumerate(definitions):
-            if str(definition.get("name", "")).strip().lower() != normalized_name_lower:
-                continue
-            target_index = index
-            normalized_workflow_id = definition["workflow_id"]
-            break
 
     if target_index < 0:
         if not normalized_workflow_id:
@@ -172,8 +148,6 @@ def upsert_custom_workflow_definition(
             "ports": normalized_ports,
             "fragment": normalized_fragment,
         }
-        if normalized_source_shell_ref_id:
-            created["source_shell_ref_id"] = normalized_source_shell_ref_id
         definitions.append(created)
         return definitions, copy.deepcopy(created)
 
@@ -186,10 +160,6 @@ def upsert_custom_workflow_definition(
         "ports": normalized_ports,
         "fragment": normalized_fragment,
     }
-    if normalized_source_shell_ref_id:
-        updated["source_shell_ref_id"] = normalized_source_shell_ref_id
-    elif str(existing.get("source_shell_ref_id", "")).strip():
-        updated["source_shell_ref_id"] = str(existing.get("source_shell_ref_id", "")).strip()
     definitions[target_index] = updated
     return definitions, copy.deepcopy(updated)
 

@@ -39,7 +39,7 @@ class _ShellLibrarySource(Protocol):
     def request_rename_custom_workflow_from_library(
         self,
         workflow_id: str,
-        workflow_scope: str = "",
+        workflow_scope: str,
     ) -> bool: ...
 
     def request_set_custom_workflow_scope(self, workflow_id: str, workflow_scope: str) -> bool: ...
@@ -47,7 +47,7 @@ class _ShellLibrarySource(Protocol):
     def request_delete_custom_workflow_from_library(
         self,
         workflow_id: str,
-        workflow_scope: str = "",
+        workflow_scope: str,
     ) -> bool: ...
 
     def set_graph_search_query(self, query: str) -> None: ...
@@ -191,9 +191,8 @@ class ShellLibraryBridge(QObject):
     def request_add_node_from_library(self, type_id: str) -> None:
         self._library_source.request_add_node_from_library(type_id)
 
-    @pyqtSlot(str, result=bool)
     @pyqtSlot(str, str, result=bool)
-    def request_rename_custom_workflow_from_library(self, workflow_id: str, workflow_scope: str = "") -> bool:
+    def request_rename_custom_workflow_from_library(self, workflow_id: str, workflow_scope: str) -> bool:
         return bool(
             self._library_source.request_rename_custom_workflow_from_library(
                 workflow_id,
@@ -205,9 +204,8 @@ class ShellLibraryBridge(QObject):
     def request_set_custom_workflow_scope(self, workflow_id: str, workflow_scope: str) -> bool:
         return bool(self._library_source.request_set_custom_workflow_scope(workflow_id, workflow_scope))
 
-    @pyqtSlot(str, result=bool)
     @pyqtSlot(str, str, result=bool)
-    def request_delete_custom_workflow_from_library(self, workflow_id: str, workflow_scope: str = "") -> bool:
+    def request_delete_custom_workflow_from_library(self, workflow_id: str, workflow_scope: str) -> bool:
         return bool(
             self._library_source.request_delete_custom_workflow_from_library(
                 workflow_id,

@@ -103,10 +103,10 @@ class WorkspaceLibraryController:
     def set_custom_workflow_scope(self, workflow_id: str, workflow_scope: str) -> ControllerResult[bool]:
         return self.workflow_library_controller.set_custom_workflow_scope(workflow_id, workflow_scope)
 
-    def delete_custom_workflow(self, workflow_id: str, workflow_scope: str = "") -> ControllerResult[bool]:
+    def delete_custom_workflow(self, workflow_id: str, workflow_scope: str) -> ControllerResult[bool]:
         return self.workflow_library_controller.delete_custom_workflow(workflow_id, workflow_scope)
 
-    def rename_custom_workflow(self, workflow_id: str, workflow_scope: str = "") -> ControllerResult[bool]:
+    def rename_custom_workflow(self, workflow_id: str, workflow_scope: str) -> ControllerResult[bool]:
         return self.workflow_library_controller.rename_custom_workflow(workflow_id, workflow_scope)
 
     def publish_custom_workflow_from_selected_subnode(self) -> ControllerResult[bool]:

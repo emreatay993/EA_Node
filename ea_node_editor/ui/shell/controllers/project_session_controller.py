@@ -252,12 +252,9 @@ class _WorkspaceSessionAdapter:
 
     def _navigation_surface(self) -> Any:
         navigation_controller = getattr(self._host, "workspace_navigation_controller", None)
-        if navigation_controller is not None:
-            return navigation_controller
-        library_controller = getattr(self._host, "workspace_library_controller", None)
-        if library_controller is None:
+        if navigation_controller is None:
             raise RuntimeError("Project session workspace surface is unavailable.")
-        return library_controller
+        return navigation_controller
 
     def save_active_view_state(self) -> None:
         self._navigation_surface().save_active_view_state()

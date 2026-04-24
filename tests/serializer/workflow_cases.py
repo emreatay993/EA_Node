@@ -134,7 +134,6 @@ class SerializerWorkflowMixin:
                     }
                 ],
             },
-            "source_shell_ref_id": "node_shell",
         }
 
         with tempfile.TemporaryDirectory() as temp_dir:

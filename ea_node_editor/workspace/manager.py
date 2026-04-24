@@ -19,8 +19,15 @@ class WorkspaceManager:
         self._sync_workspace_ownership()
 
     def _sync_workspace_ownership(self) -> list[str]:
-        sync_project_workspace_ownership(self._model.project)
-        return self._model.project.metadata["workspace_order"]
+        ownership = sync_project_workspace_ownership(self._model.project)
+        return list(ownership.workspace_order)
+
+    def _apply_workspace_order(self, workspace_order: list[str]) -> list[str]:
+        ownership = sync_project_workspace_ownership(
+            self._model.project,
+            order_sources=(workspace_order,),
+        )
+        return list(ownership.workspace_order)
 
     def list_workspaces(self) -> list[WorkspaceRef]:
         order = self._sync_workspace_ownership()
@@ -38,9 +45,7 @@ class WorkspaceManager:
 
     def create_workspace(self, name: str | None = None) -> str:
         workspace = self._model._create_workspace_record(name=name)
-        order = self._sync_workspace_ownership()
-        if workspace.workspace_id not in order:
-            order.append(workspace.workspace_id)
+        self._sync_workspace_ownership()
         self._model._set_active_workspace_id(workspace.workspace_id)
         return workspace.workspace_id
 
@@ -58,6 +63,7 @@ class WorkspaceManager:
         except ValueError:
             source_index = len(order) - 1
         order.insert(source_index + 1, duplicated.workspace_id)
+        self._apply_workspace_order(order)
         self._model._set_active_workspace_id(duplicated.workspace_id)
         return duplicated.workspace_id
 
@@ -109,6 +115,7 @@ class WorkspaceManager:
             return
         workspace_id = order.pop(from_index)
         order.insert(to_index, workspace_id)
+        self._apply_workspace_order(order)
 
     def active_workspace_id(self) -> str:
         order = self._sync_workspace_ownership()
