@@ -3,10 +3,6 @@ from __future__ import annotations
 import unittest
 
 from ea_node_editor.graph.model import GraphModel
-from ea_node_editor.persistence.overlay import (
-    capture_workspace_persistence_state,
-    restore_workspace_persistence_state,
-)
 from ea_node_editor.workspace.manager import WorkspaceManager
 
 
@@ -54,32 +50,27 @@ class WorkspaceManagerTests(unittest.TestCase):
         )
         self.assertEqual(manager.active_workspace_id(), duplicated)
 
-    def test_duplicate_workspace_preserves_externalized_persistence_overlay(self) -> None:
+    def test_duplicate_workspace_preserves_independent_live_graph_copy(self) -> None:
         model = GraphModel()
         manager = WorkspaceManager(model)
         source = model.active_workspace
-        state = capture_workspace_persistence_state(source)
-        state.replace_unresolved_node_docs(
-            {"node_missing": {"node_id": "node_missing", "type_id": "plugin.missing"}}
+        node = model.add_node(
+            source.workspace_id,
+            "core.logger",
+            "Logger",
+            10.0,
+            20.0,
+            properties={"message": "source"},
         )
-        restore_workspace_persistence_state(source, state)
 
         duplicated_id = manager.duplicate_workspace(source.workspace_id)
         duplicate = model.project.workspaces[duplicated_id]
-        duplicate_state = capture_workspace_persistence_state(duplicate)
 
-        self.assertEqual(
-            duplicate_state.unresolved_node_docs,
-            {"node_missing": {"node_id": "node_missing", "type_id": "plugin.missing"}},
-        )
+        self.assertEqual(duplicate.nodes[node.node_id].properties, {"message": "source"})
 
-        duplicate_state.unresolved_node_docs["node_missing"]["type_id"] = "plugin.changed"
-        restore_workspace_persistence_state(duplicate, duplicate_state)
+        duplicate.nodes[node.node_id].properties["message"] = "duplicate"
 
-        self.assertEqual(
-            capture_workspace_persistence_state(source).unresolved_node_docs["node_missing"]["type_id"],
-            "plugin.missing",
-        )
+        self.assertEqual(source.nodes[node.node_id].properties, {"message": "source"})
 
     def test_close_workspace_promotes_the_next_workspace_in_authoritative_order(self) -> None:
         model = GraphModel()

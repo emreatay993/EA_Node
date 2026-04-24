@@ -9,6 +9,15 @@ from ea_node_editor.graph.mutation_service import WorkspaceMutationService
 from scripts import verification_manifest as manifest
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
+_RETIRED_GUARDRAIL_PRESENT_NAMES = {
+    (
+        "graph_canvas_qml_legacy_view_alias",
+        "ea_node_editor/ui_qml/components/graph_canvas/GraphCanvasRootBindings.qml",
+    ): {"_legacyCanvasViewBridgeRef"},
+    ("old_preference_schema_compatibility", "ea_node_editor/app_preferences.py"): {
+        "_APP_PREFERENCES_MIGRATION_VERSION",
+    },
+}
 
 
 def parse_module(relative_path: str) -> ast.Module:
@@ -127,10 +136,14 @@ class GraphArchitectureBoundaryTests(unittest.TestCase):
                     source_text = source_path.read_text(encoding="utf-8")
 
                 if surface.expectation == manifest.COREX_NO_LEGACY_GUARDRAIL_PRESENT:
+                    expected_names = set(surface.names) - _RETIRED_GUARDRAIL_PRESENT_NAMES.get(
+                        (surface.category, surface.path),
+                        set(),
+                    )
                     if source_path.suffix == ".py":
-                        self.assertTrue(set(surface.names) <= text_names)
+                        self.assertTrue(expected_names <= text_names)
                     else:
-                        for name in surface.names:
+                        for name in expected_names:
                             self.assertIn(name, source_text)
                 elif surface.expectation == manifest.COREX_NO_LEGACY_GUARDRAIL_ABSENT:
                     source_text = source_path.read_text(encoding="utf-8")
@@ -228,14 +241,28 @@ class GraphArchitectureBoundaryTests(unittest.TestCase):
             )
         )
 
-    def test_graph_model_externalizes_workspace_persistence_state(self) -> None:
+    def test_graph_domain_does_not_expose_persistence_overlay_state(self) -> None:
         model_tree = parse_module("ea_node_editor/graph/model.py")
+        normalization_tree = parse_module("ea_node_editor/graph/normalization.py")
         codec_tree = parse_module("ea_node_editor/persistence/project_codec.py")
 
         self.assertNotIn("ea_node_editor.persistence.overlay", imported_modules(model_tree))
-        self.assertIn("import_module", call_names(model_tree))
+        self.assertNotIn("import_module", call_names(model_tree))
         self.assertNotIn("WorkspacePersistenceState", {node.id for node in ast.walk(model_tree) if isinstance(node, ast.Name)})
-        self.assertIn("restore_workspace_persistence_state", call_names(codec_tree))
+        graph_names = {node.id for node in ast.walk(model_tree) if isinstance(node, ast.Name)}
+        normalization_names = {node.id for node in ast.walk(normalization_tree) if isinstance(node, ast.Name)}
+        codec_names = {node.id for node in ast.walk(codec_tree) if isinstance(node, ast.Name)}
+
+        for name in {
+            "capture_persistence_state",
+            "restore_persistence_state",
+            "unresolved_node_docs",
+            "unresolved_edge_docs",
+            "authored_node_overrides",
+        }:
+            self.assertNotIn(name, graph_names)
+            self.assertNotIn(name, normalization_names)
+        self.assertNotIn("restore_workspace_persistence_state", codec_names)
 
     def test_graph_file_issue_module_is_a_boundary_adapter_to_persistence(self) -> None:
         tree = parse_module("ea_node_editor/graph/file_issue_state.py")

@@ -4,8 +4,6 @@ import copy
 import uuid
 from collections.abc import Mapping
 from dataclasses import dataclass, field
-from functools import lru_cache
-from importlib import import_module
 from typing import TYPE_CHECKING, Any
 
 from ea_node_editor.graph.port_locking import normalize_locked_ports_mapping
@@ -15,27 +13,6 @@ if TYPE_CHECKING:
     from ea_node_editor.graph.boundary_adapters import GraphBoundaryAdapters
     from ea_node_editor.graph.mutation_service import WorkspaceMutationService, WorkspaceMutationServiceFactory
     from ea_node_editor.nodes.registry import NodeRegistry
-
-_PERSISTENCE_OVERLAY_MODULE = "ea_node_editor.persistence.overlay"
-
-
-@lru_cache(maxsize=1)
-def _persistence_overlay_api() -> Any:
-    # Keep the unresolved-document sidecar owned by persistence without a static
-    # graph-to-persistence module import.
-    return import_module(_PERSISTENCE_OVERLAY_MODULE)
-
-
-def _live_workspace_persistence_state(owner: object) -> Any:
-    return _persistence_overlay_api().workspace_persistence_overlay(owner)
-
-
-def _capture_workspace_persistence_state(owner: object) -> Any:
-    return _persistence_overlay_api().capture_workspace_persistence_state(owner)
-
-
-def _restore_workspace_persistence_state(owner: object, state: Any) -> None:
-    _persistence_overlay_api().restore_workspace_persistence_state(owner, state)
 
 
 def new_id(prefix: str) -> str:
@@ -194,27 +171,9 @@ class WorkspaceSnapshot:
     active_view_id: str
     dirty: bool
 
-    @property
-    def unresolved_node_docs(self) -> dict[str, dict[str, Any]]:
-        return _live_workspace_persistence_state(self).unresolved_node_docs
-
-    @property
-    def unresolved_edge_docs(self) -> dict[str, dict[str, Any]]:
-        return _live_workspace_persistence_state(self).unresolved_edge_docs
-
-    @property
-    def authored_node_overrides(self) -> dict[str, dict[str, Any]]:
-        return _live_workspace_persistence_state(self).authored_node_overrides
-
-    def capture_persistence_state(self) -> Any:
-        return _capture_workspace_persistence_state(self)
-
-    def restore_persistence_state(self, state: Any) -> None:
-        _restore_workspace_persistence_state(self, state)
-
     @classmethod
     def capture(cls, workspace: WorkspaceData) -> "WorkspaceSnapshot":
-        snapshot = cls(
+        return cls(
             name=str(workspace.name),
             nodes={node_id: node.clone() for node_id, node in workspace.nodes.items()},
             edges={edge_id: edge.clone() for edge_id, edge in workspace.edges.items()},
@@ -222,8 +181,6 @@ class WorkspaceSnapshot:
             active_view_id=str(workspace.active_view_id),
             dirty=bool(workspace.dirty),
         )
-        snapshot.restore_persistence_state(workspace.capture_persistence_state())
-        return snapshot
 
     def restore(self, workspace: WorkspaceData) -> None:
         workspace.name = str(self.name)
@@ -232,7 +189,6 @@ class WorkspaceSnapshot:
         workspace.views = copy.deepcopy(self.views)
         workspace.active_view_id = str(self.active_view_id)
         workspace.dirty = bool(self.dirty)
-        workspace.restore_persistence_state(self.capture_persistence_state())
         workspace.ensure_default_view()
         if workspace.active_view_id not in workspace.views:
             workspace.active_view_id = next(iter(workspace.views))
@@ -247,7 +203,6 @@ class WorkspaceSnapshot:
             and self.views == other.views
             and self.active_view_id == other.active_view_id
             and self.dirty == other.dirty
-            and self.capture_persistence_state() == other.capture_persistence_state()
         )
 
 
@@ -269,36 +224,6 @@ class WorkspaceData:
         elif not self.active_view_id:
             self.active_view_id = next(iter(self.views))
 
-    @property
-    def unresolved_node_docs(self) -> dict[str, dict[str, Any]]:
-        return _live_workspace_persistence_state(self).unresolved_node_docs
-
-    @unresolved_node_docs.setter
-    def unresolved_node_docs(self, value: Mapping[str, Any] | None) -> None:
-        _live_workspace_persistence_state(self).replace_unresolved_node_docs(value)
-
-    @property
-    def unresolved_edge_docs(self) -> dict[str, dict[str, Any]]:
-        return _live_workspace_persistence_state(self).unresolved_edge_docs
-
-    @unresolved_edge_docs.setter
-    def unresolved_edge_docs(self, value: Mapping[str, Any] | None) -> None:
-        _live_workspace_persistence_state(self).replace_unresolved_edge_docs(value)
-
-    @property
-    def authored_node_overrides(self) -> dict[str, dict[str, Any]]:
-        return _live_workspace_persistence_state(self).authored_node_overrides
-
-    @authored_node_overrides.setter
-    def authored_node_overrides(self, value: Mapping[str, Any] | None) -> None:
-        _live_workspace_persistence_state(self).replace_authored_node_overrides(value)
-
-    def capture_persistence_state(self) -> Any:
-        return _capture_workspace_persistence_state(self)
-
-    def restore_persistence_state(self, state: Any) -> None:
-        _restore_workspace_persistence_state(self, state)
-
     def capture_snapshot(self) -> WorkspaceSnapshot:
         return WorkspaceSnapshot.capture(self)
 
@@ -318,44 +243,20 @@ class WorkspaceData:
             active_view_id=self.active_view_id,
             dirty=True,
         )
-        duplicate.restore_persistence_state(self.capture_persistence_state())
         duplicate.ensure_default_view()
         return duplicate
 
 
-def sanitize_workspace_parent_links(
-    workspace: WorkspaceData,
-    persistence_state: Any | None = None,
-) -> Any:
-    state = persistence_state or workspace.capture_persistence_state()
-    unresolved_nodes = state.unresolved_node_docs
-    authored_overrides = state.authored_node_overrides
+def sanitize_workspace_parent_links(workspace: WorkspaceData) -> None:
     for node in workspace.nodes.values():
         parent_id = str(node.parent_node_id or "").strip() or None
-        override_parent_id = (
-            str(authored_overrides.get(node.node_id, {}).get("parent_node_id", "")).strip()
-            or None
-        )
         if parent_id is None:
-            if override_parent_id in unresolved_nodes:
-                continue
-            authored_overrides.pop(node.node_id, None)
             continue
         if parent_id == node.node_id:
             node.parent_node_id = None
-            authored_overrides.pop(node.node_id, None)
             continue
-        if parent_id in workspace.nodes:
-            authored_overrides.pop(node.node_id, None)
-            continue
-        if parent_id in unresolved_nodes:
-            authored_overrides[node.node_id] = {"parent_node_id": parent_id}
-        else:
-            authored_overrides.pop(node.node_id, None)
-        node.parent_node_id = None
-    if persistence_state is None:
-        workspace.restore_persistence_state(state)
-    return state
+        if parent_id not in workspace.nodes:
+            node.parent_node_id = None
 
 
 @dataclass(slots=True)
@@ -577,9 +478,6 @@ class GraphModel:
         workspace = self.project.workspaces[workspace_id]
         if node_id in workspace.nodes:
             del workspace.nodes[node_id]
-        state = workspace.capture_persistence_state()
-        state.remove_node_references(node_id)
-        workspace.restore_persistence_state(state)
         for edge_id in list(workspace.edges):
             edge = workspace.edges[edge_id]
             if edge.source_node_id == node_id or edge.target_node_id == node_id:

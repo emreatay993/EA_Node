@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import unittest
 from pathlib import Path
-from unittest.mock import patch
 
 from ea_node_editor.graph.subnode_contract import (
     SUBNODE_INPUT_TYPE_ID,
@@ -24,7 +23,6 @@ from ea_node_editor.nodes.builtins.ansys_dpf_common import (
 from ea_node_editor.nodes import execution_context as node_execution_context
 from ea_node_editor.nodes import node_specs, plugin_contracts, runtime_refs, types as node_types
 from ea_node_editor.nodes.decorators import node_type
-from ea_node_editor.nodes.plugin_contracts import AddOnManifest, AddOnRecord, AddOnState, PluginAvailability
 from ea_node_editor.nodes.registry import NodeRegistry
 from ea_node_editor.nodes.types import (
     DPF_MODEL_DATA_TYPE,
@@ -40,11 +38,6 @@ from ea_node_editor.nodes.types import (
     PluginProvenance,
     PortSpec,
     PropertySpec,
-)
-from ea_node_editor.persistence.overlay import (
-    MISSING_ADDON_PLACEHOLDER_KEY,
-    WorkspacePersistenceEnvelope,
-    workspace_has_persistence_overlay,
 )
 
 
@@ -63,29 +56,8 @@ def _factory(spec: NodeTypeSpec):
     return lambda: _Plugin(spec)
 
 
-def _test_addon_record(
-    *,
-    addon_id: str = "tests.addons.signal_pack",
-    display_name: str = "Signal Pack",
-    provided_node_type_ids: tuple[str, ...] = ("addons.signal.transform",),
-    summary: str = "Signal Pack is not loaded in this session.",
-) -> AddOnRecord:
-    return AddOnRecord(
-        manifest=AddOnManifest(
-            addon_id=addon_id,
-            display_name=display_name,
-            apply_policy="hot_apply",
-            version="1.2.3",
-            dependencies=("tests.signal.runtime",),
-        ),
-        state=AddOnState(enabled=True, pending_restart=False),
-        availability=PluginAvailability.available(summary=summary),
-        provided_node_type_ids=provided_node_type_ids,
-    )
-
-
 class RegistryValidationTests(unittest.TestCase):
-    def test_workspace_models_externalize_persistence_state_and_preserve_workspace_boundary_accessors(self) -> None:
+    def test_workspace_models_do_not_expose_persistence_overlay_state(self) -> None:
         self.assertNotIn("persistence_state", WorkspaceData.__dataclass_fields__)
         self.assertNotIn("persistence_state", WorkspaceSnapshot.__dataclass_fields__)
         self.assertNotIn("unresolved_node_docs", WorkspaceData.__dataclass_fields__)
@@ -93,155 +65,64 @@ class RegistryValidationTests(unittest.TestCase):
         self.assertNotIn("authored_node_overrides", WorkspaceData.__dataclass_fields__)
 
         workspace = WorkspaceData(workspace_id="ws_test", name="Workspace")
-        self.assertFalse(workspace_has_persistence_overlay(workspace))
+        snapshot = workspace.capture_snapshot()
 
-        state = workspace.capture_persistence_state()
-        self.assertFalse(workspace_has_persistence_overlay(workspace))
-        state.replace_unresolved_node_docs(
-            {"node_missing": {"type_id": "plugin.missing"}}
-        )
-        state.replace_unresolved_edge_docs(
-            {"edge_missing": {"source_node_id": "node_missing"}}
-        )
-        state.replace_authored_node_overrides(
-            {"node_known": {"parent_node_id": "node_missing"}}
-        )
-        workspace.restore_persistence_state(state)
+        for owner in (workspace, snapshot):
+            self.assertFalse(hasattr(owner, "capture_persistence_state"))
+            self.assertFalse(hasattr(owner, "restore_persistence_state"))
+            self.assertFalse(hasattr(owner, "unresolved_node_docs"))
+            self.assertFalse(hasattr(owner, "unresolved_edge_docs"))
+            self.assertFalse(hasattr(owner, "authored_node_overrides"))
 
-        self.assertTrue(workspace_has_persistence_overlay(workspace))
-
-        self.assertEqual(workspace.unresolved_node_docs["node_missing"]["type_id"], "plugin.missing")
-        self.assertEqual(workspace.unresolved_edge_docs["edge_missing"]["source_node_id"], "node_missing")
-        self.assertEqual(
-            workspace.authored_node_overrides["node_known"]["parent_node_id"],
-            "node_missing",
-        )
-
-    def test_duplicate_workspace_receives_independent_persistence_state_copy(self) -> None:
+    def test_duplicate_workspace_receives_independent_live_graph_copy(self) -> None:
         model = GraphModel()
         source = model.active_workspace
-        source_state = source.capture_persistence_state()
-        source_state.replace_unresolved_node_docs(
-            {"node_missing": {"type_id": "plugin.missing"}}
+        node = model.add_node(
+            source.workspace_id,
+            "core.logger",
+            "Logger",
+            10.0,
+            20.0,
+            properties={"message": "source"},
         )
-        source_state.replace_unresolved_edge_docs(
-            {"edge_missing": {"source_node_id": "node_missing", "target_node_id": "node_known"}}
-        )
-        source_state.replace_authored_node_overrides(
-            {"node_known": {"parent_node_id": "node_missing"}}
-        )
-        source.restore_persistence_state(source_state)
 
         duplicate = model.duplicate_workspace(source.workspace_id)
-        duplicate_state = duplicate.capture_persistence_state()
+        duplicate_node = duplicate.nodes[node.node_id]
 
-        self.assertTrue(workspace_has_persistence_overlay(source))
-        self.assertTrue(workspace_has_persistence_overlay(duplicate))
-        self.assertEqual(
-            duplicate_state.unresolved_node_docs,
-            source.capture_persistence_state().unresolved_node_docs,
-        )
-        duplicate_state.unresolved_node_docs["node_missing"]["type_id"] = "plugin.changed"
-        duplicate.restore_persistence_state(duplicate_state)
-        self.assertEqual(
-            source.capture_persistence_state().unresolved_node_docs["node_missing"]["type_id"],
-            "plugin.missing",
-        )
+        self.assertEqual(duplicate_node.properties, {"message": "source"})
+        duplicate_node.properties["message"] = "duplicate"
+        self.assertEqual(source.nodes[node.node_id].properties, {"message": "source"})
 
-    def test_workspace_persistence_envelope_round_trips_runtime_payload(self) -> None:
+    def test_workspace_snapshot_restores_live_graph_state_only(self) -> None:
         workspace = WorkspaceData(workspace_id="ws_test", name="Workspace")
-        state = workspace.capture_persistence_state()
-        state.replace_unresolved_node_docs(
-            {"node_missing": {"node_id": "node_missing", "type_id": "plugin.missing"}}
+        node = NodeInstance(
+            node_id="node_logger",
+            type_id="core.logger",
+            title="Logger",
+            x=10.0,
+            y=20.0,
         )
-        state.replace_unresolved_edge_docs(
-            {
-                "edge_missing": {
-                    "edge_id": "edge_missing",
-                    "source_node_id": "node_missing",
-                    "target_node_id": "node_known",
-                }
-            }
-        )
-        state.replace_authored_node_overrides(
-            {"node_known": {"parent_node_id": "node_missing"}}
-        )
-        workspace.restore_persistence_state(state)
-
-        payload = WorkspacePersistenceEnvelope.capture(workspace).to_mapping()
-        restored = WorkspacePersistenceEnvelope.from_mapping(payload)
-
-        self.assertEqual(
-            restored.unresolved_node_docs["node_missing"]["type_id"],
-            "plugin.missing",
-        )
-        self.assertEqual(
-            restored.unresolved_edge_docs["edge_missing"]["source_node_id"],
-            "node_missing",
-        )
-        self.assertEqual(
-            restored.authored_node_overrides["node_known"]["parent_node_id"],
-            "node_missing",
-        )
-
-    def test_workspace_persistence_envelope_rejects_legacy_alias_keys(self) -> None:
-        with self.assertRaisesRegex(ValueError, "legacy keys"):
-            WorkspacePersistenceEnvelope.from_mapping(
-                {
-                    "nodes": [
-                        {
-                            "node_id": "node_missing",
-                            "type_id": "plugin.missing",
-                        }
-                    ],
-                    "edges": [],
-                    "node_overrides": {},
-                }
-            )
-
-    def test_workspace_persistence_envelope_requires_list_unresolved_payloads(self) -> None:
-        with self.assertRaisesRegex(ValueError, "unresolved_nodes must be a JSON array"):
-            WorkspacePersistenceEnvelope.from_mapping(
-                {
-                    "unresolved_nodes": {
-                        "node_missing": {
-                            "node_id": "node_missing",
-                            "type_id": "plugin.missing",
-                        }
-                    },
-                }
-            )
-
-    def test_workspace_snapshot_restores_externalized_persistence_overlay(self) -> None:
-        workspace = WorkspaceData(workspace_id="ws_test", name="Workspace")
-        initial_state = workspace.capture_persistence_state()
-        initial_state.replace_unresolved_node_docs(
-            {"node_missing": {"node_id": "node_missing", "type_id": "plugin.missing"}}
-        )
-        workspace.restore_persistence_state(initial_state)
+        workspace.nodes[node.node_id] = node
 
         snapshot = workspace.capture_snapshot()
 
-        mutated_state = workspace.capture_persistence_state()
-        mutated_state.replace_unresolved_node_docs({})
-        workspace.restore_persistence_state(mutated_state)
+        workspace.nodes[node.node_id].title = "Changed"
 
         workspace.restore_snapshot(snapshot)
 
-        self.assertEqual(
-            workspace.capture_persistence_state().unresolved_node_docs,
-            {"node_missing": {"node_id": "node_missing", "type_id": "plugin.missing"}},
-        )
+        self.assertEqual(workspace.nodes[node.node_id].title, "Logger")
 
-    def test_workspace_snapshot_equality_tracks_externalized_persistence_overlay(self) -> None:
+    def test_workspace_snapshot_equality_tracks_live_graph_state(self) -> None:
         workspace = WorkspaceData(workspace_id="ws_test", name="Workspace")
         before = workspace.capture_snapshot()
 
-        state = workspace.capture_persistence_state()
-        state.replace_unresolved_node_docs(
-            {"node_missing": {"node_id": "node_missing", "type_id": "plugin.missing"}}
+        workspace.nodes["node_logger"] = NodeInstance(
+            node_id="node_logger",
+            type_id="core.logger",
+            title="Logger",
+            x=10.0,
+            y=20.0,
         )
-        workspace.restore_persistence_state(state)
         after = workspace.capture_snapshot()
 
         self.assertNotEqual(before, after)
@@ -1027,7 +908,7 @@ class RegistryValidationTests(unittest.TestCase):
             {"count": 15, "enabled": False},
         )
 
-    def test_normalize_project_for_registry_preserves_unresolved_sidecar_payloads(self) -> None:
+    def test_normalize_project_for_registry_prunes_unknown_nodes_without_sidecars(self) -> None:
         registry = build_default_registry()
         model = GraphModel()
         workspace = model.active_workspace
@@ -1067,32 +948,14 @@ class RegistryValidationTests(unittest.TestCase):
         normalize_project_for_registry(model.project, registry)
 
         self.assertNotIn(unknown_node.node_id, workspace.nodes)
-        self.assertEqual(set(workspace.unresolved_node_docs), {unknown_node.node_id})
-        self.assertEqual(
-            workspace.unresolved_node_docs[unknown_node.node_id]["visual_style"],
-            {"fill": "#556677"},
-        )
         self.assertIsNone(workspace.nodes[child_node.node_id].parent_node_id)
-        self.assertEqual(
-            workspace.authored_node_overrides[child_node.node_id],
-            {"parent_node_id": unknown_node.node_id},
-        )
         self.assertEqual(set(workspace.edges), {valid_edge.edge_id})
-        self.assertEqual(set(workspace.unresolved_edge_docs), {mixed_edge.edge_id})
-        self.assertEqual(
-            workspace.unresolved_edge_docs[mixed_edge.edge_id],
-            {
-                "edge_id": mixed_edge.edge_id,
-                "source_node_id": unknown_node.node_id,
-                "source_port_key": "plugin_out",
-                "target_node_id": known_target.node_id,
-                "target_port_key": "exec_in",
-                "label": "",
-                "visual_style": {},
-            },
-        )
+        self.assertFalse(hasattr(workspace, "unresolved_node_docs"))
+        self.assertFalse(hasattr(workspace, "unresolved_edge_docs"))
+        self.assertFalse(hasattr(workspace, "authored_node_overrides"))
+        self.assertNotIn(mixed_edge.edge_id, workspace.edges)
 
-    def test_normalize_project_for_registry_attaches_missing_addon_placeholder_contract(self) -> None:
+    def test_normalize_project_for_registry_prunes_missing_addon_without_placeholder_contract(self) -> None:
         registry = build_default_registry()
         model = GraphModel()
         workspace = model.active_workspace
@@ -1109,34 +972,10 @@ class RegistryValidationTests(unittest.TestCase):
         )
         workspace.nodes[addon_node.node_id] = addon_node
 
-        with patch(
-            "ea_node_editor.persistence.overlay.discover_addon_records",
-            return_value=(_test_addon_record(),),
-        ):
-            normalize_project_for_registry(model.project, registry)
+        normalize_project_for_registry(model.project, registry)
 
         self.assertNotIn(addon_node.node_id, workspace.nodes)
-        unresolved_doc = workspace.unresolved_node_docs[addon_node.node_id]
-        placeholder = unresolved_doc[MISSING_ADDON_PLACEHOLDER_KEY]
-        self.assertEqual(placeholder["addon_id"], "tests.addons.signal_pack")
-        self.assertEqual(placeholder["display_name"], "Signal Pack")
-        self.assertEqual(placeholder["version"], "1.2.3")
-        self.assertEqual(placeholder["apply_policy"], "hot_apply")
-        self.assertEqual(placeholder["status"], "installed")
-        self.assertEqual(
-            placeholder["unavailable_reason"],
-            "Signal Pack is not loaded in this session.",
-        )
-        self.assertEqual(
-            placeholder["locked_state"],
-            {
-                "is_locked": True,
-                "reason": "missing_addon",
-                "label": "Requires add-on",
-                "summary": "Signal Pack is not loaded in this session.",
-                "focus_addon_id": "tests.addons.signal_pack",
-            },
-        )
+        self.assertFalse(hasattr(workspace, "unresolved_node_docs"))
 
     def test_normalize_project_for_registry_keeps_directed_neutral_flowchart_edges(self) -> None:
         registry = build_default_registry()
