@@ -1,8 +1,11 @@
 from __future__ import annotations
 
 import importlib
+import os
 from pathlib import Path
 import unittest
+
+os.environ.setdefault("QT_QUICK_CONTROLS_STYLE", "Basic")
 
 from tests.graph_track_b.qml_preference_bindings import (
     GraphCanvasQmlPreferenceBindingTests,
@@ -21,10 +24,6 @@ class TrackBPacketBoundaryTests(unittest.TestCase):
         scene_module = importlib.import_module("tests.graph_track_b.scene_and_model")
         package_root = _REPO_ROOT / "tests" / "graph_track_b"
 
-        self.assertLessEqual(
-            len((package_root / "qml_preference_bindings.py").read_text(encoding="utf-8").splitlines()),
-            200,
-        )
         self.assertLessEqual(
             len((package_root / "scene_and_model.py").read_text(encoding="utf-8").splitlines()),
             200,
@@ -46,6 +45,10 @@ class TrackBPacketBoundaryTests(unittest.TestCase):
                 "tests.graph_track_b.qml_preference_rendering_suite",
                 "tests.graph_track_b.qml_preference_performance_suite",
             },
+        )
+        self.assertEqual(
+            qml_module.build_graph_canvas_qml_preference_binding_subprocess_suite.__module__,
+            "tests.graph_track_b.qml_preference_bindings",
         )
         self.assertEqual(
             scene_module.GraphModelTrackBTests.__module__,

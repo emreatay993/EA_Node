@@ -6,6 +6,8 @@ import subprocess
 import sys
 import unittest
 
+os.environ.setdefault("QT_QUICK_CONTROLS_STYLE", "Basic")
+
 from PyQt6.QtCore import QPoint, QObject, QMetaObject, Qt, QUrl, pyqtProperty, pyqtSignal, pyqtSlot
 from PyQt6.QtQml import QQmlComponent, QQmlEngine
 from PyQt6.QtQuick import QQuickWindow
@@ -44,6 +46,10 @@ _NODE_CARD_QML_PATH = (
     / 'NodeCard.qml'
 )
 _EDGE_LAYER_QML_PATH = _GRAPH_CANVAS_QML_PATH.parent / 'graph' / 'EdgeLayer.qml'
+
+
+def _qml_error_text(errors) -> str:  # noqa: ANN001
+    return "\n".join(error.toString() for error in errors)
 
 
 def _named_child_items(root: QObject, object_name: str) -> list[QObject]:
@@ -242,6 +248,22 @@ class _GraphCanvasPerformancePreferenceBridge(_GraphCanvasPreferenceBridge):
         self._graphics_performance_mode = normalized
         self.graphics_preferences_changed.emit()
 
+
+class _GraphCanvasShellContext(QObject):
+    def __init__(self, theme_bridge: ThemeBridge, graph_theme_bridge: GraphThemeBridge) -> None:
+        super().__init__()
+        self._theme_bridge = theme_bridge
+        self._graph_theme_bridge = graph_theme_bridge
+
+    @pyqtProperty(QObject, constant=True)
+    def themeBridge(self) -> QObject:
+        return self._theme_bridge
+
+    @pyqtProperty(QObject, constant=True)
+    def graphThemeBridge(self) -> QObject:
+        return self._graph_theme_bridge
+
+
 class GraphCanvasQmlPreferenceTestBase(unittest.TestCase):
     __test__ = False
 
@@ -253,7 +275,7 @@ class GraphCanvasQmlPreferenceTestBase(unittest.TestCase):
             for key, value in initial_properties.items():
                 canvas.setProperty(key, value)
         if canvas is None:
-            errors = "\n".join(str(error) for error in self.component.errors())
+            errors = _qml_error_text(self.component.errors())
             self.fail(f"Failed to instantiate GraphCanvas.qml:\n{errors}")
         self.app.processEvents()
         return canvas
@@ -261,7 +283,7 @@ class GraphCanvasQmlPreferenceTestBase(unittest.TestCase):
     def _create_edge_layer(self, initial_properties: dict[str, object] | None = None) -> QObject:
         component = QQmlComponent(self.engine, QUrl.fromLocalFile(str(_EDGE_LAYER_QML_PATH)))
         if component.status() != QQmlComponent.Status.Ready:
-            errors = "\n".join(str(error) for error in component.errors())
+            errors = _qml_error_text(component.errors())
             self.fail(f"Failed to load EdgeLayer.qml:\n{errors}")
 
         properties = {"width": 1280.0, "height": 720.0}
@@ -276,7 +298,7 @@ class GraphCanvasQmlPreferenceTestBase(unittest.TestCase):
                 for key, value in properties.items():
                     edge_layer.setProperty(key, value)
         if edge_layer is None:
-            errors = "\n".join(str(error) for error in component.errors())
+            errors = _qml_error_text(component.errors())
             self.fail(f"Failed to instantiate EdgeLayer.qml:\n{errors}")
         self.app.processEvents()
         return edge_layer
@@ -286,21 +308,26 @@ class GraphCanvasQmlPreferenceTestBase(unittest.TestCase):
         self.engine = QQmlEngine()
         self.theme_bridge = ThemeBridge(theme_id="stitch_dark")
         self.graph_theme_bridge = GraphThemeBridge(theme_id="graph_stitch_dark")
+        self.shell_context = _GraphCanvasShellContext(self.theme_bridge, self.graph_theme_bridge)
         self.engine.rootContext().setContextProperty("themeBridge", self.theme_bridge)
         self.engine.rootContext().setContextProperty("graphThemeBridge", self.graph_theme_bridge)
+        self.engine.rootContext().setContextProperty("shellContext", self.shell_context)
         self.component = QQmlComponent(self.engine, QUrl.fromLocalFile(str(_GRAPH_CANVAS_QML_PATH)))
         if self.component.status() != QQmlComponent.Status.Ready:
-            errors = "\n".join(str(error) for error in self.component.errors())
+            errors = _qml_error_text(self.component.errors())
             self.fail(f"Failed to load GraphCanvas.qml:\n{errors}")
         self.bridge = _GraphCanvasPerformancePreferenceBridge()
         self.view = ViewportBridge()
         self.view.set_viewport_size(1280.0, 720.0)
         self.canvas_state_bridge = GraphCanvasStateBridge(
             shell_window=self.bridge,  # type: ignore[arg-type]
+            canvas_source=self.bridge,  # type: ignore[arg-type]
+            graphics_source=self.bridge,  # type: ignore[arg-type]
             view_bridge=self.view,
         )
         self.canvas_command_bridge = GraphCanvasCommandBridge(
             shell_window=self.bridge,  # type: ignore[arg-type]
+            canvas_source=self.bridge,  # type: ignore[arg-type]
             view_bridge=self.view,
         )
         self.canvas = self._create_canvas(

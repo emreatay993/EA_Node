@@ -3,7 +3,7 @@ from __future__ import annotations
 import copy
 import uuid
 from collections.abc import Mapping
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, fields as dataclass_fields
 from typing import TYPE_CHECKING, Any
 
 from ea_node_editor.graph.port_locking import normalize_locked_ports_mapping
@@ -237,6 +237,7 @@ class WorkspaceSnapshot:
     views: dict[str, ViewState]
     active_view_id: str
     dirty: bool
+    extra_state: dict[str, Any] = field(default_factory=dict)
 
     @classmethod
     def capture(cls, workspace: WorkspaceData) -> "WorkspaceSnapshot":
@@ -247,6 +248,7 @@ class WorkspaceSnapshot:
             views=copy.deepcopy(workspace.views),
             active_view_id=str(workspace.active_view_id),
             dirty=bool(workspace.dirty),
+            extra_state=_workspace_extra_state(workspace),
         )
 
     def restore(self, workspace: WorkspaceData) -> None:
@@ -256,9 +258,8 @@ class WorkspaceSnapshot:
         workspace.views = copy.deepcopy(self.views)
         workspace.active_view_id = str(self.active_view_id)
         workspace.dirty = bool(self.dirty)
+        _restore_workspace_extra_state(workspace, self.extra_state)
         workspace.ensure_default_view()
-        if workspace.active_view_id not in workspace.views:
-            workspace.active_view_id = next(iter(workspace.views))
 
     def __eq__(self, other: object) -> bool:
         if not isinstance(other, WorkspaceSnapshot):
@@ -270,6 +271,7 @@ class WorkspaceSnapshot:
             and self.views == other.views
             and self.active_view_id == other.active_view_id
             and self.dirty == other.dirty
+            and self.extra_state == other.extra_state
         )
 
 
@@ -284,12 +286,20 @@ class WorkspaceData:
     dirty: bool = False
 
     def ensure_default_view(self) -> None:
+        self.active_view_state()
+
+    def active_view_state(self) -> ViewState:
         if not self.views:
             view = ViewState(view_id=new_id("view"), name="V1")
             self.views[view.view_id] = view
             self.active_view_id = view.view_id
-        elif not self.active_view_id:
+            return view
+        if not self.active_view_id or self.active_view_id not in self.views:
             self.active_view_id = next(iter(self.views))
+        return self.views[self.active_view_id]
+
+    def mark_dirty(self) -> None:
+        self.dirty = True
 
     def capture_snapshot(self) -> WorkspaceSnapshot:
         return WorkspaceSnapshot.capture(self)
@@ -312,6 +322,29 @@ class WorkspaceData:
         )
         duplicate.ensure_default_view()
         return duplicate
+
+
+def _workspace_declared_state_names() -> set[str]:
+    return {item.name for item in dataclass_fields(WorkspaceData)}
+
+
+def _workspace_extra_state(workspace: WorkspaceData) -> dict[str, Any]:
+    declared_names = _workspace_declared_state_names()
+    return {
+        key: copy.deepcopy(value)
+        for key, value in vars(workspace).items()
+        if key not in declared_names
+    }
+
+
+def _restore_workspace_extra_state(workspace: WorkspaceData, extra_state: Mapping[str, Any]) -> None:
+    declared_names = _workspace_declared_state_names()
+    for key in list(vars(workspace)):
+        if key not in declared_names:
+            delattr(workspace, key)
+    for key, value in dict(extra_state or {}).items():
+        if key not in declared_names:
+            setattr(workspace, key, copy.deepcopy(value))
 
 
 def sanitize_workspace_parent_links(workspace: WorkspaceData) -> None:
@@ -341,7 +374,7 @@ class ProjectData:
             workspace.ensure_default_view()
             self.workspaces[workspace.workspace_id] = workspace
             self.active_workspace_id = workspace.workspace_id
-        elif not self.active_workspace_id:
+        elif not self.active_workspace_id or self.active_workspace_id not in self.workspaces:
             self.active_workspace_id = next(iter(self.workspaces))
         return self.workspaces[self.active_workspace_id]
 
@@ -448,7 +481,7 @@ class GraphModel:
     def set_active_workspace(self, workspace_id: str) -> None:
         self._set_active_workspace_id(workspace_id)
 
-    def create_view(
+    def _create_view_record(
         self,
         workspace_id: str,
         name: str | None = None,
@@ -471,13 +504,29 @@ class GraphModel:
         workspace.active_view_id = view.view_id
         return view
 
-    def set_active_view(self, workspace_id: str, view_id: str) -> None:
+    def create_view(
+        self,
+        workspace_id: str,
+        name: str | None = None,
+        *,
+        source_view_id: str | None = None,
+    ) -> ViewState:
+        return self.mutation_service(workspace_id).create_view(
+            name=name,
+            source_view_id=source_view_id,
+        )
+
+    def _set_active_view_record(self, workspace_id: str, view_id: str) -> None:
         workspace = self.project.workspaces[workspace_id]
+        workspace.ensure_default_view()
         if view_id not in workspace.views:
             raise KeyError(f"Unknown view: {view_id}")
         workspace.active_view_id = view_id
 
-    def close_view(self, workspace_id: str, view_id: str) -> None:
+    def set_active_view(self, workspace_id: str, view_id: str) -> None:
+        self.mutation_service(workspace_id).set_active_view(view_id)
+
+    def _close_view_record(self, workspace_id: str, view_id: str) -> None:
         workspace = self.project.workspaces[workspace_id]
         workspace.ensure_default_view()
         if view_id not in workspace.views:
@@ -494,13 +543,20 @@ class GraphModel:
         next_index = min(max(close_index, 0), len(remaining_view_ids) - 1)
         workspace.active_view_id = remaining_view_ids[next_index]
 
-    def rename_view(self, workspace_id: str, view_id: str, new_name: str) -> None:
+    def close_view(self, workspace_id: str, view_id: str) -> None:
+        self.mutation_service(workspace_id).close_view(view_id)
+
+    def _rename_view_record(self, workspace_id: str, view_id: str, new_name: str) -> None:
         workspace = self.project.workspaces[workspace_id]
+        workspace.ensure_default_view()
         if view_id not in workspace.views:
             raise KeyError(f"Unknown view: {view_id}")
         workspace.views[view_id].name = new_name
 
-    def move_view(self, workspace_id: str, from_index: int, to_index: int) -> None:
+    def rename_view(self, workspace_id: str, view_id: str, new_name: str) -> None:
+        self.mutation_service(workspace_id).rename_view(view_id, new_name)
+
+    def _move_view_record(self, workspace_id: str, from_index: int, to_index: int) -> None:
         workspace = self.project.workspaces[workspace_id]
         workspace.ensure_default_view()
         if len(workspace.views) < 2:
@@ -514,6 +570,9 @@ class GraphModel:
         moved_view_id, moved_view = ordered_views.pop(from_index)
         ordered_views.insert(to_index, (moved_view_id, moved_view))
         workspace.views = dict(ordered_views)
+
+    def move_view(self, workspace_id: str, from_index: int, to_index: int) -> None:
+        self.mutation_service(workspace_id).move_view(from_index, to_index)
 
     def _add_node_record(
         self,
@@ -551,7 +610,7 @@ class GraphModel:
             custom_height=custom_height,
         )
         workspace.nodes[record.node_id] = record
-        workspace.dirty = True
+        workspace.mark_dirty()
         return record
 
     def add_node(
@@ -584,7 +643,7 @@ class GraphModel:
             edge = workspace.edges[edge_id]
             if edge.source_node_id == node_id or edge.target_node_id == node_id:
                 del workspace.edges[edge_id]
-        workspace.dirty = True
+        workspace.mark_dirty()
 
     def remove_node(self, workspace_id: str, node_id: str) -> None:
         self._remove_node_record(workspace_id, node_id)
@@ -594,7 +653,7 @@ class GraphModel:
         node = workspace.nodes[node_id]
         node.x = x
         node.y = y
-        workspace.dirty = True
+        workspace.mark_dirty()
 
     def set_node_position(self, workspace_id: str, node_id: str, x: float, y: float) -> None:
         self._set_node_position_record(workspace_id, node_id, x, y)
@@ -614,7 +673,7 @@ class GraphModel:
         node.y = y
         node.custom_width = width
         node.custom_height = height
-        workspace.dirty = True
+        workspace.mark_dirty()
 
     def set_node_geometry(
         self,
@@ -637,7 +696,7 @@ class GraphModel:
         workspace = self.project.workspaces[workspace_id]
         workspace.nodes[node_id].custom_width = width
         workspace.nodes[node_id].custom_height = height
-        workspace.dirty = True
+        workspace.mark_dirty()
 
     def set_node_size(self, workspace_id: str, node_id: str, width: float | None, height: float | None) -> None:
         self._set_node_size_record(workspace_id, node_id, width, height)
@@ -645,7 +704,7 @@ class GraphModel:
     def _set_node_collapsed_record(self, workspace_id: str, node_id: str, collapsed: bool) -> None:
         workspace = self.project.workspaces[workspace_id]
         workspace.nodes[node_id].collapsed = collapsed
-        workspace.dirty = True
+        workspace.mark_dirty()
 
     def set_node_collapsed(self, workspace_id: str, node_id: str, collapsed: bool) -> None:
         self._set_node_collapsed_record(workspace_id, node_id, collapsed)
@@ -653,7 +712,7 @@ class GraphModel:
     def _set_node_property_record(self, workspace_id: str, node_id: str, key: str, value: Any) -> None:
         workspace = self.project.workspaces[workspace_id]
         workspace.nodes[node_id].properties[key] = value
-        workspace.dirty = True
+        workspace.mark_dirty()
 
     def set_node_property(self, workspace_id: str, node_id: str, key: str, value: Any) -> None:
         self._set_node_property_record(workspace_id, node_id, key, value)
@@ -661,7 +720,7 @@ class GraphModel:
     def _set_node_title_record(self, workspace_id: str, node_id: str, title: str) -> None:
         workspace = self.project.workspaces[workspace_id]
         workspace.nodes[node_id].title = title
-        workspace.dirty = True
+        workspace.mark_dirty()
 
     def set_node_title(self, workspace_id: str, node_id: str, title: str) -> None:
         self._set_node_title_record(workspace_id, node_id, title)
@@ -674,7 +733,7 @@ class GraphModel:
     ) -> None:
         workspace = self.project.workspaces[workspace_id]
         workspace.nodes[node_id].visual_style = copy.deepcopy(visual_style or {})
-        workspace.dirty = True
+        workspace.mark_dirty()
 
     def set_node_visual_style(self, workspace_id: str, node_id: str, visual_style: dict[str, Any] | None) -> None:
         self._set_node_visual_style_record(workspace_id, node_id, visual_style)
@@ -682,7 +741,7 @@ class GraphModel:
     def _set_exposed_port_record(self, workspace_id: str, node_id: str, key: str, exposed: bool) -> None:
         workspace = self.project.workspaces[workspace_id]
         workspace.nodes[node_id].exposed_ports[key] = exposed
-        workspace.dirty = True
+        workspace.mark_dirty()
 
     def set_exposed_port(self, workspace_id: str, node_id: str, key: str, exposed: bool) -> None:
         self._set_exposed_port_record(workspace_id, node_id, key, exposed)
@@ -694,7 +753,7 @@ class GraphModel:
         if node.parent_node_id == normalized_parent_id:
             return False
         node.parent_node_id = normalized_parent_id
-        workspace.dirty = True
+        workspace.mark_dirty()
         return True
 
     def _set_port_label_record(self, workspace_id: str, node_id: str, port_key: str, label: str) -> None:
@@ -704,7 +763,7 @@ class GraphModel:
             node.port_labels[port_key] = label
         else:
             node.port_labels.pop(port_key, None)
-        workspace.dirty = True
+        workspace.mark_dirty()
 
     def set_port_label(self, workspace_id: str, node_id: str, port_key: str, label: str) -> None:
         self._set_port_label_record(workspace_id, node_id, port_key, label)
@@ -743,7 +802,7 @@ class GraphModel:
             visual_style=copy.deepcopy(visual_style or {}),
         )
         workspace.edges[record.edge_id] = record
-        workspace.dirty = True
+        workspace.mark_dirty()
         return record
 
     def add_edge(
@@ -769,7 +828,7 @@ class GraphModel:
     def _set_edge_label_record(self, workspace_id: str, edge_id: str, label: str) -> None:
         workspace = self.project.workspaces[workspace_id]
         workspace.edges[edge_id].label = str(label)
-        workspace.dirty = True
+        workspace.mark_dirty()
 
     def set_edge_label(self, workspace_id: str, edge_id: str, label: str) -> None:
         self._set_edge_label_record(workspace_id, edge_id, label)
@@ -782,7 +841,7 @@ class GraphModel:
     ) -> None:
         workspace = self.project.workspaces[workspace_id]
         workspace.edges[edge_id].visual_style = copy.deepcopy(visual_style or {})
-        workspace.dirty = True
+        workspace.mark_dirty()
 
     def set_edge_visual_style(self, workspace_id: str, edge_id: str, visual_style: dict[str, Any] | None) -> None:
         self._set_edge_visual_style_record(workspace_id, edge_id, visual_style)
@@ -791,7 +850,7 @@ class GraphModel:
         workspace = self.project.workspaces[workspace_id]
         if edge_id in workspace.edges:
             del workspace.edges[edge_id]
-            workspace.dirty = True
+            workspace.mark_dirty()
 
     def remove_edge(self, workspace_id: str, edge_id: str) -> None:
         self._remove_edge_record(workspace_id, edge_id)
@@ -810,4 +869,4 @@ class GraphModel:
         node.collapsed = bool(collapsed)
         node.custom_width = custom_width
         node.custom_height = custom_height
-        workspace.dirty = True
+        workspace.mark_dirty()

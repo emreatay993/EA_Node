@@ -414,6 +414,46 @@ class GraphArchitectureBoundaryTests(unittest.TestCase):
         self.assertIn("self.model._add_node_record", mutation_calls)
         self.assertIn("self.model._set_node_fragment_state_record", mutation_calls)
 
+    def test_graph_view_mutations_and_dirty_marking_use_workspace_domain_boundary(self) -> None:
+        model_tree = parse_module("ea_node_editor/graph/model.py")
+        mutation_tree = parse_module("ea_node_editor/graph/mutation_service.py")
+        normalization_tree = parse_module("ea_node_editor/graph/normalization.py")
+
+        workspace_methods = {
+            node.name
+            for node in class_node(model_tree, "WorkspaceData").body
+            if isinstance(node, ast.FunctionDef)
+        }
+        self.assertTrue({"active_view_state", "mark_dirty"} <= workspace_methods)
+        self.assertNotIn("workspace.dirty = True", (REPO_ROOT / "ea_node_editor/graph/model.py").read_text(encoding="utf-8"))
+        self.assertNotIn("self.workspace.dirty = True", (REPO_ROOT / "ea_node_editor/graph/mutation_service.py").read_text(encoding="utf-8"))
+        self.assertNotIn("self.workspace.dirty = True", (REPO_ROOT / "ea_node_editor/graph/normalization.py").read_text(encoding="utf-8"))
+
+        service_to_record_writer = {
+            "create_view": "self.model._create_view_record",
+            "set_active_view": "self.model._set_active_view_record",
+            "close_view": "self.model._close_view_record",
+            "rename_view": "self.model._rename_view_record",
+            "move_view": "self.model._move_view_record",
+        }
+        for public_method, private_writer in service_to_record_writer.items():
+            with self.subTest(method=public_method):
+                model_method_calls = call_names(method_node(model_tree, "GraphModel", public_method))
+                service_method_calls = call_names(method_node(mutation_tree, "WorkspaceMutationService", public_method))
+
+                self.assertIn("self.mutation_service", model_method_calls)
+                self.assertIn(private_writer, service_method_calls)
+                self.assertNotIn(f"self.model.{public_method}", service_method_calls)
+
+        self.assertIn(
+            "self.workspace.active_view_state",
+            call_names(method_node(normalization_tree, "ValidatedGraphMutation", "_active_view_state")),
+        )
+        self.assertIn(
+            "self.workspace.active_view_state",
+            call_names(method_node(mutation_tree, "WorkspaceMutationService", "active_view_state")),
+        )
+
     def test_fragment_payload_helpers_share_model_mapping_parsers(self) -> None:
         normalization_tree = parse_module("ea_node_editor/graph/normalization.py")
         fragment_tree = parse_module("ea_node_editor/graph/transform_fragment_ops.py")

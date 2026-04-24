@@ -117,6 +117,26 @@ class GraphModelTrackBTests(unittest.TestCase):
         service.set_active_view(active_view.view_id)
         self.assertEqual(workspace.active_view_id, active_view.view_id)
 
+    def test_workspace_data_repairs_missing_active_view_for_mutation_services(self) -> None:
+        model = GraphModel()
+        workspace = model.active_workspace
+        service = model.mutation_service(workspace.workspace_id)
+
+        first_view_id = workspace.active_view_id
+        second_view = service.create_view(name="Secondary", source_view_id=first_view_id)
+        self.assertEqual(workspace.active_view_id, second_view.view_id)
+
+        workspace.active_view_id = "missing_view"
+        repaired_view = service.active_view_state()
+        self.assertEqual(repaired_view.view_id, first_view_id)
+        self.assertEqual(workspace.active_view_id, first_view_id)
+
+        workspace.views = {}
+        workspace.active_view_id = "missing_view"
+        default_view = service.active_view_state()
+        self.assertEqual(workspace.active_view_id, default_view.view_id)
+        self.assertEqual(list(workspace.views), [default_view.view_id])
+
 def test_workspace_mutation_service_clamps_pdf_panel_page_numbers_on_property_updates(self) -> None:
     registry = build_default_registry()
     model = GraphModel()
