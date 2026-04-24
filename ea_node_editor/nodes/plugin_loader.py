@@ -4,24 +4,20 @@ from __future__ import annotations
 
 from dataclasses import replace
 import importlib
-from importlib.machinery import ModuleSpec
 import importlib.util
 import hashlib
 import logging
 import re
 import sys
-import types
 from pathlib import Path
 from typing import Any
 
 from ea_node_editor.app_preferences import addon_state, normalize_app_preferences_document
 from ea_node_editor.nodes.registry import NodeRegistry
-from ea_node_editor.nodes.node_specs import NodeTypeSpec
 from ea_node_editor.nodes.plugin_contracts import (
     AddOnManifest,
     AddOnRecord,
     AddOnState,
-    NodePlugin,
     PluginBackendDescriptor,
     PluginDescriptor,
     PluginProvenance,
@@ -35,47 +31,21 @@ ENTRY_POINT_GROUP = "ea_node_editor.plugins"
 _SAFE_MODULE_SEGMENT_RE = re.compile(r"[^0-9A-Za-z_]+")
 
 
-def _legacy_plugin_spec(obj: Any) -> NodeTypeSpec | None:
-    """Return a plugin spec when *obj* matches the legacy class contract."""
-    if not isinstance(obj, type):
-        return None
-    if obj is NodePlugin:
-        return None
-    try:
-        instance = obj()
-        spec = instance.spec()
-        if isinstance(spec, NodeTypeSpec) and callable(getattr(instance, "execute", None)):
-            return spec
-    except Exception:  # noqa: BLE001
-        return None
-    return None
-
-
-def _coerce_plugin_descriptor(raw_descriptor: object) -> PluginDescriptor:
-    if isinstance(raw_descriptor, PluginDescriptor):
-        return raw_descriptor
-    if isinstance(raw_descriptor, (tuple, list)) and len(raw_descriptor) == 2:
-        spec, factory = raw_descriptor
-        return PluginDescriptor(spec=spec, factory=factory)
-    raise TypeError(
-        "PLUGIN_DESCRIPTORS entries must be PluginDescriptor values or (spec, factory) pairs",
-    )
-
-
-def _coerce_plugin_backend(raw_backend: object) -> PluginBackendDescriptor:
-    if isinstance(raw_backend, PluginBackendDescriptor):
-        return raw_backend
-    raise TypeError("PLUGIN_BACKENDS entries must be PluginBackendDescriptor values")
-
-
-def _module_plugin_backends(module: Any) -> tuple[PluginBackendDescriptor, ...] | None:
-    raw_backends = getattr(module, "PLUGIN_BACKENDS", None)
+def _module_plugin_backends(
+    module: Any,
+    *,
+    collection_attr: str = "PLUGIN_BACKENDS",
+) -> tuple[PluginBackendDescriptor, ...] | None:
+    raw_backends = getattr(module, collection_attr, None)
     if raw_backends is None:
         return None
     try:
-        return tuple(_coerce_plugin_backend(item) for item in raw_backends)
+        backends = tuple(raw_backends)
     except TypeError as exc:
-        raise TypeError("PLUGIN_BACKENDS must be an iterable of plugin backends") from exc
+        raise TypeError(f"{collection_attr} must be an iterable of PluginBackendDescriptor values") from exc
+    if any(not isinstance(backend, PluginBackendDescriptor) for backend in backends):
+        raise TypeError(f"{collection_attr} entries must be PluginBackendDescriptor values")
+    return backends
 
 
 def _module_plugin_descriptors(module: Any) -> tuple[PluginDescriptor, ...] | None:
@@ -83,9 +53,12 @@ def _module_plugin_descriptors(module: Any) -> tuple[PluginDescriptor, ...] | No
     if raw_descriptors is None:
         return None
     try:
-        return tuple(_coerce_plugin_descriptor(item) for item in raw_descriptors)
+        descriptors = tuple(raw_descriptors)
     except TypeError as exc:
-        raise TypeError("PLUGIN_DESCRIPTORS must be an iterable of plugin descriptors") from exc
+        raise TypeError("PLUGIN_DESCRIPTORS must be an iterable of PluginDescriptor values") from exc
+    if any(not isinstance(descriptor, PluginDescriptor) for descriptor in descriptors):
+        raise TypeError("PLUGIN_DESCRIPTORS entries must be PluginDescriptor values")
+    return descriptors
 
 
 def _descriptor_with_provenance(
@@ -122,13 +95,7 @@ def _entry_point_plugin_provenance(entry_point: Any) -> PluginProvenance:
 def _entry_points_for_group() -> tuple[Any, ...]:
     from importlib.metadata import entry_points
 
-    try:
-        return tuple(entry_points(group=ENTRY_POINT_GROUP))
-    except TypeError:
-        all_entry_points = entry_points()
-        if hasattr(all_entry_points, "select"):
-            return tuple(all_entry_points.select(group=ENTRY_POINT_GROUP))
-        return tuple(all_entry_points.get(ENTRY_POINT_GROUP, ()))
+    return tuple(entry_points(group=ENTRY_POINT_GROUP))
 
 
 def _registered_addon_registrations():
@@ -267,36 +234,10 @@ def register_plugin_backends(
     return loaded
 
 
-def _register_plugin_classes(
-    module: Any,
-    registry: NodeRegistry,
-    source: Path,
-    *,
-    provenance: PluginProvenance | None = None,
-) -> list[str]:
-    loaded: list[str] = []
-    for attr_name in dir(module):
-        obj = getattr(module, attr_name, None)
-        spec = _legacy_plugin_spec(obj)
-        if spec is None:
-            continue
-        try:
-            registry.register_descriptor(spec, obj, provenance=provenance)
-            loaded.append(spec.type_id)
-        except (ValueError, TypeError, KeyError):
-            logger.warning(
-                "Skipping invalid plugin class %s in %s",
-                attr_name,
-                source,
-                exc_info=True,
-            )
-    return loaded
-
-
 def _register_module_plugins(
     module: Any,
     registry: NodeRegistry,
-    source: Path,
+    source: Path | str,
     *,
     provenance: PluginProvenance | None = None,
     preferred_descriptors: tuple[PluginDescriptor, ...] | None = None,
@@ -319,16 +260,11 @@ def _register_module_plugins(
             source,
             provenance=provenance,
         )
-    return _register_plugin_classes(
-        module,
-        registry,
-        source,
-        provenance=provenance,
-    )
+    return []
 
 
 def _load_plugins_from_directory(directory: Path, registry: NodeRegistry) -> list[str]:
-    """Import every .py file in *directory* and register any NodePlugin classes found."""
+    """Import every descriptor-bearing .py file in *directory*."""
     loaded: list[str] = []
 
     for py_file in _public_plugin_files(directory):
@@ -338,26 +274,18 @@ def _load_plugins_from_directory(directory: Path, registry: NodeRegistry) -> lis
             logger.warning("Failed to load plugin file %s", py_file, exc_info=True)
             continue
 
-        loaded.extend(
-            _register_module_plugins(
-                module,
-                registry,
-                py_file,
-                provenance=_file_plugin_provenance(py_file),
+        try:
+            loaded.extend(
+                _register_module_plugins(
+                    module,
+                    registry,
+                    py_file,
+                    provenance=_file_plugin_provenance(py_file),
+                )
             )
-        )
+        except TypeError:
+            logger.warning("Skipping invalid plugin descriptor API in %s", py_file, exc_info=True)
     return loaded
-
-
-def _create_namespace_package(package_name: str, package_dir: Path) -> None:
-    module = types.ModuleType(package_name)
-    module.__file__ = str(package_dir)
-    module.__package__ = package_name
-    module.__path__ = [str(package_dir)]
-    spec = ModuleSpec(package_name, loader=None, is_package=True)
-    spec.submodule_search_locations = [str(package_dir)]
-    module.__spec__ = spec
-    sys.modules[package_name] = module
 
 
 def _load_plugins_from_package_directory(
@@ -366,7 +294,7 @@ def _load_plugins_from_package_directory(
     *,
     descriptor_overrides: dict[str, tuple[PluginDescriptor, ...]] | None = None,
 ) -> list[str]:
-    """Import public plugin modules from a package directory beneath the plugins root."""
+    """Import public descriptor modules from a package directory beneath the plugins root."""
     loaded: list[str] = []
     if not package_dir.is_dir():
         return loaded
@@ -374,28 +302,32 @@ def _load_plugins_from_package_directory(
     package_name = _module_name_for_path(package_dir / "__init__.py", prefix="_ea_plugin_pkg")
     init_file = package_dir / "__init__.py"
 
-    if init_file.is_file():
-        try:
-            package_module = _load_module(
-                package_name,
+    if not init_file.is_file():
+        logger.warning("Skipping plugin package %s because it is missing __init__.py", package_dir)
+        return loaded
+
+    try:
+        package_module = _load_module(
+            package_name,
+            init_file,
+            search_locations=[str(package_dir)],
+        )
+    except Exception:  # noqa: BLE001
+        logger.warning("Failed to initialize plugin package %s", package_dir, exc_info=True)
+        return loaded
+
+    try:
+        loaded.extend(
+            _register_module_plugins(
+                package_module,
+                registry,
                 init_file,
-                search_locations=[str(package_dir)],
+                provenance=_package_plugin_provenance(package_dir, init_file),
+                preferred_descriptors=(descriptor_overrides or {}).get(init_file.name),
             )
-        except Exception:  # noqa: BLE001
-            logger.warning("Failed to initialize plugin package %s", package_dir, exc_info=True)
-            _create_namespace_package(package_name, package_dir)
-        else:
-            loaded.extend(
-                _register_module_plugins(
-                    package_module,
-                    registry,
-                    init_file,
-                    provenance=_package_plugin_provenance(package_dir, init_file),
-                    preferred_descriptors=(descriptor_overrides or {}).get(init_file.name),
-                )
-            )
-    else:
-        _create_namespace_package(package_name, package_dir)
+        )
+    except TypeError:
+        logger.warning("Skipping invalid plugin descriptor API in %s", init_file, exc_info=True)
 
     for py_file in _public_plugin_files(package_dir):
         module_name = f"{package_name}.{_safe_module_segment(py_file.stem, fallback='plugin')}"
@@ -405,15 +337,18 @@ def _load_plugins_from_package_directory(
             logger.warning("Failed to load plugin file %s", py_file, exc_info=True)
             continue
 
-        loaded.extend(
-            _register_module_plugins(
-                module,
-                registry,
-                py_file,
-                provenance=_package_plugin_provenance(package_dir, py_file),
-                preferred_descriptors=(descriptor_overrides or {}).get(py_file.name),
+        try:
+            loaded.extend(
+                _register_module_plugins(
+                    module,
+                    registry,
+                    py_file,
+                    provenance=_package_plugin_provenance(package_dir, py_file),
+                    preferred_descriptors=(descriptor_overrides or {}).get(py_file.name),
+                )
             )
-        )
+        except TypeError:
+            logger.warning("Skipping invalid plugin descriptor API in %s", py_file, exc_info=True)
     return loaded
 
 
@@ -451,34 +386,14 @@ def _load_plugins_from_entry_points(registry: NodeRegistry) -> list[str]:
         provenance = _entry_point_plugin_provenance(ep)
         try:
             plugin_target = ep.load()
-            backends = _module_plugin_backends(plugin_target)
-            if backends is not None:
-                loaded.extend(
-                    register_plugin_backends(
-                        backends,
-                        registry,
-                        ep.name,
-                        provenance=provenance,
-                    )
+            loaded.extend(
+                _register_module_plugins(
+                    plugin_target,
+                    registry,
+                    ep.name,
+                    provenance=provenance,
                 )
-                continue
-            descriptors = _module_plugin_descriptors(plugin_target)
-            if descriptors is not None:
-                loaded.extend(
-                    _register_plugin_descriptors(
-                        descriptors,
-                        registry,
-                        ep.name,
-                        provenance=provenance,
-                    )
-                )
-                continue
-
-            spec = _legacy_plugin_spec(plugin_target)
-            if spec is None:
-                continue
-            registry.register_descriptor(spec, plugin_target, provenance=provenance)
-            loaded.append(spec.type_id)
+            )
         except Exception:  # noqa: BLE001
             logger.warning("Failed to load entry-point plugin %s", ep.name, exc_info=True)
     return loaded
@@ -495,9 +410,11 @@ def _load_addon_backend_from_registration(registration: Any) -> tuple[PluginBack
         )
         return None, None
 
-    raw_backends = getattr(module, registration.backend_collection_attr, ())
     try:
-        backends = tuple(_coerce_plugin_backend(item) for item in raw_backends)
+        backends = _module_plugin_backends(
+            module,
+            collection_attr=registration.backend_collection_attr,
+        ) or ()
     except TypeError:
         logger.warning(
             "Ignoring invalid add-on backend registration from %s",

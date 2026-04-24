@@ -5,7 +5,11 @@ import logging
 from pathlib import Path
 from types import SimpleNamespace
 
-from ea_node_editor.addons.catalog import AddOnRegistration
+from ea_node_editor.addons.catalog import (
+    ANSYS_DPF_ADDON_ID,
+    AddOnRegistration,
+    registered_addon_registration_by_id,
+)
 from ea_node_editor.app_preferences import (
     addon_state,
     default_app_preferences_document,
@@ -34,22 +38,30 @@ def _write_plugin(path: Path, *, type_id: str, display_name: str, class_name: st
     return _write_text(
         path,
         f"""
-from ea_node_editor.nodes.types import NodeResult, NodeTypeSpec
+from ea_node_editor.nodes.types import NodeResult, NodeTypeSpec, PluginDescriptor
+
+
+PLUGIN_SPEC = NodeTypeSpec(
+    type_id={type_id!r},
+    display_name={display_name!r},
+    category_path=("Packet Tests",),
+    icon="packet",
+    ports=(),
+    properties=(),
+)
 
 
 class {class_name}:
     def spec(self):
-        return NodeTypeSpec(
-            type_id={type_id!r},
-            display_name={display_name!r},
-            category_path=("Packet Tests",),
-            icon="packet",
-            ports=(),
-            properties=(),
-        )
+        return PLUGIN_SPEC
 
     def execute(self, ctx):
         return NodeResult()
+
+
+PLUGIN_DESCRIPTORS = (
+    PluginDescriptor(spec=PLUGIN_SPEC, factory={class_name}),
+)
 """.strip()
         + "\n",
     )
@@ -104,27 +116,36 @@ def test_discover_and_load_plugins_discovers_package_directories(
 ) -> None:
     plugins_root = tmp_path / "plugins"
     package_dir = plugins_root / "example_package"
+    _write_text(package_dir / "__init__.py", "\n")
     _write_text(package_dir / "helper.py", 'DISPLAY_NAME = "Package Directory Plugin"\n')
     _write_text(
         package_dir / "package_plugin.py",
         """
 from .helper import DISPLAY_NAME
-from ea_node_editor.nodes.types import NodeResult, NodeTypeSpec
+from ea_node_editor.nodes.types import NodeResult, NodeTypeSpec, PluginDescriptor
+
+
+PLUGIN_SPEC = NodeTypeSpec(
+    type_id="packet.package",
+    display_name=DISPLAY_NAME,
+    category_path=("Packet Tests",),
+    icon="packet",
+    ports=(),
+    properties=(),
+)
 
 
 class PackagePlugin:
     def spec(self):
-        return NodeTypeSpec(
-            type_id="packet.package",
-            display_name=DISPLAY_NAME,
-            category_path=("Packet Tests",),
-            icon="packet",
-            ports=(),
-            properties=(),
-        )
+        return PLUGIN_SPEC
 
     def execute(self, ctx):
         return NodeResult()
+
+
+PLUGIN_DESCRIPTORS = (
+    PluginDescriptor(spec=PLUGIN_SPEC, factory=PackagePlugin),
+)
 """.strip()
         + "\n",
     )
@@ -146,27 +167,36 @@ class PackagePlugin:
 
 def test_discover_package_plugins_loads_one_package_directory(tmp_path: Path) -> None:
     package_dir = tmp_path / "plugins" / "example_package"
+    _write_text(package_dir / "__init__.py", "\n")
     _write_text(package_dir / "helper.py", 'DISPLAY_NAME = "Package Directory Plugin"\n')
     _write_text(
         package_dir / "package_plugin.py",
         """
 from .helper import DISPLAY_NAME
-from ea_node_editor.nodes.types import NodeResult, NodeTypeSpec
+from ea_node_editor.nodes.types import NodeResult, NodeTypeSpec, PluginDescriptor
+
+
+PLUGIN_SPEC = NodeTypeSpec(
+    type_id="packet.package.single",
+    display_name=DISPLAY_NAME,
+    category_path=("Packet Tests",),
+    icon="packet",
+    ports=(),
+    properties=(),
+)
 
 
 class PackagePlugin:
     def spec(self):
-        return NodeTypeSpec(
-            type_id="packet.package.single",
-            display_name=DISPLAY_NAME,
-            category_path=("Packet Tests",),
-            icon="packet",
-            ports=(),
-            properties=(),
-        )
+        return PLUGIN_SPEC
 
     def execute(self, ctx):
         return NodeResult()
+
+
+PLUGIN_DESCRIPTORS = (
+    PluginDescriptor(spec=PLUGIN_SPEC, factory=PackagePlugin),
+)
 """.strip()
         + "\n",
     )
@@ -181,6 +211,22 @@ class PackagePlugin:
     assert descriptor.provenance.package_root == package_dir.resolve()
 
 
+def test_discover_package_plugins_requires_real_package_init(
+    tmp_path: Path,
+    caplog,
+) -> None:
+    package_dir = tmp_path / "plugins" / "namespace_only_package"
+    _write_plugin(package_dir / "package_plugin.py", type_id="packet.namespace", display_name="Namespace Package")
+    caplog.set_level(logging.WARNING, logger=plugin_loader.__name__)
+
+    registry = NodeRegistry()
+    loaded = plugin_loader.discover_package_plugins(package_dir, registry)
+
+    assert loaded == []
+    assert registry.spec_or_none("packet.namespace") is None
+    assert "missing __init__.py" in caplog.text
+
+
 def test_discover_and_load_plugins_continues_after_bad_modules(
     tmp_path: Path,
     monkeypatch,
@@ -191,6 +237,7 @@ def test_discover_and_load_plugins_continues_after_bad_modules(
     _write_plugin(plugins_root / "good_root.py", type_id="packet.root.good", display_name="Good Root")
 
     package_dir = plugins_root / "installed_package"
+    _write_text(package_dir / "__init__.py", "\n")
     _write_text(package_dir / "bad_module.py", 'raise RuntimeError("broken package module")\n')
     _write_plugin(package_dir / "good_package.py", type_id="packet.package.good", display_name="Good Package")
 
@@ -207,7 +254,7 @@ def test_discover_and_load_plugins_continues_after_bad_modules(
     assert "Failed to load plugin file" in caplog.text
 
 
-def test_discover_and_load_plugins_prefers_module_descriptors_without_constructor_probing(
+def test_discover_and_load_plugins_loads_descriptor_records_without_constructor_probing(
     tmp_path: Path,
     monkeypatch,
 ) -> None:
@@ -215,7 +262,7 @@ def test_discover_and_load_plugins_prefers_module_descriptors_without_constructo
     _write_text(
         plugins_root / "descriptor_plugin.py",
         """
-from ea_node_editor.nodes.types import NodeResult, NodeTypeSpec
+from ea_node_editor.nodes.types import NodeResult, NodeTypeSpec, PluginDescriptor
 
 
 class ShouldNotBeScanned:
@@ -223,33 +270,26 @@ class ShouldNotBeScanned:
         raise RuntimeError("legacy class probing should not run when PLUGIN_DESCRIPTORS is present")
 
 
+PLUGIN_SPEC = NodeTypeSpec(
+    type_id="packet.descriptor",
+    display_name="Descriptor Plugin",
+    category_path=("Packet Tests",),
+    icon="packet",
+    ports=(),
+    properties=(),
+)
+
+
 class DescriptorPlugin:
     def spec(self):
-        return NodeTypeSpec(
-            type_id="packet.descriptor",
-            display_name="Descriptor Plugin",
-            category_path=("Packet Tests",),
-            icon="packet",
-            ports=(),
-            properties=(),
-        )
+        return PLUGIN_SPEC
 
     def execute(self, ctx):
         return NodeResult()
 
 
 PLUGIN_DESCRIPTORS = (
-    (
-        NodeTypeSpec(
-            type_id="packet.descriptor",
-            display_name="Descriptor Plugin",
-            category_path=("Packet Tests",),
-            icon="packet",
-            ports=(),
-            properties=(),
-        ),
-        DescriptorPlugin,
-    ),
+    PluginDescriptor(spec=PLUGIN_SPEC, factory=DescriptorPlugin),
 )
 """.strip()
         + "\n",
@@ -263,6 +303,52 @@ PLUGIN_DESCRIPTORS = (
 
     assert loaded == ["packet.descriptor"]
     assert registry.get_spec("packet.descriptor").display_name == "Descriptor Plugin"
+
+
+def test_discover_and_load_plugins_rejects_descriptor_tuple_shorthand(
+    tmp_path: Path,
+    monkeypatch,
+    caplog,
+) -> None:
+    plugins_root = tmp_path / "plugins"
+    _write_text(
+        plugins_root / "tuple_shorthand.py",
+        """
+from ea_node_editor.nodes.types import NodeResult, NodeTypeSpec
+
+
+class TuplePlugin:
+    def spec(self):
+        return NodeTypeSpec(
+            type_id="packet.tuple",
+            display_name="Tuple Plugin",
+            category_path=("Packet Tests",),
+            icon="packet",
+            ports=(),
+            properties=(),
+        )
+
+    def execute(self, ctx):
+        return NodeResult()
+
+
+PLUGIN_DESCRIPTORS = (
+    (TuplePlugin().spec(), TuplePlugin),
+)
+""".strip()
+        + "\n",
+    )
+
+    monkeypatch.setattr(plugin_loader, "plugins_dir", lambda: plugins_root)
+    monkeypatch.setattr(plugin_loader, "_load_plugins_from_entry_points", lambda registry: [])
+    caplog.set_level(logging.WARNING, logger=plugin_loader.__name__)
+
+    registry = NodeRegistry()
+    loaded = plugin_loader.discover_and_load_plugins(registry)
+
+    assert loaded == []
+    assert registry.spec_or_none("packet.tuple") is None
+    assert "Skipping invalid plugin descriptor API" in caplog.text
 
 
 def test_discover_and_load_plugins_preserves_entry_point_loading(
@@ -289,12 +375,17 @@ def test_discover_and_load_plugins_preserves_entry_point_loading(
 
             return NodeResult()
 
+    entry_point_descriptor = PluginDescriptor(
+        spec=EntryPointPlugin().spec(),
+        factory=EntryPointPlugin,
+    )
+
     class FakeEntryPoint:
         def __init__(self, name: str) -> None:
             self.name = name
 
         def load(self):
-            return EntryPointPlugin
+            return SimpleNamespace(PLUGIN_DESCRIPTORS=(entry_point_descriptor,))
 
     def fake_entry_points(*args, **kwargs):
         calls.append(dict(kwargs))
@@ -317,6 +408,46 @@ def test_discover_and_load_plugins_preserves_entry_point_loading(
     assert calls == [{"group": plugin_loader.ENTRY_POINT_GROUP}]
 
 
+def test_discover_and_load_plugins_does_not_probe_entry_point_classes(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    class EntryPointPlugin:
+        def spec(self):
+            return NodeTypeSpec(
+                type_id="packet.entry-point-class",
+                display_name="Entry Point Class",
+                category_path=("Packet Tests",),
+                icon="packet",
+                ports=(),
+                properties=(),
+            )
+
+        def execute(self, ctx):
+            from ea_node_editor.nodes.types import NodeResult
+
+            return NodeResult()
+
+    class FakeEntryPoint:
+        name = "packet-entry-point-class"
+
+        def load(self):
+            return EntryPointPlugin
+
+    monkeypatch.setattr(plugin_loader, "plugins_dir", lambda: tmp_path / "plugins")
+    monkeypatch.setattr(
+        importlib.metadata,
+        "entry_points",
+        lambda *, group: [FakeEntryPoint()] if group == plugin_loader.ENTRY_POINT_GROUP else [],
+    )
+
+    registry = NodeRegistry()
+    loaded = plugin_loader.discover_and_load_plugins(registry)
+
+    assert loaded == []
+    assert registry.spec_or_none("packet.entry-point-class") is None
+
+
 def test_discover_and_load_plugins_supports_neutral_runtime_contract_imports(
     tmp_path: Path,
     monkeypatch,
@@ -325,25 +456,33 @@ def test_discover_and_load_plugins_supports_neutral_runtime_contract_imports(
     _write_text(
         plugins_root / "runtime_contract_plugin.py",
         """
-from ea_node_editor.nodes.types import NodeResult, NodeTypeSpec
+from ea_node_editor.nodes.types import NodeResult, NodeTypeSpec, PluginDescriptor
 from ea_node_editor.runtime_contracts import RuntimeArtifactRef
+
+
+PLUGIN_SPEC = NodeTypeSpec(
+    type_id="packet.runtime_contracts",
+    display_name="Runtime Contracts",
+    category_path=("Packet Tests",),
+    icon="packet",
+    ports=(),
+    properties=(),
+)
 
 
 class RuntimeContractPlugin:
     def spec(self):
-        return NodeTypeSpec(
-            type_id="packet.runtime_contracts",
-            display_name="Runtime Contracts",
-            category_path=("Packet Tests",),
-            icon="packet",
-            ports=(),
-            properties=(),
-        )
+        return PLUGIN_SPEC
 
     def execute(self, ctx):
         return NodeResult(
             outputs={"artifact": RuntimeArtifactRef.staged("packet_runtime_contract")},
         )
+
+
+PLUGIN_DESCRIPTORS = (
+    PluginDescriptor(spec=PLUGIN_SPEC, factory=RuntimeContractPlugin),
+)
 """.strip()
         + "\n",
     )
@@ -407,7 +546,7 @@ def test_generic_addon_state_normalization_preserves_enabled_and_pending_restart
     document = normalize_app_preferences_document(
         {
             "kind": "ea-node-editor/app-preferences",
-            "version": 2,
+            "version": 3,
             "addons": {
                 "states": {
                     "packet.restart": {
@@ -437,6 +576,12 @@ def test_set_addon_state_updates_the_generic_addon_state_store() -> None:
         "enabled": False,
         "pending_restart": True,
     }
+
+
+def test_addon_registration_lookup_requires_canonical_addon_id() -> None:
+    assert registered_addon_registration_by_id(ANSYS_DPF_ADDON_ID) is not None
+    assert registered_addon_registration_by_id("ansys.dpf") is None
+    assert registered_addon_registration_by_id("ansys_dpf") is None
 
 
 def test_discover_addon_records_reports_generic_manifest_and_state(monkeypatch) -> None:

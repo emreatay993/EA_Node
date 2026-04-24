@@ -1,4 +1,4 @@
-"""Compatibility exports for the extracted DPF operator catalog."""
+"""DPF operator descriptor catalog import boundary."""
 
 from __future__ import annotations
 

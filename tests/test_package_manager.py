@@ -22,22 +22,30 @@ def _build_package_archive(
 ) -> Path:
     plugin_module = f"""
 from .helper import DISPLAY_NAME
-from ea_node_editor.nodes.types import NodeResult, NodeTypeSpec
+from ea_node_editor.nodes.types import NodeResult, NodeTypeSpec, PluginDescriptor
+
+
+PLUGIN_SPEC = NodeTypeSpec(
+    type_id={plugin_type_id!r},
+    display_name=DISPLAY_NAME,
+    category_path=("Packet Tests",),
+    icon="packet",
+    ports=(),
+    properties=(),
+)
 
 
 class ImportedPlugin:
     def spec(self):
-        return NodeTypeSpec(
-            type_id={plugin_type_id!r},
-            display_name=DISPLAY_NAME,
-            category="Packet Tests",
-            icon="packet",
-            ports=(),
-            properties=(),
-        )
+        return PLUGIN_SPEC
 
     def execute(self, ctx):
         return NodeResult()
+
+
+PLUGIN_DESCRIPTORS = (
+    PluginDescriptor(spec=PLUGIN_SPEC, factory=ImportedPlugin),
+)
 """.strip() + "\n"
     manifest = {
         "name": manifest_name,
@@ -49,6 +57,7 @@ class ImportedPlugin:
     }
     members = {
         package_manager.MANIFEST_FILENAME: json.dumps(manifest, indent=2),
+        "__init__.py": "\n",
         "helper.py": f"DISPLAY_NAME = {plugin_display_name!r}\n",
         "package_plugin.py": plugin_module,
     }
@@ -106,6 +115,19 @@ def test_import_package_requires_manifest(tmp_path: Path) -> None:
         archive.writestr("plugin.py", "print('missing manifest')\n")
 
     with pytest.raises(ValueError, match="missing node_package.json"):
+        package_manager.import_package(package_path, target_dir=plugins_root)
+
+    assert list(plugins_root.iterdir()) == []
+
+
+def test_import_package_requires_explicit_manifest_name(tmp_path: Path) -> None:
+    plugins_root = tmp_path / "plugins"
+    package_path = tmp_path / "nameless.eanp"
+    with zipfile.ZipFile(package_path, "w", zipfile.ZIP_DEFLATED) as archive:
+        archive.writestr(package_manager.MANIFEST_FILENAME, json.dumps({"nodes": ["packet.imported"]}))
+        archive.writestr("__init__.py", "\n")
+
+    with pytest.raises(ValueError, match="at least a 'name' field"):
         package_manager.import_package(package_path, target_dir=plugins_root)
 
     assert list(plugins_root.iterdir()) == []
@@ -193,6 +215,12 @@ def test_list_and_uninstall_packages_follow_installed_package_contract(tmp_path:
         json.dumps({"name": "example_package", "version": "999.0.0"}),
         encoding="utf-8",
     )
+    nameless_package = plugins_root / "nameless_package"
+    nameless_package.mkdir(parents=True)
+    (nameless_package / package_manager.MANIFEST_FILENAME).write_text(
+        json.dumps({"version": "999.0.0"}),
+        encoding="utf-8",
+    )
     (plugins_root / "root_dropin.py").write_text("print('drop-in')\n", encoding="utf-8")
 
     manifests = package_manager.list_installed_packages(target_dir=plugins_root)
@@ -247,6 +275,7 @@ def test_export_package_rejects_placeholder_manifest_without_nodes(tmp_path: Pat
 
 
 def test_export_package_rejects_manifest_node_mismatch_before_publish(tmp_path: Path) -> None:
+    init_source = _write_source_file(tmp_path / "sources" / "__init__.py", "\n")
     helper_source = _write_source_file(
         tmp_path / "sources" / "helper.py",
         'DISPLAY_NAME = "Exported Package"\n',
@@ -255,22 +284,30 @@ def test_export_package_rejects_manifest_node_mismatch_before_publish(tmp_path: 
         tmp_path / "sources" / "package_plugin.py",
         """
 from .helper import DISPLAY_NAME
-from ea_node_editor.nodes.types import NodeResult, NodeTypeSpec
+from ea_node_editor.nodes.types import NodeResult, NodeTypeSpec, PluginDescriptor
+
+
+PLUGIN_SPEC = NodeTypeSpec(
+    type_id="packet.actual",
+    display_name=DISPLAY_NAME,
+    category_path=("Packet Tests",),
+    icon="packet",
+    ports=(),
+    properties=(),
+)
 
 
 class ExportedPlugin:
     def spec(self):
-        return NodeTypeSpec(
-            type_id="packet.actual",
-            display_name=DISPLAY_NAME,
-            category="Packet Tests",
-            icon="packet",
-            ports=(),
-            properties=(),
-        )
+        return PLUGIN_SPEC
 
     def execute(self, ctx):
         return NodeResult()
+
+
+PLUGIN_DESCRIPTORS = (
+    PluginDescriptor(spec=PLUGIN_SPEC, factory=ExportedPlugin),
+)
 """.strip()
         + "\n",
     )
@@ -285,6 +322,7 @@ class ExportedPlugin:
     with pytest.raises(ValueError, match="Package manifest nodes do not match discoverable node types"):
         package_manager.export_package(
             [
+                package_manager.PackageExportSource(init_source, "__init__.py"),
                 package_manager.PackageExportSource(helper_source, "helper.py"),
                 package_manager.PackageExportSource(plugin_source, "package_plugin.py"),
             ],
@@ -295,10 +333,10 @@ class ExportedPlugin:
     assert not (tmp_path / "exports" / "roundtrip.eanp").exists()
 
 
-def test_export_package_uses_descriptor_provenance_to_avoid_legacy_constructor_probing(
+def test_export_package_uses_descriptor_provenance_for_descriptor_only_validation(
     tmp_path: Path,
-    monkeypatch,
 ) -> None:
+    init_source = _write_source_file(tmp_path / "sources" / "__init__.py", "\n")
     helper_source = _write_source_file(
         tmp_path / "sources" / "helper.py",
         'DISPLAY_NAME = "Exported Package"\n',
@@ -311,11 +349,14 @@ from ea_node_editor.nodes.types import NodeResult, NodeTypeSpec
 
 
 class ExportedPlugin:
+    def __init__(self):
+        raise RuntimeError("descriptor override validation must not instantiate source classes")
+
     def spec(self):
         return NodeTypeSpec(
             type_id="packet.exported",
             display_name=DISPLAY_NAME,
-            category="Packet Tests",
+            category_path=("Packet Tests",),
             icon="packet",
             ports=(),
             properties=(),
@@ -337,7 +378,7 @@ class ExportedPlugin:
         spec=NodeTypeSpec(
             type_id="packet.exported",
             display_name="Exported Package",
-            category="Packet Tests",
+            category_path=("Packet Tests",),
             icon="packet",
             ports=(),
             properties=(),
@@ -351,17 +392,9 @@ class ExportedPlugin:
         ),
     )
 
-    original_legacy_plugin_spec = plugin_loader._legacy_plugin_spec
-
-    def _fail_on_exported_plugin(obj: object):
-        if getattr(obj, "__name__", "") == "ExportedPlugin":
-            raise AssertionError("legacy constructor probing should not run")
-        return original_legacy_plugin_spec(obj)
-
-    monkeypatch.setattr(plugin_loader, "_legacy_plugin_spec", _fail_on_exported_plugin)
-
     package_path = package_manager.export_package(
         [
+            package_manager.PackageExportSource(init_source, "__init__.py"),
             package_manager.PackageExportSource(helper_source, "helper.py"),
             package_manager.PackageExportSource(plugin_source, "package_plugin.py"),
         ],
@@ -378,6 +411,7 @@ def test_export_package_round_trips_through_import_and_loader_discovery(
     tmp_path: Path,
     monkeypatch,
 ) -> None:
+    init_source = _write_source_file(tmp_path / "sources" / "__init__.py", "\n")
     helper_source = _write_source_file(
         tmp_path / "sources" / "source_helper.py",
         'DISPLAY_NAME = "Exported Package"\n',
@@ -386,22 +420,30 @@ def test_export_package_round_trips_through_import_and_loader_discovery(
         tmp_path / "sources" / "source_plugin.py",
         """
 from .helper import DISPLAY_NAME
-from ea_node_editor.nodes.types import NodeResult, NodeTypeSpec
+from ea_node_editor.nodes.types import NodeResult, NodeTypeSpec, PluginDescriptor
+
+
+PLUGIN_SPEC = NodeTypeSpec(
+    type_id="packet.exported",
+    display_name=DISPLAY_NAME,
+    category_path=("Packet Tests",),
+    icon="packet",
+    ports=(),
+    properties=(),
+)
 
 
 class ExportedPlugin:
     def spec(self):
-        return NodeTypeSpec(
-            type_id="packet.exported",
-            display_name=DISPLAY_NAME,
-            category="Packet Tests",
-            icon="packet",
-            ports=(),
-            properties=(),
-        )
+        return PLUGIN_SPEC
 
     def execute(self, ctx):
         return NodeResult()
+
+
+PLUGIN_DESCRIPTORS = (
+    PluginDescriptor(spec=PLUGIN_SPEC, factory=ExportedPlugin),
+)
 """.strip()
         + "\n",
     )
@@ -415,6 +457,7 @@ class ExportedPlugin:
 
     package_path = package_manager.export_package(
         [
+            package_manager.PackageExportSource(init_source, "__init__.py"),
             package_manager.PackageExportSource(helper_source, "helper.py"),
             package_manager.PackageExportSource(plugin_source, "package_plugin.py"),
         ],
@@ -426,6 +469,7 @@ class ExportedPlugin:
     with zipfile.ZipFile(package_path, "r") as archive:
         assert archive.namelist() == [
             package_manager.MANIFEST_FILENAME,
+            "__init__.py",
             "helper.py",
             "package_plugin.py",
         ]

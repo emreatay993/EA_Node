@@ -2,7 +2,7 @@
 
 An .eanp file is a zip archive containing:
   node_package.json   -- manifest with name, version, author, description, node list
-  *.py                -- Python source files that define NodePlugin classes
+  *.py                -- Python source files that expose PluginDescriptor records
 """
 
 from __future__ import annotations
@@ -43,11 +43,11 @@ class PackageExportSource:
     archive_name: str | None = None
 
 
-def _manifest_from_data(raw: object, *, fallback_name: str | None = None) -> PackageManifest:
+def _manifest_from_data(raw: object) -> PackageManifest:
     if not isinstance(raw, dict):
         raise ValueError("Manifest must be a JSON object")
 
-    name = raw.get("name", fallback_name)
+    name = raw.get("name")
     if not name:
         raise ValueError("Manifest must contain at least a 'name' field")
 
@@ -436,7 +436,7 @@ def list_installed_packages(target_dir: Path | None = None) -> list[PackageManif
         if child.is_dir() and manifest_path.exists():
             try:
                 raw = json.loads(manifest_path.read_text(encoding="utf-8"))
-                manifests.append(_manifest_from_data(raw, fallback_name=child.name))
+                manifests.append(_manifest_from_data(raw))
             except Exception:  # noqa: BLE001
                 logger.warning("Could not read manifest in %s", child)
     return manifests

@@ -10,9 +10,11 @@ from ea_node_editor.app_preferences import (
     default_app_preferences_document,
     normalize_app_preferences_document,
 )
+from ea_node_editor.addons.ansys_dpf.metadata import (
+    ANSYS_DPF_ADDON_ID,
+    ANSYS_DPF_ADDON_MANIFEST,
+)
 from ea_node_editor.nodes.plugin_contracts import AddOnManifest
-
-ANSYS_DPF_ADDON_ID = "ea_node_editor.builtins.ansys_dpf"
 
 
 @dataclass(slots=True, frozen=True)
@@ -30,18 +32,7 @@ class AddOnRegistration:
 
 REGISTERED_ADDON_REGISTRATIONS = (
     AddOnRegistration(
-        manifest=AddOnManifest(
-            addon_id=ANSYS_DPF_ADDON_ID,
-            display_name="ANSYS DPF",
-            apply_policy="hot_apply",
-            vendor="Ansys",
-            summary="Enable ANSYS DPF helper, operator, and viewer nodes when ansys.dpf.core is installed.",
-            details=(
-                "Provides the ANSYS DPF node family used for local result-file inspection, "
-                "operator execution, and viewer workflows."
-            ),
-            dependencies=("ansys.dpf.core",),
-        ),
+        manifest=ANSYS_DPF_ADDON_MANIFEST,
         backend_module="ea_node_editor.addons.ansys_dpf.catalog",
         backend_id=ANSYS_DPF_ADDON_ID,
         version_resolver_attr="resolve_ansys_dpf_plugin_version",

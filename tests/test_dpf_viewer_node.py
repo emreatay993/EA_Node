@@ -200,7 +200,7 @@ class DpfViewerNodeTests(unittest.TestCase):
         self.assertEqual(reopened.live_open_status, "blocked")
         self.assertEqual(reopened.live_open_blocker["code"], "rerun_required")
 
-    def test_hot_apply_toggle_rebuilds_scene_between_live_node_and_locked_placeholder(self) -> None:
+    def test_hot_apply_toggle_rebuilds_scene_between_live_node_and_disabled_registry(self) -> None:
         serializer = JsonProjectSerializer(self.registry)
         project = serializer.from_document(self._viewer_scene_document())
         model = GraphModel(project)
@@ -232,11 +232,8 @@ class DpfViewerNodeTests(unittest.TestCase):
                 on_registry_rebuilt=rebuilt_registries.append,
             )
 
-        disabled_node = {payload["node_id"]: payload for payload in scene.nodes_model}["node_dpf_viewer"]
-        self.assertTrue(disabled_node["unresolved"])
-        self.assertTrue(disabled_node["read_only"])
-        self.assertEqual(disabled_node["addon_id"], ANSYS_DPF_ADDON_ID)
-        self.assertEqual(disabled_node["locked_state"]["reason"], "addon_disabled")
+        disabled_nodes = {payload["node_id"]: payload for payload in scene.nodes_model}
+        self.assertNotIn("node_dpf_viewer", disabled_nodes)
         self.assertIsNotNone(disabled.registry)
         self.assertIsNone(disabled.registry.spec_or_none(DPF_VIEWER_NODE_TYPE_ID))
         self.assertIsNone(rebuilt_registries[-1].spec_or_none(DPF_VIEWER_NODE_TYPE_ID))
@@ -249,9 +246,8 @@ class DpfViewerNodeTests(unittest.TestCase):
             on_registry_rebuilt=rebuilt_registries.append,
         )
 
-        reenabled_node = {payload["node_id"]: payload for payload in scene.nodes_model}["node_dpf_viewer"]
-        self.assertFalse(reenabled_node["unresolved"])
-        self.assertFalse(reenabled_node["read_only"])
+        reenabled_nodes = {payload["node_id"]: payload for payload in scene.nodes_model}
+        self.assertNotIn("node_dpf_viewer", reenabled_nodes)
         self.assertIsNotNone(reenabled.registry)
         self.assertIsNotNone(reenabled.registry.spec_or_none(DPF_VIEWER_NODE_TYPE_ID))
         self.assertIsNotNone(rebuilt_registries[-1].spec_or_none(DPF_VIEWER_NODE_TYPE_ID))
