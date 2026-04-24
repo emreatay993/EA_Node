@@ -29,7 +29,7 @@ Historical packet matrices may still be cited as archive references for earlier 
 | P11 Runtime Snapshot Only Protocol | `f3b2d0c36db28513e054bd84559b9e4f02e7e220` | Made `RuntimeSnapshot` mandatory and removed `project_doc` / project-path rebuild tolerance. | [P11 wrap-up](../work_packets/corex_no_legacy_architecture_cleanup/P11_runtime_snapshot_only_protocol_WRAPUP.md) |
 | P12 Viewer Session Transport Cleanup | `4f2e2552393dd972d8f42dea4df9d9918fd0648b` | Replaced viewer projection aliases and widget property handshakes with typed transport/session state. | [P12 wrap-up](../work_packets/corex_no_legacy_architecture_cleanup/P12_viewer_session_transport_cleanup_WRAPUP.md) |
 | P13 Launch Package Import Shim Cleanup | `dfd3ab4b746a13628f4eb2d803bd653809092d89` | Collapsed launch, package, telemetry, lazy import, and packaging path shims onto canonical entry points. | [P13 wrap-up](../work_packets/corex_no_legacy_architecture_cleanup/P13_launch_package_import_shim_cleanup_WRAPUP.md) |
-| P14 Docs Traceability Closeout | `pending-substantive-sha` | Publishes the final no-legacy docs, QA matrix, traceability rows, semantic checker baseline, and hygiene guards. | `P14_docs_traceability_closeout_WRAPUP.md` is created after the substantive commit SHA is available. |
+| P14 Docs Traceability Closeout | `be3c1f941d2154474a1ffaccae2752fd93e3fa82` | Publishes the final no-legacy docs, QA matrix, traceability rows, semantic checker baseline, and hygiene guards. | [P14 wrap-up](../work_packets/corex_no_legacy_architecture_cleanup/P14_docs_traceability_closeout_WRAPUP.md) |
 
 ## Retained Automated Verification
 
