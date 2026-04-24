@@ -47,15 +47,18 @@
 ## Conservative Write Scope
 
 - `docs/specs/work_packets/corex_architecture_entry_point_reduction/P04_qml_action_route_merge_WRAPUP.md`
+- `docs/specs/work_packets/corex_architecture_entry_point_reduction/COREX_ARCHITECTURE_ENTRY_POINT_REDUCTION_P04_qml_action_route_merge.md`
 - `ea_node_editor/ui/shell/graph_action_contracts.py`
 - `ea_node_editor/ui/shell/controllers/graph_action_controller.py`
 - `ea_node_editor/ui_qml/graph_action_bridge.py`
 - `ea_node_editor/ui_qml/graph_canvas_command_bridge.py`
 - `ea_node_editor/ui_qml/graph_canvas_bridge.py`
 - `ea_node_editor/ui_qml/MainShell.qml`
+- `ea_node_editor/ui_qml/components/GraphCanvas.qml`
 - `ea_node_editor/ui_qml/components/graph_canvas/GraphCanvasRootBindings.qml`
 - `ea_node_editor/ui_qml/components/graph_canvas/GraphCanvasContextMenus.qml`
 - `ea_node_editor/ui_qml/components/graph_canvas/GraphCanvasNodeDelegate.qml`
+- `ea_node_editor/ui_qml/components/shell/WorkspaceCenterPane.qml`
 - `tests/test_graph_action_contracts.py`
 - `tests/test_main_window_shell.py`
 - `tests/main_window_shell/passive_style_context_menus.py`
@@ -115,3 +118,4 @@ $env:QT_QPA_PLATFORM='offscreen'; .\venv\Scripts\python.exe -m pytest tests/test
 
 - `P05` will publish docs and metrics for the new ownership path.
 - If `P04` changes object names or bootstrap expectations asserted by `tests/test_main_window_shell.py`, the packet must update those assertions in scope.
+- `ea_node_editor/ui_qml/components/GraphCanvas.qml` and `ea_node_editor/ui_qml/components/shell/WorkspaceCenterPane.qml` are included only to pass `graphActionBridge` explicitly through the existing QML component path.
