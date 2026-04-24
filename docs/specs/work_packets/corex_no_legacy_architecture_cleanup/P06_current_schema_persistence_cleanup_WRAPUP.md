@@ -3,7 +3,7 @@
 - Branch Label: codex/corex-no-legacy-architecture-cleanup/p06-current-schema-persistence-cleanup
 - Commit Owner: worker
 - Commit SHA: f966d97d6c474606cd344df7912efec8d44d54da
-- Changed Files: ea_node_editor/app_preferences.py; ea_node_editor/persistence/artifact_store.py; ea_node_editor/persistence/migration.py; ea_node_editor/persistence/overlay.py; ea_node_editor/persistence/project_codec.py; ea_node_editor/persistence/session_store.py; tests/test_app_preferences.py; tests/test_graphics_settings_preferences.py; tests/test_project_artifact_store.py; tests/test_project_session_controller_unit.py; tests/test_registry_validation.py; tests/test_serializer_schema_migration.py; docs/specs/work_packets/corex_no_legacy_architecture_cleanup/P06_current_schema_persistence_cleanup_WRAPUP.md
+- Changed Files: docs/specs/work_packets/corex_no_legacy_architecture_cleanup/P06_current_schema_persistence_cleanup_WRAPUP.md, ea_node_editor/app_preferences.py, ea_node_editor/persistence/artifact_store.py, ea_node_editor/persistence/migration.py, ea_node_editor/persistence/overlay.py, ea_node_editor/persistence/project_codec.py, ea_node_editor/persistence/session_store.py, tests/test_app_preferences.py, tests/test_graphics_settings_preferences.py, tests/test_project_artifact_store.py, tests/test_project_session_controller_unit.py, tests/test_registry_validation.py, tests/test_serializer_schema_migration.py
 - Artifacts Produced: docs/specs/work_packets/corex_no_legacy_architecture_cleanup/P06_current_schema_persistence_cleanup_WRAPUP.md
 
 - App preferences now accept only the current preferences version and no longer auto-upgrade v1/v2 documents.
