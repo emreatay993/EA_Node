@@ -26,6 +26,7 @@ from tests.main_window_shell.bridge_contracts import (
     build_graph_fragment_payload,
     serialize_graph_fragment_payload,
 )
+from ea_node_editor.ui_qml.shell_context_bootstrap import ShellContextBundle
 from ea_node_editor.ui_qml.viewer_host_service import ViewerHostService
 from ea_node_editor.ui_qml.viewer_session_bridge import ViewerSessionBridge
 
@@ -106,6 +107,7 @@ class MainWindowShellContextBootstrapTests(SharedMainWindowShellTestBase):
         context = self.window.quick_widget.rootContext()
 
         expected_context_names = (
+            "shellContext",
             "scriptEditorBridge",
             "scriptHighlighterBridge",
             "themeBridge",
@@ -139,8 +141,11 @@ class MainWindowShellContextBootstrapTests(SharedMainWindowShellTestBase):
                 self.assertIsNone(context.contextProperty(name))
 
         shell_library_bridge = context.contextProperty("shellLibraryBridge")
+        shell_context = context.contextProperty("shellContext")
+        self.assertIsInstance(shell_context, ShellContextBundle)
+        self.assertIs(shell_context, self.window.shell_context)
         self.assertIsInstance(shell_library_bridge, ShellLibraryBridge)
-        self.assertIs(shell_library_bridge.shell_window, self.window)
+        self.assertIsNone(shell_library_bridge.shell_window)
         self.assertIs(shell_library_bridge.library_source, self.window.shell_library_presenter)
 
         shell_workspace_bridge = context.contextProperty("shellWorkspaceBridge")
@@ -154,22 +159,24 @@ class MainWindowShellContextBootstrapTests(SharedMainWindowShellTestBase):
 
         shell_inspector_bridge = context.contextProperty("shellInspectorBridge")
         self.assertIsInstance(shell_inspector_bridge, ShellInspectorBridge)
-        self.assertIs(shell_inspector_bridge.shell_window, self.window)
+        self.assertIsNone(shell_inspector_bridge.shell_window)
         self.assertIs(shell_inspector_bridge.inspector_source, self.window.shell_inspector_presenter)
         self.assertIs(shell_inspector_bridge.scene_bridge, self.window.scene)
 
         graph_canvas_state_bridge = context.contextProperty("graphCanvasStateBridge")
         self.assertIsInstance(graph_canvas_state_bridge, GraphCanvasStateBridge)
         self.assertIs(graph_canvas_state_bridge.parent(), self.window)
-        self.assertIs(graph_canvas_state_bridge.shell_window, self.window)
+        self.assertIsNone(graph_canvas_state_bridge.shell_window)
         self.assertIs(graph_canvas_state_bridge.canvas_source, self.window.graph_canvas_presenter)
+        self.assertIs(graph_canvas_state_bridge.graphics_source, self.window.shell_workspace_presenter)
+        self.assertIs(graph_canvas_state_bridge.execution_source, self.window)
         self.assertIs(graph_canvas_state_bridge.scene_bridge, self.window.scene)
         self.assertIs(graph_canvas_state_bridge.view_bridge, self.window.view)
 
         graph_canvas_command_bridge = context.contextProperty("graphCanvasCommandBridge")
         self.assertIsInstance(graph_canvas_command_bridge, GraphCanvasCommandBridge)
         self.assertIs(graph_canvas_command_bridge.parent(), self.window)
-        self.assertIs(graph_canvas_command_bridge.shell_window, self.window)
+        self.assertIsNone(graph_canvas_command_bridge.shell_window)
         self.assertIs(graph_canvas_command_bridge.canvas_source, self.window.graph_canvas_presenter)
         self.assertIs(graph_canvas_command_bridge.host_source, self.window.graph_canvas_host_presenter)
         self.assertIs(graph_canvas_command_bridge.scene_bridge, self.window.scene)
@@ -189,6 +196,7 @@ class MainWindowShellContextBootstrapTests(SharedMainWindowShellTestBase):
         self.assertIs(viewer_host_service.overlay_manager, self.window.embedded_viewer_overlay_manager)
 
         context_bindings = dict(self.window._shell_qml_context_property_bindings)
+        self.assertIs(context_bindings["shellContext"], shell_context)
         self.assertIs(context_bindings["shellLibraryBridge"], shell_library_bridge)
         self.assertIs(context_bindings["shellWorkspaceBridge"], shell_workspace_bridge)
         self.assertIs(context_bindings["shellInspectorBridge"], shell_inspector_bridge)
@@ -282,7 +290,7 @@ class MainWindowShellContentFullscreenStaticContractsTests(unittest.TestCase):
         overlay = _packet_file_text(_CONTENT_FULLSCREEN_PACKET_FILES[1])
 
         self.assertIn("ContentFullscreenOverlay", main_shell)
-        self.assertIn("bridgeRef: contentFullscreenBridge", main_shell)
+        self.assertIn("bridgeRef: root.shellContextRef.contentFullscreenBridge", main_shell)
         self.assertIn('objectName: "contentFullscreenOverlay"', overlay)
         self.assertIn("readonly property bool bridgeOpen", overlay)
         self.assertIn("root.bridgeRef.open", overlay)

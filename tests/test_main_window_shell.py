@@ -22,6 +22,7 @@ from ea_node_editor.ui_qml.content_fullscreen_bridge import ContentFullscreenBri
 from ea_node_editor.ui_qml.graph_canvas_command_bridge import GraphCanvasCommandBridge
 from ea_node_editor.ui_qml.graph_canvas_state_bridge import GraphCanvasStateBridge
 from ea_node_editor.ui_qml.shell_addon_manager_bridge import ShellAddOnManagerBridge
+from ea_node_editor.ui_qml.shell_context_bootstrap import ShellContextBundle
 from ea_node_editor.ui_qml.shell_inspector_bridge import ShellInspectorBridge
 from ea_node_editor.ui_qml.shell_library_bridge import ShellLibraryBridge
 from ea_node_editor.ui_qml.shell_workspace_bridge import ShellWorkspaceBridge
@@ -167,6 +168,7 @@ class MainWindowShellContextBootstrapTests(SharedMainWindowShellTestBase):
         context = self.window.quick_widget.rootContext()
 
         expected_context_names = (
+            "shellContext",
             "scriptEditorBridge",
             "scriptHighlighterBridge",
             "themeBridge",
@@ -204,8 +206,11 @@ class MainWindowShellContextBootstrapTests(SharedMainWindowShellTestBase):
                 self.assertIsNone(context.contextProperty(name))
 
         shell_library_bridge = context.contextProperty("shellLibraryBridge")
+        shell_context = context.contextProperty("shellContext")
+        self.assertIsInstance(shell_context, ShellContextBundle)
+        self.assertIs(shell_context, self.window.shell_context)
         self.assertIsInstance(shell_library_bridge, ShellLibraryBridge)
-        self.assertIs(shell_library_bridge.shell_window, self.window)
+        self.assertIsNone(shell_library_bridge.shell_window)
         self.assertIs(shell_library_bridge.library_source, self.window.shell_library_presenter)
 
         shell_workspace_bridge = context.contextProperty("shellWorkspaceBridge")
@@ -219,7 +224,7 @@ class MainWindowShellContextBootstrapTests(SharedMainWindowShellTestBase):
 
         shell_inspector_bridge = context.contextProperty("shellInspectorBridge")
         self.assertIsInstance(shell_inspector_bridge, ShellInspectorBridge)
-        self.assertIs(shell_inspector_bridge.shell_window, self.window)
+        self.assertIsNone(shell_inspector_bridge.shell_window)
         self.assertIs(shell_inspector_bridge.inspector_source, self.window.shell_inspector_presenter)
         self.assertIs(shell_inspector_bridge.scene_bridge, self.window.scene)
 
@@ -239,15 +244,17 @@ class MainWindowShellContextBootstrapTests(SharedMainWindowShellTestBase):
         graph_canvas_state_bridge = context.contextProperty("graphCanvasStateBridge")
         self.assertIsInstance(graph_canvas_state_bridge, GraphCanvasStateBridge)
         self.assertIs(graph_canvas_state_bridge.parent(), self.window)
-        self.assertIs(graph_canvas_state_bridge.shell_window, self.window)
+        self.assertIsNone(graph_canvas_state_bridge.shell_window)
         self.assertIs(graph_canvas_state_bridge.canvas_source, self.window.graph_canvas_presenter)
+        self.assertIs(graph_canvas_state_bridge.graphics_source, self.window.shell_workspace_presenter)
+        self.assertIs(graph_canvas_state_bridge.execution_source, self.window)
         self.assertIs(graph_canvas_state_bridge.scene_bridge, self.window.scene)
         self.assertIs(graph_canvas_state_bridge.view_bridge, self.window.view)
 
         graph_canvas_command_bridge = context.contextProperty("graphCanvasCommandBridge")
         self.assertIsInstance(graph_canvas_command_bridge, GraphCanvasCommandBridge)
         self.assertIs(graph_canvas_command_bridge.parent(), self.window)
-        self.assertIs(graph_canvas_command_bridge.shell_window, self.window)
+        self.assertIsNone(graph_canvas_command_bridge.shell_window)
         self.assertIs(graph_canvas_command_bridge.canvas_source, self.window.graph_canvas_presenter)
         self.assertIs(graph_canvas_command_bridge.host_source, self.window.graph_canvas_host_presenter)
         self.assertIs(graph_canvas_command_bridge.scene_bridge, self.window.scene)
@@ -277,6 +284,7 @@ class MainWindowShellContextBootstrapTests(SharedMainWindowShellTestBase):
         self.assertIs(viewer_host_service.overlay_manager, self.window.embedded_viewer_overlay_manager)
 
         context_bindings = dict(self.window._shell_qml_context_property_bindings)
+        self.assertIs(context_bindings["shellContext"], shell_context)
         self.assertIs(context_bindings["shellLibraryBridge"], shell_library_bridge)
         self.assertIs(context_bindings["shellWorkspaceBridge"], shell_workspace_bridge)
         self.assertIs(context_bindings["shellInspectorBridge"], shell_inspector_bridge)
@@ -536,14 +544,16 @@ class MainWindowGraphCanvasBridgeTests(SharedMainWindowShellTestBase):
         self.assertIs(graph_action_bridge.controller, self.window.graph_action_controller)
         self.assertIsInstance(graph_canvas_state_bridge, GraphCanvasStateBridge)
         self.assertIs(graph_canvas_state_bridge.parent(), self.window)
-        self.assertIs(graph_canvas_state_bridge.shell_window, self.window)
+        self.assertIsNone(graph_canvas_state_bridge.shell_window)
         self.assertIs(graph_canvas_state_bridge.canvas_source, self.window.graph_canvas_presenter)
+        self.assertIs(graph_canvas_state_bridge.graphics_source, self.window.shell_workspace_presenter)
+        self.assertIs(graph_canvas_state_bridge.execution_source, self.window)
         self.assertIs(graph_canvas_state_bridge.scene_bridge, self.window.scene)
         self.assertIs(graph_canvas_state_bridge.view_bridge, self.window.view)
 
         self.assertIsInstance(graph_canvas_command_bridge, GraphCanvasCommandBridge)
         self.assertIs(graph_canvas_command_bridge.parent(), self.window)
-        self.assertIs(graph_canvas_command_bridge.shell_window, self.window)
+        self.assertIsNone(graph_canvas_command_bridge.shell_window)
         self.assertIs(graph_canvas_command_bridge.canvas_source, self.window.graph_canvas_presenter)
         self.assertIs(graph_canvas_command_bridge.host_source, self.window.graph_canvas_host_presenter)
         self.assertIs(graph_canvas_command_bridge.scene_bridge, self.window.scene)
@@ -869,7 +879,8 @@ class ShellWorkspaceBridgeQmlBoundaryTests(unittest.TestCase):
                     "property var graphCanvasStateBridgeRef",
                     "property var graphCanvasCommandBridgeRef",
                     "property var overlayHostItem",
-                    "readonly property var workspaceBridgeRef: shellWorkspaceBridge",
+                    "property var workspaceBridgeRef",
+                    "property var themeBridgeRef",
                     "root.workspaceBridgeRef.graphics_tab_strip_density",
                     "root.workspaceBridgeRef.active_scope_breadcrumb_items",
                     "root.workspaceBridgeRef.active_view_items",
@@ -942,21 +953,24 @@ class ShellWorkspaceBridgeQmlBoundaryTests(unittest.TestCase):
             "canvasBridgeRef: root.canvasBridgeRef",
         )
         present_snippets = (
-            "readonly property var graphActionBridgeRef: graphActionBridge",
-            "readonly property var canvasStateBridgeRef: graphCanvasStateBridge",
-            "readonly property var canvasCommandBridgeRef: graphCanvasCommandBridge",
-            "readonly property var canvasViewBridgeRef: graphCanvasViewBridge",
+            "readonly property var shellContextRef: shellContext",
+            "readonly property var graphActionBridgeRef: root.shellContextRef.graphActionBridge",
+            "readonly property var canvasStateBridgeRef: root.shellContextRef.graphCanvasStateBridge",
+            "readonly property var canvasCommandBridgeRef: root.shellContextRef.graphCanvasCommandBridge",
+            "readonly property var canvasViewBridgeRef: root.shellContextRef.graphCanvasViewBridge",
             "WorkspaceCenterPane {",
             "graphActionBridgeRef: root.graphActionBridgeRef",
             "graphCanvasStateBridgeRef: root.canvasStateBridgeRef",
             "graphCanvasCommandBridgeRef: root.canvasCommandBridgeRef",
+            "workspaceBridgeRef: root.shellContextRef.shellWorkspaceBridge",
+            "themeBridgeRef: root.shellContextRef.themeBridge",
             "overlayHostItem: root",
             "viewBridgeRef: root.canvasViewBridgeRef",
             "ShellStatusStrip {",
             "canvasStateBridgeRef: root.canvasStateBridgeRef",
             "canvasCommandBridgeRef: root.canvasCommandBridgeRef",
-            "scriptEditorBridgeRef: scriptEditorBridge",
-            "scriptHighlighterBridgeRef: scriptHighlighterBridge",
+            "scriptEditorBridgeRef: root.shellContextRef.scriptEditorBridge",
+            "scriptHighlighterBridgeRef: root.shellContextRef.scriptHighlighterBridge",
         )
 
         _assert_text_snippets(

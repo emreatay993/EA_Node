@@ -5,13 +5,14 @@ import ".." as Components
 
 Rectangle {
     id: root
-    readonly property var workspaceBridgeRef: shellWorkspaceBridge
+    property var workspaceBridgeRef
+    property var themeBridgeRef
     property var graphActionBridgeRef
     property var graphCanvasStateBridgeRef
     property var graphCanvasCommandBridgeRef
     property var overlayHostItem
     property alias graphCanvasRef: graphCanvas
-    readonly property var themePalette: themeBridge.palette
+    readonly property var themePalette: root.themeBridgeRef.palette
     readonly property string tabStripDensityPreset: String(root.workspaceBridgeRef.graphics_tab_strip_density || "compact")
     readonly property bool compactTabStripDensity: root.tabStripDensityPreset === "compact"
 

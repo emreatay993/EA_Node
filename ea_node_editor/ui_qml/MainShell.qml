@@ -6,12 +6,13 @@ import "components/shell"
 
 Rectangle {
     id: root
-    readonly property var themePalette: themeBridge.palette
+    readonly property var shellContextRef: shellContext
+    readonly property var themePalette: root.shellContextRef.themeBridge.palette
     color: themePalette.app_bg
-    readonly property var graphActionBridgeRef: graphActionBridge
-    readonly property var canvasStateBridgeRef: graphCanvasStateBridge
-    readonly property var canvasCommandBridgeRef: graphCanvasCommandBridge
-    readonly property var canvasViewBridgeRef: graphCanvasViewBridge
+    readonly property var graphActionBridgeRef: root.shellContextRef.graphActionBridge
+    readonly property var canvasStateBridgeRef: root.shellContextRef.graphCanvasStateBridge
+    readonly property var canvasCommandBridgeRef: root.shellContextRef.graphCanvasCommandBridge
+    readonly property var canvasViewBridgeRef: root.shellContextRef.graphCanvasViewBridge
 
     LibraryWorkflowContextPopup {
         id: libraryWorkflowContextPopup
@@ -28,7 +29,7 @@ Rectangle {
         ShellRunToolbar {
             id: shellRunToolbar
             viewBridgeRef: root.canvasViewBridgeRef
-            scriptEditorBridgeRef: scriptEditorBridge
+            scriptEditorBridgeRef: root.shellContextRef.scriptEditorBridge
         }
 
         RowLayout {
@@ -52,6 +53,8 @@ Rectangle {
                 graphActionBridgeRef: root.graphActionBridgeRef
                 graphCanvasStateBridgeRef: root.canvasStateBridgeRef
                 graphCanvasCommandBridgeRef: root.canvasCommandBridgeRef
+                workspaceBridgeRef: root.shellContextRef.shellWorkspaceBridge
+                themeBridgeRef: root.shellContextRef.themeBridge
                 overlayHostItem: root
             }
 
@@ -63,10 +66,10 @@ Rectangle {
             id: shellStatusStrip
             canvasStateBridgeRef: root.canvasStateBridgeRef
             canvasCommandBridgeRef: root.canvasCommandBridgeRef
-            statusEngineRef: statusEngine
-            statusJobsRef: statusJobs
-            statusMetricsRef: statusMetrics
-            statusNotificationsRef: statusNotifications
+            statusEngineRef: root.shellContextRef.statusEngine
+            statusJobsRef: root.shellContextRef.statusJobs
+            statusMetricsRef: root.shellContextRef.statusMetrics
+            statusNotificationsRef: root.shellContextRef.statusNotifications
         }
     }
 
@@ -85,7 +88,7 @@ Rectangle {
         y: shellWorkspaceRow.y
         width: root.width
         height: shellWorkspaceRow.height
-        visible: addonManagerBridge.open
+        visible: root.shellContextRef.addonManagerBridge.open
         z: 70
 
         Rectangle {
@@ -97,7 +100,7 @@ Rectangle {
             MouseArea {
                 anchors.fill: parent
                 enabled: parent.visible
-                onClicked: addonManagerBridge.requestClose()
+                onClicked: root.shellContextRef.addonManagerBridge.requestClose()
             }
         }
 
@@ -111,17 +114,17 @@ Rectangle {
             anchors.rightMargin: 12
             anchors.bottomMargin: 10
             width: Math.min(parent.width - 24, 1040)
-            requestBridge: addonManagerBridge
-            workspaceBridge: shellWorkspaceBridge
-            viewerHostServiceRef: viewerHostService
+            requestBridge: root.shellContextRef.addonManagerBridge
+            workspaceBridge: root.shellContextRef.shellWorkspaceBridge
+            viewerHostServiceRef: root.shellContextRef.viewerHostService
             z: 1
         }
     }
 
     ScriptEditorOverlay {
         id: scriptOverlay
-        scriptEditorBridgeRef: scriptEditorBridge
-        scriptHighlighterBridgeRef: scriptHighlighterBridge
+        scriptEditorBridgeRef: root.shellContextRef.scriptEditorBridge
+        scriptHighlighterBridgeRef: root.shellContextRef.scriptHighlighterBridge
     }
 
     GraphHintOverlay {
@@ -132,6 +135,6 @@ Rectangle {
     ContentFullscreenOverlay {
         id: contentFullscreenOverlay
         anchors.fill: parent
-        bridgeRef: contentFullscreenBridge
+        bridgeRef: root.shellContextRef.contentFullscreenBridge
     }
 }

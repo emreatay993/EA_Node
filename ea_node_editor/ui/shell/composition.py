@@ -54,6 +54,7 @@ from ea_node_editor.ui_qml.script_editor_model import ScriptEditorModel
 from ea_node_editor.ui_qml.shell_inspector_bridge import ShellInspectorBridge
 from ea_node_editor.ui_qml.shell_library_bridge import ShellLibraryBridge
 from ea_node_editor.ui_qml.shell_context_bootstrap import (
+    ShellContextBundle,
     ShellContextPropertyBindings,
     bootstrap_shell_qml_context,
 )
@@ -314,6 +315,7 @@ class ShellRuntimeDependencies:
 @dataclass(frozen=True, slots=True)
 class ShellContextBridgeDependencies:
     shell_context_bridges: ShellContextBridges
+    qml_context_bundle: ShellContextBundle
     shell_library_bridge: ShellLibraryBridge
     shell_workspace_bridge: ShellWorkspaceBridge
     shell_inspector_bridge: ShellInspectorBridge
@@ -327,6 +329,7 @@ class ShellContextBridgeDependencies:
 
     def attach(self, host: "ShellWindow") -> None:
         host._shell_context_bridges = self.shell_context_bridges
+        host.shell_context = self.qml_context_bundle
         host._shell_qml_context_property_bindings = self.qml_context_property_bindings
         host.shell_library_bridge = self.shell_library_bridge
         host.shell_workspace_bridge = self.shell_workspace_bridge
@@ -717,14 +720,14 @@ def _create_shell_context_bridge_dependencies(
 ) -> ShellContextBridgeDependencies:
     graph_canvas_state_bridge = GraphCanvasStateBridge(
         host,
-        shell_window=host,
         canvas_source=presenters.graph_canvas_presenter,
+        graphics_source=presenters.shell_workspace_presenter,
+        execution_source=host,
         scene_bridge=primitives.scene,
         view_bridge=primitives.view,
     )
     graph_canvas_command_bridge = GraphCanvasCommandBridge(
         host,
-        shell_window=host,
         canvas_source=presenters.graph_canvas_presenter,
         host_source=presenters.graph_canvas_host_presenter,
         scene_bridge=primitives.scene,
@@ -733,7 +736,6 @@ def _create_shell_context_bridge_dependencies(
     shell_context_bridges = ShellContextBridges(
         shell_library_bridge=ShellLibraryBridge(
             host,
-            shell_window=host,
             library_source=presenters.shell_library_presenter,
         ),
         shell_workspace_bridge=ShellWorkspaceBridge(
@@ -747,7 +749,6 @@ def _create_shell_context_bridge_dependencies(
         ),
         shell_inspector_bridge=ShellInspectorBridge(
             host,
-            shell_window=host,
             inspector_source=presenters.shell_inspector_presenter,
             scene_bridge=primitives.scene,
         ),
@@ -775,8 +776,18 @@ def _create_shell_context_bridge_dependencies(
         addon_manager_bridge=addon_manager_bridge,
     )
     graph_action_bridge = GraphActionBridge(host, controller=controllers.graph_action_controller)
+    qml_context_bundle = _build_shell_context_bundle(
+        host,
+        shell_context_bridges,
+        addon_manager_bridge,
+        graph_action_bridge,
+        primitives,
+        runtime,
+        help_bridge,
+    )
     return ShellContextBridgeDependencies(
         shell_context_bridges=shell_context_bridges,
+        qml_context_bundle=qml_context_bundle,
         shell_library_bridge=shell_context_bridges.shell_library_bridge,
         shell_workspace_bridge=shell_context_bridges.shell_workspace_bridge,
         shell_inspector_bridge=shell_context_bridges.shell_inspector_bridge,
@@ -786,47 +797,71 @@ def _create_shell_context_bridge_dependencies(
         graph_canvas_command_bridge=graph_canvas_command_bridge,
         graph_canvas_bridge=shell_context_bridges.graph_canvas_bridge,
         help_bridge=help_bridge,
-        qml_context_property_bindings=_build_shell_context_property_bindings(
-            shell_context_bridges,
-            addon_manager_bridge,
-            graph_action_bridge,
-            primitives,
-            runtime,
-            help_bridge,
-        ),
+        qml_context_property_bindings=_build_shell_context_property_bindings(qml_context_bundle),
     )
 
 
-def _build_shell_context_property_bindings(
+def _build_shell_context_bundle(
+    host: "ShellWindow",
     bridges: ShellContextBridges,
     addon_manager_bridge: AddonManagerBridge,
     graph_action_bridge: GraphActionBridge,
     primitives: ShellPrimitiveDependencies,
     runtime: ShellRuntimeDependencies,
     help_bridge: HelpBridge,
+) -> ShellContextBundle:
+    return ShellContextBundle(
+        parent=host,
+        shell_library_bridge=bridges.shell_library_bridge,
+        shell_workspace_bridge=bridges.shell_workspace_bridge,
+        shell_inspector_bridge=bridges.shell_inspector_bridge,
+        addon_manager_bridge=addon_manager_bridge,
+        graph_action_bridge=graph_action_bridge,
+        graph_canvas_state_bridge=bridges.graph_canvas_state_bridge,
+        graph_canvas_command_bridge=bridges.graph_canvas_command_bridge,
+        graph_canvas_view_bridge=primitives.view,
+        content_fullscreen_bridge=runtime.content_fullscreen_bridge,
+        viewer_session_bridge=runtime.viewer_session_bridge,
+        viewer_host_service=runtime.viewer_host_service,
+        script_editor_bridge=primitives.script_editor,
+        script_highlighter_bridge=primitives.script_highlighter,
+        theme_bridge=primitives.theme_bridge,
+        graph_theme_bridge=primitives.graph_theme_bridge,
+        ui_icons=primitives.ui_icons,
+        status_engine=primitives.status_engine,
+        status_jobs=primitives.status_jobs,
+        status_metrics=primitives.status_metrics,
+        status_notifications=primitives.status_notifications,
+        help_bridge=help_bridge,
+    )
+
+
+def _build_shell_context_property_bindings(
+    context_bundle: ShellContextBundle,
 ) -> ShellContextPropertyBindings:
     return (
-        ("shellLibraryBridge", bridges.shell_library_bridge),
-        ("shellWorkspaceBridge", bridges.shell_workspace_bridge),
-        ("shellInspectorBridge", bridges.shell_inspector_bridge),
-        ("addonManagerBridge", addon_manager_bridge),
-        ("graphActionBridge", graph_action_bridge),
-        ("graphCanvasStateBridge", bridges.graph_canvas_state_bridge),
-        ("graphCanvasCommandBridge", bridges.graph_canvas_command_bridge),
-        ("graphCanvasViewBridge", primitives.view),
-        ("contentFullscreenBridge", runtime.content_fullscreen_bridge),
-        ("viewerSessionBridge", runtime.viewer_session_bridge),
-        ("viewerHostService", runtime.viewer_host_service),
-        ("scriptEditorBridge", primitives.script_editor),
-        ("scriptHighlighterBridge", primitives.script_highlighter),
-        ("themeBridge", primitives.theme_bridge),
-        ("graphThemeBridge", primitives.graph_theme_bridge),
-        ("uiIcons", primitives.ui_icons),
-        ("statusEngine", primitives.status_engine),
-        ("statusJobs", primitives.status_jobs),
-        ("statusMetrics", primitives.status_metrics),
-        ("statusNotifications", primitives.status_notifications),
-        ("helpBridge", help_bridge),
+        ("shellContext", context_bundle),
+        ("shellLibraryBridge", context_bundle.shellLibraryBridge),
+        ("shellWorkspaceBridge", context_bundle.shellWorkspaceBridge),
+        ("shellInspectorBridge", context_bundle.shellInspectorBridge),
+        ("addonManagerBridge", context_bundle.addonManagerBridge),
+        ("graphActionBridge", context_bundle.graphActionBridge),
+        ("graphCanvasStateBridge", context_bundle.graphCanvasStateBridge),
+        ("graphCanvasCommandBridge", context_bundle.graphCanvasCommandBridge),
+        ("graphCanvasViewBridge", context_bundle.graphCanvasViewBridge),
+        ("contentFullscreenBridge", context_bundle.contentFullscreenBridge),
+        ("viewerSessionBridge", context_bundle.viewerSessionBridge),
+        ("viewerHostService", context_bundle.viewerHostService),
+        ("scriptEditorBridge", context_bundle.scriptEditorBridge),
+        ("scriptHighlighterBridge", context_bundle.scriptHighlighterBridge),
+        ("themeBridge", context_bundle.themeBridge),
+        ("graphThemeBridge", context_bundle.graphThemeBridge),
+        ("uiIcons", context_bundle.uiIcons),
+        ("statusEngine", context_bundle.statusEngine),
+        ("statusJobs", context_bundle.statusJobs),
+        ("statusMetrics", context_bundle.statusMetrics),
+        ("statusNotifications", context_bundle.statusNotifications),
+        ("helpBridge", context_bundle.helpBridge),
     )
 
 

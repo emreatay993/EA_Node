@@ -5,7 +5,6 @@ from typing import TYPE_CHECKING, Any, Protocol, cast
 from PyQt6.QtCore import QObject, pyqtProperty, pyqtSlot
 
 if TYPE_CHECKING:
-    from ea_node_editor.ui.shell.window import ShellWindow
     from ea_node_editor.ui_qml.graph_scene_bridge import GraphSceneBridge
     from ea_node_editor.ui_qml.viewport_bridge import ViewportBridge
 
@@ -129,28 +128,6 @@ def _copy_dict(value: object) -> dict[str, Any]:
     return dict(value) if isinstance(value, dict) else {}
 
 
-def _resolve_canvas_source(
-    shell_window: "ShellWindow | None",
-    canvas_source: _GraphCanvasCommandSource | None,
-) -> _GraphCanvasCommandSource | None:
-    if canvas_source is not None:
-        return canvas_source
-    if shell_window is None:
-        return None
-    return cast(_GraphCanvasCommandSource, shell_window)
-
-
-def _resolve_host_source(
-    shell_window: "ShellWindow | None",
-    host_source: _GraphCanvasHostSource | None,
-) -> _GraphCanvasHostSource | None:
-    if host_source is not None:
-        return host_source
-    if shell_window is None:
-        return None
-    return cast(_GraphCanvasHostSource, shell_window)
-
-
 def _resolve_scene_command_source(scene_bridge: object | None) -> _GraphCanvasSceneCommandSource | None:
     if scene_bridge is None:
         return None
@@ -174,24 +151,24 @@ class GraphCanvasCommandBridge(QObject):
         self,
         parent: QObject | None = None,
         *,
-        shell_window: "ShellWindow | None" = None,
+        shell_window: object | None = None,
         canvas_source: _GraphCanvasCommandSource | None = None,
         host_source: _GraphCanvasHostSource | None = None,
         scene_bridge: "GraphSceneBridge | None" = None,
         view_bridge: "ViewportBridge | None" = None,
     ) -> None:
         super().__init__(parent)
-        self._shell_window = shell_window
+        _ = shell_window
         self._scene_bridge = scene_bridge
         self._view_bridge = view_bridge
-        self._canvas_source = _resolve_canvas_source(shell_window, canvas_source)
-        self._host_source = _resolve_host_source(shell_window, host_source)
+        self._canvas_source = canvas_source
+        self._host_source = host_source
         self._scene_command_source = _resolve_scene_command_source(scene_bridge)
         self._scene_policy_source = _resolve_scene_policy_source(scene_bridge)
 
     @property
-    def shell_window(self) -> "ShellWindow | None":
-        return self._shell_window
+    def shell_window(self) -> None:
+        return None
 
     @property
     def canvas_source(self) -> _GraphCanvasCommandSource | None:

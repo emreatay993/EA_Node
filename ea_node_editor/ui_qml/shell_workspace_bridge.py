@@ -5,7 +5,6 @@ from typing import TYPE_CHECKING, Any, Protocol
 from PyQt6.QtCore import QObject, pyqtProperty, pyqtSignal, pyqtSlot
 
 if TYPE_CHECKING:
-    from ea_node_editor.ui.shell.window import ShellWindow
     from ea_node_editor.ui_qml.console_model import ConsoleModel
     from ea_node_editor.ui_qml.graph_scene_bridge import GraphSceneBridge
     from ea_node_editor.ui_qml.viewport_bridge import ViewportBridge
@@ -61,32 +60,14 @@ class _ShellWorkspaceSource(Protocol):
     def request_create_workspace(self) -> None: ...
 
 
-class _ShellWindowWorkspaceSourceAdapter:
-    def __init__(self, shell_window: "ShellWindow") -> None:
-        self._shell_window = shell_window
-
-    @property
-    def _source(self) -> object:
-        presenter = getattr(self._shell_window, "shell_workspace_presenter", None)
-        return presenter if presenter is not None else self._shell_window
-
-    def __getattr__(self, name: str) -> Any:
-        return getattr(self._source, name)
-
-
 def _copy_list(value: object) -> list[Any]:
     return list(value) if isinstance(value, list) else []
 
 
-def _resolve_workspace_source(
-    shell_window: "ShellWindow | None",
-    workspace_source: _ShellWorkspaceSource | None,
-) -> _ShellWorkspaceSource:
-    if workspace_source is not None:
-        return workspace_source
-    if shell_window is None:
-        raise TypeError("ShellWorkspaceBridge requires a shell window or explicit workspace source contract.")
-    return _ShellWindowWorkspaceSourceAdapter(shell_window)
+def _require_workspace_source(workspace_source: _ShellWorkspaceSource | None) -> _ShellWorkspaceSource:
+    if workspace_source is None:
+        raise TypeError("ShellWorkspaceBridge requires an explicit workspace source contract.")
+    return workspace_source
 
 
 class ShellWorkspaceBridge(QObject):
@@ -104,7 +85,7 @@ class ShellWorkspaceBridge(QObject):
         self,
         parent: QObject | None = None,
         *,
-        shell_window: "ShellWindow | None" = None,
+        shell_window: object | None = None,
         workspace_source: _ShellWorkspaceSource | None = None,
         scene_bridge: "GraphSceneBridge | None" = None,
         view_bridge: "ViewportBridge | None" = None,
@@ -117,7 +98,7 @@ class ShellWorkspaceBridge(QObject):
         self._view_bridge = view_bridge
         self._console_bridge = console_bridge
         self._workspace_tabs_bridge = workspace_tabs_bridge
-        self._workspace_source = _resolve_workspace_source(shell_window, workspace_source)
+        self._workspace_source = _require_workspace_source(workspace_source)
 
         self._workspace_source.project_meta_changed.connect(self.project_meta_changed.emit)
         self._workspace_source.workspace_state_changed.connect(self.workspace_state_changed.emit)
@@ -134,7 +115,7 @@ class ShellWorkspaceBridge(QObject):
             console_bridge.counts_changed.connect(self.console_counts_changed.emit)
 
     @property
-    def shell_window(self) -> "ShellWindow | None":
+    def shell_window(self) -> object | None:
         return self._shell_window
 
     @property

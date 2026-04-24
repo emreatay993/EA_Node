@@ -90,11 +90,14 @@ Item {
         headerLayer: headerLayer
     }
 
-    readonly property var nodePalette: typeof graphThemeBridge !== "undefined"
-        ? graphThemeBridge.node_palette
+    readonly property var shellContextRef: typeof shellContext !== "undefined" ? shellContext : null
+    readonly property var graphThemeBridgeRef: shellContextRef ? shellContextRef.graphThemeBridge : null
+    readonly property var addonManagerBridgeRef: shellContextRef ? shellContextRef.addonManagerBridge : null
+    readonly property var nodePalette: graphThemeBridgeRef
+        ? graphThemeBridgeRef.node_palette
         : ({})
-    readonly property var portKindPalette: typeof graphThemeBridge !== "undefined"
-        ? graphThemeBridge.port_kind_palette
+    readonly property var portKindPalette: graphThemeBridgeRef
+        ? graphThemeBridgeRef.port_kind_palette
         : ({})
     readonly property var selectedNodeLookup: canvasItem && canvasItem.sceneBridge
         ? canvasItem.sceneBridge.selected_node_lookup
@@ -271,9 +274,8 @@ Item {
             return "v" + addonVersion;
         return addonName + " v" + addonVersion;
     }
-    readonly property bool lockedPlaceholderManagerAvailable: typeof addonManagerBridge !== "undefined"
-        && addonManagerBridge
-        && addonManagerBridge.requestOpen
+    readonly property bool lockedPlaceholderManagerAvailable: addonManagerBridgeRef
+        && addonManagerBridgeRef.requestOpen
         && card.lockedPlaceholderFocusAddonId.length > 0
     readonly property color lockedPlaceholderSurfaceColor: "#1b1d22"
     readonly property color lockedPlaceholderOutlineColor: "#3a3d45"
@@ -664,7 +666,7 @@ Item {
     function requestLockedPlaceholderManager() {
         if (!card.lockedPlaceholderManagerAvailable)
             return false;
-        addonManagerBridge.requestOpen(card.lockedPlaceholderFocusAddonId);
+        card.addonManagerBridgeRef.requestOpen(card.lockedPlaceholderFocusAddonId);
         return true;
     }
 

@@ -218,10 +218,10 @@ class ShellAddOnManagerQmlBoundaryTests(unittest.TestCase):
                     'objectName: "shellWorkspaceRow"',
                     'objectName: "addonManagerScrim"',
                     'objectName: "addonManagerPane"',
-                    "visible: addonManagerBridge.open",
-                    "requestBridge: addonManagerBridge",
-                    "workspaceBridge: shellWorkspaceBridge",
-                    "viewerHostServiceRef: viewerHostService",
+                    "visible: root.shellContextRef.addonManagerBridge.open",
+                    "requestBridge: root.shellContextRef.addonManagerBridge",
+                    "workspaceBridge: root.shellContextRef.shellWorkspaceBridge",
+                    "viewerHostServiceRef: root.shellContextRef.viewerHostService",
                 ),
             ),
             "ea_node_editor/ui_qml/components/shell/AddOnManagerPane.qml": (
@@ -329,7 +329,8 @@ class ShellWorkspaceBridgeQmlBoundaryTests(unittest.TestCase):
                     "property var graphCanvasStateBridgeRef",
                     "property var graphCanvasCommandBridgeRef",
                     "property var overlayHostItem",
-                    "readonly property var workspaceBridgeRef: shellWorkspaceBridge",
+                    "property var workspaceBridgeRef",
+                    "property var themeBridgeRef",
                     "root.workspaceBridgeRef.graphics_tab_strip_density",
                     "root.workspaceBridgeRef.active_scope_breadcrumb_items",
                     "root.workspaceBridgeRef.active_view_items",
@@ -474,19 +475,22 @@ class ShellWorkspaceBridgeQmlBoundaryTests(unittest.TestCase):
             "canvasBridgeRef: root.canvasBridgeRef",
         )
         present_snippets = (
-            "readonly property var canvasStateBridgeRef: graphCanvasStateBridge",
-            "readonly property var canvasCommandBridgeRef: graphCanvasCommandBridge",
-            "readonly property var canvasViewBridgeRef: graphCanvasViewBridge",
+            "readonly property var shellContextRef: shellContext",
+            "readonly property var canvasStateBridgeRef: root.shellContextRef.graphCanvasStateBridge",
+            "readonly property var canvasCommandBridgeRef: root.shellContextRef.graphCanvasCommandBridge",
+            "readonly property var canvasViewBridgeRef: root.shellContextRef.graphCanvasViewBridge",
             "WorkspaceCenterPane {",
             "graphCanvasStateBridgeRef: root.canvasStateBridgeRef",
             "graphCanvasCommandBridgeRef: root.canvasCommandBridgeRef",
+            "workspaceBridgeRef: root.shellContextRef.shellWorkspaceBridge",
+            "themeBridgeRef: root.shellContextRef.themeBridge",
             "overlayHostItem: root",
             "viewBridgeRef: root.canvasViewBridgeRef",
             "ShellStatusStrip {",
             "canvasStateBridgeRef: root.canvasStateBridgeRef",
             "canvasCommandBridgeRef: root.canvasCommandBridgeRef",
-            "scriptEditorBridgeRef: scriptEditorBridge",
-            "scriptHighlighterBridgeRef: scriptHighlighterBridge",
+            "scriptEditorBridgeRef: root.shellContextRef.scriptEditorBridge",
+            "scriptHighlighterBridgeRef: root.shellContextRef.scriptHighlighterBridge",
         )
 
         for snippet in absent_snippets:
@@ -496,6 +500,65 @@ class ShellWorkspaceBridgeQmlBoundaryTests(unittest.TestCase):
         for snippet in present_snippets:
             with self.subTest(snippet=snippet, expectation="present"):
                 self.assertIn(snippet, qml_text)
+
+    def test_graph_canvas_descendants_use_context_bundle_instead_of_raw_service_globals(self) -> None:
+        expectations = {
+            "ea_node_editor/ui_qml/components/graph_canvas/GraphCanvasContextMenus.qml": (
+                (
+                    "typeof addonManagerBridge",
+                    "typeof helpBridge",
+                    "themeBridge.palette",
+                    "addonManagerBridge.",
+                    "helpBridge.",
+                ),
+                (
+                    "readonly property var shellContextRef",
+                    "root.shellContextRef.addonManagerBridge",
+                    "root.shellContextRef.helpBridge",
+                    "root.themeBridgeRef ? root.themeBridgeRef.palette : ({})",
+                ),
+            ),
+            "ea_node_editor/ui_qml/components/graph_canvas/GraphCanvasInputLayers.qml": (
+                (
+                    "typeof contentFullscreenBridge",
+                    "typeof viewerSessionBridge",
+                    "typeof shellLibraryBridge",
+                    "themeBridge.palette",
+                    "contentFullscreenBridge.",
+                    "viewerSessionBridge.",
+                    "shellLibraryBridge.show_graph_hint",
+                ),
+                (
+                    "readonly property var shellContextRef",
+                    "root.shellContextRef.contentFullscreenBridge",
+                    "root.shellContextRef.viewerSessionBridge",
+                    "root.shellContextRef.shellLibraryBridge",
+                ),
+            ),
+            "ea_node_editor/ui_qml/components/graph/GraphNodeHost.qml": (
+                (
+                    "typeof graphThemeBridge",
+                    "typeof addonManagerBridge",
+                    "graphThemeBridge.node_palette",
+                    "addonManagerBridge.requestOpen",
+                ),
+                (
+                    "readonly property var shellContextRef",
+                    "shellContextRef.graphThemeBridge",
+                    "shellContextRef.addonManagerBridge",
+                    "card.addonManagerBridgeRef.requestOpen",
+                ),
+            ),
+        }
+
+        for relative_path, (absent_snippets, present_snippets) in expectations.items():
+            qml_text = (_REPO_ROOT / relative_path).read_text(encoding="utf-8")
+            for snippet in absent_snippets:
+                with self.subTest(path=relative_path, snippet=snippet, expectation="absent"):
+                    self.assertNotIn(snippet, qml_text)
+            for snippet in present_snippets:
+                with self.subTest(path=relative_path, snippet=snippet, expectation="present"):
+                    self.assertIn(snippet, qml_text)
 
 
 class ShellStatusStripQmlBoundaryTests(unittest.TestCase):

@@ -6,7 +6,11 @@ Item {
     property Item canvasItem: null
     property var commandBridge: null
     property var graphActionBridge: null
-    readonly property var themePalette: themeBridge.palette
+    readonly property var shellContextRef: typeof shellContext !== "undefined" ? shellContext : null
+    readonly property var themeBridgeRef: root.shellContextRef ? root.shellContextRef.themeBridge : null
+    readonly property var addonManagerBridgeRef: root.shellContextRef ? root.shellContextRef.addonManagerBridge : null
+    readonly property var helpBridgeRef: root.shellContextRef ? root.shellContextRef.helpBridge : null
+    readonly property var themePalette: root.themeBridgeRef ? root.themeBridgeRef.palette : ({})
 
     anchors.fill: parent
     z: 900
@@ -44,9 +48,8 @@ Item {
     }
 
     function _addonManagerAvailable() {
-        return typeof addonManagerBridge !== "undefined"
-            && addonManagerBridge
-            && addonManagerBridge.requestOpen;
+        return root.addonManagerBridgeRef
+            && root.addonManagerBridgeRef.requestOpen;
     }
 
     function _triggerGraphAction(actionId, payload) {
@@ -173,14 +176,14 @@ Item {
             && root._addonManagerAvailable()
             && root._nodeAddonFocusId(root.canvasItem ? root.canvasItem.nodeContextNodeId : "").length > 0
         readonly property bool canShowHelp: {
-            if (typeof helpBridge === "undefined" || !helpBridge)
+            if (!root.helpBridgeRef)
                 return false;
             if (!root.canvasItem)
                 return false;
             var nodeId = String(root.canvasItem.nodeContextNodeId || "").trim();
             if (!nodeId.length)
                 return false;
-            return Boolean(helpBridge.can_show_help_for_node(nodeId));
+            return Boolean(root.helpBridgeRef.can_show_help_for_node(nodeId));
         }
         actions: [
             { "actionId": "open_addon_manager", "text": "Open Add-On Manager", "visible": nodeContextPopup.canOpenAddonManager },
@@ -246,7 +249,7 @@ Item {
                     root.canvasItem.requestInlineRenameForNode(renameTargetId)
                 return
             } else if (actionId === "show_help") {
-                if (typeof helpBridge !== "undefined" && helpBridge)
+                if (root.helpBridgeRef)
                     root._triggerGraphAction(actionId, payload)
             } else if (actionId === "ungroup_subnode") {
                 if (!payload)

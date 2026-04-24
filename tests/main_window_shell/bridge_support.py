@@ -814,6 +814,8 @@ def _build_explicit_graph_canvas_bridge(
     parent: QObject | None = None,
     shell_window: QObject | None = None,
     canvas_source: object | None = None,
+    graphics_source: object | None = None,
+    execution_source: object | None = None,
     host_source: object | None = None,
     scene_bridge: QObject | None = None,
     view_bridge: QObject | None = None,
@@ -822,6 +824,8 @@ def _build_explicit_graph_canvas_bridge(
         parent,
         shell_window=shell_window,
         canvas_source=canvas_source,
+        graphics_source=graphics_source,
+        execution_source=execution_source,
         scene_bridge=scene_bridge,
         view_bridge=view_bridge,
     )
@@ -915,7 +919,7 @@ class ShellLibraryBridgeTests(unittest.TestCase):
         host = _ShellLibraryHostStub()
         bridge = ShellLibraryBridge(shell_window=host, library_source=host)
 
-        self.assertIs(bridge.shell_window, host)
+        self.assertIsNone(bridge.shell_window)
         self.assertIs(bridge.library_source, host)
         self.assertEqual(bridge.grouped_node_library_items, host.grouped_node_library_items)
         self.assertTrue(bridge.graph_search_open)
@@ -996,18 +1000,16 @@ class ShellLibraryBridgeTests(unittest.TestCase):
         self.assertEqual(presenter.calls, [("set_library_query", ("from presenter",))])
         self.assertEqual(host.calls, [])
 
-    def test_bridge_wraps_shell_window_and_routes_through_host_library_presenter_when_present(self) -> None:
+    def test_bridge_requires_explicit_library_source_and_does_not_discover_host_presenter(self) -> None:
         host = _ShellLibraryHostStub()
         presenter = _ShellLibraryHostStub()
         presenter.graph_search_query = "presenter search"
         host.shell_library_presenter = presenter
 
-        bridge = ShellLibraryBridge(shell_window=host)
+        with self.assertRaisesRegex(TypeError, "explicit library source contract"):
+            ShellLibraryBridge(shell_window=host)
 
-        self.assertIsNot(bridge.library_source, presenter)
-        self.assertEqual(bridge.graph_search_query, presenter.graph_search_query)
-        bridge.set_library_query("host contract")
-        self.assertEqual(presenter.calls, [("set_library_query", ("host contract",))])
+        self.assertEqual(presenter.calls, [])
         self.assertEqual(host.calls, [])
 
     def test_bridge_re_emits_shell_signals(self) -> None:
@@ -1070,7 +1072,7 @@ class ShellInspectorBridgeTests(unittest.TestCase):
         host = _ShellInspectorHostStub()
         bridge = ShellInspectorBridge(shell_window=host, inspector_source=host)
 
-        self.assertIs(bridge.shell_window, host)
+        self.assertIsNone(bridge.shell_window)
         self.assertIs(bridge.inspector_source, host)
         self.assertEqual(bridge.selected_node_title, "Inspector Node")
         self.assertEqual(bridge.selected_node_subtitle, "Inspector subtitle")
@@ -1135,18 +1137,16 @@ class ShellInspectorBridgeTests(unittest.TestCase):
         self.assertEqual(presenter.calls, [("set_selected_node_property", ("message", "updated"))])
         self.assertEqual(host.calls, [])
 
-    def test_bridge_wraps_shell_window_and_routes_through_host_inspector_presenter_when_present(self) -> None:
+    def test_bridge_requires_explicit_inspector_source_and_does_not_discover_host_presenter(self) -> None:
         host = _ShellInspectorHostStub()
         presenter = _ShellInspectorHostStub()
         presenter.selected_node_title = "Presenter Node"
         host.shell_inspector_presenter = presenter
 
-        bridge = ShellInspectorBridge(shell_window=host)
+        with self.assertRaisesRegex(TypeError, "explicit inspector source contract"):
+            ShellInspectorBridge(shell_window=host)
 
-        self.assertIsNot(bridge.inspector_source, presenter)
-        self.assertEqual(bridge.selected_node_title, presenter.selected_node_title)
-        bridge.set_selected_node_property("message", "host update")
-        self.assertEqual(presenter.calls, [("set_selected_node_property", ("message", "host update"))])
+        self.assertEqual(presenter.calls, [])
         self.assertEqual(host.calls, [])
 
     def test_bridge_re_emits_shell_state_signals(self) -> None:
@@ -1190,6 +1190,8 @@ class GraphCanvasBridgeTests(unittest.TestCase):
             host,
             shell_window=host,
             canvas_source=host,
+            graphics_source=host,
+            execution_source=host,
             scene_bridge=scene,
             view_bridge=view,
         )
@@ -1222,8 +1224,10 @@ class GraphCanvasBridgeTests(unittest.TestCase):
         )
 
         self.assertIs(bridge.parent(), host)
-        self.assertIs(bridge.shell_window, host)
+        self.assertIsNone(bridge.shell_window)
         self.assertIs(bridge.canvas_source, host)
+        self.assertIs(bridge.graphics_source, host)
+        self.assertIs(bridge.execution_source, host)
         self.assertIs(bridge.scene_bridge, scene)
         self.assertIs(bridge.view_bridge, view)
         self.assertTrue(bridge.graphics_minimap_expanded)
@@ -1268,7 +1272,7 @@ class GraphCanvasBridgeTests(unittest.TestCase):
             },
         )
 
-    def test_graphics_state_bridge_and_legacy_bridge_fall_back_to_shell_tooltip_policy_when_canvas_source_omits_it(
+    def test_graphics_state_bridge_and_legacy_bridge_use_explicit_graphics_source_for_tooltip_policy(
         self,
     ) -> None:
         host = _GraphCanvasShellHostStub()
@@ -1280,6 +1284,8 @@ class GraphCanvasBridgeTests(unittest.TestCase):
             host,
             shell_window=host,
             canvas_source=canvas_source,
+            graphics_source=host,
+            execution_source=host,
             scene_bridge=scene,
             view_bridge=view,
         )
@@ -1341,7 +1347,10 @@ class GraphCanvasBridgeTests(unittest.TestCase):
 
         bridge = GraphCanvasStateBridge(shell_window=host)
 
-        self.assertIs(bridge.canvas_source, host)
+        self.assertIsNone(bridge.shell_window)
+        self.assertIsNone(bridge.canvas_source)
+        self.assertIsNone(bridge.graphics_source)
+        self.assertIsNone(bridge.execution_source)
         self.assertTrue(bridge.graphics_show_grid)
         self.assertEqual(bridge.graphics_grid_style, "lines")
         self.assertEqual(bridge.graphics_performance_mode, "full_fidelity")
@@ -1367,6 +1376,8 @@ class GraphCanvasBridgeTests(unittest.TestCase):
             host,
             shell_window=host,
             canvas_source=host,
+            graphics_source=host,
+            execution_source=host,
             scene_bridge=scene,
             view_bridge=_GraphCanvasViewBridgeStub(),
         )
@@ -1405,6 +1416,8 @@ class GraphCanvasBridgeTests(unittest.TestCase):
             host,
             shell_window=host,
             canvas_source=host,
+            graphics_source=host,
+            execution_source=host,
             scene_bridge=scene,
             view_bridge=_GraphCanvasViewBridgeStub(),
         )
@@ -1455,6 +1468,8 @@ class GraphCanvasBridgeTests(unittest.TestCase):
             host,
             shell_window=host,
             canvas_source=host,
+            graphics_source=host,
+            execution_source=host,
             scene_bridge=scene,
             view_bridge=_GraphCanvasViewBridgeStub(),
         )
@@ -1501,7 +1516,7 @@ class GraphCanvasBridgeTests(unittest.TestCase):
         )
 
         self.assertIs(bridge.parent(), host)
-        self.assertIs(bridge.shell_window, host)
+        self.assertIsNone(bridge.shell_window)
         self.assertIs(bridge.canvas_source, presenter)
         self.assertIs(bridge.host_source, host_source)
         self.assertIs(bridge.scene_bridge, scene)
@@ -1666,17 +1681,12 @@ class GraphCanvasBridgeTests(unittest.TestCase):
 
         bridge = GraphCanvasCommandBridge(shell_window=host)
 
-        self.assertIs(bridge.canvas_source, host)
-        self.assertIs(bridge.host_source, host)
+        self.assertIsNone(bridge.shell_window)
+        self.assertIsNone(bridge.canvas_source)
+        self.assertIsNone(bridge.host_source)
         bridge.set_graphics_minimap_expanded(False)
-        self.assertTrue(bridge.request_open_subnode_scope("subnode-1"))
-        self.assertEqual(
-            host.calls,
-            [
-                ("set_graphics_minimap_expanded", (False,)),
-                ("request_open_subnode_scope", ("subnode-1",)),
-            ],
-        )
+        self.assertFalse(bridge.request_open_subnode_scope("subnode-1"))
+        self.assertEqual(host.calls, [])
         self.assertEqual(presenter.calls, [])
 
     def test_graphics_bridge_uses_explicit_shell_host_and_forwards_canvas_calls(self) -> None:
@@ -1689,6 +1699,8 @@ class GraphCanvasBridgeTests(unittest.TestCase):
             parent,
             shell_window=host,
             canvas_source=host,
+            graphics_source=host,
+            execution_source=host,
             scene_bridge=scene,
             view_bridge=view,
         )
@@ -1847,6 +1859,8 @@ class GraphCanvasBridgeTests(unittest.TestCase):
             state_bridge=GraphCanvasStateBridge(
                 shell_window=host,
                 canvas_source=presenter,
+                graphics_source=presenter,
+                execution_source=host,
                 scene_bridge=scene,
                 view_bridge=view,
             ),
@@ -2097,14 +2111,16 @@ class MainWindowGraphCanvasBridgeTests(SharedMainWindowShellTestBase):
 
         self.assertIsInstance(graph_canvas_state_bridge, GraphCanvasStateBridge)
         self.assertIs(graph_canvas_state_bridge.parent(), self.window)
-        self.assertIs(graph_canvas_state_bridge.shell_window, self.window)
+        self.assertIsNone(graph_canvas_state_bridge.shell_window)
         self.assertIs(graph_canvas_state_bridge.canvas_source, self.window.graph_canvas_presenter)
+        self.assertIs(graph_canvas_state_bridge.graphics_source, self.window.shell_workspace_presenter)
+        self.assertIs(graph_canvas_state_bridge.execution_source, self.window)
         self.assertIs(graph_canvas_state_bridge.scene_bridge, self.window.scene)
         self.assertIs(graph_canvas_state_bridge.view_bridge, self.window.view)
 
         self.assertIsInstance(graph_canvas_command_bridge, GraphCanvasCommandBridge)
         self.assertIs(graph_canvas_command_bridge.parent(), self.window)
-        self.assertIs(graph_canvas_command_bridge.shell_window, self.window)
+        self.assertIsNone(graph_canvas_command_bridge.shell_window)
         self.assertIs(graph_canvas_command_bridge.canvas_source, self.window.graph_canvas_presenter)
         self.assertIs(graph_canvas_command_bridge.host_source, self.window.graph_canvas_host_presenter)
         self.assertIs(graph_canvas_command_bridge.scene_bridge, self.window.scene)
@@ -2406,7 +2422,7 @@ class ShellWorkspaceBridgeTests(unittest.TestCase):
         self.assertEqual(presenter_host.run_controller.calls, [("run_workflow", ())])
         self.assertEqual(host.calls, [])
 
-    def test_bridge_wraps_shell_window_and_routes_through_host_workspace_presenter_when_present(self) -> None:
+    def test_bridge_requires_explicit_workspace_source_and_does_not_discover_host_presenter(self) -> None:
         host = _ShellWorkspaceHostStub()
         presenter_host = _ShellWorkspacePresenterHostStub(
             active_workspace_id="ws-1",
@@ -2420,20 +2436,15 @@ class ShellWorkspaceBridgeTests(unittest.TestCase):
         console_bridge = _ConsoleBridgeStub()
         scene_bridge = _ScopeSceneBridgeStub()
 
-        bridge = ShellWorkspaceBridge(
-            shell_window=host,
-            scene_bridge=scene_bridge,
-            console_bridge=console_bridge,
-            workspace_tabs_bridge=tabs_bridge,
-        )
+        with self.assertRaisesRegex(TypeError, "explicit workspace source contract"):
+            ShellWorkspaceBridge(
+                shell_window=host,
+                scene_bridge=scene_bridge,
+                console_bridge=console_bridge,
+                workspace_tabs_bridge=tabs_bridge,
+            )
 
-        self.assertIsNot(bridge.workspace_source, presenter)
-        self.assertEqual(bridge.project_display_name, presenter.project_display_name)
-        self.assertTrue(bridge.active_workspace_can_run)
-        self.assertFalse(bridge.active_workspace_can_pause)
-        self.assertFalse(bridge.active_workspace_can_stop)
-        bridge.request_run_workflow()
-        self.assertEqual(presenter_host.run_controller.calls, [("run_workflow", ())])
+        self.assertEqual(presenter_host.run_controller.calls, [])
         self.assertEqual(host.calls, [])
 
     def test_bridge_re_emits_workspace_and_console_signals(self) -> None:

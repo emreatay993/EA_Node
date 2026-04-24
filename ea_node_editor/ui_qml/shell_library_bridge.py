@@ -1,11 +1,8 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, Protocol
+from typing import Any, Protocol
 
 from PyQt6.QtCore import QObject, pyqtProperty, pyqtSignal, pyqtSlot
-
-if TYPE_CHECKING:
-    from ea_node_editor.ui.shell.window import ShellWindow
 
 
 class _SignalLike(Protocol):
@@ -80,32 +77,14 @@ class _ShellLibrarySource(Protocol):
     def request_connection_quick_insert_choose(self, index: int) -> bool: ...
 
 
-class _ShellWindowLibrarySourceAdapter:
-    def __init__(self, shell_window: "ShellWindow") -> None:
-        self._shell_window = shell_window
-
-    @property
-    def _source(self) -> object:
-        presenter = getattr(self._shell_window, "shell_library_presenter", None)
-        return presenter if presenter is not None else self._shell_window
-
-    def __getattr__(self, name: str) -> Any:
-        return getattr(self._source, name)
-
-
 def _copy_list(value: object) -> list[Any]:
     return list(value) if isinstance(value, list) else []
 
 
-def _resolve_library_source(
-    shell_window: "ShellWindow | None",
-    library_source: _ShellLibrarySource | None,
-) -> _ShellLibrarySource:
-    if library_source is not None:
-        return library_source
-    if shell_window is None:
-        raise TypeError("ShellLibraryBridge requires a shell window or explicit library source contract.")
-    return _ShellWindowLibrarySourceAdapter(shell_window)
+def _require_library_source(library_source: _ShellLibrarySource | None) -> _ShellLibrarySource:
+    if library_source is None:
+        raise TypeError("ShellLibraryBridge requires an explicit library source contract.")
+    return library_source
 
 
 class ShellLibraryBridge(QObject):
@@ -119,12 +98,12 @@ class ShellLibraryBridge(QObject):
         self,
         parent: QObject | None = None,
         *,
-        shell_window: "ShellWindow | None" = None,
+        shell_window: object | None = None,
         library_source: _ShellLibrarySource | None = None,
     ) -> None:
         super().__init__(parent)
-        self._shell_window = shell_window
-        self._library_source = _resolve_library_source(shell_window, library_source)
+        _ = shell_window
+        self._library_source = _require_library_source(library_source)
 
         self._library_source.node_library_changed.connect(self.node_library_changed.emit)
         self._library_source.library_pane_reset_requested.connect(self.library_pane_reset_requested.emit)
@@ -133,8 +112,8 @@ class ShellLibraryBridge(QObject):
         self._library_source.graph_hint_changed.connect(self.graph_hint_changed.emit)
 
     @property
-    def shell_window(self) -> "ShellWindow | None":
-        return self._shell_window
+    def shell_window(self) -> None:
+        return None
 
     @property
     def library_source(self) -> _ShellLibrarySource:

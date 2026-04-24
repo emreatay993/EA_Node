@@ -5,7 +5,6 @@ from typing import TYPE_CHECKING, Any, Protocol
 from PyQt6.QtCore import QObject, pyqtProperty, pyqtSignal, pyqtSlot
 
 if TYPE_CHECKING:
-    from ea_node_editor.ui.shell.window import ShellWindow
     from ea_node_editor.ui_qml.graph_scene_bridge import GraphSceneBridge
 
 
@@ -49,32 +48,14 @@ class _ShellInspectorSource(Protocol):
     def request_remove_selected_port(self, key: str) -> bool: ...
 
 
-class _ShellWindowInspectorSourceAdapter:
-    def __init__(self, shell_window: "ShellWindow") -> None:
-        self._shell_window = shell_window
-
-    @property
-    def _source(self) -> object:
-        presenter = getattr(self._shell_window, "shell_inspector_presenter", None)
-        return presenter if presenter is not None else self._shell_window
-
-    def __getattr__(self, name: str) -> Any:
-        return getattr(self._source, name)
-
-
 def _copy_list(value: object) -> list[Any]:
     return list(value) if isinstance(value, list) else []
 
 
-def _resolve_inspector_source(
-    shell_window: "ShellWindow | None",
-    inspector_source: _ShellInspectorSource | None,
-) -> _ShellInspectorSource:
-    if inspector_source is not None:
-        return inspector_source
-    if shell_window is None:
-        raise TypeError("ShellInspectorBridge requires a shell window or explicit inspector source contract.")
-    return _ShellWindowInspectorSourceAdapter(shell_window)
+def _require_inspector_source(inspector_source: _ShellInspectorSource | None) -> _ShellInspectorSource:
+    if inspector_source is None:
+        raise TypeError("ShellInspectorBridge requires an explicit inspector source contract.")
+    return inspector_source
 
 
 class ShellInspectorBridge(QObject):
@@ -86,14 +67,14 @@ class ShellInspectorBridge(QObject):
         self,
         parent: QObject | None = None,
         *,
-        shell_window: "ShellWindow | None" = None,
+        shell_window: object | None = None,
         inspector_source: _ShellInspectorSource | None = None,
         scene_bridge: "GraphSceneBridge | None" = None,
     ) -> None:
         super().__init__(parent)
-        self._shell_window = shell_window
+        _ = shell_window
         self._scene_bridge = scene_bridge
-        self._inspector_source = _resolve_inspector_source(shell_window, inspector_source)
+        self._inspector_source = _require_inspector_source(inspector_source)
         self._inspector_source_has_state_signal = False
 
         self._inspector_source.selected_node_changed.connect(self._on_selected_node_changed)
@@ -117,8 +98,8 @@ class ShellInspectorBridge(QObject):
             self.inspector_state_changed.emit()
 
     @property
-    def shell_window(self) -> "ShellWindow | None":
-        return self._shell_window
+    def shell_window(self) -> None:
+        return None
 
     @property
     def inspector_source(self) -> _ShellInspectorSource:

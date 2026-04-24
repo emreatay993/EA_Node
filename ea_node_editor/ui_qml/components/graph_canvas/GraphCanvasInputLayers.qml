@@ -11,7 +11,12 @@ Item {
     property var viewCommandBridge: null
     property real boxZoomDragThreshold: 4
     property real boxZoomPaddingPx: 24
-    readonly property var themePalette: themeBridge.palette
+    readonly property var shellContextRef: typeof shellContext !== "undefined" ? shellContext : null
+    readonly property var themeBridgeRef: root.shellContextRef ? root.shellContextRef.themeBridge : null
+    readonly property var contentFullscreenBridgeRef: root.shellContextRef ? root.shellContextRef.contentFullscreenBridge : null
+    readonly property var shellLibraryBridgeRef: root.shellContextRef ? root.shellContextRef.shellLibraryBridge : null
+    readonly property var viewerSessionBridgeRef: root.shellContextRef ? root.shellContextRef.viewerSessionBridge : null
+    readonly property var themePalette: root.themeBridgeRef ? root.themeBridgeRef.palette : ({})
 
     function _hidePortFilterBridge() {
         if (root.canvasItem && root.canvasItem.sceneBridge && root.canvasItem.sceneBridge.set_hide_locked_ports)
@@ -50,17 +55,15 @@ Item {
     }
 
     function _contentFullscreenBridge() {
-        if (typeof contentFullscreenBridge !== "undefined" && contentFullscreenBridge)
-            return contentFullscreenBridge;
-        return null;
+        return root.contentFullscreenBridgeRef;
     }
 
     function _showContentFullscreenHint(message) {
         var normalized = String(message || "Select one media or viewer node for fullscreen.").trim();
         if (!normalized.length)
             normalized = "Select one media or viewer node for fullscreen.";
-        if (typeof shellLibraryBridge !== "undefined" && shellLibraryBridge && shellLibraryBridge.show_graph_hint) {
-            shellLibraryBridge.show_graph_hint(normalized, 2400);
+        if (root.shellLibraryBridgeRef && root.shellLibraryBridgeRef.show_graph_hint) {
+            root.shellLibraryBridgeRef.show_graph_hint(normalized, 2400);
             return true;
         }
         return false;
@@ -254,8 +257,8 @@ Item {
             if (!root.canvasItem)
                 return;
             root.canvasItem.forceActiveFocus();
-            if (typeof viewerSessionBridge !== "undefined" && viewerSessionBridge && viewerSessionBridge.clear_viewer_focus)
-                viewerSessionBridge.clear_viewer_focus();
+            if (root.viewerSessionBridgeRef && root.viewerSessionBridgeRef.clear_viewer_focus)
+                root.viewerSessionBridgeRef.clear_viewer_focus();
             if (
                 (mouse.button === Qt.LeftButton || mouse.button === Qt.RightButton)
                 && root._closeCommentPeekIfActive()

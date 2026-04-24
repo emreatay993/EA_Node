@@ -10,7 +10,6 @@ from ea_node_editor.app_preferences import (
 from ea_node_editor.settings import DEFAULT_GRAPH_LABEL_PIXEL_SIZE, DEFAULT_GRAPHICS_SETTINGS
 
 if TYPE_CHECKING:
-    from ea_node_editor.ui.shell.window import ShellWindow
     from ea_node_editor.ui_qml.graph_scene_bridge import GraphSceneBridge
     from ea_node_editor.ui_qml.viewport_bridge import ViewportBridge
 
@@ -39,6 +38,19 @@ class _GraphCanvasStateSource(Protocol):
     graphics_expand_collision_avoidance: dict[str, Any]
     snap_to_grid_enabled: bool
     snap_grid_size: float
+
+
+class _GraphCanvasGraphicsSource(Protocol):
+    graphics_show_tooltips: bool
+    graphics_expand_collision_avoidance: dict[str, Any]
+    graphics_graph_node_icon_pixel_size_override: int | None
+    graphics_node_title_icon_pixel_size: int
+
+
+class _GraphCanvasExecutionSource(Protocol):
+    run_failure_changed: _SignalLike
+    node_execution_state_changed: _SignalLike
+    run_state: object
 
 
 class _GraphCanvasSceneStateSource(Protocol):
@@ -77,6 +89,13 @@ def _source_attr(source: object | None, name: str, default: Any) -> Any:
     return getattr(source, name, default)
 
 
+def _source_attr_chain(name: str, default: Any, *sources: object | None) -> Any:
+    for source in sources:
+        if source is not None and hasattr(source, name):
+            return getattr(source, name)
+    return default
+
+
 def _invoke_bool(source: object | None, name: str, *args) -> bool:
     callback = getattr(source, name, None) if source is not None else None
     if not callable(callback):
@@ -95,17 +114,6 @@ def _connect_signal(source: object | None, name: str, slot) -> None:  # noqa: AN
     signal = getattr(source, name, None) if source is not None else None
     if signal is not None and hasattr(signal, "connect"):
         signal.connect(slot)
-
-
-def _resolve_canvas_source(
-    shell_window: "ShellWindow | None",
-    canvas_source: _GraphCanvasStateSource | None,
-) -> _GraphCanvasStateSource | None:
-    if canvas_source is not None:
-        return canvas_source
-    if shell_window is None:
-        return None
-    return cast(_GraphCanvasStateSource, shell_window)
 
 
 def _resolve_scene_state_source(scene_bridge: object | None) -> _GraphCanvasSceneStateSource | None:
@@ -140,16 +148,20 @@ class GraphCanvasStateBridge(QObject):
         self,
         parent: QObject | None = None,
         *,
-        shell_window: "ShellWindow | None" = None,
+        shell_window: object | None = None,
         canvas_source: _GraphCanvasStateSource | None = None,
+        graphics_source: _GraphCanvasGraphicsSource | None = None,
+        execution_source: _GraphCanvasExecutionSource | None = None,
         scene_bridge: "GraphSceneBridge | None" = None,
         view_bridge: "ViewportBridge | None" = None,
     ) -> None:
         super().__init__(parent)
-        self._shell_window = shell_window
+        _ = shell_window
         self._scene_bridge = scene_bridge
         self._view_bridge = view_bridge
-        self._canvas_source = _resolve_canvas_source(shell_window, canvas_source)
+        self._canvas_source = canvas_source
+        self._graphics_source = graphics_source
+        self._execution_source = execution_source
         self._scene_state_source = _resolve_scene_state_source(scene_bridge)
         self._scene_policy_source = _resolve_scene_policy_source(scene_bridge)
 
@@ -164,17 +176,25 @@ class GraphCanvasStateBridge(QObject):
         _connect_signal(self._scene_state_source, "selection_changed", self.scene_selection_changed.emit)
         _connect_signal(self._scene_state_source, "workspace_changed", self.failure_highlight_changed.emit)
         _connect_signal(self._scene_state_source, "workspace_changed", self.node_execution_state_changed.emit)
-        _connect_signal(shell_window, "run_failure_changed", self.failure_highlight_changed.emit)
-        _connect_signal(shell_window, "node_execution_state_changed", self.node_execution_state_changed.emit)
+        _connect_signal(execution_source, "run_failure_changed", self.failure_highlight_changed.emit)
+        _connect_signal(execution_source, "node_execution_state_changed", self.node_execution_state_changed.emit)
         _connect_signal(view_bridge, "view_state_changed", self.view_state_changed.emit)
 
     @property
-    def shell_window(self) -> "ShellWindow | None":
-        return self._shell_window
+    def shell_window(self) -> None:
+        return None
+
+    @property
+    def execution_source(self) -> _GraphCanvasExecutionSource | None:
+        return self._execution_source
 
     @property
     def canvas_source(self) -> _GraphCanvasStateSource | None:
         return self._canvas_source
+
+    @property
+    def graphics_source(self) -> _GraphCanvasGraphicsSource | None:
+        return self._graphics_source
 
     @property
     def scene_bridge(self) -> "GraphSceneBridge | None":
@@ -224,19 +244,21 @@ class GraphCanvasStateBridge(QObject):
 
     @pyqtProperty("QVariant", notify=graphics_preferences_changed)
     def graphics_graph_node_icon_pixel_size_override(self) -> int | None:
-        value = _source_attr(
-            self._canvas_source,
+        value = _source_attr_chain(
             "graphics_graph_node_icon_pixel_size_override",
-            _source_attr(self._shell_window, "graphics_graph_node_icon_pixel_size_override", None),
+            None,
+            self._canvas_source,
+            self._graphics_source,
         )
         return normalize_graph_node_icon_pixel_size_override(value)
 
     @pyqtProperty(int, notify=graphics_preferences_changed)
     def graphics_node_title_icon_pixel_size(self) -> int:
-        value = _source_attr(
-            self._canvas_source,
+        value = _source_attr_chain(
             "graphics_node_title_icon_pixel_size",
-            _source_attr(self._shell_window, "graphics_node_title_icon_pixel_size", None),
+            None,
+            self._canvas_source,
+            self._graphics_source,
         )
         return effective_graph_node_icon_pixel_size(
             self.graphics_graph_label_pixel_size,
@@ -254,10 +276,11 @@ class GraphCanvasStateBridge(QObject):
     @pyqtProperty(bool, notify=graphics_preferences_changed)
     def graphics_show_tooltips(self) -> bool:
         return bool(
-            _source_attr(
-                self._canvas_source,
+            _source_attr_chain(
                 "graphics_show_tooltips",
-                _source_attr(self._shell_window, "graphics_show_tooltips", True),
+                True,
+                self._canvas_source,
+                self._graphics_source,
             )
         )
 
@@ -304,9 +327,12 @@ class GraphCanvasStateBridge(QObject):
     @pyqtProperty("QVariantMap", notify=graphics_preferences_changed)
     def graphics_expand_collision_avoidance(self) -> dict[str, Any]:
         default = DEFAULT_GRAPHICS_SETTINGS["interaction"]["expand_collision_avoidance"]
-        value = _source_attr(self._canvas_source, "graphics_expand_collision_avoidance", None)
-        if value is None:
-            value = _source_attr(self._shell_window, "graphics_expand_collision_avoidance", default)
+        value = _source_attr_chain(
+            "graphics_expand_collision_avoidance",
+            default,
+            self._canvas_source,
+            self._graphics_source,
+        )
         return _copy_dict(value)
 
     @pyqtProperty(bool, notify=snap_to_grid_changed)
@@ -420,36 +446,35 @@ class GraphCanvasStateBridge(QObject):
 
     @pyqtProperty("QVariantMap", notify=failure_highlight_changed)
     def failed_node_lookup(self) -> dict[str, bool]:
-        shell_window = self._shell_window
-        if shell_window is None:
+        execution_source = self._execution_source
+        if execution_source is None:
             return {}
-        run_state = getattr(shell_window, "run_state", None)
-        workspace_manager = getattr(shell_window, "workspace_manager", None)
-        if run_state is None or workspace_manager is None:
+        run_state = getattr(execution_source, "run_state", None)
+        if run_state is None:
             return {}
         failed_node_id = str(getattr(run_state, "failed_node_id", "") or "").strip()
         failed_workspace_id = str(getattr(run_state, "failed_workspace_id", "") or "").strip()
-        active_workspace_id = str(workspace_manager.active_workspace_id() or "").strip()
+        active_workspace_id = self._active_workspace_id()
         if not failed_node_id or failed_workspace_id != active_workspace_id:
             return {}
         return {failed_node_id: True}
 
     @pyqtProperty(int, notify=failure_highlight_changed)
     def failed_node_revision(self) -> int:
-        shell_window = self._shell_window
-        if shell_window is None:
+        execution_source = self._execution_source
+        if execution_source is None:
             return 0
-        run_state = getattr(shell_window, "run_state", None)
+        run_state = getattr(execution_source, "run_state", None)
         if run_state is None:
             return 0
         return int(getattr(run_state, "failure_focus_revision", 0))
 
     @pyqtProperty(str, notify=failure_highlight_changed)
     def failed_node_title(self) -> str:
-        shell_window = self._shell_window
-        if shell_window is None:
+        execution_source = self._execution_source
+        if execution_source is None:
             return ""
-        run_state = getattr(shell_window, "run_state", None)
+        run_state = getattr(execution_source, "run_state", None)
         if run_state is None:
             return ""
         return str(getattr(run_state, "failed_node_title", "") or "")
@@ -458,19 +483,13 @@ class GraphCanvasStateBridge(QObject):
         workspace_id = str(_source_attr(self._scene_state_source, "workspace_id", "") or "").strip()
         if workspace_id:
             return workspace_id
-        shell_window = self._shell_window
-        if shell_window is None:
-            return ""
-        workspace_manager = getattr(shell_window, "workspace_manager", None)
-        if workspace_manager is None:
-            return ""
-        return str(workspace_manager.active_workspace_id() or "").strip()
+        return ""
 
     def _run_state_lookup(self, workspace_attribute_name: str, ids_attribute_name: str) -> dict[str, bool]:
-        shell_window = self._shell_window
-        if shell_window is None:
+        execution_source = self._execution_source
+        if execution_source is None:
             return {}
-        run_state = getattr(shell_window, "run_state", None)
+        run_state = getattr(execution_source, "run_state", None)
         if run_state is None:
             return {}
         active_workspace_id = self._active_workspace_id()
@@ -491,10 +510,10 @@ class GraphCanvasStateBridge(QObject):
         return self._run_state_lookup("node_execution_workspace_id", attribute_name)
 
     def _node_execution_timing_lookup(self, attribute_name: str) -> dict[str, Any]:
-        shell_window = self._shell_window
-        if shell_window is None:
+        execution_source = self._execution_source
+        if execution_source is None:
             return {}
-        run_state = getattr(shell_window, "run_state", None)
+        run_state = getattr(execution_source, "run_state", None)
         if run_state is None:
             return {}
         active_workspace_id = self._active_workspace_id()
@@ -504,10 +523,10 @@ class GraphCanvasStateBridge(QObject):
         return _copy_dict(getattr(run_state, attribute_name, {}))
 
     def _active_workspace_lookup(self, attribute_name: str) -> dict[str, Any]:
-        shell_window = self._shell_window
-        if shell_window is None:
+        execution_source = self._execution_source
+        if execution_source is None:
             return {}
-        run_state = getattr(shell_window, "run_state", None)
+        run_state = getattr(execution_source, "run_state", None)
         if run_state is None:
             return {}
         active_workspace_id = self._active_workspace_id()
@@ -543,10 +562,10 @@ class GraphCanvasStateBridge(QObject):
 
     @pyqtProperty(int, notify=node_execution_state_changed)
     def node_execution_revision(self) -> int:
-        shell_window = self._shell_window
-        if shell_window is None:
+        execution_source = self._execution_source
+        if execution_source is None:
             return 0
-        run_state = getattr(shell_window, "run_state", None)
+        run_state = getattr(execution_source, "run_state", None)
         if run_state is None:
             return 0
         return int(getattr(run_state, "node_execution_revision", 0))

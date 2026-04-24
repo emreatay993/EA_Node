@@ -27,6 +27,13 @@ class ShellContextBridges:
 def create_shell_context_bridges(
     host: "ShellWindow",
     *,
+    library_source: object,
+    workspace_source: object,
+    inspector_source: object,
+    canvas_source: object,
+    canvas_graphics_source: object,
+    canvas_execution_source: object,
+    canvas_host_source: object,
     scene: object | None = None,
     view: object | None = None,
     console_panel: object | None = None,
@@ -38,24 +45,28 @@ def create_shell_context_bridges(
     resolved_workspace_tabs = host.workspace_tabs if workspace_tabs is None else workspace_tabs
     graph_canvas_state_bridge = GraphCanvasStateBridge(
         host,
-        shell_window=host,
+        canvas_source=canvas_source,
+        graphics_source=canvas_graphics_source,
+        execution_source=canvas_execution_source,
         scene_bridge=resolved_scene,
         view_bridge=resolved_view,
     )
     graph_canvas_command_bridge = GraphCanvasCommandBridge(
         host,
-        shell_window=host,
+        canvas_source=canvas_source,
+        host_source=canvas_host_source,
         scene_bridge=resolved_scene,
         view_bridge=resolved_view,
     )
     return ShellContextBridges(
         shell_library_bridge=ShellLibraryBridge(
             host,
-            shell_window=host,
+            library_source=library_source,
         ),
         shell_workspace_bridge=ShellWorkspaceBridge(
             host,
             shell_window=host,
+            workspace_source=workspace_source,
             scene_bridge=resolved_scene,
             view_bridge=resolved_view,
             console_bridge=resolved_console_panel,
@@ -63,7 +74,7 @@ def create_shell_context_bridges(
         ),
         shell_inspector_bridge=ShellInspectorBridge(
             host,
-            shell_window=host,
+            inspector_source=inspector_source,
             scene_bridge=resolved_scene,
         ),
         graph_canvas_state_bridge=graph_canvas_state_bridge,
