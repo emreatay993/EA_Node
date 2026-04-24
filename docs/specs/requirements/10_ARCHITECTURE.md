@@ -16,7 +16,7 @@
   - `update_notification_counters(warnings, errors)`
 - `REQ-ARCH-006`: `WorkspaceManager` shall be the public authority for create/rename/duplicate/close/switch workspace and create/switch view APIs.
 - `REQ-ARCH-007`: Node SDK shall define typed node specs (`NodeTypeSpec`, `PortSpec`, `PropertySpec`) and executable plugin contract.
-- `REQ-ARCH-008`: Persistence shall expose load/save/migrate API for `.sfe` files, with split internals for project codec, migration/normalization, and session/autosave storage services.
+- `REQ-ARCH-008`: Persistence shall expose load/save/current-schema-normalization APIs for `.sfe` files, with split internals for project codec, schema validation, normalization, and session/autosave storage services.
 - `REQ-ARCH-009`: `ShellWindow` shall expose orchestration UI APIs `show_workflow_settings_dialog()` and `set_script_editor_panel_visible()`.
 - `REQ-ARCH-012`: app-wide graphics preferences shall be exposed through a dedicated preferences controller/store and consumed by both QWidget and QML shell surfaces without breaking existing shell/graph canvas integration contracts.
 - `REQ-ARCH-013`: graph node/edge theming shall use a dedicated graph-theme pipeline (`ea_node_editor/ui/graph_theme/*` + `graphThemeBridge`) that remains separate from shell/canvas chrome theming in `ea_node_editor/ui/theme/*` + `ThemeBridge`.

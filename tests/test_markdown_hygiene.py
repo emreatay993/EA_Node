@@ -171,6 +171,29 @@ class MarkdownHygieneTests(unittest.TestCase):
         self.assertEqual([], self.checker.audit_markdown_file(spec_index_path, REPO_ROOT))
         self.assertEqual([], self.checker.audit_markdown_file(matrix_path, REPO_ROOT))
 
+    def test_readme_and_spec_index_link_corex_no_legacy_architecture_cleanup_matrix(self) -> None:
+        readme_path = REPO_ROOT / "README.md"
+        readme_text = readme_path.read_text(encoding="utf-8-sig")
+        spec_index_path = REPO_ROOT / "docs" / "specs" / "INDEX.md"
+        spec_index_text = spec_index_path.read_text(encoding="utf-8-sig")
+        matrix_path = (
+            REPO_ROOT / "docs" / "specs" / "perf" / "COREX_NO_LEGACY_ARCHITECTURE_CLEANUP_QA_MATRIX.md"
+        )
+        matrix_text = matrix_path.read_text(encoding="utf-8-sig")
+
+        self.assertIn(
+            "[COREX No-Legacy Architecture Cleanup QA Matrix](docs/specs/perf/COREX_NO_LEGACY_ARCHITECTURE_CLEANUP_QA_MATRIX.md)",
+            readme_text,
+        )
+        self.assertIn(
+            "[COREX_NO_LEGACY_ARCHITECTURE_CLEANUP QA Matrix](perf/COREX_NO_LEGACY_ARCHITECTURE_CLEANUP_QA_MATRIX.md)",
+            spec_index_text,
+        )
+        self.assertTrue(matrix_text.startswith("# COREX No-Legacy Architecture Cleanup QA Matrix"))
+        self.assertEqual([], self.checker.audit_markdown_file(readme_path, REPO_ROOT))
+        self.assertEqual([], self.checker.audit_markdown_file(spec_index_path, REPO_ROOT))
+        self.assertEqual([], self.checker.audit_markdown_file(matrix_path, REPO_ROOT))
+
     def test_architecture_registers_plan_template_and_overlay(self) -> None:
         architecture_text = (REPO_ROOT / "ARCHITECTURE.md").read_text(encoding="utf-8-sig")
 

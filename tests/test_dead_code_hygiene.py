@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import ast
+import importlib.util
 import re
 import unittest
 from pathlib import Path
@@ -81,7 +82,7 @@ def _js_function_names(relative_path: str) -> set[str]:
 
 
 class DeadCodeHygienePythonHelperBoundaryTests(unittest.TestCase):
-    def test_corex_no_legacy_guardrail_inventory_is_future_packet_owned(self) -> None:
+    def test_corex_no_legacy_guardrail_inventory_matches_final_baseline(self) -> None:
         inventory = manifest.COREX_NO_LEGACY_GUARDRAIL_INVENTORY
         categories = {surface.category for surface in inventory}
         owners_by_category = {surface.category: surface.owner_packet for surface in inventory}
@@ -102,6 +103,18 @@ class DeadCodeHygienePythonHelperBoundaryTests(unittest.TestCase):
                 manifest.COREX_NO_LEGACY_GUARDRAIL_ABSENT,
             },
         )
+        for surface in inventory:
+            with self.subTest(category=surface.category):
+                path = _REPO_ROOT / surface.path
+                if surface.expectation == manifest.COREX_NO_LEGACY_GUARDRAIL_ABSENT and not path.exists():
+                    continue
+                self.assertTrue(path.exists(), msg=f"Guardrail target missing: {surface.path}")
+                text = path.read_text(encoding="utf-8")
+                for name in surface.names:
+                    if surface.expectation == manifest.COREX_NO_LEGACY_GUARDRAIL_PRESENT:
+                        self.assertIn(name, text)
+                    else:
+                        self.assertNotIn(name, text)
 
     def test_removed_internal_helpers_do_not_reappear(self) -> None:
         expectations = {
@@ -183,6 +196,8 @@ class DeadCodeHygienePythonHelperBoundaryTests(unittest.TestCase):
             with self.subTest(path=relative_path):
                 self.assertFalse((_REPO_ROOT / relative_path).exists())
 
+        self.assertIsNone(importlib.util.find_spec("ea_node_editor.telemetry.performance_harness"))
+
         shell_launcher = (_REPO_ROOT / "scripts" / "run.sh").read_text(encoding="utf-8")
         self.assertIn("-m ea_node_editor.bootstrap", shell_launcher)
         self.assertNotIn("main.py", shell_launcher)
@@ -191,6 +206,11 @@ class DeadCodeHygienePythonHelperBoundaryTests(unittest.TestCase):
         spec_text = (_REPO_ROOT / "ea_node_editor.spec").read_text(encoding="utf-8")
         self.assertIn('"ea_node_editor" / "bootstrap.py"', spec_text)
         self.assertNotIn('PROJECT_ROOT / "main.py"', spec_text)
+
+        check_traceability_text = (_REPO_ROOT / "scripts" / "check_traceability.py").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn("ea_node_editor.ui.perf.performance_harness", check_traceability_text)
 
     def test_package_roots_do_not_publish_lazy_getattr_barrels(self) -> None:
         for relative_path in (
@@ -202,6 +222,28 @@ class DeadCodeHygienePythonHelperBoundaryTests(unittest.TestCase):
             with self.subTest(path=relative_path):
                 module_text = (_REPO_ROOT / relative_path).read_text(encoding="utf-8")
                 self.assertNotIn("def __getattr__", module_text)
+
+    def test_plugin_loader_does_not_publish_class_probe_fallbacks(self) -> None:
+        plugin_loader_text = (_REPO_ROOT / "ea_node_editor/nodes/plugin_loader.py").read_text(
+            encoding="utf-8"
+        )
+
+        self.assertNotIn("_legacy_plugin_spec", plugin_loader_text)
+        self.assertNotIn("_register_plugin_classes", plugin_loader_text)
+        self.assertIn("PLUGIN_DESCRIPTORS", plugin_loader_text)
+        self.assertIn("PLUGIN_BACKENDS", plugin_loader_text)
+
+    def test_runtime_worker_requires_snapshot_payloads(self) -> None:
+        runtime_snapshot_text = (
+            _REPO_ROOT / "ea_node_editor/execution/runtime_snapshot.py"
+        ).read_text(encoding="utf-8")
+        worker_runtime_text = (
+            _REPO_ROOT / "ea_node_editor/execution/worker_runtime.py"
+        ).read_text(encoding="utf-8")
+
+        self.assertNotIn("sanitize_execution_trigger", runtime_snapshot_text)
+        self.assertIn('raise ValueError("start_run requires runtime_snapshot.")', worker_runtime_text)
+        self.assertNotIn("project_doc", worker_runtime_text)
 
     def test_qml_startup_side_effects_are_not_hidden_in_presenter_imports(self) -> None:
         presenters_text = (_REPO_ROOT / "ea_node_editor/ui/shell/presenters/__init__.py").read_text(

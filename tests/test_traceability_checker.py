@@ -390,14 +390,14 @@ DPF_OPERATOR_PLUGIN_BACKEND_PUBLIC_DOC_TOKENS: dict[str, tuple[str, ...]] = {
         "DPF operator backend review",
         "DPF operator backend QA matrix",
         "ansys-dpf-core",
-        "read-only missing-plugin placeholders",
+        "locked unavailable-add-on projections",
     ),
     "ARCHITECTURE.md": (
         "## DPF operator backend preparation",
         "`ansys-dpf-core` remains optional",
         "DPF_OPERATOR_PLUGIN_BACKEND_REVIEW_2026-04-12.md",
         "DPF_OPERATOR_PLUGIN_BACKEND_REFACTOR_QA_MATRIX.md",
-        "read-only missing-plugin placeholders",
+        "locked unavailable-add-on projections",
     ),
     "docs/DPF_OPERATOR_PLUGIN_BACKEND_REVIEW_2026-04-12.md": (
         "## Delivered Backend Contract",
@@ -414,17 +414,17 @@ DPF_OPERATOR_PLUGIN_BACKEND_REQUIREMENT_TOKENS: dict[str, dict[str, tuple[str, .
     "docs/specs/requirements/70_INTEGRATIONS.md": {
         "REQ-INT-009": (
             "ansys-dpf-core",
-            "lazily register",
+            "register shipped DPF descriptors",
             "normalize operator metadata",
             "generic DPF runtime adapter",
-            "read-only missing-plugin placeholders",
+            "locked unavailable-add-on surfaces",
             "non-operator `ansys.dpf.core` reflection",
         ),
         "AC-REQ-INT-009-01": (
             "DPF_OPERATOR_PLUGIN_BACKEND_REVIEW_2026-04-12.md",
             "DPF_OPERATOR_PLUGIN_BACKEND_REFACTOR_QA_MATRIX.md",
             "plugin-loader",
-            "missing-plugin placeholder portability",
+            "locked unavailable-add-on projection",
         ),
     },
     "docs/specs/requirements/90_QA_ACCEPTANCE.md": {
@@ -433,7 +433,7 @@ DPF_OPERATOR_PLUGIN_BACKEND_REQUIREMENT_TOKENS: dict[str, dict[str, tuple[str, .
             "optional plugin lifecycle",
             "operator metadata and generated ports",
             "generic operator-backed runtime invocation",
-            "missing-plugin placeholder portability",
+            "unavailable-backend node projection",
         ),
         "REQ-QA-036": (
             "DPF_OPERATOR_PLUGIN_BACKEND_REFACTOR_QA_MATRIX.md",
@@ -603,7 +603,7 @@ ANSYS_DPF_FULL_PLUGIN_ROLLOUT_REQUIREMENT_TOKENS: dict[str, dict[str, tuple[str,
             "version-aware plugin lifecycle",
             "generated operator and helper descriptors",
             "generic object handles",
-            "read-only missing-plugin placeholders",
+            "locked unavailable-add-on surfaces",
             "non-operator `ansys.dpf.core` reflection",
         ),
         "AC-REQ-INT-008-01": (
@@ -615,7 +615,7 @@ ANSYS_DPF_FULL_PLUGIN_ROLLOUT_REQUIREMENT_TOKENS: dict[str, dict[str, tuple[str,
             "ANSYS_DPF_FULL_PLUGIN_ROLLOUT_QA_MATRIX.md",
             "generated operator/helper",
             "helper object-handle portability",
-            "missing-plugin placeholder portability",
+            "locked unavailable-add-on projection",
         ),
     },
     "docs/specs/requirements/90_QA_ACCEPTANCE.md": {
@@ -765,7 +765,7 @@ ADDON_MANAGER_BACKEND_PREPARATION_PUBLIC_DOC_TOKENS: dict[str, tuple[str, ...]] 
     "ARCHITECTURE.md": (
         "## Add-on backend preparation",
         "Variant 4 inspector-style right drawer",
-        "locked Mockup B placeholders",
+        "locked Mockup B surfaces",
         "ADDON_MANAGER_BACKEND_PREPARATION_QA_MATRIX.md",
     ),
 }
@@ -795,13 +795,13 @@ ADDON_MANAGER_BACKEND_PREPARATION_REQUIREMENT_TOKENS: dict[str, dict[str, tuple[
     "docs/specs/requirements/60_PERSISTENCE.md": {
         "REQ-PERSIST-023": (
             "pending-restart intent",
-            "locked placeholders",
+            "locked unavailable-add-on projections",
             "rebind them when the add-on returns",
-            "editable live schema",
+            "projection payloads",
         ),
         "AC-REQ-PERSIST-023-01": (
             "plugin-loader",
-            "schema-migration",
+            "locked projection",
             "ADDON_MANAGER_BACKEND_PREPARATION_QA_MATRIX.md",
         ),
     },
@@ -815,7 +815,7 @@ ADDON_MANAGER_BACKEND_PREPARATION_REQUIREMENT_TOKENS: dict[str, dict[str, tuple[
         "REQ-INT-012": (
             "first repo-local `hot_apply` add-on",
             "`ea_node_editor.addons.ansys_dpf`",
-            "locked placeholders",
+            "locked unavailable-add-on projections",
             "full app restart",
         ),
         "AC-REQ-INT-011-01": (
@@ -840,7 +840,7 @@ ADDON_MANAGER_BACKEND_PREPARATION_REQUIREMENT_TOKENS: dict[str, dict[str, tuple[
             "ADDON_MANAGER_BACKEND_PREPARATION_QA_MATRIX.md",
             "`P01` through `P07`",
             "`P08` traceability, markdown-hygiene, and markdown-link closeout commands",
-            "menu open/toggle/placeholder/DPF flows",
+            "menu open/toggle/projection/DPF flows",
         ),
         "AC-REQ-QA-040-01": (
             ADDON_MANAGER_BACKEND_PREPARATION_P01_COMMAND,
@@ -967,6 +967,100 @@ ADDON_MANAGER_BACKEND_PREPARATION_QA_MATRIX_TOKENS = (
     ADDON_MANAGER_BACKEND_PREPARATION_CLOSEOUT_PYTEST_COMMAND,
     ADDON_MANAGER_BACKEND_PREPARATION_TRACEABILITY_COMMAND,
     ADDON_MANAGER_BACKEND_PREPARATION_MARKDOWN_COMMAND,
+)
+
+COREX_NO_LEGACY_ARCHITECTURE_CLEANUP_QA_MATRIX = (
+    REPO_ROOT / manifest.COREX_NO_LEGACY_ARCHITECTURE_CLEANUP_QA_MATRIX_DOC
+)
+COREX_NO_LEGACY_ARCHITECTURE_CLEANUP_PYTEST_COMMAND = (
+    manifest.COREX_NO_LEGACY_ARCHITECTURE_CLEANUP_PYTEST_COMMAND
+)
+COREX_NO_LEGACY_ARCHITECTURE_CLEANUP_TRACEABILITY_COMMAND = (
+    manifest.COREX_NO_LEGACY_ARCHITECTURE_CLEANUP_TRACEABILITY_COMMAND
+)
+COREX_NO_LEGACY_ARCHITECTURE_CLEANUP_MARKDOWN_COMMAND = (
+    manifest.COREX_NO_LEGACY_ARCHITECTURE_CLEANUP_MARKDOWN_COMMAND
+)
+COREX_NO_LEGACY_ARCHITECTURE_CLEANUP_INDEX_TOKENS = (
+    "COREX_NO_LEGACY_ARCHITECTURE_CLEANUP QA Matrix",
+    "COREX_NO_LEGACY_ARCHITECTURE_CLEANUP_QA_MATRIX.md",
+)
+COREX_NO_LEGACY_ARCHITECTURE_CLEANUP_PUBLIC_DOC_TOKENS: dict[str, tuple[str, ...]] = {
+    "README.md": (
+        "COREX_NO_LEGACY_ARCHITECTURE_CLEANUP_QA_MATRIX.md",
+        "ea_node_editor.bootstrap",
+        "descriptor-first",
+        "locked unavailable-add-on projections",
+        "Constructor probing and class scanning are not part",
+    ),
+    "ARCHITECTURE.md": (
+        "## Current focused contracts",
+        "focused bridges",
+        "current-schema",
+        "descriptor-only",
+        "snapshot-only",
+        "typed transport/session",
+        "ea_node_editor.ui.perf.performance_harness",
+        "COREX_NO_LEGACY_ARCHITECTURE_CLEANUP_QA_MATRIX.md",
+    ),
+}
+COREX_NO_LEGACY_ARCHITECTURE_CLEANUP_REQUIREMENT_TOKENS: dict[str, dict[str, tuple[str, ...]]] = {
+    "docs/specs/requirements/10_ARCHITECTURE.md": {
+        "REQ-ARCH-008": ("current-schema-normalization", "schema validation", "normalization"),
+    },
+    "docs/specs/requirements/40_NODE_SDK.md": {
+        "REQ-NODE-003": ("category_path", "derived display labels", "not a compatibility alias"),
+        "REQ-NODE-007": ("category_path=", "derived display labels", "presentation only"),
+        "AC-REQ-NODE-003-01": ("derived category display", "descendant nodes"),
+    },
+    "docs/specs/requirements/60_PERSISTENCE.md": {
+        "REQ-PERSIST-004": ("current `.sfe` schema", "pre-current documents"),
+        "REQ-PERSIST-005": ("current-schema", "before model construction"),
+        "REQ-PERSIST-023": ("locked unavailable-add-on projections", "projection payloads"),
+        "AC-REQ-PERSIST-023-01": ("current-schema", "unavailable-add-on locked projection"),
+    },
+    "docs/specs/requirements/70_INTEGRATIONS.md": {
+        "REQ-INT-009": ("descriptor/add-on catalog", "locked unavailable-add-on surfaces"),
+        "AC-REQ-INT-009-01": ("locked unavailable-add-on projection",),
+        "REQ-INT-012": ("locked unavailable-add-on projections",),
+    },
+    "docs/specs/requirements/90_QA_ACCEPTANCE.md": {
+        "REQ-QA-042": manifest.QA_ACCEPTANCE_REQUIREMENT_TOKENS["REQ-QA-042"],
+        "AC-REQ-QA-042-01": manifest.QA_ACCEPTANCE_REQUIREMENT_TOKENS["AC-REQ-QA-042-01"],
+    },
+}
+COREX_NO_LEGACY_ARCHITECTURE_CLEANUP_TRACEABILITY_ROW_TOKENS: dict[str, tuple[str, ...]] = {
+    "REQ-QA-042": manifest.TRACEABILITY_ROW_REQUIRED_TOKENS["REQ-QA-042"],
+    "AC-REQ-QA-042-01": manifest.TRACEABILITY_ROW_REQUIRED_TOKENS["AC-REQ-QA-042-01"],
+    "AC-REQ-QA-018-01": ("ea_node_editor.ui.perf.performance_harness",),
+    "REQ-PERF-001": ("ea_node_editor/ui/perf/performance_harness.py",),
+    "REQ-PERF-002": ("ea_node_editor/ui/perf/performance_harness.py",),
+    "REQ-PERF-003": ("ea_node_editor/ui/perf/performance_harness.py",),
+}
+COREX_NO_LEGACY_ARCHITECTURE_CLEANUP_QA_MATRIX_TOKENS = (
+    "COREX No-Legacy Architecture Cleanup QA Matrix",
+    "## Locked Scope",
+    "## Packet Outcomes",
+    "## Retained Automated Verification",
+    "## Final Closeout Commands",
+    "## 2026-04-24 Execution Results",
+    "## Manual Smoke Guidance",
+    "## Residual Risks",
+    "focused bridges",
+    "explicit source contracts",
+    "current-schema persistence",
+    "descriptor-only plugins/add-ons",
+    "snapshot-only runtime payloads",
+    "typed viewer transport",
+    "canonical launch/import paths",
+    "P01_no_legacy_guardrails_WRAPUP.md",
+    "P13_launch_package_import_shim_cleanup_WRAPUP.md",
+    "P14_docs_traceability_closeout_WRAPUP.md",
+    "c413beae3eab13eb40aaceb86bd143587900d6de",
+    "dfd3ab4b746a13628f4eb2d803bd653809092d89",
+    COREX_NO_LEGACY_ARCHITECTURE_CLEANUP_PYTEST_COMMAND,
+    COREX_NO_LEGACY_ARCHITECTURE_CLEANUP_TRACEABILITY_COMMAND,
+    COREX_NO_LEGACY_ARCHITECTURE_CLEANUP_MARKDOWN_COMMAND,
 )
 
 GLOBAL_GAP_BREAK_EDGE_CROSSING_VARIANT_QA_MATRIX = (
@@ -1559,7 +1653,7 @@ NESTED_NODE_CATEGORIES_REQUIREMENT_TOKENS: dict[str, dict[str, tuple[str, ...]]]
             "category_path=",
             "category=",
             "external plugins",
-            "display-only",
+            "derived display labels",
         ),
         "AC-REQ-NODE-003-01": (
             "category_path",
@@ -3392,6 +3486,40 @@ class TraceabilityCheckerTests(unittest.TestCase):
     ) -> None:
         text = ADDON_MANAGER_BACKEND_PREPARATION_QA_MATRIX.read_text(encoding="utf-8-sig")
         for token in ADDON_MANAGER_BACKEND_PREPARATION_QA_MATRIX_TOKENS:
+            self.assertIn(token, text)
+
+    def test_corex_no_legacy_architecture_cleanup_spec_index_registers_qa_matrix(self) -> None:
+        text = (REPO_ROOT / "docs/specs/INDEX.md").read_text(encoding="utf-8-sig")
+        for token in COREX_NO_LEGACY_ARCHITECTURE_CLEANUP_INDEX_TOKENS:
+            self.assertIn(token, text)
+
+    def test_corex_no_legacy_architecture_cleanup_docs_record_final_scope_tokens(self) -> None:
+        for relative_path, tokens in COREX_NO_LEGACY_ARCHITECTURE_CLEANUP_PUBLIC_DOC_TOKENS.items():
+            text = (REPO_ROOT / relative_path).read_text(encoding="utf-8-sig")
+            for token in tokens:
+                self.assertIn(token, text, msg=f"{relative_path} missing token {token!r}")
+
+        for relative_path, requirement_tokens in COREX_NO_LEGACY_ARCHITECTURE_CLEANUP_REQUIREMENT_TOKENS.items():
+            path = REPO_ROOT / relative_path
+            for requirement_id, tokens in requirement_tokens.items():
+                body = requirement_line(path, requirement_id)
+                for token in tokens:
+                    self.assertIn(token, body, msg=f"{relative_path} {requirement_id} missing token {token!r}")
+
+    def test_corex_no_legacy_architecture_cleanup_traceability_rows_reference_packet_artifacts(
+        self,
+    ) -> None:
+        traceability_path = REPO_ROOT / "docs/specs/requirements/TRACEABILITY_MATRIX.md"
+        for row_id, tokens in COREX_NO_LEGACY_ARCHITECTURE_CLEANUP_TRACEABILITY_ROW_TOKENS.items():
+            row_text = traceability_row(traceability_path, row_id)
+            for token in tokens:
+                self.assertIn(token, row_text, msg=f"traceability row {row_id} missing token {token!r}")
+
+    def test_corex_no_legacy_architecture_cleanup_qa_matrix_records_commands_and_manual_checks(
+        self,
+    ) -> None:
+        text = COREX_NO_LEGACY_ARCHITECTURE_CLEANUP_QA_MATRIX.read_text(encoding="utf-8-sig")
+        for token in COREX_NO_LEGACY_ARCHITECTURE_CLEANUP_QA_MATRIX_TOKENS:
             self.assertIn(token, text)
 
     def test_global_gap_break_edge_crossing_variant_docs_record_closeout_scope_tokens(self) -> None:

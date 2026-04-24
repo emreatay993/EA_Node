@@ -126,9 +126,22 @@ ADDON_MANAGER_BACKEND_PREPARATION_TRACEABILITY_COMMAND = (
 ADDON_MANAGER_BACKEND_PREPARATION_MARKDOWN_COMMAND = (
     "./venv/Scripts/python.exe scripts/check_markdown_links.py"
 )
+COREX_NO_LEGACY_ARCHITECTURE_CLEANUP_QA_MATRIX_DOC = (
+    manifest.COREX_NO_LEGACY_ARCHITECTURE_CLEANUP_QA_MATRIX_DOC
+)
+COREX_NO_LEGACY_ARCHITECTURE_CLEANUP_PYTEST_COMMAND = (
+    manifest.COREX_NO_LEGACY_ARCHITECTURE_CLEANUP_PYTEST_COMMAND
+)
+COREX_NO_LEGACY_ARCHITECTURE_CLEANUP_TRACEABILITY_COMMAND = (
+    manifest.COREX_NO_LEGACY_ARCHITECTURE_CLEANUP_TRACEABILITY_COMMAND
+)
+COREX_NO_LEGACY_ARCHITECTURE_CLEANUP_MARKDOWN_COMMAND = (
+    manifest.COREX_NO_LEGACY_ARCHITECTURE_CLEANUP_MARKDOWN_COMMAND
+)
 REQUIRED_ARTIFACTS = (
     *BASE_REQUIRED_ARTIFACTS,
     UI_CONTEXT_SCALABILITY_REFACTOR_QA_MATRIX_DOC,
+    manifest.ARCHITECTURE_MAINTAINABILITY_REFACTOR_QA_MATRIX_DOC,
     DPF_OPERATOR_PLUGIN_BACKEND_REVIEW_DOC,
     DPF_OPERATOR_PLUGIN_BACKEND_REFACTOR_QA_MATRIX_DOC,
     ADDON_MANAGER_BACKEND_PREPARATION_QA_MATRIX_DOC,
@@ -216,6 +229,13 @@ GRAPHICS_PERFORMANCE_MODES_INTERACTIVE_COMMAND = (
     "--performance-mode full_fidelity --scenario heavy_media --qt-platform windows "
     "--report-dir artifacts/graph_canvas_interaction_perf_p09_desktop_reference"
 )
+CURRENT_GRAPHICS_PERFORMANCE_MODES_OFFSCREEN_COMMAND = (
+    "QT_QPA_PLATFORM=offscreen ./venv/Scripts/python.exe "
+    "-m ea_node_editor.ui.perf.performance_harness "
+    "--nodes 120 --edges 320 --load-iterations 1 --interaction-samples 10 "
+    "--baseline-runs 3 --performance-mode max_performance --scenario heavy_media "
+    f"--report-dir artifacts/graph_canvas_interaction_perf_p09_max_performance"
+)
 
 P10_REQUIREMENT_DOC_TOKENS: dict[str, dict[str, tuple[str, ...]]] = {
     "docs/specs/requirements/20_UI_UX.md": {
@@ -261,13 +281,13 @@ P10_REQUIREMENT_DOC_TOKENS: dict[str, dict[str, tuple[str, ...]]] = {
         "AC-REQ-PERSIST-011-01": ("graphics performance mode", "last_session.json"),
         "REQ-PERSIST-023": (
             "pending-restart intent",
-            "locked placeholders",
+            "locked unavailable-add-on projections",
             "rebind them when the add-on returns",
-            "editable live schema",
+            "projection payloads",
         ),
         "AC-REQ-PERSIST-023-01": (
             "plugin-loader",
-            "schema-migration",
+            "locked projection",
             "ADDON_MANAGER_BACKEND_PREPARATION_QA_MATRIX.md",
         ),
     },
@@ -309,7 +329,7 @@ P10_QA_ACCEPTANCE_REQUIREMENT_TOKENS = {
         "desktop/manual exit-gate status",
     ),
     "AC-REQ-QA-018-01": (
-        GRAPHICS_PERFORMANCE_MODES_OFFSCREEN_COMMAND,
+        CURRENT_GRAPHICS_PERFORMANCE_MODES_OFFSCREEN_COMMAND,
         manifest.proof_audit_command(),
         manifest.GRAPH_CANVAS_PERF_MATRIX_DOC,
         manifest.TRACK_H_BENCHMARK_REPORT_DOC,
@@ -343,7 +363,7 @@ QA_ACCEPTANCE_REQUIREMENT_TOKENS.update(
             "optional plugin lifecycle",
             "operator metadata and generated ports",
             "generic operator-backed runtime invocation",
-            "missing-plugin placeholder portability",
+            "unavailable-backend node projection",
         ),
         "REQ-QA-036": (
             "DPF_OPERATOR_PLUGIN_BACKEND_REFACTOR_QA_MATRIX.md",
@@ -376,7 +396,7 @@ QA_ACCEPTANCE_REQUIREMENT_TOKENS.update(
             "ADDON_MANAGER_BACKEND_PREPARATION_QA_MATRIX.md",
             "`P01` through `P07`",
             "`P08` traceability, markdown-hygiene, and markdown-link closeout commands",
-            "menu open/toggle/placeholder/DPF flows",
+            "menu open/toggle/projection/DPF flows",
             "disabled update/install/restart actions",
         ),
         "AC-REQ-QA-040-01": (
@@ -395,9 +415,12 @@ QA_ACCEPTANCE_REQUIREMENT_TOKENS.update(
             ADDON_MANAGER_BACKEND_PREPARATION_MARKDOWN_COMMAND,
             "ADDON_MANAGER_BACKEND_PREPARATION_QA_MATRIX.md",
         ),
+        "REQ-QA-042": manifest.QA_ACCEPTANCE_REQUIREMENT_TOKENS["REQ-QA-042"],
+        "AC-REQ-QA-042-01": manifest.QA_ACCEPTANCE_REQUIREMENT_TOKENS["AC-REQ-QA-042-01"],
     }
 )
 QA_ACCEPTANCE_CURRENT_CLOSEOUT_EVIDENCE_TOKENS = (
+    COREX_NO_LEGACY_ARCHITECTURE_CLEANUP_QA_MATRIX_DOC,
     *manifest.ARCHITECTURE_RESIDUAL_REFACTOR_CURRENT_EVIDENCE_TOKENS,
     UI_CONTEXT_SCALABILITY_REFACTOR_QA_MATRIX_DOC,
     DPF_OPERATOR_PLUGIN_BACKEND_REVIEW_DOC,
@@ -473,18 +496,27 @@ ARCHITECTURE_MAINTAINABILITY_REFACTOR_QA_MATRIX_AUDIT_COMMANDS = (
     f"{manifest.LOCAL_VENV_PYTHON_DISPLAY} {manifest.CHECK_MARKDOWN_LINKS_SCRIPT}",
 )
 ARCHITECTURE_DOC_REQUIRED_TOKENS = (
+    "docs/specs/perf/COREX_NO_LEGACY_ARCHITECTURE_CLEANUP_QA_MATRIX.md",
+    "## Current focused contracts",
+    "focused bridges",
+    "current-schema",
+    "descriptor-only",
+    "snapshot-only",
+    "typed transport/session",
+    "ea_node_editor.ui.perf.performance_harness",
     "docs/specs/perf/ARCHITECTURE_FOLLOWUP_REFACTOR_QA_MATRIX.md",
     "docs/DPF_OPERATOR_PLUGIN_BACKEND_REVIEW_2026-04-12.md",
     "docs/specs/perf/DPF_OPERATOR_PLUGIN_BACKEND_REFACTOR_QA_MATRIX.md",
     "Broad autogenerated operator rollout and non-operator `ansys.dpf.core` reflection remain deferred",
-    "read-only missing-plugin placeholders",
+    "locked unavailable-add-on projections",
     "## Add-on backend preparation",
     "Variant 4 inspector-style right drawer",
-    "locked Mockup B placeholders",
+    "locked unavailable-add-on surfaces",
     "ADDON_MANAGER_BACKEND_PREPARATION_QA_MATRIX.md",
 )
 SPEC_INDEX_REQUIRED_TOKENS = (
     *manifest.ARCHITECTURE_RESIDUAL_REFACTOR_SPEC_INDEX_TOKENS,
+    "COREX_NO_LEGACY_ARCHITECTURE_CLEANUP_QA_MATRIX.md",
     "UI_CONTEXT_SCALABILITY_REFACTOR_QA_MATRIX.md",
     "ADDON_MANAGER_BACKEND_PREPARATION_QA_MATRIX.md",
 )
@@ -525,10 +557,12 @@ UI_CONTEXT_SCALABILITY_REFACTOR_QA_MATRIX_AUDIT_COMMANDS = (
     UI_CONTEXT_SCALABILITY_REFACTOR_MARKDOWN_COMMAND,
 )
 README_DPF_OPERATOR_PLUGIN_BACKEND_TOKENS = (
+    "COREX_NO_LEGACY_ARCHITECTURE_CLEANUP_QA_MATRIX.md",
     "DPF operator backend review",
     "DPF operator backend QA matrix",
     "ansys-dpf-core` is optional at startup",
-    "read-only missing-plugin placeholders",
+    "locked unavailable-add-on projections",
+    "descriptor-first",
     "broad autogenerated operator exposure plus non-operator",
     "Add-On Manager",
     "Variant 4 inspector-style drawer",
@@ -547,17 +581,17 @@ DPF_OPERATOR_PLUGIN_BACKEND_REVIEW_REQUIRED_TOKENS = (
 DPF_OPERATOR_PLUGIN_BACKEND_INTEGRATIONS_REQUIREMENT_TOKENS = {
     "REQ-INT-009": (
         "ansys-dpf-core",
-        "lazily register",
+        "register shipped DPF descriptors",
         "normalize operator metadata",
         "generic DPF runtime adapter",
-        "read-only missing-plugin placeholders",
+        "locked unavailable-add-on surfaces",
         "non-operator `ansys.dpf.core` reflection",
     ),
     "AC-REQ-INT-009-01": (
         "DPF_OPERATOR_PLUGIN_BACKEND_REVIEW_2026-04-12.md",
         "DPF_OPERATOR_PLUGIN_BACKEND_REFACTOR_QA_MATRIX.md",
         "plugin-loader",
-        "missing-plugin placeholder portability",
+        "locked unavailable-add-on projection",
     ),
     "REQ-INT-011": (
         "stable id, name, version, category, dependency, and availability facts",
@@ -568,7 +602,7 @@ DPF_OPERATOR_PLUGIN_BACKEND_INTEGRATIONS_REQUIREMENT_TOKENS = {
     "REQ-INT-012": (
         "first repo-local `hot_apply` add-on",
         "`ea_node_editor.addons.ansys_dpf`",
-        "locked placeholders",
+        "locked unavailable-add-on projections",
         "full app restart",
     ),
     "AC-REQ-INT-011-01": (
@@ -640,6 +674,36 @@ ADDON_MANAGER_BACKEND_PREPARATION_QA_MATRIX_AUDIT_COMMANDS = (
     ADDON_MANAGER_BACKEND_PREPARATION_CLOSEOUT_PYTEST_COMMAND,
     ADDON_MANAGER_BACKEND_PREPARATION_TRACEABILITY_COMMAND,
     ADDON_MANAGER_BACKEND_PREPARATION_MARKDOWN_COMMAND,
+)
+COREX_NO_LEGACY_ARCHITECTURE_CLEANUP_QA_MATRIX_REQUIRED_TOKENS = (
+    "COREX No-Legacy Architecture Cleanup QA Matrix",
+    "## Locked Scope",
+    "## Packet Outcomes",
+    "## Retained Automated Verification",
+    "## Final Closeout Commands",
+    "## 2026-04-24 Execution Results",
+    "## Manual Smoke Guidance",
+    "## Residual Risks",
+    "focused bridges",
+    "explicit source contracts",
+    "current-schema persistence",
+    "descriptor-only plugins/add-ons",
+    "snapshot-only runtime payloads",
+    "typed viewer transport",
+    "canonical launch/import paths",
+    "P01_no_legacy_guardrails_WRAPUP.md",
+    "P13_launch_package_import_shim_cleanup_WRAPUP.md",
+    "P14_docs_traceability_closeout_WRAPUP.md",
+    "c413beae3eab13eb40aaceb86bd143587900d6de",
+    "dfd3ab4b746a13628f4eb2d803bd653809092d89",
+    COREX_NO_LEGACY_ARCHITECTURE_CLEANUP_PYTEST_COMMAND,
+    COREX_NO_LEGACY_ARCHITECTURE_CLEANUP_TRACEABILITY_COMMAND,
+    COREX_NO_LEGACY_ARCHITECTURE_CLEANUP_MARKDOWN_COMMAND,
+)
+COREX_NO_LEGACY_ARCHITECTURE_CLEANUP_QA_MATRIX_AUDIT_COMMANDS = (
+    COREX_NO_LEGACY_ARCHITECTURE_CLEANUP_PYTEST_COMMAND,
+    COREX_NO_LEGACY_ARCHITECTURE_CLEANUP_TRACEABILITY_COMMAND,
+    COREX_NO_LEGACY_ARCHITECTURE_CLEANUP_MARKDOWN_COMMAND,
 )
 
 P10_TRACEABILITY_ROW_REQUIRED_TOKENS = {
@@ -733,7 +797,7 @@ P10_TRACEABILITY_ROW_REQUIRED_TOKENS = {
         P09_DESKTOP_REFERENCE_REPORT_JSON,
     ),
     "AC-REQ-QA-018-01": (
-        GRAPHICS_PERFORMANCE_MODES_OFFSCREEN_COMMAND,
+        CURRENT_GRAPHICS_PERFORMANCE_MODES_OFFSCREEN_COMMAND,
         "GRAPH_CANVAS_PERF_QA_MATRIX.md",
         "TRACK_H_BENCHMARK_REPORT.md",
         GRAPHICS_PERFORMANCE_MODES_CANONICAL_REPORT_MD,
@@ -919,13 +983,18 @@ TRACEABILITY_ROW_REQUIRED_TOKENS.update(
             ADDON_MANAGER_BACKEND_PREPARATION_MARKDOWN_COMMAND,
             "docs/specs/perf/ADDON_MANAGER_BACKEND_PREPARATION_QA_MATRIX.md",
         ),
+        "REQ-QA-042": manifest.TRACEABILITY_ROW_REQUIRED_TOKENS["REQ-QA-042"],
+        "AC-REQ-QA-042-01": manifest.TRACEABILITY_ROW_REQUIRED_TOKENS["AC-REQ-QA-042-01"],
     }
 )
 
 P10_TRACEABILITY_ROW_FORBIDDEN_TOKENS = {
     "REQ-QA-018": ("artifacts/graph_canvas_perf_docs",),
     "AC-REQ-PERF-003-01": ("artifacts/graph_canvas_perf_docs",),
-    "AC-REQ-QA-018-01": ("artifacts/graph_canvas_perf_docs",),
+    "AC-REQ-QA-018-01": (
+        "artifacts/graph_canvas_perf_docs",
+        "ea_node_editor.telemetry.performance_harness",
+    ),
 }
 TRACEABILITY_ROW_FORBIDDEN_TOKENS = dict(manifest.TRACEABILITY_ROW_FORBIDDEN_TOKENS)
 TRACEABILITY_ROW_FORBIDDEN_TOKENS.update(P10_TRACEABILITY_ROW_FORBIDDEN_TOKENS)
@@ -1673,6 +1742,55 @@ def audit_addon_manager_backend_preparation_qa_matrix(
             )
 
 
+def audit_corex_no_legacy_architecture_cleanup_qa_matrix(
+    text: str,
+    relative_path: str,
+    issues: list[str],
+) -> None:
+    require_tokens(
+        text,
+        COREX_NO_LEGACY_ARCHITECTURE_CLEANUP_QA_MATRIX_REQUIRED_TOKENS,
+        relative_path=relative_path,
+        label="corex-no-legacy-architecture-cleanup qa matrix",
+        issues=issues,
+    )
+
+    final_rows = table_after_heading(
+        text,
+        relative_path=relative_path,
+        heading="Final Closeout Commands",
+        issues=issues,
+    )
+    if final_rows is not None:
+        for command in COREX_NO_LEGACY_ARCHITECTURE_CLEANUP_QA_MATRIX_AUDIT_COMMANDS:
+            row = find_row(
+                final_rows,
+                column="Command",
+                predicate=lambda value, command=command: strip_code_fence(value) == command,
+            )
+            if row is None:
+                issues.append(
+                    f"{relative_path}: Final Closeout Commands missing command row: {command}"
+                )
+
+    execution_rows = table_after_heading(
+        text,
+        relative_path=relative_path,
+        heading="2026-04-24 Execution Results",
+        issues=issues,
+    )
+    if execution_rows is not None:
+        for command in COREX_NO_LEGACY_ARCHITECTURE_CLEANUP_QA_MATRIX_AUDIT_COMMANDS:
+            require_command_result(
+                execution_rows,
+                relative_path=relative_path,
+                heading="2026-04-24 Execution Results",
+                predicate=lambda value, command=command: value == command,
+                label=command,
+                issues=issues,
+            )
+
+
 def find_traceability_row(matrix_text: str, row_id: str) -> dict[str, str] | None:
     return parse_traceability_rows(matrix_text).get(row_id)
 
@@ -1717,11 +1835,12 @@ SPECIAL_DOCUMENT_AUDITORS = {
     manifest.VERIFICATION_SPEED_MATRIX_DOC: audit_verification_speed_matrix,
     manifest.GRAPH_CANVAS_PERF_MATRIX_DOC: audit_graph_canvas_perf_matrix,
     manifest.TRACK_H_BENCHMARK_REPORT_DOC: audit_track_h_report,
-    manifest.CURRENT_CLOSEOUT_QA_MATRIX_DOC: audit_architecture_maintainability_refactor_qa_matrix,
+    manifest.ARCHITECTURE_MAINTAINABILITY_REFACTOR_QA_MATRIX_DOC: audit_architecture_maintainability_refactor_qa_matrix,
     ARCHITECTURE_RESIDUAL_REFACTOR_QA_MATRIX_DOC: audit_architecture_residual_refactor_qa_matrix,
     UI_CONTEXT_SCALABILITY_REFACTOR_QA_MATRIX_DOC: audit_ui_context_scalability_refactor_qa_matrix,
     DPF_OPERATOR_PLUGIN_BACKEND_REFACTOR_QA_MATRIX_DOC: audit_dpf_operator_plugin_backend_refactor_qa_matrix,
     ADDON_MANAGER_BACKEND_PREPARATION_QA_MATRIX_DOC: audit_addon_manager_backend_preparation_qa_matrix,
+    COREX_NO_LEGACY_ARCHITECTURE_CLEANUP_QA_MATRIX_DOC: audit_corex_no_legacy_architecture_cleanup_qa_matrix,
 }
 
 

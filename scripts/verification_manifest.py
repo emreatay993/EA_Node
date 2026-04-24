@@ -76,7 +76,20 @@ ARCHITECTURE_MAINTAINABILITY_REFACTOR_QA_MATRIX_DOC = (
 ARCHITECTURE_RESIDUAL_REFACTOR_QA_MATRIX_DOC = (
     "docs/specs/perf/ARCHITECTURE_RESIDUAL_REFACTOR_QA_MATRIX.md"
 )
-CURRENT_CLOSEOUT_QA_MATRIX_DOC = ARCHITECTURE_MAINTAINABILITY_REFACTOR_QA_MATRIX_DOC
+COREX_NO_LEGACY_ARCHITECTURE_CLEANUP_QA_MATRIX_DOC = (
+    "docs/specs/perf/COREX_NO_LEGACY_ARCHITECTURE_CLEANUP_QA_MATRIX.md"
+)
+COREX_NO_LEGACY_ARCHITECTURE_CLEANUP_PYTEST_COMMAND = (
+    r".\venv\Scripts\python.exe -m pytest tests/test_traceability_checker.py "
+    r"tests/test_markdown_hygiene.py tests/test_dead_code_hygiene.py --ignore=venv -q"
+)
+COREX_NO_LEGACY_ARCHITECTURE_CLEANUP_TRACEABILITY_COMMAND = (
+    r".\venv\Scripts\python.exe scripts/check_traceability.py"
+)
+COREX_NO_LEGACY_ARCHITECTURE_CLEANUP_MARKDOWN_COMMAND = (
+    r".\venv\Scripts\python.exe scripts/check_markdown_links.py"
+)
+CURRENT_CLOSEOUT_QA_MATRIX_DOC = COREX_NO_LEGACY_ARCHITECTURE_CLEANUP_QA_MATRIX_DOC
 MARKDOWN_HYGIENE_TEST = "tests/test_markdown_hygiene.py"
 
 ARCHITECTURE_RESIDUAL_REFACTOR_TARGETED_REGRESSION_COMMAND = (
@@ -116,7 +129,7 @@ TRACK_H_REGRESSION_COMMAND = (
 )
 GRAPH_CANVAS_SNAPSHOT_COMMAND = (
     "QT_QPA_PLATFORM=offscreen ./venv/Scripts/python.exe "
-    "-m ea_node_editor.telemetry.performance_harness "
+    "-m ea_node_editor.ui.perf.performance_harness "
     "--nodes 120 --edges 320 --load-iterations 1 --interaction-samples 10 "
     "--baseline-runs 1 --report-dir artifacts/graph_canvas_perf_docs"
 )
@@ -265,7 +278,7 @@ class DocumentRule:
 
 @dataclass(frozen=True)
 class NoLegacyGuardrailSurface:
-    """One future-packet-owned compatibility surface tracked by P01 guardrails."""
+    """One no-legacy cleanup surface tracked by packet guardrails."""
 
     category: str
     owner_packet: str
@@ -281,32 +294,32 @@ COREX_NO_LEGACY_ARCHITECTURE_CLEANUP_WRAPUP_DOC = (
     "P01_no_legacy_guardrails_WRAPUP.md"
 )
 COREX_NO_LEGACY_REQUIRED_GUARDRAIL_CATEGORIES = (
-    "graph_canvas_bridge_wrapper",
+    "graph_canvas_bridge_edge_adapter",
     "graph_canvas_qml_compat_aliases",
     "graph_canvas_qml_legacy_view_alias",
     "legacy_plugin_class_probing",
-    "old_project_schema_compatibility",
-    "old_preference_schema_compatibility",
+    "current_project_schema_validation",
+    "current_preference_schema_validation",
     "telemetry_import_shim",
     "package_lazy_import_shims",
     "runtime_project_doc_trigger_compatibility",
-    "runtime_project_path_rebuild",
+    "runtime_project_path_artifact_context",
 )
 COREX_NO_LEGACY_GUARDRAIL_OWNER_PACKETS = {
-    "graph_canvas_bridge_wrapper": "P02",
+    "graph_canvas_bridge_edge_adapter": "P02",
     "graph_canvas_qml_compat_aliases": "P02",
     "graph_canvas_qml_legacy_view_alias": "P02",
     "legacy_plugin_class_probing": "P10",
-    "old_project_schema_compatibility": "P06",
-    "old_preference_schema_compatibility": "P06",
+    "current_project_schema_validation": "P06",
+    "current_preference_schema_validation": "P06",
     "telemetry_import_shim": "P13",
     "package_lazy_import_shims": "P13",
     "runtime_project_doc_trigger_compatibility": "P11",
-    "runtime_project_path_rebuild": "P11",
+    "runtime_project_path_artifact_context": "P11",
 }
 COREX_NO_LEGACY_GUARDRAIL_INVENTORY = (
     NoLegacyGuardrailSurface(
-        category="graph_canvas_bridge_wrapper",
+        category="graph_canvas_bridge_edge_adapter",
         owner_packet="P02",
         path="ea_node_editor/ui_qml/graph_canvas_bridge.py",
         names=("GraphCanvasBridge",),
@@ -329,27 +342,27 @@ COREX_NO_LEGACY_GUARDRAIL_INVENTORY = (
         owner_packet="P02",
         path="ea_node_editor/ui_qml/components/graph_canvas/GraphCanvasRootBindings.qml",
         names=("_legacyCanvasViewBridgeRef",),
-        expectation=COREX_NO_LEGACY_GUARDRAIL_PRESENT,
+        expectation=COREX_NO_LEGACY_GUARDRAIL_ABSENT,
     ),
     NoLegacyGuardrailSurface(
         category="legacy_plugin_class_probing",
         owner_packet="P10",
         path="ea_node_editor/nodes/plugin_loader.py",
         names=("_legacy_plugin_spec", "_register_plugin_classes"),
-        expectation=COREX_NO_LEGACY_GUARDRAIL_PRESENT,
+        expectation=COREX_NO_LEGACY_GUARDRAIL_ABSENT,
     ),
     NoLegacyGuardrailSurface(
-        category="old_project_schema_compatibility",
+        category="current_project_schema_validation",
         owner_packet="P06",
         path="ea_node_editor/persistence/migration.py",
         names=("JsonProjectMigration", "migrate"),
         expectation=COREX_NO_LEGACY_GUARDRAIL_PRESENT,
     ),
     NoLegacyGuardrailSurface(
-        category="old_preference_schema_compatibility",
+        category="current_preference_schema_validation",
         owner_packet="P06",
         path="ea_node_editor/app_preferences.py",
-        names=("_APP_PREFERENCES_MIGRATION_VERSION", "normalize_app_preferences_document"),
+        names=("APP_PREFERENCES_VERSION", "normalize_app_preferences_document"),
         expectation=COREX_NO_LEGACY_GUARDRAIL_PRESENT,
     ),
     NoLegacyGuardrailSurface(
@@ -357,24 +370,24 @@ COREX_NO_LEGACY_GUARDRAIL_INVENTORY = (
         owner_packet="P13",
         path="ea_node_editor/telemetry/performance_harness.py",
         names=("_IMPLEMENTATION_MODULE",),
-        expectation=COREX_NO_LEGACY_GUARDRAIL_PRESENT,
+        expectation=COREX_NO_LEGACY_GUARDRAIL_ABSENT,
     ),
     NoLegacyGuardrailSurface(
         category="package_lazy_import_shims",
         owner_packet="P13",
         path="ea_node_editor/persistence/__init__.py",
         names=("__getattr__",),
-        expectation=COREX_NO_LEGACY_GUARDRAIL_PRESENT,
+        expectation=COREX_NO_LEGACY_GUARDRAIL_ABSENT,
     ),
     NoLegacyGuardrailSurface(
         category="runtime_project_doc_trigger_compatibility",
         owner_packet="P11",
         path="ea_node_editor/execution/runtime_snapshot.py",
-        names=("build_runtime_snapshot", "sanitize_execution_trigger"),
-        expectation=COREX_NO_LEGACY_GUARDRAIL_PRESENT,
+        names=("sanitize_execution_trigger",),
+        expectation=COREX_NO_LEGACY_GUARDRAIL_ABSENT,
     ),
     NoLegacyGuardrailSurface(
-        category="runtime_project_path_rebuild",
+        category="runtime_project_path_artifact_context",
         owner_packet="P11",
         path="ea_node_editor/execution/worker_runtime.py",
         names=("load_runtime_snapshot", "resolve_runtime_artifact_store"),
@@ -699,8 +712,11 @@ GENERIC_DOCUMENT_RULES: dict[str, DocumentRule] = {
             CHECK_MARKDOWN_LINKS_SCRIPT,
             "Graph Surface Input QA Matrix",
             "Verification Speed QA Matrix",
+            "COREX_NO_LEGACY_ARCHITECTURE_CLEANUP_QA_MATRIX.md",
             "ARCHITECTURE_MAINTAINABILITY_REFACTOR_QA_MATRIX.md",
             "dedicated fresh-process shell-isolation phase",
+            "ea_node_editor.bootstrap",
+            "descriptor-first",
             SHELL_ISOLATION_SPEC.test_path,
             "proof-audit command",
             "SHELL_ISOLATION_CATALOG_SPECS",
@@ -734,17 +750,27 @@ GENERIC_DOCUMENT_RULES: dict[str, DocumentRule] = {
             CHECK_TRACEABILITY_SCRIPT,
             CHECK_MARKDOWN_LINKS_SCRIPT,
             CURRENT_CLOSEOUT_QA_MATRIX_DOC,
+            "focused bridges",
+            "descriptor-only",
+            "snapshot-only",
+            "ea_node_editor.ui.perf.performance_harness",
             PACKAGING_WINDOWS_DOC,
             PILOT_RUNBOOK_DOC,
             "tests/shell_isolation_runtime.py",
         ),
         forbidden=(
             "The P12 closeout sweep",
+            "ea_node_editor.telemetry.performance_harness",
+            "project_path rebuild",
+            "constructor fallback preserved",
+            "`main.py` is a launcher shim",
+            "durable compatibility through serializer + migration",
         ),
     ),
     SPEC_INDEX_DOC: DocumentRule(
         required=(
             "ARCHITECTURE_MAINTAINABILITY_REFACTOR_QA_MATRIX.md",
+            "COREX_NO_LEGACY_ARCHITECTURE_CLEANUP_QA_MATRIX.md",
             "ARCHITECTURE_RESIDUAL_REFACTOR_QA_MATRIX.md",
             "PROJECT_MANAGED_FILES_QA_MATRIX.md",
             "PYDPF_VIEWER_V1_QA_MATRIX.md",
@@ -788,7 +814,7 @@ GENERIC_DOCUMENT_RULES: dict[str, DocumentRule] = {
     ARCHITECTURE_REFACTOR_QA_MATRIX_DOC: DocumentRule(
         required=(
             "Historical pointer",
-            CURRENT_CLOSEOUT_QA_MATRIX_DOC,
+            ARCHITECTURE_MAINTAINABILITY_REFACTOR_QA_MATRIX_DOC,
         ),
         forbidden=(
             "## 2026-03-27 Execution Results",
@@ -850,7 +876,7 @@ QA_ACCEPTANCE_REQUIREMENT_TOKENS = {
         PACKAGING_WINDOWS_DOC,
         PILOT_RUNBOOK_DOC,
         SPEC_INDEX_DOC,
-        CURRENT_CLOSEOUT_QA_MATRIX_DOC,
+        ARCHITECTURE_MAINTAINABILITY_REFACTOR_QA_MATRIX_DOC,
     ),
     "AC-REQ-QA-014-01": (
         run_verification_command("full", dry_run=True),
@@ -871,7 +897,7 @@ QA_ACCEPTANCE_REQUIREMENT_TOKENS = {
         DOCS_RELEASE_TRACEABILITY_PYTEST_COMMAND,
         proof_audit_command(),
         f"{LOCAL_VENV_PYTHON_DISPLAY} {CHECK_MARKDOWN_LINKS_SCRIPT}",
-        CURRENT_CLOSEOUT_QA_MATRIX_DOC,
+        ARCHITECTURE_MAINTAINABILITY_REFACTOR_QA_MATRIX_DOC,
     ),
     "REQ-QA-029": (
         "ARCHITECTURE_RESIDUAL_REFACTOR_QA_MATRIX.md",
@@ -885,6 +911,23 @@ QA_ACCEPTANCE_REQUIREMENT_TOKENS = {
         ARCHITECTURE_RESIDUAL_REFACTOR_TRACEABILITY_COMMAND,
         ARCHITECTURE_RESIDUAL_REFACTOR_MARKDOWN_COMMAND,
         "ARCHITECTURE_RESIDUAL_REFACTOR_QA_MATRIX.md",
+    ),
+    "REQ-QA-042": (
+        COREX_NO_LEGACY_ARCHITECTURE_CLEANUP_QA_MATRIX_DOC,
+        "accepted `COREX_NO_LEGACY_ARCHITECTURE_CLEANUP` packet commits",
+        "focused bridges",
+        "explicit source contracts",
+        "current-schema persistence",
+        "descriptor-only plugins/add-ons",
+        "snapshot-only runtime payloads",
+        "typed viewer transport",
+        "canonical launch/import paths",
+    ),
+    "AC-REQ-QA-042-01": (
+        COREX_NO_LEGACY_ARCHITECTURE_CLEANUP_PYTEST_COMMAND,
+        COREX_NO_LEGACY_ARCHITECTURE_CLEANUP_TRACEABILITY_COMMAND,
+        COREX_NO_LEGACY_ARCHITECTURE_CLEANUP_MARKDOWN_COMMAND,
+        COREX_NO_LEGACY_ARCHITECTURE_CLEANUP_QA_MATRIX_DOC,
     ),
 }
 
@@ -1071,7 +1114,7 @@ TRACEABILITY_ROW_REQUIRED_TOKENS = {
         PACKAGING_WINDOWS_DOC,
         PILOT_RUNBOOK_DOC,
         SPEC_INDEX_DOC,
-        CURRENT_CLOSEOUT_QA_MATRIX_DOC,
+        ARCHITECTURE_MAINTAINABILITY_REFACTOR_QA_MATRIX_DOC,
         "tests/test_shell_isolation_phase.py",
         MARKDOWN_HYGIENE_TEST,
     ),
@@ -1098,7 +1141,7 @@ TRACEABILITY_ROW_REQUIRED_TOKENS = {
         DOCS_RELEASE_TRACEABILITY_PYTEST_COMMAND,
         proof_audit_command(),
         f"{LOCAL_VENV_PYTHON_DISPLAY} {CHECK_MARKDOWN_LINKS_SCRIPT}",
-        CURRENT_CLOSEOUT_QA_MATRIX_DOC,
+        ARCHITECTURE_MAINTAINABILITY_REFACTOR_QA_MATRIX_DOC,
     ),
     "REQ-QA-029": (
         "docs/specs/INDEX.md",
@@ -1120,11 +1163,38 @@ TRACEABILITY_ROW_REQUIRED_TOKENS = {
         ARCHITECTURE_RESIDUAL_REFACTOR_MARKDOWN_COMMAND,
         "ARCHITECTURE_RESIDUAL_REFACTOR_QA_MATRIX.md",
     ),
+    "REQ-QA-042": (
+        "ARCHITECTURE.md",
+        "README.md",
+        SPEC_INDEX_DOC,
+        "docs/specs/requirements/10_ARCHITECTURE.md",
+        "docs/specs/requirements/30_GRAPH_MODEL.md",
+        "docs/specs/requirements/40_NODE_SDK.md",
+        "docs/specs/requirements/45_NODE_EXECUTION_MODEL.md",
+        "docs/specs/requirements/50_EXECUTION_ENGINE.md",
+        "docs/specs/requirements/60_PERSISTENCE.md",
+        "docs/specs/requirements/70_INTEGRATIONS.md",
+        QA_ACCEPTANCE_DOC,
+        TRACEABILITY_MATRIX_DOC,
+        COREX_NO_LEGACY_ARCHITECTURE_CLEANUP_QA_MATRIX_DOC,
+        "scripts/verification_manifest.py",
+        CHECK_TRACEABILITY_SCRIPT,
+        "tests/test_traceability_checker.py",
+        MARKDOWN_HYGIENE_TEST,
+        "tests/test_dead_code_hygiene.py",
+    ),
+    "AC-REQ-QA-042-01": (
+        COREX_NO_LEGACY_ARCHITECTURE_CLEANUP_PYTEST_COMMAND,
+        COREX_NO_LEGACY_ARCHITECTURE_CLEANUP_TRACEABILITY_COMMAND,
+        COREX_NO_LEGACY_ARCHITECTURE_CLEANUP_MARKDOWN_COMMAND,
+        COREX_NO_LEGACY_ARCHITECTURE_CLEANUP_QA_MATRIX_DOC,
+    ),
 }
 
 TRACEABILITY_ROW_FORBIDDEN_TOKENS = {
     "AC-REQ-QA-013-01": ("approved fresh-process shell fallback",),
     "AC-REQ-QA-017-01": ("Recorded serializer baseline caveat",),
+    "AC-REQ-QA-018-01": ("ea_node_editor.telemetry.performance_harness",),
 }
 
 ARCHITECTURE_RESIDUAL_REFACTOR_QA_MATRIX_REQUIRED_TOKENS = (
@@ -1144,7 +1214,7 @@ ARCHITECTURE_RESIDUAL_REFACTOR_QA_MATRIX_REQUIRED_TOKENS = (
     "tests/test_shell_isolation_phase.py",
     "tests/test_traceability_checker.py",
     MARKDOWN_HYGIENE_TEST,
-    CURRENT_CLOSEOUT_QA_MATRIX_DOC,
+    ARCHITECTURE_MAINTAINABILITY_REFACTOR_QA_MATRIX_DOC,
     ARCHITECTURE_RESIDUAL_REFACTOR_TARGETED_REGRESSION_COMMAND,
     ARCHITECTURE_RESIDUAL_REFACTOR_TRACEABILITY_COMMAND,
     ARCHITECTURE_RESIDUAL_REFACTOR_MARKDOWN_COMMAND,

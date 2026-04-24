@@ -3,7 +3,7 @@
 ## Contracts
 - `REQ-NODE-001`: Node SDK shall include typed `PortSpec`, `PropertySpec`, and `NodeTypeSpec`.
 - `REQ-NODE-002`: Node plugin contract shall provide `spec()` and `execute(context)` methods.
-- `REQ-NODE-003`: Node registry shall support registration, instantiation, and filtered discovery by normalized `category_path`, including descendant-inclusive prefix matching, path-backed `category_paths()` discovery, and read-only display compatibility for legacy `category` text.
+- `REQ-NODE-003`: Node registry shall support registration, instantiation, and filtered discovery by normalized `category_path`, including descendant-inclusive prefix matching, path-backed `category_paths()` discovery, and derived display labels for presentation; display text is not a compatibility alias.
 
 ## Properties and Ports
 - `REQ-NODE-004`: Node properties shall be declarative and editable from inspector.
@@ -11,7 +11,7 @@
 - `REQ-NODE-006`: Nodes shall support `exec`, `completed`, and `data` port kinds.
 
 ## Decorator Authoring (RC2)
-- `REQ-NODE-007`: SDK shall provide decorator helpers to author nodes without manually constructing `NodeTypeSpec`; node authors shall pass `category_path=` tuples rather than `category=`, and external plugins must treat this as a breaking authoring change while using the display-only `category` compatibility text only for presentation.
+- `REQ-NODE-007`: SDK shall provide decorator helpers to author nodes without manually constructing `NodeTypeSpec`; node authors shall pass `category_path=` tuples rather than `category=`, and external plugins must treat this as a breaking authoring change while using derived display labels for presentation only.
 - `REQ-NODE-008`: Decorator-authored nodes and class-spec-authored nodes shall be registry-compatible.
 - `REQ-NODE-016`: `NodeTypeSpec` shall expose `runtime_behavior` plus `surface_family` / `surface_variant` hints and additive `render_quality` metadata (`weight_class`, `max_performance_strategy`, `supported_quality_tiers`) so the registry can describe passive-vs-active behavior, host-routed canvas surfaces, and heavy-node quality/proxy behavior declaratively with safe defaults when the field is omitted.
 - `REQ-NODE-017`: node authoring contracts shall support `flow` port kinds and declarative editor hints such as multiline text and filesystem path pickers for passive-node properties.
@@ -45,7 +45,7 @@ as `Ansys DPF > Compute`; the separator is not a parser contract and is chosen
 to avoid ambiguity with existing single labels such as `Input / Output`.
 
 ## Acceptance
-- `AC-REQ-NODE-003-01`: Registry filtering returns expected nodes by text, `category_path` prefix, compatibility category display, data type, and port direction, with parent category filters including descendant nodes.
+- `AC-REQ-NODE-003-01`: Registry filtering returns expected nodes by text, `category_path` prefix, derived category display, data type, and port direction, with parent category filters including descendant nodes.
 - `AC-REQ-NODE-004-01`: Property edits are reflected in model and execution context.
 - `AC-REQ-NODE-005-01`: Toggling exposed ports changes rendered port list without restart.
 - `AC-REQ-NODE-008-01`: Decorator-authored node plugins register and execute identically to class-spec plugins while using `category_path=` for authored categories; retained nested-category proof is summarized in `docs/specs/perf/NESTED_NODE_CATEGORIES_QA_MATRIX.md`.
