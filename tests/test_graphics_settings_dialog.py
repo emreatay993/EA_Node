@@ -12,7 +12,7 @@ from PyQt6.QtWidgets import QApplication
 from ea_node_editor.settings import DEFAULT_GRAPHICS_SETTINGS
 from ea_node_editor.ui.dialogs.graphics_settings_dialog import GraphicsSettingsDialog
 from ea_node_editor.ui.dialogs.sectioned_settings_dialog import SectionedSettingsDialog
-from ea_node_editor.ui.graph_theme import graph_theme_choices, resolve_graph_theme
+from ea_node_editor.ui.graph_theme.registry import graph_theme_choices, resolve_graph_theme
 
 
 _EXPAND_COLLISION_TOOLTIP_CASES = (

@@ -13,16 +13,16 @@ from PyQt6.QtWidgets import QDialog
 
 from ea_node_editor.settings import DEFAULT_APP_PREFERENCES, DEFAULT_GRAPHICS_SETTINGS
 from ea_node_editor.ui.dialogs.graphics_settings_dialog import GraphicsSettingsDialog
-from ea_node_editor.ui.graph_theme import (
+from ea_node_editor.ui.graph_theme.presentation import resolve_category_accent
+from ea_node_editor.ui.graph_theme.registry import resolve_graph_theme
+from ea_node_editor.ui.graph_theme.tokens import (
     GRAPH_CATEGORY_ACCENT_TOKENS_V1,
     GRAPH_STITCH_DARK_EDGE_TOKENS_V1,
     GRAPH_STITCH_DARK_NODE_TOKENS_V1,
     GRAPH_STITCH_LIGHT_EDGE_TOKENS_V1,
     GRAPH_STITCH_LIGHT_NODE_TOKENS_V1,
-    resolve_category_accent,
-    resolve_graph_theme,
 )
-from ea_node_editor.ui.theme import build_theme_stylesheet
+from ea_node_editor.ui.theme.styles import build_theme_stylesheet
 from tests.main_window_shell.base import SharedMainWindowShellTestBase
 
 _REPO_ROOT = Path(__file__).resolve().parents[1]

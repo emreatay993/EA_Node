@@ -12,7 +12,8 @@ import ea_node_editor.ui.dialogs as dialogs_module
 from ea_node_editor.app import APP_STYLESHEET
 from ea_node_editor.settings import DEFAULT_GRAPHICS_SETTINGS
 from ea_node_editor.ui.dialogs.graphics_settings_dialog import GraphicsSettingsDialog
-from ea_node_editor.ui.theme import STITCH_DARK_V1, STITCH_LIGHT_V1, build_theme_stylesheet
+from ea_node_editor.ui.theme.styles import build_theme_stylesheet
+from ea_node_editor.ui.theme.tokens import STITCH_DARK_V1, STITCH_LIGHT_V1
 from tests.main_window_shell.base import SharedMainWindowShellTestBase
 from tests.test_main_window_shell import _named_child_items
 

@@ -25,9 +25,32 @@ if (-not (Test-Path $specFile)) {
 }
 
 $packageProfileEnvVar = "EA_NODE_EDITOR_PACKAGE_PROFILE"
+$packageAppName = "COREX_Node_Editor"
+$packageExeName = "$packageAppName.exe"
 $artifactRoot = Join-Path $repoRoot "artifacts\pyinstaller"
-$buildDir = Join-Path (Join-Path $artifactRoot "build") $PackageProfile
-$distDir = Join-Path (Join-Path $artifactRoot "dist") $PackageProfile
+
+function Resolve-PyInstallerProfilePath {
+    param(
+        [Parameter(Mandatory = $true)]
+        [ValidateSet("build", "dist")]
+        [string]$Kind,
+        [Parameter(Mandatory = $true)]
+        [ValidateSet("base", "viewer")]
+        [string]$Profile
+    )
+    return Join-Path (Join-Path $artifactRoot $Kind) $Profile
+}
+
+function Resolve-PackagedExecutablePath {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$DistPath
+    )
+    return Join-Path (Join-Path $DistPath $packageAppName) $packageExeName
+}
+
+$buildDir = Resolve-PyInstallerProfilePath -Kind "build" -Profile $PackageProfile
+$distDir = Resolve-PyInstallerProfilePath -Kind "dist" -Profile $PackageProfile
 
 if ($Clean) {
     if (Test-Path $buildDir) {
@@ -127,12 +150,7 @@ function Assert-PackageProfileDependencies {
         return
     }
 
-    $requiredModules = @(
-        @{ Key = "ansys_dpf_core"; Display = "ansys-dpf-core" },
-        @{ Key = "pyvista"; Display = "pyvista" },
-        @{ Key = "pyvistaqt"; Display = "pyvistaqt" },
-        @{ Key = "vtk"; Display = "vtk" }
-    )
+    $requiredModules = Get-PackageProfileDependencyRules -Profile $Profile
 
     $missing = @()
     foreach ($module in $requiredModules) {
@@ -147,6 +165,25 @@ function Assert-PackageProfileDependencies {
             "Install .[ansys,viewer] or .[dev] before packaging. Missing: $($missing -join ', ')."
         )
     }
+}
+
+function Get-PackageProfileDependencyRules {
+    param(
+        [Parameter(Mandatory = $true)]
+        [ValidateSet("base", "viewer")]
+        [string]$Profile
+    )
+
+    if ($Profile -ne "viewer") {
+        return @()
+    }
+
+    return @(
+        @{ Key = "ansys_dpf_core"; Display = "ansys-dpf-core" },
+        @{ Key = "pyvista"; Display = "pyvista" },
+        @{ Key = "pyvistaqt"; Display = "pyvistaqt" },
+        @{ Key = "vtk"; Display = "vtk" }
+    )
 }
 
 function Write-DependencyMatrix {
@@ -275,7 +312,7 @@ finally {
     [System.Environment]::SetEnvironmentVariable($packageProfileEnvVar, $previousPackageProfile, "Process")
 }
 
-$exePath = Join-Path $distDir "COREX_Node_Editor\COREX_Node_Editor.exe"
+$exePath = Resolve-PackagedExecutablePath -DistPath $distDir
 if (-not (Test-Path $exePath)) {
     throw "Expected executable was not created: $exePath"
 }

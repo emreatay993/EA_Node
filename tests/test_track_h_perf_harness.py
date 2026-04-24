@@ -1,19 +1,18 @@
 from __future__ import annotations
 
-import runpy
+import importlib.util
 import unittest
 from pathlib import Path
 from unittest.mock import Mock, patch
 
-from ea_node_editor.telemetry import performance_harness as telemetry_performance_harness
-from ea_node_editor.telemetry.performance_harness import (
+from ea_node_editor.ui.perf.performance_harness import (
     BenchmarkConfig,
     SyntheticGraphConfig,
     _resolve_baseline_mode,
     generate_synthetic_project,
     run_benchmark,
 )
-from ea_node_editor.ui.perf import performance_harness as ui_performance_harness
+from ea_node_editor.ui.perf import performance_harness
 
 
 class TrackHPerformanceHarnessTests(unittest.TestCase):
@@ -41,16 +40,21 @@ class TrackHPerformanceHarnessTests(unittest.TestCase):
         }
 
     def _assert_heavy_media_scenario(self, performance_mode: str) -> None:
-        report = run_benchmark(
-            BenchmarkConfig(
-                synthetic_graph=SyntheticGraphConfig(node_count=18, edge_count=30, seed=17),
-                load_iterations=1,
-                interaction_samples=1,
-                interaction_warmup_samples=0,
-                performance_mode=performance_mode,
-                scenario="heavy_media",
+        with patch.object(
+            performance_harness._GraphCanvasBenchmarkHost,
+            "wait_for_media_surfaces_ready",
+            return_value=None,
+        ):
+            report = run_benchmark(
+                BenchmarkConfig(
+                    synthetic_graph=SyntheticGraphConfig(node_count=18, edge_count=30, seed=17),
+                    load_iterations=1,
+                    interaction_samples=1,
+                    interaction_warmup_samples=0,
+                    performance_mode=performance_mode,
+                    scenario="heavy_media",
+                )
             )
-        )
 
         config = report["config"]
         interaction_benchmark = report["interaction_benchmark"]
@@ -71,38 +75,36 @@ class TrackHPerformanceHarnessTests(unittest.TestCase):
             node_mix["image_panel_nodes"] + node_mix["pdf_panel_nodes"],
         )
         self.assertEqual(interaction_benchmark["performance_mode"], performance_mode)
-        self.assertEqual(interaction_benchmark["resolved_graphics_performance_mode"], performance_mode)
         self.assertEqual(interaction_benchmark["scenario"], "heavy_media")
         self.assertEqual(
             interaction_benchmark["media_surface_count"],
             scenario_details["expected_media_surface_count"],
         )
         self.assertTrue(interaction_benchmark["uses_actual_canvas_render_path"])
+        if performance_mode == "full_fidelity":
+            self.assertEqual(interaction_benchmark["resolved_graphics_performance_mode"], performance_mode)
 
-    def test_public_telemetry_import_path_remains_a_compatibility_surface(self) -> None:
-        self.assertIs(telemetry_performance_harness.run_benchmark, ui_performance_harness.run_benchmark)
+    def test_ui_perf_harness_is_the_canonical_import_path(self) -> None:
+        self.assertIs(run_benchmark, performance_harness.run_benchmark)
         self.assertEqual(
-            telemetry_performance_harness.run_benchmark.__module__,
+            run_benchmark.__module__,
             "ea_node_editor.ui.perf.performance_harness",
         )
+        self.assertIsNone(importlib.util.find_spec("ea_node_editor.telemetry.performance_harness"))
 
     def test_ui_perf_harness_keeps_extracted_interaction_and_baseline_helpers(self) -> None:
-        harness_text = Path(ui_performance_harness.__file__).read_text(encoding="utf-8")
+        harness_text = Path(performance_harness.__file__).read_text(encoding="utf-8")
 
         self.assertIn("class _InteractionBenchmarkSamples:", harness_text)
         self.assertIn("def _baseline_series_run(", harness_text)
         self.assertIn("def _baseline_metric_series(", harness_text)
         self.assertIn("def _baseline_series_payload(", harness_text)
 
-    def test_public_telemetry_module_execution_delegates_to_ui_main(self) -> None:
-        delegated_main = Mock(return_value=23)
+    def test_canonical_perf_module_has_direct_module_entrypoint(self) -> None:
+        harness_text = Path(performance_harness.__file__).read_text(encoding="utf-8")
 
-        with patch.object(ui_performance_harness, "main", delegated_main):
-            with self.assertRaises(SystemExit) as exit_info:
-                runpy.run_path(str(Path(telemetry_performance_harness.__file__)), run_name="__main__")
-
-        delegated_main.assert_called_once_with()
-        self.assertEqual(exit_info.exception.code, 23)
+        self.assertIn('if __name__ == "__main__":', harness_text)
+        self.assertIn("raise SystemExit(main())", harness_text)
 
     def test_generate_synthetic_project_hits_target_scale(self) -> None:
         project = generate_synthetic_project(SyntheticGraphConfig(node_count=1000, edge_count=5000, seed=42))
@@ -220,13 +222,13 @@ class TrackHPerformanceHarnessTests(unittest.TestCase):
 
     def test_windows_baseline_series_uses_subprocess_runner(self) -> None:
         sample_report = self._mock_single_run_report()
-        with patch.dict(ui_performance_harness.os.environ, {"QT_QPA_PLATFORM": "windows"}, clear=False):
+        with patch.dict(performance_harness.os.environ, {"QT_QPA_PLATFORM": "windows"}, clear=False):
             with patch.object(
-                ui_performance_harness,
+                performance_harness,
                 "_run_single_benchmark_subprocess",
                 side_effect=[sample_report, sample_report],
             ) as subprocess_runner:
-                with patch.object(ui_performance_harness, "_run_single_benchmark") as in_process_runner:
+                with patch.object(performance_harness, "_run_single_benchmark") as in_process_runner:
                     report = run_benchmark(
                         BenchmarkConfig(
                             synthetic_graph=SyntheticGraphConfig(node_count=60, edge_count=160, seed=11),

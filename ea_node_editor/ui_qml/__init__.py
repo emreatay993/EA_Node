@@ -1,20 +1,10 @@
 from __future__ import annotations
 
-import os
-import sys
 
+def register_qml_types() -> None:
+    from ea_node_editor.ui_qml.shell_addon_manager_bridge import register_qml_types as register_addon_manager_qml_types
 
-def _configure_qquick_controls_runtime() -> None:
-    if sys.platform != "win32":
-        return
-    if os.environ.get("QT_QUICK_CONTROLS_STYLE"):
-        return
-    # PyQt6 6.11 on Windows can miss the Windows Quick Controls style runtime DLL.
-    # Pin a built-in style for all QML bridge imports unless the caller explicitly overrides it.
-    os.environ["QT_QUICK_CONTROLS_STYLE"] = "Basic"
-
-
-_configure_qquick_controls_runtime()
+    register_addon_manager_qml_types()
 
 from ea_node_editor.ui_qml.console_model import ConsoleModel
 from ea_node_editor.ui_qml.graph_theme_bridge import GraphThemeBridge
@@ -25,6 +15,8 @@ from ea_node_editor.ui_qml.theme_bridge import ThemeBridge
 from ea_node_editor.ui_qml.viewport_bridge import ViewportBridge
 from ea_node_editor.ui_qml.workspace_tabs_model import WorkspaceTabsModel
 
+register_qml_types()
+
 __all__ = [
     "ConsoleModel",
     "GraphThemeBridge",
@@ -34,4 +26,5 @@ __all__ = [
     "StatusItemModel",
     "ThemeBridge",
     "WorkspaceTabsModel",
+    "register_qml_types",
 ]

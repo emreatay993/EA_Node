@@ -7,6 +7,7 @@ from pathlib import Path
 
 
 _BOOTSTRAP_SENTINEL = "EA_NODE_EDITOR_BOOTSTRAPPED"
+_QT_QUICK_CONTROLS_STYLE = "Basic"
 
 
 def _path_key(path: Path) -> str:
@@ -68,13 +69,23 @@ def _bootstrap_python() -> None:
     os.chdir(repo_root)
     os.execvpe(
         str(preferred_python),
-        [str(preferred_python), "main.py", *sys.argv[1:]],
+        [str(preferred_python), "-m", "ea_node_editor.bootstrap", *sys.argv[1:]],
         env,
     )
 
 
+def configure_qquick_controls_runtime() -> None:
+    if sys.platform != "win32":
+        return
+    if os.environ.get("QT_QUICK_CONTROLS_STYLE"):
+        return
+    # PyQt6 6.11 on Windows can miss the Windows Quick Controls style runtime DLL.
+    os.environ["QT_QUICK_CONTROLS_STYLE"] = _QT_QUICK_CONTROLS_STYLE
+
+
 def main() -> int:
     _bootstrap_python()
+    configure_qquick_controls_runtime()
     from ea_node_editor.telemetry.startup_profile import phase
 
     with phase("bootstrap.import app"):

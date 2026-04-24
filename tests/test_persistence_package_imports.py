@@ -30,10 +30,12 @@ class PersistencePackageImportTests(unittest.TestCase):
         )
         self.assertEqual(result.stdout.strip(), "GraphModel")
 
-    def test_persistence_package_exports_resolve_lazily(self) -> None:
+    def test_persistence_imports_use_concrete_modules(self) -> None:
         result = self._run_python(
-            "from ea_node_editor.persistence import "
-            "JsonProjectCodec, JsonProjectMigration, JsonProjectSerializer, SessionAutosaveStore; "
+            "from ea_node_editor.persistence.project_codec import JsonProjectCodec; "
+            "from ea_node_editor.persistence.migration import JsonProjectMigration; "
+            "from ea_node_editor.persistence.serializer import JsonProjectSerializer; "
+            "from ea_node_editor.persistence.session_store import SessionAutosaveStore; "
             "print(','.join(["
             "JsonProjectCodec.__name__, "
             "JsonProjectMigration.__name__, "
@@ -50,6 +52,20 @@ class PersistencePackageImportTests(unittest.TestCase):
             result.stdout.strip(),
             "JsonProjectCodec,JsonProjectMigration,JsonProjectSerializer,SessionAutosaveStore",
         )
+
+    def test_persistence_package_root_has_no_lazy_barrel(self) -> None:
+        result = self._run_python(
+            "import ea_node_editor.persistence as persistence; "
+            "print(hasattr(persistence, '__getattr__')); "
+            "print(getattr(persistence, '__all__', None))"
+        )
+
+        self.assertEqual(
+            result.returncode,
+            0,
+            msg=result.stderr or result.stdout,
+        )
+        self.assertEqual(result.stdout.splitlines(), ["False", "[]"])
 
     def test_project_codec_contract_types_import_without_cycle(self) -> None:
         result = self._run_python(

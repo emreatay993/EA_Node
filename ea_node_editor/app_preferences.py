@@ -49,12 +49,12 @@ from ea_node_editor.settings import (
     TAB_STRIP_DENSITY_CHOICES,
     app_preferences_path,
 )
-from ea_node_editor.ui.graph_theme import (
+from ea_node_editor.ui.graph_theme.registry import (
     is_known_graph_theme_id,
     resolve_graph_theme_id,
     serialize_custom_graph_themes,
 )
-from ea_node_editor.ui.theme import DEFAULT_THEME_ID, is_known_theme_id, resolve_theme_id
+from ea_node_editor.ui.theme.registry import DEFAULT_THEME_ID, is_known_theme_id, resolve_theme_id
 
 
 _GRAPHICS_PERFORMANCE_MODE_VALUES = {

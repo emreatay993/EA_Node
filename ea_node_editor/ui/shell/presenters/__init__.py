@@ -9,9 +9,6 @@ from .inspector_presenter import ShellInspectorPresenter
 from .library_presenter import ShellLibraryPresenter
 from .state import ShellWorkspaceUiState, build_default_shell_workspace_ui_state
 from .workspace_presenter import ShellWorkspacePresenter
-from ea_node_editor.ui_qml.shell_addon_manager_bridge import register_qml_types as _register_addon_manager_qml_types
-
-_register_addon_manager_qml_types()
 
 __all__ = [
     "AddOnManagerPresenter",

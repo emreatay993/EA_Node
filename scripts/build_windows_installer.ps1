@@ -13,6 +13,11 @@ $ErrorActionPreference = "Stop"
 $repoRoot = Resolve-Path (Join-Path $PSScriptRoot "..")
 Set-Location $repoRoot
 
+$packageAppName = "COREX_Node_Editor"
+$packageExeName = "$packageAppName.exe"
+$pyInstallerArtifactRoot = Join-Path $repoRoot "artifacts\pyinstaller"
+$releaseArtifactRoot = Join-Path $repoRoot "artifacts\releases"
+
 function Resolve-PowerShellHostPath {
     $candidateNames = @(
         "powershell.exe",
@@ -121,11 +126,37 @@ function Resolve-RepoPath {
     return Join-Path $repoRoot $PathValue
 }
 
+function Resolve-PyInstallerDistPath {
+    param(
+        [Parameter(Mandatory = $true)]
+        [ValidateSet("base", "viewer")]
+        [string]$Profile
+    )
+    return Join-Path (Join-Path (Join-Path $pyInstallerArtifactRoot "dist") $Profile) $packageAppName
+}
+
+function Resolve-PackagedExecutablePath {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$DistPath
+    )
+    return Join-Path $DistPath $packageExeName
+}
+
+function Resolve-InstallerOutputRoot {
+    param(
+        [Parameter(Mandatory = $true)]
+        [ValidateSet("base", "viewer")]
+        [string]$Profile
+    )
+    return Join-Path (Join-Path $releaseArtifactRoot "installer") $Profile
+}
+
 if ([string]::IsNullOrWhiteSpace($DistPath)) {
-    $DistPath = "artifacts\pyinstaller\dist\$PackageProfile\COREX_Node_Editor"
+    $DistPath = Resolve-PyInstallerDistPath -Profile $PackageProfile
 }
 if ([string]::IsNullOrWhiteSpace($OutputRoot)) {
-    $OutputRoot = "artifacts\releases\installer\$PackageProfile"
+    $OutputRoot = Resolve-InstallerOutputRoot -Profile $PackageProfile
 }
 
 $resolvedDistPath = Resolve-RepoPath -PathValue $DistPath
@@ -133,7 +164,7 @@ if (-not (Test-Path $resolvedDistPath)) {
     throw "PyInstaller dist folder not found: $resolvedDistPath"
 }
 
-$sourceExe = Join-Path $resolvedDistPath "COREX_Node_Editor.exe"
+$sourceExe = Resolve-PackagedExecutablePath -DistPath $resolvedDistPath
 if (-not (Test-Path $sourceExe)) {
     throw "Expected packaged executable not found: $sourceExe"
 }
@@ -143,7 +174,7 @@ New-Item -ItemType Directory -Path $resolvedOutputRoot -Force | Out-Null
 
 $runId = Get-Date -Format "yyyyMMdd_HHmmss"
 $bundleRoot = Join-Path $resolvedOutputRoot $runId
-$payloadRoot = Join-Path $bundleRoot "payload\COREX_Node_Editor"
+$payloadRoot = Join-Path (Join-Path $bundleRoot "payload") $packageAppName
 $scriptRoot = Join-Path $bundleRoot "scripts"
 
 New-Item -ItemType Directory -Path $payloadRoot -Force | Out-Null
@@ -161,13 +192,15 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
+$packageAppName = "COREX_Node_Editor"
+$packageExeName = "COREX_Node_Editor.exe"
 $packageRoot = Resolve-Path (Join-Path $PSScriptRoot "..")
-$payload = Join-Path $packageRoot "payload\COREX_Node_Editor"
+$payload = Join-Path (Join-Path $packageRoot "payload") $packageAppName
 if (-not (Test-Path $payload)) {
     throw "Installer payload not found: $payload"
 }
 
-$targetDir = Join-Path $InstallRoot "COREX_Node_Editor"
+$targetDir = Join-Path $InstallRoot $packageAppName
 if (Test-Path $targetDir) {
     Remove-Item -Recurse -Force $targetDir
 }
@@ -178,7 +211,7 @@ $record = [ordered]@{
     installed_at_utc = (Get-Date).ToUniversalTime().ToString("o")
     install_root = $InstallRoot
     install_dir = $targetDir
-    executable = (Join-Path $targetDir "COREX_Node_Editor.exe")
+    executable = (Join-Path $targetDir $packageExeName)
 }
 $recordPath = Join-Path $InstallRoot "install_record.json"
 New-Item -ItemType Directory -Path $InstallRoot -Force | Out-Null
@@ -193,7 +226,8 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
-$targetDir = Join-Path $InstallRoot "COREX_Node_Editor"
+$packageAppName = "COREX_Node_Editor"
+$targetDir = Join-Path $InstallRoot $packageAppName
 if (Test-Path $targetDir) {
     Remove-Item -Recurse -Force $targetDir
 }
@@ -247,7 +281,7 @@ catch {
     throw "Installer validation failed during install phase."
 }
 
-$installedExe = Join-Path $validationInstallRoot "COREX_Node_Editor\COREX_Node_Editor.exe"
+$installedExe = Join-Path (Join-Path $validationInstallRoot $packageAppName) $packageExeName
 if (-not (Test-Path $installedExe)) {
     throw "Installer validation failed: installed executable not found at $installedExe"
 }
@@ -286,7 +320,7 @@ catch {
     throw "Installer validation failed during uninstall phase."
 }
 
-$postUninstallExe = Join-Path $validationInstallRoot "COREX_Node_Editor\COREX_Node_Editor.exe"
+$postUninstallExe = Join-Path (Join-Path $validationInstallRoot $packageAppName) $packageExeName
 $uninstallPassed = -not (Test-Path $postUninstallExe)
 if (-not $uninstallPassed) {
     throw "Installer validation failed: executable still exists after uninstall."

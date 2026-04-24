@@ -12,6 +12,7 @@ from PyInstaller.utils.hooks import collect_data_files, collect_submodules, copy
 _SPEC_PATH = Path(globals().get("__file__", Path.cwd() / "ea_node_editor.spec")).resolve()
 PROJECT_ROOT = _SPEC_PATH.parent
 PACKAGE_PROFILE_ENV_VAR = "EA_NODE_EDITOR_PACKAGE_PROFILE"
+PACKAGE_APP_NAME = "COREX_Node_Editor"
 BASE_PACKAGE_PROFILE = "base"
 VIEWER_PACKAGE_PROFILE = "viewer"
 VIEWER_RUNTIME_HIDDENIMPORT_PACKAGES = (
@@ -193,7 +194,7 @@ datas = list(dict.fromkeys(datas))
 binaries = list(dict.fromkeys(binaries))
 
 a = Analysis(
-    [str(PROJECT_ROOT / "main.py")],
+    [str(PROJECT_ROOT / "ea_node_editor" / "bootstrap.py")],
     pathex=[str(PROJECT_ROOT)],
     binaries=binaries,
     datas=datas,
@@ -212,7 +213,7 @@ exe = EXE(
     a.scripts,
     [],
     exclude_binaries=True,
-    name="COREX_Node_Editor",
+    name=PACKAGE_APP_NAME,
     icon=str(PROJECT_ROOT / "ea_node_editor" / "assets" / "app_icon" / "corex_app.ico"),
     debug=False,
     bootloader_ignore_signals=False,
@@ -232,5 +233,5 @@ coll = COLLECT(
     strip=False,
     upx=True,
     upx_exclude=[],
-    name="COREX_Node_Editor",
+    name=PACKAGE_APP_NAME,
 )

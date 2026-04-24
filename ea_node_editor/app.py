@@ -19,7 +19,8 @@ from ea_node_editor.telemetry.startup_profile import is_autoquit, phase, summary
 from ea_node_editor.ui.app_icon import apply_application_icon
 from ea_node_editor.ui.shell.composition import create_shell_window
 from ea_node_editor.ui.splash import OpeningSplash, RegistryLoader
-from ea_node_editor.ui.theme import DEFAULT_THEME_ID, build_theme_stylesheet
+from ea_node_editor.ui.theme.registry import DEFAULT_THEME_ID
+from ea_node_editor.ui.theme.styles import build_theme_stylesheet
 
 logger = logging.getLogger(__name__)
 

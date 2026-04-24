@@ -16,6 +16,11 @@ $ErrorActionPreference = "Stop"
 $repoRoot = Resolve-Path (Join-Path $PSScriptRoot "..")
 Set-Location $repoRoot
 
+$packageAppName = "COREX_Node_Editor"
+$packageExeName = "$packageAppName.exe"
+$pyInstallerArtifactRoot = Join-Path $repoRoot "artifacts\pyinstaller"
+$releaseArtifactRoot = Join-Path $repoRoot "artifacts\releases"
+
 function Resolve-RepoPath {
     param(
         [Parameter(Mandatory = $true)]
@@ -27,14 +32,50 @@ function Resolve-RepoPath {
     return Join-Path $repoRoot $PathValue
 }
 
+function Resolve-PyInstallerDistPath {
+    param(
+        [Parameter(Mandatory = $true)]
+        [ValidateSet("base", "viewer")]
+        [string]$Profile
+    )
+    return Join-Path (Join-Path (Join-Path $pyInstallerArtifactRoot "dist") $Profile) $packageAppName
+}
+
+function Resolve-PackagedExecutablePath {
+    param(
+        [Parameter(Mandatory = $true)]
+        [ValidateSet("base", "viewer")]
+        [string]$Profile
+    )
+    return Join-Path (Resolve-PyInstallerDistPath -Profile $Profile) $packageExeName
+}
+
+function Resolve-SigningOutputRoot {
+    param(
+        [Parameter(Mandatory = $true)]
+        [ValidateSet("base", "viewer")]
+        [string]$Profile
+    )
+    return Join-Path (Join-Path $releaseArtifactRoot "signing") $Profile
+}
+
+function Resolve-InstallerRoot {
+    param(
+        [Parameter(Mandatory = $true)]
+        [ValidateSet("base", "viewer")]
+        [string]$Profile
+    )
+    return Join-Path (Join-Path $releaseArtifactRoot "installer") $Profile
+}
+
 if ([string]::IsNullOrWhiteSpace($SigningOutputRoot)) {
-    $SigningOutputRoot = "artifacts\releases\signing\$PackageProfile"
+    $SigningOutputRoot = Resolve-SigningOutputRoot -Profile $PackageProfile
 }
 if ([string]::IsNullOrWhiteSpace($PackagedExePath)) {
-    $PackagedExePath = "artifacts\pyinstaller\dist\$PackageProfile\COREX_Node_Editor\COREX_Node_Editor.exe"
+    $PackagedExePath = Resolve-PackagedExecutablePath -Profile $PackageProfile
 }
 if ([string]::IsNullOrWhiteSpace($InstallerRoot)) {
-    $InstallerRoot = "artifacts\releases\installer\$PackageProfile"
+    $InstallerRoot = Resolve-InstallerRoot -Profile $PackageProfile
 }
 
 function Get-LatestInstallerRun {

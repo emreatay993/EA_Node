@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import importlib
+import os
 import tempfile
 import types
 import unittest
@@ -10,7 +11,6 @@ from unittest.mock import Mock, patch
 from PyQt6.QtWidgets import QApplication
 
 
-main = importlib.import_module("main")
 bootstrap_module = importlib.import_module("ea_node_editor.bootstrap")
 app_module = importlib.import_module("ea_node_editor.app")
 shell_composition_module = importlib.import_module("ea_node_editor.ui.shell.composition")
@@ -26,14 +26,22 @@ def _touch(path: Path) -> Path:
 
 
 class MainBootstrapTests(unittest.TestCase):
-    def test_source_launcher_delegates_to_package_bootstrap(self) -> None:
-        self.assertIs(main.main, bootstrap_module.main)
+    def test_root_source_launcher_is_retired(self) -> None:
+        self.assertFalse((Path(__file__).resolve().parents[1] / "main.py").exists())
 
     def test_console_script_targets_package_bootstrap(self) -> None:
         pyproject_path = Path(__file__).resolve().parents[1] / "pyproject.toml"
         pyproject_text = pyproject_path.read_text(encoding="utf-8")
 
         self.assertIn('corex-node-editor = "ea_node_editor.bootstrap:main"', pyproject_text)
+
+    def test_shell_launcher_targets_package_bootstrap_module(self) -> None:
+        run_script_path = Path(__file__).resolve().parents[1] / "scripts" / "run.sh"
+        run_script_text = run_script_path.read_text(encoding="utf-8")
+
+        self.assertIn("-m ea_node_editor.bootstrap", run_script_text)
+        self.assertNotIn("find_worktree_python", run_script_text)
+        self.assertNotIn(" main.py", run_script_text)
 
     def test_preferred_python_prefers_local_venv_over_shared_worktree(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -70,10 +78,6 @@ class MainBootstrapTests(unittest.TestCase):
             repo_root = Path(temp_dir) / "repo"
             preferred_python = _touch(repo_root / "venv" / "Scripts" / "python.exe")
             current_python = _touch(Path(temp_dir) / "system" / "python.exe")
-            script_path = repo_root / "main.py"
-            script_path.parent.mkdir(parents=True, exist_ok=True)
-            script_path.write_text("print('placeholder')\n", encoding="utf-8")
-
             exec_calls: list[tuple[str, list[str], dict[str, str]]] = []
 
             def _fake_execvpe(file: str, args: list[str], env: dict[str, str]) -> None:
@@ -83,7 +87,7 @@ class MainBootstrapTests(unittest.TestCase):
             with patch.object(bootstrap_module, "__file__", str(repo_root / "ea_node_editor" / "bootstrap.py")), patch.object(
                 bootstrap_module.sys, "executable", str(current_python)
             ), patch.object(
-                bootstrap_module.sys, "argv", [str(script_path), "--example-flag", "value"]
+                bootstrap_module.sys, "argv", ["-m", "--example-flag", "value"]
             ), patch.object(bootstrap_module.os, "execvpe", side_effect=_fake_execvpe), patch.object(
                 bootstrap_module.os, "chdir"
             ) as chdir_mock, patch.dict(bootstrap_module.os.environ, {}, clear=False), patch.object(
@@ -96,7 +100,7 @@ class MainBootstrapTests(unittest.TestCase):
             self.assertEqual(exec_calls[0][0], str(preferred_python))
             self.assertEqual(
                 exec_calls[0][1],
-                [str(preferred_python), "main.py", "--example-flag", "value"],
+                [str(preferred_python), "-m", "ea_node_editor.bootstrap", "--example-flag", "value"],
             )
             self.assertEqual(exec_calls[0][2][bootstrap_module._BOOTSTRAP_SENTINEL], "1")
             chdir_mock.assert_called_once_with(repo_root)
@@ -104,7 +108,7 @@ class MainBootstrapTests(unittest.TestCase):
             with patch.object(bootstrap_module, "__file__", str(repo_root / "ea_node_editor" / "bootstrap.py")), patch.object(
                 bootstrap_module.sys, "executable", str(current_python)
             ), patch.object(
-                bootstrap_module.sys, "argv", [str(script_path), "--example-flag", "value"]
+                bootstrap_module.sys, "argv", ["-m", "--example-flag", "value"]
             ), patch.object(bootstrap_module.os, "execvpe") as execvpe_mock, patch.dict(
                 bootstrap_module.os.environ, {bootstrap_module._BOOTSTRAP_SENTINEL: "1"}, clear=False
             ), patch.object(bootstrap_module, "_preferred_python", return_value=preferred_python):
@@ -120,6 +124,23 @@ class MainBootstrapTests(unittest.TestCase):
 
         preferred_python_mock.assert_not_called()
         execvpe_mock.assert_not_called()
+
+    def test_bootstrap_owns_windows_qquick_controls_style_default(self) -> None:
+        with patch.object(bootstrap_module.sys, "platform", "win32"), patch.dict(
+            os.environ,
+            {},
+            clear=True,
+        ):
+            bootstrap_module.configure_qquick_controls_runtime()
+            self.assertEqual(os.environ["QT_QUICK_CONTROLS_STYLE"], "Basic")
+
+        with patch.object(bootstrap_module.sys, "platform", "win32"), patch.dict(
+            os.environ,
+            {"QT_QUICK_CONTROLS_STYLE": "Material"},
+            clear=True,
+        ):
+            bootstrap_module.configure_qquick_controls_runtime()
+            self.assertEqual(os.environ["QT_QUICK_CONTROLS_STYLE"], "Material")
 
 
 class AppBootstrapTests(unittest.TestCase):

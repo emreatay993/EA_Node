@@ -172,3 +172,44 @@ class DeadCodeHygienePythonHelperBoundaryTests(unittest.TestCase):
         for relative_path in absent_paths:
             with self.subTest(path=relative_path):
                 self.assertFalse((_REPO_ROOT / relative_path).exists())
+
+    def test_launch_and_import_shims_do_not_reappear(self) -> None:
+        absent_paths = (
+            "main.py",
+            "ea_node_editor/telemetry/performance_harness.py",
+        )
+
+        for relative_path in absent_paths:
+            with self.subTest(path=relative_path):
+                self.assertFalse((_REPO_ROOT / relative_path).exists())
+
+        shell_launcher = (_REPO_ROOT / "scripts" / "run.sh").read_text(encoding="utf-8")
+        self.assertIn("-m ea_node_editor.bootstrap", shell_launcher)
+        self.assertNotIn("main.py", shell_launcher)
+        self.assertNotIn("find_worktree_python", shell_launcher)
+
+        spec_text = (_REPO_ROOT / "ea_node_editor.spec").read_text(encoding="utf-8")
+        self.assertIn('"ea_node_editor" / "bootstrap.py"', spec_text)
+        self.assertNotIn('PROJECT_ROOT / "main.py"', spec_text)
+
+    def test_package_roots_do_not_publish_lazy_getattr_barrels(self) -> None:
+        for relative_path in (
+            "ea_node_editor/ui/__init__.py",
+            "ea_node_editor/ui/shell/__init__.py",
+            "ea_node_editor/persistence/__init__.py",
+            "ea_node_editor/ui/dialogs/__init__.py",
+        ):
+            with self.subTest(path=relative_path):
+                module_text = (_REPO_ROOT / relative_path).read_text(encoding="utf-8")
+                self.assertNotIn("def __getattr__", module_text)
+
+    def test_qml_startup_side_effects_are_not_hidden_in_presenter_imports(self) -> None:
+        presenters_text = (_REPO_ROOT / "ea_node_editor/ui/shell/presenters/__init__.py").read_text(
+            encoding="utf-8"
+        )
+        ui_qml_text = (_REPO_ROOT / "ea_node_editor/ui_qml/__init__.py").read_text(encoding="utf-8")
+        bootstrap_text = (_REPO_ROOT / "ea_node_editor/bootstrap.py").read_text(encoding="utf-8")
+
+        self.assertNotIn("register_qml_types", presenters_text)
+        self.assertNotIn("QT_QUICK_CONTROLS_STYLE", ui_qml_text)
+        self.assertIn("QT_QUICK_CONTROLS_STYLE", bootstrap_text)
