@@ -62,8 +62,6 @@ class _GraphCanvasCommandSource(Protocol):
         overlay_y: float,
     ) -> None: ...
 
-    def request_publish_custom_workflow_from_node(self, node_id: str) -> bool: ...
-
 
 class _GraphCanvasHostSource(Protocol):
     def request_delete_selected_graph_items(self, edge_ids: list[object]) -> bool: ...
@@ -77,32 +75,6 @@ class _GraphCanvasHostSource(Protocol):
     def clear_graph_cursor_shape(self) -> None: ...
 
     def describe_pdf_preview(self, source: str, page_number: Any) -> dict[str, Any]: ...
-
-    def request_edit_flow_edge_style(self, edge_id: str) -> bool: ...
-
-    def request_edit_flow_edge_label(self, edge_id: str) -> bool: ...
-
-    def request_reset_flow_edge_style(self, edge_id: str) -> bool: ...
-
-    def request_copy_flow_edge_style(self, edge_id: str) -> bool: ...
-
-    def request_paste_flow_edge_style(self, edge_id: str) -> bool: ...
-
-    def request_remove_edge(self, edge_id: str) -> bool: ...
-
-    def request_edit_passive_node_style(self, node_id: str) -> bool: ...
-
-    def request_reset_passive_node_style(self, node_id: str) -> bool: ...
-
-    def request_copy_passive_node_style(self, node_id: str) -> bool: ...
-
-    def request_paste_passive_node_style(self, node_id: str) -> bool: ...
-
-    def request_rename_node(self, node_id: str) -> bool: ...
-
-    def request_ungroup_node(self, node_id: str) -> bool: ...
-
-    def request_remove_node(self, node_id: str) -> bool: ...
 
 
 class _GraphCanvasSceneCommandSource(Protocol):
@@ -136,8 +108,6 @@ class _GraphCanvasSceneCommandSource(Protocol):
     def resize_node(self, node_id: str, width: float, height: float) -> None: ...
 
     def set_node_geometry(self, node_id: str, x: float, y: float, width: float, height: float) -> None: ...
-
-    def wrap_selected_nodes_in_comment_backdrop(self) -> bool: ...
 
     def set_port_locked(self, node_id: str, key: str, locked: bool) -> bool: ...
 
@@ -327,10 +297,6 @@ class GraphCanvasCommandBridge(QObject):
     @pyqtSlot(str, result=bool)
     def can_open_comment_peek(self, node_id: str) -> bool:
         return bool(_invoke(self._scene_bridge, "can_open_comment_peek", node_id, default=False))
-
-    @pyqtSlot(str, result=bool)
-    def request_open_comment_peek(self, node_id: str) -> bool:
-        return bool(_invoke(self._scene_bridge, "open_comment_peek", node_id, default=False))
 
     @pyqtSlot(result=bool)
     def request_close_comment_peek(self) -> bool:
@@ -615,16 +581,6 @@ class GraphCanvasCommandBridge(QObject):
             float(height),
         )
 
-    @pyqtSlot(result=bool)
-    def request_wrap_selected_nodes_in_comment_backdrop(self) -> bool:
-        return bool(
-            _invoke(
-                self._scene_command_source,
-                "wrap_selected_nodes_in_comment_backdrop",
-                default=False,
-            )
-        )
-
     @pyqtSlot(str, str, bool, result=bool)
     def set_port_locked(self, node_id: str, port_key: str, locked: bool) -> bool:
         return bool(
@@ -656,170 +612,6 @@ class GraphCanvasCommandBridge(QObject):
                 page_number,
                 default={},
             )
-        )
-
-    @pyqtSlot(str, result=bool)
-    def request_edit_flow_edge_style(self, edge_id: str) -> bool:
-        return bool(
-            _invoke(
-                self._host_source,
-                "request_edit_flow_edge_style",
-                edge_id,
-                default=False,
-            )
-        )
-
-    @pyqtSlot(str, result=bool)
-    def request_edit_flow_edge_label(self, edge_id: str) -> bool:
-        return bool(
-            _invoke(
-                self._host_source,
-                "request_edit_flow_edge_label",
-                edge_id,
-                default=False,
-            )
-        )
-
-    @pyqtSlot(str, result=bool)
-    def request_reset_flow_edge_style(self, edge_id: str) -> bool:
-        return bool(
-            _invoke(
-                self._host_source,
-                "request_reset_flow_edge_style",
-                edge_id,
-                default=False,
-            )
-        )
-
-    @pyqtSlot(str, result=bool)
-    def request_copy_flow_edge_style(self, edge_id: str) -> bool:
-        return bool(
-            _invoke(
-                self._host_source,
-                "request_copy_flow_edge_style",
-                edge_id,
-                default=False,
-            )
-        )
-
-    @pyqtSlot(str, result=bool)
-    def request_paste_flow_edge_style(self, edge_id: str) -> bool:
-        return bool(
-            _invoke(
-                self._host_source,
-                "request_paste_flow_edge_style",
-                edge_id,
-                default=False,
-            )
-        )
-
-    @pyqtSlot(str, result=bool)
-    def request_remove_edge(self, edge_id: str) -> bool:
-        return bool(
-            _invoke(
-                self._host_source,
-                "request_remove_edge",
-                edge_id,
-                default=False,
-            )
-        )
-
-    @pyqtSlot(str, result=bool)
-    def request_publish_custom_workflow_from_node(self, node_id: str) -> bool:
-        return bool(
-            _invoke(
-                self._canvas_source,
-                "request_publish_custom_workflow_from_node",
-                node_id,
-                default=False,
-            )
-        )
-
-    @pyqtSlot(str, result=bool)
-    def request_edit_passive_node_style(self, node_id: str) -> bool:
-        return bool(
-            _invoke(
-                self._host_source,
-                "request_edit_passive_node_style",
-                node_id,
-                default=False,
-            )
-        )
-
-    @pyqtSlot(str, result=bool)
-    def request_reset_passive_node_style(self, node_id: str) -> bool:
-        return bool(
-            _invoke(
-                self._host_source,
-                "request_reset_passive_node_style",
-                node_id,
-                default=False,
-            )
-        )
-
-    @pyqtSlot(str, result=bool)
-    def request_copy_passive_node_style(self, node_id: str) -> bool:
-        return bool(
-            _invoke(
-                self._host_source,
-                "request_copy_passive_node_style",
-                node_id,
-                default=False,
-            )
-        )
-
-    @pyqtSlot(str, result=bool)
-    def request_paste_passive_node_style(self, node_id: str) -> bool:
-        return bool(
-            _invoke(
-                self._host_source,
-                "request_paste_passive_node_style",
-                node_id,
-                default=False,
-            )
-        )
-
-    @pyqtSlot(str, result=bool)
-    def request_rename_node(self, node_id: str) -> bool:
-        return bool(
-            _invoke(
-                self._host_source,
-                "request_rename_node",
-                node_id,
-                default=False,
-            )
-        )
-
-    @pyqtSlot(str, result=bool)
-    def request_ungroup_node(self, node_id: str) -> bool:
-        return bool(
-            _invoke(
-                self._host_source,
-                "request_ungroup_node",
-                node_id,
-                default=False,
-            )
-        )
-
-    @pyqtSlot(str, result=bool)
-    def request_remove_node(self, node_id: str) -> bool:
-        return bool(
-            _invoke(
-                self._host_source,
-                "request_remove_node",
-                node_id,
-                default=False,
-            )
-        )
-
-    @pyqtSlot(str, result=bool)
-    def request_duplicate_node(self, node_id: str) -> bool:
-        normalized = str(node_id or "").strip()
-        if not normalized:
-            return False
-        _invoke(self._scene_command_source, "select_node", normalized, False)
-        return bool(
-            _invoke(self._scene_bridge, "duplicate_selected_subgraph", default=False)
         )
 
 

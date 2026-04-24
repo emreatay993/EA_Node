@@ -4,6 +4,7 @@ import "GraphCanvasPerformancePolicy.js" as GraphCanvasPerformancePolicyLogic
 
 QtObject {
     id: root
+    property var graphActionBridge: null
     property var canvasStateBridge: null
     property var canvasCommandBridge: null
     property var canvasViewBridge: null
@@ -11,6 +12,7 @@ QtObject {
     property var canvasPerformancePolicy: null
     property real nodeRenderActivationPaddingPx: 240.0
 
+    readonly property var graphActionBridgeRef: root.graphActionBridge || null
     readonly property var canvasStateBridgeRef: root.canvasStateBridge || null
     readonly property var canvasCommandBridgeRef: root.canvasCommandBridge || null
     readonly property var canvasViewBridgeRef: root.canvasViewBridge || null

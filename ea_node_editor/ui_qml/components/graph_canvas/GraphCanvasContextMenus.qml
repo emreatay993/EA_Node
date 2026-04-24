@@ -5,6 +5,7 @@ Item {
     id: root
     property Item canvasItem: null
     property var commandBridge: null
+    property var graphActionBridge: null
     readonly property var themePalette: themeBridge.palette
 
     anchors.fill: parent
@@ -48,12 +49,50 @@ Item {
             && addonManagerBridge.requestOpen;
     }
 
-    function requestOpenAddonManagerForNode(nodeId) {
-        var focusAddonId = root._nodeAddonFocusId(nodeId);
-        if (!focusAddonId.length || !root._addonManagerAvailable())
+    function _triggerGraphAction(actionId, payload) {
+        if (!root.graphActionBridge || !root.graphActionBridge.trigger_graph_action)
             return false;
-        addonManagerBridge.requestOpen(focusAddonId);
-        return true;
+        return Boolean(root.graphActionBridge.trigger_graph_action(actionId, payload || ({})));
+    }
+
+    function _edgeActionPayload(actionId) {
+        var edgeId = root.canvasItem ? String(root.canvasItem.edgeContextEdgeId || "").trim() : "";
+        if (!edgeId.length)
+            return null;
+        if ([
+            "edit_flow_edge",
+            "edit_edge_label",
+            "reset_flow_edge_style",
+            "copy_flow_edge_style",
+            "paste_flow_edge_style",
+            "remove_edge"
+        ].indexOf(actionId) < 0) {
+            return null;
+        }
+        return { "edge_id": edgeId };
+    }
+
+    function _nodeActionPayload(actionId) {
+        var nodeId = root.canvasItem ? String(root.canvasItem.nodeContextNodeId || "").trim() : "";
+        if (!nodeId.length)
+            return null;
+        if ([
+            "open_addon_manager",
+            "enter_subnode",
+            "add_to_workflows",
+            "peek_comment",
+            "edit_node_style",
+            "reset_node_style",
+            "copy_node_style",
+            "paste_node_style",
+            "rename_node",
+            "show_help",
+            "ungroup_subnode",
+            "remove_node"
+        ].indexOf(actionId) < 0) {
+            return null;
+        }
+        return { "node_id": nodeId };
     }
 
     function _isCollapsedCommentBackdrop(payload) {
@@ -95,25 +134,16 @@ Item {
             { "actionId": "remove_edge", "text": "Remove Connection", "destructive": true }
         ]
         onActionTriggered: function(actionId) {
-            if (!root.commandBridge || !root.canvasItem || !root.canvasItem.edgeContextEdgeId)
+            if (!root.canvasItem)
                 return
-            if (actionId === "edit_flow_edge") {
-                root.commandBridge.request_edit_flow_edge_style(root.canvasItem.edgeContextEdgeId)
-            } else if (actionId === "edit_edge_label") {
-                root.commandBridge.request_edit_flow_edge_label(root.canvasItem.edgeContextEdgeId)
-            } else if (actionId === "reset_flow_edge_style") {
-                root.commandBridge.request_reset_flow_edge_style(root.canvasItem.edgeContextEdgeId)
-            } else if (actionId === "copy_flow_edge_style") {
-                root.commandBridge.request_copy_flow_edge_style(root.canvasItem.edgeContextEdgeId)
-            } else if (actionId === "paste_flow_edge_style") {
-                root.commandBridge.request_paste_flow_edge_style(root.canvasItem.edgeContextEdgeId)
-            } else if (actionId === "remove_edge") {
-                root.commandBridge.request_remove_edge(root.canvasItem.edgeContextEdgeId)
+            var payload = root._edgeActionPayload(actionId)
+            if (!payload)
+                return
+            root._triggerGraphAction(actionId, payload)
+            if (actionId === "remove_edge") {
                 root.canvasItem.selectedEdgeIds = root.canvasItem.selectedEdgeIds.filter(function(value) {
-                    return value !== root.canvasItem.edgeContextEdgeId
+                    return value !== payload.edge_id
                 })
-            } else {
-                return
             }
             root.canvasItem._closeContextMenus()
         }
@@ -170,37 +200,42 @@ Item {
         onActionTriggered: function(actionId) {
             if (!root.canvasItem)
                 return
-            if (actionId === "open_addon_manager") {
-                if (root.requestOpenAddonManagerForNode(root.canvasItem.nodeContextNodeId))
-                    root.canvasItem._closeContextMenus()
-                return
-            }
-            if (actionId === "enter_subnode") {
-                if (!root.canvasItem.nodeContextNodeId)
-                    return
-                if (root.canvasItem.requestOpenSubnodeScope(root.canvasItem.nodeContextNodeId))
-                    root.canvasItem._closeContextMenus()
-                return
-            }
-            if (!root.commandBridge || !root.canvasItem.nodeContextNodeId)
-                return
+            var payload = root._nodeActionPayload(actionId)
             if (actionId === "add_to_workflows") {
-                root.commandBridge.request_publish_custom_workflow_from_node(root.canvasItem.nodeContextNodeId)
+                if (!payload)
+                    return
+                root._triggerGraphAction(actionId, payload)
             } else if (actionId === "peek_comment") {
-                if (!root.commandBridge.request_open_comment_peek(root.canvasItem.nodeContextNodeId))
+                if (!payload || !root._triggerGraphAction(actionId, payload))
                     return
             } else if (actionId === "exit_comment_peek") {
-                if (!root.commandBridge.request_close_comment_peek())
+                if (!root._triggerGraphAction(actionId, ({})))
+                    return
+            } else if (actionId === "open_addon_manager" || actionId === "enter_subnode") {
+                if (!payload || !root._triggerGraphAction(actionId, payload))
                     return
             } else if (actionId === "edit_node_style") {
-                root.commandBridge.request_edit_passive_node_style(root.canvasItem.nodeContextNodeId)
+                if (!payload)
+                    return
+                root._triggerGraphAction(actionId, payload)
             } else if (actionId === "reset_node_style") {
-                root.commandBridge.request_reset_passive_node_style(root.canvasItem.nodeContextNodeId)
+                if (!payload)
+                    return
+                root._triggerGraphAction(actionId, payload)
             } else if (actionId === "copy_node_style") {
-                root.commandBridge.request_copy_passive_node_style(root.canvasItem.nodeContextNodeId)
+                if (!payload)
+                    return
+                root._triggerGraphAction(actionId, payload)
             } else if (actionId === "paste_node_style") {
-                root.commandBridge.request_paste_passive_node_style(root.canvasItem.nodeContextNodeId)
+                if (!payload)
+                    return
+                root._triggerGraphAction(actionId, payload)
             } else if (actionId === "rename_node") {
+                if (!payload)
+                    return
+                payload.inline_title_edit = true
+                if (!root._triggerGraphAction(actionId, payload))
+                    return
                 // Close the menu first so the node host regains focus cleanly,
                 // then begin inline title editing in the header (same gesture
                 // as double-clicking the node name). Return early to skip the
@@ -212,11 +247,15 @@ Item {
                 return
             } else if (actionId === "show_help") {
                 if (typeof helpBridge !== "undefined" && helpBridge)
-                    helpBridge.show_help_for_node(root.canvasItem.nodeContextNodeId)
+                    root._triggerGraphAction(actionId, payload)
             } else if (actionId === "ungroup_subnode") {
-                root.commandBridge.request_ungroup_node(root.canvasItem.nodeContextNodeId)
+                if (!payload)
+                    return
+                root._triggerGraphAction(actionId, payload)
             } else if (actionId === "remove_node") {
-                root.commandBridge.request_remove_node(root.canvasItem.nodeContextNodeId)
+                if (!payload)
+                    return
+                root._triggerGraphAction(actionId, payload)
                 root.canvasItem.clearEdgeSelection()
             } else {
                 return
@@ -239,10 +278,10 @@ Item {
             { "actionId": "wrap_into_frame", "text": "Wrap into frame", "visible": selectionContextPopup.hasMultiNodeSelection }
         ]
         onActionTriggered: function(actionId) {
-            if (!root.commandBridge || !root.canvasItem)
+            if (!root.canvasItem)
                 return
             if (actionId === "wrap_into_frame") {
-                root.commandBridge.request_wrap_selected_nodes_in_comment_backdrop()
+                root._triggerGraphAction(actionId, ({}))
             } else {
                 return
             }

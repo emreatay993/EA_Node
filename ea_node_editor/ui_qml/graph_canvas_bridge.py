@@ -468,10 +468,6 @@ class GraphCanvasBridge(QObject):
     def set_node_geometry(self, node_id: str, x: float, y: float, width: float, height: float) -> None:
         self._command_bridge.set_node_geometry(node_id, x, y, width, height)
 
-    @pyqtSlot(result=bool)
-    def request_wrap_selected_nodes_in_comment_backdrop(self) -> bool:
-        return self._command_bridge.request_wrap_selected_nodes_in_comment_backdrop()
-
     @pyqtSlot(int)
     def set_graph_cursor_shape(self, cursor_shape: int) -> None:
         self._command_bridge.set_graph_cursor_shape(cursor_shape)
@@ -483,62 +479,6 @@ class GraphCanvasBridge(QObject):
     @pyqtSlot(str, "QVariant", result="QVariantMap")
     def describe_pdf_preview(self, source: str, page_number: Any) -> dict[str, Any]:
         return self._command_bridge.describe_pdf_preview(source, page_number)
-
-    @pyqtSlot(str, result=bool)
-    def request_edit_flow_edge_style(self, edge_id: str) -> bool:
-        return self._command_bridge.request_edit_flow_edge_style(edge_id)
-
-    @pyqtSlot(str, result=bool)
-    def request_edit_flow_edge_label(self, edge_id: str) -> bool:
-        return self._command_bridge.request_edit_flow_edge_label(edge_id)
-
-    @pyqtSlot(str, result=bool)
-    def request_reset_flow_edge_style(self, edge_id: str) -> bool:
-        return self._command_bridge.request_reset_flow_edge_style(edge_id)
-
-    @pyqtSlot(str, result=bool)
-    def request_copy_flow_edge_style(self, edge_id: str) -> bool:
-        return self._command_bridge.request_copy_flow_edge_style(edge_id)
-
-    @pyqtSlot(str, result=bool)
-    def request_paste_flow_edge_style(self, edge_id: str) -> bool:
-        return self._command_bridge.request_paste_flow_edge_style(edge_id)
-
-    @pyqtSlot(str, result=bool)
-    def request_remove_edge(self, edge_id: str) -> bool:
-        return self._command_bridge.request_remove_edge(edge_id)
-
-    @pyqtSlot(str, result=bool)
-    def request_publish_custom_workflow_from_node(self, node_id: str) -> bool:
-        return self._command_bridge.request_publish_custom_workflow_from_node(node_id)
-
-    @pyqtSlot(str, result=bool)
-    def request_edit_passive_node_style(self, node_id: str) -> bool:
-        return self._command_bridge.request_edit_passive_node_style(node_id)
-
-    @pyqtSlot(str, result=bool)
-    def request_reset_passive_node_style(self, node_id: str) -> bool:
-        return self._command_bridge.request_reset_passive_node_style(node_id)
-
-    @pyqtSlot(str, result=bool)
-    def request_copy_passive_node_style(self, node_id: str) -> bool:
-        return self._command_bridge.request_copy_passive_node_style(node_id)
-
-    @pyqtSlot(str, result=bool)
-    def request_paste_passive_node_style(self, node_id: str) -> bool:
-        return self._command_bridge.request_paste_passive_node_style(node_id)
-
-    @pyqtSlot(str, result=bool)
-    def request_rename_node(self, node_id: str) -> bool:
-        return self._command_bridge.request_rename_node(node_id)
-
-    @pyqtSlot(str, result=bool)
-    def request_ungroup_node(self, node_id: str) -> bool:
-        return self._command_bridge.request_ungroup_node(node_id)
-
-    @pyqtSlot(str, result=bool)
-    def request_remove_node(self, node_id: str) -> bool:
-        return self._command_bridge.request_remove_node(node_id)
 
 
 __all__ = ["GraphCanvasBridge"]

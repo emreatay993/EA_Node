@@ -832,6 +832,7 @@ class ShellWorkspaceBridgeQmlBoundaryTests(unittest.TestCase):
                     "canvasBridge: root.graphCanvasBridgeRef",
                 ),
                 (
+                    "property var graphActionBridgeRef",
                     "property var graphCanvasStateBridgeRef",
                     "property var graphCanvasCommandBridgeRef",
                     "property var overlayHostItem",
@@ -858,6 +859,7 @@ class ShellWorkspaceBridgeQmlBoundaryTests(unittest.TestCase):
                     "root.workspaceBridgeRef.output_text",
                     "root.workspaceBridgeRef.errors_text",
                     "root.workspaceBridgeRef.warnings_text",
+                    "graphActionBridge: root.graphActionBridgeRef",
                     "canvasStateBridge: root.graphCanvasStateBridgeRef",
                     "canvasCommandBridge: root.graphCanvasCommandBridgeRef",
                 ),
@@ -912,6 +914,7 @@ class ShellWorkspaceBridgeQmlBoundaryTests(unittest.TestCase):
             "readonly property var canvasCommandBridgeRef: graphCanvasCommandBridge",
             "readonly property var canvasViewBridgeRef: graphCanvasViewBridge",
             "WorkspaceCenterPane {",
+            "graphActionBridgeRef: root.graphActionBridgeRef",
             "graphCanvasStateBridgeRef: root.canvasStateBridgeRef",
             "graphCanvasCommandBridgeRef: root.canvasCommandBridgeRef",
             "overlayHostItem: root",
@@ -990,8 +993,10 @@ class GraphCanvasQmlBoundaryTests(unittest.TestCase):
         )
         present_snippets = (
             "property var canvasStateBridge: null",
+            "property var graphActionBridge: null",
             "property var canvasCommandBridge: null",
             'property var canvasViewBridge: typeof graphCanvasViewBridge !== "undefined"',
+            "readonly property var graphActionBridgeRef",
             "readonly property var canvasStateBridgeRef",
             "readonly property var canvasCommandBridgeRef",
             "readonly property var canvasViewBridgeRef",
@@ -1003,6 +1008,8 @@ class GraphCanvasQmlBoundaryTests(unittest.TestCase):
             "readonly property var _canvasSceneCommandBridgeRef",
             "readonly property var _canvasViewCommandBridgeRef",
             "GraphCanvasComponents.GraphCanvasRootBindings {",
+            "graphActionBridge: root.graphActionBridge",
+            "readonly property var graphActionBridgeRef: rootBindings.graphActionBridgeRef",
             "readonly property var sceneBridge: rootBindings.sceneBridge",
             "readonly property var viewBridge: rootBindings.viewBridge",
             "readonly property bool showGrid: rootBindings.showGrid",
@@ -1016,6 +1023,7 @@ class GraphCanvasQmlBoundaryTests(unittest.TestCase):
             "GraphCanvasComponents.GraphCanvasRootLayers {",
             "GraphCanvasComponents.GraphCanvasInputLayers {",
             "GraphCanvasComponents.GraphCanvasContextMenus {",
+            "graphActionBridge: root.graphActionBridgeRef",
             "readonly property var canvasViewportController: viewportController",
             "readonly property var canvasSceneLifecycle: sceneLifecycle",
             "property alias hoveredPort: interactionState.hoveredPort",
@@ -1204,28 +1212,37 @@ class _MainWindowShellGraphCanvasHostDirectTests(MainWindowShellTestBase):
     def test_graph_canvas_host_binds_split_canvas_bridge_refs_to_registered_context_bridges(self) -> None:
         graph_canvas = self._graph_canvas_item()
         context = self.window.quick_widget.rootContext()
+        graph_action_bridge = context.contextProperty("graphActionBridge")
         graph_canvas_state_bridge = context.contextProperty("graphCanvasStateBridge")
         graph_canvas_command_bridge = context.contextProperty("graphCanvasCommandBridge")
         graph_canvas_view_bridge = context.contextProperty("graphCanvasViewBridge")
+        canvas_graph_action_bridge = graph_canvas.property("graphActionBridge")
         canvas_state_bridge = graph_canvas.property("canvasStateBridge")
         canvas_command_bridge = graph_canvas.property("canvasCommandBridge")
         canvas_view_bridge = graph_canvas.property("canvasViewBridge")
+        canvas_graph_action_bridge_ref = graph_canvas.property("graphActionBridgeRef")
         canvas_state_bridge_ref = graph_canvas.property("canvasStateBridgeRef")
         canvas_command_bridge_ref = graph_canvas.property("canvasCommandBridgeRef")
         canvas_view_bridge_ref = graph_canvas.property("canvasViewBridgeRef")
 
         self.assertIsNone(context.contextProperty("graphCanvasBridge"))
+        self.assertIsInstance(graph_action_bridge, GraphActionBridge)
         self.assertIsInstance(graph_canvas_state_bridge, GraphCanvasStateBridge)
         self.assertIsInstance(graph_canvas_command_bridge, GraphCanvasCommandBridge)
         self.assertIs(graph_canvas_view_bridge, self.window.view)
+        self.assertIs(self.window.graph_action_bridge, graph_action_bridge)
         self.assertIs(self.window.graph_canvas_state_bridge, graph_canvas_state_bridge)
         self.assertIs(self.window.graph_canvas_command_bridge, graph_canvas_command_bridge)
         self.assertEqual(graph_canvas.objectName(), "graphCanvas")
+        self.assertIsInstance(canvas_graph_action_bridge, GraphActionBridge)
+        self.assertIs(canvas_graph_action_bridge, graph_action_bridge)
         self.assertIsInstance(canvas_state_bridge, GraphCanvasStateBridge)
         self.assertIs(canvas_state_bridge, graph_canvas_state_bridge)
         self.assertIsInstance(canvas_command_bridge, GraphCanvasCommandBridge)
         self.assertIs(canvas_command_bridge, graph_canvas_command_bridge)
         self.assertIs(canvas_view_bridge, graph_canvas_view_bridge)
+        self.assertIsInstance(canvas_graph_action_bridge_ref, GraphActionBridge)
+        self.assertIs(canvas_graph_action_bridge_ref, graph_action_bridge)
         self.assertIsInstance(canvas_state_bridge_ref, GraphCanvasStateBridge)
         self.assertIs(canvas_state_bridge_ref, graph_canvas_state_bridge)
         self.assertIsInstance(canvas_command_bridge_ref, GraphCanvasCommandBridge)

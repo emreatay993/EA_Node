@@ -348,8 +348,20 @@ class GraphSceneBridgeBindRegressionTests(unittest.TestCase):
         command_text = (
             _REPO_ROOT / "ea_node_editor" / "ui_qml" / "graph_canvas_command_bridge.py"
         ).read_text(encoding="utf-8")
+        facade_text = (
+            _REPO_ROOT / "ea_node_editor" / "ui_qml" / "graph_canvas_bridge.py"
+        ).read_text(encoding="utf-8")
         canvas_text = (
             _REPO_ROOT / "ea_node_editor" / "ui_qml" / "components" / "GraphCanvas.qml"
+        ).read_text(encoding="utf-8")
+        root_bindings_text = (
+            _REPO_ROOT / "ea_node_editor" / "ui_qml" / "components" / "graph_canvas" / "GraphCanvasRootBindings.qml"
+        ).read_text(encoding="utf-8")
+        context_menus_text = (
+            _REPO_ROOT / "ea_node_editor" / "ui_qml" / "components" / "graph_canvas" / "GraphCanvasContextMenus.qml"
+        ).read_text(encoding="utf-8")
+        node_delegate_text = (
+            _REPO_ROOT / "ea_node_editor" / "ui_qml" / "components" / "graph_canvas" / "GraphCanvasNodeDelegate.qml"
         ).read_text(encoding="utf-8")
 
         self.assertIn("GraphSceneBridgeBase", bridge_text)
@@ -362,8 +374,31 @@ class GraphSceneBridgeBindRegressionTests(unittest.TestCase):
         self.assertIn("def _resolve_scene_policy_source(scene_bridge: object | None)", command_text)
         self.assertIn("readonly property var sceneStateBridge: rootBindings.sceneStateBridge", canvas_text)
         self.assertIn("readonly property var sceneCommandBridge: rootBindings.sceneCommandBridge", canvas_text)
+        self.assertIn("readonly property var graphActionBridgeRef: rootBindings.graphActionBridgeRef", canvas_text)
         self.assertIn("sceneBridge: root.sceneStateBridge", canvas_text)
         self.assertIn("sceneCommandBridge: root.sceneCommandBridge", canvas_text)
+        self.assertIn("graphActionBridge: root.graphActionBridge", canvas_text)
+        self.assertIn("graphActionBridge: root.graphActionBridgeRef", canvas_text)
+        self.assertIn("property var graphActionBridge: null", root_bindings_text)
+        self.assertIn("readonly property var graphActionBridgeRef: root.graphActionBridge || null", root_bindings_text)
+        self.assertIn("root.graphActionBridge.trigger_graph_action(actionId, payload || ({}))", context_menus_text)
+        self.assertIn("graphActionBridge.trigger_graph_action(actionId, payload)", node_delegate_text)
+        self.assertIn("payload.inline_title_edit = true", node_delegate_text)
+        for retired_snippet in (
+            "def request_wrap_selected_nodes_in_comment_backdrop",
+            "def request_edit_flow_edge_style",
+            "def request_remove_edge",
+            "def request_publish_custom_workflow_from_node",
+            "def request_edit_passive_node_style",
+            "def request_rename_node",
+            "def request_ungroup_node",
+            "def request_remove_node",
+            "def request_duplicate_node",
+            "def request_open_comment_peek",
+        ):
+            with self.subTest(retired_snippet=retired_snippet):
+                self.assertNotIn(retired_snippet, command_text)
+                self.assertNotIn(retired_snippet, facade_text)
 
         scene = GraphSceneBridge()
         canvas_state_bridge = GraphCanvasStateBridge(scene_bridge=scene)
@@ -375,6 +410,27 @@ class GraphSceneBridgeBindRegressionTests(unittest.TestCase):
         self.assertIs(canvas_command_bridge.scene_bridge, scene)
         self.assertIs(canvas_command_bridge.scene_command_source, scene.command_bridge)
         self.assertIs(canvas_command_bridge.scene_policy_source, scene.policy_bridge)
+        command_meta = canvas_command_bridge.metaObject()
+        for signature in (
+            b"request_open_subnode_scope(QString)",
+            b"request_close_comment_peek()",
+            b"request_delete_selected_graph_items(QVariantList)",
+            b"set_node_geometry(QString,double,double,double,double)",
+        ):
+            with self.subTest(retained_command_signature=signature):
+                self.assertGreaterEqual(command_meta.indexOfMethod(signature), 0)
+        for signature in (
+            b"request_edit_flow_edge_style(QString)",
+            b"request_remove_edge(QString)",
+            b"request_publish_custom_workflow_from_node(QString)",
+            b"request_edit_passive_node_style(QString)",
+            b"request_remove_node(QString)",
+            b"request_duplicate_node(QString)",
+            b"request_wrap_selected_nodes_in_comment_backdrop()",
+            b"request_open_comment_peek(QString)",
+        ):
+            with self.subTest(retired_command_signature=signature):
+                self.assertLess(command_meta.indexOfMethod(signature), 0)
 
     def test_graph_canvas_state_bridge_defaults_view_filters_before_scene_binding(self) -> None:
         scene = GraphSceneBridge()

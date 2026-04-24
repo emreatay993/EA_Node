@@ -49,6 +49,7 @@ Rectangle {
 
             WorkspaceCenterPane {
                 id: workspaceCenterPane
+                graphActionBridgeRef: root.graphActionBridgeRef
                 graphCanvasStateBridgeRef: root.canvasStateBridgeRef
                 graphCanvasCommandBridgeRef: root.canvasCommandBridgeRef
                 overlayHostItem: root

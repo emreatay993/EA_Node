@@ -60,7 +60,6 @@ class GraphActionController:
         scene_bridge: object | None = None,
         help_bridge: object | None = None,
         addon_manager_bridge: object | None = None,
-        graph_canvas_command_bridge: object | None = None,
     ) -> None:
         self._shell_window = shell_window
         self._workspace_library_controller = workspace_library_controller
@@ -70,7 +69,6 @@ class GraphActionController:
         self._scene_bridge = scene_bridge
         self._help_bridge = help_bridge
         self._addon_manager_bridge = addon_manager_bridge
-        self._graph_canvas_command_bridge = graph_canvas_command_bridge
 
     @property
     def shell_window(self) -> object | None:
@@ -124,6 +122,8 @@ class GraphActionController:
             return self._invoke_bool(self._scene_bridge_source(), "open_comment_peek", _required_str(payload, "node_id"))
         if action_id is GraphActionId.CLOSE_COMMENT_PEEK:
             return self._invoke_bool(self._scene_bridge_source(), "close_comment_peek")
+        if action_id is GraphActionId.RENAME_NODE and bool(payload.get("inline_title_edit")):
+            return True
         if action_id in _NODE_HOST_ACTION_METHODS:
             return self._trigger_node_action_on_host_presenter(payload, _NODE_HOST_ACTION_METHODS[action_id])
         if action_id is GraphActionId.DUPLICATE_NODE:
@@ -227,8 +227,6 @@ class GraphActionController:
 
     def _trigger_duplicate_node(self, payload: Mapping[str, object]) -> bool:
         node_id = _required_str(payload, "node_id")
-        if self._invoke_bool(self._graph_canvas_command_bridge_source(), "request_duplicate_node", node_id):
-            return True
         scene = self._scene_bridge_source()
         command_source = getattr(scene, "command_bridge", scene) if scene is not None else None
         if not self._invoke_bool(command_source, "select_node", node_id, False, none_is_success=True):
@@ -299,9 +297,6 @@ class GraphActionController:
 
     def _addon_manager_bridge_source(self) -> object | None:
         return self._addon_manager_bridge or _attr(self._shell_window, "addon_manager_bridge")
-
-    def _graph_canvas_command_bridge_source(self) -> object | None:
-        return self._graph_canvas_command_bridge or _attr(self._shell_window, "graph_canvas_command_bridge")
 
     @staticmethod
     def _invoke_bool(

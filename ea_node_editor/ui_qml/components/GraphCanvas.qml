@@ -7,9 +7,11 @@ import "graph_canvas/GraphCanvasPerformancePolicy.js" as GraphCanvasPerformanceP
 Item {
     id: root
     objectName: "graphCanvas"
+    property var graphActionBridge: null
     property var canvasStateBridge: null
     property var canvasCommandBridge: null
     property var canvasViewBridge: typeof graphCanvasViewBridge !== "undefined" ? graphCanvasViewBridge : null
+    readonly property var graphActionBridgeRef: rootBindings.graphActionBridgeRef
     readonly property var canvasStateBridgeRef: rootBindings.canvasStateBridgeRef
     readonly property var canvasCommandBridgeRef: rootBindings.canvasCommandBridgeRef
     readonly property var canvasViewBridgeRef: rootBindings.canvasViewBridgeRef
@@ -138,6 +140,7 @@ Item {
 
     GraphCanvasComponents.GraphCanvasRootBindings {
         id: rootBindings
+        graphActionBridge: root.graphActionBridge
         canvasStateBridge: root.canvasStateBridge
         canvasCommandBridge: root.canvasCommandBridge
         canvasViewBridge: root.canvasViewBridge
@@ -521,6 +524,7 @@ Item {
         objectName: "graphCanvasContextMenus"
         canvasItem: root
         commandBridge: root._canvasShellCommandBridgeRef
+        graphActionBridge: root.graphActionBridgeRef
     }
 
     function _resetCanvasSceneState() { GraphCanvasRootApi.invoke(sceneLifecycle, "resetCanvasSceneState"); }

@@ -44,6 +44,20 @@ GraphComponents.GraphNodeHost {
         ? (nodeCard.renderActive ? 1.0 : 0.001)
         : 1.0
 
+    function _graphActionBridge() {
+        return canvasItem ? canvasItem.graphActionBridgeRef : null;
+    }
+
+    function _triggerGraphAction(actionId, nodeId, inlineTitleEdit) {
+        var graphActionBridge = nodeCard._graphActionBridge();
+        if (!graphActionBridge || !graphActionBridge.trigger_graph_action)
+            return false;
+        var payload = { "node_id": String(nodeId || "") };
+        if (inlineTitleEdit)
+            payload.inline_title_edit = true;
+        return Boolean(graphActionBridge.trigger_graph_action(actionId, payload));
+    }
+
     // Backdrop nodes render in two stacked layers (main + input overlay), each a
     // separate GraphNodeHost instance. The resize handle updates only its own
     // host's _liveGeometry* properties, so the sibling instance would stay at the
@@ -92,7 +106,7 @@ GraphComponents.GraphNodeHost {
     }
     onNodeOpenRequested: function(nodeId) {
         if (canvasItem)
-            canvasItem.requestOpenSubnodeScope(nodeId);
+            nodeCard._triggerGraphAction("enterScope", nodeId);
     }
     onDragOffsetChanged: function(nodeId, dx, dy) {
         if (!canvasItem)
@@ -250,15 +264,16 @@ GraphComponents.GraphNodeHost {
     onNodeActionRequested: function(nodeId, actionId, payload) {
         if (!canvasItem)
             return;
-        var bridge = canvasItem._canvasSceneCommandBridgeRef;
         var normalized = String(actionId || "").trim();
         if (!normalized)
             return;
         if (normalized === "enterScope") {
-            canvasItem.requestOpenSubnodeScope(nodeId);
+            nodeCard._triggerGraphAction(normalized, nodeId);
             return;
         }
         if (normalized === "rename") {
+            if (!nodeCard._triggerGraphAction(normalized, nodeId, true))
+                return;
             // Rename starts inline title editing in the node header, matching
             // the double-click-on-title gesture. This avoids the modal
             // QInputDialog whose nested event loop would destroy the clicked
@@ -268,14 +283,11 @@ GraphComponents.GraphNodeHost {
             return;
         }
         if (normalized === "delete" || normalized === "duplicate") {
-            if (!bridge)
+            if (!nodeCard._graphActionBridge())
                 return;
-            if (normalized === "delete" && bridge.request_remove_node) {
-                bridge.request_remove_node(nodeId);
+            nodeCard._triggerGraphAction(normalized, nodeId);
+            if (normalized === "delete")
                 canvasItem.clearEdgeSelection();
-            } else if (normalized === "duplicate" && bridge.request_duplicate_node) {
-                bridge.request_duplicate_node(nodeId);
-            }
             return;
         }
         if (nodeCard.dispatchSurfaceAction)

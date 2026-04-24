@@ -33,7 +33,34 @@ NODE_DELEGATE_QML = (
     / "graph_canvas"
     / "GraphCanvasNodeDelegate.qml"
 )
+ROOT_BINDINGS_QML = (
+    REPO_ROOT
+    / "ea_node_editor"
+    / "ui_qml"
+    / "components"
+    / "graph_canvas"
+    / "GraphCanvasRootBindings.qml"
+)
 WINDOW_ACTIONS = REPO_ROOT / "ea_node_editor" / "ui" / "shell" / "window_actions.py"
+
+RETIRED_QML_COMMAND_BRIDGE_ACTION_SLOTS = {
+    "request_edit_flow_edge_style",
+    "request_edit_flow_edge_label",
+    "request_reset_flow_edge_style",
+    "request_copy_flow_edge_style",
+    "request_paste_flow_edge_style",
+    "request_remove_edge",
+    "request_publish_custom_workflow_from_node",
+    "request_open_comment_peek",
+    "request_edit_passive_node_style",
+    "request_reset_passive_node_style",
+    "request_copy_passive_node_style",
+    "request_paste_passive_node_style",
+    "request_ungroup_node",
+    "request_remove_node",
+    "request_duplicate_node",
+    "request_wrap_selected_nodes_in_comment_backdrop",
+}
 
 
 def _pyqt_graph_actions_from_contract() -> dict[str, GraphActionId]:
@@ -229,6 +256,39 @@ def test_qml_action_literals_are_represented_by_contract() -> None:
 def test_low_level_qml_action_exceptions_are_current() -> None:
     qml_literals = _qml_context_action_ids() | _qml_node_delegate_action_literals()
     assert LOW_LEVEL_QML_ACTION_EXCEPTIONS <= qml_literals
+
+
+def test_qml_graph_canvas_actions_route_through_graph_action_bridge() -> None:
+    context_source = _source(CONTEXT_MENUS_QML)
+    delegate_source = _source(NODE_DELEGATE_QML)
+    root_bindings_source = _source(ROOT_BINDINGS_QML)
+
+    assert "property var graphActionBridge: null" in root_bindings_source
+    assert "readonly property var graphActionBridgeRef: root.graphActionBridge || null" in root_bindings_source
+    assert "property var graphActionBridge: null" in context_source
+    assert "root.graphActionBridge.trigger_graph_action(actionId, payload || ({}))" in context_source
+    assert 'var payload = { "node_id": String(nodeId || "") };' in delegate_source
+    assert "graphActionBridge.trigger_graph_action(actionId, payload)" in delegate_source
+    assert "payload.inline_title_edit = true" in delegate_source
+    assert "canvasItem.graphActionBridgeRef" in delegate_source
+
+    retired_hits = {
+        slot
+        for slot in RETIRED_QML_COMMAND_BRIDGE_ACTION_SLOTS
+        if f".{slot}" in context_source or f".{slot}" in delegate_source
+    }
+    assert retired_hits == set()
+
+
+def test_qml_graph_action_bridge_payloads_use_contract_keys() -> None:
+    context_source = _source(CONTEXT_MENUS_QML)
+    delegate_source = _source(NODE_DELEGATE_QML)
+
+    assert 'return { "edge_id": edgeId }' in context_source
+    assert 'return { "node_id": nodeId }' in context_source
+    assert '{ "node_id": String(nodeId || "") }' in delegate_source
+    assert "inline_title_edit" in context_source
+    assert "inline_title_edit" in delegate_source
 
 
 def test_pyqt_graph_action_declarations_use_contract_ids() -> None:
