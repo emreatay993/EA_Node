@@ -6,16 +6,8 @@
 - Branch Label: `codex/corex-clean-architecture-restructure/p04-current-schema-persistence`
 - Commit Owner: `worker`
 - Commit SHA: `3547e17ecd5bdab4e8be61779110d8528ca3c61c`
-- Changed Files:
-  - `docs/specs/work_packets/corex_clean_architecture_restructure/P04_current_schema_persistence_WRAPUP.md`
-  - `ea_node_editor/execution/runtime_snapshot_assembly.py`
-  - `ea_node_editor/persistence/envelope.py`
-  - `ea_node_editor/persistence/overlay.py`
-  - `ea_node_editor/persistence/project_codec.py`
-  - `tests/test_serializer.py`
-  - `tests/test_serializer_schema_migration.py`
-- Artifacts Produced:
-  - `docs/specs/work_packets/corex_clean_architecture_restructure/P04_current_schema_persistence_WRAPUP.md`
+- Changed Files: `docs/specs/work_packets/corex_clean_architecture_restructure/P04_current_schema_persistence_WRAPUP.md`, `ea_node_editor/execution/runtime_snapshot_assembly.py`, `ea_node_editor/persistence/envelope.py`, `ea_node_editor/persistence/overlay.py`, `ea_node_editor/persistence/project_codec.py`, `tests/test_serializer.py`, `tests/test_serializer_schema_migration.py`
+- Artifacts Produced: `docs/specs/work_packets/corex_clean_architecture_restructure/P04_current_schema_persistence_WRAPUP.md`
 
 Implemented persistence-owned current-schema envelope handling for unresolved authored payloads. `ProjectPersistenceEnvelope` now owns runtime envelope metadata, authored unresolved node/edge payloads round-trip through current-schema `.sfe` documents, and runtime projection carries only live graph nodes plus envelope metadata needed to reconstruct authored state. Runtime snapshot assembly now delegates envelope metadata assembly to persistence instead of duplicating that shape.
 
@@ -29,6 +21,7 @@ Implemented persistence-owned current-schema envelope handling for unresolved au
   - Result: `13 passed`
 - Review Gate PASS: `.\venv\Scripts\python.exe -m pytest tests/test_serializer_schema_migration.py --ignore=venv`
   - Result: `11 passed, 32 warnings`
+- Final Verification Verdict: `PASS`
 
 The pytest runs reported a non-fatal Windows temp cleanup `PermissionError` from pytest's atexit cleanup after successful test completion.
 
@@ -48,4 +41,4 @@ Ready for manual testing.
 
 ## Ready for Integration
 
-Yes: P04 is ready for integration on `codex/corex-clean-architecture-restructure/p04-current-schema-persistence` with substantive commit `3547e17ecd5bdab4e8be61779110d8528ca3c61c`.
+- Yes: P04 is ready for integration on `codex/corex-clean-architecture-restructure/p04-current-schema-persistence` with substantive commit `3547e17ecd5bdab4e8be61779110d8528ca3c61c`.
