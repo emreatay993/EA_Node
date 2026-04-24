@@ -126,6 +126,10 @@ def declared_python_names(tree: ast.AST) -> set[str]:
                     names.add(target.id)
         elif isinstance(node, ast.AnnAssign) and isinstance(node.target, ast.Name):
             names.add(node.target.id)
+        elif isinstance(node, ast.ImportFrom):
+            names.update(alias.asname or alias.name for alias in node.names)
+        elif isinstance(node, ast.Import):
+            names.update(alias.asname or alias.name.partition(".")[0] for alias in node.names)
     return names
 
 
@@ -134,6 +138,11 @@ class GraphArchitectureBoundaryTests(unittest.TestCase):
         for surface in manifest.COREX_NO_LEGACY_GUARDRAIL_INVENTORY:
             source_path = REPO_ROOT / surface.path
             with self.subTest(category=surface.category, path=surface.path):
+                if (
+                    surface.expectation == manifest.COREX_NO_LEGACY_GUARDRAIL_ABSENT
+                    and not source_path.exists()
+                ):
+                    continue
                 self.assertTrue(source_path.is_file())
                 if source_path.suffix == ".py":
                     text_names = declared_python_names(parse_module(surface.path))
@@ -308,6 +317,31 @@ class GraphArchitectureBoundaryTests(unittest.TestCase):
         self.assertNotIn("serializer", {arg.arg for arg in build_runtime_snapshot.args.args})
         self.assertNotIn("sanitize_execution_trigger", snapshot_names)
         self.assertNotIn("ea_node_editor.persistence.serializer", imported_modules(worker_runtime_tree))
+
+    def test_runtime_contracts_do_not_import_execution_implementation(self) -> None:
+        contract_root = REPO_ROOT / "ea_node_editor" / "runtime_contracts"
+
+        for source_path in contract_root.glob("*.py"):
+            relative_path = source_path.relative_to(REPO_ROOT).as_posix()
+            imports = imported_modules(parse_module(relative_path))
+            with self.subTest(path=relative_path):
+                self.assertFalse(
+                    {
+                        module
+                        for module in imports
+                        if module == "ea_node_editor.execution"
+                        or module.startswith("ea_node_editor.execution.")
+                    }
+                )
+
+    def test_execution_value_codec_is_contract_compatibility_export(self) -> None:
+        codec_tree = parse_module("ea_node_editor/execution/runtime_value_codec.py")
+
+        self.assertIn("RuntimeValueRef", imported_names_from(codec_tree, "ea_node_editor.runtime_contracts"))
+        self.assertIn("serialize_runtime_value", imported_names_from(codec_tree, "ea_node_editor.runtime_contracts"))
+        self.assertIn("deserialize_runtime_value", imported_names_from(codec_tree, "ea_node_editor.runtime_contracts"))
+        self.assertNotIn("_coerce_runtime_value_ref", declared_python_names(codec_tree))
+        self.assertNotIn("_extract_runtime_marker", declared_python_names(codec_tree))
 
     def test_transform_surface_reexports_focused_operation_modules(self) -> None:
         self.assertEqual(transforms.collect_layout_node_bounds.__module__, "ea_node_editor.graph.transform_layout_ops")

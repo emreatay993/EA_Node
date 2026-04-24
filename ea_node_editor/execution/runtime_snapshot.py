@@ -1,3 +1,10 @@
+"""Execution-owned runtime snapshot assembly boundary.
+
+The snapshot wire shape is passive. Project normalization, runtime snapshot
+assembly, and artifact-store context setup remain execution concerns rather
+than runtime-contract concerns.
+"""
+
 from __future__ import annotations
 
 import copy
@@ -6,7 +13,7 @@ from typing import TYPE_CHECKING, Any, Mapping
 
 from ea_node_editor.execution.runtime_snapshot_assembly import RuntimeSnapshotAssembly
 from ea_node_editor.execution.runtime_dto import RuntimeWorkspace
-from ea_node_editor.execution.runtime_value_codec import (
+from ea_node_editor.runtime_contracts import (
     deserialize_runtime_value,
     serialize_runtime_value,
 )

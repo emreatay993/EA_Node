@@ -1,3 +1,10 @@
+"""Runtime workspace DTOs plus explicit graph conversion adapters.
+
+This module owns the execution-time document shape. Graph objects enter only
+through the ``from_*`` assembly adapters; worker execution and persistence
+codecs stay outside this DTO layer.
+"""
+
 from __future__ import annotations
 
 import copy
