@@ -76,6 +76,16 @@ Design intent:
 - `ThemeBridge` continues to own shell/canvas chrome tokens, while `graphThemeBridge` owns node/edge theming so shell-theme and graph-theme responsibilities stay separate.
 - Packet-owned QML should bind to the focused bridges above rather than introducing new raw host globals or reviving retired compatibility context properties.
 
+## Graph action entry-point ownership
+
+- The canonical high-level graph action route is `shortcut/menu/QML event -> GraphActionBridge or PyQt action dispatch -> GraphActionController -> existing behavior owner`.
+- `GraphActionController` is the single coordinator for user-facing graph verbs such as copy, cut, paste, duplicate, delete, grouping, alignment, scope navigation, comment-backdrop wrapping, node style commands, node rename/help, custom workflow publishing, comment peek, and flow-edge style or removal commands.
+- QML context-menu and node-delegate actions call `graphActionBridge.trigger_graph_action(actionId, payload)`. The bridge normalizes legacy QML action literals through `ea_node_editor.ui.shell.graph_action_contracts` and delegates to `GraphActionController`.
+- PyQt menus, shortcuts, and host request slots dispatch through `ea_node_editor.ui.shell.window_actions` and `ea_node_editor.ui.shell.window_state.workspace_graph_actions`, then converge on the same controller instead of carrying parallel behavior.
+- `GraphActionController` does not own the behavior implementation. It selects the established owner for each verb: workspace graph-edit controllers for selection/subgraph operations, graph canvas presenters for scope entry and host actions, `GraphSceneBridge` for comment-peek state, and the help or add-on bridges for their shell-owned surfaces.
+- Low-level canvas operations stay outside the graph action controller. Selection mechanics, marquee hit testing, node movement, node resize, geometry commits, viewport pan/zoom, port drag/connect/drop flows, inline property and port-label commits, cursor-shape changes, quick-insert overlay placement, and direct scene policy checks continue to live in `GraphCanvasCommandBridge`, `GraphCanvasStateBridge`, `ViewportBridge`, `GraphSceneBridge`, and their helper modules.
+- `docs/specs/perf/COREX_ARCHITECTURE_ENTRY_POINT_REDUCTION_QA_MATRIX.md` records the closeout metrics for routed QML graph-action branches, removed and retained `GraphCanvasCommandBridge` high-level slots, and remaining compatibility wrappers.
+
 ## Passive visual authoring path
 
 - Passive nodes use the same registry and serializer path as executable nodes, but `NodeTypeSpec.runtime_behavior` marks them as `passive` so they never compile into the worker graph.
@@ -143,6 +153,12 @@ Design intent:
 - `ea_node_editor/persistence/project_codec.py`, `ea_node_editor/graph/normalization.py`, `ea_node_editor/ui_qml/graph_scene_payload_builder.py`, `ea_node_editor/ui_qml/components/graph/GraphNodeHost.qml`, `GraphNodeHeaderLayer.qml`, and `GraphCanvasContextMenus.qml` preserve missing add-on nodes as locked Mockup B placeholders with manager-targeted recovery affordances and blocked edit, drag, and resize gestures.
 - `ea_node_editor/addons/ansys_dpf/catalog.py`, `ea_node_editor/addons/hot_apply.py`, `ea_node_editor/execution/worker_services.py`, and `ea_node_editor/ui_qml/viewer_host_service.py` make ANSYS DPF the first repo-local `hot_apply` add-on and rebuild registry/runtime state, invalidate viewer/worker caches, and project unavailable live nodes back into locked placeholders when its enabled state changes.
 - The retained packet evidence and closeout commands for this baseline are published in [the Add-On Manager backend preparation QA matrix](docs/specs/perf/ADDON_MANAGER_BACKEND_PREPARATION_QA_MATRIX.md).
+
+## DPF operator backend preparation
+
+- `ansys-dpf-core` remains optional for the DPF operator backend preparation baseline; startup without that dependency keeps the rest of the app usable.
+- The frozen preparation contract is documented in [the DPF operator backend review](docs/DPF_OPERATOR_PLUGIN_BACKEND_REVIEW_2026-04-12.md) and [the DPF operator backend QA matrix](docs/specs/perf/DPF_OPERATOR_PLUGIN_BACKEND_REFACTOR_QA_MATRIX.md).
+- Reopened DPF nodes without their plugin dependency stay as read-only missing-plugin placeholders so saved labels, values, exposure metadata, and connectivity remain inspectable without executing unavailable operators.
 
 ## DPF plugin rollout
 

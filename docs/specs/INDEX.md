@@ -55,6 +55,7 @@ Selected work-packet manifests and status ledgers under `docs/specs/work_packets
 - [GLOBAL_EXPAND_COLLISION_AVOIDANCE_AND_COMMENT_PEEK Status Ledger](work_packets/global_expand_collision_avoidance_and_comment_peek/GLOBAL_EXPAND_COLLISION_AVOIDANCE_AND_COMMENT_PEEK_STATUS.md)
 - [COREX_ARCHITECTURE_ENTRY_POINT_REDUCTION Work Packet Manifest](work_packets/corex_architecture_entry_point_reduction/COREX_ARCHITECTURE_ENTRY_POINT_REDUCTION_MANIFEST.md)
 - [COREX_ARCHITECTURE_ENTRY_POINT_REDUCTION Status Ledger](work_packets/corex_architecture_entry_point_reduction/COREX_ARCHITECTURE_ENTRY_POINT_REDUCTION_STATUS.md)
+- [COREX_ARCHITECTURE_ENTRY_POINT_REDUCTION QA Matrix](perf/COREX_ARCHITECTURE_ENTRY_POINT_REDUCTION_QA_MATRIX.md)
 - [SHARED_GRAPH_TYPOGRAPHY_CONTROL QA Matrix](perf/SHARED_GRAPH_TYPOGRAPHY_CONTROL_QA_MATRIX.md)
 - [NODE_EXECUTION_VISUALIZATION Work Packet Manifest](work_packets/node_execution_visualization/NODE_EXECUTION_VISUALIZATION_MANIFEST.md)
 - [NODE_EXECUTION_VISUALIZATION Status Ledger](work_packets/node_execution_visualization/NODE_EXECUTION_VISUALIZATION_STATUS.md)
