@@ -3,7 +3,6 @@ from __future__ import annotations
 import copy
 from collections.abc import Mapping
 from dataclasses import dataclass
-from enum import Enum
 from typing import Any
 
 from ea_node_editor.graph.hierarchy import normalize_scope_path
@@ -25,11 +24,16 @@ from ea_node_editor.persistence.artifact_refs import (
     parse_artifact_ref,
 )
 from ea_node_editor.persistence.artifact_store import normalize_artifact_store_metadata
-from ea_node_editor.persistence.migration import JsonProjectMigration
-from ea_node_editor.persistence.overlay import (
+from ea_node_editor.persistence.envelope import (
     LEGACY_RUNTIME_PERSISTENCE_KEY,
     PERSISTENCE_ENVELOPE_KEY,
+    ProjectDocumentFlavor,
+    ProjectPersistenceEnvelope,
+    ProjectPersistenceWorkspaceEnvelope,
+    install_workspace_persistence_envelope,
 )
+from ea_node_editor.persistence.migration import JsonProjectMigration
+from ea_node_editor.persistence.overlay import MISSING_ADDON_PLACEHOLDER_KEY, with_missing_addon_placeholder
 from ea_node_editor.settings import SCHEMA_VERSION
 from ea_node_editor.workspace.ownership import resolve_workspace_ownership, sync_project_workspace_ownership
 
@@ -91,48 +95,13 @@ def _reject_runtime_persistence_metadata(metadata: Mapping[str, Any]) -> None:
             "Persist the current workspace graph shape instead."
         )
     if PERSISTENCE_ENVELOPE_KEY in metadata:
-        raise ValueError(
-            "Runtime persistence envelope metadata is not supported. "
-            "Persist the current workspace graph shape instead."
-        )
+        ProjectPersistenceEnvelope.from_metadata_value(metadata.get(PERSISTENCE_ENVELOPE_KEY))
 
 
 @dataclass(frozen=True, slots=True)
 class ProjectArtifactReferenceSet:
     managed_ids: frozenset[str]
     staged_ids: frozenset[str]
-
-
-class ProjectDocumentFlavor(str, Enum):
-    RUNTIME = "runtime"
-    AUTHORED = "authored"
-
-
-@dataclass(frozen=True, slots=True)
-class _EmptyProjectPersistenceWorkspace:
-    pass
-
-
-@dataclass(frozen=True, slots=True)
-class ProjectPersistenceEnvelope:
-    document_flavor: ProjectDocumentFlavor = ProjectDocumentFlavor.RUNTIME
-
-    @classmethod
-    def runtime(cls, _workspace_envelopes: Mapping[str, object] | None = None) -> "ProjectPersistenceEnvelope":
-        return cls(document_flavor=ProjectDocumentFlavor.RUNTIME)
-
-    @classmethod
-    def from_document(cls, payload: Mapping[str, Any]) -> "ProjectPersistenceEnvelope":
-        metadata = payload.get("metadata")
-        if isinstance(metadata, Mapping):
-            _reject_runtime_persistence_metadata(metadata)
-        return cls.runtime()
-
-    def metadata_value(self) -> None:
-        return None
-
-    def workspace_envelope(self, _workspace_id: str) -> _EmptyProjectPersistenceWorkspace:
-        return _EmptyProjectPersistenceWorkspace()
 
 
 def collect_project_artifact_references(payload: Any) -> ProjectArtifactReferenceSet:
@@ -235,6 +204,12 @@ class JsonProjectCodec:
         metadata["artifact_store"] = normalize_artifact_store_metadata(metadata.get("artifact_store"))
         metadata.pop(PERSISTENCE_ENVELOPE_KEY, None)
         metadata.pop(_VIEW_FILTER_STATE_METADATA_KEY, None)
+        persistence_metadata = None
+        if flavor is ProjectDocumentFlavor.RUNTIME:
+            persistence_metadata = ProjectPersistenceEnvelope.from_workspaces(
+                project.workspaces,
+                workspace_order=ownership.workspace_order,
+            ).metadata_value()
 
         workspaces: list[dict[str, Any]] = []
         view_filter_state: dict[str, dict[str, dict[str, bool]]] = {}
@@ -263,6 +238,12 @@ class JsonProjectCodec:
                     for view in workspace.views.values()
                 ],
             }
+            if flavor is ProjectDocumentFlavor.RUNTIME:
+                workspace_doc["document_fields"] = {
+                    key: copy.deepcopy(value)
+                    for key, value in workspace_doc.items()
+                    if key not in {"nodes", "edges", "document_fields"}
+                }
             workspace_view_filter_state = {
                 view.view_id: {
                     "hide_locked_ports": view.hide_locked_ports,
@@ -273,11 +254,17 @@ class JsonProjectCodec:
             }
             if workspace_view_filter_state:
                 view_filter_state[workspace.workspace_id] = workspace_view_filter_state
-            workspace_doc["nodes"] = self._workspace_runtime_node_docs(workspace)
-            workspace_doc["edges"] = self._workspace_runtime_edge_docs(workspace)
+            if flavor is ProjectDocumentFlavor.AUTHORED:
+                workspace_doc["nodes"] = self._workspace_authored_node_docs(workspace)
+                workspace_doc["edges"] = self._workspace_authored_edge_docs(workspace)
+            else:
+                workspace_doc["nodes"] = self._workspace_runtime_node_docs(workspace)
+                workspace_doc["edges"] = self._workspace_runtime_edge_docs(workspace)
             workspaces.append(workspace_doc)
         if view_filter_state:
             metadata[_VIEW_FILTER_STATE_METADATA_KEY] = copy.deepcopy(view_filter_state)
+        if persistence_metadata is not None:
+            metadata[PERSISTENCE_ENVELOPE_KEY] = persistence_metadata
         return {
             "schema_version": SCHEMA_VERSION,
             "project_id": project.project_id,
@@ -289,6 +276,8 @@ class JsonProjectCodec:
         }
 
     def from_document(self, payload: dict[str, Any]) -> ProjectData:
+        persistence_envelope = ProjectPersistenceEnvelope.from_document(payload)
+        deferred_rebind_edge_docs: dict[str, list[dict[str, Any]]] = {}
         project = ProjectData(
             project_id=payload.get("project_id", "proj_unknown"),
             name=payload.get("name", "untitled"),
@@ -347,23 +336,70 @@ class JsonProjectCodec:
             if workspace.active_view_id not in workspace.views:
                 workspace.active_view_id = next(iter(workspace.views))
 
+            workspace_envelope = persistence_envelope.workspace_envelope(workspace_id)
+            unresolved_node_docs = copy.deepcopy(workspace_envelope.unresolved_node_docs)
+            unresolved_edge_docs = copy.deepcopy(workspace_envelope.unresolved_edge_docs)
+            authored_node_overrides = copy.deepcopy(workspace_envelope.authored_node_overrides)
+            formerly_unresolved_node_ids: set[str] = set()
+
             for node_doc in ws_doc.get("nodes", []):
                 if not isinstance(node_doc, Mapping):
                     continue
-                self._decode_workspace_node_doc(
-                    workspace,
-                    node_doc=node_doc,
-                )
+                if self._node_doc_is_unresolved(node_doc):
+                    node_id = str(node_doc.get("node_id", "")).strip()
+                    if node_id and node_id not in workspace.nodes and node_id not in unresolved_node_docs:
+                        unresolved_node_docs[node_id] = with_missing_addon_placeholder(
+                            self._copy_node_mapping(node_doc)
+                        )
+                    continue
+                node_id = str(node_doc.get("node_id", "")).strip()
+                if node_id and MISSING_ADDON_PLACEHOLDER_KEY in node_doc:
+                    formerly_unresolved_node_ids.add(node_id)
+                self._decode_workspace_node_doc(workspace, node_doc=node_doc)
             valid_node_ids = set(workspace.nodes)
+            unresolved_node_ids = set(unresolved_node_docs)
+            deferred_workspace_edges: list[dict[str, Any]] = []
             for edge_doc in ws_doc.get("edges", []):
                 if not isinstance(edge_doc, Mapping):
+                    continue
+                edge_id = str(edge_doc.get("edge_id", "")).strip()
+                source_node_id = str(edge_doc.get("source_node_id", "")).strip()
+                target_node_id = str(edge_doc.get("target_node_id", "")).strip()
+                if (
+                    edge_id
+                    and edge_id not in unresolved_edge_docs
+                    and (
+                        source_node_id in unresolved_node_ids
+                        or target_node_id in unresolved_node_ids
+                    )
+                ):
+                    unresolved_edge_docs[edge_id] = copy.deepcopy(dict(edge_doc))
+                    continue
+                if source_node_id in formerly_unresolved_node_ids or target_node_id in formerly_unresolved_node_ids:
+                    deferred_workspace_edges.append(copy.deepcopy(dict(edge_doc)))
                     continue
                 self._decode_workspace_edge_doc(
                     workspace,
                     edge_doc=edge_doc,
                     valid_node_ids=valid_node_ids,
                 )
+            for node_id, node in workspace.nodes.items():
+                parent_node_id = str(node.parent_node_id or "").strip()
+                if parent_node_id and parent_node_id not in workspace.nodes and parent_node_id in unresolved_node_docs:
+                    node_overrides = dict(authored_node_overrides.get(node_id, {}))
+                    node_overrides["parent_node_id"] = parent_node_id
+                    authored_node_overrides[node_id] = node_overrides
             sanitize_workspace_parent_links(workspace)
+            install_workspace_persistence_envelope(
+                workspace,
+                ProjectPersistenceWorkspaceEnvelope(
+                    unresolved_node_docs=unresolved_node_docs,
+                    unresolved_edge_docs=unresolved_edge_docs,
+                    authored_node_overrides=authored_node_overrides,
+                ),
+            )
+            if deferred_workspace_edges:
+                deferred_rebind_edge_docs[workspace.workspace_id] = deferred_workspace_edges
             project.workspaces[workspace.workspace_id] = workspace
 
         project.ensure_default_workspace()
@@ -375,6 +411,7 @@ class JsonProjectCodec:
         project.metadata["artifact_store"] = normalize_artifact_store_metadata(project.metadata.get("artifact_store"))
         if self._registry is not None:
             normalize_project_for_registry(project, self._registry)
+            self._restore_deferred_rebind_edges(project, deferred_rebind_edge_docs)
         for workspace in project.workspaces.values():
             for view in workspace.views.values():
                 view.scope_path = list(normalize_scope_path(workspace, view.scope_path))
@@ -391,6 +428,61 @@ class JsonProjectCodec:
             edge_instance_to_mapping(edge)
             for edge in sorted(workspace.edges.values(), key=lambda item: item.edge_id)
         ]
+
+    def _workspace_authored_node_docs(self, workspace: WorkspaceData) -> list[dict[str, Any]]:
+        persistence_state = ProjectPersistenceWorkspaceEnvelope.from_workspace(workspace)
+        live_docs: dict[str, dict[str, Any]] = {}
+        for node in sorted(workspace.nodes.values(), key=lambda item: item.node_id):
+            node_doc = self._copy_node_mapping(node_instance_to_mapping(node))
+            overrides = persistence_state.authored_node_overrides.get(node.node_id)
+            if isinstance(overrides, Mapping):
+                node_doc.update(copy.deepcopy(dict(overrides)))
+            live_docs[node.node_id] = node_doc
+
+        for node_id, node_doc in sorted(persistence_state.unresolved_node_docs.items()):
+            if node_id not in live_docs:
+                live_docs[node_id] = self._copy_node_mapping(node_doc)
+        return [live_docs[node_id] for node_id in sorted(live_docs)]
+
+    def _workspace_authored_edge_docs(self, workspace: WorkspaceData) -> list[dict[str, Any]]:
+        persistence_state = ProjectPersistenceWorkspaceEnvelope.from_workspace(workspace)
+        live_docs = {
+            edge.edge_id: edge_instance_to_mapping(edge)
+            for edge in sorted(workspace.edges.values(), key=lambda item: item.edge_id)
+        }
+        for edge_id, edge_doc in sorted(persistence_state.unresolved_edge_docs.items()):
+            if edge_id not in live_docs:
+                live_docs[edge_id] = copy.deepcopy(edge_doc)
+        return [live_docs[edge_id] for edge_id in sorted(live_docs)]
+
+    def _restore_deferred_rebind_edges(
+        self,
+        project: ProjectData,
+        deferred_edges_by_workspace: Mapping[str, list[dict[str, Any]]],
+    ) -> None:
+        for workspace_id, edge_docs in deferred_edges_by_workspace.items():
+            workspace = project.workspaces.get(workspace_id)
+            if workspace is None:
+                continue
+            valid_node_ids = set(workspace.nodes)
+            for edge_doc in edge_docs:
+                edge_id = str(edge_doc.get("edge_id", "")).strip()
+                if not edge_id or edge_id in workspace.edges:
+                    continue
+                source_node_id = str(edge_doc.get("source_node_id", "")).strip()
+                target_node_id = str(edge_doc.get("target_node_id", "")).strip()
+                if source_node_id not in valid_node_ids or target_node_id not in valid_node_ids:
+                    continue
+                edge = edge_instance_from_mapping(edge_doc)
+                if edge is not None:
+                    workspace.edges[edge.edge_id] = edge
+
+    def _node_doc_is_unresolved(self, node_doc: Mapping[str, Any]) -> bool:
+        node_id = str(node_doc.get("node_id", "")).strip()
+        type_id = str(node_doc.get("type_id", "")).strip()
+        if not node_id or not type_id or self._registry is None:
+            return False
+        return self._registry.spec_or_none(type_id) is None
 
     def _decode_workspace_node_doc(
         self,

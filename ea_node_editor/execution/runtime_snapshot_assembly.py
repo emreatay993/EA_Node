@@ -8,17 +8,17 @@ from typing import TYPE_CHECKING, Any
 from ea_node_editor.custom_workflows import normalize_custom_workflow_metadata
 from ea_node_editor.execution.runtime_dto import RuntimeWorkspace
 from ea_node_editor.passive_style_normalization import normalize_passive_style_presets
+from ea_node_editor.persistence.envelope import (
+    LEGACY_RUNTIME_PERSISTENCE_KEY,
+    PERSISTENCE_ENVELOPE_KEY,
+    ProjectPersistenceEnvelope,
+)
 from ea_node_editor.persistence.artifact_store import ProjectArtifactStore
 from ea_node_editor.settings import DEFAULT_WORKFLOW_SETTINGS, SCHEMA_VERSION
 from ea_node_editor.workspace.ownership import resolve_workspace_ownership
 
 if TYPE_CHECKING:
-    from ea_node_editor.graph.model import ProjectData, WorkspaceData
-
-_PERSISTENCE_ENVELOPE_KEY = "_persistence_envelope"
-_LEGACY_RUNTIME_PERSISTENCE_KEY = "_runtime_unresolved_workspaces"
-_RUNTIME_DOCUMENT_FLAVOR = "runtime"
-
+    from ea_node_editor.graph.model import ProjectData
 
 def _coerce_bool(value: Any, default: bool = False) -> bool:
     if isinstance(value, bool):
@@ -87,60 +87,9 @@ def normalize_runtime_project_metadata(source: Any, workspace_order: tuple[str, 
         project_path=None,
         metadata=normalized.get("artifact_store"),
     ).metadata
-    normalized.pop(_PERSISTENCE_ENVELOPE_KEY, None)
-    normalized.pop(_LEGACY_RUNTIME_PERSISTENCE_KEY, None)
+    normalized.pop(PERSISTENCE_ENVELOPE_KEY, None)
+    normalized.pop(LEGACY_RUNTIME_PERSISTENCE_KEY, None)
     return normalized
-
-
-def _copy_overlay_docs(payload: Any) -> dict[str, dict[str, Any]]:
-    if not isinstance(payload, Mapping):
-        return {}
-    copied: dict[str, dict[str, Any]] = {}
-    for raw_key, raw_doc in payload.items():
-        key = str(raw_key).strip()
-        if not key or key in copied or not isinstance(raw_doc, Mapping):
-            continue
-        copied[key] = copy.deepcopy(dict(raw_doc))
-    return copied
-
-
-def _workspace_runtime_persistence_envelope(workspace: "WorkspaceData") -> dict[str, Any] | None:
-    unresolved_node_docs = _copy_overlay_docs(getattr(workspace, "unresolved_node_docs", None))
-    unresolved_edge_docs = _copy_overlay_docs(getattr(workspace, "unresolved_edge_docs", None))
-    authored_node_overrides = _copy_overlay_docs(getattr(workspace, "authored_node_overrides", None))
-
-    envelope: dict[str, Any] = {}
-    if unresolved_node_docs:
-        envelope["unresolved_nodes"] = [
-            copy.deepcopy(unresolved_node_docs[node_id])
-            for node_id in sorted(unresolved_node_docs)
-        ]
-    if unresolved_edge_docs:
-        envelope["unresolved_edges"] = [
-            copy.deepcopy(unresolved_edge_docs[edge_id])
-            for edge_id in sorted(unresolved_edge_docs)
-        ]
-    if authored_node_overrides:
-        envelope["authored_node_overrides"] = {
-            node_id: copy.deepcopy(authored_node_overrides[node_id])
-            for node_id in sorted(authored_node_overrides)
-            if authored_node_overrides[node_id]
-        }
-    return envelope or None
-
-
-def _project_runtime_persistence_metadata(workspace_envelopes: Mapping[str, dict[str, Any]]) -> dict[str, Any] | None:
-    workspace_payload = {
-        workspace_id: copy.deepcopy(envelope)
-        for workspace_id, envelope in sorted(workspace_envelopes.items())
-        if str(workspace_id).strip() and envelope
-    }
-    if not workspace_payload:
-        return None
-    return {
-        "document_flavor": _RUNTIME_DOCUMENT_FLAVOR,
-        "workspaces": workspace_payload,
-    }
 
 
 @dataclass(frozen=True, slots=True)
@@ -163,17 +112,16 @@ class RuntimeSnapshotAssembly:
         runtime_metadata = normalize_runtime_project_metadata(metadata, workspace_order)
 
         workspaces: list[RuntimeWorkspace] = []
-        workspace_envelopes: dict[str, dict[str, Any]] = {}
         for workspace_id in workspace_order:
             workspace = project.workspaces[workspace_id]
             workspaces.append(RuntimeWorkspace.from_workspace_data(workspace))
-            envelope = _workspace_runtime_persistence_envelope(workspace)
-            if envelope is not None:
-                workspace_envelopes[workspace.workspace_id] = envelope
 
-        persistence_metadata = _project_runtime_persistence_metadata(workspace_envelopes)
+        persistence_metadata = ProjectPersistenceEnvelope.from_workspaces(
+            project.workspaces,
+            workspace_order=workspace_order,
+        ).metadata_value()
         if persistence_metadata is not None:
-            runtime_metadata[_PERSISTENCE_ENVELOPE_KEY] = persistence_metadata
+            runtime_metadata[PERSISTENCE_ENVELOPE_KEY] = persistence_metadata
 
         return cls(
             schema_version=SCHEMA_VERSION,

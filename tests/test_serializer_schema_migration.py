@@ -3,7 +3,6 @@ from __future__ import annotations
 import unittest
 
 from ea_node_editor.addons.catalog import ANSYS_DPF_ADDON_ID
-from ea_node_editor.graph.normalization import normalize_project_for_registry
 from ea_node_editor.nodes.builtins.ansys_dpf_compute import (
     DpfModelNodePlugin,
     DpfResultFileNodePlugin,
@@ -594,7 +593,7 @@ class SerializerSchemaMigrationTests(unittest.TestCase):
         self.assertEqual(edges_by_id["edge_unknown"], payload["workspaces"][0]["edges"][0])
         self.assertEqual(set(edges_by_id), {"edge_unknown"})
 
-    def test_normalize_project_for_registry_rebinds_previously_unresolved_dpf_nodes_and_edges(self) -> None:
+    def test_reloading_authored_document_rebinds_previously_unresolved_dpf_nodes_and_edges(self) -> None:
         missing_registry = NodeRegistry()
         serializer = JsonProjectSerializer(missing_registry)
         with unittest.mock.patch(
@@ -609,21 +608,22 @@ class SerializerSchemaMigrationTests(unittest.TestCase):
             self.assertEqual(set(workspace.unresolved_edge_docs), {"edge_result_data", "edge_result_exec"})
             _assert_dpf_placeholder_contract(self, workspace.unresolved_node_docs["node_result"])
             _assert_dpf_placeholder_contract(self, workspace.unresolved_node_docs["node_model"])
+            authored_doc = serializer.to_persistent_document(project)
 
         rebind_registry = NodeRegistry()
         rebind_registry.register(DpfResultFileNodePlugin)
         rebind_registry.register(DpfModelNodePlugin)
 
-        normalize_project_for_registry(project, rebind_registry)
-        workspace = project.workspaces["ws_dpf"]
+        reloaded_project = JsonProjectSerializer(rebind_registry).from_document(authored_doc)
+        workspace = reloaded_project.workspaces["ws_dpf"]
 
         self.assertEqual(set(workspace.nodes), {"node_result", "node_model"})
         self.assertEqual(set(workspace.edges), {"edge_result_data", "edge_result_exec"})
-        self.assertEqual(workspace.unresolved_node_docs, {})
-        self.assertEqual(workspace.unresolved_edge_docs, {})
+        self.assertFalse(hasattr(workspace, "unresolved_node_docs"))
+        self.assertFalse(hasattr(workspace, "unresolved_edge_docs"))
         self.assertFalse(workspace.nodes["node_model"].exposed_ports["result_file"])
 
-    def test_normalize_project_for_registry_rebinds_generated_dpf_nodes_and_hidden_edges(self) -> None:
+    def test_reloading_authored_document_rebinds_generated_dpf_nodes_and_hidden_edges(self) -> None:
         missing_registry = NodeRegistry()
         serializer = JsonProjectSerializer(missing_registry)
         with unittest.mock.patch(
@@ -638,18 +638,19 @@ class SerializerSchemaMigrationTests(unittest.TestCase):
             self.assertEqual(set(workspace.unresolved_edge_docs), {"edge_generated_streams"})
             _assert_dpf_placeholder_contract(self, workspace.unresolved_node_docs["node_streams_container"])
             _assert_dpf_placeholder_contract(self, workspace.unresolved_node_docs["node_displacement"])
+            authored_doc = serializer.to_persistent_document(project)
 
         rebind_registry = build_default_registry()
         if rebind_registry.spec_or_none("dpf.op.result.displacement") is None:
             self.skipTest("Generated DPF operator descriptors are not available in this environment.")
 
-        normalize_project_for_registry(project, rebind_registry)
-        workspace = project.workspaces["ws_dpf"]
+        reloaded_project = JsonProjectSerializer(rebind_registry).from_document(authored_doc)
+        workspace = reloaded_project.workspaces["ws_dpf"]
 
         self.assertEqual(set(workspace.nodes), {"node_streams_container", "node_displacement"})
         self.assertEqual(set(workspace.edges), {"edge_generated_streams"})
-        self.assertEqual(workspace.unresolved_node_docs, {})
-        self.assertEqual(workspace.unresolved_edge_docs, {})
+        self.assertFalse(hasattr(workspace, "unresolved_node_docs"))
+        self.assertFalse(hasattr(workspace, "unresolved_edge_docs"))
         self.assertFalse(workspace.nodes["node_displacement"].exposed_ports["streams_container"])
         self.assertEqual(workspace.nodes["node_displacement"].properties["read_cyclic"], 2)
         self.assertEqual(workspace.nodes["node_displacement"].port_labels["fields_container_2"], "Saved Fields")
