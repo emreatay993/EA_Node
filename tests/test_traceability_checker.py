@@ -1030,12 +1030,20 @@ COREX_NO_LEGACY_ARCHITECTURE_CLEANUP_REQUIREMENT_TOKENS: dict[str, dict[str, tup
     },
 }
 COREX_NO_LEGACY_ARCHITECTURE_CLEANUP_TRACEABILITY_ROW_TOKENS: dict[str, tuple[str, ...]] = {
+    "REQ-INT-006": (
+        "explicit public built-ins export",
+        "descriptor aggregation",
+        "INTEGRATION_NODE_DESCRIPTORS",
+    ),
     "REQ-QA-042": manifest.TRACEABILITY_ROW_REQUIRED_TOKENS["REQ-QA-042"],
     "AC-REQ-QA-042-01": manifest.TRACEABILITY_ROW_REQUIRED_TOKENS["AC-REQ-QA-042-01"],
     "AC-REQ-QA-018-01": ("ea_node_editor.ui.perf.performance_harness",),
     "REQ-PERF-001": ("ea_node_editor/ui/perf/performance_harness.py",),
     "REQ-PERF-002": ("ea_node_editor/ui/perf/performance_harness.py",),
     "REQ-PERF-003": ("ea_node_editor/ui/perf/performance_harness.py",),
+}
+COREX_NO_LEGACY_ARCHITECTURE_CLEANUP_TRACEABILITY_ROW_FORBIDDEN_TOKENS: dict[str, tuple[str, ...]] = {
+    "REQ-INT-006": ("compatibility export",),
 }
 COREX_NO_LEGACY_ARCHITECTURE_CLEANUP_QA_MATRIX_TOKENS = (
     "COREX No-Legacy Architecture Cleanup QA Matrix",
@@ -3514,6 +3522,8 @@ class TraceabilityCheckerTests(unittest.TestCase):
             row_text = traceability_row(traceability_path, row_id)
             for token in tokens:
                 self.assertIn(token, row_text, msg=f"traceability row {row_id} missing token {token!r}")
+            for token in COREX_NO_LEGACY_ARCHITECTURE_CLEANUP_TRACEABILITY_ROW_FORBIDDEN_TOKENS.get(row_id, ()):
+                self.assertNotIn(token, row_text, msg=f"traceability row {row_id} has stale token {token!r}")
 
     def test_corex_no_legacy_architecture_cleanup_qa_matrix_records_commands_and_manual_checks(
         self,

@@ -1192,6 +1192,7 @@ TRACEABILITY_ROW_REQUIRED_TOKENS = {
 }
 
 TRACEABILITY_ROW_FORBIDDEN_TOKENS = {
+    "REQ-INT-006": ("compatibility export",),
     "AC-REQ-QA-013-01": ("approved fresh-process shell fallback",),
     "AC-REQ-QA-017-01": ("Recorded serializer baseline caveat",),
     "AC-REQ-QA-018-01": ("ea_node_editor.telemetry.performance_harness",),
