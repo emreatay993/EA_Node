@@ -16,6 +16,20 @@ from ea_node_editor.nodes.plugin_loader import discover_addon_records
 PERSISTENCE_ENVELOPE_KEY = "_persistence_envelope"
 LEGACY_RUNTIME_PERSISTENCE_KEY = "_runtime_unresolved_workspaces"
 MISSING_ADDON_PLACEHOLDER_KEY = "_missing_addon_placeholder"
+_WORKSPACE_PERSISTENCE_ENVELOPE_KEYS = frozenset(
+    {
+        "unresolved_nodes",
+        "unresolved_edges",
+        "authored_node_overrides",
+    }
+)
+_LEGACY_WORKSPACE_PERSISTENCE_ENVELOPE_KEYS = frozenset(
+    {
+        "nodes",
+        "edges",
+        "node_overrides",
+    }
+)
 _LOCKED_PLACEHOLDER_LABEL = "Requires add-on"
 _DPF_OPERATOR_TYPE_ID_PREFIX = "dpf.op"
 _TYPE_ID_TOKEN_SANITIZE_RE = re.compile(r"[^0-9a-zA-Z_]+")
@@ -316,21 +330,21 @@ def _copy_unresolved_node_docs(value: Mapping[str, Any] | None) -> dict[str, dic
     return copied
 
 
-def _copy_overlay_doc_sequence(value: Any, *, id_key: str) -> dict[str, dict[str, Any]]:
-    if isinstance(value, Mapping):
-        raw_docs = value.values()
-    elif isinstance(value, Sequence) and not isinstance(value, (str, bytes, bytearray)):
-        raw_docs = value
-    else:
+def _copy_overlay_doc_sequence(value: Any, *, id_key: str, field_name: str) -> dict[str, dict[str, Any]]:
+    if value is None:
         return {}
+    if not isinstance(value, list):
+        raise ValueError(f"{field_name} must be a JSON array.")
     copied: dict[str, dict[str, Any]] = {}
-    for raw_doc in raw_docs:
+    for raw_doc in value:
         if not isinstance(raw_doc, Mapping):
-            continue
+            raise ValueError(f"{field_name} entries must be JSON objects.")
         copied_doc = copy.deepcopy(dict(raw_doc))
         entry_id = str(copied_doc.get(id_key, "")).strip()
-        if not entry_id or entry_id in copied:
-            continue
+        if not entry_id:
+            raise ValueError(f"{field_name} entries must include {id_key!r}.")
+        if entry_id in copied:
+            raise ValueError(f"{field_name} contains duplicate {id_key!r}: {entry_id}.")
         copied_doc[id_key] = entry_id
         copied[entry_id] = copied_doc
     return copied
@@ -412,20 +426,37 @@ class WorkspacePersistenceEnvelope:
     def from_mapping(cls, value: Mapping[str, Any] | None) -> "WorkspacePersistenceEnvelope":
         if not isinstance(value, Mapping):
             return cls()
+        keys = {str(key) for key in value}
+        legacy_keys = sorted(keys & _LEGACY_WORKSPACE_PERSISTENCE_ENVELOPE_KEYS)
+        if legacy_keys:
+            raise ValueError(
+                "Workspace persistence envelope uses legacy keys: "
+                f"{', '.join(legacy_keys)}. Use unresolved_nodes, "
+                "unresolved_edges, and authored_node_overrides."
+            )
+        unsupported_keys = sorted(keys - _WORKSPACE_PERSISTENCE_ENVELOPE_KEYS)
+        if unsupported_keys:
+            raise ValueError(
+                "Workspace persistence envelope contains unsupported keys: "
+                f"{', '.join(unsupported_keys)}."
+            )
+        authored_node_overrides = value.get("authored_node_overrides")
+        if authored_node_overrides is not None and not isinstance(authored_node_overrides, Mapping):
+            raise ValueError("authored_node_overrides must be a JSON object.")
         return cls(
             unresolved_node_docs=_copy_unresolved_node_docs(
                 _copy_overlay_doc_sequence(
-                    value.get("unresolved_nodes", value.get("nodes")),
+                    value.get("unresolved_nodes"),
                     id_key="node_id",
+                    field_name="unresolved_nodes",
                 )
             ),
             unresolved_edge_docs=_copy_overlay_doc_sequence(
-                value.get("unresolved_edges", value.get("edges")),
+                value.get("unresolved_edges"),
                 id_key="edge_id",
+                field_name="unresolved_edges",
             ),
-            authored_node_overrides=_copy_overlay_docs(
-                value.get("authored_node_overrides", value.get("node_overrides"))
-            ),
+            authored_node_overrides=_copy_overlay_docs(authored_node_overrides),
         )
 
     def to_mapping(self) -> dict[str, Any]:

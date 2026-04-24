@@ -88,6 +88,14 @@ def _view_filter_state_from_metadata(payload: Any) -> dict[str, dict[str, dict[s
     return workspace_state
 
 
+def _reject_legacy_runtime_persistence_metadata(metadata: Mapping[str, Any]) -> None:
+    if LEGACY_RUNTIME_PERSISTENCE_KEY in metadata:
+        raise ValueError(
+            "Legacy runtime persistence metadata is not supported. "
+            f"Use {PERSISTENCE_ENVELOPE_KEY!r}."
+        )
+
+
 @dataclass(frozen=True, slots=True)
 class ProjectArtifactReferenceSet:
     managed_ids: frozenset[str]
@@ -123,21 +131,22 @@ class ProjectPersistenceEnvelope:
         metadata = payload.get("metadata")
         if not isinstance(metadata, Mapping):
             return cls.runtime()
+        _reject_legacy_runtime_persistence_metadata(metadata)
         raw_envelope = metadata.get(PERSISTENCE_ENVELOPE_KEY)
-        if isinstance(raw_envelope, Mapping):
-            raw_flavor = str(
-                raw_envelope.get("document_flavor", ProjectDocumentFlavor.RUNTIME.value)
-            ).strip()
-            try:
-                document_flavor = ProjectDocumentFlavor(raw_flavor)
-            except ValueError:
-                document_flavor = ProjectDocumentFlavor.RUNTIME
-            return cls(
-                document_flavor=document_flavor,
-                workspace_envelopes=_workspace_envelopes_from_mapping(raw_envelope.get("workspaces")),
-            )
-        return cls.runtime(
-            _workspace_envelopes_from_mapping(metadata.get(LEGACY_RUNTIME_PERSISTENCE_KEY))
+        if raw_envelope is None:
+            return cls.runtime()
+        if not isinstance(raw_envelope, Mapping):
+            raise ValueError("Project persistence envelope must be a JSON object.")
+        raw_flavor = str(raw_envelope.get("document_flavor", "")).strip()
+        try:
+            document_flavor = ProjectDocumentFlavor(raw_flavor)
+        except ValueError as exc:
+            raise ValueError(f"Unsupported project persistence document_flavor: {raw_flavor!r}") from exc
+        if "workspaces" not in raw_envelope:
+            raise ValueError("Project persistence envelope requires a workspaces object.")
+        return cls(
+            document_flavor=document_flavor,
+            workspace_envelopes=_workspace_envelopes_from_mapping(raw_envelope.get("workspaces")),
         )
 
     def metadata_value(self) -> dict[str, Any] | None:
@@ -162,12 +171,14 @@ class ProjectPersistenceEnvelope:
 
 def _workspace_envelopes_from_mapping(value: Any) -> dict[str, WorkspacePersistenceEnvelope]:
     if not isinstance(value, Mapping):
-        return {}
+        raise ValueError("Project persistence envelope workspaces must be a JSON object.")
     envelopes: dict[str, WorkspacePersistenceEnvelope] = {}
     for raw_workspace_id, raw_workspace_payload in value.items():
         workspace_id = str(raw_workspace_id).strip()
         if not workspace_id or workspace_id in envelopes:
             continue
+        if not isinstance(raw_workspace_payload, Mapping):
+            raise ValueError(f"Workspace persistence envelope for {workspace_id!r} must be a JSON object.")
         envelope = WorkspacePersistenceEnvelope.from_mapping(raw_workspace_payload)
         if envelope.is_empty:
             continue
@@ -271,9 +282,9 @@ class JsonProjectCodec:
             active_workspace_id=project.active_workspace_id,
         )
         metadata = JsonProjectMigration.normalize_metadata(metadata, ownership.workspace_order)
+        _reject_legacy_runtime_persistence_metadata(metadata)
         metadata["artifact_store"] = normalize_artifact_store_metadata(metadata.get("artifact_store"))
         metadata.pop(PERSISTENCE_ENVELOPE_KEY, None)
-        metadata.pop(LEGACY_RUNTIME_PERSISTENCE_KEY, None)
         metadata.pop(_VIEW_FILTER_STATE_METADATA_KEY, None)
 
         workspaces: list[dict[str, Any]] = []
@@ -356,7 +367,6 @@ class JsonProjectCodec:
             metadata=dict(payload.get("metadata", {})) if isinstance(payload.get("metadata"), Mapping) else {},
         )
         project.metadata.pop(PERSISTENCE_ENVELOPE_KEY, None)
-        project.metadata.pop(LEGACY_RUNTIME_PERSISTENCE_KEY, None)
         view_filter_state = _view_filter_state_from_metadata(project.metadata.pop(_VIEW_FILTER_STATE_METADATA_KEY, None))
         runtime_envelope = ProjectPersistenceEnvelope.from_document(payload)
         for ws_doc in payload.get("workspaces", []):

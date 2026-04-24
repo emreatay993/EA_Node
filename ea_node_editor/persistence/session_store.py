@@ -34,8 +34,10 @@ class RecentSessionAutosaveState:
 
     @classmethod
     def from_mapping(cls, payload: Mapping[str, Any] | None) -> "RecentSessionAutosaveState":
-        if not isinstance(payload, Mapping):
+        if payload is None:
             return cls()
+        if not isinstance(payload, Mapping):
+            raise ValueError("Recent session autosave metadata must be a JSON object.")
         return cls(resume_fingerprint=str(payload.get("resume_fingerprint", "")).strip())
 
     def to_mapping(self) -> dict[str, Any]:
@@ -53,15 +55,17 @@ class RecentSessionEnvelope:
 
     @classmethod
     def from_mapping(cls, payload: Mapping[str, Any] | None) -> "RecentSessionEnvelope":
-        if not isinstance(payload, Mapping):
+        if payload is None:
             return cls()
+        if not isinstance(payload, Mapping):
+            raise ValueError("Recent session payload must be a JSON object.")
         recent_paths_source = payload.get("recent_project_paths")
-        if isinstance(recent_paths_source, Mapping):
-            recent_paths_iterable = recent_paths_source.values()
-        elif isinstance(recent_paths_source, list | tuple):
+        if recent_paths_source is None:
+            recent_paths_iterable = ()
+        elif isinstance(recent_paths_source, list):
             recent_paths_iterable = recent_paths_source
         else:
-            recent_paths_iterable = ()
+            raise ValueError("recent_project_paths must be a JSON array.")
         recent_project_paths = tuple(
             text
             for item in recent_paths_iterable
@@ -114,9 +118,9 @@ class SessionAutosaveStore:
             return RecentSessionEnvelope()
         try:
             payload = json.loads(session_path.read_text(encoding="utf-8"))
-        except Exception:  # noqa: BLE001
+        except (OSError, json.JSONDecodeError):
             return RecentSessionEnvelope()
-        return RecentSessionEnvelope.from_mapping(payload if isinstance(payload, dict) else None)
+        return RecentSessionEnvelope.from_mapping(payload)
 
     def load_session_payload(self) -> dict[str, Any]:
         return self.load_session_envelope().to_mapping()

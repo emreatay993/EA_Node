@@ -71,6 +71,29 @@ class AppPreferencesTests(unittest.TestCase):
             },
         )
 
+    def test_v1_and_v2_documents_load_locked_current_defaults(self) -> None:
+        for old_version in (1, 2):
+            with self.subTest(version=old_version):
+                self._preferences_path.write_text(
+                    json.dumps(
+                        {
+                            "kind": APP_PREFERENCES_KIND,
+                            "version": old_version,
+                            "plugins": {
+                                "ansys_dpf": {
+                                    "version": "0.1.0",
+                                    "catalog_cache_version": "0.1.0",
+                                }
+                            },
+                        }
+                    ),
+                    encoding="utf-8",
+                )
+
+                document = self._store.load_document()
+
+                self.assertEqual(document, default_app_preferences_document())
+
     def test_set_ansys_dpf_plugin_state_round_trips_exact_version_string(self) -> None:
         exact_version = "0.15.0.dev1+build.42"
         document = set_ansys_dpf_plugin_state(

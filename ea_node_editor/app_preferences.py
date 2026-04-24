@@ -57,7 +57,6 @@ from ea_node_editor.ui.graph_theme import (
 from ea_node_editor.ui.theme import DEFAULT_THEME_ID, is_known_theme_id, resolve_theme_id
 
 
-_APP_PREFERENCES_MIGRATION_VERSION = 1
 _GRAPHICS_PERFORMANCE_MODE_VALUES = {
     str(choice[0]).strip().lower() for choice in GRAPHICS_PERFORMANCE_MODE_CHOICES
 }
@@ -368,7 +367,7 @@ def normalize_app_preferences_document(payload: Any) -> dict[str, Any]:
 
     if kind != APP_PREFERENCES_KIND:
         return normalized
-    if version not in {_APP_PREFERENCES_MIGRATION_VERSION, 2, APP_PREFERENCES_VERSION}:
+    if version != APP_PREFERENCES_VERSION:
         return normalized
 
     normalized["graphics"] = normalize_graphics_settings(payload.get("graphics"))

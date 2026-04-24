@@ -7,6 +7,7 @@ from pathlib import Path
 from unittest import mock
 
 from ea_node_editor.graph.model import GraphModel
+from ea_node_editor.persistence.session_store import RecentSessionEnvelope
 from ea_node_editor.ui.dialogs.project_files_dialog import ProjectFilesBrokenEntry
 from ea_node_editor.ui.shell.controllers.project_session_controller import ProjectSessionController
 from ea_node_editor.ui.shell.state import ShellProjectSessionState, ShellRunState
@@ -164,6 +165,7 @@ class _ProjectHostStub:
         self.session_store = _SessionStoreStub(base_path or Path.cwd())
         self.serializer = _SerializerStub()
         self.workspace_library_controller = _WorkspaceLibraryControllerStub()
+        self.workspace_navigation_controller = _WorkspaceNavigationControllerStub()
         self.runtime_history = _RuntimeHistoryStub()
         self.viewer_session_bridge = _ViewerSessionBridgeStub()
         self.library_pane_reset_requested = _SignalStub()
@@ -228,6 +230,18 @@ class ProjectSessionControllerUnitTests(unittest.TestCase):
         self.assertEqual(len(set(normalized)), len(normalized))
         self.assertEqual(host.project_session_state.recent_project_paths, normalized)
         self.assertEqual(host.refresh_calls, 1)
+
+    def test_recent_session_envelope_requires_list_recent_project_paths(self) -> None:
+        with self.assertRaisesRegex(ValueError, "recent_project_paths must be a JSON array"):
+            RecentSessionEnvelope.from_mapping(
+                {
+                    "project_path": "active.sfe",
+                    "last_manual_save_ts": 0.0,
+                    "recent_project_paths": {
+                        "first": "alpha.sfe",
+                    },
+                }
+            )
 
     def test_add_and_remove_recent_project_paths_normalize_suffixes(self) -> None:
         host = _ProjectHostStub()
@@ -469,8 +483,8 @@ class ProjectSessionControllerUnitTests(unittest.TestCase):
         self.assertIs(call["project"], host.model.project)
         self.assertTrue(call["reseed_on_next_reset"])
         self.assertEqual(host.runtime_history.clear_all_calls, 1)
-        self.assertEqual(host.workspace_library_controller.refresh_workspace_tabs_calls, 1)
-        self.assertEqual(len(host.workspace_library_controller.switch_workspace_calls), 1)
+        self.assertEqual(host.workspace_navigation_controller.refresh_workspace_tabs_calls, 1)
+        self.assertEqual(len(host.workspace_navigation_controller.switch_workspace_calls), 1)
         self.assertEqual(len(host.project_meta_changed.emit_calls), 1)
 
     def test_restore_script_editor_state_requires_selected_node_for_visibility(self) -> None:
@@ -526,7 +540,7 @@ class ProjectSessionControllerUnitTests(unittest.TestCase):
             self.assertNotIn("project_doc", host.session_store.persist_calls[0])
             self.assertNotIn("staging_root", host.model.project.metadata["artifact_store"])
             self.assertIn("pending_output", host.model.project.metadata["artifact_store"]["staged"])
-            self.assertEqual(host.workspace_library_controller.save_active_view_state_calls, 1)
+            self.assertEqual(host.workspace_navigation_controller.save_active_view_state_calls, 1)
 
     def test_persist_session_omits_project_doc_from_recent_session_payload(self) -> None:
         host = _ProjectHostStub()

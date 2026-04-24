@@ -184,6 +184,34 @@ class RegistryValidationTests(unittest.TestCase):
             "node_missing",
         )
 
+    def test_workspace_persistence_envelope_rejects_legacy_alias_keys(self) -> None:
+        with self.assertRaisesRegex(ValueError, "legacy keys"):
+            WorkspacePersistenceEnvelope.from_mapping(
+                {
+                    "nodes": [
+                        {
+                            "node_id": "node_missing",
+                            "type_id": "plugin.missing",
+                        }
+                    ],
+                    "edges": [],
+                    "node_overrides": {},
+                }
+            )
+
+    def test_workspace_persistence_envelope_requires_list_unresolved_payloads(self) -> None:
+        with self.assertRaisesRegex(ValueError, "unresolved_nodes must be a JSON array"):
+            WorkspacePersistenceEnvelope.from_mapping(
+                {
+                    "unresolved_nodes": {
+                        "node_missing": {
+                            "node_id": "node_missing",
+                            "type_id": "plugin.missing",
+                        }
+                    },
+                }
+            )
+
     def test_workspace_snapshot_restores_externalized_persistence_overlay(self) -> None:
         workspace = WorkspaceData(workspace_id="ws_test", name="Workspace")
         initial_state = workspace.capture_persistence_state()

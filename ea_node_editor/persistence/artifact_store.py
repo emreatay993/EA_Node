@@ -106,16 +106,15 @@ def _metadata_entry_relative_path(
     *,
     allowed_roots: set[str] | frozenset[str] | None = None,
 ) -> str:
-    root = _normalize_relative_path(payload.get("root"))
-    raw_relative = payload.get("relative_path")
-    if raw_relative is None:
-        raw_relative = payload.get("path")
-    if raw_relative is None:
+    legacy_keys = sorted(key for key in ("path", "root") if key in payload)
+    if legacy_keys:
+        raise ValueError(
+            "Artifact metadata entries use current keys only; "
+            f"remove legacy keys: {', '.join(legacy_keys)}."
+        )
+    if "relative_path" not in payload:
         return ""
-    raw_text = _coerce_str(raw_relative)
-    if root and raw_text and raw_text != root and not raw_text.startswith(f"{root}/"):
-        raw_text = f"{root}/{raw_text}"
-    return _normalize_relative_path(raw_text, allowed_roots=allowed_roots)
+    return _normalize_relative_path(payload.get("relative_path"), allowed_roots=allowed_roots)
 
 
 def _path_from_relative(relative_path: str) -> Path:
@@ -199,15 +198,17 @@ class ManagedArtifactEntry:
     @classmethod
     def from_metadata(cls, artifact_id: str, payload: Any) -> "ManagedArtifactEntry" | None:
         normalized_id = coerce_managed_artifact_id(artifact_id)
-        if not normalized_id or not isinstance(payload, Mapping):
-            return None
+        if not normalized_id:
+            raise ValueError("Managed artifact metadata requires a non-empty artifact id.")
+        if not isinstance(payload, Mapping):
+            raise ValueError("Managed artifact metadata entries must be JSON objects.")
         relative_path = _metadata_entry_relative_path(payload, allowed_roots=_MANAGED_ROOT_NAMES)
         if not relative_path:
-            return None
+            raise ValueError("Managed artifact metadata entries require a valid relative_path.")
         return cls(
             artifact_id=normalized_id,
             relative_path=relative_path,
-            extra=_copy_mapping_excluding(payload, "relative_path", "path", "root"),
+            extra=_copy_mapping_excluding(payload, "relative_path"),
         )
 
 
@@ -228,23 +229,22 @@ class StagingRootHint:
 
     @classmethod
     def from_metadata(cls, payload: Any) -> "StagingRootHint" | None:
-        if isinstance(payload, str):
-            absolute_path = _normalize_absolute_path(payload)
-            if absolute_path is None:
-                return None
-            return cls(kind=_STAGING_ROOT_HINT_KIND_SESSION, absolute_path=absolute_path)
-        if not isinstance(payload, Mapping):
+        if payload is None:
             return None
+        if isinstance(payload, str):
+            raise ValueError("staging_root must be a JSON object with absolute_path.")
+        if not isinstance(payload, Mapping):
+            raise ValueError("staging_root must be a JSON object with absolute_path.")
+        if "path" in payload:
+            raise ValueError("staging_root uses legacy key 'path'; use 'absolute_path'.")
         absolute_path = _normalize_absolute_path(payload.get("absolute_path"))
         if absolute_path is None:
-            absolute_path = _normalize_absolute_path(payload.get("path"))
-        if absolute_path is None:
-            return None
+            raise ValueError("staging_root requires a valid absolute_path.")
         kind = _coerce_str(payload.get("kind")) or _STAGING_ROOT_HINT_KIND_SESSION
         return cls(
             kind=kind,
             absolute_path=absolute_path,
-            extra=_copy_mapping_excluding(payload, "kind", "absolute_path", "path"),
+            extra=_copy_mapping_excluding(payload, "kind", "absolute_path"),
         )
 
 
@@ -286,14 +286,16 @@ class StagedArtifactEntry:
     @classmethod
     def from_metadata(cls, artifact_id: str, payload: Any) -> "StagedArtifactEntry" | None:
         normalized_id = coerce_staged_artifact_id(artifact_id)
-        if not normalized_id or not isinstance(payload, Mapping):
-            return None
+        if not normalized_id:
+            raise ValueError("Staged artifact metadata requires a non-empty artifact id.")
+        if not isinstance(payload, Mapping):
+            raise ValueError("Staged artifact metadata entries must be JSON objects.")
         relative_path = _metadata_entry_relative_path(payload)
         absolute_path_hint = _normalize_absolute_path(payload.get("absolute_path"))
         slot = _coerce_str(payload.get("slot")) or None
-        extra = _copy_mapping_excluding(payload, "absolute_path", "relative_path", "path", "root", "slot")
-        if not relative_path and not absolute_path_hint and not slot and not extra:
-            return None
+        extra = _copy_mapping_excluding(payload, "absolute_path", "relative_path", "slot")
+        if not relative_path and not absolute_path_hint:
+            raise ValueError("Staged artifact metadata entries require relative_path or absolute_path.")
         return cls(
             artifact_id=normalized_id,
             relative_path=relative_path or None,
@@ -312,16 +314,25 @@ class ArtifactStoreState:
 
     @classmethod
     def from_metadata(cls, payload: Any) -> "ArtifactStoreState":
-        metadata = payload if isinstance(payload, Mapping) else {}
+        if payload is None:
+            metadata: Mapping[str, Any] = {}
+        elif isinstance(payload, Mapping):
+            metadata = payload
+        else:
+            raise ValueError("Artifact store metadata must be a JSON object.")
         raw_artifacts = metadata.get("artifacts")
         raw_staged = metadata.get("staged")
         artifacts: dict[str, ManagedArtifactEntry] = {}
+        if raw_artifacts is not None and not isinstance(raw_artifacts, Mapping):
+            raise ValueError("Artifact store 'artifacts' must be a JSON object.")
         artifact_items = raw_artifacts.items() if isinstance(raw_artifacts, Mapping) else ()
         for artifact_id, entry_payload in sorted(artifact_items):
             entry = ManagedArtifactEntry.from_metadata(str(artifact_id), entry_payload)
             if entry is not None:
                 artifacts[entry.artifact_id] = entry
         staged: dict[str, StagedArtifactEntry] = {}
+        if raw_staged is not None and not isinstance(raw_staged, Mapping):
+            raise ValueError("Artifact store 'staged' must be a JSON object.")
         staged_items = raw_staged.items() if isinstance(raw_staged, Mapping) else ()
         for artifact_id, entry_payload in sorted(staged_items):
             entry = StagedArtifactEntry.from_metadata(str(artifact_id), entry_payload)

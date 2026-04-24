@@ -365,6 +365,63 @@ class SerializerSchemaMigrationTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "Only schema version"):
             serializer.migrate(payload)
 
+    def test_from_document_rejects_legacy_runtime_unresolved_workspace_metadata(self) -> None:
+        serializer = JsonProjectSerializer(build_default_registry())
+        payload = {
+            "schema_version": SCHEMA_VERSION,
+            "project_id": "proj_legacy_runtime_envelope",
+            "name": "Legacy Runtime Envelope",
+            "active_workspace_id": "ws_a",
+            "workspace_order": ["ws_a"],
+            "workspaces": [_workspace_doc("ws_a", "Workspace A")],
+            "metadata": {
+                "_runtime_unresolved_workspaces": {
+                    "ws_a": {
+                        "nodes": [
+                            {
+                                "node_id": "node_missing",
+                                "type_id": "plugin.missing",
+                            }
+                        ]
+                    }
+                }
+            },
+        }
+
+        with self.assertRaisesRegex(ValueError, "Legacy runtime persistence metadata"):
+            serializer.from_document(payload)
+
+    def test_from_document_rejects_legacy_workspace_envelope_aliases(self) -> None:
+        serializer = JsonProjectSerializer(build_default_registry())
+        payload = {
+            "schema_version": SCHEMA_VERSION,
+            "project_id": "proj_legacy_workspace_envelope",
+            "name": "Legacy Workspace Envelope",
+            "active_workspace_id": "ws_a",
+            "workspace_order": ["ws_a"],
+            "workspaces": [_workspace_doc("ws_a", "Workspace A")],
+            "metadata": {
+                "_persistence_envelope": {
+                    "document_flavor": "runtime",
+                    "workspaces": {
+                        "ws_a": {
+                            "nodes": [
+                                {
+                                    "node_id": "node_missing",
+                                    "type_id": "plugin.missing",
+                                }
+                            ],
+                            "edges": [],
+                            "node_overrides": {},
+                        }
+                    },
+                }
+            },
+        }
+
+        with self.assertRaisesRegex(ValueError, "legacy keys"):
+            serializer.from_document(payload)
+
     def test_migrate_preserves_multiple_connections_for_allow_multiple_target_ports(self) -> None:
         serializer = JsonProjectSerializer(build_default_registry())
         payload = {

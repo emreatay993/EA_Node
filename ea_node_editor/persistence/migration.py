@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import copy
-from collections.abc import Mapping, Sequence
+from collections.abc import Mapping
 from dataclasses import dataclass, field, replace
 from typing import Any
 
@@ -32,14 +32,18 @@ def _coerce_bool(value: Any, default: bool = False) -> bool:
 
 
 def _as_dict(value: Any) -> dict[str, Any]:
+    if value is None:
+        return {}
     if isinstance(value, Mapping):
         return {str(key): item for key, item in value.items()}
-    return {}
+    raise ValueError("Expected a JSON object.")
 
 
 def _merge_defaults(values: Any, defaults: dict[str, Any]) -> dict[str, Any]:
-    if not isinstance(values, Mapping):
+    if values is None:
         return merge_defaults_dict({}, defaults)
+    if not isinstance(values, Mapping):
+        raise ValueError("Expected a JSON object.")
     return merge_defaults_dict({str(key): value for key, value in values.items()}, defaults)
 
 
@@ -204,15 +208,11 @@ class JsonProjectMigration:
 
     @staticmethod
     def as_list(value: Any) -> list[Any]:
+        if value is None:
+            return []
         if isinstance(value, list):
             return list(value)
-        if isinstance(value, tuple):
-            return list(value)
-        if isinstance(value, Mapping):
-            return list(value.values())
-        if isinstance(value, Sequence) and not isinstance(value, (str, bytes, bytearray)):
-            return list(value)
-        return []
+        raise ValueError("Expected a JSON array.")
 
     @staticmethod
     def _copy_mapping(value: Mapping[str, Any]) -> dict[str, Any]:

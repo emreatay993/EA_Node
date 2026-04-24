@@ -41,12 +41,11 @@ class ProjectArtifactStoreTests(unittest.TestCase):
             {
                 "owner": "packet-p01",
                 "artifacts": {
-                    "image_source": {"path": r"assets\media\diagram.png"},
-                    "bad_path": {"path": "../escape.txt"},
+                    "image_source": {"relative_path": r"assets\media\diagram.png"},
                 },
                 "staged": {
                     "pending_output": {
-                        "path": r".staging\outputs\run.txt",
+                        "relative_path": r".staging\outputs\run.txt",
                         "slot": "process_run.stdout",
                     }
                 },
@@ -69,6 +68,33 @@ class ProjectArtifactStoreTests(unittest.TestCase):
                 }
             },
         )
+
+    def test_artifact_store_metadata_rejects_legacy_path_and_root_aliases(self) -> None:
+        with self.assertRaisesRegex(ValueError, "legacy keys"):
+            normalize_artifact_store_metadata(
+                {
+                    "artifacts": {
+                        "image_source": {"path": r"assets\media\diagram.png"},
+                    },
+                }
+            )
+
+        with self.assertRaisesRegex(ValueError, "legacy keys"):
+            normalize_artifact_store_metadata(
+                {
+                    "artifacts": {
+                        "image_source": {
+                            "root": "assets",
+                            "path": "media/diagram.png",
+                        },
+                    },
+                }
+            )
+
+    def test_artifact_store_metadata_rejects_bare_string_staging_root_alias(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            with self.assertRaisesRegex(ValueError, "staging_root must be a JSON object"):
+                normalize_artifact_store_metadata({"staging_root": str(Path(temp_dir) / "session_staging")})
 
     def test_store_resolves_managed_and_staged_paths(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -358,8 +384,7 @@ class ProjectArtifactStoreTests(unittest.TestCase):
             "artifact_store": {
                 "artifacts": {
                     "generated_output": {
-                        "root": "artifacts",
-                        "path": "reports/result.csv",
+                        "relative_path": "artifacts/reports/result.csv",
                     }
                 }
             }

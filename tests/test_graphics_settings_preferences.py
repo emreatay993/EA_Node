@@ -458,7 +458,7 @@ class GraphicsSettingsPreferencesTests(unittest.TestCase):
             },
         )
 
-    def test_graph_typography_preferences_default_schema_and_legacy_payload_compatibility(self) -> None:
+    def test_graph_typography_preferences_default_schema_and_partial_current_payload(self) -> None:
         defaults = self._controller.load()["graphics"]
 
         self.assertEqual(defaults["typography"]["graph_label_pixel_size"], 10)
