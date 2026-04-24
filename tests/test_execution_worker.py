@@ -16,6 +16,10 @@ from ea_node_editor.execution.dpf_runtime_service import (
     DPF_VIEWER_DATASET_HANDLE_KIND,
     DpfMaterializationResult,
 )
+from ea_node_editor.execution.dpf_runtime.viewer_session_backend import (
+    DpfViewerSessionMaterializationBackend,
+    ViewerSessionMaterializationRequest,
+)
 from ea_node_editor.execution.handle_registry import StaleHandleError
 from ea_node_editor.execution.protocol import (
     CloseViewerSessionCommand,
@@ -29,8 +33,9 @@ from ea_node_editor.execution.protocol import (
     dict_to_event,
     event_to_dict,
 )
-from ea_node_editor.execution.runtime_snapshot import build_runtime_snapshot
+from ea_node_editor.execution.runtime_snapshot import RuntimeSnapshot, build_runtime_snapshot
 from ea_node_editor.execution.worker import run_workflow, worker_main
+from ea_node_editor.execution.worker_protocol import dispatch_viewer_command
 from ea_node_editor.execution.worker_services import WorkerServices
 from ea_node_editor.graph.model import GraphModel
 from ea_node_editor.nodes.bootstrap import build_default_registry
@@ -162,7 +167,7 @@ class _PersistentHandleSourcePlugin:
     icon="image",
     ports=(
         PortSpec("exec_in", "in", "exec", "exec", required=False),
-        PortSpec("fields", "out", "data", "json", exposed=True),
+        PortSpec("fields_container", "out", "data", "json", exposed=True),
         PortSpec("model", "out", "data", "json", exposed=True),
         PortSpec("exec_out", "out", "exec", "exec", exposed=True),
     ),
@@ -180,7 +185,7 @@ class _ViewerSourcePlugin:
         )
         return NodeResult(
             outputs={
-                "fields": fields_ref,
+                "fields_container": fields_ref,
                 "model": model_ref,
                 "exec_out": True,
             }
@@ -902,7 +907,15 @@ class ExecutionWorkerTests(unittest.TestCase):
         )
         command_queue: queue.Queue = queue.Queue()
         event_queue: queue.Queue = queue.Queue()
-        command_queue.put(command_to_dict(StartRunCommand(run_id="run_crash", workspace_id="ws_main")))
+        command_queue.put(
+            command_to_dict(
+                StartRunCommand(
+                    run_id="run_crash",
+                    workspace_id="ws_main",
+                    runtime_snapshot=RuntimeSnapshot(schema_version=1),
+                )
+            )
+        )
         command_queue.put(command_to_dict(ShutdownCommand()))
 
         with mock.patch(
@@ -990,7 +1003,7 @@ class ExecutionWorkerTests(unittest.TestCase):
                     if source_completed is None:
                         self.fail("Expected viewer source outputs before sending session commands")
 
-                    fields_ref = deserialize_runtime_value(source_completed["outputs"]["fields"])
+                    fields_ref = deserialize_runtime_value(source_completed["outputs"]["fields_container"])
                     model_ref = deserialize_runtime_value(source_completed["outputs"]["model"])
 
                     command_queue.put(
@@ -1000,7 +1013,7 @@ class ExecutionWorkerTests(unittest.TestCase):
                                 workspace_id=ws.workspace_id,
                                 node_id="node_viewer",
                                 session_id="session_worker",
-                                data_refs={"fields": fields_ref, "model": model_ref},
+                                data_refs={"fields_container": fields_ref, "model": model_ref},
                                 summary={"result_name": "displacement"},
                                 options={"live_mode": "full"},
                             )
@@ -1205,7 +1218,7 @@ class ExecutionWorkerTests(unittest.TestCase):
                             workspace_id=ws.workspace_id,
                             node_id="node_viewer",
                             session_id="session_rerun",
-                            data_refs={"fields": fields_ref, "model": model_ref},
+                            data_refs={"fields_container": fields_ref, "model": model_ref},
                         )
                     )
                 )
@@ -1259,6 +1272,66 @@ class ExecutionWorkerTests(unittest.TestCase):
                 thread.join(timeout=6.0)
                 self.assertFalse(thread.is_alive())
 
+    def test_worker_protocol_normalizes_legacy_dpf_fields_alias_before_viewer_session(self) -> None:
+        event_queue: queue.Queue = queue.Queue()
+        worker_services = WorkerServices()
+        fields_ref = worker_services.register_handle(
+            {"viewer": "fields"},
+            kind=DPF_FIELDS_CONTAINER_HANDLE_KIND,
+            owner_scope="run:viewer_alias",
+        )
+        model_ref = worker_services.register_handle(
+            {"viewer": "model"},
+            kind=DPF_MODEL_HANDLE_KIND,
+            owner_scope="run:viewer_alias",
+        )
+
+        dispatch_viewer_command(
+            OpenViewerSessionCommand(
+                request_id="viewer_alias_open",
+                workspace_id="ws_main",
+                node_id="node_viewer",
+                session_id="session_alias",
+                data_refs={"fields": fields_ref, "model": model_ref},
+            ),
+            event_queue=event_queue,
+            worker_services=worker_services,
+        )
+
+        opened = event_queue.get_nowait()
+        self.assertEqual(opened["type"], "viewer_session_opened")
+        record = worker_services.viewer_session_service._sessions[("ws_main", "session_alias")]  # noqa: SLF001
+        self.assertIn("fields_container", record.source_refs)
+        self.assertNotIn("fields", record.source_refs)
+
+    def test_dpf_viewer_backend_requires_canonical_fields_container_source_key(self) -> None:
+        worker_services = WorkerServices()
+        backend = DpfViewerSessionMaterializationBackend(worker_services)
+        fields_ref = worker_services.register_handle(
+            {"viewer": "fields"},
+            kind=DPF_FIELDS_CONTAINER_HANDLE_KIND,
+            owner_scope="cache:viewer_session:ws_main:session_alias",
+        )
+        model_ref = worker_services.register_handle(
+            {"viewer": "model"},
+            kind=DPF_MODEL_HANDLE_KIND,
+            owner_scope="cache:viewer_session:ws_main:session_alias",
+        )
+
+        with self.assertRaisesRegex(ValueError, "missing cached fields/model refs"):
+            backend.materialize(
+                ViewerSessionMaterializationRequest(
+                    workspace_id="ws_main",
+                    node_id="node_viewer",
+                    session_id="session_alias",
+                    owner_scope="cache:viewer_session:ws_main:session_alias",
+                    source_refs={"fields": fields_ref, "model": model_ref},
+                    session_options={},
+                    request_options={},
+                    output_profile="memory",
+                )
+            )
+
     def test_run_workflow_skips_action_nodes_without_exec_trigger(self) -> None:
         model = GraphModel()
         ws = model.active_workspace
@@ -1301,7 +1374,7 @@ class ExecutionWorkerTests(unittest.TestCase):
             )
         )
 
-    def test_run_workflow_manual_ui_trigger_omits_project_doc_from_start_output(self) -> None:
+    def test_run_workflow_manual_ui_trigger_preserves_current_trigger_payload(self) -> None:
         model = GraphModel()
         ws = model.active_workspace
         start = model.add_node(ws.workspace_id, "core.start", "Start", 0, 0)
@@ -1330,10 +1403,9 @@ class ExecutionWorkerTests(unittest.TestCase):
             for event in events
             if str(event.get("type", "")) == "log" and str(event.get("node_id", "")) == logger.node_id
         ]
-        self.assertFalse(any("'project_doc':" in message for message in logger_logs))
         self.assertTrue(any("'workflow_settings': {'general': {'project_name': 'Demo'}}" in message for message in logger_logs))
 
-    def test_run_workflow_rejects_legacy_project_doc_payload(self) -> None:
+    def test_run_workflow_requires_runtime_snapshot_payload(self) -> None:
         model = GraphModel()
         ws = model.active_workspace
         start = model.add_node(ws.workspace_id, "core.start", "Start", 0, 0)
@@ -1350,14 +1422,11 @@ class ExecutionWorkerTests(unittest.TestCase):
         model.add_edge(ws.workspace_id, logger.node_id, "exec_out", end.node_id, "exec_in")
 
         event_queue: queue.Queue = queue.Queue()
-        runtime_snapshot = self._runtime_snapshot(model)
-        with self.assertRaisesRegex(ValueError, "does not accept project_doc"):
+        with self.assertRaisesRegex(ValueError, "requires runtime_snapshot"):
             run_workflow(
                 {
-                    "run_id": "run_legacy_project_doc",
+                    "run_id": "run_missing_snapshot",
                     "workspace_id": ws.workspace_id,
-                    "runtime_snapshot": runtime_snapshot,
-                    "project_doc": runtime_snapshot.to_document(),
                     "trigger": {},
                 },
                 event_queue,

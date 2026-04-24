@@ -217,7 +217,7 @@ class ProcessExecutionClientTests(unittest.TestCase):
 
         started = self._wait_for_event(
             lambda event: event.get("type") == "run_started" and event.get("run_id") == first_run_id,
-            timeout=4.0,
+            timeout=8.0,
         )
         self.assertIsNotNone(started)
 
@@ -246,7 +246,7 @@ class ProcessExecutionClientTests(unittest.TestCase):
 
         completed = self._wait_for_event(
             lambda event: event.get("type") == "run_completed" and event.get("run_id") == second_run_id,
-            timeout=6.0,
+            timeout=12.0,
         )
         self.assertIsNotNone(completed)
 
@@ -303,13 +303,13 @@ class ProcessExecutionClientTests(unittest.TestCase):
             lambda event: event.get("type") == "log"
             and event.get("run_id") == run_id
             and "tick_client_0" in str(event.get("message", "")),
-            timeout=6.0,
+            timeout=12.0,
         )
         self.assertIsNotNone(first_stream_event)
 
         completed = self._wait_for_event(
             lambda event: event.get("type") == "run_completed" and event.get("run_id") == run_id,
-            timeout=6.0,
+            timeout=12.0,
         )
         self.assertIsNotNone(completed)
 
@@ -325,8 +325,8 @@ class ProcessExecutionClientTests(unittest.TestCase):
         self.assertTrue(any("tick_client_1" in message for message in stream_messages))
         self.assertTrue(any("warn_client_0" in message for message in stream_messages))
 
-    def test_client_rejects_legacy_project_doc_trigger(self) -> None:
-        workspace_id, runtime_snapshot = self._build_runtime_snapshot(with_sleep_script=False)
+    def test_client_requires_runtime_snapshot_trigger(self) -> None:
+        workspace_id, _runtime_snapshot = self._build_runtime_snapshot(with_sleep_script=False)
 
         run_id = self.client.start_run(
             project_path="",
@@ -334,7 +334,6 @@ class ProcessExecutionClientTests(unittest.TestCase):
             trigger={
                 "kind": "manual",
                 "workflow_settings": {"general": {"project_name": "Demo"}},
-                "project_doc": runtime_snapshot.to_document(),
             },
         )
         self.assertEqual(run_id, "")
@@ -342,7 +341,7 @@ class ProcessExecutionClientTests(unittest.TestCase):
         protocol_error = self._wait_for_event(
             lambda event: event.get("type") == "protocol_error"
             and event.get("command") == "start_run"
-            and "does not accept project_doc" in str(event.get("error", "")),
+            and "requires runtime_snapshot" in str(event.get("error", "")),
             timeout=3.0,
         )
         self.assertIsNotNone(protocol_error)

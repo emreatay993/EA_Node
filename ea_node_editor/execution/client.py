@@ -222,13 +222,6 @@ class ProcessExecutionClient:
         trigger: dict[str, Any] | None = None,
     ) -> str:
         trigger_payload = dict(trigger or {})
-        if "project_doc" in trigger_payload:
-            self._emit_protocol_error(
-                "start_run trigger does not accept project_doc; use runtime_snapshot.",
-                command="start_run",
-            )
-            return ""
-
         run_id = f"run_{uuid.uuid4().hex[:8]}"
         runtime_snapshot = trigger_payload.pop("runtime_snapshot", None)
         try:

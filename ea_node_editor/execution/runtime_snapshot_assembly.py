@@ -105,9 +105,9 @@ def _copy_overlay_docs(payload: Any) -> dict[str, dict[str, Any]]:
 
 
 def _workspace_runtime_persistence_envelope(workspace: "WorkspaceData") -> dict[str, Any] | None:
-    unresolved_node_docs = _copy_overlay_docs(workspace.unresolved_node_docs)
-    unresolved_edge_docs = _copy_overlay_docs(workspace.unresolved_edge_docs)
-    authored_node_overrides = _copy_overlay_docs(workspace.authored_node_overrides)
+    unresolved_node_docs = _copy_overlay_docs(getattr(workspace, "unresolved_node_docs", None))
+    unresolved_edge_docs = _copy_overlay_docs(getattr(workspace, "unresolved_edge_docs", None))
+    authored_node_overrides = _copy_overlay_docs(getattr(workspace, "authored_node_overrides", None))
 
     envelope: dict[str, Any] = {}
     if unresolved_node_docs:

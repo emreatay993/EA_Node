@@ -24,7 +24,6 @@ from ea_node_editor.execution.protocol import (
 from ea_node_editor.execution.runtime_snapshot import (
     RuntimeSnapshot,
     RuntimeSnapshotContext,
-    sanitize_execution_trigger,
 )
 from ea_node_editor.execution.worker_protocol import (
     decode_command_payload,
@@ -327,7 +326,7 @@ class NodeExecutor:
         self._publisher = publisher
         self._artifact_service = artifact_service
         self._worker_services = worker_services
-        self._project_path = str(project_path).strip()
+        self._artifact_context_project_path = str(project_path).strip()
         self._runtime_snapshot = runtime_snapshot
         self._runtime_context = runtime_context
         self._trigger = trigger
@@ -393,7 +392,7 @@ class NodeExecutor:
             trigger=self._trigger,
             should_stop=self._control.should_stop,
             register_cancel=self._control.register_cancel_callback,
-            project_path=self._project_path,
+            project_path=self._artifact_context_project_path,
             runtime_snapshot=self._runtime_snapshot,
             runtime_snapshot_context=self._runtime_context,
             path_resolver=self._artifact_service.resolve_path,
@@ -496,7 +495,7 @@ class WorkflowRunner:
             project_path=command.project_path,
             runtime_snapshot=self._runtime_snapshot,
             runtime_context=self._runtime_context,
-            trigger=sanitize_execution_trigger(command.trigger),
+            trigger=dict(command.trigger),
         )
 
     def run(self) -> None:

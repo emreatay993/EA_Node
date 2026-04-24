@@ -47,6 +47,18 @@ def _as_mapping(value: Any) -> dict[str, Any]:
         return {}
     return {str(key): copy.deepcopy(item) for key, item in value.items()}
 
+
+def _require_mapping(value: Any, *, field_name: str) -> Mapping[str, Any]:
+    if isinstance(value, Mapping):
+        return value
+    raise ValueError(f"{field_name} must be a mapping.")
+
+
+def _require_sequence(value: Any, *, field_name: str) -> list[Any] | tuple[Any, ...]:
+    if isinstance(value, (list, tuple)):
+        return value
+    raise ValueError(f"{field_name} must be a list.")
+
 _RUNTIME_EDGE_FIELDS = frozenset(
     {
         "edge_id",
@@ -210,34 +222,29 @@ class RuntimeWorkspace:
     @classmethod
     def from_mapping(cls, payload: Mapping[str, Any]) -> RuntimeWorkspace:
         document_fields_payload = payload.get("document_fields")
-        if isinstance(document_fields_payload, Mapping):
-            document_fields = {
-                str(key): copy.deepcopy(value)
-                for key, value in document_fields_payload.items()
-            }
-        else:
-            document_fields = {
-                str(key): copy.deepcopy(value)
-                for key, value in payload.items()
-                if str(key) not in {"nodes", "edges"}
-            }
+        document_fields_source = _require_mapping(
+            document_fields_payload,
+            field_name="runtime_workspace.document_fields",
+        )
+        document_fields = {
+            str(key): copy.deepcopy(value)
+            for key, value in document_fields_source.items()
+        }
 
         nodes: list[RuntimeNode] = []
-        for raw_node in payload.get("nodes", []):
-            if not isinstance(raw_node, Mapping):
-                continue
+        for raw_node in _require_sequence(payload.get("nodes"), field_name="runtime_workspace.nodes"):
+            _require_mapping(raw_node, field_name="runtime_workspace.nodes entry")
             node = RuntimeNode.from_mapping(raw_node)
             if node is None:
-                continue
+                raise ValueError("runtime_workspace.nodes entries require node_id and type_id.")
             nodes.append(node)
 
         edges: list[RuntimeEdge] = []
-        for raw_edge in payload.get("edges", []):
-            if not isinstance(raw_edge, Mapping):
-                continue
+        for raw_edge in _require_sequence(payload.get("edges"), field_name="runtime_workspace.edges"):
+            _require_mapping(raw_edge, field_name="runtime_workspace.edges entry")
             edge = RuntimeEdge.from_mapping(raw_edge)
             if edge is None:
-                continue
+                raise ValueError("runtime_workspace.edges entries require complete endpoint fields.")
             edges.append(edge)
 
         return cls(
@@ -285,10 +292,11 @@ class RuntimeWorkspace:
         )
 
     def to_document(self) -> dict[str, Any]:
-        payload = copy.deepcopy(self.document_fields)
-        payload["nodes"] = [node.to_document() for node in self.nodes]
-        payload["edges"] = [edge.to_document() for edge in self.edges]
-        return payload
+        return {
+            "document_fields": copy.deepcopy(self.document_fields),
+            "nodes": [node.to_document() for node in self.nodes],
+            "edges": [edge.to_document() for edge in self.edges],
+        }
 
 
 __all__ = ["RuntimeEdge", "RuntimeNode", "RuntimeWorkspace"]

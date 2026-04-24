@@ -17,6 +17,7 @@ from ea_node_editor.execution.runtime_snapshot import (
     RuntimeSnapshot,
     RuntimeSnapshotContext,
 )
+from ea_node_editor.execution.runtime_dto import RuntimeWorkspace
 from ea_node_editor.execution.runtime_value_codec import (
     deserialize_runtime_value,
     serialize_runtime_value,
@@ -140,24 +141,37 @@ class ExecutionArtifactRefProtocolTests(unittest.TestCase):
             },
         )
 
-    def test_start_run_command_rejects_legacy_project_doc_payload(self) -> None:
-        snapshot = RuntimeSnapshot(
-            schema_version=1,
-            project_id="project_demo",
-            metadata={
-                "artifact_cache": {
-                    "stdout": RuntimeArtifactRef.managed("stored_report"),
-                }
-            },
-        )
-
-        with self.assertRaisesRegex(ValueError, "does not accept project_doc"):
+    def test_start_run_command_requires_runtime_snapshot_payload(self) -> None:
+        with self.assertRaisesRegex(ValueError, "requires runtime_snapshot"):
             coerce_start_run_command(
                 {
-                    "run_id": "run_legacy",
+                    "run_id": "run_missing_snapshot",
                     "workspace_id": "ws_main",
+                    "project_path": "demo.sfe",
                     "trigger": {"kind": "manual"},
-                    "project_doc": snapshot.to_document(),
+                }
+            )
+
+    def test_runtime_snapshot_mapping_requires_workspace_order(self) -> None:
+        with self.assertRaisesRegex(ValueError, "workspace_order"):
+            RuntimeSnapshot.from_mapping(
+                {
+                    "schema_version": 1,
+                    "project_id": "project_demo",
+                    "active_workspace_id": "ws_main",
+                    "workspaces": [],
+                    "metadata": {},
+                }
+            )
+
+    def test_runtime_workspace_mapping_requires_document_fields(self) -> None:
+        with self.assertRaisesRegex(ValueError, "document_fields"):
+            RuntimeWorkspace.from_mapping(
+                {
+                    "workspace_id": "ws_main",
+                    "name": "Main",
+                    "nodes": [],
+                    "edges": [],
                 }
             )
 

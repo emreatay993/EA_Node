@@ -315,6 +315,7 @@ def _build_execution_edge_progress_visualization_graph(window) -> dict[str, str]
     failed_edge_id = window.scene.add_edge(script_id, "on_failed", on_failure_id, "failed_in")
     continuation_edge_id = window.scene.add_edge(on_failure_id, "exec_out", logger_id, "exec_in")
     terminal_edge_id = window.scene.add_edge(logger_id, "exec_out", end_id, "exec_in")
+    window.scene.set_port_locked(logger_id, "message", False)
     data_edge_id = window.scene.add_edge(constant_id, "as_text", logger_id, "message")
 
     return {
@@ -1404,7 +1405,7 @@ class ShellRunControllerTests(MainWindowShellTestBase):
         session_id = bridge.open(
             node_id,
             {
-                "data_refs": {"fields": "fields_ref"},
+                "data_refs": {"fields_container": "fields_ref"},
                 "summary": {"result_name": "displacement"},
             },
         )
@@ -1443,7 +1444,7 @@ class ShellRunControllerTests(MainWindowShellTestBase):
             node_id,
             {
                 "backend_id": "dpf_embedded",
-                "data_refs": {"fields": "fields_ref"},
+                "data_refs": {"fields_container": "fields_ref"},
             },
         )
         open_call = execution_client.open_calls[-1]
@@ -1490,7 +1491,7 @@ class ShellRunControllerTests(MainWindowShellTestBase):
             node_id,
             {
                 "backend_id": "dpf_embedded",
-                "data_refs": {"fields": "fields_ref"},
+                "data_refs": {"fields_container": "fields_ref"},
             },
         )
         open_call = execution_client.open_calls[-1]
@@ -1522,11 +1523,16 @@ class ShellRunControllerTests(MainWindowShellTestBase):
         )
         self.assertEqual(self.window.run_state.engine_state_value, "error")
 
-    def test_shell_context_bridge_fallbacks_wrap_shell_window_with_focused_sources(self) -> None:
-        library_bridge = ShellLibraryBridge(self.window, shell_window=self.window)
+    def test_shell_context_bridge_explicit_sources_wrap_shell_window_with_focused_sources(self) -> None:
+        library_bridge = ShellLibraryBridge(
+            self.window,
+            shell_window=self.window,
+            library_source=self.window.shell_library_presenter,
+        )
         workspace_bridge = ShellWorkspaceBridge(
             self.window,
             shell_window=self.window,
+            workspace_source=self.window.shell_workspace_presenter,
             scene_bridge=self.window.scene,
             view_bridge=self.window.view,
             console_bridge=self.window.console_panel,
@@ -1535,6 +1541,7 @@ class ShellRunControllerTests(MainWindowShellTestBase):
         inspector_bridge = ShellInspectorBridge(
             self.window,
             shell_window=self.window,
+            inspector_source=self.window.shell_inspector_presenter,
             scene_bridge=self.window.scene,
         )
 
@@ -1636,7 +1643,7 @@ class ShellRunControllerTests(MainWindowShellTestBase):
         bridge = self.window.viewer_session_bridge
         workspace_id = self.window.workspace_manager.active_workspace_id()
         node_id = self.window.scene.add_node_from_type("core.logger", x=160.0, y=80.0)
-        session_id = bridge.open(node_id, {"data_refs": {"fields": "fields_ref"}})
+        session_id = bridge.open(node_id, {"data_refs": {"fields_container": "fields_ref"}})
         open_call = execution_client.open_calls[-1]
         self.window.execution_event.emit(
             _viewer_opened_event(

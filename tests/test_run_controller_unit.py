@@ -460,7 +460,7 @@ class RunControllerUnitTests(unittest.TestCase):
         self.assertEqual(runtime_snapshot.active_workspace_id, host.model.active_workspace.workspace_id)
         self.assertEqual(len(runtime_snapshot.workspaces), 1)
         self.assertEqual(
-            runtime_snapshot.to_document()["workspaces"][0]["workspace_id"],
+            runtime_snapshot.to_document()["workspaces"][0]["document_fields"]["workspace_id"],
             host.model.active_workspace.workspace_id,
         )
 
@@ -814,7 +814,7 @@ class RunControllerUnitTests(unittest.TestCase):
         self.assertEqual(host._failure_clear_count, 1)
         self.assertEqual(host.run_state.running_node_ids, set())
         self.assertEqual(host.run_state.completed_node_ids, set())
-        self.assertEqual(host.run_state.node_execution_revision, 5)
+        self.assertEqual(host.run_state.node_execution_revision, 6)
 
         controller.handle_execution_event(
             {
@@ -828,7 +828,7 @@ class RunControllerUnitTests(unittest.TestCase):
         self.assertEqual(host.run_state.node_execution_workspace_id, workspace_id)
         self.assertEqual(host.run_state.running_node_ids, {"node_1"})
         self.assertEqual(host.run_state.completed_node_ids, set())
-        self.assertEqual(host.run_state.node_execution_revision, 6)
+        self.assertEqual(host.run_state.node_execution_revision, 7)
 
         controller.handle_execution_event(
             {
@@ -841,7 +841,7 @@ class RunControllerUnitTests(unittest.TestCase):
 
         self.assertEqual(host.run_state.running_node_ids, set())
         self.assertEqual(host.run_state.completed_node_ids, {"node_1"})
-        self.assertEqual(host.run_state.node_execution_revision, 7)
+        self.assertEqual(host.run_state.node_execution_revision, 8)
         self.assertEqual(host._engine_status, ("running", "Running"))
 
     def test_persistent_node_elapsed_state_projects_fallback_started_at_and_cached_elapsed_by_workspace(self) -> None:

@@ -8,36 +8,19 @@ from typing import Any
 from ea_node_editor.execution.compiler import compile_runtime_snapshot
 from ea_node_editor.execution.protocol import StartRunCommand
 from ea_node_editor.execution.runtime_dto import RuntimeEdge, RuntimeWorkspace
-from ea_node_editor.execution.runtime_snapshot import (
-    RuntimeSnapshot,
-    RuntimeSnapshotContext,
-    build_runtime_snapshot,
-)
+from ea_node_editor.execution.runtime_snapshot import RuntimeSnapshot, RuntimeSnapshotContext
 from ea_node_editor.persistence.artifact_resolution import ProjectArtifactResolver
 from ea_node_editor.persistence.artifact_store import ProjectArtifactStore
-from ea_node_editor.persistence.serializer import JsonProjectSerializer
 
 _CONTROL_PORT_KINDS = frozenset({"exec", "completed", "failed"})
 
 
 def load_runtime_snapshot(
     command: StartRunCommand,
-    *,
-    serializer: JsonProjectSerializer,
-    registry: Any,
 ) -> RuntimeSnapshot:
-    if command.runtime_snapshot is not None:
-        return command.runtime_snapshot
-    path = command.project_path
-    if not path:
-        raise ValueError("Missing project_path and runtime_snapshot")
-    project = serializer.load(path)
-    return build_runtime_snapshot(
-        project,
-        workspace_id=command.workspace_id,
-        registry=registry,
-        serializer=serializer,
-    )
+    if command.runtime_snapshot is None:
+        raise ValueError("start_run requires runtime_snapshot.")
+    return command.runtime_snapshot
 
 
 def _is_dependency_spec(spec: Any) -> bool:
@@ -219,15 +202,11 @@ def prepare_runtime(command: StartRunCommand) -> PreparedRuntime:
     from ea_node_editor.nodes.bootstrap import build_default_registry
 
     registry = build_default_registry()
-    serializer = JsonProjectSerializer(registry)
-    runtime_snapshot = load_runtime_snapshot(
-        command,
-        serializer=serializer,
-        registry=registry,
-    )
+    runtime_snapshot = load_runtime_snapshot(command)
+    artifact_context_project_path = command.project_path
     runtime_context = RuntimeSnapshotContext.from_snapshot(
         runtime_snapshot,
-        project_path=command.project_path,
+        project_path=artifact_context_project_path,
     )
     workspace = compile_runtime_snapshot(
         runtime_snapshot,

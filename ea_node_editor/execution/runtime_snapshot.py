@@ -16,7 +16,6 @@ from ea_node_editor.settings import PROJECT_ARTIFACT_STORE_METADATA_KEY
 if TYPE_CHECKING:
     from ea_node_editor.graph.model import ProjectData
     from ea_node_editor.nodes.registry import NodeRegistry
-    from ea_node_editor.persistence.serializer import JsonProjectSerializer
 
 
 @dataclass(slots=True, frozen=True)
@@ -33,22 +32,30 @@ class RuntimeSnapshot:
     def from_mapping(cls, payload: Mapping[str, Any]) -> RuntimeSnapshot:
         normalized_payload = deserialize_runtime_value(dict(payload))
         if not isinstance(normalized_payload, Mapping):
-            normalized_payload = {}
+            raise ValueError("runtime_snapshot must be a mapping.")
+        raw_workspaces = normalized_payload.get("workspaces")
+        if not isinstance(raw_workspaces, (list, tuple)):
+            raise ValueError("runtime_snapshot.workspaces must be a list.")
         workspaces = tuple(
             RuntimeWorkspace.from_mapping(workspace_doc)
-            for workspace_doc in normalized_payload.get("workspaces", [])
-            if isinstance(workspace_doc, Mapping)
+            for workspace_doc in raw_workspaces
+            if _require_workspace_mapping(workspace_doc)
         )
         raw_workspace_order = normalized_payload.get("workspace_order")
+        if not isinstance(raw_workspace_order, (list, tuple)):
+            raise ValueError("runtime_snapshot.workspace_order must be a list.")
         workspace_order = tuple(
-            str(item).strip()
-            for item in raw_workspace_order
-            if str(item).strip()
-        ) if isinstance(raw_workspace_order, (list, tuple)) else tuple(
-            workspace.workspace_id
-            for workspace in workspaces
-            if workspace.workspace_id
+            workspace_id
+            for workspace_id in (str(item).strip() for item in raw_workspace_order)
+            if workspace_id
         )
+        workspace_ids = {workspace.workspace_id for workspace in workspaces if workspace.workspace_id}
+        missing_workspace_ids = [workspace_id for workspace_id in workspace_order if workspace_id not in workspace_ids]
+        if missing_workspace_ids:
+            raise ValueError(
+                "runtime_snapshot.workspace_order references unknown workspaces: "
+                + ", ".join(missing_workspace_ids)
+            )
         return cls(
             schema_version=int(normalized_payload.get("schema_version", 0)),
             project_id=str(normalized_payload.get("project_id", "")).strip(),
@@ -166,16 +173,20 @@ def coerce_runtime_snapshot(value: RuntimeSnapshot | Mapping[str, Any] | None) -
     return None
 
 
+def _require_workspace_mapping(value: Any) -> bool:
+    if isinstance(value, Mapping):
+        return True
+    raise ValueError("runtime_snapshot.workspaces entries must be mappings.")
+
+
 def build_runtime_snapshot(
     project: "ProjectData",
     *,
     workspace_id: str,
     registry: "NodeRegistry",
-    serializer: "JsonProjectSerializer | None" = None,
 ) -> RuntimeSnapshot:
     from ea_node_editor.graph.normalization import normalize_project_for_registry
 
-    del serializer  # Compatibility parameter retained; runtime snapshots now build directly from domain data.
     project_copy = copy.deepcopy(project)
     normalize_project_for_registry(project_copy, registry)
     snapshot = RuntimeSnapshot.from_project_data(project_copy)
@@ -183,17 +194,9 @@ def build_runtime_snapshot(
     return snapshot
 
 
-def sanitize_execution_trigger(trigger: Mapping[str, Any] | None) -> dict[str, Any]:
-    payload = copy.deepcopy(dict(trigger or {}))
-    # `project_doc` is a retired execution trigger field; normal runs carry RuntimeSnapshot separately.
-    payload.pop("project_doc", None)
-    return payload
-
-
 __all__ = [
     "RuntimeSnapshot",
     "RuntimeSnapshotContext",
     "build_runtime_snapshot",
     "coerce_runtime_snapshot",
-    "sanitize_execution_trigger",
 ]

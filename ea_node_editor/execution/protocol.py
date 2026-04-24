@@ -509,21 +509,24 @@ def event_to_dict(event: WorkerEvent) -> dict[str, Any]:
 
 
 def _start_run_command_from_payload(payload: Mapping[str, Any]) -> StartRunCommand:
-    if "project_doc" in payload:
-        raise ValueError("start_run payload does not accept project_doc; use runtime_snapshot.")
     trigger_payload = deserialize_runtime_value(payload.get("trigger"))
     runtime_snapshot_payload = deserialize_runtime_value(payload.get("runtime_snapshot"))
+    runtime_snapshot = coerce_runtime_snapshot(runtime_snapshot_payload)
+    if runtime_snapshot is None:
+        raise ValueError("start_run requires runtime_snapshot.")
     return StartRunCommand(
         run_id=str(payload.get("run_id", "")),
         project_path=str(payload.get("project_path", "")),
         workspace_id=str(payload.get("workspace_id", "")),
         trigger=dict(trigger_payload) if isinstance(trigger_payload, Mapping) else {},
-        runtime_snapshot=coerce_runtime_snapshot(runtime_snapshot_payload),
+        runtime_snapshot=runtime_snapshot,
     )
 
 
 def coerce_start_run_command(command: StartRunCommand | Mapping[str, Any]) -> StartRunCommand:
     if isinstance(command, StartRunCommand):
+        if command.runtime_snapshot is None:
+            raise ValueError("start_run requires runtime_snapshot.")
         return command
 
     payload = dict(command)

@@ -17,6 +17,13 @@ _RETIRED_GUARDRAIL_PRESENT_NAMES = {
     ("old_preference_schema_compatibility", "ea_node_editor/app_preferences.py"): {
         "_APP_PREFERENCES_MIGRATION_VERSION",
     },
+    ("legacy_plugin_class_probing", "ea_node_editor/nodes/plugin_loader.py"): {
+        "_legacy_plugin_spec",
+        "_register_plugin_classes",
+    },
+    ("runtime_project_doc_trigger_compatibility", "ea_node_editor/execution/runtime_snapshot.py"): {
+        "sanitize_execution_trigger",
+    },
 }
 
 
@@ -276,6 +283,7 @@ class GraphArchitectureBoundaryTests(unittest.TestCase):
     def test_runtime_snapshot_builder_uses_execution_owned_assembly_seam(self) -> None:
         snapshot_tree = parse_module("ea_node_editor/execution/runtime_snapshot.py")
         assembly_tree = parse_module("ea_node_editor/execution/runtime_snapshot_assembly.py")
+        worker_runtime_tree = parse_module("ea_node_editor/execution/worker_runtime.py")
 
         self.assertIn(
             "RuntimeSnapshotAssembly",
@@ -292,6 +300,14 @@ class GraphArchitectureBoundaryTests(unittest.TestCase):
         self.assertNotIn("WorkspacePersistenceEnvelope", assembly_names)
         self.assertNotIn("ProjectPersistenceEnvelope", assembly_names)
         self.assertNotIn("normalize_artifact_store_metadata", assembly_names)
+        build_runtime_snapshot = next(
+            node
+            for node in snapshot_tree.body
+            if isinstance(node, ast.FunctionDef) and node.name == "build_runtime_snapshot"
+        )
+        self.assertNotIn("serializer", {arg.arg for arg in build_runtime_snapshot.args.args})
+        self.assertNotIn("sanitize_execution_trigger", snapshot_names)
+        self.assertNotIn("ea_node_editor.persistence.serializer", imported_modules(worker_runtime_tree))
 
     def test_transform_surface_reexports_focused_operation_modules(self) -> None:
         self.assertEqual(transforms.collect_layout_node_bounds.__module__, "ea_node_editor.graph.transform_layout_ops")
