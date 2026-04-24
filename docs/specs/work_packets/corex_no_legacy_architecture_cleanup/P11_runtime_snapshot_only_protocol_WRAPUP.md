@@ -1,4 +1,6 @@
-# Implementation Summary
+# P11 Runtime Snapshot Only Protocol Wrap-Up
+
+## Implementation Summary
 
 - Packet: P11 Runtime Snapshot Only Protocol
 - Branch Label: codex/corex-no-legacy-architecture-cleanup/p11-runtime-snapshot-only-protocol
@@ -28,7 +30,7 @@ P11 makes runtime snapshots mandatory at start-run protocol boundaries, removes 
 
 DPF viewer source handling now normalizes legacy fields-handle aliases before dispatch into the viewer-session service, while the DPF backend itself requires canonical `fields_container` source refs. Pause, resume, and stop behavior remains covered and unchanged.
 
-# Verification
+## Verification
 
 - PASS: `.\venv\Scripts\python.exe -m pytest tests/test_execution_client.py tests/test_execution_worker.py tests/test_execution_artifact_refs.py tests/test_execution_handle_refs.py tests/test_execution_viewer_protocol.py tests/test_run_controller_unit.py tests/test_shell_run_controller.py tests/test_architecture_boundaries.py --ignore=venv -q` completed with `105 passed, 4 warnings, 23 subtests passed`.
 - PASS: `.\venv\Scripts\python.exe -m pytest tests/test_execution_client.py tests/test_execution_worker.py tests/test_execution_artifact_refs.py --ignore=venv -q` completed with `44 passed, 32 warnings`.
@@ -36,7 +38,7 @@ DPF viewer source handling now normalizes legacy fields-handle aliases before di
 - PASS: Warnings are Ansys DPF deprecation warnings for renamed gasket operators emitted from the installed dependency.
 - Final Verification Verdict: PASS
 
-# Manual Test Directives
+## Manual Test Directives
 
 Ready for manual testing.
 
@@ -44,12 +46,12 @@ Ready for manual testing.
 - Run a saved workflow that produces or consumes execution artifacts. Expected: artifact refs still resolve through the retained artifact context, with no worker project-path rebuild during startup.
 - If DPF sample data and dependencies are available, run the DPF result-to-viewer path and open the embedded viewer. Expected: viewer materialization uses current `fields_container` source refs; backend materialization does not accept old fields-handle aliases directly.
 
-# Residual Risks
+## Residual Risks
 
 - DPF viewer UI transport rewrite remains out of scope for P11 and belongs to P12.
 - The verification environment emits dependency deprecation warnings from Ansys DPF operator aliases; no P11 failures are associated with those warnings.
 - `project_path` is intentionally retained as artifact-resolution context, not as a normal runtime rebuild input.
 
-# Ready for Integration
+## Ready for Integration
 
 - Yes: P11 is committed, verification passed, and the wrap-up artifact is present in the packet worktree.
