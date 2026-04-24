@@ -2,29 +2,12 @@
 
 ## Implementation Summary
 
-- Packet: P11 Runtime Snapshot Only Protocol
-- Branch Label: codex/corex-no-legacy-architecture-cleanup/p11-runtime-snapshot-only-protocol
-- Commit Owner: worker
-- Commit SHA: f3b2d0c36db28513e054bd84559b9e4f02e7e220
-- Changed Files: Final packet-branch file set relative to wave base rev `40e55c72596a694d0cd7d78048b1376caeb2e52f`:
-  - `ea_node_editor/execution/client.py`
-  - `ea_node_editor/execution/dpf_runtime/viewer_session_backend.py`
-  - `ea_node_editor/execution/protocol.py`
-  - `ea_node_editor/execution/runtime_dto.py`
-  - `ea_node_editor/execution/runtime_snapshot.py`
-  - `ea_node_editor/execution/runtime_snapshot_assembly.py`
-  - `ea_node_editor/execution/worker_protocol.py`
-  - `ea_node_editor/execution/worker_runner.py`
-  - `ea_node_editor/execution/worker_runtime.py`
-  - `tests/test_architecture_boundaries.py`
-  - `tests/test_execution_artifact_refs.py`
-  - `tests/test_execution_client.py`
-  - `tests/test_execution_worker.py`
-  - `tests/test_run_controller_unit.py`
-  - `tests/test_shell_run_controller.py`
-  - `docs/specs/work_packets/corex_no_legacy_architecture_cleanup/P11_runtime_snapshot_only_protocol_WRAPUP.md`
-- Artifacts Produced:
-  - `docs/specs/work_packets/corex_no_legacy_architecture_cleanup/P11_runtime_snapshot_only_protocol_WRAPUP.md`
+- Packet: `P11`
+- Branch Label: `codex/corex-no-legacy-architecture-cleanup/p11-runtime-snapshot-only-protocol`
+- Commit Owner: `worker`
+- Commit SHA: `f3b2d0c36db28513e054bd84559b9e4f02e7e220`
+- Changed Files: `docs/specs/work_packets/corex_no_legacy_architecture_cleanup/P11_runtime_snapshot_only_protocol_WRAPUP.md`, `ea_node_editor/execution/client.py`, `ea_node_editor/execution/dpf_runtime/viewer_session_backend.py`, `ea_node_editor/execution/protocol.py`, `ea_node_editor/execution/runtime_dto.py`, `ea_node_editor/execution/runtime_snapshot.py`, `ea_node_editor/execution/runtime_snapshot_assembly.py`, `ea_node_editor/execution/worker_protocol.py`, `ea_node_editor/execution/worker_runner.py`, `ea_node_editor/execution/worker_runtime.py`, `tests/test_architecture_boundaries.py`, `tests/test_execution_artifact_refs.py`, `tests/test_execution_client.py`, `tests/test_execution_worker.py`, `tests/test_run_controller_unit.py`, `tests/test_shell_run_controller.py`
+- Artifacts Produced: `docs/specs/work_packets/corex_no_legacy_architecture_cleanup/P11_runtime_snapshot_only_protocol_WRAPUP.md`
 
 P11 makes runtime snapshots mandatory at start-run protocol boundaries, removes normal startup fallback rebuilds from project paths, and tightens runtime snapshot/workspace DTO ingestion to canonical fields. `project_path` remains only artifact-resolution context in the worker runtime path.
 
