@@ -57,6 +57,8 @@ Selected work-packet manifests and status ledgers under `docs/specs/work_packets
 - [COREX_ARCHITECTURE_ENTRY_POINT_REDUCTION Status Ledger](work_packets/corex_architecture_entry_point_reduction/COREX_ARCHITECTURE_ENTRY_POINT_REDUCTION_STATUS.md)
 - [COREX_ARCHITECTURE_ENTRY_POINT_REDUCTION QA Matrix](perf/COREX_ARCHITECTURE_ENTRY_POINT_REDUCTION_QA_MATRIX.md)
 - [COREX_NO_LEGACY_ARCHITECTURE_CLEANUP QA Matrix](perf/COREX_NO_LEGACY_ARCHITECTURE_CLEANUP_QA_MATRIX.md)
+- [COREX_CLEAN_ARCHITECTURE_RESTRUCTURE Work Packet Manifest](work_packets/corex_clean_architecture_restructure/COREX_CLEAN_ARCHITECTURE_RESTRUCTURE_MANIFEST.md)
+- [COREX_CLEAN_ARCHITECTURE_RESTRUCTURE Status Ledger](work_packets/corex_clean_architecture_restructure/COREX_CLEAN_ARCHITECTURE_RESTRUCTURE_STATUS.md)
 - [SHARED_GRAPH_TYPOGRAPHY_CONTROL QA Matrix](perf/SHARED_GRAPH_TYPOGRAPHY_CONTROL_QA_MATRIX.md)
 - [NODE_EXECUTION_VISUALIZATION Work Packet Manifest](work_packets/node_execution_visualization/NODE_EXECUTION_VISUALIZATION_MANIFEST.md)
 - [NODE_EXECUTION_VISUALIZATION Status Ledger](work_packets/node_execution_visualization/NODE_EXECUTION_VISUALIZATION_STATUS.md)
