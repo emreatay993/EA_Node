@@ -1,4 +1,6 @@
-# Implementation Summary
+# P04 Current Schema Persistence Wrap-Up
+
+## Implementation Summary
 
 - Packet: `P04`
 - Branch Label: `codex/corex-clean-architecture-restructure/p04-current-schema-persistence`
@@ -19,7 +21,7 @@ Implemented persistence-owned current-schema envelope handling for unresolved au
 
 `JsonProjectSerializer` remains a file adapter over migration and codec behavior. Artifact refs stay in document metadata/properties while `ProjectArtifactStore` remains responsible for sidecar layout and promotion. Session/autosave state remains outside project document semantics.
 
-# Verification
+## Verification
 
 - PASS: `.\venv\Scripts\python.exe -m pytest tests/test_serializer.py tests/test_serializer_schema_migration.py tests/test_project_artifact_store.py tests/test_project_artifact_resolution.py --ignore=venv`
   - Result: `60 passed, 32 warnings`
@@ -30,7 +32,7 @@ Implemented persistence-owned current-schema envelope handling for unresolved au
 
 The pytest runs reported a non-fatal Windows temp cleanup `PermissionError` from pytest's atexit cleanup after successful test completion.
 
-# Manual Test Directives
+## Manual Test Directives
 
 Ready for manual testing.
 
@@ -38,12 +40,12 @@ Ready for manual testing.
 2. Open a project that references managed or staged file artifacts, save it, and inspect the sibling `.data` folder. Expected result: artifact bytes stay in `.data`; the `.sfe` stores artifact refs and normalized `artifact_store` metadata only.
 3. If an add-on-backed project is available while the add-on is unavailable, open and save it, then reopen after the add-on is available. Expected result: unavailable nodes are absent from the live graph while unavailable, preserved in the authored `.sfe`, and rebound when loaded with the available registry.
 
-# Residual Risks
+## Residual Risks
 
 - No blocking residual risks.
 - Rebinding unavailable add-on payloads is exercised through serializer reload tests rather than by moving persistence state into graph normalization.
 - The known pytest temp cleanup warning is environment cleanup noise after passing runs.
 
-# Ready for Integration
+## Ready for Integration
 
-P04 is ready for integration on `codex/corex-clean-architecture-restructure/p04-current-schema-persistence` with substantive commit `3547e17ecd5bdab4e8be61779110d8528ca3c61c`.
+Yes: P04 is ready for integration on `codex/corex-clean-architecture-restructure/p04-current-schema-persistence` with substantive commit `3547e17ecd5bdab4e8be61779110d8528ca3c61c`.
