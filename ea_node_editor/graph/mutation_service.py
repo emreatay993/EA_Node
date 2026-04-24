@@ -14,7 +14,6 @@ from ea_node_editor.graph.comment_backdrop_geometry import (
 from ea_node_editor.graph.boundary_adapters import GraphBoundaryAdapters, fallback_graph_boundary_adapters
 from ea_node_editor.graph.hierarchy import normalize_scope_path, node_scope_path, scope_parent_id
 from ea_node_editor.graph.model import EdgeInstance, GraphModel, NodeInstance, ViewState, WorkspaceData
-from ea_node_editor.graph.port_locking import normalize_locked_ports_mapping
 from ea_node_editor.graph.transform_fragment_ops import _insert_graph_fragment_operation
 from ea_node_editor.graph.transform_grouping_ops import (
     GroupSubnodeResult,
@@ -194,7 +193,7 @@ class WorkspaceMutationService:
         visual_style: dict[str, object] | None = None,
         parent_node_id: str | None = None,
     ) -> NodeInstance:
-        node = self.model.add_node(
+        node = self.model._add_node_record(
             self.workspace_id,
             type_id=type_id,
             title=title,
@@ -202,9 +201,9 @@ class WorkspaceMutationService:
             y=float(y),
             properties=None if properties is None else dict(properties),
             exposed_ports=None if exposed_ports is None else dict(exposed_ports),
+            locked_ports=locked_ports,
             visual_style=None if visual_style is None else dict(visual_style),
         )
-        node.locked_ports = normalize_locked_ports_mapping(locked_ports)
         self._set_node_parent_record(node.node_id, parent_node_id)
         return node
 
@@ -212,13 +211,7 @@ class WorkspaceMutationService:
         return self._validated().set_node_parent(node_id, parent_node_id)
 
     def _set_node_parent_record(self, node_id: str, parent_node_id: str | None) -> bool:
-        node = self.workspace.nodes[node_id]
-        normalized_parent_id = str(parent_node_id or "").strip() or None
-        if node.parent_node_id == normalized_parent_id:
-            return False
-        node.parent_node_id = normalized_parent_id
-        self.workspace.dirty = True
-        return True
+        return self.model._set_node_parent_record(self.workspace_id, node_id, parent_node_id)
 
     def add_edge(
         self,
@@ -249,7 +242,7 @@ class WorkspaceMutationService:
         label: str = "",
         visual_style: dict[str, object] | None = None,
     ) -> EdgeInstance:
-        return self.model.add_edge(
+        return self.model._add_edge_record(
             self.workspace_id,
             source_node_id=source_node_id,
             source_port_key=source_port_key,
@@ -300,25 +293,25 @@ class WorkspaceMutationService:
         return self._validated().set_locked_port(node_id, key, locked)
 
     def set_port_label(self, node_id: str, port_key: str, label: str) -> None:
-        self.model.set_port_label(self.workspace_id, node_id, port_key, label)
+        self.model._set_port_label_record(self.workspace_id, node_id, port_key, label)
 
     def remove_edge(self, edge_id: str) -> None:
-        self._validated().remove_edge(edge_id)
+        self._remove_edge_record(edge_id)
 
     def _remove_edge_record(self, edge_id: str) -> None:
-        self.model.remove_edge(self.workspace_id, edge_id)
+        self.model._remove_edge_record(self.workspace_id, edge_id)
 
     def remove_node(self, node_id: str) -> None:
-        self._validated().remove_node(node_id)
+        self._remove_node_record(node_id)
 
     def _remove_node_record(self, node_id: str) -> None:
-        self.model.remove_node(self.workspace_id, node_id)
+        self.model._remove_node_record(self.workspace_id, node_id)
 
     def set_node_collapsed(self, node_id: str, collapsed: bool) -> None:
-        self._validated().set_node_collapsed(node_id, collapsed)
+        self.model._set_node_collapsed_record(self.workspace_id, node_id, collapsed)
 
     def set_node_position(self, node_id: str, x: float, y: float) -> None:
-        self._validated().set_node_position(node_id, x, y)
+        self.model._set_node_position_record(self.workspace_id, node_id, x, y)
 
     def set_node_geometry(
         self,
@@ -328,7 +321,7 @@ class WorkspaceMutationService:
         width: float | None,
         height: float | None,
     ) -> None:
-        self._validated().set_node_geometry(node_id, x, y, width, height)
+        self.model._set_node_geometry_record(self.workspace_id, node_id, x, y, width, height)
 
     def _set_node_fragment_state_record(
         self,
@@ -338,23 +331,33 @@ class WorkspaceMutationService:
         custom_width: float | None,
         custom_height: float | None,
     ) -> None:
-        node = self.workspace.nodes[node_id]
-        node.collapsed = bool(collapsed)
-        node.custom_width = custom_width
-        node.custom_height = custom_height
-        self.workspace.dirty = True
+        self.model._set_node_fragment_state_record(
+            self.workspace_id,
+            node_id,
+            collapsed=collapsed,
+            custom_width=custom_width,
+            custom_height=custom_height,
+        )
 
     def set_node_title(self, node_id: str, title: str) -> None:
-        self._validated().set_node_title(node_id, title)
+        self.model._set_node_title_record(self.workspace_id, node_id, title)
 
     def set_node_visual_style(self, node_id: str, visual_style: dict[str, object] | None) -> None:
-        self._validated().set_node_visual_style(node_id, visual_style)
+        self.model._set_node_visual_style_record(
+            self.workspace_id,
+            node_id,
+            None if visual_style is None else dict(visual_style),
+        )
 
     def set_edge_label(self, edge_id: str, label: str) -> None:
-        self._validated().set_edge_label(edge_id, label)
+        self.model._set_edge_label_record(self.workspace_id, edge_id, label)
 
     def set_edge_visual_style(self, edge_id: str, visual_style: dict[str, object] | None) -> None:
-        self._validated().set_edge_visual_style(edge_id, visual_style)
+        self.model._set_edge_visual_style_record(
+            self.workspace_id,
+            edge_id,
+            None if visual_style is None else dict(visual_style),
+        )
 
     def insert_graph_fragment(
         self,

@@ -1,13 +1,23 @@
 from __future__ import annotations
 
-import copy
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Callable
 
 from ea_node_editor.graph.hierarchy import subtree_node_ids
-from ea_node_editor.graph.model import GraphModel, NodeInstance, WorkspaceData
-from ea_node_editor.graph.normalization import GraphInvariantKernel
+from ea_node_editor.graph.model import (
+    GraphModel,
+    NodeInstance,
+    WorkspaceData,
+    edge_instance_from_mapping,
+    edge_instance_to_mapping,
+    node_instance_to_mapping,
+)
+from ea_node_editor.graph.normalization import (
+    fragment_node_from_payload as _fragment_node_from_payload,
+    graph_fragment_payload_is_valid as _graph_fragment_payload_is_valid,
+    normalize_graph_fragment_payload,
+)
 from ea_node_editor.graph.subnode_contract import is_subnode_shell_type
 from ea_node_editor.nodes.registry import NodeRegistry
 from ea_node_editor.nodes.types import NodeTypeSpec
@@ -136,23 +146,7 @@ def build_subtree_fragment_payload_data(
         node = workspace.nodes.get(node_id)
         if node is None:
             continue
-        nodes_payload.append(
-            {
-                "ref_id": node.node_id,
-                "type_id": node.type_id,
-                "title": node.title,
-                "x": float(node.x),
-                "y": float(node.y),
-                "collapsed": bool(node.collapsed),
-                "properties": copy.deepcopy(node.properties),
-                "locked_ports": copy.deepcopy(node.locked_ports),
-                "exposed_ports": dict(node.exposed_ports),
-                "visual_style": copy.deepcopy(node.visual_style),
-                "parent_node_id": node.parent_node_id,
-                "custom_width": float(node.custom_width) if node.custom_width is not None else None,
-                "custom_height": float(node.custom_height) if node.custom_height is not None else None,
-            }
-        )
+        nodes_payload.append(node_instance_to_mapping(node, node_id_key="ref_id"))
     if not nodes_payload:
         return None
 
@@ -165,14 +159,12 @@ def build_subtree_fragment_payload_data(
         if edge.source_node_id not in selected_node_set or edge.target_node_id not in selected_node_set:
             continue
         edges_payload.append(
-            {
-                "source_ref_id": edge.source_node_id,
-                "source_port_key": edge.source_port_key,
-                "target_ref_id": edge.target_node_id,
-                "target_port_key": edge.target_port_key,
-                "label": str(edge.label),
-                "visual_style": copy.deepcopy(edge.visual_style),
-            }
+            edge_instance_to_mapping(
+                edge,
+                edge_id_key=None,
+                source_node_id_key="source_ref_id",
+                target_node_id_key="target_ref_id",
+            )
         )
     return {
         "nodes": nodes_payload,
@@ -181,7 +173,7 @@ def build_subtree_fragment_payload_data(
 
 
 def fragment_node_from_payload(node_payload: Mapping[str, Any]) -> NodeInstance:
-    return GraphInvariantKernel.fragment_node_from_payload(node_payload)
+    return _fragment_node_from_payload(node_payload)
 
 
 def graph_fragment_bounds(
@@ -234,7 +226,7 @@ def graph_fragment_payload_is_valid(
     fragment_payload: Mapping[str, Any],
     registry: NodeRegistry,
 ) -> bool:
-    return GraphInvariantKernel.graph_fragment_payload_is_valid(
+    return _graph_fragment_payload_is_valid(
         fragment_payload=fragment_payload,
         registry=registry,
     )
@@ -267,38 +259,33 @@ def _insert_graph_fragment_operation(
     delta_y: float,
 ) -> list[str]:
     workspace = mutations.workspace
-    nodes_payload = fragment_payload.get("nodes")
-    edges_payload = fragment_payload.get("edges")
-    if not isinstance(nodes_payload, list) or not isinstance(edges_payload, list):
+    normalized_payload = normalize_graph_fragment_payload(fragment_payload)
+    if normalized_payload is None:
         return []
+    nodes_payload = normalized_payload["nodes"]
+    edges_payload = normalized_payload["edges"]
 
     node_id_map: dict[str, str] = {}
     inserted_node_ids: list[str] = []
 
     for node_payload in nodes_payload:
-        if not isinstance(node_payload, dict):
-            continue
-        source_node_id = str(node_payload.get("ref_id", "")).strip()
-        type_id = str(node_payload.get("type_id", "")).strip()
-        if not source_node_id or not type_id:
-            continue
+        fragment_node = fragment_node_from_payload(node_payload)
+        source_node_id = fragment_node.node_id
         created = mutations._add_node_record(
-            type_id=type_id,
-            title=str(node_payload.get("title", "")),
-            x=float(node_payload.get("x", 0.0)) + float(delta_x),
-            y=float(node_payload.get("y", 0.0)) + float(delta_y),
-            properties=dict(node_payload.get("properties", {})),
-            exposed_ports=dict(node_payload.get("exposed_ports", {})),
-            locked_ports=dict(node_payload.get("locked_ports", {})),
-            visual_style=copy.deepcopy(node_payload.get("visual_style", {})),
+            type_id=fragment_node.type_id,
+            title=fragment_node.title,
+            x=float(fragment_node.x) + float(delta_x),
+            y=float(fragment_node.y) + float(delta_y),
+            properties=fragment_node.properties,
+            exposed_ports=fragment_node.exposed_ports,
+            locked_ports=fragment_node.locked_ports,
+            visual_style=fragment_node.visual_style,
         )
         mutations._set_node_fragment_state_record(
             created.node_id,
-            collapsed=bool(node_payload.get("collapsed", False)),
-            custom_width=float(node_payload["custom_width"]) if node_payload.get("custom_width") is not None else None,
-            custom_height=(
-                float(node_payload["custom_height"]) if node_payload.get("custom_height") is not None else None
-            ),
+            collapsed=fragment_node.collapsed,
+            custom_width=fragment_node.custom_width,
+            custom_height=fragment_node.custom_height,
         )
         node_id_map[source_node_id] = created.node_id
         inserted_node_ids.append(created.node_id)
@@ -323,14 +310,19 @@ def _insert_graph_fragment_operation(
         )
 
     for edge_payload in edges_payload:
-        if not isinstance(edge_payload, dict):
+        fragment_edge = edge_instance_from_mapping(
+            edge_payload,
+            edge_id_key=None,
+            source_node_id_key="source_ref_id",
+            target_node_id_key="target_ref_id",
+            require_edge_id=False,
+        )
+        if fragment_edge is None:
             continue
-        source_ref_id = str(edge_payload.get("source_ref_id", "")).strip()
-        target_ref_id = str(edge_payload.get("target_ref_id", "")).strip()
-        source_port_key = str(edge_payload.get("source_port_key", "")).strip()
-        target_port_key = str(edge_payload.get("target_port_key", "")).strip()
-        if not source_ref_id or not target_ref_id or not source_port_key or not target_port_key:
-            continue
+        source_ref_id = fragment_edge.source_node_id
+        target_ref_id = fragment_edge.target_node_id
+        source_port_key = fragment_edge.source_port_key
+        target_port_key = fragment_edge.target_port_key
         source_node_id = node_id_map.get(source_ref_id)
         target_node_id = node_id_map.get(target_ref_id)
         if not source_node_id or not target_node_id:
@@ -353,8 +345,8 @@ def _insert_graph_fragment_operation(
                 source_port_key=source_port_key,
                 target_node_id=target_node_id,
                 target_port_key=target_port_key,
-                label=str(edge_payload.get("label", "")),
-                visual_style=copy.deepcopy(edge_payload.get("visual_style", {})),
+                label=fragment_edge.label,
+                visual_style=fragment_edge.visual_style,
             )
         except ValueError:
             continue

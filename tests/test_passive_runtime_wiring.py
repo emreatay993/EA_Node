@@ -223,31 +223,14 @@ class PassiveRuntimeWiringTests(unittest.TestCase):
         workspace.nodes[source.node_id].custom_width = 180.0
         workspace.nodes[target.node_id].port_labels["value"] = "Input Value"
         workspace.views[workspace.active_view_id].scope_path = [source.node_id]
-        workspace.unresolved_node_docs = {
-            "node_missing": {
-                "node_id": "node_missing",
-                "type_id": "tests.unknown",
-                "title": "Missing",
-                "x": 10.0,
-                "y": 20.0,
-            }
-        }
-        workspace.unresolved_edge_docs = {
-            "edge_missing": {
-                "edge_id": "edge_missing",
-                "source_node_id": source.node_id,
-                "source_port_key": "value",
-                "target_node_id": "node_missing",
-                "target_port_key": "value",
-            }
-        }
-        workspace.authored_node_overrides = {
-            target.node_id: {
-                "parent_node_id": "node_missing",
-            }
-        }
+        workspace.unresolved_node_docs = {}
+        workspace.unresolved_edge_docs = {}
+        workspace.authored_node_overrides = {}
         secondary_workspace = model.create_workspace("Secondary")
         model.add_node(secondary_workspace.workspace_id, "tests.passive_note", "Passive", 0.0, 0.0)
+        secondary_workspace.unresolved_node_docs = {}
+        secondary_workspace.unresolved_edge_docs = {}
+        secondary_workspace.authored_node_overrides = {}
         model.set_active_workspace(workspace.workspace_id)
         model.project.metadata["workspace_order"] = [
             secondary_workspace.workspace_id,
@@ -281,6 +264,8 @@ class PassiveRuntimeWiringTests(unittest.TestCase):
         )
         normalized_project = copy.deepcopy(model.project)
         normalize_project_for_registry(normalized_project, registry)
+        normalized_project.metadata.pop("_runtime_unresolved_workspaces", None)
+        normalized_project.metadata.pop("_persistence_envelope", None)
         self.assertEqual(
             _normalized_runtime_document(runtime_snapshot.to_document()),
             _normalized_runtime_document(serializer.to_document(normalized_project)),

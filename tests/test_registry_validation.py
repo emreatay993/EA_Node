@@ -12,7 +12,11 @@ from ea_node_editor.graph.subnode_contract import (
     resolve_subnode_pin_definition,
 )
 from ea_node_editor.graph.model import GraphModel, NodeInstance, WorkspaceData, WorkspaceSnapshot
-from ea_node_editor.graph.normalization import normalize_project_for_registry
+from ea_node_editor.graph.normalization import build_graph_fragment_payload, normalize_project_for_registry
+from ea_node_editor.graph.transform_fragment_ops import (
+    build_subtree_fragment_payload_data,
+    encode_fragment_external_parent_id,
+)
 from ea_node_editor.nodes.bootstrap import build_default_registry
 from ea_node_editor.nodes.builtins.ansys_dpf_common import (
     DPF_FIELD_OPS_VARIANT_NORM,
@@ -1107,6 +1111,118 @@ class RegistryValidationTests(unittest.TestCase):
                 for edge in workspace.edges.values()
             )
         )
+
+    def test_graph_fragment_insert_remaps_subnode_shell_pin_port_keys(self) -> None:
+        registry = build_default_registry()
+        model = GraphModel()
+        workspace = model.active_workspace
+        mutations = model.validated_mutations(workspace.workspace_id, registry)
+
+        start = mutations.add_node(type_id="core.start", title="Start", x=0.0, y=0.0)
+        logger = mutations.add_node(type_id="core.logger", title="Logger", x=220.0, y=0.0)
+        end = mutations.add_node(type_id="core.end", title="End", x=520.0, y=0.0)
+        mutations.add_edge(
+            source_node_id=start.node_id,
+            source_port_key="exec_out",
+            target_node_id=logger.node_id,
+            target_port_key="exec_in",
+        )
+        mutations.add_edge(
+            source_node_id=logger.node_id,
+            source_port_key="exec_out",
+            target_node_id=end.node_id,
+            target_port_key="exec_in",
+        )
+        grouped = mutations.group_selection_into_subnode(
+            selected_node_ids=[start.node_id, logger.node_id],
+            scope_path=[],
+            shell_x=140.0,
+            shell_y=40.0,
+        )
+        self.assertIsNotNone(grouped)
+        assert grouped is not None
+        original_pin_id = grouped.created_pin_node_ids[0]
+        fragment_data = build_subtree_fragment_payload_data(
+            workspace=workspace,
+            selected_node_ids=[grouped.shell_node_id, end.node_id],
+        )
+        self.assertIsNotNone(fragment_data)
+        assert fragment_data is not None
+        fragment_payload = build_graph_fragment_payload(nodes=fragment_data["nodes"], edges=fragment_data["edges"])
+
+        before_node_ids = set(workspace.nodes)
+        inserted_node_ids = model.mutation_service(workspace.workspace_id).insert_graph_fragment(
+            fragment_payload=fragment_payload,
+            delta_x=800.0,
+            delta_y=0.0,
+        )
+
+        self.assertTrue(inserted_node_ids)
+        inserted_node_id_set = set(inserted_node_ids)
+        self.assertTrue(inserted_node_id_set.isdisjoint(before_node_ids))
+        inserted_shell_id = next(
+            node_id
+            for node_id in inserted_node_id_set
+            if workspace.nodes[node_id].type_id == SUBNODE_TYPE_ID
+        )
+        inserted_pin_id = next(
+            node_id
+            for node_id in inserted_node_id_set
+            if workspace.nodes[node_id].type_id == SUBNODE_OUTPUT_TYPE_ID
+        )
+        inserted_end_id = next(
+            node_id
+            for node_id in inserted_node_id_set
+            if workspace.nodes[node_id].type_id == "core.end"
+        )
+        self.assertNotEqual(inserted_pin_id, original_pin_id)
+        self.assertTrue(
+            any(
+                edge.source_node_id == inserted_shell_id
+                and edge.source_port_key == inserted_pin_id
+                and edge.target_node_id == inserted_end_id
+                and edge.target_port_key == "exec_in"
+                for edge in workspace.edges.values()
+            )
+        )
+
+    def test_encoded_fragment_parent_keeps_external_parent_when_ids_collide(self) -> None:
+        registry = build_default_registry()
+        model = GraphModel()
+        workspace = model.active_workspace
+        mutations = model.validated_mutations(workspace.workspace_id, registry)
+        parent = mutations.add_node(type_id="core.logger", title="Parent", x=0.0, y=0.0)
+        fragment_payload = build_graph_fragment_payload(
+            nodes=[
+                {
+                    "ref_id": parent.node_id,
+                    "type_id": "core.logger",
+                    "title": "Child",
+                    "x": 120.0,
+                    "y": 80.0,
+                    "collapsed": False,
+                    "properties": {},
+                    "locked_ports": {},
+                    "exposed_ports": {},
+                    "visual_style": {},
+                    "parent_node_id": encode_fragment_external_parent_id(parent.node_id),
+                    "custom_width": None,
+                    "custom_height": None,
+                }
+            ],
+            edges=[],
+        )
+
+        inserted_node_ids = model.mutation_service(workspace.workspace_id).insert_graph_fragment(
+            fragment_payload=fragment_payload,
+            delta_x=0.0,
+            delta_y=0.0,
+        )
+
+        self.assertEqual(len(inserted_node_ids), 1)
+        inserted = workspace.nodes[inserted_node_ids[0]]
+        self.assertEqual(inserted.parent_node_id, parent.node_id)
+        self.assertNotEqual(inserted.parent_node_id, inserted.node_id)
 
     def test_default_registry_accepts_foundational_dpf_port_types_in_filters(self) -> None:
         registry = build_default_registry()

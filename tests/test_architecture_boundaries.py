@@ -314,6 +314,80 @@ class GraphArchitectureBoundaryTests(unittest.TestCase):
         self.assertTrue(hasattr(WorkspaceMutationService, "_set_node_parent_record"))
         self.assertTrue(hasattr(WorkspaceMutationService, "_set_node_fragment_state_record"))
 
+    def test_graph_mutation_authority_uses_private_model_record_writers(self) -> None:
+        normalization_tree = parse_module("ea_node_editor/graph/normalization.py")
+        mutation_tree = parse_module("ea_node_editor/graph/mutation_service.py")
+        validated_methods = {
+            node.name
+            for node in class_node(normalization_tree, "ValidatedGraphMutation").body
+            if isinstance(node, ast.FunctionDef)
+        }
+
+        for method_name in {
+            "remove_edge",
+            "remove_node",
+            "set_edge_label",
+            "set_edge_visual_style",
+            "set_node_collapsed",
+            "set_node_geometry",
+            "set_node_position",
+            "set_node_title",
+            "set_node_visual_style",
+            "set_port_label",
+        }:
+            self.assertNotIn(method_name, validated_methods)
+
+        public_model_write_calls = {
+            "self.model.add_edge",
+            "self.model.add_node",
+            "self.model.remove_edge",
+            "self.model.remove_node",
+            "self.model.set_edge_label",
+            "self.model.set_edge_visual_style",
+            "self.model.set_exposed_port",
+            "self.model.set_node_collapsed",
+            "self.model.set_node_geometry",
+            "self.model.set_node_position",
+            "self.model.set_node_property",
+            "self.model.set_node_title",
+            "self.model.set_node_visual_style",
+            "self.model.set_port_label",
+        }
+        self.assertFalse(public_model_write_calls & call_names(normalization_tree))
+        self.assertFalse(public_model_write_calls & call_names(mutation_tree))
+
+        normalization_calls = call_names(normalization_tree)
+        mutation_calls = call_names(mutation_tree)
+        self.assertIn("self.model._add_node_record", normalization_calls)
+        self.assertIn("self.model._add_edge_record", normalization_calls)
+        self.assertIn("self.model._set_node_property_record", normalization_calls)
+        self.assertIn("self.model._add_node_record", mutation_calls)
+        self.assertIn("self.model._set_node_fragment_state_record", mutation_calls)
+
+    def test_fragment_payload_helpers_share_model_mapping_parsers(self) -> None:
+        normalization_tree = parse_module("ea_node_editor/graph/normalization.py")
+        fragment_tree = parse_module("ea_node_editor/graph/transform_fragment_ops.py")
+
+        self.assertTrue(
+            {
+                "edge_instance_from_mapping",
+                "edge_instance_to_mapping",
+                "node_instance_from_mapping",
+                "node_instance_to_mapping",
+            }
+            <= imported_names_from(normalization_tree, "ea_node_editor.graph.model")
+        )
+        self.assertTrue(
+            {
+                "edge_instance_from_mapping",
+                "edge_instance_to_mapping",
+                "node_instance_to_mapping",
+            }
+            <= imported_names_from(fragment_tree, "ea_node_editor.graph.model")
+        )
+        self.assertNotIn("GraphInvariantKernel.fragment_node_from_payload", call_names(fragment_tree))
+        self.assertNotIn("GraphInvariantKernel.graph_fragment_payload_is_valid", call_names(fragment_tree))
+
     def test_closeout_docs_publish_architecture_residual_matrix_from_packet_owned_surfaces(self) -> None:
         spec_index_text = (REPO_ROOT / manifest.SPEC_INDEX_DOC).read_text(encoding="utf-8")
         qa_acceptance_text = (REPO_ROOT / manifest.QA_ACCEPTANCE_DOC).read_text(encoding="utf-8")

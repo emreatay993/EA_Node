@@ -36,39 +36,85 @@ def _coerce_float(value: Any, default: float = 0.0) -> float:
         return default
 
 
-def _as_mapping(value: Any) -> dict[str, Any]:
+def _try_float(value: Any) -> float | None:
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _as_mapping(value: Any, *, strict: bool = False) -> dict[str, Any] | None:
     if not isinstance(value, Mapping):
-        return {}
+        return None if strict else {}
     return {str(key): item for key, item in value.items()}
 
 
-def node_instance_from_mapping(payload: Mapping[str, Any]) -> NodeInstance | None:
-    node_id = _coerce_str(payload.get("node_id"))
+def node_instance_from_mapping(
+    payload: Mapping[str, Any],
+    *,
+    node_id_key: str = "node_id",
+    strict_payload: bool = False,
+) -> NodeInstance | None:
+    node_id = _coerce_str(payload.get(node_id_key))
     type_id = _coerce_str(payload.get("type_id"))
     if not node_id or not type_id:
         return None
+    x = _try_float(payload.get("x", 0.0))
+    y = _try_float(payload.get("y", 0.0))
+    if strict_payload and (x is None or y is None):
+        return None
+    custom_width = None
+    if payload.get("custom_width") is not None:
+        custom_width = _try_float(payload.get("custom_width"))
+        if strict_payload and custom_width is None:
+            return None
+    custom_height = None
+    if payload.get("custom_height") is not None:
+        custom_height = _try_float(payload.get("custom_height"))
+        if strict_payload and custom_height is None:
+            return None
+    raw_properties = _as_mapping(payload.get("properties", {}), strict=strict_payload)
+    raw_exposed_ports = _as_mapping(payload.get("exposed_ports", {}), strict=strict_payload)
+    raw_port_labels = _as_mapping(payload.get("port_labels", {}), strict=strict_payload)
+    if raw_properties is None or raw_exposed_ports is None or raw_port_labels is None:
+        return None
+    raw_locked_ports = payload.get("locked_ports")
+    if strict_payload and raw_locked_ports is not None and not isinstance(raw_locked_ports, Mapping):
+        return None
+    normalized_exposed_ports: dict[str, bool] = {}
+    for key, value in raw_exposed_ports.items():
+        normalized_key = str(key).strip()
+        if not normalized_key:
+            if strict_payload:
+                return None
+            continue
+        normalized_exposed_ports[normalized_key] = bool(value)
     parent_node_id = _coerce_str(payload.get("parent_node_id")) or None
     return NodeInstance(
         node_id=node_id,
         type_id=type_id,
         title=_coerce_str(payload.get("title"), type_id),
-        x=_coerce_float(payload.get("x"), 0.0),
-        y=_coerce_float(payload.get("y"), 0.0),
+        x=0.0 if x is None else x,
+        y=0.0 if y is None else y,
         collapsed=bool(payload.get("collapsed", False)),
-        properties=_as_mapping(payload.get("properties")),
-        exposed_ports={key: bool(value) for key, value in _as_mapping(payload.get("exposed_ports")).items()},
-        locked_ports=normalize_locked_ports_mapping(payload.get("locked_ports")),
-        port_labels={str(k): str(v) for k, v in _as_mapping(payload.get("port_labels")).items() if str(v).strip()},
-        visual_style=_as_mapping(payload.get("visual_style")),
+        properties=raw_properties,
+        exposed_ports=normalized_exposed_ports,
+        locked_ports=normalize_locked_ports_mapping(raw_locked_ports),
+        port_labels={str(k): str(v) for k, v in raw_port_labels.items() if str(v).strip()},
+        visual_style=_as_mapping(payload.get("visual_style")) or {},
         parent_node_id=parent_node_id,
-        custom_width=_coerce_float(payload.get("custom_width")) if payload.get("custom_width") is not None else None,
-        custom_height=_coerce_float(payload.get("custom_height")) if payload.get("custom_height") is not None else None,
+        custom_width=custom_width,
+        custom_height=custom_height,
     )
 
 
-def node_instance_to_mapping(node: "NodeInstance") -> dict[str, Any]:
+def node_instance_to_mapping(
+    node: "NodeInstance",
+    *,
+    node_id_key: str = "node_id",
+) -> dict[str, Any]:
     return {
-        "node_id": node.node_id,
+        node_id_key: node.node_id,
         "type_id": node.type_id,
         "title": node.title,
         "x": node.x,
@@ -85,13 +131,26 @@ def node_instance_to_mapping(node: "NodeInstance") -> dict[str, Any]:
     }
 
 
-def edge_instance_from_mapping(payload: Mapping[str, Any]) -> EdgeInstance | None:
-    edge_id = _coerce_str(payload.get("edge_id"))
-    source_node_id = _coerce_str(payload.get("source_node_id"))
+def edge_instance_from_mapping(
+    payload: Mapping[str, Any],
+    *,
+    edge_id_key: str | None = "edge_id",
+    source_node_id_key: str = "source_node_id",
+    target_node_id_key: str = "target_node_id",
+    require_edge_id: bool = True,
+) -> EdgeInstance | None:
+    edge_id = _coerce_str(payload.get(edge_id_key)) if edge_id_key is not None else ""
+    source_node_id = _coerce_str(payload.get(source_node_id_key))
     source_port_key = _coerce_str(payload.get("source_port_key"))
-    target_node_id = _coerce_str(payload.get("target_node_id"))
+    target_node_id = _coerce_str(payload.get(target_node_id_key))
     target_port_key = _coerce_str(payload.get("target_port_key"))
-    if not edge_id or not source_node_id or not source_port_key or not target_node_id or not target_port_key:
+    if (
+        (require_edge_id and not edge_id)
+        or not source_node_id
+        or not source_port_key
+        or not target_node_id
+        or not target_port_key
+    ):
         return None
     return EdgeInstance(
         edge_id=edge_id,
@@ -100,20 +159,28 @@ def edge_instance_from_mapping(payload: Mapping[str, Any]) -> EdgeInstance | Non
         target_node_id=target_node_id,
         target_port_key=target_port_key,
         label=_coerce_str(payload.get("label")),
-        visual_style=_as_mapping(payload.get("visual_style")),
+        visual_style=_as_mapping(payload.get("visual_style")) or {},
     )
 
 
-def edge_instance_to_mapping(edge: "EdgeInstance") -> dict[str, Any]:
-    return {
-        "edge_id": edge.edge_id,
-        "source_node_id": edge.source_node_id,
+def edge_instance_to_mapping(
+    edge: "EdgeInstance",
+    *,
+    edge_id_key: str | None = "edge_id",
+    source_node_id_key: str = "source_node_id",
+    target_node_id_key: str = "target_node_id",
+) -> dict[str, Any]:
+    payload = {
+        source_node_id_key: edge.source_node_id,
         "source_port_key": edge.source_port_key,
-        "target_node_id": edge.target_node_id,
+        target_node_id_key: edge.target_node_id,
         "target_port_key": edge.target_port_key,
         "label": edge.label,
         "visual_style": copy.deepcopy(edge.visual_style),
     }
+    if edge_id_key is not None:
+        payload = {edge_id_key: edge.edge_id, **payload}
+    return payload
 
 
 @dataclass(slots=True)
@@ -448,6 +515,45 @@ class GraphModel:
         ordered_views.insert(to_index, (moved_view_id, moved_view))
         workspace.views = dict(ordered_views)
 
+    def _add_node_record(
+        self,
+        workspace_id: str,
+        *,
+        type_id: str = "",
+        title: str = "",
+        x: float = 0.0,
+        y: float = 0.0,
+        properties: dict[str, Any] | None = None,
+        exposed_ports: dict[str, bool] | None = None,
+        locked_ports: dict[str, bool] | None = None,
+        port_labels: dict[str, str] | None = None,
+        visual_style: dict[str, Any] | None = None,
+        parent_node_id: str | None = None,
+        collapsed: bool = False,
+        custom_width: float | None = None,
+        custom_height: float | None = None,
+    ) -> NodeInstance:
+        workspace = self.project.workspaces[workspace_id]
+        record = NodeInstance(
+            node_id=new_id("node"),
+            type_id=type_id,
+            title=title,
+            x=float(x),
+            y=float(y),
+            collapsed=bool(collapsed),
+            properties=copy.deepcopy(properties or {}),
+            exposed_ports=dict(exposed_ports or {}),
+            locked_ports=normalize_locked_ports_mapping(locked_ports),
+            port_labels={str(key): str(value) for key, value in dict(port_labels or {}).items()},
+            visual_style=copy.deepcopy(visual_style or {}),
+            parent_node_id=str(parent_node_id).strip() if parent_node_id else None,
+            custom_width=custom_width,
+            custom_height=custom_height,
+        )
+        workspace.nodes[record.node_id] = record
+        workspace.dirty = True
+        return record
+
     def add_node(
         self,
         workspace_id: str,
@@ -459,22 +565,18 @@ class GraphModel:
         exposed_ports: dict[str, bool] | None = None,
         visual_style: dict[str, Any] | None = None,
     ) -> NodeInstance:
-        workspace = self.project.workspaces[workspace_id]
-        node = NodeInstance(
-            node_id=new_id("node"),
+        return self._add_node_record(
+            workspace_id,
             type_id=type_id,
             title=title,
             x=x,
             y=y,
-            properties=properties or {},
-            exposed_ports=exposed_ports or {},
-            visual_style=copy.deepcopy(visual_style or {}),
+            properties=properties,
+            exposed_ports=exposed_ports,
+            visual_style=visual_style,
         )
-        workspace.nodes[node.node_id] = node
-        workspace.dirty = True
-        return node
 
-    def remove_node(self, workspace_id: str, node_id: str) -> None:
+    def _remove_node_record(self, workspace_id: str, node_id: str) -> None:
         workspace = self.project.workspaces[workspace_id]
         if node_id in workspace.nodes:
             del workspace.nodes[node_id]
@@ -484,14 +586,20 @@ class GraphModel:
                 del workspace.edges[edge_id]
         workspace.dirty = True
 
-    def set_node_position(self, workspace_id: str, node_id: str, x: float, y: float) -> None:
+    def remove_node(self, workspace_id: str, node_id: str) -> None:
+        self._remove_node_record(workspace_id, node_id)
+
+    def _set_node_position_record(self, workspace_id: str, node_id: str, x: float, y: float) -> None:
         workspace = self.project.workspaces[workspace_id]
         node = workspace.nodes[node_id]
         node.x = x
         node.y = y
         workspace.dirty = True
 
-    def set_node_geometry(
+    def set_node_position(self, workspace_id: str, node_id: str, x: float, y: float) -> None:
+        self._set_node_position_record(workspace_id, node_id, x, y)
+
+    def _set_node_geometry_record(
         self,
         workspace_id: str,
         node_id: str,
@@ -508,38 +616,88 @@ class GraphModel:
         node.custom_height = height
         workspace.dirty = True
 
-    def set_node_size(self, workspace_id: str, node_id: str, width: float | None, height: float | None) -> None:
+    def set_node_geometry(
+        self,
+        workspace_id: str,
+        node_id: str,
+        x: float,
+        y: float,
+        width: float | None,
+        height: float | None,
+    ) -> None:
+        self._set_node_geometry_record(workspace_id, node_id, x, y, width, height)
+
+    def _set_node_size_record(
+        self,
+        workspace_id: str,
+        node_id: str,
+        width: float | None,
+        height: float | None,
+    ) -> None:
         workspace = self.project.workspaces[workspace_id]
         workspace.nodes[node_id].custom_width = width
         workspace.nodes[node_id].custom_height = height
         workspace.dirty = True
 
-    def set_node_collapsed(self, workspace_id: str, node_id: str, collapsed: bool) -> None:
+    def set_node_size(self, workspace_id: str, node_id: str, width: float | None, height: float | None) -> None:
+        self._set_node_size_record(workspace_id, node_id, width, height)
+
+    def _set_node_collapsed_record(self, workspace_id: str, node_id: str, collapsed: bool) -> None:
         workspace = self.project.workspaces[workspace_id]
         workspace.nodes[node_id].collapsed = collapsed
         workspace.dirty = True
 
-    def set_node_property(self, workspace_id: str, node_id: str, key: str, value: Any) -> None:
+    def set_node_collapsed(self, workspace_id: str, node_id: str, collapsed: bool) -> None:
+        self._set_node_collapsed_record(workspace_id, node_id, collapsed)
+
+    def _set_node_property_record(self, workspace_id: str, node_id: str, key: str, value: Any) -> None:
         workspace = self.project.workspaces[workspace_id]
         workspace.nodes[node_id].properties[key] = value
         workspace.dirty = True
 
-    def set_node_title(self, workspace_id: str, node_id: str, title: str) -> None:
+    def set_node_property(self, workspace_id: str, node_id: str, key: str, value: Any) -> None:
+        self._set_node_property_record(workspace_id, node_id, key, value)
+
+    def _set_node_title_record(self, workspace_id: str, node_id: str, title: str) -> None:
         workspace = self.project.workspaces[workspace_id]
         workspace.nodes[node_id].title = title
         workspace.dirty = True
 
-    def set_node_visual_style(self, workspace_id: str, node_id: str, visual_style: dict[str, Any] | None) -> None:
+    def set_node_title(self, workspace_id: str, node_id: str, title: str) -> None:
+        self._set_node_title_record(workspace_id, node_id, title)
+
+    def _set_node_visual_style_record(
+        self,
+        workspace_id: str,
+        node_id: str,
+        visual_style: dict[str, Any] | None,
+    ) -> None:
         workspace = self.project.workspaces[workspace_id]
         workspace.nodes[node_id].visual_style = copy.deepcopy(visual_style or {})
         workspace.dirty = True
 
-    def set_exposed_port(self, workspace_id: str, node_id: str, key: str, exposed: bool) -> None:
+    def set_node_visual_style(self, workspace_id: str, node_id: str, visual_style: dict[str, Any] | None) -> None:
+        self._set_node_visual_style_record(workspace_id, node_id, visual_style)
+
+    def _set_exposed_port_record(self, workspace_id: str, node_id: str, key: str, exposed: bool) -> None:
         workspace = self.project.workspaces[workspace_id]
         workspace.nodes[node_id].exposed_ports[key] = exposed
         workspace.dirty = True
 
-    def set_port_label(self, workspace_id: str, node_id: str, port_key: str, label: str) -> None:
+    def set_exposed_port(self, workspace_id: str, node_id: str, key: str, exposed: bool) -> None:
+        self._set_exposed_port_record(workspace_id, node_id, key, exposed)
+
+    def _set_node_parent_record(self, workspace_id: str, node_id: str, parent_node_id: str | None) -> bool:
+        workspace = self.project.workspaces[workspace_id]
+        node = workspace.nodes[node_id]
+        normalized_parent_id = str(parent_node_id or "").strip() or None
+        if node.parent_node_id == normalized_parent_id:
+            return False
+        node.parent_node_id = normalized_parent_id
+        workspace.dirty = True
+        return True
+
+    def _set_port_label_record(self, workspace_id: str, node_id: str, port_key: str, label: str) -> None:
         workspace = self.project.workspaces[workspace_id]
         node = workspace.nodes[node_id]
         if label:
@@ -548,13 +706,17 @@ class GraphModel:
             node.port_labels.pop(port_key, None)
         workspace.dirty = True
 
-    def add_edge(
+    def set_port_label(self, workspace_id: str, node_id: str, port_key: str, label: str) -> None:
+        self._set_port_label_record(workspace_id, node_id, port_key, label)
+
+    def _add_edge_record(
         self,
         workspace_id: str,
-        source_node_id: str,
-        source_port_key: str,
-        target_node_id: str,
-        target_port_key: str,
+        *,
+        source_node_id: str = "",
+        source_port_key: str = "",
+        target_node_id: str = "",
+        target_port_key: str = "",
         label: str = "",
         visual_style: dict[str, Any] | None = None,
     ) -> EdgeInstance:
@@ -571,7 +733,7 @@ class GraphModel:
                 and existing.target_port_key == target_port_key
             ):
                 return existing
-        edge = EdgeInstance(
+        record = EdgeInstance(
             edge_id=new_id("edge"),
             source_node_id=source_node_id,
             source_port_key=source_port_key,
@@ -580,22 +742,72 @@ class GraphModel:
             label=str(label),
             visual_style=copy.deepcopy(visual_style or {}),
         )
-        workspace.edges[edge.edge_id] = edge
+        workspace.edges[record.edge_id] = record
         workspace.dirty = True
-        return edge
+        return record
 
-    def set_edge_label(self, workspace_id: str, edge_id: str, label: str) -> None:
+    def add_edge(
+        self,
+        workspace_id: str,
+        source_node_id: str,
+        source_port_key: str,
+        target_node_id: str,
+        target_port_key: str,
+        label: str = "",
+        visual_style: dict[str, Any] | None = None,
+    ) -> EdgeInstance:
+        return self._add_edge_record(
+            workspace_id,
+            source_node_id=source_node_id,
+            source_port_key=source_port_key,
+            target_node_id=target_node_id,
+            target_port_key=target_port_key,
+            label=label,
+            visual_style=visual_style,
+        )
+
+    def _set_edge_label_record(self, workspace_id: str, edge_id: str, label: str) -> None:
         workspace = self.project.workspaces[workspace_id]
         workspace.edges[edge_id].label = str(label)
         workspace.dirty = True
 
-    def set_edge_visual_style(self, workspace_id: str, edge_id: str, visual_style: dict[str, Any] | None) -> None:
+    def set_edge_label(self, workspace_id: str, edge_id: str, label: str) -> None:
+        self._set_edge_label_record(workspace_id, edge_id, label)
+
+    def _set_edge_visual_style_record(
+        self,
+        workspace_id: str,
+        edge_id: str,
+        visual_style: dict[str, Any] | None,
+    ) -> None:
         workspace = self.project.workspaces[workspace_id]
         workspace.edges[edge_id].visual_style = copy.deepcopy(visual_style or {})
         workspace.dirty = True
 
-    def remove_edge(self, workspace_id: str, edge_id: str) -> None:
+    def set_edge_visual_style(self, workspace_id: str, edge_id: str, visual_style: dict[str, Any] | None) -> None:
+        self._set_edge_visual_style_record(workspace_id, edge_id, visual_style)
+
+    def _remove_edge_record(self, workspace_id: str, edge_id: str) -> None:
         workspace = self.project.workspaces[workspace_id]
         if edge_id in workspace.edges:
             del workspace.edges[edge_id]
             workspace.dirty = True
+
+    def remove_edge(self, workspace_id: str, edge_id: str) -> None:
+        self._remove_edge_record(workspace_id, edge_id)
+
+    def _set_node_fragment_state_record(
+        self,
+        workspace_id: str,
+        node_id: str,
+        *,
+        collapsed: bool,
+        custom_width: float | None,
+        custom_height: float | None,
+    ) -> None:
+        workspace = self.project.workspaces[workspace_id]
+        node = workspace.nodes[node_id]
+        node.collapsed = bool(collapsed)
+        node.custom_width = custom_width
+        node.custom_height = custom_height
+        workspace.dirty = True

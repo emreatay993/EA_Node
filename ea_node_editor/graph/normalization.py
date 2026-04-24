@@ -29,6 +29,10 @@ from ea_node_editor.graph.model import (
     ProjectData,
     ViewState,
     WorkspaceData,
+    edge_instance_from_mapping,
+    edge_instance_to_mapping,
+    node_instance_from_mapping,
+    node_instance_to_mapping,
     sanitize_workspace_parent_links,
 )
 from ea_node_editor.graph.subnode_contract import (
@@ -38,7 +42,6 @@ from ea_node_editor.graph.subnode_contract import (
 from ea_node_editor.graph.port_locking import (
     compute_initial_locked_ports,
     is_port_lockable,
-    normalize_locked_ports_mapping,
     property_value_triggers_lock,
 )
 from ea_node_editor.nodes.registry import NodeRegistry
@@ -67,7 +70,11 @@ def normalize_graph_fragment_payload(payload: Any) -> dict[str, Any] | None:
         return None
     if payload.get("kind") != GRAPH_FRAGMENT_KIND:
         return None
-    if int(payload.get("version", -1)) != GRAPH_FRAGMENT_VERSION:
+    try:
+        version = int(payload.get("version", -1))
+    except (TypeError, ValueError):
+        return None
+    if version != GRAPH_FRAGMENT_VERSION:
         return None
 
     raw_nodes = payload.get("nodes")
@@ -127,80 +134,35 @@ def normalize_visual_style_payload(value: Any) -> dict[str, Any]:
 def _normalize_fragment_node_entry(raw_node: Any) -> dict[str, Any] | None:
     if not isinstance(raw_node, dict):
         return None
-
-    ref_id = str(raw_node.get("ref_id", "")).strip()
-    type_id = str(raw_node.get("type_id", "")).strip()
-    if not ref_id or not type_id:
+    node = node_instance_from_mapping(raw_node, node_id_key="ref_id", strict_payload=True)
+    if node is None:
         return None
-
-    try:
-        x = float(raw_node.get("x", 0.0))
-        y = float(raw_node.get("y", 0.0))
-    except (TypeError, ValueError):
-        return None
-    try:
-        custom_width = float(raw_node["custom_width"]) if raw_node.get("custom_width") is not None else None
-        custom_height = float(raw_node["custom_height"]) if raw_node.get("custom_height") is not None else None
-    except (TypeError, ValueError):
-        return None
-
-    raw_exposed_ports = raw_node.get("exposed_ports", {})
-    if not isinstance(raw_exposed_ports, dict):
-        return None
-    normalized_exposed_ports: dict[str, bool] = {}
-    for key, value in raw_exposed_ports.items():
-        normalized_key = str(key).strip()
-        if not normalized_key:
-            return None
-        normalized_exposed_ports[normalized_key] = bool(value)
-
-    raw_properties = raw_node.get("properties", {})
-    if not isinstance(raw_properties, dict):
-        return None
-    raw_locked_ports = raw_node.get("locked_ports")
-    if raw_locked_ports is not None and not isinstance(raw_locked_ports, Mapping):
-        return None
-
-    raw_parent = raw_node.get("parent_node_id")
-    parent_node_id: str | None = None
-    if raw_parent is not None:
-        normalized_parent = str(raw_parent).strip()
-        parent_node_id = normalized_parent or None
-
-    return {
-        "ref_id": ref_id,
-        "type_id": type_id,
-        "title": str(raw_node.get("title", "")),
-        "x": x,
-        "y": y,
-        "collapsed": bool(raw_node.get("collapsed", False)),
-        "properties": copy.deepcopy(raw_properties),
-        "locked_ports": normalize_locked_ports_mapping(raw_locked_ports),
-        "exposed_ports": normalized_exposed_ports,
-        "visual_style": normalize_visual_style_payload(raw_node.get("visual_style")),
-        "parent_node_id": parent_node_id,
-        "custom_width": custom_width,
-        "custom_height": custom_height,
-    }
+    payload = node_instance_to_mapping(node, node_id_key="ref_id")
+    payload["visual_style"] = normalize_visual_style_payload(raw_node.get("visual_style"))
+    return payload
 
 
 def _normalize_fragment_edge_entry(raw_edge: Any) -> dict[str, Any] | None:
     if not isinstance(raw_edge, dict):
         return None
-    source_ref_id = str(raw_edge.get("source_ref_id", "")).strip()
-    source_port_key = str(raw_edge.get("source_port_key", "")).strip()
-    target_ref_id = str(raw_edge.get("target_ref_id", "")).strip()
-    target_port_key = str(raw_edge.get("target_port_key", "")).strip()
-    if not source_ref_id or not source_port_key or not target_ref_id or not target_port_key:
+    edge = edge_instance_from_mapping(
+        raw_edge,
+        edge_id_key=None,
+        source_node_id_key="source_ref_id",
+        target_node_id_key="target_ref_id",
+        require_edge_id=False,
+    )
+    if edge is None:
         return None
-    return {
-        "source_ref_id": source_ref_id,
-        "source_port_key": source_port_key,
-        "target_ref_id": target_ref_id,
-        "target_port_key": target_port_key,
-        "label": normalize_edge_label(raw_edge.get("label")),
-        "visual_style": normalize_visual_style_payload(raw_edge.get("visual_style")),
-    }
+    payload = edge_instance_to_mapping(
+        edge,
+        edge_id_key=None,
+        source_node_id_key="source_ref_id",
+        target_node_id_key="target_ref_id",
+    )
+    payload["label"] = normalize_edge_label(raw_edge.get("label"))
+    payload["visual_style"] = normalize_visual_style_payload(raw_edge.get("visual_style"))
+    return payload
 
 
 def _normalize_visual_style_value(value: Any) -> Any:
@@ -219,6 +181,94 @@ def _normalize_visual_style_value(value: Any) -> Any:
     if value is None or isinstance(value, (str, int, float, bool)):
         return copy.deepcopy(value)
     return str(value)
+
+
+def fragment_node_from_payload(node_payload: Mapping[str, Any]) -> NodeInstance:
+    node = node_instance_from_mapping(node_payload, node_id_key="ref_id", strict_payload=True)
+    if node is None:
+        raise ValueError("Invalid graph fragment node payload.")
+    return node
+
+
+def graph_fragment_payload_is_valid(
+    *,
+    fragment_payload: Mapping[str, Any],
+    registry: NodeRegistry,
+) -> bool:
+    normalized_payload = normalize_graph_fragment_payload(fragment_payload)
+    if normalized_payload is None:
+        return False
+    raw_nodes = normalized_payload["nodes"]
+    raw_edges = normalized_payload["edges"]
+
+    node_specs: dict[str, NodeTypeSpec] = {}
+    fragment_nodes: dict[str, NodeInstance] = {}
+    for node_payload in raw_nodes:
+        ref_id = node_payload["ref_id"]
+        type_id = node_payload["type_id"]
+        try:
+            node_specs[ref_id] = registry.get_spec(type_id)
+        except KeyError:
+            return False
+        fragment_nodes[ref_id] = fragment_node_from_payload(node_payload)
+
+    seen_connections: set[tuple[str, str, str, str]] = set()
+    occupied_single_target_ports: set[tuple[str, str]] = set()
+    occupied_mutually_exclusive_target_groups: set[tuple[str, tuple[str, ...]]] = set()
+    for edge_payload in raw_edges:
+        source_ref_id = edge_payload["source_ref_id"]
+        target_ref_id = edge_payload["target_ref_id"]
+        source_node = fragment_nodes.get(source_ref_id)
+        target_node = fragment_nodes.get(target_ref_id)
+        source_spec = node_specs.get(source_ref_id)
+        target_spec = node_specs.get(target_ref_id)
+        if source_node is None or target_node is None or source_spec is None or target_spec is None:
+            return False
+        source_port = find_port(
+            node=source_node,
+            spec=source_spec,
+            workspace_nodes=fragment_nodes,
+            port_key=edge_payload["source_port_key"],
+        )
+        target_port = find_port(
+            node=target_node,
+            spec=target_spec,
+            workspace_nodes=fragment_nodes,
+            port_key=edge_payload["target_port_key"],
+        )
+        if source_port is None or target_port is None:
+            return False
+        if (
+            not port_supports_outgoing_edge(source_port)
+            or not port_supports_incoming_edge(target_port)
+            or target_port.locked
+        ):
+            return False
+        mutually_exclusive_group = mutually_exclusive_target_input_group(
+            str(target_spec.type_id),
+            edge_payload["target_port_key"],
+        )
+        if mutually_exclusive_group is not None and (
+            target_ref_id,
+            mutually_exclusive_group,
+        ) in occupied_mutually_exclusive_target_groups:
+            return False
+        if not GraphInvariantKernel.accept_registry_edge(
+            RegistryEdgeResolution(
+                source_node_id=source_ref_id,
+                source_port_key=edge_payload["source_port_key"],
+                target_node_id=target_ref_id,
+                target_port_key=edge_payload["target_port_key"],
+                source_port=source_port,
+                target_port=target_port,
+            ),
+            seen_connections=seen_connections,
+            occupied_single_target_ports=occupied_single_target_ports,
+        ):
+            return False
+        if mutually_exclusive_group is not None:
+            occupied_mutually_exclusive_target_groups.add((target_ref_id, mutually_exclusive_group))
+    return True
 
 
 @dataclass(slots=True, frozen=True)
@@ -401,131 +451,6 @@ class GraphInvariantKernel:
             target_port=target_port,
         )
 
-    @staticmethod
-    def build_graph_fragment_payload(
-        *,
-        nodes: list[dict[str, Any]],
-        edges: list[dict[str, Any]],
-    ) -> dict[str, Any]:
-        return build_graph_fragment_payload(nodes=nodes, edges=edges)
-
-    @staticmethod
-    def normalize_graph_fragment_payload(payload: Any) -> dict[str, Any] | None:
-        return normalize_graph_fragment_payload(payload)
-
-    @staticmethod
-    def normalize_edge_label(value: Any) -> str:
-        return normalize_edge_label(value)
-
-    @staticmethod
-    def normalize_visual_style_payload(value: Any) -> dict[str, Any]:
-        return normalize_visual_style_payload(value)
-
-    @staticmethod
-    def fragment_node_from_payload(node_payload: Mapping[str, Any]) -> NodeInstance:
-        return NodeInstance(
-            node_id=str(node_payload.get("ref_id", "")),
-            type_id=str(node_payload.get("type_id", "")),
-            title=str(node_payload.get("title", "")),
-            x=float(node_payload.get("x", 0.0)),
-            y=float(node_payload.get("y", 0.0)),
-            collapsed=bool(node_payload.get("collapsed", False)),
-            properties=dict(node_payload.get("properties", {})),
-            exposed_ports=dict(node_payload.get("exposed_ports", {})),
-            locked_ports=normalize_locked_ports_mapping(node_payload.get("locked_ports")),
-            visual_style=copy.deepcopy(node_payload.get("visual_style", {})),
-            parent_node_id=node_payload.get("parent_node_id"),
-            custom_width=float(node_payload["custom_width"]) if node_payload.get("custom_width") is not None else None,
-            custom_height=float(node_payload["custom_height"]) if node_payload.get("custom_height") is not None else None,
-        )
-
-    @classmethod
-    def graph_fragment_payload_is_valid(
-        cls,
-        *,
-        fragment_payload: Mapping[str, Any],
-        registry: NodeRegistry,
-    ) -> bool:
-        raw_nodes = fragment_payload.get("nodes")
-        raw_edges = fragment_payload.get("edges")
-        if not isinstance(raw_nodes, list) or not isinstance(raw_edges, list):
-            return False
-
-        node_specs: dict[str, NodeTypeSpec] = {}
-        fragment_nodes: dict[str, NodeInstance] = {}
-        for node_payload in raw_nodes:
-            normalized_node = _normalize_fragment_node_entry(node_payload)
-            if normalized_node is None:
-                return False
-            ref_id = normalized_node["ref_id"]
-            type_id = normalized_node["type_id"]
-            try:
-                node_specs[ref_id] = registry.get_spec(type_id)
-            except KeyError:
-                return False
-            fragment_nodes[ref_id] = cls.fragment_node_from_payload(normalized_node)
-
-        seen_connections: set[tuple[str, str, str, str]] = set()
-        occupied_single_target_ports: set[tuple[str, str]] = set()
-        occupied_mutually_exclusive_target_groups: set[tuple[str, tuple[str, ...]]] = set()
-        for edge_payload in raw_edges:
-            normalized_edge = _normalize_fragment_edge_entry(edge_payload)
-            if normalized_edge is None:
-                return False
-            source_ref_id = normalized_edge["source_ref_id"]
-            target_ref_id = normalized_edge["target_ref_id"]
-            source_node = fragment_nodes.get(source_ref_id)
-            target_node = fragment_nodes.get(target_ref_id)
-            source_spec = node_specs.get(source_ref_id)
-            target_spec = node_specs.get(target_ref_id)
-            if source_node is None or target_node is None or source_spec is None or target_spec is None:
-                return False
-            source_port = find_port(
-                node=source_node,
-                spec=source_spec,
-                workspace_nodes=fragment_nodes,
-                port_key=normalized_edge["source_port_key"],
-            )
-            target_port = find_port(
-                node=target_node,
-                spec=target_spec,
-                workspace_nodes=fragment_nodes,
-                port_key=normalized_edge["target_port_key"],
-            )
-            if source_port is None or target_port is None:
-                return False
-            if (
-                not port_supports_outgoing_edge(source_port)
-                or not port_supports_incoming_edge(target_port)
-                or target_port.locked
-            ):
-                return False
-            mutually_exclusive_group = mutually_exclusive_target_input_group(
-                str(target_spec.type_id),
-                normalized_edge["target_port_key"],
-            )
-            if mutually_exclusive_group is not None and (
-                target_ref_id,
-                mutually_exclusive_group,
-            ) in occupied_mutually_exclusive_target_groups:
-                return False
-            if not cls.accept_registry_edge(
-                RegistryEdgeResolution(
-                    source_node_id=source_ref_id,
-                    source_port_key=normalized_edge["source_port_key"],
-                    target_node_id=target_ref_id,
-                    target_port_key=normalized_edge["target_port_key"],
-                    source_port=source_port,
-                    target_port=target_port,
-                ),
-                seen_connections=seen_connections,
-                occupied_single_target_ports=occupied_single_target_ports,
-            ):
-                return False
-            if mutually_exclusive_group is not None:
-                occupied_mutually_exclusive_target_groups.add((target_ref_id, mutually_exclusive_group))
-        return True
-
     @classmethod
     def normalize_project_for_registry(cls, project: ProjectData, registry: NodeRegistry) -> None:
         """Normalize live graph content against the current registry."""
@@ -664,7 +589,7 @@ class ValidatedGraphMutation:
             properties=normalized_properties,
             authored_locked_ports=locked_ports,
         )
-        node = self.model.add_node(
+        node = self.model._add_node_record(
             self.workspace_id,
             type_id=type_id,
             title=normalized_title,
@@ -724,7 +649,7 @@ class ValidatedGraphMutation:
             target_node_id=target_node_id,
             target_port_key=target_port_key,
         )
-        return self.model.add_edge(
+        return self.model._add_edge_record(
             self.workspace_id,
             source_node_id=source_node_id,
             source_port_key=source_port_key,
@@ -754,7 +679,7 @@ class ValidatedGraphMutation:
         normalized = self.registry.normalize_property_value(node.type_id, key, value)
         if key in node.properties and node.properties[key] == normalized:
             return normalized
-        self.model.set_node_property(self.workspace_id, node_id, key, normalized)
+        self.model._set_node_property_record(self.workspace_id, node_id, key, normalized)
         affected_node_ids: set[str] = set()
         if self._auto_lock_property_port_if_needed(node, key):
             affected_node_ids.add(node.node_id)
@@ -781,7 +706,7 @@ class ValidatedGraphMutation:
         if not normalized_updates:
             return {}
         for key, normalized in normalized_updates.items():
-            self.model.set_node_property(self.workspace_id, node_id, key, normalized)
+            self.model._set_node_property_record(self.workspace_id, node_id, key, normalized)
         affected_node_ids: set[str] = set()
         auto_locked_any = False
         for key in normalized_updates:
@@ -801,7 +726,7 @@ class ValidatedGraphMutation:
             return False
         if key in node.exposed_ports and bool(node.exposed_ports[key]) == normalized_exposed:
             return False
-        self.model.set_exposed_port(self.workspace_id, node_id, key, normalized_exposed)
+        self.model._set_exposed_port_record(self.workspace_id, node_id, key, normalized_exposed)
         if not normalized_exposed:
             self._prune_edges_for_nodes({node_id})
         return True
@@ -832,43 +757,6 @@ class ValidatedGraphMutation:
         view_state.hide_optional_ports = normalized
         self.workspace.dirty = True
         return True
-
-    def set_port_label(self, node_id: str, port_key: str, label: str) -> None:
-        self.model.set_port_label(self.workspace_id, node_id, port_key, label)
-
-    def remove_edge(self, edge_id: str) -> None:
-        self.model.remove_edge(self.workspace_id, edge_id)
-
-    def remove_node(self, node_id: str) -> None:
-        self.model.remove_node(self.workspace_id, node_id)
-
-    def set_node_collapsed(self, node_id: str, collapsed: bool) -> None:
-        self.model.set_node_collapsed(self.workspace_id, node_id, collapsed)
-
-    def set_node_position(self, node_id: str, x: float, y: float) -> None:
-        self.model.set_node_position(self.workspace_id, node_id, x, y)
-
-    def set_node_geometry(
-        self,
-        node_id: str,
-        x: float,
-        y: float,
-        width: float | None,
-        height: float | None,
-    ) -> None:
-        self.model.set_node_geometry(self.workspace_id, node_id, x, y, width, height)
-
-    def set_node_title(self, node_id: str, title: str) -> None:
-        self.model.set_node_title(self.workspace_id, node_id, title)
-
-    def set_node_visual_style(self, node_id: str, visual_style: dict[str, object] | None) -> None:
-        self.model.set_node_visual_style(self.workspace_id, node_id, None if visual_style is None else dict(visual_style))
-
-    def set_edge_label(self, edge_id: str, label: str) -> None:
-        self.model.set_edge_label(self.workspace_id, edge_id, label)
-
-    def set_edge_visual_style(self, edge_id: str, visual_style: dict[str, object] | None) -> None:
-        self.model.set_edge_visual_style(self.workspace_id, edge_id, None if visual_style is None else dict(visual_style))
 
     def _resolved_port(self, node_id: str, port_key: str) -> tuple[NodeInstance, NodeTypeSpec, EffectivePort]:
         return self.kernel._resolved_port(node_id, port_key)
@@ -1019,17 +907,6 @@ def resolve_registry_nodes(
     return GraphInvariantKernel(registry=registry, workspace_nodes=workspace_nodes).resolve_registry_nodes()
 
 
-def normalized_exposed_ports(
-    resolution: RegistryNodeResolution,
-    *,
-    workspace_nodes: dict[str, NodeInstance],
-) -> dict[str, bool]:
-    return GraphInvariantKernel(
-        registry=NodeRegistry(),
-        workspace_nodes=workspace_nodes,
-    ).normalized_exposed_ports(resolution)
-
-
 def validate_registry_edge(
     *,
     source_node_id: str,
@@ -1074,3 +951,24 @@ def accept_registry_edge(
 
 def normalize_project_for_registry(project: ProjectData, registry: NodeRegistry) -> None:
     GraphInvariantKernel.normalize_project_for_registry(project, registry)
+
+
+__all__ = [
+    "GRAPH_FRAGMENT_KIND",
+    "GRAPH_FRAGMENT_VERSION",
+    "LOCKED_TARGET_PORT_MESSAGE",
+    "GraphInvariantKernel",
+    "RegistryEdgeResolution",
+    "RegistryNodeResolution",
+    "ValidatedGraphMutation",
+    "accept_registry_edge",
+    "build_graph_fragment_payload",
+    "fragment_node_from_payload",
+    "graph_fragment_payload_is_valid",
+    "normalize_edge_label",
+    "normalize_graph_fragment_payload",
+    "normalize_project_for_registry",
+    "normalize_visual_style_payload",
+    "resolve_registry_nodes",
+    "validate_registry_edge",
+]
