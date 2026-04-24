@@ -95,6 +95,10 @@ class GraphCanvasPresenter(QObject):
     def set_snap_to_grid_enabled(self, enabled: bool) -> None:
         self._host.search_scope_controller.set_snap_to_grid_enabled(enabled)
 
+    def request_toggle_snap_to_grid(self) -> bool:
+        self.set_snap_to_grid_enabled(not self._host.search_scope_state.snap_to_grid_enabled)
+        return bool(self._host.search_scope_state.snap_to_grid_enabled)
+
     def set_graphics_minimap_expanded(self, expanded: bool) -> None:
         self._host.search_scope_controller.set_graphics_minimap_expanded(expanded)
 

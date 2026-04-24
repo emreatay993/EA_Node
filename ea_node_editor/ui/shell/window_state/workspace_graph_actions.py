@@ -4,14 +4,7 @@ import inspect
 from typing import TYPE_CHECKING, Any
 
 from PyQt6.QtCore import pyqtSlot
-from PyQt6.QtWidgets import QFileDialog, QInputDialog
 
-from ea_node_editor.graph.file_issue_state import (
-    EXTERNAL_LINK_MODE,
-    MANAGED_COPY_MODE,
-    preferred_repair_mode_for_value,
-    repair_modes_for_node_property,
-)
 from ea_node_editor.ui.pdf_preview_provider import (
     describe_pdf_preview as build_pdf_preview_description,
 )
@@ -118,13 +111,7 @@ def request_remove_edge(self: "ShellWindow", edge_id: str) -> bool:
 
 @pyqtSlot(str, result=bool)
 def request_ungroup_node(self: "ShellWindow", node_id: str) -> bool:
-    if not node_id:
-        return False
-    scene = self.scene
-    if scene is None:
-        return False
-    scene.select_node(node_id)
-    return self.request_ungroup_selected_nodes()
+    return bool(self.workspace_library_controller.request_ungroup_node(node_id).payload)
 
 
 @pyqtSlot(str, result=bool)
@@ -198,53 +185,12 @@ def _repair_property_path_dialog(
     property_label: str,
     current_path: str,
 ) -> str:
-    repair_modes = repair_modes_for_node_property(node_type_id, property_key)
-    normalized_label = str(property_label or "").strip() or "File"
-    normalized_current_path = str(current_path or "").strip()
-    if not repair_modes:
-        return self.shell_host_presenter.browse_property_path_dialog(normalized_label, normalized_current_path)
-
-    selected_mode = repair_modes[0]
-    if len(repair_modes) > 1:
-        metadata = self.model.project.metadata
-        default_mode = preferred_repair_mode_for_value(
-            normalized_current_path,
-            project_path=str(self.project_path or "").strip() or None,
-            project_metadata=dict(metadata) if isinstance(metadata, dict) else None,
-            fallback_mode=self.app_preferences_controller.source_import_mode(),
-            allowed_modes=repair_modes,
-        )
-        options = ["Managed Copy", "External Link"]
-        default_index = 0 if default_mode == MANAGED_COPY_MODE else 1
-        selection, accepted = QInputDialog.getItem(
-            self,
-            "Repair file...",
-            f"Store repaired {normalized_label.lower()} as:",
-            options,
-            default_index,
-            False,
-        )
-        if not accepted:
-            return ""
-        selected_mode = MANAGED_COPY_MODE if str(selection or "").strip() == options[0] else EXTERNAL_LINK_MODE
-
-    selected_path, _selected_filter = QFileDialog.getOpenFileName(
-        self,
-        f"Repair {normalized_label}",
-        self.shell_host_presenter._path_dialog_start_path(normalized_current_path),
+    return self.shell_host_presenter.repair_property_path_dialog(
+        node_type_id=node_type_id,
+        property_key=property_key,
+        property_label=property_label,
+        current_path=current_path,
     )
-    normalized_selected_path = str(selected_path or "").strip()
-    if not normalized_selected_path:
-        return ""
-    if selected_mode == EXTERNAL_LINK_MODE:
-        return normalized_selected_path
-
-    managed_ref = self.shell_host_presenter._import_source_as_managed_copy(
-        property_label=normalized_label,
-        current_path=normalized_current_path,
-        selected_path=normalized_selected_path,
-    )
-    return managed_ref or normalized_selected_path
 
 
 @pyqtSlot(str, bool)
@@ -448,12 +394,7 @@ def _import_custom_workflow(self: "ShellWindow"):
 
 
 def _export_custom_workflow(self: "ShellWindow"):
-    controller = self.workspace_library_controller
-    package_io_controller = getattr(controller, "workspace_package_io_controller", None)
-    prompt_override = getattr(controller, "_prompt_custom_workflow_export_definition", None)
-    if package_io_controller is not None and callable(prompt_override):
-        package_io_controller._prompt_custom_workflow_export_definition = prompt_override
-    return controller.export_custom_workflow()
+    return self.workspace_library_controller.export_custom_workflow()
 
 
 def _import_node_package(self: "ShellWindow"):

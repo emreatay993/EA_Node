@@ -2,6 +2,43 @@ from __future__ import annotations
 
 from typing import Any, Iterable
 
+from ea_node_editor.graph.model import GraphModel
+from ea_node_editor.workspace.manager import WorkspaceManager
+
+
+class ShellWorkspaceManagerAdapter:
+    def __init__(self, manager: WorkspaceManager, model: GraphModel) -> None:
+        self._manager = manager
+        self._model = model
+
+    def __getattr__(self, name: str) -> object:
+        return getattr(self._manager, name)
+
+    def create_view(
+        self,
+        workspace_id: str,
+        name: str | None = None,
+        *,
+        source_view_id: str | None = None,
+    ) -> str:
+        return self._model.create_view(
+            workspace_id,
+            name=name,
+            source_view_id=source_view_id,
+        ).view_id
+
+    def set_active_view(self, workspace_id: str, view_id: str) -> None:
+        self._model.set_active_view(workspace_id, view_id)
+
+    def close_view(self, workspace_id: str, view_id: str) -> None:
+        self._model.close_view(workspace_id, view_id)
+
+    def rename_view(self, workspace_id: str, view_id: str, new_name: str) -> None:
+        self._model.rename_view(workspace_id, view_id, new_name)
+
+    def move_view(self, workspace_id: str, from_index: int, to_index: int) -> None:
+        self._model.move_view(workspace_id, from_index, to_index)
+
 
 def next_workspace_tab_index(count: int, current_index: int, offset: int) -> int | None:
     if count <= 0:

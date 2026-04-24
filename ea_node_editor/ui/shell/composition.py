@@ -7,13 +7,18 @@ from PyQt6.QtCore import QObject, QTimer, Qt, pyqtProperty, pyqtSignal, pyqtSlot
 from PyQt6.QtQuickWidgets import QQuickWidget
 from PyQt6.QtWidgets import QMessageBox
 
+from ea_node_editor.execution.client import ProcessExecutionClient
 from ea_node_editor.graph.model import GraphModel, ProjectData
 from ea_node_editor.graph.mutation_service import create_workspace_mutation_service
 from ea_node_editor.help.help_bridge import HelpBridge
 from ea_node_editor.nodes.bootstrap import build_default_registry
 from ea_node_editor.nodes.registry import NodeRegistry
 from ea_node_editor.persistence.serializer import JsonProjectSerializer
-from ea_node_editor.settings import AUTOSAVE_INTERVAL_MS, DEFAULT_GRAPHICS_SETTINGS
+from ea_node_editor.persistence.session_store import SessionAutosaveStore
+from ea_node_editor.settings import (
+    AUTOSAVE_INTERVAL_MS,
+    DEFAULT_GRAPHICS_SETTINGS,
+)
 from ea_node_editor.telemetry.frame_rate import FrameRateSampler
 from ea_node_editor.telemetry.startup_profile import phase
 from ea_node_editor.ui.app_icon import apply_window_icon
@@ -23,6 +28,7 @@ from ea_node_editor.ui.icon_registry import UiIconImageProvider, UiIconRegistryB
 from ea_node_editor.ui.media_preview_provider import LocalMediaPreviewImageProvider
 from ea_node_editor.ui.pdf_preview_provider import LocalPdfPreviewImageProvider
 from ea_node_editor.ui.shell.controllers import (
+    AddonManagerController,
     AppPreferencesController,
     ProjectSessionController,
     RunController,
@@ -41,6 +47,7 @@ from ea_node_editor.ui.shell.presenters import (
 )
 from ea_node_editor.ui.shell.runtime_history import RuntimeGraphHistory
 from ea_node_editor.ui.shell.state import ShellState
+from ea_node_editor.ui.shell.workspace_flow import ShellWorkspaceManagerAdapter
 from ea_node_editor.ui.shell.window_search_scope_state import WindowSearchScopeController
 from ea_node_editor.ui_qml.console_model import ConsoleModel
 from ea_node_editor.ui_qml.content_fullscreen_bridge import ContentFullscreenBridge
@@ -152,34 +159,41 @@ class _GraphCanvasHostPresenterHostAdapter(_ShellWindowAdapterBase):
 class AddonManagerBridge(QObject):
     state_changed = pyqtSignal(name="stateChanged")
 
-    def __init__(self, host: "ShellWindow", *, parent: QObject | None = None) -> None:
+    def __init__(
+        self,
+        host: "ShellWindow",
+        *,
+        controller: AddonManagerController,
+        parent: QObject | None = None,
+    ) -> None:
         super().__init__(parent or host)
         self._host = host
+        self._controller = controller
         host.addon_manager_request_changed.connect(self.state_changed.emit)
 
     @pyqtProperty(bool, notify=state_changed)
     def open(self) -> bool:
-        return bool(self._host.addon_manager_open)
+        return self._controller.open
 
     @pyqtProperty(str, notify=state_changed)
     def focusAddonId(self) -> str:
-        return str(self._host.addon_manager_focus_addon_id)
+        return self._controller.focus_addon_id
 
     @pyqtProperty(int, notify=state_changed)
     def requestSerial(self) -> int:
-        return int(self._host.addon_manager_request_serial)
+        return self._controller.request_serial
 
     @pyqtProperty("QVariantMap", notify=state_changed)
     def request(self) -> dict[str, object]:
-        return self._host.addon_manager_request_snapshot()
+        return self._controller.snapshot()
 
     @pyqtSlot()
     def requestClose(self) -> None:
-        self._host.request_close_addon_manager()
+        self._controller.request_close()
 
     @pyqtSlot(str)
     def requestOpen(self, focus_addon_id: str = "") -> None:
-        self._host.request_open_addon_manager(focus_addon_id)
+        self._controller.request_open(focus_addon_id)
 
 
 @dataclass(frozen=True, slots=True)
@@ -261,6 +275,7 @@ class ShellPrimitiveDependencies:
 @dataclass(frozen=True, slots=True)
 class ShellControllerDependencies:
     search_scope_controller: WindowSearchScopeController
+    addon_manager_controller: AddonManagerController
     workspace_library_controller: WorkspaceLibraryController
     graph_action_controller: GraphActionController
     project_session_controller: ProjectSessionController
@@ -270,6 +285,7 @@ class ShellControllerDependencies:
 
     def attach(self, host: "ShellWindow") -> None:
         host.search_scope_controller = self.search_scope_controller
+        host.addon_manager_controller = self.addon_manager_controller
         host.workspace_library_controller = self.workspace_library_controller
         host.workflow_library_controller = self.workspace_library_controller.workflow_library_controller
         host.workspace_navigation_controller = self.workspace_library_controller.workspace_navigation_controller
@@ -530,6 +546,30 @@ def _create_shell_state_dependencies() -> ShellStateDependencies:
     )
 
 
+def _create_shell_session_store(serializer: Any) -> SessionAutosaveStore:
+    return SessionAutosaveStore(
+        serializer=serializer,
+        session_path_provider=_recent_session_path,
+        autosave_path_provider=_autosave_project_path,
+    )
+
+
+def _create_shell_execution_client() -> ProcessExecutionClient:
+    return ProcessExecutionClient()
+
+
+def _recent_session_path():
+    from ea_node_editor.ui.shell import window as shell_window_module
+
+    return shell_window_module.recent_session_path()
+
+
+def _autosave_project_path():
+    from ea_node_editor.ui.shell import window as shell_window_module
+
+    return shell_window_module.autosave_project_path()
+
+
 def _create_shell_primitive_dependencies(
     host: "ShellWindow",
     state: ShellStateDependencies,
@@ -543,14 +583,14 @@ def _create_shell_primitive_dependencies(
     with phase("prim.JsonProjectSerializer"):
         serializer = JsonProjectSerializer(registry)
     with phase("prim.session_store"):
-        session_store = host._create_session_store(serializer)
+        session_store = _create_shell_session_store(serializer)
     with phase("prim.GraphModel"):
         model = GraphModel(
             ProjectData(project_id="proj_local", name="untitled"),
             mutation_service_factory=create_workspace_mutation_service,
         )
     with phase("prim.WorkspaceManager"):
-        workspace_manager = WorkspaceManager(model)
+        workspace_manager = ShellWorkspaceManagerAdapter(WorkspaceManager(model), model)
     with phase("prim.RuntimeGraphHistory"):
         runtime_history = RuntimeGraphHistory()
     with phase("prim.GraphSceneBridge"):
@@ -632,6 +672,7 @@ def _create_shell_controller_dependencies(
     preferences_document: Any = None,
 ) -> ShellControllerDependencies:
     search_scope_controller = WindowSearchScopeController(host, state.search_scope_state)
+    addon_manager_controller = AddonManagerController(host)
     workspace_library_controller = WorkspaceLibraryController(_WorkspaceLibraryControllerHostAdapter(host))
     graph_action_controller = GraphActionController(
         workspace_library_controller=workspace_library_controller,
@@ -640,11 +681,12 @@ def _create_shell_controller_dependencies(
     project_session_controller = ProjectSessionController(_ProjectSessionControllerHostAdapter(host))
     run_controller = RunController(_RunControllerHostAdapter(host))
     app_preferences_controller = AppPreferencesController(preloaded_document=preferences_document)
-    execution_client = host._create_execution_client()
+    execution_client = _create_shell_execution_client()
     execution_client.subscribe(host.execution_event.emit)
     host.execution_event.connect(host._handle_execution_event, Qt.ConnectionType.QueuedConnection)
     return ShellControllerDependencies(
         search_scope_controller=search_scope_controller,
+        addon_manager_controller=addon_manager_controller,
         workspace_library_controller=workspace_library_controller,
         graph_action_controller=graph_action_controller,
         project_session_controller=project_session_controller,
@@ -764,7 +806,11 @@ def _create_shell_context_bridge_dependencies(
         ),
     )
     help_bridge = HelpBridge(host, shell_window=host)
-    addon_manager_bridge = AddonManagerBridge(host, parent=host)
+    addon_manager_bridge = AddonManagerBridge(
+        host,
+        controller=controllers.addon_manager_controller,
+        parent=host,
+    )
     controllers.graph_action_controller.bind_sources(
         workspace_library_controller=controllers.workspace_library_controller,
         workspace_graph_edit_controller=controllers.workspace_library_controller.workspace_graph_edit_controller,

@@ -483,6 +483,21 @@ class ShellWindowStateFacadeBoundaryTests(unittest.TestCase):
             )
         )
 
+    def test_shell_window_leaves_dependency_creation_in_composition_root(self) -> None:
+        shell_window_source = (_REPO_ROOT / "ea_node_editor" / "ui" / "shell" / "window.py").read_text(
+            encoding="utf-8"
+        )
+        composition_source = (_REPO_ROOT / "ea_node_editor" / "ui" / "shell" / "composition.py").read_text(
+            encoding="utf-8"
+        )
+
+        self.assertNotIn("ProcessExecutionClient", shell_window_source)
+        self.assertNotIn("SessionAutosaveStore", shell_window_source)
+        self.assertNotIn("def _create_execution_client", shell_window_source)
+        self.assertNotIn("def _create_session_store", shell_window_source)
+        self.assertIn("ProcessExecutionClient", composition_source)
+        self.assertIn("SessionAutosaveStore", composition_source)
+
 
 class MainWindowBridgeContractPacketBoundaryTests(unittest.TestCase):
     def test_bridge_contracts_entrypoint_stays_thin_and_routes_suites_through_packet_modules(self) -> None:
@@ -1615,6 +1630,27 @@ class MainWindowShellHostFacadeDelegationTests(SharedMainWindowShellTestBase):
         set_cursor_mock.assert_called_once_with(3)
         edit_passive_style_mock.assert_called_once_with("node-1")
         self.assertTrue(result)
+
+    def test_shell_window_addon_and_run_facades_delegate_to_owning_controllers(self) -> None:
+        with (
+            patch.object(self.window.addon_manager_controller, "request_open") as open_addon_mock,
+            patch.object(self.window.addon_manager_controller, "request_close") as close_addon_mock,
+            patch.object(self.window.run_controller, "mark_node_execution_running") as mark_running_mock,
+            patch.object(self.window.run_controller, "clear_node_execution_visualization_state") as clear_execution_mock,
+        ):
+            self.window.request_open_addon_manager("ansys.dpf")
+            self.window.request_close_addon_manager()
+            self.window.mark_node_execution_running("workspace-1", "node-1", started_at_epoch_ms=12.5)
+            self.window.clear_node_execution_visualization_state()
+
+        open_addon_mock.assert_called_once_with("ansys.dpf")
+        close_addon_mock.assert_called_once_with()
+        mark_running_mock.assert_called_once_with(
+            "workspace-1",
+            "node-1",
+            started_at_epoch_ms=12.5,
+        )
+        clear_execution_mock.assert_called_once_with()
 
 
 def load_tests(loader: unittest.TestLoader, _tests, _pattern):  # noqa: ANN001

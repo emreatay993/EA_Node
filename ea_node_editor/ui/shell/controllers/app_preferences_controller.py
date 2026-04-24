@@ -104,6 +104,51 @@ class AppPreferencesController:
         merged = merge_defaults(updates, current)
         return self.set_graphics_settings(merged, host=host)
 
+    def set_graphics_show_port_labels(self, show_port_labels: bool, *, host: ShellWindow | None = None) -> dict[str, Any]:
+        return self.update_graphics_settings(
+            {"canvas": {"show_port_labels": bool(show_port_labels)}},
+            host=host,
+        )
+
+    def set_graphics_show_tooltips(self, show_tooltips: bool, *, host: ShellWindow | None = None) -> dict[str, Any]:
+        return self.update_graphics_settings(
+            {"shell": {"show_tooltips": bool(show_tooltips)}},
+            host=host,
+        )
+
+    def set_graphics_performance_mode(self, mode: str, *, host: ShellWindow | None = None) -> dict[str, Any]:
+        return self.update_graphics_settings(
+            {"performance": {"mode": mode}},
+            host=host,
+        )
+
+    def set_graphics_floating_toolbar_style(self, style: str, *, host: ShellWindow | None = None) -> dict[str, Any]:
+        return self.update_graphics_settings(
+            {"canvas": {"floating_toolbar_style": str(style)}},
+            host=host,
+        )
+
+    def set_graphics_floating_toolbar_size(self, size: str, *, host: ShellWindow | None = None) -> dict[str, Any]:
+        return self.update_graphics_settings(
+            {"canvas": {"floating_toolbar_size": str(size)}},
+            host=host,
+        )
+
+    def set_graphics_expand_collision_avoidance(
+        self,
+        settings: Any,
+        *,
+        host: ShellWindow | None = None,
+    ) -> dict[str, Any]:
+        return self.update_graphics_settings(
+            {
+                "interaction": {
+                    "expand_collision_avoidance": normalize_expand_collision_avoidance_settings(settings),
+                }
+            },
+            host=host,
+        )
+
     def set_source_import_mode(self, mode: Any) -> str:
         document = self._ensure_document()
         document["source_import"] = normalize_source_import_settings({"default_mode": mode})

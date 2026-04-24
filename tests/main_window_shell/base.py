@@ -86,7 +86,7 @@ class MainWindowShellTestBase(unittest.TestCase):
         self._env = ShellTestEnvironment()
         self._env.start()
         self._execution_client_patch = patch(
-            "ea_node_editor.ui.shell.window.ProcessExecutionClient",
+            "ea_node_editor.ui.shell.composition.ProcessExecutionClient",
             _ShellTestExecutionClient,
         )
         self._execution_client_patch.start()
@@ -224,7 +224,7 @@ class SharedMainWindowShellTestBase(MainWindowShellTestBase):
         cls._shared_env = ShellTestEnvironment()
         cls._shared_env.start()
         cls._shared_execution_client_patch = patch(
-            "ea_node_editor.ui.shell.window.ProcessExecutionClient",
+            "ea_node_editor.ui.shell.composition.ProcessExecutionClient",
             _ShellTestExecutionClient,
         )
         cls._shared_execution_client_patch.start()
@@ -313,7 +313,7 @@ class SharedMainWindowShellTestBase(MainWindowShellTestBase):
             except FileNotFoundError:
                 pass
 
-        window.app_preferences_controller.load_into_host(window)
+        window.app_preferences_controller.load_into_host(window, reload_from_store=True)
         window._new_project()
         window._clear_recent_projects()
         window._frame_rate_sampler = FrameRateSampler()

@@ -8,12 +8,10 @@ from PyQt6.QtQuick import QQuickWindow, QSGRendererInterface
 from PyQt6.QtQuickWidgets import QQuickWidget
 from PyQt6.QtWidgets import QApplication, QFileDialog, QMainWindow
 
-from ea_node_editor.execution.client import ProcessExecutionClient
 from ea_node_editor.nodes.builtins.subnode import (
     SUBNODE_INPUT_TYPE_ID,
     SUBNODE_OUTPUT_TYPE_ID,
 )
-from ea_node_editor.persistence.session_store import SessionAutosaveStore
 from ea_node_editor.settings import DEFAULT_GRAPHICS_SETTINGS, autosave_project_path, recent_session_path
 from ea_node_editor.ui.shell import window_state_helpers as state_helpers
 from ea_node_editor.ui.shell.composition import (
@@ -35,6 +33,7 @@ def _configure_qtquick_backend() -> None:
         return
     os.environ.setdefault("QT_QUICK_BACKEND", "software")
     os.environ.setdefault("QSG_RHI_BACKEND", "software")
+    os.environ.setdefault("QT_QUICK_CONTROLS_STYLE", "Basic")
     QQuickWindow.setGraphicsApi(QSGRendererInterface.GraphicsApi.Software)
 
 
@@ -53,15 +52,15 @@ def _qt_addon_manager_request(self: "ShellWindow") -> dict[str, Any]:
 
 
 def _qt_addon_manager_open(self: "ShellWindow") -> bool:
-    return bool(self._addon_manager_open)
+    return bool(self.addon_manager_request_snapshot().get("open", False))
 
 
 def _qt_addon_manager_focus_addon_id(self: "ShellWindow") -> str:
-    return str(self._addon_manager_focus_addon_id)
+    return str(self.addon_manager_request_snapshot().get("focus_addon_id", ""))
 
 
 def _qt_addon_manager_request_serial(self: "ShellWindow") -> int:
-    return int(self._addon_manager_request_serial)
+    return int(self.addon_manager_request_snapshot().get("request_serial", 0))
 
 
 class ShellWindow(QMainWindow):
@@ -504,9 +503,6 @@ class ShellWindow(QMainWindow):
         self._viewer_window_active = True
         self._application_state_signal_connected = False
         self._shell_teardown_started = False
-        self._addon_manager_open = False
-        self._addon_manager_focus_addon_id = ""
-        self._addon_manager_request_serial = 0
         self.tooltip_manager = TooltipManager(
             info_tooltips_enabled=bool(DEFAULT_GRAPHICS_SETTINGS["shell"]["show_tooltips"])
         )
@@ -517,29 +513,13 @@ class ShellWindow(QMainWindow):
         self._connect_application_state_signal()
 
     def addon_manager_request_snapshot(self) -> dict[str, Any]:
-        return {
-            "open": bool(self._addon_manager_open),
-            "focus_addon_id": str(self._addon_manager_focus_addon_id),
-            "request_serial": int(self._addon_manager_request_serial),
-        }
+        return self.addon_manager_controller.snapshot()
 
     def request_open_addon_manager(self, focus_addon_id: str | None = None) -> None:
-        normalized_focus_addon_id = str(focus_addon_id or "").strip()
-        self._addon_manager_open = True
-        self._addon_manager_focus_addon_id = normalized_focus_addon_id
-        self._addon_manager_request_serial += 1
-        self.addon_manager_request_changed.emit()
+        self.addon_manager_controller.request_open(focus_addon_id)
 
     def request_close_addon_manager(self) -> None:
-        if (
-            not self._addon_manager_open
-            and not self._addon_manager_focus_addon_id
-            and self._addon_manager_request_serial == 0
-        ):
-            return
-        self._addon_manager_open = False
-        self._addon_manager_focus_addon_id = ""
-        self.addon_manager_request_changed.emit()
+        self.addon_manager_controller.request_close()
 
     @property
     def embedded_viewer_overlay_manager(self) -> EmbeddedViewerOverlayManager | None:
@@ -602,16 +582,6 @@ class ShellWindow(QMainWindow):
         self.script_editor.script_apply_requested.connect(self._on_node_property_changed)
         self.workspace_tabs.current_index_changed.connect(self._on_workspace_tab_changed)
         self.project_meta_changed.connect(self._on_project_meta_changed)
-
-    def _create_session_store(self, serializer: Any) -> SessionAutosaveStore:
-        return SessionAutosaveStore(
-            serializer=serializer,
-            session_path_provider=recent_session_path,
-            autosave_path_provider=autosave_project_path,
-        )
-
-    def _create_execution_client(self):
-        return ProcessExecutionClient()
 
     def _reset_viewer_session_bridge(self, *, reason: str) -> None:
         host_service = getattr(self, "viewer_host_service", None)

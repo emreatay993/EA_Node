@@ -53,28 +53,15 @@ def _show_project_files(self: "ShellWindow"):
 
 
 def _new_project(self: "ShellWindow"):
-    self.project_session_controller.new_project()
-    self.clear_run_failure_focus()
-    self._reset_viewer_session_bridge(reason="project_close")
-    return None
+    return self.project_session_controller.new_project()
 
 
 def _open_project(self: "ShellWindow"):
-    before_project_path = self.project_path
-    before_project_object_id = id(self.model.project)
-    self.project_session_controller.open_project()
-    if self.project_path != before_project_path or id(self.model.project) != before_project_object_id:
-        self.clear_run_failure_focus()
-        self._reset_viewer_session_bridge(reason="project_close")
-    return None
+    return self.project_session_controller.open_project()
 
 
 def _open_project_path(self: "ShellWindow", path):
-    opened = bool(self.project_session_controller.open_project_path(path))
-    if opened:
-        self.clear_run_failure_focus()
-        self._reset_viewer_session_bridge(reason="project_close")
-    return opened
+    return self.project_session_controller.open_project_path(path)
 
 
 def _clear_recent_projects(self: "ShellWindow"):
