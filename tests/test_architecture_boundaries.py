@@ -99,7 +99,46 @@ def function_args(method: ast.FunctionDef) -> set[str]:
     return {arg.arg for arg in (*method.args.args, *method.args.kwonlyargs)}
 
 
+def declared_python_names(tree: ast.AST) -> set[str]:
+    names: set[str] = set()
+    for node in ast.walk(tree):
+        if isinstance(node, (ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef)):
+            names.add(node.name)
+        elif isinstance(node, ast.Assign):
+            for target in node.targets:
+                if isinstance(target, ast.Name):
+                    names.add(target.id)
+        elif isinstance(node, ast.AnnAssign) and isinstance(node.target, ast.Name):
+            names.add(node.target.id)
+    return names
+
+
 class GraphArchitectureBoundaryTests(unittest.TestCase):
+    def test_corex_no_legacy_guardrail_inventory_matches_current_source_anchors(self) -> None:
+        for surface in manifest.COREX_NO_LEGACY_GUARDRAIL_INVENTORY:
+            source_path = REPO_ROOT / surface.path
+            with self.subTest(category=surface.category, path=surface.path):
+                self.assertTrue(source_path.is_file())
+                if source_path.suffix == ".py":
+                    text_names = declared_python_names(parse_module(surface.path))
+                    source_text = ""
+                else:
+                    text_names = set()
+                    source_text = source_path.read_text(encoding="utf-8")
+
+                if surface.expectation == manifest.COREX_NO_LEGACY_GUARDRAIL_PRESENT:
+                    if source_path.suffix == ".py":
+                        self.assertTrue(set(surface.names) <= text_names)
+                    else:
+                        for name in surface.names:
+                            self.assertIn(name, source_text)
+                elif surface.expectation == manifest.COREX_NO_LEGACY_GUARDRAIL_ABSENT:
+                    source_text = source_path.read_text(encoding="utf-8")
+                    for name in surface.names:
+                        self.assertNotIn(name, source_text)
+                else:
+                    self.fail(f"Unknown no-legacy guardrail expectation: {surface.expectation!r}")
+
     def test_graph_mutation_service_uses_graph_owned_boundary_adapters(self) -> None:
         tree = parse_module("ea_node_editor/graph/mutation_service.py")
         imports = imported_modules(tree)

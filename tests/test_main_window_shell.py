@@ -1002,7 +1002,6 @@ class GraphCanvasQmlBoundaryTests(unittest.TestCase):
             "readonly property var canvasViewBridgeRef",
             "readonly property var _canvasStateBridgeRef",
             "readonly property var _canvasSceneStateBridgeRef",
-            "readonly property var _legacyCanvasViewBridgeRef",
             "readonly property var _canvasViewStateBridgeRef",
             "readonly property var _canvasShellCommandBridgeRef",
             "readonly property var _canvasSceneCommandBridgeRef",
@@ -1039,6 +1038,9 @@ class GraphCanvasQmlBoundaryTests(unittest.TestCase):
             "viewStateBridge: root._canvasViewStateBridgeRef",
             "viewCommandBridge: root._canvasViewCommandBridgeRef",
         )
+        p02_pre_cleanup_anchor_snippets = (
+            "readonly property var _legacyCanvasViewBridgeRef",
+        )
 
         _assert_text_snippets(
             self,
@@ -1047,6 +1049,9 @@ class GraphCanvasQmlBoundaryTests(unittest.TestCase):
             absent_snippets=absent_snippets,
             present_snippets=present_snippets,
         )
+        for snippet in p02_pre_cleanup_anchor_snippets:
+            with self.subTest(path=relative_path, snippet=snippet, owner_packet="P02"):
+                self.assertIn(snippet, qml_text)
 
     def test_node_execution_canvas_properties_bind_only_to_state_bridge_execution_contract(self) -> None:
         relative_path = "ea_node_editor/ui_qml/components/GraphCanvas.qml"

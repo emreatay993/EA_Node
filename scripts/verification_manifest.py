@@ -263,6 +263,126 @@ class DocumentRule:
     forbidden: tuple[str, ...] = ()
 
 
+@dataclass(frozen=True)
+class NoLegacyGuardrailSurface:
+    """One future-packet-owned compatibility surface tracked by P01 guardrails."""
+
+    category: str
+    owner_packet: str
+    path: str
+    names: tuple[str, ...]
+    expectation: str
+
+
+COREX_NO_LEGACY_GUARDRAIL_PRESENT = "present"
+COREX_NO_LEGACY_GUARDRAIL_ABSENT = "absent"
+COREX_NO_LEGACY_ARCHITECTURE_CLEANUP_WRAPUP_DOC = (
+    "docs/specs/work_packets/corex_no_legacy_architecture_cleanup/"
+    "P01_no_legacy_guardrails_WRAPUP.md"
+)
+COREX_NO_LEGACY_REQUIRED_GUARDRAIL_CATEGORIES = (
+    "graph_canvas_bridge_wrapper",
+    "graph_canvas_qml_compat_aliases",
+    "graph_canvas_qml_legacy_view_alias",
+    "legacy_plugin_class_probing",
+    "old_project_schema_compatibility",
+    "old_preference_schema_compatibility",
+    "telemetry_import_shim",
+    "package_lazy_import_shims",
+    "runtime_project_doc_trigger_compatibility",
+    "runtime_project_path_rebuild",
+)
+COREX_NO_LEGACY_GUARDRAIL_OWNER_PACKETS = {
+    "graph_canvas_bridge_wrapper": "P02",
+    "graph_canvas_qml_compat_aliases": "P02",
+    "graph_canvas_qml_legacy_view_alias": "P02",
+    "legacy_plugin_class_probing": "P10",
+    "old_project_schema_compatibility": "P06",
+    "old_preference_schema_compatibility": "P06",
+    "telemetry_import_shim": "P13",
+    "package_lazy_import_shims": "P13",
+    "runtime_project_doc_trigger_compatibility": "P11",
+    "runtime_project_path_rebuild": "P11",
+}
+COREX_NO_LEGACY_GUARDRAIL_INVENTORY = (
+    NoLegacyGuardrailSurface(
+        category="graph_canvas_bridge_wrapper",
+        owner_packet="P02",
+        path="ea_node_editor/ui_qml/graph_canvas_bridge.py",
+        names=("GraphCanvasBridge",),
+        expectation=COREX_NO_LEGACY_GUARDRAIL_PRESENT,
+    ),
+    NoLegacyGuardrailSurface(
+        category="graph_canvas_qml_compat_aliases",
+        owner_packet="P02",
+        path="ea_node_editor/ui_qml/components/GraphCanvas.qml",
+        names=(
+            "_canvasShellCompatRef",
+            "_canvasSceneCompatRef",
+            "_canvasViewCompatRef",
+            "_canvasCompatBridgeRef",
+        ),
+        expectation=COREX_NO_LEGACY_GUARDRAIL_ABSENT,
+    ),
+    NoLegacyGuardrailSurface(
+        category="graph_canvas_qml_legacy_view_alias",
+        owner_packet="P02",
+        path="ea_node_editor/ui_qml/components/graph_canvas/GraphCanvasRootBindings.qml",
+        names=("_legacyCanvasViewBridgeRef",),
+        expectation=COREX_NO_LEGACY_GUARDRAIL_PRESENT,
+    ),
+    NoLegacyGuardrailSurface(
+        category="legacy_plugin_class_probing",
+        owner_packet="P10",
+        path="ea_node_editor/nodes/plugin_loader.py",
+        names=("_legacy_plugin_spec", "_register_plugin_classes"),
+        expectation=COREX_NO_LEGACY_GUARDRAIL_PRESENT,
+    ),
+    NoLegacyGuardrailSurface(
+        category="old_project_schema_compatibility",
+        owner_packet="P06",
+        path="ea_node_editor/persistence/migration.py",
+        names=("JsonProjectMigration", "migrate"),
+        expectation=COREX_NO_LEGACY_GUARDRAIL_PRESENT,
+    ),
+    NoLegacyGuardrailSurface(
+        category="old_preference_schema_compatibility",
+        owner_packet="P06",
+        path="ea_node_editor/app_preferences.py",
+        names=("_APP_PREFERENCES_MIGRATION_VERSION", "normalize_app_preferences_document"),
+        expectation=COREX_NO_LEGACY_GUARDRAIL_PRESENT,
+    ),
+    NoLegacyGuardrailSurface(
+        category="telemetry_import_shim",
+        owner_packet="P13",
+        path="ea_node_editor/telemetry/performance_harness.py",
+        names=("_IMPLEMENTATION_MODULE",),
+        expectation=COREX_NO_LEGACY_GUARDRAIL_PRESENT,
+    ),
+    NoLegacyGuardrailSurface(
+        category="package_lazy_import_shims",
+        owner_packet="P13",
+        path="ea_node_editor/persistence/__init__.py",
+        names=("__getattr__",),
+        expectation=COREX_NO_LEGACY_GUARDRAIL_PRESENT,
+    ),
+    NoLegacyGuardrailSurface(
+        category="runtime_project_doc_trigger_compatibility",
+        owner_packet="P11",
+        path="ea_node_editor/execution/runtime_snapshot.py",
+        names=("build_runtime_snapshot", "sanitize_execution_trigger"),
+        expectation=COREX_NO_LEGACY_GUARDRAIL_PRESENT,
+    ),
+    NoLegacyGuardrailSurface(
+        category="runtime_project_path_rebuild",
+        owner_packet="P11",
+        path="ea_node_editor/execution/worker_runtime.py",
+        names=("load_runtime_snapshot", "resolve_runtime_artifact_store"),
+        expectation=COREX_NO_LEGACY_GUARDRAIL_PRESENT,
+    ),
+)
+
+
 PYTEST_PHASE_SPECS = (
     PytestPhaseSpec(
         mode="fast",

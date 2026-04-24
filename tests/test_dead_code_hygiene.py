@@ -5,6 +5,8 @@ import re
 import unittest
 from pathlib import Path
 
+from scripts import verification_manifest as manifest
+
 _REPO_ROOT = Path(__file__).resolve().parents[1]
 
 
@@ -45,6 +47,17 @@ def _class_method_names(relative_path: str, class_name: str) -> set[str]:
     raise AssertionError(f"Class not found: {class_name}")
 
 
+def _qualified_name(node: ast.AST | None) -> str | None:
+    if isinstance(node, ast.Name):
+        return node.id
+    if isinstance(node, ast.Attribute):
+        parent = _qualified_name(node.value)
+        if parent is None:
+            return node.attr
+        return f"{parent}.{node.attr}"
+    return None
+
+
 def _assigned_call_names(relative_path: str) -> set[tuple[str, str]]:
     assignments: set[tuple[str, str]] = set()
     module_ast = _parse_module(relative_path)
@@ -53,11 +66,12 @@ def _assigned_call_names(relative_path: str) -> set[tuple[str, str]]:
             continue
         if not isinstance(node.value, ast.Call):
             continue
-        if not isinstance(node.value.func, ast.Name):
+        call_name = _qualified_name(node.value.func)
+        if call_name is None:
             continue
         for target in node.targets:
             if isinstance(target, ast.Name):
-                assignments.add((target.id, node.value.func.id))
+                assignments.add((target.id, call_name))
     return assignments
 
 
@@ -67,6 +81,28 @@ def _js_function_names(relative_path: str) -> set[str]:
 
 
 class DeadCodeHygienePythonHelperBoundaryTests(unittest.TestCase):
+    def test_corex_no_legacy_guardrail_inventory_is_future_packet_owned(self) -> None:
+        inventory = manifest.COREX_NO_LEGACY_GUARDRAIL_INVENTORY
+        categories = {surface.category for surface in inventory}
+        owners_by_category = {surface.category: surface.owner_packet for surface in inventory}
+
+        self.assertEqual(
+            categories,
+            set(manifest.COREX_NO_LEGACY_REQUIRED_GUARDRAIL_CATEGORIES),
+        )
+        self.assertEqual(owners_by_category, manifest.COREX_NO_LEGACY_GUARDRAIL_OWNER_PACKETS)
+        self.assertEqual(
+            len(inventory),
+            len({(surface.category, surface.path, surface.names) for surface in inventory}),
+        )
+        self.assertEqual(
+            {surface.expectation for surface in inventory},
+            {
+                manifest.COREX_NO_LEGACY_GUARDRAIL_PRESENT,
+                manifest.COREX_NO_LEGACY_GUARDRAIL_ABSENT,
+            },
+        )
+
     def test_removed_internal_helpers_do_not_reappear(self) -> None:
         expectations = {
             "ea_node_editor/execution/protocol.py": {"dict_to_event_type"},
@@ -123,7 +159,7 @@ class DeadCodeHygienePythonHelperBoundaryTests(unittest.TestCase):
         )
         self.assertNotIn("membership_candidate_size", payload_builder_functions)
         self.assertIn("membership_candidate_size", payload_factory_methods)
-        self.assertIn(("surface_metrics", "node_surface_metrics"), payload_builder_assignments)
+        self.assertIn(("surface_metrics", "self._surface_metrics"), payload_builder_assignments)
 
     def test_retired_context_sink_support_files_do_not_reappear(self) -> None:
         absent_paths = (

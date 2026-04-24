@@ -597,7 +597,6 @@ class GraphCanvasQmlBoundaryTests(unittest.TestCase):
             "readonly property var canvasViewBridgeRef",
             "readonly property var _canvasStateBridgeRef",
             "readonly property var _canvasSceneStateBridgeRef",
-            "readonly property var _legacyCanvasViewBridgeRef",
             "readonly property var _canvasViewStateBridgeRef",
             "readonly property var _canvasShellCommandBridgeRef",
             "readonly property var _canvasSceneCommandBridgeRef",
@@ -629,6 +628,9 @@ class GraphCanvasQmlBoundaryTests(unittest.TestCase):
             "viewStateBridge: root._canvasViewStateBridgeRef",
             "viewCommandBridge: root._canvasViewCommandBridgeRef",
         )
+        p02_pre_cleanup_anchor_snippets = (
+            "readonly property var _legacyCanvasViewBridgeRef",
+        )
 
         for snippet in absent_snippets:
             with self.subTest(snippet=snippet, expectation="absent"):
@@ -636,6 +638,10 @@ class GraphCanvasQmlBoundaryTests(unittest.TestCase):
 
         for snippet in present_snippets:
             with self.subTest(snippet=snippet, expectation="present"):
+                self.assertIn(snippet, qml_text)
+
+        for snippet in p02_pre_cleanup_anchor_snippets:
+            with self.subTest(snippet=snippet, expectation="present", owner_packet="P02"):
                 self.assertIn(snippet, qml_text)
 
     def test_graph_canvas_tooltip_qml_surfaces_bind_to_bridge_first_policy_and_preserve_inactive_explanations(

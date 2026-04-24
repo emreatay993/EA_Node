@@ -61,6 +61,7 @@ RETIRED_QML_COMMAND_BRIDGE_ACTION_SLOTS = {
     "request_duplicate_node",
     "request_wrap_selected_nodes_in_comment_backdrop",
 }
+P03_SHELL_GRAPH_ACTION_FACADE_ANCHOR = "P03"
 
 
 def _pyqt_graph_actions_from_contract() -> dict[str, GraphActionId]:
@@ -311,14 +312,14 @@ def test_pyqt_graph_menu_actions_are_mapped_to_contract() -> None:
     assert missing == set()
 
 
-def test_pyqt_graph_action_declarations_are_in_legacy_routes() -> None:
+def test_pyqt_graph_action_declarations_are_p03_pre_cleanup_route_aliases() -> None:
     assignments = _window_graph_action_contract_assignments()
     missing = {
         pyqt_action_name
         for pyqt_action_name, action_id in assignments.items()
         if pyqt_action_name not in graph_action_spec(action_id).legacy_route_names
     }
-    assert missing == set()
+    assert missing == set(), P03_SHELL_GRAPH_ACTION_FACADE_ANCHOR
 
 
 def test_required_payload_keys_are_declared_for_payload_actions() -> None:

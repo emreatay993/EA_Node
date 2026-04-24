@@ -14,6 +14,8 @@ from tests.main_window_shell.bridge_support import (
 
 pytestmark = pytest.mark.xdist_group("p03_bridge_contracts")
 
+P02_LEGACY_GRAPH_CANVAS_BRIDGE_PARITY_ANCHOR = "P02"
+
 
 class _GraphActionSource:
     def __init__(self) -> None:
@@ -146,6 +148,315 @@ class GraphCanvasBridgeTests(_GraphCanvasBridgeTests):
             [("request_edit_flow_edge_style", ("edge-2",))],
         )
 
+    def test_command_bridge_routes_canvas_commands_to_explicit_canvas_host_scene_and_view_sources(self) -> None:
+        host = _bridge_support._GraphCanvasShellHostStub()
+        presenter = _bridge_support._GraphCanvasShellHostStub()
+        host_source = _bridge_support._GraphCanvasShellHostStub()
+        host.graph_canvas_presenter = presenter
+        scene = _bridge_support._GraphCanvasSceneBridgeStub()
+        view = _bridge_support._GraphCanvasViewBridgeStub()
+        bridge = GraphCanvasCommandBridge(
+            host,
+            shell_window=host,
+            canvas_source=presenter,
+            host_source=host_source,
+            scene_bridge=scene,
+            view_bridge=view,
+        )
+
+        self.assertIs(bridge.parent(), host)
+        self.assertIs(bridge.shell_window, host)
+        self.assertIs(bridge.canvas_source, presenter)
+        self.assertIs(bridge.host_source, host_source)
+        self.assertIs(bridge.scene_bridge, scene)
+        self.assertIs(bridge.view_bridge, view)
+
+        bridge.set_graphics_minimap_expanded(False)
+        bridge.adjust_zoom(1.15)
+        bridge.pan_by(-12.0, 8.0)
+        bridge.set_viewport_size(1280.0, 720.0)
+        bridge.center_on_scene_point(96.0, 144.0)
+        self.assertTrue(bridge.request_open_subnode_scope("subnode-1"))
+        self.assertEqual(
+            bridge.browse_node_property_path("node-1", "source_path", "C:/temp/current.txt"),
+            "C:/temp/from-canvas-bridge.txt",
+        )
+        self.assertEqual(
+            bridge.pick_node_property_color("node-1", "accent_color", "#336699"),
+            "#AA5500",
+        )
+        self.assertTrue(
+            bridge.request_drop_node_from_library(
+                "core.logger",
+                120.0,
+                240.0,
+                "port",
+                "node-1",
+                "exec_in",
+                "edge-1",
+            )
+        )
+        self.assertTrue(bridge.request_connect_ports("node-1", "exec_out", "node-2", "exec_in"))
+        self.assertTrue(
+            bridge.request_open_connection_quick_insert(
+                "node-1",
+                "exec_out",
+                20.0,
+                30.0,
+                400.0,
+                300.0,
+            )
+        )
+        bridge.request_open_canvas_quick_insert(15.0, 25.0, 115.0, 215.0)
+        self.assertTrue(bridge.request_delete_selected_graph_items(["edge-1"]))
+        self.assertTrue(bridge.request_navigate_scope_parent())
+        self.assertTrue(bridge.request_navigate_scope_root())
+        bridge.select_node("node-1", True)
+        bridge.clear_selection()
+        bridge.select_nodes_in_rect(1.0, 2.0, 3.0, 4.0, True)
+        bridge.set_node_property("node-1", "message", "hello")
+        bridge.set_pending_surface_action("node-1")
+        self.assertTrue(bridge.consume_pending_surface_action("node-1"))
+        self.assertTrue(bridge.set_node_properties("node-1", {"message": "bridge"}))
+        self.assertTrue(bridge.are_port_kinds_compatible("exec", "exec"))
+        self.assertTrue(bridge.are_data_types_compatible("text", "text"))
+        self.assertTrue(bridge.move_nodes_by_delta(["node-1", "node-2"], 10.0, -5.0))
+        bridge.move_node("node-1", 160.0, 220.0)
+        bridge.resize_node("node-1", 320.0, 180.0)
+        bridge.set_node_geometry("node-1", 150.0, 210.0, 340.0, 190.0)
+        bridge.set_graph_cursor_shape(13)
+        bridge.clear_graph_cursor_shape()
+        self.assertEqual(
+            bridge.describe_pdf_preview("C:/temp/preview.pdf", 2),
+            {
+                "source": "C:/temp/preview.pdf",
+                "page_number": 2,
+                "valid": True,
+            },
+        )
+
+        self.assertEqual(
+            presenter.calls,
+            [
+                ("set_graphics_minimap_expanded", (False,)),
+                ("request_open_subnode_scope", ("subnode-1",)),
+                ("browse_node_property_path", ("node-1", "source_path", "C:/temp/current.txt")),
+                ("pick_node_property_color", ("node-1", "accent_color", "#336699")),
+                (
+                    "request_drop_node_from_library",
+                    ("core.logger", 120.0, 240.0, "port", "node-1", "exec_in", "edge-1"),
+                ),
+                ("request_connect_ports", ("node-1", "exec_out", "node-2", "exec_in")),
+                (
+                    "request_open_connection_quick_insert",
+                    ("node-1", "exec_out", 20.0, 30.0, 400.0, 300.0),
+                ),
+                ("request_open_canvas_quick_insert", (15.0, 25.0, 115.0, 215.0)),
+            ],
+        )
+        self.assertEqual(
+            host_source.calls,
+            [
+                ("request_delete_selected_graph_items", (["edge-1"],)),
+                ("request_navigate_scope_parent", ()),
+                ("request_navigate_scope_root", ()),
+                ("set_graph_cursor_shape", (13,)),
+                ("clear_graph_cursor_shape", ()),
+                ("describe_pdf_preview", ("C:/temp/preview.pdf", 2)),
+            ],
+        )
+        self.assertEqual(
+            scene.calls,
+            [
+                ("select_node", ("node-1", True)),
+                ("clear_selection", ()),
+                ("select_nodes_in_rect", (1.0, 2.0, 3.0, 4.0, True)),
+                ("set_node_property", ("node-1", "message", "hello")),
+                ("set_pending_surface_action", ("node-1",)),
+                ("consume_pending_surface_action", ("node-1",)),
+                ("set_node_properties", ("node-1", {"message": "bridge"})),
+                ("are_port_kinds_compatible", ("exec", "exec")),
+                ("are_data_types_compatible", ("text", "text")),
+                ("move_nodes_by_delta", (["node-1", "node-2"], 10.0, -5.0)),
+                ("move_node", ("node-1", 160.0, 220.0)),
+                ("resize_node", ("node-1", 320.0, 180.0)),
+                ("set_node_geometry", ("node-1", 150.0, 210.0, 340.0, 190.0)),
+            ],
+        )
+        self.assertEqual(
+            view.calls,
+            [
+                ("adjust_zoom", (1.15,)),
+                ("pan_by", (-12.0, 8.0)),
+                ("set_viewport_size", (1280.0, 720.0)),
+                ("center_on_scene_point", (96.0, 144.0)),
+            ],
+        )
+
+    def test_graphics_bridge_uses_explicit_shell_host_and_forwards_canvas_calls(self) -> None:
+        host = _bridge_support._GraphCanvasShellHostStub()
+        host_source = _bridge_support._GraphCanvasShellHostStub()
+        scene = _bridge_support._GraphCanvasSceneBridgeStub()
+        view = _bridge_support._GraphCanvasViewBridgeStub()
+        bridge = _bridge_support._build_explicit_graph_canvas_bridge(
+            shell_window=host,
+            canvas_source=host,
+            host_source=host_source,
+            scene_bridge=scene,
+            view_bridge=view,
+        )
+
+        self.assertIs(bridge.shell_window, host)
+        self.assertIs(bridge.scene_bridge, scene)
+        self.assertIs(bridge.view_bridge, view)
+        self.assertTrue(bridge.graphics_minimap_expanded)
+        self.assertTrue(bridge.graphics_show_grid)
+        self.assertTrue(bridge.graphics_show_minimap)
+        self.assertTrue(bridge.graphics_show_port_labels)
+        self.assertTrue(bridge.graphics_node_shadow)
+        self.assertEqual(bridge.graphics_shadow_strength, 70)
+        self.assertEqual(bridge.graphics_shadow_softness, 50)
+        self.assertEqual(bridge.graphics_shadow_offset, 4)
+        self.assertEqual(bridge.graphics_performance_mode, "full_fidelity")
+        self.assertTrue(bridge.snap_to_grid_enabled)
+        self.assertEqual(bridge.snap_grid_size, 24.0)
+        self.assertEqual(bridge.center_x, 18.5)
+        self.assertEqual(bridge.center_y, -42.0)
+        self.assertEqual(bridge.zoom_value, 1.75)
+        self.assertEqual(bridge.nodes_model, scene.nodes_model)
+        self.assertEqual(bridge.edges_model, scene.edges_model)
+        self.assertEqual(bridge.selected_node_lookup, scene.selected_node_lookup)
+
+        bridge.set_graphics_minimap_expanded(False)
+        bridge.set_graphics_show_port_labels(False)
+        self.assertFalse(bridge.graphics_show_port_labels)
+        bridge.set_graphics_performance_mode("max_performance")
+        bridge.adjust_zoom(1.15)
+        bridge.pan_by(-12.0, 8.0)
+        bridge.set_viewport_size(1280.0, 720.0)
+        self.assertTrue(bridge.request_open_subnode_scope("subnode-1"))
+        self.assertEqual(
+            bridge.browse_node_property_path("node-1", "source_path", "C:/temp/current.txt"),
+            "C:/temp/from-canvas-bridge.txt",
+        )
+        self.assertEqual(
+            bridge.pick_node_property_color("node-1", "accent_color", "#336699"),
+            "#AA5500",
+        )
+        self.assertTrue(
+            bridge.request_drop_node_from_library(
+                "core.logger",
+                120.0,
+                240.0,
+                "port",
+                "node-1",
+                "exec_in",
+                "edge-1",
+            )
+        )
+        self.assertTrue(bridge.request_connect_ports("node-1", "exec_out", "node-2", "exec_in"))
+        bridge.select_node("node-1", True)
+        bridge.set_node_property("node-1", "message", "hello")
+        self.assertTrue(bridge.are_port_kinds_compatible("exec", "exec"))
+        self.assertTrue(bridge.are_data_types_compatible("text", "text"))
+        self.assertTrue(bridge.move_nodes_by_delta(["node-1", "node-2"], 10.0, -5.0))
+        bridge.move_node("node-1", 160.0, 220.0)
+        bridge.resize_node("node-1", 320.0, 180.0)
+        bridge.set_node_geometry("node-1", 150.0, 210.0, 340.0, 190.0)
+
+        self.assertEqual(
+            host.calls,
+            [
+                ("set_graphics_minimap_expanded", (False,)),
+                ("set_graphics_show_port_labels", (False,)),
+                ("set_graphics_performance_mode", ("max_performance",)),
+                ("request_open_subnode_scope", ("subnode-1",)),
+                ("browse_node_property_path", ("node-1", "source_path", "C:/temp/current.txt")),
+                ("pick_node_property_color", ("node-1", "accent_color", "#336699")),
+                (
+                    "request_drop_node_from_library",
+                    ("core.logger", 120.0, 240.0, "port", "node-1", "exec_in", "edge-1"),
+                ),
+                ("request_connect_ports", ("node-1", "exec_out", "node-2", "exec_in")),
+            ],
+        )
+        self.assertEqual(host_source.calls, [])
+        self.assertEqual(
+            scene.calls,
+            [
+                ("select_node", ("node-1", True)),
+                ("set_node_property", ("node-1", "message", "hello")),
+                ("are_port_kinds_compatible", ("exec", "exec")),
+                ("are_data_types_compatible", ("text", "text")),
+                ("move_nodes_by_delta", (["node-1", "node-2"], 10.0, -5.0)),
+                ("move_node", ("node-1", 160.0, 220.0)),
+                ("resize_node", ("node-1", 320.0, 180.0)),
+                ("set_node_geometry", ("node-1", 150.0, 210.0, 340.0, 190.0)),
+            ],
+        )
+
+    def test_bridge_exposes_unified_canvas_contract_extensions(self) -> None:
+        host = _bridge_support._GraphCanvasShellHostStub()
+        host_source = _bridge_support._GraphCanvasShellHostStub()
+        scene = _bridge_support._GraphCanvasSceneBridgeStub()
+        view = _bridge_support._GraphCanvasViewBridgeStub()
+        bridge = _bridge_support._build_explicit_graph_canvas_bridge(
+            shell_window=host,
+            canvas_source=host,
+            host_source=host_source,
+            scene_bridge=scene,
+            view_bridge=view,
+        )
+
+        self.assertEqual(bridge.visible_scene_rect_payload, view.visible_scene_rect_payload)
+        self.assertEqual(bridge.minimap_nodes_model, scene.minimap_nodes_model)
+        self.assertEqual(bridge.workspace_scene_bounds_payload, scene.workspace_scene_bounds_payload)
+
+        bridge.center_on_scene_point(96.0, 144.0)
+        bridge.request_open_canvas_quick_insert(15.0, 25.0, 115.0, 215.0)
+        self.assertTrue(bridge.request_delete_selected_graph_items(["edge-1"]))
+        self.assertTrue(bridge.request_navigate_scope_parent())
+        self.assertTrue(bridge.request_navigate_scope_root())
+        bridge.clear_selection()
+        bridge.select_nodes_in_rect(1.0, 2.0, 3.0, 4.0, True)
+        bridge.set_pending_surface_action("node-1")
+        self.assertTrue(bridge.consume_pending_surface_action("node-1"))
+        self.assertTrue(bridge.set_node_properties("node-1", {"message": "bridge"}))
+        bridge.set_graph_cursor_shape(13)
+        bridge.clear_graph_cursor_shape()
+        self.assertEqual(
+            bridge.describe_pdf_preview("C:/temp/preview.pdf", 2),
+            {
+                "source": "C:/temp/preview.pdf",
+                "page_number": 2,
+                "valid": True,
+            },
+        )
+
+        self.assertEqual(host.calls, [("request_open_canvas_quick_insert", (15.0, 25.0, 115.0, 215.0))])
+        self.assertEqual(
+            host_source.calls,
+            [
+                ("request_delete_selected_graph_items", (["edge-1"],)),
+                ("request_navigate_scope_parent", ()),
+                ("request_navigate_scope_root", ()),
+                ("set_graph_cursor_shape", (13,)),
+                ("clear_graph_cursor_shape", ()),
+                ("describe_pdf_preview", ("C:/temp/preview.pdf", 2)),
+            ],
+        )
+        self.assertEqual(
+            scene.calls,
+            [
+                ("clear_selection", ()),
+                ("select_nodes_in_rect", (1.0, 2.0, 3.0, 4.0, True)),
+                ("set_pending_surface_action", ("node-1",)),
+                ("consume_pending_surface_action", ("node-1",)),
+                ("set_node_properties", ("node-1", {"message": "bridge"})),
+            ],
+        )
+        self.assertEqual(view.calls, [("center_on_scene_point", (96.0, 144.0))])
+
     def test_graph_typography_bridge_workspace_presenter_snapshots_graph_label_pixel_size(self) -> None:
         host = _bridge_support._ShellWorkspacePresenterHostStub()
         presenter = ShellWorkspacePresenter(host, ui_state=host.workspace_ui_state)
@@ -169,7 +480,7 @@ class GraphCanvasBridgeTests(_GraphCanvasBridgeTests):
         self.assertEqual(presenter.graphics_graph_label_pixel_size, 17)
         self.assertEqual(seen["graphics_preferences_changed"], 1)
 
-    def test_graph_typography_bridge_state_and_legacy_bridges_share_graph_label_pixel_size_property(self) -> None:
+    def test_graph_typography_state_bridge_baseline_and_p02_legacy_wrapper_anchor(self) -> None:
         host = _bridge_support._GraphCanvasShellHostStub()
         scene = _bridge_support._GraphCanvasSceneBridgeStub()
         view = _bridge_support._GraphCanvasViewBridgeStub()
@@ -184,7 +495,6 @@ class GraphCanvasBridgeTests(_GraphCanvasBridgeTests):
         state_bridge = bridge.state_bridge
         seen = {
             "graphics_preferences_changed": 0,
-            "legacy_graphics_preferences_changed": 0,
         }
         state_bridge.graphics_preferences_changed.connect(
             lambda: seen.__setitem__(
@@ -192,28 +502,26 @@ class GraphCanvasBridgeTests(_GraphCanvasBridgeTests):
                 seen["graphics_preferences_changed"] + 1,
             )
         )
+        legacy_seen = {"legacy_graphics_preferences_changed": 0}
         bridge.graphics_preferences_changed.connect(
-            lambda: seen.__setitem__(
+            lambda: legacy_seen.__setitem__(
                 "legacy_graphics_preferences_changed",
-                seen["legacy_graphics_preferences_changed"] + 1,
+                legacy_seen["legacy_graphics_preferences_changed"] + 1,
             )
         )
 
         self.assertEqual(state_bridge.graphics_graph_label_pixel_size, 10)
-        self.assertEqual(bridge.graphics_graph_label_pixel_size, 10)
+        with self.subTest(owner_packet=P02_LEGACY_GRAPH_CANVAS_BRIDGE_PARITY_ANCHOR):
+            self.assertEqual(bridge.graphics_graph_label_pixel_size, 10)
 
         host.graphics_graph_label_pixel_size = 15
         host.graphics_preferences_changed.emit()
 
         self.assertEqual(state_bridge.graphics_graph_label_pixel_size, 15)
-        self.assertEqual(bridge.graphics_graph_label_pixel_size, 15)
-        self.assertEqual(
-            seen,
-            {
-                "graphics_preferences_changed": 1,
-                "legacy_graphics_preferences_changed": 1,
-            },
-        )
+        self.assertEqual(seen, {"graphics_preferences_changed": 1})
+        with self.subTest(owner_packet=P02_LEGACY_GRAPH_CANVAS_BRIDGE_PARITY_ANCHOR):
+            self.assertEqual(bridge.graphics_graph_label_pixel_size, 15)
+            self.assertEqual(legacy_seen, {"legacy_graphics_preferences_changed": 1})
 
     def test_graph_node_icon_size_bridge_workspace_presenter_projects_nullable_override_and_effective_size(self) -> None:
         host = _bridge_support._ShellWorkspacePresenterHostStub()
@@ -256,7 +564,7 @@ class GraphCanvasBridgeTests(_GraphCanvasBridgeTests):
         self.assertEqual(presenter.graphics_node_title_icon_pixel_size, 8)
         self.assertEqual(seen["graphics_preferences_changed"], 2)
 
-    def test_graph_node_icon_size_bridge_state_and_legacy_bridges_share_effective_size_property(self) -> None:
+    def test_graph_node_icon_size_state_bridge_baseline_and_p02_legacy_wrapper_anchor(self) -> None:
         host = _bridge_support._GraphCanvasShellHostStub()
         host.graphics_graph_label_pixel_size = 16
         host.graphics_graph_node_icon_pixel_size_override = None
@@ -276,18 +584,20 @@ class GraphCanvasBridgeTests(_GraphCanvasBridgeTests):
         state_bridge = bridge.state_bridge
 
         self.assertIsNone(state_bridge.graphics_graph_node_icon_pixel_size_override)
-        self.assertIsNone(bridge.graphics_graph_node_icon_pixel_size_override)
         self.assertEqual(state_bridge.graphics_node_title_icon_pixel_size, 16)
-        self.assertEqual(bridge.graphics_node_title_icon_pixel_size, 16)
+        with self.subTest(owner_packet=P02_LEGACY_GRAPH_CANVAS_BRIDGE_PARITY_ANCHOR):
+            self.assertIsNone(bridge.graphics_graph_node_icon_pixel_size_override)
+            self.assertEqual(bridge.graphics_node_title_icon_pixel_size, 16)
 
         host.graphics_graph_node_icon_pixel_size_override = 13
         host.graphics_node_title_icon_pixel_size = 13
         host.graphics_preferences_changed.emit()
 
         self.assertEqual(state_bridge.graphics_graph_node_icon_pixel_size_override, 13)
-        self.assertEqual(bridge.graphics_graph_node_icon_pixel_size_override, 13)
         self.assertEqual(state_bridge.graphics_node_title_icon_pixel_size, 13)
-        self.assertEqual(bridge.graphics_node_title_icon_pixel_size, 13)
+        with self.subTest(owner_packet=P02_LEGACY_GRAPH_CANVAS_BRIDGE_PARITY_ANCHOR):
+            self.assertEqual(bridge.graphics_graph_node_icon_pixel_size_override, 13)
+            self.assertEqual(bridge.graphics_node_title_icon_pixel_size, 13)
 
     def test_graph_canvas_command_bridge_routes_comment_peek_to_scene_bridge_layer(self) -> None:
         host = _bridge_support._GraphCanvasShellHostStub()
@@ -324,10 +634,18 @@ class GraphCanvasBridgeTests(_GraphCanvasBridgeTests):
             scene_bridge=scene,
             view_bridge=_bridge_support._GraphCanvasViewBridgeStub(),
         )
+        action_bridge = GraphActionBridge(
+            controller=GraphActionController(scene_bridge=scene),
+        )
 
         self.assertTrue(bridge.can_open_comment_peek("comment-1"))
         self.assertFalse(bridge.can_open_comment_peek("logger-1"))
-        self.assertTrue(bridge.request_open_comment_peek("comment-1"))
+        self.assertTrue(
+            action_bridge.trigger_graph_action(
+                GraphActionId.OPEN_COMMENT_PEEK.value,
+                {"node_id": "comment-1"},
+            )
+        )
         self.assertEqual(bridge.active_comment_peek_node_id(), "comment-1")
         self.assertTrue(bridge.request_close_comment_peek())
         self.assertEqual(bridge.active_comment_peek_node_id(), "")
