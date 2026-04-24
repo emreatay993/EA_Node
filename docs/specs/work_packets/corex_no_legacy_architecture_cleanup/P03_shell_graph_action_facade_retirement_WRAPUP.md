@@ -2,21 +2,12 @@
 
 ## Implementation Summary
 
-Packet: P03 Shell Graph Action Facade Retirement
-Branch Label: `codex/corex-no-legacy-architecture-cleanup/p03-shell-graph-action-facade-retirement`
-Commit Owner: worker
-Commit SHA: `9b99e92acd4eefccfc526f004774924034fe9170`
-Changed Files:
-- `ea_node_editor/ui/shell/composition.py`
-- `ea_node_editor/ui/shell/controllers/graph_action_controller.py`
-- `ea_node_editor/ui/shell/window.py`
-- `ea_node_editor/ui/shell/window_state/workspace_graph_actions.py`
-- `tests/main_window_shell/bridge_contracts_graph_canvas.py`
-- `tests/test_graph_action_contracts.py`
-- `tests/test_main_window_shell.py`
-- `docs/specs/work_packets/corex_no_legacy_architecture_cleanup/P03_shell_graph_action_facade_retirement_WRAPUP.md`
-Artifacts Produced:
-- `docs/specs/work_packets/corex_no_legacy_architecture_cleanup/P03_shell_graph_action_facade_retirement_WRAPUP.md`
+- Packet: `P03`
+- Branch Label: `codex/corex-no-legacy-architecture-cleanup/p03-shell-graph-action-facade-retirement`
+- Commit Owner: `worker`
+- Commit SHA: `9b99e92acd4eefccfc526f004774924034fe9170`
+- Changed Files: `docs/specs/work_packets/corex_no_legacy_architecture_cleanup/P03_shell_graph_action_facade_retirement_WRAPUP.md`, `ea_node_editor/ui/shell/composition.py`, `ea_node_editor/ui/shell/controllers/graph_action_controller.py`, `ea_node_editor/ui/shell/window.py`, `ea_node_editor/ui/shell/window_state/workspace_graph_actions.py`, `tests/main_window_shell/bridge_contracts_graph_canvas.py`, `tests/test_graph_action_contracts.py`, `tests/test_main_window_shell.py`
+- Artifacts Produced: `docs/specs/work_packets/corex_no_legacy_architecture_cleanup/P03_shell_graph_action_facade_retirement_WRAPUP.md`
 
 `GraphActionController` no longer accepts or discovers a generic `shell_window`; packet-owned graph actions now use injected workspace, presenter, scene, help, and add-on-manager sources. The shell composition binds those focused sources before constructing the QML graph action bridge.
 
@@ -24,11 +15,11 @@ Retired graph-action trigger wrappers were removed from `workspace_graph_actions
 
 ## Verification
 
-PASS: `$env:QT_QPA_PLATFORM='offscreen'; .\venv\Scripts\python.exe -m pytest tests/test_graph_action_contracts.py tests/test_main_window_shell.py tests/main_window_shell/bridge_contracts_graph_canvas.py tests/main_window_shell/shell_runtime_contracts.py --ignore=venv -q` (`243 passed, 382 subtests passed`; 4 Ansys DPF deprecation warnings)
-PASS: `$env:QT_QPA_PLATFORM='offscreen'; .\venv\Scripts\python.exe -m pytest tests/test_graph_action_contracts.py tests/test_main_window_shell.py -k "graph_action or duplicate or clipboard or comment_backdrop or group or align or scope" --ignore=venv -q` (`216 passed, 346 subtests passed`; 4 Ansys DPF deprecation warnings)
-PASS: `git diff --check`
+- PASS: `$env:QT_QPA_PLATFORM='offscreen'; .\venv\Scripts\python.exe -m pytest tests/test_graph_action_contracts.py tests/test_main_window_shell.py tests/main_window_shell/bridge_contracts_graph_canvas.py tests/main_window_shell/shell_runtime_contracts.py --ignore=venv -q` (`243 passed, 382 subtests passed`; 4 Ansys DPF deprecation warnings)
+- PASS: `$env:QT_QPA_PLATFORM='offscreen'; .\venv\Scripts\python.exe -m pytest tests/test_graph_action_contracts.py tests/test_main_window_shell.py -k "graph_action or duplicate or clipboard or comment_backdrop or group or align or scope" --ignore=venv -q` (`216 passed, 346 subtests passed`; 4 Ansys DPF deprecation warnings)
+- PASS: `git diff --check`
 
-Final Verification Verdict: PASS
+- Final Verification Verdict: `PASS`
 
 ## Manual Test Directives
 
@@ -46,4 +37,4 @@ No known packet-owned residual risks. Existing Ansys DPF deprecation warnings ap
 
 ## Ready for Integration
 
-Yes: P03 implementation and wrap-up are complete, required verification and review gate passed, and packet-owned changes are committed on the assigned branch.
+- Yes: P03 implementation and wrap-up are complete, required verification and review gate passed, and packet-owned changes are committed on the assigned branch.
