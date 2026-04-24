@@ -15,7 +15,7 @@ Consolidated packet-owned graph writes behind private `GraphModel` record writer
 
 - PASS: `.\venv\Scripts\python.exe -m pytest tests/test_architecture_boundaries.py tests/test_registry_validation.py tests/test_workspace_manager.py tests/test_passive_runtime_wiring.py tests/test_serializer.py --ignore=venv -q` (`95 passed, 15 subtests passed, 32 warnings`)
 - PASS: `git diff --check`
-Final Verification Verdict: PASS
+- Final Verification Verdict: `PASS`
 
 ## Manual Test Directives
 
@@ -33,4 +33,4 @@ Ready for manual testing.
 
 ## Ready for Integration
 
-Yes: P08 code, guardrails, retained-fragment proof tests, and required verification are complete on the assigned packet branch.
+- Yes: P08 code, guardrails, retained-fragment proof tests, and required verification are complete on the assigned packet branch.
