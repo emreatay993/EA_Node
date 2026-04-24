@@ -72,11 +72,7 @@ Item {
         if (root.canvasItem) {
             if (root.canvasItem.canvasStateBridgeRef)
                 return root.canvasItem.canvasStateBridgeRef;
-            if (root.canvasItem._canvasStateBridgeRef)
-                return root.canvasItem._canvasStateBridgeRef;
         }
-        if (typeof graphCanvasStateBridge !== "undefined" && graphCanvasStateBridge)
-            return graphCanvasStateBridge;
         return null;
     }
 

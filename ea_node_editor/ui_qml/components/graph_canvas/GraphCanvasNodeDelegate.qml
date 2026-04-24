@@ -86,7 +86,7 @@ GraphComponents.GraphNodeHost {
     onNodeClicked: function(nodeId, additive) {
         if (!canvasItem)
             return;
-        var bridge = canvasItem._canvasSceneCommandBridgeRef;
+        var bridge = canvasItem.sceneCommandBridge;
         canvasItem.forceActiveFocus();
         if (typeof viewerSessionBridge !== "undefined" && viewerSessionBridge && viewerSessionBridge.clear_viewer_focus)
             viewerSessionBridge.clear_viewer_focus();
@@ -120,7 +120,7 @@ GraphComponents.GraphNodeHost {
     onDragFinished: function(nodeId, finalX, finalY, _moved) {
         if (!canvasItem)
             return;
-        var bridge = canvasItem._canvasSceneCommandBridgeRef;
+        var bridge = canvasItem.sceneCommandBridge;
         var dragNodeIds = canvasItem.dragNodeIdsForAnchor(nodeId);
         var anchorPayload = canvasItem._sceneNodePayload(nodeId);
         var anchorX = anchorPayload ? Number(anchorPayload.x) : Number(finalX);
@@ -170,7 +170,7 @@ GraphComponents.GraphNodeHost {
     onResizeFinished: function(nodeId, newX, newY, newWidth, newHeight) {
         if (!canvasItem)
             return;
-        var bridge = canvasItem._canvasSceneCommandBridgeRef;
+        var bridge = canvasItem.sceneCommandBridge;
         canvasItem.setLiveNodeGeometry(nodeId, newX, newY, newWidth, newHeight, false);
         if (!bridge)
             return;

@@ -583,24 +583,27 @@ class GraphCanvasQmlBoundaryTests(unittest.TestCase):
             "readonly property var _canvasShellBridgeRef",
             "readonly property var _canvasSceneBridgeRef",
             "readonly property var _canvasViewBridgeRef",
+            "typeof graphCanvasViewBridge",
             "readonly property var _canvasShellCompatRef",
             "readonly property var _canvasSceneCompatRef",
             "readonly property var _canvasViewCompatRef",
             "readonly property var _canvasCompatBridgeRef",
+            "readonly property var _legacyCanvasViewBridgeRef",
+            "readonly property var _canvasSceneStateBridgeRef",
+            "readonly property var _canvasShellCommandBridgeRef",
+            "readonly property var _canvasSceneCommandBridgeRef",
+            "readonly property var _canvasViewCommandBridgeRef",
+            "shellCommandBridge: root._canvasShellCommandBridgeRef",
         )
         present_snippets = (
             "property var canvasStateBridge: null",
             "property var canvasCommandBridge: null",
-            'property var canvasViewBridge: typeof graphCanvasViewBridge !== "undefined"',
+            "property var canvasViewBridge: canvasStateBridge && canvasStateBridge.viewport_bridge",
             "readonly property var canvasStateBridgeRef",
             "readonly property var canvasCommandBridgeRef",
             "readonly property var canvasViewBridgeRef",
             "readonly property var _canvasStateBridgeRef",
-            "readonly property var _canvasSceneStateBridgeRef",
             "readonly property var _canvasViewStateBridgeRef",
-            "readonly property var _canvasShellCommandBridgeRef",
-            "readonly property var _canvasSceneCommandBridgeRef",
-            "readonly property var _canvasViewCommandBridgeRef",
             "readonly property var sceneStateBridge: rootBindings.sceneStateBridge",
             "readonly property var sceneCommandBridge: rootBindings.sceneCommandBridge",
             "readonly property var sceneBridge: rootBindings.sceneBridge",
@@ -622,14 +625,12 @@ class GraphCanvasQmlBoundaryTests(unittest.TestCase):
             'GraphCanvasRootApi.invoke(viewportController, "applyWheelZoom", [eventObj], false);',
             'GraphCanvasRootApi.invoke(sceneLifecycle, "requestEdgeRedraw");',
             "sceneBridge: root.sceneStateBridge",
-            "shellCommandBridge: root._canvasShellCommandBridgeRef",
+            "shellBridge: root.canvasCommandBridgeRef",
+            "canvasCommandBridge: root.canvasCommandBridgeRef",
             "sceneCommandBridge: root.sceneCommandBridge",
             "sceneStateBridge: root.sceneStateBridge",
-            "viewStateBridge: root._canvasViewStateBridgeRef",
-            "viewCommandBridge: root._canvasViewCommandBridgeRef",
-        )
-        p02_pre_cleanup_anchor_snippets = (
-            "readonly property var _legacyCanvasViewBridgeRef",
+            "viewStateBridge: root.viewBridge",
+            "viewCommandBridge: root.viewBridge",
         )
 
         for snippet in absent_snippets:
@@ -638,10 +639,6 @@ class GraphCanvasQmlBoundaryTests(unittest.TestCase):
 
         for snippet in present_snippets:
             with self.subTest(snippet=snippet, expectation="present"):
-                self.assertIn(snippet, qml_text)
-
-        for snippet in p02_pre_cleanup_anchor_snippets:
-            with self.subTest(snippet=snippet, expectation="present", owner_packet="P02"):
                 self.assertIn(snippet, qml_text)
 
     def test_graph_canvas_tooltip_qml_surfaces_bind_to_bridge_first_policy_and_preserve_inactive_explanations(

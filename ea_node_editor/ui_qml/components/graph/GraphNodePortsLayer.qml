@@ -98,11 +98,7 @@ Item {
         if (root.host && root.host.canvasItem) {
             if (root.host.canvasItem.canvasStateBridgeRef)
                 return root.host.canvasItem.canvasStateBridgeRef;
-            if (root.host.canvasItem._canvasStateBridgeRef)
-                return root.host.canvasItem._canvasStateBridgeRef;
         }
-        if (typeof graphCanvasStateBridge !== "undefined" && graphCanvasStateBridge)
-            return graphCanvasStateBridge;
         return null;
     }
 

@@ -8,8 +8,8 @@ Item {
         var numeric = NaN;
         if (root.canvasLayer && root.canvasLayer.graphLabelPixelSize !== undefined)
             numeric = Number(root.canvasLayer.graphLabelPixelSize);
-        if (!isFinite(numeric) && root.canvasLayer && root.canvasLayer._canvasStateBridgeRef)
-            numeric = Number(root.canvasLayer._canvasStateBridgeRef.graphics_graph_label_pixel_size);
+        if (!isFinite(numeric) && root.canvasLayer && root.canvasLayer.canvasStateBridgeRef)
+            numeric = Number(root.canvasLayer.canvasStateBridgeRef.graphics_graph_label_pixel_size);
         if (!isFinite(numeric)
                 && root.edgeLayer
                 && root.edgeLayer.parent
@@ -21,8 +21,8 @@ Item {
                 && root.edgeLayer
                 && root.edgeLayer.parent
                 && root.edgeLayer.parent.canvasItem
-                && root.edgeLayer.parent.canvasItem._canvasStateBridgeRef) {
-            numeric = Number(root.edgeLayer.parent.canvasItem._canvasStateBridgeRef.graphics_graph_label_pixel_size);
+                && root.edgeLayer.parent.canvasItem.canvasStateBridgeRef) {
+            numeric = Number(root.edgeLayer.parent.canvasItem.canvasStateBridgeRef.graphics_graph_label_pixel_size);
         }
         if (!isFinite(numeric) && root.edgeLayer && root.edgeLayer.graphLabelPixelSize !== undefined)
             numeric = Number(root.edgeLayer.graphLabelPixelSize);

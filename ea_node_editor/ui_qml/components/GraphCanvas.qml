@@ -10,18 +10,15 @@ Item {
     property var graphActionBridge: null
     property var canvasStateBridge: null
     property var canvasCommandBridge: null
-    property var canvasViewBridge: typeof graphCanvasViewBridge !== "undefined" ? graphCanvasViewBridge : null
+    property var canvasViewBridge: canvasStateBridge && canvasStateBridge.viewport_bridge
+        ? canvasStateBridge.viewport_bridge
+        : (canvasCommandBridge && canvasCommandBridge.viewport_bridge ? canvasCommandBridge.viewport_bridge : null)
     readonly property var graphActionBridgeRef: rootBindings.graphActionBridgeRef
     readonly property var canvasStateBridgeRef: rootBindings.canvasStateBridgeRef
     readonly property var canvasCommandBridgeRef: rootBindings.canvasCommandBridgeRef
     readonly property var canvasViewBridgeRef: rootBindings.canvasViewBridgeRef
     readonly property var _canvasStateBridgeRef: rootBindings._canvasStateBridgeRef
-    readonly property var _canvasSceneStateBridgeRef: rootBindings._canvasSceneStateBridgeRef
-    readonly property var _legacyCanvasViewBridgeRef: rootBindings._legacyCanvasViewBridgeRef
     readonly property var _canvasViewStateBridgeRef: rootBindings._canvasViewStateBridgeRef
-    readonly property var _canvasShellCommandBridgeRef: rootBindings._canvasShellCommandBridgeRef
-    readonly property var _canvasSceneCommandBridgeRef: rootBindings._canvasSceneCommandBridgeRef
-    readonly property var _canvasViewCommandBridgeRef: rootBindings._canvasViewCommandBridgeRef
     readonly property var sceneStateBridge: rootBindings.sceneStateBridge
     readonly property var sceneCommandBridge: rootBindings.sceneCommandBridge
     readonly property var sceneBridge: rootBindings.sceneBridge
@@ -151,7 +148,7 @@ Item {
     GraphCanvasComponents.GraphCanvasInteractionState {
         id: interactionState
         canvasItem: root
-        shellBridge: root._canvasShellCommandBridgeRef
+        shellBridge: root.canvasCommandBridgeRef
         sceneBridge: root.sceneStateBridge
         edgeLayerItem: rootLayers.edgeLayerItem
         interactionIdleTimer: interactionIdleTimer
@@ -173,9 +170,9 @@ Item {
     GraphCanvasComponents.GraphCanvasViewportController {
         id: viewportController
         canvasItem: root
-        shellCommandBridge: root._canvasShellCommandBridgeRef
-        viewStateBridge: root._canvasViewStateBridgeRef
-        viewCommandBridge: root._canvasViewCommandBridgeRef
+        shellCommandBridge: root.canvasCommandBridgeRef
+        viewStateBridge: root.viewBridge
+        viewCommandBridge: root.viewBridge
         interactionState: interactionState
         backgroundLayer: rootLayers.backgroundLayerItem
         edgeLayer: rootLayers.edgeLayerItem
@@ -186,7 +183,7 @@ Item {
         id: sceneLifecycle
         canvasItem: root
         sceneStateBridge: root.sceneStateBridge
-        viewStateBridge: root._canvasViewStateBridgeRef
+        viewStateBridge: root.viewBridge
         sceneState: sceneState
         interactionState: interactionState
         canvasPerformancePolicy: canvasPerformancePolicy
@@ -290,10 +287,10 @@ Item {
     function _scenePaddingForViewportPixels(paddingPx) { return GraphCanvasRootApi.invoke(viewportController, "scenePaddingForViewportPixels", [paddingPx], 0.0); }
     function _inflateSceneRectPayload(rectLike, padding) { return GraphCanvasRootApi.invoke(viewportController, "inflateSceneRectPayload", [rectLike, padding], ({})); }
     function frameScreenRect(screenX1, screenY1, screenX2, screenY2, paddingPx) { return GraphCanvasRootApi.invoke(viewportController, "frameScreenRect", [screenX1, screenY1, screenX2, screenY2, paddingPx], false); }
-    function snapToGridEnabled() { return GraphCanvasRootApi.snapToGridEnabled(root._canvasStateBridgeRef); }
-    function snapGridSize() { return GraphCanvasRootApi.snapGridSize(root._canvasStateBridgeRef); }
-    function snapToGridValue(value) { return GraphCanvasRootApi.snapToGridValue(root._canvasStateBridgeRef, value); }
-    function snappedDragDelta(nodeId, rawDx, rawDy) { return GraphCanvasRootApi.snappedDragDelta(sceneState, root._canvasStateBridgeRef, nodeId, rawDx, rawDy); }
+    function snapToGridEnabled() { return GraphCanvasRootApi.snapToGridEnabled(root.canvasStateBridgeRef); }
+    function snapGridSize() { return GraphCanvasRootApi.snapGridSize(root.canvasStateBridgeRef); }
+    function snapToGridValue(value) { return GraphCanvasRootApi.snapToGridValue(root.canvasStateBridgeRef, value); }
+    function snappedDragDelta(nodeId, rawDx, rawDy) { return GraphCanvasRootApi.snappedDragDelta(sceneState, root.canvasStateBridgeRef, nodeId, rawDx, rawDy); }
     function _normalizeEdgeIds(values) { return GraphCanvasRootApi.invoke(sceneState, "normalizeEdgeIds", [values], []); }
     function _availableEdgeIdSet() { return GraphCanvasRootApi.invoke(sceneState, "availableEdgeIdSet", [], ({})); }
     function pruneSelectedEdges() { GraphCanvasRootApi.invoke(sceneState, "pruneSelectedEdges"); }
@@ -419,8 +416,8 @@ Item {
         id: rootLayers
         canvasItem: root
         sceneStateBridge: root.sceneStateBridge
-        viewStateBridge: root._canvasViewStateBridgeRef
-        viewCommandBridge: root._canvasViewCommandBridgeRef
+        viewStateBridge: root.viewBridge
+        viewCommandBridge: root.viewBridge
         minimapSimplificationActive: root.minimapSimplificationActive
     }
 
@@ -511,10 +508,11 @@ Item {
         id: inputLayers
         objectName: "graphCanvasInputLayers"
         canvasItem: root
-        shellCommandBridge: root._canvasShellCommandBridgeRef
+        graphActionBridge: root.graphActionBridgeRef
+        canvasCommandBridge: root.canvasCommandBridgeRef
         sceneCommandBridge: root.sceneCommandBridge
-        viewStateBridge: root._canvasViewStateBridgeRef
-        viewCommandBridge: root._canvasViewCommandBridgeRef
+        viewStateBridge: root.viewBridge
+        viewCommandBridge: root.viewBridge
         boxZoomDragThreshold: root.boxZoomDragThreshold
         boxZoomPaddingPx: root.boxZoomPaddingPx
     }
@@ -523,7 +521,7 @@ Item {
         id: contextMenus
         objectName: "graphCanvasContextMenus"
         canvasItem: root
-        commandBridge: root._canvasShellCommandBridgeRef
+        commandBridge: root.canvasCommandBridgeRef
         graphActionBridge: root.graphActionBridgeRef
     }
 

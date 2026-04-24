@@ -57,7 +57,7 @@ QtObject {
     }
 
     function currentViewportZoom() {
-        var viewBridge = root.host && root.host.canvasItem ? root.host.canvasItem._canvasViewStateBridgeRef : null;
+        var viewBridge = root.host && root.host.canvasItem ? root.host.canvasItem.viewBridge : null;
         var zoom = viewBridge ? Number(viewBridge.zoom_value) : 1.0;
         if (!isFinite(zoom) || zoom <= 0.0001)
             return 1.0;

@@ -34,8 +34,8 @@ Item {
         var numeric = NaN;
         if (card.canvasItem && card.canvasItem.graphLabelPixelSize !== undefined)
             numeric = Number(card.canvasItem.graphLabelPixelSize);
-        if (!isFinite(numeric) && card.canvasItem && card.canvasItem._canvasStateBridgeRef)
-            numeric = Number(card.canvasItem._canvasStateBridgeRef.graphics_graph_label_pixel_size);
+        if (!isFinite(numeric) && card.canvasItem && card.canvasItem.canvasStateBridgeRef)
+            numeric = Number(card.canvasItem.canvasStateBridgeRef.graphics_graph_label_pixel_size);
         if (!isFinite(numeric))
             numeric = Number(card.graphLabelPixelSize);
         if (!isFinite(numeric))
@@ -46,8 +46,8 @@ Item {
         var numeric = NaN;
         if (card.canvasItem && card.canvasItem.nodeTitleIconPixelSize !== undefined)
             numeric = Number(card.canvasItem.nodeTitleIconPixelSize);
-        if (!isFinite(numeric) && card.canvasItem && card.canvasItem._canvasStateBridgeRef)
-            numeric = Number(card.canvasItem._canvasStateBridgeRef.graphics_node_title_icon_pixel_size);
+        if (!isFinite(numeric) && card.canvasItem && card.canvasItem.canvasStateBridgeRef)
+            numeric = Number(card.canvasItem.canvasStateBridgeRef.graphics_node_title_icon_pixel_size);
         if (!isFinite(numeric))
             numeric = Number(card.effectiveGraphLabelPixelSize);
         if (!isFinite(numeric))

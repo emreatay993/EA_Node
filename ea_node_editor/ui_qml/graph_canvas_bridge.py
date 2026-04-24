@@ -1,9 +1,10 @@
 from __future__ import annotations
 
-"""Legacy graph-canvas edge adapter retained for non-packet callers.
+"""Legacy graph-canvas edge adapter retained for out-of-scope callers.
 
-P01 retires this wrapper from shell/QML context export. Packet-owned callers
-must bind the split state and command bridges directly.
+P02 keeps this adapter out of the QML graph-canvas contract. Packet-owned
+callers bind GraphCanvasStateBridge, GraphCanvasCommandBridge, GraphActionBridge,
+and ViewportBridge directly instead of constructing this wrapper.
 """
 
 from typing import TYPE_CHECKING, Any

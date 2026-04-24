@@ -15,28 +15,19 @@ QtObject {
     readonly property var graphActionBridgeRef: root.graphActionBridge || null
     readonly property var canvasStateBridgeRef: root.canvasStateBridge || null
     readonly property var canvasCommandBridgeRef: root.canvasCommandBridge || null
-    readonly property var canvasViewBridgeRef: root.canvasViewBridge || null
+    readonly property var canvasViewBridgeRef: root.canvasViewBridge
+        || root._viewportBridgeFrom(root.canvasStateBridgeRef)
+        || root._viewportBridgeFrom(root.canvasCommandBridgeRef)
     readonly property var _canvasStateBridgeRef: root.canvasStateBridgeRef
-    readonly property var _canvasSceneStateBridgeRef: root.canvasStateBridgeRef
-    readonly property var _legacyCanvasViewBridgeRef: root.canvasStateBridgeRef
-        && root.canvasStateBridgeRef.viewport_bridge
-        ? root.canvasStateBridgeRef.viewport_bridge
-        : (root.canvasCommandBridgeRef
-            && root.canvasCommandBridgeRef.viewport_bridge
-            ? root.canvasCommandBridgeRef.viewport_bridge
-            : null)
-    readonly property var _canvasViewStateBridgeRef: root.canvasViewBridgeRef || root._legacyCanvasViewBridgeRef
-    readonly property var _canvasShellCommandBridgeRef: root.canvasCommandBridgeRef
-    readonly property var _canvasSceneCommandBridgeRef: root.canvasCommandBridgeRef
-    readonly property var _canvasViewCommandBridgeRef: root._canvasViewStateBridgeRef
-    readonly property var sceneStateBridge: root._canvasSceneStateBridgeRef
-    readonly property var sceneCommandBridge: root._canvasSceneCommandBridgeRef
-    readonly property var sceneBridge: root._canvasSceneStateBridgeRef
-    readonly property var viewBridge: root._canvasViewStateBridgeRef
-    readonly property var visibleSceneRectPayload: root._canvasViewStateBridgeRef
-        ? (root._canvasViewStateBridgeRef.visible_scene_rect_payload_cached !== undefined
-            ? root._canvasViewStateBridgeRef.visible_scene_rect_payload_cached
-            : root._canvasViewStateBridgeRef.visible_scene_rect_payload)
+    readonly property var _canvasViewStateBridgeRef: root.canvasViewBridgeRef
+    readonly property var sceneStateBridge: root.canvasStateBridgeRef
+    readonly property var sceneCommandBridge: root.canvasCommandBridgeRef
+    readonly property var sceneBridge: root.canvasStateBridgeRef
+    readonly property var viewBridge: root.canvasViewBridgeRef
+    readonly property var visibleSceneRectPayload: root.canvasViewBridgeRef
+        ? (root.canvasViewBridgeRef.visible_scene_rect_payload_cached !== undefined
+            ? root.canvasViewBridgeRef.visible_scene_rect_payload_cached
+            : root.canvasViewBridgeRef.visible_scene_rect_payload)
         : ({})
     readonly property var failedNodeLookup: root._canvasStateBridgeRef
         ? root._canvasStateBridgeRef.failed_node_lookup
@@ -191,5 +182,11 @@ QtObject {
         if (!isFinite(numeric))
             return null;
         return Math.max(8, Math.min(maxValue, numeric));
+    }
+
+    function _viewportBridgeFrom(bridge) {
+        if (bridge && bridge.viewport_bridge)
+            return bridge.viewport_bridge;
+        return null;
     }
 }

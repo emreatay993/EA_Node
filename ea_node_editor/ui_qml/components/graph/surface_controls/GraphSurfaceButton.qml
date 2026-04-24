@@ -30,11 +30,7 @@ Button {
         if (host && host.canvasItem) {
             if (host.canvasItem.canvasStateBridgeRef)
                 return host.canvasItem.canvasStateBridgeRef;
-            if (host.canvasItem._canvasStateBridgeRef)
-                return host.canvasItem._canvasStateBridgeRef;
         }
-        if (typeof graphCanvasStateBridge !== "undefined" && graphCanvasStateBridge)
-            return graphCanvasStateBridge;
         return null;
     }
     readonly property bool hoverVisualActive: hovered || externalHover

@@ -4,7 +4,8 @@ Item {
     id: root
     objectName: "graphCanvasInputLayers"
     property Item canvasItem: null
-    property var shellCommandBridge: null
+    property var graphActionBridge: null
+    property var canvasCommandBridge: null
     property var sceneCommandBridge: null
     property var viewStateBridge: null
     property var viewCommandBridge: null
@@ -35,9 +36,17 @@ Item {
     }
 
     function _closeCommentPeekIfActive() {
-        if (!root.shellCommandBridge || !root.shellCommandBridge.request_close_comment_peek)
+        if (root._triggerGraphAction("close_comment_peek", ({})))
+            return true;
+        if (!root.canvasCommandBridge || !root.canvasCommandBridge.request_close_comment_peek)
             return false;
-        return Boolean(root.shellCommandBridge.request_close_comment_peek());
+        return Boolean(root.canvasCommandBridge.request_close_comment_peek());
+    }
+
+    function _triggerGraphAction(actionId, payload) {
+        if (!root.graphActionBridge || !root.graphActionBridge.trigger_graph_action)
+            return false;
+        return Boolean(root.graphActionBridge.trigger_graph_action(String(actionId || ""), payload || ({})));
     }
 
     function _contentFullscreenBridge() {
@@ -50,10 +59,6 @@ Item {
         var normalized = String(message || "Select one media or viewer node for fullscreen.").trim();
         if (!normalized.length)
             normalized = "Select one media or viewer node for fullscreen.";
-        if (root.shellCommandBridge && root.shellCommandBridge.show_graph_hint) {
-            root.shellCommandBridge.show_graph_hint(normalized, 2400);
-            return true;
-        }
         if (typeof shellLibraryBridge !== "undefined" && shellLibraryBridge && shellLibraryBridge.show_graph_hint) {
             shellLibraryBridge.show_graph_hint(normalized, 2400);
             return true;
@@ -150,8 +155,14 @@ Item {
     }
 
     Keys.onDeletePressed: function(event) {
-        if (root.shellCommandBridge && root.canvasItem)
-            root.shellCommandBridge.request_delete_selected_graph_items(root.canvasItem.selectedEdgeIds);
+        if (root.canvasItem) {
+            var edgeIds = root.canvasItem.selectedEdgeIds || [];
+            if (!root._triggerGraphAction("delete_selection", { "edge_ids": edgeIds })
+                    && root.canvasCommandBridge
+                    && root.canvasCommandBridge.request_delete_selected_graph_items) {
+                root.canvasCommandBridge.request_delete_selected_graph_items(edgeIds);
+            }
+        }
         if (root.canvasItem) {
             root.canvasItem.selectedEdgeIds = [];
             root.canvasItem.clearPendingConnection();
@@ -169,7 +180,10 @@ Item {
         if (!root.canvasItem)
             return;
         if ((event.modifiers & Qt.AltModifier) && event.key === Qt.Key_Left) {
-            if (root.shellCommandBridge && root.shellCommandBridge.request_navigate_scope_parent()) {
+            var navigatedParent = root._triggerGraphAction("navigate_scope_parent", ({}));
+            if (!navigatedParent && root.canvasCommandBridge && root.canvasCommandBridge.request_navigate_scope_parent)
+                navigatedParent = root.canvasCommandBridge.request_navigate_scope_parent();
+            if (navigatedParent) {
                 root.canvasItem.clearEdgeSelection();
                 root.canvasItem.clearPendingConnection();
                 root.canvasItem._closeContextMenus();
@@ -178,7 +192,10 @@ Item {
             return;
         }
         if ((event.modifiers & Qt.AltModifier) && event.key === Qt.Key_Home) {
-            if (root.shellCommandBridge && root.shellCommandBridge.request_navigate_scope_root()) {
+            var navigatedRoot = root._triggerGraphAction("navigate_scope_root", ({}));
+            if (!navigatedRoot && root.canvasCommandBridge && root.canvasCommandBridge.request_navigate_scope_root)
+                navigatedRoot = root.canvasCommandBridge.request_navigate_scope_root();
+            if (navigatedRoot) {
                 root.canvasItem.clearEdgeSelection();
                 root.canvasItem.clearPendingConnection();
                 root.canvasItem._closeContextMenus();
@@ -358,13 +375,13 @@ Item {
                     mouse.accepted = true;
                 return;
             }
-            if (!root.shellCommandBridge)
+            if (!root.canvasCommandBridge || !root.canvasCommandBridge.request_open_canvas_quick_insert)
                 return;
             var sceneX = root.canvasItem.screenToSceneX(mouse.x);
             var sceneY = root.canvasItem.screenToSceneY(mouse.y);
             var overlayHost = root.canvasItem.overlayHostItem || root.canvasItem;
             var overlayPoint = root.canvasItem.mapToItem(overlayHost, mouse.x, mouse.y);
-            root.shellCommandBridge.request_open_canvas_quick_insert(
+            root.canvasCommandBridge.request_open_canvas_quick_insert(
                 sceneX, sceneY, overlayPoint.x, overlayPoint.y
             );
             mouse.accepted = true;

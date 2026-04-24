@@ -363,6 +363,9 @@ class GraphSceneBridgeBindRegressionTests(unittest.TestCase):
         node_delegate_text = (
             _REPO_ROOT / "ea_node_editor" / "ui_qml" / "components" / "graph_canvas" / "GraphCanvasNodeDelegate.qml"
         ).read_text(encoding="utf-8")
+        input_layers_text = (
+            _REPO_ROOT / "ea_node_editor" / "ui_qml" / "components" / "graph_canvas" / "GraphCanvasInputLayers.qml"
+        ).read_text(encoding="utf-8")
 
         self.assertIn("GraphSceneBridgeBase", bridge_text)
         self.assertIn("def state_bridge(self) -> GraphSceneReadBridge:", support_text)
@@ -379,11 +382,24 @@ class GraphSceneBridgeBindRegressionTests(unittest.TestCase):
         self.assertIn("sceneCommandBridge: root.sceneCommandBridge", canvas_text)
         self.assertIn("graphActionBridge: root.graphActionBridge", canvas_text)
         self.assertIn("graphActionBridge: root.graphActionBridgeRef", canvas_text)
+        self.assertIn("property var canvasViewBridge: canvasStateBridge && canvasStateBridge.viewport_bridge", canvas_text)
+        self.assertNotIn("typeof graphCanvasViewBridge", canvas_text)
+        self.assertNotIn("_legacyCanvasViewBridgeRef", canvas_text)
+        self.assertNotIn("_legacyCanvasViewBridgeRef", root_bindings_text)
+        self.assertNotIn("_canvasShellCommandBridgeRef", canvas_text)
+        self.assertNotIn("_canvasSceneCommandBridgeRef", canvas_text)
+        self.assertNotIn("_canvasViewCommandBridgeRef", canvas_text)
         self.assertIn("property var graphActionBridge: null", root_bindings_text)
         self.assertIn("readonly property var graphActionBridgeRef: root.graphActionBridge || null", root_bindings_text)
         self.assertIn("root.graphActionBridge.trigger_graph_action(actionId, payload || ({}))", context_menus_text)
         self.assertIn("graphActionBridge.trigger_graph_action(actionId, payload)", node_delegate_text)
         self.assertIn("payload.inline_title_edit = true", node_delegate_text)
+        self.assertIn("property var graphActionBridge: null", input_layers_text)
+        self.assertNotIn("property var shellCommandBridge", input_layers_text)
+        self.assertIn('root._triggerGraphAction("delete_selection", { "edge_ids": edgeIds })', input_layers_text)
+        self.assertIn('root._triggerGraphAction("navigate_scope_parent", ({}))', input_layers_text)
+        self.assertIn('root._triggerGraphAction("navigate_scope_root", ({}))', input_layers_text)
+        self.assertIn('root._triggerGraphAction("close_comment_peek", ({}))', input_layers_text)
         for retired_snippet in (
             "def request_wrap_selected_nodes_in_comment_backdrop",
             "def request_edit_flow_edge_style",

@@ -41,6 +41,14 @@ ROOT_BINDINGS_QML = (
     / "graph_canvas"
     / "GraphCanvasRootBindings.qml"
 )
+INPUT_LAYERS_QML = (
+    REPO_ROOT
+    / "ea_node_editor"
+    / "ui_qml"
+    / "components"
+    / "graph_canvas"
+    / "GraphCanvasInputLayers.qml"
+)
 WINDOW_ACTIONS = REPO_ROOT / "ea_node_editor" / "ui" / "shell" / "window_actions.py"
 
 RETIRED_QML_COMMAND_BRIDGE_ACTION_SLOTS = {
@@ -263,6 +271,7 @@ def test_qml_graph_canvas_actions_route_through_graph_action_bridge() -> None:
     context_source = _source(CONTEXT_MENUS_QML)
     delegate_source = _source(NODE_DELEGATE_QML)
     root_bindings_source = _source(ROOT_BINDINGS_QML)
+    input_layers_source = _source(INPUT_LAYERS_QML)
 
     assert "property var graphActionBridge: null" in root_bindings_source
     assert "readonly property var graphActionBridgeRef: root.graphActionBridge || null" in root_bindings_source
@@ -272,6 +281,12 @@ def test_qml_graph_canvas_actions_route_through_graph_action_bridge() -> None:
     assert "graphActionBridge.trigger_graph_action(actionId, payload)" in delegate_source
     assert "payload.inline_title_edit = true" in delegate_source
     assert "canvasItem.graphActionBridgeRef" in delegate_source
+    assert "property var graphActionBridge: null" in input_layers_source
+    assert 'root._triggerGraphAction("delete_selection", { "edge_ids": edgeIds })' in input_layers_source
+    assert 'root._triggerGraphAction("navigate_scope_parent", ({}))' in input_layers_source
+    assert 'root._triggerGraphAction("navigate_scope_root", ({}))' in input_layers_source
+    assert 'root._triggerGraphAction("close_comment_peek", ({}))' in input_layers_source
+    assert "property var shellCommandBridge" not in input_layers_source
 
     retired_hits = {
         slot
