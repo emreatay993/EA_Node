@@ -5,11 +5,13 @@ import logging
 from pathlib import Path
 from types import SimpleNamespace
 
+from ea_node_editor.addons import catalog as addon_catalog
 from ea_node_editor.addons.catalog import (
     ANSYS_DPF_ADDON_ID,
     AddOnRegistration,
     registered_addon_registration_by_id,
 )
+from ea_node_editor.addons.hot_apply import apply_addon_enabled_state
 from ea_node_editor.app_preferences import (
     addon_state,
     default_app_preferences_document,
@@ -645,14 +647,14 @@ def test_discover_addon_records_reports_generic_manifest_and_state(monkeypatch) 
         pending_restart=True,
     )
 
-    monkeypatch.setattr(plugin_loader, "_registered_addon_registrations", lambda: registrations)
+    monkeypatch.setattr(addon_catalog, "REGISTERED_ADDON_REGISTRATIONS", registrations)
     monkeypatch.setattr(
-        plugin_loader.importlib,
+        addon_catalog.importlib,
         "import_module",
         lambda module_name: fake_modules[module_name],
     )
 
-    records = plugin_loader.discover_addon_records(preferences_document=preferences)
+    records = addon_catalog.discover_addon_records(preferences_document=preferences)
     records_by_id = {record.addon_id: record for record in records}
 
     restart_record = records_by_id["packet.restart"]
@@ -670,3 +672,63 @@ def test_discover_addon_records_reports_generic_manifest_and_state(monkeypatch) 
     assert unavailable_record.version == ""
     assert unavailable_record.availability.missing_dependencies == ("packet.unavailable.dep",)
     assert unavailable_record.provided_node_type_ids == ()
+
+
+def test_plugin_loader_addon_record_discovery_delegates_to_addon_catalog(monkeypatch) -> None:
+    sentinel_records = (object(),)
+    seen_documents: list[object] = []
+
+    def fake_discover_addon_records(*, preferences_document=None):
+        seen_documents.append(preferences_document)
+        return sentinel_records
+
+    preferences = default_app_preferences_document()
+    monkeypatch.setattr(addon_catalog, "discover_addon_records", fake_discover_addon_records)
+
+    assert plugin_loader.discover_addon_records(preferences_document=preferences) is sentinel_records
+    assert seen_documents == [preferences]
+
+
+def test_hot_apply_uses_runtime_coordinator_boundary_for_runtime_rebuild() -> None:
+    class RecordingRuntimeCoordinator:
+        def __init__(self) -> None:
+            self.registry = NodeRegistry()
+            self.calls: list[dict[str, object]] = []
+
+        def rebuild_after_addon_apply(
+            self,
+            *,
+            addon_id: str,
+            preferences_document,
+            app_preferences_store=None,
+            extra_plugin_dirs=None,
+        ):
+            self.calls.append(
+                {
+                    "addon_id": addon_id,
+                    "preferences_document": preferences_document,
+                    "app_preferences_store": app_preferences_store,
+                    "extra_plugin_dirs": extra_plugin_dirs,
+                }
+            )
+            return self.registry
+
+    coordinator = RecordingRuntimeCoordinator()
+
+    result = apply_addon_enabled_state(
+        ANSYS_DPF_ADDON_ID,
+        enabled=False,
+        preferences_document=default_app_preferences_document(),
+        runtime_coordinator=coordinator,
+    )
+
+    assert result.registry is coordinator.registry
+    assert coordinator.calls == [
+        {
+            "addon_id": ANSYS_DPF_ADDON_ID,
+            "preferences_document": result.preferences_document,
+            "app_preferences_store": None,
+            "extra_plugin_dirs": None,
+        }
+    ]
+    assert addon_state(result.preferences_document, ANSYS_DPF_ADDON_ID)["enabled"] is False
