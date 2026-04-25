@@ -302,6 +302,31 @@ class SerializerRoundTripMixin:
         self.assertEqual(loaded_node.custom_width, 348.0)
         self.assertEqual(loaded_node.custom_height, 258.0)
 
+    def test_round_trip_preserves_folder_explorer_current_path(self) -> None:
+        model = GraphModel()
+        workspace = model.active_workspace
+        node = model.add_node(
+            workspace.workspace_id,
+            "io.folder_explorer",
+            "Folder Explorer",
+            25.0,
+            45.0,
+            properties={"current_path": r"C:\fixtures\folder"},
+        )
+
+        serializer = JsonProjectSerializer(build_default_registry())
+        with tempfile.TemporaryDirectory() as temp_dir:
+            path = Path(temp_dir) / "project.sfe"
+            serializer.save(str(path), model.project)
+            loaded = serializer.load(str(path))
+
+        loaded_node = loaded.workspaces[workspace.workspace_id].nodes[node.node_id]
+        self.assertEqual(loaded_node.type_id, "io.folder_explorer")
+        self.assertEqual(
+            loaded_node.properties,
+            {"current_path": r"C:\fixtures\folder"},
+        )
+
     def test_load_preserves_sparse_passive_image_panel_properties_while_coercing_present_values(self) -> None:
         model = GraphModel()
         workspace = model.active_workspace
