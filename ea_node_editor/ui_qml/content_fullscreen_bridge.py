@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import copy
+from collections.abc import Callable
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
@@ -38,6 +39,168 @@ class _FullscreenResolution:
     error: str
 
 
+class _ContentFullscreenPolicyService:
+    def __init__(
+        self,
+        *,
+        shell_window_provider: Callable[[], "ShellWindow | None"],
+        scene_bridge_provider: Callable[[], "GraphSceneBridge | None"],
+        viewer_session_bridge_provider: Callable[[], "ViewerSessionBridge | None"],
+    ) -> None:
+        self._shell_window_provider = shell_window_provider
+        self._scene_bridge_provider = scene_bridge_provider
+        self._viewer_session_bridge_provider = viewer_session_bridge_provider
+
+    def resolve_candidate(self, node_id: str) -> _FullscreenResolution:
+        normalized_node_id = str(node_id or "").strip()
+        if not normalized_node_id:
+            return _FullscreenResolution(None, "A node must be selected for content fullscreen.")
+        workspace_result = self.active_workspace()
+        if isinstance(workspace_result, str):
+            return _FullscreenResolution(None, workspace_result)
+        workspace_id, workspace, registry = workspace_result
+        node = workspace.nodes.get(normalized_node_id)
+        if node is None:
+            return _FullscreenResolution(None, "The selected node is no longer available.")
+        spec = self.node_spec(registry, node.type_id)
+        if spec is None:
+            return _FullscreenResolution(None, "The selected node type is unavailable.")
+        content_kind = self.content_kind_for_node(node, spec)
+        if not content_kind:
+            return _FullscreenResolution(None, "The selected node does not support content fullscreen.")
+        if content_kind in {"image", "pdf"} and not str(node.properties.get("source_path", "") or "").strip():
+            return _FullscreenResolution(None, "Media nodes need a source path before they can open fullscreen.")
+        return _FullscreenResolution(
+            _FullscreenCandidate(
+                workspace_id=workspace_id,
+                node=node,
+                spec=spec,
+                content_kind=content_kind,
+                media_payload=(
+                    build_content_fullscreen_media_payload(
+                        workspace_id=workspace_id,
+                        node=node,
+                        spec=spec,
+                    )
+                    if content_kind in {"image", "pdf"}
+                    else {}
+                ),
+                viewer_payload=(
+                    self.build_viewer_payload(
+                        workspace_id=workspace_id,
+                        node=node,
+                        spec=spec,
+                    )
+                    if content_kind == "viewer"
+                    else {}
+                ),
+            ),
+            "",
+        )
+
+    def active_workspace(self) -> tuple[str, "WorkspaceData", "NodeRegistry"] | str:
+        shell_window = self._shell_window_provider()
+        scene_bridge = self._scene_bridge_provider()
+        scene_workspace_id = str(getattr(scene_bridge, "workspace_id", "") or "").strip()
+        manager = getattr(shell_window, "workspace_manager", None) if shell_window is not None else None
+        manager_workspace_id = ""
+        if manager is not None:
+            active_workspace_id = getattr(manager, "active_workspace_id", None)
+            if callable(active_workspace_id):
+                manager_workspace_id = str(active_workspace_id() or "").strip()
+        if scene_workspace_id and manager_workspace_id and scene_workspace_id != manager_workspace_id:
+            return "The active workspace state is ambiguous."
+        workspace_id = scene_workspace_id or manager_workspace_id
+        if not workspace_id:
+            return "The active workspace state is ambiguous."
+        model = getattr(shell_window, "model", None) if shell_window is not None else None
+        registry = getattr(shell_window, "registry", None) if shell_window is not None else None
+        if model is None or registry is None:
+            return "The graph model is not ready."
+        project = getattr(model, "project", None)
+        workspaces = getattr(project, "workspaces", {}) if project is not None else {}
+        workspace = workspaces.get(workspace_id)
+        if workspace is None:
+            return "The active workspace state is ambiguous."
+        return workspace_id, workspace, registry
+
+    @staticmethod
+    def node_spec(registry: "NodeRegistry", type_id: str) -> "NodeTypeSpec | None":
+        spec_or_none = getattr(registry, "spec_or_none", None)
+        if callable(spec_or_none):
+            return spec_or_none(type_id)
+        try:
+            return registry.get_spec(type_id)
+        except KeyError:
+            return None
+
+    @staticmethod
+    def content_kind_for_node(node: "NodeInstance", spec: "NodeTypeSpec") -> str:
+        if node.type_id == PASSIVE_MEDIA_IMAGE_PANEL_TYPE_ID:
+            return "image"
+        if node.type_id == PASSIVE_MEDIA_PDF_PANEL_TYPE_ID:
+            return "pdf"
+        if node.type_id == DPF_VIEWER_NODE_TYPE_ID and str(spec.surface_family or "").strip() == "viewer":
+            return "viewer"
+        return ""
+
+    def build_viewer_payload(
+        self,
+        *,
+        workspace_id: str,
+        node: "NodeInstance",
+        spec: "NodeTypeSpec",
+    ) -> dict[str, Any]:
+        session_state = self.viewer_session_state(node.node_id)
+        options = session_state.get("options", {})
+        options_payload = options if isinstance(options, dict) else {}
+        summary = session_state.get("summary", {})
+        summary_payload = summary if isinstance(summary, dict) else {}
+        payload = {
+            "workspace_id": str(workspace_id),
+            "node_id": str(node.node_id),
+            "type_id": str(node.type_id),
+            "title": str(node.title or spec.display_name),
+            "display_name": str(spec.display_name),
+            "surface_family": str(spec.surface_family or ""),
+            "surface_variant": str(spec.surface_variant or ""),
+            "properties": copy.deepcopy(node.properties),
+            "session_state": session_state,
+            "session_id": str(session_state.get("session_id", "") or ""),
+            "phase": str(session_state.get("phase", "closed") or "closed"),
+            "cache_state": str(session_state.get("cache_state", "") or ""),
+            "live_mode": str(session_state.get("live_mode", "") or options_payload.get("live_mode", "") or ""),
+            "summary": copy.deepcopy(summary_payload),
+            "viewer_surface": self.scene_node_payload(node.node_id).get("viewer_surface", {}),
+        }
+        return payload
+
+    def viewer_session_state(self, node_id: str) -> dict[str, Any]:
+        bridge = self._viewer_session_bridge_provider()
+        session_state = getattr(bridge, "session_state", None) if bridge is not None else None
+        if not callable(session_state):
+            return {}
+        try:
+            state = session_state(node_id)
+        except Exception:  # noqa: BLE001
+            return {}
+        return copy.deepcopy(state) if isinstance(state, dict) else {}
+
+    def scene_node_payload(self, node_id: str) -> dict[str, Any]:
+        scene_bridge = self._scene_bridge_provider()
+        if scene_bridge is None:
+            return {}
+        try:
+            payloads = list(getattr(scene_bridge, "nodes_model", []) or [])
+        except Exception:  # noqa: BLE001
+            return {}
+        normalized = str(node_id or "").strip()
+        for payload in payloads:
+            if isinstance(payload, dict) and str(payload.get("node_id", "")).strip() == normalized:
+                return copy.deepcopy(payload)
+        return {}
+
+
 class ContentFullscreenBridge(QObject):
     content_fullscreen_changed = pyqtSignal()
 
@@ -61,6 +224,11 @@ class ContentFullscreenBridge(QObject):
         self._media_payload: dict[str, Any] = {}
         self._viewer_payload: dict[str, Any] = {}
         self._last_error = ""
+        self._policy_service = _ContentFullscreenPolicyService(
+            shell_window_provider=lambda: self._shell_window,
+            scene_bridge_provider=lambda: self._scene_bridge,
+            viewer_session_bridge_provider=lambda: self._viewer_session_bridge,
+        )
         self._connect_scene_lifecycle()
 
     @property
@@ -221,96 +389,18 @@ class ContentFullscreenBridge(QObject):
         self.content_fullscreen_changed.emit()
 
     def _resolve_candidate(self, node_id: str) -> _FullscreenResolution:
-        normalized_node_id = str(node_id or "").strip()
-        if not normalized_node_id:
-            return _FullscreenResolution(None, "A node must be selected for content fullscreen.")
-        workspace_result = self._active_workspace()
-        if isinstance(workspace_result, str):
-            return _FullscreenResolution(None, workspace_result)
-        workspace_id, workspace, registry = workspace_result
-        node = workspace.nodes.get(normalized_node_id)
-        if node is None:
-            return _FullscreenResolution(None, "The selected node is no longer available.")
-        spec = self._node_spec(registry, node.type_id)
-        if spec is None:
-            return _FullscreenResolution(None, "The selected node type is unavailable.")
-        content_kind = self._content_kind_for_node(node, spec)
-        if not content_kind:
-            return _FullscreenResolution(None, "The selected node does not support content fullscreen.")
-        if content_kind in {"image", "pdf"} and not str(node.properties.get("source_path", "") or "").strip():
-            return _FullscreenResolution(None, "Media nodes need a source path before they can open fullscreen.")
-        return _FullscreenResolution(
-            _FullscreenCandidate(
-                workspace_id=workspace_id,
-                node=node,
-                spec=spec,
-                content_kind=content_kind,
-                media_payload=(
-                    build_content_fullscreen_media_payload(
-                        workspace_id=workspace_id,
-                        node=node,
-                        spec=spec,
-                    )
-                    if content_kind in {"image", "pdf"}
-                    else {}
-                ),
-                viewer_payload=(
-                    self._build_viewer_payload(
-                        workspace_id=workspace_id,
-                        node=node,
-                        spec=spec,
-                    )
-                    if content_kind == "viewer"
-                    else {}
-                ),
-            ),
-            "",
-        )
+        return self._policy_service.resolve_candidate(node_id)
 
     def _active_workspace(self) -> tuple[str, "WorkspaceData", "NodeRegistry"] | str:
-        shell_window = self._shell_window
-        scene_workspace_id = str(getattr(self._scene_bridge, "workspace_id", "") or "").strip()
-        manager = getattr(shell_window, "workspace_manager", None) if shell_window is not None else None
-        manager_workspace_id = ""
-        if manager is not None:
-            active_workspace_id = getattr(manager, "active_workspace_id", None)
-            if callable(active_workspace_id):
-                manager_workspace_id = str(active_workspace_id() or "").strip()
-        if scene_workspace_id and manager_workspace_id and scene_workspace_id != manager_workspace_id:
-            return "The active workspace state is ambiguous."
-        workspace_id = scene_workspace_id or manager_workspace_id
-        if not workspace_id:
-            return "The active workspace state is ambiguous."
-        model = getattr(shell_window, "model", None) if shell_window is not None else None
-        registry = getattr(shell_window, "registry", None) if shell_window is not None else None
-        if model is None or registry is None:
-            return "The graph model is not ready."
-        project = getattr(model, "project", None)
-        workspaces = getattr(project, "workspaces", {}) if project is not None else {}
-        workspace = workspaces.get(workspace_id)
-        if workspace is None:
-            return "The active workspace state is ambiguous."
-        return workspace_id, workspace, registry
+        return self._policy_service.active_workspace()
 
     @staticmethod
     def _node_spec(registry: "NodeRegistry", type_id: str) -> "NodeTypeSpec | None":
-        spec_or_none = getattr(registry, "spec_or_none", None)
-        if callable(spec_or_none):
-            return spec_or_none(type_id)
-        try:
-            return registry.get_spec(type_id)
-        except KeyError:
-            return None
+        return _ContentFullscreenPolicyService.node_spec(registry, type_id)
 
     @staticmethod
     def _content_kind_for_node(node: "NodeInstance", spec: "NodeTypeSpec") -> str:
-        if node.type_id == PASSIVE_MEDIA_IMAGE_PANEL_TYPE_ID:
-            return "image"
-        if node.type_id == PASSIVE_MEDIA_PDF_PANEL_TYPE_ID:
-            return "pdf"
-        if node.type_id == DPF_VIEWER_NODE_TYPE_ID and str(spec.surface_family or "").strip() == "viewer":
-            return "viewer"
-        return ""
+        return _ContentFullscreenPolicyService.content_kind_for_node(node, spec)
 
     def _build_viewer_payload(
         self,
@@ -319,54 +409,17 @@ class ContentFullscreenBridge(QObject):
         node: "NodeInstance",
         spec: "NodeTypeSpec",
     ) -> dict[str, Any]:
-        session_state = self._viewer_session_state(node.node_id)
-        options = session_state.get("options", {})
-        options_payload = options if isinstance(options, dict) else {}
-        summary = session_state.get("summary", {})
-        summary_payload = summary if isinstance(summary, dict) else {}
-        payload = {
-            "workspace_id": str(workspace_id),
-            "node_id": str(node.node_id),
-            "type_id": str(node.type_id),
-            "title": str(node.title or spec.display_name),
-            "display_name": str(spec.display_name),
-            "surface_family": str(spec.surface_family or ""),
-            "surface_variant": str(spec.surface_variant or ""),
-            "properties": copy.deepcopy(node.properties),
-            "session_state": session_state,
-            "session_id": str(session_state.get("session_id", "") or ""),
-            "phase": str(session_state.get("phase", "closed") or "closed"),
-            "cache_state": str(session_state.get("cache_state", "") or ""),
-            "live_mode": str(session_state.get("live_mode", "") or options_payload.get("live_mode", "") or ""),
-            "summary": copy.deepcopy(summary_payload),
-            "viewer_surface": self._scene_node_payload(node.node_id).get("viewer_surface", {}),
-        }
-        return payload
+        return self._policy_service.build_viewer_payload(
+            workspace_id=workspace_id,
+            node=node,
+            spec=spec,
+        )
 
     def _viewer_session_state(self, node_id: str) -> dict[str, Any]:
-        bridge = self._viewer_session_bridge
-        session_state = getattr(bridge, "session_state", None) if bridge is not None else None
-        if not callable(session_state):
-            return {}
-        try:
-            state = session_state(node_id)
-        except Exception:  # noqa: BLE001
-            return {}
-        return copy.deepcopy(state) if isinstance(state, dict) else {}
+        return self._policy_service.viewer_session_state(node_id)
 
     def _scene_node_payload(self, node_id: str) -> dict[str, Any]:
-        scene_bridge = self._scene_bridge
-        if scene_bridge is None:
-            return {}
-        try:
-            payloads = list(getattr(scene_bridge, "nodes_model", []) or [])
-        except Exception:  # noqa: BLE001
-            return {}
-        normalized = str(node_id or "").strip()
-        for payload in payloads:
-            if isinstance(payload, dict) and str(payload.get("node_id", "")).strip() == normalized:
-                return copy.deepcopy(payload)
-        return {}
+        return self._policy_service.scene_node_payload(node_id)
 
 
 __all__ = ["ContentFullscreenBridge"]

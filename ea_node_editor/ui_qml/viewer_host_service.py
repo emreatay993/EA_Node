@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import copy
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
@@ -148,6 +148,129 @@ class _BoundOverlay:
     signature: tuple[Any, ...]
 
 
+class _ViewerHostPresentationService:
+    def __init__(
+        self,
+        *,
+        content_fullscreen_bridge_provider: Callable[[], QObject | None],
+    ) -> None:
+        self._content_fullscreen_bridge_provider = content_fullscreen_bridge_provider
+
+    def desired_overlays(
+        self,
+        projected_sessions: Any,
+        binder_registry: ViewerWidgetBinderRegistry,
+    ) -> tuple[dict[_OverlayKey, tuple[_ViewerHostSessionSnapshot, ViewerWidgetBinder]], list[str]]:
+        desired_overlays: dict[_OverlayKey, tuple[_ViewerHostSessionSnapshot, ViewerWidgetBinder]] = {}
+        errors: list[str] = []
+        for item in projected_sessions if isinstance(projected_sessions, list) else []:
+            projected_state = _mapping(item)
+            if not self.should_host_overlay(projected_state):
+                continue
+            snapshot = self.snapshot_from_projected_state(projected_state)
+            if snapshot is None:
+                continue
+            binder = binder_registry.lookup(snapshot.backend_id)
+            if binder is None:
+                errors.append(f"No viewer widget binder registered for backend '{snapshot.backend_id}'.")
+                continue
+            desired_overlays[snapshot.overlay_key] = (snapshot, binder)
+        return desired_overlays, errors
+
+    def content_fullscreen_overlay_spec(self) -> EmbeddedViewerOverlaySpec | None:
+        bridge = self._content_fullscreen_bridge_provider()
+        if bridge is None:
+            return None
+        if not bool(getattr(bridge, "open", False)):
+            return None
+        if _string(getattr(bridge, "content_kind", "")) != "viewer":
+            return None
+        workspace_id = _string(getattr(bridge, "workspace_id", ""))
+        node_id = _string(getattr(bridge, "node_id", ""))
+        if not workspace_id or not node_id:
+            return None
+        viewer_payload = _mapping(getattr(bridge, "viewer_payload", {}))
+        return EmbeddedViewerOverlaySpec(
+            workspace_id=workspace_id,
+            node_id=node_id,
+            session_id=_string(viewer_payload.get("session_id", "")),
+        )
+
+    @staticmethod
+    def snapshot_from_projected_state(
+        projected_state: Mapping[str, Any],
+    ) -> _ViewerHostSessionSnapshot | None:
+        session = _projected_session(projected_state)
+        if not session:
+            return None
+        workspace_id = _string(session.get("workspace_id"))
+        node_id = _string(session.get("node_id"))
+        if not workspace_id or not node_id:
+            return None
+        summary = _mapping(session.get("summary"))
+        options = _mapping(session.get("options"))
+        data_refs = _mapping(session.get("data_refs"))
+        transport = _mapping(session.get("transport"))
+        live_open_blocker = _mapping(session.get("live_open_blocker"))
+        camera_state = _mapping(session.get("camera_state"))
+        playback_state = _mapping(session.get("playback"))
+        if not playback_state:
+            playback_state = _playback_state_from_projection(session)
+        backend_id = _string(session.get("backend_id"))
+        if not backend_id:
+            return None
+        session_id = _string(session.get("session_id"))
+        transport_revision = _coerce_int(session.get("transport_revision"), default=0)
+        live_open_status = _string(session.get("live_open_status"))
+        return _ViewerHostSessionSnapshot(
+            workspace_id=workspace_id,
+            node_id=node_id,
+            session_id=session_id,
+            backend_id=backend_id,
+            phase=_string(session.get("phase")),
+            cache_state=_string(session.get("cache_state")),
+            live_mode=_string(session.get("live_mode")),
+            transport_revision=transport_revision,
+            live_open_status=live_open_status,
+            live_open_blocker=live_open_blocker,
+            data_refs=data_refs,
+            transport=transport,
+            camera_state=camera_state,
+            playback_state=playback_state,
+            summary=summary,
+            options=options,
+        )
+
+    @staticmethod
+    def should_host_overlay(projected_state: Mapping[str, Any]) -> bool:
+        session = _projected_session(projected_state)
+        if _string(session.get("phase")) != "open":
+            return False
+        live_mode = _string(session.get("live_mode"))
+        if live_mode != "full":
+            return False
+        live_open_status = _string(session.get("live_open_status"))
+        cache_state = _string(session.get("cache_state"))
+        return live_open_status == "ready" or cache_state == "live_ready"
+
+    @staticmethod
+    def binding_signature(snapshot: _ViewerHostSessionSnapshot) -> tuple[Any, ...]:
+        return (
+            snapshot.session_id,
+            snapshot.backend_id,
+            snapshot.transport_revision,
+            snapshot.live_mode,
+            snapshot.cache_state,
+            snapshot.live_open_status,
+            _freeze_value(snapshot.live_open_blocker),
+            _freeze_value(snapshot.transport),
+            _freeze_value(snapshot.data_refs),
+            _freeze_value(snapshot.camera_state),
+            _freeze_value(snapshot.playback_state),
+            _freeze_value(snapshot.options),
+        )
+
+
 class ViewerHostService(QObject):
     state_changed = pyqtSignal()
     last_error_changed = pyqtSignal()
@@ -168,6 +291,9 @@ class ViewerHostService(QObject):
         self._binder_registry = ViewerWidgetBinderRegistry()
         self._custom_binders: dict[str, ViewerWidgetBinder] = {}
         self._bound_overlays: dict[_OverlayKey, _BoundOverlay] = {}
+        self._presentation_service = _ViewerHostPresentationService(
+            content_fullscreen_bridge_provider=self._connect_content_fullscreen_bridge,
+        )
         self._last_error = ""
         self._sync_queued = False
         self._sync_suspended = False
@@ -416,20 +542,10 @@ class ViewerHostService(QObject):
 
         overlay_manager.set_content_fullscreen_target(self._content_fullscreen_overlay_spec())
         projected_sessions = bridge.sessions_model
-        desired_overlays: dict[_OverlayKey, tuple[_ViewerHostSessionSnapshot, ViewerWidgetBinder]] = {}
-        errors: list[str] = []
-        for item in projected_sessions if isinstance(projected_sessions, list) else []:
-            projected_state = _mapping(item)
-            if not self._should_host_overlay(projected_state):
-                continue
-            snapshot = self._snapshot_from_projected_state(projected_state)
-            if snapshot is None:
-                continue
-            binder = self._binder_registry.lookup(snapshot.backend_id)
-            if binder is None:
-                errors.append(f"No viewer widget binder registered for backend '{snapshot.backend_id}'.")
-                continue
-            desired_overlays[snapshot.overlay_key] = (snapshot, binder)
+        desired_overlays, errors = self._presentation_service.desired_overlays(
+            projected_sessions,
+            self._binder_registry,
+        )
 
         for key, bound in list(self._bound_overlays.items()):
             desired = desired_overlays.get(key)
@@ -503,23 +619,7 @@ class ViewerHostService(QObject):
         self.state_changed.emit()
 
     def _content_fullscreen_overlay_spec(self) -> EmbeddedViewerOverlaySpec | None:
-        bridge = self._connect_content_fullscreen_bridge()
-        if bridge is None:
-            return None
-        if not bool(getattr(bridge, "open", False)):
-            return None
-        if _string(getattr(bridge, "content_kind", "")) != "viewer":
-            return None
-        workspace_id = _string(getattr(bridge, "workspace_id", ""))
-        node_id = _string(getattr(bridge, "node_id", ""))
-        if not workspace_id or not node_id:
-            return None
-        viewer_payload = _mapping(getattr(bridge, "viewer_payload", {}))
-        return EmbeddedViewerOverlaySpec(
-            workspace_id=workspace_id,
-            node_id=node_id,
-            session_id=_string(viewer_payload.get("session_id", "")),
-        )
+        return self._presentation_service.content_fullscreen_overlay_spec()
 
     def _release_all_bindings(self, *, reason: str) -> None:
         for key in list(self._bound_overlays):
@@ -588,75 +688,13 @@ class ViewerHostService(QObject):
         self,
         projected_state: Mapping[str, Any],
     ) -> _ViewerHostSessionSnapshot | None:
-        session = _projected_session(projected_state)
-        if not session:
-            return None
-        workspace_id = _string(session.get("workspace_id"))
-        node_id = _string(session.get("node_id"))
-        if not workspace_id or not node_id:
-            return None
-        summary = _mapping(session.get("summary"))
-        options = _mapping(session.get("options"))
-        data_refs = _mapping(session.get("data_refs"))
-        transport = _mapping(session.get("transport"))
-        live_open_blocker = _mapping(session.get("live_open_blocker"))
-        camera_state = _mapping(session.get("camera_state"))
-        playback_state = _mapping(session.get("playback"))
-        if not playback_state:
-            playback_state = _playback_state_from_projection(session)
-        backend_id = _string(session.get("backend_id"))
-        if not backend_id:
-            return None
-        session_id = _string(session.get("session_id"))
-        transport_revision = _coerce_int(session.get("transport_revision"), default=0)
-        live_open_status = _string(session.get("live_open_status"))
-        return _ViewerHostSessionSnapshot(
-            workspace_id=workspace_id,
-            node_id=node_id,
-            session_id=session_id,
-            backend_id=backend_id,
-            phase=_string(session.get("phase")),
-            cache_state=_string(session.get("cache_state")),
-            live_mode=_string(session.get("live_mode")),
-            transport_revision=transport_revision,
-            live_open_status=live_open_status,
-            live_open_blocker=live_open_blocker,
-            data_refs=data_refs,
-            transport=transport,
-            camera_state=camera_state,
-            playback_state=playback_state,
-            summary=summary,
-            options=options,
-        )
+        return self._presentation_service.snapshot_from_projected_state(projected_state)
 
-    @staticmethod
-    def _should_host_overlay(projected_state: Mapping[str, Any]) -> bool:
-        session = _projected_session(projected_state)
-        if _string(session.get("phase")) != "open":
-            return False
-        live_mode = _string(session.get("live_mode"))
-        if live_mode != "full":
-            return False
-        live_open_status = _string(session.get("live_open_status"))
-        cache_state = _string(session.get("cache_state"))
-        return live_open_status == "ready" or cache_state == "live_ready"
+    def _should_host_overlay(self, projected_state: Mapping[str, Any]) -> bool:
+        return self._presentation_service.should_host_overlay(projected_state)
 
-    @staticmethod
-    def _binding_signature(snapshot: _ViewerHostSessionSnapshot) -> tuple[Any, ...]:
-        return (
-            snapshot.session_id,
-            snapshot.backend_id,
-            snapshot.transport_revision,
-            snapshot.live_mode,
-            snapshot.cache_state,
-            snapshot.live_open_status,
-            _freeze_value(snapshot.live_open_blocker),
-            _freeze_value(snapshot.transport),
-            _freeze_value(snapshot.data_refs),
-            _freeze_value(snapshot.camera_state),
-            _freeze_value(snapshot.playback_state),
-            _freeze_value(snapshot.options),
-        )
+    def _binding_signature(self, snapshot: _ViewerHostSessionSnapshot) -> tuple[Any, ...]:
+        return self._presentation_service.binding_signature(snapshot)
 
     def _set_last_error(self, value: str) -> None:
         normalized = _string(value)
