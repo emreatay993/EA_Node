@@ -8,11 +8,7 @@ from typing import TYPE_CHECKING, Any
 from ea_node_editor.custom_workflows import normalize_custom_workflow_metadata
 from ea_node_editor.execution.runtime_dto import RuntimeWorkspace
 from ea_node_editor.passive_style_normalization import normalize_passive_style_presets
-from ea_node_editor.persistence.envelope import (
-    LEGACY_RUNTIME_PERSISTENCE_KEY,
-    PERSISTENCE_ENVELOPE_KEY,
-    ProjectPersistenceEnvelope,
-)
+import ea_node_editor.persistence.envelope as persistence_envelope
 from ea_node_editor.persistence.artifact_store import ProjectArtifactStore
 from ea_node_editor.settings import DEFAULT_WORKFLOW_SETTINGS, SCHEMA_VERSION
 from ea_node_editor.workspace.ownership import resolve_workspace_ownership
@@ -87,8 +83,8 @@ def normalize_runtime_project_metadata(source: Any, workspace_order: tuple[str, 
         project_path=None,
         metadata=normalized.get("artifact_store"),
     ).metadata
-    normalized.pop(PERSISTENCE_ENVELOPE_KEY, None)
-    normalized.pop(LEGACY_RUNTIME_PERSISTENCE_KEY, None)
+    normalized.pop(persistence_envelope.PERSISTENCE_ENVELOPE_KEY, None)
+    normalized.pop(persistence_envelope.LEGACY_RUNTIME_PERSISTENCE_KEY, None)
     return normalized
 
 
@@ -116,12 +112,12 @@ class RuntimeSnapshotAssembly:
             workspace = project.workspaces[workspace_id]
             workspaces.append(RuntimeWorkspace.from_workspace_data(workspace))
 
-        persistence_metadata = ProjectPersistenceEnvelope.from_workspaces(
+        persistence_metadata = persistence_envelope.ProjectPersistenceEnvelope.from_workspaces(
             project.workspaces,
             workspace_order=workspace_order,
         ).metadata_value()
         if persistence_metadata is not None:
-            runtime_metadata[PERSISTENCE_ENVELOPE_KEY] = persistence_metadata
+            runtime_metadata[persistence_envelope.PERSISTENCE_ENVELOPE_KEY] = persistence_metadata
 
         return cls(
             schema_version=SCHEMA_VERSION,

@@ -28,7 +28,7 @@ _RETIRED_GUARDRAIL_PRESENT_NAMES = {
 
 
 def parse_module(relative_path: str) -> ast.Module:
-    return ast.parse((REPO_ROOT / relative_path).read_text(encoding="utf-8"), filename=relative_path)
+    return ast.parse((REPO_ROOT / relative_path).read_text(encoding="utf-8-sig"), filename=relative_path)
 
 
 def qualified_name(node: ast.AST | None) -> str | None:
@@ -53,6 +53,16 @@ def imported_names_from(tree: ast.AST, module_name: str) -> set[str]:
 def imported_modules(tree: ast.AST) -> set[str]:
     modules: set[str] = set()
     for node in ast.walk(tree):
+        if isinstance(node, ast.ImportFrom) and node.module is not None:
+            modules.add(node.module)
+        elif isinstance(node, ast.Import):
+            modules.update(alias.name for alias in node.names)
+    return modules
+
+
+def top_level_imported_modules(tree: ast.Module) -> set[str]:
+    modules: set[str] = set()
+    for node in tree.body:
         if isinstance(node, ast.ImportFrom) and node.module is not None:
             modules.add(node.module)
         elif isinstance(node, ast.Import):
@@ -333,6 +343,32 @@ class GraphArchitectureBoundaryTests(unittest.TestCase):
                         or module.startswith("ea_node_editor.execution.")
                     }
                 )
+
+    def test_nodes_sdk_modules_do_not_import_runtime_or_ui_implementations_at_module_load(self) -> None:
+        nodes_root = REPO_ROOT / "ea_node_editor" / "nodes"
+        forbidden_prefixes = (
+            "ea_node_editor.execution",
+            "ea_node_editor.persistence",
+            "ea_node_editor.ui",
+            "ea_node_editor.ui_qml",
+        )
+
+        offenders: dict[str, list[str]] = {}
+        for source_path in nodes_root.rglob("*.py"):
+            relative_path = source_path.relative_to(REPO_ROOT).as_posix()
+            imports = top_level_imported_modules(parse_module(relative_path))
+            forbidden_imports = sorted(
+                module
+                for module in imports
+                if any(
+                    module == prefix or module.startswith(f"{prefix}.")
+                    for prefix in forbidden_prefixes
+                )
+            )
+            if forbidden_imports:
+                offenders[relative_path] = forbidden_imports
+
+        self.assertEqual(offenders, {})
 
     def test_execution_value_codec_is_contract_compatibility_export(self) -> None:
         codec_tree = parse_module("ea_node_editor/execution/runtime_value_codec.py")

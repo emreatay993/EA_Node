@@ -4,7 +4,7 @@ import copy
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Callable, Protocol
+from typing import Any, Callable, Protocol
 
 from ea_node_editor.runtime_contracts import (
     RuntimeArtifactRef,
@@ -12,11 +12,6 @@ from ea_node_editor.runtime_contracts import (
     coerce_runtime_artifact_ref,
     coerce_runtime_handle_ref,
 )
-
-if TYPE_CHECKING:
-    from ea_node_editor.execution.runtime_snapshot import RuntimeSnapshot, RuntimeSnapshotContext
-    from ea_node_editor.persistence.artifact_store import ProjectArtifactStore
-
 
 class ExecutionHandleServices(Protocol):
     def register_handle(
@@ -44,6 +39,16 @@ class ExecutionHandleServices(Protocol):
     ) -> RuntimeHandleRef: ...
 
 
+class RuntimeSnapshotPort(Protocol):
+    metadata: Mapping[str, Any]
+
+
+class RuntimeSnapshotContextPort(Protocol):
+    artifact_store: Any
+
+    def project_metadata(self) -> dict[str, Any]: ...
+
+
 @dataclass(slots=True)
 class ExecutionContext:
     run_id: str
@@ -56,13 +61,13 @@ class ExecutionContext:
     should_stop: Callable[[], bool] = field(default=lambda: False)
     register_cancel: Callable[[Callable[[], None]], None] = field(default=lambda _callback: None)
     project_path: str = ""
-    runtime_snapshot: RuntimeSnapshot | None = None
-    runtime_snapshot_context: RuntimeSnapshotContext | None = None
+    runtime_snapshot: RuntimeSnapshotPort | None = None
+    runtime_snapshot_context: RuntimeSnapshotContextPort | None = None
     path_resolver: Callable[[Any], Path | None] = field(default=lambda _value: None)
     worker_services: ExecutionHandleServices | None = None
 
     @property
-    def artifact_store(self) -> ProjectArtifactStore | None:
+    def artifact_store(self) -> Any | None:
         context = self.runtime_snapshot_context
         if context is None:
             return None
