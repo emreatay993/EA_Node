@@ -48,7 +48,18 @@ GraphComponents.GraphNodeHost {
         return canvasItem ? canvasItem.graphActionBridgeRef : null;
     }
 
+    function _canvasActionRouter() {
+        return canvasItem ? canvasItem.canvasActionRouter : null;
+    }
+
     function _triggerGraphAction(actionId, nodeId, inlineTitleEdit) {
+        var actionRouter = nodeCard._canvasActionRouter();
+        if (actionRouter && actionRouter.triggerGraphAction) {
+            var routedPayload = { "node_id": String(nodeId || "") };
+            if (inlineTitleEdit)
+                routedPayload.inline_title_edit = true;
+            return Boolean(actionRouter.triggerGraphAction(actionId, routedPayload));
+        }
         var graphActionBridge = nodeCard._graphActionBridge();
         if (!graphActionBridge || !graphActionBridge.trigger_graph_action)
             return false;
@@ -88,8 +99,8 @@ GraphComponents.GraphNodeHost {
             return;
         var bridge = canvasItem.sceneCommandBridge;
         canvasItem.forceActiveFocus();
-        if (typeof viewerSessionBridge !== "undefined" && viewerSessionBridge && viewerSessionBridge.clear_viewer_focus)
-            viewerSessionBridge.clear_viewer_focus();
+        if (canvasItem.clearViewerFocus)
+            canvasItem.clearViewerFocus();
         canvasItem._closeContextMenus();
         canvasItem.clearPendingConnection();
         if (!bridge || !bridge.select_node)
@@ -267,29 +278,9 @@ GraphComponents.GraphNodeHost {
         var normalized = String(actionId || "").trim();
         if (!normalized)
             return;
-        if (normalized === "enterScope") {
-            nodeCard._triggerGraphAction(normalized, nodeId);
-            return;
-        }
-        if (normalized === "rename") {
-            if (!nodeCard._triggerGraphAction(normalized, nodeId, true))
-                return;
-            // Rename starts inline title editing in the node header, matching
-            // the double-click-on-title gesture. This avoids the modal
-            // QInputDialog whose nested event loop would destroy the clicked
-            // toolbar button mid-unwind.
-            if (nodeCard.beginInlineTitleEdit)
-                nodeCard.beginInlineTitleEdit();
-            return;
-        }
-        if (normalized === "delete" || normalized === "duplicate") {
-            if (!nodeCard._graphActionBridge())
-                return;
-            nodeCard._triggerGraphAction(normalized, nodeId);
-            if (normalized === "delete")
-                canvasItem.clearEdgeSelection();
-            return;
-        }
+        var actionRouter = nodeCard._canvasActionRouter();
+        if (actionRouter && actionRouter.handleNodeDelegateAction)
+            return actionRouter.handleNodeDelegateAction(nodeCard, nodeId, normalized);
         if (nodeCard.dispatchSurfaceAction)
             nodeCard.dispatchSurfaceAction(normalized);
     }

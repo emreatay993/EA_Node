@@ -4,19 +4,15 @@ Item {
     id: root
     objectName: "graphCanvasInputLayers"
     property Item canvasItem: null
+    property var canvasActionRouter: null
     property var graphActionBridge: null
     property var canvasCommandBridge: null
     property var sceneCommandBridge: null
     property var viewStateBridge: null
     property var viewCommandBridge: null
+    property var themePalette: ({})
     property real boxZoomDragThreshold: 4
     property real boxZoomPaddingPx: 24
-    readonly property var shellContextRef: typeof shellContext !== "undefined" ? shellContext : null
-    readonly property var themeBridgeRef: root.shellContextRef ? root.shellContextRef.themeBridge : null
-    readonly property var contentFullscreenBridgeRef: root.shellContextRef ? root.shellContextRef.contentFullscreenBridge : null
-    readonly property var shellLibraryBridgeRef: root.shellContextRef ? root.shellContextRef.shellLibraryBridge : null
-    readonly property var viewerSessionBridgeRef: root.shellContextRef ? root.shellContextRef.viewerSessionBridge : null
-    readonly property var themePalette: root.themeBridgeRef ? root.themeBridgeRef.palette : ({})
 
     function _hidePortFilterBridge() {
         if (root.canvasItem && root.canvasItem.sceneBridge && root.canvasItem.sceneBridge.set_hide_locked_ports)
@@ -41,6 +37,8 @@ Item {
     }
 
     function _closeCommentPeekIfActive() {
+        if (root.canvasActionRouter && root.canvasActionRouter.closeCommentPeekIfActive)
+            return Boolean(root.canvasActionRouter.closeCommentPeekIfActive());
         if (root._triggerGraphAction("close_comment_peek", ({})))
             return true;
         if (!root.canvasCommandBridge || !root.canvasCommandBridge.request_close_comment_peek)
@@ -49,63 +47,17 @@ Item {
     }
 
     function _triggerGraphAction(actionId, payload) {
+        if (root.canvasActionRouter && root.canvasActionRouter.triggerGraphAction)
+            return Boolean(root.canvasActionRouter.triggerGraphAction(actionId, payload || ({})));
         if (!root.graphActionBridge || !root.graphActionBridge.trigger_graph_action)
             return false;
         return Boolean(root.graphActionBridge.trigger_graph_action(String(actionId || ""), payload || ({})));
     }
 
-    function _contentFullscreenBridge() {
-        return root.contentFullscreenBridgeRef;
-    }
-
-    function _showContentFullscreenHint(message) {
-        var normalized = String(message || "Select one media or viewer node for fullscreen.").trim();
-        if (!normalized.length)
-            normalized = "Select one media or viewer node for fullscreen.";
-        if (root.shellLibraryBridgeRef && root.shellLibraryBridgeRef.show_graph_hint) {
-            root.shellLibraryBridgeRef.show_graph_hint(normalized, 2400);
-            return true;
-        }
-        return false;
-    }
-
-    function _selectedContentFullscreenNodeId() {
-        if (!root.canvasItem || !root.canvasItem.selectedNodeIds)
-            return "";
-        var selected = root.canvasItem.selectedNodeIds() || [];
-        if (selected.length !== 1)
-            return "";
-        return String(selected[0] || "").trim();
-    }
-
     function _handleContentFullscreenShortcut() {
-        var bridge = root._contentFullscreenBridge();
-        if (!bridge)
-            return false;
-        if (Boolean(bridge.open)) {
-            if (bridge.request_close)
-                bridge.request_close();
-            return true;
-        }
-        var nodeId = root._selectedContentFullscreenNodeId();
-        if (!nodeId.length) {
-            root._showContentFullscreenHint("Select one media or viewer node for fullscreen.");
-            return true;
-        }
-        if (bridge.can_open_node && !bridge.can_open_node(nodeId)) {
-            if (bridge.request_open_node)
-                bridge.request_open_node(nodeId);
-            root._showContentFullscreenHint(
-                bridge.last_error || "The selected node does not support content fullscreen."
-            );
-            return true;
-        }
-        if (bridge.request_open_node && bridge.request_open_node(nodeId))
-            return true;
-        root._showContentFullscreenHint(
-            bridge.last_error || "The selected node does not support content fullscreen."
-        );
-        return true;
+        return root.canvasActionRouter && root.canvasActionRouter.handleContentFullscreenShortcut
+            ? Boolean(root.canvasActionRouter.handleContentFullscreenShortcut())
+            : false;
     }
 
     function _handleHidePortChord(buttons, changedButton) {
@@ -160,9 +112,10 @@ Item {
     Keys.onDeletePressed: function(event) {
         if (root.canvasItem) {
             var edgeIds = root.canvasItem.selectedEdgeIds || [];
-            if (!root._triggerGraphAction("delete_selection", { "edge_ids": edgeIds })
-                    && root.canvasCommandBridge
-                    && root.canvasCommandBridge.request_delete_selected_graph_items) {
+            var deleted = root.canvasActionRouter && root.canvasActionRouter.deleteSelection
+                ? Boolean(root.canvasActionRouter.deleteSelection(edgeIds))
+                : root._triggerGraphAction("delete_selection", { "edge_ids": edgeIds });
+            if (!deleted && root.canvasCommandBridge && root.canvasCommandBridge.request_delete_selected_graph_items) {
                 root.canvasCommandBridge.request_delete_selected_graph_items(edgeIds);
             }
         }
@@ -183,9 +136,15 @@ Item {
         if (!root.canvasItem)
             return;
         if ((event.modifiers & Qt.AltModifier) && event.key === Qt.Key_Left) {
-            var navigatedParent = root._triggerGraphAction("navigate_scope_parent", ({}));
-            if (!navigatedParent && root.canvasCommandBridge && root.canvasCommandBridge.request_navigate_scope_parent)
+            var navigatedParent = root.canvasActionRouter && root.canvasActionRouter.navigateScopeParent
+                ? Boolean(root.canvasActionRouter.navigateScopeParent())
+                : root._triggerGraphAction("navigate_scope_parent", ({}));
+            if (!navigatedParent
+                    && !(root.canvasActionRouter && root.canvasActionRouter.navigateScopeParent)
+                    && root.canvasCommandBridge
+                    && root.canvasCommandBridge.request_navigate_scope_parent) {
                 navigatedParent = root.canvasCommandBridge.request_navigate_scope_parent();
+            }
             if (navigatedParent) {
                 root.canvasItem.clearEdgeSelection();
                 root.canvasItem.clearPendingConnection();
@@ -195,9 +154,15 @@ Item {
             return;
         }
         if ((event.modifiers & Qt.AltModifier) && event.key === Qt.Key_Home) {
-            var navigatedRoot = root._triggerGraphAction("navigate_scope_root", ({}));
-            if (!navigatedRoot && root.canvasCommandBridge && root.canvasCommandBridge.request_navigate_scope_root)
+            var navigatedRoot = root.canvasActionRouter && root.canvasActionRouter.navigateScopeRoot
+                ? Boolean(root.canvasActionRouter.navigateScopeRoot())
+                : root._triggerGraphAction("navigate_scope_root", ({}));
+            if (!navigatedRoot
+                    && !(root.canvasActionRouter && root.canvasActionRouter.navigateScopeRoot)
+                    && root.canvasCommandBridge
+                    && root.canvasCommandBridge.request_navigate_scope_root) {
                 navigatedRoot = root.canvasCommandBridge.request_navigate_scope_root();
+            }
             if (navigatedRoot) {
                 root.canvasItem.clearEdgeSelection();
                 root.canvasItem.clearPendingConnection();
@@ -257,8 +222,8 @@ Item {
             if (!root.canvasItem)
                 return;
             root.canvasItem.forceActiveFocus();
-            if (root.viewerSessionBridgeRef && root.viewerSessionBridgeRef.clear_viewer_focus)
-                root.viewerSessionBridgeRef.clear_viewer_focus();
+            if (root.canvasActionRouter && root.canvasActionRouter.clearViewerFocus)
+                root.canvasActionRouter.clearViewerFocus();
             if (
                 (mouse.button === Qt.LeftButton || mouse.button === Qt.RightButton)
                 && root._closeCommentPeekIfActive()

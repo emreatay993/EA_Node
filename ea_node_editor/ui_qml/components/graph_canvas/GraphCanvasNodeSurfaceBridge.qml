@@ -51,9 +51,9 @@ Item {
             return false;
         if (root._nodeReadOnly(normalized))
             return false;
-        var actionBridge = root.canvasItem.graphActionBridgeRef;
-        var opened = actionBridge && actionBridge.trigger_graph_action
-            ? actionBridge.trigger_graph_action("enterScope", { "node_id": normalized })
+        var actionRouter = root.canvasItem.canvasActionRouter;
+        var opened = actionRouter && actionRouter.triggerGraphAction
+            ? actionRouter.triggerGraphAction("enterScope", { "node_id": normalized })
             : false;
         if (!opened) {
             var bridge = root.canvasItem.canvasCommandBridgeRef;
@@ -74,8 +74,8 @@ Item {
         if (!normalized)
             return false;
         hostInteraction.resetSurfaceInteractionState();
-        if (typeof viewerSessionBridge !== "undefined" && viewerSessionBridge && viewerSessionBridge.clear_viewer_focus)
-            viewerSessionBridge.clear_viewer_focus();
+        if (root.canvasItem.clearViewerFocus)
+            root.canvasItem.clearViewerFocus();
         var bridge = root.canvasItem.sceneCommandBridge;
         if (bridge && bridge.select_node)
             bridge.select_node(normalized, false);

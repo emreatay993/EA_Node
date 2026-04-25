@@ -13,6 +13,7 @@ Item {
     property var canvasViewBridge: canvasStateBridge && canvasStateBridge.viewport_bridge
         ? canvasStateBridge.viewport_bridge
         : (canvasCommandBridge && canvasCommandBridge.viewport_bridge ? canvasCommandBridge.viewport_bridge : null)
+    readonly property var shellContextRef: typeof shellContext !== "undefined" ? shellContext : null
     readonly property var graphActionBridgeRef: rootBindings.graphActionBridgeRef
     readonly property var canvasStateBridgeRef: rootBindings.canvasStateBridgeRef
     readonly property var canvasCommandBridgeRef: rootBindings.canvasCommandBridgeRef
@@ -23,6 +24,26 @@ Item {
     readonly property var sceneCommandBridge: rootBindings.sceneCommandBridge
     readonly property var sceneBridge: rootBindings.sceneBridge
     readonly property var viewBridge: rootBindings.viewBridge
+    readonly property var themeBridgeRef: root.shellContextRef
+        ? root.shellContextRef.themeBridge
+        : (typeof themeBridge !== "undefined" ? themeBridge : null)
+    readonly property var addonManagerBridgeRef: root.shellContextRef
+        ? root.shellContextRef.addonManagerBridge
+        : null
+    readonly property var helpBridgeRef: root.shellContextRef
+        ? root.shellContextRef.helpBridge
+        : null
+    readonly property var contentFullscreenBridgeRef: root.shellContextRef
+        ? root.shellContextRef.contentFullscreenBridge
+        : null
+    readonly property var shellLibraryBridgeRef: root.shellContextRef
+        ? root.shellContextRef.shellLibraryBridge
+        : null
+    readonly property var viewerSessionBridgeRef: root.shellContextRef
+        ? root.shellContextRef.viewerSessionBridge
+        : (typeof viewerSessionBridge !== "undefined" ? viewerSessionBridge : null)
+    readonly property var themePalette: root.themeBridgeRef ? root.themeBridgeRef.palette : ({})
+    readonly property var canvasActionRouter: actionRouter
     property var overlayHostItem: null
     property Item activeToolbarHost: null
     property var edgePayload: []
@@ -140,6 +161,18 @@ Item {
         canvasViewBridge: root.canvasViewBridge
         viewportController: viewportController
         canvasPerformancePolicy: canvasPerformancePolicy
+    }
+
+    GraphCanvasComponents.GraphCanvasActionRouter {
+        id: actionRouter
+        canvasItem: root
+        graphActionBridge: root.graphActionBridgeRef
+        canvasCommandBridge: root.canvasCommandBridgeRef
+        addonManagerBridge: root.addonManagerBridgeRef
+        helpBridge: root.helpBridgeRef
+        contentFullscreenBridge: root.contentFullscreenBridgeRef
+        shellLibraryBridge: root.shellLibraryBridgeRef
+        viewerSessionBridge: root.viewerSessionBridgeRef
     }
 
     GraphCanvasComponents.GraphCanvasInteractionState {
@@ -408,6 +441,8 @@ Item {
         return true;
     }
 
+    function clearViewerFocus() { return GraphCanvasRootApi.invoke(actionRouter, "clearViewerFocus", [], false); }
+
     GraphCanvasComponents.GraphCanvasRootLayers {
         id: rootLayers
         canvasItem: root
@@ -504,11 +539,13 @@ Item {
         id: inputLayers
         objectName: "graphCanvasInputLayers"
         canvasItem: root
+        canvasActionRouter: root.canvasActionRouter
         graphActionBridge: root.graphActionBridgeRef
         canvasCommandBridge: root.canvasCommandBridgeRef
         sceneCommandBridge: root.sceneCommandBridge
         viewStateBridge: root.viewBridge
         viewCommandBridge: root.viewBridge
+        themePalette: root.themePalette
         boxZoomDragThreshold: root.boxZoomDragThreshold
         boxZoomPaddingPx: root.boxZoomPaddingPx
     }
@@ -517,8 +554,10 @@ Item {
         id: contextMenus
         objectName: "graphCanvasContextMenus"
         canvasItem: root
+        canvasActionRouter: root.canvasActionRouter
         commandBridge: root.canvasCommandBridgeRef
         graphActionBridge: root.graphActionBridgeRef
+        themePalette: root.themePalette
     }
 
     function _resetCanvasSceneState() { GraphCanvasRootApi.invoke(sceneLifecycle, "resetCanvasSceneState"); }
