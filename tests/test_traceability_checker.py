@@ -1071,6 +1071,74 @@ COREX_NO_LEGACY_ARCHITECTURE_CLEANUP_QA_MATRIX_TOKENS = (
     COREX_NO_LEGACY_ARCHITECTURE_CLEANUP_MARKDOWN_COMMAND,
 )
 
+COREX_CLEAN_ARCHITECTURE_RESTRUCTURE_QA_MATRIX = (
+    REPO_ROOT / "docs/specs/perf/COREX_CLEAN_ARCHITECTURE_RESTRUCTURE_QA_MATRIX.md"
+)
+COREX_CLEAN_ARCHITECTURE_RESTRUCTURE_PYTEST_COMMAND = (
+    r".\venv\Scripts\python.exe -m pytest tests/test_traceability_checker.py "
+    r"tests/test_markdown_hygiene.py tests/test_run_script.py --ignore=venv"
+)
+COREX_CLEAN_ARCHITECTURE_RESTRUCTURE_TRACEABILITY_COMMAND = (
+    r".\venv\Scripts\python.exe scripts/check_traceability.py"
+)
+COREX_CLEAN_ARCHITECTURE_RESTRUCTURE_MARKDOWN_COMMAND = (
+    r".\venv\Scripts\python.exe scripts/check_markdown_links.py"
+)
+COREX_CLEAN_ARCHITECTURE_RESTRUCTURE_INDEX_TOKENS = (
+    "COREX_CLEAN_ARCHITECTURE_RESTRUCTURE QA Matrix",
+    "COREX_CLEAN_ARCHITECTURE_RESTRUCTURE_QA_MATRIX.md",
+)
+COREX_CLEAN_ARCHITECTURE_RESTRUCTURE_PUBLIC_DOC_TOKENS: dict[str, tuple[str, ...]] = {
+    "README.md": (
+        "COREX Clean Architecture Restructure QA Matrix",
+        "COREX_CLEAN_ARCHITECTURE_RESTRUCTURE_QA_MATRIX.md",
+        "ea_node_editor.bootstrap",
+    ),
+    "ARCHITECTURE.md": (
+        "## Current focused contracts",
+        "clean-architecture restructure",
+        "execution.runtime_contracts",
+        "graph-owned domain APIs",
+        "COREX_CLEAN_ARCHITECTURE_RESTRUCTURE_QA_MATRIX.md",
+    ),
+    "docs/GETTING_STARTED.md": (
+        r".\venv\Scripts\python.exe -m ea_node_editor.bootstrap",
+        "corex-node-editor",
+        "ea_node_editor.bootstrap:main",
+        "COREX_CLEAN_ARCHITECTURE_RESTRUCTURE_QA_MATRIX.md",
+    ),
+    "docs/PACKAGING_WINDOWS.md": (
+        "COREX_CLEAN_ARCHITECTURE_RESTRUCTURE_QA_MATRIX.md",
+        "ARCHITECTURE_REFACTOR_QA_MATRIX.md",
+    ),
+}
+COREX_CLEAN_ARCHITECTURE_RESTRUCTURE_QA_MATRIX_TOKENS = (
+    "COREX Clean Architecture Restructure QA Matrix",
+    "## Locked Scope",
+    "## Final Ownership Boundaries",
+    "## Packet Outcomes",
+    "## Retained Automated Verification",
+    "## Final Closeout Commands",
+    "## 2026-04-25 Execution Results",
+    "## Produced Artifacts",
+    "## Manual Smoke Guidance",
+    "## Residual Risks",
+    "COREX_CLEAN_ARCHITECTURE_RESTRUCTURE_STATUS.md",
+    "P01_runtime_contracts_WRAPUP.md",
+    "P11_cross_cutting_services_WRAPUP.md",
+    "P12_docs_traceability_closeout_WRAPUP.md",
+    "2283635deb1d65f1973720c3f500a5c1620d6ac9",
+    "b1fc5fb3b359be5bf940ff0d23dddab10b4194f0",
+    "codex/corex-clean-architecture-restructure/p12-docs-traceability-closeout",
+    "runtime_contracts",
+    "graph-owned domain APIs",
+    "ea_node_editor.ui.shell.composition",
+    "descriptor-first plugin discovery",
+    COREX_CLEAN_ARCHITECTURE_RESTRUCTURE_PYTEST_COMMAND,
+    COREX_CLEAN_ARCHITECTURE_RESTRUCTURE_TRACEABILITY_COMMAND,
+    COREX_CLEAN_ARCHITECTURE_RESTRUCTURE_MARKDOWN_COMMAND,
+)
+
 GLOBAL_GAP_BREAK_EDGE_CROSSING_VARIANT_QA_MATRIX = (
     REPO_ROOT / "docs/specs/perf/GLOBAL_GAP_BREAK_EDGE_CROSSING_VARIANT_QA_MATRIX.md"
 )
@@ -3530,6 +3598,26 @@ class TraceabilityCheckerTests(unittest.TestCase):
     ) -> None:
         text = COREX_NO_LEGACY_ARCHITECTURE_CLEANUP_QA_MATRIX.read_text(encoding="utf-8-sig")
         for token in COREX_NO_LEGACY_ARCHITECTURE_CLEANUP_QA_MATRIX_TOKENS:
+            self.assertIn(token, text)
+
+    def test_corex_clean_architecture_restructure_spec_index_registers_qa_matrix(self) -> None:
+        text = (REPO_ROOT / "docs/specs/INDEX.md").read_text(encoding="utf-8-sig")
+        for token in COREX_CLEAN_ARCHITECTURE_RESTRUCTURE_INDEX_TOKENS:
+            self.assertIn(token, text)
+
+    def test_corex_clean_architecture_restructure_public_docs_record_closeout_scope_tokens(
+        self,
+    ) -> None:
+        for relative_path, tokens in COREX_CLEAN_ARCHITECTURE_RESTRUCTURE_PUBLIC_DOC_TOKENS.items():
+            text = (REPO_ROOT / relative_path).read_text(encoding="utf-8-sig")
+            for token in tokens:
+                self.assertIn(token, text, msg=f"{relative_path} missing token {token!r}")
+
+    def test_corex_clean_architecture_restructure_qa_matrix_records_commands_and_artifacts(
+        self,
+    ) -> None:
+        text = COREX_CLEAN_ARCHITECTURE_RESTRUCTURE_QA_MATRIX.read_text(encoding="utf-8-sig")
+        for token in COREX_CLEAN_ARCHITECTURE_RESTRUCTURE_QA_MATRIX_TOKENS:
             self.assertIn(token, text)
 
     def test_global_gap_break_edge_crossing_variant_docs_record_closeout_scope_tokens(self) -> None:

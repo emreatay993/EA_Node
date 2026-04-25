@@ -578,6 +578,7 @@ Regenerate the committed app icon asset set with:
 - [Release Notes](RELEASE_NOTES.md) -- shipped capabilities and known risks
 - [Pilot Runbook](docs/PILOT_RUNBOOK.md) -- validation steps for pilot deployments
 - [Architecture Maintainability Refactor QA Matrix](docs/specs/perf/ARCHITECTURE_MAINTAINABILITY_REFACTOR_QA_MATRIX.md) -- current docs/release guardrails, shell-isolation contract, historical pointers, and Windows-only follow-ups
+- [COREX Clean Architecture Restructure QA Matrix](docs/specs/perf/COREX_CLEAN_ARCHITECTURE_RESTRUCTURE_QA_MATRIX.md) -- retained P01-P12 ownership, verification, residual-risk, and closeout evidence for the clean architecture restructure
 - [COREX No-Legacy Architecture Cleanup QA Matrix](docs/specs/perf/COREX_NO_LEGACY_ARCHITECTURE_CLEANUP_QA_MATRIX.md) -- active no-legacy architecture closeout proof for focused bridges, current-schema persistence, descriptor-only loading, snapshot-only runtime payloads, typed viewer transport, and canonical launch/import paths
 - [DPF Operator Backend Review](docs/DPF_OPERATOR_PLUGIN_BACKEND_REVIEW_2026-04-12.md) -- locked optional-DPF preparation contract, explicit deferrals, and later operator-rollout assumptions
 - [DPF Operator Backend QA Matrix](docs/specs/perf/DPF_OPERATOR_PLUGIN_BACKEND_REFACTOR_QA_MATRIX.md) -- retained `P01` through `P04` DPF backend verification plus the `P05` traceability and markdown closeout commands

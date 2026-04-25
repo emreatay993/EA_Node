@@ -150,5 +150,7 @@ Each signing run writes:
 - `.\venv\Scripts\python.exe .\scripts\check_traceability.py` is the semantic
   proof gate for packaging, spec-index, pilot, and final QA-matrix drift.
 
-See `docs/specs/perf/ARCHITECTURE_REFACTOR_QA_MATRIX.md` for the final
-cross-packet release follow-ups and the archived-evidence boundaries.
+See `docs/specs/perf/COREX_CLEAN_ARCHITECTURE_RESTRUCTURE_QA_MATRIX.md` for
+the current clean-architecture closeout evidence, and
+`docs/specs/perf/ARCHITECTURE_REFACTOR_QA_MATRIX.md` for older archived release
+boundaries.
