@@ -143,7 +143,7 @@ class ShellInspectorBridgeQmlBoundaryTests(unittest.TestCase):
                     "target: root.mainWindowRef",
                 ),
                 (
-                    "readonly property var inspectorBridgeRef: shellInspectorBridge",
+                    "property var inspectorBridgeRef:",
                     "root.inspectorBridgeRef.has_selected_node",
                     "root.inspectorBridgeRef.selected_node_is_subnode_pin",
                     "root.inspectorBridgeRef.selected_node_is_subnode_shell",
@@ -218,10 +218,12 @@ class ShellAddOnManagerQmlBoundaryTests(unittest.TestCase):
                     'objectName: "shellWorkspaceRow"',
                     'objectName: "addonManagerScrim"',
                     'objectName: "addonManagerPane"',
-                    "visible: root.shellContextRef.addonManagerBridge.open",
-                    "requestBridge: root.shellContextRef.addonManagerBridge",
-                    "workspaceBridge: root.shellContextRef.shellWorkspaceBridge",
-                    "viewerHostServiceRef: root.shellContextRef.viewerHostService",
+                    "visible: root.addonManagerBridgeRef.open",
+                    "requestBridge: root.addonManagerBridgeRef",
+                    "workspaceBridge: root.shellWorkspaceBridgeRef",
+                    "viewerHostServiceRef: root.viewerHostServiceRef",
+                    "themeBridgeRef: root.themeBridgeRef",
+                    "graphThemeBridgeRef: root.graphThemeBridgeRef",
                 ),
             ),
             "ea_node_editor/ui_qml/components/shell/AddOnManagerPane.qml": (
@@ -263,7 +265,8 @@ class ShellWorkspaceBridgeQmlBoundaryTests(unittest.TestCase):
                     "mainWindowRef.project_display_name",
                 ),
                 (
-                    "readonly property var workspaceBridgeRef: shellWorkspaceBridge",
+                    "property var workspaceBridgeRef:",
+                    "property var themeBridgeRef:",
                     "root.workspaceBridgeRef.project_display_name",
                 ),
             ),
@@ -279,7 +282,8 @@ class ShellWorkspaceBridgeQmlBoundaryTests(unittest.TestCase):
                 (
                     "property var viewBridgeRef",
                     "property var scriptEditorBridgeRef",
-                    "readonly property var workspaceBridgeRef: shellWorkspaceBridge",
+                    "property var workspaceBridgeRef:",
+                    "property var themeBridgeRef:",
                     'objectName: "shellRunToolbarRunButton"',
                     'objectName: "shellRunToolbarPauseButton"',
                     'objectName: "shellRunToolbarStopButton"',
@@ -331,6 +335,7 @@ class ShellWorkspaceBridgeQmlBoundaryTests(unittest.TestCase):
                     "property var overlayHostItem",
                     "property var workspaceBridgeRef",
                     "property var themeBridgeRef",
+                    "property var uiIconsRef:",
                     "root.workspaceBridgeRef.graphics_tab_strip_density",
                     "root.workspaceBridgeRef.active_scope_breadcrumb_items",
                     "root.workspaceBridgeRef.active_view_items",
@@ -365,7 +370,8 @@ class ShellWorkspaceBridgeQmlBoundaryTests(unittest.TestCase):
                 (
                     "property var scriptEditorBridgeRef",
                     "property var scriptHighlighterBridgeRef",
-                    "readonly property var workspaceBridgeRef: shellWorkspaceBridge",
+                    "property var workspaceBridgeRef:",
+                    "property var themeBridgeRef:",
                     "root.workspaceBridgeRef.set_script_editor_panel_visible(false)",
                 ),
             ),
@@ -414,7 +420,7 @@ class ShellWorkspaceBridgeQmlBoundaryTests(unittest.TestCase):
         expectations = {
             "ea_node_editor/ui_qml/components/shell/ShellButton.qml": (
                 "function _tooltipBridge() {",
-                'typeof graphCanvasStateBridge !== "undefined"',
+                "return control.graphCanvasStateBridgeRef;",
                 "readonly property bool informationalTooltipsEnabled:",
                 "bridge.graphics_show_tooltips",
                 "readonly property bool tooltipVisible: control.enabled",
@@ -422,6 +428,7 @@ class ShellWorkspaceBridgeQmlBoundaryTests(unittest.TestCase):
             ),
             "ea_node_editor/ui_qml/components/shell/ShellCreateButton.qml": (
                 "function _tooltipBridge() {",
+                "return control.graphCanvasStateBridgeRef;",
                 "readonly property bool informationalTooltipsEnabled:",
                 "bridge.graphics_show_tooltips",
                 "readonly property bool tooltipVisible: informationalTooltipsEnabled",
@@ -429,6 +436,7 @@ class ShellWorkspaceBridgeQmlBoundaryTests(unittest.TestCase):
             ),
             "ea_node_editor/ui_qml/components/shell/InspectorButton.qml": (
                 "function _tooltipBridge() {",
+                "return control.pane ? control.pane.graphCanvasStateBridgeRef : null;",
                 "readonly property bool informationalTooltipsEnabled:",
                 "bridge.graphics_show_tooltips",
                 "readonly property bool tooltipVisible: informationalTooltipsEnabled",
@@ -436,12 +444,14 @@ class ShellWorkspaceBridgeQmlBoundaryTests(unittest.TestCase):
             ),
             "ea_node_editor/ui_qml/components/shell/InspectorColorField.qml": (
                 "function _tooltipBridge() {",
+                "return root.pane ? root.pane.graphCanvasStateBridgeRef : null;",
                 "readonly property bool informationalTooltipsEnabled:",
                 "bridge.graphics_show_tooltips",
                 "ToolTip.visible: root.informationalTooltipsEnabled && hovered",
             ),
             "ea_node_editor/ui_qml/components/shell/ShellCollapsibleSidePane.qml": (
                 "function _tooltipBridge() {",
+                "return root.graphCanvasStateBridgeRef;",
                 "readonly property bool informationalTooltipsEnabled:",
                 "bridge.graphics_show_tooltips",
                 "ToolTip.visible: root.informationalTooltipsEnabled",
@@ -476,21 +486,27 @@ class ShellWorkspaceBridgeQmlBoundaryTests(unittest.TestCase):
         )
         present_snippets = (
             "readonly property var shellContextRef: shellContext",
+            "readonly property var shellLibraryBridgeRef: root.shellContextRef.shellLibraryBridge",
+            "readonly property var shellWorkspaceBridgeRef: root.shellContextRef.shellWorkspaceBridge",
+            "readonly property var themeBridgeRef: root.shellContextRef.themeBridge",
+            "readonly property var graphThemeBridgeRef: root.shellContextRef.graphThemeBridge",
+            "readonly property var contentFullscreenBridgeRef: root.shellContextRef.contentFullscreenBridge",
+            "readonly property var viewerHostServiceRef: root.shellContextRef.viewerHostService",
             "readonly property var canvasStateBridgeRef: root.shellContextRef.graphCanvasStateBridge",
             "readonly property var canvasCommandBridgeRef: root.shellContextRef.graphCanvasCommandBridge",
             "readonly property var canvasViewBridgeRef: root.shellContextRef.graphCanvasViewBridge",
             "WorkspaceCenterPane {",
             "graphCanvasStateBridgeRef: root.canvasStateBridgeRef",
             "graphCanvasCommandBridgeRef: root.canvasCommandBridgeRef",
-            "workspaceBridgeRef: root.shellContextRef.shellWorkspaceBridge",
-            "themeBridgeRef: root.shellContextRef.themeBridge",
+            "workspaceBridgeRef: root.shellWorkspaceBridgeRef",
+            "themeBridgeRef: root.themeBridgeRef",
             "overlayHostItem: root",
             "viewBridgeRef: root.canvasViewBridgeRef",
             "ShellStatusStrip {",
             "canvasStateBridgeRef: root.canvasStateBridgeRef",
             "canvasCommandBridgeRef: root.canvasCommandBridgeRef",
-            "scriptEditorBridgeRef: root.shellContextRef.scriptEditorBridge",
-            "scriptHighlighterBridgeRef: root.shellContextRef.scriptHighlighterBridge",
+            "scriptEditorBridgeRef: root.scriptEditorBridgeRef",
+            "scriptHighlighterBridgeRef: root.scriptHighlighterBridgeRef",
         )
 
         for snippet in absent_snippets:
@@ -500,6 +516,13 @@ class ShellWorkspaceBridgeQmlBoundaryTests(unittest.TestCase):
         for snippet in present_snippets:
             with self.subTest(snippet=snippet, expectation="present"):
                 self.assertIn(snippet, qml_text)
+
+    def test_migrated_shell_components_do_not_reach_shell_context_directly(self) -> None:
+        shell_component_root = _REPO_ROOT / "ea_node_editor/ui_qml/components/shell"
+        for qml_path in shell_component_root.glob("*.qml"):
+            qml_text = qml_path.read_text(encoding="utf-8")
+            with self.subTest(path=qml_path.relative_to(_REPO_ROOT).as_posix()):
+                self.assertNotIn("shellContext", qml_text)
 
     def test_graph_canvas_descendants_use_context_bundle_instead_of_raw_service_globals(self) -> None:
         expectations = {

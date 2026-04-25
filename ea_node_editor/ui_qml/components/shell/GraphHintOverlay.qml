@@ -3,9 +3,10 @@ import QtQuick 2.15
 Rectangle {
     id: root
     objectName: "graphHintOverlay"
-    readonly property var shellLibraryBridgeRef: shellLibraryBridge
+    property var shellLibraryBridgeRef: typeof shellLibraryBridge !== "undefined" ? shellLibraryBridge : null
     property bool graphSearchVisible: false
-    readonly property var themePalette: themeBridge.palette
+    property var themeBridgeRef: typeof themeBridge !== "undefined" ? themeBridge : null
+    readonly property var themePalette: root.themeBridgeRef ? root.themeBridgeRef.palette : ({})
 
     visible: root.shellLibraryBridgeRef.graph_hint_visible && !root.graphSearchVisible
     anchors.horizontalCenter: parent.horizontalCenter

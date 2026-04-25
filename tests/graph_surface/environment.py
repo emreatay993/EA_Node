@@ -1,12 +1,16 @@
 from __future__ import annotations
 
 import gc
+import os
 import re
 import unittest
 from pathlib import Path
 from unittest.mock import patch
 
 import pytest
+
+os.environ.setdefault("QT_QUICK_CONTROLS_STYLE", "Basic")
+
 from PyQt6.QtCore import QEvent, QUrl
 
 from ea_node_editor.graph.file_issue_state import encode_file_repair_request
@@ -71,9 +75,12 @@ class PassiveGraphSurfaceHostTestBase(unittest.TestCase):
             label,
             """
             import importlib.util
+            import os
             import sys
             import types
             from pathlib import Path
+
+            os.environ.setdefault("QT_QUICK_CONTROLS_STYLE", "Basic")
 
             from PyQt6.QtCore import QEvent, QObject, QMetaObject, Qt, QUrl, pyqtProperty, pyqtSlot
             from PyQt6.QtGui import QKeyEvent
@@ -239,8 +246,26 @@ class PassiveGraphSurfaceHostTestBase(unittest.TestCase):
                         "valid_drag_stroke": "#67D487",
                     }
 
-            engine.rootContext().setContextProperty("themeBridge", ThemeBridgeStub())
-            engine.rootContext().setContextProperty("graphThemeBridge", GraphThemeBridgeStub())
+            class ShellContextStub(QObject):
+                def __init__(self, theme_bridge, graph_theme_bridge):
+                    super().__init__()
+                    self._theme_bridge = theme_bridge
+                    self._graph_theme_bridge = graph_theme_bridge
+
+                @pyqtProperty(QObject, constant=True)
+                def themeBridge(self):
+                    return self._theme_bridge
+
+                @pyqtProperty(QObject, constant=True)
+                def graphThemeBridge(self):
+                    return self._graph_theme_bridge
+
+            theme_bridge = ThemeBridgeStub()
+            graph_theme_bridge = GraphThemeBridgeStub()
+            shell_context = ShellContextStub(theme_bridge, graph_theme_bridge)
+            engine.rootContext().setContextProperty("themeBridge", theme_bridge)
+            engine.rootContext().setContextProperty("graphThemeBridge", graph_theme_bridge)
+            engine.rootContext().setContextProperty("shellContext", shell_context)
 
             class CanvasShellSource:
                 def __init__(self, values=None):
@@ -266,11 +291,14 @@ class PassiveGraphSurfaceHostTestBase(unittest.TestCase):
 
                 state_bridge = GraphCanvasStateBridge(
                     shell_window=shell_source,
+                    canvas_source=shell_source,
+                    graphics_source=shell_source,
                     scene_bridge=scene_bridge,
                     view_bridge=view_bridge,
                 )
                 command_bridge = GraphCanvasCommandBridge(
                     shell_window=shell_source,
+                    canvas_source=shell_source,
                     scene_bridge=scene_bridge,
                     view_bridge=view_bridge,
                 )
@@ -492,7 +520,10 @@ class GraphSurfaceInputContractTestBase(unittest.TestCase):
             self,
             label,
             """
+            import os
             from pathlib import Path
+
+            os.environ.setdefault("QT_QUICK_CONTROLS_STYLE", "Basic")
 
             from PyQt6.QtCore import QObject, QUrl, pyqtProperty
             from PyQt6.QtQml import QQmlComponent, QQmlEngine
@@ -570,8 +601,26 @@ class GraphSurfaceInputContractTestBase(unittest.TestCase):
             app = QApplication.instance() or QApplication([])
             engine = QQmlEngine()
             engine.addImageProvider(LOCAL_MEDIA_PREVIEW_PROVIDER_ID, LocalMediaPreviewImageProvider())
-            engine.rootContext().setContextProperty("themeBridge", ThemeBridgeStub())
-            engine.rootContext().setContextProperty("graphThemeBridge", GraphThemeBridgeStub())
+            class ShellContextStub(QObject):
+                def __init__(self, theme_bridge, graph_theme_bridge):
+                    super().__init__()
+                    self._theme_bridge = theme_bridge
+                    self._graph_theme_bridge = graph_theme_bridge
+
+                @pyqtProperty(QObject, constant=True)
+                def themeBridge(self):
+                    return self._theme_bridge
+
+                @pyqtProperty(QObject, constant=True)
+                def graphThemeBridge(self):
+                    return self._graph_theme_bridge
+
+            theme_bridge = ThemeBridgeStub()
+            graph_theme_bridge = GraphThemeBridgeStub()
+            shell_context = ShellContextStub(theme_bridge, graph_theme_bridge)
+            engine.rootContext().setContextProperty("themeBridge", theme_bridge)
+            engine.rootContext().setContextProperty("graphThemeBridge", graph_theme_bridge)
+            engine.rootContext().setContextProperty("shellContext", shell_context)
 
             repo_root = Path.cwd()
             components_dir = repo_root / "ea_node_editor" / "ui_qml" / "components"
@@ -598,11 +647,14 @@ class GraphSurfaceInputContractTestBase(unittest.TestCase):
             def build_canvas_bridges(*, shell_bridge=None, scene_bridge=None, view_bridge=None):
                 state_bridge = GraphCanvasStateBridge(
                     shell_window=shell_bridge,
+                    canvas_source=shell_bridge,
+                    graphics_source=shell_bridge,
                     scene_bridge=scene_bridge,
                     view_bridge=view_bridge,
                 )
                 command_bridge = GraphCanvasCommandBridge(
                     shell_window=shell_bridge,
+                    canvas_source=shell_bridge,
                     scene_bridge=scene_bridge,
                     view_bridge=view_bridge,
                 )

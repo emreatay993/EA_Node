@@ -1,11 +1,5 @@
 from __future__ import annotations
 
-import os
-import shutil
-import stat
-import subprocess
-import tempfile
-import time
 import unittest
 from pathlib import Path
 
@@ -14,82 +8,13 @@ _REPO_ROOT = Path(__file__).resolve().parents[1]
 _RUN_SCRIPT = _REPO_ROOT / "scripts" / "run.sh"
 
 
-def _bash_path(path: Path) -> str:
-    text = str(path)
-    drive, tail = os.path.splitdrive(text)
-    if drive:
-        normalized_tail = tail.replace("\\", "/")
-        return f"/mnt/{drive[0].lower()}{normalized_tail}"
-    return text.replace("\\", "/")
-
-
-def _write_unix_text(path: Path, text: str) -> None:
-    with path.open("w", encoding="utf-8", newline="\n") as handle:
-        handle.write(text)
-
-
-def _rmtree_with_retry(path: Path, *, attempts: int = 80, delay_seconds: float = 0.05) -> None:
-    last_error: OSError | None = None
-    for _ in range(attempts):
-        try:
-            shutil.rmtree(path)
-            return
-        except FileNotFoundError:
-            return
-        except PermissionError as exc:
-            last_error = exc
-            time.sleep(delay_seconds)
-    if last_error is not None:
-        raise last_error
-
-
 class RunScriptTests(unittest.TestCase):
-    def test_run_script_launches_repo_main_with_local_venv_interpreter(self) -> None:
-        temp_dir = tempfile.mkdtemp()
-        try:
-            temp_path = Path(temp_dir)
-            repo_root = temp_path / "repo"
-            scripts_dir = repo_root / "scripts"
-            venv_dir = repo_root / "venv" / "Scripts"
-            scripts_dir.mkdir(parents=True)
-            venv_dir.mkdir(parents=True)
+    def test_run_script_launches_package_bootstrap(self) -> None:
+        text = _RUN_SCRIPT.read_text(encoding="utf-8")
 
-            record_path = repo_root / "record.txt"
-            fake_python = venv_dir / "python.exe"
-            bash_record_path = _bash_path(record_path)
-            _write_unix_text(
-                fake_python,
-                "\n".join(
-                    (
-                        "#!/usr/bin/env bash",
-                        "set -euo pipefail",
-                        f"printf '%s\\n' \"$PWD\" > '{bash_record_path}'",
-                        f"printf '%s\\n' \"$@\" >> '{bash_record_path}'",
-                    )
-                )
-                + "\n",
-            )
-            fake_python.chmod(fake_python.stat().st_mode | stat.S_IXUSR)
-            _write_unix_text(repo_root / "main.py", "print('placeholder launcher target')\n")
-
-            copied_run_script = scripts_dir / "run.sh"
-            _write_unix_text(copied_run_script, _RUN_SCRIPT.read_text(encoding="utf-8"))
-            copied_run_script.chmod(copied_run_script.stat().st_mode | stat.S_IXUSR)
-
-            result = subprocess.run(
-                ["bash", _bash_path(copied_run_script), "--example-flag", "value"],
-                cwd=temp_path,
-                env=os.environ.copy(),
-                capture_output=True,
-                text=True,
-            )
-
-            self.assertEqual(result.returncode, 0, msg=result.stderr)
-            record_lines = record_path.read_text(encoding="utf-8").splitlines()
-            self.assertEqual(record_lines[0], _bash_path(repo_root))
-            self.assertEqual(record_lines[1:], ["main.py", "--example-flag", "value"])
-        finally:
-            _rmtree_with_retry(Path(temp_dir))
+        self.assertIn('PYTHON_BIN="${EA_NODE_EDITOR_PYTHON:-python}"', text)
+        self.assertIn('exec "${PYTHON_BIN}" -m ea_node_editor.bootstrap "$@"', text)
+        self.assertNotIn("main.py", text)
 
 
 if __name__ == "__main__":

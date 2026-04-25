@@ -1,7 +1,10 @@
 from __future__ import annotations
 
+import os
 import time
 import unittest
+
+os.environ.setdefault("QT_QUICK_CONTROLS_STYLE", "Basic")
 
 from ea_node_editor.graph.model import GraphModel
 from ea_node_editor.nodes.bootstrap import build_default_registry
@@ -19,6 +22,10 @@ _GRAPH_CANVAS_ROOT_BINDINGS_QML_PATH = (
     _rendering_suite._GRAPH_CANVAS_QML_PATH.parent / "graph_canvas" / "GraphCanvasRootBindings.qml"
 )
 _GRAPH_SHARED_TYPOGRAPHY_QML_PATH = _rendering_suite._NODE_CARD_QML_PATH.parent / "GraphSharedTypography.qml"
+
+
+def _qml_error_text(errors) -> str:  # noqa: ANN001
+    return "\n".join(error.toString() for error in errors)
 
 
 class _GraphCanvasTypographyPreferenceBridge(_rendering_suite.QObject):
@@ -150,7 +157,7 @@ class GraphCanvasQmlPreferenceBindingTests(
     def _load_qml_component(self, path) -> _rendering_suite.QQmlComponent:
         component = _rendering_suite.QQmlComponent(self.engine, _rendering_suite.QUrl.fromLocalFile(str(path)))
         if component.status() != _rendering_suite.QQmlComponent.Status.Ready:
-            errors = "\n".join(str(error) for error in component.errors())
+            errors = _qml_error_text(component.errors())
             self.fail(f"Failed to load {path.name}:\n{errors}")
         return component
 
@@ -164,7 +171,7 @@ class GraphCanvasQmlPreferenceBindingTests(
                 for key, value in initial_properties.items():
                     instance.setProperty(key, value)
         if instance is None:
-            errors = "\n".join(str(error) for error in component.errors())
+            errors = _qml_error_text(component.errors())
             self.fail(f"Failed to instantiate {path.name}:\n{errors}")
         self.app.processEvents()
         return instance
@@ -173,6 +180,8 @@ class GraphCanvasQmlPreferenceBindingTests(
         preference_bridge = _GraphCanvasTypographyPreferenceBridge()
         state_bridge = GraphCanvasStateBridge(
             shell_window=preference_bridge,  # type: ignore[arg-type]
+            canvas_source=preference_bridge,  # type: ignore[arg-type]
+            graphics_source=preference_bridge,  # type: ignore[arg-type]
             view_bridge=self.view,
         )
         seen = {"count": 0}
@@ -590,6 +599,8 @@ class GraphCanvasQmlPreferenceBindingTests(
         preference_bridge = _GraphCanvasTypographyPreferenceBridge()
         state_bridge = GraphCanvasStateBridge(
             shell_window=preference_bridge,  # type: ignore[arg-type]
+            canvas_source=preference_bridge,  # type: ignore[arg-type]
+            graphics_source=preference_bridge,  # type: ignore[arg-type]
             view_bridge=self.view,
         )
         root_bindings = self._create_component(
@@ -656,6 +667,8 @@ class GraphCanvasQmlPreferenceBindingTests(
         preference_bridge = _GraphCanvasTypographyPreferenceBridge()
         state_bridge = GraphCanvasStateBridge(
             shell_window=preference_bridge,  # type: ignore[arg-type]
+            canvas_source=preference_bridge,  # type: ignore[arg-type]
+            graphics_source=preference_bridge,  # type: ignore[arg-type]
             view_bridge=self.view,
         )
         root_bindings = self._create_component(
@@ -694,6 +707,8 @@ class GraphCanvasQmlPreferenceBindingTests(
         preference_bridge = _GraphCanvasTypographyPreferenceBridge()
         state_bridge = GraphCanvasStateBridge(
             shell_window=preference_bridge,  # type: ignore[arg-type]
+            canvas_source=preference_bridge,  # type: ignore[arg-type]
+            graphics_source=preference_bridge,  # type: ignore[arg-type]
             view_bridge=self.view,
         )
         root_bindings = self._create_component(
@@ -723,6 +738,8 @@ class GraphCanvasQmlPreferenceBindingTests(
         preference_bridge = _GraphCanvasTypographyPreferenceBridge()
         state_bridge = GraphCanvasStateBridge(
             shell_window=preference_bridge,  # type: ignore[arg-type]
+            canvas_source=preference_bridge,  # type: ignore[arg-type]
+            graphics_source=preference_bridge,  # type: ignore[arg-type]
             view_bridge=self.view,
         )
         root_bindings = self._create_component(

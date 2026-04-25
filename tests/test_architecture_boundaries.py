@@ -28,7 +28,7 @@ _RETIRED_GUARDRAIL_PRESENT_NAMES = {
 
 
 def parse_module(relative_path: str) -> ast.Module:
-    return ast.parse((REPO_ROOT / relative_path).read_text(encoding="utf-8"), filename=relative_path)
+    return ast.parse((REPO_ROOT / relative_path).read_text(encoding="utf-8-sig"), filename=relative_path)
 
 
 def qualified_name(node: ast.AST | None) -> str | None:
@@ -53,6 +53,16 @@ def imported_names_from(tree: ast.AST, module_name: str) -> set[str]:
 def imported_modules(tree: ast.AST) -> set[str]:
     modules: set[str] = set()
     for node in ast.walk(tree):
+        if isinstance(node, ast.ImportFrom) and node.module is not None:
+            modules.add(node.module)
+        elif isinstance(node, ast.Import):
+            modules.update(alias.name for alias in node.names)
+    return modules
+
+
+def top_level_imported_modules(tree: ast.Module) -> set[str]:
+    modules: set[str] = set()
+    for node in tree.body:
         if isinstance(node, ast.ImportFrom) and node.module is not None:
             modules.add(node.module)
         elif isinstance(node, ast.Import):
@@ -126,6 +136,10 @@ def declared_python_names(tree: ast.AST) -> set[str]:
                     names.add(target.id)
         elif isinstance(node, ast.AnnAssign) and isinstance(node.target, ast.Name):
             names.add(node.target.id)
+        elif isinstance(node, ast.ImportFrom):
+            names.update(alias.asname or alias.name for alias in node.names)
+        elif isinstance(node, ast.Import):
+            names.update(alias.asname or alias.name.partition(".")[0] for alias in node.names)
     return names
 
 
@@ -134,6 +148,11 @@ class GraphArchitectureBoundaryTests(unittest.TestCase):
         for surface in manifest.COREX_NO_LEGACY_GUARDRAIL_INVENTORY:
             source_path = REPO_ROOT / surface.path
             with self.subTest(category=surface.category, path=surface.path):
+                if (
+                    surface.expectation == manifest.COREX_NO_LEGACY_GUARDRAIL_ABSENT
+                    and not source_path.exists()
+                ):
+                    continue
                 self.assertTrue(source_path.is_file())
                 if source_path.suffix == ".py":
                     text_names = declared_python_names(parse_module(surface.path))
@@ -309,6 +328,57 @@ class GraphArchitectureBoundaryTests(unittest.TestCase):
         self.assertNotIn("sanitize_execution_trigger", snapshot_names)
         self.assertNotIn("ea_node_editor.persistence.serializer", imported_modules(worker_runtime_tree))
 
+    def test_runtime_contracts_do_not_import_execution_implementation(self) -> None:
+        contract_root = REPO_ROOT / "ea_node_editor" / "runtime_contracts"
+
+        for source_path in contract_root.glob("*.py"):
+            relative_path = source_path.relative_to(REPO_ROOT).as_posix()
+            imports = imported_modules(parse_module(relative_path))
+            with self.subTest(path=relative_path):
+                self.assertFalse(
+                    {
+                        module
+                        for module in imports
+                        if module == "ea_node_editor.execution"
+                        or module.startswith("ea_node_editor.execution.")
+                    }
+                )
+
+    def test_nodes_sdk_modules_do_not_import_runtime_or_ui_implementations_at_module_load(self) -> None:
+        nodes_root = REPO_ROOT / "ea_node_editor" / "nodes"
+        forbidden_prefixes = (
+            "ea_node_editor.execution",
+            "ea_node_editor.persistence",
+            "ea_node_editor.ui",
+            "ea_node_editor.ui_qml",
+        )
+
+        offenders: dict[str, list[str]] = {}
+        for source_path in nodes_root.rglob("*.py"):
+            relative_path = source_path.relative_to(REPO_ROOT).as_posix()
+            imports = top_level_imported_modules(parse_module(relative_path))
+            forbidden_imports = sorted(
+                module
+                for module in imports
+                if any(
+                    module == prefix or module.startswith(f"{prefix}.")
+                    for prefix in forbidden_prefixes
+                )
+            )
+            if forbidden_imports:
+                offenders[relative_path] = forbidden_imports
+
+        self.assertEqual(offenders, {})
+
+    def test_execution_value_codec_is_contract_compatibility_export(self) -> None:
+        codec_tree = parse_module("ea_node_editor/execution/runtime_value_codec.py")
+
+        self.assertIn("RuntimeValueRef", imported_names_from(codec_tree, "ea_node_editor.runtime_contracts"))
+        self.assertIn("serialize_runtime_value", imported_names_from(codec_tree, "ea_node_editor.runtime_contracts"))
+        self.assertIn("deserialize_runtime_value", imported_names_from(codec_tree, "ea_node_editor.runtime_contracts"))
+        self.assertNotIn("_coerce_runtime_value_ref", declared_python_names(codec_tree))
+        self.assertNotIn("_extract_runtime_marker", declared_python_names(codec_tree))
+
     def test_transform_surface_reexports_focused_operation_modules(self) -> None:
         self.assertEqual(transforms.collect_layout_node_bounds.__module__, "ea_node_editor.graph.transform_layout_ops")
         self.assertEqual(transforms.build_subtree_fragment_payload_data.__module__, "ea_node_editor.graph.transform_fragment_ops")
@@ -379,6 +449,86 @@ class GraphArchitectureBoundaryTests(unittest.TestCase):
         self.assertIn("self.model._set_node_property_record", normalization_calls)
         self.assertIn("self.model._add_node_record", mutation_calls)
         self.assertIn("self.model._set_node_fragment_state_record", mutation_calls)
+
+    def test_graph_view_mutations_and_dirty_marking_use_workspace_domain_boundary(self) -> None:
+        model_tree = parse_module("ea_node_editor/graph/model.py")
+        mutation_tree = parse_module("ea_node_editor/graph/mutation_service.py")
+        normalization_tree = parse_module("ea_node_editor/graph/normalization.py")
+
+        workspace_methods = {
+            node.name
+            for node in class_node(model_tree, "WorkspaceData").body
+            if isinstance(node, ast.FunctionDef)
+        }
+        self.assertTrue({"active_view_state", "mark_dirty"} <= workspace_methods)
+        self.assertNotIn("workspace.dirty = True", (REPO_ROOT / "ea_node_editor/graph/model.py").read_text(encoding="utf-8"))
+        self.assertNotIn("self.workspace.dirty = True", (REPO_ROOT / "ea_node_editor/graph/mutation_service.py").read_text(encoding="utf-8"))
+        self.assertNotIn("self.workspace.dirty = True", (REPO_ROOT / "ea_node_editor/graph/normalization.py").read_text(encoding="utf-8"))
+
+        service_to_record_writer = {
+            "create_view": "self.model._create_view_record",
+            "set_active_view": "self.model._set_active_view_record",
+            "close_view": "self.model._close_view_record",
+            "rename_view": "self.model._rename_view_record",
+            "move_view": "self.model._move_view_record",
+        }
+        for public_method, private_writer in service_to_record_writer.items():
+            with self.subTest(method=public_method):
+                model_method_calls = call_names(method_node(model_tree, "GraphModel", public_method))
+                service_method_calls = call_names(method_node(mutation_tree, "WorkspaceMutationService", public_method))
+
+                self.assertIn("self.mutation_service", model_method_calls)
+                self.assertIn(private_writer, service_method_calls)
+                self.assertNotIn(f"self.model.{public_method}", service_method_calls)
+
+        self.assertIn(
+            "self.workspace.active_view_state",
+            call_names(method_node(normalization_tree, "ValidatedGraphMutation", "_active_view_state")),
+        )
+        self.assertIn(
+            "self.workspace.active_view_state",
+            call_names(method_node(mutation_tree, "WorkspaceMutationService", "active_view_state")),
+        )
+
+    def test_workspace_manager_owns_order_not_view_lifecycle_mutation(self) -> None:
+        manager_tree = parse_module("ea_node_editor/workspace/manager.py")
+
+        self.assertIn(
+            "resolve_workspace_ownership",
+            imported_names_from(manager_tree, "ea_node_editor.workspace.ownership"),
+        )
+        self.assertNotIn(
+            "sync_project_workspace_ownership",
+            imported_names_from(manager_tree, "ea_node_editor.workspace.ownership"),
+        )
+        manager_methods = {
+            node.name
+            for node in class_node(manager_tree, "WorkspaceManager").body
+            if isinstance(node, ast.FunctionDef)
+        }
+        self.assertFalse(
+            {
+                "create_view",
+                "set_active_view",
+                "close_view",
+                "rename_view",
+                "move_view",
+            }
+            & manager_methods
+        )
+
+    def test_workspace_navigation_view_lifecycle_uses_mutation_service_boundary(self) -> None:
+        navigation_tree = parse_module("ea_node_editor/ui/shell/controllers/workspace_navigation_controller.py")
+
+        for method_name in {"close_view", "rename_view", "move_view"}:
+            with self.subTest(method=method_name):
+                method_calls = call_names(method_node(navigation_tree, "WorkspaceNavigationController", method_name))
+                self.assertIn("self._host.model.mutation_service", method_calls)
+
+        navigation_calls = call_names(navigation_tree)
+        self.assertNotIn("self._host.workspace_manager.close_view", navigation_calls)
+        self.assertNotIn("self._host.workspace_manager.rename_view", navigation_calls)
+        self.assertNotIn("self._host.workspace_manager.move_view", navigation_calls)
 
     def test_fragment_payload_helpers_share_model_mapping_parsers(self) -> None:
         normalization_tree = parse_module("ea_node_editor/graph/normalization.py")

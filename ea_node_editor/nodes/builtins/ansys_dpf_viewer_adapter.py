@@ -2,20 +2,22 @@ from __future__ import annotations
 
 from typing import Any
 
-from ea_node_editor.execution.protocol import (
-    MaterializeViewerDataCommand,
-    OpenViewerSessionCommand,
-    UpdateViewerSessionCommand,
-    ViewerSessionFailedEvent,
-)
-from ea_node_editor.execution.viewer_backend_dpf import DPF_EXECUTION_VIEWER_BACKEND_ID
 from ea_node_editor.nodes.builtins.ansys_dpf_common import (
     DPF_OUTPUT_MODE_BOTH,
     DPF_OUTPUT_MODE_MEMORY,
     DPF_VIEWER_LIVE_POLICY_FOCUS_ONLY,
     wrap_field_handle_as_fields_container,
 )
-from ea_node_editor.runtime_contracts import default_viewer_session_id, viewer_event_payload
+from ea_node_editor.nodes.viewer_runtime_contracts import (
+    DPF_EXECUTION_VIEWER_BACKEND_ID,
+    MaterializeViewerDataCommand,
+    OpenViewerSessionCommand,
+    UpdateViewerSessionCommand,
+    default_viewer_session_id,
+    viewer_event_payload,
+    viewer_session_error,
+    viewer_session_failed,
+)
 
 
 def viewer_summary_from_field_ref(field_ref) -> dict[str, Any]:  # noqa: ANN001
@@ -56,7 +58,9 @@ def open_dpf_viewer_session_payload(
         field_ref,
         node_name="DPF Viewer",
     )
-    session_service = ctx.worker_services.viewer_session_service
+    session_service = getattr(ctx.worker_services, "viewer_session_service", None)
+    if session_service is None:
+        raise RuntimeError("DPF Viewer requires viewer session services.")
     session_id = default_viewer_session_id(ctx.workspace_id, ctx.node_id)
     summary = viewer_summary_from_field_ref(field_ref)
     options = {
@@ -89,8 +93,8 @@ def open_dpf_viewer_session_payload(
                 options=options,
             )
         )
-        if isinstance(opened, ViewerSessionFailedEvent):
-            raise RuntimeError(opened.error)
+        if viewer_session_failed(opened):
+            raise RuntimeError(viewer_session_error(opened))
 
         session_event = opened
         if output_mode in {DPF_OUTPUT_MODE_MEMORY, DPF_OUTPUT_MODE_BOTH}:
@@ -111,8 +115,8 @@ def open_dpf_viewer_session_payload(
                     },
                 )
             )
-            if isinstance(materialized, ViewerSessionFailedEvent):
-                raise RuntimeError(materialized.error)
+            if viewer_session_failed(materialized):
+                raise RuntimeError(viewer_session_error(materialized))
             session_event = materialized
             if materialize_output_mode != output_mode:
                 updated = session_service.update_session(
@@ -125,8 +129,8 @@ def open_dpf_viewer_session_payload(
                         options={"output_profile": output_mode},
                     )
                 )
-                if isinstance(updated, ViewerSessionFailedEvent):
-                    raise RuntimeError(updated.error)
+                if viewer_session_failed(updated):
+                    raise RuntimeError(viewer_session_error(updated))
                 session_event = updated
 
         return viewer_event_payload(session_event)

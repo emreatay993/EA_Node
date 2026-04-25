@@ -7,6 +7,7 @@ from pathlib import Path
 
 from ea_node_editor.graph_theme_defaults import DEFAULT_GRAPH_THEME_ID
 from ea_node_editor.settings import DEFAULT_GRAPHICS_SETTINGS
+from ea_node_editor.ui.graph_theme.service import GraphThemeService
 from ea_node_editor.ui.graph_theme import is_custom_graph_theme_id
 from ea_node_editor.ui.shell.controllers.app_preferences_controller import (
     AppPreferencesController,
@@ -44,6 +45,28 @@ class GraphThemePreferencesTests(unittest.TestCase):
         self.assertEqual(len(normalized["custom_themes"]), 1)
         self.assertEqual(normalized["custom_themes"][0]["label"], "Custom Light")
         self.assertTrue(is_custom_graph_theme_id(normalized["custom_themes"][0]["theme_id"]))
+
+    def test_graph_theme_service_resolves_follow_shell_and_explicit_settings(self) -> None:
+        service = GraphThemeService(theme_id="graph_stitch_dark")
+
+        self.assertFalse(
+            service.apply_settings(
+                shell_theme_id="stitch_dark",
+                graph_theme_settings={"follow_shell_theme": True},
+            )
+        )
+        self.assertEqual(service.theme_id, "graph_stitch_dark")
+
+        self.assertTrue(
+            service.apply_settings(
+                shell_theme_id="stitch_dark",
+                graph_theme_settings={
+                    "follow_shell_theme": False,
+                    "selected_theme_id": "graph_ocean_light",
+                },
+            )
+        )
+        self.assertEqual(service.theme_id, "graph_ocean_light")
 
     def test_controller_can_create_duplicate_rename_and_delete_custom_graph_themes(self) -> None:
         created = self._controller.create_blank_custom_graph_theme(label="My Theme")

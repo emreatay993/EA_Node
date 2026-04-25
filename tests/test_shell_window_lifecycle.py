@@ -47,7 +47,7 @@ def _shell_lifecycle_context() -> Iterator[QApplication]:
     env = ShellTestEnvironment()
     env.start()
     execution_client_patch = patch(
-        "ea_node_editor.ui.shell.window.ProcessExecutionClient",
+        "ea_node_editor.ui.shell.composition.ProcessExecutionClient",
         _ShellTestExecutionClient,
     )
     execution_client_patch.start()

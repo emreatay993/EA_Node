@@ -150,22 +150,16 @@ class GraphSurfaceLockedPortContractTests(GraphSurfaceInputContractTestBase):
 
 
 class GraphSurfaceMissingDpfPlaceholderContractTests(unittest.TestCase):
-    def test_payload_builder_marks_missing_dpf_projection_as_read_only_and_keeps_saved_ports(self) -> None:
+    def test_payload_builder_keeps_missing_addon_placeholder_docs_out_of_graph_surface_projection(self) -> None:
         serializer = JsonProjectSerializer(NodeRegistry())
         project = serializer.from_document(_missing_dpf_surface_payload())
         nodes_payload, _backdrops, _minimap, edges_payload = GraphScenePayloadBuilder().rebuild_partitioned_models(
             model=GraphModel(project), registry=NodeRegistry(), workspace_id="ws_dpf", scope_path=(), graph_theme_bridge=None
         )
-        nodes_by_id = {payload["node_id"]: payload for payload in nodes_payload}
-        model_ports = {port["key"]: port for port in nodes_by_id["node_model"]["ports"]}
-        self.assertEqual({edge["edge_id"] for edge in edges_payload}, {"edge_hidden_result_file"})
-        self.assertTrue(nodes_by_id["node_model"]["unresolved"])
-        self.assertTrue(nodes_by_id["node_model"]["read_only"])
-        self.assertEqual(nodes_by_id["node_model"]["inline_properties"], [])
-        self.assertEqual(nodes_by_id["node_model"]["unavailable_reason"], _MISSING_ADDON_REASON)
-        self.assertNotIn("result_file", model_ports)
-        self.assertEqual(model_ports["model"]["label"], "Saved Model")
-        self.assertTrue(model_ports["model"]["exposed"])
+        self.assertEqual(project.workspaces["ws_dpf"].nodes, {})
+        self.assertEqual(project.workspaces["ws_dpf"].edges, {})
+        self.assertEqual(nodes_payload, [])
+        self.assertEqual(edges_payload, [])
 
 
 __all__ = [

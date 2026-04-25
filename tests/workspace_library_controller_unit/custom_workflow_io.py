@@ -48,6 +48,7 @@ class WorkspaceLibraryControllerCustomWorkflowIOTests(WorkspaceLibraryController
         self.assertEqual(len(definitions), 1)
         definition = definitions[0]
         self.assertEqual(definition["name"], "Reusable Shell")
+        self.assertEqual(definition["workflow_id"], f"wf_shell_{shell.node_id}")
         self.assertEqual(definition["revision"], 1)
         self.assertNotIn("source_shell_ref_id", definition)
         self.assertEqual(definition["ports"][0]["direction"], "out")
@@ -57,7 +58,7 @@ class WorkspaceLibraryControllerCustomWorkflowIOTests(WorkspaceLibraryController
         self.assertEqual(host.node_library_changed.calls, 1)
         library_items = controller.custom_workflow_library_items()
         self.assertEqual(len(library_items), 1)
-        self.assertTrue(str(library_items[0]["type_id"]).startswith("custom_workflow:"))
+        self.assertEqual(library_items[0]["type_id"], f"custom_workflow:wf_shell_{shell.node_id}")
 
     def test_publish_custom_workflow_from_current_scope_updates_revision(self) -> None:
         host = _PublishHostStub()

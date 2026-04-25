@@ -4,7 +4,7 @@ import copy
 import json
 import shutil
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Literal
+from typing import TYPE_CHECKING, Any
 from uuid import uuid4
 import weakref
 
@@ -14,6 +14,12 @@ from PyQt6.QtQuick import QQuickWindow, QSGRendererInterface
 from PyQt6.QtWidgets import QApplication, QColorDialog, QFileDialog, QInputDialog
 
 from ea_node_editor.graph.effective_ports import port_kind
+from ea_node_editor.graph.file_issue_state import (
+    EXTERNAL_LINK_MODE,
+    MANAGED_COPY_MODE,
+    preferred_repair_mode_for_value,
+    repair_modes_for_node_property,
+)
 from ea_node_editor.persistence.artifact_resolution import ProjectArtifactResolver
 from ea_node_editor.settings import (
     DEFAULT_GRAPHICS_SETTINGS,
@@ -21,7 +27,7 @@ from ea_node_editor.settings import (
     PROJECT_ARTIFACT_STORE_METADATA_KEY,
     PROJECT_MANAGED_ASSETS_DIRNAME,
 )
-from ea_node_editor.telemetry.system_metrics import read_system_metrics
+from ea_node_editor.telemetry.status_service import EngineState, ShellStatusService
 from ea_node_editor.ui.media_preview_provider import set_media_preview_project_context_provider
 from ea_node_editor.ui.dialogs.passive_style_controls import (
     color_to_hex,
@@ -64,6 +70,7 @@ class ShellHostPresenter(QObject):
     def __init__(self, host: "ShellWindow") -> None:
         super().__init__(host)
         self._host = host
+        self._status_service = ShellStatusService()
         host_ref = weakref.ref(host)
 
         def _preview_context():
@@ -152,6 +159,62 @@ class ShellHostPresenter(QObject):
         if not selected.isValid():
             return ""
         return color_to_hex(selected)
+
+    def repair_property_path_dialog(
+        self,
+        *,
+        node_type_id: str,
+        property_key: str,
+        property_label: str,
+        current_path: str,
+    ) -> str:
+        repair_modes = repair_modes_for_node_property(node_type_id, property_key)
+        normalized_label = str(property_label or "").strip() or "File"
+        normalized_current_path = str(current_path or "").strip()
+        if not repair_modes:
+            return self.browse_property_path_dialog(normalized_label, normalized_current_path)
+
+        selected_mode = repair_modes[0]
+        if len(repair_modes) > 1:
+            metadata = self._host.model.project.metadata
+            default_mode = preferred_repair_mode_for_value(
+                normalized_current_path,
+                project_path=str(self._host.project_path or "").strip() or None,
+                project_metadata=dict(metadata) if isinstance(metadata, dict) else None,
+                fallback_mode=self._host.app_preferences_controller.source_import_mode(),
+                allowed_modes=repair_modes,
+            )
+            options = ["Managed Copy", "External Link"]
+            default_index = 0 if default_mode == MANAGED_COPY_MODE else 1
+            selection, accepted = QInputDialog.getItem(
+                self._host,
+                "Repair file...",
+                f"Store repaired {normalized_label.lower()} as:",
+                options,
+                default_index,
+                False,
+            )
+            if not accepted:
+                return ""
+            selected_mode = MANAGED_COPY_MODE if str(selection or "").strip() == options[0] else EXTERNAL_LINK_MODE
+
+        selected_path, _selected_filter = QFileDialog.getOpenFileName(
+            self._host,
+            f"Repair {normalized_label}",
+            self._path_dialog_start_path(normalized_current_path),
+        )
+        normalized_selected_path = str(selected_path or "").strip()
+        if not normalized_selected_path:
+            return ""
+        if selected_mode == EXTERNAL_LINK_MODE:
+            return normalized_selected_path
+
+        managed_ref = self._import_source_as_managed_copy(
+            property_label=normalized_label,
+            current_path=normalized_current_path,
+            selected_path=normalized_selected_path,
+        )
+        return managed_ref or normalized_selected_path
 
     def prompt_text_value(
         self,
@@ -271,6 +334,74 @@ class ShellHostPresenter(QObject):
         if quick_window is not None:
             quick_window.unsetCursor()
 
+    def sync_graphics_show_port_labels_action(self, show_port_labels: bool) -> None:
+        action = getattr(self._host, "action_show_port_labels", None)
+        if action is None or action.isChecked() == show_port_labels:
+            return
+        blocked = action.blockSignals(True)
+        action.setChecked(show_port_labels)
+        action.blockSignals(blocked)
+
+    def sync_graphics_show_tooltips_action(self, show_tooltips: bool) -> None:
+        action = getattr(self._host, "action_show_tooltips", None)
+        if action is None or action.isChecked() == show_tooltips:
+            return
+        blocked = action.blockSignals(True)
+        action.setChecked(show_tooltips)
+        action.blockSignals(blocked)
+
+    def refresh_active_workspace_scene_payload(self) -> None:
+        workspace_manager = getattr(self._host, "workspace_manager", None)
+        scene = getattr(self._host, "scene", None)
+        if workspace_manager is None or scene is None:
+            return
+        workspace_id = str(workspace_manager.active_workspace_id() or "").strip()
+        if not workspace_id:
+            return
+        scene.refresh_workspace_from_model(workspace_id)
+
+    def apply_graphics_preferences(self, graphics: Any) -> dict[str, Any]:
+        previous_show_port_labels = bool(
+            getattr(getattr(self._host, "workspace_ui_state", None), "show_port_labels", True)
+        )
+        previous_show_tooltips = bool(
+            getattr(getattr(self._host, "workspace_ui_state", None), "graphics_show_tooltips", True)
+        )
+        previous_graph_label_pixel_size = int(
+            getattr(getattr(self._host, "workspace_ui_state", None), "graph_label_pixel_size", 10)
+        )
+        previous_node_title_icon_pixel_size = int(
+            getattr(
+                getattr(self._host, "workspace_ui_state", None),
+                "node_title_icon_pixel_size",
+                previous_graph_label_pixel_size,
+            )
+        )
+        resolved = self._host.shell_workspace_presenter.apply_graphics_preferences(graphics)
+        canvas = resolved.get("canvas", {}) if isinstance(resolved, dict) else {}
+        shell = resolved.get("shell", {}) if isinstance(resolved, dict) else {}
+        typography = resolved.get("typography", {}) if isinstance(resolved, dict) else {}
+        current_show_port_labels = bool(canvas.get("show_port_labels", previous_show_port_labels))
+        current_show_tooltips = bool(shell.get("show_tooltips", previous_show_tooltips))
+        current_graph_label_pixel_size = int(
+            typography.get("graph_label_pixel_size", previous_graph_label_pixel_size)
+        )
+        current_node_title_icon_pixel_size = int(
+            self._host.shell_workspace_presenter.graphics_node_title_icon_pixel_size
+        )
+        self.sync_graphics_show_port_labels_action(current_show_port_labels)
+        self.sync_graphics_show_tooltips_action(current_show_tooltips)
+        tooltip_manager = getattr(self._host, "tooltip_manager", None)
+        if tooltip_manager is not None:
+            tooltip_manager.set_info_tooltips_enabled(current_show_tooltips)
+        if (
+            previous_show_port_labels != current_show_port_labels
+            or previous_graph_label_pixel_size != current_graph_label_pixel_size
+            or previous_node_title_icon_pixel_size != current_node_title_icon_pixel_size
+        ):
+            self.refresh_active_workspace_scene_payload()
+        return resolved
+
     def apply_theme(self, theme_id: Any) -> str:
         resolved_theme_id = self._host.theme_bridge.apply_theme(theme_id)
         app = QApplication.instance()
@@ -299,7 +430,7 @@ class ShellHostPresenter(QObject):
         return _RENDERER_LABELS.get(api, "Unavailable")
 
     def show_graphics_settings_dialog(self, _checked: bool = False) -> None:
-        from ea_node_editor.ui.dialogs import GraphicsSettingsDialog
+        from ea_node_editor.ui.dialogs.graphics_settings_dialog import GraphicsSettingsDialog
 
         dialog = GraphicsSettingsDialog(
             initial_settings=self._host.app_preferences_controller.graphics_settings(),
@@ -608,28 +739,26 @@ class ShellHostPresenter(QObject):
         return True
 
     def update_metrics(self) -> None:
-        metrics = read_system_metrics()
+        metrics = self._status_service.collect_system_metrics()
         self.update_system_metrics(metrics.cpu_percent, metrics.ram_used_gb, metrics.ram_total_gb)
 
     def update_engine_status(
         self,
-        state: Literal["ready", "running", "paused", "error"],
+        state: EngineState,
         details: str = "",
     ) -> None:
-        text = state.capitalize()
-        if details:
-            text = f"{text} ({details})"
-        icon_map = {
-            "ready": "R",
-            "running": "Run",
-            "paused": "P",
-            "error": "!",
-        }
-        self._host.status_engine.set_icon(icon_map.get(state, "E"))
-        self._host.status_engine.set_text(text)
+        presentation = self._status_service.engine_status(state, details)
+        self._host.status_engine.set_icon(presentation.icon)
+        self._host.status_engine.set_text(presentation.text)
 
     def update_job_counters(self, running: int, queued: int, done: int, failed: int) -> None:
-        self._host.status_jobs.set_text(f"R:{running} Q:{queued} D:{done} F:{failed}")
+        presentation = self._status_service.job_counters(
+            running=running,
+            queued=queued,
+            done=done,
+            failed=failed,
+        )
+        self._host.status_jobs.set_text(presentation.text)
 
     def update_system_metrics(
         self,
@@ -639,9 +768,14 @@ class ShellHostPresenter(QObject):
         fps: float | None = None,
     ) -> None:
         fps_value = max(0.0, float(fps)) if fps is not None else self._host._frame_rate_sampler.snapshot().fps
-        self._host.status_metrics.set_text(
-            f"FPS:{fps_value:.0f} CPU:{cpu_percent:.0f}% RAM:{ram_used_gb:.1f}/{ram_total_gb:.1f} GB"
+        presentation = self._status_service.system_metrics(
+            fps=fps_value,
+            cpu_percent=cpu_percent,
+            ram_used_gb=ram_used_gb,
+            ram_total_gb=ram_total_gb,
         )
+        self._host.status_metrics.set_text(presentation.text)
 
     def update_notification_counters(self, warnings: int, errors: int) -> None:
-        self._host.status_notifications.set_text(f"W:{warnings} E:{errors}")
+        presentation = self._status_service.notification_counters(warnings=warnings, errors=errors)
+        self._host.status_notifications.set_text(presentation.text)

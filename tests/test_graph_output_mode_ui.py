@@ -69,7 +69,7 @@ class GraphOutputModeUiTests(unittest.TestCase):
         self.assertIn("class _GraphSceneThemeResolver:", builder_text)
         self.assertIn("class _GraphSceneNodePayloadFactory:", builder_text)
         self.assertIn("class _GraphSceneBackdropPartitioner:", builder_text)
-        self.assertIn("self._node_payload_factory = _GraphSceneNodePayloadFactory()", builder_text)
+        self.assertIn("self._node_payload_factory = _GraphSceneNodePayloadFactory(self.boundary_adapters)", builder_text)
         self.assertIn(
             "self._backdrop_partitioner = _GraphSceneBackdropPartitioner(self._node_payload_factory)",
             builder_text,

@@ -32,11 +32,13 @@ Notes:
 Start the application from the repository root:
 
 ```powershell
-.\venv\Scripts\python.exe .\main.py
+.\venv\Scripts\python.exe -m ea_node_editor.bootstrap
 ```
 
-This section covers the source/dev launch path. If you need a packaged Windows
-build that opens without the repository checkout, follow
+This package-module command is the source/dev launch path. Editable installs
+also expose `.\venv\Scripts\corex-node-editor.exe`, which maps to
+`ea_node_editor.bootstrap:main`. If you need a packaged Windows build that opens
+without the repository checkout, follow
 [`docs/PACKAGING_WINDOWS.md`](./PACKAGING_WINDOWS.md).
 
 You should see:
@@ -86,7 +88,8 @@ Before merge, inspect or run the full workflow:
   with `.\`.
 - The current architecture/docs closeout evidence is summarized in
   `ARCHITECTURE.md`, `docs/specs/INDEX.md`,
-  `docs/specs/perf/ARCHITECTURE_REFACTOR_QA_MATRIX.md`,
+  `docs/specs/perf/COREX_CLEAN_ARCHITECTURE_RESTRUCTURE_QA_MATRIX.md`,
+  `docs/specs/perf/COREX_NO_LEGACY_ARCHITECTURE_CLEANUP_QA_MATRIX.md`,
   `docs/specs/perf/VERIFICATION_SPEED_QA_MATRIX.md`,
   `docs/specs/perf/NESTED_NODE_CATEGORIES_QA_MATRIX.md`, and
   `docs/specs/requirements/TRACEABILITY_MATRIX.md`.
@@ -165,7 +168,9 @@ Manual passive-media fixture:
 - [README.md](../README.md): top-level feature summary, structure map, and doc links
 - [ARCHITECTURE.md](../ARCHITECTURE.md): runtime architecture, QML composition, and Mermaid diagrams
 - [docs/specs/INDEX.md](./specs/INDEX.md): canonical requirements, ADRs, and traceability
-- [docs/specs/perf/ARCHITECTURE_REFACTOR_QA_MATRIX.md](./specs/perf/ARCHITECTURE_REFACTOR_QA_MATRIX.md): final docs/release/manual-check matrix and archived-evidence boundaries
+- [docs/specs/perf/COREX_CLEAN_ARCHITECTURE_RESTRUCTURE_QA_MATRIX.md](./specs/perf/COREX_CLEAN_ARCHITECTURE_RESTRUCTURE_QA_MATRIX.md): retained P01-P12 ownership, verification, residual-risk, and closeout evidence for the clean architecture restructure
+- [docs/specs/perf/COREX_NO_LEGACY_ARCHITECTURE_CLEANUP_QA_MATRIX.md](./specs/perf/COREX_NO_LEGACY_ARCHITECTURE_CLEANUP_QA_MATRIX.md): active no-legacy architecture closeout proof for canonical launch/import paths and retired compatibility seams
+- [docs/specs/perf/ARCHITECTURE_REFACTOR_QA_MATRIX.md](./specs/perf/ARCHITECTURE_REFACTOR_QA_MATRIX.md): historical pointer retained for older release-doc guardrails
 - [docs/specs/perf/PASSIVE_NODES_VISUAL_CHECKLIST.md](./specs/perf/PASSIVE_NODES_VISUAL_CHECKLIST.md): short manual passive-node validation pass
 - [docs/specs/perf/GRAPH_SURFACE_INPUT_QA_MATRIX.md](./specs/perf/GRAPH_SURFACE_INPUT_QA_MATRIX.md): current graph-surface regression matrix and shell-module verification status
 - [docs/specs/perf/VERIFICATION_SPEED_QA_MATRIX.md](./specs/perf/VERIFICATION_SPEED_QA_MATRIX.md): approved verification-runner modes, dedicated shell-isolation phase, benchmark evidence, proof-audit command, and baseline-status notes

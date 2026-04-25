@@ -551,13 +551,7 @@ class ValidatedGraphMutation:
         )
 
     def _active_view_state(self) -> ViewState:
-        workspace = self.workspace
-        workspace.ensure_default_view()
-        view_state = workspace.views.get(workspace.active_view_id)
-        if view_state is None:
-            workspace.active_view_id = next(iter(workspace.views))
-            view_state = workspace.views[workspace.active_view_id]
-        return view_state
+        return self.workspace.active_view_state()
 
     def add_node(
         self,
@@ -616,7 +610,7 @@ class ValidatedGraphMutation:
         if normalized_parent_id:
             affected_node_ids.add(normalized_parent_id)
         node.parent_node_id = normalized_parent_id
-        self.workspace.dirty = True
+        self.workspace.mark_dirty()
         self._prune_edges_for_nodes(affected_node_ids)
         return True
 
@@ -746,7 +740,7 @@ class ValidatedGraphMutation:
         if bool(view_state.hide_locked_ports) == normalized:
             return False
         view_state.hide_locked_ports = normalized
-        self.workspace.dirty = True
+        self.workspace.mark_dirty()
         return True
 
     def set_view_hide_optional_ports(self, hide_optional_ports: bool) -> bool:
@@ -755,7 +749,7 @@ class ValidatedGraphMutation:
         if bool(view_state.hide_optional_ports) == normalized:
             return False
         view_state.hide_optional_ports = normalized
-        self.workspace.dirty = True
+        self.workspace.mark_dirty()
         return True
 
     def _resolved_port(self, node_id: str, port_key: str) -> tuple[NodeInstance, NodeTypeSpec, EffectivePort]:
@@ -810,7 +804,7 @@ class ValidatedGraphMutation:
         if not current_present and not normalized_locked:
             return False
         node.locked_ports[key] = normalized_locked
-        self.workspace.dirty = True
+        self.workspace.mark_dirty()
         return True
 
     def _prune_edges_for_nodes(self, affected_node_ids: set[str]) -> list[str]:
@@ -870,7 +864,7 @@ class ValidatedGraphMutation:
                 workspace.edges.pop(edge_id, None)
                 removed_edge_ids.append(edge_id)
         if removed_edge_ids:
-            workspace.dirty = True
+            workspace.mark_dirty()
         return removed_edge_ids
 
 

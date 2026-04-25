@@ -5,8 +5,8 @@ import QtQuick.Layouts 1.15
 ShellCollapsibleSidePane {
     id: root
     objectName: "inspectorPane"
-    readonly property var inspectorBridgeRef: shellInspectorBridge
-    readonly property var helpBridgeRef: (typeof helpBridge !== "undefined") ? helpBridge : null
+    property var inspectorBridgeRef: typeof shellInspectorBridge !== "undefined" ? shellInspectorBridge : null
+    property var helpBridgeRef: (typeof helpBridge !== "undefined") ? helpBridge : null
     property int activeTabIndex: 0
     property string activePortDirection: "in"
     property string selectedPortKey: ""
@@ -337,6 +337,8 @@ ShellCollapsibleSidePane {
 
                 HelpPane {
                     objectName: "inspectorHelpSurface"
+                    helpBridgeRef: root.helpBridgeRef
+                    themeBridgeRef: root.themeBridgeRef
                 }
             }
         }

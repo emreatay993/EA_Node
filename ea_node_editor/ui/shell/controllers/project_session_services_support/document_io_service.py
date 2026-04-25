@@ -10,6 +10,10 @@ from typing import Any
 from ea_node_editor.graph.model import GraphModel, ProjectData
 from ea_node_editor.graph.normalization import normalize_project_for_registry
 from ea_node_editor.persistence.artifact_store import ProjectArtifactLayout, ProjectArtifactStore
+from ea_node_editor.persistence.envelope import (
+    ProjectPersistenceWorkspaceEnvelope,
+    install_workspace_persistence_envelope,
+)
 from ea_node_editor.persistence.project_codec import (
     collect_project_artifact_references,
     rewrite_project_artifact_refs,
@@ -31,6 +35,7 @@ from ea_node_editor.ui.shell.controllers.project_session_services_support.shared
     _WorkspaceSessionProtocol,
     normalize_project_path_value,
 )
+from ea_node_editor.ui.shell.workspace_flow import ShellWorkspaceManagerAdapter
 from ea_node_editor.workspace.manager import WorkspaceManager
 
 
@@ -173,7 +178,7 @@ class ProjectDocumentIOService:
         self._clear_node_elapsed_timing_state_for_project_install()
         normalize_project_for_registry(project, self._host.registry)
         self._host.model = GraphModel(project)
-        self._host.workspace_manager = WorkspaceManager(self._host.model)
+        self._host.workspace_manager = ShellWorkspaceManagerAdapter(WorkspaceManager(self._host.model), self._host.model)
         self._host.runtime_history.clear_all()
         self._host.project_path = project_path
         self._project_viewer_bridge_loaded(
@@ -275,26 +280,24 @@ class ProjectDocumentIOService:
         for workspace in project.workspaces.values():
             for node in workspace.nodes.values():
                 node.properties = rewrite_project_artifact_refs(node.properties, replacements)
-            state = workspace.capture_persistence_state()
-            state.replace_unresolved_node_docs(
-                {
-                    node_id: rewrite_project_artifact_refs(node_doc, replacements)
-                    for node_id, node_doc in state.unresolved_node_docs.items()
-                }
+            envelope = ProjectPersistenceWorkspaceEnvelope.from_workspace(workspace)
+            install_workspace_persistence_envelope(
+                workspace,
+                ProjectPersistenceWorkspaceEnvelope(
+                    unresolved_node_docs={
+                        node_id: rewrite_project_artifact_refs(node_doc, replacements)
+                        for node_id, node_doc in envelope.unresolved_node_docs.items()
+                    },
+                    unresolved_edge_docs={
+                        edge_id: rewrite_project_artifact_refs(edge_doc, replacements)
+                        for edge_id, edge_doc in envelope.unresolved_edge_docs.items()
+                    },
+                    authored_node_overrides={
+                        node_id: rewrite_project_artifact_refs(override_doc, replacements)
+                        for node_id, override_doc in envelope.authored_node_overrides.items()
+                    },
+                ),
             )
-            state.replace_unresolved_edge_docs(
-                {
-                    edge_id: rewrite_project_artifact_refs(edge_doc, replacements)
-                    for edge_id, edge_doc in state.unresolved_edge_docs.items()
-                }
-            )
-            state.replace_authored_node_overrides(
-                {
-                    node_id: rewrite_project_artifact_refs(override_doc, replacements)
-                    for node_id, override_doc in state.authored_node_overrides.items()
-                }
-            )
-            workspace.restore_persistence_state(state)
 
     def save_project(self) -> None:
         from PyQt6.QtWidgets import QFileDialog

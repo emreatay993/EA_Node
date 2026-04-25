@@ -118,7 +118,7 @@ def _test_addon_record() -> AddOnRecord:
 
 
 class GraphSceneBridgeBindRegressionTests(unittest.TestCase):
-    def test_scene_bridge_projects_missing_addon_nodes_as_read_only_placeholder_payloads(self) -> None:
+    def test_scene_bridge_keeps_missing_addon_placeholder_docs_out_of_graph_projection(self) -> None:
         serializer = JsonProjectSerializer(NodeRegistry())
         with patch(
             "ea_node_editor.persistence.overlay.discover_addon_records",
@@ -131,42 +131,10 @@ class GraphSceneBridgeBindRegressionTests(unittest.TestCase):
             nodes_by_id = {payload["node_id"]: payload for payload in scene.nodes_model}
             edges_by_id = {payload["edge_id"]: payload for payload in scene.edges_model}
 
-        self.assertEqual(set(nodes_by_id), {"node_source", "node_transform"})
-        self.assertEqual(set(edges_by_id), {"edge_signal_data"})
-        self.assertTrue(nodes_by_id["node_transform"]["unresolved"])
-        self.assertTrue(nodes_by_id["node_transform"]["read_only"])
-        self.assertEqual(nodes_by_id["node_transform"]["addon_id"], "tests.addons.signal_pack")
-        self.assertEqual(nodes_by_id["node_transform"]["addon_display_name"], "Signal Pack")
-        self.assertEqual(nodes_by_id["node_transform"]["addon_version"], "1.2.3")
-        self.assertEqual(nodes_by_id["node_transform"]["addon_apply_policy"], "hot_apply")
-        self.assertEqual(nodes_by_id["node_transform"]["addon_status"], "installed")
-        self.assertEqual(
-            nodes_by_id["node_transform"]["unavailable_reason"],
-            "Signal Pack is not loaded in this session.",
-        )
-        self.assertEqual(
-            {
-                port["key"]: port["label"]
-                for port in nodes_by_id["node_source"]["ports"]
-            }["signal_out"],
-            "Saved Signal",
-        )
-        transform_ports = {
-            port["key"]: port["label"]
-            for port in nodes_by_id["node_transform"]["ports"]
-        }
-        self.assertNotIn("signal_in", transform_ports)
-        self.assertEqual(transform_ports["signal_out"], "Saved Result")
-        self.assertEqual(
-            nodes_by_id["node_transform"]["locked_state"],
-            {
-                "is_locked": True,
-                "reason": "missing_addon",
-                "label": "Requires add-on",
-                "summary": "Signal Pack is not loaded in this session.",
-                "focus_addon_id": "tests.addons.signal_pack",
-            },
-        )
+        self.assertEqual(nodes_by_id, {})
+        self.assertEqual(edges_by_id, {})
+        self.assertEqual(project.workspaces["ws_addon"].nodes, {})
+        self.assertEqual(project.workspaces["ws_addon"].edges, {})
 
     def test_scene_bridge_routes_fragment_and_delete_flows_through_authoring_boundary(self) -> None:
         support_text = (

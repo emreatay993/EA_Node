@@ -113,6 +113,15 @@ def _normalized_runtime_document(document: dict[str, object]) -> dict[str, objec
                 continue
             view.pop("hide_locked_ports", None)
             view.pop("hide_optional_ports", None)
+        document_fields = workspace.get("document_fields")
+        if isinstance(document_fields, dict):
+            for view in document_fields.get("views", []):
+                if not isinstance(view, dict):
+                    continue
+                view.pop("hide_locked_ports", None)
+                view.pop("hide_optional_ports", None)
+        for compatibility_key in ("workspace_id", "name", "dirty", "active_view_id", "views"):
+            workspace.pop(compatibility_key, None)
     return normalized
 
 

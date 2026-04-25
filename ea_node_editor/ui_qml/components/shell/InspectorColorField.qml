@@ -9,9 +9,7 @@ Item {
     property string committedText: ""
     readonly property string text: colorField.text
     function _tooltipBridge() {
-        if (typeof graphCanvasStateBridge !== "undefined" && graphCanvasStateBridge)
-            return graphCanvasStateBridge;
-        return null;
+        return root.pane ? root.pane.graphCanvasStateBridgeRef : null;
     }
     readonly property bool informationalTooltipsEnabled: {
         var bridge = root._tooltipBridge();

@@ -10,7 +10,10 @@ Rectangle {
     property var statusJobsRef
     property var statusMetricsRef
     property var statusNotificationsRef
-    readonly property var themePalette: themeBridge.palette
+    property var themeBridgeRef: typeof themeBridge !== "undefined" ? themeBridge : null
+    property var graphCanvasStateBridgeRef: typeof graphCanvasStateBridge !== "undefined" ? graphCanvasStateBridge : null
+    property var uiIconsRef: typeof uiIcons !== "undefined" ? uiIcons : null
+    readonly property var themePalette: root.themeBridgeRef ? root.themeBridgeRef.palette : ({})
     readonly property string fullFidelityLabel: "Full Fidelity"
     readonly property string maxPerformanceLabel: "Max Performance"
     readonly property string fullFidelityCopy: "Keeps normal visual quality and applies only invisible structural optimizations."
@@ -63,6 +66,9 @@ Rectangle {
 
             ShellButton {
                 objectName: "shellStatusStripFullFidelityButton"
+                themeBridgeRef: root.themeBridgeRef
+                graphCanvasStateBridgeRef: root.graphCanvasStateBridgeRef
+                uiIconsRef: root.uiIconsRef
                 implicitHeight: 20
                 text: root.fullFidelityLabel
                 tooltipText: root.fullFidelityCopy
@@ -75,6 +81,9 @@ Rectangle {
 
             ShellButton {
                 objectName: "shellStatusStripMaxPerformanceButton"
+                themeBridgeRef: root.themeBridgeRef
+                graphCanvasStateBridgeRef: root.graphCanvasStateBridgeRef
+                uiIconsRef: root.uiIconsRef
                 implicitHeight: 20
                 text: root.maxPerformanceLabel
                 tooltipText: root.maxPerformanceCopy

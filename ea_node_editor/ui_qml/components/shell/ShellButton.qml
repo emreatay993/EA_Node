@@ -3,16 +3,17 @@ import QtQuick.Controls 2.15
 
 ToolButton {
     id: control
-    readonly property var themePalette: themeBridge.palette
+    property var themeBridgeRef: typeof themeBridge !== "undefined" ? themeBridge : null
+    property var graphCanvasStateBridgeRef: typeof graphCanvasStateBridge !== "undefined" ? graphCanvasStateBridge : null
+    property var uiIconsRef: typeof uiIcons !== "undefined" ? uiIcons : null
+    readonly property var themePalette: control.themeBridgeRef ? control.themeBridgeRef.palette : ({})
     property bool selectedStyle: false
     property string iconName: ""
     property url iconSource: ""
     property string tooltipText: ""
-    property int iconSize: iconName.length > 0 && uiIcons.has(iconName) ? uiIcons.defaultSize(iconName) : 16
+    property int iconSize: iconName.length > 0 && control.uiIconsRef && control.uiIconsRef.has(iconName) ? control.uiIconsRef.defaultSize(iconName) : 16
     function _tooltipBridge() {
-        if (typeof graphCanvasStateBridge !== "undefined" && graphCanvasStateBridge)
-            return graphCanvasStateBridge;
-        return null;
+        return control.graphCanvasStateBridgeRef;
     }
     readonly property color foregroundColor: !control.enabled
         ? Qt.alpha(control.themePalette.muted_fg, 0.55)
@@ -35,11 +36,11 @@ ToolButton {
     readonly property real contentOpacity: control.enabled ? 1.0 : 0.72
     property color iconColor: control.foregroundColor
     readonly property string resolvedIconSource: iconName.length > 0
-        ? uiIcons.sourceSized(iconName, iconSize, String(iconColor))
+        ? (control.uiIconsRef ? control.uiIconsRef.sourceSized(iconName, iconSize, String(iconColor)) : "")
         : iconSource
     readonly property string resolvedTooltipText: tooltipText.length > 0
         ? tooltipText
-        : (iconName.length > 0 ? uiIcons.label(iconName) : "")
+        : (iconName.length > 0 && control.uiIconsRef ? control.uiIconsRef.label(iconName) : "")
     readonly property bool informationalTooltipsEnabled: {
         var bridge = control._tooltipBridge();
         if (bridge && bridge.graphics_show_tooltips !== undefined)

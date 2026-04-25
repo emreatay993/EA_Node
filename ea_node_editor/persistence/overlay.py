@@ -10,9 +10,11 @@ from typing import Any
 
 from ea_node_editor.addons.catalog import ANSYS_DPF_ADDON_ID, registered_addon_registrations
 from ea_node_editor.nodes.plugin_loader import discover_addon_records
+from ea_node_editor.persistence.envelope import (
+    LEGACY_RUNTIME_PERSISTENCE_KEY,
+    PERSISTENCE_ENVELOPE_KEY,
+)
 
-PERSISTENCE_ENVELOPE_KEY = "_persistence_envelope"
-LEGACY_RUNTIME_PERSISTENCE_KEY = "_runtime_unresolved_workspaces"
 MISSING_ADDON_PLACEHOLDER_KEY = "_missing_addon_placeholder"
 _LOCKED_PLACEHOLDER_LABEL = "Requires add-on"
 _DPF_OPERATOR_TYPE_ID_PREFIX = "dpf.op"

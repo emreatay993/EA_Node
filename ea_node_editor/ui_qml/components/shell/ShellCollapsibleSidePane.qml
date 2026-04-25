@@ -23,11 +23,12 @@ Rectangle {
     property string expandHandleTooltip: ""
     property alias contentData: paneContentLayout.data
     property alias headerActionsData: headerActionsLayout.data
-    readonly property var themePalette: themeBridge.palette
+    property var themeBridgeRef: typeof themeBridge !== "undefined" ? themeBridge : null
+    property var graphCanvasStateBridgeRef: typeof graphCanvasStateBridge !== "undefined" ? graphCanvasStateBridge : null
+    property var uiIconsRef: typeof uiIcons !== "undefined" ? uiIcons : null
+    readonly property var themePalette: root.themeBridgeRef ? root.themeBridgeRef.palette : ({})
     function _tooltipBridge() {
-        if (typeof graphCanvasStateBridge !== "undefined" && graphCanvasStateBridge)
-            return graphCanvasStateBridge;
-        return null;
+        return root.graphCanvasStateBridgeRef;
     }
     readonly property bool informationalTooltipsEnabled: {
         var bridge = root._tooltipBridge();
@@ -243,6 +244,9 @@ Rectangle {
                 }
 
                 ShellButton {
+                    themeBridgeRef: root.themeBridgeRef
+                    graphCanvasStateBridgeRef: root.graphCanvasStateBridgeRef
+                    uiIconsRef: root.uiIconsRef
                     iconName: root.collapseButtonIconName
                     iconSize: 14
                     implicitWidth: 26

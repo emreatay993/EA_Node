@@ -50,11 +50,11 @@ Item {
                 x: 8
                 anchors.verticalCenter: parent.verticalCenter
                 smooth: true
-                source: uiIcons.sourceSized(
+                source: bar.pane && bar.pane.uiIconsRef ? bar.pane.uiIconsRef.sourceSized(
                     "search",
                     12,
                     String(bar.pane ? bar.pane.themePalette.muted_fg : "#d0d5de")
-                )
+                ) : ""
             }
 
             TextField {

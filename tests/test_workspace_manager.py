@@ -7,7 +7,7 @@ from ea_node_editor.workspace.manager import WorkspaceManager
 
 
 class WorkspaceManagerTests(unittest.TestCase):
-    def test_manager_uses_workspace_records_not_metadata_order_as_live_authority(self) -> None:
+    def test_manager_resolves_workspace_records_without_load_time_metadata_repair(self) -> None:
         model = GraphModel()
         manager = WorkspaceManager(model)
         first = manager.active_workspace_id()
@@ -17,12 +17,14 @@ class WorkspaceManagerTests(unittest.TestCase):
         model.project.active_workspace_id = "missing"
         manager = WorkspaceManager(model)
 
-        self.assertEqual(model.project.metadata["workspace_order"], [first, second, third])
-        self.assertEqual(manager.active_workspace_id(), first)
         self.assertEqual(
             [workspace.workspace_id for workspace in manager.list_workspaces()],
             [first, second, third],
         )
+        self.assertEqual(model.project.metadata["workspace_order"], [third, "missing", first, third])
+
+        self.assertEqual(manager.active_workspace_id(), first)
+        self.assertEqual(model.project.active_workspace_id, first)
 
     def test_create_workspace_appends_to_authoritative_order_and_activates_the_new_workspace(self) -> None:
         model = GraphModel()
@@ -85,6 +87,35 @@ class WorkspaceManagerTests(unittest.TestCase):
 
         self.assertEqual(model.project.metadata["workspace_order"], [first, second])
         self.assertEqual(manager.active_workspace_id(), second)
+
+    def test_move_workspace_updates_authoritative_order_for_tabs_and_persistence(self) -> None:
+        model = GraphModel()
+        manager = WorkspaceManager(model)
+        first = manager.active_workspace_id()
+        second = manager.create_workspace("Second")
+        third = manager.create_workspace("Third")
+
+        manager.move_workspace(2, 0)
+
+        self.assertEqual(model.project.metadata["workspace_order"], [third, first, second])
+        self.assertEqual(
+            [workspace.workspace_id for workspace in manager.list_workspaces()],
+            [third, first, second],
+        )
+
+    def test_workspace_manager_does_not_expose_view_lifecycle_helpers(self) -> None:
+        manager_methods = set(dir(WorkspaceManager))
+
+        self.assertFalse(
+            {
+                "create_view",
+                "set_active_view",
+                "close_view",
+                "rename_view",
+                "move_view",
+            }
+            & manager_methods
+        )
 
 
 if __name__ == "__main__":

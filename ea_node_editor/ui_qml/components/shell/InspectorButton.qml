@@ -9,9 +9,7 @@ Button {
     property bool compact: false
     property string tooltipText: ""
     function _tooltipBridge() {
-        if (typeof graphCanvasStateBridge !== "undefined" && graphCanvasStateBridge)
-            return graphCanvasStateBridge;
-        return null;
+        return control.pane ? control.pane.graphCanvasStateBridgeRef : null;
     }
     readonly property bool informationalTooltipsEnabled: {
         var bridge = control._tooltipBridge();

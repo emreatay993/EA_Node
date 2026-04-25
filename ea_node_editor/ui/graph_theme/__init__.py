@@ -27,6 +27,7 @@ from ea_node_editor.ui.graph_theme.presentation import (
     resolve_port_kind_color,
 )
 from ea_node_editor.ui.graph_theme.runtime import resolve_active_graph_theme, resolve_active_graph_theme_id
+from ea_node_editor.ui.graph_theme.service import GraphThemeService
 from ea_node_editor.ui.graph_theme.tokens import (
     GRAPH_CATEGORY_ACCENT_TOKENS_V1,
     GRAPH_PORT_KIND_TOKENS_V1,
@@ -55,6 +56,7 @@ __all__ = [
     "GraphEdgeTokens",
     "GraphNodeTokens",
     "GraphPortKindTokens",
+    "GraphThemeService",
     "GraphThemeDefinition",
     "SHELL_THEME_TO_GRAPH_THEME",
     "create_blank_custom_graph_theme",

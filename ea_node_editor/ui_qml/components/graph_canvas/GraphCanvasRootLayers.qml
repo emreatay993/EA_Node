@@ -70,8 +70,8 @@ Item {
             if (!root.canvasItem)
                 return;
             root.canvasItem.forceActiveFocus();
-            if (typeof viewerSessionBridge !== "undefined" && viewerSessionBridge && viewerSessionBridge.clear_viewer_focus)
-                viewerSessionBridge.clear_viewer_focus();
+            if (root.canvasItem.clearViewerFocus)
+                root.canvasItem.clearViewerFocus();
             root.canvasItem._closeContextMenus();
             root.canvasItem.clearPendingConnection();
             if (additive)
@@ -83,8 +83,8 @@ Item {
         onEdgeContextRequested: function(edgeId, screenX, screenY) {
             if (!root.canvasItem)
                 return;
-            if (typeof viewerSessionBridge !== "undefined" && viewerSessionBridge && viewerSessionBridge.clear_viewer_focus)
-                viewerSessionBridge.clear_viewer_focus();
+            if (root.canvasItem.clearViewerFocus)
+                root.canvasItem.clearViewerFocus();
             root.canvasItem._openEdgeContext(edgeId, screenX, screenY);
         }
     }

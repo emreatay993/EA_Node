@@ -8,7 +8,8 @@ Item {
     property int contentPadding: 6
     property int cornerRadius: 8
     property alias color: menuPanel.color
-    readonly property var themePalette: themeBridge.palette
+    property var themeBridgeRef: typeof themeBridge !== "undefined" ? themeBridge : null
+    readonly property var themePalette: root.themeBridgeRef ? root.themeBridgeRef.palette : ({})
     readonly property int shadowDepth: 12
     readonly property var visibleActions: {
         var resolved = []

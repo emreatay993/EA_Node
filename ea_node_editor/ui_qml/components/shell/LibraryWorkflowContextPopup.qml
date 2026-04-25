@@ -3,7 +3,7 @@ import QtQuick.Controls 2.15
 
 Item {
     id: root
-    readonly property var shellLibraryBridgeRef: shellLibraryBridge
+    property var shellLibraryBridgeRef: typeof shellLibraryBridge !== "undefined" ? shellLibraryBridge : null
     property string libraryContextWorkflowId: ""
     property string libraryContextWorkflowScope: ""
     readonly property var contextMenuActions: [
@@ -14,7 +14,8 @@ Item {
         },
         { "actionId": "delete", "text": "Delete", "destructive": true }
     ]
-    readonly property var themePalette: themeBridge.palette
+    property var themeBridgeRef: typeof themeBridge !== "undefined" ? themeBridge : null
+    readonly property var themePalette: root.themeBridgeRef ? root.themeBridgeRef.palette : ({})
 
     function openPopup(workflowId, workflowScope, positionX, positionY) {
         libraryContextWorkflowId = String(workflowId || "")
@@ -51,6 +52,7 @@ Item {
 
         contentItem: ShellContextMenu {
             id: workflowContextMenu
+            themeBridgeRef: root.themeBridgeRef
             minimumWidth: 188
             actions: root.contextMenuActions
             onActionTriggered: function(actionId) {

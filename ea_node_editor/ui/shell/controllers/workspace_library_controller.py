@@ -459,6 +459,16 @@ class WorkspaceLibraryController:
     def request_remove_edge(self, edge_id: str) -> ControllerResult[bool]:
         return self.workspace_graph_edit_controller.request_remove_edge(edge_id)
 
+    def request_ungroup_node(self, node_id: str) -> ControllerResult[bool]:
+        if not node_id:
+            return ControllerResult(False, payload=False)
+        scene = getattr(self._host, "scene", None)
+        if scene is None:
+            return ControllerResult(False, payload=False)
+        scene.select_node(node_id)
+        ungrouped = bool(self.ungroup_selected_nodes())
+        return ControllerResult(ungrouped, payload=ungrouped)
+
     def request_remove_node(self, node_id: str) -> ControllerResult[bool]:
         return self.workspace_graph_edit_controller.request_remove_node(node_id)
 
@@ -492,6 +502,9 @@ class WorkspaceLibraryController:
         self.workspace_package_io_controller.import_custom_workflow()
 
     def export_custom_workflow(self) -> None:
+        self.workspace_package_io_controller._prompt_custom_workflow_export_definition = (
+            self._prompt_custom_workflow_export_definition
+        )
         self.workspace_package_io_controller.export_custom_workflow()
 
     def _prompt_custom_workflow_export_definition(

@@ -1,4 +1,10 @@
-"""Typed command/event protocol with queue-boundary dict adapters."""
+"""Typed worker command/event contracts with queue-boundary dict adapters.
+
+This module owns process transport DTOs and their dict adapters only. Runtime
+snapshot assembly lives in ``runtime_snapshot``/``runtime_snapshot_assembly``,
+workspace compilation in ``compiler``, worker execution and cancellation in the
+worker/client modules, and viewer state machines in ``viewer_session_service``.
+"""
 
 from __future__ import annotations
 
@@ -6,7 +12,7 @@ from collections.abc import Mapping
 from dataclasses import dataclass, field, fields
 from typing import Any, Literal, TypeAlias
 
-from ea_node_editor.execution.runtime_value_codec import (
+from ea_node_editor.runtime_contracts import (
     deserialize_runtime_value,
     serialize_runtime_value,
 )

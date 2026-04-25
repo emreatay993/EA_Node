@@ -52,6 +52,7 @@ Rectangle {
 
         InspectorChevron {
             id: chevron
+            uiIconsRef: header.pane ? header.pane.uiIconsRef : null
             open: header.open
             strokeColor: header.displayedLabelColor
             anchors.verticalCenter: parent.verticalCenter

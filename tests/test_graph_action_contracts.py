@@ -49,6 +49,14 @@ INPUT_LAYERS_QML = (
     / "graph_canvas"
     / "GraphCanvasInputLayers.qml"
 )
+ACTION_ROUTER_QML = (
+    REPO_ROOT
+    / "ea_node_editor"
+    / "ui_qml"
+    / "components"
+    / "graph_canvas"
+    / "GraphCanvasActionRouter.qml"
+)
 WINDOW_ACTIONS = REPO_ROOT / "ea_node_editor" / "ui" / "shell" / "window_actions.py"
 WORKSPACE_GRAPH_ACTIONS = (
     REPO_ROOT
@@ -136,12 +144,11 @@ def _source(path: Path) -> str:
 
 
 def _qml_context_action_ids() -> set[str]:
-    return set(re.findall(r'"actionId"\s*:\s*"([^"]+)"', _source(CONTEXT_MENUS_QML)))
+    return set(re.findall(r'"actionId"\s*:\s*"([^"]+)"', _source(ACTION_ROUTER_QML)))
 
 
 def _qml_node_delegate_action_literals() -> set[str]:
-    source = _source(NODE_DELEGATE_QML)
-    return set(re.findall(r'normalized\s*===\s*"([^"]+)"', source))
+    return set(re.findall(r'"actionId"\s*:\s*"([^"]+)"', _source(ACTION_ROUTER_QML)))
 
 
 def _window_action_assignments() -> dict[str, ast.Call]:
@@ -294,24 +301,35 @@ def test_low_level_qml_action_exceptions_are_current() -> None:
 
 
 def test_qml_graph_canvas_actions_route_through_graph_action_bridge() -> None:
+    canvas_source = _source(REPO_ROOT / "ea_node_editor" / "ui_qml" / "components" / "GraphCanvas.qml")
     context_source = _source(CONTEXT_MENUS_QML)
     delegate_source = _source(NODE_DELEGATE_QML)
     root_bindings_source = _source(ROOT_BINDINGS_QML)
     input_layers_source = _source(INPUT_LAYERS_QML)
+    action_router_source = _source(ACTION_ROUTER_QML)
 
     assert "property var graphActionBridge: null" in root_bindings_source
     assert "readonly property var graphActionBridgeRef: root.graphActionBridge || null" in root_bindings_source
-    assert "property var graphActionBridge: null" in context_source
-    assert "root.graphActionBridge.trigger_graph_action(actionId, payload || ({}))" in context_source
-    assert 'var payload = { "node_id": String(nodeId || "") };' in delegate_source
-    assert "graphActionBridge.trigger_graph_action(actionId, payload)" in delegate_source
+    assert "GraphCanvasComponents.GraphCanvasActionRouter {" in canvas_source
+    assert "readonly property var canvasActionRouter: actionRouter" in canvas_source
+    assert "canvasActionRouter: root.canvasActionRouter" in canvas_source
+    assert "property var graphActionBridge: null" in action_router_source
+    assert "bridge.trigger_graph_action(String(actionId || \"\"), payload || ({}))" in action_router_source
+    assert "property var canvasActionRouter: null" in context_source
+    assert "function handleNodeContextAction(actionId)" in action_router_source
+    assert "function handleEdgeContextAction(actionId)" in action_router_source
+    assert "function handleSelectionContextAction(actionId)" in action_router_source
+    assert "actionRouter.handleNodeDelegateAction(nodeCard, nodeId, normalized)" in delegate_source
     assert "payload.inline_title_edit = true" in delegate_source
     assert "canvasItem.graphActionBridgeRef" in delegate_source
     assert "property var graphActionBridge: null" in input_layers_source
-    assert 'root._triggerGraphAction("delete_selection", { "edge_ids": edgeIds })' in input_layers_source
-    assert 'root._triggerGraphAction("navigate_scope_parent", ({}))' in input_layers_source
-    assert 'root._triggerGraphAction("navigate_scope_root", ({}))' in input_layers_source
-    assert 'root._triggerGraphAction("close_comment_peek", ({}))' in input_layers_source
+    assert "root.canvasActionRouter.deleteSelection(edgeIds)" in input_layers_source
+    assert "root.canvasActionRouter.navigateScopeParent()" in input_layers_source
+    assert "root.canvasActionRouter.navigateScopeRoot()" in input_layers_source
+    assert "root.canvasActionRouter.closeCommentPeekIfActive()" in input_layers_source
+    assert "shellContext" not in context_source
+    assert "shellContext" not in input_layers_source
+    assert "typeof viewerSessionBridge" not in delegate_source
     assert "property var shellCommandBridge" not in input_layers_source
 
     retired_hits = {
@@ -325,11 +343,12 @@ def test_qml_graph_canvas_actions_route_through_graph_action_bridge() -> None:
 def test_qml_graph_action_bridge_payloads_use_contract_keys() -> None:
     context_source = _source(CONTEXT_MENUS_QML)
     delegate_source = _source(NODE_DELEGATE_QML)
+    action_router_source = _source(ACTION_ROUTER_QML)
 
-    assert 'return { "edge_id": edgeId }' in context_source
-    assert 'return { "node_id": nodeId }' in context_source
+    assert 'return edgeId.length ? { "edge_id": edgeId } : null;' in action_router_source
+    assert 'var payload = { "node_id": nodeId };' in action_router_source
     assert '{ "node_id": String(nodeId || "") }' in delegate_source
-    assert "inline_title_edit" in context_source
+    assert "inline_title_edit" in action_router_source
     assert "inline_title_edit" in delegate_source
 
 

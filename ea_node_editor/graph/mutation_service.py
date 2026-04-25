@@ -83,13 +83,7 @@ class WorkspaceMutationService:
         )
 
     def active_view_state(self) -> ViewState:
-        workspace = self.workspace
-        workspace.ensure_default_view()
-        view_state = workspace.views.get(workspace.active_view_id)
-        if view_state is None:
-            workspace.active_view_id = next(iter(workspace.views))
-            view_state = workspace.views[workspace.active_view_id]
-        return view_state
+        return self.workspace.active_view_state()
 
     def save_active_view_state(self, *, zoom: float, pan_x: float, pan_y: float) -> bool:
         view_state = self.active_view_state()
@@ -113,23 +107,23 @@ class WorkspaceMutationService:
         *,
         source_view_id: str | None = None,
     ) -> ViewState:
-        return self.model.create_view(
+        return self.model._create_view_record(
             self.workspace_id,
             name=name,
             source_view_id=source_view_id,
         )
 
     def set_active_view(self, view_id: str) -> None:
-        self.model.set_active_view(self.workspace_id, view_id)
+        self.model._set_active_view_record(self.workspace_id, view_id)
 
     def close_view(self, view_id: str) -> None:
-        self.model.close_view(self.workspace_id, view_id)
+        self.model._close_view_record(self.workspace_id, view_id)
 
     def rename_view(self, view_id: str, new_name: str) -> None:
-        self.model.rename_view(self.workspace_id, view_id, new_name)
+        self.model._rename_view_record(self.workspace_id, view_id, new_name)
 
     def move_view(self, from_index: int, to_index: int) -> None:
-        self.model.move_view(self.workspace_id, from_index, to_index)
+        self.model._move_view_record(self.workspace_id, from_index, to_index)
 
     def set_view_hide_locked_ports(self, hide_locked_ports: bool) -> bool:
         view_state = self.active_view_state()
@@ -137,7 +131,7 @@ class WorkspaceMutationService:
         if bool(view_state.hide_locked_ports) == normalized:
             return False
         view_state.hide_locked_ports = normalized
-        self.workspace.dirty = True
+        self.workspace.mark_dirty()
         return True
 
     def set_view_hide_optional_ports(self, hide_optional_ports: bool) -> bool:
@@ -146,7 +140,7 @@ class WorkspaceMutationService:
         if bool(view_state.hide_optional_ports) == normalized:
             return False
         view_state.hide_optional_ports = normalized
-        self.workspace.dirty = True
+        self.workspace.mark_dirty()
         return True
 
     def add_node(

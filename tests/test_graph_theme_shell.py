@@ -54,6 +54,8 @@ class GraphThemeShellTests(SharedMainWindowShellTestBase):
         self._app_preferences_path.write_text(json.dumps(document), encoding="utf-8")
 
     def test_graph_theme_bridge_is_exposed_with_startup_payload(self) -> None:
+        self._write_preferences(copy.deepcopy(DEFAULT_GRAPHICS_SETTINGS))
+        self._recreate_window()
         graph_theme_bridge = self.window.quick_widget.rootContext().contextProperty("graphThemeBridge")
 
         self.assertIsNotNone(graph_theme_bridge)

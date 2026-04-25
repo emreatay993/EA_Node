@@ -5,8 +5,9 @@ import QtQuick.Layouts 1.15
 Rectangle {
     id: root
     objectName: "connectionQuickInsertOverlay"
-    readonly property var shellLibraryBridgeRef: shellLibraryBridge
-    readonly property var themePalette: themeBridge.palette
+    property var shellLibraryBridgeRef: typeof shellLibraryBridge !== "undefined" ? shellLibraryBridge : null
+    property var themeBridgeRef: typeof themeBridge !== "undefined" ? themeBridge : null
+    readonly property var themePalette: root.themeBridgeRef ? root.themeBridgeRef.palette : ({})
 
     function _wheelDeltaY(wheel) {
         if (!wheel)

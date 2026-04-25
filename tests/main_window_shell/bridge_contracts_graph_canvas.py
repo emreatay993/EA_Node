@@ -165,7 +165,7 @@ class GraphCanvasBridgeTests(unittest.TestCase):
         )
 
         self.assertIs(bridge.parent(), host)
-        self.assertIs(bridge.shell_window, host)
+        self.assertIsNone(bridge.shell_window)
         self.assertIs(bridge.canvas_source, presenter)
         self.assertIs(bridge.host_source, host_source)
         self.assertIs(bridge.scene_bridge, scene)
@@ -314,10 +314,10 @@ class GraphCanvasBridgeTests(unittest.TestCase):
             view_bridge=view,
         )
 
-        self.assertIs(state_bridge.shell_window, host)
+        self.assertIsNone(state_bridge.shell_window)
         self.assertIs(state_bridge.scene_bridge, scene)
         self.assertIs(state_bridge.view_bridge, view)
-        self.assertIs(command_bridge.shell_window, host)
+        self.assertIsNone(command_bridge.shell_window)
         self.assertIs(command_bridge.canvas_source, host)
         self.assertIs(command_bridge.host_source, host_source)
         self.assertIs(command_bridge.scene_bridge, scene)
@@ -582,6 +582,7 @@ class GraphCanvasBridgeTests(unittest.TestCase):
             host,
             shell_window=host,
             canvas_source=presenter,
+            graphics_source=host,
             scene_bridge=scene,
             view_bridge=view,
         )

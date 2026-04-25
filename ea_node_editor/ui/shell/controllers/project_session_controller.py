@@ -203,12 +203,20 @@ class ProjectSessionController:
 
     def new_project(self) -> None:
         self._document_service.new_project()
+        self._reset_runtime_surfaces_after_project_change()
 
     def open_project(self) -> None:
+        before_project_path = self._host.project_path
+        before_project_object_id = id(self._host.model.project)
         self._document_service.open_project()
+        if self._host.project_path != before_project_path or id(self._host.model.project) != before_project_object_id:
+            self._reset_runtime_surfaces_after_project_change()
 
     def open_project_path(self, path: str | Path, *, show_errors: bool = True) -> bool:
-        return self._document_service.open_project_path(path, show_errors=show_errors)
+        opened = bool(self._document_service.open_project_path(path, show_errors=show_errors))
+        if opened:
+            self._reset_runtime_surfaces_after_project_change()
+        return opened
 
     def restore_session(self) -> None:
         self._session_service.restore_session()
@@ -233,6 +241,14 @@ class ProjectSessionController:
 
     def persist_session(self, project_doc: dict[str, Any] | None = None) -> None:
         self._session_service.persist_session(project_doc)
+
+    def _reset_runtime_surfaces_after_project_change(self) -> None:
+        clear_run_failure_focus = getattr(self._host, "clear_run_failure_focus", None)
+        if callable(clear_run_failure_focus):
+            clear_run_failure_focus()
+        reset_viewer_session_bridge = getattr(self._host, "_reset_viewer_session_bridge", None)
+        if callable(reset_viewer_session_bridge):
+            reset_viewer_session_bridge(reason="project_close")
 
 
 class _DialogParentSourceAdapter:

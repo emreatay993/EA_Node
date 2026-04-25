@@ -483,6 +483,21 @@ class ShellWindowStateFacadeBoundaryTests(unittest.TestCase):
             )
         )
 
+    def test_shell_window_leaves_dependency_creation_in_composition_root(self) -> None:
+        shell_window_source = (_REPO_ROOT / "ea_node_editor" / "ui" / "shell" / "window.py").read_text(
+            encoding="utf-8"
+        )
+        composition_source = (_REPO_ROOT / "ea_node_editor" / "ui" / "shell" / "composition.py").read_text(
+            encoding="utf-8"
+        )
+
+        self.assertNotIn("ProcessExecutionClient", shell_window_source)
+        self.assertNotIn("SessionAutosaveStore", shell_window_source)
+        self.assertNotIn("def _create_execution_client", shell_window_source)
+        self.assertNotIn("def _create_session_store", shell_window_source)
+        self.assertIn("ProcessExecutionClient", composition_source)
+        self.assertIn("SessionAutosaveStore", composition_source)
+
 
 class MainWindowBridgeContractPacketBoundaryTests(unittest.TestCase):
     def test_bridge_contracts_entrypoint_stays_thin_and_routes_suites_through_packet_modules(self) -> None:
@@ -818,7 +833,8 @@ class ShellWorkspaceBridgeQmlBoundaryTests(unittest.TestCase):
                     "mainWindowRef.project_display_name",
                 ),
                 (
-                    "readonly property var workspaceBridgeRef: shellWorkspaceBridge",
+                    "property var workspaceBridgeRef:",
+                    "property var themeBridgeRef:",
                     "root.workspaceBridgeRef.project_display_name",
                 ),
             ),
@@ -834,7 +850,8 @@ class ShellWorkspaceBridgeQmlBoundaryTests(unittest.TestCase):
                 (
                     "property var viewBridgeRef",
                     "property var scriptEditorBridgeRef",
-                    "readonly property var workspaceBridgeRef: shellWorkspaceBridge",
+                    "property var workspaceBridgeRef:",
+                    "property var themeBridgeRef:",
                     "root.workspaceBridgeRef.request_run_workflow",
                     "root.workspaceBridgeRef.request_toggle_run_pause",
                     "root.workspaceBridgeRef.request_stop_workflow",
@@ -881,6 +898,7 @@ class ShellWorkspaceBridgeQmlBoundaryTests(unittest.TestCase):
                     "property var overlayHostItem",
                     "property var workspaceBridgeRef",
                     "property var themeBridgeRef",
+                    "property var uiIconsRef:",
                     "root.workspaceBridgeRef.graphics_tab_strip_density",
                     "root.workspaceBridgeRef.active_scope_breadcrumb_items",
                     "root.workspaceBridgeRef.active_view_items",
@@ -916,7 +934,8 @@ class ShellWorkspaceBridgeQmlBoundaryTests(unittest.TestCase):
                 (
                     "property var scriptEditorBridgeRef",
                     "property var scriptHighlighterBridgeRef",
-                    "readonly property var workspaceBridgeRef: shellWorkspaceBridge",
+                    "property var workspaceBridgeRef:",
+                    "property var themeBridgeRef:",
                     "root.workspaceBridgeRef.set_script_editor_panel_visible(false)",
                 ),
             ),
@@ -954,6 +973,12 @@ class ShellWorkspaceBridgeQmlBoundaryTests(unittest.TestCase):
         )
         present_snippets = (
             "readonly property var shellContextRef: shellContext",
+            "readonly property var shellLibraryBridgeRef: root.shellContextRef.shellLibraryBridge",
+            "readonly property var shellWorkspaceBridgeRef: root.shellContextRef.shellWorkspaceBridge",
+            "readonly property var themeBridgeRef: root.shellContextRef.themeBridge",
+            "readonly property var graphThemeBridgeRef: root.shellContextRef.graphThemeBridge",
+            "readonly property var contentFullscreenBridgeRef: root.shellContextRef.contentFullscreenBridge",
+            "readonly property var viewerHostServiceRef: root.shellContextRef.viewerHostService",
             "readonly property var graphActionBridgeRef: root.shellContextRef.graphActionBridge",
             "readonly property var canvasStateBridgeRef: root.shellContextRef.graphCanvasStateBridge",
             "readonly property var canvasCommandBridgeRef: root.shellContextRef.graphCanvasCommandBridge",
@@ -962,15 +987,15 @@ class ShellWorkspaceBridgeQmlBoundaryTests(unittest.TestCase):
             "graphActionBridgeRef: root.graphActionBridgeRef",
             "graphCanvasStateBridgeRef: root.canvasStateBridgeRef",
             "graphCanvasCommandBridgeRef: root.canvasCommandBridgeRef",
-            "workspaceBridgeRef: root.shellContextRef.shellWorkspaceBridge",
-            "themeBridgeRef: root.shellContextRef.themeBridge",
+            "workspaceBridgeRef: root.shellWorkspaceBridgeRef",
+            "themeBridgeRef: root.themeBridgeRef",
             "overlayHostItem: root",
             "viewBridgeRef: root.canvasViewBridgeRef",
             "ShellStatusStrip {",
             "canvasStateBridgeRef: root.canvasStateBridgeRef",
             "canvasCommandBridgeRef: root.canvasCommandBridgeRef",
-            "scriptEditorBridgeRef: root.shellContextRef.scriptEditorBridge",
-            "scriptHighlighterBridgeRef: root.shellContextRef.scriptHighlighterBridge",
+            "scriptEditorBridgeRef: root.scriptEditorBridgeRef",
+            "scriptHighlighterBridgeRef: root.scriptHighlighterBridgeRef",
         )
 
         _assert_text_snippets(
@@ -980,6 +1005,17 @@ class ShellWorkspaceBridgeQmlBoundaryTests(unittest.TestCase):
             absent_snippets=absent_snippets,
             present_snippets=present_snippets,
         )
+
+    def test_migrated_shell_components_do_not_reach_shell_context_directly(self) -> None:
+        shell_component_root = _REPO_ROOT / "ea_node_editor/ui_qml/components/shell"
+        for qml_path in shell_component_root.glob("*.qml"):
+            qml_text = qml_path.read_text(encoding="utf-8")
+            _assert_text_snippets(
+                self,
+                label=qml_path.relative_to(_REPO_ROOT).as_posix(),
+                text=qml_text,
+                absent_snippets=("shellContext",),
+            )
 
 
 class GraphCanvasQmlBoundaryTests(unittest.TestCase):
@@ -1615,6 +1651,27 @@ class MainWindowShellHostFacadeDelegationTests(SharedMainWindowShellTestBase):
         set_cursor_mock.assert_called_once_with(3)
         edit_passive_style_mock.assert_called_once_with("node-1")
         self.assertTrue(result)
+
+    def test_shell_window_addon_and_run_facades_delegate_to_owning_controllers(self) -> None:
+        with (
+            patch.object(self.window.addon_manager_controller, "request_open") as open_addon_mock,
+            patch.object(self.window.addon_manager_controller, "request_close") as close_addon_mock,
+            patch.object(self.window.run_controller, "mark_node_execution_running") as mark_running_mock,
+            patch.object(self.window.run_controller, "clear_node_execution_visualization_state") as clear_execution_mock,
+        ):
+            self.window.request_open_addon_manager("ansys.dpf")
+            self.window.request_close_addon_manager()
+            self.window.mark_node_execution_running("workspace-1", "node-1", started_at_epoch_ms=12.5)
+            self.window.clear_node_execution_visualization_state()
+
+        open_addon_mock.assert_called_once_with("ansys.dpf")
+        close_addon_mock.assert_called_once_with()
+        mark_running_mock.assert_called_once_with(
+            "workspace-1",
+            "node-1",
+            started_at_epoch_ms=12.5,
+        )
+        clear_execution_mock.assert_called_once_with()
 
 
 def load_tests(loader: unittest.TestLoader, _tests, _pattern):  # noqa: ANN001

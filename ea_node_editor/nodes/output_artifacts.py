@@ -3,13 +3,12 @@ from __future__ import annotations
 import re
 from collections.abc import Callable
 from dataclasses import dataclass
+import importlib
 from pathlib import Path, PurePosixPath
 from typing import Any
 
 from ea_node_editor.nodes.execution_context import ExecutionContext
 from ea_node_editor.nodes.runtime_refs import RuntimeArtifactRef
-from ea_node_editor.persistence.artifact_resolution import ProjectArtifactResolver
-from ea_node_editor.persistence.artifact_store import ProjectArtifactStore
 from ea_node_editor.settings import (
     PROJECT_ARTIFACT_SESSION_STAGING_DIRNAME,
     PROJECT_MANAGED_ARTIFACTS_DIRNAME,
@@ -48,6 +47,21 @@ def _normalize_managed_subdirectory(value: str) -> str:
     return "/".join(parts) if parts else "generated"
 
 
+def _artifact_resolver_type() -> type[Any]:
+    module = importlib.import_module("ea_node_editor.persistence.artifact_resolution")
+    return module.ProjectArtifactResolver
+
+
+def _artifact_store_type() -> type[Any]:
+    module = importlib.import_module("ea_node_editor.persistence.artifact_store")
+    return module.ProjectArtifactStore
+
+
+def _runtime_snapshot_context_type() -> type[Any]:
+    module = importlib.import_module("ea_node_editor.execution.runtime_snapshot")
+    return module.RuntimeSnapshotContext
+
+
 def _managed_output_artifact_id(ctx: ExecutionContext, *, output_key: str) -> str:
     workspace_id = _sanitize_artifact_token(ctx.workspace_id, fallback="workspace")
     node_id = _sanitize_artifact_token(ctx.node_id, fallback="node")
@@ -73,20 +87,22 @@ def _managed_output_relative_path(
     return relative_path.as_posix()
 
 
-def _resolver_store_from_context(ctx: ExecutionContext) -> ProjectArtifactStore | None:
+def _resolver_store_from_context(ctx: ExecutionContext) -> Any | None:
     owner = getattr(ctx.path_resolver, "__self__", None)
     if owner is None:
         return None
-    if isinstance(owner, ProjectArtifactResolver):
+    artifact_resolver_type = _artifact_resolver_type()
+    artifact_store_type = _artifact_store_type()
+    if isinstance(owner, artifact_resolver_type):
         return owner.store
 
     direct_store = getattr(owner, "store", None)
-    if isinstance(direct_store, ProjectArtifactStore):
+    if isinstance(direct_store, artifact_store_type):
         return direct_store
     return None
 
 
-def _artifact_store_for_context(ctx: ExecutionContext) -> ProjectArtifactStore:
+def _artifact_store_for_context(ctx: ExecutionContext) -> Any:
     live_store = _resolver_store_from_context(ctx)
     if live_store is not None:
         _persist_runtime_artifact_store(ctx, live_store)
@@ -95,7 +111,7 @@ def _artifact_store_for_context(ctx: ExecutionContext) -> ProjectArtifactStore:
     if ctx.artifact_store is not None:
         return ctx.artifact_store
 
-    store = ProjectArtifactStore.from_project_metadata(
+    store = _artifact_store_type().from_project_metadata(
         project_path=ctx.project_path or None,
         project_metadata=ctx.runtime_project_metadata(),
     )
@@ -111,9 +127,7 @@ def _persist_runtime_artifact_store(ctx: ExecutionContext, store: ProjectArtifac
     if ctx.runtime_snapshot is None and not ctx.project_path:
         return
 
-    from ea_node_editor.execution.runtime_snapshot import RuntimeSnapshotContext
-
-    ctx.runtime_snapshot_context = RuntimeSnapshotContext.from_snapshot(
+    ctx.runtime_snapshot_context = _runtime_snapshot_context_type().from_snapshot(
         ctx.runtime_snapshot,
         project_path=ctx.project_path,
         artifact_store=store,
@@ -159,11 +173,11 @@ def default_staging_workspace_root() -> Path:
     return _default_staging_workspace_root()
 
 
-def artifact_store_for_context(ctx: ExecutionContext) -> ProjectArtifactStore:
+def artifact_store_for_context(ctx: ExecutionContext) -> Any:
     return _artifact_store_for_context(ctx)
 
 
-def persist_artifact_store(ctx: ExecutionContext, store: ProjectArtifactStore) -> None:
+def persist_artifact_store(ctx: ExecutionContext, store: Any) -> None:
     _persist_runtime_artifact_store(ctx, store)
 
 

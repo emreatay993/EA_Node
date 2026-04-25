@@ -9,18 +9,22 @@ Rectangle {
     property var requestBridge: typeof addonManagerBridge !== "undefined" ? addonManagerBridge : null
     property var workspaceBridge: typeof shellWorkspaceBridge !== "undefined" ? shellWorkspaceBridge : null
     property var viewerHostServiceRef: typeof viewerHostService !== "undefined" ? viewerHostService : null
-    readonly property var themePalette: themeBridge.palette
-    readonly property var graphNodePalette: typeof graphThemeBridge !== "undefined" && graphThemeBridge
-        ? graphThemeBridge.node_palette
+    property var themeBridgeRef: typeof themeBridge !== "undefined" ? themeBridge : null
+    property var graphThemeBridgeRef: typeof graphThemeBridge !== "undefined" ? graphThemeBridge : null
+    property var graphCanvasStateBridgeRef: typeof graphCanvasStateBridge !== "undefined" ? graphCanvasStateBridge : null
+    property var uiIconsRef: typeof uiIcons !== "undefined" ? uiIcons : null
+    readonly property var themePalette: root.themeBridgeRef ? root.themeBridgeRef.palette : ({})
+    readonly property var graphNodePalette: root.graphThemeBridgeRef
+        ? root.graphThemeBridgeRef.node_palette
         : ({})
-    readonly property var graphEdgePalette: typeof graphThemeBridge !== "undefined" && graphThemeBridge
-        ? graphThemeBridge.edge_palette
+    readonly property var graphEdgePalette: root.graphThemeBridgeRef
+        ? root.graphThemeBridgeRef.edge_palette
         : ({})
-    readonly property var graphCategoryPalette: typeof graphThemeBridge !== "undefined" && graphThemeBridge
-        ? graphThemeBridge.category_accent_palette
+    readonly property var graphCategoryPalette: root.graphThemeBridgeRef
+        ? root.graphThemeBridgeRef.category_accent_palette
         : ({})
-    readonly property var graphPortKindPalette: typeof graphThemeBridge !== "undefined" && graphThemeBridge
-        ? graphThemeBridge.port_kind_palette
+    readonly property var graphPortKindPalette: root.graphThemeBridgeRef
+        ? root.graphThemeBridgeRef.port_kind_palette
         : ({})
     readonly property color nodeHeaderBg: graphNodePalette.header_bg || themePalette.toolbar_bg
     readonly property color nodeHeaderFg: graphNodePalette.header_fg || themePalette.panel_title_fg
@@ -169,12 +173,18 @@ Rectangle {
 
             ShellButton {
                 objectName: "addonManagerCheckUpdatesButton"
+                themeBridgeRef: root.themeBridgeRef
+                graphCanvasStateBridgeRef: root.graphCanvasStateBridgeRef
+                uiIconsRef: root.uiIconsRef
                 text: "Check for updates"
                 enabled: false
             }
 
             ShellButton {
                 objectName: "addonManagerInstallFromFileButton"
+                themeBridgeRef: root.themeBridgeRef
+                graphCanvasStateBridgeRef: root.graphCanvasStateBridgeRef
+                uiIconsRef: root.uiIconsRef
                 text: "Install from File..."
                 enabled: false
             }
@@ -600,6 +610,10 @@ Rectangle {
                                         spacing: 6
 
                                         ShellButton {
+                                            objectName: "addonManagerFallbackWorkflowSettingsButton"
+                                            themeBridgeRef: root.themeBridgeRef
+                                            graphCanvasStateBridgeRef: root.graphCanvasStateBridgeRef
+                                            uiIconsRef: root.uiIconsRef
                                             text: "Preferences..."
                                             enabled: controller.hasSelection
                                             onClicked: controller.requestOpenWorkflowSettings()
@@ -607,6 +621,9 @@ Rectangle {
 
                                         ShellButton {
                                             objectName: "addonManagerPrimaryToggleButton"
+                                            themeBridgeRef: root.themeBridgeRef
+                                            graphCanvasStateBridgeRef: root.graphCanvasStateBridgeRef
+                                            uiIconsRef: root.uiIconsRef
                                             text: Boolean(selectedAddon.enabled) ? "Disable" : "Enable"
                                             selectedStyle: !Boolean(selectedAddon.enabled)
                                             enabled: controller.hasSelection && !Boolean(selectedAddon.unavailable)
@@ -666,6 +683,10 @@ Rectangle {
                                     }
 
                                     ShellButton {
+                                        objectName: "addonManagerRestartRuntimeButton"
+                                        themeBridgeRef: root.themeBridgeRef
+                                        graphCanvasStateBridgeRef: root.graphCanvasStateBridgeRef
+                                        uiIconsRef: root.uiIconsRef
                                         text: "Restart now"
                                         enabled: false
                                     }

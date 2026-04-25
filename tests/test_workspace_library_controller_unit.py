@@ -47,9 +47,37 @@ class _CloseViewWorkspace:
         return
 
 
-class _CloseViewWorkspaceManager:
+class _CloseViewMutationService:
     def __init__(self, workspace: _CloseViewWorkspace) -> None:
         self._workspace = workspace
+        self.active_view_state_calls = 0
+        self.closed: list[str] = []
+
+    def active_view_state(self) -> object:
+        self.active_view_state_calls += 1
+        self._workspace.ensure_default_view()
+        return object()
+
+    def close_view(self, view_id: str) -> None:
+        self.closed.append(view_id)
+        self._workspace.views.pop(view_id, None)
+        if self._workspace.active_view_id == view_id and self._workspace.views:
+            self._workspace.active_view_id = next(iter(self._workspace.views))
+
+
+class _CloseViewModel:
+    def __init__(self, workspace: _CloseViewWorkspace) -> None:
+        self.project = SimpleNamespace(workspaces={"ws-1": workspace})
+        self.mutation_service_calls: list[str] = []
+        self.mutation_service_instance = _CloseViewMutationService(workspace)
+
+    def mutation_service(self, workspace_id: str) -> _CloseViewMutationService:
+        self.mutation_service_calls.append(workspace_id)
+        return self.mutation_service_instance
+
+
+class _CloseViewWorkspaceManager:
+    def __init__(self) -> None:
         self.closed: list[tuple[str, str]] = []
 
     def active_workspace_id(self) -> str:
@@ -57,16 +85,13 @@ class _CloseViewWorkspaceManager:
 
     def close_view(self, workspace_id: str, view_id: str) -> None:
         self.closed.append((workspace_id, view_id))
-        self._workspace.views.pop(view_id, None)
-        if self._workspace.active_view_id == view_id and self._workspace.views:
-            self._workspace.active_view_id = next(iter(self._workspace.views))
 
 
 class _CloseViewHostStub:
     def __init__(self) -> None:
         workspace = _CloseViewWorkspace()
-        self.model = SimpleNamespace(project=SimpleNamespace(workspaces={"ws-1": workspace}))
-        self.workspace_manager = _CloseViewWorkspaceManager(workspace)
+        self.model = _CloseViewModel(workspace)
+        self.workspace_manager = _CloseViewWorkspaceManager()
         self.sync_scope_calls = 0
         self.scene = SimpleNamespace(sync_scope_with_active_view=self._sync_scope_with_active_view)
         self.search_scope_controller = _SearchScopeControllerStub()
@@ -394,7 +419,10 @@ class WorkspaceLibraryControllerCloseViewTests(unittest.TestCase):
         closed = controller.close_view("view-2")
 
         self.assertTrue(closed)
-        self.assertEqual(host.workspace_manager.closed, [("ws-1", "view-2")])
+        self.assertEqual(host.workspace_manager.closed, [])
+        self.assertEqual(host.model.mutation_service_calls, ["ws-1"])
+        self.assertEqual(host.model.mutation_service_instance.closed, ["view-2"])
+        self.assertEqual(host.model.mutation_service_instance.active_view_state_calls, 1)
         self.assertEqual(restore_calls, ["restore"])
         self.assertEqual(host.sync_scope_calls, 1)
         self.assertEqual(host.search_scope_controller.restore_calls, 1)

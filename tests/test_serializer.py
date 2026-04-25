@@ -14,6 +14,8 @@ from ea_node_editor.persistence.artifact_refs import (
 )
 from ea_node_editor.persistence.project_codec import (
     PERSISTENCE_ENVELOPE_KEY,
+    ProjectDocumentFlavor,
+    ProjectPersistenceEnvelope,
     collect_project_artifact_references,
     rewrite_project_artifact_refs,
 )
@@ -25,7 +27,7 @@ from tests.serializer.base_cases import (
     _missing_plugin_round_trip_payload,
 )
 from tests.serializer.round_trip_cases import SerializerRoundTripMixin
-from tests.serializer.schema_cases import SerializerSchemaMixin, _missing_addon_round_trip_payload
+from tests.serializer.schema_cases import SerializerSchemaMixin, _missing_addon_round_trip_payload, _test_addon_record
 from tests.serializer.workflow_cases import SerializerWorkflowMixin
 from ea_node_editor.ui_qml.graph_scene_bridge import GraphSceneBridge
 
@@ -224,23 +226,42 @@ class SerializerTests(SerializerRoundTripMixin, SerializerWorkflowMixin, Seriali
                 "gallery": [format_staged_artifact_ref("pending_gallery")],
             },
         )
+        workspace.unresolved_node_docs = {
+            "node_missing": {
+                "node_id": "node_missing",
+                "type_id": "missing.node",
+                "title": "Missing",
+                "x": 5.0,
+                "y": 7.0,
+                "properties": {
+                    "source_path": format_staged_artifact_ref("pending_hidden"),
+                },
+                "exposed_ports": {},
+                "visual_style": {},
+                "parent_node_id": None,
+            }
+        }
 
         serializer = JsonProjectSerializer(build_default_registry())
         doc = serializer.to_persistent_document(model.project)
         refs = collect_project_artifact_references(doc)
 
         self.assertEqual(refs.managed_ids, frozenset({"existing_asset"}))
-        self.assertEqual(refs.staged_ids, frozenset({"pending_output", "pending_gallery"}))
+        self.assertEqual(
+            refs.staged_ids,
+            frozenset({"pending_output", "pending_gallery", "pending_hidden"}),
+        )
 
         rewritten = rewrite_project_artifact_refs(
             doc,
             {
                 format_staged_artifact_ref("pending_output"): format_managed_artifact_ref("pending_output"),
+                format_staged_artifact_ref("pending_hidden"): format_managed_artifact_ref("pending_hidden"),
             },
         )
         workspace_doc = next(ws for ws in rewritten["workspaces"] if ws["workspace_id"] == workspace.workspace_id)
         resolved_node = next(item for item in workspace_doc["nodes"] if item["node_id"] == node.node_id)
-        node_ids = {item["node_id"] for item in workspace_doc["nodes"]}
+        missing_node = next(item for item in workspace_doc["nodes"] if item["node_id"] == "node_missing")
 
         self.assertEqual(
             resolved_node["properties"],
@@ -250,7 +271,10 @@ class SerializerTests(SerializerRoundTripMixin, SerializerWorkflowMixin, Seriali
                 "gallery": [format_staged_artifact_ref("pending_gallery")],
             },
         )
-        self.assertNotIn("node_missing", node_ids)
+        self.assertEqual(
+            missing_node["properties"]["source_path"],
+            format_managed_artifact_ref("pending_hidden"),
+        )
 
     def test_collect_and_rewrite_artifact_refs_from_persistent_document(self) -> None:
         self.test_round_trip_artifact_ref_helpers_collect_and_rewrite_persistent_document()
@@ -263,13 +287,15 @@ class SerializerTests(SerializerRoundTripMixin, SerializerWorkflowMixin, Seriali
         workspace = project.workspaces["ws_legacy"]
         self.assertNotIn("node_unknown", workspace.nodes)
         self.assertEqual(set(workspace.edges), {"edge_valid"})
-        self.assertFalse(hasattr(workspace, "unresolved_node_docs"))
-        self.assertFalse(hasattr(workspace, "unresolved_edge_docs"))
+        self.assertEqual(set(workspace.unresolved_node_docs), {"node_unknown"})
+        self.assertEqual(set(workspace.unresolved_edge_docs), {"edge_unknown"})
 
         round_tripped = serializer.to_persistent_document(project)
         workspace_doc = round_tripped["workspaces"][0]
-        self.assertNotIn("node_unknown", {node["node_id"] for node in workspace_doc["nodes"]})
-        self.assertNotIn("edge_unknown", {edge["edge_id"] for edge in workspace_doc["edges"]})
+        nodes_by_id = {node["node_id"]: node for node in workspace_doc["nodes"]}
+        edges_by_id = {edge["edge_id"]: edge for edge in workspace_doc["edges"]}
+        self.assertEqual(nodes_by_id["node_unknown"], payload["workspaces"][0]["nodes"][2])
+        self.assertEqual(edges_by_id["edge_unknown"], payload["workspaces"][0]["edges"][3])
 
     def test_round_trip_preserves_missing_plugin_payload_across_normalization(self) -> None:
         registry = build_default_registry()
@@ -280,21 +306,33 @@ class SerializerTests(SerializerRoundTripMixin, SerializerWorkflowMixin, Seriali
         workspace = project.workspaces["ws_plugin"]
 
         self.assertNotIn("node_unknown", workspace.nodes)
+        self.assertEqual(set(workspace.unresolved_node_docs), {"node_unknown"})
         self.assertEqual(set(workspace.edges), {"edge_valid"})
-        self.assertFalse(hasattr(workspace, "unresolved_node_docs"))
+        self.assertEqual(set(workspace.unresolved_edge_docs), {"edge_unknown_to_known"})
 
         normalize_project_for_registry(project, registry)
         self.assertNotIn("node_unknown", workspace.nodes)
         self.assertEqual(set(workspace.edges), {"edge_valid"})
+        self.assertEqual(set(workspace.unresolved_node_docs), {"node_unknown"})
+        self.assertEqual(set(workspace.unresolved_edge_docs), {"edge_unknown_to_known"})
 
         runtime_doc = serializer.to_document(project)
-        self.assertNotIn(PERSISTENCE_ENVELOPE_KEY, runtime_doc["metadata"])
         runtime_workspace_doc = runtime_doc["workspaces"][0]
         self.assertEqual(
             [node["node_id"] for node in runtime_workspace_doc["nodes"]],
             ["node_end", "node_start"],
         )
         self.assertEqual([edge["edge_id"] for edge in runtime_workspace_doc["edges"]], ["edge_valid"])
+        runtime_envelope = ProjectPersistenceEnvelope.from_document(runtime_doc)
+        self.assertEqual(runtime_envelope.document_flavor, ProjectDocumentFlavor.RUNTIME)
+        self.assertEqual(
+            set(runtime_envelope.workspace_envelope("ws_plugin").unresolved_node_docs),
+            {"node_unknown"},
+        )
+        self.assertEqual(
+            set(runtime_envelope.workspace_envelope("ws_plugin").unresolved_edge_docs),
+            {"edge_unknown_to_known"},
+        )
 
         compiled = compile_workspace_document(runtime_workspace_doc, registry)
         self.assertEqual(
@@ -315,30 +353,48 @@ class SerializerTests(SerializerRoundTripMixin, SerializerWorkflowMixin, Seriali
 
         reloaded_from_runtime_doc = serializer.from_document(runtime_doc)
         reloaded_workspace = reloaded_from_runtime_doc.workspaces["ws_plugin"]
-        self.assertNotIn("node_unknown", reloaded_workspace.nodes)
-        self.assertEqual(set(reloaded_workspace.edges), {"edge_valid"})
+        self.assertEqual(set(reloaded_workspace.unresolved_node_docs), {"node_unknown"})
+        self.assertEqual(set(reloaded_workspace.unresolved_edge_docs), {"edge_unknown_to_known"})
 
         authored_doc = serializer.to_persistent_document(project)
         workspace_doc = authored_doc["workspaces"][0]
-        self.assertNotIn("node_unknown", {node["node_id"] for node in workspace_doc["nodes"]})
-        self.assertNotIn("edge_unknown_to_known", {edge["edge_id"] for edge in workspace_doc["edges"]})
+        nodes_by_id = {node["node_id"]: node for node in workspace_doc["nodes"]}
+        edges_by_id = {edge["edge_id"]: edge for edge in workspace_doc["edges"]}
+        self.assertEqual(nodes_by_id["node_unknown"], payload["workspaces"][0]["nodes"][1])
+        self.assertEqual(edges_by_id["edge_unknown_to_known"], payload["workspaces"][0]["edges"][1])
 
     def test_round_trip_preserves_missing_addon_placeholder_contract_across_normalization(self) -> None:
         registry = build_default_registry()
         serializer = JsonProjectSerializer(registry)
         payload = _missing_addon_round_trip_payload()
 
-        project = serializer.from_document(payload)
-        workspace = project.workspaces["ws_addon"]
+        with unittest.mock.patch(
+            "ea_node_editor.persistence.overlay.discover_addon_records",
+            return_value=(_test_addon_record(),),
+        ):
+            project = serializer.from_document(payload)
+            workspace = project.workspaces["ws_addon"]
 
-        self.assertNotIn("node_signal_transform", workspace.nodes)
-        self.assertEqual(set(workspace.edges), set())
-        self.assertFalse(hasattr(workspace, "unresolved_node_docs"))
+            self.assertNotIn("node_signal_transform", workspace.nodes)
+            placeholder_doc = workspace.unresolved_node_docs["node_signal_transform"]
+            placeholder = placeholder_doc["_missing_addon_placeholder"]
+            self.assertEqual(placeholder["addon_id"], "tests.addons.signal_pack")
+            self.assertEqual(placeholder["display_name"], "Signal Pack")
 
-        authored_doc = serializer.to_persistent_document(project)
+            runtime_doc = serializer.to_document(project)
+            runtime_envelope = ProjectPersistenceEnvelope.from_document(runtime_doc)
+            runtime_placeholder = runtime_envelope.workspace_envelope("ws_addon").unresolved_node_docs[
+                "node_signal_transform"
+            ]["_missing_addon_placeholder"]
+            self.assertEqual(runtime_placeholder["locked_state"]["focus_addon_id"], "tests.addons.signal_pack")
+
+            authored_doc = serializer.to_persistent_document(project)
         workspace_doc = authored_doc["workspaces"][0]
-        self.assertNotIn("node_signal_transform", {node["node_id"] for node in workspace_doc["nodes"]})
-        self.assertNotIn("edge_signal_to_end", {edge["edge_id"] for edge in workspace_doc["edges"]})
+        nodes_by_id = {node["node_id"]: node for node in workspace_doc["nodes"]}
+        edges_by_id = {edge["edge_id"]: edge for edge in workspace_doc["edges"]}
+        self.assertEqual(nodes_by_id["node_signal_transform"]["plugin_payload"], {"preset": "band-pass"})
+        self.assertIn("_missing_addon_placeholder", nodes_by_id["node_signal_transform"])
+        self.assertIn("edge_signal_to_end", edges_by_id)
 
     def test_from_document_sanitizes_live_parent_links_to_unresolved_nodes(self) -> None:
         serializer = JsonProjectSerializer(build_default_registry())
@@ -348,14 +404,18 @@ class SerializerTests(SerializerRoundTripMixin, SerializerWorkflowMixin, Seriali
         workspace = project.workspaces["ws"]
 
         self.assertEqual(sorted(workspace.nodes), ["known_child"])
+        self.assertEqual(sorted(workspace.unresolved_node_docs), ["missing_shell"])
         self.assertIsNone(workspace.nodes["known_child"].parent_node_id)
-        self.assertFalse(hasattr(workspace, "authored_node_overrides"))
+        self.assertEqual(
+            workspace.authored_node_overrides["known_child"],
+            {"parent_node_id": "missing_shell"},
+        )
 
         authored_doc = serializer.to_persistent_document(project)
         workspace_doc = authored_doc["workspaces"][0]
         nodes_by_id = {node["node_id"]: node for node in workspace_doc["nodes"]}
-        self.assertEqual(nodes_by_id["known_child"]["parent_node_id"], None)
-        self.assertNotIn("missing_shell", nodes_by_id)
+        self.assertEqual(nodes_by_id["known_child"]["parent_node_id"], "missing_shell")
+        self.assertIn("missing_shell", nodes_by_id)
 
     def test_project_session_metadata_exposes_typed_substructures_and_preserves_extra_namespaces(self) -> None:
         metadata = ProjectSessionMetadata.from_mapping(
@@ -540,20 +600,20 @@ class SerializerPortLockingTests(unittest.TestCase):
 
 
 class SerializerDpfPlaceholderTests(unittest.TestCase):
-    def test_unavailable_registered_addon_nodes_are_pruned_without_graph_sidecars(self) -> None:
+    def test_unavailable_registered_addon_nodes_are_kept_in_persistence_state_not_live_graph(self) -> None:
         serializer = JsonProjectSerializer(NodeRegistry())
         payload = _dpf_placeholder_round_trip_payload()
 
         project = serializer.from_document(copy.deepcopy(payload))
         workspace = project.workspaces["ws_dpf"]
         self.assertEqual(workspace.nodes, {})
-        self.assertFalse(hasattr(workspace, "unresolved_node_docs"))
+        self.assertEqual(set(workspace.unresolved_node_docs), {"node_dpf_model"})
 
         scene = GraphSceneBridge()
         scene.set_workspace(GraphModel(project), NodeRegistry(), "ws_dpf")
         self.assertEqual(list(scene.nodes_model), [])
 
-    def test_persistent_document_round_trip_drops_unresolved_dpf_node_payload(self) -> None:
+    def test_persistent_document_round_trip_preserves_unresolved_dpf_node_payload(self) -> None:
         serializer = JsonProjectSerializer(NodeRegistry())
         payload = _dpf_placeholder_round_trip_payload()
 
@@ -564,12 +624,18 @@ class SerializerDpfPlaceholderTests(unittest.TestCase):
 
         authored_document = serializer.to_persistent_document(project)
         workspace_doc = authored_document["workspaces"][0]
-        self.assertEqual(workspace_doc["nodes"], [])
+        nodes_by_id = {node["node_id"]: node for node in workspace_doc["nodes"]}
+        self.assertIn("node_dpf_model", nodes_by_id)
 
         runtime_document = serializer.to_document(project)
-        self.assertNotIn(PERSISTENCE_ENVELOPE_KEY, runtime_document["metadata"])
+        self.assertIn(PERSISTENCE_ENVELOPE_KEY, runtime_document["metadata"])
+        runtime_envelope = ProjectPersistenceEnvelope.from_document(runtime_document)
+        self.assertEqual(
+            set(runtime_envelope.workspace_envelope("ws_dpf").unresolved_node_docs),
+            {"node_dpf_model"},
+        )
 
-    def test_persistent_document_round_trip_drops_hidden_port_edges_for_unresolved_dpf_nodes(self) -> None:
+    def test_persistent_document_round_trip_preserves_hidden_port_edges_for_unresolved_dpf_nodes(self) -> None:
         serializer = JsonProjectSerializer(NodeRegistry())
         payload = _dpf_hidden_edge_placeholder_payload()
 
@@ -578,19 +644,32 @@ class SerializerDpfPlaceholderTests(unittest.TestCase):
 
         self.assertEqual(workspace.nodes, {})
         self.assertEqual(workspace.edges, {})
+        self.assertEqual(set(workspace.unresolved_node_docs), {"node_result", "node_model"})
+        self.assertEqual(set(workspace.unresolved_edge_docs), {"edge_hidden_result_file"})
 
         authored_document = serializer.to_persistent_document(project)
         workspace_doc = authored_document["workspaces"][0]
-        self.assertEqual(workspace_doc["nodes"], [])
-        self.assertEqual(workspace_doc["edges"], [])
+        self.assertEqual(
+            {node["node_id"] for node in workspace_doc["nodes"]},
+            {"node_result", "node_model"},
+        )
+        self.assertEqual(
+            {edge["edge_id"] for edge in workspace_doc["edges"]},
+            {"edge_hidden_result_file"},
+        )
 
-    def test_generated_dpf_placeholder_projection_is_deferred_without_graph_overlay(self) -> None:
+    def test_generated_dpf_placeholder_projection_is_deferred_to_persistence_envelope(self) -> None:
         serializer = JsonProjectSerializer(NodeRegistry())
         payload = _generated_dpf_placeholder_payload()
 
         project = serializer.from_document(copy.deepcopy(payload))
         runtime_document = serializer.to_document(project)
-        self.assertNotIn(PERSISTENCE_ENVELOPE_KEY, runtime_document["metadata"])
+        self.assertIn(PERSISTENCE_ENVELOPE_KEY, runtime_document["metadata"])
+        runtime_envelope = ProjectPersistenceEnvelope.from_document(runtime_document)
+        self.assertEqual(
+            set(runtime_envelope.workspace_envelope("ws_dpf").unresolved_node_docs),
+            {"node_streams_container", "node_displacement"},
+        )
 
         loaded_model = GraphModel(project)
         scene = GraphSceneBridge()

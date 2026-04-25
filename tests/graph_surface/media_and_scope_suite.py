@@ -699,6 +699,7 @@ class GraphSurfaceMediaAndScopeContractTests(GraphSurfaceInputContractTestBase):
                         "request_id": "req::viewer-pointer",
                         "last_command": "open",
                         "last_error": "",
+                        "live_mode": "proxy",
                         "playback_state": "paused",
                         "step_index": 1,
                         "live_policy": "focus_only",
@@ -936,8 +937,19 @@ class GraphSurfaceMediaAndScopeContractTests(GraphSurfaceInputContractTestBase):
                     self.scope_open_calls.append(str(node_id or ""))
                     return True
 
+            class GraphActionBridgeStub(QObject):
+                def __init__(self):
+                    super().__init__()
+                    self.actions = []
+
+                @pyqtSlot(str, "QVariantMap", result=bool)
+                def trigger_graph_action(self, action_id, payload):
+                    self.actions.append((str(action_id or ""), dict(payload or {})))
+                    return True
+
             scene_bridge = SceneBridgeStub()
             window_bridge = MainWindowBridgeStub()
+            graph_action_bridge = GraphActionBridgeStub()
             canvas_state_bridge, canvas_command_bridge = build_canvas_bridges(
                 shell_bridge=window_bridge,
                 scene_bridge=scene_bridge,
@@ -945,6 +957,7 @@ class GraphSurfaceMediaAndScopeContractTests(GraphSurfaceInputContractTestBase):
             canvas = create_component(
                 graph_canvas_qml_path,
                 {
+                    "graphActionBridge": graph_action_bridge,
                     "canvasStateBridge": canvas_state_bridge,
                     "canvasCommandBridge": canvas_command_bridge,
                     "width": 640.0,
@@ -990,7 +1003,10 @@ class GraphSurfaceMediaAndScopeContractTests(GraphSurfaceInputContractTestBase):
                     ("node_surface_contract_test", False),
                     ("node_surface_contract_test", False),
                 ]
-                assert window_bridge.scope_open_calls == ["node_surface_contract_test"]
+                assert graph_action_bridge.actions == [
+                    ("enterScope", {"node_id": "node_surface_contract_test"})
+                ]
+                assert window_bridge.scope_open_calls == []
                 assert not bool(editor.property("visible"))
             finally:
                 canvas.deleteLater()

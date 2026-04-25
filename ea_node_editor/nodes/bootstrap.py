@@ -3,12 +3,6 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-from ea_node_editor.app_preferences import AppPreferencesStore
-from ea_node_editor.addons.catalog import (
-    import_addon_backend_module,
-    live_addon_registrations,
-    sync_live_addon_state,
-)
 from ea_node_editor.nodes.builtins.core import CORE_NODE_DESCRIPTORS
 from ea_node_editor.nodes.builtins.hpc import HPC_NODE_DESCRIPTORS
 from ea_node_editor.nodes.builtins.integrations import INTEGRATION_NODE_DESCRIPTORS
@@ -36,28 +30,23 @@ BUILTIN_NODE_DESCRIPTORS = (
 def build_default_registry(
     extra_plugin_dirs: list[Path] | None = None,
     *,
-    app_preferences_store: AppPreferencesStore | None = None,
+    app_preferences_store: Any = None,
     preferences_document: Any = None,
 ) -> NodeRegistry:
     registry = NodeRegistry()
     registry.register_descriptors(BUILTIN_NODE_DESCRIPTORS)
 
+    from ea_node_editor.addons.catalog import live_addon_backend_collections
     from ea_node_editor.nodes.plugin_loader import discover_and_load_plugins, register_plugin_backends
 
-    sync_live_addon_state(
-        store=app_preferences_store,
-        preferences_document=preferences_document,
-    )
-    for registration in live_addon_registrations(
+    for addon_backends in live_addon_backend_collections(
         preferences_document=preferences_document,
         store=app_preferences_store,
     ):
-        module = import_addon_backend_module(registration)
-        backends = getattr(module, registration.backend_collection_attr, ())
         register_plugin_backends(
-            backends,
+            addon_backends.backends,
             registry,
-            str(registration.backend_module).strip(),
+            addon_backends.source,
         )
     discover_and_load_plugins(registry, extra_dirs=extra_plugin_dirs)
     return registry

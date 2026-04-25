@@ -136,7 +136,10 @@ class CommentBackdropSurfaceQmlTests(unittest.TestCase):
             self,
             label,
             """
+            import os
             from pathlib import Path
+
+            os.environ.setdefault("QT_QUICK_CONTROLS_STYLE", "Basic")
 
             from PyQt6.QtCore import QObject, QUrl
             from PyQt6.QtQuick import QQuickItem
