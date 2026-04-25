@@ -11,6 +11,7 @@ RowLayout {
     property string densityPreset: "compact"
     property string tabLabelKey: "label"
     property int minTabWidth: 56
+    property int maxTabWidth: 0
     property int tabHorizontalPadding: 24
     property int createButtonMinimumWidth: 108
     property int createButtonHorizontalPadding: 10
@@ -60,9 +61,9 @@ RowLayout {
     readonly property bool tabsOverflowActive: root.tabsMaxContentX > 0.5
     readonly property bool tabsAtStart: !root.tabsOverflowActive || root.tabsContentX <= 0.5
     readonly property bool tabsAtEnd: !root.tabsOverflowActive || root.tabsContentX >= root.tabsMaxContentX - 0.5
-    readonly property int effectiveMaxTabWidth: root.tabsViewportWidth > 0
-        ? Math.max(1, Math.floor(root.tabsViewportWidth - 4))
-        : 4096
+    readonly property int effectiveMaxTabWidth: root.maxTabWidth > 0
+        ? Math.max(root.effectiveMinTabWidth, root.maxTabWidth)
+        : 32767
 
     signal tabActivated(var itemData)
     signal tabMoveRequested(int fromIndex, int toIndex, var itemData)
@@ -239,6 +240,8 @@ RowLayout {
         var slotRight = slotLeft + (Number(slot.width) || 0)
         var viewportLeft = tabsViewport.contentX
         var viewportRight = viewportLeft + root.tabsViewportWidth
+        if (slotRight - slotLeft > root.tabsViewportWidth)
+            return root.setTabsContentX(slotLeft)
         if (slotLeft < viewportLeft)
             return root.setTabsContentX(slotLeft)
         if (slotRight > viewportRight)
@@ -496,13 +499,21 @@ RowLayout {
                     property int visualIndex: DelegateModel.itemsIndex
                     property var itemData: modelData
                     readonly property string itemLabel: root.tabLabelForItem(itemData)
+                    readonly property bool itemActive: typeof root.isTabActive === "function"
+                        ? !!root.isTabActive(itemData)
+                        : false
                     readonly property int buttonWidth: Math.max(
                         1,
                         Math.min(
                             root.effectiveMaxTabWidth,
                             Math.max(
                                 root.effectiveMinTabWidth,
-                                Math.ceil(tabLabelMetrics.advanceWidth + root.effectiveTabHorizontalPadding)
+                                Math.ceil(
+                                    Math.max(
+                                        tabLabelMetrics.advanceWidth,
+                                        activeTabLabelMetrics.advanceWidth
+                                    ) + root.effectiveTabHorizontalPadding
+                                )
                             )
                         )
                     )
@@ -521,6 +532,13 @@ RowLayout {
                         font.bold: false
                     }
 
+                    TextMetrics {
+                        id: activeTabLabelMetrics
+                        text: tabSlot.itemLabel
+                        font.pixelSize: root.tabFontSize
+                        font.bold: true
+                    }
+
                     Rectangle {
                         id: tabButton
                         width: tabSlot.buttonWidth
@@ -529,9 +547,7 @@ RowLayout {
                         property bool suppressClick: false
                         property int visualIndex: tabSlot.visualIndex
                         property var itemData: tabSlot.itemData
-                        property bool active: typeof root.isTabActive === "function"
-                            ? !!root.isTabActive(itemData)
-                            : false
+                        property bool active: tabSlot.itemActive
                         property bool dragging: dragArea.drag.active
                         radius: root.tabRadius
                         color: active

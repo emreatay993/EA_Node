@@ -76,12 +76,12 @@ def _active_tab_label(strip: QObject) -> tuple[QQuickItem, QObject]:
     raise AssertionError("Expected at least one active tab button.")
 
 
-def _tab_buttons_by_label(strip: QObject) -> dict[str, QQuickItem]:
+def _tab_button_labels_by_label(strip: QObject) -> dict[str, tuple[QQuickItem, QObject]]:
     slots = strip.property("tabSlots")
     if isinstance(slots, QJSValue):
         slots = slots.toVariant()
     slot_items = [slot for slot in (slots or []) if isinstance(slot, QQuickItem)]
-    buttons_by_label: dict[str, QQuickItem] = {}
+    entries_by_label: dict[str, tuple[QQuickItem, QObject]] = {}
 
     for slot in slot_items:
         button = next(
@@ -104,9 +104,16 @@ def _tab_buttons_by_label(strip: QObject) -> dict[str, QQuickItem]:
         )
         if label is None:
             continue
-        buttons_by_label[str(label.property("text"))] = button
+        entries_by_label[str(label.property("text"))] = (button, label)
 
-    return buttons_by_label
+    return entries_by_label
+
+
+def _tab_buttons_by_label(strip: QObject) -> dict[str, QQuickItem]:
+    return {
+        label_text: button
+        for label_text, (button, _label_item) in _tab_button_labels_by_label(strip).items()
+    }
 
 
 def _strip_child(strip: QObject, object_name: str) -> QObject:
@@ -685,6 +692,41 @@ class MainWindowShellBasicsAndSearchTests(SharedMainWindowShellTestBase):
         long_width = float(buttons_by_label[long_name].property("width"))
 
         self.assertLess(short_width, long_width)
+
+    def test_qml_workspace_tab_renders_full_long_label_without_eliding(self) -> None:
+        root_object = self.window.quick_widget.rootObject()
+        self.assertIsNotNone(root_object)
+        workspace_controls_strip = root_object.findChild(QObject, "workspaceControlsStrip")
+        self.assertIsNotNone(workspace_controls_strip)
+
+        long_name = (
+            "Multi-stage Cyclic Symmetric Workspace Results Overview "
+            "With Repeated Loading Conditions And Postprocessing Branches "
+            "For The Full Assembly Verification Pass"
+        )
+        workspace_id = self.window.workspace_manager.create_workspace(long_name)
+        self.window.workspace_tabs.activate_workspace(workspace_id)
+        self.window._refresh_workspace_tabs()
+        self.app.processEvents()
+
+        def _has_long_tab_label() -> bool:
+            return long_name in _tab_button_labels_by_label(workspace_controls_strip)
+
+        wait_for_condition_or_raise(
+            _has_long_tab_label,
+            timeout_ms=1500,
+            poll_interval_ms=20,
+            app=self.app,
+            timeout_message="Workspace tab strip did not expose the long workspace label.",
+        )
+
+        button, label = _tab_button_labels_by_label(workspace_controls_strip)[long_name]
+
+        self.assertFalse(bool(label.property("truncated")))
+        self.assertGreaterEqual(
+            float(button.property("width")),
+            float(label.property("implicitWidth")) + 12.0,
+        )
 
     def test_qml_view_tabs_size_each_chip_from_its_own_label(self) -> None:
         root_object = self.window.quick_widget.rootObject()
