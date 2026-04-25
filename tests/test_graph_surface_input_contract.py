@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import unittest
+from pathlib import Path
 
 import pytest
 
@@ -28,6 +29,7 @@ _MISSING_ADDON_PAYLOAD = {
     "unavailable_reason": _MISSING_ADDON_REASON,
     "locked_state": {"reason": "missing_addon", "label": "Requires add-on", "summary": _MISSING_ADDON_REASON},
 }
+REPO_ROOT = Path(__file__).resolve().parents[1]
 
 
 def _missing_dpf_surface_payload() -> dict[str, object]:
@@ -162,8 +164,24 @@ class GraphSurfaceMissingDpfPlaceholderContractTests(unittest.TestCase):
         self.assertEqual(edges_payload, [])
 
 
+class GraphSurfaceFolderExplorerBridgeContractTests(unittest.TestCase):
+    def test_node_surface_bridge_exposes_folder_explorer_action_routing_without_final_surface(self) -> None:
+        components = REPO_ROOT / "ea_node_editor" / "ui_qml" / "components" / "graph_canvas"
+        surface_bridge = (components / "GraphCanvasNodeSurfaceBridge.qml").read_text(encoding="utf-8")
+        action_router = (components / "GraphCanvasActionRouter.qml").read_text(encoding="utf-8")
+
+        self.assertIn("function requestFolderExplorerAction(nodeId, command, payload)", surface_bridge)
+        self.assertIn("root.prepareNodeSurfaceControlInteraction(normalizedNodeId);", surface_bridge)
+        self.assertIn("requestPayload.node_id = normalizedNodeId;", surface_bridge)
+        self.assertIn("router.requestFolderExplorerAction(root._folderExplorerActionId(command), requestPayload)", surface_bridge)
+        self.assertIn("function folderExplorerActionId(key)", action_router)
+        self.assertIn("function requestFolderExplorerAction(actionId, payload)", action_router)
+        self.assertIn("request_folder_explorer_action", action_router)
+
+
 __all__ = [
     "GraphSurfaceBoundaryContractTests",
+    "GraphSurfaceFolderExplorerBridgeContractTests",
     "GraphSurfaceInlineEditorContractTests",
     "GraphSurfaceLockedPortContractTests",
     "GraphSurfaceMediaAndScopeContractTests",

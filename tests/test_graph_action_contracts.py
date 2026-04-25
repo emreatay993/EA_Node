@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import ast
 import re
+from tempfile import TemporaryDirectory
 from pathlib import Path
 
 from ea_node_editor.ui.shell.graph_action_contracts import (
@@ -14,6 +15,8 @@ from ea_node_editor.ui.shell.graph_action_contracts import (
     normalize_graph_action_id,
     normalize_graph_action_payload,
 )
+from ea_node_editor.ui.folder_explorer import FolderExplorerFilesystemService
+from ea_node_editor.ui_qml.graph_canvas_command_bridge import GraphCanvasCommandBridge
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -104,6 +107,74 @@ P03_RETIRED_SHELL_GRAPH_ACTION_FACADE_SLOTS = {
     "request_paste_selected_nodes",
     "request_delete_selected_graph_items",
 }
+
+FOLDER_EXPLORER_ACTION_PAYLOAD_KEYS = {
+    GraphActionId.FOLDER_EXPLORER_LIST: ("node_id", "path"),
+    GraphActionId.FOLDER_EXPLORER_NAVIGATE: ("node_id", "path"),
+    GraphActionId.FOLDER_EXPLORER_REFRESH: ("node_id", "path"),
+    GraphActionId.FOLDER_EXPLORER_SET_SORT: ("node_id", "path", "sort_key"),
+    GraphActionId.FOLDER_EXPLORER_SET_SEARCH: ("node_id", "path"),
+    GraphActionId.FOLDER_EXPLORER_OPEN: ("node_id", "path"),
+    GraphActionId.FOLDER_EXPLORER_OPEN_IN_NEW_WINDOW: ("node_id", "path"),
+    GraphActionId.FOLDER_EXPLORER_NEW_FOLDER: ("node_id", "path", "name"),
+    GraphActionId.FOLDER_EXPLORER_RENAME: ("node_id", "path", "new_name"),
+    GraphActionId.FOLDER_EXPLORER_DELETE: ("node_id", "path"),
+    GraphActionId.FOLDER_EXPLORER_CUT: ("node_id", "path"),
+    GraphActionId.FOLDER_EXPLORER_COPY: ("node_id", "path"),
+    GraphActionId.FOLDER_EXPLORER_PASTE: ("node_id", "path"),
+    GraphActionId.FOLDER_EXPLORER_COPY_PATH: ("node_id", "path"),
+    GraphActionId.FOLDER_EXPLORER_PROPERTIES: ("node_id", "path"),
+    GraphActionId.FOLDER_EXPLORER_SEND_TO_COREX_PATH_POINTER: ("node_id", "path"),
+}
+
+
+class _FolderExplorerConfirmationProbe:
+    def __init__(self, accepted: bool) -> None:
+        self.accepted = accepted
+        self.calls: list[tuple[str, str, str]] = []
+
+    def confirm_folder_explorer_operation(self, operation: str, path: str, target_path: str = "") -> bool:
+        self.calls.append((operation, path, target_path))
+        return self.accepted
+
+
+class _FolderExplorerClipboardProbe:
+    def __init__(self) -> None:
+        self.text = ""
+
+    def setText(self, text: str) -> None:  # noqa: N802
+        self.text = text
+
+
+class _FolderExplorerOpenProbe:
+    def __init__(self, accepted: bool = True) -> None:
+        self.accepted = accepted
+        self.paths: list[str] = []
+
+    def open_folder_explorer_path(self, path: str) -> bool:
+        self.paths.append(path)
+        return self.accepted
+
+
+class _FolderExplorerSceneCommandProbe:
+    def __init__(self) -> None:
+        self.added_nodes: list[tuple[str, float, float, str]] = []
+        self.properties: list[tuple[str, str, object]] = []
+        self.bulk_properties: list[tuple[str, dict[str, object]]] = []
+        self._serial = 0
+
+    def add_node_from_type(self, type_id: str, x: float = 0.0, y: float = 0.0) -> str:
+        self._serial += 1
+        node_id = f"node-{self._serial}"
+        self.added_nodes.append((type_id, float(x), float(y), node_id))
+        return node_id
+
+    def set_node_property(self, node_id: str, key: str, value: object) -> None:
+        self.properties.append((node_id, key, value))
+
+    def set_node_properties(self, node_id: str, values: dict[str, object]) -> bool:
+        self.bulk_properties.append((node_id, dict(values)))
+        return True
 
 
 def _pyqt_graph_actions_from_contract() -> dict[str, GraphActionId]:
@@ -428,3 +499,176 @@ def test_graph_action_payload_normalization_rejects_invalid_required_payloads() 
     assert normalize_graph_action_payload("remove_edge", {"node_id": "node-1"}) is None
     assert normalize_graph_action_payload("remove_edge", {"edge_id": 123}) is None
     assert normalize_graph_action_payload("copy_selection", None) == {}
+
+
+def test_folder_explorer_action_contract_declares_stable_commands_and_payload_keys() -> None:
+    for action_id, payload_keys in FOLDER_EXPLORER_ACTION_PAYLOAD_KEYS.items():
+        spec = graph_action_spec(action_id)
+        assert spec.required_payload_keys == payload_keys
+        assert any(surface.startswith("qml_folder_explorer") for surface in spec.surfaces)
+
+    assert graph_action_spec(GraphActionId.FOLDER_EXPLORER_DELETE).destructive is True
+    assert graph_action_spec(GraphActionId.FOLDER_EXPLORER_SEND_TO_COREX_PATH_POINTER).destructive is False
+    assert normalize_graph_action_id("folderExplorerSendToCorexPathPointer") is (
+        GraphActionId.FOLDER_EXPLORER_SEND_TO_COREX_PATH_POINTER
+    )
+    assert normalize_graph_action_payload(
+        "folder_explorer_new_folder",
+        {"node_id": " folder-node ", "path": " C:/tmp ", "name": " Created "},
+    ) == {"node_id": "folder-node", "path": "C:/tmp", "name": "Created"}
+    assert normalize_graph_action_payload(
+        "folder_explorer_set_sort",
+        {"node_id": "folder-node", "path": "C:/tmp"},
+    ) is None
+
+
+def test_qml_folder_explorer_actions_route_through_canvas_command_bridge() -> None:
+    action_router_source = _source(ACTION_ROUTER_QML)
+    surface_bridge_source = _source(
+        REPO_ROOT
+        / "ea_node_editor"
+        / "ui_qml"
+        / "components"
+        / "graph_canvas"
+        / "GraphCanvasNodeSurfaceBridge.qml"
+    )
+
+    assert "readonly property var folderExplorerActionDescriptors" in action_router_source
+    assert '"sendToCorexPathPointer": { "actionId": "folder_explorer_send_to_corex_path_pointer" }' in (
+        action_router_source
+    )
+    assert "function requestFolderExplorerAction(actionId, payload)" in action_router_source
+    assert "bridge.request_folder_explorer_action(String(actionId || \"\"), payload || ({}))" in action_router_source
+    assert "function requestFolderExplorerAction(nodeId, command, payload)" in surface_bridge_source
+    assert "function createFolderExplorerPathPointer(nodeId, path, sceneX, sceneY)" in surface_bridge_source
+    assert '"type_id": "io.path_pointer"' in surface_bridge_source
+
+
+def test_folder_explorer_bridge_lists_and_updates_current_path_through_scene_mutation() -> None:
+    with TemporaryDirectory() as temporary_directory:
+        root = Path(temporary_directory)
+        child = root / "Child"
+        child.mkdir()
+        (child / "note.txt").write_text("hello", encoding="utf-8")
+        scene = _FolderExplorerSceneCommandProbe()
+        bridge = GraphCanvasCommandBridge(
+            scene_bridge=scene,
+            folder_explorer_service=FolderExplorerFilesystemService(),
+            folder_explorer_confirmation_source=_FolderExplorerConfirmationProbe(True),
+        )
+
+        result = bridge.request_folder_explorer_action(
+            "folder_explorer_navigate",
+            {"node_id": "folder-node", "path": str(child), "sort_key": "name"},
+        )
+
+        assert result["success"] is True
+        assert result["path"] == str(child.resolve())
+        assert result["listing"]["directory_path"] == str(child.resolve())
+        assert [entry["name"] for entry in result["listing"]["entries"]] == ["note.txt"]
+        assert scene.properties == [("folder-node", "current_path", str(child.resolve()))]
+
+
+def test_folder_explorer_bridge_declined_delete_does_not_call_service_mutation() -> None:
+    with TemporaryDirectory() as temporary_directory:
+        root = Path(temporary_directory)
+        target = root / "delete-me.txt"
+        target.write_text("keep", encoding="utf-8")
+        confirmation = _FolderExplorerConfirmationProbe(False)
+        bridge = GraphCanvasCommandBridge(
+            folder_explorer_service=FolderExplorerFilesystemService(),
+            folder_explorer_confirmation_source=confirmation,
+        )
+
+        result = bridge.request_folder_explorer_action(
+            "folder_explorer_delete",
+            {"node_id": "folder-node", "path": str(target), "current_path": str(root)},
+        )
+
+        assert result["success"] is False
+        assert result["cancelled"] is True
+        assert result["error"]["code"] == "cancelled"
+        assert target.exists()
+        assert confirmation.calls == [("delete", str(target), "")]
+
+
+def test_folder_explorer_bridge_confirmed_mutation_returns_refreshed_listing() -> None:
+    with TemporaryDirectory() as temporary_directory:
+        root = Path(temporary_directory)
+        confirmation = _FolderExplorerConfirmationProbe(True)
+        bridge = GraphCanvasCommandBridge(
+            folder_explorer_service=FolderExplorerFilesystemService(),
+            folder_explorer_confirmation_source=confirmation,
+        )
+
+        result = bridge.request_folder_explorer_action(
+            "folder_explorer_new_folder",
+            {"node_id": "folder-node", "path": str(root), "name": "Created"},
+        )
+
+        assert result["success"] is True
+        assert (root / "Created").is_dir()
+        assert result["entry"]["kind"] == "folder"
+        assert [entry["name"] for entry in result["listing"]["entries"]] == ["Created"]
+        assert confirmation.calls == [("new_folder", str(root), str(root / "Created"))]
+
+
+def test_folder_explorer_bridge_copy_path_and_open_use_shell_seams() -> None:
+    with TemporaryDirectory() as temporary_directory:
+        target = Path(temporary_directory) / "open-me.txt"
+        target.write_text("hello", encoding="utf-8")
+        clipboard = _FolderExplorerClipboardProbe()
+        opener = _FolderExplorerOpenProbe()
+        bridge = GraphCanvasCommandBridge(
+            folder_explorer_service=FolderExplorerFilesystemService(),
+            folder_explorer_clipboard_source=clipboard,
+            folder_explorer_open_source=opener,
+        )
+
+        copy_result = bridge.request_folder_explorer_action(
+            "folder_explorer_copy_path",
+            {"node_id": "folder-node", "path": str(target)},
+        )
+        open_result = bridge.request_folder_explorer_action(
+            "folder_explorer_open",
+            {"node_id": "folder-node", "path": str(target)},
+        )
+
+        assert copy_result["success"] is True
+        assert clipboard.text == str(target.resolve())
+        assert open_result["success"] is True
+        assert opener.paths == [str(target.resolve())]
+
+
+def test_folder_explorer_bridge_creates_path_pointer_and_new_explorer_nodes() -> None:
+    with TemporaryDirectory() as temporary_directory:
+        root = Path(temporary_directory)
+        target_file = root / "selected.txt"
+        target_file.write_text("hello", encoding="utf-8")
+        scene = _FolderExplorerSceneCommandProbe()
+        bridge = GraphCanvasCommandBridge(
+            scene_bridge=scene,
+            folder_explorer_service=FolderExplorerFilesystemService(),
+        )
+
+        path_pointer_result = bridge.request_folder_explorer_action(
+            "folder_explorer_send_to_corex_path_pointer",
+            {"node_id": "folder-node", "path": str(target_file), "scene_x": 120, "scene_y": 240},
+        )
+        explorer_result = bridge.request_folder_explorer_action(
+            "folder_explorer_open_in_new_window",
+            {"node_id": "folder-node", "path": str(root), "scene_x": 360, "scene_y": 480},
+        )
+
+        assert path_pointer_result["success"] is True
+        assert path_pointer_result["created_type_id"] == "io.path_pointer"
+        assert explorer_result["success"] is True
+        assert explorer_result["created_type_id"] == "io.folder_explorer"
+        assert scene.added_nodes == [
+            ("io.path_pointer", 120.0, 240.0, "node-1"),
+            ("io.folder_explorer", 360.0, 480.0, "node-2"),
+        ]
+        assert scene.bulk_properties == [
+            ("node-1", {"path": str(target_file.resolve()), "mode": "file"}),
+            ("node-2", {"current_path": str(root.resolve())}),
+        ]

@@ -43,6 +43,22 @@ class GraphActionId(str, Enum):
     COPY_FLOW_EDGE_STYLE = "copy_flow_edge_style"
     PASTE_FLOW_EDGE_STYLE = "paste_flow_edge_style"
     REMOVE_EDGE = "remove_edge"
+    FOLDER_EXPLORER_LIST = "folder_explorer_list"
+    FOLDER_EXPLORER_NAVIGATE = "folder_explorer_navigate"
+    FOLDER_EXPLORER_REFRESH = "folder_explorer_refresh"
+    FOLDER_EXPLORER_SET_SORT = "folder_explorer_set_sort"
+    FOLDER_EXPLORER_SET_SEARCH = "folder_explorer_set_search"
+    FOLDER_EXPLORER_OPEN = "folder_explorer_open"
+    FOLDER_EXPLORER_OPEN_IN_NEW_WINDOW = "folder_explorer_open_in_new_window"
+    FOLDER_EXPLORER_NEW_FOLDER = "folder_explorer_new_folder"
+    FOLDER_EXPLORER_RENAME = "folder_explorer_rename"
+    FOLDER_EXPLORER_DELETE = "folder_explorer_delete"
+    FOLDER_EXPLORER_CUT = "folder_explorer_cut"
+    FOLDER_EXPLORER_COPY = "folder_explorer_copy"
+    FOLDER_EXPLORER_PASTE = "folder_explorer_paste"
+    FOLDER_EXPLORER_COPY_PATH = "folder_explorer_copy_path"
+    FOLDER_EXPLORER_PROPERTIES = "folder_explorer_properties"
+    FOLDER_EXPLORER_SEND_TO_COREX_PATH_POINTER = "folder_explorer_send_to_corex_path_pointer"
 
 
 @dataclass(frozen=True)
@@ -355,6 +371,140 @@ GRAPH_ACTION_SPECS: tuple[GraphActionSpec, ...] = (
         destructive=True,
         required_payload_keys=("edge_id",),
         legacy_route_names=("remove_edge", "request_remove_edge"),
+    ),
+    GraphActionSpec(
+        GraphActionId.FOLDER_EXPLORER_LIST,
+        None,
+        None,
+        ("qml_folder_explorer_surface",),
+        required_payload_keys=("node_id", "path"),
+        legacy_route_names=("folderExplorerList",),
+    ),
+    GraphActionSpec(
+        GraphActionId.FOLDER_EXPLORER_NAVIGATE,
+        None,
+        None,
+        ("qml_folder_explorer_surface",),
+        required_payload_keys=("node_id", "path"),
+        legacy_route_names=("folderExplorerNavigate",),
+    ),
+    GraphActionSpec(
+        GraphActionId.FOLDER_EXPLORER_REFRESH,
+        None,
+        None,
+        ("qml_folder_explorer_surface",),
+        required_payload_keys=("node_id", "path"),
+        legacy_route_names=("folderExplorerRefresh",),
+    ),
+    GraphActionSpec(
+        GraphActionId.FOLDER_EXPLORER_SET_SORT,
+        None,
+        None,
+        ("qml_folder_explorer_surface",),
+        required_payload_keys=("node_id", "path", "sort_key"),
+        legacy_route_names=("folderExplorerSetSort",),
+    ),
+    GraphActionSpec(
+        GraphActionId.FOLDER_EXPLORER_SET_SEARCH,
+        None,
+        None,
+        ("qml_folder_explorer_surface",),
+        required_payload_keys=("node_id", "path"),
+        legacy_route_names=("folderExplorerSetSearch",),
+    ),
+    GraphActionSpec(
+        GraphActionId.FOLDER_EXPLORER_OPEN,
+        "Open",
+        None,
+        ("qml_folder_explorer_context_menu",),
+        required_payload_keys=("node_id", "path"),
+        legacy_route_names=("folderExplorerOpen",),
+    ),
+    GraphActionSpec(
+        GraphActionId.FOLDER_EXPLORER_OPEN_IN_NEW_WINDOW,
+        "Open in New Classic Explorer",
+        None,
+        ("qml_folder_explorer_context_menu",),
+        required_payload_keys=("node_id", "path"),
+        legacy_route_names=("folderExplorerOpenInNewWindow",),
+    ),
+    GraphActionSpec(
+        GraphActionId.FOLDER_EXPLORER_NEW_FOLDER,
+        "New Folder",
+        None,
+        ("qml_folder_explorer_context_menu",),
+        destructive=True,
+        required_payload_keys=("node_id", "path", "name"),
+        legacy_route_names=("folderExplorerNewFolder",),
+    ),
+    GraphActionSpec(
+        GraphActionId.FOLDER_EXPLORER_RENAME,
+        "Rename",
+        None,
+        ("qml_folder_explorer_context_menu",),
+        destructive=True,
+        required_payload_keys=("node_id", "path", "new_name"),
+        legacy_route_names=("folderExplorerRename",),
+    ),
+    GraphActionSpec(
+        GraphActionId.FOLDER_EXPLORER_DELETE,
+        "Delete",
+        None,
+        ("qml_folder_explorer_context_menu",),
+        destructive=True,
+        required_payload_keys=("node_id", "path"),
+        legacy_route_names=("folderExplorerDelete",),
+    ),
+    GraphActionSpec(
+        GraphActionId.FOLDER_EXPLORER_CUT,
+        "Cut",
+        "Ctrl+X",
+        ("qml_folder_explorer_context_menu",),
+        destructive=True,
+        required_payload_keys=("node_id", "path"),
+        legacy_route_names=("folderExplorerCut",),
+    ),
+    GraphActionSpec(
+        GraphActionId.FOLDER_EXPLORER_COPY,
+        "Copy",
+        "Ctrl+C",
+        ("qml_folder_explorer_context_menu",),
+        destructive=True,
+        required_payload_keys=("node_id", "path"),
+        legacy_route_names=("folderExplorerCopy",),
+    ),
+    GraphActionSpec(
+        GraphActionId.FOLDER_EXPLORER_PASTE,
+        "Paste",
+        "Ctrl+V",
+        ("qml_folder_explorer_context_menu",),
+        destructive=True,
+        required_payload_keys=("node_id", "path"),
+        legacy_route_names=("folderExplorerPaste",),
+    ),
+    GraphActionSpec(
+        GraphActionId.FOLDER_EXPLORER_COPY_PATH,
+        "Copy Path",
+        None,
+        ("qml_folder_explorer_context_menu",),
+        required_payload_keys=("node_id", "path"),
+        legacy_route_names=("folderExplorerCopyPath",),
+    ),
+    GraphActionSpec(
+        GraphActionId.FOLDER_EXPLORER_PROPERTIES,
+        "Properties",
+        None,
+        ("qml_folder_explorer_context_menu",),
+        required_payload_keys=("node_id", "path"),
+        legacy_route_names=("folderExplorerProperties",),
+    ),
+    GraphActionSpec(
+        GraphActionId.FOLDER_EXPLORER_SEND_TO_COREX_PATH_POINTER,
+        "Send to COREX as Path Pointer",
+        None,
+        ("qml_folder_explorer_context_menu", "qml_folder_explorer_drag"),
+        required_payload_keys=("node_id", "path"),
+        legacy_route_names=("folderExplorerSendToCorexPathPointer",),
     ),
 )
 

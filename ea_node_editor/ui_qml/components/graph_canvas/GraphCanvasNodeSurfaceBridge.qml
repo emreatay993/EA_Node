@@ -32,6 +32,21 @@ Item {
         return hostInteraction.pdfPreviewBridge();
     }
 
+    function _folderExplorerActionRouter() {
+        if (!root.canvasItem || !root.canvasItem.canvasActionRouter)
+            return null;
+        return root.canvasItem.canvasActionRouter;
+    }
+
+    function _folderExplorerActionId(command) {
+        var router = root._folderExplorerActionRouter();
+        var normalized = String(command || "").trim();
+        if (!router || !router.folderExplorerActionId)
+            return normalized;
+        var routed = String(router.folderExplorerActionId(normalized) || "").trim();
+        return routed.length ? routed : normalized;
+    }
+
     function _sceneNodePayload(nodeId) {
         if (!root.canvasItem || !root.canvasItem._sceneNodePayload)
             return null;
@@ -196,6 +211,90 @@ Item {
         if (!bridge)
             return ({});
         return bridge.describe_pdf_preview(String(source || ""), pageNumber);
+    }
+
+    function requestFolderExplorerAction(nodeId, command, payload) {
+        var router = root._folderExplorerActionRouter();
+        var normalizedNodeId = String(nodeId || "").trim();
+        if (!normalizedNodeId || !router || !router.requestFolderExplorerAction) {
+            return {
+                "success": false,
+                "cancelled": false,
+                "action_id": root._folderExplorerActionId(command),
+                "node_id": normalizedNodeId,
+                "path": String((payload || ({})).path || ""),
+                "error": {
+                    "code": "bridge_unavailable",
+                    "message": "Folder explorer action router is not available.",
+                    "operation": root._folderExplorerActionId(command),
+                    "path": String((payload || ({})).path || ""),
+                    "target_path": ""
+                }
+            };
+        }
+        if (root._nodeReadOnly(normalizedNodeId)) {
+            return {
+                "success": false,
+                "cancelled": false,
+                "action_id": root._folderExplorerActionId(command),
+                "node_id": normalizedNodeId,
+                "path": String((payload || ({})).path || ""),
+                "error": {
+                    "code": "read_only",
+                    "message": "Folder explorer node is read-only.",
+                    "operation": root._folderExplorerActionId(command),
+                    "path": String((payload || ({})).path || ""),
+                    "target_path": ""
+                }
+            };
+        }
+        root.prepareNodeSurfaceControlInteraction(normalizedNodeId);
+        var requestPayload = {};
+        var incoming = payload || ({});
+        for (var key in incoming) {
+            if (Object.prototype.hasOwnProperty.call(incoming, key))
+                requestPayload[key] = incoming[key];
+        }
+        requestPayload.node_id = normalizedNodeId;
+        return router.requestFolderExplorerAction(root._folderExplorerActionId(command), requestPayload);
+    }
+
+    function createFolderExplorerPathPointer(nodeId, path, sceneX, sceneY) {
+        return root.requestFolderExplorerAction(
+            nodeId,
+            "sendToCorexPathPointer",
+            {
+                "path": String(path || ""),
+                "scene_x": Number(sceneX || 0),
+                "scene_y": Number(sceneY || 0)
+            }
+        );
+    }
+
+    function openFolderExplorerInNewWindow(nodeId, path, sceneX, sceneY) {
+        return root.requestFolderExplorerAction(
+            nodeId,
+            "openInNewWindow",
+            {
+                "path": String(path || ""),
+                "scene_x": Number(sceneX || 0),
+                "scene_y": Number(sceneY || 0)
+            }
+        );
+    }
+
+    function folderExplorerDragPayload(path, isFolder) {
+        var normalizedPath = String(path || "").trim();
+        if (!normalizedPath)
+            return ({});
+        return {
+            "action_id": root._folderExplorerActionId("sendToCorexPathPointer"),
+            "type_id": "io.path_pointer",
+            "properties": {
+                "path": normalizedPath,
+                "mode": Boolean(isFolder) ? "folder" : "file"
+            }
+        };
     }
 
     function browseNodePropertyPath(nodeId, key, currentPath) {
