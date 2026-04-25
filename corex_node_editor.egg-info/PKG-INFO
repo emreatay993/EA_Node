@@ -11,6 +11,7 @@ Requires-Dist: scipy>=1.11
 Provides-Extra: ansys
 Requires-Dist: ansys-dpf-core>=0.15; extra == "ansys"
 Requires-Dist: ansys-dpf-post>=0.11; extra == "ansys"
+Requires-Dist: ansys-mechanical-core>=0.12.6; extra == "ansys"
 Provides-Extra: excel
 Requires-Dist: openpyxl>=3.1; extra == "excel"
 Provides-Extra: hpc
@@ -22,6 +23,7 @@ Requires-Dist: vtk>=9.6; extra == "viewer"
 Provides-Extra: all
 Requires-Dist: ansys-dpf-core>=0.15; extra == "all"
 Requires-Dist: ansys-dpf-post>=0.11; extra == "all"
+Requires-Dist: ansys-mechanical-core>=0.12.6; extra == "all"
 Requires-Dist: openpyxl>=3.1; extra == "all"
 Requires-Dist: paramiko>=3.3; extra == "all"
 Requires-Dist: pyvista>=0.47; extra == "all"
@@ -33,6 +35,7 @@ Requires-Dist: pytest-xdist>=3.5; extra == "dev"
 Requires-Dist: pyinstaller>=6.0; extra == "dev"
 Requires-Dist: ansys-dpf-core>=0.15; extra == "dev"
 Requires-Dist: ansys-dpf-post>=0.11; extra == "dev"
+Requires-Dist: ansys-mechanical-core>=0.12.6; extra == "dev"
 Requires-Dist: openpyxl>=3.1; extra == "dev"
 Requires-Dist: paramiko>=3.3; extra == "dev"
 Requires-Dist: pyvista>=0.47; extra == "dev"

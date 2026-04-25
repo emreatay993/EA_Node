@@ -44,6 +44,7 @@ def test_optional_dependency_groups_wire_ansys_and_viewer_into_all_and_dev() -> 
     expected_ansys = {
         "ansys-dpf-core>=0.15",
         "ansys-dpf-post>=0.11",
+        "ansys-mechanical-core>=0.12.6",
     }
     expected_viewer = {"pyvista>=0.47", "pyvistaqt>=0.11", "vtk>=9.6"}
 

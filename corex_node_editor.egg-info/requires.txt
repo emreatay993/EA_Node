@@ -5,6 +5,7 @@ scipy>=1.11
 [all]
 ansys-dpf-core>=0.15
 ansys-dpf-post>=0.11
+ansys-mechanical-core>=0.12.6
 openpyxl>=3.1
 paramiko>=3.3
 pyvista>=0.47
@@ -14,6 +15,7 @@ vtk>=9.6
 [ansys]
 ansys-dpf-core>=0.15
 ansys-dpf-post>=0.11
+ansys-mechanical-core>=0.12.6
 
 [dev]
 pytest>=7.4
@@ -21,6 +23,7 @@ pytest-xdist>=3.5
 pyinstaller>=6.0
 ansys-dpf-core>=0.15
 ansys-dpf-post>=0.11
+ansys-mechanical-core>=0.12.6
 openpyxl>=3.1
 paramiko>=3.3
 pyvista>=0.47

@@ -22,7 +22,7 @@ py -3.10 -m venv venv
 
 Notes:
 
-- `.[all,dev]` installs the optional spreadsheet/HPC dependencies plus the local dev tools used in this repo.
+- `.[all,dev]` installs the optional spreadsheet, HPC, and Ansys dependencies, including PyDPF and PyMechanical, plus the local dev tools used in this repo.
 - The repo uses a Windows-style virtualenv layout even when opened from `bash`, so prefer `./venv/Scripts/python.exe` over a shell-default `python`.
 - The examples below use native PowerShell path syntax. If you are in `bash`, use the same interpreter path with `./venv/Scripts/python.exe`.
 - Editable install also exposes the `corex-node-editor` console entry point inside `venv/Scripts/`.
