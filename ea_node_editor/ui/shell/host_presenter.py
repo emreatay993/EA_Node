@@ -4,7 +4,7 @@ import copy
 import json
 import shutil
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Literal
+from typing import TYPE_CHECKING, Any
 from uuid import uuid4
 import weakref
 
@@ -27,7 +27,7 @@ from ea_node_editor.settings import (
     PROJECT_ARTIFACT_STORE_METADATA_KEY,
     PROJECT_MANAGED_ASSETS_DIRNAME,
 )
-from ea_node_editor.telemetry.system_metrics import read_system_metrics
+from ea_node_editor.telemetry.status_service import EngineState, ShellStatusService
 from ea_node_editor.ui.media_preview_provider import set_media_preview_project_context_provider
 from ea_node_editor.ui.dialogs.passive_style_controls import (
     color_to_hex,
@@ -70,6 +70,7 @@ class ShellHostPresenter(QObject):
     def __init__(self, host: "ShellWindow") -> None:
         super().__init__(host)
         self._host = host
+        self._status_service = ShellStatusService()
         host_ref = weakref.ref(host)
 
         def _preview_context():
@@ -738,28 +739,26 @@ class ShellHostPresenter(QObject):
         return True
 
     def update_metrics(self) -> None:
-        metrics = read_system_metrics()
+        metrics = self._status_service.collect_system_metrics()
         self.update_system_metrics(metrics.cpu_percent, metrics.ram_used_gb, metrics.ram_total_gb)
 
     def update_engine_status(
         self,
-        state: Literal["ready", "running", "paused", "error"],
+        state: EngineState,
         details: str = "",
     ) -> None:
-        text = state.capitalize()
-        if details:
-            text = f"{text} ({details})"
-        icon_map = {
-            "ready": "R",
-            "running": "Run",
-            "paused": "P",
-            "error": "!",
-        }
-        self._host.status_engine.set_icon(icon_map.get(state, "E"))
-        self._host.status_engine.set_text(text)
+        presentation = self._status_service.engine_status(state, details)
+        self._host.status_engine.set_icon(presentation.icon)
+        self._host.status_engine.set_text(presentation.text)
 
     def update_job_counters(self, running: int, queued: int, done: int, failed: int) -> None:
-        self._host.status_jobs.set_text(f"R:{running} Q:{queued} D:{done} F:{failed}")
+        presentation = self._status_service.job_counters(
+            running=running,
+            queued=queued,
+            done=done,
+            failed=failed,
+        )
+        self._host.status_jobs.set_text(presentation.text)
 
     def update_system_metrics(
         self,
@@ -769,9 +768,14 @@ class ShellHostPresenter(QObject):
         fps: float | None = None,
     ) -> None:
         fps_value = max(0.0, float(fps)) if fps is not None else self._host._frame_rate_sampler.snapshot().fps
-        self._host.status_metrics.set_text(
-            f"FPS:{fps_value:.0f} CPU:{cpu_percent:.0f}% RAM:{ram_used_gb:.1f}/{ram_total_gb:.1f} GB"
+        presentation = self._status_service.system_metrics(
+            fps=fps_value,
+            cpu_percent=cpu_percent,
+            ram_used_gb=ram_used_gb,
+            ram_total_gb=ram_total_gb,
         )
+        self._host.status_metrics.set_text(presentation.text)
 
     def update_notification_counters(self, warnings: int, errors: int) -> None:
-        self._host.status_notifications.set_text(f"W:{warnings} E:{errors}")
+        presentation = self._status_service.notification_counters(warnings=warnings, errors=errors)
+        self._host.status_notifications.set_text(presentation.text)

@@ -2,18 +2,20 @@ from __future__ import annotations
 
 import json
 import copy
+import unittest
 from unittest.mock import patch
 
 from PyQt6.QtCore import QObject
 from PyQt6.QtGui import QColor
 from PyQt6.QtWidgets import QDialog
-
-import ea_node_editor.ui.dialogs as dialogs_module
 from ea_node_editor.app import APP_STYLESHEET
 from ea_node_editor.settings import DEFAULT_GRAPHICS_SETTINGS
+from ea_node_editor.telemetry.status_service import ShellStatusService
 from ea_node_editor.ui.dialogs.graphics_settings_dialog import GraphicsSettingsDialog
+from ea_node_editor.ui.theme.service import ShellThemeService
 from ea_node_editor.ui.theme.styles import build_theme_stylesheet
 from ea_node_editor.ui.theme.tokens import STITCH_DARK_V1, STITCH_LIGHT_V1
+from ea_node_editor.ui_qml.theme_bridge import ThemeBridge
 from tests.main_window_shell.base import SharedMainWindowShellTestBase
 from tests.test_main_window_shell import _named_child_items
 
@@ -27,6 +29,32 @@ def _alpha_color_name(value: str, alpha: float) -> str:
     color = QColor(value)
     color.setAlphaF(alpha)
     return _color_name(color, include_alpha=True)
+
+
+class ShellThemeServiceTests(unittest.TestCase):
+    def test_theme_bridge_delegates_resolution_to_shell_theme_service(self) -> None:
+        service = ShellThemeService(theme_id="stitch_dark")
+        bridge = ThemeBridge(theme_service=service)
+
+        self.assertEqual(bridge.theme_id, "stitch_dark")
+        self.assertEqual(bridge.apply_theme("stitch_light"), "stitch_light")
+        self.assertEqual(service.theme_id, "stitch_light")
+        self.assertEqual(bridge.token("canvas_bg"), STITCH_LIGHT_V1.canvas_bg)
+
+    def test_status_service_formats_status_strip_values(self) -> None:
+        service = ShellStatusService()
+
+        self.assertEqual(service.engine_status("running", "Starting").text, "Running (Starting)")
+        self.assertEqual(service.engine_status("running").icon, "Run")
+        self.assertEqual(
+            service.job_counters(running=1, queued=2, done=3, failed=4).text,
+            "R:1 Q:2 D:3 F:4",
+        )
+        self.assertEqual(
+            service.system_metrics(fps=58.4, cpu_percent=37.2, ram_used_gb=4.26, ram_total_gb=16.0).text,
+            "FPS:58 CPU:37% RAM:4.3/16.0 GB",
+        )
+        self.assertEqual(service.notification_counters(warnings=2, errors=1).text, "W:2 E:1")
 
 
 class ShellThemeTests(SharedMainWindowShellTestBase):
@@ -447,7 +475,10 @@ class ShellThemeTests(SharedMainWindowShellTestBase):
             def exec(self) -> int:
                 return QDialog.DialogCode.Rejected
 
-        with patch.object(dialogs_module, "GraphicsSettingsDialog", _CapturingGraphicsSettingsDialog):
+        with patch(
+            "ea_node_editor.ui.dialogs.graphics_settings_dialog.GraphicsSettingsDialog",
+            _CapturingGraphicsSettingsDialog,
+        ):
             self.window.show_graphics_settings_dialog()
 
         initial_settings = captured_kwargs["initial_settings"]
@@ -467,7 +498,10 @@ class ShellThemeTests(SharedMainWindowShellTestBase):
             def exec(self) -> int:
                 return QDialog.DialogCode.Rejected
 
-        with patch.object(dialogs_module, "GraphicsSettingsDialog", _CapturingGraphicsSettingsDialog):
+        with patch(
+            "ea_node_editor.ui.dialogs.graphics_settings_dialog.GraphicsSettingsDialog",
+            _CapturingGraphicsSettingsDialog,
+        ):
             self.window.show_graphics_settings_dialog()
 
         self.assertEqual(
