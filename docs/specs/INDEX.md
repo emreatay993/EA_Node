@@ -53,9 +53,13 @@ Selected work-packet manifests and status ledgers under `docs/specs/work_packets
 - [GLOBAL_GAP_BREAK_EDGE_CROSSING_VARIANT QA Matrix](perf/GLOBAL_GAP_BREAK_EDGE_CROSSING_VARIANT_QA_MATRIX.md)
 - [GLOBAL_EXPAND_COLLISION_AVOIDANCE_AND_COMMENT_PEEK Work Packet Manifest](work_packets/global_expand_collision_avoidance_and_comment_peek/GLOBAL_EXPAND_COLLISION_AVOIDANCE_AND_COMMENT_PEEK_MANIFEST.md)
 - [GLOBAL_EXPAND_COLLISION_AVOIDANCE_AND_COMMENT_PEEK Status Ledger](work_packets/global_expand_collision_avoidance_and_comment_peek/GLOBAL_EXPAND_COLLISION_AVOIDANCE_AND_COMMENT_PEEK_STATUS.md)
+- [COMMENT_FLOATING_POPOVER Work Packet Manifest](work_packets/comment_floating_popover/COMMENT_FLOATING_POPOVER_MANIFEST.md)
+- [COMMENT_FLOATING_POPOVER Status Ledger](work_packets/comment_floating_popover/COMMENT_FLOATING_POPOVER_STATUS.md)
 - [COREX_ARCHITECTURE_ENTRY_POINT_REDUCTION Work Packet Manifest](work_packets/corex_architecture_entry_point_reduction/COREX_ARCHITECTURE_ENTRY_POINT_REDUCTION_MANIFEST.md)
 - [COREX_ARCHITECTURE_ENTRY_POINT_REDUCTION Status Ledger](work_packets/corex_architecture_entry_point_reduction/COREX_ARCHITECTURE_ENTRY_POINT_REDUCTION_STATUS.md)
 - [COREX_ARCHITECTURE_ENTRY_POINT_REDUCTION QA Matrix](perf/COREX_ARCHITECTURE_ENTRY_POINT_REDUCTION_QA_MATRIX.md)
+- [COREX_NO_LEGACY_ARCHITECTURE_CLEANUP Work Packet Manifest](work_packets/corex_no_legacy_architecture_cleanup/COREX_NO_LEGACY_ARCHITECTURE_CLEANUP_MANIFEST.md)
+- [COREX_NO_LEGACY_ARCHITECTURE_CLEANUP Status Ledger](work_packets/corex_no_legacy_architecture_cleanup/COREX_NO_LEGACY_ARCHITECTURE_CLEANUP_STATUS.md)
 - [COREX_NO_LEGACY_ARCHITECTURE_CLEANUP QA Matrix](perf/COREX_NO_LEGACY_ARCHITECTURE_CLEANUP_QA_MATRIX.md)
 - [COREX_CLEAN_ARCHITECTURE_RESTRUCTURE Work Packet Manifest](work_packets/corex_clean_architecture_restructure/COREX_CLEAN_ARCHITECTURE_RESTRUCTURE_MANIFEST.md)
 - [COREX_CLEAN_ARCHITECTURE_RESTRUCTURE Status Ledger](work_packets/corex_clean_architecture_restructure/COREX_CLEAN_ARCHITECTURE_RESTRUCTURE_STATUS.md)
@@ -93,6 +97,8 @@ Selected work-packet manifests and status ledgers under `docs/specs/work_packets
 - [MEDIA_VIEWER_CONTENT_FULLSCREEN QA Matrix](perf/MEDIA_VIEWER_CONTENT_FULLSCREEN_QA_MATRIX.md)
 - [NESTED_NODE_CATEGORIES Work Packet Manifest](work_packets/nested_node_categories/NESTED_NODE_CATEGORIES_MANIFEST.md)
 - [NESTED_NODE_CATEGORIES Status Ledger](work_packets/nested_node_categories/NESTED_NODE_CATEGORIES_STATUS.md)
+- [V1_CLASSIC_EXPLORER_FOLDER_NODE Work Packet Manifest](work_packets/v1_classic_explorer_folder_node/V1_CLASSIC_EXPLORER_FOLDER_NODE_MANIFEST.md)
+- [V1_CLASSIC_EXPLORER_FOLDER_NODE Status Ledger](work_packets/v1_classic_explorer_folder_node/V1_CLASSIC_EXPLORER_FOLDER_NODE_STATUS.md)
 
 ## ADRs
 
