@@ -1,4 +1,6 @@
-# Implementation Summary
+# P03 Bridge Actions Wrap-Up
+
+## Implementation Summary
 
 - Packet: `P03`
 - Branch Label: `codex/v1-classic-explorer-folder-node/p03-bridge-actions`
@@ -21,7 +23,7 @@ Implemented the P03 bridge/action layer for the V1 Classic Explorer folder node.
 
 `GraphCanvasCommandBridge` now normalizes folder-explorer command payloads, calls the P02 filesystem service, prompts through an explicit confirmation seam before confirmed service mutations, returns structured success/error payloads, uses transient clipboard/open seams, and routes node creation through the existing graph scene command bridge. `GraphCanvasActionRouter.qml` and `GraphCanvasNodeSurfaceBridge.qml` expose P04-ready QML helpers without adding the final visual surface.
 
-# Verification
+## Verification
 
 PASS: `$env:QT_QPA_PLATFORM='offscreen'; .\venv\Scripts\python.exe -m pytest tests/test_graph_action_contracts.py tests/test_graph_surface_input_contract.py tests/test_graph_surface_input_inline.py --ignore=venv -q`
 
@@ -31,7 +33,7 @@ PASS: `$env:QT_QPA_PLATFORM='offscreen'; .\venv\Scripts\python.exe -m pytest tes
 
 Result: `7 passed in 5.71s`.
 
-# Manual Test Directives
+## Manual Test Directives
 
 Too soon for manual testing.
 
@@ -39,12 +41,12 @@ Manual UI testing is premature because P03 intentionally adds bridge contracts a
 
 The next useful manual testing point is after P04 integrates the visual surface with these commands. Until then, automated verification is the primary validation for this packet.
 
-# Residual Risks
+## Residual Risks
 
 No known packet-local residual risks.
 
 The remaining user-visible risk is integration timing: P04 must consume these exact command IDs and structured result payloads, and P05 must keep transient Explorer state out of persistence when exposing the node in shell surfaces.
 
-# Ready for Integration
+## Ready for Integration
 
-Ready for integration. P04 can consume the folder-explorer bridge commands without renaming the P03 contract IDs.
+Yes: P04 can consume the folder-explorer bridge commands without renaming the P03 contract IDs.
