@@ -59,6 +59,7 @@ Item {
     // (e.g. ``io.path_pointer``) from ever showing its folder icon.
     readonly property bool nodeTitleIconEligible: root.headerTitleVisible
         && !!root.host
+        && !root.isCommentBackdropNode
         && root.nodeTitleIconSource.length > 0
     readonly property bool nodeTitleIconVisible: root.nodeTitleIconEligible
         && root.nodeTitleIconRenderSize > 0

@@ -29,6 +29,7 @@ Make the graph canvas a feature-owned QML port boundary: canvas roots route acti
 ## Conservative Write Scope
 
 - `ea_node_editor/ui_qml/components/GraphCanvas.qml`
+- `ea_node_editor/ui_qml/components/graph/GraphNodeHeaderLayer.qml`
 - `ea_node_editor/ui_qml/components/graph_canvas/**`
 - `ea_node_editor/ui_qml/graph_scene/**`
 - `ea_node_editor/ui_qml/graph_scene_bridge.py`
@@ -40,6 +41,7 @@ Make the graph canvas a feature-owned QML port boundary: canvas roots route acti
 - `tests/test_graph_surface_input_contract.py`
 - `tests/test_comment_backdrop_contracts.py`
 - `tests/test_passive_runtime_wiring.py`
+- `docs/specs/work_packets/corex_clean_architecture_restructure/COREX_CLEAN_ARCHITECTURE_RESTRUCTURE_P07_qml_graph_canvas_core.md`
 - `docs/specs/work_packets/corex_clean_architecture_restructure/P07_qml_graph_canvas_core_WRAPUP.md`
 
 ## Required Behavior
@@ -77,3 +79,5 @@ Make the graph canvas a feature-owned QML port boundary: canvas roots route acti
 ## Handoff Notes
 
 If this packet discovers unavoidable viewer/fullscreen changes, stop at a thin compatibility adapter and hand the deeper work to `P08`.
+
+User-authorized scope extension: `ea_node_editor/ui_qml/components/graph/GraphNodeHeaderLayer.qml` is included to fix the comment-backdrop title-icon contract discovered during P07 verification.
