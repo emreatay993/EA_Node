@@ -56,7 +56,7 @@ evidence without changing `COREX_CLEAN_ARCHITECTURE_RESTRUCTURE_STATUS.md`.
 | P09 Nodes SDK Registry | `codex/corex-clean-architecture-restructure/p09-nodes-sdk-registry` | `09f50d4099d39e6c3b3172027a21acbda923a680` | Made node SDK/runtime/viewer contracts explicit and removed direct persistence-envelope dependency from runtime snapshots. | [P09 wrap-up](../work_packets/corex_clean_architecture_restructure/P09_nodes_sdk_registry_WRAPUP.md) |
 | P10 Plugin Add-On Descriptor | `codex/corex-clean-architecture-restructure/p10-plugin-addon-descriptor` | `d6fb309606bb209b7dbccb35ecf746c33ffa0626` | Moved add-on discovery, enablement filtering, backend selection, and cache invalidation into add-on-owned surfaces. | [P10 wrap-up](../work_packets/corex_clean_architecture_restructure/P10_plugin_addon_descriptor_WRAPUP.md) |
 | P11 Cross-Cutting Services | `codex/corex-clean-architecture-restructure/p11-cross-cutting-services` | `b1fc5fb3b359be5bf940ff0d23dddab10b4194f0` | Added shell-theme, graph-theme, and shell-status services behind existing QML/presenter adapters. | [P11 wrap-up](../work_packets/corex_clean_architecture_restructure/P11_cross_cutting_services_WRAPUP.md) |
-| P12 Docs Traceability Closeout | `codex/corex-clean-architecture-restructure/p12-docs-traceability-closeout` | `pending substantive commit` | Publishes final architecture docs, QA matrix, public launch-doc cleanup, and closeout test updates. | P12_docs_traceability_closeout_WRAPUP.md produced after substantive commit |
+| P12 Docs Traceability Closeout | `codex/corex-clean-architecture-restructure/p12-docs-traceability-closeout` | `be9e89ad8e78597a11a8e582fcb925298b13cf79` | Publishes final architecture docs, QA matrix, public launch-doc cleanup, and closeout test updates. | [P12 wrap-up](../work_packets/corex_clean_architecture_restructure/P12_docs_traceability_closeout_WRAPUP.md) |
 
 ## Retained Automated Verification
 
@@ -93,7 +93,7 @@ evidence without changing `COREX_CLEAN_ARCHITECTURE_RESTRUCTURE_STATUS.md`.
 ## Produced Artifacts
 
 - `docs/specs/perf/COREX_CLEAN_ARCHITECTURE_RESTRUCTURE_QA_MATRIX.md`
-- `docs/specs/work_packets/corex_clean_architecture_restructure/P12_docs_traceability_closeout_WRAPUP.md` after the substantive P12 commit is captured
+- `docs/specs/work_packets/corex_clean_architecture_restructure/P12_docs_traceability_closeout_WRAPUP.md`
 
 ## Manual Smoke Guidance
 
