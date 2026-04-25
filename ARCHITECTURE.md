@@ -58,7 +58,7 @@ Design intent:
 - Hierarchy is explicit via `NodeInstance.parent_node_id` and per-view `scope_path`.
 - Undo/redo is managed by `RuntimeGraphHistory` snapshots.
 - Packet-owned runs build `RuntimeSnapshot` payloads before crossing into the worker process; `project_path` is retained only as artifact-resolution context.
-- Serializer/current-schema validation keeps persisted projects deterministic at `SCHEMA_VERSION = 3`, including passive visual metadata and project-local `metadata.ui.passive_style_presets`; pre-current documents require an offline conversion before load.
+- Serializer/current-schema validation keeps persisted projects deterministic at `SCHEMA_VERSION = 4`, including passive visual metadata and project-local `metadata.ui.passive_style_presets`; pre-current documents require an offline conversion before load.
 
 ## Shell/scene boundary ownership
 
@@ -67,9 +67,9 @@ Design intent:
 - `shellWorkspaceBridge` owns workspace tabs, title/run/console state, and other shell-chrome workflows that belong to the main shell rather than the scene bridge.
 - `shellInspectorBridge` owns inspector-facing selection metadata, property-edit affordances, and exposed-port presentation for inspector QML surfaces.
 - `addonManagerBridge`, `contentFullscreenBridge`, `viewerSessionBridge`, `viewerHostService`, `scriptEditorBridge`, `scriptHighlighterBridge`, `statusEngine`, `statusJobs`, `statusMetrics`, `statusNotifications`, and `helpBridge` are all first-class shell-owned context surfaces now bound from `ea_node_editor.ui.shell.composition`.
-- `graphCanvasStateBridge` owns the scene payloads, selection lookup, execution overlays, and graphics flags consumed by `GraphCanvas.qml`.
+- `graphCanvasStateBridge` publishes the focused state surface consumed by `GraphCanvas.qml` by proxying scene payloads, selection lookup, execution overlays, and graphics flags from their owning sources.
 - `graphCanvasViewBridge` (the `ViewportBridge` context property) owns camera/view state consumed directly by `GraphCanvas.qml` and `GraphCanvasRootLayers.qml`.
-- `graphCanvasCommandBridge` owns scene/view mutations, scope-open/property-browse requests, drop/connect flows, and connection quick-insert requests flowing back into `ShellWindow`.
+- `graphCanvasCommandBridge` owns scene/view mutations, property-browse requests, drop/connect flows, and connection quick-insert requests flowing back into `ShellWindow`; scope-open flows prefer `GraphActionBridge` and keep the command bridge as the low-level fallback.
 - `GraphCanvas.qml` still exposes the stable root contract methods used by shell/drop workflows (`toggleMinimapExpanded()`, `clearLibraryDropPreview()`, `updateLibraryDropPreview()`, `isPointInCanvas()`, `performLibraryDrop()`).
 - `ShellWindow.graph_canvas_bridge` is a host-only edge adapter for construction and test seams. Packet-owned QML receives focused state, command, view, and action bridges directly instead of an aggregate canvas context property.
 - `GraphSceneBridge` remains the stable public scene contract for node/edge payloads and QML-invokable scene slots, but internal responsibility is split behind helper seams in `GraphSceneScopeSelection`, `GraphSceneMutationHistory`, and `GraphScenePayloadBuilder`.
@@ -80,7 +80,7 @@ Design intent:
 
 - The canonical high-level graph action route is `shortcut/menu/QML event -> GraphActionBridge or PyQt action dispatch -> GraphActionController -> existing behavior owner`.
 - `GraphActionController` is the single coordinator for user-facing graph verbs such as copy, cut, paste, duplicate, delete, grouping, alignment, scope navigation, comment-backdrop wrapping, node style commands, node rename/help, custom workflow publishing, comment peek, and flow-edge style or removal commands.
-- QML context-menu and node-delegate actions call `graphActionBridge.trigger_graph_action(actionId, payload)`. The bridge maps stable QML action IDs through `ea_node_editor.ui.shell.graph_action_contracts` and delegates to `GraphActionController`.
+- QML context-menu graph verbs and node-delegate graph verbs call `graphActionBridge.trigger_graph_action(actionId, payload)`. The bridge maps stable QML action IDs through `ea_node_editor.ui.shell.graph_action_contracts` and delegates to `GraphActionController`; surface-local delegate actions can still fall through to the loaded surface.
 - PyQt menus, shortcuts, and host request slots dispatch through `ea_node_editor.ui.shell.window_actions` and `ea_node_editor.ui.shell.window_state.workspace_graph_actions`, then converge on the same controller instead of carrying parallel behavior.
 - `GraphActionController` does not own the behavior implementation. It selects the established owner for each verb: workspace graph-edit controllers for selection/subgraph operations, graph canvas presenters for scope entry and host actions, `GraphSceneBridge` for comment-peek state, and the help or add-on bridges for their shell-owned surfaces.
 - Low-level canvas operations stay outside the graph action controller. Selection mechanics, marquee hit testing, node movement, node resize, geometry commits, viewport pan/zoom, port drag/connect/drop flows, inline property and port-label commits, cursor-shape changes, quick-insert overlay placement, and direct scene policy checks continue to live in `GraphCanvasCommandBridge`, `GraphCanvasStateBridge`, `ViewportBridge`, `GraphSceneBridge`, and their helper modules.
@@ -139,7 +139,7 @@ Design intent:
 ## Current focused contracts
 
 - Focused bridges are the QML source contract: shell, graph-canvas state, graph-canvas commands, viewport, graph actions, add-on manager, content fullscreen, viewer session/host, script, theme, status, and help surfaces are exported explicitly from `ea_node_editor.ui.shell.composition`.
-- Persistence is current-schema-only for ordinary app load. The serializer normalizes `SCHEMA_VERSION = 3` documents and rejects older schema versions rather than keeping in-app migration hooks active.
+- Persistence is current-schema-only for ordinary app load. The serializer normalizes `SCHEMA_VERSION = 4` documents and rejects older schema versions rather than keeping in-app migration hooks active.
 - Plugin and add-on loading is descriptor-only: current modules publish `PLUGIN_DESCRIPTORS`, `PLUGIN_BACKENDS`, package descriptors, entry-point descriptors, or repo-local add-on records with provenance.
 - Runtime execution uses snapshot-only worker payloads. `RuntimeSnapshot` is mandatory at the protocol boundary; `project_path` remains artifact-resolution context, not a rebuild source.
 - Viewer state crosses process and UI boundaries through typed transport/session fields (`backend_id`, `transport`, `transport_revision`, live-open status, and blocker state). Raw DPF/PyVista/VTK objects stay worker-local or widget-local.
@@ -293,7 +293,7 @@ flowchart LR
     SER --> MIG[JsonProjectMigration]
     SER --> CODEC[JsonProjectCodec]
     SER --> SFE[(.sfe project files)]
-    SESS --> LAST[(recent_session.json envelope)]
+    SESS --> LAST[(last_session.json envelope)]
     SESS --> AUTO[(autosave.sfe)]
 
     SW --> REG[NodeRegistry]
@@ -513,7 +513,7 @@ sequenceDiagram
 - Runtime payload contract:
 - `RuntimeSnapshot` is the run payload across the client/worker boundary, `project_doc` is rejected at the client/protocol boundary, and `project_path` is artifact context only.
 - Persistence contract:
-- schema-versioned `.sfe` JSON (`SCHEMA_VERSION = 3`) normalized before model construction, `ProjectDocumentSnapshot` fingerprints for session/autosave tracking, and workspace persistence envelopes for unavailable add-on projections, unresolved edges, and authored node overrides.
+- schema-versioned `.sfe` JSON (`SCHEMA_VERSION = 4`) normalized before model construction, `ProjectDocumentSnapshot` fingerprints for session/autosave tracking, and workspace persistence envelopes for unavailable add-on projections, unresolved edges, and authored node overrides.
 - App preferences contract:
 - versioned `app_preferences.json` (`kind = "ea-node-editor/app-preferences"`, `version = 2`) containing graphics defaults plus `graph_theme = {follow_shell_theme, selected_theme_id, custom_themes}` separate from project/session persistence.
 - Custom workflow contract:
