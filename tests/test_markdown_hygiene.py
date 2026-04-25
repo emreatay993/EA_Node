@@ -194,6 +194,42 @@ class MarkdownHygieneTests(unittest.TestCase):
         self.assertEqual([], self.checker.audit_markdown_file(spec_index_path, REPO_ROOT))
         self.assertEqual([], self.checker.audit_markdown_file(matrix_path, REPO_ROOT))
 
+    def test_readme_getting_started_and_spec_index_link_corex_clean_architecture_restructure_matrix(
+        self,
+    ) -> None:
+        readme_path = REPO_ROOT / "README.md"
+        readme_text = readme_path.read_text(encoding="utf-8-sig")
+        getting_started_path = REPO_ROOT / "docs" / "GETTING_STARTED.md"
+        getting_started_text = getting_started_path.read_text(encoding="utf-8-sig")
+        spec_index_path = REPO_ROOT / "docs" / "specs" / "INDEX.md"
+        spec_index_text = spec_index_path.read_text(encoding="utf-8-sig")
+        matrix_path = (
+            REPO_ROOT
+            / "docs"
+            / "specs"
+            / "perf"
+            / "COREX_CLEAN_ARCHITECTURE_RESTRUCTURE_QA_MATRIX.md"
+        )
+        matrix_text = matrix_path.read_text(encoding="utf-8-sig")
+
+        self.assertIn(
+            "[COREX Clean Architecture Restructure QA Matrix](docs/specs/perf/COREX_CLEAN_ARCHITECTURE_RESTRUCTURE_QA_MATRIX.md)",
+            readme_text,
+        )
+        self.assertIn(
+            "[docs/specs/perf/COREX_CLEAN_ARCHITECTURE_RESTRUCTURE_QA_MATRIX.md](./specs/perf/COREX_CLEAN_ARCHITECTURE_RESTRUCTURE_QA_MATRIX.md)",
+            getting_started_text,
+        )
+        self.assertIn(
+            "[COREX_CLEAN_ARCHITECTURE_RESTRUCTURE QA Matrix](perf/COREX_CLEAN_ARCHITECTURE_RESTRUCTURE_QA_MATRIX.md)",
+            spec_index_text,
+        )
+        self.assertTrue(matrix_text.startswith("# COREX Clean Architecture Restructure QA Matrix"))
+        self.assertEqual([], self.checker.audit_markdown_file(readme_path, REPO_ROOT))
+        self.assertEqual([], self.checker.audit_markdown_file(getting_started_path, REPO_ROOT))
+        self.assertEqual([], self.checker.audit_markdown_file(spec_index_path, REPO_ROOT))
+        self.assertEqual([], self.checker.audit_markdown_file(matrix_path, REPO_ROOT))
+
     def test_architecture_registers_plan_template_and_overlay(self) -> None:
         architecture_text = (REPO_ROOT / "ARCHITECTURE.md").read_text(encoding="utf-8-sig")
 
