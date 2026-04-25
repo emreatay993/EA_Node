@@ -26,6 +26,8 @@ from ea_node_editor.nodes.builtins.integrations import (
     PathPointerNodePlugin,
 )
 from ea_node_editor.nodes.builtins.integrations_file_io import (
+    FILE_IO_NODE_DESCRIPTORS,
+    FolderExplorerNodePlugin,
     _PATH_POINTER_CHAR_WIDTH_PX,
     _PATH_POINTER_MAX_WIDTH_PX,
     _PATH_POINTER_WIDTH_CHROME_PX,
@@ -332,6 +334,69 @@ class PathPointerNodeTests(unittest.TestCase):
         self.assertEqual(show_full.default, False)
         self.assertEqual(show_full.inspector_editor, "toggle")
         self.assertEqual(show_full.group, "Source")
+
+
+class FolderExplorerNodeTests(unittest.TestCase):
+    """Tests for the passive ``io.folder_explorer`` node contract."""
+
+    def test_folder_explorer_registered_in_file_io_descriptor_chain(self) -> None:
+        descriptor_type_ids = {descriptor.spec.type_id for descriptor in FILE_IO_NODE_DESCRIPTORS}
+        self.assertIn("io.folder_explorer", descriptor_type_ids)
+
+        registry = build_default_registry()
+        spec = registry.spec_or_none("io.folder_explorer")
+        self.assertIsNotNone(spec)
+        self.assertEqual(spec.type_id, "io.folder_explorer")
+        self.assertEqual(spec.display_name, "Folder Explorer")
+        self.assertEqual(spec.category_path, ("Input / Output",))
+        self.assertEqual(spec.runtime_behavior, "passive")
+        self.assertEqual(spec.icon, "integrations/folder.svg")
+        self.assertTrue(spec.show_title_icon)
+
+        self.assertEqual(len(spec.ports), 1)
+        current_port = spec.ports[0]
+        self.assertEqual(current_port.key, "current")
+        self.assertEqual(current_port.direction, "out")
+        self.assertEqual(current_port.kind, "data")
+        self.assertEqual(current_port.data_type, "path")
+        self.assertTrue(current_port.exposed)
+
+        self.assertEqual(len(spec.properties), 1)
+        current_path = spec.properties[0]
+        self.assertEqual(current_path.key, "current_path")
+        self.assertEqual(current_path.type, "path")
+        self.assertEqual(current_path.default, "")
+        self.assertEqual(current_path.inline_editor, "path")
+        self.assertEqual(current_path.inspector_editor, "path")
+        self.assertEqual(current_path.group, "Source")
+
+    def test_folder_explorer_outputs_current_folder_path(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            result = FolderExplorerNodePlugin().execute(
+                _context(properties={"current_path": temp_dir})
+            )
+        self.assertEqual(result.outputs, {"current": temp_dir})
+
+    def test_folder_explorer_rejects_missing_or_non_folder_paths(self) -> None:
+        with self.assertRaises(ValueError) as empty_error:
+            FolderExplorerNodePlugin().execute(_context(properties={"current_path": ""}))
+        self.assertIn("non-empty folder path", str(empty_error.exception).lower())
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            missing = Path(temp_dir) / "missing"
+            with self.assertRaises(FileNotFoundError) as missing_error:
+                FolderExplorerNodePlugin().execute(
+                    _context(properties={"current_path": str(missing)})
+                )
+            self.assertIn("does not exist", str(missing_error.exception).lower())
+
+            file_path = Path(temp_dir) / "file.txt"
+            file_path.write_text("not a folder", encoding="utf-8")
+            with self.assertRaises(ValueError) as file_error:
+                FolderExplorerNodePlugin().execute(
+                    _context(properties={"current_path": str(file_path)})
+                )
+            self.assertIn("folder", str(file_error.exception).lower())
 
 
 class PathPointerWidthResolverTests(unittest.TestCase):

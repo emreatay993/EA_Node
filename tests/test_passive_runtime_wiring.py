@@ -217,6 +217,52 @@ class PassiveRuntimeWiringTests(unittest.TestCase):
         self.assertNotIn(passive.node_id, {node.node_id for node in compiled.nodes})
         self.assertEqual(compile_workspace_document(workspace_doc, registry=registry), compiled.to_document())
 
+    def test_folder_explorer_is_excluded_from_runtime_execution_edges(self) -> None:
+        registry = build_default_registry()
+        serializer = JsonProjectSerializer(registry)
+        model = GraphModel()
+        workspace = model.active_workspace
+
+        start = model.add_node(workspace.workspace_id, "core.start", "Start", 0.0, 0.0)
+        folder = model.add_node(
+            workspace.workspace_id,
+            "io.folder_explorer",
+            "Folder Explorer",
+            160.0,
+            120.0,
+            properties={"current_path": r"C:\fixtures"},
+        )
+        reader = model.add_node(workspace.workspace_id, "io.file_read", "File Read", 360.0, 0.0)
+        end = model.add_node(workspace.workspace_id, "core.end", "End", 560.0, 0.0)
+
+        model.add_edge(workspace.workspace_id, folder.node_id, "current", reader.node_id, "path")
+        model.add_edge(workspace.workspace_id, start.node_id, "exec_out", reader.node_id, "exec_in")
+        model.add_edge(workspace.workspace_id, reader.node_id, "exec_out", end.node_id, "exec_in")
+
+        workspace_doc = serializer.to_document(model.project)["workspaces"][0]
+        compiled = compile_runtime_workspace(workspace_doc, registry=registry)
+
+        compiled_node_ids = {node.node_id for node in compiled.nodes}
+        self.assertEqual(compiled_node_ids, {start.node_id, reader.node_id, end.node_id})
+        self.assertNotIn(folder.node_id, compiled_node_ids)
+        self.assertCountEqual(
+            [edge.to_document() for edge in compiled.edges],
+            [
+                {
+                    "source_node_id": start.node_id,
+                    "source_port_key": "exec_out",
+                    "target_node_id": reader.node_id,
+                    "target_port_key": "exec_in",
+                },
+                {
+                    "source_node_id": reader.node_id,
+                    "source_port_key": "exec_out",
+                    "target_node_id": end.node_id,
+                    "target_port_key": "exec_in",
+                },
+            ],
+        )
+
     def test_build_runtime_snapshot_matches_runtime_document_without_serializer_round_trip_and_compiles_active_workspace(
         self,
     ) -> None:
