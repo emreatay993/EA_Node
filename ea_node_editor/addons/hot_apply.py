@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Protocol
 
 from ea_node_editor.addons.catalog import (
     invalidate_addon_runtime_caches,
@@ -33,6 +33,54 @@ class AddOnApplyResult:
     restart_required: bool
     preferences_document: dict[str, Any]
     registry: "NodeRegistry | None" = None
+
+
+class AddOnRuntimeCoordinator(Protocol):
+    def rebuild_after_addon_apply(
+        self,
+        *,
+        addon_id: str,
+        preferences_document: Any,
+        app_preferences_store: AppPreferencesStore | None = None,
+        extra_plugin_dirs: list["Path"] | None = None,
+    ) -> "NodeRegistry":
+        ...
+
+
+@dataclass(slots=True)
+class AddOnRuntimeRebuildCoordinator:
+    graph_scene_bridge: "GraphSceneBridge | None" = None
+    worker_services: "WorkerServices | None" = None
+    viewer_host_service: "ViewerHostService | None" = None
+    on_registry_rebuilt: Callable[["NodeRegistry"], None] | None = None
+
+    def rebuild_after_addon_apply(
+        self,
+        *,
+        addon_id: str,
+        preferences_document: Any,
+        app_preferences_store: AppPreferencesStore | None = None,
+        extra_plugin_dirs: list["Path"] | None = None,
+    ) -> "NodeRegistry":
+        normalized_document = normalize_app_preferences_document(preferences_document)
+        invalidate_addon_runtime_caches(addon_id)
+        rebuilt_registry = build_default_registry(
+            extra_plugin_dirs=extra_plugin_dirs,
+            app_preferences_store=app_preferences_store,
+            preferences_document=normalized_document,
+        )
+        if callable(self.on_registry_rebuilt):
+            self.on_registry_rebuilt(rebuilt_registry)
+        if self.graph_scene_bridge is not None:
+            self.graph_scene_bridge.rebuild_registry(rebuilt_registry)
+        if self.worker_services is not None:
+            self.worker_services.rebuild_addon_runtime(preferences_document=normalized_document)
+        if self.viewer_host_service is not None:
+            self.viewer_host_service.rebuild_addon_binders(
+                preferences_document=normalized_document,
+                reason=f"addon_apply:{addon_id}",
+            )
+        return rebuilt_registry
 
 
 def persist_addon_enabled_state(
@@ -91,6 +139,7 @@ def rebuild_hot_apply_runtime(
     worker_services: "WorkerServices | None" = None,
     viewer_host_service: "ViewerHostService | None" = None,
     on_registry_rebuilt: Callable[["NodeRegistry"], None] | None = None,
+    runtime_coordinator: AddOnRuntimeCoordinator | None = None,
 ) -> "NodeRegistry":
     registration = registered_addon_registration_by_id(addon_id)
     if registration is None:
@@ -99,24 +148,18 @@ def rebuild_hot_apply_runtime(
         raise ValueError(f"Add-on {addon_id!r} requires restart and cannot be hot-applied")
 
     normalized_document = normalize_app_preferences_document(preferences_document)
-    invalidate_addon_runtime_caches(registration.manifest.addon_id)
-    rebuilt_registry = build_default_registry(
-        extra_plugin_dirs=extra_plugin_dirs,
-        app_preferences_store=app_preferences_store,
-        preferences_document=normalized_document,
+    coordinator = runtime_coordinator or AddOnRuntimeRebuildCoordinator(
+        graph_scene_bridge=graph_scene_bridge,
+        worker_services=worker_services,
+        viewer_host_service=viewer_host_service,
+        on_registry_rebuilt=on_registry_rebuilt,
     )
-    if callable(on_registry_rebuilt):
-        on_registry_rebuilt(rebuilt_registry)
-    if graph_scene_bridge is not None:
-        graph_scene_bridge.rebuild_registry(rebuilt_registry)
-    if worker_services is not None:
-        worker_services.rebuild_addon_runtime(preferences_document=normalized_document)
-    if viewer_host_service is not None:
-        viewer_host_service.rebuild_addon_binders(
-            preferences_document=normalized_document,
-            reason=f"addon_apply:{registration.manifest.addon_id}",
-        )
-    return rebuilt_registry
+    return coordinator.rebuild_after_addon_apply(
+        addon_id=registration.manifest.addon_id,
+        preferences_document=normalized_document,
+        app_preferences_store=app_preferences_store,
+        extra_plugin_dirs=extra_plugin_dirs,
+    )
 
 
 def apply_addon_enabled_state(
@@ -130,6 +173,7 @@ def apply_addon_enabled_state(
     worker_services: "WorkerServices | None" = None,
     viewer_host_service: "ViewerHostService | None" = None,
     on_registry_rebuilt: Callable[["NodeRegistry"], None] | None = None,
+    runtime_coordinator: AddOnRuntimeCoordinator | None = None,
 ) -> AddOnApplyResult:
     preferences_store = app_preferences_store
     if preferences_store is None and preferences_document is None:
@@ -154,6 +198,7 @@ def apply_addon_enabled_state(
         worker_services=worker_services,
         viewer_host_service=viewer_host_service,
         on_registry_rebuilt=on_registry_rebuilt,
+        runtime_coordinator=runtime_coordinator,
     )
     return AddOnApplyResult(
         addon_id=persisted.addon_id,
@@ -167,6 +212,8 @@ def apply_addon_enabled_state(
 
 __all__ = [
     "AddOnApplyResult",
+    "AddOnRuntimeCoordinator",
+    "AddOnRuntimeRebuildCoordinator",
     "apply_addon_enabled_state",
     "persist_addon_enabled_state",
     "rebuild_hot_apply_runtime",
