@@ -776,16 +776,16 @@
   .hint{
     position: absolute; bottom: 8px; left: 12px;
     font-size: 10.5px; color: var(--text-mute);
-    background: rgba(21,23,27,0.8);
+    background: var(--surface-raised);
     padding: 4px 8px; border-radius: 4px;
-    border: 1px solid #2a2d33;
+    border: 1px solid var(--section-border);
     pointer-events: none;
   }
   .hint kbd{
     font-family: var(--mono);
-    background: #2a2d33; padding: 1px 5px; border-radius: 3px;
+    background: var(--surface-hover); padding: 1px 5px; border-radius: 3px;
     color: var(--text); font-size: 10px;
-    border: 1px solid #3a3d45;
+    border: 1px solid var(--card-border);
     margin: 0 2px;
   }
 
@@ -798,6 +798,10 @@
 <header class="topbar">
   <span class="dot"></span>
   <h1>EA Node Editor — Add Comment · 8 interactive mockups</h1>
+  <button class="theme-toggle" id="themeToggle" onclick="toggleTheme()" title="Switch theme">
+    <span class="tswatch"></span>
+    <span id="themeLabel">Stitch Dark</span>
+  </button>
   <nav class="mockupnav">
     <a href="#m1">1 · Sticky note</a>
     <a href="#m2">2 · Popover</a>
@@ -979,7 +983,7 @@
 
     <div class="comment-peek" id="peek3" style="left: 630px; top: 105px;">
       <div class="author">emre · 2h ago</div>
-      This script depends on <code style="font-family:var(--mono);color:var(--port-data);background:#15171b;padding:1px 4px;border-radius:3px">pandas ≥ 2.1</code>. Update the requirements before shipping to the runner image.
+      This script depends on <code style="font-family:var(--mono);color:var(--port-data);background:var(--input-bg);padding:1px 4px;border-radius:3px">pandas ≥ 2.1</code>. Update the requirements before shipping to the runner image.
     </div>
 
     <div class="hint">Hover the 💬 badge to peek, click to open the full editor</div>
@@ -1024,11 +1028,11 @@
           <span style="font-size:11px;color:var(--comment);font-weight:600;letter-spacing:.3px">COMMENTS · 2</span>
           <button class="btn ghost" style="margin-left:auto;padding:2px 6px;font-size:11px" title="New comment">+</button>
         </div>
-        <div style="background:#15171b;border-radius:5px;padding:7px 9px;font-size:11.5px;line-height:1.5;margin-bottom:6px">
+        <div style="background:var(--input-bg);border:1px solid var(--input-border);border-radius:5px;padding:7px 9px;font-size:11.5px;line-height:1.5;margin-bottom:6px">
           <div style="font-size:10px;color:var(--port-data);font-weight:600;margin-bottom:2px">emre · yesterday</div>
           Truncates large payloads silently — consider chunking.
         </div>
-        <div style="background:#15171b;border-radius:5px;padding:7px 9px;font-size:11.5px;line-height:1.5">
+        <div style="background:var(--input-bg);border:1px solid var(--input-border);border-radius:5px;padding:7px 9px;font-size:11.5px;line-height:1.5">
           <div style="font-size:10px;color:var(--accent-physics);font-weight:600;margin-bottom:2px">alex · 2h ago</div>
           +1 on chunking. <span style="color:var(--comment);cursor:pointer">@emre</span> mind pairing on this?
         </div>
@@ -1085,7 +1089,7 @@
 
     <div class="bubble" style="left: 450px; top: 150px;">
       <div class="av"><span class="dot"></span>emre</div>
-      Convergence is tight — tolerance <code style="font-family:var(--mono);color:var(--port-data)">1e-6</code> is overkill for this model. Consider <code style="font-family:var(--mono);color:var(--port-data)">1e-4</code> to halve runtime.
+      Convergence is tight — tolerance <code style="font-family:var(--mono);color:var(--port-data);background:var(--input-bg);padding:1px 4px;border-radius:3px">1e-6</code> is overkill for this model. Consider <code style="font-family:var(--mono);color:var(--port-data);background:var(--input-bg);padding:1px 4px;border-radius:3px">1e-4</code> to halve runtime.
     </div>
 
     <div class="bubble" style="left: 450px; top: 250px;">
@@ -1145,7 +1149,7 @@
           <div class="avatar b">AK</div>
           <div class="mb">
             <span class="name">alex</span><span class="time">1h</span>
-            <div class="text">Yes — I'll add a <code style="font-family:var(--mono);color:var(--port-data);background:#15171b;padding:1px 4px;border-radius:3px">memoize=true</code> flag on the next pass.</div>
+            <div class="text">Yes — I'll add a <code style="font-family:var(--mono);color:var(--port-data);background:var(--input-bg);padding:1px 4px;border-radius:3px">memoize=true</code> flag on the next pass.</div>
             <span class="rxn">❤️ 1</span>
           </div>
         </div>
@@ -1226,7 +1230,7 @@ See spec: [writing-files.md](#)</div>
       </div>
       <div class="mdfoot">
         <span>Markdown · autosaved</span>
-        <span><kbd style="font-family:var(--mono);background:#2a2d33;padding:1px 5px;border-radius:3px;font-size:10px">⌘↵</kbd> save · <kbd style="font-family:var(--mono);background:#2a2d33;padding:1px 5px;border-radius:3px;font-size:10px">Esc</kbd> close</span>
+        <span><kbd style="font-family:var(--mono);background:var(--surface-hover);color:var(--text);padding:1px 5px;border-radius:3px;font-size:10px;border:1px solid var(--card-border)">⌘↵</kbd> save · <kbd style="font-family:var(--mono);background:var(--surface-hover);color:var(--text);padding:1px 5px;border-radius:3px;font-size:10px;border:1px solid var(--card-border)">Esc</kbd> close</span>
       </div>
     </div>
 
@@ -1293,7 +1297,7 @@ See spec: [writing-files.md](#)</div>
           <div class="pitem" data-pid="1" onclick="selectPin(1)"><span class="mini">1</span>Start · "needs timeout"</div>
           <div class="pitem active" data-pid="2" onclick="selectPin(2)"><span class="mini">2</span>Excel Read · "path resolution"</div>
           <div class="pitem" data-pid="3" onclick="selectPin(3)"><span class="mini">3</span>Branch · "cache condition"</div>
-          <div class="pitem" data-pid="0" style="color:var(--text-mute);margin-top:4px" onclick="void(0)"><span class="mini" style="background:#3a3d45;color:var(--text-mute)">+</span>New comment…</div>
+          <div class="pitem" data-pid="0" style="color:var(--text-mute);margin-top:4px" onclick="void(0)"><span class="mini" style="background:var(--card-border);color:var(--text-mute)">+</span>New comment…</div>
         </div>
         <div class="pdetail" id="pinDetail">
           <!-- filled by JS -->
@@ -1306,6 +1310,23 @@ See spec: [writing-files.md](#)</div>
 </section>
 
 <script>
+  /* ---------- theme toggle ---------- */
+  function applyTheme(t){
+    document.documentElement.setAttribute('data-theme', t);
+    const lbl = document.getElementById('themeLabel');
+    if(lbl) lbl.textContent = (t === 'light') ? 'Stitch Light' : 'Stitch Dark';
+    try{ localStorage.setItem('ea_mockup_theme', t); }catch(e){}
+  }
+  function toggleTheme(){
+    const cur = document.documentElement.getAttribute('data-theme') || 'dark';
+    applyTheme(cur === 'dark' ? 'light' : 'dark');
+  }
+  (function initTheme(){
+    let saved = 'dark';
+    try{ saved = localStorage.getItem('ea_mockup_theme') || 'dark'; }catch(e){}
+    applyTheme(saved);
+  })();
+
   /* ---------- helpers ---------- */
   function closeAllMenus(){
     document.querySelectorAll('.qmenu').forEach(m => m.classList.add('hidden'));
@@ -1370,9 +1391,9 @@ See spec: [writing-files.md](#)</div>
   /* ---------- [8] pin selection ---------- */
   const pinData = {
     1: { title: 'Start · needs timeout', author: 'emre', time: 'yesterday',
-         body: 'If the upstream producer hangs, the whole workflow hangs. We should add a <code style="font-family:var(--mono);background:#15171b;padding:1px 4px;border-radius:3px;color:var(--port-data)">timeout_s</code> parameter to the Start node (default 60s).' },
+         body: 'If the upstream producer hangs, the whole workflow hangs. We should add a <code style="font-family:var(--mono);background:var(--input-bg);padding:1px 4px;border-radius:3px;color:var(--port-data)">timeout_s</code> parameter to the Start node (default 60s).' },
     2: { title: 'Excel Read · path resolution', author: 'alex', time: '2h ago',
-         body: 'Path is relative to <code style="font-family:var(--mono);background:#15171b;padding:1px 4px;border-radius:3px;color:var(--port-data)">project.root</code>, not CWD — that bit me last week. Worth documenting in the tooltip.' },
+         body: 'Path is relative to <code style="font-family:var(--mono);background:var(--input-bg);padding:1px 4px;border-radius:3px;color:var(--port-data)">project.root</code>, not CWD — that bit me last week. Worth documenting in the tooltip.' },
     3: { title: 'Branch · cache condition', author: 'emre', time: '10m ago',
          body: 'The condition gets evaluated twice per tick. Caching would save ~3ms per branch on the hot path. <span style="color:var(--comment)">@alex</span> thoughts?' },
   };
