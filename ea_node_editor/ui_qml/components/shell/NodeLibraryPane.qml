@@ -5,7 +5,7 @@ import QtQuick.Layouts 1.15
 ShellCollapsibleSidePane {
     id: root
     objectName: "libraryPane"
-    readonly property var shellLibraryBridgeRef: shellLibraryBridge
+    property var shellLibraryBridgeRef: typeof shellLibraryBridge !== "undefined" ? shellLibraryBridge : null
     property var graphCanvasRef
     property var popupHostItem
     property var collapsedCategories: ({})

@@ -833,7 +833,8 @@ class ShellWorkspaceBridgeQmlBoundaryTests(unittest.TestCase):
                     "mainWindowRef.project_display_name",
                 ),
                 (
-                    "readonly property var workspaceBridgeRef: shellWorkspaceBridge",
+                    "property var workspaceBridgeRef:",
+                    "property var themeBridgeRef:",
                     "root.workspaceBridgeRef.project_display_name",
                 ),
             ),
@@ -849,7 +850,8 @@ class ShellWorkspaceBridgeQmlBoundaryTests(unittest.TestCase):
                 (
                     "property var viewBridgeRef",
                     "property var scriptEditorBridgeRef",
-                    "readonly property var workspaceBridgeRef: shellWorkspaceBridge",
+                    "property var workspaceBridgeRef:",
+                    "property var themeBridgeRef:",
                     "root.workspaceBridgeRef.request_run_workflow",
                     "root.workspaceBridgeRef.request_toggle_run_pause",
                     "root.workspaceBridgeRef.request_stop_workflow",
@@ -896,6 +898,7 @@ class ShellWorkspaceBridgeQmlBoundaryTests(unittest.TestCase):
                     "property var overlayHostItem",
                     "property var workspaceBridgeRef",
                     "property var themeBridgeRef",
+                    "property var uiIconsRef:",
                     "root.workspaceBridgeRef.graphics_tab_strip_density",
                     "root.workspaceBridgeRef.active_scope_breadcrumb_items",
                     "root.workspaceBridgeRef.active_view_items",
@@ -931,7 +934,8 @@ class ShellWorkspaceBridgeQmlBoundaryTests(unittest.TestCase):
                 (
                     "property var scriptEditorBridgeRef",
                     "property var scriptHighlighterBridgeRef",
-                    "readonly property var workspaceBridgeRef: shellWorkspaceBridge",
+                    "property var workspaceBridgeRef:",
+                    "property var themeBridgeRef:",
                     "root.workspaceBridgeRef.set_script_editor_panel_visible(false)",
                 ),
             ),
@@ -969,6 +973,12 @@ class ShellWorkspaceBridgeQmlBoundaryTests(unittest.TestCase):
         )
         present_snippets = (
             "readonly property var shellContextRef: shellContext",
+            "readonly property var shellLibraryBridgeRef: root.shellContextRef.shellLibraryBridge",
+            "readonly property var shellWorkspaceBridgeRef: root.shellContextRef.shellWorkspaceBridge",
+            "readonly property var themeBridgeRef: root.shellContextRef.themeBridge",
+            "readonly property var graphThemeBridgeRef: root.shellContextRef.graphThemeBridge",
+            "readonly property var contentFullscreenBridgeRef: root.shellContextRef.contentFullscreenBridge",
+            "readonly property var viewerHostServiceRef: root.shellContextRef.viewerHostService",
             "readonly property var graphActionBridgeRef: root.shellContextRef.graphActionBridge",
             "readonly property var canvasStateBridgeRef: root.shellContextRef.graphCanvasStateBridge",
             "readonly property var canvasCommandBridgeRef: root.shellContextRef.graphCanvasCommandBridge",
@@ -977,15 +987,15 @@ class ShellWorkspaceBridgeQmlBoundaryTests(unittest.TestCase):
             "graphActionBridgeRef: root.graphActionBridgeRef",
             "graphCanvasStateBridgeRef: root.canvasStateBridgeRef",
             "graphCanvasCommandBridgeRef: root.canvasCommandBridgeRef",
-            "workspaceBridgeRef: root.shellContextRef.shellWorkspaceBridge",
-            "themeBridgeRef: root.shellContextRef.themeBridge",
+            "workspaceBridgeRef: root.shellWorkspaceBridgeRef",
+            "themeBridgeRef: root.themeBridgeRef",
             "overlayHostItem: root",
             "viewBridgeRef: root.canvasViewBridgeRef",
             "ShellStatusStrip {",
             "canvasStateBridgeRef: root.canvasStateBridgeRef",
             "canvasCommandBridgeRef: root.canvasCommandBridgeRef",
-            "scriptEditorBridgeRef: root.shellContextRef.scriptEditorBridge",
-            "scriptHighlighterBridgeRef: root.shellContextRef.scriptHighlighterBridge",
+            "scriptEditorBridgeRef: root.scriptEditorBridgeRef",
+            "scriptHighlighterBridgeRef: root.scriptHighlighterBridgeRef",
         )
 
         _assert_text_snippets(
@@ -995,6 +1005,17 @@ class ShellWorkspaceBridgeQmlBoundaryTests(unittest.TestCase):
             absent_snippets=absent_snippets,
             present_snippets=present_snippets,
         )
+
+    def test_migrated_shell_components_do_not_reach_shell_context_directly(self) -> None:
+        shell_component_root = _REPO_ROOT / "ea_node_editor/ui_qml/components/shell"
+        for qml_path in shell_component_root.glob("*.qml"):
+            qml_text = qml_path.read_text(encoding="utf-8")
+            _assert_text_snippets(
+                self,
+                label=qml_path.relative_to(_REPO_ROOT).as_posix(),
+                text=qml_text,
+                absent_snippets=("shellContext",),
+            )
 
 
 class GraphCanvasQmlBoundaryTests(unittest.TestCase):

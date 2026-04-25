@@ -3,12 +3,12 @@ import QtQuick.Controls 2.15
 
 ToolButton {
     id: control
-    readonly property var themePalette: themeBridge.palette
+    property var themeBridgeRef: typeof themeBridge !== "undefined" ? themeBridge : null
+    property var graphCanvasStateBridgeRef: typeof graphCanvasStateBridge !== "undefined" ? graphCanvasStateBridge : null
+    readonly property var themePalette: control.themeBridgeRef ? control.themeBridgeRef.palette : ({})
     property string tooltipText: text
     function _tooltipBridge() {
-        if (typeof graphCanvasStateBridge !== "undefined" && graphCanvasStateBridge)
-            return graphCanvasStateBridge;
-        return null;
+        return control.graphCanvasStateBridgeRef;
     }
     readonly property bool informationalTooltipsEnabled: {
         var bridge = control._tooltipBridge();

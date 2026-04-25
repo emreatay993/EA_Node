@@ -22,7 +22,10 @@ RowLayout {
     property int testWheelHorizontalDelta: 0
     property int testWheelVerticalDelta: 0
     property bool testWheelShiftHeld: false
-    readonly property var themePalette: themeBridge.palette
+    property var themeBridgeRef: typeof themeBridge !== "undefined" ? themeBridge : null
+    property var graphCanvasStateBridgeRef: typeof graphCanvasStateBridge !== "undefined" ? graphCanvasStateBridge : null
+    property var uiIconsRef: typeof uiIcons !== "undefined" ? uiIcons : null
+    readonly property var themePalette: root.themeBridgeRef ? root.themeBridgeRef.palette : ({})
     readonly property bool compactDensity: String(root.densityPreset).toLowerCase() === "compact"
     readonly property int contextMenuRowHeight: 29
     readonly property int titleFontSize: root.compactDensity ? 8 : 10
@@ -360,6 +363,9 @@ RowLayout {
             ShellButton {
                 id: scrollBackwardButton
                 objectName: "tabStripScrollBackwardButton"
+                themeBridgeRef: root.themeBridgeRef
+                graphCanvasStateBridgeRef: root.graphCanvasStateBridgeRef
+                uiIconsRef: root.uiIconsRef
                 Layout.alignment: Qt.AlignVCenter
                 Layout.preferredWidth: root.tabsOverflowActive ? root.overflowButtonSize : 0
                 Layout.maximumWidth: root.tabsOverflowActive ? root.overflowButtonSize : 0
@@ -447,6 +453,9 @@ RowLayout {
             ShellButton {
                 id: scrollForwardButton
                 objectName: "tabStripScrollForwardButton"
+                themeBridgeRef: root.themeBridgeRef
+                graphCanvasStateBridgeRef: root.graphCanvasStateBridgeRef
+                uiIconsRef: root.uiIconsRef
                 Layout.alignment: Qt.AlignVCenter
                 Layout.preferredWidth: root.tabsOverflowActive ? root.overflowButtonSize : 0
                 Layout.maximumWidth: root.tabsOverflowActive ? root.overflowButtonSize : 0
@@ -464,6 +473,8 @@ RowLayout {
             ShellCreateButton {
                 id: createButton
                 objectName: "tabStripCreateButton"
+                themeBridgeRef: root.themeBridgeRef
+                graphCanvasStateBridgeRef: root.graphCanvasStateBridgeRef
                 Layout.alignment: Qt.AlignVCenter
                 text: root.createButtonText
                 accentOutline: root.createButtonAccentOutline
@@ -647,6 +658,7 @@ RowLayout {
 
         contentItem: ShellContextMenu {
             id: contextActionMenu
+            themeBridgeRef: root.themeBridgeRef
             minimumWidth: 188
             actions: root.contextMenuActions
             onActionTriggered: function(actionId) {

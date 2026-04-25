@@ -3,8 +3,9 @@ import QtQuick.Layouts 1.15
 
 Rectangle {
     id: root
-    readonly property var workspaceBridgeRef: shellWorkspaceBridge
-    readonly property var themePalette: themeBridge.palette
+    property var workspaceBridgeRef: typeof shellWorkspaceBridge !== "undefined" ? shellWorkspaceBridge : null
+    property var themeBridgeRef: typeof themeBridge !== "undefined" ? themeBridge : null
+    readonly property var themePalette: root.themeBridgeRef ? root.themeBridgeRef.palette : ({})
 
     Layout.fillWidth: true
     Layout.preferredHeight: 32

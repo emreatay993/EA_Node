@@ -290,7 +290,7 @@ class MainWindowShellContentFullscreenStaticContractsTests(unittest.TestCase):
         overlay = _packet_file_text(_CONTENT_FULLSCREEN_PACKET_FILES[1])
 
         self.assertIn("ContentFullscreenOverlay", main_shell)
-        self.assertIn("bridgeRef: root.shellContextRef.contentFullscreenBridge", main_shell)
+        self.assertIn("bridgeRef: root.contentFullscreenBridgeRef", main_shell)
         self.assertIn('objectName: "contentFullscreenOverlay"', overlay)
         self.assertIn("readonly property bool bridgeOpen", overlay)
         self.assertIn("root.bridgeRef.open", overlay)

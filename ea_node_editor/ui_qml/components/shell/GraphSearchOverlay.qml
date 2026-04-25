@@ -5,8 +5,11 @@ import QtQuick.Layouts 1.15
 Rectangle {
     id: root
     objectName: "graphSearchOverlay"
-    readonly property var shellLibraryBridgeRef: shellLibraryBridge
-    readonly property var themePalette: themeBridge.palette
+    property var shellLibraryBridgeRef: typeof shellLibraryBridge !== "undefined" ? shellLibraryBridge : null
+    property var themeBridgeRef: typeof themeBridge !== "undefined" ? themeBridge : null
+    property var graphCanvasStateBridgeRef: typeof graphCanvasStateBridge !== "undefined" ? graphCanvasStateBridge : null
+    property var uiIconsRef: typeof uiIcons !== "undefined" ? uiIcons : null
+    readonly property var themePalette: root.themeBridgeRef ? root.themeBridgeRef.palette : ({})
     readonly property var graphSearchScopeOptions: [
         { "scopeId": "title", "label": "Title" },
         { "scopeId": "type", "label": "Node Type" },
@@ -154,6 +157,9 @@ Rectangle {
             ShellButton {
                 id: graphSearchFilterButton
                 objectName: "graphSearchFilterButton"
+                themeBridgeRef: root.themeBridgeRef
+                graphCanvasStateBridgeRef: root.graphCanvasStateBridgeRef
+                uiIconsRef: root.uiIconsRef
                 anchors.verticalCenter: graphSearchField.verticalCenter
                 iconName: "filter"
                 selectedStyle: root.hasSubsetFilter

@@ -5,14 +5,15 @@ import ".." as Components
 
 Rectangle {
     id: root
-    property var workspaceBridgeRef
-    property var themeBridgeRef
+    property var workspaceBridgeRef: typeof shellWorkspaceBridge !== "undefined" ? shellWorkspaceBridge : null
+    property var themeBridgeRef: typeof themeBridge !== "undefined" ? themeBridge : null
     property var graphActionBridgeRef
     property var graphCanvasStateBridgeRef
     property var graphCanvasCommandBridgeRef
     property var overlayHostItem
+    property var uiIconsRef: typeof uiIcons !== "undefined" ? uiIcons : null
     property alias graphCanvasRef: graphCanvas
-    readonly property var themePalette: root.themeBridgeRef.palette
+    readonly property var themePalette: root.themeBridgeRef ? root.themeBridgeRef.palette : ({})
     readonly property string tabStripDensityPreset: String(root.workspaceBridgeRef.graphics_tab_strip_density || "compact")
     readonly property bool compactTabStripDensity: root.tabStripDensityPreset === "compact"
 
@@ -62,6 +63,9 @@ Rectangle {
                             }
 
                             ShellButton {
+                                themeBridgeRef: root.themeBridgeRef
+                                graphCanvasStateBridgeRef: root.graphCanvasStateBridgeRef
+                                uiIconsRef: root.uiIconsRef
                                 text: String(modelData.label || "")
                                 implicitHeight: 22
                                 selectedStyle: index === root.workspaceBridgeRef.active_scope_breadcrumb_items.length - 1
@@ -82,6 +86,9 @@ Rectangle {
                     ShellLabeledTabStrip {
                         id: viewControlsStrip
                         objectName: "viewControlsStrip"
+                        themeBridgeRef: root.themeBridgeRef
+                        graphCanvasStateBridgeRef: root.graphCanvasStateBridgeRef
+                        uiIconsRef: root.uiIconsRef
                         anchors.right: parent.right
                         anchors.verticalCenter: parent.verticalCenter
                         width: Math.max(0, parent.width)
@@ -141,9 +148,12 @@ Rectangle {
                 anchors.rightMargin: 8
                 spacing: 8
 
-                ShellLabeledTabStrip {
-                    id: workspaceControlsStrip
-                    objectName: "workspaceControlsStrip"
+                    ShellLabeledTabStrip {
+                        id: workspaceControlsStrip
+                        objectName: "workspaceControlsStrip"
+                        themeBridgeRef: root.themeBridgeRef
+                        graphCanvasStateBridgeRef: root.graphCanvasStateBridgeRef
+                        uiIconsRef: root.uiIconsRef
                     Layout.fillWidth: true
                     Layout.minimumWidth: 0
                     Layout.alignment: Qt.AlignVCenter
@@ -201,22 +211,34 @@ Rectangle {
                         spacing: 8
 
                         ShellButton {
+                            themeBridgeRef: root.themeBridgeRef
+                            graphCanvasStateBridgeRef: root.graphCanvasStateBridgeRef
+                            uiIconsRef: root.uiIconsRef
                             text: "Output"
                             selectedStyle: consoleTabs.currentIndex === 0
                             onClicked: consoleTabs.currentIndex = 0
                         }
                         ShellButton {
+                            themeBridgeRef: root.themeBridgeRef
+                            graphCanvasStateBridgeRef: root.graphCanvasStateBridgeRef
+                            uiIconsRef: root.uiIconsRef
                             text: "Errors (" + root.workspaceBridgeRef.error_count_value + ")"
                             selectedStyle: consoleTabs.currentIndex === 1
                             onClicked: consoleTabs.currentIndex = 1
                         }
                         ShellButton {
+                            themeBridgeRef: root.themeBridgeRef
+                            graphCanvasStateBridgeRef: root.graphCanvasStateBridgeRef
+                            uiIconsRef: root.uiIconsRef
                             text: "Warnings (" + root.workspaceBridgeRef.warning_count_value + ")"
                             selectedStyle: consoleTabs.currentIndex === 2
                             onClicked: consoleTabs.currentIndex = 2
                         }
                         Item { Layout.fillWidth: true }
                         ShellButton {
+                            themeBridgeRef: root.themeBridgeRef
+                            graphCanvasStateBridgeRef: root.graphCanvasStateBridgeRef
+                            uiIconsRef: root.uiIconsRef
                             text: "Clear"
                             onClicked: root.workspaceBridgeRef.clear_all()
                         }

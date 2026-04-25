@@ -6,10 +6,12 @@ Item {
     id: root
     objectName: "inspectorHelpPane"
 
-    property var themePalette: themeBridge.palette
-    property string titleText: helpBridge.title
-    property string markdownText: helpBridge.markdown
-    property bool hasMarkdown: helpBridge.has_help
+    property var helpBridgeRef: typeof helpBridge !== "undefined" ? helpBridge : null
+    property var themeBridgeRef: typeof themeBridge !== "undefined" ? themeBridge : null
+    property var themePalette: root.themeBridgeRef ? root.themeBridgeRef.palette : ({})
+    property string titleText: root.helpBridgeRef ? root.helpBridgeRef.title : ""
+    property string markdownText: root.helpBridgeRef ? root.helpBridgeRef.markdown : ""
+    property bool hasMarkdown: root.helpBridgeRef ? root.helpBridgeRef.has_help : false
 
     ColumnLayout {
         anchors.fill: parent
@@ -76,8 +78,14 @@ Item {
                     font.pixelSize: 12
                     background: Rectangle { color: "transparent" }
 
-                    Component.onCompleted: helpBridge.apply_document_spacing(textDocument)
-                    onTextChanged: helpBridge.apply_document_spacing(textDocument)
+                    Component.onCompleted: {
+                        if (root.helpBridgeRef)
+                            root.helpBridgeRef.apply_document_spacing(textDocument)
+                    }
+                    onTextChanged: {
+                        if (root.helpBridgeRef)
+                            root.helpBridgeRef.apply_document_spacing(textDocument)
+                    }
                 }
             }
         }

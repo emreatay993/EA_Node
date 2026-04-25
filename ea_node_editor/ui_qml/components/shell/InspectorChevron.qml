@@ -5,6 +5,7 @@ Item {
     property bool open: false
     property color strokeColor: "#d0d5de"
     property int glyphSize: 10
+    property var uiIconsRef: typeof uiIcons !== "undefined" ? uiIcons : null
 
     implicitWidth: glyphSize
     implicitHeight: glyphSize
@@ -19,7 +20,7 @@ Item {
         width: chevron.glyphSize
         height: chevron.glyphSize
         smooth: true
-        source: uiIcons.sourceSized("chevron-down", chevron.glyphSize, String(chevron.strokeColor))
+        source: chevron.uiIconsRef ? chevron.uiIconsRef.sourceSized("chevron-down", chevron.glyphSize, String(chevron.strokeColor)) : ""
         rotation: chevron.open ? 0 : -90
         transformOrigin: Item.Center
 

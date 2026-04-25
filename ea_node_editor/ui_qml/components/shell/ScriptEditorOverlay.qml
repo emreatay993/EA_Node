@@ -5,10 +5,13 @@ import "MainShellUtils.js" as MainShellUtils
 
 Rectangle {
     id: root
-    readonly property var workspaceBridgeRef: shellWorkspaceBridge
+    property var workspaceBridgeRef: typeof shellWorkspaceBridge !== "undefined" ? shellWorkspaceBridge : null
     property var scriptEditorBridgeRef
     property var scriptHighlighterBridgeRef
-    readonly property var themePalette: themeBridge.palette
+    property var themeBridgeRef: typeof themeBridge !== "undefined" ? themeBridge : null
+    property var graphCanvasStateBridgeRef: typeof graphCanvasStateBridge !== "undefined" ? graphCanvasStateBridge : null
+    property var uiIconsRef: typeof uiIcons !== "undefined" ? uiIcons : null
+    readonly property var themePalette: root.themeBridgeRef ? root.themeBridgeRef.palette : ({})
 
     visible: root.scriptEditorBridgeRef.visible
     anchors.right: parent.right
@@ -50,6 +53,9 @@ Rectangle {
                     font.pixelSize: 11
                 }
                 ShellButton {
+                    themeBridgeRef: root.themeBridgeRef
+                    graphCanvasStateBridgeRef: root.graphCanvasStateBridgeRef
+                    uiIconsRef: root.uiIconsRef
                     text: "X"
                     onClicked: root.workspaceBridgeRef.set_script_editor_panel_visible(false)
                 }
@@ -149,11 +155,17 @@ Rectangle {
                 }
                 Item { Layout.fillWidth: true }
                 ShellButton {
+                    themeBridgeRef: root.themeBridgeRef
+                    graphCanvasStateBridgeRef: root.graphCanvasStateBridgeRef
+                    uiIconsRef: root.uiIconsRef
                     text: "Revert"
                     enabled: root.scriptEditorBridgeRef.dirty
                     onClicked: root.scriptEditorBridgeRef.revert()
                 }
                 ShellButton {
+                    themeBridgeRef: root.themeBridgeRef
+                    graphCanvasStateBridgeRef: root.graphCanvasStateBridgeRef
+                    uiIconsRef: root.uiIconsRef
                     text: "Apply"
                     enabled: root.scriptEditorBridgeRef.dirty
                     onClicked: root.scriptEditorBridgeRef.apply()
