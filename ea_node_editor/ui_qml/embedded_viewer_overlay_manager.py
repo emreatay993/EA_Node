@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import math
-from collections.abc import Iterable, Mapping
+from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
@@ -94,6 +94,261 @@ class _OverlayRecord:
     geometry_retry_budget: int = 0
 
 
+class _OverlayGeometryService:
+    def __init__(
+        self,
+        *,
+        view_bridge_provider: Callable[[], "ViewportBridge | None"],
+    ) -> None:
+        self._view_bridge_provider = view_bridge_provider
+
+    def overlay_geometry(
+        self,
+        *,
+        root_item: QQuickItem,
+        graph_canvas_item: QQuickItem,
+        node_payload: Mapping[str, Any],
+        viewer_viewport_item: QQuickItem | None = None,
+    ) -> QRect | None:
+        canvas_origin = graph_canvas_item.mapToItem(root_item, QPointF(0.0, 0.0))
+        canvas_width = max(0.0, _number(graph_canvas_item.width(), 0.0))
+        canvas_height = max(0.0, _number(graph_canvas_item.height(), 0.0))
+        if canvas_width <= 0.0 or canvas_height <= 0.0:
+            return None
+        scene_geometry = self.node_scene_geometry(graph_canvas_item, node_payload)
+        scene_rect = self.overlay_geometry_from_scene(
+            canvas_origin=canvas_origin,
+            canvas_width=canvas_width,
+            canvas_height=canvas_height,
+            node_payload=node_payload,
+            scene_geometry=scene_geometry,
+        )
+        if viewer_viewport_item is not None:
+            viewport_rect = self.overlay_geometry_from_viewport_item(
+                root_item=root_item,
+                graph_canvas_item=graph_canvas_item,
+                viewer_viewport_item=viewer_viewport_item,
+            )
+            if viewport_rect is not None:
+                return viewport_rect
+        return scene_rect
+
+    def overlay_geometry_from_scene(
+        self,
+        *,
+        canvas_origin: QPointF,
+        canvas_width: float,
+        canvas_height: float,
+        node_payload: Mapping[str, Any],
+        scene_geometry: Mapping[str, Any],
+    ) -> QRect | None:
+        view_bridge = self._view_bridge_provider()
+        zoom_value = max(1e-6, _number(getattr(view_bridge, "zoom_value", 1.0), 1.0))
+        center_x = _number(getattr(view_bridge, "center_x", 0.0), 0.0)
+        center_y = _number(getattr(view_bridge, "center_y", 0.0), 0.0)
+        live_rect = self.viewer_live_rect(
+            node_payload,
+            scene_width=_number(scene_geometry.get("width"), 0.0),
+            scene_height=_number(scene_geometry.get("height"), 0.0),
+        )
+        if live_rect["width"] <= 0.0 or live_rect["height"] <= 0.0:
+            return None
+
+        rect = QRectF(
+            canvas_origin.x() + (canvas_width * 0.5) + ((_number(scene_geometry.get("x"), 0.0) + live_rect["x"] - center_x) * zoom_value),
+            canvas_origin.y() + (canvas_height * 0.5) + ((_number(scene_geometry.get("y"), 0.0) + live_rect["y"] - center_y) * zoom_value),
+            live_rect["width"] * zoom_value,
+            live_rect["height"] * zoom_value,
+        )
+        if rect.width() <= 0.0 or rect.height() <= 0.0:
+            return None
+
+        canvas_rect = QRectF(canvas_origin.x(), canvas_origin.y(), canvas_width, canvas_height)
+        if not rect.intersects(canvas_rect):
+            return None
+        return _aligned_rect(rect)
+
+    @staticmethod
+    def overlay_geometry_from_viewport_item(
+        *,
+        root_item: QQuickItem,
+        graph_canvas_item: QQuickItem,
+        viewer_viewport_item: QQuickItem,
+    ) -> QRect | None:
+        if not viewer_viewport_item.isVisible():
+            return None
+        viewport_width = max(0.0, _number(viewer_viewport_item.width(), 0.0))
+        viewport_height = max(0.0, _number(viewer_viewport_item.height(), 0.0))
+        if viewport_width <= 0.0 or viewport_height <= 0.0:
+            return None
+        top_left = viewer_viewport_item.mapToItem(root_item, QPointF(0.0, 0.0))
+        bottom_right = viewer_viewport_item.mapToItem(root_item, QPointF(viewport_width, viewport_height))
+        rect = QRectF(top_left, bottom_right).normalized()
+        if rect.width() <= 0.0 or rect.height() <= 0.0:
+            return None
+        canvas_origin = graph_canvas_item.mapToItem(root_item, QPointF(0.0, 0.0))
+        canvas_rect = QRectF(
+            canvas_origin.x(),
+            canvas_origin.y(),
+            max(0.0, _number(graph_canvas_item.width(), 0.0)),
+            max(0.0, _number(graph_canvas_item.height(), 0.0)),
+        )
+        if not rect.intersects(canvas_rect):
+            return None
+        clipped_rect = rect.intersected(canvas_rect)
+        if clipped_rect.width() <= 0.0 or clipped_rect.height() <= 0.0:
+            return None
+        return _aligned_rect(clipped_rect)
+
+    @staticmethod
+    def content_fullscreen_geometry(
+        *,
+        root_item: QQuickItem,
+        viewer_viewport_item: QQuickItem | None,
+    ) -> QRect | None:
+        if not isinstance(viewer_viewport_item, QQuickItem) or not viewer_viewport_item.isVisible():
+            return None
+        viewport_width = max(0.0, _number(viewer_viewport_item.width(), 0.0))
+        viewport_height = max(0.0, _number(viewer_viewport_item.height(), 0.0))
+        if viewport_width <= 0.0 or viewport_height <= 0.0:
+            return None
+        top_left = viewer_viewport_item.mapToItem(root_item, QPointF(0.0, 0.0))
+        bottom_right = viewer_viewport_item.mapToItem(root_item, QPointF(viewport_width, viewport_height))
+        rect = QRectF(top_left, bottom_right).normalized()
+        root_rect = QRectF(
+            0.0,
+            0.0,
+            max(0.0, _number(root_item.width(), 0.0)),
+            max(0.0, _number(root_item.height(), 0.0)),
+        )
+        if root_rect.width() <= 0.0 or root_rect.height() <= 0.0 or not rect.intersects(root_rect):
+            return None
+        clipped_rect = rect.intersected(root_rect)
+        if clipped_rect.width() <= 0.0 or clipped_rect.height() <= 0.0:
+            return None
+        return _aligned_rect(clipped_rect)
+
+    @staticmethod
+    def node_scene_geometry(
+        graph_canvas_item: QQuickItem,
+        node_payload: Mapping[str, Any],
+    ) -> dict[str, float | bool]:
+        node_id = _string(node_payload.get("node_id"))
+        scene_x = _number(node_payload.get("x"), 0.0)
+        scene_y = _number(node_payload.get("y"), 0.0)
+        scene_width = max(0.0, _number(node_payload.get("width"), 0.0))
+        scene_height = max(0.0, _number(node_payload.get("height"), 0.0))
+
+        live_geometry_by_id = _mapping(graph_canvas_item.property("liveNodeGeometry"))
+        live_geometry = _mapping(live_geometry_by_id.get(node_id))
+        if live_geometry:
+            return {
+                "x": _number(live_geometry.get("x"), scene_x),
+                "y": _number(live_geometry.get("y"), scene_y),
+                "width": max(0.0, _number(live_geometry.get("width"), scene_width)),
+                "height": max(0.0, _number(live_geometry.get("height"), scene_height)),
+                "has_live_preview": True,
+            }
+
+        live_drag_offsets_by_id = _mapping(graph_canvas_item.property("liveDragOffsets"))
+        live_drag_offsets = _mapping(live_drag_offsets_by_id.get(node_id))
+        return {
+            "x": scene_x + _number(live_drag_offsets.get("dx"), 0.0),
+            "y": scene_y + _number(live_drag_offsets.get("dy"), 0.0),
+            "width": scene_width,
+            "height": scene_height,
+            "has_live_preview": bool(live_drag_offsets),
+        }
+
+    @staticmethod
+    def viewer_live_rect(
+        node_payload: Mapping[str, Any],
+        *,
+        scene_width: float,
+        scene_height: float,
+    ) -> dict[str, float]:
+        viewer_surface = _mapping(node_payload.get("viewer_surface"))
+        live_rect = _mapping(viewer_surface.get("live_rect"))
+        payload_width = max(0.0, _number(node_payload.get("width"), 0.0))
+        payload_height = max(0.0, _number(node_payload.get("height"), 0.0))
+        live_size_matches_payload = (
+            abs(scene_width - payload_width) < 1e-6
+            and abs(scene_height - payload_height) < 1e-6
+        )
+        if live_rect and live_size_matches_payload:
+            return _rect_payload(live_rect)
+        body_rect = _mapping(viewer_surface.get("body_rect"))
+        if body_rect and live_size_matches_payload:
+            return _rect_payload(body_rect)
+
+        surface_metrics = _mapping(node_payload.get("surface_metrics"))
+        body_x = max(0.0, _number(surface_metrics.get("body_left_margin"), 0.0))
+        body_y = max(0.0, _number(surface_metrics.get("body_top"), 0.0))
+        ports = node_payload.get("ports")
+        try:
+            port_count = len(ports) if ports is not None else 0
+        except TypeError:
+            port_count = 0
+        port_reserve = max(0.0, port_count * _number(surface_metrics.get("port_height"), 0.0))
+        body_bottom_margin = max(0.0, _number(surface_metrics.get("body_bottom_margin"), 0.0))
+        body_width = max(
+            0.0,
+            scene_width - body_x - max(0.0, _number(surface_metrics.get("body_right_margin"), 0.0)),
+        )
+        minimum_body_height = max(
+            0.0,
+            _number(surface_metrics.get("min_height"), 0.0) - body_y - port_reserve - body_bottom_margin,
+        )
+        available_body_height = max(
+            0.0,
+            scene_height - body_y - port_reserve - body_bottom_margin,
+        )
+        body_height = max(minimum_body_height, available_body_height)
+        return {
+            "x": body_x,
+            "y": body_y,
+            "width": body_width,
+            "height": body_height,
+        }
+
+
+class _OverlayWidgetPresentationService:
+    @staticmethod
+    def apply_widget_geometry(widget: QWidget, geometry: QRect) -> bool:
+        current_geometry = widget.geometry()
+        if current_geometry == geometry:
+            return False
+        position_changed = current_geometry.topLeft() != geometry.topLeft()
+        size_changed = current_geometry.size() != geometry.size()
+        if position_changed and size_changed:
+            widget.setGeometry(geometry)
+        elif position_changed:
+            widget.move(geometry.topLeft())
+        elif size_changed:
+            widget.resize(geometry.size())
+        return True
+
+    @classmethod
+    def show_record(cls, record: _OverlayRecord, geometry: QRect, *, focus: bool = False) -> None:
+        cls.apply_widget_geometry(record.container, geometry)
+        widget = record.overlay_widget
+        if widget is None:
+            record.container.hide()
+            return
+        container_rect = record.container.rect()
+        cls.apply_widget_geometry(widget, container_rect)
+        container_was_hidden = not record.container.isVisible()
+        widget_was_hidden = not widget.isVisible()
+        if container_was_hidden:
+            record.container.show()
+        if widget_was_hidden:
+            widget.show()
+        if container_was_hidden or widget_was_hidden or focus:
+            record.container.raise_()
+        if focus:
+            widget.setFocus(Qt.FocusReason.OtherFocusReason)
+
+
 class EmbeddedViewerOverlayManager(QObject):
     def __init__(
         self,
@@ -109,6 +364,9 @@ class EmbeddedViewerOverlayManager(QObject):
         self._shell_window = shell_window
         self._scene_bridge = scene_bridge
         self._view_bridge = view_bridge
+        self._geometry_service = _OverlayGeometryService(
+            view_bridge_provider=lambda: self._view_bridge,
+        )
         self._observed_graph_canvas: QQuickItem | None = None
         self._desired_overlays: dict[_OverlayKey, EmbeddedViewerOverlaySpec] = {}
         self._overlay_records: dict[_OverlayKey, _OverlayRecord] = {}
@@ -211,7 +469,6 @@ class EmbeddedViewerOverlayManager(QObject):
             record.container.show()
             widget.show()
             record.container.raise_()
-            widget.raise_()
         self._last_error = ""
         self._schedule_sync()
         return True
@@ -521,28 +778,12 @@ class EmbeddedViewerOverlayManager(QObject):
         node_payload: Mapping[str, Any],
         viewer_viewport_item: QQuickItem | None = None,
     ) -> QRect | None:
-        canvas_origin = graph_canvas_item.mapToItem(root_item, QPointF(0.0, 0.0))
-        canvas_width = max(0.0, _number(graph_canvas_item.width(), 0.0))
-        canvas_height = max(0.0, _number(graph_canvas_item.height(), 0.0))
-        if canvas_width <= 0.0 or canvas_height <= 0.0:
-            return None
-        scene_geometry = self._node_scene_geometry(graph_canvas_item, node_payload)
-        scene_rect = self._overlay_geometry_from_scene(
-            canvas_origin=canvas_origin,
-            canvas_width=canvas_width,
-            canvas_height=canvas_height,
+        return self._geometry_service.overlay_geometry(
+            root_item=root_item,
+            graph_canvas_item=graph_canvas_item,
             node_payload=node_payload,
-            scene_geometry=scene_geometry,
+            viewer_viewport_item=viewer_viewport_item,
         )
-        if viewer_viewport_item is not None:
-            viewport_rect = self._overlay_geometry_from_viewport_item(
-                root_item=root_item,
-                graph_canvas_item=graph_canvas_item,
-                viewer_viewport_item=viewer_viewport_item,
-            )
-            if viewport_rect is not None:
-                return viewport_rect
-        return scene_rect
 
     def _overlay_geometry_from_scene(
         self,
@@ -553,30 +794,13 @@ class EmbeddedViewerOverlayManager(QObject):
         node_payload: Mapping[str, Any],
         scene_geometry: Mapping[str, Any],
     ) -> QRect | None:
-        zoom_value = max(1e-6, _number(getattr(self._view_bridge, "zoom_value", 1.0), 1.0))
-        center_x = _number(getattr(self._view_bridge, "center_x", 0.0), 0.0)
-        center_y = _number(getattr(self._view_bridge, "center_y", 0.0), 0.0)
-        live_rect = self._viewer_live_rect(
-            node_payload,
-            scene_width=_number(scene_geometry.get("width"), 0.0),
-            scene_height=_number(scene_geometry.get("height"), 0.0),
+        return self._geometry_service.overlay_geometry_from_scene(
+            canvas_origin=canvas_origin,
+            canvas_width=canvas_width,
+            canvas_height=canvas_height,
+            node_payload=node_payload,
+            scene_geometry=scene_geometry,
         )
-        if live_rect["width"] <= 0.0 or live_rect["height"] <= 0.0:
-            return None
-
-        rect = QRectF(
-            canvas_origin.x() + (canvas_width * 0.5) + ((_number(scene_geometry.get("x"), 0.0) + live_rect["x"] - center_x) * zoom_value),
-            canvas_origin.y() + (canvas_height * 0.5) + ((_number(scene_geometry.get("y"), 0.0) + live_rect["y"] - center_y) * zoom_value),
-            live_rect["width"] * zoom_value,
-            live_rect["height"] * zoom_value,
-        )
-        if rect.width() <= 0.0 or rect.height() <= 0.0:
-            return None
-
-        canvas_rect = QRectF(canvas_origin.x(), canvas_origin.y(), canvas_width, canvas_height)
-        if not rect.intersects(canvas_rect):
-            return None
-        return _aligned_rect(rect)
 
     def _overlay_geometry_from_viewport_item(
         self,
@@ -585,30 +809,11 @@ class EmbeddedViewerOverlayManager(QObject):
         graph_canvas_item: QQuickItem,
         viewer_viewport_item: QQuickItem,
     ) -> QRect | None:
-        if not viewer_viewport_item.isVisible():
-            return None
-        viewport_width = max(0.0, _number(viewer_viewport_item.width(), 0.0))
-        viewport_height = max(0.0, _number(viewer_viewport_item.height(), 0.0))
-        if viewport_width <= 0.0 or viewport_height <= 0.0:
-            return None
-        top_left = viewer_viewport_item.mapToItem(root_item, QPointF(0.0, 0.0))
-        bottom_right = viewer_viewport_item.mapToItem(root_item, QPointF(viewport_width, viewport_height))
-        rect = QRectF(top_left, bottom_right).normalized()
-        if rect.width() <= 0.0 or rect.height() <= 0.0:
-            return None
-        canvas_origin = graph_canvas_item.mapToItem(root_item, QPointF(0.0, 0.0))
-        canvas_rect = QRectF(
-            canvas_origin.x(),
-            canvas_origin.y(),
-            max(0.0, _number(graph_canvas_item.width(), 0.0)),
-            max(0.0, _number(graph_canvas_item.height(), 0.0)),
+        return self._geometry_service.overlay_geometry_from_viewport_item(
+            root_item=root_item,
+            graph_canvas_item=graph_canvas_item,
+            viewer_viewport_item=viewer_viewport_item,
         )
-        if not rect.intersects(canvas_rect):
-            return None
-        clipped_rect = rect.intersected(canvas_rect)
-        if clipped_rect.width() <= 0.0 or clipped_rect.height() <= 0.0:
-            return None
-        return _aligned_rect(clipped_rect)
 
     def _content_fullscreen_geometry(
         self,
@@ -616,59 +821,17 @@ class EmbeddedViewerOverlayManager(QObject):
         root_item: QQuickItem,
         viewer_viewport_item: QQuickItem | None,
     ) -> QRect | None:
-        if not isinstance(viewer_viewport_item, QQuickItem) or not viewer_viewport_item.isVisible():
-            return None
-        viewport_width = max(0.0, _number(viewer_viewport_item.width(), 0.0))
-        viewport_height = max(0.0, _number(viewer_viewport_item.height(), 0.0))
-        if viewport_width <= 0.0 or viewport_height <= 0.0:
-            return None
-        top_left = viewer_viewport_item.mapToItem(root_item, QPointF(0.0, 0.0))
-        bottom_right = viewer_viewport_item.mapToItem(root_item, QPointF(viewport_width, viewport_height))
-        rect = QRectF(top_left, bottom_right).normalized()
-        root_rect = QRectF(
-            0.0,
-            0.0,
-            max(0.0, _number(root_item.width(), 0.0)),
-            max(0.0, _number(root_item.height(), 0.0)),
+        return self._geometry_service.content_fullscreen_geometry(
+            root_item=root_item,
+            viewer_viewport_item=viewer_viewport_item,
         )
-        if root_rect.width() <= 0.0 or root_rect.height() <= 0.0 or not rect.intersects(root_rect):
-            return None
-        clipped_rect = rect.intersected(root_rect)
-        if clipped_rect.width() <= 0.0 or clipped_rect.height() <= 0.0:
-            return None
-        return _aligned_rect(clipped_rect)
 
     def _node_scene_geometry(
         self,
         graph_canvas_item: QQuickItem,
         node_payload: Mapping[str, Any],
     ) -> dict[str, float | bool]:
-        node_id = _string(node_payload.get("node_id"))
-        scene_x = _number(node_payload.get("x"), 0.0)
-        scene_y = _number(node_payload.get("y"), 0.0)
-        scene_width = max(0.0, _number(node_payload.get("width"), 0.0))
-        scene_height = max(0.0, _number(node_payload.get("height"), 0.0))
-
-        live_geometry_by_id = _mapping(graph_canvas_item.property("liveNodeGeometry"))
-        live_geometry = _mapping(live_geometry_by_id.get(node_id))
-        if live_geometry:
-            return {
-                "x": _number(live_geometry.get("x"), scene_x),
-                "y": _number(live_geometry.get("y"), scene_y),
-                "width": max(0.0, _number(live_geometry.get("width"), scene_width)),
-                "height": max(0.0, _number(live_geometry.get("height"), scene_height)),
-                "has_live_preview": True,
-            }
-
-        live_drag_offsets_by_id = _mapping(graph_canvas_item.property("liveDragOffsets"))
-        live_drag_offsets = _mapping(live_drag_offsets_by_id.get(node_id))
-        return {
-            "x": scene_x + _number(live_drag_offsets.get("dx"), 0.0),
-            "y": scene_y + _number(live_drag_offsets.get("dy"), 0.0),
-            "width": scene_width,
-            "height": scene_height,
-            "has_live_preview": bool(live_drag_offsets),
-        }
+        return self._geometry_service.node_scene_geometry(graph_canvas_item, node_payload)
 
     @staticmethod
     def _viewer_live_rect(
@@ -677,49 +840,11 @@ class EmbeddedViewerOverlayManager(QObject):
         scene_width: float,
         scene_height: float,
     ) -> dict[str, float]:
-        viewer_surface = _mapping(node_payload.get("viewer_surface"))
-        live_rect = _mapping(viewer_surface.get("live_rect"))
-        payload_width = max(0.0, _number(node_payload.get("width"), 0.0))
-        payload_height = max(0.0, _number(node_payload.get("height"), 0.0))
-        live_size_matches_payload = (
-            abs(scene_width - payload_width) < 1e-6
-            and abs(scene_height - payload_height) < 1e-6
+        return _OverlayGeometryService.viewer_live_rect(
+            node_payload,
+            scene_width=scene_width,
+            scene_height=scene_height,
         )
-        if live_rect and live_size_matches_payload:
-            return _rect_payload(live_rect)
-        body_rect = _mapping(viewer_surface.get("body_rect"))
-        if body_rect and live_size_matches_payload:
-            return _rect_payload(body_rect)
-
-        surface_metrics = _mapping(node_payload.get("surface_metrics"))
-        body_x = max(0.0, _number(surface_metrics.get("body_left_margin"), 0.0))
-        body_y = max(0.0, _number(surface_metrics.get("body_top"), 0.0))
-        ports = node_payload.get("ports")
-        try:
-            port_count = len(ports) if ports is not None else 0
-        except TypeError:
-            port_count = 0
-        port_reserve = max(0.0, port_count * _number(surface_metrics.get("port_height"), 0.0))
-        body_bottom_margin = max(0.0, _number(surface_metrics.get("body_bottom_margin"), 0.0))
-        body_width = max(
-            0.0,
-            scene_width - body_x - max(0.0, _number(surface_metrics.get("body_right_margin"), 0.0)),
-        )
-        minimum_body_height = max(
-            0.0,
-            _number(surface_metrics.get("min_height"), 0.0) - body_y - port_reserve - body_bottom_margin,
-        )
-        available_body_height = max(
-            0.0,
-            scene_height - body_y - port_reserve - body_bottom_margin,
-        )
-        body_height = max(minimum_body_height, available_body_height)
-        return {
-            "x": body_x,
-            "y": body_y,
-            "width": body_width,
-            "height": body_height,
-        }
 
     def _ensure_record(self, *, key: _OverlayKey, session_id: str) -> _OverlayRecord | None:
         record = self._overlay_records.get(key)
@@ -741,29 +866,12 @@ class EmbeddedViewerOverlayManager(QObject):
         return record
 
     @staticmethod
+    def _apply_widget_geometry(widget: QWidget, geometry: QRect) -> bool:
+        return _OverlayWidgetPresentationService.apply_widget_geometry(widget, geometry)
+
+    @staticmethod
     def _show_record(record: _OverlayRecord, geometry: QRect, *, focus: bool = False) -> None:
-        geometry_changed = record.container.geometry() != geometry
-        if geometry_changed:
-            record.container.setGeometry(geometry)
-        widget = record.overlay_widget
-        if widget is None:
-            record.container.hide()
-            return
-        container_rect = record.container.rect()
-        if widget.geometry() != container_rect:
-            widget.setGeometry(container_rect)
-            geometry_changed = True
-        container_was_hidden = not record.container.isVisible()
-        widget_was_hidden = not widget.isVisible()
-        if container_was_hidden:
-            record.container.show()
-        if widget_was_hidden:
-            widget.show()
-        if geometry_changed or container_was_hidden or widget_was_hidden:
-            record.container.raise_()
-            widget.raise_()
-        if focus:
-            widget.setFocus(Qt.FocusReason.OtherFocusReason)
+        _OverlayWidgetPresentationService.show_record(record, geometry, focus=focus)
 
     def _hide_record(self, key: _OverlayKey) -> None:
         record = self._overlay_records.get(key)

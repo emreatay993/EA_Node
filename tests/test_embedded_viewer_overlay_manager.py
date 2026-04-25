@@ -10,7 +10,11 @@ from PyQt6.QtWidgets import QWidget
 
 from ea_node_editor.nodes.builtins.ansys_dpf_common import DPF_VIEWER_NODE_TYPE_ID
 from ea_node_editor.nodes.types import NodeRenderQualitySpec, NodeResult, NodeTypeSpec, PortSpec
-from ea_node_editor.ui_qml.embedded_viewer_overlay_manager import EmbeddedViewerOverlaySpec
+from ea_node_editor.ui_qml.embedded_viewer_overlay_manager import (
+    EmbeddedViewerOverlayManager,
+    EmbeddedViewerOverlaySpec,
+    _OverlayRecord,
+)
 from tests.main_window_shell.base import MainWindowShellTestBase
 
 
@@ -53,6 +57,37 @@ class _FakeOverlayWidget(QWidget):
     def closeEvent(self, event) -> None:  # noqa: ANN001
         self.close_calls += 1
         super().closeEvent(event)
+
+
+class _CountingWidget(QWidget):
+    def __init__(self, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        self.move_calls = 0
+        self.resize_calls = 0
+        self.set_geometry_calls = 0
+        self.raise_calls = 0
+
+    def move(self, *args) -> None:  # noqa: ANN002
+        self.move_calls += 1
+        super().move(*args)
+
+    def resize(self, *args) -> None:  # noqa: ANN002
+        self.resize_calls += 1
+        super().resize(*args)
+
+    def setGeometry(self, *args) -> None:  # noqa: ANN002, N802
+        self.set_geometry_calls += 1
+        super().setGeometry(*args)
+
+    def raise_(self) -> None:
+        self.raise_calls += 1
+        super().raise_()
+
+    def reset_counts(self) -> None:
+        self.move_calls = 0
+        self.resize_calls = 0
+        self.set_geometry_calls = 0
+        self.raise_calls = 0
 
 
 class EmbeddedViewerOverlayManagerTests(MainWindowShellTestBase):
@@ -473,6 +508,65 @@ class EmbeddedViewerOverlayManagerTests(MainWindowShellTestBase):
 
         sync_mock.assert_called_once_with()
         self.assertFalse(self.manager._sync_queued)
+
+    def test_show_record_avoids_restack_on_geometry_only_updates(self) -> None:
+        container = _CountingWidget(self.window.quick_widget)
+        widget = _CountingWidget(container)
+        record = _OverlayRecord(
+            workspace_id=self.workspace_id,
+            node_id="node_counting_overlay",
+            session_id="session::counting",
+            container=container,
+            overlay_widget=widget,
+        )
+
+        EmbeddedViewerOverlayManager._show_record(record, QRectF(12.0, 18.0, 240.0, 160.0).toRect())
+        self.app.processEvents()
+        container.reset_counts()
+        widget.reset_counts()
+
+        EmbeddedViewerOverlayManager._show_record(record, QRectF(48.0, 72.0, 240.0, 160.0).toRect())
+        self.assertEqual(container.move_calls, 1)
+        self.assertEqual(container.resize_calls, 0)
+        self.assertEqual(container.set_geometry_calls, 0)
+        self.assertEqual(container.raise_calls, 0)
+        self.assertEqual(widget.move_calls, 0)
+        self.assertEqual(widget.resize_calls, 0)
+        self.assertEqual(widget.set_geometry_calls, 0)
+        self.assertEqual(widget.raise_calls, 0)
+
+        container.reset_counts()
+        widget.reset_counts()
+
+        EmbeddedViewerOverlayManager._show_record(record, QRectF(48.0, 72.0, 300.0, 210.0).toRect())
+        self.assertEqual(container.move_calls, 0)
+        self.assertEqual(container.resize_calls, 1)
+        self.assertEqual(container.set_geometry_calls, 0)
+        self.assertEqual(container.raise_calls, 0)
+        self.assertEqual(widget.move_calls, 0)
+        self.assertEqual(widget.resize_calls, 1)
+        self.assertEqual(widget.set_geometry_calls, 0)
+        self.assertEqual(widget.raise_calls, 0)
+
+    def test_show_record_focus_restack_raises_container_only(self) -> None:
+        container = _CountingWidget(self.window.quick_widget)
+        widget = _CountingWidget(container)
+        record = _OverlayRecord(
+            workspace_id=self.workspace_id,
+            node_id="node_focus_overlay",
+            session_id="session::focus",
+            container=container,
+            overlay_widget=widget,
+        )
+
+        EmbeddedViewerOverlayManager._show_record(record, QRectF(20.0, 24.0, 220.0, 140.0).toRect())
+        self.app.processEvents()
+        container.reset_counts()
+        widget.reset_counts()
+
+        EmbeddedViewerOverlayManager._show_record(record, container.geometry(), focus=True)
+        self.assertEqual(container.raise_calls, 1)
+        self.assertEqual(widget.raise_calls, 0)
 
 
 if __name__ == "__main__":
