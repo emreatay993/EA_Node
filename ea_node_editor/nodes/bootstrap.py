@@ -1,14 +1,9 @@
 from __future__ import annotations
 
+import importlib
 from pathlib import Path
 from typing import Any
 
-from ea_node_editor.app_preferences import AppPreferencesStore
-from ea_node_editor.addons.catalog import (
-    import_addon_backend_module,
-    live_addon_registrations,
-    sync_live_addon_state,
-)
 from ea_node_editor.nodes.builtins.core import CORE_NODE_DESCRIPTORS
 from ea_node_editor.nodes.builtins.hpc import HPC_NODE_DESCRIPTORS
 from ea_node_editor.nodes.builtins.integrations import INTEGRATION_NODE_DESCRIPTORS
@@ -18,6 +13,13 @@ from ea_node_editor.nodes.builtins.passive_media import PASSIVE_MEDIA_NODE_DESCR
 from ea_node_editor.nodes.builtins.passive_planning import PASSIVE_PLANNING_NODE_DESCRIPTORS
 from ea_node_editor.nodes.builtins.subnode import SUBNODE_NODE_DESCRIPTORS
 from ea_node_editor.nodes.registry import NodeRegistry
+
+
+def _addon_backend_module_for_nodes(registration: Any) -> Any:
+    module_name = str(registration.backend_module).strip()
+    if module_name == "ea_node_editor.addons.ansys_dpf.catalog":
+        module_name = "ea_node_editor.nodes.builtins.ansys_dpf_catalog"
+    return importlib.import_module(module_name)
 
 
 BUILTIN_NODE_DESCRIPTORS = (
@@ -36,23 +38,25 @@ BUILTIN_NODE_DESCRIPTORS = (
 def build_default_registry(
     extra_plugin_dirs: list[Path] | None = None,
     *,
-    app_preferences_store: AppPreferencesStore | None = None,
+    app_preferences_store: Any = None,
     preferences_document: Any = None,
 ) -> NodeRegistry:
     registry = NodeRegistry()
     registry.register_descriptors(BUILTIN_NODE_DESCRIPTORS)
 
     from ea_node_editor.nodes.plugin_loader import discover_and_load_plugins, register_plugin_backends
+    from ea_node_editor.addons.catalog import live_addon_registrations
 
-    sync_live_addon_state(
-        store=app_preferences_store,
-        preferences_document=preferences_document,
-    )
     for registration in live_addon_registrations(
         preferences_document=preferences_document,
         store=app_preferences_store,
     ):
-        module = import_addon_backend_module(registration)
+        module = _addon_backend_module_for_nodes(registration)
+        sync_state_attr = str(registration.sync_state_attr or "").strip()
+        if app_preferences_store is not None and sync_state_attr:
+            sync_state = getattr(module, sync_state_attr, None)
+            if callable(sync_state):
+                sync_state(store=app_preferences_store)
         backends = getattr(module, registration.backend_collection_attr, ())
         register_plugin_backends(
             backends,

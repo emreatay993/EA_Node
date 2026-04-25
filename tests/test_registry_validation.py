@@ -32,8 +32,9 @@ from ea_node_editor.nodes.builtins.passive_flowchart import PASSIVE_FLOWCHART_NO
 from ea_node_editor.nodes.builtins.passive_media import PASSIVE_MEDIA_NODE_DESCRIPTORS
 from ea_node_editor.nodes.builtins.passive_planning import PASSIVE_PLANNING_NODE_DESCRIPTORS
 from ea_node_editor.nodes.builtins.subnode import SUBNODE_NODE_DESCRIPTORS
-from ea_node_editor.nodes import execution_context as node_execution_context
+from ea_node_editor.nodes import dpf_runtime_contracts, execution_context as node_execution_context
 from ea_node_editor.nodes import node_specs, plugin_contracts, runtime_refs, types as node_types
+from ea_node_editor.nodes import viewer_runtime_contracts
 from ea_node_editor.nodes.decorators import node_type
 from ea_node_editor.nodes.registry import NodeRegistry
 from ea_node_editor.nodes.types import (
@@ -230,12 +231,21 @@ class RegistryValidationTests(unittest.TestCase):
         self.assertEqual(node_types.RuntimeHandleRef.__module__, "ea_node_editor.nodes.runtime_refs")
         self.assertEqual(node_types.PluginDescriptor.__module__, "ea_node_editor.nodes.plugin_contracts")
         self.assertEqual(node_types.PluginProvenance.__module__, "ea_node_editor.nodes.plugin_contracts")
+        self.assertEqual(node_types.DpfRuntimeServicePort.__module__, "ea_node_editor.nodes.dpf_runtime_contracts")
+        self.assertEqual(node_types.OpenViewerSessionCommand.__module__, "ea_node_editor.nodes.viewer_runtime_contracts")
         self.assertIs(node_types.NodeTypeSpec, node_specs.NodeTypeSpec)
         self.assertIs(node_types.DpfOperatorSourceSpec, node_specs.DpfOperatorSourceSpec)
         self.assertIs(node_types.DpfPinSourceSpec, node_specs.DpfPinSourceSpec)
         self.assertIs(node_types.ExecutionContext, node_execution_context.ExecutionContext)
         self.assertIs(node_types.RuntimeArtifactRef, runtime_refs.RuntimeArtifactRef)
         self.assertIs(node_types.PluginDescriptor, plugin_contracts.PluginDescriptor)
+        self.assertIs(node_types.DpfRuntimeServicePort, dpf_runtime_contracts.DpfRuntimeServicePort)
+        self.assertIs(node_types.OpenViewerSessionCommand, viewer_runtime_contracts.OpenViewerSessionCommand)
+        self.assertEqual(node_types.DPF_MODEL_HANDLE_KIND, dpf_runtime_contracts.DPF_MODEL_HANDLE_KIND)
+        self.assertEqual(
+            node_types.DPF_EXECUTION_VIEWER_BACKEND_ID,
+            viewer_runtime_contracts.DPF_EXECUTION_VIEWER_BACKEND_ID,
+        )
         self.assertNotIn("category_key", node_types.__all__)
         self.assertNotIn("category_path_matches_prefix", node_types.__all__)
         self.assertNotIn("inline_property_specs", node_types.__all__)

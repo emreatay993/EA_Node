@@ -184,8 +184,13 @@ class NodeRegistry:
             if category_prefix is not None:
                 if not category_path_matches_prefix(spec.category_path, category_prefix):
                     continue
-            elif category_display_filter and spec.category.casefold() != category_display_filter:
-                continue
+            elif category_display_filter:
+                category_displays = {
+                    category_display(path).casefold()
+                    for path in category_path_ancestors(spec.category_path)
+                }
+                if category_display_filter not in category_displays:
+                    continue
             if text and not self._matches_text(spec, text):
                 continue
             if (normalized_type or normalized_direction) and not self._matches_port_filters(

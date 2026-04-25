@@ -8,7 +8,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from ea_node_editor.execution.dpf_runtime_service import (
+from ea_node_editor.nodes.dpf_runtime_contracts import (
     DPF_FIELDS_CONTAINER_HANDLE_KIND,
     DPF_FIELD_HANDLE_KIND,
     DPF_MESH_SCOPING_HANDLE_KIND,

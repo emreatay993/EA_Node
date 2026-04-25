@@ -10,7 +10,7 @@ from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any
 
-from ea_node_editor.execution.dpf_runtime_service import (
+from ea_node_editor.nodes.dpf_runtime_contracts import (
     DPF_FIELDS_CONTAINER_HANDLE_KIND,
     DPF_FIELD_HANDLE_KIND,
     DPF_MESH_HANDLE_KIND,
@@ -422,7 +422,10 @@ def require_dpf_runtime_service(ctx: ExecutionContext, *, node_name: str) -> Any
     worker_services = ctx.worker_services
     if worker_services is None:
         raise RuntimeError(f"{node_name} requires worker services.")
-    return worker_services.dpf_runtime_service
+    service = getattr(worker_services, "dpf_runtime_service", None)
+    if service is None:
+        raise RuntimeError(f"{node_name} requires DPF runtime services.")
+    return service
 
 
 def normalize_dpf_output_mode(value: Any, *, default: str = DPF_OUTPUT_MODE_MEMORY) -> str:
