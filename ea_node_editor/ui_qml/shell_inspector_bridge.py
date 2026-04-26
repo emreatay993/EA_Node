@@ -52,6 +52,9 @@ def _copy_list(value: object) -> list[Any]:
     return list(value) if isinstance(value, list) else []
 
 
+_UNHANDLED = object()
+
+
 def _require_inspector_source(inspector_source: _ShellInspectorSource | None) -> _ShellInspectorSource:
     if inspector_source is None:
         raise TypeError("ShellInspectorBridge requires an explicit inspector source contract.")
@@ -72,7 +75,7 @@ class ShellInspectorBridge(QObject):
         scene_bridge: "GraphSceneBridge | None" = None,
     ) -> None:
         super().__init__(parent)
-        _ = shell_window
+        self._shell_window = shell_window if shell_window is not None else parent
         self._scene_bridge = scene_bridge
         self._inspector_source = _require_inspector_source(inspector_source)
         self._inspector_source_has_state_signal = False
@@ -108,6 +111,38 @@ class ShellInspectorBridge(QObject):
     @property
     def scene_bridge(self) -> "GraphSceneBridge | None":
         return self._scene_bridge
+
+    def _selected_property_item(self, key: str) -> dict[str, Any] | None:
+        normalized_key = str(key or "").strip()
+        if not normalized_key:
+            return None
+        for item in _copy_list(self._inspector_source.selected_node_property_items):
+            if not isinstance(item, dict):
+                continue
+            if str(item.get("key", "")).strip() == normalized_key:
+                return item
+        return None
+
+    def _browse_folder_property_path(self, key: str, current_path: str) -> object:
+        item = self._selected_property_item(key)
+        if item is None:
+            return _UNHANDLED
+        if str(item.get("path_dialog_mode", "")).strip().lower() != "folder":
+            return _UNHANDLED
+
+        shell_host_presenter = getattr(self._shell_window, "shell_host_presenter", None)
+        browse = getattr(shell_host_presenter, "browse_property_path_dialog", None)
+        if not callable(browse):
+            return _UNHANDLED
+        label = str(item.get("label", "") or key).strip() or str(key)
+        return str(
+            browse(
+                label,
+                str(current_path or ""),
+                dialog_mode="folder",
+            )
+            or ""
+        )
 
     @pyqtProperty(str, notify=inspector_state_changed)
     def selected_node_title(self) -> str:
@@ -167,6 +202,9 @@ class ShellInspectorBridge(QObject):
 
     @pyqtSlot(str, str, result=str)
     def browse_selected_node_property_path(self, key: str, current_path: str) -> str:
+        folder_path = self._browse_folder_property_path(key, current_path)
+        if folder_path is not _UNHANDLED:
+            return str(folder_path)
         return str(self._inspector_source.browse_selected_node_property_path(key, current_path) or "")
 
     @pyqtSlot(str, str, result=str)

@@ -43,6 +43,11 @@ from ea_node_editor.nodes.types import (
 _DPF_PATH_LIKE_PORT_KEYS = frozenset({"normalized_path", "written_path", "path"})
 _DEFAULT_LIBRARY_CATEGORY = "Other"
 _CUSTOM_WORKFLOW_LIBRARY_CATEGORY_PATH = (CUSTOM_WORKFLOW_LIBRARY_CATEGORY,)
+_FOLDER_PATH_PROPERTIES_BY_TYPE = frozenset(
+    {
+        ("io.folder_explorer", "current_path"),
+    }
+)
 
 
 def _project_root(project_path: str | None) -> Path | None:
@@ -292,6 +297,25 @@ def _dynamic_property_item_overrides(
         "enum_values": list(options),
         "placeholder_text": "No named selections found" if result_path and not options else "",
     }
+
+
+def _path_property_dialog_mode(*, node: Any, prop: Any) -> str:
+    if str(getattr(prop, "type", "")).strip() != "path":
+        return ""
+
+    node_type_id = str(getattr(node, "type_id", "")).strip()
+    property_key = str(getattr(prop, "key", "")).strip()
+    if (node_type_id, property_key) in _FOLDER_PATH_PROPERTIES_BY_TYPE:
+        return "folder"
+
+    if node_type_id == "io.path_pointer" and property_key == "path":
+        properties = getattr(node, "properties", None)
+        if hasattr(properties, "get"):
+            mode = str(properties.get("mode", "file")).strip().lower()
+            if mode == "folder":
+                return "folder"
+
+    return "file"
 
 
 def _category_sort_key(path: Iterable[str]) -> tuple[tuple[str, ...], CategoryPath]:
@@ -746,6 +770,9 @@ def build_selected_node_property_items(
             "group": getattr(prop, "group", "") or "Properties",
             "dirty": current_value != prop.default,
         }
+        path_dialog_mode = _path_property_dialog_mode(node=node, prop=prop)
+        if path_dialog_mode:
+            item["path_dialog_mode"] = path_dialog_mode
         item.update(
             _dynamic_property_item_overrides(
                 node=node,

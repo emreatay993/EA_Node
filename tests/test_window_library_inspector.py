@@ -118,6 +118,76 @@ class WindowLibraryInspectorQuickInsertTests(unittest.TestCase):
         self.assertEqual(output_keys, ["exec_out", "written_path"])
 
 
+class WindowLibraryInspectorFolderExplorerTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.registry = build_default_registry()
+        cls.registry_items = build_registry_library_items(
+            registry_specs=cls.registry.all_specs(),
+        )
+        cls.combined_items = build_combined_library_items(
+            registry_items=cls.registry_items,
+            custom_workflow_items=[],
+        )
+
+    def test_folder_explorer_is_discoverable_in_input_output_library_group(self) -> None:
+        folder_item = next(
+            item for item in self.registry_items if str(item.get("type_id", "")) == "io.folder_explorer"
+        )
+
+        self.assertEqual(folder_item["display_name"], "Folder Explorer")
+        self.assertEqual(folder_item["category_path"], ("Input / Output",))
+        self.assertEqual(folder_item["category_key"], category_key(("Input / Output",)))
+        self.assertEqual(folder_item["category_display"], "Input / Output")
+        self.assertEqual(folder_item["library_source"], "node_registry")
+        self.assertEqual(
+            [port["key"] for port in folder_item["ports"]],
+            ["current"],
+        )
+
+        filtered = build_filtered_library_items(
+            combined_items=self.combined_items,
+            query="folder explorer",
+            category=category_key(("Input / Output",)),
+            data_type="",
+            direction="",
+        )
+        self.assertEqual([item["type_id"] for item in filtered], ["io.folder_explorer"])
+
+        rows = build_grouped_library_items(filtered_items=filtered)
+        self.assertEqual([row["kind"] for row in rows], ["category", "node"])
+        self.assertEqual(rows[0]["category_key"], category_key(("Input / Output",)))
+        self.assertEqual(rows[1]["type_id"], "io.folder_explorer")
+        self.assertEqual(rows[1]["ancestor_category_keys"], [category_key(("Input / Output",))])
+
+    def test_folder_explorer_current_path_property_is_folder_path_editor_payload(self) -> None:
+        spec = self.registry.get_spec("io.folder_explorer")
+        node = SimpleNamespace(
+            type_id="io.folder_explorer",
+            node_id="node-folder-explorer",
+            properties={"current_path": "C:/Projects/Input"},
+            port_labels={},
+            exposed_ports={},
+            locked_ports={},
+        )
+
+        items = build_selected_node_property_items(
+            node=node,
+            spec=spec,
+            subnode_pin_type_ids=set(),
+        )
+        items_by_key = {str(item["key"]): item for item in items}
+
+        self.assertEqual(set(items_by_key), {"current_path"})
+        current_path = items_by_key["current_path"]
+        self.assertEqual(current_path["label"], "Current Path")
+        self.assertEqual(current_path["type"], "path")
+        self.assertEqual(current_path["editor_mode"], "path")
+        self.assertEqual(current_path["inline_editor"], "path")
+        self.assertEqual(current_path["path_dialog_mode"], "folder")
+        self.assertEqual(current_path["group"], "Source")
+
+
 def _port(
     *,
     key: str = "value",

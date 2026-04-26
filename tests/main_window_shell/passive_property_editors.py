@@ -133,6 +133,44 @@ class MainWindowShellPassivePropertyEditorsTests(SharedMainWindowShellTestBase):
         open_directory_dialog.assert_called_once()
         open_file_dialog.assert_not_called()
 
+    def test_folder_explorer_current_path_browse_uses_directory_picker(self) -> None:
+        workspace_id = self.window.workspace_manager.active_workspace_id()
+        node_id = self.window.scene.add_node_from_type("io.folder_explorer", x=120.0, y=80.0)
+        self.window.scene.focus_node(node_id)
+        self.app.processEvents()
+
+        property_items = {
+            str(item["key"]): item
+            for item in self.window.selected_node_property_items
+        }
+        self.assertEqual(property_items["current_path"]["editor_mode"], "path")
+        self.assertEqual(property_items["current_path"]["path_dialog_mode"], "folder")
+
+        picked_directory = Path(self._env.temp_path) / "picked-folder-explorer-root"
+        picked_directory.mkdir(parents=True, exist_ok=True)
+
+        path_editor = self._inspector_property_object("inspectorPathEditor", "current_path")
+        browse_button = self._inspector_property_object("inspectorPathBrowseButton", "current_path")
+
+        self.assertEqual(str(path_editor.property("pathDialogMode")), "folder")
+        self.assertEqual(str(browse_button.property("pathDialogMode")), "folder")
+
+        with (
+            patch("ea_node_editor.ui.shell.host_presenter.QFileDialog.getOpenFileName") as open_file_dialog,
+            patch(
+                "ea_node_editor.ui.shell.host_presenter.QFileDialog.getExistingDirectory",
+                return_value=str(picked_directory),
+            ) as open_directory_dialog,
+        ):
+            QMetaObject.invokeMethod(browse_button, "click")
+            self.app.processEvents()
+
+        node = self.window.model.project.workspaces[workspace_id].nodes[node_id]
+        self.assertEqual(node.properties["current_path"], str(picked_directory))
+        self.assertEqual(str(path_editor.property("text")), str(picked_directory))
+        open_directory_dialog.assert_called_once()
+        open_file_dialog.assert_not_called()
+
     def test_qml_color_editor_picker_commits_selected_hex(self) -> None:
         workspace_id = self.window.workspace_manager.active_workspace_id()
         node_id = self.window.scene.add_node_from_type("tests.passive_editor_fixture", x=120.0, y=80.0)
