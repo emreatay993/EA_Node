@@ -33,4 +33,4 @@ Ready for manual testing
 - Verification still reports existing environment/dependency warnings unrelated to this packet.
 
 ## Ready for Integration
-Yes: P06 is implemented, verified, and committed on the assigned packet branch with no known packet-local blockers.
+- Yes: P06 is implemented, verified, and committed on the assigned packet branch with no known packet-local blockers.
