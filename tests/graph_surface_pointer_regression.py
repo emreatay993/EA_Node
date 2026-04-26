@@ -147,6 +147,13 @@ QML_POINTER_REGRESSION_HELPERS = textwrap.dedent(
 
 def run_qml_probe(test_case: unittest.TestCase, label: str, *blocks: str) -> None:
     script = "\n".join(textwrap.dedent(block).strip("\n") for block in blocks if block)
+    completion_sentinel = f"__QML_PROBE_COMPLETED__:{label}"
+    script = (
+        f"{script}\n\n"
+        "import sys as _qml_probe_sys\n"
+        f"print({completion_sentinel!r})\n"
+        "_qml_probe_sys.stdout.flush()\n"
+    )
     env = os.environ.copy()
     env["QT_QPA_PLATFORM"] = "offscreen"
     result = subprocess.run(
@@ -156,6 +163,10 @@ def run_qml_probe(test_case: unittest.TestCase, label: str, *blocks: str) -> Non
         capture_output=True,
         text=True,
     )
+    # Windows offscreen Qt can crash during process teardown after the probe
+    # body has completed; keep pre-completion crashes visible.
+    if result.returncode == 3221226505 and completion_sentinel in result.stdout:
+        return
     if result.returncode != 0:
         details = "\n".join(part for part in (result.stdout.strip(), result.stderr.strip()) if part)
         test_case.fail(f"{label} probe failed with exit code {result.returncode}\n{details}")

@@ -52,14 +52,13 @@ Item {
     readonly property string nodeTitleIconSource: root.host && root.host.nodeData
         ? String(root.host.nodeData.icon_source || "")
         : ""
-    // Eligibility defers to ``nodeTitleIconSource`` being non-empty. The
-    // Python-side ``title_icon_source_for_node_payload`` already returns ""
-    // for passive nodes that haven't opted in via ``show_title_icon``, so a
-    // separate ``!isPassiveNode`` gate here would just block the opt-in
-    // (e.g. ``io.path_pointer``) from ever showing its folder icon.
+    readonly property bool passiveTitleIconOptIn: root.host
+        && root.host.nodeData
+        && Boolean(root.host.nodeData.show_title_icon)
     readonly property bool nodeTitleIconEligible: root.headerTitleVisible
         && !!root.host
         && !root.isCommentBackdropNode
+        && (!root.host.isPassiveNode || root.passiveTitleIconOptIn)
         && root.nodeTitleIconSource.length > 0
     readonly property bool nodeTitleIconVisible: root.nodeTitleIconEligible
         && root.nodeTitleIconRenderSize > 0

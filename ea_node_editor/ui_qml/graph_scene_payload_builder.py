@@ -388,6 +388,7 @@ class _GraphSceneNodePayloadFactory:
             "accent": resolve_category_accent(graph_theme, spec.category_path),
             "collapsed": bool(node.collapsed),
             "runtime_behavior": spec.runtime_behavior,
+            "show_title_icon": bool(getattr(spec, "show_title_icon", False)),
             "icon_source": title_icon_source_for_node_payload(
                 spec,
                 provenance=provenance,
