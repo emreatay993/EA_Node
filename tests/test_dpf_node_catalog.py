@@ -607,7 +607,7 @@ class DpfNodeCatalogTests(unittest.TestCase):
             self.assertEqual(title_icon_source_for_node_payload(spec), asset_path.resolve().as_uri())
 
     def test_default_registry_exposes_dpf_category_and_scoping_ports(self) -> None:
-        dpf_specs = self.registry.filter_nodes(category=DPF_NODE_CATEGORY)
+        dpf_specs = self.registry.filter_nodes(category_path=DPF_NODE_CATEGORY_PATH)
 
         if dpf is None:
             self.assertEqual(dpf_specs, [])

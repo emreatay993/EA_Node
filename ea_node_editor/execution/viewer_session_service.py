@@ -43,6 +43,9 @@ _TRANSPORT_RERUN_REQUIRED_BLOCKER = {
 _VALID_VIEWER_SESSION_PHASES = frozenset(
     {"open", "opening", "closing", "closed", "blocked", "invalidated", "error"}
 )
+_SOURCE_REF_KEY_ALIASES = {
+    "fields": "fields_container",
+}
 
 
 def _copy_mapping(value: Any) -> dict[str, Any]:
@@ -69,6 +72,11 @@ def _transport_is_live(transport: Mapping[str, Any]) -> bool:
             return False
         return Path(manifest_path).is_file() and Path(entry_path).is_file()
     return bool(kind)
+
+
+def _canonical_source_ref_key(key: Any) -> str:
+    normalized_key = str(key).strip()
+    return _SOURCE_REF_KEY_ALIASES.get(normalized_key, normalized_key)
 
 
 def build_viewer_session_model(
@@ -991,7 +999,7 @@ class ViewerSessionService:
         source_refs: dict[str, Any] = {}
         materialized_refs: dict[str, Any] = {}
         for key, value in data_refs.items():
-            normalized_key = str(key)
+            normalized_key = _canonical_source_ref_key(key)
             persisted_value = self._persist_ref_value(
                 value,
                 owner_scope=record.owner_scope,

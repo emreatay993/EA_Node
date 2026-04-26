@@ -215,7 +215,10 @@ class CommentBackdropLayerTests(unittest.TestCase):
         self.assertIsNotNone(backdrop_host.findChild(QObject, "graphNodeResizeHandle"))
         self.assertEqual(backdrop_input_host.parentItem().objectName(), "graphCanvasBackdropInputLayer")
 
-        child_items = list(canvas.childItems())
+        layer_parent = backdrop_layer.parentItem()
+        self.assertIs(layer_parent, edge_layer.parentItem())
+        self.assertIs(layer_parent, world.parentItem())
+        child_items = list(layer_parent.childItems())
         self.assertLess(child_items.index(backdrop_layer), child_items.index(edge_layer))
         self.assertLess(child_items.index(edge_layer), child_items.index(world))
 

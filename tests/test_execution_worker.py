@@ -1030,8 +1030,9 @@ class ExecutionWorkerTests(unittest.TestCase):
                         self.fail("Expected viewer_session_opened event")
                     self.assertEqual(opened["backend_id"], "dpf_embedded")
                     self.assertEqual(opened["live_open_status"], "blocked")
-                    self.assertEqual(opened["summary"]["session_model"]["phase"], "open")
-                    self.assertEqual(opened["summary"]["session_model"]["live_mode"], "proxy")
+                    self.assertEqual(opened["summary"]["cache_state"], "proxy_ready")
+                    self.assertEqual(opened["options"]["session_state"], "open")
+                    self.assertEqual(opened["options"]["live_mode"], "proxy")
 
                     command_queue.put(
                         command_to_dict(
@@ -1110,9 +1111,10 @@ class ExecutionWorkerTests(unittest.TestCase):
                     self.assertTrue(Path(materialized["transport"]["entry_path"]).is_file())
                     self.assertGreaterEqual(int(materialized["transport_revision"]), 1)
                     self.assertEqual(materialized["live_open_status"], "ready")
-                    self.assertEqual(materialized["summary"]["session_model"]["phase"], "open")
+                    self.assertEqual(materialized["summary"]["cache_state"], "live_ready")
+                    self.assertEqual(materialized["summary"]["transport_revision"], materialized["transport_revision"])
                     self.assertEqual(
-                        materialized["summary"]["session_model"]["transport_revision"],
+                        materialized["options"]["transport_revision"],
                         materialized["transport_revision"],
                     )
 

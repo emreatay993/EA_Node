@@ -179,10 +179,11 @@ def node_type(
     *,
     type_id: str,
     display_name: str,
-    category_path: CategoryPath,
     icon: str,
     ports: tuple[PortSpec, ...] | list[PortSpec],
     properties: tuple[PropertySpec, ...] | list[PropertySpec],
+    category_path: CategoryPath | None = None,
+    category: str = "",
     collapsible: bool = True,
     description: str = "",
     runtime_behavior: str = "active",
@@ -190,10 +191,17 @@ def node_type(
     surface_variant: str = "",
     render_quality: NodeRenderQualitySpec | dict[str, Any] | None = None,
 ) -> Callable[[type[NodePlugin]], type[NodePlugin]]:
+    resolved_category_path = category_path
+    if resolved_category_path is None:
+        legacy_category = str(category).strip()
+        if not legacy_category:
+            raise TypeError("node_type() missing required keyword-only argument: 'category_path'")
+        resolved_category_path = (legacy_category,)
+
     spec = NodeTypeSpec(
         type_id=type_id,
         display_name=display_name,
-        category_path=category_path,
+        category_path=resolved_category_path,
         icon=icon,
         ports=tuple(ports),
         properties=tuple(properties),

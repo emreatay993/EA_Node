@@ -439,7 +439,7 @@ class ViewerSessionServiceTests(unittest.TestCase):
         self.assertEqual(request.workspace_id, "ws_main")
         self.assertEqual(request.node_id, "node_viewer")
         self.assertEqual(request.session_id, "session_backend")
-        self.assertEqual(request.source_refs, {"fields": "fields_source", "model": "model_source"})
+        self.assertEqual(request.source_refs, {"fields_container": "fields_source", "model": "model_source"})
         self.assertEqual(request.output_profile, "both")
         self.assertEqual(request.session_summary["camera_state"], {})
         self.assertEqual(request.export_formats, ("png",))

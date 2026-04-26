@@ -56,13 +56,27 @@ class _SearchScopeController:
 
 
 class _ShellHostPresenter:
-    def __init__(self) -> None:
+    def __init__(self, host: object | None = None) -> None:
+        self._host = host
         self.active_theme_id = str(DEFAULT_GRAPHICS_SETTINGS["theme"]["theme_id"])
+        self.applied_graphics: list[dict[str, object]] = []
 
     def apply_theme(self, theme_id: object) -> str:
         normalized = str(theme_id or "").strip()
         self.active_theme_id = normalized or str(DEFAULT_GRAPHICS_SETTINGS["theme"]["theme_id"])
         return self.active_theme_id
+
+    def apply_graphics_preferences(self, graphics: dict[str, object]) -> dict[str, object]:
+        self.applied_graphics.append(graphics)
+        host = self._host
+        if host is None:
+            return graphics
+        resolved = host.shell_workspace_presenter.apply_graphics_preferences(graphics)
+        shell = resolved.get("shell", {}) if isinstance(resolved, dict) else {}
+        show_tooltips = bool(shell.get("show_tooltips", host.workspace_ui_state.graphics_show_tooltips))
+        host._sync_graphics_show_tooltips_action(show_tooltips)
+        host.tooltip_manager.set_info_tooltips_enabled(show_tooltips)
+        return resolved
 
 
 class _GraphThemeBridge:
@@ -96,7 +110,7 @@ class _RuntimeTooltipHost:
             snap_to_grid_enabled=bool(DEFAULT_GRAPHICS_SETTINGS["interaction"]["snap_to_grid"]),
         )
         self.search_scope_controller = _SearchScopeController(self.search_scope_state)
-        self.shell_host_presenter = _ShellHostPresenter()
+        self.shell_host_presenter = _ShellHostPresenter(self)
         self.shell_inspector_presenter = SimpleNamespace(
             set_property_pane_variant=lambda variant: None,
         )

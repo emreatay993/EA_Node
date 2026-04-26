@@ -161,6 +161,9 @@ Rectangle {
                     titleText: "WORKSPACES"
                     model: root.workspaceBridgeRef.workspace_tabs
                     minTabWidth: 132
+                    maxTabWidth: model && model.length > 3 && tabsViewportWidth > 0
+                        ? Math.max(effectiveMinTabWidth, Math.floor(tabsViewportWidth))
+                        : 0
                     tabHorizontalPadding: 24
                     contextMenuActions: [
                         { "actionId": "rename", "text": "Rename Workspace" },

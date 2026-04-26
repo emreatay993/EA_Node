@@ -15,6 +15,25 @@
 - Reuse existing `body` property commit flow so edits in the popover stay in sync with the inspector and current inline editor.
 - Match the mockup visual language: comment accent, compact header, count pill, panel-alt background, border, 8px radius, `shadow-pop`-style depth, scrollable body, close button, Escape/click-away dismissal.
 
+## Public Interface Changes
+
+- Add transient graph-canvas commands/state for opening and closing a comment popover on an existing comment backdrop node.
+- Do not add persistence fields, project document fields, or new runtime execution contracts.
+
+## Execution Tasks
+
+- Build the QML overlay component and anchor/close behavior.
+- Wire comment backdrop toolbar/context actions through the existing graph action path.
+- Reuse the existing node `body` property commit path for edits from the popover.
+- Add focused shell/QML regressions and packet verification evidence.
+
+## Work Packet Conversion Map
+
+- `P00 Bootstrap`: packet docs and spec-index registration.
+- `P01 Overlay Shell`: popover component, positioning, visual styling, object names, and close behavior.
+- `P02 Action Wiring`: comment toolbar/context open/close actions and body edit sync.
+- `P03 Tests + Verification`: regressions, no-persistence proof, and closeout evidence.
+
 ## Packet Set
 
 - `P00 Bootstrap`: create manifest, status ledger, packet specs/prompts, register in `docs/specs/INDEX.md`, mark `P00` as `PASS`.
@@ -22,7 +41,7 @@
 - `P02 Action Wiring`: expose/open/close popover from comment backdrop toolbar/context path and keep commit flow wired to existing node property updates.
 - `P03 Tests + Verification`: add shell/QML regressions for open, close, body edit sync, no persistence, and no regression of current `Peek Inside`.
 
-## Tests
+## Test Plan
 
 - Use project venv: `.\venv\Scripts\python.exe`.
 - Main verification should include:

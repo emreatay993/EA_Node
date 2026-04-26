@@ -150,6 +150,8 @@ class _RunHostStub:
         self.action_stop = _ActionStub()
         self.action_pause = _ActionStub()
         self.run_controls_changed = _SignalCounter()
+        self.run_failure_changed = _SignalCounter()
+        self.node_execution_state_changed = _SignalCounter()
         self._notifications = (0, 0)
         self._engine_status = ("ready", "")
         self._job_counters = (0, 0, 0, 0)
@@ -800,6 +802,9 @@ class RunControllerUnitTests(unittest.TestCase):
         host.run_state.active_run_workspace_id = workspace_id
         host.run_state.node_execution_workspace_id = workspace_id
         host.run_state.running_node_ids.add("node_stale")
+        host.run_state.failed_workspace_id = workspace_id
+        host.run_state.failed_node_id = "node_failed"
+        host.run_state.failed_node_title = "Failed Node"
         host.run_state.node_execution_revision = 4
         controller = RunController(host)  # type: ignore[arg-type]
 
@@ -811,7 +816,10 @@ class RunControllerUnitTests(unittest.TestCase):
             }
         )
 
-        self.assertEqual(host._failure_clear_count, 1)
+        self.assertEqual(host.run_failure_changed.calls, 1)
+        self.assertEqual(host.run_state.failed_workspace_id, "")
+        self.assertEqual(host.run_state.failed_node_id, "")
+        self.assertEqual(host.run_state.failed_node_title, "")
         self.assertEqual(host.run_state.running_node_ids, set())
         self.assertEqual(host.run_state.completed_node_ids, set())
         self.assertEqual(host.run_state.node_execution_revision, 6)

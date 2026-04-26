@@ -293,7 +293,7 @@ class GraphCanvasCommandBridge(QObject):
 
     @property
     def shell_window(self) -> object | None:
-        return self._shell_window
+        return None
 
     @property
     def canvas_source(self) -> _GraphCanvasCommandSource | None:

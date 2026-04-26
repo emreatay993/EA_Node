@@ -178,14 +178,7 @@ class GraphActionController:
 
     def _trigger_show_help_for_selected_node(self) -> bool:
         help_bridge = self._help_bridge_source()
-        if self._invoke_bool(help_bridge, "show_help_for_selected_node"):
-            return True
-        scene = self._scene_bridge_source()
-        selected_node_id = getattr(scene, "selected_node_id", None) if scene is not None else None
-        node_id = str(selected_node_id() or "").strip() if callable(selected_node_id) else ""
-        if not node_id:
-            return False
-        return self._invoke_bool(help_bridge, "show_help_for_node", node_id)
+        return self._invoke_bool(help_bridge, "show_help_for_selected_node")
 
     def _trigger_node_action_on_canvas_presenter(
         self,

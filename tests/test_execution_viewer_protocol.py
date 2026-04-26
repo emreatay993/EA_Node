@@ -35,7 +35,8 @@ class ViewerExecutionProtocolTests(unittest.TestCase):
 
         self.assertNotIn("from ea_node_editor.execution.protocol import", ansys_dpf_text)
         self.assertNotIn("from ea_node_editor.execution.protocol import", viewer_text)
-        self.assertIn("from ea_node_editor.execution.protocol import", adapter_text)
+        self.assertNotIn("from ea_node_editor.execution.protocol import", adapter_text)
+        self.assertIn("from ea_node_editor.nodes.viewer_runtime_contracts import", adapter_text)
 
     def test_viewer_command_family_round_trips_runtime_refs_and_options(self) -> None:
         shared_handle = RuntimeHandleRef(

@@ -156,12 +156,11 @@ class GraphCanvasStateBridge(QObject):
         view_bridge: "ViewportBridge | None" = None,
     ) -> None:
         super().__init__(parent)
-        _ = shell_window
         self._scene_bridge = scene_bridge
         self._view_bridge = view_bridge
-        self._canvas_source = canvas_source
-        self._graphics_source = graphics_source
-        self._execution_source = execution_source
+        self._canvas_source = canvas_source if canvas_source is not None else cast(_GraphCanvasStateSource | None, shell_window)
+        self._graphics_source = graphics_source if graphics_source is not None else cast(_GraphCanvasGraphicsSource | None, shell_window)
+        self._execution_source = execution_source if execution_source is not None else cast(_GraphCanvasExecutionSource | None, shell_window)
         self._scene_state_source = _resolve_scene_state_source(scene_bridge)
         self._scene_policy_source = _resolve_scene_policy_source(scene_bridge)
 

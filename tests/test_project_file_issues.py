@@ -111,7 +111,7 @@ class ProjectFileIssueTests(unittest.TestCase):
             self.assertTrue(str(path_item["file_issue_request"]).startswith("ea-file-repair:"))
 
             with patch(
-                "ea_node_editor.ui.shell.window_state.workspace_graph_actions.QFileDialog.getOpenFileName",
+                "ea_node_editor.ui.shell.host_presenter.QFileDialog.getOpenFileName",
                 return_value=(str(repaired_path), ""),
             ) as dialog_mock:
                 relinked_path = window.browse_node_property_path(
@@ -169,10 +169,10 @@ class ProjectFileIssueTests(unittest.TestCase):
             self.assertTrue(path_item["file_issue_active"])
 
             with patch(
-                "ea_node_editor.ui.shell.window_state.workspace_graph_actions.QInputDialog.getItem",
+                "ea_node_editor.ui.shell.host_presenter.QInputDialog.getItem",
                 return_value=("Managed Copy", True),
             ) as mode_mock, patch(
-                "ea_node_editor.ui.shell.window_state.workspace_graph_actions.QFileDialog.getOpenFileName",
+                "ea_node_editor.ui.shell.host_presenter.QFileDialog.getOpenFileName",
                 return_value=(str(source_fixture), ""),
             ) as dialog_mock:
                 repaired_ref = window.browse_node_property_path(
@@ -234,10 +234,10 @@ class ProjectFileIssueTests(unittest.TestCase):
             self.assertTrue(path_item["file_issue_active"])
 
             with patch(
-                "ea_node_editor.ui.shell.window_state.workspace_graph_actions.QInputDialog.getItem",
+                "ea_node_editor.ui.shell.host_presenter.QInputDialog.getItem",
                 return_value=("Managed Copy", True),
             ) as mode_mock, patch(
-                "ea_node_editor.ui.shell.window_state.workspace_graph_actions.QFileDialog.getOpenFileName",
+                "ea_node_editor.ui.shell.host_presenter.QFileDialog.getOpenFileName",
                 return_value=(str(source_fixture), ""),
             ) as dialog_mock:
                 repaired_ref = window.browse_node_property_path(

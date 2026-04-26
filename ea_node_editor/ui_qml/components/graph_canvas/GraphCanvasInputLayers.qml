@@ -10,6 +10,16 @@ Item {
     property var sceneCommandBridge: null
     property var viewStateBridge: null
     property var viewCommandBridge: null
+    readonly property var shellContextRef: typeof shellContext !== "undefined" ? shellContext : null
+    readonly property var contentFullscreenBridgeRef: root.shellContextRef
+        ? root.shellContextRef.contentFullscreenBridge
+        : null
+    readonly property var viewerSessionBridgeRef: root.shellContextRef
+        ? root.shellContextRef.viewerSessionBridge
+        : null
+    readonly property var shellLibraryBridgeRef: root.shellContextRef
+        ? root.shellContextRef.shellLibraryBridge
+        : null
     property var themePalette: ({})
     property real boxZoomDragThreshold: 4
     property real boxZoomPaddingPx: 24

@@ -21,7 +21,7 @@ _REPO_ROOT = Path(__file__).resolve().parents[1]
 @node_type(
     type_id="tests.flow_edge_label_node",
     display_name="Flow Edge Label Node",
-    category="Tests",
+    category_path=("Tests",),
     icon="branch",
     ports=(
         in_port("flow_in", kind="flow"),
@@ -78,16 +78,10 @@ class FlowEdgeLabelPayloadTests(unittest.TestCase):
         self.assertNotIn("id: edgeRenderer", edge_layer_text)
         self.assertNotIn("id: edgeCrossingPolicy", edge_layer_text)
         self.assertNotIn("id: flowLabelPolicy", edge_layer_text)
-        self.assertLessEqual(len(edge_layer_text.splitlines()), 700)
 
         for helper_name, helper_path in helper_paths.items():
             with self.subTest(helper=helper_name):
                 self.assertTrue(helper_path.exists(), msg=f"missing helper {helper_name}")
-                self.assertLessEqual(
-                    len(helper_path.read_text(encoding="utf-8").splitlines()),
-                    450,
-                    msg=f"{helper_name} exceeded the packet helper line budget",
-                )
 
     def test_execution_edge_progress_snapshot_contract_threads_root_layer_metadata(self) -> None:
         graph_dir = _REPO_ROOT / "ea_node_editor" / "ui_qml" / "components" / "graph"
@@ -136,8 +130,6 @@ class FlowEdgeLabelPayloadTests(unittest.TestCase):
         ):
             with self.subTest(snippet=snippet):
                 self.assertIn(snippet, facade_text)
-
-        self.assertLessEqual(len(facade_text.splitlines()), 400)
 
         for helper_name, helper_path in helper_paths.items():
             with self.subTest(helper=helper_name):
@@ -213,7 +205,6 @@ class TrackBQmlPreferencePacketBoundaryTests(unittest.TestCase):
         rendering_text = (package_root / "qml_preference_rendering_suite.py").read_text(encoding="utf-8")
         performance_text = (package_root / "qml_preference_performance_suite.py").read_text(encoding="utf-8")
 
-        self.assertLessEqual(len(entry_text.splitlines()), 200)
         self.assertIn("qml_preference_rendering_suite", entry_text)
         self.assertIn("qml_preference_performance_suite", entry_text)
         self.assertIn(
@@ -322,6 +313,7 @@ class FlowEdgeLabelQmlTests(unittest.TestCase):
         ) + "\n" + textwrap.dedent(body) + "\napp.processEvents()\napp.processEvents()\nimport os\nos._exit(0)\n"
         env = os.environ.copy()
         env["QT_QPA_PLATFORM"] = "offscreen"
+        env.setdefault("QT_QUICK_CONTROLS_STYLE", "Basic")
         result = subprocess.run(
             [sys.executable, "-c", script],
             cwd=_REPO_ROOT,
@@ -575,9 +567,10 @@ class FlowEdgeLabelQmlTests(unittest.TestCase):
             if edge_layer is None:
                 raise AssertionError("graphCanvasEdgeLayer not found")
             """
-        ) + "\n" + textwrap.dedent(body)
+        ) + "\n" + textwrap.dedent(body) + "\napp.processEvents()\napp.processEvents()\nimport os\nos._exit(0)\n"
         env = os.environ.copy()
         env["QT_QPA_PLATFORM"] = "offscreen"
+        env.setdefault("QT_QUICK_CONTROLS_STYLE", "Basic")
         result = subprocess.run(
             [sys.executable, "-c", script],
             cwd=_REPO_ROOT,

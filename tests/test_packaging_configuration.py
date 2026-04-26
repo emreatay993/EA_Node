@@ -101,16 +101,16 @@ def test_windows_build_scripts_use_profile_specific_packaging_switches() -> None
     assert 'Assert-PackageProfileDependencies' in build_package_source
     assert 'artifacts\\pyinstaller' in build_package_source
     assert 'artifacts\\releases\\packaging\\$PackageProfile\\dependency_matrix.csv' in build_package_source
-    assert 'Join-Path (Join-Path $artifactRoot "dist") $PackageProfile' in build_package_source
-    assert 'Join-Path (Join-Path $artifactRoot "build") $PackageProfile' in build_package_source
+    assert 'Resolve-PyInstallerProfilePath -Kind "dist" -Profile $PackageProfile' in build_package_source
+    assert 'Resolve-PyInstallerProfilePath -Kind "build" -Profile $PackageProfile' in build_package_source
     assert '[System.IO.Path]::GetTempFileName()' in build_package_source
     assert 'Path(sys.argv[1]).write_text' in build_package_source
     assert 'Start-Process -FilePath $PythonExecutable -ArgumentList @($probeScriptPath, $probeOutputPath) -PassThru -Wait' in build_package_source
     assert 'Start-Process -FilePath $pythonExe -ArgumentList $buildArgs -PassThru -Wait -NoNewWindow' in build_package_source
 
     assert '[ValidateSet("base", "viewer")]' in build_installer_source
-    assert '$DistPath = "artifacts\\pyinstaller\\dist\\$PackageProfile\\COREX_Node_Editor"' in build_installer_source
-    assert '$OutputRoot = "artifacts\\releases\\installer\\$PackageProfile"' in build_installer_source
+    assert 'Resolve-PyInstallerDistPath -Profile $PackageProfile' in build_installer_source
+    assert 'Resolve-InstallerOutputRoot -Profile $PackageProfile' in build_installer_source
     assert 'package_profile = $PackageProfile' in build_installer_source
     assert 'New-InstallerBundleZip' in build_installer_source
     assert 'Get-Command "tar.exe"' in build_installer_source
@@ -120,7 +120,7 @@ def test_windows_build_scripts_use_profile_specific_packaging_switches() -> None
 
     assert '[ValidateSet("base", "viewer")]' in sign_release_source
     assert '$PackageProfile = "base"' in sign_release_source
-    assert 'artifacts\\releases\\signing\\$PackageProfile' in sign_release_source
-    assert 'artifacts\\pyinstaller\\dist\\$PackageProfile\\COREX_Node_Editor\\COREX_Node_Editor.exe' in sign_release_source
-    assert 'artifacts\\releases\\installer\\$PackageProfile' in sign_release_source
+    assert 'Resolve-SigningOutputRoot -Profile $PackageProfile' in sign_release_source
+    assert 'Resolve-PackagedExecutablePath -Profile $PackageProfile' in sign_release_source
+    assert 'Resolve-InstallerRoot -Profile $PackageProfile' in sign_release_source
     assert 'package_profile = $PackageProfile' in sign_release_source

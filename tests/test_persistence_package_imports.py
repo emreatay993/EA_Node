@@ -3,6 +3,7 @@ from __future__ import annotations
 import subprocess
 import sys
 import unittest
+import os
 from pathlib import Path
 
 
@@ -11,9 +12,13 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 
 class PersistencePackageImportTests(unittest.TestCase):
     def _run_python(self, script: str) -> subprocess.CompletedProcess[str]:
+        env = os.environ.copy()
+        env.pop("PYTHONHOME", None)
+        env.pop("PYTHONPATH", None)
         return subprocess.run(
             [sys.executable, "-c", script],
             cwd=REPO_ROOT,
+            env=env,
             capture_output=True,
             text=True,
         )

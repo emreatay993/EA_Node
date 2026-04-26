@@ -54,6 +54,7 @@ class GraphCanvasBridge(QObject):
         command_bridge: GraphCanvasCommandBridge | None = None,
     ) -> None:
         super().__init__(parent)
+        self._shell_window = shell_window
         self._state_bridge = state_bridge or GraphCanvasStateBridge(
             self,
             shell_window=shell_window,
@@ -100,7 +101,7 @@ class GraphCanvasBridge(QObject):
 
     @property
     def shell_window(self) -> "ShellWindow | None":
-        return self._state_bridge.shell_window or self._command_bridge.shell_window
+        return self._shell_window
 
     @property
     def scene_bridge(self) -> "GraphSceneBridge | None":

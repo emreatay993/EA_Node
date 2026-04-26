@@ -18,7 +18,7 @@ if TYPE_CHECKING:
 _FIELDS_REF_OPTION_KEY = "fields_key"
 _MODEL_REF_OPTION_KEY = "model_key"
 _MESH_REF_OPTION_KEY = "mesh_key"
-_FIELDS_REF_KEYS = ("fields_container", "fields", "field")
+_FIELDS_REF_KEYS = ("fields_container",)
 _MODEL_REF_KEYS = ("model",)
 _MESH_REF_KEYS = ("mesh",)
 

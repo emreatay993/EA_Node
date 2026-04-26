@@ -117,6 +117,7 @@ class _ProjectHostStub:
         self.session_store = _SessionStoreStub()
         self.serializer = _SerializerStub(persistent_document)
         self.workspace_library_controller = _WorkspaceLibraryControllerStub()
+        self.workspace_navigation_controller = self.workspace_library_controller
         self.script_editor = _ScriptEditorStub()
         self.action_toggle_script_editor = object()
         self.scene = _SceneStub()

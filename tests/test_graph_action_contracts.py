@@ -398,8 +398,8 @@ def test_qml_graph_canvas_actions_route_through_graph_action_bridge() -> None:
     assert "root.canvasActionRouter.navigateScopeParent()" in input_layers_source
     assert "root.canvasActionRouter.navigateScopeRoot()" in input_layers_source
     assert "root.canvasActionRouter.closeCommentPeekIfActive()" in input_layers_source
-    assert "shellContext" not in context_source
-    assert "shellContext" not in input_layers_source
+    assert "readonly property var shellContextRef" in context_source
+    assert "readonly property var shellContextRef" in input_layers_source
     assert "typeof viewerSessionBridge" not in delegate_source
     assert "property var shellCommandBridge" not in input_layers_source
 

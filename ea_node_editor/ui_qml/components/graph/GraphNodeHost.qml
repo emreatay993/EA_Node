@@ -94,7 +94,7 @@ Item {
     readonly property var graphThemeBridgeRef: shellContextRef ? shellContextRef.graphThemeBridge : null
     readonly property var addonManagerBridgeRef: shellContextRef && shellContextRef.addonManagerBridge
         ? shellContextRef.addonManagerBridge
-        : (typeof addonManagerBridge !== "undefined" ? addonManagerBridge : null)
+        : null
     readonly property var nodePalette: graphThemeBridgeRef
         ? graphThemeBridgeRef.node_palette
         : ({})

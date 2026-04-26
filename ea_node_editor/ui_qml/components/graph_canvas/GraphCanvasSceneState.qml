@@ -47,15 +47,26 @@ QtObject {
     }
 
     function sceneBackdropNodesModel() {
-        var stateBridge = root.canvasItem ? root.canvasItem.sceneStateBridge : null;
+        var stateBridge = root.sceneStateBridge();
         if (stateBridge && stateBridge.backdrop_nodes_model !== undefined)
             return stateBridge.backdrop_nodes_model || [];
         return [];
     }
 
+    function sceneStateBridge() {
+        if (!root.canvasItem)
+            return null;
+        if (root.canvasItem.sceneStateBridge !== undefined)
+            return root.canvasItem.sceneStateBridge;
+        if (root.canvasItem._canvasSceneStateBridgeRef !== undefined)
+            return root.canvasItem._canvasSceneStateBridgeRef;
+        return null;
+    }
+
     function sceneAllNodesModel() {
-        var nodes = root.canvasItem && root.canvasItem.sceneStateBridge
-            ? root.canvasItem.sceneStateBridge.nodes_model
+        var stateBridge = root.sceneStateBridge();
+        var nodes = stateBridge
+            ? stateBridge.nodes_model
             : [];
         var backdrops = root.sceneBackdropNodesModel();
         if (!backdrops.length)
@@ -113,7 +124,7 @@ QtObject {
     }
 
     function selectedNodeIds() {
-        var bridge = root.canvasItem ? root.canvasItem.sceneStateBridge : null;
+        var bridge = root.sceneStateBridge();
         var nodes = root.sceneAllNodesModel();
         var selectedLookup = null;
         if (bridge && typeof bridge.selected_node_lookup !== "undefined")
@@ -294,8 +305,9 @@ QtObject {
     function syncEdgePayload() {
         if (!root.canvasItem)
             return;
-        root.canvasItem.edgePayload = root.canvasItem.sceneStateBridge
-            ? root.canvasItem.sceneStateBridge.edges_model
+        var stateBridge = root.sceneStateBridge();
+        root.canvasItem.edgePayload = stateBridge
+            ? stateBridge.edges_model
             : [];
         root.pruneSelectedEdges();
         root._requestEdgeRedraw();

@@ -185,11 +185,7 @@ class NodeRegistry:
                 if not category_path_matches_prefix(spec.category_path, category_prefix):
                     continue
             elif category_display_filter:
-                category_displays = {
-                    category_display(path).casefold()
-                    for path in category_path_ancestors(spec.category_path)
-                }
-                if category_display_filter not in category_displays:
+                if category_display(spec.category_path).casefold() != category_display_filter:
                     continue
             if text and not self._matches_text(spec, text):
                 continue

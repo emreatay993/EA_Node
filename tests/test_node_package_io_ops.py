@@ -191,7 +191,7 @@ class WorkspaceIONodePackageTests(unittest.TestCase):
                     spec=NodeTypeSpec(
                         type_id="packet.alpha",
                         display_name="Packet",
-                        category="Packet Tests",
+                        category_path=("Packet Tests",),
                         icon="packet",
                         ports=(),
                         properties=(),

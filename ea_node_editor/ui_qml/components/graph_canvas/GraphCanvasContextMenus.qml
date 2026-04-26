@@ -9,7 +9,15 @@ Item {
     property var graphActionBridge: null
     property var addonManagerBridge: null
     property var helpBridge: null
-    property var themePalette: ({})
+    readonly property var shellContextRef: typeof shellContext !== "undefined" ? shellContext : null
+    readonly property var themeBridgeRef: root.shellContextRef ? root.shellContextRef.themeBridge : null
+    readonly property var addonManagerBridgeRef: root.shellContextRef
+        ? root.shellContextRef.addonManagerBridge
+        : root.addonManagerBridge
+    readonly property var helpBridgeRef: root.shellContextRef
+        ? root.shellContextRef.helpBridge
+        : root.helpBridge
+    property var themePalette: root.themeBridgeRef ? root.themeBridgeRef.palette : ({})
 
     anchors.fill: parent
     z: 900
@@ -19,8 +27,8 @@ Item {
         canvasItem: root.canvasItem
         graphActionBridge: root.graphActionBridge
         canvasCommandBridge: root.commandBridge
-        addonManagerBridge: root.addonManagerBridge
-        helpBridge: root.helpBridge
+        addonManagerBridge: root.addonManagerBridgeRef
+        helpBridge: root.helpBridgeRef
     }
 
     function _actionRouter() {
