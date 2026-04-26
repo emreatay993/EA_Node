@@ -17,6 +17,7 @@ if TYPE_CHECKING:
     from ea_node_editor.ui_qml.viewport_bridge import ViewportBridge
 
 _OverlayKey = tuple[str, str]
+_DEFAULT_OVERLAY_OWNER = "default"
 
 
 def _mapping(value: Any) -> dict[str, Any]:
@@ -369,6 +370,7 @@ class EmbeddedViewerOverlayManager(QObject):
         )
         self._observed_graph_canvas: QQuickItem | None = None
         self._desired_overlays: dict[_OverlayKey, EmbeddedViewerOverlaySpec] = {}
+        self._desired_overlay_sources: dict[str, dict[_OverlayKey, EmbeddedViewerOverlaySpec]] = {}
         self._overlay_records: dict[_OverlayKey, _OverlayRecord] = {}
         self._content_fullscreen_target: _OverlayKey | None = None
         self._last_error = ""
@@ -388,6 +390,14 @@ class EmbeddedViewerOverlayManager(QObject):
         return self._last_error
 
     def set_active_overlays(self, overlays: Iterable[EmbeddedViewerOverlaySpec]) -> None:
+        self.set_active_overlays_for_owner(_DEFAULT_OVERLAY_OWNER, overlays)
+
+    def set_active_overlays_for_owner(
+        self,
+        owner: str,
+        overlays: Iterable[EmbeddedViewerOverlaySpec],
+    ) -> None:
+        normalized_owner = _string(owner) or _DEFAULT_OVERLAY_OWNER
         desired_overlays: dict[_OverlayKey, EmbeddedViewerOverlaySpec] = {}
         for overlay in overlays:
             workspace_id = _string(getattr(overlay, "workspace_id", ""))
@@ -400,9 +410,18 @@ class EmbeddedViewerOverlayManager(QObject):
                 session_id=_string(getattr(overlay, "session_id", "")),
             )
 
-        removed_keys = [key for key in self._overlay_records if key not in desired_overlays]
-        self._desired_overlays = desired_overlays
-        for key, overlay in desired_overlays.items():
+        if desired_overlays:
+            self._desired_overlay_sources[normalized_owner] = desired_overlays
+        else:
+            self._desired_overlay_sources.pop(normalized_owner, None)
+
+        merged_desired_overlays: dict[_OverlayKey, EmbeddedViewerOverlaySpec] = {}
+        for source_overlays in self._desired_overlay_sources.values():
+            merged_desired_overlays.update(source_overlays)
+
+        removed_keys = [key for key in self._overlay_records if key not in merged_desired_overlays]
+        self._desired_overlays = merged_desired_overlays
+        for key, overlay in merged_desired_overlays.items():
             self._ensure_record(key=key, session_id=overlay.session_id)
         for key in removed_keys:
             self._teardown_record(key)
@@ -504,7 +523,7 @@ class EmbeddedViewerOverlayManager(QObject):
         self._connect_signal(self._quick_widget, "statusChanged", self._on_quick_widget_status_changed)
         self._connect_signal(self._scene_bridge, "nodes_changed", self._schedule_sync)
         self._connect_signal(self._scene_bridge, "workspace_changed", self._schedule_sync)
-        self._connect_signal(self._view_bridge, "view_state_changed", self._schedule_sync)
+        self._connect_signal(self._view_bridge, "view_state_changed", self._sync_immediately)
 
     @staticmethod
     def _connect_signal(source: object | None, name: str, slot) -> None:  # noqa: ANN001

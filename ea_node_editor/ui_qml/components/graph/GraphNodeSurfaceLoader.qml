@@ -114,7 +114,7 @@ Item {
 
     function _loadedSurfaceKey(family, _variant) {
         if (root.nodeData && String(root.nodeData.type_id || "") === "io.folder_explorer")
-            return "classic_explorer";
+            return "native_explorer";
         var normalizedFamily = String(family || "standard");
         if (normalizedFamily === "flowchart")
             return "flowchart";
@@ -183,8 +183,8 @@ Item {
                 return mediaSurfaceComponent;
             if (root.loadedSurfaceKey === "viewer")
                 return viewerSurfaceComponent;
-            if (root.loadedSurfaceKey === "classic_explorer")
-                return classicExplorerSurfaceComponent;
+            if (root.loadedSurfaceKey === "native_explorer")
+                return nativeExplorerSurfaceComponent;
             return standardSurfaceComponent;
         }
     }
@@ -396,9 +396,9 @@ Item {
     }
 
     Component {
-        id: classicExplorerSurfaceComponent
+        id: nativeExplorerSurfaceComponent
 
-        GraphPassiveComponents.GraphClassicExplorerSurface {
+        GraphPassiveComponents.GraphNativeExplorerSurface {
             host: root.host
         }
     }

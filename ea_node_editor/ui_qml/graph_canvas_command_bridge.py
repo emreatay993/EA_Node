@@ -360,6 +360,51 @@ class GraphCanvasCommandBridge(QObject):
             )
         )
 
+    @pyqtSlot(str, bool, float, float, result="QVariantMap")
+    def request_create_path_pointer_node(
+        self,
+        path_or_url: str,
+        is_folder: bool,
+        scene_x: float,
+        scene_y: float,
+    ) -> dict[str, Any]:
+        path = self._path_from_url_or_path(path_or_url)
+        if not path:
+            return {
+                "success": False,
+                "path": "",
+                "created_node_id": "",
+                "created_type_id": "",
+                "mode": "folder" if bool(is_folder) else "file",
+                "error": {
+                    "code": "missing_path",
+                    "message": "A file or folder path is required.",
+                },
+            }
+        path_obj = Path(path)
+        mode = "folder" if path_obj.is_dir() or bool(is_folder) else "file"
+        node_id = self._add_path_pointer_node(path, mode, float(scene_x), float(scene_y))
+        if not node_id:
+            return {
+                "success": False,
+                "path": path,
+                "created_node_id": "",
+                "created_type_id": "io.path_pointer",
+                "mode": mode,
+                "error": {
+                    "code": "mutation_unavailable",
+                    "message": "Graph scene command bridge cannot create an io.path_pointer node.",
+                },
+            }
+        return {
+            "success": True,
+            "path": path,
+            "created_node_id": node_id,
+            "created_type_id": "io.path_pointer",
+            "mode": mode,
+            "error": {},
+        }
+
     @pyqtSlot(float, float)
     def pan_by(self, delta_x: float, delta_y: float) -> None:
         _invoke(self._view_bridge, "pan_by", float(delta_x), float(delta_y))
@@ -1165,6 +1210,16 @@ class GraphCanvasCommandBridge(QObject):
         if callable(opener):
             return bool(opener(path))
         return bool(QDesktopServices.openUrl(QUrl.fromLocalFile(path)))
+
+    @staticmethod
+    def _path_from_url_or_path(path_or_url: str) -> str:
+        text = str(path_or_url or "").strip()
+        if not text:
+            return ""
+        url = QUrl(text)
+        if url.isLocalFile():
+            return str(Path(url.toLocalFile()).resolve(strict=False))
+        return str(Path(text).expanduser().resolve(strict=False))
 
     def _folder_explorer_refresh_path(self, payload: Mapping[str, object], *, fallback_path: str) -> str:
         explicit = _first_payload_str(payload, "current_path", "directory_path", "currentPath", "directoryPath")

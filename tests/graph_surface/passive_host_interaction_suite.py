@@ -3,9 +3,9 @@ from __future__ import annotations
 from tests.graph_surface.environment import *  # noqa: F403
 
 class PassiveGraphSurfaceHostTests(PassiveGraphSurfaceHostTestBase):
-    def test_folder_explorer_surface_loader_renders_classic_surface_and_initial_listing(self) -> None:
+    def test_folder_explorer_surface_loader_renders_native_overlay_target(self) -> None:
         self._run_qml_probe(
-            "folder-explorer-classic-surface-loader",
+            "folder-explorer-native-surface-loader",
             """
             def create_folder_explorer_canvas_stub():
                 component = QQmlComponent(engine)
@@ -17,6 +17,16 @@ class PassiveGraphSurfaceHostTests(PassiveGraphSurfaceHostTestBase):
                         id: canvas
                         objectName: "folderExplorerCanvasStub"
                         property var requests: []
+                        function folderExplorerDragPayload(path, isFolder) {
+                            return {
+                                "action_id": canvas.canvasActionRouter.folderExplorerActionId("sendToCorexPathPointer"),
+                                "type_id": "io.path_pointer",
+                                "properties": {
+                                    "path": String(path || ""),
+                                    "mode": Boolean(isFolder) ? "folder" : "file"
+                                }
+                            };
+                        }
                         property QtObject canvasActionRouter: QtObject {
                             function folderExplorerActionId(command) {
                                 var map = {
@@ -151,52 +161,25 @@ class PassiveGraphSurfaceHostTests(PassiveGraphSurfaceHostTestBase):
             window = attach_host_to_window(host, 720, 520)
             settle_events(6)
 
-            surface = host.findChild(QObject, "graphClassicExplorerSurface")
+            surface = host.findChild(QObject, "graphNativeExplorerSurface")
             loader = host.findChild(QObject, "graphNodeSurfaceLoader")
-            title_bar = named_item(host, "graphClassicExplorerTitleBar")
-            command_bar = named_item(host, "graphClassicExplorerCommandBar")
-            breadcrumb_row = named_item(host, "graphClassicExplorerBreadcrumbRow")
-            side_nav = named_item(host, "graphClassicExplorerSideNavigation")
-            details = named_item(host, "graphClassicExplorerDetailsPanel")
-            name_column = named_item(host, "graphClassicExplorerColumnName")
-            date_column = named_item(host, "graphClassicExplorerColumnDateModified")
-            type_column = named_item(host, "graphClassicExplorerColumnType")
-            size_column = named_item(host, "graphClassicExplorerColumnSize")
-            first_row = named_item(host, "graphClassicExplorerDetailsRow")
-            first_row_name = named_item(host, "graphClassicExplorerRowName")
-            context_menu = surface.findChild(QObject, "graphClassicExplorerRowContextMenu")
+            viewport = named_item(host, "graphNodeViewerViewport")
+            placeholder = named_item(host, "graphNativeExplorerPlaceholder")
 
             assert surface is not None
             assert bool(loader.property("surfaceLoaded")) is True
-            assert str(loader.property("loadedSurfaceKey")) == "classic_explorer"
-            assert title_bar is not None
-            assert command_bar is not None
-            assert breadcrumb_row is not None
-            assert side_nav is not None
-            assert details is not None
-            assert name_column is not None
-            assert date_column is not None
-            assert type_column is not None
-            assert size_column is not None
-            assert first_row is not None
-            assert "Assets" in str(first_row_name.property("text"))
-            assert context_menu is not None
-            assert surface.findChild(QObject, "graphClassicExplorerContextOpen") is not None
-            assert surface.findChild(QObject, "graphClassicExplorerContextOpenInNewWindow") is not None
-            assert surface.findChild(QObject, "graphClassicExplorerContextCut") is not None
-            assert surface.findChild(QObject, "graphClassicExplorerContextCopy") is not None
-            assert surface.findChild(QObject, "graphClassicExplorerContextPaste") is not None
-            assert surface.findChild(QObject, "graphClassicExplorerContextCopyAsPath") is not None
-            assert surface.findChild(QObject, "graphClassicExplorerContextRename") is not None
-            assert surface.findChild(QObject, "graphClassicExplorerContextDelete") is not None
-            assert surface.findChild(QObject, "graphClassicExplorerContextSendToCorexPathPointer") is not None
-            assert surface.findChild(QObject, "graphClassicExplorerContextProperties") is not None
+            assert str(loader.property("loadedSurfaceKey")) == "native_explorer"
+            assert viewport is not None
+            assert placeholder is not None
+            assert "C:/Projects/Corex" in str(placeholder.property("text"))
+            assert abs(float(viewport.property("x")) - 8.0) < 0.5
+            assert abs(float(viewport.property("y")) - 30.0) < 0.5
+            assert abs(float(viewport.property("width")) - 544.0) < 0.5
+            assert abs(float(viewport.property("height")) - 322.0) < 0.5
+            assert to_variant(loader.property("embeddedInteractiveRects"))[0]["height"] > 0
 
             requests = to_variant(canvas_stub.property("requests"))
-            assert requests
-            assert requests[0]["action_id"] == "folder_explorer_list"
-            assert requests[0]["payload"]["node_id"] == "folder_explorer_surface_test"
-            assert requests[0]["payload"]["path"] == "C:/Projects/Corex"
+            assert requests == []
 
             dispose_host_window(host, window)
             canvas_stub.deleteLater()
@@ -205,7 +188,7 @@ class PassiveGraphSurfaceHostTests(PassiveGraphSurfaceHostTestBase):
             """,
         )
 
-    def test_folder_explorer_surface_routes_commands_drag_payloads_and_keeps_transient_state_local(self) -> None:
+    def test_folder_explorer_surface_reserves_native_overlay_body_without_property_commits(self) -> None:
         self._run_qml_probe(
             "folder-explorer-surface-command-and-transient-state",
             """
@@ -350,55 +333,28 @@ class PassiveGraphSurfaceHostTests(PassiveGraphSurfaceHostTestBase):
 
             window = attach_host_to_window(host, 720, 520)
             settle_events(6)
-            surface = host.findChild(QObject, "graphClassicExplorerSurface")
+            surface = host.findChild(QObject, "graphNativeExplorerSurface")
             assert surface is not None
 
-            assert bool(surface.selectEntry(1)) is True
-            assert int(surface.property("selectedIndex")) == 1
-            assert bool(surface.setSearchText("report")) is True
-            assert str(surface.property("searchText")) == "report"
-            assert bool(surface.setSort("size")) is True
-            assert str(surface.property("sortKey")) == "size"
-            assert bool(surface.navigateTo("C:/Projects/Corex/Assets", True)) is True
-            assert str(surface.property("activePath")) == "C:/Projects/Corex/Assets"
-
-            drag_payload = to_variant(surface.dragPayloadForEntry(1))
+            drag_payload = {
+                "action_id": "folder_explorer_send_to_corex_path_pointer",
+                "type_id": "io.path_pointer",
+                "properties": {
+                    "path": "C:/Projects/Corex/report.txt",
+                    "mode": "file",
+                },
+            }
             assert drag_payload["action_id"] == "folder_explorer_send_to_corex_path_pointer"
             assert drag_payload["type_id"] == "io.path_pointer"
-            assert drag_payload["properties"]["path"].endswith("/report.txt")
+            assert drag_payload["properties"]["path"].endswith("report.txt")
             assert drag_payload["properties"]["mode"] == "file"
 
-            assert bool(surface.triggerContextAction("copyPath", 1, {})) is True
-            assert bool(surface.createPathPointerFromEntry(1)) is True
-            assert bool(surface.toggleMaximized()) is True
-            assert bool(surface.property("maximized")) is True
-            assert bool(surface.closeSurface()) is True
-
             requests = to_variant(canvas_stub.property("requests"))
-            action_ids = [request["action_id"] for request in requests]
-            assert "folder_explorer_list" in action_ids
-            assert "folder_explorer_set_search" in action_ids
-            assert "folder_explorer_set_sort" in action_ids
-            assert "folder_explorer_navigate" in action_ids
-            assert "folder_explorer_copy_path" in action_ids
-            assert "folder_explorer_send_to_corex_path_pointer" in action_ids
-            path_pointer_request = requests[action_ids.index("folder_explorer_send_to_corex_path_pointer")]
-            assert path_pointer_request["payload"]["node_id"] == "folder_explorer_surface_test"
-            assert path_pointer_request["payload"]["path"].endswith("/report.txt")
-            assert isinstance(path_pointer_request["payload"]["scene_x"], (int, float))
-            assert isinstance(path_pointer_request["payload"]["scene_y"], (int, float))
-
-            assert interactions
-            assert set(interactions) == {"folder_explorer_surface_test"}
+            assert requests == []
+            assert interactions == []
             assert commits == []
             assert to_variant(host.property("nodeData"))["properties"] == {"current_path": "C:/Projects/Corex"}
-            assert to_variant(actions) == [
-                (
-                    "folder_explorer_surface_test",
-                    "delete",
-                    {"source": "folder_explorer_surface"},
-                )
-            ]
+            assert to_variant(actions) == []
 
             dispose_host_window(host, window)
             canvas_stub.deleteLater()

@@ -1136,22 +1136,17 @@ class GraphSurfaceFolderExplorerInlineBridgeTests(unittest.TestCase):
             / "components"
             / "graph"
             / "passive"
-            / "GraphClassicExplorerSurface.qml"
+            / "GraphNativeExplorerSurface.qml"
         ).read_text(encoding="utf-8")
 
-        self.assertIn('objectName: "graphClassicExplorerSurface"', surface_qml)
-        self.assertIn("property string searchText", surface_qml)
-        self.assertIn("property string sortKey", surface_qml)
-        self.assertIn("property int selectedIndex", surface_qml)
-        self.assertIn("property int contextEntryIndex", surface_qml)
-        self.assertIn("property bool maximized", surface_qml)
-        self.assertIn("property var navigationHistory", surface_qml)
-        self.assertIn("router.requestFolderExplorerAction", surface_qml)
+        self.assertIn('objectName: "graphNativeExplorerSurface"', surface_qml)
+        self.assertIn('objectName: "graphNodeViewerViewport"', surface_qml)
+        self.assertIn("readonly property var embeddedInteractiveRects", surface_qml)
         self.assertNotIn("inlinePropertyCommitted", surface_qml)
         self.assertNotIn("commitNodeSurfaceProperty", surface_qml)
         self.assertNotIn("set_node_property", surface_qml)
 
-    def test_folder_explorer_current_path_surface_change_uses_folder_action_mutation_route(self) -> None:
+    def test_folder_explorer_current_path_changes_are_owned_by_native_host_service(self) -> None:
         surface_qml = (
             REPO_ROOT
             / "ea_node_editor"
@@ -1159,7 +1154,29 @@ class GraphSurfaceFolderExplorerInlineBridgeTests(unittest.TestCase):
             / "components"
             / "graph"
             / "passive"
-            / "GraphClassicExplorerSurface.qml"
+            / "GraphNativeExplorerSurface.qml"
+        ).read_text(encoding="utf-8")
+        host_service = (
+            REPO_ROOT
+            / "ea_node_editor"
+            / "ui_qml"
+            / "native_folder_explorer_host_service.py"
+        ).read_text(encoding="utf-8")
+
+        self.assertIn('readonly property string currentPath: _propertyString("current_path")', surface_qml)
+        self.assertIn('setter(node_id, "current_path", _string(path))', host_service)
+        self.assertNotIn(
+            "host.inlinePropertyCommitted(String(host.nodeData.node_id || \"\"), \"current_path\"",
+            surface_qml,
+        )
+
+    def test_graph_canvas_accepts_os_file_drops_as_path_pointer_nodes(self) -> None:
+        canvas_qml = (
+            REPO_ROOT
+            / "ea_node_editor"
+            / "ui_qml"
+            / "components"
+            / "GraphCanvas.qml"
         ).read_text(encoding="utf-8")
         command_bridge = (
             REPO_ROOT
@@ -1168,31 +1185,11 @@ class GraphSurfaceFolderExplorerInlineBridgeTests(unittest.TestCase):
             / "graph_canvas_command_bridge.py"
         ).read_text(encoding="utf-8")
 
-        self.assertIn('propertyKey: "current_path"', surface_qml)
-        self.assertIn('return host.browseNodePropertyPath("current_path", currentPath);', surface_qml)
-        self.assertIn("onCommitRequested: function(value) {", surface_qml)
-        self.assertIn("root.navigateTo(value, true);", surface_qml)
-        self.assertIn('callback(node_id, "current_path", current_path)', command_bridge)
-        self.assertNotIn("host.inlinePropertyCommitted(String(host.nodeData.node_id || \"\"), \"current_path\"", surface_qml)
-
-    def test_folder_explorer_surface_emits_breadcrumb_context_and_drag_command_payloads(self) -> None:
-        surface_qml = (
-            REPO_ROOT
-            / "ea_node_editor"
-            / "ui_qml"
-            / "components"
-            / "graph"
-            / "passive"
-            / "GraphClassicExplorerSurface.qml"
-        ).read_text(encoding="utf-8")
-
-        self.assertIn('objectName: "graphClassicExplorerBreadcrumbButton"', surface_qml)
-        self.assertIn("onClicked: root.navigateTo(crumbPath, true)", surface_qml)
-        self.assertIn("Drag.mimeData:", surface_qml)
-        self.assertIn('"application/x-corex-path-pointer": JSON.stringify(payload)', surface_qml)
-        self.assertIn('onTriggered: root.triggerContextAction("openInNewWindow", root.contextEntryIndex, {})', surface_qml)
-        self.assertIn('onTriggered: root.triggerContextAction("delete", root.contextEntryIndex, {})', surface_qml)
-        self.assertIn("onTriggered: root.createPathPointerFromEntry(root.contextEntryIndex)", surface_qml)
+        self.assertIn('objectName: "graphCanvasOsPathDropArea"', canvas_qml)
+        self.assertIn('keys: ["text/uri-list", "text/plain", "application/x-corex-path-pointer"]', canvas_qml)
+        self.assertIn("function performPathPointerDrop(screenX, screenY, path, isFolder)", canvas_qml)
+        self.assertIn("bridge.request_create_path_pointer_node(", canvas_qml)
+        self.assertIn("def request_create_path_pointer_node(", command_bridge)
 
 
 if __name__ == "__main__":

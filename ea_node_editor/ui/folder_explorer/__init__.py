@@ -11,6 +11,7 @@ from ea_node_editor.ui.folder_explorer.filesystem_service import (
     FolderExplorerServiceError,
     FolderExplorerSortKey,
 )
+from ea_node_editor.ui.folder_explorer.native_widget import NativeFolderExplorerWidget
 
 __all__ = [
     "FolderExplorerBreadcrumb",
@@ -22,4 +23,5 @@ __all__ = [
     "FolderExplorerFilesystemService",
     "FolderExplorerServiceError",
     "FolderExplorerSortKey",
+    "NativeFolderExplorerWidget",
 ]

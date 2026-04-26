@@ -541,11 +541,17 @@ class ShellWindow(QMainWindow):
             host_service = getattr(self, "viewer_host_service", None)
             if host_service is not None:
                 host_service.set_overlay_manager(manager)
+            folder_service = getattr(self, "native_folder_explorer_host_service", None)
+            if folder_service is not None:
+                folder_service.set_overlay_manager(manager)
             return manager
         if manager is not None:
             host_service = getattr(self, "viewer_host_service", None)
             if host_service is not None:
                 host_service.set_overlay_manager(None)
+            folder_service = getattr(self, "native_folder_explorer_host_service", None)
+            if folder_service is not None:
+                folder_service.set_overlay_manager(None)
             manager.deleteLater()
 
         manager = EmbeddedViewerOverlayManager(
@@ -559,6 +565,9 @@ class ShellWindow(QMainWindow):
         host_service = getattr(self, "viewer_host_service", None)
         if host_service is not None:
             host_service.set_overlay_manager(manager)
+        folder_service = getattr(self, "native_folder_explorer_host_service", None)
+        if folder_service is not None:
+            folder_service.set_overlay_manager(manager)
         return manager
 
     def setCentralWidget(self, widget) -> None:  # noqa: ANN001, N802
@@ -569,6 +578,9 @@ class ShellWindow(QMainWindow):
                 host_service = getattr(self, "viewer_host_service", None)
                 if host_service is not None:
                     host_service.set_overlay_manager(None)
+                folder_service = getattr(self, "native_folder_explorer_host_service", None)
+                if folder_service is not None:
+                    folder_service.set_overlay_manager(None)
                 manager.deleteLater()
                 self._embedded_viewer_overlay_manager = None
         super().setCentralWidget(widget)
@@ -636,6 +648,10 @@ class ShellWindow(QMainWindow):
         shutdown = getattr(host_service, "shutdown", None)
         if callable(shutdown):
             shutdown(reason="window_close")
+        folder_service = getattr(self, "native_folder_explorer_host_service", None)
+        folder_shutdown = getattr(folder_service, "shutdown", None)
+        if callable(folder_shutdown):
+            folder_shutdown(reason="window_close")
 
         manager = getattr(self, "_embedded_viewer_overlay_manager", None)
         if manager is not None:

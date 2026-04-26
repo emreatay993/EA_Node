@@ -280,8 +280,9 @@ class EmbeddedViewerOverlayManagerTests(MainWindowShellTestBase):
         self._assert_rect_close(container, node_id)
         self.assertEqual(widget.geometry(), container.rect())
 
-        self.window.view.set_view_state(1.15, 320.0, 220.0)
-        self.app.processEvents()
+        with patch.object(self.manager, "sync", wraps=self.manager.sync) as sync_spy:
+            self.window.view.set_view_state(1.15, 320.0, 220.0)
+            self.assertGreaterEqual(sync_spy.call_count, 1)
         self.assertTrue(container.isVisible())
         self._assert_rect_close(container, node_id)
         self.assertEqual(widget.geometry(), container.rect())

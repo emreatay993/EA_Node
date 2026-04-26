@@ -393,6 +393,69 @@ Item {
     function updateLibraryDropPreview(screenX, screenY, payload) { GraphCanvasRootApi.invoke(interactionState, "updateLibraryDropPreview", [screenX, screenY, payload]); }
     function isPointInCanvas(screenX, screenY) { return GraphCanvasRootApi.isPointInCanvas(root, screenX, screenY); }
     function performLibraryDrop(screenX, screenY, payload) { GraphCanvasRootApi.invoke(interactionState, "performLibraryDrop", [screenX, screenY, payload]); }
+    function folderExplorerDragPayload(path, isFolder) { return GraphCanvasRootApi.invoke(nodeSurfaceBridge, "folderExplorerDragPayload", [path, isFolder], ({})); }
+    function _pathPointerPayload(path, isFolder) {
+        return folderExplorerDragPayload(path, isFolder);
+    }
+    function _pathFromDropEvent(eventObj) {
+        if (!eventObj)
+            return "";
+        if (eventObj.urls && eventObj.urls.length > 0)
+            return String(eventObj.urls[0] || "");
+        if (eventObj.text !== undefined && String(eventObj.text || "").trim().length > 0)
+            return String(eventObj.text || "").trim();
+        if (eventObj.getDataAsString) {
+            var pointerData = String(eventObj.getDataAsString("application/x-corex-path-pointer") || "").trim();
+            if (pointerData.length > 0) {
+                try {
+                    var payload = JSON.parse(pointerData);
+                    var pointerPath = String(payload && payload.properties ? payload.properties.path || "" : "").trim();
+                    if (pointerPath.length > 0)
+                        return pointerPath;
+                } catch (error) {
+                }
+            }
+            var uriList = String(eventObj.getDataAsString("text/uri-list") || "").trim();
+            if (uriList.length > 0)
+                return uriList.split(/\r?\n/)[0];
+            var plainText = String(eventObj.getDataAsString("text/plain") || "").trim();
+            if (plainText.length > 0)
+                return plainText;
+        }
+        return "";
+    }
+    function updatePathPointerDropPreview(screenX, screenY, path, isFolder) {
+        var payload = _pathPointerPayload(path, isFolder);
+        if (!payload || !payload.type_id) {
+            clearLibraryDropPreview();
+            return;
+        }
+        updateLibraryDropPreview(screenX, screenY, payload);
+    }
+    function performPathPointerDrop(screenX, screenY, path, isFolder) {
+        var bridge = root.canvasCommandBridgeRef;
+        if (!bridge || !bridge.request_create_path_pointer_node) {
+            clearLibraryDropPreview();
+            return false;
+        }
+        var normalizedPath = String(path || "").trim();
+        if (!normalizedPath.length) {
+            clearLibraryDropPreview();
+            return false;
+        }
+        root.forceActiveFocus();
+        root._closeContextMenus();
+        root.clearPendingConnection();
+        var result = bridge.request_create_path_pointer_node(
+            normalizedPath,
+            Boolean(isFolder),
+            root.screenToSceneX(screenX),
+            root.screenToSceneY(screenY)
+        );
+        root.clearEdgeSelection();
+        root.clearLibraryDropPreview();
+        return !!result && Boolean(result.success);
+    }
     function _samePort(a, b) { return GraphCanvasRootApi.invoke(interactionState, "_samePort", [a, b], false); }
     function clearPendingConnection() { GraphCanvasRootApi.invoke(interactionState, "clearPendingConnection"); }
     function _wireDragSourceData(state) { return GraphCanvasRootApi.invoke(interactionState, "_wireDragSourceData", [state], null); }
@@ -450,6 +513,44 @@ Item {
         viewStateBridge: root.viewBridge
         viewCommandBridge: root.viewBridge
         minimapSimplificationActive: root.minimapSimplificationActive
+    }
+
+    DropArea {
+        id: osPathDropArea
+        objectName: "graphCanvasOsPathDropArea"
+        anchors.fill: parent
+        keys: ["text/uri-list", "text/plain", "application/x-corex-path-pointer"]
+        z: 5
+
+        onEntered: function(drag) {
+            var path = root._pathFromDropEvent(drag);
+            if (!path.length)
+                return;
+            drag.accept(Qt.CopyAction);
+            root.updatePathPointerDropPreview(drag.x, drag.y, path, false);
+        }
+
+        onPositionChanged: function(drag) {
+            var path = root._pathFromDropEvent(drag);
+            if (!path.length) {
+                root.clearLibraryDropPreview();
+                return;
+            }
+            drag.accept(Qt.CopyAction);
+            root.updatePathPointerDropPreview(drag.x, drag.y, path, false);
+        }
+
+        onExited: root.clearLibraryDropPreview()
+
+        onDropped: function(drop) {
+            var path = root._pathFromDropEvent(drop);
+            if (!path.length) {
+                root.clearLibraryDropPreview();
+                return;
+            }
+            drop.accept(Qt.CopyAction);
+            root.performPathPointerDrop(drop.x, drop.y, path, false);
+        }
     }
 
     Item {

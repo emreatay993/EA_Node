@@ -57,6 +57,7 @@ from ea_node_editor.ui_qml.graph_canvas_command_bridge import GraphCanvasCommand
 from ea_node_editor.ui_qml.graph_scene_bridge import GraphSceneBridge
 from ea_node_editor.ui_qml.graph_canvas_state_bridge import GraphCanvasStateBridge
 from ea_node_editor.ui_qml.graph_theme_bridge import GraphThemeBridge
+from ea_node_editor.ui_qml.native_folder_explorer_host_service import NativeFolderExplorerHostService
 from ea_node_editor.ui_qml.script_editor_model import ScriptEditorModel
 from ea_node_editor.ui_qml.shell_inspector_bridge import ShellInspectorBridge
 from ea_node_editor.ui_qml.shell_library_bridge import ShellLibraryBridge
@@ -321,11 +322,13 @@ class ShellRuntimeDependencies:
     content_fullscreen_bridge: ContentFullscreenBridge
     viewer_session_bridge: ViewerSessionBridge
     viewer_host_service: ViewerHostService
+    native_folder_explorer_host_service: NativeFolderExplorerHostService
 
     def attach(self, host: "ShellWindow") -> None:
         host.content_fullscreen_bridge = self.content_fullscreen_bridge
         host.viewer_session_bridge = self.viewer_session_bridge
         host.viewer_host_service = self.viewer_host_service
+        host.native_folder_explorer_host_service = self.native_folder_explorer_host_service
 
 
 @dataclass(frozen=True, slots=True)
@@ -746,10 +749,16 @@ def _create_shell_runtime_dependencies(
         shell_window=host,
         viewer_session_bridge=viewer_session_bridge,
     )
+    native_folder_explorer_host_service = NativeFolderExplorerHostService(
+        host,
+        shell_window=host,
+        scene_bridge=primitives.scene,
+    )
     return ShellRuntimeDependencies(
         content_fullscreen_bridge=content_fullscreen_bridge,
         viewer_session_bridge=viewer_session_bridge,
         viewer_host_service=viewer_host_service,
+        native_folder_explorer_host_service=native_folder_explorer_host_service,
     )
 
 

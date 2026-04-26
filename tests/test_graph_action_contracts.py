@@ -719,6 +719,28 @@ def test_folder_explorer_bridge_creates_path_pointer_and_new_explorer_nodes() ->
         ]
 
 
+def test_graph_canvas_command_bridge_creates_path_pointer_from_os_drop_url() -> None:
+    with TemporaryDirectory() as temporary_directory:
+        root = Path(temporary_directory)
+        target_file = root / "dropped.txt"
+        target_file.write_text("hello", encoding="utf-8")
+        scene = _FolderExplorerSceneCommandProbe()
+        bridge = GraphCanvasCommandBridge(scene_bridge=scene)
+
+        result = bridge.request_create_path_pointer_node(
+            target_file.resolve().as_uri(),
+            False,
+            48,
+            96,
+        )
+
+        assert result["success"] is True
+        assert result["created_type_id"] == "io.path_pointer"
+        assert result["mode"] == "file"
+        assert scene.added_nodes == [("io.path_pointer", 48.0, 96.0, "node-1")]
+        assert scene.bulk_properties == [("node-1", {"path": str(target_file.resolve()), "mode": "file"})]
+
+
 def test_folder_explorer_bridge_accepts_qml_command_aliases_for_drag_and_new_window() -> None:
     with TemporaryDirectory() as temporary_directory:
         root = Path(temporary_directory)
