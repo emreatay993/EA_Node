@@ -9,6 +9,7 @@ Column {
     property var propertyItem: ({})
     readonly property string propertyKey: String(propertyItem ? propertyItem.key || "" : "")
     readonly property string editorMode: String(propertyItem ? propertyItem.editor_mode || "" : "")
+    readonly property string pathDialogMode: String(propertyItem ? propertyItem.path_dialog_mode || "" : "")
     readonly property bool overriddenByInput: !!(propertyItem && propertyItem.overridden_by_input)
     readonly property string inputPortLabel: String(propertyItem ? propertyItem.input_port_label || "" : "")
     readonly property string propertyValueText: String(
@@ -308,6 +309,7 @@ Column {
                 pane: propertyEditor.pane
                 objectName: "inspectorPathEditor"
                 property string propertyKey: propertyEditor.propertyKey
+                property string pathDialogMode: propertyEditor.pathDialogMode
                 Layout.fillWidth: true
                 text: MainShellUtils.toEditorText(propertyEditor.propertyItem)
                 onAccepted: {
@@ -324,6 +326,7 @@ Column {
                 pane: propertyEditor.pane
                 objectName: "inspectorPathBrowseButton"
                 property string propertyKey: propertyEditor.propertyKey
+                property string pathDialogMode: propertyEditor.pathDialogMode
                 compact: true
                 text: "Browse"
                 onClicked: {

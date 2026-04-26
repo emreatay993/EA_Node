@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import copy
+import json
 import unittest
 
 from ea_node_editor.execution.compiler import compile_workspace_document
@@ -531,6 +532,44 @@ class SerializerTests(SerializerRoundTripMixin, SerializerWorkflowMixin, Seriali
         self.assertEqual(payloads[logger.node_id]["owner_backdrop_id"], backdrop.node_id)
         self.assertEqual(payloads[logger.node_id]["backdrop_depth"], 1)
         self.assertEqual(payloads[backdrop.node_id]["member_node_ids"], [logger.node_id])
+
+    def test_folder_explorer_persistence_keeps_only_semantic_current_path_state(self) -> None:
+        registry = build_default_registry()
+        model = GraphModel()
+        workspace = model.active_workspace
+        folder_node = model.add_node(
+            workspace.workspace_id,
+            "io.folder_explorer",
+            "Folder Explorer",
+            80.0,
+            120.0,
+            properties={"current_path": "C:/Projects/Input"},
+        )
+
+        serializer = JsonProjectSerializer(registry)
+        document = serializer.to_persistent_document(model.project)
+        workspace_doc = next(ws for ws in document["workspaces"] if ws["workspace_id"] == workspace.workspace_id)
+        node_doc = next(node for node in workspace_doc["nodes"] if node["node_id"] == folder_node.node_id)
+
+        self.assertEqual(node_doc["type_id"], "io.folder_explorer")
+        self.assertEqual(node_doc["properties"], {"current_path": "C:/Projects/Input"})
+        serialized_node_doc = json.dumps(node_doc, sort_keys=True)
+        for transient_key in (
+            "navigationHistory",
+            "navigation_history",
+            "searchText",
+            "search_text",
+            "sortKey",
+            "sort_key",
+            "sortReverse",
+            "sort_reverse",
+            "selectedIndex",
+            "selected_row",
+            "contextEntryIndex",
+            "context_menu_position",
+            "maximized",
+        ):
+            self.assertNotIn(transient_key, serialized_node_doc)
 
 
 class SerializerPortLockingTests(unittest.TestCase):

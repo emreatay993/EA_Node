@@ -1151,6 +1151,30 @@ class GraphSurfaceFolderExplorerInlineBridgeTests(unittest.TestCase):
         self.assertNotIn("commitNodeSurfaceProperty", surface_qml)
         self.assertNotIn("set_node_property", surface_qml)
 
+    def test_folder_explorer_current_path_surface_change_uses_folder_action_mutation_route(self) -> None:
+        surface_qml = (
+            REPO_ROOT
+            / "ea_node_editor"
+            / "ui_qml"
+            / "components"
+            / "graph"
+            / "passive"
+            / "GraphClassicExplorerSurface.qml"
+        ).read_text(encoding="utf-8")
+        command_bridge = (
+            REPO_ROOT
+            / "ea_node_editor"
+            / "ui_qml"
+            / "graph_canvas_command_bridge.py"
+        ).read_text(encoding="utf-8")
+
+        self.assertIn('propertyKey: "current_path"', surface_qml)
+        self.assertIn('return host.browseNodePropertyPath("current_path", currentPath);', surface_qml)
+        self.assertIn("onCommitRequested: function(value) {", surface_qml)
+        self.assertIn("root.navigateTo(value, true);", surface_qml)
+        self.assertIn('callback(node_id, "current_path", current_path)', command_bridge)
+        self.assertNotIn("host.inlinePropertyCommitted(String(host.nodeData.node_id || \"\"), \"current_path\"", surface_qml)
+
 
 if __name__ == "__main__":
     unittest.main()
