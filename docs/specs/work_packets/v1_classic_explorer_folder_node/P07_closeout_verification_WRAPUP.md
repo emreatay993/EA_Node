@@ -5,12 +5,12 @@
 - Branch Label: `codex/v1-classic-explorer-folder-node/p07-closeout-verification`
 - Commit Owner: `worker`
 - Commit SHA: `558eb2dd25d4c7aeb2c39e92bb42d289e4a5f6a3`
-- Changed Files: docs/specs/INDEX.md, docs/specs/perf/V1_CLASSIC_EXPLORER_FOLDER_NODE_QA_MATRIX.md, docs/specs/requirements/20_UI_UX.md, docs/specs/requirements/40_NODE_SDK.md, docs/specs/requirements/70_INTEGRATIONS.md, docs/specs/requirements/90_QA_ACCEPTANCE.md, docs/specs/requirements/TRACEABILITY_MATRIX.md, docs/specs/work_packets/v1_classic_explorer_folder_node/P07_closeout_verification_WRAPUP.md
-- Artifacts Produced: docs/specs/perf/V1_CLASSIC_EXPLORER_FOLDER_NODE_QA_MATRIX.md, docs/specs/work_packets/v1_classic_explorer_folder_node/P07_closeout_verification_WRAPUP.md
+- Changed Files: docs/specs/INDEX.md, docs/specs/perf/V1_CLASSIC_EXPLORER_FOLDER_NODE_QA_MATRIX.md, docs/specs/requirements/20_UI_UX.md, docs/specs/requirements/40_NODE_SDK.md, docs/specs/requirements/70_INTEGRATIONS.md, docs/specs/requirements/90_QA_ACCEPTANCE.md, docs/specs/requirements/TRACEABILITY_MATRIX.md, docs/specs/work_packets/v1_classic_explorer_folder_node/P07_closeout_verification_WRAPUP.md, docs/specs/work_packets/v1_classic_explorer_folder_node/V1_CLASSIC_EXPLORER_FOLDER_NODE_STATUS.md
+- Artifacts Produced: docs/specs/perf/V1_CLASSIC_EXPLORER_FOLDER_NODE_QA_MATRIX.md, docs/specs/work_packets/v1_classic_explorer_folder_node/P07_closeout_verification_WRAPUP.md, docs/specs/work_packets/v1_classic_explorer_folder_node/V1_CLASSIC_EXPLORER_FOLDER_NODE_STATUS.md
 
 Created the final V1 Classic Explorer folder node QA matrix with retained P01 through P06 evidence, P07 proof commands, manual smoke directives, and residual risks. Added durable requirement, acceptance, traceability, and spec-index anchors for the shipped passive `io.folder_explorer` Classic Explorer surface, real-filesystem service, Path Pointer handoff, confirmed mutation paths, and closeout proof.
 
-No product source, tests, or shared status ledger files were changed.
+No product source or tests were changed. The executor later updated the shared status ledger with the terminal review decision.
 
 ## Verification
 - FAIL: `.\venv\Scripts\python.exe scripts\run_verification.py --mode fast` exited in `fast.context_budgets`; 10 of 23 guarded hotspots exceed configured line caps before pytest phases run.
@@ -18,6 +18,8 @@ No product source, tests, or shared status ledger files were changed.
 - PASS: `.\venv\Scripts\python.exe scripts\check_markdown_links.py` completed with `MARKDOWN LINK CHECK PASS`.
 - FAIL: `.\venv\Scripts\python.exe scripts\check_context_budgets.py` reported the same 10 guarded hotspot overruns: `EdgeLayer.qml`, `viewer_session_bridge.py`, `viewer_session_service.py`, `window_state_helpers.py`, `graph_surface_metrics.py`, `edge_routing.py`, `graph_scene_mutation_history.py`, `tests/test_passive_graph_surface_host.py`, `tests/test_graph_surface_input_contract.py`, and `tests/graph_track_b/qml_preference_bindings.py`.
 - PASS: `.\venv\Scripts\python.exe scripts\check_markdown_links.py` review gate completed with `MARKDOWN LINK CHECK PASS` after wrap-up creation.
+- FAIL: executor validator confirmed the packet is not acceptable while `Final Verification Verdict` is `FAIL`.
+- PASS: executor review gate rerun `.\venv\Scripts\python.exe scripts\check_markdown_links.py` completed with `MARKDOWN LINK CHECK PASS`.
 - Final Verification Verdict: FAIL
 
 ## Manual Test Directives
