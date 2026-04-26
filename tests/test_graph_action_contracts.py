@@ -613,6 +613,51 @@ def test_folder_explorer_bridge_confirmed_mutation_returns_refreshed_listing() -
         assert confirmation.calls == [("new_folder", str(root), str(root / "Created"))]
 
 
+def test_folder_explorer_bridge_confirmed_rename_cut_and_paste_mutate_only_temp_paths() -> None:
+    with TemporaryDirectory() as temporary_directory:
+        root = Path(temporary_directory)
+        source = root / "source.txt"
+        source.write_text("move me", encoding="utf-8")
+        sibling = root / "sibling.txt"
+        sibling.write_text("keep me", encoding="utf-8")
+        destination = root / "Destination"
+        destination.mkdir()
+        renamed = root / "renamed.txt"
+        confirmation = _FolderExplorerConfirmationProbe(True)
+        bridge = GraphCanvasCommandBridge(
+            folder_explorer_service=FolderExplorerFilesystemService(),
+            folder_explorer_confirmation_source=confirmation,
+        )
+
+        rename_result = bridge.request_folder_explorer_action(
+            "folder_explorer_rename",
+            {"node_id": "folder-node", "path": str(source), "new_name": "renamed.txt", "current_path": str(root)},
+        )
+        cut_result = bridge.request_folder_explorer_action(
+            "folder_explorer_cut",
+            {"node_id": "folder-node", "path": str(renamed)},
+        )
+        paste_result = bridge.request_folder_explorer_action(
+            "folder_explorer_paste",
+            {"node_id": "folder-node", "path": str(destination)},
+        )
+
+        assert rename_result["success"] is True
+        assert cut_result["success"] is True
+        assert paste_result["success"] is True
+        assert not source.exists()
+        assert not renamed.exists()
+        assert (destination / "renamed.txt").read_text(encoding="utf-8") == "move me"
+        assert sibling.read_text(encoding="utf-8") == "keep me"
+        assert paste_result["listing"]["directory_path"] == str(destination.resolve(strict=False))
+        assert [entry["name"] for entry in paste_result["listing"]["entries"]] == ["renamed.txt"]
+        assert confirmation.calls == [
+            ("rename", str(source), str(renamed)),
+            ("cut", str(renamed), ""),
+            ("paste", str(destination), ""),
+        ]
+
+
 def test_folder_explorer_bridge_copy_path_and_open_use_shell_seams() -> None:
     with TemporaryDirectory() as temporary_directory:
         target = Path(temporary_directory) / "open-me.txt"
@@ -670,5 +715,40 @@ def test_folder_explorer_bridge_creates_path_pointer_and_new_explorer_nodes() ->
         ]
         assert scene.bulk_properties == [
             ("node-1", {"path": str(target_file.resolve()), "mode": "file"}),
+            ("node-2", {"current_path": str(root.resolve())}),
+        ]
+
+
+def test_folder_explorer_bridge_accepts_qml_command_aliases_for_drag_and_new_window() -> None:
+    with TemporaryDirectory() as temporary_directory:
+        root = Path(temporary_directory)
+        target_folder = root / "Selected Folder"
+        target_folder.mkdir()
+        scene = _FolderExplorerSceneCommandProbe()
+        bridge = GraphCanvasCommandBridge(
+            scene_bridge=scene,
+            folder_explorer_service=FolderExplorerFilesystemService(),
+        )
+
+        drag_result = bridge.request_folder_explorer_action(
+            "sendToCorexPathPointer",
+            {"node_id": "folder-node", "path": str(target_folder), "scene_x": 10, "scene_y": 20},
+        )
+        new_window_result = bridge.request_folder_explorer_action(
+            "openInNewWindow",
+            {"node_id": "folder-node", "path": str(root), "scene_x": 30, "scene_y": 40},
+        )
+
+        assert drag_result["success"] is True
+        assert drag_result["created_type_id"] == "io.path_pointer"
+        assert drag_result["mode"] == "folder"
+        assert new_window_result["success"] is True
+        assert new_window_result["created_type_id"] == "io.folder_explorer"
+        assert scene.added_nodes == [
+            ("io.path_pointer", 10.0, 20.0, "node-1"),
+            ("io.folder_explorer", 30.0, 40.0, "node-2"),
+        ]
+        assert scene.bulk_properties == [
+            ("node-1", {"path": str(target_folder.resolve()), "mode": "folder"}),
             ("node-2", {"current_path": str(root.resolve())}),
         ]

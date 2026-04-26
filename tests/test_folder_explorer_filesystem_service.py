@@ -53,6 +53,26 @@ class FolderExplorerFilesystemServiceTests(unittest.TestCase):
         self.assertEqual(entries_by_name["alpha.TXT"].display_size, "5 bytes")
         self.assertIsInstance(entries_by_name["alpha.TXT"].modified_timestamp, float)
 
+    def test_list_directory_returns_breadcrumb_targets_for_temp_navigation(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            parent = root / "Alpha"
+            child = parent / "Beta"
+            child.mkdir(parents=True)
+
+            listing = self.service.list_directory(child)
+
+        self.assertEqual(listing.directory_path, str(child.resolve(strict=False)))
+        self.assertEqual(listing.parent_path, str(parent.resolve(strict=False)))
+        self.assertGreaterEqual(len(listing.breadcrumbs), 2)
+        self.assertEqual(
+            [(crumb.name, crumb.absolute_path) for crumb in listing.breadcrumbs[-2:]],
+            [
+                ("Alpha", str(parent.resolve(strict=False))),
+                ("Beta", str(child.resolve(strict=False))),
+            ],
+        )
+
     def test_filtering_is_case_insensitive_and_does_not_mutate_filesystem(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)

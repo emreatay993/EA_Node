@@ -1175,6 +1175,25 @@ class GraphSurfaceFolderExplorerInlineBridgeTests(unittest.TestCase):
         self.assertIn('callback(node_id, "current_path", current_path)', command_bridge)
         self.assertNotIn("host.inlinePropertyCommitted(String(host.nodeData.node_id || \"\"), \"current_path\"", surface_qml)
 
+    def test_folder_explorer_surface_emits_breadcrumb_context_and_drag_command_payloads(self) -> None:
+        surface_qml = (
+            REPO_ROOT
+            / "ea_node_editor"
+            / "ui_qml"
+            / "components"
+            / "graph"
+            / "passive"
+            / "GraphClassicExplorerSurface.qml"
+        ).read_text(encoding="utf-8")
+
+        self.assertIn('objectName: "graphClassicExplorerBreadcrumbButton"', surface_qml)
+        self.assertIn("onClicked: root.navigateTo(crumbPath, true)", surface_qml)
+        self.assertIn("Drag.mimeData:", surface_qml)
+        self.assertIn('"application/x-corex-path-pointer": JSON.stringify(payload)', surface_qml)
+        self.assertIn('onTriggered: root.triggerContextAction("openInNewWindow", root.contextEntryIndex, {})', surface_qml)
+        self.assertIn('onTriggered: root.triggerContextAction("delete", root.contextEntryIndex, {})', surface_qml)
+        self.assertIn("onTriggered: root.createPathPointerFromEntry(root.contextEntryIndex)", surface_qml)
+
 
 if __name__ == "__main__":
     unittest.main()

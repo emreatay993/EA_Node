@@ -7,6 +7,7 @@ from PyQt6.QtCore import QMetaObject
 from PyQt6.QtGui import QColor
 from PyQt6.QtQuick import QQuickItem
 
+from ea_node_editor.persistence.serializer import JsonProjectSerializer
 from tests.main_window_shell.base import *  # noqa: F401,F403
 from tests.passive_property_editor_fixtures import register_passive_editor_fixture
 
@@ -170,6 +171,11 @@ class MainWindowShellPassivePropertyEditorsTests(SharedMainWindowShellTestBase):
         self.assertEqual(str(path_editor.property("text")), str(picked_directory))
         open_directory_dialog.assert_called_once()
         open_file_dialog.assert_not_called()
+
+        document = JsonProjectSerializer(self.window.registry).to_persistent_document(self.window.model.project)
+        workspace_doc = next(ws for ws in document["workspaces"] if ws["workspace_id"] == workspace_id)
+        node_doc = next(node for node in workspace_doc["nodes"] if node["node_id"] == node_id)
+        self.assertEqual(node_doc["properties"], {"current_path": str(picked_directory)})
 
     def test_qml_color_editor_picker_commits_selected_hex(self) -> None:
         workspace_id = self.window.workspace_manager.active_workspace_id()

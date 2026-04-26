@@ -571,6 +571,54 @@ class SerializerTests(SerializerRoundTripMixin, SerializerWorkflowMixin, Seriali
         ):
             self.assertNotIn(transient_key, serialized_node_doc)
 
+    def test_folder_explorer_load_discards_surface_transients_before_reserialize(self) -> None:
+        registry = build_default_registry()
+        serializer = JsonProjectSerializer(registry)
+        model = GraphModel()
+        workspace = model.active_workspace
+        folder_node = model.add_node(
+            workspace.workspace_id,
+            "io.folder_explorer",
+            "Folder Explorer",
+            80.0,
+            120.0,
+            properties={"current_path": "C:/Projects/Input"},
+        )
+        document = serializer.to_document(model.project)
+        workspace_doc = next(ws for ws in document["workspaces"] if ws["workspace_id"] == workspace.workspace_id)
+        node_doc = next(node for node in workspace_doc["nodes"] if node["node_id"] == folder_node.node_id)
+        node_doc["properties"].update(
+            {
+                "navigation_history": ["C:/Projects", "C:/Projects/Input"],
+                "search_text": "report",
+                "sort_key": "modified",
+                "selected_row": 2,
+            }
+        )
+        node_doc["context_menu_position"] = {"x": 12, "y": 20}
+        node_doc["maximized"] = True
+
+        loaded_project = serializer.from_document(document)
+        reserialized = serializer.to_persistent_document(loaded_project)
+        reserialized_workspace_doc = next(
+            ws for ws in reserialized["workspaces"] if ws["workspace_id"] == workspace.workspace_id
+        )
+        reserialized_node_doc = next(
+            node for node in reserialized_workspace_doc["nodes"] if node["node_id"] == folder_node.node_id
+        )
+
+        self.assertEqual(reserialized_node_doc["properties"], {"current_path": "C:/Projects/Input"})
+        serialized_node_doc = json.dumps(reserialized_node_doc, sort_keys=True)
+        for transient_key in (
+            "navigation_history",
+            "search_text",
+            "sort_key",
+            "selected_row",
+            "context_menu_position",
+            "maximized",
+        ):
+            self.assertNotIn(transient_key, serialized_node_doc)
+
 
 class SerializerPortLockingTests(unittest.TestCase):
     def test_persistent_document_round_trip_preserves_locked_ports_and_view_filters(self) -> None:

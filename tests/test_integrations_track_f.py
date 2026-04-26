@@ -34,6 +34,7 @@ from ea_node_editor.nodes.builtins.integrations_file_io import (
 )
 from ea_node_editor.nodes.types import ExecutionContext
 from ea_node_editor.persistence.serializer import JsonProjectSerializer
+from ea_node_editor.ui.folder_explorer import FolderExplorerFilesystemService
 from ea_node_editor.ui_qml.graph_geometry.standard_metrics import resolved_node_surface_size
 
 
@@ -376,6 +377,28 @@ class FolderExplorerNodeTests(unittest.TestCase):
                 _context(properties={"current_path": temp_dir})
             )
         self.assertEqual(result.outputs, {"current": temp_dir})
+
+    def test_folder_explorer_created_node_current_path_drives_real_temp_listing(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            (root / "Assets").mkdir()
+            (root / "readme.txt").write_text("hello", encoding="utf-8")
+            model = GraphModel()
+            node = model.add_node(
+                model.active_workspace.workspace_id,
+                "io.folder_explorer",
+                "Folder Explorer",
+                100.0,
+                160.0,
+                properties={"current_path": str(root)},
+            )
+
+            result = FolderExplorerNodePlugin().execute(_context(properties=node.properties))
+            listing = FolderExplorerFilesystemService().list_directory(result.outputs["current"])
+
+        self.assertEqual(Path(result.outputs["current"]).resolve(strict=False), root.resolve(strict=False))
+        self.assertEqual(listing.directory_path, str(root.resolve(strict=False)))
+        self.assertEqual([entry.name for entry in listing.entries], ["Assets", "readme.txt"])
 
     def test_folder_explorer_rejects_missing_or_non_folder_paths(self) -> None:
         with self.assertRaises(ValueError) as empty_error:
