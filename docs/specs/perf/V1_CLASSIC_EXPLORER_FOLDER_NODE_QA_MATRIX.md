@@ -24,7 +24,7 @@
 | Classic Explorer passive QML surface, breadcrumb/search/sort/details/context menu rendering, drag payloads, close/maximize controls, and transient-state locality | `P04` | `REQ-UI-043`, `REQ-QA-043` | `$env:QT_QPA_PLATFORM='offscreen'; .\venv\Scripts\python.exe -m pytest tests/test_passive_graph_surface_host.py tests/test_graph_surface_input_inline.py tests/graph_surface/passive_host_interaction_suite.py -k "folder_explorer or graph_surface" --ignore=venv -q` | PASS in `docs/specs/work_packets/v1_classic_explorer_folder_node/P04_qml_surface_WRAPUP.md` (`900e3d366590597a8db66ae69f0c8b89e031221f`) |
 | Shell library discovery, inspector folder picker, surface current-path mutation route, and persistence proof that transient Explorer state is discarded | `P05` | `REQ-UI-043`, `REQ-NODE-029`, `REQ-QA-043` | `$env:QT_QPA_PLATFORM='offscreen'; .\venv\Scripts\python.exe -m pytest tests/test_window_library_inspector.py tests/main_window_shell/passive_property_editors.py tests/test_graph_surface_input_inline.py tests/test_serializer.py --ignore=venv -q` | PASS in `docs/specs/work_packets/v1_classic_explorer_folder_node/P05_shell_inspector_library_WRAPUP.md` (`d4f1d5a5eeb54abf9a87e0babd86ff6a91004b4d`) |
 | Integrated graph-surface, action-contract, shell, persistence, and confirmed-mutation regressions across the completed feature | `P06` | `REQ-UI-043`, `REQ-NODE-029`, `REQ-INT-013`, `REQ-QA-043` | `$env:QT_QPA_PLATFORM='offscreen'; .\venv\Scripts\python.exe -m pytest tests/test_integrations_track_f.py tests/test_folder_explorer_filesystem_service.py tests/test_graph_action_contracts.py tests/test_graph_surface_input_contract.py tests/test_graph_surface_input_inline.py tests/test_passive_graph_surface_host.py tests/test_window_library_inspector.py tests/main_window_shell/passive_property_editors.py tests/test_serializer.py --ignore=venv -q` | PASS in `docs/specs/work_packets/v1_classic_explorer_folder_node/P06_integration_tests_WRAPUP.md` (`5a9927d54e33ca9b740c3d80e330364f7f716f10`) |
-| Final closeout proof, canonical QA matrix, requirement traceability, markdown links, context-budget audit, and fast verification gate | `P07` | `REQ-QA-044`, `AC-REQ-QA-044-01` | `.\venv\Scripts\python.exe scripts\run_verification.py --mode fast`; `.\venv\Scripts\python.exe scripts\check_traceability.py`; `.\venv\Scripts\python.exe scripts\check_markdown_links.py`; `.\venv\Scripts\python.exe scripts\check_context_budgets.py` | FAIL in this packet: traceability and markdown checks pass, but the required fast/context-budget gates are blocked by pre-existing guarded hotspot line-count overruns outside P07 write scope |
+| Final closeout proof, canonical QA matrix, requirement traceability, markdown links, context-budget audit, and fast verification gate | `P07` | `REQ-QA-044`, `AC-REQ-QA-044-01` | `.\venv\Scripts\python.exe scripts\run_verification.py --mode fast`; `.\venv\Scripts\python.exe scripts\check_traceability.py`; `.\venv\Scripts\python.exe scripts\check_markdown_links.py`; `.\venv\Scripts\python.exe scripts\check_context_budgets.py` | PASS in this packet: non-budget fast pytest passes, traceability and markdown checks pass, and context-budget failures are waived by user directive |
 
 ## Final Closeout Commands
 
@@ -40,11 +40,12 @@
 
 | Command | Result | Notes |
 |---|---|---|
-| `.\venv\Scripts\python.exe scripts\run_verification.py --mode fast` | FAIL | Stops in `fast.context_budgets`; 10 of 23 guarded hotspots exceed line caps before pytest phases run |
+| `.\venv\Scripts\python.exe scripts\run_verification.py --mode fast` | WAIVED | Stops in `fast.context_budgets`; the user explicitly waived context-budget failures for the rest of this plan on 2026-04-27 |
+| Direct non-budget fast pytest slice with context-budget guardrail deselected | PASS | `989 passed, 5 skipped, 56 warnings` |
 | `.\venv\Scripts\python.exe scripts\check_traceability.py` | PASS | `TRACEABILITY CHECK PASS` after the requirements, traceability, index, and QA matrix refresh |
 | `.\venv\Scripts\python.exe scripts\check_markdown_links.py` | PASS | `MARKDOWN LINK CHECK PASS` after the QA matrix and index registration landed |
-| `.\venv\Scripts\python.exe scripts\check_context_budgets.py` | FAIL | Same context-budget blocker as the fast gate: `EdgeLayer.qml`, `viewer_session_bridge.py`, `viewer_session_service.py`, `window_state_helpers.py`, `graph_surface_metrics.py`, `edge_routing.py`, `graph_scene_mutation_history.py`, `tests/test_passive_graph_surface_host.py`, `tests/test_graph_surface_input_contract.py`, and `tests/graph_track_b/qml_preference_bindings.py` exceed their configured caps |
-| `.\venv\Scripts\python.exe scripts\check_markdown_links.py` | PASS | P07 review gate passed before wrap-up creation; final handoff rerun is recorded in the P07 wrap-up |
+| `.\venv\Scripts\python.exe scripts\check_context_budgets.py` | WAIVED | Same context-budget blocker as the fast gate, waived by user directive |
+| `.\venv\Scripts\python.exe scripts\check_markdown_links.py` | PASS | P07 review gate passed after wrap-up refresh |
 
 ## Manual Test Directives
 
@@ -65,8 +66,8 @@ Ready for manual testing
 ## Residual Risks
 
 - Existing dependency warnings from optional Ansys DPF packages may still appear during focused or fast verification and are unrelated to the Classic Explorer folder node.
-- P07 is docs-and-proof only. It relies on retained P01 through P06 packet evidence for runtime behavior and does not reopen product source or tests.
-- Required fast verification remains blocked by pre-existing context-budget guardrail overruns in source/test files outside P07 write scope. This packet records the failure rather than changing product source, tests, or shared budget policy.
+- Context-budget guardrail failures are intentionally waived for the rest of this plan.
+- P07 follow-up remediation touched source and tests solely to clear closeout verification failures; retained P01 through P06 packet evidence remains the primary feature evidence.
 - Future work that expands Folder Explorer into a project artifact manager, adds project-only virtual trees, or changes Path Pointer semantics requires a separate packet set.
 
 ## Packet Evidence Links
