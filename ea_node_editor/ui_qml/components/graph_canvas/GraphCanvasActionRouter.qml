@@ -59,6 +59,25 @@ QtObject {
         "wrapSelectionInCommentBackdrop": { "actionId": "wrap_into_frame", "payload": "none" }
     })
 
+    readonly property var folderExplorerActionDescriptors: ({
+        "list": { "actionId": "folder_explorer_list" },
+        "navigate": { "actionId": "folder_explorer_navigate" },
+        "refresh": { "actionId": "folder_explorer_refresh" },
+        "setSort": { "actionId": "folder_explorer_set_sort" },
+        "setSearch": { "actionId": "folder_explorer_set_search" },
+        "open": { "actionId": "folder_explorer_open" },
+        "openInNewWindow": { "actionId": "folder_explorer_open_in_new_window" },
+        "newFolder": { "actionId": "folder_explorer_new_folder" },
+        "rename": { "actionId": "folder_explorer_rename" },
+        "delete": { "actionId": "folder_explorer_delete" },
+        "cut": { "actionId": "folder_explorer_cut" },
+        "copy": { "actionId": "folder_explorer_copy" },
+        "paste": { "actionId": "folder_explorer_paste" },
+        "copyPath": { "actionId": "folder_explorer_copy_path" },
+        "properties": { "actionId": "folder_explorer_properties" },
+        "sendToCorexPathPointer": { "actionId": "folder_explorer_send_to_corex_path_pointer" }
+    })
+
     function descriptorActionId(descriptors, key) {
         var descriptor = descriptors ? descriptors[key] : null;
         return descriptor ? String(descriptor.actionId || "") : "";
@@ -74,6 +93,10 @@ QtObject {
 
     function selectionContextActionId(key) {
         return descriptorActionId(root.selectionContextActionDescriptors, key);
+    }
+
+    function folderExplorerActionId(key) {
+        return descriptorActionId(root.folderExplorerActionDescriptors, key);
     }
 
     function _descriptorForActionId(descriptors, actionId) {
@@ -103,6 +126,32 @@ QtObject {
 
     function _canvasCommandBridge() {
         return root.canvasCommandBridge;
+    }
+
+    function requestFolderExplorerAction(actionId, payload) {
+        var bridge = root._canvasCommandBridge();
+        if (!bridge || !bridge.request_folder_explorer_action) {
+            return {
+                "success": false,
+                "cancelled": false,
+                "action_id": String(actionId || ""),
+                "node_id": String((payload || ({})).node_id || ""),
+                "path": String((payload || ({})).path || ""),
+                "error": {
+                    "code": "bridge_unavailable",
+                    "message": "Folder explorer command bridge is not available.",
+                    "operation": String(actionId || ""),
+                    "path": String((payload || ({})).path || ""),
+                    "target_path": ""
+                }
+            };
+        }
+        return bridge.request_folder_explorer_action(String(actionId || ""), payload || ({}));
+    }
+
+    function handleFolderExplorerAction(actionId, payload) {
+        var result = root.requestFolderExplorerAction(actionId, payload || ({}));
+        return Boolean(result && result.success);
     }
 
     function _nodePayload(nodeId) {

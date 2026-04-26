@@ -84,6 +84,24 @@ class GraphSceneCommandBridge(QObject):
     def add_node_from_type(self, type_id: str, x: float = 0.0, y: float = 0.0) -> str:
         return self._authoring_boundary.add_node_from_type(type_id, x, y)
 
+    @pyqtSlot(str, str, float, float, result=str)
+    def add_path_pointer_node(self, path: str, mode: str, x: float = 0.0, y: float = 0.0) -> str:
+        node_id = self._authoring_boundary.add_node_from_type("io.path_pointer", x, y)
+        self._authoring_boundary.set_node_properties(
+            node_id,
+            {
+                "path": str(path or ""),
+                "mode": str(mode or "file").strip() or "file",
+            },
+        )
+        return node_id
+
+    @pyqtSlot(str, float, float, result=str)
+    def add_folder_explorer_node(self, current_path: str, x: float = 0.0, y: float = 0.0) -> str:
+        node_id = self._authoring_boundary.add_node_from_type("io.folder_explorer", x, y)
+        self._authoring_boundary.set_node_property(node_id, "current_path", str(current_path or ""))
+        return node_id
+
     def add_subnode_shell_pin(self, shell_node_id: str, pin_type_id: str) -> str:
         return self._authoring_boundary.add_subnode_shell_pin(shell_node_id, pin_type_id)
 

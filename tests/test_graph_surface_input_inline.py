@@ -1,11 +1,14 @@
 from __future__ import annotations
 
 import unittest
+from pathlib import Path
 
 from tests.graph_surface_pointer_regression import (
     QML_POINTER_REGRESSION_HELPERS,
     run_qml_probe,
 )
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
 
 
 class GraphSurfaceInputInlineTests(unittest.TestCase):
@@ -1107,6 +1110,23 @@ class GraphSurfaceInputInlineTests(unittest.TestCase):
             assert bool(lock_toggle.property("visible")) is True
             """,
         )
+
+
+class GraphSurfaceFolderExplorerInlineBridgeTests(unittest.TestCase):
+    def test_folder_explorer_drag_payload_targets_path_pointer_contract(self) -> None:
+        surface_bridge = (
+            REPO_ROOT
+            / "ea_node_editor"
+            / "ui_qml"
+            / "components"
+            / "graph_canvas"
+            / "GraphCanvasNodeSurfaceBridge.qml"
+        ).read_text(encoding="utf-8")
+
+        self.assertIn("function folderExplorerDragPayload(path, isFolder)", surface_bridge)
+        self.assertIn('"action_id": root._folderExplorerActionId("sendToCorexPathPointer")', surface_bridge)
+        self.assertIn('"type_id": "io.path_pointer"', surface_bridge)
+        self.assertIn('"mode": Boolean(isFolder) ? "folder" : "file"', surface_bridge)
 
 
 if __name__ == "__main__":
