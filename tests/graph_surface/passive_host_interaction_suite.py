@@ -3,6 +3,410 @@ from __future__ import annotations
 from tests.graph_surface.environment import *  # noqa: F403
 
 class PassiveGraphSurfaceHostTests(PassiveGraphSurfaceHostTestBase):
+    def test_folder_explorer_surface_loader_renders_classic_surface_and_initial_listing(self) -> None:
+        self._run_qml_probe(
+            "folder-explorer-classic-surface-loader",
+            """
+            def create_folder_explorer_canvas_stub():
+                component = QQmlComponent(engine)
+                component.setData(
+                    b'''
+                    import QtQuick 2.15
+                    import QtQml 2.15
+                    Item {
+                        id: canvas
+                        objectName: "folderExplorerCanvasStub"
+                        property var requests: []
+                        property QtObject canvasActionRouter: QtObject {
+                            function folderExplorerActionId(command) {
+                                var map = {
+                                    "list": "folder_explorer_list",
+                                    "navigate": "folder_explorer_navigate",
+                                    "refresh": "folder_explorer_refresh",
+                                    "setSort": "folder_explorer_set_sort",
+                                    "setSearch": "folder_explorer_set_search",
+                                    "open": "folder_explorer_open",
+                                    "openInNewWindow": "folder_explorer_open_in_new_window",
+                                    "newFolder": "folder_explorer_new_folder",
+                                    "rename": "folder_explorer_rename",
+                                    "delete": "folder_explorer_delete",
+                                    "cut": "folder_explorer_cut",
+                                    "copy": "folder_explorer_copy",
+                                    "paste": "folder_explorer_paste",
+                                    "copyPath": "folder_explorer_copy_path",
+                                    "properties": "folder_explorer_properties",
+                                    "sendToCorexPathPointer": "folder_explorer_send_to_corex_path_pointer"
+                                };
+                                return map[String(command || "")] || String(command || "");
+                            }
+
+                            function requestFolderExplorerAction(actionId, payload) {
+                                var path = String((payload || {}).path || "C:/Projects/Corex");
+                                canvas.requests = canvas.requests.concat([{"action_id": actionId, "payload": payload || ({})}]);
+                                return {
+                                    "success": true,
+                                    "cancelled": false,
+                                    "action_id": actionId,
+                                    "node_id": String((payload || {}).node_id || ""),
+                                    "path": path,
+                                    "error": {},
+                                    "listing": {
+                                        "directory_path": path,
+                                        "parent_path": "C:/Projects",
+                                        "breadcrumbs": [
+                                            {"name": "C:", "absolute_path": "C:"},
+                                            {"name": "Projects", "absolute_path": "C:/Projects"},
+                                            {"name": "Corex", "absolute_path": "C:/Projects/Corex"}
+                                        ],
+                                        "entries": [
+                                            {
+                                                "name": "Assets",
+                                                "absolute_path": path + "/Assets",
+                                                "kind": "folder",
+                                                "is_folder": true,
+                                                "modified_timestamp": 1710000000,
+                                                "extension": "",
+                                                "type_label": "File folder",
+                                                "size_bytes": -1,
+                                                "display_size": ""
+                                            },
+                                            {
+                                                "name": "report.txt",
+                                                "absolute_path": path + "/report.txt",
+                                                "kind": "file",
+                                                "is_folder": false,
+                                                "modified_timestamp": 1710000010,
+                                                "extension": ".txt",
+                                                "type_label": "TXT File",
+                                                "size_bytes": 128,
+                                                "display_size": "128 B"
+                                            }
+                                        ],
+                                        "sort_key": String((payload || {}).sort_key || "name"),
+                                        "reverse": Boolean((payload || {}).reverse),
+                                        "filter_text": String((payload || {}).filter_text || "")
+                                    }
+                                };
+                            }
+                        }
+                    }
+                    ''',
+                    QUrl("folder_explorer_canvas_stub.qml"),
+                )
+                if component.status() != QQmlComponent.Status.Ready:
+                    errors = "\\n".join(error.toString() for error in component.errors())
+                    raise AssertionError(f"Failed to load folder explorer canvas stub:\\n{errors}")
+                obj = component.create()
+                if obj is None:
+                    errors = "\\n".join(error.toString() for error in component.errors())
+                    raise AssertionError(f"Failed to instantiate folder explorer canvas stub:\\n{errors}")
+                return obj
+
+            def to_variant(value):
+                if hasattr(value, "toVariant"):
+                    value = value.toVariant()
+                if isinstance(value, list):
+                    return [to_variant(item) for item in value]
+                if isinstance(value, tuple):
+                    return tuple(to_variant(item) for item in value)
+                if isinstance(value, dict):
+                    return {key: to_variant(item) for key, item in value.items()}
+                return value
+
+            canvas_stub = create_folder_explorer_canvas_stub()
+            payload = node_payload()
+            payload["node_id"] = "folder_explorer_surface_test"
+            payload["type_id"] = "io.folder_explorer"
+            payload["title"] = "Folder Explorer"
+            payload["runtime_behavior"] = "passive"
+            payload["properties"] = {"current_path": "C:/Projects/Corex"}
+            payload["inline_properties"] = [
+                {
+                    "key": "current_path",
+                    "label": "Current Path",
+                    "inline_editor": "path",
+                    "value": "C:/Projects/Corex",
+                    "overridden_by_input": False,
+                    "input_port_label": "current",
+                }
+            ]
+            payload["width"] = 560.0
+            payload["height"] = 360.0
+            payload["surface_metrics"].update({
+                "default_width": 560.0,
+                "default_height": 360.0,
+                "min_width": 360.0,
+                "min_height": 260.0,
+                "body_left_margin": 8.0,
+                "body_right_margin": 8.0,
+                "body_top": 30.0,
+                "body_height": 320.0,
+                "body_bottom_margin": 8.0,
+            })
+
+            host = create_component(
+                graph_node_host_qml_path,
+                {"nodeData": payload, "canvasItem": canvas_stub},
+            )
+            window = attach_host_to_window(host, 720, 520)
+            settle_events(6)
+
+            surface = host.findChild(QObject, "graphClassicExplorerSurface")
+            loader = host.findChild(QObject, "graphNodeSurfaceLoader")
+            title_bar = named_item(host, "graphClassicExplorerTitleBar")
+            command_bar = named_item(host, "graphClassicExplorerCommandBar")
+            breadcrumb_row = named_item(host, "graphClassicExplorerBreadcrumbRow")
+            side_nav = named_item(host, "graphClassicExplorerSideNavigation")
+            details = named_item(host, "graphClassicExplorerDetailsPanel")
+            name_column = named_item(host, "graphClassicExplorerColumnName")
+            date_column = named_item(host, "graphClassicExplorerColumnDateModified")
+            type_column = named_item(host, "graphClassicExplorerColumnType")
+            size_column = named_item(host, "graphClassicExplorerColumnSize")
+            first_row = named_item(host, "graphClassicExplorerDetailsRow")
+            first_row_name = named_item(host, "graphClassicExplorerRowName")
+            context_menu = surface.findChild(QObject, "graphClassicExplorerRowContextMenu")
+
+            assert surface is not None
+            assert bool(loader.property("surfaceLoaded")) is True
+            assert str(loader.property("loadedSurfaceKey")) == "classic_explorer"
+            assert title_bar is not None
+            assert command_bar is not None
+            assert breadcrumb_row is not None
+            assert side_nav is not None
+            assert details is not None
+            assert name_column is not None
+            assert date_column is not None
+            assert type_column is not None
+            assert size_column is not None
+            assert first_row is not None
+            assert "Assets" in str(first_row_name.property("text"))
+            assert context_menu is not None
+            assert surface.findChild(QObject, "graphClassicExplorerContextOpen") is not None
+            assert surface.findChild(QObject, "graphClassicExplorerContextOpenInNewWindow") is not None
+            assert surface.findChild(QObject, "graphClassicExplorerContextCut") is not None
+            assert surface.findChild(QObject, "graphClassicExplorerContextCopy") is not None
+            assert surface.findChild(QObject, "graphClassicExplorerContextPaste") is not None
+            assert surface.findChild(QObject, "graphClassicExplorerContextCopyAsPath") is not None
+            assert surface.findChild(QObject, "graphClassicExplorerContextRename") is not None
+            assert surface.findChild(QObject, "graphClassicExplorerContextDelete") is not None
+            assert surface.findChild(QObject, "graphClassicExplorerContextSendToCorexPathPointer") is not None
+            assert surface.findChild(QObject, "graphClassicExplorerContextProperties") is not None
+
+            requests = to_variant(canvas_stub.property("requests"))
+            assert requests
+            assert requests[0]["action_id"] == "folder_explorer_list"
+            assert requests[0]["payload"]["node_id"] == "folder_explorer_surface_test"
+            assert requests[0]["payload"]["path"] == "C:/Projects/Corex"
+
+            dispose_host_window(host, window)
+            canvas_stub.deleteLater()
+            engine.deleteLater()
+            app.processEvents()
+            """,
+        )
+
+    def test_folder_explorer_surface_routes_commands_drag_payloads_and_keeps_transient_state_local(self) -> None:
+        self._run_qml_probe(
+            "folder-explorer-surface-command-and-transient-state",
+            """
+            def create_folder_explorer_canvas_stub():
+                component = QQmlComponent(engine)
+                component.setData(
+                    b'''
+                    import QtQuick 2.15
+                    import QtQml 2.15
+                    Item {
+                        id: canvas
+                        objectName: "folderExplorerCanvasStub"
+                        property var requests: []
+                        property QtObject canvasActionRouter: QtObject {
+                            function folderExplorerActionId(command) {
+                                var map = {
+                                    "list": "folder_explorer_list",
+                                    "navigate": "folder_explorer_navigate",
+                                    "refresh": "folder_explorer_refresh",
+                                    "setSort": "folder_explorer_set_sort",
+                                    "setSearch": "folder_explorer_set_search",
+                                    "open": "folder_explorer_open",
+                                    "openInNewWindow": "folder_explorer_open_in_new_window",
+                                    "newFolder": "folder_explorer_new_folder",
+                                    "rename": "folder_explorer_rename",
+                                    "delete": "folder_explorer_delete",
+                                    "cut": "folder_explorer_cut",
+                                    "copy": "folder_explorer_copy",
+                                    "paste": "folder_explorer_paste",
+                                    "copyPath": "folder_explorer_copy_path",
+                                    "properties": "folder_explorer_properties",
+                                    "sendToCorexPathPointer": "folder_explorer_send_to_corex_path_pointer"
+                                };
+                                return map[String(command || "")] || String(command || "");
+                            }
+
+                            function requestFolderExplorerAction(actionId, payload) {
+                                var path = String((payload || {}).path || "C:/Projects/Corex");
+                                canvas.requests = canvas.requests.concat([{"action_id": actionId, "payload": payload || ({})}]);
+                                return {
+                                    "success": true,
+                                    "cancelled": false,
+                                    "action_id": actionId,
+                                    "node_id": String((payload || {}).node_id || ""),
+                                    "path": path,
+                                    "error": {},
+                                    "listing": {
+                                        "directory_path": path,
+                                        "parent_path": "C:/Projects",
+                                        "breadcrumbs": [
+                                            {"name": "C:", "absolute_path": "C:"},
+                                            {"name": "Projects", "absolute_path": "C:/Projects"},
+                                            {"name": "Corex", "absolute_path": "C:/Projects/Corex"}
+                                        ],
+                                        "entries": [
+                                            {
+                                                "name": "Assets",
+                                                "absolute_path": path + "/Assets",
+                                                "kind": "folder",
+                                                "is_folder": true,
+                                                "modified_timestamp": 1710000000,
+                                                "extension": "",
+                                                "type_label": "File folder",
+                                                "size_bytes": -1,
+                                                "display_size": ""
+                                            },
+                                            {
+                                                "name": "report.txt",
+                                                "absolute_path": path + "/report.txt",
+                                                "kind": "file",
+                                                "is_folder": false,
+                                                "modified_timestamp": 1710000010,
+                                                "extension": ".txt",
+                                                "type_label": "TXT File",
+                                                "size_bytes": 128,
+                                                "display_size": "128 B"
+                                            }
+                                        ],
+                                        "sort_key": String((payload || {}).sort_key || "name"),
+                                        "reverse": Boolean((payload || {}).reverse),
+                                        "filter_text": String((payload || {}).filter_text || "")
+                                    }
+                                };
+                            }
+                        }
+                    }
+                    ''',
+                    QUrl("folder_explorer_canvas_stub.qml"),
+                )
+                if component.status() != QQmlComponent.Status.Ready:
+                    errors = "\\n".join(error.toString() for error in component.errors())
+                    raise AssertionError(f"Failed to load folder explorer canvas stub:\\n{errors}")
+                obj = component.create()
+                if obj is None:
+                    errors = "\\n".join(error.toString() for error in component.errors())
+                    raise AssertionError(f"Failed to instantiate folder explorer canvas stub:\\n{errors}")
+                return obj
+
+            def to_variant(value):
+                if hasattr(value, "toVariant"):
+                    value = value.toVariant()
+                if isinstance(value, list):
+                    return [to_variant(item) for item in value]
+                if isinstance(value, tuple):
+                    return tuple(to_variant(item) for item in value)
+                if isinstance(value, dict):
+                    return {key: to_variant(item) for key, item in value.items()}
+                return value
+
+            canvas_stub = create_folder_explorer_canvas_stub()
+            payload = node_payload()
+            payload["node_id"] = "folder_explorer_surface_test"
+            payload["type_id"] = "io.folder_explorer"
+            payload["title"] = "Folder Explorer"
+            payload["runtime_behavior"] = "passive"
+            payload["properties"] = {"current_path": "C:/Projects/Corex"}
+            payload["inline_properties"] = []
+            payload["width"] = 560.0
+            payload["height"] = 360.0
+            payload["surface_metrics"].update({
+                "default_width": 560.0,
+                "default_height": 360.0,
+                "min_width": 360.0,
+                "min_height": 260.0,
+                "body_left_margin": 8.0,
+                "body_right_margin": 8.0,
+                "body_top": 30.0,
+                "body_height": 320.0,
+                "body_bottom_margin": 8.0,
+            })
+
+            host = create_component(
+                graph_node_host_qml_path,
+                {"nodeData": payload, "canvasItem": canvas_stub},
+            )
+            interactions = []
+            commits = []
+            actions = []
+            host.surfaceControlInteractionStarted.connect(lambda node_id: interactions.append(node_id))
+            host.inlinePropertyCommitted.connect(lambda node_id, key, value: commits.append((node_id, key, value)))
+            host.nodeActionRequested.connect(lambda node_id, action_id, action_payload: actions.append((node_id, action_id, action_payload)))
+
+            window = attach_host_to_window(host, 720, 520)
+            settle_events(6)
+            surface = host.findChild(QObject, "graphClassicExplorerSurface")
+            assert surface is not None
+
+            assert bool(surface.selectEntry(1)) is True
+            assert int(surface.property("selectedIndex")) == 1
+            assert bool(surface.setSearchText("report")) is True
+            assert str(surface.property("searchText")) == "report"
+            assert bool(surface.setSort("size")) is True
+            assert str(surface.property("sortKey")) == "size"
+            assert bool(surface.navigateTo("C:/Projects/Corex/Assets", True)) is True
+            assert str(surface.property("activePath")) == "C:/Projects/Corex/Assets"
+
+            drag_payload = to_variant(surface.dragPayloadForEntry(1))
+            assert drag_payload["action_id"] == "folder_explorer_send_to_corex_path_pointer"
+            assert drag_payload["type_id"] == "io.path_pointer"
+            assert drag_payload["properties"]["path"].endswith("/report.txt")
+            assert drag_payload["properties"]["mode"] == "file"
+
+            assert bool(surface.triggerContextAction("copyPath", 1, {})) is True
+            assert bool(surface.createPathPointerFromEntry(1)) is True
+            assert bool(surface.toggleMaximized()) is True
+            assert bool(surface.property("maximized")) is True
+            assert bool(surface.closeSurface()) is True
+
+            requests = to_variant(canvas_stub.property("requests"))
+            action_ids = [request["action_id"] for request in requests]
+            assert "folder_explorer_list" in action_ids
+            assert "folder_explorer_set_search" in action_ids
+            assert "folder_explorer_set_sort" in action_ids
+            assert "folder_explorer_navigate" in action_ids
+            assert "folder_explorer_copy_path" in action_ids
+            assert "folder_explorer_send_to_corex_path_pointer" in action_ids
+            path_pointer_request = requests[action_ids.index("folder_explorer_send_to_corex_path_pointer")]
+            assert path_pointer_request["payload"]["node_id"] == "folder_explorer_surface_test"
+            assert path_pointer_request["payload"]["path"].endswith("/report.txt")
+            assert isinstance(path_pointer_request["payload"]["scene_x"], (int, float))
+            assert isinstance(path_pointer_request["payload"]["scene_y"], (int, float))
+
+            assert interactions
+            assert set(interactions) == {"folder_explorer_surface_test"}
+            assert commits == []
+            assert to_variant(host.property("nodeData"))["properties"] == {"current_path": "C:/Projects/Corex"}
+            assert to_variant(actions) == [
+                (
+                    "folder_explorer_surface_test",
+                    "delete",
+                    {"source": "folder_explorer_surface"},
+                )
+            ]
+
+            dispose_host_window(host, window)
+            canvas_stub.deleteLater()
+            engine.deleteLater()
+            app.processEvents()
+            """,
+        )
+
     def test_standard_host_keeps_port_labels_tied_to_port_handles(self) -> None:
         self._run_qml_probe(
             "port-label-geometry-host",
