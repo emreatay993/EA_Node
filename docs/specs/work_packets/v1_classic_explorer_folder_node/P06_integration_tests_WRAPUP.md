@@ -5,8 +5,8 @@
 - Branch Label: `codex/v1-classic-explorer-folder-node/p06-integration-tests`
 - Commit Owner: `worker`
 - Commit SHA: `5a9927d54e33ca9b740c3d80e330364f7f716f10`
-- Changed Files: tests/main_window_shell/passive_property_editors.py, tests/test_folder_explorer_filesystem_service.py, tests/test_graph_action_contracts.py, tests/test_graph_surface_input_inline.py, tests/test_integrations_track_f.py, tests/test_serializer.py, docs/specs/work_packets/v1_classic_explorer_folder_node/P06_integration_tests_WRAPUP.md
-- Artifacts Produced: docs/specs/work_packets/v1_classic_explorer_folder_node/P06_integration_tests_WRAPUP.md
+- Changed Files: tests/main_window_shell/passive_property_editors.py, tests/test_folder_explorer_filesystem_service.py, tests/test_graph_action_contracts.py, tests/test_graph_surface_input_inline.py, tests/test_integrations_track_f.py, tests/test_serializer.py, docs/specs/work_packets/v1_classic_explorer_folder_node/P06_integration_tests_WRAPUP.md, docs/specs/work_packets/v1_classic_explorer_folder_node/V1_CLASSIC_EXPLORER_FOLDER_NODE_STATUS.md
+- Artifacts Produced: docs/specs/work_packets/v1_classic_explorer_folder_node/P06_integration_tests_WRAPUP.md, docs/specs/work_packets/v1_classic_explorer_folder_node/V1_CLASSIC_EXPLORER_FOLDER_NODE_STATUS.md
 
 Added P06 integration regressions over the completed Classic Explorer folder node path. The tests now cover graph-created `io.folder_explorer` nodes driving real temp-directory listings, breadcrumb targets, QML breadcrumb/context/drag command emission, QML command aliases for drag-to-Path-Pointer and new-window creation, confirmed rename/cut/paste mutation behavior, inspector folder browsing persisted as `current_path`, and transient surface state being discarded before project reserialization.
 
