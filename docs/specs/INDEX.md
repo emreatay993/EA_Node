@@ -99,6 +99,7 @@ Selected work-packet manifests and status ledgers under `docs/specs/work_packets
 - [NESTED_NODE_CATEGORIES Status Ledger](work_packets/nested_node_categories/NESTED_NODE_CATEGORIES_STATUS.md)
 - [V1_CLASSIC_EXPLORER_FOLDER_NODE Work Packet Manifest](work_packets/v1_classic_explorer_folder_node/V1_CLASSIC_EXPLORER_FOLDER_NODE_MANIFEST.md)
 - [V1_CLASSIC_EXPLORER_FOLDER_NODE Status Ledger](work_packets/v1_classic_explorer_folder_node/V1_CLASSIC_EXPLORER_FOLDER_NODE_STATUS.md)
+- [V1_CLASSIC_EXPLORER_FOLDER_NODE QA Matrix](perf/V1_CLASSIC_EXPLORER_FOLDER_NODE_QA_MATRIX.md)
 
 ## ADRs
 
