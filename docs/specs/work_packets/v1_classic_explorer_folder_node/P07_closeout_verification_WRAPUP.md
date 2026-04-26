@@ -13,10 +13,11 @@ Created the final V1 Classic Explorer folder node QA matrix with retained P01 th
 No product source or tests were changed. The executor later updated the shared status ledger with the terminal review decision.
 
 ## Verification
-- FAIL: `.\venv\Scripts\python.exe scripts\run_verification.py --mode fast` exited in `fast.context_budgets`; 10 of 23 guarded hotspots exceed configured line caps before pytest phases run.
+- FAIL: `.\venv\Scripts\python.exe scripts\run_verification.py --mode fast` cannot complete as written because `fast.context_budgets` fails; the user explicitly waived context-budget failures for the rest of this plan on 2026-04-27.
+- FAIL: direct rerun of the non-budget `fast.pytest` phase from `.\venv\Scripts\python.exe scripts\run_verification.py --mode fast --dry-run` failed with `43 failed, 957 passed, 5 skipped, 56 warnings, 12 errors`.
 - PASS: `.\venv\Scripts\python.exe scripts\check_traceability.py` completed with `TRACEABILITY CHECK PASS`.
 - PASS: `.\venv\Scripts\python.exe scripts\check_markdown_links.py` completed with `MARKDOWN LINK CHECK PASS`.
-- FAIL: `.\venv\Scripts\python.exe scripts\check_context_budgets.py` reported the same 10 guarded hotspot overruns: `EdgeLayer.qml`, `viewer_session_bridge.py`, `viewer_session_service.py`, `window_state_helpers.py`, `graph_surface_metrics.py`, `edge_routing.py`, `graph_scene_mutation_history.py`, `tests/test_passive_graph_surface_host.py`, `tests/test_graph_surface_input_contract.py`, and `tests/graph_track_b/qml_preference_bindings.py`.
+- WAIVED: `.\venv\Scripts\python.exe scripts\check_context_budgets.py` reports 10 guarded hotspot overruns, but context-budget failures are ignored for the rest of this plan per user instruction.
 - PASS: `.\venv\Scripts\python.exe scripts\check_markdown_links.py` review gate completed with `MARKDOWN LINK CHECK PASS` after wrap-up creation.
 - FAIL: executor validator confirmed the packet is not acceptable while `Final Verification Verdict` is `FAIL`.
 - PASS: executor review gate rerun `.\venv\Scripts\python.exe scripts\check_markdown_links.py` completed with `MARKDOWN LINK CHECK PASS`.
@@ -31,9 +32,10 @@ Ready for manual testing
 - Persistence smoke: Save and reopen after changing search, sort, selection, context menu state, maximized state, and navigation history; expect only `current_path` to restore while transient Classic Explorer UI state resets.
 
 ## Residual Risks
-- Required fast verification is blocked by pre-existing context-budget guardrail failures in source/test files outside P07 write scope.
+- Context-budget guardrail failures are intentionally waived for the rest of this plan.
+- Required fast verification remains blocked by non-budget pytest failures outside P07's docs-only write scope.
 - P07 is docs-and-proof only and relies on retained P01 through P06 runtime evidence; no new runtime behavior was implemented in this packet.
 - Native Windows desktop validation is still useful for final visual balance, folder-picker behavior, OS shell/open integration, and safe disposable-folder mutation smoke checks.
 
 ## Ready for Integration
-- No: P07 docs/proof artifacts are committed, but the required fast/context-budget verification commands fail on out-of-scope guarded hotspot overruns that need executor or owning-packet triage before this packet can be marked PASS.
+- No: P07 docs/proof artifacts are committed and context budgets are waived, but the required non-budget fast pytest phase fails outside P07's docs-only scope.
