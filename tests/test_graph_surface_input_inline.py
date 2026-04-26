@@ -1128,6 +1128,29 @@ class GraphSurfaceFolderExplorerInlineBridgeTests(unittest.TestCase):
         self.assertIn('"type_id": "io.path_pointer"', surface_bridge)
         self.assertIn('"mode": Boolean(isFolder) ? "folder" : "file"', surface_bridge)
 
+    def test_folder_explorer_surface_transient_state_stays_out_of_property_commits(self) -> None:
+        surface_qml = (
+            REPO_ROOT
+            / "ea_node_editor"
+            / "ui_qml"
+            / "components"
+            / "graph"
+            / "passive"
+            / "GraphClassicExplorerSurface.qml"
+        ).read_text(encoding="utf-8")
+
+        self.assertIn('objectName: "graphClassicExplorerSurface"', surface_qml)
+        self.assertIn("property string searchText", surface_qml)
+        self.assertIn("property string sortKey", surface_qml)
+        self.assertIn("property int selectedIndex", surface_qml)
+        self.assertIn("property int contextEntryIndex", surface_qml)
+        self.assertIn("property bool maximized", surface_qml)
+        self.assertIn("property var navigationHistory", surface_qml)
+        self.assertIn("router.requestFolderExplorerAction", surface_qml)
+        self.assertNotIn("inlinePropertyCommitted", surface_qml)
+        self.assertNotIn("commitNodeSurfaceProperty", surface_qml)
+        self.assertNotIn("set_node_property", surface_qml)
+
 
 if __name__ == "__main__":
     unittest.main()
