@@ -23,8 +23,22 @@ def pick_path(ctx: ExecutionContext, *, input_key: str, property_key: str, node_
     raise ValueError(f"{node_name} requires a non-empty file path.")
 
 
+def pick_folder_path(ctx: ExecutionContext, *, input_key: str, property_key: str, node_name: str) -> Path:
+    path = pick_optional_path(ctx, input_key=input_key, property_key=property_key)
+    if path is not None:
+        return path
+    raise ValueError(f"{node_name} requires a non-empty folder path.")
+
+
 def require_existing_file(path: Path, *, node_name: str) -> None:
     if not path.exists():
         raise FileNotFoundError(f"{node_name} path does not exist: {path}")
     if not path.is_file():
         raise ValueError(f"{node_name} path must point to a file: {path}")
+
+
+def require_existing_folder(path: Path, *, node_name: str) -> None:
+    if not path.exists():
+        raise FileNotFoundError(f"{node_name} path does not exist: {path}")
+    if not path.is_dir():
+        raise ValueError(f"{node_name} path must point to a folder: {path}")

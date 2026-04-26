@@ -4,7 +4,13 @@ import json
 from pathlib import Path
 
 from ea_node_editor.graph.boundary_adapters import register_node_type_size_resolver
-from ea_node_editor.nodes.builtins.integrations_common import pick_optional_path, pick_path, require_existing_file
+from ea_node_editor.nodes.builtins.integrations_common import (
+    pick_folder_path,
+    pick_optional_path,
+    pick_path,
+    require_existing_file,
+    require_existing_folder,
+)
 from ea_node_editor.nodes.decorators import plugin_descriptor
 from ea_node_editor.nodes.output_artifacts import write_managed_output
 from ea_node_editor.nodes.execution_context import NodeResult
@@ -210,6 +216,45 @@ class PathPointerNodePlugin:
         )
 
 
+class FolderExplorerNodePlugin:
+    """Passive folder source for Explorer-style graph surfaces."""
+
+    def spec(self) -> NodeTypeSpec:
+        return NodeTypeSpec(
+            type_id="io.folder_explorer",
+            display_name="Folder Explorer",
+            category_path=("Input / Output",),
+            icon="integrations/folder.svg",
+            description="Holds the current folder path for Explorer-style browsing.",
+            runtime_behavior="passive",
+            show_title_icon=True,
+            ports=(
+                PortSpec("current", "out", "data", "path", exposed=True),
+            ),
+            properties=(
+                PropertySpec(
+                    "current_path",
+                    "path",
+                    "",
+                    "Current Path",
+                    inline_editor="path",
+                    inspector_editor="path",
+                    group="Source",
+                ),
+            ),
+        )
+
+    def execute(self, ctx) -> NodeResult:  # noqa: ANN001
+        current_path = pick_folder_path(
+            ctx,
+            input_key="current_path",
+            property_key="current_path",
+            node_name="Folder Explorer",
+        )
+        require_existing_folder(current_path, node_name="Folder Explorer")
+        return NodeResult(outputs={"current": str(current_path)})
+
+
 # --- Dynamic width for io.path_pointer when "Show Full Path" is enabled -------
 #
 # Width heuristic: graph-row chrome + per-character estimate, capped to a sane
@@ -269,4 +314,5 @@ FILE_IO_NODE_DESCRIPTORS = (
     plugin_descriptor(FileReadNodePlugin),
     plugin_descriptor(FileWriteNodePlugin),
     plugin_descriptor(PathPointerNodePlugin),
+    plugin_descriptor(FolderExplorerNodePlugin),
 )
