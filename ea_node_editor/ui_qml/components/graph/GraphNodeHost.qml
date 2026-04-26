@@ -92,7 +92,9 @@ Item {
 
     readonly property var shellContextRef: typeof shellContext !== "undefined" ? shellContext : null
     readonly property var graphThemeBridgeRef: shellContextRef ? shellContextRef.graphThemeBridge : null
-    readonly property var addonManagerBridgeRef: shellContextRef ? shellContextRef.addonManagerBridge : null
+    readonly property var addonManagerBridgeRef: shellContextRef && shellContextRef.addonManagerBridge
+        ? shellContextRef.addonManagerBridge
+        : (typeof addonManagerBridge !== "undefined" ? addonManagerBridge : null)
     readonly property var nodePalette: graphThemeBridgeRef
         ? graphThemeBridgeRef.node_palette
         : ({})

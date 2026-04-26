@@ -1768,7 +1768,7 @@ class PassiveGraphSurfaceHostTests(PassiveGraphSurfaceHostTestBase):
             edge_layer = canvas.findChild(QObject, "graphCanvasEdgeLayer")
             assert edge_layer is not None
 
-            target_card.resizePreviewChanged.emit(target_node_id, 190.0, 120.0, 260.0, 120.0, True)
+            target_card.resizePreviewChanged.emit(target_node_id, 190.0, 120.0, 260.0, 160.0, True)
             app.processEvents()
 
             canvas_live_geometry = variant_value(canvas.property("liveNodeGeometry"))
@@ -1777,11 +1777,11 @@ class PassiveGraphSurfaceHostTests(PassiveGraphSurfaceHostTestBase):
                 "x": 190.0,
                 "y": 120.0,
                 "width": 260.0,
-                "height": 120.0,
+                "height": 160.0,
             }
             assert edge_live_geometry[target_node_id] == canvas_live_geometry[target_node_id]
 
-            target_card.resizeFinished.emit(target_node_id, 190.0, 120.0, 260.0, 120.0)
+            target_card.resizeFinished.emit(target_node_id, 190.0, 120.0, 260.0, 160.0)
             app.processEvents()
 
             assert variant_value(canvas.property("liveNodeGeometry")) == {}
@@ -1789,7 +1789,7 @@ class PassiveGraphSurfaceHostTests(PassiveGraphSurfaceHostTestBase):
             assert updated_target["x"] == 190.0
             assert updated_target["y"] == 120.0
             assert updated_target["width"] == 260.0
-            assert updated_target["height"] == 120.0
+            assert updated_target["height"] == 160.0
 
             canvas.deleteLater()
             app.processEvents()
