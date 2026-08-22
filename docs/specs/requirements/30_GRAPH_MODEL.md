@@ -1,0 +1,46 @@
+# Graph Model Requirements
+
+## Data Model
+- `REQ-GRAPH-001`: Graph model shall include `ProjectData`, `WorkspaceData`, `ViewState`, `NodeInstance`, `EdgeInstance`.
+- `REQ-GRAPH-002`: Node instances shall contain `collapsed` state, properties, and exposed port overrides.
+- `REQ-GRAPH-003`: Workspaces shall include isolated node/edge sets and active view.
+
+## Graph Operations
+- `REQ-GRAPH-004`: Model shall support add/remove/move node operations.
+- `REQ-GRAPH-005`: Model shall support add/remove edge operations.
+- `REQ-GRAPH-006`: Model shall support workspace and view lifecycle operations.
+- `REQ-GRAPH-010`: Graph model and scene operations shall support hierarchical node parenting with scope-aware navigation and transforms for nested subnodes.
+- `REQ-GRAPH-011`: Graph operations (duplicate, clipboard, search/focus, and layout-sensitive rewiring) shall preserve valid parent chains and boundary-edge semantics across nested scopes.
+- `REQ-GRAPH-012`: passive visual nodes, including Groups, shall remain in `WorkspaceData.nodes` and passive `flow` connections shall remain in `WorkspaceData.edges` so selection, copy/paste, duplicate, view state, and save/load stay on the existing graph-document path.
+
+## Rendering
+- `REQ-GRAPH-007`: Custom graphics items shall represent nodes and edges.
+- `REQ-GRAPH-008`: Collapsed nodes shall reduce visual footprint and use side connection anchors.
+- `REQ-GRAPH-009`: Graph canvas and item rendering shall support Stitch-aligned visual chrome with zoom-aware level-of-detail simplification.
+- `REQ-GRAPH-013`: `flow` edges shall support labels and flow-only visual style overrides while allowing multi-incoming targets where the declared target port permits them.
+- `REQ-GRAPH-014`: passive logical-flow edges shall persist the stored cardinal port keys `top`, `right`, `bottom`, and `left`; edge labels and edge styling, not decision-specific port keys, shall carry branch meaning.
+- `REQ-GRAPH-015`: passive logical-flow routing and handle placement shall resolve anchors from the authored cardinal side, using exact flowchart silhouette anchors for flowchart nodes and exact rectangular side anchors for the other passive families.
+- `REQ-GRAPH-016`: Group membership shall be derived from authored geometry, selecting the smallest fully containing Group in the same scope and parent chain, excluding partial overlap, and supporting nested Group ownership.
+- `REQ-GRAPH-017`: graph interactions shall reuse derived Group membership for wrap-selection bounds plus descendant drag/resize propagation so moving or resizing a Group keeps contained nodes and nested Groups coherent in scene payloads and undo history.
+- `REQ-GRAPH-018`: collapsed Groups shall suppress descendant node/Group payloads from the active scene and minimap, reroute boundary edges to Group perimeter proxies, and enforce explicit-only versus recursive descendant clipboard/delete semantics depending on expanded versus collapsed state while recomputing derived ownership after duplicate, paste, and load.
+- `REQ-GRAPH-019`: active input data ports shall use a same-key `NodeInstance.properties` value as their unwired default only when the registered `PortSpec.uses_property_default` declaration explicitly opts in and registry validation confirms a compatible `PropertySpec`. Any enabled incoming wire, including one that settles to `None`, empty, or failure, shall override the saved default without deleting or rewriting it; with no enabled incoming wire, runtime input assembly shall construct the declared Item/List/Tree `DataTree` default and then apply the normal input modifiers. Disabled-only wires shall not suppress the default, and falsey authored values including `0`, `0.0`, `False`, and `""` shall remain valid defaults.
+- `REQ-GRAPH-020`: graph-owned `move_edge_endpoint(...)` and scene-facing `request_move_edge_endpoint(...)` shall move or disconnect one existing edge through one validated mutation and one history snapshot. A successful move shall preserve edge identity, enabled state, label, style, metadata, and unaffected input ordering; normal input release shall atomically replace sibling inputs while append-requested release shall retain them. Invalid, read-only, unavailable, same-socket, ambiguous, or cancelled targets shall leave the original graph unchanged. `ViewState` shall retain only view-local `hide_optional_ports` row filtering for this feature; active-node lock state and `hide_locked_ports` are removed.
+- `REQ-GRAPH-021`: COREX graph code shall own dynamic-port-group insert, remove, and structural-key rename operations, including UI dispatch targets, ordered backing-property writes, resolver preflight, cleanup, and history. Insert shall obtain a stable key through the registered node-spec key-creation callback; rename shall use the optional registered validation/canonicalization callback when declared; removal shall remain entirely graph-owned. Each operation shall commit atomically, preserve unchanged stable port keys plus their incident edges, input order, and per-port state, prune every removed, renamed, or type/access-incompatible key together with its incident wires and per-port state, and record exactly one history entry. Invalid, rejected, or no-op requests shall leave the graph unchanged.
+
+## Acceptance
+- `AC-REQ-GRAPH-004-01`: Node drag updates persisted model position.
+- `AC-REQ-GRAPH-005-01`: Edge creation appears in scene and serialized graph.
+- `AC-REQ-GRAPH-008-01`: Collapsing a node updates geometry and edge paths.
+- `AC-REQ-GRAPH-009-01`: Zooming out simplifies labels/details while preserving connection semantics and interaction performance.
+- `AC-REQ-GRAPH-010-01`: Group/ungroup and scope navigation retain valid hierarchy relationships and scoped editing behavior after save/load.
+- `AC-REQ-GRAPH-011-01`: Hierarchy-aware duplicate/copy/paste/search/focus flows preserve rewired boundary edges and avoid cross-scope corruption.
+- `AC-REQ-GRAPH-012-01`: passive-only workspaces, including Groups, save, load, duplicate, and reopen through the normal graph serializer without introducing a separate artifact document model.
+- `AC-REQ-GRAPH-013-01`: labeled `flow` edges render authored labels/styles, and targets such as passive connectors/end nodes can accept multiple incoming `flow` edges when the registry spec allows it.
+- `AC-REQ-GRAPH-014-01`: serializer/scene round-trip preserves `top/right/bottom/left` flowchart port keys and labeled branch edges in the passive reference workspace without reviving legacy flowchart key aliases.
+- `AC-REQ-GRAPH-015-01`: flowchart surface and routing regressions confirm exact top/right/bottom/left silhouette anchors and side normals across the supported passive flowchart variants.
+- `AC-REQ-GRAPH-016-01`: membership regressions confirm smallest-container ownership, same-scope containment, wrap-selection bounds, and nested Group derivation.
+- `AC-REQ-GRAPH-017-01`: interaction regressions confirm Group drag/resize moves descendants coherently and records grouped history without cross-scope leakage.
+- `AC-REQ-GRAPH-018-01`: collapse, clipboard, serializer, and shell workflow regressions confirm descendant suppression, boundary-edge proxy rerouting, expanded-versus-collapsed copy/delete semantics, and load-time ownership recompute.
+- `AC-REQ-GRAPH-019-01`: registry, runtime, persistence, and graph-scene regressions confirm explicit opt-in validation, Item/List/Tree default construction, modifier ordering, enabled-wire precedence, disabled-only fallback, falsey-value retention, and property restoration after disconnect, with retained proof summarized in `docs/specs/perf/DEFAULT_VALUE_GRIPS_QA_MATRIX.md`.
+- `AC-REQ-GRAPH-020-01`: graph mutation, scene command, history, and QML gesture regressions confirm atomic endpoint move/disconnect, edge metadata and order preservation, replacement versus append, invalid/cancel rollback, one-step undo, view-local optional filtering, and absence of active lock state, with retained proof summarized in `docs/specs/perf/DEFAULT_VALUE_GRIPS_QA_MATRIX.md`.
+- `AC-REQ-GRAPH-021-01`: Effective-port, validated-mutation, persistence-state, and history tests prove graph-owned UI dispatch targets, ordered backing-property writes, resolver preflight, key creation, optional rename validation/canonicalization, removal, atomic insert/remove/rename, stable-key edge/order/state preservation, complete pruning for removed, renamed, or incompatible keys, invalid/no-op rollback, and exactly one undo/redo step.

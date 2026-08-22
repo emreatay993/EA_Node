@@ -1,0 +1,1281 @@
+from __future__ import annotations
+
+import copy
+import hashlib
+import json
+import shutil
+from collections.abc import Mapping
+from dataclasses import dataclass, field
+from pathlib import Path
+from typing import TYPE_CHECKING, Any
+import weakref
+from uuid import uuid4
+
+from PyQt6.QtCore import QObject, Qt
+from PyQt6.QtGui import QColor, QCursor
+from PyQt6.QtQuick import QQuickWindow, QSGRendererInterface
+from PyQt6.QtWidgets import QApplication, QColorDialog, QFileDialog, QInputDialog
+
+from ea_node_editor.graph.effective_ports import port_kind
+from ea_node_editor.graph.file_issue_state import (
+    EXTERNAL_LINK_MODE,
+    MANAGED_COPY_MODE,
+    preferred_repair_mode_for_value,
+    repair_modes_for_node_property,
+)
+from ea_node_editor.jupyter_host.notebook_files import create_blank_notebook
+from ea_node_editor.persistence.artifact_resolution import ProjectArtifactResolver
+from ea_node_editor.settings import (
+    DEFAULT_GRAPHICS_SETTINGS,
+    PROJECT_ARTIFACT_STORE_METADATA_KEY,
+    PROJECT_NODE_INPUTS_DIRNAME,
+    PROJECT_NODE_OUTPUTS_DIRNAME,
+)
+from ea_node_editor.telemetry.status_service import EngineState, ShellStatusService
+from ea_node_editor.ui.media_preview_provider import set_media_preview_project_context_provider
+from ea_node_editor.ui.mail_preview_provider import set_mail_preview_project_context_provider
+from ea_node_editor.ui.dialogs.passive_style_controls import (
+    color_to_hex,
+    is_valid_hex_color,
+    normalize_flow_edge_style_payload,
+    normalize_passive_node_style_payload,
+)
+from ea_node_editor.ui.pdf_preview_provider import set_pdf_preview_project_context_provider
+from ea_node_editor.ui.passive_style_presets import normalize_passive_style_presets
+from ea_node_editor.ui.shell.controllers.app_preferences_controller import normalize_graph_theme_settings
+from ea_node_editor.ui.shell.tooltip_policy import (
+    TOOLTIP_CATEGORY_GENERAL,
+    normalize_tooltip_category_preferences,
+)
+from ea_node_editor.ui.theme import build_theme_stylesheet, resolve_theme_tokens
+from ea_node_editor.ui.theme.styles import build_theme_palette
+
+if TYPE_CHECKING:
+    from ea_node_editor.ui.shell.window import ShellWindow
+
+
+_UNSET = object()
+_PASSIVE_NODE_STYLE_CLIPBOARD_KIND = "passive-node-style"
+_FLOW_EDGE_STYLE_CLIPBOARD_KIND = "flow-edge-style"
+_STYLE_CLIPBOARD_APP_PROPERTY = "eaNodeEditorStyleClipboard"
+_TABULAR_INPUT_NODE_TYPE_ID = "tabular.input"
+_TABULAR_INPUT_PATH_PROPERTY = "path"
+_WEB_PAGE_VIEWER_NODE_TYPE_ID = "web.page_viewer"
+_WEB_PAGE_VIEWER_START_LOCATION_PROPERTY = "start_location"
+_JUPYTER_NOTEBOOK_NODE_TYPE_ID = "code.jupyter_notebook"
+_JUPYTER_NOTEBOOK_NOTEBOOK_REF_PROPERTY = "notebook_ref"
+
+
+@dataclass(frozen=True, slots=True)
+class _ProjectManagedImportTarget:
+    io_dir: str
+    subdirectory: str
+    artifact_prefix: str
+    extra: Mapping[str, Any] = field(default_factory=dict)
+
+
+_SOURCE_IMPORT_TARGETS = {
+    "image source": _ProjectManagedImportTarget(
+        PROJECT_NODE_INPUTS_DIRNAME,
+        "media",
+        "image_source",
+    ),
+    "pdf source": _ProjectManagedImportTarget(
+        PROJECT_NODE_INPUTS_DIRNAME,
+        "media",
+        "pdf_source",
+    ),
+    "video source": _ProjectManagedImportTarget(
+        PROJECT_NODE_INPUTS_DIRNAME,
+        "media",
+        "video_source",
+    ),
+    "mail source": _ProjectManagedImportTarget(
+        PROJECT_NODE_INPUTS_DIRNAME,
+        "mail",
+        "mail_source",
+    ),
+    "file path": _ProjectManagedImportTarget(
+        PROJECT_NODE_INPUTS_DIRNAME,
+        "files",
+        "source_file",
+    ),
+}
+_TABULAR_SOURCE_IMPORT_TARGET = _ProjectManagedImportTarget(
+    PROJECT_NODE_INPUTS_DIRNAME,
+    "tabular/source",
+    "tabular_source",
+    {"artifact_kind": "tabular_source"},
+)
+_WEB_HTML_IMPORT_TARGET = _ProjectManagedImportTarget(
+    PROJECT_NODE_INPUTS_DIRNAME,
+    "web/html",
+    "html_source",
+    {"artifact_kind": "web_html_source"},
+)
+_JUPYTER_NOTEBOOK_IMPORT_TARGET = _ProjectManagedImportTarget(
+    PROJECT_NODE_INPUTS_DIRNAME,
+    "jupyter/notebooks",
+    "jupyter_notebook",
+    {"artifact_kind": "jupyter_notebook"},
+)
+_TABULAR_CACHE_IMPORT_TARGET = _ProjectManagedImportTarget(
+    PROJECT_NODE_OUTPUTS_DIRNAME,
+    "tabular/cache",
+    "tabular_cache",
+    {"artifact_kind": "tabular_cache"},
+)
+_TABULAR_IMPORT_TARGETS = {
+    "tabular_source": _TABULAR_SOURCE_IMPORT_TARGET,
+    "source": _TABULAR_SOURCE_IMPORT_TARGET,
+    "tabular_cache": _TABULAR_CACHE_IMPORT_TARGET,
+    "cache": _TABULAR_CACHE_IMPORT_TARGET,
+    "artifact": _TABULAR_CACHE_IMPORT_TARGET,
+}
+_RENDERER_LABELS = {
+    QSGRendererInterface.GraphicsApi.Direct3D11Rhi: "Direct3D 11",
+    QSGRendererInterface.GraphicsApi.Direct3D12: "Direct3D 12",
+    QSGRendererInterface.GraphicsApi.MetalRhi: "Metal",
+    QSGRendererInterface.GraphicsApi.NullRhi: "Null",
+    QSGRendererInterface.GraphicsApi.OpenGL: "OpenGL",
+    QSGRendererInterface.GraphicsApi.OpenVG: "OpenVG",
+    QSGRendererInterface.GraphicsApi.Software: "Software",
+    QSGRendererInterface.GraphicsApi.VulkanRhi: "Vulkan",
+}
+
+
+class ShellHostPresenter(QObject):
+    def __init__(self, host: "ShellWindow") -> None:
+        super().__init__(host)
+        self._host = host
+        self._status_service = ShellStatusService()
+        host_ref = weakref.ref(host)
+
+        def _preview_context():
+            current_host = host_ref()
+            if current_host is None:
+                return None
+            metadata = current_host.model.project.metadata
+            return (
+                str(current_host.project_path or "").strip() or None,
+                dict(metadata) if isinstance(metadata, dict) else None,
+            )
+
+        self._preview_context_provider = _preview_context
+        set_media_preview_project_context_provider(self._preview_context_provider)
+        set_mail_preview_project_context_provider(self._preview_context_provider)
+        set_pdf_preview_project_context_provider(self._preview_context_provider)
+
+    def _project_artifact_resolver(self) -> ProjectArtifactResolver:
+        metadata = self._host.model.project.metadata
+        return ProjectArtifactResolver(
+            project_path=str(self._host.project_path or "").strip() or None,
+            project_metadata=dict(metadata) if isinstance(metadata, dict) else None,
+        )
+
+    def _resolve_source_file_path(self, source_value: str) -> Path | None:
+        normalized_value = str(source_value or "").strip()
+        if not normalized_value:
+            return None
+        resolved = self._project_artifact_resolver().resolve_to_path(normalized_value)
+        if resolved is not None:
+            return resolved
+        return Path(normalized_value).expanduser()
+
+    def _path_dialog_start_path(self, current_path: str) -> str:
+        normalized_current = str(current_path or "").strip()
+        if normalized_current:
+            candidate = self._project_artifact_resolver().resolve_to_path(normalized_current)
+            if candidate is None:
+                candidate = Path(normalized_current).expanduser()
+            if candidate.exists():
+                return str(candidate)
+            parent = candidate.parent
+            if str(parent).strip() and parent.exists():
+                return str(parent)
+        normalized_project_path = str(self._host.project_path or "").strip()
+        if normalized_project_path:
+            project_path = Path(normalized_project_path).expanduser()
+            parent = project_path.parent
+            if str(parent).strip() and parent.exists():
+                return str(parent)
+        return str(Path.cwd())
+
+    def browse_property_path_dialog(
+        self,
+        property_label: str,
+        current_path: str,
+        *,
+        dialog_mode: str = "file",
+        source_mode: str = "",
+        node_type_id: str = "",
+        property_key: str = "",
+        node_id: str = "",
+        node_title: str = "",
+        node_type: str = "",
+        file_filter: str = "",
+    ) -> str:
+        normalized_dialog_mode = str(dialog_mode or "file").strip().lower()
+        start_path = self._path_dialog_start_path(current_path)
+        if normalized_dialog_mode == "folder":
+            selected_path = QFileDialog.getExistingDirectory(
+                self._host,
+                f"Choose {property_label}",
+                start_path,
+            )
+            return str(selected_path or "").strip()
+
+        selected_path, _selected_filter = QFileDialog.getOpenFileName(
+            self._host,
+            f"Choose {property_label}",
+            start_path,
+            file_filter,
+        )
+        normalized_path = str(selected_path or "").strip()
+        if not normalized_path:
+            return ""
+        normalized_source_mode = str(source_mode or "").strip().lower()
+        if normalized_source_mode == EXTERNAL_LINK_MODE:
+            return normalized_path
+        if (
+            normalized_source_mode != MANAGED_COPY_MODE
+            and self._host.app_preferences_controller.source_import_mode() == EXTERNAL_LINK_MODE
+        ):
+            return normalized_path
+        managed_ref = self._import_source_as_managed_copy(
+            property_label=property_label,
+            current_path=current_path,
+            selected_path=normalized_path,
+            node_type_id=node_type_id,
+            property_key=property_key,
+            node_id=node_id,
+            node_title=node_title,
+            node_type=node_type,
+        )
+        return managed_ref or normalized_path
+
+    def internalize_property_path(
+        self,
+        property_label: str,
+        current_path: str,
+        *,
+        node_type_id: str = "",
+        property_key: str = "",
+        node_id: str = "",
+        node_title: str = "",
+        node_type: str = "",
+    ) -> str:
+        normalized_current = str(current_path or "").strip()
+        if not normalized_current:
+            return ""
+        resolution = self._project_artifact_resolver().resolve(normalized_current)
+        if resolution.kind not in {"external_path", "external_file_url"}:
+            return ""
+        source_path = resolution.absolute_path
+        if source_path is None or not source_path.exists() or not source_path.is_file():
+            return ""
+        return self._import_source_as_managed_copy(
+            property_label=property_label,
+            current_path=normalized_current,
+            selected_path=str(source_path),
+            node_type_id=node_type_id,
+            property_key=property_key,
+            node_id=node_id,
+            node_title=node_title,
+            node_type=node_type,
+        )
+
+    def save_file_dialog(
+        self,
+        *,
+        title: str,
+        suggested_path: str = "",
+        file_filter: str = "",
+        default_suffix: str = "",
+    ) -> str:
+        normalized_suggested = str(suggested_path or "").strip()
+        start_path = self._path_dialog_start_path(normalized_suggested)
+        if normalized_suggested:
+            candidate = Path(normalized_suggested).expanduser()
+            if candidate.parent.exists():
+                start_path = str(candidate)
+        selected_path, _selected_filter = QFileDialog.getSaveFileName(
+            self._host,
+            str(title or "Save File").strip() or "Save File",
+            start_path,
+            file_filter,
+        )
+        normalized_path = str(selected_path or "").strip()
+        if not normalized_path:
+            return ""
+        suffix = str(default_suffix or "").strip()
+        if suffix and not suffix.startswith("."):
+            suffix = f".{suffix}"
+        if suffix and not Path(normalized_path).suffix:
+            normalized_path = f"{normalized_path}{suffix}"
+        return normalized_path
+
+    def choose_output_folder_dialog(self, *, title: str, suggested_path: str = "") -> str:
+        start_path = self._path_dialog_start_path(str(suggested_path or ""))
+        selected_path = QFileDialog.getExistingDirectory(
+            self._host,
+            str(title or "Choose Output Folder").strip() or "Choose Output Folder",
+            start_path,
+        )
+        return str(selected_path or "").strip()
+
+    def pick_property_color_dialog(self, property_label: str, current_value: str) -> str:
+        normalized_current = str(current_value or "").strip()
+        initial_color = QColor(normalized_current) if is_valid_hex_color(normalized_current) else QColor("#FFFFFF")
+        selected = QColorDialog.getColor(
+            initial_color,
+            self._host,
+            f"Pick color for {property_label}",
+            QColorDialog.ColorDialogOption.ShowAlphaChannel,
+        )
+        if not selected.isValid():
+            return ""
+        return color_to_hex(selected)
+
+    def repair_property_path_dialog(
+        self,
+        *,
+        node_type_id: str,
+        property_key: str,
+        property_label: str,
+        current_path: str,
+        node_id: str = "",
+        node_title: str = "",
+        node_type: str = "",
+        file_filter: str = "",
+    ) -> str:
+        repair_modes = repair_modes_for_node_property(node_type_id, property_key)
+        normalized_label = str(property_label or "").strip() or "File"
+        normalized_current_path = str(current_path or "").strip()
+        if not repair_modes:
+            return self.browse_property_path_dialog(
+                normalized_label,
+                normalized_current_path,
+                node_id=node_id,
+                node_title=node_title,
+                node_type=node_type,
+                file_filter=file_filter,
+            )
+
+        selected_mode = repair_modes[0]
+        if len(repair_modes) > 1:
+            metadata = self._host.model.project.metadata
+            default_mode = preferred_repair_mode_for_value(
+                normalized_current_path,
+                project_path=str(self._host.project_path or "").strip() or None,
+                project_metadata=dict(metadata) if isinstance(metadata, dict) else None,
+                fallback_mode=self._host.app_preferences_controller.source_import_mode(),
+                allowed_modes=repair_modes,
+            )
+            options = ["Managed Copy", "External Link"]
+            default_index = 0 if default_mode == MANAGED_COPY_MODE else 1
+            selection, accepted = QInputDialog.getItem(
+                self._host,
+                "Repair file...",
+                f"Store repaired {normalized_label.lower()} as:",
+                options,
+                default_index,
+                False,
+            )
+            if not accepted:
+                return ""
+            selected_mode = MANAGED_COPY_MODE if str(selection or "").strip() == options[0] else EXTERNAL_LINK_MODE
+
+        selected_path, _selected_filter = QFileDialog.getOpenFileName(
+            self._host,
+            f"Repair {normalized_label}",
+            self._path_dialog_start_path(normalized_current_path),
+            file_filter,
+        )
+        normalized_selected_path = str(selected_path or "").strip()
+        if not normalized_selected_path:
+            return ""
+        if selected_mode == EXTERNAL_LINK_MODE:
+            return normalized_selected_path
+
+        managed_ref = self._import_source_as_managed_copy(
+            property_label=normalized_label,
+            current_path=normalized_current_path,
+            selected_path=normalized_selected_path,
+            node_type_id=node_type_id,
+            property_key=property_key,
+            node_id=node_id,
+            node_title=node_title,
+            node_type=node_type,
+        )
+        return managed_ref or normalized_selected_path
+
+    def prompt_text_value(
+        self,
+        *,
+        title: str,
+        label: str,
+        text: str = "",
+    ) -> tuple[str, bool]:
+        from PyQt6.QtWidgets import QDialog, QDialogButtonBox, QLabel, QLineEdit, QVBoxLayout
+
+        dialog = QDialog(self._host)
+        dialog.setWindowTitle(str(title or "").strip())
+        dialog.setModal(True)
+
+        layout = QVBoxLayout(dialog)
+        prompt_label = QLabel(str(label or "").strip(), dialog)
+        prompt_field = QLineEdit(dialog)
+        prompt_field.setText(str(text or ""))
+        prompt_field.selectAll()
+
+        buttons = QDialogButtonBox(
+            QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel,
+            parent=dialog,
+        )
+        buttons.accepted.connect(dialog.accept)
+        buttons.rejected.connect(dialog.reject)
+
+        layout.addWidget(prompt_label)
+        layout.addWidget(prompt_field)
+        layout.addWidget(buttons)
+
+        prompt_field.setFocus(Qt.FocusReason.PopupFocusReason)
+        accepted = dialog.exec() == QDialog.DialogCode.Accepted
+        return prompt_field.text(), accepted
+
+    def _import_source_as_managed_copy(
+        self,
+        *,
+        property_label: str,
+        current_path: str,
+        selected_path: str,
+        node_type_id: str = "",
+        property_key: str = "",
+        node_id: str = "",
+        node_title: str = "",
+        node_type: str = "",
+    ) -> str:
+        import_target = self._source_import_target(
+            property_label,
+            node_type_id=node_type_id,
+            property_key=property_key,
+        )
+        if import_target is None:
+            return ""
+
+        source_path = self._resolve_source_file_path(selected_path)
+        if source_path is None:
+            return ""
+        if not source_path.exists() or not source_path.is_file():
+            return ""
+
+        artifact_id = self._current_source_artifact_id(current_path) or f"{import_target.artifact_prefix}_{uuid4().hex}"
+        workspace_id, workspace_name, resolved_node_id, resolved_node_title, resolved_node_type = self._node_artifact_context(
+            node_id=node_id,
+            node_title=node_title,
+            node_type=node_type or node_type_id,
+        )
+
+        staging_root = self._host.project_session_controller.ensure_project_staging_root()
+        store = self._host.project_session_controller.project_artifact_store()
+        artifact_paths = store.node_artifact_paths(
+            artifact_id=artifact_id,
+            workspace_id=workspace_id,
+            workspace_name=workspace_name,
+            node_id=resolved_node_id,
+            node_title=resolved_node_title,
+            node_type=resolved_node_type,
+            io_dir=import_target.io_dir,
+            subdirectory=import_target.subdirectory,
+            filename=source_path.name,
+        )
+        destination_path = staging_root.joinpath(*Path(artifact_paths.staged_relative_path).parts)
+        destination_path.parent.mkdir(parents=True, exist_ok=True)
+        if source_path.resolve() != destination_path.resolve():
+            shutil.copy2(source_path, destination_path)
+
+        store.register_staged_entry(
+            artifact_id,
+            relative_path=artifact_paths.staged_relative_path,
+            extra={**dict(import_target.extra), **artifact_paths.metadata},
+        )
+        self._persist_project_artifact_store(store)
+        return store.staged_ref(artifact_id)
+
+    def create_blank_managed_notebook(self, node_id: str = "", *, kernel_name: str = "") -> str:
+        """Stage a fresh blank ``.ipynb`` for a Jupyter node and return its staged ref.
+
+        Mirrors ``_import_source_as_managed_copy`` but writes a new notebook
+        instead of copying a picked source, so create-new rides the same
+        project-managed artifact pipeline (and Save/Save-As promotion) as
+        open-existing.
+        """
+        import_target = _JUPYTER_NOTEBOOK_IMPORT_TARGET
+        artifact_id = f"{import_target.artifact_prefix}_{uuid4().hex}"
+        workspace_id, workspace_name, resolved_node_id, resolved_node_title, resolved_node_type = (
+            self._node_artifact_context(
+                node_id=node_id,
+                node_type=_JUPYTER_NOTEBOOK_NODE_TYPE_ID,
+            )
+        )
+        staging_root = self._host.project_session_controller.ensure_project_staging_root()
+        store = self._host.project_session_controller.project_artifact_store()
+        artifact_paths = store.node_artifact_paths(
+            artifact_id=artifact_id,
+            workspace_id=workspace_id,
+            workspace_name=workspace_name,
+            node_id=resolved_node_id,
+            node_title=resolved_node_title,
+            node_type=resolved_node_type,
+            io_dir=import_target.io_dir,
+            subdirectory=import_target.subdirectory,
+            filename="notebook.ipynb",
+        )
+        destination_path = staging_root.joinpath(*Path(artifact_paths.staged_relative_path).parts)
+        destination_path.parent.mkdir(parents=True, exist_ok=True)
+        create_blank_notebook(destination_path, kernel_name=kernel_name)
+        store.register_staged_entry(
+            artifact_id,
+            relative_path=artifact_paths.staged_relative_path,
+            extra={**dict(import_target.extra), **artifact_paths.metadata},
+        )
+        self._persist_project_artifact_store(store)
+        return store.staged_ref(artifact_id)
+
+    @staticmethod
+    def _source_import_target(
+        property_label: str,
+        *,
+        node_type_id: str = "",
+        property_key: str = "",
+    ) -> _ProjectManagedImportTarget | None:
+        if (
+            str(node_type_id or "").strip() == _TABULAR_INPUT_NODE_TYPE_ID
+            and str(property_key or "").strip() == _TABULAR_INPUT_PATH_PROPERTY
+        ):
+            return _TABULAR_SOURCE_IMPORT_TARGET
+        if (
+            str(node_type_id or "").strip() == _WEB_PAGE_VIEWER_NODE_TYPE_ID
+            and str(property_key or "").strip() == _WEB_PAGE_VIEWER_START_LOCATION_PROPERTY
+        ):
+            return _WEB_HTML_IMPORT_TARGET
+        if (
+            str(node_type_id or "").strip() == _JUPYTER_NOTEBOOK_NODE_TYPE_ID
+            and str(property_key or "").strip() == _JUPYTER_NOTEBOOK_NOTEBOOK_REF_PROPERTY
+        ):
+            return _JUPYTER_NOTEBOOK_IMPORT_TARGET
+        return _SOURCE_IMPORT_TARGETS.get(str(property_label or "").strip().lower())
+
+    def make_project_managed_data(
+        self,
+        current_path: str,
+        *,
+        artifact_kind: str = "tabular_source",
+        artifact_id: str = "",
+        selected_path: str = "",
+        node_id: str = "",
+        node_title: str = "",
+        node_type: str = "",
+    ) -> str:
+        normalized_current = str(current_path or "").strip()
+        normalized_selected = str(selected_path or "").strip()
+        if not normalized_current and not normalized_selected:
+            return ""
+        if not normalized_selected:
+            resolution = self._project_artifact_resolver().resolve(normalized_current)
+            if resolution.kind == "managed":
+                return normalized_current
+            if resolution.kind == "staged":
+                return normalized_current
+        target = _TABULAR_IMPORT_TARGETS.get(str(artifact_kind or "").strip().lower())
+        if target is None:
+            return ""
+        source_value = normalized_selected or normalized_current
+        source_path = self._resolve_source_file_path(source_value)
+        if source_path is None or not source_path.exists() or not source_path.is_file():
+            return ""
+        normalized_artifact_id = str(artifact_id or "").strip() or self._current_source_artifact_id(normalized_current)
+        if not normalized_artifact_id:
+            normalized_artifact_id = f"{target.artifact_prefix}_{uuid4().hex}"
+        workspace_id, workspace_name, resolved_node_id, resolved_node_title, resolved_node_type = self._node_artifact_context(
+            node_id=node_id,
+            node_title=node_title,
+            node_type=node_type,
+        )
+        staging_root = self._host.project_session_controller.ensure_project_staging_root()
+        store = self._host.project_session_controller.project_artifact_store()
+        artifact_paths = store.node_artifact_paths(
+            artifact_id=normalized_artifact_id,
+            workspace_id=workspace_id,
+            workspace_name=workspace_name,
+            node_id=resolved_node_id,
+            node_title=resolved_node_title,
+            node_type=resolved_node_type,
+            io_dir=target.io_dir,
+            subdirectory=target.subdirectory,
+            filename=f"{normalized_artifact_id}{source_path.suffix}",
+        )
+        destination_path = staging_root.joinpath(*Path(artifact_paths.staged_relative_path).parts)
+        destination_path.parent.mkdir(parents=True, exist_ok=True)
+        if source_path.resolve() != destination_path.resolve():
+            shutil.copy2(source_path, destination_path)
+
+        store.register_staged_entry(
+            normalized_artifact_id,
+            relative_path=artifact_paths.staged_relative_path,
+            extra={**dict(target.extra), **artifact_paths.metadata},
+        )
+        self._persist_project_artifact_store(store)
+        return store.staged_ref(normalized_artifact_id)
+
+    def stage_clipboard_paste_bytes(
+        self,
+        *,
+        data: bytes,
+        filename: str,
+        mime_type: str,
+        artifact_prefix: str,
+        subdirectory: str,
+        artifact_kind: str,
+        node_id: str,
+        node_title: str,
+        node_type: str,
+    ) -> str:
+        raw_data = bytes(data or b"")
+        if not raw_data:
+            return ""
+
+        artifact_id = f"{str(artifact_prefix or 'clipboard').strip() or 'clipboard'}_{uuid4().hex}"
+        workspace_id, workspace_name, resolved_node_id, resolved_node_title, resolved_node_type = self._node_artifact_context(
+            node_id=node_id,
+            node_title=node_title,
+            node_type=node_type,
+        )
+        staging_root = self._host.project_session_controller.ensure_project_staging_root()
+        store = self._host.project_session_controller.project_artifact_store()
+        artifact_paths = store.node_artifact_paths(
+            artifact_id=artifact_id,
+            workspace_id=workspace_id,
+            workspace_name=workspace_name,
+            node_id=resolved_node_id,
+            node_title=resolved_node_title,
+            node_type=resolved_node_type,
+            io_dir=PROJECT_NODE_INPUTS_DIRNAME,
+            subdirectory=subdirectory or "clipboard",
+            filename=filename or artifact_id,
+        )
+        destination_path = staging_root.joinpath(*Path(artifact_paths.staged_relative_path).parts)
+        destination_path.parent.mkdir(parents=True, exist_ok=True)
+        destination_path.write_bytes(raw_data)
+
+        extra = {
+            **artifact_paths.metadata,
+            "artifact_kind": str(artifact_kind or "clipboard_source"),
+            "mime_type": str(mime_type or "").strip(),
+            "size": len(raw_data),
+            "sha256": hashlib.sha256(raw_data).hexdigest(),
+        }
+        store.register_staged_entry(
+            artifact_id,
+            relative_path=artifact_paths.staged_relative_path,
+            extra=extra,
+        )
+        self._persist_project_artifact_store(store)
+        return store.staged_ref(artifact_id)
+
+    def _current_source_artifact_id(self, current_path: str) -> str:
+        resolution = self._project_artifact_resolver().resolve(current_path)
+        return str(resolution.artifact_id or "").strip()
+
+    def _node_artifact_context(
+        self,
+        *,
+        node_id: str = "",
+        node_title: str = "",
+        node_type: str = "",
+    ) -> tuple[str, str, str, str, str]:
+        workspace_id = str(self._host.workspace_manager.active_workspace_id() or "").strip()
+        workspace = self._host.model.project.workspaces.get(workspace_id)
+        workspace_name = str(getattr(workspace, "name", "") or "").strip()
+        resolved_node_id = str(node_id or "").strip()
+        if not resolved_node_id:
+            selected_node_id = getattr(self._host.scene, "selected_node_id", lambda: "")()
+            resolved_node_id = str(selected_node_id or "").strip()
+        node = workspace.nodes.get(resolved_node_id) if workspace is not None and resolved_node_id else None
+        resolved_title = str(node_title or "").strip() or str(getattr(node, "title", "") or "").strip()
+        resolved_type = str(node_type or "").strip()
+        if node is not None and not resolved_type:
+            try:
+                spec = self._host.registry.get_spec(node.type_id)
+                resolved_type = str(getattr(spec, "display_name", "") or node.type_id)
+            except Exception:  # noqa: BLE001
+                resolved_type = str(node.type_id)
+        if not resolved_node_id:
+            resolved_node_id = "project"
+        if not resolved_title:
+            resolved_title = "Project"
+        if not resolved_type:
+            resolved_type = "Project"
+        return workspace_id, workspace_name, resolved_node_id, resolved_title, resolved_type
+
+    def _persist_project_artifact_store(self, store) -> None:  # noqa: ANN001
+        project = self._host.model.project
+        metadata = project.metadata if isinstance(project.metadata, dict) else {}
+        updated_metadata = dict(metadata)
+        updated_metadata[PROJECT_ARTIFACT_STORE_METADATA_KEY] = store.metadata
+        replace_metadata = getattr(project, "replace_metadata", None)
+        if callable(replace_metadata):
+            replace_metadata(updated_metadata)
+        else:
+            project.metadata = updated_metadata
+        self._host.project_meta_changed.emit()
+
+    def apply_graph_cursor(self, cursor_shape: Qt.CursorShape) -> None:
+        if getattr(self._host, "quick_widget", None) is None:
+            return
+        cursor = QCursor(cursor_shape)
+        self._host.quick_widget.setCursor(cursor)
+        quick_window = self._host.quick_widget.quickWindow()
+        if quick_window is not None:
+            quick_window.setCursor(cursor)
+
+    def set_graph_cursor_shape(self, cursor_shape: int) -> None:
+        try:
+            resolved_cursor = Qt.CursorShape(int(cursor_shape))
+        except ValueError:
+            resolved_cursor = Qt.CursorShape.ArrowCursor
+        self.apply_graph_cursor(resolved_cursor)
+
+    def clear_graph_cursor_shape(self) -> None:
+        if getattr(self._host, "quick_widget", None) is None:
+            return
+        self._host.quick_widget.unsetCursor()
+        quick_window = self._host.quick_widget.quickWindow()
+        if quick_window is not None:
+            quick_window.unsetCursor()
+
+    def sync_graphics_show_port_labels_action(self, show_port_labels: bool) -> None:
+        action = getattr(self._host, "action_show_port_labels", None)
+        if action is None or action.isChecked() == show_port_labels:
+            return
+        blocked = action.blockSignals(True)
+        action.setChecked(show_port_labels)
+        action.blockSignals(blocked)
+
+    def sync_general_help_tooltips_action(self, enabled: bool) -> None:
+        action = getattr(self._host, "action_general_help_tooltips", None)
+        if action is None or action.isChecked() == enabled:
+            return
+        blocked = action.blockSignals(True)
+        action.setChecked(enabled)
+        action.blockSignals(blocked)
+
+    def refresh_active_workspace_scene_payload(self) -> None:
+        workspace_manager = getattr(self._host, "workspace_manager", None)
+        scene = getattr(self._host, "scene", None)
+        if workspace_manager is None or scene is None:
+            return
+        workspace_id = str(workspace_manager.active_workspace_id() or "").strip()
+        if not workspace_id:
+            return
+        scene.refresh_workspace_from_model(workspace_id)
+
+    def apply_graphics_preferences(self, graphics: Any) -> dict[str, Any]:
+        previous_show_port_labels = bool(
+            getattr(getattr(self._host, "workspace_ui_state", None), "show_port_labels", True)
+        )
+        previous_graph_label_pixel_size = int(
+            getattr(getattr(self._host, "workspace_ui_state", None), "graph_label_pixel_size", 10)
+        )
+        previous_node_title_icon_pixel_size = int(
+            getattr(
+                getattr(self._host, "workspace_ui_state", None),
+                "node_title_icon_pixel_size",
+                previous_graph_label_pixel_size,
+            )
+        )
+        previous_passive_node_library_display_mode = str(
+            getattr(
+                getattr(self._host, "workspace_ui_state", None),
+                "passive_node_library_display_mode",
+                DEFAULT_GRAPHICS_SETTINGS["shell"]["passive_node_library_display_mode"],
+            )
+        )
+        resolved = self._host.shell_workspace_presenter.apply_graphics_preferences(graphics)
+        canvas = resolved.get("canvas", {}) if isinstance(resolved, dict) else {}
+        shell = resolved.get("shell", {}) if isinstance(resolved, dict) else {}
+        typography = resolved.get("typography", {}) if isinstance(resolved, dict) else {}
+        current_show_port_labels = bool(canvas.get("show_port_labels", previous_show_port_labels))
+        tooltip_categories = normalize_tooltip_category_preferences(shell.get("tooltip_categories"))
+        current_general_tooltips = bool(tooltip_categories[TOOLTIP_CATEGORY_GENERAL])
+        current_graph_label_pixel_size = int(
+            typography.get("graph_label_pixel_size", previous_graph_label_pixel_size)
+        )
+        current_node_title_icon_pixel_size = int(
+            self._host.shell_workspace_presenter.graphics_node_title_icon_pixel_size
+        )
+        current_passive_node_library_display_mode = str(
+            shell.get(
+                "passive_node_library_display_mode",
+                previous_passive_node_library_display_mode,
+            )
+        )
+        self.sync_graphics_show_port_labels_action(current_show_port_labels)
+        self.sync_general_help_tooltips_action(current_general_tooltips)
+        tooltip_manager = getattr(self._host, "tooltip_manager", None)
+        if tooltip_manager is not None:
+            tooltip_manager.set_tooltip_categories(tooltip_categories)
+        if (
+            previous_show_port_labels != current_show_port_labels
+            or previous_graph_label_pixel_size != current_graph_label_pixel_size
+            or previous_node_title_icon_pixel_size != current_node_title_icon_pixel_size
+        ):
+            self.refresh_active_workspace_scene_payload()
+        if previous_passive_node_library_display_mode != current_passive_node_library_display_mode:
+            self._host.node_library_changed.emit()
+        return resolved
+
+    def apply_theme(self, theme_id: Any) -> str:
+        resolved_theme_id = self._host.theme_bridge.apply_theme(theme_id)
+        app = QApplication.instance()
+        if app is not None:
+            app.setStyleSheet(build_theme_stylesheet(resolved_theme_id))
+            app.setPalette(build_theme_palette(resolved_theme_id))
+        self._apply_viewer_canvas_theme(resolved_theme_id)
+        return resolved_theme_id
+
+    def _apply_viewer_canvas_theme(self, resolved_theme_id: str) -> None:
+        from ea_node_editor.execution.viewer_pyvista_style import set_viewer_canvas_dark
+
+        # icon_variant "light" means light icons on a dark shell, i.e. a dark theme.
+        tokens = resolve_theme_tokens(resolved_theme_id)
+        set_viewer_canvas_dark(tokens.icon_variant == "light")
+        viewer_host_service = getattr(self._host, "viewer_host_service", None)
+        refresh = getattr(viewer_host_service, "refresh_bound_widget_canvas_theme", None)
+        if callable(refresh):
+            refresh()
+
+    def preview_graph_theme_settings(self, graph_theme_settings: Any) -> str:
+        normalized = normalize_graph_theme_settings(graph_theme_settings)
+        return self._host.graph_theme_bridge.apply_settings(
+            shell_theme_id=self._host.active_theme_id,
+            graph_theme_settings=normalized,
+        )
+
+    def active_renderer_label(self) -> str:
+        api = QSGRendererInterface.GraphicsApi.Unknown
+        quick_widget = getattr(self._host, "quick_widget", None)
+        if quick_widget is not None:
+            quick_window = quick_widget.quickWindow()
+            if quick_window is not None:
+                renderer_interface = quick_window.rendererInterface()
+                if renderer_interface is not None:
+                    api = renderer_interface.graphicsApi()
+        if api == QSGRendererInterface.GraphicsApi.Unknown:
+            api = QQuickWindow.graphicsApi()
+        return _RENDERER_LABELS.get(api, "Unavailable")
+
+    def show_graphics_settings_dialog(self, _checked: bool = False) -> None:
+        from ea_node_editor.ui.dialogs import GraphicsSettingsDialog
+
+        preferences = self._host.app_preferences_controller
+        dialog = GraphicsSettingsDialog(
+            initial_settings=preferences.graphics_settings(),
+            available_graph_themes=preferences.graph_theme_choices(),
+            manage_graph_themes_callback=self.edit_graph_theme_settings,
+            active_renderer_label=self.active_renderer_label(),
+            tooltips_enabled=bool(self._host.graphics_show_tooltips),
+            parent=self._host,
+        )
+        if dialog.exec() != dialog.DialogCode.Accepted:
+            return
+        preferences.set_graphics_settings(dialog.values(), host=self._host)
+
+    def show_selected_run_settings_dialog(self, _checked: bool = False) -> None:
+        from ea_node_editor.ui.dialogs import SelectedRunSettingsDialog
+
+        dialog = SelectedRunSettingsDialog(
+            initial_settings=self._host.app_preferences_controller.selected_run_settings(),
+            parent=self._host,
+        )
+        if dialog.exec() != dialog.DialogCode.Accepted:
+            return
+        self._host.graph_canvas_presenter.set_selected_run_preview_before_run(
+            dialog.selected_run_preview_before_run()
+        )
+
+    def show_keyboard_mouse_reference_dialog(self, _checked: bool = False) -> None:
+        from ea_node_editor.ui.dialogs import InputReferenceDialog
+
+        dialog = InputReferenceDialog(parent=self._host)
+        dialog.exec()
+
+    def show_third_party_notices_dialog(self, _checked: bool = False) -> None:
+        from ea_node_editor.ui.dialogs import ThirdPartyNoticesDialog
+
+        dialog = ThirdPartyNoticesDialog(parent=self._host)
+        dialog.exec()
+
+    def edit_graph_theme_settings(
+        self,
+        graph_theme_settings: Any,
+        *,
+        enable_live_apply: bool = False,
+    ) -> dict[str, Any] | None:
+        from ea_node_editor.ui.dialogs import GraphThemeEditorDialog
+
+        dialog = GraphThemeEditorDialog(
+            initial_settings=graph_theme_settings,
+            parent=self._host,
+            live_apply_callback=self.preview_graph_theme_settings if enable_live_apply else None,
+        )
+        if dialog.exec() != dialog.DialogCode.Accepted:
+            return None
+        return dialog.graph_theme_settings()
+
+    def show_graph_theme_editor_dialog(self, _checked: bool = False) -> None:
+        graph_theme_settings = self.edit_graph_theme_settings(
+            self._host.app_preferences_controller.graph_theme_settings(),
+            enable_live_apply=True,
+        )
+        if graph_theme_settings is None:
+            return
+        graphics = self._host.app_preferences_controller.graphics_settings()
+        graphics["graph_theme"] = graph_theme_settings
+        self._host.app_preferences_controller.set_graphics_settings(graphics, host=self._host)
+
+    def _active_workspace_data(self):
+        workspace_id = self._host.workspace_manager.active_workspace_id()
+        return self._host.model.project.workspaces.get(workspace_id)
+
+    def _passive_node_context(self, node_id: str):
+        workspace = self._active_workspace_data()
+        if workspace is None:
+            return None
+        normalized_node_id = str(node_id).strip()
+        if not normalized_node_id:
+            return None
+        node = workspace.nodes.get(normalized_node_id)
+        if node is None:
+            return None
+        spec = self._host.registry.get_spec(node.type_id)
+        if str(spec.runtime_behavior or "").strip().lower() != "passive":
+            return None
+        return node, spec, workspace
+
+    def _flow_edge_context(self, edge_id: str):
+        workspace = self._active_workspace_data()
+        if workspace is None:
+            return None
+        normalized_edge_id = str(edge_id).strip()
+        if not normalized_edge_id:
+            return None
+        edge = workspace.edges.get(normalized_edge_id)
+        if edge is None:
+            return None
+        source_node = workspace.nodes.get(edge.source_node_id)
+        target_node = workspace.nodes.get(edge.target_node_id)
+        if source_node is None or target_node is None:
+            return None
+        source_spec = self._host.registry.get_spec(source_node.type_id)
+        target_spec = self._host.registry.get_spec(target_node.type_id)
+        try:
+            source_kind = port_kind(
+                node=source_node,
+                spec=source_spec,
+                workspace_nodes=workspace.nodes,
+                port_key=edge.source_port_key,
+            )
+            target_kind = port_kind(
+                node=target_node,
+                spec=target_spec,
+                workspace_nodes=workspace.nodes,
+                port_key=edge.target_port_key,
+            )
+        except KeyError:
+            return None
+        if source_kind != "flow" or target_kind != "flow":
+            return None
+        return edge, workspace
+
+    def _project_passive_style_presets(self) -> dict[str, list[dict[str, Any]]]:
+        self._host.project_session_controller.ensure_project_metadata_defaults()
+        metadata = self._host.model.project.metadata if isinstance(self._host.model.project.metadata, dict) else {}
+        ui = metadata.get("ui", {}) if isinstance(metadata.get("ui"), dict) else {}
+        normalized = normalize_passive_style_presets(ui.get("passive_style_presets"))
+        if ui.get("passive_style_presets") != normalized:
+            updated_ui = dict(ui)
+            updated_ui["passive_style_presets"] = normalized
+            updated_metadata = dict(metadata)
+            updated_metadata["ui"] = updated_ui
+            self._host.model.project.replace_metadata(updated_metadata)
+        return normalize_passive_style_presets(normalized)
+
+    def _set_project_passive_style_presets(
+        self,
+        *,
+        node_presets: Any = _UNSET,
+        edge_presets: Any = _UNSET,
+    ) -> None:
+        current = self._project_passive_style_presets()
+        updated = {
+            "node_presets": current["node_presets"],
+            "edge_presets": current["edge_presets"],
+        }
+        if node_presets is not _UNSET:
+            updated["node_presets"] = normalize_passive_style_presets(
+                {"node_presets": node_presets, "edge_presets": current["edge_presets"]}
+            )["node_presets"]
+        if edge_presets is not _UNSET:
+            updated["edge_presets"] = normalize_passive_style_presets(
+                {"node_presets": updated["node_presets"], "edge_presets": edge_presets}
+            )["edge_presets"]
+        if updated == current:
+            return
+        metadata = self._host.model.project.metadata if isinstance(self._host.model.project.metadata, dict) else {}
+        ui = metadata.get("ui", {}) if isinstance(metadata.get("ui"), dict) else {}
+        updated_ui = dict(ui)
+        updated_ui["passive_style_presets"] = updated
+        updated_metadata = dict(metadata)
+        updated_metadata["ui"] = updated_ui
+        self._host.model.project.replace_metadata(updated_metadata)
+        self._host.project_session_controller.persist_session()
+        self._host.project_meta_changed.emit()
+
+    def edit_passive_node_style(self, node_id: str) -> dict[str, Any] | None:
+        context = self._passive_node_context(node_id)
+        if context is None:
+            return None
+        node, _spec, _workspace = context
+        from ea_node_editor.ui.dialogs import PassiveNodeStyleDialog
+
+        user_presets = self._project_passive_style_presets()["node_presets"]
+        dialog = PassiveNodeStyleDialog(
+            initial_style=node.visual_style,
+            parent=self._host,
+            user_presets=user_presets,
+        )
+        result = dialog.exec()
+        updated_user_presets = dialog.user_presets()
+        if updated_user_presets != user_presets:
+            self._set_project_passive_style_presets(node_presets=updated_user_presets)
+        if result != dialog.DialogCode.Accepted:
+            return None
+        return dialog.node_style()
+
+    def edit_flow_edge_style(self, edge_id: str) -> dict[str, Any] | None:
+        context = self._flow_edge_context(edge_id)
+        if context is None:
+            return None
+        edge, _workspace = context
+        from ea_node_editor.ui.dialogs import FlowEdgeStyleDialog
+
+        user_presets = self._project_passive_style_presets()["edge_presets"]
+        dialog = FlowEdgeStyleDialog(
+            initial_style=edge.visual_style,
+            parent=self._host,
+            user_presets=user_presets,
+        )
+        result = dialog.exec()
+        updated_user_presets = dialog.user_presets()
+        if updated_user_presets != user_presets:
+            self._set_project_passive_style_presets(edge_presets=updated_user_presets)
+        if result != dialog.DialogCode.Accepted:
+            return None
+        return dialog.edge_style()
+
+    def _write_style_clipboard(self, *, kind: str, style: dict[str, Any]) -> None:
+        app = QApplication.instance()
+        if app is None:
+            return
+        app.setProperty(
+            f"{_STYLE_CLIPBOARD_APP_PROPERTY}:{str(kind).strip()}",
+            json.dumps(
+                {
+                    "kind": str(kind),
+                    "version": 1,
+                    "style": copy.deepcopy(style),
+                },
+                ensure_ascii=False,
+                separators=(",", ":"),
+            ),
+        )
+
+    def _read_style_clipboard(self, *, kind: str) -> dict[str, Any] | None:
+        app = QApplication.instance()
+        if app is None:
+            return None
+        return self._normalize_style_clipboard_payload(
+            app.property(f"{_STYLE_CLIPBOARD_APP_PROPERTY}:{str(kind).strip()}"),
+            kind=kind,
+        )
+
+    def _normalize_style_clipboard_payload(self, payload: Any, *, kind: str) -> dict[str, Any] | None:
+        if isinstance(payload, str):
+            raw_text = payload.strip()
+            if not raw_text:
+                return None
+            try:
+                payload = json.loads(raw_text)
+            except ValueError:
+                return None
+        if not isinstance(payload, dict) or str(payload.get("kind", "")).strip() != str(kind):
+            return None
+        style = payload.get("style")
+        if kind == _PASSIVE_NODE_STYLE_CLIPBOARD_KIND:
+            return normalize_passive_node_style_payload(style)
+        if kind == _FLOW_EDGE_STYLE_CLIPBOARD_KIND:
+            return normalize_flow_edge_style_payload(style)
+        return None
+
+    def request_edit_passive_node_style(self, node_id: str) -> bool:
+        style = self._host.edit_passive_node_style(node_id)
+        if style is None:
+            return False
+        self._host.scene.set_node_visual_style(node_id, style)
+        return True
+
+    def request_reset_passive_node_style(self, node_id: str) -> bool:
+        if self._passive_node_context(node_id) is None:
+            return False
+        self._host.scene.clear_node_visual_style(node_id)
+        return True
+
+    def request_copy_passive_node_style(self, node_id: str) -> bool:
+        context = self._passive_node_context(node_id)
+        if context is None:
+            return False
+        node, _spec, _workspace = context
+        self._write_style_clipboard(
+            kind=_PASSIVE_NODE_STYLE_CLIPBOARD_KIND,
+            style=normalize_passive_node_style_payload(node.visual_style),
+        )
+        return True
+
+    def request_paste_passive_node_style(self, node_id: str) -> bool:
+        if self._passive_node_context(node_id) is None:
+            return False
+        style = self._read_style_clipboard(kind=_PASSIVE_NODE_STYLE_CLIPBOARD_KIND)
+        if style is None:
+            return False
+        self._host.scene.set_node_visual_style(node_id, style)
+        return True
+
+    def request_propagate_passive_node_style(self, node_id: str) -> bool:
+        if self._passive_node_context(node_id) is None:
+            return False
+        propagate = getattr(self._host.scene, "propagate_passive_node_style", None)
+        if not callable(propagate):
+            return False
+        return bool(propagate(node_id))
+
+    def request_edit_flow_edge_style(self, edge_id: str) -> bool:
+        style = self._host.edit_flow_edge_style(edge_id)
+        if style is None:
+            return False
+        self._host.scene.set_edge_visual_style(edge_id, style)
+        return True
+
+    def request_edit_flow_edge_label(self, edge_id: str) -> bool:
+        context = self._flow_edge_context(edge_id)
+        if context is None:
+            return False
+        edge, _workspace = context
+        label, accepted = QInputDialog.getText(
+            self._host,
+            "Edit Flow Edge Label",
+            "Label:",
+            text=str(edge.label or ""),
+        )
+        if not accepted:
+            return False
+        self._host.scene.set_edge_label(edge_id, label)
+        return True
+
+    def request_reset_flow_edge_style(self, edge_id: str) -> bool:
+        if self._flow_edge_context(edge_id) is None:
+            return False
+        self._host.scene.clear_edge_visual_style(edge_id)
+        return True
+
+    def request_copy_flow_edge_style(self, edge_id: str) -> bool:
+        context = self._flow_edge_context(edge_id)
+        if context is None:
+            return False
+        edge, _workspace = context
+        self._write_style_clipboard(
+            kind=_FLOW_EDGE_STYLE_CLIPBOARD_KIND,
+            style=normalize_flow_edge_style_payload(edge.visual_style),
+        )
+        return True
+
+    def request_paste_flow_edge_style(self, edge_id: str) -> bool:
+        if self._flow_edge_context(edge_id) is None:
+            return False
+        style = self._read_style_clipboard(kind=_FLOW_EDGE_STYLE_CLIPBOARD_KIND)
+        if style is None:
+            return False
+        self._host.scene.set_edge_visual_style(edge_id, style)
+        return True
+
+    def update_metrics(self) -> None:
+        metrics = self._status_service.collect_system_metrics()
+        self.update_system_metrics(
+            metrics.cpu_percent,
+            metrics.ram_used_gb,
+            metrics.ram_total_gb,
+            disk_read_mb_s=metrics.disk_read_mb_s,
+            disk_write_mb_s=metrics.disk_write_mb_s,
+            show_fps=bool(
+                getattr(
+                    getattr(self._host, "workspace_ui_state", None),
+                    "show_fps_telemetry",
+                    True,
+                )
+            ),
+        )
+
+    def update_engine_status(
+        self,
+        state: EngineState,
+        details: str = "",
+    ) -> None:
+        presentation = self._status_service.engine_status(state, details)
+        self._host.status_engine.set_icon(presentation.icon)
+        self._host.status_engine.set_text(presentation.text)
+
+    def update_job_counters(self, running: int, queued: int, done: int, failed: int) -> None:
+        presentation = self._status_service.job_counters(
+            running=running,
+            queued=queued,
+            done=done,
+            failed=failed,
+        )
+        self._host.status_jobs.set_text(presentation.text)
+
+    def update_system_metrics(
+        self,
+        cpu_percent: float,
+        ram_used_gb: float,
+        ram_total_gb: float,
+        fps: float | None = None,
+        disk_read_mb_s: float = 0.0,
+        disk_write_mb_s: float = 0.0,
+        show_fps: bool = True,
+    ) -> None:
+        fps_value = max(0.0, float(fps)) if fps is not None else self._host._frame_rate_sampler.snapshot().fps
+        presentation = self._status_service.system_metrics(
+            fps=fps_value if show_fps else None,
+            cpu_percent=cpu_percent,
+            ram_used_gb=ram_used_gb,
+            ram_total_gb=ram_total_gb,
+            disk_read_mb_s=disk_read_mb_s,
+            disk_write_mb_s=disk_write_mb_s,
+            show_fps=show_fps,
+        )
+        self._host.status_metrics.set_text(presentation.text)
+
+    def update_notification_counters(self, warnings: int, errors: int) -> None:
+        presentation = self._status_service.notification_counters(warnings=warnings, errors=errors)
+        self._host.status_notifications.set_text(presentation.text)

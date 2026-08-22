@@ -1,0 +1,101 @@
+---
+category: None
+plugin: N/A
+license: None
+---
+
+# cff::flprj::meshes_provider
+
+**Version: 0.0.0**
+
+## Description
+
+Read meshes from result streams. Meshes can be spatially or temporally varying.
+
+## Inputs
+
+| Input | Name | Expected type(s) | Description |
+|-------|-------|------------------|-------------|
+| <strong>Pin 0</strong>|  time_scoping |[`vector<int32>`](../../core-concepts/dpf-types.md#standard-types), [`scoping`](../../core-concepts/dpf-types.md#scoping) | time/freq set ids required in output |
+| <strong>Pin 3</strong>|  streams_container |[`streams_container`](../../core-concepts/dpf-types.md#streams-container) | result file container allowed to be kept open to cache data |
+| <strong>Pin 4</strong> <br><span style="background-color:#d93025; color:white; padding:2px 6px; border-radius:3px; font-size:0.75em;">Required</span>|  data_sources |[`data_sources`](../../core-concepts/dpf-types.md#data-sources) | result file path container, used if no streams are set |
+| <strong>Pin 25</strong>|  zone_scoping |[`int32`](../../core-concepts/dpf-types.md#standard-types), [`vector<int32>`](../../core-concepts/dpf-types.md#standard-types), [`scoping`](../../core-concepts/dpf-types.md#scoping), [`scopings_container`](../../core-concepts/dpf-types.md#scopings-container) | zone id (integer) or vector with a single zone id (vector) or scoping with a single zone id (scoping) or a scopings_container on zones and partitions with scopings on cells coming from different zones (scopings_container) |
+
+## Outputs
+
+| Output |  Name | Expected type(s) | Description |
+|-------|------|------------------|-------------|
+|  **Pin 0**| meshes |[`meshes_container`](../../core-concepts/dpf-types.md#meshes-container) | meshes container |
+
+## Configurations
+
+| Name| Expected type(s) | Default value | Description |
+|-----|------|----------|-------------|
+| **mutex** |[`bool`](../../core-concepts/dpf-types.md#standard-types) | false | If this option is set to true, the shared memory is prevented from being simultaneously accessed by multiple threads. |
+
+## Scripting
+
+ **Category**: None
+
+ **Plugin**: N/A
+
+ **Scripting name**: None
+
+ **Full name**: None
+
+ **Internal name**: cff::flprj::meshes_provider
+
+ **License**: None
+
+## Examples
+
+<details>
+<summary>C++</summary>
+
+```cpp
+#include "dpf_api.h"
+
+ansys::dpf::Operator op("cff::flprj::meshes_provider"); // operator instantiation
+op.connect(0, my_time_scoping);
+op.connect(3, my_streams_container);
+op.connect(4, my_data_sources);
+op.connect(25, my_zone_scoping);
+ansys::dpf::MeshesContainer my_meshes = op.getOutput<ansys::dpf::MeshesContainer>(0);
+```
+</details>
+
+<details>
+<summary>CPython</summary>
+
+```python
+import ansys.dpf.core as dpf
+
+op = dpf.operators.None.None() # operator instantiation
+op.inputs.time_scoping.connect(my_time_scoping)
+op.inputs.streams_container.connect(my_streams_container)
+op.inputs.data_sources.connect(my_data_sources)
+op.inputs.zone_scoping.connect(my_zone_scoping)
+my_meshes = op.outputs.meshes()
+```
+</details>
+
+<details>
+<summary>IPython</summary>
+
+```python
+import mech_dpf
+import Ans.DataProcessing as dpf
+
+op = dpf.operators.None.None() # operator instantiation
+op.inputs.time_scoping.Connect(my_time_scoping)
+op.inputs.streams_container.Connect(my_streams_container)
+op.inputs.data_sources.Connect(my_data_sources)
+op.inputs.zone_scoping.Connect(my_zone_scoping)
+my_meshes = op.outputs.meshes.GetData()
+```
+</details>
+<br>
+
+## Changelog
+
+- Version 0.0.0: Initial release.

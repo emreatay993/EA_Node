@@ -1,0 +1,859 @@
+from __future__ import annotations
+
+import copy
+from typing import TYPE_CHECKING, Any, Protocol
+
+from ea_node_editor.custom_workflows import parse_custom_workflow_type_id
+from ea_node_editor.graph.effective_ports import (
+    EffectivePort,
+    effective_ports,
+    find_port,
+    is_neutral_flow_port,
+    ports_compatible,
+    target_port_has_capacity,
+)
+from ea_node_editor.graph.hierarchy import scope_parent_id
+from ea_node_editor.graph.workspace_state import WorkspaceData
+from ea_node_editor.graph.records import NodeInstance
+from ea_node_editor.graph.transforms import encode_fragment_external_parent_id
+from ea_node_editor.nodes.builtins.subnode import SUBNODE_TYPE_ID
+from ea_node_editor.ui.shell.controllers.mutation_ui_effects import MutationUiEffects
+from ea_node_editor.ui.shell.controllers.result import ControllerResult
+from ea_node_editor.ui.shell.runtime_clipboard import (
+    build_graph_fragment_payload,
+    normalize_graph_fragment_payload,
+)
+from ea_node_editor.ui.shell.runtime_history import ACTION_ADD_NODE
+
+if TYPE_CHECKING:
+    from ea_node_editor.ui.shell.window import ShellWindow
+
+
+class _WorkspaceDropConnectControllerProtocol(Protocol):
+    def resolve_custom_workflow_definition(self, workflow_id: str) -> dict[str, Any] | None: ...
+
+    def active_workspace(self) -> WorkspaceData | None: ...
+
+    def prompt_connection_candidate(
+        self,
+        *,
+        title: str,
+        label: str,
+        candidates: list[dict[str, Any]],
+    ) -> dict[str, Any] | None: ...
+
+
+def _ordered_cardinal_sides_toward(*, node: NodeInstance, peer_node: NodeInstance) -> tuple[str, ...]:
+    dx = float(peer_node.x) - float(node.x)
+    dy = float(peer_node.y) - float(node.y)
+
+    if abs(dx) >= abs(dy):
+        primary = "right" if dx >= 0.0 else "left"
+        secondary = "bottom" if dy >= 0.0 else "top"
+    else:
+        primary = "bottom" if dy >= 0.0 else "top"
+        secondary = "right" if dx >= 0.0 else "left"
+
+    ordered = (
+        primary,
+        secondary,
+        _opposite_cardinal_side(secondary),
+        _opposite_cardinal_side(primary),
+    )
+    result: list[str] = []
+    seen: set[str] = set()
+    for side in ordered:
+        if side in seen:
+            continue
+        seen.add(side)
+        result.append(side)
+    return tuple(result)
+
+
+def _opposite_cardinal_side(side: str) -> str:
+    if side == "top":
+        return "bottom"
+    if side == "right":
+        return "left"
+    if side == "bottom":
+        return "top"
+    return "right"
+
+
+def _neutral_flow_ports(ports: list[EffectivePort]) -> list[EffectivePort]:
+    return [port for port in ports if is_neutral_flow_port(port)]
+
+
+def _preferred_neutral_flow_port(
+    *,
+    node: NodeInstance,
+    peer_node: NodeInstance,
+    neutral_ports: list[EffectivePort],
+    excluded_keys: set[str] | None = None,
+) -> EffectivePort | None:
+    if not neutral_ports:
+        return None
+
+    excluded = excluded_keys or set()
+    ordered_sides = _ordered_cardinal_sides_toward(node=node, peer_node=peer_node)
+    for allow_excluded in (False, True):
+        for side in ordered_sides:
+            for port in neutral_ports:
+                if port.side != side:
+                    continue
+                if not allow_excluded and port.key in excluded:
+                    continue
+                return port
+
+    for port in neutral_ports:
+        if port.key not in excluded:
+            return port
+    return neutral_ports[0]
+
+
+class WorkspaceDropConnectOps:
+    def __init__(
+        self,
+        host: ShellWindow,
+        controller: _WorkspaceDropConnectControllerProtocol,
+        effects: MutationUiEffects | None = None,
+    ) -> None:
+        self._host = host
+        self._controller = controller
+        self._effects = effects or MutationUiEffects(
+            host=host,
+            refresh_workspace_tabs=lambda: getattr(controller, "refresh_workspace_tabs", lambda: None)(),
+        )
+
+    def insert_library_node(self, type_id: str, x: float, y: float) -> str:
+        normalized_type = str(type_id).strip()
+        if not normalized_type:
+            return ""
+        custom_workflow_id = parse_custom_workflow_type_id(normalized_type)
+        if custom_workflow_id:
+            return self._insert_custom_workflow_snapshot(custom_workflow_id, float(x), float(y))
+        try:
+            node_id = self._host.scene.create_node_from_type(
+                type_id=normalized_type,
+                x=float(x),
+                y=float(y),
+                parent_node_id=scope_parent_id(self._host.scene.active_scope_path),
+                select_node=False,
+            )
+        except (KeyError, RuntimeError, TypeError, ValueError):
+            return ""
+        self._record_library_usage(normalized_type, node_id)
+        return node_id
+
+    def insert_library_node_with_properties(
+        self,
+        type_id: str,
+        properties: dict[str, Any],
+        x: float,
+        y: float,
+    ) -> str:
+        normalized_type = str(type_id).strip()
+        if not normalized_type or parse_custom_workflow_type_id(normalized_type):
+            return ""
+        try:
+            node_id = self._host.scene.create_node_from_type(
+                type_id=normalized_type,
+                x=float(x),
+                y=float(y),
+                parent_node_id=scope_parent_id(self._host.scene.active_scope_path),
+                select_node=False,
+                property_overrides=dict(properties or {}),
+            )
+        except (KeyError, RuntimeError, TypeError, ValueError):
+            return ""
+        self._record_library_usage(normalized_type, node_id)
+        return node_id
+
+    def _record_library_usage(self, type_id: str, node_id: str) -> None:
+        if not str(node_id).strip():
+            return
+        controller = getattr(self._host, "app_preferences_controller", None)
+        record = getattr(controller, "record_node_library_usage", None)
+        if not callable(record):
+            return
+        try:
+            record(type_id)
+        except (OSError, RuntimeError, TypeError, ValueError):
+            return
+
+    def _insert_custom_workflow_snapshot(self, workflow_id: str, x: float, y: float) -> str:
+        primary_node_id, _endpoints = self._insert_custom_workflow_snapshot_with_endpoints(
+            workflow_id,
+            x,
+            y,
+        )
+        return primary_node_id
+
+    def _insert_custom_workflow_snapshot_with_endpoints(
+        self,
+        workflow_id: str,
+        x: float,
+        y: float,
+    ) -> tuple[str, list[dict[str, str]]]:
+        workspace = self._controller.active_workspace()
+        if workspace is None:
+            return "", []
+        definition = self._controller.resolve_custom_workflow_definition(workflow_id)
+        if definition is None:
+            return "", []
+        fragment_payload = self._normalize_custom_workflow_fragment_payload(definition.get("fragment"))
+        if fragment_payload is None:
+            return "", []
+
+        target_parent_id = scope_parent_id(self._host.scene.active_scope_path)
+        scoped_fragment_payload = self._retarget_fragment_roots(
+            fragment_payload,
+            target_parent_id=target_parent_id,
+        )
+
+        before_node_ids = set(workspace.nodes)
+        if not self._host.scene.paste_subgraph_fragment(scoped_fragment_payload, float(x), float(y)):
+            return "", []
+        inserted_node_ids = [node_id for node_id in workspace.nodes if node_id not in before_node_ids]
+        if not inserted_node_ids:
+            return "", []
+
+        inserted_node_id_set = set(inserted_node_ids)
+        shell_node_id = self._find_inserted_root_subnode_shell_id(workspace.nodes, inserted_node_id_set)
+        if shell_node_id:
+            primary_node_id = shell_node_id
+        else:
+            selected_node_id = self._host.scene.selected_node_id() or ""
+            primary_node_id = (
+                selected_node_id
+                if selected_node_id in inserted_node_id_set
+                else sorted(inserted_node_ids)[0]
+            )
+
+        node_ref_ids = [
+            str(node_payload.get("ref_id", "")).strip()
+            for node_payload in scoped_fragment_payload.get("nodes", [])
+            if isinstance(node_payload, dict)
+        ]
+        node_id_by_ref = (
+            dict(zip(node_ref_ids, inserted_node_ids, strict=True))
+            if len(node_ref_ids) == len(inserted_node_ids)
+            else {}
+        )
+        endpoints: list[dict[str, str]] = []
+        for port in definition.get("ports", []):
+            if not isinstance(port, dict):
+                continue
+            node_id = node_id_by_ref.get(str(port.get("node_ref_id", "")).strip(), "")
+            port_key = str(port.get("port_key", "")).strip()
+            if not node_id or not port_key:
+                continue
+            endpoints.append(
+                {
+                    "key": str(port.get("key", "")).strip(),
+                    "node_id": node_id,
+                    "port_key": port_key,
+                }
+            )
+        return primary_node_id, endpoints
+
+    @staticmethod
+    def _normalize_custom_workflow_fragment_payload(fragment_payload: Any) -> dict[str, Any] | None:
+        if not isinstance(fragment_payload, dict):
+            return None
+        normalized_fragment = normalize_graph_fragment_payload(fragment_payload)
+        if normalized_fragment is not None:
+            return normalized_fragment
+        nodes_payload = fragment_payload.get("nodes")
+        edges_payload = fragment_payload.get("edges")
+        if not isinstance(nodes_payload, list) or not isinstance(edges_payload, list):
+            return None
+        return normalize_graph_fragment_payload(
+            build_graph_fragment_payload(
+                nodes=copy.deepcopy(nodes_payload),
+                edges=copy.deepcopy(edges_payload),
+            )
+        )
+
+    @staticmethod
+    def _retarget_fragment_roots(
+        fragment_payload: dict[str, Any],
+        *,
+        target_parent_id: str | None,
+    ) -> dict[str, Any]:
+        rewritten = copy.deepcopy(fragment_payload)
+        nodes_payload = rewritten.get("nodes")
+        if not isinstance(nodes_payload, list):
+            return rewritten
+        fragment_node_ids = {
+            str(node_payload.get("ref_id", "")).strip()
+            for node_payload in nodes_payload
+            if isinstance(node_payload, dict)
+        }
+        for node_payload in nodes_payload:
+            if not isinstance(node_payload, dict):
+                continue
+            normalized_parent = str(node_payload.get("parent_node_id", "")).strip()
+            if normalized_parent and normalized_parent in fragment_node_ids:
+                continue
+            if target_parent_id and target_parent_id in fragment_node_ids:
+                node_payload["parent_node_id"] = encode_fragment_external_parent_id(target_parent_id)
+            else:
+                node_payload["parent_node_id"] = target_parent_id
+        return rewritten
+
+    @staticmethod
+    def _find_inserted_root_subnode_shell_id(
+        workspace_nodes: dict[str, NodeInstance],
+        inserted_node_ids: set[str],
+    ) -> str:
+        shell_candidates: list[NodeInstance] = []
+        for node_id in inserted_node_ids:
+            node = workspace_nodes.get(node_id)
+            if node is None or node.type_id != SUBNODE_TYPE_ID:
+                continue
+            parent_id = str(node.parent_node_id).strip() if node.parent_node_id is not None else ""
+            if parent_id and parent_id in inserted_node_ids:
+                continue
+            shell_candidates.append(node)
+        if not shell_candidates:
+            return ""
+        shell_candidates.sort(key=lambda node: (float(node.y), float(node.x), node.node_id))
+        return shell_candidates[0].node_id
+
+    def auto_connect_dropped_node_to_port(
+        self,
+        new_node_id: str,
+        target_node_id: str,
+        target_port_key: str,
+        append_requested: bool = False,
+    ) -> bool:
+        workspace = self._controller.active_workspace()
+        if workspace is None:
+            return False
+
+        new_node = workspace.nodes.get(new_node_id)
+        target_node = workspace.nodes.get(target_node_id)
+        if new_node is None or target_node is None:
+            return False
+
+        new_spec = self._host.registry.get_spec(new_node.type_id)
+        target_spec = self._host.registry.get_spec(target_node.type_id)
+        target_port = find_port(
+            node=target_node,
+            spec=target_spec,
+            workspace_nodes=workspace.nodes,
+            port_key=str(target_port_key).strip(),
+        )
+        if target_port is None:
+            return False
+
+        new_ports = [
+            port
+            for port in effective_ports(
+                node=new_node,
+                spec=new_spec,
+                workspace_nodes=workspace.nodes,
+            )
+            if port.exposed
+        ]
+        candidates: list[dict[str, Any]] = []
+        if is_neutral_flow_port(target_port):
+            selected_port = _preferred_neutral_flow_port(
+                node=new_node,
+                peer_node=target_node,
+                neutral_ports=_neutral_flow_ports(new_ports),
+            )
+            if selected_port is not None:
+                candidates.append(
+                    {
+                        "source_node_id": target_node.node_id,
+                        "source_port_key": target_port.key,
+                        "target_node_id": new_node.node_id,
+                        "target_port_key": selected_port.key,
+                        "label": (
+                            f"{target_spec.display_name}.{target_port.label or target_port.key} -> "
+                            f"{new_spec.display_name}.{selected_port.label or selected_port.key}"
+                        ),
+                    }
+                )
+        elif target_port.direction == "in":
+            if (
+                append_requested
+                and str(target_port.kind).strip().lower() == "flow"
+                and not target_port_has_capacity(
+                    edges=workspace.edges.values(),
+                    node=target_node,
+                    spec=target_spec,
+                    workspace_nodes=workspace.nodes,
+                    port_key=target_port.key,
+                )
+            ):
+                return False
+            for port in new_ports:
+                if port.direction != "out":
+                    continue
+                if not ports_compatible(
+                    port,
+                    target_port,
+                    data_types=self._host.registry.data_types,
+                ):
+                    continue
+                candidates.append(
+                    {
+                        "source_node_id": new_node.node_id,
+                        "source_port_key": port.key,
+                        "target_node_id": target_node.node_id,
+                        "target_port_key": target_port.key,
+                        "label": (
+                            f"{new_spec.display_name}.{port.label or port.key} -> "
+                            f"{target_spec.display_name}.{target_port.label or target_port.key}"
+                        ),
+                    }
+                )
+        elif target_port.direction == "out":
+            for port in new_ports:
+                if port.direction != "in":
+                    continue
+                if not ports_compatible(
+                    target_port,
+                    port,
+                    data_types=self._host.registry.data_types,
+                ):
+                    continue
+                candidates.append(
+                    {
+                        "source_node_id": target_node.node_id,
+                        "source_port_key": target_port.key,
+                        "target_node_id": new_node.node_id,
+                        "target_port_key": port.key,
+                        "label": (
+                            f"{target_spec.display_name}.{target_port.label or target_port.key} -> "
+                            f"{new_spec.display_name}.{port.label or port.key}"
+                        ),
+                    }
+                )
+        else:
+            return False
+
+        selected = self._controller.prompt_connection_candidate(
+            title="Auto-Connect Port",
+            label="Choose connection:",
+            candidates=candidates,
+        )
+        if selected is None:
+            return False
+
+        try:
+            self._host.scene.add_edge(
+                selected["source_node_id"],
+                selected["source_port_key"],
+                selected["target_node_id"],
+                selected["target_port_key"],
+                bool(append_requested),
+            )
+            return True
+        except (KeyError, ValueError):
+            return False
+
+    def auto_connect_dropped_node_to_edge(self, new_node_id: str, target_edge_id: str) -> bool:
+        workspace = self._controller.active_workspace()
+        if workspace is None:
+            return False
+        edge = workspace.edges.get(target_edge_id)
+        new_node = workspace.nodes.get(new_node_id)
+        if edge is None or new_node is None:
+            return False
+
+        source_node = workspace.nodes.get(edge.source_node_id)
+        target_node = workspace.nodes.get(edge.target_node_id)
+        if source_node is None or target_node is None:
+            return False
+
+        source_spec = self._host.registry.get_spec(source_node.type_id)
+        target_spec = self._host.registry.get_spec(target_node.type_id)
+        new_spec = self._host.registry.get_spec(new_node.type_id)
+        source_port = find_port(
+            node=source_node,
+            spec=source_spec,
+            workspace_nodes=workspace.nodes,
+            port_key=str(edge.source_port_key).strip(),
+        )
+        target_port = find_port(
+            node=target_node,
+            spec=target_spec,
+            workspace_nodes=workspace.nodes,
+            port_key=str(edge.target_port_key).strip(),
+        )
+        if source_port is None or target_port is None:
+            return False
+
+        new_ports = [
+            port
+            for port in effective_ports(
+                node=new_node,
+                spec=new_spec,
+                workspace_nodes=workspace.nodes,
+            )
+            if port.exposed
+        ]
+        candidates: list[dict[str, Any]] = []
+        if is_neutral_flow_port(source_port) and is_neutral_flow_port(target_port):
+            neutral_ports = _neutral_flow_ports(new_ports)
+            input_port = _preferred_neutral_flow_port(
+                node=new_node,
+                peer_node=source_node,
+                neutral_ports=neutral_ports,
+            )
+            output_port = _preferred_neutral_flow_port(
+                node=new_node,
+                peer_node=target_node,
+                neutral_ports=neutral_ports,
+                excluded_keys={input_port.key} if input_port is not None else None,
+            )
+            if input_port is not None and output_port is not None:
+                candidates.append(
+                    {
+                        "new_input_port": input_port.key,
+                        "new_output_port": output_port.key,
+                        "label": (
+                            f"{source_spec.display_name}.{source_port.label or source_port.key} -> "
+                            f"{new_spec.display_name}.{input_port.label or input_port.key}, "
+                            f"{new_spec.display_name}.{output_port.label or output_port.key} -> "
+                            f"{target_spec.display_name}.{target_port.label or target_port.key}"
+                        ),
+                    }
+                )
+        else:
+            candidate_inputs = [
+                port
+                for port in new_ports
+                if port.direction == "in"
+                and ports_compatible(
+                    source_port,
+                    port,
+                    data_types=self._host.registry.data_types,
+                )
+            ]
+            candidate_outputs = [
+                port
+                for port in new_ports
+                if port.direction == "out"
+                and ports_compatible(
+                    port,
+                    target_port,
+                    data_types=self._host.registry.data_types,
+                )
+            ]
+
+            for input_port in candidate_inputs:
+                for output_port in candidate_outputs:
+                    candidates.append(
+                        {
+                            "new_input_port": input_port.key,
+                            "new_output_port": output_port.key,
+                            "label": (
+                                f"{source_spec.display_name}.{source_port.label or source_port.key} -> "
+                                f"{new_spec.display_name}.{input_port.label or input_port.key}, "
+                                f"{new_spec.display_name}.{output_port.label or output_port.key} -> "
+                                f"{target_spec.display_name}.{target_port.label or target_port.key}"
+                            ),
+                        }
+                    )
+
+        selected = self._controller.prompt_connection_candidate(
+            title="Auto-Insert On Edge",
+            label="Choose inserted wiring:",
+            candidates=candidates,
+        )
+        if selected is None:
+            return False
+
+        original = {
+            "source_node_id": edge.source_node_id,
+            "source_port_key": edge.source_port_key,
+            "target_node_id": edge.target_node_id,
+            "target_port_key": edge.target_port_key,
+        }
+        created_edge_ids: list[str] = []
+        removed_original = False
+        try:
+            self._host.scene.remove_edge(target_edge_id)
+            removed_original = True
+            first_id = self._host.scene.add_edge(
+                original["source_node_id"],
+                original["source_port_key"],
+                new_node_id,
+                selected["new_input_port"],
+            )
+            created_edge_ids.append(first_id)
+            second_id = self._host.scene.add_edge(
+                new_node_id,
+                selected["new_output_port"],
+                original["target_node_id"],
+                original["target_port_key"],
+            )
+            created_edge_ids.append(second_id)
+            return True
+        except (KeyError, ValueError):
+            for edge_id in created_edge_ids:
+                self._host.scene.remove_edge(edge_id)
+            if removed_original:
+                try:
+                    self._host.scene.add_edge(
+                        original["source_node_id"],
+                        original["source_port_key"],
+                        original["target_node_id"],
+                        original["target_port_key"],
+                    )
+                except (KeyError, ValueError):
+                    pass
+            return False
+
+    def _connect_workflow_endpoint_to_port(
+        self,
+        endpoints: list[dict[str, str]],
+        target_node_id: str,
+        target_port_key: str,
+        append_requested: bool = False,
+    ) -> bool:
+        workspace = self._controller.active_workspace()
+        if workspace is None:
+            return False
+        target_node = workspace.nodes.get(str(target_node_id).strip())
+        if target_node is None:
+            return False
+        target_spec = self._host.registry.get_spec(target_node.type_id)
+        target_port = find_port(
+            node=target_node,
+            spec=target_spec,
+            workspace_nodes=workspace.nodes,
+            port_key=str(target_port_key).strip(),
+        )
+        if target_port is None:
+            return False
+        if (
+            target_port.direction == "in"
+            and append_requested
+            and str(target_port.kind).strip().lower() == "flow"
+            and not target_port_has_capacity(
+                edges=workspace.edges.values(),
+                node=target_node,
+                spec=target_spec,
+                workspace_nodes=workspace.nodes,
+                port_key=target_port.key,
+            )
+        ):
+            return False
+
+        for endpoint in endpoints:
+            endpoint_node = workspace.nodes.get(endpoint["node_id"])
+            if endpoint_node is None:
+                continue
+            endpoint_spec = self._host.registry.get_spec(endpoint_node.type_id)
+            endpoint_port = find_port(
+                node=endpoint_node,
+                spec=endpoint_spec,
+                workspace_nodes=workspace.nodes,
+                port_key=endpoint["port_key"],
+            )
+            if endpoint_port is None:
+                continue
+            if target_port.direction == "in":
+                if endpoint_port.direction != "out" or not ports_compatible(
+                    endpoint_port,
+                    target_port,
+                    data_types=self._host.registry.data_types,
+                ):
+                    continue
+                source_node_id, source_port_key = endpoint_node.node_id, endpoint_port.key
+                connected_target_node_id, connected_target_port_key = target_node.node_id, target_port.key
+            elif target_port.direction == "out":
+                if endpoint_port.direction != "in" or not ports_compatible(
+                    target_port,
+                    endpoint_port,
+                    data_types=self._host.registry.data_types,
+                ):
+                    continue
+                if not target_port_has_capacity(
+                    edges=workspace.edges.values(),
+                    node=endpoint_node,
+                    spec=endpoint_spec,
+                    workspace_nodes=workspace.nodes,
+                    port_key=endpoint_port.key,
+                ):
+                    continue
+                source_node_id, source_port_key = target_node.node_id, target_port.key
+                connected_target_node_id, connected_target_port_key = endpoint_node.node_id, endpoint_port.key
+            else:
+                continue
+            try:
+                self._host.scene.add_edge(
+                    source_node_id,
+                    source_port_key,
+                    connected_target_node_id,
+                    connected_target_port_key,
+                    bool(append_requested),
+                )
+                return True
+            except (KeyError, ValueError):
+                continue
+        return False
+
+    def _connect_workflow_endpoints_to_edge(
+        self,
+        endpoints: list[dict[str, str]],
+        target_edge_id: str,
+    ) -> bool:
+        workspace = self._controller.active_workspace()
+        if workspace is None:
+            return False
+        edge = workspace.edges.get(str(target_edge_id).strip())
+        if edge is None:
+            return False
+        source_node = workspace.nodes.get(edge.source_node_id)
+        target_node = workspace.nodes.get(edge.target_node_id)
+        if source_node is None or target_node is None:
+            return False
+        source_spec = self._host.registry.get_spec(source_node.type_id)
+        target_spec = self._host.registry.get_spec(target_node.type_id)
+        source_port = find_port(
+            node=source_node,
+            spec=source_spec,
+            workspace_nodes=workspace.nodes,
+            port_key=edge.source_port_key,
+        )
+        target_port = find_port(
+            node=target_node,
+            spec=target_spec,
+            workspace_nodes=workspace.nodes,
+            port_key=edge.target_port_key,
+        )
+        if source_port is None or target_port is None:
+            return False
+
+        input_endpoint: tuple[str, str] | None = None
+        output_endpoint: tuple[str, str] | None = None
+        for endpoint in endpoints:
+            endpoint_node = workspace.nodes.get(endpoint["node_id"])
+            if endpoint_node is None:
+                continue
+            endpoint_spec = self._host.registry.get_spec(endpoint_node.type_id)
+            endpoint_port = find_port(
+                node=endpoint_node,
+                spec=endpoint_spec,
+                workspace_nodes=workspace.nodes,
+                port_key=endpoint["port_key"],
+            )
+            if endpoint_port is None:
+                continue
+            if (
+                input_endpoint is None
+                and endpoint_port.direction == "in"
+                and ports_compatible(
+                    source_port,
+                    endpoint_port,
+                    data_types=self._host.registry.data_types,
+                )
+            ):
+                input_endpoint = (endpoint_node.node_id, endpoint_port.key)
+            if (
+                output_endpoint is None
+                and endpoint_port.direction == "out"
+                and ports_compatible(
+                    endpoint_port,
+                    target_port,
+                    data_types=self._host.registry.data_types,
+                )
+            ):
+                output_endpoint = (endpoint_node.node_id, endpoint_port.key)
+        if input_endpoint is None or output_endpoint is None:
+            return False
+
+        original = (
+            edge.source_node_id,
+            edge.source_port_key,
+            edge.target_node_id,
+            edge.target_port_key,
+        )
+        created_edge_ids: list[str] = []
+        self._host.scene.remove_edge(edge.edge_id)
+        try:
+            created_edge_ids.append(
+                self._host.scene.add_edge(original[0], original[1], input_endpoint[0], input_endpoint[1])
+            )
+            created_edge_ids.append(
+                self._host.scene.add_edge(output_endpoint[0], output_endpoint[1], original[2], original[3])
+            )
+            return True
+        except (KeyError, ValueError):
+            for edge_id in created_edge_ids:
+                self._host.scene.remove_edge(edge_id)
+            try:
+                self._host.scene.add_edge(*original)
+            except (KeyError, ValueError):
+                pass
+            return False
+
+    def request_drop_node_from_library(
+        self,
+        type_id: str,
+        scene_x: float,
+        scene_y: float,
+        target_mode: str,
+        target_node_id: str,
+        target_port_key: str,
+        target_edge_id: str,
+        append_requested: bool = False,
+    ) -> ControllerResult[bool]:
+        workspace = self._controller.active_workspace()
+        if workspace is None:
+            return ControllerResult(False, "Workspace not found.", payload=False)
+
+        with self._host.runtime_history.grouped_action(
+            workspace.workspace_id,
+            ACTION_ADD_NODE,
+            workspace,
+        ):
+            custom_workflow_id = parse_custom_workflow_type_id(type_id)
+            workflow_endpoints: list[dict[str, str]] = []
+            if custom_workflow_id:
+                created_node_id, workflow_endpoints = self._insert_custom_workflow_snapshot_with_endpoints(
+                    custom_workflow_id,
+                    scene_x,
+                    scene_y,
+                )
+            else:
+                created_node_id = self.insert_library_node(type_id, scene_x, scene_y)
+            if not created_node_id:
+                return ControllerResult(False, "Node could not be created.", payload=False)
+
+            mode = str(target_mode).strip().lower()
+            if mode == "port":
+                if workflow_endpoints:
+                    self._connect_workflow_endpoint_to_port(
+                        workflow_endpoints,
+                        str(target_node_id).strip(),
+                        str(target_port_key).strip(),
+                        append_requested,
+                    )
+                else:
+                    self.auto_connect_dropped_node_to_port(
+                        created_node_id,
+                        str(target_node_id).strip(),
+                        str(target_port_key).strip(),
+                        append_requested,
+                    )
+            elif mode == "edge":
+                if workflow_endpoints:
+                    self._connect_workflow_endpoints_to_edge(
+                        workflow_endpoints,
+                        str(target_edge_id).strip(),
+                    )
+                else:
+                    self.auto_connect_dropped_node_to_edge(
+                        created_node_id,
+                        str(target_edge_id).strip(),
+                    )
+
+        return ControllerResult(True, payload=True)

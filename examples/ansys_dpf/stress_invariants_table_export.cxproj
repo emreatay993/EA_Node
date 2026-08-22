@@ -1,0 +1,228 @@
+{
+  "active_workspace_id": "ws_dpf_stress_invariants_table_export",
+  "metadata": {
+    "artifact_store": {
+      "artifacts": {},
+      "staged": {}
+    },
+    "custom_workflows": [],
+    "ui": {
+      "passive_style_presets": {
+        "edge_presets": [],
+        "node_presets": []
+      },
+      "script_editor": {
+        "floating": false,
+        "visible": false,
+        "width": 0.0
+      }
+    },
+    "workflow_settings": {
+      "environment": {
+        "python_path": "",
+        "working_directory": ""
+      },
+      "general": {
+        "author": "",
+        "description": "Derives von Mises stress at the BOLT_NODES named selection over both result sets and stages it as a CSV table with node ids and coordinates, using the curated DPF Stress Invariants and DPF Table Export workflow nodes.",
+        "project_name": "DPF Stress Invariants Table Export Example"
+      },
+      "logging": {
+        "capture_console": true,
+        "level": "info"
+      },
+      "plugins": {
+        "enabled": []
+      },
+      "solver_config": {
+        "enable_parallel": true,
+        "memory_limit_gb": 12,
+        "thread_count": 8
+      }
+    },
+    "workspace_order": [
+      "ws_dpf_stress_invariants_table_export"
+    ]
+  },
+  "name": "DPF Stress Invariants Table Export Example",
+  "project_id": "proj_example_dpf_stress_invariants_table_export",
+  "schema_version": 5,
+  "workspace_order": [
+    "ws_dpf_stress_invariants_table_export"
+  ],
+  "workspaces": [
+    {
+      "active_view_id": "view_dpf_stress_invariants_table_export",
+      "dirty": true,
+      "edges": [
+        {
+          "edge_id": "edge_inv_source_model_to_invariants",
+          "enabled": true,
+          "input_order": 0,
+          "label": "",
+          "source_node_id": "node_result_source",
+          "source_port_key": "model",
+          "target_node_id": "node_stress_invariants",
+          "target_port_key": "model",
+          "visual_style": {}
+        },
+        {
+          "edge_id": "edge_inv_fields_to_export",
+          "enabled": true,
+          "input_order": 0,
+          "label": "",
+          "source_node_id": "node_stress_invariants",
+          "source_port_key": "fields",
+          "target_node_id": "node_table_export",
+          "target_port_key": "fields",
+          "visual_style": {}
+        },
+        {
+          "edge_id": "edge_inv_source_model_to_export",
+          "enabled": true,
+          "input_order": 0,
+          "label": "",
+          "source_node_id": "node_result_source",
+          "source_port_key": "model",
+          "target_node_id": "node_table_export",
+          "target_port_key": "model",
+          "visual_style": {}
+        }
+      ],
+      "name": "DPF Stress Invariants Table Export",
+      "nodes": [
+        {
+          "collapsed": false,
+          "comments": [],
+          "custom_height": 280.0,
+          "custom_width": 620.0,
+          "exposed_ports": {
+            "bottom": true,
+            "left": true,
+            "right": true,
+            "top": true
+          },
+          "links": [],
+          "locked": false,
+          "node_id": "node_group_backdrop",
+          "parent_node_id": null,
+          "port_labels": {},
+          "port_modifiers": {},
+          "principal_input_port_id": null,
+          "properties": {
+            "title": "DPF Workflow Example: von Mises -\u003e CSV table"
+          },
+          "title": "DPF Workflow Example: von Mises -\u003e CSV table",
+          "type_id": "passive.annotation.group_backdrop",
+          "visual_style": {},
+          "x": 320.0,
+          "y": 420.0
+        },
+        {
+          "collapsed": false,
+          "comments": [],
+          "custom_height": null,
+          "custom_width": null,
+          "exposed_ports": {
+            "model": true,
+            "normalized_path": true,
+            "path": false,
+            "result_file": true
+          },
+          "links": [],
+          "locked": false,
+          "node_id": "node_result_source",
+          "parent_node_id": null,
+          "port_labels": {},
+          "port_modifiers": {},
+          "principal_input_port_id": null,
+          "properties": {
+            "path": "../../tests/ansys_dpf_core/example_outputs/static_analysis_1_bolted_joint/file.rst"
+          },
+          "title": "DPF Result Source",
+          "type_id": "dpf.workflow.result_source",
+          "visual_style": {},
+          "x": 320.0,
+          "y": 140.0
+        },
+        {
+          "collapsed": false,
+          "comments": [],
+          "custom_height": null,
+          "custom_width": null,
+          "exposed_ports": {
+            "fields": true,
+            "mesh_scoping": true,
+            "model": true,
+            "time_scoping": true
+          },
+          "links": [],
+          "locked": false,
+          "node_id": "node_stress_invariants",
+          "parent_node_id": null,
+          "port_labels": {},
+          "port_modifiers": {},
+          "principal_input_port_id": null,
+          "properties": {
+            "element_ids": "",
+            "invariant": "von_mises",
+            "location": "nodal",
+            "named_selection": "BOLT_NODES",
+            "node_ids": "",
+            "selection_mode": "named_selection",
+            "set_ids": "1,2",
+            "time_scope_mode": "set_ids",
+            "time_values": ""
+          },
+          "title": "DPF Stress Invariants",
+          "type_id": "dpf.workflow.stress_invariants",
+          "visual_style": {},
+          "x": 620.0,
+          "y": 120.0
+        },
+        {
+          "collapsed": false,
+          "comments": [],
+          "custom_height": null,
+          "custom_width": null,
+          "exposed_ports": {
+            "csv": true,
+            "exports": true,
+            "fields": true,
+            "model": true,
+            "table": true
+          },
+          "links": [],
+          "locked": false,
+          "node_id": "node_table_export",
+          "parent_node_id": null,
+          "port_labels": {},
+          "port_modifiers": {},
+          "principal_input_port_id": null,
+          "properties": {
+            "artifact_key": "von_mises_bolt_nodes",
+            "include_coordinates": true,
+            "output_mode": "stored"
+          },
+          "title": "DPF Table Export",
+          "type_id": "dpf.workflow.table_export",
+          "visual_style": {},
+          "x": 940.0,
+          "y": 140.0
+        }
+      ],
+      "views": [
+        {
+          "hide_optional_ports": false,
+          "name": "V1",
+          "pan_x": 0.0,
+          "pan_y": 0.0,
+          "scope_path": [],
+          "view_id": "view_dpf_stress_invariants_table_export",
+          "zoom": 1.0
+        }
+      ],
+      "workspace_id": "ws_dpf_stress_invariants_table_export"
+    }
+  ]
+}

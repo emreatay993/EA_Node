@@ -1,0 +1,112 @@
+flowchart LR
+    BOOT[python -m ea_node_editor.bootstrap -> bootstrap.main -> app.run] --> SPLASH[OpeningSplash + RegistryLoader]
+    SPLASH --> SW[create_shell_window / ShellWindow facade]
+    U[User] --> MS[MainShell.qml]
+    SW --> MS
+    MS --> GC[GraphCanvas.qml]
+    MS --> GSD[GraphicsSettingsDialog]
+    MS --> GSO[GraphSearchOverlay]
+    MS --> CQI[ConnectionQuickInsertOverlay]
+    MS --> AOM[AddOnManagerPane]
+    MS --> SEO[ScriptEditorOverlay]
+    MS --> GHO[GraphHintOverlay]
+    MS --> CFO[ContentFullscreenOverlay]
+    MS --> INS[InspectorPane user-facing IDs]
+
+    GC --> ROOTLAYERS[GraphCanvasRootLayers]
+    GC --> GCINPUT[GraphCanvasInputLayers]
+    GC --> GCCM[GraphCanvasContextMenus]
+    GC --> GCVIEWCTRL[GraphCanvasViewportController]
+    GC --> GSTATE[graphCanvasStateBridge]
+    GC --> GCOMMAND[graphCanvasCommandBridge]
+    GC --> GVIEW[graphCanvasViewBridge]
+
+    ROOTLAYERS --> GCBG[GraphCanvasBackground]
+    ROOTLAYERS --> BACKDROP[Backdrop GraphCanvasWorldLayer]
+    ROOTLAYERS --> EDGE[EdgeLayer]
+    ROOTLAYERS --> BACKDROPINPUT[Backdrop input GraphCanvasWorldLayer]
+    ROOTLAYERS --> GCDP[GraphCanvasDropPreview]
+    ROOTLAYERS --> WORLD[GraphCanvasWorldLayer]
+    ROOTLAYERS --> GCMINI[GraphCanvasMinimapOverlay]
+    WORLD --> NODEDEL[GraphCanvasNodeDelegate]
+    BACKDROP --> NODEDEL
+    NODEDEL --> GNH[GraphNodeHost]
+    GNH --> NSL[GraphNodeSurfaceLoader]
+    GNH --> HDR[GraphNodeHeaderLayer]
+    NODECARD[NodeCard wrapper] --> GNH
+    GNH --> INS
+
+    GSD --> SW
+    GSO --> SW
+    CQI --> SW
+    AOM --> SW
+    SEO --> SW
+    GHO --> SW
+    CFO --> SW
+
+    SW --> APC[AppPreferencesController]
+    SW --> RUN[RunController]
+    SW --> PSC[ProjectSessionController]
+    SW --> WLC[WorkspaceLibraryController]
+    SW --> SEARCH[window_search_scope_state]
+    SW --> INSPECTOR_HELPERS[window_library_inspector presentation identity helpers]
+    SW --> TBRIDGE
+    SW --> THEME[theme registry and stylesheet builder]
+    SW --> GTBRIDGE
+    SW --> GTHEME[graph theme registry/runtime]
+
+    SW --> GS[GraphSceneBridge]
+    SW --> VP[ViewportBridge]
+    SW --> BRIDGES[Focused QML bridges and status surfaces]
+
+    GS --> GR[(GraphModel)]
+    GS --> HIER[graph.hierarchy]
+    GS --> XFORM[graph.transforms]
+    GS --> HIST[(RuntimeGraphHistory)]
+
+    WLC --> NAV[WorkspaceViewNavOps]
+    WLC --> EDIT[WorkspaceEditOps]
+    WLC --> DROP[WorkspaceDropConnectOps]
+    WLC --> IO[WorkspaceIOOps]
+    WLC --> GI[GraphInteractions]
+    INSPECTOR_HELPERS --> EFFECTIVE[graph.effective_ports]
+
+    EDIT --> GS
+    GI --> GS
+    NAV --> WM[WorkspaceManager]
+    WM --> GR
+
+    WLC --> CWF[custom_workflows codec]
+    CWF --> GCWF[(custom_workflows_global.json)]
+
+    APC --> APPPREF[(app_preferences.json)]
+    THEME --> TOKENS[stitch_dark and stitch_light tokens]
+
+    RUN --> SER[JsonProjectSerializer]
+    PSC --> SER
+    PSC --> SESS[SessionAutosaveStore]
+
+    SER --> MIG[JsonProjectMigration]
+    SER --> CODEC[JsonProjectCodec]
+    SER --> SFE[(.cxproj project files)]
+    SESS --> LAST[(last_session.json envelope)]
+    SESS --> AUTO[(autosave.cxproj)]
+
+    SW --> REG[NodeRegistry]
+    REG --> BUILTINS[nodes.builtins.*]
+    REG --> ADDONS[addons catalog and hot-apply state]
+    REG --> PLUG[plugin_loader]
+    PLUG --> PLUGDIR[(APPDATA/COREX_Node_Editor/plugins)]
+    PLUG --> PKGDIR[(plugin package directories)]
+    PLUG --> ENTRYPTS[(Python entry points)]
+    PLUG --> BACKENDS[PLUGIN_BACKENDS / PLUGIN_DESCRIPTORS]
+
+    RUN --> EXEC[ProcessExecutionClient]
+    EXEC -->|commands| CMDQ[(command_queue)]
+    CMDQ --> WORKER[worker_main / load_runtime_snapshot / run_workflow]
+    WORKER -->|events| EVTQ[(event_queue)]
+    EVTQ --> EXEC
+    WORKER --> REG
+    WORKER --> NODEPLUGINS[NodePlugin.execute / async_execute]
+
+    SW --> METRICS[telemetry.system_metrics]

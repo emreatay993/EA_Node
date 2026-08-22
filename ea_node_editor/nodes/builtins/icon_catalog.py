@@ -1,0 +1,178 @@
+from __future__ import annotations
+
+from collections.abc import Callable, Mapping, Sequence
+from typing import Any
+
+from ea_node_editor.nodes.decorators import node_type
+from ea_node_editor.nodes.node_specs import (
+    NodeTypeSpec,
+    PortSpec,
+    PropertySpec,
+    ReadinessRequirementSpec,
+    SettingsGroupSpec,
+)
+
+BUILTIN_NODE_ICONS: Mapping[str, str] = {
+    "core.constant": "core/data_object.svg",
+    "core.logger": "core/article.svg",
+    "core.python_script": "core/code.svg",
+    "core.if": "call_split",
+    "core.stream_gate": "alt_route",
+    "data.boolean_toggle": "check",
+    "data.number_slider": "linear_scale",
+    "data.panel": "core/article.svg",
+    "data.select": "arrow_drop_down_circle",
+    "math.construct_interval": "core/data_object.svg",
+    "math.deconstruct_interval": "core/data_object.svg",
+    "io.excel_read": "integrations/table_view.svg",
+    "io.excel_write": "integrations/download.svg",
+    "io.file_read": "integrations/description.svg",
+    "io.file_write": "integrations/save.svg",
+    "io.image_import": "integrations/download.svg",
+    "io.image_export": "integrations/download.svg",
+    "io.path_pointer": "integrations/folder.svg",
+    "io.folder_explorer": "integrations/folder.svg",
+    "io.email_send": "integrations/mail.svg",
+    "io.process_run": "integrations/terminal.svg",
+    "engineering.fe_import": "integrations/download.svg",
+    "engineering.cad_import": "integrations/download.svg",
+    "model.viewer": "deployed_code",
+    "tabular.input": "integrations/tabular_data.svg",
+    "ssh_sftp.secret": "ssh_sftp/lock.svg",
+    "ssh_sftp.host": "ssh_sftp/server.svg",
+    "ssh_sftp.run_command": "ssh_sftp/terminal.svg",
+    "ssh_sftp.run_script": "ssh_sftp/code.svg",
+    "ssh_sftp.upload": "ssh_sftp/cloud_upload.svg",
+    "ssh_sftp.download": "ssh_sftp/cloud_download.svg",
+    "plot.signal": "show_chart",
+    "plot.scatter": "scatter_plot",
+    "plot.bar": "bar_chart",
+    "plot.histogram": "align_vertical_bottom",
+    "plot.heatmap": "grid_view",
+    "plot.contour": "terrain",
+    "plot.surface": "deployed_code",
+    "plot.point_cloud": "grain",
+    "plot.streamlines": "air",
+    "core.subnode": "subnode/account_tree.svg",
+    "core.subnode_input": "subnode/input.svg",
+    "core.subnode_output": "subnode/output.svg",
+    "dpf.result_file": "dpf/ansys.svg",
+    "dpf.model": "dpf/ansys.svg",
+    "dpf.scoping.mesh": "dpf/ansys.svg",
+    "dpf.scoping.time": "dpf/ansys.svg",
+    "dpf.result_field": "dpf/ansys.svg",
+    "dpf.field_ops": "dpf/ansys.svg",
+    "dpf.mesh_extract": "dpf/ansys.svg",
+    "dpf.export": "dpf/ansys.svg",
+    "dpf.viewer": "dpf/ansys.svg",
+    "dpf.workflow.result_source": "dpf/ansys.svg",
+    "dpf.workflow.result_fields": "dpf/ansys.svg",
+    "dpf.workflow.result_viewer": "dpf/ansys.svg",
+    "dpf.workflow.min_max_envelope": "dpf/ansys.svg",
+    "dpf.workflow.time_history_probe": "dpf/ansys.svg",
+    "dpf.workflow.stress_invariants": "dpf/ansys.svg",
+    "dpf.workflow.mode_shape_viewer": "dpf/ansys.svg",
+    "dpf.workflow.field_math": "dpf/ansys.svg",
+    "dpf.workflow.table_export": "dpf/ansys.svg",
+    "dpf.helper.data_sources.data_sources": "dpf/ansys.svg",
+    "dpf.helper.data_sources.set_result_file_path": "dpf/ansys.svg",
+    "dpf.helper.data_sources.add_upstream": "dpf/ansys.svg",
+    "dpf.helper.streams_container.streams_container": "dpf/ansys.svg",
+    "dpf.helper.model.model": "dpf/ansys.svg",
+    "dpf.helper.workflow.workflow": "dpf/ansys.svg",
+    "dpf.helper.fields_factory.field_from_array": "dpf/ansys.svg",
+    "dpf.helper.fields_factory.create_scalar_field": "dpf/ansys.svg",
+    "dpf.helper.fields_container_factory.over_time_freq_fields_container": "dpf/ansys.svg",
+    "dpf.helper.mesh_scoping_factory.nodal_scoping": "dpf/ansys.svg",
+    "dpf.helper.time_freq_scoping_factory.scoping_on_all_time_freqs": "dpf/ansys.svg",
+    "passive.planning.task_card": "task_alt",
+    "passive.planning.milestone_card": "flag",
+    "passive.planning.risk_card": "warning",
+    "passive.planning.decision_card": "gavel",
+    "passive.annotation.sticky_note": "sticky_note_2",
+    "passive.annotation.callout": "campaign",
+    "passive.annotation.section_header": "title",
+    "passive.annotation.text": "text_fields",
+    "passive.annotation.group_backdrop": "comment",
+    "passive.media.image_panel": "image",
+    "passive.media.mail_panel": "mail",
+    "passive.media.pdf_panel": "file",
+    "passive.media.video_panel": "play_arrow",
+    "web.page_viewer": "globe",
+    "excalidraw.board": "draw",
+    "code.jupyter_notebook": "code",
+}
+
+
+def builtin_node_icon(type_id: str) -> str:
+    normalized_type_id = str(type_id).strip()
+    try:
+        return BUILTIN_NODE_ICONS[normalized_type_id]
+    except KeyError as exc:
+        raise KeyError(f"missing built-in node icon for {normalized_type_id!r}") from exc
+
+
+def builtin_node_type_spec(
+    *,
+    type_id: str,
+    display_name: str,
+    category_path: Any,
+    ports: Sequence[PortSpec],
+    properties: Sequence[PropertySpec],
+    **kwargs: Any,
+) -> NodeTypeSpec:
+    return NodeTypeSpec(
+        type_id=type_id,
+        display_name=display_name,
+        category_path=category_path,
+        icon=builtin_node_icon(type_id),
+        ports=tuple(ports),
+        properties=tuple(properties),
+        **kwargs,
+    )
+
+
+def builtin_node_type(
+    *,
+    type_id: str,
+    display_name: str,
+    ports: tuple[PortSpec, ...] | list[PortSpec],
+    properties: tuple[PropertySpec, ...] | list[PropertySpec],
+    category_path: Any | None = None,
+    category: str = "",
+    collapsible: bool = True,
+    description: str = "",
+    keywords: tuple[str, ...] | list[str] = (),
+    runtime_behavior: str = "active",
+    surface_family: str = "standard",
+    surface_variant: str = "",
+    render_quality: Any = None,
+    settings_groups: tuple[SettingsGroupSpec, ...] | list[SettingsGroupSpec] = (),
+    readiness_requirements: tuple[ReadinessRequirementSpec, ...] | list[ReadinessRequirementSpec] = (),
+) -> Callable[[type[Any]], type[Any]]:
+    return node_type(
+        type_id=type_id,
+        display_name=display_name,
+        category_path=category_path,
+        category=category,
+        icon=builtin_node_icon(type_id),
+        ports=ports,
+        properties=properties,
+        collapsible=collapsible,
+        description=description,
+        keywords=keywords,
+        runtime_behavior=runtime_behavior,
+        surface_family=surface_family,
+        surface_variant=surface_variant,
+        render_quality=render_quality,
+        settings_groups=settings_groups,
+        readiness_requirements=readiness_requirements,
+    )
+
+
+__all__ = [
+    "BUILTIN_NODE_ICONS",
+    "builtin_node_icon",
+    "builtin_node_type",
+    "builtin_node_type_spec",
+]

@@ -1,0 +1,54 @@
+{
+  "settings.graphics.expand_collision.enabled": {
+    "text": "Pushes newly expanded items away from nearby content to reduce overlap.",
+    "category": "general"
+  },
+  "settings.graphics.expand_collision.strategy": {
+    "text": "Chooses how the first items are picked when overlap resolution begins.",
+    "category": "general"
+  },
+  "settings.graphics.expand_collision.animate": {
+    "text": "Animates the repositioning pass so the settled layout stays readable.",
+    "category": "general"
+  },
+  "settings.graphics.expand_collision.scope": {
+    "text": "Limits which nearby items can move when the expanded area needs room.",
+    "category": "general"
+  },
+  "settings.graphics.expand_collision.gap_preset": {
+    "text": "Sets the target spacing kept between the expanded area and moved items.",
+    "category": "general"
+  },
+  "settings.graphics.expand_collision.radius_mode": {
+    "text": "Controls whether overlap checks stay local or search across the full canvas.",
+    "category": "general"
+  },
+  "settings.graphics.expand_collision.local_radius_preset": {
+    "text": "Sets how far the local search reaches when reach mode stays nearby.",
+    "category": "general"
+  },
+  "settings.graph_theme.use_selected": {
+    "text": "Set this theme as the active graph theme",
+    "category": "general"
+  },
+  "settings.workflow.environment.python_executable": {
+    "text": "Leave empty to use the built-in packaged runtime. Use a python.exe path only when the whole workflow should run in that environment.",
+    "category": "tutorial"
+  },
+  "settings.workflow.environment.prepare_managed_runtime": {
+    "text": "Creates or repairs COREX's app-managed venv, installs the packaged COREX runtime with [all] dependencies through pip, verifies it, and fills Python Executable.",
+    "category": "tutorial"
+  },
+  "settings.workflow.environment.use_builtin_runtime": {
+    "text": "Clears Python Executable so runs use the built-in packaged COREX runtime again.",
+    "category": "tutorial"
+  },
+  "settings.workflow.environment.managed_runtime_status": {
+    "text": "Shows whether COREX's app-managed workflow runtime exists and where its python.exe will be created.",
+    "category": "inactive"
+  },
+  "settings.workflow.environment.working_directory": {
+    "text": "Saved with the workflow settings, but workflow execution does not enforce this directory yet.",
+    "category": "warning"
+  }
+}

@@ -1,0 +1,646 @@
+from __future__ import annotations
+
+import json
+import tempfile
+import unittest
+from multiprocessing.shared_memory import SharedMemory
+from pathlib import Path
+from unittest import mock
+
+import pyvista
+
+from ea_node_editor.common.scene_protocol import (
+    COREX_SCENE_DATA_TYPE,
+    COREX_SCENE_HANDLE_KIND,
+    ENGINEERING_SELECTION_DATA_TYPE,
+    ENGINEERING_SELECTION_SCHEMA,
+)
+from ea_node_editor.execution.viewer_backend_engineering import ENGINEERING_VIEWER_BACKEND_ID
+from ea_node_editor.execution.handle_registry import StaleHandleError
+from ea_node_editor.execution.prepared_scene_runtime import PreparedSceneRuntime
+from ea_node_editor.execution.protocol import CloseViewerSessionCommand
+from ea_node_editor.execution.worker_services import WorkerServices
+from tests.typed_handle_support import core_worker_services
+from ea_node_editor.nodes.bootstrap import build_builtin_registry
+from ea_node_editor.nodes.builtins.engineering_viewer import (
+    EngineeringViewerNodePlugin,
+    _require_scene,
+    _selection_output_for_scene,
+)
+from ea_node_editor.nodes.builtins import geometry_primitives
+from ea_node_editor.nodes.builtins.geometry_primitives import (
+    CONSTRUCT_ZONE_NODE_TYPE_ID,
+    CYLINDER_NODE_TYPE_ID,
+    OCP_BODY_DATA_TYPE_ID,
+    OCP_BODY_HANDLE_KIND,
+    ZONE_DATA_TYPE_ID,
+    ZONE_HANDLE_KIND,
+)
+from ea_node_editor.nodes.builtins.rich_value_nodes import PLANE_DATA_TYPE_ID
+from ea_node_editor.nodes.execution_context import ExecutionContext
+from ea_node_editor.nodes.core_data_types import VIEWER_SESSION_DATA_TYPE_ID
+from ea_node_editor.runtime_contracts import (
+    COREX_VIEWER_SESSION_HANDLE_KIND,
+    Interval1D,
+    RuntimeHandleRef,
+    TypedInlineValue,
+)
+
+
+class EngineeringViewerNodeTests(unittest.TestCase):
+    def test_scene_guard_rejects_correct_kind_with_wrong_semantic_type(self) -> None:
+        spoof = RuntimeHandleRef(
+            data_type_id=VIEWER_SESSION_DATA_TYPE_ID,
+            schema_version=1,
+            handle_id="spoof-scene",
+            kind=COREX_SCENE_HANDLE_KIND,
+            owner_scope="run:spoof",
+            worker_generation=1,
+        )
+
+        with self.assertRaisesRegex(TypeError, "engineering_scene"):
+            _require_scene(spoof, label="scene")
+
+    def test_spec_exposes_primary_overlay_session_and_saved_selection_contracts(self) -> None:
+        spec = build_builtin_registry().get_spec("model.viewer")
+        ports = {port.key: port for port in spec.ports}
+
+        self.assertEqual(spec.type_id, "model.viewer")
+        self.assertEqual(spec.display_name, "Model Viewer")
+        self.assertEqual(ports["scene"].data_type, COREX_SCENE_DATA_TYPE)
+        self.assertEqual(
+            ports["scene"].accepted_data_types,
+            (OCP_BODY_DATA_TYPE_ID, ZONE_DATA_TYPE_ID),
+        )
+        self.assertEqual(ports["overlay"].data_type, COREX_SCENE_DATA_TYPE)
+        self.assertEqual(ports["overlay"].accepted_data_types, ())
+        self.assertTrue(ports["scene"].required)
+        self.assertFalse(ports["overlay"].required)
+        self.assertEqual(ports["session"].data_type, VIEWER_SESSION_DATA_TYPE_ID)
+        self.assertEqual(ports["selections"].data_type, ENGINEERING_SELECTION_DATA_TYPE)
+        self.assertEqual(spec.surface_family, "viewer")
+        properties = {prop.key: prop for prop in spec.properties}
+        self.assertIn("wireframe_visible_edges", properties["representation"].enum_values)
+        self.assertFalse(properties["show_attribute_colors"].default)
+        self.assertTrue(properties["show_orientation_triad"].default)
+        self.assertTrue(properties["show_view_cube"].default)
+        self.assertFalse(properties["show_world_axes"].default)
+
+    def test_execute_materializes_primary_and_overlay_in_one_viewer_session(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            primary_path = root / "primary.vtu"
+            overlay_path = root / "overlay.vtu"
+            primary = pyvista.ImageData(
+                dimensions=(2, 2, 2)
+            ).cast_to_unstructured_grid()
+            primary.point_data["stress"] = list(range(primary.n_points))
+            primary.save(primary_path)
+            overlay = pyvista.ImageData(
+                dimensions=(2, 2, 2)
+            ).cast_to_unstructured_grid()
+            overlay.save(overlay_path)
+            services = core_worker_services()
+            services._prepared_scene_runtime = PreparedSceneRuntime(  # noqa: SLF001
+                services,
+                cache_root=root / "cache",
+            )
+            primary_ref = services.prepared_scene_runtime.prepare_fe_scene(
+                primary_path,
+                length_unit="mm",
+            )
+            overlay_ref = services.prepared_scene_runtime.prepare_fe_scene(
+                overlay_path,
+                length_unit="m",
+            )
+            primary_fingerprint = primary_ref.metadata["source"]["sha256"]
+            context = ExecutionContext(
+                run_id="run-engineering-viewer",
+                node_id="node-engineering-viewer",
+                workspace_id="workspace-engineering-viewer",
+                inputs={"scene": primary_ref, "overlay": overlay_ref},
+                properties={
+                    "show_mesh_edges": True,
+                    "representation": "surface",
+                    "show_attribute_colors": True,
+                    "show_orientation_triad": False,
+                    "show_view_cube": False,
+                    "show_world_axes": True,
+                    "primary_opacity": 1.0,
+                    "overlay_opacity": 0.35,
+                    "overlay_color": "#ff9f43",
+                    "viewer_background": "theme",
+                    "saved_selections": {
+                        "schema": ENGINEERING_SELECTION_SCHEMA,
+                        "scene_fingerprint": primary_fingerprint,
+                        "published_name": "bolt_faces",
+                        "selections": [
+                            {
+                                "name": "bolt_faces",
+                                "scene_fingerprint": primary_fingerprint,
+                                "entities": [
+                                    {
+                                        "layer_id": "primary",
+                                        "source_fingerprint": primary_fingerprint,
+                                        "entity_kind": "fe_node",
+                                        "entity_id": f"block:0/node:{value}",
+                                    }
+                                    for value in (0, 1)
+                                ],
+                            }
+                        ],
+                    },
+                },
+                emit_log=lambda _level, _message: None,
+                worker_services=services,
+            )
+
+            result = EngineeringViewerNodePlugin().execute(context)
+
+        session_ref = result.outputs["session"]
+        self.assertIsInstance(session_ref, RuntimeHandleRef)
+        self.assertEqual(session_ref.data_type_id, VIEWER_SESSION_DATA_TYPE_ID)
+        self.assertEqual(session_ref.kind, COREX_VIEWER_SESSION_HANDLE_KIND)
+        self.assertEqual(
+            set(session_ref.metadata),
+            {"workspace_id", "node_id", "session_id", "backend_id"},
+        )
+        session = services.resolve_handle(
+            session_ref,
+            expected_data_type=VIEWER_SESSION_DATA_TYPE_ID,
+            expected_kind=COREX_VIEWER_SESSION_HANDLE_KIND,
+        )
+        selections = result.outputs["selections"]
+        self.assertEqual(session["backend_id"], ENGINEERING_VIEWER_BACKEND_ID)
+        self.assertEqual(session["live_open_status"], "ready")
+        self.assertEqual(session["options"]["live_mode"], "proxy")
+        self.assertEqual(session["options"]["live_policy"], "focus_only")
+        self.assertFalse(session["options"]["keep_live"])
+        self.assertEqual(len(session["transport"]["overlays"]), 1)
+        self.assertEqual(session["transport"]["overlays"][0]["scale_factor"], 1000.0)
+        self.assertTrue(session["summary"]["capabilities"]["model_tree"])
+        self.assertTrue(session["options"]["show_attribute_colors"])
+        self.assertFalse(session["options"]["show_orientation_triad"])
+        self.assertFalse(session["options"]["show_view_cube"])
+        self.assertTrue(session["options"]["show_world_axes"])
+        for capability in (
+            "camera_bookmarks",
+            "fit_selection",
+            "orientation_triad",
+            "projection",
+            "selection_isolate",
+            "view_cube",
+            "wireframe_visible_edges",
+            "world_axes",
+        ):
+            self.assertTrue(session["summary"]["capabilities"][capability])
+        self.assertEqual(selections["schema"], ENGINEERING_SELECTION_SCHEMA)
+        self.assertEqual(selections["published_name"], "bolt_faces")
+        self.assertEqual(
+            [
+                entity["entity_id"]
+                for entity in selections["selections"][0]["entities"]
+            ],
+            ["block:0/node:0", "block:0/node:1"],
+        )
+        self.assertEqual(len(selections["selections"]), 1)
+
+    def test_execute_materializes_ocp_body_in_memory_and_preserves_lifetime(
+        self,
+    ) -> None:
+        services = WorkerServices()
+        services.bind_data_types(build_builtin_registry().data_types)
+        run_id = "run-ocp-body-viewer"
+        workspace_id = "workspace-ocp-body-viewer"
+        disposed: list[int] = []
+        original_close = geometry_primitives._OcpBodyRecord.close  # noqa: SLF001
+
+        def counted_close(record) -> None:  # noqa: ANN001
+            disposed.append(id(record))
+            original_close(record)
+
+        with mock.patch.object(
+            geometry_primitives._OcpBodyRecord,  # noqa: SLF001
+            "close",
+            counted_close,
+        ):
+            cylinder_context = ExecutionContext(
+                run_id=run_id,
+                node_id="node-cylinder",
+                workspace_id=workspace_id,
+                inputs={
+                    "plane": TypedInlineValue(
+                        PLANE_DATA_TYPE_ID,
+                        1,
+                        {
+                            "origin": [0.0, 0.0, 0.0],
+                            "axes": [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0]],
+                            "normal": [0.0, 0.0, 1.0],
+                        },
+                    ),
+                    "radius": 2.0,
+                    "interval": Interval1D(0.0, 5.0),
+                },
+                properties={},
+                emit_log=lambda _level, _message: None,
+                worker_services=services,
+            )
+            cylinder = build_builtin_registry().get_descriptor(
+                CYLINDER_NODE_TYPE_ID
+            ).factory()
+            body_ref = cylinder.execute(cylinder_context).outputs["body"]
+            body_record = services.resolve_handle(
+                body_ref,
+                expected_data_type=OCP_BODY_DATA_TYPE_ID,
+                expected_kind=OCP_BODY_HANDLE_KIND,
+            )
+            viewer_context = ExecutionContext(
+                run_id=run_id,
+                node_id="node-model-viewer",
+                workspace_id=workspace_id,
+                inputs={"scene": body_ref},
+                properties={},
+                emit_log=lambda _level, _message: None,
+                worker_services=services,
+            )
+
+            result = EngineeringViewerNodePlugin().execute(viewer_context)
+            session_ref = result.outputs["session"]
+            session = services.resolve_handle(
+                session_ref,
+                expected_data_type=VIEWER_SESSION_DATA_TYPE_ID,
+                expected_kind=COREX_VIEWER_SESSION_HANDLE_KIND,
+            )
+            primary = session["transport"]["primary"]
+            asset = primary["display_asset"]
+            shared_memory_name = asset["name"]
+
+            self.assertEqual(session["live_open_status"], "ready")
+            self.assertEqual(asset["storage"], "shared_memory")
+            self.assertEqual(primary["display_path"], "")
+            self.assertTrue(
+                all(not item["path"] for item in primary["geometry_assets"])
+            )
+            self.assertEqual(disposed, [])
+            json.dumps(body_ref.metadata, allow_nan=False)
+            json.dumps(session_ref.metadata, allow_nan=False)
+            json.dumps(session, allow_nan=False)
+            attachment = SharedMemory(name=shared_memory_name, create=False)
+            attachment.close()
+
+            record = services.viewer_session_service._sessions[  # noqa: SLF001
+                (workspace_id, session_ref.metadata["session_id"])
+            ]
+            native_source_ref = record.source_refs["native_source"]
+            prepared_scene_ref = record.source_refs["scene"]
+            self.assertEqual(native_source_ref.handle_id, body_ref.handle_id)
+            self.assertIs(
+                services.resolve_handle(
+                    native_source_ref,
+                    expected_data_type=OCP_BODY_DATA_TYPE_ID,
+                    expected_kind=OCP_BODY_HANDLE_KIND,
+                ),
+                body_record,
+            )
+
+            services.cleanup_run(run_id)
+
+            with self.assertRaises(StaleHandleError):
+                services.resolve_handle(body_ref)
+            self.assertIsNotNone(body_record.shape)
+            self.assertIsNotNone(services.resolve_handle(prepared_scene_ref))
+            self.assertIs(
+                services.resolve_handle(native_source_ref),
+                body_record,
+            )
+
+            services.viewer_session_service.close_session(
+                CloseViewerSessionCommand(
+                    workspace_id=workspace_id,
+                    node_id="node-model-viewer",
+                    session_id=session_ref.metadata["session_id"],
+                )
+            )
+
+            self.assertEqual(disposed, [id(body_record)])
+            self.assertIsNone(body_record.shape)
+            with self.assertRaises(FileNotFoundError):
+                SharedMemory(name=shared_memory_name, create=False)
+
+    def test_cylinder_zone_viewer_preserves_ordered_native_lifetime(self) -> None:
+        registry = build_builtin_registry()
+        services = WorkerServices()
+        services.bind_data_types(registry.data_types)
+        run_id = "run-zone-viewer"
+        workspace_id = "workspace-zone-viewer"
+        body_disposals: list[int] = []
+        zone_disposals: list[int] = []
+        original_body_close = geometry_primitives._OcpBodyRecord.close  # noqa: SLF001
+        original_zone_close = geometry_primitives._ZoneRecord.close  # noqa: SLF001
+
+        def counted_body_close(record) -> None:  # noqa: ANN001
+            body_disposals.append(id(record))
+            original_body_close(record)
+
+        def counted_zone_close(record) -> None:  # noqa: ANN001
+            zone_disposals.append(id(record))
+            original_zone_close(record)
+
+        with (
+            mock.patch.object(
+                geometry_primitives._OcpBodyRecord,  # noqa: SLF001
+                "close",
+                counted_body_close,
+            ),
+            mock.patch.object(
+                geometry_primitives._ZoneRecord,  # noqa: SLF001
+                "close",
+                counted_zone_close,
+            ),
+        ):
+            cylinder = registry.get_descriptor(CYLINDER_NODE_TYPE_ID).factory()
+            body_refs = []
+            body_records = []
+            for index, origin_x in enumerate((0.0, 10.0)):
+                context = ExecutionContext(
+                    run_id=run_id,
+                    node_id=f"node-cylinder-{index}",
+                    workspace_id=workspace_id,
+                    inputs={
+                        "plane": TypedInlineValue(
+                            PLANE_DATA_TYPE_ID,
+                            1,
+                            {
+                                "origin": [origin_x, 0.0, 0.0],
+                                "axes": [
+                                    [1.0, 0.0, 0.0],
+                                    [0.0, 1.0, 0.0],
+                                ],
+                                "normal": [0.0, 0.0, 1.0],
+                            },
+                        ),
+                        "radius": 2.0,
+                        "interval": Interval1D(0.0, 5.0),
+                    },
+                    properties={},
+                    emit_log=lambda _level, _message: None,
+                    worker_services=services,
+                )
+                body_ref = cylinder.execute(context).outputs["body"]
+                body_refs.append(body_ref)
+                body_records.append(
+                    services.resolve_handle(
+                        body_ref,
+                        expected_data_type=OCP_BODY_DATA_TYPE_ID,
+                        expected_kind=OCP_BODY_HANDLE_KIND,
+                    )
+                )
+
+            zone_context = ExecutionContext(
+                run_id=run_id,
+                node_id="node-construct-zone",
+                workspace_id=workspace_id,
+                inputs={
+                    "name": "Primary Zone",
+                    "geometry": body_refs,
+                    "tolerances": [],
+                },
+                properties={},
+                emit_log=lambda _level, _message: None,
+                worker_services=services,
+            )
+            zone_ref = registry.get_descriptor(
+                CONSTRUCT_ZONE_NODE_TYPE_ID
+            ).factory().execute(zone_context).outputs["zone"]
+            zone_record = services.resolve_handle(
+                zone_ref,
+                expected_data_type=ZONE_DATA_TYPE_ID,
+                expected_kind=ZONE_HANDLE_KIND,
+            )
+            self.assertEqual(zone_record.name, "Primary Zone")
+            self.assertEqual(zone_record.tolerances, (0.0, 0.0))
+            self.assertEqual(
+                [ref.handle_id for ref in zone_record.child_leases],
+                [ref.handle_id for ref in body_refs],
+            )
+
+            viewer_context = ExecutionContext(
+                run_id=run_id,
+                node_id="node-model-viewer",
+                workspace_id=workspace_id,
+                inputs={"scene": zone_ref},
+                properties={},
+                emit_log=lambda _level, _message: None,
+                worker_services=services,
+            )
+            result = EngineeringViewerNodePlugin().execute(viewer_context)
+            session_ref = result.outputs["session"]
+            session = services.resolve_handle(
+                session_ref,
+                expected_data_type=VIEWER_SESSION_DATA_TYPE_ID,
+                expected_kind=COREX_VIEWER_SESSION_HANDLE_KIND,
+            )
+            primary = session["transport"]["primary"]
+            asset = primary["display_asset"]
+            shared_memory_name = asset["name"]
+
+            self.assertEqual(session["live_open_status"], "ready")
+            self.assertEqual(asset["storage"], "shared_memory")
+            self.assertEqual(primary["display_path"], "")
+            self.assertTrue(
+                all(not item["path"] for item in primary["geometry_assets"])
+            )
+            self.assertEqual(body_disposals, [])
+            self.assertEqual(zone_disposals, [])
+            json.dumps(zone_ref.metadata, allow_nan=False)
+            json.dumps(session_ref.metadata, allow_nan=False)
+            json.dumps(session, allow_nan=False)
+            attachment = SharedMemory(name=shared_memory_name, create=False)
+            attachment.close()
+
+            session_record = services.viewer_session_service._sessions[  # noqa: SLF001
+                (workspace_id, session_ref.metadata["session_id"])
+            ]
+            native_source_ref = session_record.source_refs["native_source"]
+            prepared_scene_ref = session_record.source_refs["scene"]
+            self.assertEqual(native_source_ref.handle_id, zone_ref.handle_id)
+            self.assertIs(services.resolve_handle(native_source_ref), zone_record)
+            self.assertEqual(
+                prepared_scene_ref.metadata["source"]["source_path"],
+                "memory://corex/Zone",
+            )
+
+            services.cleanup_run(run_id)
+
+            for body_ref in body_refs:
+                with self.assertRaises(StaleHandleError):
+                    services.resolve_handle(body_ref)
+            with self.assertRaises(StaleHandleError):
+                services.resolve_handle(zone_ref)
+            self.assertFalse(zone_record.closed)
+            self.assertEqual(body_disposals, [])
+            self.assertEqual(zone_disposals, [])
+            self.assertIsNotNone(services.resolve_handle(prepared_scene_ref))
+            self.assertIs(services.resolve_handle(native_source_ref), zone_record)
+            for child_ref, body_record in zip(
+                zone_record.child_leases,
+                body_records,
+                strict=True,
+            ):
+                self.assertIs(services.resolve_handle(child_ref), body_record)
+                self.assertIsNotNone(body_record.shape)
+
+            services.viewer_session_service.close_session(
+                CloseViewerSessionCommand(
+                    workspace_id=workspace_id,
+                    node_id="node-model-viewer",
+                    session_id=session_ref.metadata["session_id"],
+                )
+            )
+
+            self.assertEqual(zone_disposals, [id(zone_record)])
+            self.assertEqual(
+                body_disposals,
+                [id(body_records[1]), id(body_records[0])],
+            )
+            self.assertTrue(zone_record.closed)
+            self.assertEqual(zone_record.child_leases, ())
+            self.assertTrue(all(record.shape is None for record in body_records))
+            with self.assertRaises(FileNotFoundError):
+                SharedMemory(name=shared_memory_name, create=False)
+
+    def test_unbound_or_changed_selection_fingerprints_are_not_published(self) -> None:
+        saved = {
+            "schema": ENGINEERING_SELECTION_SCHEMA,
+            "scene_fingerprint": "",
+            "published_name": "faces",
+            "selections": [
+                {
+                    "name": "faces",
+                    "entity_kind": "face",
+                    "entity_ids": ["1"],
+                }
+            ],
+        }
+
+        result = _selection_output_for_scene(
+            saved,
+            layer_fingerprints={"primary": "a" * 64},
+        )
+
+        self.assertEqual(result["scene_fingerprint"], "a" * 64)
+        self.assertEqual(result["published_name"], "")
+        self.assertEqual(result["selections"], [])
+
+    def test_replaced_overlay_entities_are_not_published(self) -> None:
+        saved = {
+            "schema": ENGINEERING_SELECTION_SCHEMA,
+            "scene_fingerprint": "a" * 64,
+            "published_name": "overlay_elements",
+            "selections": [
+                {
+                    "name": "overlay_elements",
+                    "scene_fingerprint": "a" * 64,
+                    "entities": [
+                        {
+                            "layer_id": "overlay",
+                            "source_fingerprint": "b" * 64,
+                            "entity_kind": "fe_element",
+                            "entity_id": "block:2/element:9",
+                        }
+                    ],
+                }
+            ],
+        }
+
+        result = _selection_output_for_scene(
+            saved,
+            layer_fingerprints={"primary": "a" * 64, "overlay": "c" * 64},
+        )
+
+        self.assertEqual(result["scene_fingerprint"], "a" * 64)
+        self.assertEqual(result["published_name"], "")
+        self.assertEqual(result["selections"], [])
+
+    def test_current_overlay_entities_remain_publishable_for_the_scene(self) -> None:
+        saved = {
+            "schema": ENGINEERING_SELECTION_SCHEMA,
+            "scene_fingerprint": "a" * 64,
+            "published_name": "overlay_elements",
+            "selections": [
+                {
+                    "name": "overlay_elements",
+                    "scene_fingerprint": "a" * 64,
+                    "entities": [
+                        {
+                            "layer_id": "overlay",
+                            "source_fingerprint": "b" * 64,
+                            "entity_kind": "fe_element",
+                            "entity_id": "block:2/element:9",
+                        }
+                    ],
+                }
+            ],
+        }
+
+        result = _selection_output_for_scene(
+            saved,
+            layer_fingerprints={"primary": "a" * 64, "overlay": "b" * 64},
+        )
+
+        self.assertEqual(result["published_name"], "overlay_elements")
+        self.assertEqual(
+            result["selections"][0]["entities"][0]["source_fingerprint"],
+            "b" * 64,
+        )
+
+    def test_mixed_selection_keeps_only_entities_from_current_layers(self) -> None:
+        saved = {
+            "schema": ENGINEERING_SELECTION_SCHEMA,
+            "scene_fingerprint": "a" * 64,
+            "published_name": "mixed",
+            "selections": [
+                {
+                    "name": "mixed",
+                    "scene_fingerprint": "a" * 64,
+                    "entities": [
+                        {
+                            "layer_id": "primary",
+                            "source_fingerprint": "a" * 64,
+                            "entity_kind": "cad_face",
+                            "entity_id": "part:1/face:2",
+                        },
+                        {
+                            "layer_id": "overlay",
+                            "source_fingerprint": "b" * 64,
+                            "entity_kind": "fe_element",
+                            "entity_id": "block:2/element:9",
+                        },
+                        {
+                            "layer_id": "overlay",
+                            "source_fingerprint": "c" * 64,
+                            "entity_kind": "fe_element",
+                            "entity_id": "block:2/element:10",
+                        },
+                    ],
+                }
+            ],
+        }
+
+        result = _selection_output_for_scene(
+            saved,
+            layer_fingerprints={"primary": "a" * 64, "overlay": "b" * 64},
+        )
+
+        self.assertEqual(result["published_name"], "mixed")
+        self.assertEqual(
+            [
+                (entity["layer_id"], entity["source_fingerprint"])
+                for entity in result["selections"][0]["entities"]
+            ],
+            [("overlay", "b" * 64), ("primary", "a" * 64)],
+        )
+
+
+if __name__ == "__main__":
+    unittest.main()

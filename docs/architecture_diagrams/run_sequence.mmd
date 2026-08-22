@@ -1,0 +1,47 @@
+sequenceDiagram
+    participant User
+    participant QML as MainShell + GraphCanvas
+    participant SW as ShellWindow
+    participant RC as RunController
+    participant EC as ProcessExecutionClient
+    participant W as Worker (run_workflow)
+    participant R as NodeRegistry
+    participant P as NodePlugin
+    participant WLC as WorkspaceLibraryController
+
+    User->>QML: Click Run
+    QML->>SW: request_run_workflow()
+    SW->>RC: run_workflow()
+    RC->>RC: build_runtime_snapshot(...) + workflow_settings_payload()
+    RC->>EC: start_run(project_path, workspace_id, {trigger, runtime_snapshot})
+    EC->>W: StartRunCommand (queue)
+    W->>EC: run_started + run_state(running)
+    W->>W: load_runtime_snapshot()
+
+    loop per ready node
+        W->>R: create(node.type_id)
+        R-->>W: plugin instance
+        W->>P: execute(ctx) / async_execute(ctx)
+        P-->>W: NodeResult
+        W->>EC: node_started / node_completed / log
+    end
+
+    alt run failed
+        W->>EC: run_failed + run_state(error)
+        EC->>RC: event callback
+        RC->>SW: append error + traceback to console
+        RC->>WLC: focus_failed_node(workspace_id, node_id)
+    else run stopped
+        W->>EC: run_stopped + run_state(ready)
+        EC->>RC: event callback
+        RC->>RC: clear active run + update actions
+    else run completed
+        W->>EC: run_completed + run_state(ready)
+        EC->>RC: event callback
+        RC->>RC: completed counters + clear active run
+    end
+
+    opt protocol problem
+        EC->>RC: protocol_error
+        RC->>SW: append error log + notification count
+    end

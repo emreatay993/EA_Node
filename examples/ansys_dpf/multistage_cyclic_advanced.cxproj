@@ -1,0 +1,503 @@
+{
+  "active_workspace_id": "ws_dpf_multistage_cyclic",
+  "metadata": {
+    "artifact_store": {
+      "artifacts": {},
+      "staged": {}
+    },
+    "custom_workflows": [],
+    "ui": {
+      "passive_style_presets": {
+        "edge_presets": [],
+        "node_presets": []
+      },
+      "script_editor": {
+        "floating": false,
+        "visible": false,
+        "width": 0.0
+      }
+    },
+    "workflow_settings": {
+      "environment": {
+        "python_path": "",
+        "working_directory": ""
+      },
+      "general": {
+        "author": "",
+        "description": "Reproduces the ansys.dpf.core 'Multi-stage Cyclic Symmetry - Advanced Options' tutorial as a visual graph (sector expansion, cyclic mesh expansion, displacement norm, viewer).",
+        "project_name": "DPF Multi-stage Cyclic Symmetry Example"
+      },
+      "logging": {
+        "capture_console": true,
+        "level": "info"
+      },
+      "plugins": {
+        "enabled": []
+      },
+      "solver_config": {
+        "enable_parallel": true,
+        "memory_limit_gb": 12,
+        "thread_count": 8
+      }
+    },
+    "workspace_order": [
+      "ws_dpf_multistage_cyclic"
+    ]
+  },
+  "name": "DPF Multi-stage Cyclic Symmetry Example",
+  "project_id": "proj_example_dpf_multistage_cyclic",
+  "schema_version": 5,
+  "workspace_order": [
+    "ws_dpf_multistage_cyclic"
+  ],
+  "workspaces": [
+    {
+      "active_view_id": "view_dpf_multistage_cyclic",
+      "dirty": true,
+      "edges": [
+        {
+          "edge_id": "edge_cyc_support_to_mesh_exp_support",
+          "enabled": true,
+          "input_order": 0,
+          "label": "",
+          "source_node_id": "node_cyc_support_provider",
+          "source_port_key": "cyclic_support",
+          "target_node_id": "node_cyc_mesh_expansion",
+          "target_port_key": "cyclic_support",
+          "visual_style": {}
+        },
+        {
+          "edge_id": "edge_ds_to_cyc_support_data",
+          "enabled": true,
+          "input_order": 0,
+          "label": "",
+          "source_node_id": "node_data_sources",
+          "source_port_key": "data_sources",
+          "target_node_id": "node_cyc_support_provider",
+          "target_port_key": "data_sources",
+          "visual_style": {}
+        },
+        {
+          "edge_id": "edge_scoping_to_cyc_support_sectors",
+          "enabled": true,
+          "input_order": 0,
+          "label": "",
+          "source_node_id": "node_sectors_scoping",
+          "source_port_key": "scoping",
+          "target_node_id": "node_cyc_support_provider",
+          "target_port_key": "sectors_to_expand",
+          "visual_style": {}
+        },
+        {
+          "edge_id": "edge_ds_to_disp_data",
+          "enabled": true,
+          "input_order": 0,
+          "label": "",
+          "source_node_id": "node_data_sources",
+          "source_port_key": "data_sources",
+          "target_node_id": "node_displacement",
+          "target_port_key": "data_sources",
+          "visual_style": {}
+        },
+        {
+          "edge_id": "edge_scoping_to_disp_sectors",
+          "enabled": true,
+          "input_order": 0,
+          "label": "",
+          "source_node_id": "node_sectors_scoping",
+          "source_port_key": "scoping",
+          "target_node_id": "node_displacement",
+          "target_port_key": "sectors_to_expand",
+          "visual_style": {}
+        },
+        {
+          "edge_id": "edge_norm_to_extract",
+          "enabled": true,
+          "input_order": 0,
+          "label": "",
+          "source_node_id": "node_norm_fc",
+          "source_port_key": "fields_container_2",
+          "target_node_id": "node_extract_field",
+          "target_port_key": "fields_container",
+          "visual_style": {}
+        },
+        {
+          "edge_id": "edge_ds_to_model_data",
+          "enabled": true,
+          "input_order": 0,
+          "label": "",
+          "source_node_id": "node_data_sources",
+          "source_port_key": "data_sources",
+          "target_node_id": "node_model",
+          "target_port_key": "data_sources",
+          "visual_style": {}
+        },
+        {
+          "edge_id": "edge_disp_to_norm_fc",
+          "enabled": true,
+          "input_order": 0,
+          "label": "",
+          "source_node_id": "node_displacement",
+          "source_port_key": "fields_container_2",
+          "target_node_id": "node_norm_fc",
+          "target_port_key": "fields_container",
+          "visual_style": {}
+        },
+        {
+          "edge_id": "edge_extract_to_viewer_field",
+          "enabled": true,
+          "input_order": 0,
+          "label": "",
+          "source_node_id": "node_extract_field",
+          "source_port_key": "field",
+          "target_node_id": "node_viewer",
+          "target_port_key": "field",
+          "visual_style": {}
+        },
+        {
+          "edge_id": "edge_mesh_exp_to_viewer_mesh",
+          "enabled": true,
+          "input_order": 0,
+          "label": "",
+          "source_node_id": "node_cyc_mesh_expansion",
+          "source_port_key": "meshed_region",
+          "target_node_id": "node_viewer",
+          "target_port_key": "mesh",
+          "visual_style": {}
+        },
+        {
+          "edge_id": "edge_model_to_viewer_model",
+          "enabled": true,
+          "input_order": 0,
+          "label": "",
+          "source_node_id": "node_model",
+          "source_port_key": "model",
+          "target_node_id": "node_viewer",
+          "target_port_key": "model",
+          "visual_style": {}
+        }
+      ],
+      "name": "Multi-stage Cyclic Symmetry",
+      "nodes": [
+        {
+          "collapsed": false,
+          "comments": [],
+          "custom_height": null,
+          "custom_width": null,
+          "exposed_ports": {
+            "fields_container": true,
+            "fields_container_2": true
+          },
+          "links": [],
+          "locked": false,
+          "node_id": "node_911c8095fd",
+          "parent_node_id": null,
+          "port_labels": {},
+          "port_modifiers": {},
+          "principal_input_port_id": null,
+          "properties": {
+            "component_priority_table": [],
+            "sort_by_scoping": false
+          },
+          "title": "Ascending Sort Fc",
+          "type_id": "dpf.op.logic.ascending_sort_fc",
+          "visual_style": {},
+          "x": -508.1033302697997,
+          "y": 445.50617017654804
+        },
+        {
+          "collapsed": false,
+          "comments": [],
+          "custom_height": 289.7439196189704,
+          "custom_width": 964.1286240238057,
+          "exposed_ports": {
+            "bottom": true,
+            "left": true,
+            "right": true,
+            "top": true
+          },
+          "links": [],
+          "locked": false,
+          "node_id": "node_group_backdrop",
+          "parent_node_id": null,
+          "port_labels": {},
+          "port_modifiers": {},
+          "principal_input_port_id": null,
+          "properties": {
+            "title": "DPF Workflow Example: Multi-stage Cyclic Symmetry - Advanced Options"
+          },
+          "title": "DPF Workflow Example: Multi-stage Cyclic Symmetry - Advanced Options",
+          "type_id": "passive.annotation.group_backdrop",
+          "visual_style": {
+            "font_size": 20
+          },
+          "x": -1294.3849999999993,
+          "y": -529.373333333333
+        },
+        {
+          "collapsed": false,
+          "comments": [],
+          "custom_height": null,
+          "custom_width": null,
+          "exposed_ports": {
+            "cyclic_support": true,
+            "cyclic_support_2": true,
+            "meshed_region": true,
+            "sector_meshed_region": false,
+            "sectors_to_expand": false
+          },
+          "links": [],
+          "locked": false,
+          "node_id": "node_cyc_mesh_expansion",
+          "parent_node_id": null,
+          "port_labels": {
+            "meshed_region": "Expanded Mesh (selected sectors)"
+          },
+          "port_modifiers": {},
+          "principal_input_port_id": null,
+          "properties": {},
+          "title": "Cyclic Mesh Expansion",
+          "type_id": "dpf.op.metadata.cyclic_mesh_expansion",
+          "visual_style": {},
+          "x": 200.0,
+          "y": 240.0
+        },
+        {
+          "collapsed": false,
+          "comments": [],
+          "custom_height": null,
+          "custom_width": null,
+          "exposed_ports": {
+            "cyclic_support": true,
+            "data_sources": true,
+            "expanded_meshed_region": false,
+            "sector_meshed_region": false,
+            "sector_meshes": true,
+            "sectors_to_expand": true,
+            "streams_container": false
+          },
+          "links": [],
+          "locked": false,
+          "node_id": "node_cyc_support_provider",
+          "parent_node_id": null,
+          "port_labels": {},
+          "port_modifiers": {},
+          "principal_input_port_id": null,
+          "properties": {},
+          "title": "Cyclic Support Provider",
+          "type_id": "dpf.op.metadata.cyclic_support_provider",
+          "visual_style": {},
+          "x": -220.0,
+          "y": 240.0
+        },
+        {
+          "collapsed": false,
+          "comments": [],
+          "custom_height": null,
+          "custom_width": null,
+          "exposed_ports": {
+            "data_sources": true
+          },
+          "links": [],
+          "locked": false,
+          "node_id": "node_data_sources",
+          "parent_node_id": null,
+          "port_labels": {},
+          "port_modifiers": {},
+          "principal_input_port_id": null,
+          "properties": {
+            "key": "",
+            "result_path": "examples/ansys_dpf/multistage.rst"
+          },
+          "title": "DPF Data Sources",
+          "type_id": "dpf.helper.data_sources.data_sources",
+          "visual_style": {},
+          "x": -900.0,
+          "y": -200.0
+        },
+        {
+          "collapsed": false,
+          "comments": [],
+          "custom_height": null,
+          "custom_width": null,
+          "exposed_ports": {
+            "data_sources": true,
+            "expanded_meshed_region": false,
+            "fields_container": false,
+            "fields_container_2": true,
+            "mesh": false,
+            "mesh_scoping": false,
+            "sectors_to_expand": true,
+            "streams_container": false,
+            "time_scoping": false
+          },
+          "links": [],
+          "locked": false,
+          "node_id": "node_displacement",
+          "parent_node_id": null,
+          "port_labels": {},
+          "port_modifiers": {},
+          "principal_input_port_id": null,
+          "properties": {
+            "bool_rotate_to_global": false,
+            "phi": 0.0,
+            "read_cyclic": 2
+          },
+          "title": "Displacement (cyclic expansion)",
+          "type_id": "dpf.op.result.displacement",
+          "visual_style": {},
+          "x": -220.0,
+          "y": -40.0
+        },
+        {
+          "collapsed": false,
+          "comments": [],
+          "custom_height": null,
+          "custom_width": null,
+          "exposed_ports": {
+            "field": true,
+            "fields_container": true
+          },
+          "links": [],
+          "locked": false,
+          "node_id": "node_extract_field",
+          "parent_node_id": null,
+          "port_labels": {},
+          "port_modifiers": {},
+          "principal_input_port_id": null,
+          "properties": {
+            "indices": ""
+          },
+          "title": "Extract Field",
+          "type_id": "dpf.op.utility.extract_field",
+          "visual_style": {},
+          "x": 620.0,
+          "y": -100.0
+        },
+        {
+          "collapsed": false,
+          "comments": [],
+          "custom_height": null,
+          "custom_width": null,
+          "exposed_ports": {
+            "data_sources": true,
+            "model": true
+          },
+          "links": [],
+          "locked": false,
+          "node_id": "node_model",
+          "parent_node_id": null,
+          "port_labels": {},
+          "port_modifiers": {},
+          "principal_input_port_id": null,
+          "properties": {},
+          "title": "DPF Model",
+          "type_id": "dpf.helper.model.model",
+          "visual_style": {},
+          "x": -560.0,
+          "y": -200.0
+        },
+        {
+          "collapsed": false,
+          "comments": [],
+          "custom_height": null,
+          "custom_width": null,
+          "exposed_ports": {
+            "fields_container": true,
+            "fields_container_2": true
+          },
+          "links": [],
+          "locked": false,
+          "node_id": "node_norm_fc",
+          "parent_node_id": null,
+          "port_labels": {
+            "fields_container_2": "Total Deformation (|U|)"
+          },
+          "port_modifiers": {},
+          "principal_input_port_id": null,
+          "properties": {
+            "scalar_int": 2
+          },
+          "title": "Norm Fields Container",
+          "type_id": "dpf.op.math.norm_fc",
+          "visual_style": {},
+          "x": 200.0,
+          "y": -40.0
+        },
+        {
+          "collapsed": false,
+          "comments": [],
+          "custom_height": null,
+          "custom_width": null,
+          "exposed_ports": {
+            "model": true,
+            "scoping": true
+          },
+          "links": [],
+          "locked": false,
+          "node_id": "node_sectors_scoping",
+          "parent_node_id": null,
+          "port_labels": {
+            "scoping": "Sectors [0, 1, 2]"
+          },
+          "port_modifiers": {},
+          "principal_input_port_id": null,
+          "properties": {
+            "element_ids": "",
+            "location": "nodal",
+            "named_selection": "",
+            "node_ids": "0, 1, 2",
+            "output_mode": "memory",
+            "selection_mode": "node_ids",
+            "set_ids": "",
+            "time_values": ""
+          },
+          "title": "Sectors Scoping",
+          "type_id": "dpf.scoping.mesh",
+          "visual_style": {},
+          "x": -900.0,
+          "y": 200.0
+        },
+        {
+          "collapsed": false,
+          "comments": [],
+          "custom_height": 374.95772718555656,
+          "custom_width": 456.1612010629847,
+          "exposed_ports": {
+            "field": true,
+            "mesh": true,
+            "model": true,
+            "session": true
+          },
+          "links": [],
+          "locked": false,
+          "node_id": "node_viewer",
+          "parent_node_id": null,
+          "port_labels": {},
+          "port_modifiers": {},
+          "principal_input_port_id": null,
+          "properties": {
+            "output_mode": "both"
+          },
+          "title": "DPF Viewer",
+          "type_id": "dpf.viewer",
+          "visual_style": {},
+          "x": 1000.0,
+          "y": 100.0
+        }
+      ],
+      "views": [
+        {
+          "hide_optional_ports": false,
+          "name": "V1",
+          "pan_x": 657.2102696966125,
+          "pan_y": 485.30671199409574,
+          "scope_path": [],
+          "view_id": "view_dpf_multistage_cyclic",
+          "zoom": 0.5607214505599983
+        }
+      ],
+      "workspace_id": "ws_dpf_multistage_cyclic"
+    }
+  ]
+}
