@@ -431,6 +431,7 @@ GraphShared.GraphSurfaceBase {
             visible: surface.structuredMode && surface.displayRows.length > 0
             clip: true
             model: surface.displayRows
+            interactive: false
             boundsBehavior: Flickable.StopAtBounds
 
             delegate: Rectangle {
@@ -511,13 +512,23 @@ GraphShared.GraphSurfaceBase {
                 policy: ScrollBar.AsNeeded
             }
 
-            TapHandler {
-                objectName: "graphPanelDoubleClickHandler"
-                acceptedButtons: Qt.LeftButton
-                gesturePolicy: TapHandler.ReleaseWithinBounds
-                onDoubleTapped: function(eventPoint, _button) {
-                    surface.requestInlineEditAt(eventPoint.position.x, eventPoint.position.y);
-                }
+        }
+
+        MouseArea {
+            anchors.fill: dataList
+            visible: dataList.visible
+            acceptedButtons: Qt.NoButton
+            propagateComposedEvents: true
+
+            onWheel: function(wheel) {
+                var deltaY = wheel.angleDelta && Number(wheel.angleDelta.y) !== 0
+                    ? Number(wheel.angleDelta.y)
+                    : Number(wheel.pixelDelta.y);
+                var step = (-deltaY / 120.0) * (surface.panelFontPixelSize + 12);
+                var minimumY = Number(dataList.originY);
+                var maximumY = minimumY + Math.max(0, dataList.contentHeight - dataList.height);
+                dataList.contentY = Math.max(minimumY, Math.min(maximumY, dataList.contentY + step));
+                wheel.accepted = true;
             }
         }
 

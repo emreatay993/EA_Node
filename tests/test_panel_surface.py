@@ -453,6 +453,7 @@ class PanelSurfaceTests(PassiveGraphSurfaceHostTestBase):
         self._run_qml_probe(
             "panel-real-double-click",
             r'''
+            from PyQt6.QtCore import QPoint
             from PyQt6.QtTest import QTest
 
             model = GraphModel()
@@ -526,6 +527,16 @@ class PanelSurfaceTests(PassiveGraphSurfaceHostTestBase):
                 fitted = next(item for item in scene.nodes_model if item["node_id"] == panel_node_id)
                 assert fitted["width"] == 120.0, fitted
                 assert fitted["height"] == 102.0, fitted
+
+                drag_start = item_scene_point(panel_body)
+                drag_end = QPoint(drag_start.x() + 40, drag_start.y() + 30)
+                QTest.mousePress(window, Qt.MouseButton.LeftButton, Qt.KeyboardModifier.NoModifier, drag_start)
+                QTest.mouseMove(window, drag_end)
+                QTest.mouseRelease(window, Qt.MouseButton.LeftButton, Qt.KeyboardModifier.NoModifier, drag_end)
+                settle_events(10)
+                moved = next(item for item in scene.nodes_model if item["node_id"] == panel_node_id)
+                assert moved["x"] == 160.0, moved
+                assert moved["y"] == 150.0, moved
 
                 QTest.mouseDClick(
                     window,
