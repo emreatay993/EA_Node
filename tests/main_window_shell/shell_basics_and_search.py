@@ -13,6 +13,7 @@ from PyQt6.QtQuick import QQuickItem
 from PyQt6.QtTest import QTest
 from PyQt6.QtWidgets import QMenu
 
+from ea_node_editor.nodes.builtins.core import PYTHON_SCRIPT_DEFAULT_SOURCE
 from ea_node_editor.ui.dialogs.input_reference_dialog import (
     INPUT_REFERENCE_SECTIONS,
     InputReferenceDialog,
@@ -2160,7 +2161,9 @@ class MainWindowShellBasicsAndSearchTests(SharedMainWindowShellTestBase):
         active_workspace_id = self.window.workspace_manager.active_workspace_id()
         workspace = self.window.model.project.workspaces[active_workspace_id]
         workspace.nodes[allowed_node_id].properties["message"] = query
-        workspace.nodes[script_node_id].properties["script"] = query
+        workspace.nodes[script_node_id].properties["script"] = (
+            PYTHON_SCRIPT_DEFAULT_SOURCE + f"# {query}\n"
+        )
         workspace.nodes[path_node_id].properties["path"] = query
         workspace.nodes[command_node_id].properties["command"] = query
         workspace.nodes[password_node_id].properties["password"] = query

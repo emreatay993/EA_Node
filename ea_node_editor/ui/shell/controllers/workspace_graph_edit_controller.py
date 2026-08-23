@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import copy
 from typing import TYPE_CHECKING, Any, Callable
 
 from ea_node_editor.graph.workspace_state import WorkspaceData
@@ -48,7 +49,7 @@ class WorkspaceGraphEditController:
         node = workspace.nodes.get(node_id)
         if node is None:
             return None
-        spec = self._host.registry.get_spec(node.type_id)
+        spec = self._host.registry.resolve_spec(node.type_id, node.properties)
         return node, spec
 
     def resolve_custom_workflow_definition(self, workflow_id: str) -> dict[str, Any] | None:
@@ -182,11 +183,41 @@ class WorkspaceGraphEditController:
         self.mutation_ui_effects.notify_selected_node_changed()
 
     def on_node_property_changed(self, node_id: str, key: str, value: Any) -> None:
-        self._edit_ops.on_node_property_changed(node_id, key, value)
-        if str(key) != "script":
-            return
         workspace = self.active_workspace()
         node = workspace.nodes.get(node_id) if workspace is not None else None
+        before_properties = copy.deepcopy(node.properties) if node is not None else {}
+        try:
+            self._edit_ops.on_node_property_changed(node_id, key, value)
+        except (TypeError, ValueError) as exc:
+            if str(key) == "script":
+                self._host.console_panel.append_log(
+                    "error",
+                    f"Python Script Apply failed: {exc}",
+                )
+                return
+            raise
+        if str(key) != "script":
+            return
+        node = workspace.nodes.get(node_id) if workspace is not None else None
+        if node is not None and str(node.properties.get("script", "")) == str(value):
+            resolved_spec = self._host.registry.resolve_spec(
+                node.type_id,
+                node.properties,
+            )
+            reset_labels = [
+                prop.label or prop.key
+                for prop in resolved_spec.properties
+                if prop.key not in {"script", "timeout_sec"}
+                and prop.key in before_properties
+                and before_properties[prop.key] != node.properties.get(prop.key)
+                and node.properties.get(prop.key) == prop.default
+            ]
+            if reset_labels:
+                self._host.console_panel.append_log(
+                    "warning",
+                    "Python Script Apply reset invalid settings: "
+                    + ", ".join(reset_labels),
+                )
         if (
             node is not None
             and self._host.script_editor.current_node_id == str(node_id or "").strip()

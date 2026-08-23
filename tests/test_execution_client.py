@@ -80,6 +80,17 @@ from ea_node_editor.runtime_contracts import (
 )
 
 
+def _decorated_python_script(body: str) -> str:
+    indented = "\n".join(f"    {line}" for line in body.splitlines())
+    return (
+        "@corex.node\n"
+        "@corex.output(\"result\", value_type=corex.Any)\n"
+        "def run(ctx):\n"
+        f"{indented}\n"
+        "    return {\"result\": locals().get(\"result\")}\n"
+    )
+
+
 def _revision_catalog(implementation_version: str) -> DataTypeCatalog:
     catalog = DataTypeCatalog()
     catalog.register_many(
@@ -2221,7 +2232,11 @@ class ProcessExecutionClientTests(unittest.TestCase):
                 "Script",
                 100,
                 0,
-                properties={"script": "import time\ntime.sleep(2)\nresult = 1"},
+                properties={
+                    "script": _decorated_python_script(
+                        "import time\ntime.sleep(2)\nresult = 1"
+                    )
+                },
             )
         else:
             logger = model.add_node(
@@ -2259,7 +2274,10 @@ class ProcessExecutionClientTests(unittest.TestCase):
             "Script",
             100,
             0,
-            properties={"script": script_source, "timeout_sec": timeout_sec},
+            properties={
+                "script": _decorated_python_script(script_source),
+                "timeout_sec": timeout_sec,
+            },
         )
         if workflow_python_path:
             model.project.metadata["workflow_settings"] = {

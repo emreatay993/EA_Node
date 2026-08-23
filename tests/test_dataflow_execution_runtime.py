@@ -772,7 +772,7 @@ def test_required_dynamic_input_matches_static_readiness_behavior() -> None:
     assert _output_tree(settled, "result") == DataTree.from_item("ready")
 
 
-def test_python_script_dynamic_ports_execute_and_settle_declared_outputs() -> None:
+def test_python_script_decorated_ports_execute_and_settle_declared_outputs() -> None:
     model = GraphModel()
     workspace = model.active_workspace
     registry = _registry()
@@ -783,13 +783,14 @@ def test_python_script_dynamic_ports_execute_and_settle_declared_outputs() -> No
         x=0,
         y=0,
         properties={
-            "script": (
-                "values = [number * number for number in range(3)]\n"
-                "explicit_none = missing\n"
-                "ignored = 'not declared'\n"
-            ),
-            "input_names": ["missing"],
-            "output_names": ["values", "explicit_none", "unassigned"],
+            "script": '''@corex.node
+@corex.input("missing", value_type=corex.Any)
+@corex.output("values", value_type=corex.Any)
+@corex.output("explicit_none", value_type=corex.Any)
+@corex.output("unassigned", value_type=corex.Any)
+def run(ctx, missing):
+    return {"values": [number * number for number in range(3)], "explicit_none": missing}
+''',
         },
     )
     no_ports = mutations.add_node(
@@ -798,9 +799,7 @@ def test_python_script_dynamic_ports_execute_and_settle_declared_outputs() -> No
         x=180,
         y=0,
         properties={
-            "script": "local_only = 42",
-            "input_names": [],
-            "output_names": [],
+            "script": "@corex.node\ndef run(ctx):\n    return {}\n",
         },
     )
 
@@ -814,6 +813,63 @@ def test_python_script_dynamic_ports_execute_and_settle_declared_outputs() -> No
     no_ports_settled = _settled(events, no_ports.node_id)
     assert no_ports_settled["status"] == "completed"
     assert no_ports_settled["outputs"] == {}
+
+
+def test_python_script_list_and_tree_access_round_trip_through_output_validation() -> None:
+    model = GraphModel()
+    workspace = model.active_workspace
+    registry = _registry()
+    mutations = ValidatedGraphMutation(model, workspace.workspace_id, registry)
+    list_source = _source(model, "List", [[[2], [1, 2, 3]]])
+    tree_source = _source(
+        model,
+        "Tree",
+        [[[5], ["a", "b"]], [[6], ["c"]]],
+        x=100.0,
+    )
+    script = mutations.add_node(
+        type_id="core.python_script",
+        title="Access Script",
+        x=240.0,
+        y=0.0,
+        properties={
+            "script": '''@corex.node
+@corex.input("values", value_type=corex.Any, structure="list", required=True)
+@corex.input("tree", value_type=corex.Any, structure="tree", required=True)
+@corex.output("list_out", value_type=corex.Any, structure="list")
+@corex.output("tree_out", value_type=corex.Any, structure="tree")
+def run(ctx, values, tree):
+    if not isinstance(values, list):
+        raise TypeError("values did not resolve as a list")
+    if not hasattr(tree, "branches"):
+        raise TypeError("tree did not resolve as a DataTree")
+    return {"list_out": values, "tree_out": tree}
+''',
+        },
+    )
+    mutations.add_edge(
+        source_node_id=list_source.node_id,
+        source_port_key="tree",
+        target_node_id=script.node_id,
+        target_port_key="values",
+    )
+    mutations.add_edge(
+        source_node_id=tree_source.node_id,
+        source_port_key="tree",
+        target_node_id=script.node_id,
+        target_port_key="tree",
+    )
+
+    settled = _settled(
+        _run(model, registry, run_id="python_list_tree_access"),
+        script.node_id,
+    )
+
+    assert settled["status"] == "completed"
+    assert _output_tree(settled, "list_out") == DataTree({(2,): (1, 2, 3)})
+    assert _output_tree(settled, "tree_out") == DataTree(
+        {(5,): ("a", "b"), (6,): ("c",)}
+    )
 
 
 def test_declarative_any_of_readiness_settles_before_plugin_creation() -> None:

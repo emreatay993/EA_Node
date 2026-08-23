@@ -68,7 +68,11 @@ class GraphScenePayloadBuilder:
         return dict(self._last_mutation_phase_timings_ms)
 
     @staticmethod
-    def _spec_and_provenance(registry: NodeRegistry, type_id: str) -> tuple[NodeTypeSpec | None, PluginProvenance | None]:
+    def _spec_and_provenance(
+        registry: NodeRegistry,
+        type_id: str,
+        properties: Mapping[str, object] | None = None,
+    ) -> tuple[NodeTypeSpec | None, PluginProvenance | None]:
         provenance = None
         descriptor_or_none = getattr(registry, "descriptor_or_none", None)
         descriptor = descriptor_or_none(type_id) if callable(descriptor_or_none) else None
@@ -77,6 +81,8 @@ class GraphScenePayloadBuilder:
             provenance = descriptor.provenance
         if spec is None:
             spec = registry.spec_or_none(type_id)
+        if spec is not None and properties is not None:
+            spec = registry.resolve_spec(type_id, properties)
         return spec, provenance
 
     @staticmethod
@@ -155,6 +161,8 @@ class GraphScenePayloadBuilder:
             y=0.0,
             properties=registry.default_properties(type_id) if registry is not None and registry.spec_or_none(type_id) else {},
         )
+        if registry is not None and registry.spec_or_none(type_id) is not None:
+            spec = registry.resolve_spec(type_id, preview_node.properties)
         workspace_nodes = ChainMap({preview_node.node_id: preview_node}, workspace.nodes)
         hide_optional_ports = _GraphSceneBackdropPartitioner.active_view_hide_optional_ports(workspace)
         graph_label_pixel_size = _graph_label_pixel_size(graph_theme_bridge)
@@ -248,7 +256,9 @@ class GraphScenePayloadBuilder:
             node = workspace.nodes.get(node_id)
             if node is None or not is_node_in_scope(workspace, node_id, scope_path):
                 continue
-            spec, provenance = self._spec_and_provenance(registry, node.type_id)
+            spec, provenance = self._spec_and_provenance(
+                registry, node.type_id, node.properties
+            )
             if spec is None:
                 continue
             presentation_facts = self._node_payload_factory.build_presentation_facts(
@@ -347,7 +357,9 @@ class GraphScenePayloadBuilder:
             node = workspace.nodes.get(node_id)
             if node is None:
                 continue
-            spec, provenance = self._spec_and_provenance(registry, node.type_id)
+            spec, provenance = self._spec_and_provenance(
+                registry, node.type_id, node.properties
+            )
             if spec is None:
                 continue
             payload_node = self._node_payload_factory.payload_node(node, spec)
@@ -448,7 +460,9 @@ class GraphScenePayloadBuilder:
             node = workspace.nodes.get(node_id)
             if node is None:
                 continue
-            spec, provenance = self._spec_and_provenance(registry, node.type_id)
+            spec, provenance = self._spec_and_provenance(
+                registry, node.type_id, node.properties
+            )
             if spec is None:
                 continue
             presentation_facts = self._node_payload_factory.build_presentation_facts(
@@ -616,7 +630,9 @@ class GraphScenePayloadBuilder:
             node = workspace.nodes.get(node_id)
             if node is None:
                 continue
-            spec, provenance = self._spec_and_provenance(registry, node.type_id)
+            spec, provenance = self._spec_and_provenance(
+                registry, node.type_id, node.properties
+            )
             if spec is None:
                 continue
             node_specs[node_id] = spec

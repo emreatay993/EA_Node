@@ -332,6 +332,7 @@ def resolve_instance_ports(
     *,
     data_types: DataTypeCatalog | None = None,
 ) -> tuple[PortSpec, ...]:
+    spec = resolve_instance_spec(spec, properties)
     dynamic_ports = tuple(
         port
         for group_ports in _resolve_dynamic_port_groups(
@@ -342,6 +343,34 @@ def resolve_instance_ports(
         for port in group_ports
     )
     return spec.ports + dynamic_ports
+
+
+def resolve_instance_spec(
+    spec: NodeTypeSpec,
+    properties: Mapping[str, object],
+) -> NodeTypeSpec:
+    resolver = spec.instance_spec_resolver
+    if resolver is None:
+        return spec
+    resolved_properties = {
+        prop.key: copy.deepcopy(prop.default)
+        for prop in spec.properties
+    }
+    resolved_properties.update(dict(properties))
+    resolved = resolver(spec, resolved_properties)
+    if not isinstance(resolved, NodeTypeSpec):
+        raise TypeError(
+            f"Node {spec.type_id} instance_spec_resolver must return NodeTypeSpec"
+        )
+    if resolved.type_id != spec.type_id:
+        raise ValueError(
+            f"Node {spec.type_id} instance_spec_resolver changed the node type ID"
+        )
+    if resolved.instance_spec_resolver is not None:
+        raise ValueError(
+            f"Node {spec.type_id} resolved instance spec must clear instance_spec_resolver"
+        )
+    return resolved
 
 
 @dataclass(slots=True)
@@ -636,6 +665,17 @@ class NodeRegistry:
         except KeyError as exc:
             raise KeyError(f"Unknown node type: {type_id}") from exc
 
+    def resolve_spec(
+        self,
+        type_id: str,
+        properties: Mapping[str, object],
+    ) -> NodeTypeSpec:
+        base_spec = self.get_spec(type_id)
+        resolved = resolve_instance_spec(base_spec, properties)
+        if resolved is not base_spec:
+            self._validate_spec(resolved)
+        return resolved
+
     def spec_or_none(self, type_id: str) -> NodeTypeSpec | None:
         entry = self._entries.get(type_id)
         if entry is None:
@@ -663,8 +703,15 @@ class NodeRegistry:
     def default_properties(self, type_id: str) -> dict[str, Any]:
         return self.normalize_properties(type_id, {}, include_defaults=True)
 
-    def normalize_property_value(self, type_id: str, key: str, value: Any) -> Any:
-        prop_spec = self._property_spec(type_id, key)
+    def normalize_property_value(
+        self,
+        type_id: str,
+        key: str,
+        value: Any,
+        *,
+        properties: Mapping[str, object] | None = None,
+    ) -> Any:
+        prop_spec = self._property_spec(type_id, key, properties=properties)
         return self._normalize_special_property_value(
             type_id,
             key,
@@ -692,7 +739,13 @@ class NodeRegistry:
             type_id,
             provided,
         )
-        spec = self.get_spec(type_id)
+        base_spec = self.get_spec(type_id)
+        resolution_properties = {
+            prop.key: copy.deepcopy(prop.default)
+            for prop in base_spec.properties
+        }
+        resolution_properties.update(provided)
+        spec = self.resolve_spec(type_id, resolution_properties)
         normalized: dict[str, Any] = {}
         for prop in spec.properties:
             if prop.key in provided:
@@ -928,8 +981,18 @@ class NodeRegistry:
             accepted_type.lower() == data_type for accepted_type in accepted_types
         )
 
-    def _property_spec(self, type_id: str, key: str) -> PropertySpec:
-        spec = self.get_spec(type_id)
+    def _property_spec(
+        self,
+        type_id: str,
+        key: str,
+        *,
+        properties: Mapping[str, object] | None = None,
+    ) -> PropertySpec:
+        spec = (
+            self.resolve_spec(type_id, properties)
+            if properties is not None
+            else self.get_spec(type_id)
+        )
         for prop in spec.properties:
             if prop.key == key:
                 return prop
@@ -988,6 +1051,12 @@ class NodeRegistry:
             raise TypeError(
                 f"Node {spec.type_id} readiness_requirements must be a tuple[ReadinessRequirementSpec, ...]"
             )
+        if spec.instance_spec_resolver is not None and not callable(
+            spec.instance_spec_resolver
+        ):
+            raise TypeError(
+                f"Node {spec.type_id} instance_spec_resolver must be callable or None"
+            )
 
         port_keys: set[str] = set()
         for port in spec.ports:
@@ -1015,6 +1084,8 @@ class NodeRegistry:
         self._validate_readiness_requirements(spec, properties_by_key)
         self._validate_settings_groups(spec)
         self._validate_source_metadata(spec, ports=resolved_ports)
+        if spec.instance_spec_resolver is not None:
+            self._validate_spec(resolve_instance_spec(spec, {}))
 
     @staticmethod
     def _validate_sensitive_properties(

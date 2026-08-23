@@ -363,7 +363,7 @@ class ShellInspectorPresenter(QObject):
         node = workspace.nodes.get(normalized_node_id)
         if node is None:
             return None
-        return node, self._host.registry.get_spec(node.type_id)
+        return node, self._host.registry.resolve_spec(node.type_id, node.properties)
 
     def _node_property_spec(self, node_id: str, key: str):
         normalized_key = str(key).strip()

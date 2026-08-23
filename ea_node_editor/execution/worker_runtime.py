@@ -6,7 +6,7 @@ import os
 import threading
 from collections import defaultdict
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any
 
@@ -89,10 +89,29 @@ class ExecutionPlan:
             )
             if node_id and node_id in self.nodes
         )
-        self.node_specs = {
-            node_id: registry.get_spec(node.type_id)
-            for node_id, node in self.nodes.items()
-        }
+        from ea_node_editor.nodes.python_script_declaration import (
+            PythonScriptDeclarationError,
+        )
+
+        self.node_preflight_errors: dict[str, PythonScriptDeclarationError] = {}
+        self.node_specs = {}
+        for node_id, node in self.nodes.items():
+            try:
+                self.node_specs[node_id] = registry.resolve_spec(
+                    node.type_id, node.properties
+                )
+            except (TypeError, ValueError) as exc:
+                if node.type_id != "core.python_script":
+                    raise
+                self.node_preflight_errors[node_id] = (
+                    exc
+                    if isinstance(exc, PythonScriptDeclarationError)
+                    else PythonScriptDeclarationError(str(exc))
+                )
+                self.node_specs[node_id] = replace(
+                    registry.get_spec(node.type_id),
+                    instance_spec_resolver=None,
+                )
         self.node_instances = self._materialize_nodes()
         self.node_ports = self._resolve_effective_ports()
         self.ports_by_key = {

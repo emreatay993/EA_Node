@@ -247,6 +247,14 @@ docs/specs/
 
 ## Creating a Custom Node
 
+### Built-in Python Script node
+
+For a one-off, local workflow transform, insert **Core > Python Script** and
+declare its ports and controls in the script itself. See the
+[Python Script guide](docs/PYTHON_SCRIPT_GUIDE.md) for the copyable
+`@corex.node` / `@corex.input` / `@corex.output` form. This is separate from
+the external-plugin API below.
+
 Drop a public Python file into the plugins folder at `%APPDATA%/COREX_Node_Editor/plugins/`
 (or the fallback user-data directory returned by `ea_node_editor.settings.plugins_dir()`).
 The loader reads top-level `*.py` files whose filenames do not start with `_`.
@@ -512,13 +520,10 @@ properties. That topology is fixed for the run; `execute()` cannot add, remove,
 or rename ports.
 
 `core.stream_gate` adopts one label-renamable output group, starts with two
-stable outputs, and keeps at least one. `core.python_script` adopts
-key-renamable input and output groups backed by `input_names` and
-`output_names`; either group may be empty. Names are trimmed Python identifiers,
-must not be keywords, duplicates, cross-direction collisions, `ctx`, or
-`__builtins__`, and preserve authored order, case, and Unicode. The script runs
-with `ctx` and declared inputs in one scope and publishes only declared outputs
-that were assigned, including explicit `None`.
+stable outputs, and keeps at least one. Python Script ports and controls are
+instead declared by its source decorators and updated only by **Apply**; see the
+[Python Script guide](docs/PYTHON_SCRIPT_GUIDE.md). Do not add or rename Python
+Script ports through this dynamic-group surface.
 
 Compose flow control from the shipped data nodes: `core.trigger` is a runtime-only
 sample-and-hold Tree boundary, `core.if` selects one of two Tree values from a

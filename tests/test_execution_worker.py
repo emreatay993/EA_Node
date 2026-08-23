@@ -106,6 +106,16 @@ _OPTIMIZATION_EXECUTION_ORDER: list[tuple[str, str]] = []
 _OPTIMIZATION_STATE_READS: dict[str, object] = {}
 
 
+def _decorated_python_script(body: str) -> str:
+    indented = "\n".join(f"    {line}" for line in body.splitlines())
+    return (
+        "@corex.node\n"
+        "@corex.output(\"result\", value_type=corex.Any)\n"
+        "def run(ctx):\n"
+        f"{indented}\n"
+    )
+
+
 def _catalog_start_run_command(command, *, catalog=None):  # noqa: ANN001
     if catalog is None:
         from ea_node_editor.nodes import bootstrap as node_bootstrap
@@ -1191,7 +1201,7 @@ class ExecutionWorkerTests(unittest.TestCase):
             "Script",
             100,
             0,
-            properties={"script": "raise RuntimeError('timing boom')"},
+            properties={"script": _decorated_python_script("raise RuntimeError('timing boom')")},
         )
 
         event_queue: queue.Queue = queue.Queue()
@@ -1234,7 +1244,7 @@ class ExecutionWorkerTests(unittest.TestCase):
             "Script",
             100,
             0,
-            properties={"script": "raise RuntimeError('boom')"},
+            properties={"script": _decorated_python_script("raise RuntimeError('boom')")},
         )
 
         event_queue: queue.Queue = queue.Queue()
@@ -1268,7 +1278,7 @@ class ExecutionWorkerTests(unittest.TestCase):
             "Script",
             100,
             0,
-            properties={"script": "value = 1 / 0"},
+            properties={"script": _decorated_python_script("value = 1 / 0")},
         )
 
         event_queue: queue.Queue = queue.Queue()
@@ -1300,6 +1310,116 @@ class ExecutionWorkerTests(unittest.TestCase):
         ]
         self.assertEqual(leaking_logs, [])
 
+    def test_tampered_python_script_declaration_fails_at_the_node_with_sanitized_traceback(
+        self,
+    ) -> None:
+        registry = build_default_registry()
+        model = GraphModel()
+        ws = model.active_workspace
+        script = model.add_node(
+            ws.workspace_id,
+            "core.python_script",
+            "Script",
+            100,
+            0,
+        )
+        snapshot = self._runtime_snapshot(model, registry=registry)
+        document = snapshot.to_document(catalog=registry.data_types)
+        node_document = next(
+            node
+            for node in document["workspaces"][0]["nodes"]
+            if node["node_id"] == script.node_id
+        )
+        node_document["properties"]["script"] = "@corex.node\ndef run("
+        tampered = RuntimeSnapshot.from_mapping(document, catalog=registry.data_types)
+
+        event_queue: queue.Queue = queue.Queue()
+        with mock.patch(
+            "ea_node_editor.nodes.bootstrap.build_default_registry",
+            return_value=registry,
+        ):
+            run_workflow(
+                _catalog_start_run_command(
+                    {
+                        "run_id": "run_tampered_script",
+                        "workspace_id": ws.workspace_id,
+                        "runtime_snapshot": tampered,
+                        "trigger": {},
+                    }
+                ),
+                event_queue,
+            )
+
+        events = self._drain_events(event_queue)
+        error = self._settled_error(events, script.node_id)
+        traceback_text = str(error["traceback"])
+        self.assertEqual(error["node_id"], script.node_id)
+        self.assertIn("<script>", traceback_text)
+        self.assertIn("PythonScriptDeclarationError", traceback_text)
+        self.assertNotIn("ea_node_editor", traceback_text)
+        self.assertNotIn("worker_runtime", traceback_text)
+        self.assertNotIn("worker_runner", traceback_text)
+        self.assertIn("run_completed", [event["type"] for event in events])
+        self.assertNotIn("run_failed", [event["type"] for event in events])
+
+    def test_tampered_python_script_unknown_type_fails_at_the_node_without_host_traceback(
+        self,
+    ) -> None:
+        registry = build_default_registry()
+        model = GraphModel()
+        ws = model.active_workspace
+        script = model.add_node(
+            ws.workspace_id,
+            "core.python_script",
+            "Script",
+            100,
+            0,
+        )
+        snapshot = self._runtime_snapshot(model, registry=registry)
+        document = snapshot.to_document(catalog=registry.data_types)
+        node_document = next(
+            node
+            for node in document["workspaces"][0]["nodes"]
+            if node["node_id"] == script.node_id
+        )
+        node_document["properties"]["script"] = '''@corex.node
+@corex.output("value", value_type="Missing.Type")
+def run(ctx):
+    return {}
+'''
+        tampered = RuntimeSnapshot.from_mapping(document, catalog=registry.data_types)
+
+        event_queue: queue.Queue = queue.Queue()
+        with mock.patch(
+            "ea_node_editor.nodes.bootstrap.build_default_registry",
+            return_value=registry,
+        ):
+            run_workflow(
+                _catalog_start_run_command(
+                    {
+                        "run_id": "run_tampered_script_type",
+                        "workspace_id": ws.workspace_id,
+                        "runtime_snapshot": tampered,
+                        "trigger": {},
+                    }
+                ),
+                event_queue,
+            )
+
+        events = self._drain_events(event_queue)
+        error = self._settled_error(events, script.node_id)
+        traceback_text = str(error["traceback"])
+        self.assertEqual(error["node_id"], script.node_id)
+        self.assertIn("unknown data-type ID", str(error["error"]))
+        self.assertIn("Missing.Type", str(error["error"]))
+        self.assertIn("<script>", traceback_text)
+        self.assertIn("PythonScriptDeclarationError", traceback_text)
+        self.assertNotIn("ea_node_editor", traceback_text)
+        self.assertNotIn("worker_runtime", traceback_text)
+        self.assertNotIn("worker_runner", traceback_text)
+        self.assertIn("run_completed", [event["type"] for event in events])
+        self.assertNotIn("run_failed", [event["type"] for event in events])
+
     def test_python_script_failure_traceback_is_full_in_developer_mode(self) -> None:
         model = GraphModel()
         ws = model.active_workspace
@@ -1309,7 +1429,7 @@ class ExecutionWorkerTests(unittest.TestCase):
             "Script",
             100,
             0,
-            properties={"script": "value = 1 / 0"},
+            properties={"script": _decorated_python_script("value = 1 / 0")},
         )
 
         event_queue: queue.Queue = queue.Queue()
@@ -1341,7 +1461,7 @@ class ExecutionWorkerTests(unittest.TestCase):
             "Script",
             100,
             0,
-            properties={"script": "raise SystemExit('bye')"},
+            properties={"script": _decorated_python_script("raise SystemExit('bye')")},
         )
 
         event_queue: queue.Queue = queue.Queue()
@@ -1373,7 +1493,7 @@ class ExecutionWorkerTests(unittest.TestCase):
             "Script",
             100,
             0,
-            properties={"script": "raise KeyboardInterrupt('ctrl c')"},
+            properties={"script": _decorated_python_script("raise KeyboardInterrupt('ctrl c')")},
         )
 
         event_queue: queue.Queue = queue.Queue()
@@ -1495,7 +1615,7 @@ class ExecutionWorkerTests(unittest.TestCase):
             "Script",
             80,
             0,
-            properties={"script": "result = 'fresh'"},
+            properties={"script": _decorated_python_script("return {'result': 'fresh'}")},
         )
         logger = model.add_node(ws.workspace_id, "core.logger", "Logger", 220, 0)
         sibling = model.add_node(
@@ -3027,7 +3147,7 @@ class ExecutionWorkerTests(unittest.TestCase):
             "Script",
             160,
             0,
-            properties={"script": "result = ctx.trigger"},
+            properties={"script": _decorated_python_script("return {'result': ctx.trigger}")},
         )
 
         event_queue: queue.Queue = queue.Queue()

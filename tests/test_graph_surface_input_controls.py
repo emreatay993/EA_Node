@@ -84,44 +84,26 @@ class GraphSurfaceInputControlsTests(unittest.TestCase):
         self.assertIn("host.surfaceFullscreenAction", surface_source)
         self.assertIn("host.requestSurfaceContentFullscreen", surface_source)
 
-    def test_dynamic_port_metrics_enclose_input_output_and_zero_port_add_targets(self) -> None:
+    def test_python_script_decorator_ports_do_not_reserve_dynamic_add_targets(self) -> None:
         registry = build_default_registry()
-        spec = registry.get_spec("core.python_script")
-        dynamic_cases = (
-            ("input", {"input_names": ["payload"], "output_names": []}, 33.0),
-            ("output", {"input_names": [], "output_names": ["result"]}, 33.0),
-            ("zero", {"input_names": [], "output_names": []}, 0.0),
+        properties = registry.default_properties("core.python_script")
+        spec = registry.resolve_spec("core.python_script", properties)
+        node = NodeInstance(
+            node_id="node_python_script_decorator_metrics",
+            type_id=spec.type_id,
+            title=spec.display_name,
+            x=32.0,
+            y=48.0,
+            properties=properties,
         )
-        for label, properties, add_step in dynamic_cases:
-            with self.subTest(label=label):
-                node = NodeInstance(
-                    node_id=f"node_python_script_dynamic_metrics_{label}",
-                    type_id=spec.type_id,
-                    title=spec.display_name,
-                    x=32.0,
-                    y=48.0,
-                    properties=properties,
-                )
-                metrics = node_surface_metrics(
-                    node,
-                    spec,
-                    {node.node_id: node},
-                    graph_label_pixel_size=16,
-                )
-                add_center_y = (
-                    float(metrics.port_top)
-                    + float(metrics.port_center_offset)
-                    + add_step
-                )
-                self.assertAlmostEqual(
-                    float(metrics.default_height) - (add_center_y + 13.0),
-                    4.0,
-                    places=6,
-                )
-                self.assertGreaterEqual(
-                    float(metrics.min_height),
-                    float(metrics.default_height),
-                )
+        metrics = node_surface_metrics(
+            node,
+            spec,
+            {node.node_id: node},
+            graph_label_pixel_size=16,
+        )
+        self.assertEqual(spec.dynamic_port_groups, ())
+        self.assertEqual(float(metrics.body_bottom_margin), float(STANDARD_BOTTOM_PADDING))
 
         static_spec = NodeTypeSpec(
             type_id="tests.static_height_unchanged_by_dynamic_controls",
@@ -3122,10 +3104,8 @@ class GraphSurfaceDataflowAuthoringTests(GraphSurfaceInputContractTestBase):
             edge_id = scene.add_edge(source_a_id, "as_text", target_id, "a")
             authoring_id = target_id
             gate_id = scene.add_node_from_type("core.stream_gate", 390.0, 350.0)
-            python_id = scene.add_node_from_type("core.python_script", 680.0, 100.0)
             flow_id = scene.add_node_from_type("passive.flowchart.process", 700.0, 360.0)
             gate_edge_id = scene.add_edge(gate_id, "output_0", target_id, "b")
-            python_edge_id = scene.add_edge(source_a_id, "as_text", python_id, "payload")
 
             canvas = create_component(
                 graph_canvas_qml_path,
@@ -3165,84 +3145,6 @@ class GraphSurfaceDataflowAuthoringTests(GraphSurfaceInputContractTestBase):
 
             def port_dot(node_id, object_name, port_key):
                 return named_item(host_for(node_id), object_name, str(port_key))
-
-            dynamic_group_application_events = []
-            python_dynamic_port_layer = layer_for(python_id)
-            python_dynamic_port_layer.dynamicPortGroupsApplied.connect(
-                lambda node_id, revision: dynamic_group_application_events.append(
-                    (str(node_id), int(revision))
-                )
-            )
-
-            def wait_for_dynamic_group_application(
-                node_id,
-                after_revision,
-                expected_group_keys,
-                attempts=200,
-            ):
-                last_group_keys = {}
-                for _attempt in range(attempts):
-                    settle_events(1)
-                    layer = layer_for(node_id)
-                    current_revision = int(
-                        layer.property("dynamicPortGroupModelRevision") or 0
-                    )
-                    groups = variant_value(
-                        layer.property("dynamicPortGroups")
-                    ) or []
-                    last_group_keys = {
-                        str(group.get("id", "")): [
-                            str(port_key)
-                            for port_key in group.get("port_keys", [])
-                        ]
-                        for group in groups
-                    }
-                    if (
-                        current_revision > after_revision
-                        and any(
-                            event_node_id == str(node_id)
-                            and event_revision > after_revision
-                            for event_node_id, event_revision
-                            in dynamic_group_application_events
-                        )
-                        and last_group_keys == expected_group_keys
-                    ):
-                        return layer, groups
-                raise AssertionError(
-                    f"dynamic group model did not apply after revision {after_revision}: "
-                    f"node={node_id}; events={dynamic_group_application_events}; "
-                    f"groups={last_group_keys}"
-                )
-
-            def wait_for_dynamic_delegate_counts(
-                node_id,
-                expected_counts,
-                attempts=8,
-            ):
-                last_counts = {}
-                for _attempt in range(attempts):
-                    settle_events(1)
-                    layer = layer_for(node_id)
-                    matches_by_name = {
-                        object_name: named_child_items(layer, object_name)
-                        for object_name in expected_counts
-                    }
-                    last_counts = {
-                        object_name: len(matches)
-                        for object_name, matches in matches_by_name.items()
-                    }
-                    if last_counts == expected_counts:
-                        for object_name, matches in matches_by_name.items():
-                            if expected_counts[object_name] == 1:
-                                assert bool(matches[0].property("visible")) is True, object_name
-                        return layer, {
-                            object_name: matches[0] if matches else None
-                            for object_name, matches in matches_by_name.items()
-                        }
-                raise AssertionError(
-                    f"dynamic delegate counts did not stabilize: node={node_id}; "
-                    f"expected={expected_counts}; actual={last_counts}"
-                )
 
             authoring_layer = layer_for(authoring_id)
             authoring_layer.setProperty("contextPortData", port_payload(authoring_id, "a"))
@@ -3333,257 +3235,6 @@ class GraphSurfaceDataflowAuthoringTests(GraphSurfaceInputContractTestBase):
             ]
             assert gate_edge_id in model.active_workspace.edges
 
-            python_layer = layer_for(python_id)
-            python_payload = variant_value(host_for(python_id).property("nodeData")) or {}
-            python_groups = python_payload.get("dynamic_port_groups", [])
-            assert [(group["id"], group["direction"], group["rename_mode"]) for group in python_groups] == [
-                ("inputs", "in", "key"),
-                ("outputs", "out", "key"),
-            ], python_groups
-            python_layer.beginPortLabelEdit("payload", "in")
-            assert bool(python_layer.commitPortLabelEdit("payload", "ctx")) is False
-            settle_events(2)
-            assert str(python_layer.property("editingPortKey")) == "payload"
-            assert str(python_layer.property("editingPortDirection")) == "in"
-            assert str(python_layer.property("portLabelEditError"))
-            python_layer.cancelPortLabelEdit()
-
-            python_layer = layer_for(python_id)
-            python_rename = variant_value(
-                python_layer._renameDynamicPort("inputs", "payload", "renamed_input")
-            ) or {}
-            assert python_rename.get("previous_port_key") == "payload", python_rename
-            assert python_rename.get("port_key") == "renamed_input", python_rename
-            settle_events(4)
-            python_node = model.active_workspace.nodes[python_id]
-            assert python_node.properties["input_names"] == ["renamed_input"]
-            assert python_edge_id not in model.active_workspace.edges
-
-            python_layer = layer_for(python_id)
-            before_input_removal_revision = int(
-                python_layer.property("dynamicPortGroupModelRevision") or 0
-            )
-            assert (variant_value(
-                python_layer._removeDynamicPort("inputs", "renamed_input")
-            ) or {}).get("port_key") == "renamed_input"
-            python_layer, _python_groups = wait_for_dynamic_group_application(
-                python_id,
-                before_input_removal_revision,
-                {"inputs": [], "outputs": ["result"]},
-            )
-            before_output_removal_revision = int(
-                python_layer.property("dynamicPortGroupModelRevision") or 0
-            )
-            assert (variant_value(
-                python_layer._removeDynamicPort("outputs", "result")
-            ) or {}).get("port_key") == "result"
-            python_layer, python_groups = wait_for_dynamic_group_application(
-                python_id,
-                before_output_removal_revision,
-                {"inputs": [], "outputs": []},
-            )
-            assert python_node.properties["input_names"] == []
-            assert python_node.properties["output_names"] == []
-            assert [
-                (
-                    group["id"],
-                    group["port_keys"],
-                    group["can_insert"],
-                )
-                for group in python_groups
-            ] == [
-                ("inputs", [], True),
-                ("outputs", [], True),
-            ], python_groups
-
-            python_layer, zero_controls = wait_for_dynamic_delegate_counts(
-                python_id,
-                {
-                    "graphNodeDynamicPortAdd_inputs": 1,
-                    "graphNodeDynamicPortAdd_outputs": 1,
-                    "graphNodeDynamicPortRemove_input1": 0,
-                    "graphNodeDynamicPortRemove_output1": 0,
-                },
-            )
-            input_add = zero_controls["graphNodeDynamicPortAdd_inputs"]
-            output_add = zero_controls["graphNodeDynamicPortAdd_outputs"]
-            assert int(input_add.property("width")) == 26
-            assert int(input_add.property("height")) == 26
-            assert int(input_add.property("focusPolicy")) == int(Qt.FocusPolicy.TabFocus.value)
-            python_host = host_for(python_id)
-            assert float(input_add.property("y")) + 26.0 + 4.0 <= float(
-                python_host.property("height")
-            )
-            assert float(output_add.property("y")) + 26.0 + 4.0 <= float(
-                python_host.property("height")
-            )
-            assert abs(
-                float(input_add.property("y")) - float(output_add.property("y"))
-            ) < 0.01
-            input_add_rest_x = float(input_add.property("x"))
-            input_add_rest_y = float(input_add.property("y"))
-            input_add_circle = input_add.findChild(
-                QObject,
-                "graphNodeDynamicPortAddCircle",
-            )
-            assert input_add_circle is not None
-            input_add_glyphs = input_add_circle.findChildren(QObject)
-            input_add_glyph = next(
-                child
-                for child in input_add_glyphs
-                if str(child.property("text")) == "+"
-            )
-            assert int(input_add_circle.property("width")) == 8
-            assert int(input_add_circle.property("height")) == 8
-            assert float(input_add_circle.property("radius")) == 4.0
-            assert input_add_circle.property("color").name().lower() == "#55d65b"
-            assert float(input_add_glyph.property("opacity")) == 0.0
-            input_add.forceActiveFocus()
-            settle_events(2)
-            assert bool(input_add.property("activeFocus")) is True
-            assert int(input_add_circle.property("width")) == 20
-            assert int(input_add_circle.property("height")) == 20
-            assert float(input_add_circle.property("radius")) == 10.0
-            assert float(input_add_glyph.property("opacity")) == 1.0
-            assert float(input_add.property("x")) == input_add_rest_x
-            assert float(input_add.property("y")) == input_add_rest_y
-            assert int(input_add.property("width")) == 26
-            assert int(input_add.property("height")) == 26
-            input_terminus = variant_value(input_add.property("terminusPoint")) or {}
-            assert abs(
-                float(input_add.property("x")) + 13.0 - float(input_terminus["x"])
-            ) < 0.01
-            assert abs(
-                float(input_add.property("y")) + 13.0 - float(input_terminus["y"])
-            ) < 0.01
-
-            before_input_add_revision = int(
-                python_layer.property("dynamicPortGroupModelRevision") or 0
-            )
-            QMetaObject.invokeMethod(input_add, "click")
-            python_layer, _python_groups = wait_for_dynamic_group_application(
-                python_id,
-                before_input_add_revision,
-                {"inputs": ["input1"], "outputs": []},
-            )
-            assert python_node.properties["input_names"] == ["input1"]
-            python_layer, input_added_controls = wait_for_dynamic_delegate_counts(
-                python_id,
-                {
-                    "graphNodeDynamicPortAdd_inputs": 1,
-                    "graphNodeDynamicPortAdd_outputs": 1,
-                    "graphNodeDynamicPortRemove_input1": 1,
-                    "graphNodeDynamicPortRemove_output1": 0,
-                },
-            )
-            input_remove_dispatch = input_added_controls[
-                "graphNodeDynamicPortRemove_input1"
-            ]
-
-            before_input_remove_revision = int(
-                python_layer.property("dynamicPortGroupModelRevision") or 0
-            )
-            QMetaObject.invokeMethod(input_remove_dispatch, "click")
-            python_layer, _python_groups = wait_for_dynamic_group_application(
-                python_id,
-                before_input_remove_revision,
-                {"inputs": [], "outputs": []},
-            )
-            assert python_node.properties["input_names"] == []
-            python_layer, input_removed_controls = wait_for_dynamic_delegate_counts(
-                python_id,
-                {
-                    "graphNodeDynamicPortAdd_inputs": 1,
-                    "graphNodeDynamicPortAdd_outputs": 1,
-                    "graphNodeDynamicPortRemove_input1": 0,
-                    "graphNodeDynamicPortRemove_output1": 0,
-                },
-            )
-            output_add_before_output = input_removed_controls[
-                "graphNodeDynamicPortAdd_outputs"
-            ]
-
-            before_output_add_revision = int(
-                python_layer.property("dynamicPortGroupModelRevision") or 0
-            )
-            QMetaObject.invokeMethod(output_add_before_output, "click")
-            python_layer, _python_groups = wait_for_dynamic_group_application(
-                python_id,
-                before_output_add_revision,
-                {"inputs": [], "outputs": ["output1"]},
-            )
-            assert python_node.properties["output_names"] == ["output1"]
-            python_layer, output_added_controls = wait_for_dynamic_delegate_counts(
-                python_id,
-                {
-                    "graphNodeDynamicPortAdd_inputs": 1,
-                    "graphNodeDynamicPortAdd_outputs": 1,
-                    "graphNodeDynamicPortRemove_input1": 0,
-                    "graphNodeDynamicPortRemove_output1": 1,
-                },
-            )
-            output_remove_dispatch = output_added_controls[
-                "graphNodeDynamicPortRemove_output1"
-            ]
-            before_output_remove_revision = int(
-                python_layer.property("dynamicPortGroupModelRevision") or 0
-            )
-            QMetaObject.invokeMethod(output_remove_dispatch, "click")
-            python_layer, _python_groups = wait_for_dynamic_group_application(
-                python_id,
-                before_output_remove_revision,
-                {"inputs": [], "outputs": []},
-            )
-            assert python_node.properties["output_names"] == []
-            python_layer, output_removed_controls = wait_for_dynamic_delegate_counts(
-                python_id,
-                {
-                    "graphNodeDynamicPortAdd_inputs": 1,
-                    "graphNodeDynamicPortAdd_outputs": 1,
-                    "graphNodeDynamicPortRemove_input1": 0,
-                    "graphNodeDynamicPortRemove_output1": 0,
-                },
-            )
-            zero_input_add = output_removed_controls[
-                "graphNodeDynamicPortAdd_inputs"
-            ]
-
-            before_input_readd_revision = int(
-                python_layer.property("dynamicPortGroupModelRevision") or 0
-            )
-            QMetaObject.invokeMethod(zero_input_add, "click")
-            python_layer, _python_groups = wait_for_dynamic_group_application(
-                python_id,
-                before_input_readd_revision,
-                {"inputs": ["input1"], "outputs": []},
-            )
-            input_key = python_node.properties["input_names"][0]
-            assert input_key == "input1", input_key
-            python_layer, input_readded_controls = wait_for_dynamic_delegate_counts(
-                python_id,
-                {
-                    "graphNodeDynamicPortAdd_inputs": 1,
-                    "graphNodeDynamicPortAdd_outputs": 1,
-                    "graphNodeDynamicPortRemove_input1": 1,
-                    "graphNodeDynamicPortRemove_output1": 0,
-                },
-            )
-            input_add_after = input_readded_controls[
-                "graphNodeDynamicPortAdd_inputs"
-            ]
-            input_remove = input_readded_controls[
-                "graphNodeDynamicPortRemove_input1"
-            ]
-            input_port_center = item_scene_point(
-                port_dot(python_id, "graphNodeInputPortDot", "input1")
-            )
-            input_add_center = item_scene_point(input_add_after)
-            input_add_center_gap = abs(input_add_center.y() - input_port_center.y())
-            assert 31.0 <= input_add_center_gap <= 33.0, input_add_center_gap
-            assert float(input_add_after.property("y")) + 26.0 + 4.0 <= float(
-                host_for(python_id).property("height")
-            )
-
             def assert_remove_target_clearance(node_id, direction, port_key):
                 layer = layer_for(node_id)
                 remove = named_item(
@@ -3618,8 +3269,6 @@ class GraphSurfaceDataflowAuthoringTests(GraphSurfaceInputContractTestBase):
                 assert 31.0 <= center_gap <= 33.0, center_gap
                 assert 4.0 <= clear_gap <= 6.0, clear_gap
                 return remove
-
-            assert_remove_target_clearance(python_id, "in", "input1")
 
             gate_layer = layer_for(gate_id)
             gate_remove = assert_remove_target_clearance(

@@ -13,7 +13,7 @@ The locked execution baseline is dependency-driven DataTree flow. Active nodes e
 1. [Architecture](requirements/10_ARCHITECTURE.md)
 2. [UI/UX](requirements/20_UI_UX.md)
 3. [Graph Model](requirements/30_GRAPH_MODEL.md)
-4. [Node SDK](requirements/40_NODE_SDK.md) — public guide: [Creating a Custom Node](../../README.md#creating-a-custom-node)
+4. [Node SDK](requirements/40_NODE_SDK.md) — public guides: [Creating a Custom Node](../../README.md#creating-a-custom-node), [Python Script Nodes](../PYTHON_SCRIPT_GUIDE.md)
 5. [Node Execution Model](requirements/45_NODE_EXECUTION_MODEL.md)
 6. [Execution Engine](requirements/50_EXECUTION_ENGINE.md)
 7. [Persistence](requirements/60_PERSISTENCE.md)
@@ -80,7 +80,6 @@ Work-packet manifests, status ledgers, and per-phase wrap-up documents formerly 
 - [V1_CLASSIC_EXPLORER_FOLDER_NODE QA Matrix](perf/V1_CLASSIC_EXPLORER_FOLDER_NODE_QA_MATRIX.md)
 - [COREX Graph Mutation Churn Remediation Closeout Evidence](perf/TRACK_H_BENCHMARK_REPORT.md)
 - [Graph Canvas Perf QA Matrix](perf/GRAPH_CANVAS_PERF_QA_MATRIX.md)
-- [COREX Declarative Node Controls QA Matrix](perf/COREX_DECLARATIVE_NODE_CONTROLS_QA_MATRIX.md) - accepted shared metadata-to-QML control behavior.
 - [COREX Neutral CAD/FE Model Viewer V1 QA Matrix](perf/ENGINEERING_VIEWER_V1_QA_MATRIX.md) - implementation and release-gate evidence; format-fixture and lazy FE acceptance remain open.
 - [COREX Neutral CAD/FE Model Viewer V1 Native Performance Report](perf/ENGINEERING_VIEWER_V1_NATIVE_PERF_REPORT.md) - display-attached Windows/D3D11 acceptance evidence.
 

@@ -4,12 +4,8 @@ import pytest
 
 from ea_node_editor.nodes.bootstrap import build_builtin_registry, build_default_registry
 from ea_node_editor.nodes.builtins.core import (
-    DEFAULT_PYTHON_SCRIPT_INPUT_NAMES,
-    DEFAULT_PYTHON_SCRIPT_OUTPUT_NAMES,
     DEFAULT_STREAM_GATE_OUTPUT_IDS,
     PYTHON_SCRIPT_DEFAULT_SOURCE,
-    PYTHON_SCRIPT_INPUT_NAMES_PROPERTY,
-    PYTHON_SCRIPT_OUTPUT_NAMES_PROPERTY,
     STREAM_GATE_OUTPUT_IDS_PROPERTY,
     IfNodePlugin,
     PythonScriptNodePlugin,
@@ -117,118 +113,28 @@ def test_if_selects_tree_and_omits_absent_optional_branch() -> None:
     ).outputs == {}
 
 
-def test_python_script_declares_normalized_named_dynamic_ports() -> None:
+def test_python_script_default_source_declares_instance_ports() -> None:
     registry = build_builtin_registry()
     spec = registry.get_spec("core.python_script")
     properties = {prop.key: prop for prop in spec.properties}
 
     assert spec.ports == ()
-    assert properties[PYTHON_SCRIPT_INPUT_NAMES_PROPERTY].default == list(
-        DEFAULT_PYTHON_SCRIPT_INPUT_NAMES
-    )
-    assert properties[PYTHON_SCRIPT_OUTPUT_NAMES_PROPERTY].default == list(
-        DEFAULT_PYTHON_SCRIPT_OUTPUT_NAMES
-    )
-    assert properties[PYTHON_SCRIPT_INPUT_NAMES_PROPERTY].inspector_visible is False
-    assert properties[PYTHON_SCRIPT_OUTPUT_NAMES_PROPERTY].inspector_visible is False
-    assert PYTHON_SCRIPT_DEFAULT_SOURCE == "result = payload\n"
-    assert [
-        (
-            group.group_id,
-            group.property_key,
-            group.direction,
-            group.minimum,
-            group.maximum,
-            group.rename_mode,
-        )
-        for group in spec.dynamic_port_groups
-    ] == [
-        ("inputs", PYTHON_SCRIPT_INPUT_NAMES_PROPERTY, "in", 0, None, "key"),
-        ("outputs", PYTHON_SCRIPT_OUTPUT_NAMES_PROPERTY, "out", 0, None, "key"),
-    ]
+    assert set(properties) == {"script", "timeout_sec"}
+    assert "@corex.node" in PYTHON_SCRIPT_DEFAULT_SOURCE
+    assert spec.dynamic_port_groups == ()
+    assert spec.instance_spec_resolver is not None
 
     defaults = registry.default_properties("core.python_script")
-    assert defaults[PYTHON_SCRIPT_INPUT_NAMES_PROPERTY] == ["payload"]
-    assert defaults[PYTHON_SCRIPT_OUTPUT_NAMES_PROPERTY] == ["result"]
     assert [port.key for port in resolve_instance_ports(spec, defaults)] == [
         "payload",
         "result",
     ]
-
-    explicit_empty = registry.normalize_properties(
-        "core.python_script",
-        {
-            PYTHON_SCRIPT_INPUT_NAMES_PROPERTY: [],
-            PYTHON_SCRIPT_OUTPUT_NAMES_PROPERTY: [],
-        },
-    )
-    assert explicit_empty[PYTHON_SCRIPT_INPUT_NAMES_PROPERTY] == []
-    assert explicit_empty[PYTHON_SCRIPT_OUTPUT_NAMES_PROPERTY] == []
-    assert resolve_instance_ports(spec, explicit_empty) == ()
-
-    non_lists = registry.normalize_properties(
-        "core.python_script",
-        {
-            PYTHON_SCRIPT_INPUT_NAMES_PROPERTY: {"not": "a list"},
-            PYTHON_SCRIPT_OUTPUT_NAMES_PROPERTY: "not a list",
-        },
-    )
-    assert non_lists[PYTHON_SCRIPT_INPUT_NAMES_PROPERTY] == ["payload"]
-    assert non_lists[PYTHON_SCRIPT_OUTPUT_NAMES_PROPERTY] == ["result"]
-
-    normalized = registry.normalize_properties(
-        "core.python_script",
-        {
-            PYTHON_SCRIPT_INPUT_NAMES_PROPERTY: [
-                " payload ",
-                "Δ",
-                "Case",
-                "case",
-                "for",
-                "ctx",
-                "__builtins__",
-                "Δ",
-                3,
-                "bad-name",
-                "result",
-            ],
-            PYTHON_SCRIPT_OUTPUT_NAMES_PROPERTY: [
-                " result ",
-                "Case",
-                "RESULT",
-                "for",
-                "ctx",
-                "__builtins__",
-                "RESULT",
-                None,
-                "out value",
-                "Δ",
-            ],
-        },
-    )
-    assert normalized[PYTHON_SCRIPT_INPUT_NAMES_PROPERTY] == [
-        "payload",
-        "Δ",
-        "Case",
-        "case",
-        "result",
-    ]
-    assert normalized[PYTHON_SCRIPT_OUTPUT_NAMES_PROPERTY] == ["RESULT"]
-    resolved = resolve_instance_ports(spec, normalized)
-    assert [port.key for port in resolved] == [
-        "payload",
-        "Δ",
-        "Case",
-        "case",
-        "result",
-        "RESULT",
-    ]
-    assert all(port.label == port.key for port in resolved)
-    assert all(port.exposed and port.data_access == "item" for port in resolved)
-    assert all(port.required is False for port in resolved if port.direction == "in")
+    resolved = registry.resolve_spec("core.python_script", defaults)
+    assert resolved.instance_spec_resolver is None
+    assert [port.direction for port in resolved.ports] == ["in", "out"]
 
 
-def test_python_script_graph_mutations_use_node_owned_names() -> None:
+def test_python_script_apply_reconciles_decorated_settings_and_ports() -> None:
     registry = build_builtin_registry()
     model = GraphModel()
     workspace = model.active_workspace
@@ -238,27 +144,30 @@ def test_python_script_graph_mutations_use_node_owned_names() -> None:
         title="Script",
         x=0,
         y=0,
-        properties={
-            PYTHON_SCRIPT_INPUT_NAMES_PROPERTY: ["input1", "output1"],
-            PYTHON_SCRIPT_OUTPUT_NAMES_PROPERTY: ["input2", "result"],
-        },
+        properties={},
     )
+    source = '''@corex.node
+@corex.input("values", value_type=float, structure="tree", required=True, section="Data")
+@corex.output("result", value_type=float)
+@corex.dropdown("mode", default="Mean", options=("Mean", "Max"), section="Settings", port=True)
+@corex.slider("scale", default=2.0, minimum=0.5, maximum=8.0, step=0.5, section="Settings", port=True)
+def run(ctx, values, mode, scale):
+    return {"result": scale}
+'''
+    reset_keys, removed_edges = mutations.apply_python_script(node.node_id, source)
+    assert reset_keys == ()
+    assert removed_edges == ()
+    assert node.properties["mode"] == "Mean"
+    assert node.properties["scale"] == 2.0
+    resolved = registry.resolve_spec(node.type_id, node.properties)
+    assert [port.key for port in resolved.ports] == ["values", "result", "mode", "scale"]
+    assert [(group.group_id, group.label) for group in resolved.settings_groups] == [
+        ("data", "Data"),
+        ("settings", "Settings"),
+    ]
 
-    assert mutations.insert_dynamic_port(node.node_id, "inputs", 2) == "input3"
-    assert mutations.insert_dynamic_port(node.node_id, "outputs", 2) == "output2"
-    assert mutations.rename_dynamic_port(
-        node.node_id,
-        "inputs",
-        "input3",
-        " Δelta ",
-    ) == ("Δelta", ())
-    with pytest.raises(ValueError, match="key rename failed"):
-        mutations.rename_dynamic_port(node.node_id, "outputs", "output2", "Δelta")
-    with pytest.raises(ValueError, match="key rename failed"):
-        mutations.rename_dynamic_port(node.node_id, "outputs", "output2", "for")
 
-
-def test_python_script_executes_declared_variables_in_one_scope() -> None:
+def test_python_script_executes_decorated_run_function() -> None:
     plugin = PythonScriptNodePlugin()
     assert plugin.execute(
         _context(
@@ -267,63 +176,33 @@ def test_python_script_executes_declared_variables_in_one_scope() -> None:
         )
     ).outputs == {"result": "default"}
 
-    properties = {
-        "script": (
-            "def scale(value):\n"
-            "    return [value * factor for factor in range(3)]\n"
-            "result = scale(payload)\n"
-            "explicit_none = None\n"
-            "ignored = 'local only'\n"
-        ),
-        PYTHON_SCRIPT_INPUT_NAMES_PROPERTY: ["payload"],
-        PYTHON_SCRIPT_OUTPUT_NAMES_PROPERTY: [
-            "result",
-            "explicit_none",
-            "unassigned",
-        ],
-    }
+    properties = {"script": '''@corex.node
+@corex.input("payload", value_type=int)
+@corex.output("result", value_type=corex.Any)
+@corex.output("explicit_none", value_type=corex.Any)
+@corex.output("unassigned", value_type=corex.Any)
+@corex.number("factor", default=3, port=True)
+def run(ctx, payload, factor):
+    return {"result": [payload * item for item in range(factor)], "explicit_none": None}
+''', "factor": 3}
     assert plugin.execute(
         _context(inputs={"payload": 4}, properties=properties)
     ).outputs == {
         "result": [0, 4, 8],
         "explicit_none": None,
     }
-    assert plugin.execute(
-        _context(
-            properties={
-                "script": "result = 40 + 2",
-                PYTHON_SCRIPT_INPUT_NAMES_PROPERTY: [],
-                PYTHON_SCRIPT_OUTPUT_NAMES_PROPERTY: ["result"],
-            }
+    with pytest.raises(RuntimeError, match="undeclared outputs"):
+        plugin.execute(
+            _context(
+                properties={
+                    "script": '''@corex.node
+@corex.output("result", value_type=corex.Any)
+def run(ctx):
+    return {"unknown": 1}
+'''
+                }
+            )
         )
-    ).outputs == {"result": 42}
-    assert plugin.execute(
-        _context(
-            properties={
-                "script": "result = ('input_data' in globals(), 'output_data' in globals())",
-                PYTHON_SCRIPT_INPUT_NAMES_PROPERTY: [],
-                PYTHON_SCRIPT_OUTPUT_NAMES_PROPERTY: ["result"],
-            }
-        )
-    ).outputs == {"result": (False, False)}
-    assert plugin.execute(
-        _context(
-            properties={
-                "script": "ignored = 1",
-                PYTHON_SCRIPT_INPUT_NAMES_PROPERTY: [],
-                PYTHON_SCRIPT_OUTPUT_NAMES_PROPERTY: [],
-            }
-        )
-    ).outputs == {}
-    assert plugin.execute(
-        _context(
-            properties={
-                "script": " \n\t",
-                PYTHON_SCRIPT_INPUT_NAMES_PROPERTY: ["payload"],
-                PYTHON_SCRIPT_OUTPUT_NAMES_PROPERTY: ["result"],
-            }
-        )
-    ).outputs == {}
 
 
 def test_stream_gate_uses_stable_output_ids_and_publishes_only_selected_tree() -> None:

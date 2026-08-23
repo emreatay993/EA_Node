@@ -21,6 +21,7 @@ implementation studies are intentionally excluded.
 ## Cross-layer feature routes
 
 - [Graph Scene Payload And Projection](feature_routes/graph_scene_payload_and_projection.md)
+- [Surface Input And Inline Controls](feature_routes/surface_input_and_inline_controls.md)
 - [Port Availability And Default Values](feature_routes/port_availability_and_default_values.md)
 - [Plotter Nodes](feature_routes/plotter_nodes.md)
 - [Neutral CAD/FE Engineering Viewer](feature_routes/neutral_cad_fe_engineering_viewer.md)
@@ -37,6 +38,8 @@ implementation studies are intentionally excluded.
   `execution/signal_plot_renderer.py`, and the plotter route.
 - Declarative node controls are shared metadata-to-QML behavior owned by the
   node registry, graph-scene projection, and shared graph controls.
+- Decorator-driven Python Script declarations are owned jointly by the node
+  registry/parser, graph-owned atomic Apply, worker revalidation, and generic persistence.
 - Geometry, spatial, mesh, FEM, voxel, security, reporting, media, and unit
   contracts use neutral COREX identifiers and functional module names.
 - Retired import and placeholder surfaces are absent from current ownership.

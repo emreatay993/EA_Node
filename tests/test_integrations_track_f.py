@@ -73,6 +73,18 @@ def _context(
     )
 
 
+def _decorated_transform(body: str) -> str:
+    indented = "\n".join(f"    {line}" for line in body.splitlines())
+    return (
+        "@corex.node\n"
+        "@corex.input(\"payload\", value_type=corex.Any)\n"
+        "@corex.output(\"result\", value_type=corex.Any)\n"
+        "def run(ctx, payload):\n"
+        f"{indented}\n"
+        "    return {\"result\": result}\n"
+    )
+
+
 class IntegrationNodesTrackFTests(unittest.TestCase):
     def test_external_effect_inputs_use_tree_access_without_reclassifying_readers(
         self,
@@ -837,7 +849,7 @@ class IntegrationFlowSmokeTests(unittest.TestCase):
                 240,
                 0,
                 properties={
-                    "script": (
+                    "script": _decorated_transform(
                         "row = payload or {}\n"
                         "result = {\n"
                         "    'name': str(row.get('name', '')).upper(),\n"
@@ -906,7 +918,11 @@ class IntegrationFlowSmokeTests(unittest.TestCase):
                 "Python Script",
                 240,
                 0,
-                properties={"script": "result = str(payload).upper()"},
+                properties={
+                    "script": _decorated_transform(
+                        "result = str(payload).upper()"
+                    )
+                },
             )
             file_write = model.add_node(
                 workspace.workspace_id,
@@ -952,7 +968,11 @@ class IntegrationFlowSmokeTests(unittest.TestCase):
                 "Python Script",
                 120,
                 0,
-                properties={"script": "result = 'managed output payload'"},
+                properties={
+                    "script": _decorated_transform(
+                        "result = 'managed output payload'"
+                    )
+                },
             )
             file_write = model.add_node(
                 workspace.workspace_id,
@@ -1125,7 +1145,8 @@ class IntegrationFlowSmokeTests(unittest.TestCase):
     def test_python_script_default_output_is_input_payload(self) -> None:
         result = PythonScriptNodePlugin().execute(
             _context(
-                inputs={"payload": {"x": 1}}, properties={"script": "result = payload"}
+                inputs={"payload": {"x": 1}},
+                properties={"script": _decorated_transform("result = payload")},
             )
         )
         self.assertEqual(result.outputs["result"], {"x": 1})

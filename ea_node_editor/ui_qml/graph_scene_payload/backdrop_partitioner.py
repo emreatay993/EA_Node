@@ -112,6 +112,7 @@ class _GraphSceneBackdropPartitioner:
                 spec = registry.spec_or_none(node.type_id)
             if spec is None:
                 continue
+            spec = registry.resolve_spec(node.type_id, node.properties)
             node_specs[node_id] = spec
             presentation_facts = self._node_payload_factory.build_presentation_facts(
                 node=node,

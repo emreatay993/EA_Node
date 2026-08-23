@@ -140,9 +140,9 @@ class GraphInvariantKernel:
             return memo.resolved_nodes
         resolved: dict[str, RegistryNodeResolution] = {}
         for node_id, node in self.workspace_nodes.items():
-            spec = self.registry.spec_or_none(node.type_id)
-            if spec is None:
+            if self.registry.spec_or_none(node.type_id) is None:
                 continue
+            spec = self.registry.resolve_spec(node.type_id, node.properties)
             resolved[node_id] = RegistryNodeResolution(node=node, spec=spec)
         if memo is not None:
             memo.resolved_nodes = resolved

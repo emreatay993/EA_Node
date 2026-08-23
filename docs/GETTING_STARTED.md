@@ -56,21 +56,22 @@ Active nodes use ordinary data dependencies. Connect an output to an input to
 set evaluation order; hold Shift while connecting to append another ordered
 input source. Passive canvas objects keep their unrelated `flow` connectors.
 
-Stream Gate and Python Script use the same metadata-driven dynamic-port
-controls. Inline Add, Remove, and Rename controls appear only while the graph is
-writable, the node is unlocked and expanded, and zoom is at least `0.95`.
-Right-click a dynamic port for Insert Before, Insert After, Rename, or Remove.
-The node context menu keeps Add Input/Add Output available at low zoom and for a
-zero-port group. These controls have separate connector and action hit targets,
-tooltips, Tab focus with standard keyboard activation, and accessible names.
-There is no standalone port reorder action.
+Stream Gate uses metadata-driven dynamic-port controls. Inline Add, Remove, and
+Rename controls appear only while the graph is writable, the node is unlocked
+and expanded, and zoom is at least `0.95`. Right-click a dynamic port for Insert
+Before, Insert After, Rename, or Remove. The node context menu keeps Add Output
+available at low zoom and for a zero-port group. These controls have separate
+connector and action hit targets, tooltips, Tab focus with standard keyboard
+activation, and accessible names. There is no standalone port reorder action.
 
 Insert Python Script directly from the library like any other registered node;
-there is no creation wizard or generated-plugin step. Edit its named input and
-output ports on the canvas and its code in the shared script editor. Explicit
-Run, confirmed Run Selected, and a Trigger click first apply a valid dirty
-script draft before building the runtime snapshot. A failed Apply aborts the
-dispatch without a partial graph mutation. Auto runs always use the applied
+there is no creation wizard or generated-plugin step. Declare its named inputs,
+outputs, and controls in the shared script editor, then click **Apply**; the
+canvas does not author Python Script ports. Follow the
+[Python Script guide](PYTHON_SCRIPT_GUIDE.md) for the copyable decorator form.
+Explicit Run, confirmed Run Selected, and a Trigger click first apply a valid
+dirty script draft before building the runtime snapshot. A failed Apply aborts
+the dispatch without a partial graph mutation. Auto runs always use the applied
 model and never consume an unsaved draft.
 
 For a packaged build, the validated base flow is:

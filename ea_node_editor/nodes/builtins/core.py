@@ -1,16 +1,15 @@
 from __future__ import annotations
 
-import keyword
 import json
 import math
 import traceback
 from collections.abc import Mapping
-from typing import Literal
 
 from ea_node_editor.graph.boundary_adapters import register_node_type_size_resolver
 from ea_node_editor.nodes.builtins.data_control import NUMBER_SLIDER_PILL_HEIGHT
 from ea_node_editor.nodes.builtins.icon_catalog import builtin_node_type, builtin_node_type_spec
 from ea_node_editor.nodes.decorators import (
+    in_port,
     out_port,
     plugin_descriptor,
     prop_json,
@@ -22,16 +21,22 @@ from ea_node_editor.nodes.node_specs import (
     PortSpec,
     PropertySpec,
 )
+from ea_node_editor.nodes.python_script_declaration import (
+    python_script_output_keys,
+    python_script_parameter_keys,
+    python_script_runtime_namespace,
+    resolve_python_script_spec,
+)
 from ea_node_editor.runtime_contracts import DataTree
 from ea_node_editor.runtime_contracts.data_tree import resolve_single_run_inputs
 
 
-PYTHON_SCRIPT_DEFAULT_SOURCE = "result = payload\n"
-PYTHON_SCRIPT_INPUT_NAMES_PROPERTY = "input_names"
-PYTHON_SCRIPT_OUTPUT_NAMES_PROPERTY = "output_names"
-DEFAULT_PYTHON_SCRIPT_INPUT_NAMES = ("payload",)
-DEFAULT_PYTHON_SCRIPT_OUTPUT_NAMES = ("result",)
-_PYTHON_SCRIPT_RESERVED_NAMES = {"ctx", "__builtins__"}
+PYTHON_SCRIPT_DEFAULT_SOURCE = """@corex.node
+@corex.input("payload", value_type=corex.Any)
+@corex.output("result", value_type=corex.Any)
+def run(ctx, payload):
+    return {"result": payload}
+"""
 
 
 @builtin_node_type(
@@ -162,127 +167,6 @@ def _sanitize_user_script_traceback(exc: BaseException) -> str:
     ).strip()
 
 
-def _normalize_python_script_names(
-    value: object,
-    *,
-    default: tuple[str, ...],
-    blocked: tuple[str, ...] = (),
-) -> tuple[str, ...]:
-    candidates = value if isinstance(value, list) else default
-    names: list[str] = []
-    used = set(blocked)
-    for item in candidates:
-        if not isinstance(item, str):
-            continue
-        name = item.strip()
-        if (
-            not name.isidentifier()
-            or keyword.iskeyword(name)
-            or name in _PYTHON_SCRIPT_RESERVED_NAMES
-            or name in used
-        ):
-            continue
-        names.append(name)
-        used.add(name)
-    return tuple(names)
-
-
-def normalize_python_script_input_names(properties: Mapping[str, object]) -> tuple[str, ...]:
-    return _normalize_python_script_names(
-        properties.get(PYTHON_SCRIPT_INPUT_NAMES_PROPERTY),
-        default=DEFAULT_PYTHON_SCRIPT_INPUT_NAMES,
-    )
-
-
-def normalize_python_script_output_names(properties: Mapping[str, object]) -> tuple[str, ...]:
-    input_names = normalize_python_script_input_names(properties)
-    return _normalize_python_script_names(
-        properties.get(PYTHON_SCRIPT_OUTPUT_NAMES_PROPERTY),
-        default=DEFAULT_PYTHON_SCRIPT_OUTPUT_NAMES,
-        blocked=input_names,
-    )
-
-
-def _python_script_ports(
-    names: tuple[str, ...],
-    *,
-    direction: Literal["in", "out"],
-) -> tuple[PortSpec, ...]:
-    return tuple(
-        PortSpec(
-            name,
-            direction,
-            "data",
-            'COREX.DataTypes.Any',
-            label=name,
-            required=False if direction == "in" else None,
-            exposed=True,
-            data_access="item",
-            description=f"Python variable {name}.",
-        )
-        for name in names
-    )
-
-
-def resolve_python_script_input_ports(
-    properties: Mapping[str, object],
-) -> tuple[PortSpec, ...]:
-    return _python_script_ports(
-        normalize_python_script_input_names(properties),
-        direction="in",
-    )
-
-
-def resolve_python_script_output_ports(
-    properties: Mapping[str, object],
-) -> tuple[PortSpec, ...]:
-    return _python_script_ports(
-        normalize_python_script_output_names(properties),
-        direction="out",
-    )
-
-
-def _next_python_script_port_key(
-    properties: Mapping[str, object],
-    *,
-    prefix: str,
-) -> str:
-    used = set(normalize_python_script_input_names(properties))
-    used.update(normalize_python_script_output_names(properties))
-    suffix = 1
-    while f"{prefix}{suffix}" in used:
-        suffix += 1
-    return f"{prefix}{suffix}"
-
-
-def next_python_script_input_key(properties: Mapping[str, object]) -> str:
-    return _next_python_script_port_key(properties, prefix="input")
-
-
-def next_python_script_output_key(properties: Mapping[str, object]) -> str:
-    return _next_python_script_port_key(properties, prefix="output")
-
-
-def rename_python_script_port_key(
-    properties: Mapping[str, object],
-    current_key: str,
-    value: str,
-) -> str:
-    renamed_key = value.strip()
-    if (
-        not renamed_key.isidentifier()
-        or keyword.iskeyword(renamed_key)
-        or renamed_key in _PYTHON_SCRIPT_RESERVED_NAMES
-    ):
-        raise ValueError(f"Invalid Python port name: {value!r}.")
-    used = set(normalize_python_script_input_names(properties))
-    used.update(normalize_python_script_output_names(properties))
-    used.discard(current_key)
-    if renamed_key in used:
-        raise ValueError(f"Python port name already exists: {renamed_key}.")
-    return renamed_key
-
-
 class PythonScriptNodePlugin:
     def spec(self) -> NodeTypeSpec:
         return builtin_node_type_spec(
@@ -305,43 +189,8 @@ class PythonScriptNodePlugin:
                     0.0,
                     "Timeout (sec)",
                 ),
-                PropertySpec(
-                    PYTHON_SCRIPT_INPUT_NAMES_PROPERTY,
-                    "json",
-                    list(DEFAULT_PYTHON_SCRIPT_INPUT_NAMES),
-                    "Inputs",
-                    inspector_visible=False,
-                ),
-                PropertySpec(
-                    PYTHON_SCRIPT_OUTPUT_NAMES_PROPERTY,
-                    "json",
-                    list(DEFAULT_PYTHON_SCRIPT_OUTPUT_NAMES),
-                    "Outputs",
-                    inspector_visible=False,
-                ),
             ),
-            dynamic_port_groups=(
-                DynamicPortGroupSpec(
-                    group_id="inputs",
-                    property_key=PYTHON_SCRIPT_INPUT_NAMES_PROPERTY,
-                    direction="in",
-                    ports_resolver=resolve_python_script_input_ports,
-                    key_factory=next_python_script_input_key,
-                    minimum=0,
-                    rename_mode="key",
-                    key_renamer=rename_python_script_port_key,
-                ),
-                DynamicPortGroupSpec(
-                    group_id="outputs",
-                    property_key=PYTHON_SCRIPT_OUTPUT_NAMES_PROPERTY,
-                    direction="out",
-                    ports_resolver=resolve_python_script_output_ports,
-                    key_factory=next_python_script_output_key,
-                    minimum=0,
-                    rename_mode="key",
-                    key_renamer=rename_python_script_port_key,
-                ),
-            ),
+            instance_spec_resolver=resolve_python_script_spec,
         )
 
     def execute(self, ctx: ExecutionContext) -> NodeResult:
@@ -349,33 +198,51 @@ class PythonScriptNodePlugin:
         if not script.strip():
             return NodeResult()
 
-        input_names = normalize_python_script_input_names(ctx.properties)
-        output_names = normalize_python_script_output_names(ctx.properties)
-        scope = {
-            "ctx": ctx,
-            **{name: ctx.inputs.get(name) for name in input_names},
-        }
+        spec = resolve_python_script_spec(self.spec(), ctx.properties)
+        parameter_keys = python_script_parameter_keys(spec)
+        output_keys = python_script_output_keys(spec)
+        scope = {"corex": python_script_runtime_namespace()}
         try:
             exec(
                 compile(script, _PYTHON_SCRIPT_FRAME_FILENAME, "exec"),
                 scope,
                 scope,
             )
-        except Exception as exc:  # noqa: BLE001
+            entrypoint = scope.get("run")
+            if not callable(entrypoint):
+                raise TypeError("Python Script run entrypoint is not callable")
+            value = entrypoint(
+                ctx,
+                **{
+                    key: (
+                        ctx.inputs[key]
+                        if key in ctx.inputs
+                        else ctx.properties.get(key)
+                    )
+                    for key in parameter_keys
+                },
+            )
+            if isinstance(value, NodeResult):
+                result = value
+            elif isinstance(value, Mapping):
+                result = NodeResult(outputs=dict(value))
+            else:
+                raise TypeError("Python Script run must return a mapping or NodeResult")
+            unknown_outputs = sorted(set(result.outputs) - set(output_keys))
+            if unknown_outputs:
+                raise ValueError(
+                    "Python Script returned undeclared outputs: "
+                    + ", ".join(unknown_outputs)
+                )
+        except BaseException as exc:  # noqa: BLE001
             user_traceback = _sanitize_user_script_traceback(exc)
             ctx.log_error(traceback.format_exc() if ctx.developer_mode else user_traceback)
             raise PythonScriptError(
-                f"Python Script execution failed: {exc}",
+                str(exc) or type(exc).__name__,
                 user_traceback=user_traceback,
             ) from exc
 
-        return NodeResult(
-            outputs={
-                name: scope[name]
-                for name in output_names
-                if name in scope
-            }
-        )
+        return result
 
 
 TRIGGER_TYPE_ID = "core.trigger"

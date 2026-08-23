@@ -233,6 +233,8 @@ class JsonProjectCodec:
         if self._registry is None:
             return copy.deepcopy(dict(properties))
         spec = self._registry.spec_or_none(node_type_id)
+        if spec is not None:
+            spec = self._registry.resolve_spec(node_type_id, properties)
         property_specs = (
             {prop.key: prop for prop in spec.properties}
             if spec is not None
@@ -594,6 +596,7 @@ class JsonProjectCodec:
             )
             if spec is None:
                 continue
+            spec = self._registry.resolve_spec(node_type_id, properties)
             for property_spec in spec.properties:
                 if (
                     not property_spec.persistence_data_type_id

@@ -728,6 +728,7 @@ def set_node_settings_group_expanded(
     spec = registry.spec_or_none(node.type_id) if node is not None else None
     if node is None or spec is None or bool(node.locked):
         return False
+    spec = registry.resolve_spec(node.type_id, node.properties)
     declared_group_ids = tuple(group.group_id for group in spec.settings_groups)
     if normalized_group_id not in declared_group_ids:
         return False
@@ -878,7 +879,7 @@ def set_node_property(self, node_id: str, key: str, value: Any) -> None:
     node = workspace.nodes.get(node_id)
     if node is None:
         return
-    spec = registry.get_spec(node.type_id)
+    spec = registry.resolve_spec(node.type_id, node.properties)
     if key == "title":
         normalized_title = self._normalized_title_update(node, value)
         if normalized_title is None:
@@ -901,7 +902,19 @@ def set_node_property(self, node_id: str, key: str, value: Any) -> None:
     )
     if property_spec is None or bool(getattr(property_spec, "sensitive", False)):
         return
-    normalized = registry.normalize_property_value(node.type_id, key, value)
+    if node.type_id == "core.python_script" and key == "script":
+        history_before = self._capture_history_snapshot()
+        self._validated_mutations().apply_python_script(node_id, str(value))
+        self._scene_context.rebuild_models()
+        self.notify_selected_node_context_updated(node_id)
+        self._record_history(ACTION_EDIT_NODE_PROPERTY, history_before)
+        return
+    normalized = registry.normalize_property_value(
+        node.type_id,
+        key,
+        value,
+        properties=node.properties,
+    )
     normalized_updates = _contextual_property_updates(registry, node, {key: normalized})
     normalized_updates = _sensitive_scope_updates(
         node=node,
@@ -938,10 +951,28 @@ def set_node_properties(self, node_id: str, values: dict[str, Any]) -> bool:
     node = workspace.nodes.get(node_id)
     if node is None:
         return False
-    spec = registry.get_spec(node.type_id)
+    requested_values = dict(values or {})
+    requested_keys = {
+        str(key or "") for key in requested_values if str(key or "")
+    }
+    if node.type_id == "core.python_script" and "script" in requested_keys:
+        if requested_keys != {"script"}:
+            raise ValueError(
+                "Python Script source cannot be mixed with other bulk property updates."
+            )
+        source = str(requested_values.get("script", ""))
+        if source == str(node.properties.get("script", "")):
+            return False
+        history_before = self._capture_history_snapshot()
+        self._validated_mutations().apply_python_script(node_id, source)
+        self._scene_context.rebuild_models()
+        self.notify_selected_node_context_updated(node_id)
+        self._record_history(ACTION_EDIT_NODE_PROPERTY, history_before)
+        return True
+    spec = registry.resolve_spec(node.type_id, node.properties)
     normalized_updates: dict[str, Any] = {}
     normalized_title = None
-    for raw_key, raw_value in dict(values or {}).items():
+    for raw_key, raw_value in requested_values.items():
         key = str(raw_key or "")
         if not key:
             continue
@@ -961,7 +992,12 @@ def set_node_properties(self, node_id: str, values: dict[str, Any]) -> bool:
         ):
             continue
         try:
-            normalized = registry.normalize_property_value(node.type_id, key, raw_value)
+            normalized = registry.normalize_property_value(
+                node.type_id,
+                key,
+                raw_value,
+                properties=node.properties,
+            )
         except KeyError:
             continue
         current_value = node.properties.get(key, _MISSING)

@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import copy
+import math
 from dataclasses import dataclass, field
+from numbers import Real
 
 from ea_node_editor.graph.boundary_adapters import GraphBoundaryAdapters, fallback_graph_boundary_adapters
 from ea_node_editor.graph.effective_ports import (
@@ -27,6 +29,7 @@ from ea_node_editor.graph.subnode_contract import (
 from ea_node_editor.graph.workspace_state import ViewState, WorkspaceData
 from ea_node_editor.nodes.registry import NodeRegistry, resolve_instance_ports
 from ea_node_editor.nodes.node_specs import DynamicPortGroupSpec, NodeTypeSpec, PortSpec
+from ea_node_editor.runtime_contracts import Interval1D
 
 _MISSING = object()
 
@@ -526,8 +529,16 @@ class ValidatedGraphMutation:
 
     def set_node_property(self, node_id: str, key: str, value: object) -> object:
         node = self.workspace.nodes[node_id]
+        if node.type_id == "core.python_script" and str(key) == "script":
+            self.apply_python_script(node_id, str(value))
+            return str(value)
         self._reject_dynamic_port_property_writes(node, {str(key or "")})
-        normalized = self.registry.normalize_property_value(node.type_id, key, value)
+        normalized = self.registry.normalize_property_value(
+            node.type_id,
+            key,
+            value,
+            properties=node.properties,
+        )
         normalized_updates = self._contextual_property_updates(node, {key: normalized})
         if not normalized_updates:
             return normalized
@@ -544,9 +555,239 @@ class ValidatedGraphMutation:
                 return self.workspace.nodes[node_id].properties.get("page_number")
         return normalized
 
+    def apply_python_script(
+        self,
+        node_id: str,
+        source: str,
+    ) -> tuple[tuple[str, ...], tuple[str, ...]]:
+        node = self.workspace.nodes[node_id]
+        if node.type_id != "core.python_script":
+            raise ValueError("Python Script Apply requires a core.python_script node.")
+
+        old_spec = self.registry.resolve_spec(node.type_id, node.properties)
+        candidate_seed = {
+            "script": str(source),
+            "timeout_sec": node.properties.get("timeout_sec", 0.0),
+        }
+        candidate_spec = self.registry.resolve_spec(node.type_id, candidate_seed)
+        candidate_values: dict[str, object] = {}
+        reset_keys: list[str] = []
+        for prop in candidate_spec.properties:
+            if prop.key == "script":
+                candidate_values[prop.key] = str(source)
+                continue
+            previous = node.properties.get(prop.key, _MISSING)
+            if previous is not _MISSING and self._python_script_property_value_is_valid(
+                prop,
+                previous,
+            ):
+                candidate_values[prop.key] = copy.deepcopy(previous)
+                continue
+            candidate_values[prop.key] = copy.deepcopy(prop.default)
+            if previous is not _MISSING and previous != prop.default:
+                reset_keys.append(prop.key)
+
+        candidate_properties = self.registry.normalize_properties(
+            node.type_id,
+            candidate_values,
+            include_defaults=True,
+        )
+        candidate_spec = self.registry.resolve_spec(
+            node.type_id,
+            candidate_properties,
+        )
+        candidate_ports = resolve_instance_ports(
+            candidate_spec,
+            candidate_properties,
+            data_types=self.registry.data_types,
+        )
+        self._validate_resolved_port_data_types(candidate_ports)
+        candidate_ports_by_key = {port.key: port for port in candidate_ports}
+        old_ports_by_key = {
+            port.key: port
+            for port in resolve_instance_ports(
+                old_spec,
+                node.properties,
+                data_types=self.registry.data_types,
+            )
+        }
+        semantic_changed_keys = {
+            key
+            for key in old_ports_by_key.keys() & candidate_ports_by_key.keys()
+            if (
+                old_ports_by_key[key].direction,
+                old_ports_by_key[key].kind,
+                old_ports_by_key[key].data_type,
+                old_ports_by_key[key].accepted_data_types,
+                old_ports_by_key[key].data_access,
+            )
+            != (
+                candidate_ports_by_key[key].direction,
+                candidate_ports_by_key[key].kind,
+                candidate_ports_by_key[key].data_type,
+                candidate_ports_by_key[key].accepted_data_types,
+                candidate_ports_by_key[key].data_access,
+            )
+        }
+        structure_changed_keys = {
+            key
+            for key in semantic_changed_keys
+            if old_ports_by_key[key].data_access
+            != candidate_ports_by_key[key].data_access
+        }
+
+        candidate_node = node.clone()
+        candidate_node.properties = copy.deepcopy(candidate_properties)
+        valid_port_keys = set(candidate_ports_by_key)
+        candidate_node.exposed_ports = {
+            key: bool(
+                port.required
+                or (
+                    port.exposed
+                    if key in semantic_changed_keys
+                    else node.exposed_ports.get(key, port.exposed)
+                )
+            )
+            for key, port in candidate_ports_by_key.items()
+        }
+        candidate_node.port_labels = {
+            key: str(value)
+            for key, value in node.port_labels.items()
+            if key in valid_port_keys
+            and key not in semantic_changed_keys
+            and str(value).strip()
+        }
+        candidate_node.port_modifiers = {
+            key: tuple(value)
+            for key, value in node.port_modifiers.items()
+            if key in valid_port_keys
+            and key not in semantic_changed_keys
+            and candidate_ports_by_key[key].kind == "data"
+        }
+        principal_key = str(node.principal_input_port_id or "")
+        principal = candidate_ports_by_key.get(principal_key)
+        candidate_node.principal_input_port_id = (
+            principal_key
+            if principal is not None
+            and principal_key not in semantic_changed_keys
+            and principal.direction == "in"
+            and principal.kind == "data"
+            and principal.data_access != "tree"
+            else None
+        )
+        valid_group_ids = {group.group_id for group in candidate_spec.settings_groups}
+        candidate_node.expanded_settings_group_ids = tuple(
+            group_id
+            for group_id in node.expanded_settings_group_ids
+            if group_id in valid_group_ids
+        )
+
+        candidate_nodes = dict(self.workspace.nodes)
+        candidate_nodes[node_id] = candidate_node
+        candidate_kernel = GraphInvariantKernel(
+            registry=self.registry,
+            workspace_nodes=candidate_nodes,
+            workspace_edges=self.workspace.edges.values(),
+        )
+        removed_edge_ids = self._edge_ids_to_prune(
+            {node_id},
+            kernel=candidate_kernel,
+            forced_port_keys={node_id: structure_changed_keys},
+        )
+
+        node.properties = candidate_node.properties
+        node.exposed_ports = candidate_node.exposed_ports
+        node.port_labels = candidate_node.port_labels
+        node.port_modifiers = candidate_node.port_modifiers
+        node.principal_input_port_id = candidate_node.principal_input_port_id
+        node.expanded_settings_group_ids = candidate_node.expanded_settings_group_ids
+        self.workspace.mark_dirty()
+        for edge_id in removed_edge_ids:
+            self.model._remove_edge_record(self.workspace_id, edge_id)
+        return tuple(reset_keys), tuple(removed_edge_ids)
+
+    @staticmethod
+    def _python_script_property_value_is_valid(prop, value: object) -> bool:
+        if prop.type in {"str", "path"}:
+            return isinstance(value, str)
+        if prop.type == "bool":
+            return isinstance(value, bool)
+        if prop.type == "int":
+            valid = isinstance(value, int) and not isinstance(value, bool)
+        elif prop.type == "float":
+            valid = isinstance(value, Real) and not isinstance(value, bool)
+        elif prop.type == "enum":
+            return isinstance(value, str) and value in prop.enum_values
+        elif prop.type == "interval_1d":
+            if value is None:
+                return bool(prop.nullable)
+            if not isinstance(value, Interval1D):
+                return False
+            values = (value.start, value.end)
+            valid = True
+            if prop.interval_direction == "increasing" and value.start > value.end:
+                valid = False
+            if prop.interval_direction == "decreasing" and value.start < value.end:
+                valid = False
+        elif prop.inline_editor == "list":
+            if not isinstance(value, list):
+                return False
+            if prop.list_item_type == "enum":
+                return all(item in prop.list_item_enum_codes for item in value)
+            expected = {
+                "str": str,
+                "color": str,
+                "int": int,
+                "float": Real,
+            }.get(prop.list_item_type)
+            if expected is None or any(
+                isinstance(item, bool) or not isinstance(item, expected)
+                for item in value
+            ):
+                return False
+            if prop.list_item_type in {"str", "color"}:
+                return True
+            values = tuple(value)
+            valid = True
+        else:
+            return True
+        if not valid:
+            return False
+        if prop.enum_codes and value not in prop.enum_codes:
+            return False
+        numeric_values = values if "values" in locals() else (value,)
+        try:
+            return all(
+                math.isfinite(float(item))
+                and (prop.minimum is None or float(item) >= float(prop.minimum))
+                and (prop.maximum is None or float(item) <= float(prop.maximum))
+                and (
+                    prop.list_item_minimum is None
+                    or float(item) >= float(prop.list_item_minimum)
+                )
+                and (
+                    prop.list_item_maximum is None
+                    or float(item) <= float(prop.list_item_maximum)
+                )
+                for item in numeric_values
+            )
+        except (TypeError, ValueError, OverflowError):
+            return False
+
     def set_node_properties(self, node_id: str, values: dict[str, object]) -> dict[str, object]:
         node = self.workspace.nodes[node_id]
         requested_values = dict(values or {})
+        requested_keys = {
+            str(key or "") for key in requested_values if str(key or "")
+        }
+        if node.type_id == "core.python_script" and "script" in requested_keys:
+            if requested_keys != {"script"}:
+                raise ValueError(
+                    "Python Script source cannot be mixed with other bulk property updates."
+                )
+            source = str(requested_values.get("script", ""))
+            self.apply_python_script(node_id, source)
+            return {"script": source}
         self._reject_dynamic_port_property_writes(
             node,
             {str(key or "") for key in requested_values},
@@ -557,7 +798,12 @@ class ValidatedGraphMutation:
             if not key:
                 continue
             try:
-                normalized = self.registry.normalize_property_value(node.type_id, key, raw_value)
+                normalized = self.registry.normalize_property_value(
+                    node.type_id,
+                    key,
+                    raw_value,
+                    properties=node.properties,
+                )
             except KeyError:
                 continue
             normalized_updates[key] = normalized
@@ -817,8 +1063,25 @@ class ValidatedGraphMutation:
     def _prune_edges_for_nodes(self, affected_node_ids: set[str]) -> list[str]:
         if not affected_node_ids:
             return []
+        removed_edge_ids = self._edge_ids_to_prune(affected_node_ids)
+        for edge_id in removed_edge_ids:
+            self.workspace.edges.pop(edge_id, None)
+        if removed_edge_ids:
+            self.workspace.mark_dirty()
+        return removed_edge_ids
+
+    def _edge_ids_to_prune(
+        self,
+        affected_node_ids: set[str],
+        *,
+        kernel: GraphInvariantKernel | None = None,
+        forced_port_keys: dict[str, set[str]] | None = None,
+    ) -> list[str]:
         workspace = self.workspace
-        kernel = self.kernel
+        kernel = kernel or self.kernel
+        forced_port_keys = forced_port_keys or {}
+        active_edges = list(workspace.edges.values())
+        kernel.workspace_edges = active_edges
         memo = RegistryValidationPassMemo()
         resolved_nodes = kernel.resolve_registry_nodes(memo=memo)
         seen_connections: set[tuple[str, str, str, str]] = set()
@@ -854,6 +1117,17 @@ class ValidatedGraphMutation:
 
         removed_edge_ids: list[str] = []
         for edge_id, edge in affected_edges:
+            if (
+                edge.source_port_key
+                in forced_port_keys.get(edge.source_node_id, set())
+                or edge.target_port_key
+                in forced_port_keys.get(edge.target_node_id, set())
+            ):
+                removed_edge_ids.append(edge_id)
+                active_edges = [item for item in active_edges if item.edge_id != edge_id]
+                kernel.workspace_edges = active_edges
+                memo.invalidate_edges()
+                continue
             resolution = kernel.validate_registry_edge(
                 source_node_id=edge.source_node_id,
                 source_port_key=edge.source_port_key,
@@ -871,11 +1145,10 @@ class ValidatedGraphMutation:
                 seen_connections=seen_connections,
                 occupied_single_target_ports=occupied_single_target_ports,
             ):
-                workspace.edges.pop(edge_id, None)
-                memo.invalidate_edges()
                 removed_edge_ids.append(edge_id)
-        if removed_edge_ids:
-            workspace.mark_dirty()
+                active_edges = [item for item in active_edges if item.edge_id != edge_id]
+                kernel.workspace_edges = active_edges
+                memo.invalidate_edges()
         return removed_edge_ids
 
 

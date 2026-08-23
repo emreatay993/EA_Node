@@ -32,6 +32,16 @@ def _value_result(value: object) -> SettledPortResult:
     return SettledPortResult(status="value", value=DataTree.from_item(value))
 
 
+def _script_result(expression: str) -> str:
+    return (
+        "@corex.node\n"
+        "@corex.input(\"payload\", value_type=corex.Any)\n"
+        "@corex.output(\"result\", value_type=corex.Any)\n"
+        "def run(ctx, payload):\n"
+        f"    return {{\"result\": {expression}}}\n"
+    )
+
+
 class _ConsoleStub:
     def __init__(self) -> None:
         self.logs: list[tuple[str, str]] = []
@@ -381,7 +391,7 @@ class RunControllerUnitTests(unittest.TestCase):
             "Script",
             0,
             0,
-            properties={"script": "result = 'old'"},
+            properties={"script": _script_result("'old'")},
         )
         controller = RunController(host)  # type: ignore[arg-type]
         host.script_editor.dirty = True
@@ -392,7 +402,7 @@ class RunControllerUnitTests(unittest.TestCase):
                 workspace_id,
                 script.node_id,
                 "script",
-                "result = 'draft'",
+                _script_result("'draft'"),
             )
             controller.invalidate_cached_node_elapsed_for_history_action(
                 workspace_id,
@@ -413,7 +423,7 @@ class RunControllerUnitTests(unittest.TestCase):
         runtime_script = next(
             node for node in runtime_workspace.nodes if node.node_id == script.node_id
         )
-        self.assertEqual(runtime_script.properties["script"], "result = 'draft'")
+        self.assertEqual(runtime_script.properties["script"], _script_result("'draft'"))
 
         host.run_state.active_run_id = ""
         host.run_state.active_run_workspace_id = ""
@@ -421,12 +431,12 @@ class RunControllerUnitTests(unittest.TestCase):
         host.model.set_node_property(
             workspace_id,
             script.node_id,
-            "input_names",
-            ["payload", "input1"],
+            "timeout_sec",
+            1.0,
         )
         controller.invalidate_cached_node_elapsed_for_history_action(
             workspace_id,
-            "insert-dynamic-port",
+            "edit-node-property",
             before_snapshot=before,
             after_snapshot=workspace.capture_snapshot(),
         )
@@ -469,7 +479,7 @@ class RunControllerUnitTests(unittest.TestCase):
             "Script",
             0,
             0,
-            properties={"script": "result = 'fresh'"},
+            properties={"script": _script_result("'fresh'")},
         )
         logger = host.model.add_node(workspace_id, "core.logger", "Logger", 160, 0)
         host.model.add_edge(
@@ -680,7 +690,7 @@ class RunControllerUnitTests(unittest.TestCase):
             "Script",
             0,
             0,
-            properties={"script": "result = 'old'"},
+            properties={"script": _script_result("'old'")},
         )
         trigger = host.model.add_node(
             workspace_id,
@@ -694,7 +704,7 @@ class RunControllerUnitTests(unittest.TestCase):
             workspace_id,
             script.node_id,
             "script",
-            "result = 'draft'",
+            _script_result("'draft'"),
         )
         controller = RunController(host)  # type: ignore[arg-type]
 
@@ -707,7 +717,7 @@ class RunControllerUnitTests(unittest.TestCase):
         runtime_script = next(
             node for node in runtime_workspace.nodes if node.node_id == script.node_id
         )
-        self.assertEqual(runtime_script.properties["script"], "result = 'draft'")
+        self.assertEqual(runtime_script.properties["script"], _script_result("'draft'"))
 
     def test_prune_runtime_solution_state_removes_deleted_workspaces_and_triggers(
         self,
@@ -1361,7 +1371,7 @@ class RunControllerUnitTests(unittest.TestCase):
             "Script",
             0,
             0,
-            properties={"script": "result = 'fresh'"},
+            properties={"script": _script_result("'fresh'")},
         )
         controller = RunController(host)  # type: ignore[arg-type]
 
@@ -1461,7 +1471,7 @@ class RunControllerUnitTests(unittest.TestCase):
             "Script",
             0,
             0,
-            properties={"script": "result = 'fresh'"},
+            properties={"script": _script_result("'fresh'")},
         )
         controller = RunController(host)  # type: ignore[arg-type]
 
@@ -1512,7 +1522,7 @@ class RunControllerUnitTests(unittest.TestCase):
             "Upstream",
             0,
             0,
-            properties={"script": "result = 'upstream'"},
+            properties={"script": _script_result("'upstream'")},
         )
         middle = host.model.add_node(
             workspace_id,
@@ -1520,7 +1530,7 @@ class RunControllerUnitTests(unittest.TestCase):
             "Middle",
             180,
             0,
-            properties={"script": "result = 'middle'"},
+            properties={"script": _script_result("'middle'")},
         )
         downstream = host.model.add_node(
             workspace_id,
@@ -1528,7 +1538,7 @@ class RunControllerUnitTests(unittest.TestCase):
             "Downstream",
             360,
             0,
-            properties={"script": "result = 'downstream'"},
+            properties={"script": _script_result("'downstream'")},
         )
         unrelated = host.model.add_node(
             workspace_id,
@@ -1536,7 +1546,7 @@ class RunControllerUnitTests(unittest.TestCase):
             "Unrelated",
             0,
             180,
-            properties={"script": "result = 'unrelated'"},
+            properties={"script": _script_result("'unrelated'")},
         )
         host.model.add_edge(
             workspace_id, upstream.node_id, "result", middle.node_id, "payload"
@@ -1565,7 +1575,7 @@ class RunControllerUnitTests(unittest.TestCase):
         host.run_state.active_run_workspace_id = ""
         before_snapshot = host.model.active_workspace.capture_snapshot()
         host.model.set_node_property(
-            workspace_id, middle.node_id, "script", "result = 'changed'"
+            workspace_id, middle.node_id, "script", _script_result("'changed'")
         )
         after_snapshot = host.model.active_workspace.capture_snapshot()
 
@@ -1680,7 +1690,7 @@ class RunControllerUnitTests(unittest.TestCase):
             "Script",
             160,
             0,
-            properties={"script": "result = 'applied'"},
+            properties={"script": _script_result("'applied'")},
         )
         host.script_editor.dirty = True
         controller = RunController(host)  # type: ignore[arg-type]
@@ -1698,7 +1708,7 @@ class RunControllerUnitTests(unittest.TestCase):
         runtime_script = next(
             node for node in runtime_workspace.nodes if node.node_id == script.node_id
         )
-        self.assertEqual(runtime_script.properties["script"], "result = 'applied'")
+        self.assertEqual(runtime_script.properties["script"], _script_result("'applied'"))
 
     def test_run_workflow_logs_error_when_start_fails(self) -> None:
         host = _RunHostStub()
@@ -2049,7 +2059,7 @@ class RunControllerUnitTests(unittest.TestCase):
             "Script",
             0,
             0,
-            properties={"script": "result = 1"},
+            properties={"script": _script_result("1")},
         )
         controller = RunController(host)  # type: ignore[arg-type]
         host.run_state.active_run_id = "run_warning"
@@ -2098,7 +2108,9 @@ class RunControllerUnitTests(unittest.TestCase):
             warning_messages=("Review the result.",),
         )
         before_snapshot = host.model.active_workspace.capture_snapshot()
-        host.model.set_node_property(workspace_id, node.node_id, "script", "result = 2")
+        host.model.set_node_property(
+            workspace_id, node.node_id, "script", _script_result("2")
+        )
         after_snapshot = host.model.active_workspace.capture_snapshot()
         controller.invalidate_cached_node_elapsed_for_history_action(
             workspace_id,
@@ -2114,7 +2126,9 @@ class RunControllerUnitTests(unittest.TestCase):
         host.run_state.active_run_workspace_id = workspace_id
         controller.mark_node_execution_running(workspace_id, node.node_id)
         before_snapshot = host.model.active_workspace.capture_snapshot()
-        host.model.set_node_property(workspace_id, node.node_id, "script", "result = 3")
+        host.model.set_node_property(
+            workspace_id, node.node_id, "script", _script_result("3")
+        )
         after_snapshot = host.model.active_workspace.capture_snapshot()
         controller.invalidate_cached_node_elapsed_for_history_action(
             workspace_id,

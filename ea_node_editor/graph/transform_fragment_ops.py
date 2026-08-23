@@ -270,6 +270,7 @@ def _insert_graph_fragment_operation(
         spec = registry.spec_or_none(fragment_node.type_id) if registry is not None else None
         expanded_settings_group_ids = fragment_node.expanded_settings_group_ids
         if spec is not None:
+            spec = registry.resolve_spec(fragment_node.type_id, fragment_node.properties)
             requested_group_ids = set(expanded_settings_group_ids)
             expanded_settings_group_ids = tuple(
                 group.group_id

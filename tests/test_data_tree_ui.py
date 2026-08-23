@@ -4,13 +4,17 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
 
+import pytest
+
 from ea_node_editor.graph.model import GraphModel
+from ea_node_editor.nodes.builtins.core import PYTHON_SCRIPT_DEFAULT_SOURCE
 from ea_node_editor.nodes.bootstrap import build_default_registry
 from ea_node_editor.ui.shell.controllers.project_session_services_support.document_io_service import (
     ProjectDocumentIOService,
 )
 from ea_node_editor.ui.shell.runtime_history import (
     ACTION_INSERT_DYNAMIC_PORT,
+    ACTION_EDIT_NODE_PROPERTY,
     ACTION_REMOVE_DYNAMIC_PORT,
     ACTION_RENAME_DYNAMIC_PORT,
     RuntimeGraphHistory,
@@ -175,7 +179,7 @@ def test_dynamic_port_mutations_publish_targeted_updates_and_preserve_selection(
     assert selected_events == []
 
 
-def test_dynamic_port_key_rename_prunes_edges_and_sparse_state_with_undo_redo() -> None:
+def test_python_script_decorator_apply_prunes_edges_and_sparse_state_with_undo_redo() -> None:
     registry = build_default_registry()
     model = GraphModel()
     workspace = model.active_workspace
@@ -189,38 +193,38 @@ def test_dynamic_port_key_rename_prunes_edges_and_sparse_state_with_undo_redo() 
     history = RuntimeGraphHistory()
     scene.bind_runtime_history(history)
 
-    renamed = scene.rename_dynamic_port(
-        target_id,
-        "inputs",
-        "payload",
-        "renamed_payload",
-    )
+    renamed_source = '''@corex.node
+@corex.input("renamed_payload", value_type=corex.Any)
+@corex.output("result", value_type=corex.Any)
+def run(ctx, renamed_payload):
+    return {"result": renamed_payload}
+'''
+    scene.set_node_property(target_id, "script", renamed_source)
 
-    assert renamed == {
-        "previous_port_key": "payload",
-        "port_key": "renamed_payload",
-        "removed_edge_ids": [edge_id],
-    }
-    assert workspace.nodes[target_id].properties["input_names"] == ["renamed_payload"]
+    assert workspace.nodes[target_id].properties["script"] == renamed_source
     assert edge_id not in workspace.edges
     assert workspace.nodes[target_id].port_modifiers == {}
     assert workspace.nodes[target_id].principal_input_port_id is None
     assert history.undo_depth(workspace.workspace_id) == 1
+    assert (
+        history._undo_stacks[workspace.workspace_id][-1].action_type  # noqa: SLF001
+        == ACTION_EDIT_NODE_PROPERTY
+    )
 
     assert history.undo_workspace(workspace.workspace_id, workspace) is not None
-    assert workspace.nodes[target_id].properties["input_names"] == ["payload"]
+    assert workspace.nodes[target_id].properties["script"] == PYTHON_SCRIPT_DEFAULT_SOURCE
     assert edge_id in workspace.edges
     assert workspace.nodes[target_id].port_modifiers == {"payload": ("graft",)}
     assert workspace.nodes[target_id].principal_input_port_id == "payload"
 
     assert history.redo_workspace(workspace.workspace_id, workspace) is not None
-    assert workspace.nodes[target_id].properties["input_names"] == ["renamed_payload"]
+    assert workspace.nodes[target_id].properties["script"] == renamed_source
     assert edge_id not in workspace.edges
     assert workspace.nodes[target_id].port_modifiers == {}
     assert workspace.nodes[target_id].principal_input_port_id is None
 
 
-def test_dynamic_port_validation_errors_return_backend_messages() -> None:
+def test_python_script_declaration_errors_leave_scene_unchanged() -> None:
     registry = build_default_registry()
     model = GraphModel()
     workspace = model.active_workspace
@@ -228,19 +232,10 @@ def test_dynamic_port_validation_errors_return_backend_messages() -> None:
     scene.set_workspace(model, registry, workspace.workspace_id)
     script_id = scene.add_node_from_type("core.python_script", 40.0, 40.0)
 
-    error = scene.rename_dynamic_port(
-        script_id,
-        "inputs",
-        "payload",
-        "not valid",
-    )
-
-    assert error == {
-        "error": {
-            "message": "Dynamic port group inputs key rename failed.",
-        }
-    }
-    assert workspace.nodes[script_id].properties["input_names"] == ["payload"]
+    before = workspace.nodes[script_id].clone()
+    with pytest.raises(ValueError, match="line"):
+        scene.set_node_property(script_id, "script", "@corex.node\ndef run(")
+    assert workspace.nodes[script_id] == before
 
 
 def test_open_project_shows_migration_report_after_finalization_without_overwriting_source(

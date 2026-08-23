@@ -20,6 +20,8 @@ Use this for `.cxproj` documents, serializers, migrations, workspace-scoped proj
 - Persistent `ImageValue` properties externalize to content-addressed PNG sidecars only at save time.
 - Save and Save As use the generic staged/managed artifact paths; no product-specific importer owns a special promotion path.
 - Keep protected properties encrypted and reject unresolved add-ons before final writes.
+- Persist Python Script source and authored decorator settings as ordinary node
+  properties; resolve the declaration from source instead of storing a second manifest.
 
 ## Focused Tests
 - `tests/test_serializer.py`

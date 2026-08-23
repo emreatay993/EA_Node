@@ -911,6 +911,8 @@ def build_ansys_dpf_operator_catalog_document() -> dict[str, object]:
             payload.pop("readiness_requirements")
         if not descriptor.spec.dynamic_port_groups:
             payload.pop("dynamic_port_groups")
+        if descriptor.spec.instance_spec_resolver is None:
+            payload.pop("instance_spec_resolver")
         for port in payload["ports"]:
             if port["direction"] != "in" and port["required"] is None:
                 port["required"] = False

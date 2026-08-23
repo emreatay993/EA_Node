@@ -11,6 +11,7 @@ from PyQt6.QtCore import QObject, QPointF, QMarginsF, QRectF, QUrl
 from PyQt6.QtGui import QImage, QPainter, QPageLayout, QPageSize, QPdfWriter
 
 from ea_node_editor.nodes.builtins.ansys_dpf_common import DPF_VIEWER_NODE_TYPE_ID
+from ea_node_editor.nodes.builtins.core import PYTHON_SCRIPT_DEFAULT_SOURCE
 from ea_node_editor.nodes.builtins.ansys_dpf_viewer import DpfViewerNodePlugin
 from ea_node_editor.nodes.builtins.engineering_viewer import (
     ENGINEERING_VIEWER_NODE_TYPE_ID,
@@ -1087,7 +1088,7 @@ class ContentFullscreenBridgeTests(MainWindowShellTestBase):
         node_id = self.window.scene.add_node_from_type("core.python_script", x=120.0, y=80.0)
         workspace_id = self.window.workspace_manager.active_workspace_id()
         workspace = self.window.model.project.workspaces[workspace_id]
-        workspace.nodes[node_id].properties["script"] = "result = payload\n"
+        workspace.nodes[node_id].properties["script"] = PYTHON_SCRIPT_DEFAULT_SOURCE
         self.app.processEvents()
 
         bridge = self._bridge()
@@ -1103,7 +1104,7 @@ class ContentFullscreenBridgeTests(MainWindowShellTestBase):
         self.assertEqual(bridge.web_editor_payload, {})
         self.assertEqual(bridge.tabular_payload, {})
         self.assertEqual(self.window.script_editor.current_node_id, node_id)
-        self.assertEqual(self.window.script_editor.script_text, "result = payload\n")
+        self.assertEqual(self.window.script_editor.script_text, PYTHON_SCRIPT_DEFAULT_SOURCE)
 
     def test_content_fullscreen_script_reopen_preserves_same_node_dirty_draft(
         self,
@@ -1115,13 +1116,14 @@ class ContentFullscreenBridgeTests(MainWindowShellTestBase):
         )
         self.window.scene.focus_node(node_id)
         self.app.processEvents()
-        self.window.script_editor.set_script_text("result = payload + 1\n")
+        draft = PYTHON_SCRIPT_DEFAULT_SOURCE.replace("payload}", "payload + 1}")
+        self.window.script_editor.set_script_text(draft)
 
         bridge = self._bridge()
         self.assertTrue(bridge.request_open_node(node_id))
 
         self.assertEqual(self.window.script_editor.current_node_id, node_id)
-        self.assertEqual(self.window.script_editor.script_text, "result = payload + 1\n")
+        self.assertEqual(self.window.script_editor.script_text, draft)
         self.assertTrue(self.window.script_editor.dirty)
 
     def test_content_fullscreen_bridge_opens_excalidraw_board_as_web_editor_payload(self) -> None:

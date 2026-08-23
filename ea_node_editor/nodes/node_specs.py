@@ -659,6 +659,9 @@ class NodeTypeSpec:
     settings_groups: tuple[SettingsGroupSpec, ...] = ()
     readiness_requirements: tuple[ReadinessRequirementSpec, ...] = ()
     dynamic_port_groups: tuple[DynamicPortGroupSpec, ...] = ()
+    instance_spec_resolver: Callable[
+        ["NodeTypeSpec", Mapping[str, object]], "NodeTypeSpec"
+    ] | None = None
 
     def __post_init__(self) -> None:
         object.__setattr__(

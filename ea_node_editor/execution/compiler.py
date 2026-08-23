@@ -253,11 +253,20 @@ def _registry_validation_context(
         GraphInvariantKernel,
         RegistryValidationPassMemo,
     )
+    validation_nodes = {}
+    for node_id, node in workspace_nodes.items():
+        try:
+            registry.resolve_spec(node.type_id, node.properties)
+        except (TypeError, ValueError):
+            if node.type_id != "core.python_script":
+                raise
+            continue
+        validation_nodes[node_id] = node
 
     return (
         GraphInvariantKernel(
             registry=registry,
-            workspace_nodes=dict(workspace_nodes),
+            workspace_nodes=validation_nodes,
         ),
         RegistryValidationPassMemo(),
     )

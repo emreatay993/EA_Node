@@ -522,6 +522,9 @@ class NodeExecutor:
             node_id, started_at_epoch_ms=started_at_epoch_ms
         )
         try:
+            preflight_error = self._plan.node_preflight_errors.get(node_id)
+            if preflight_error is not None:
+                raise preflight_error
             properties = self._registry.normalize_properties(
                 node_type_id,
                 dict(node.properties),

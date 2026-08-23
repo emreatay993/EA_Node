@@ -5,6 +5,7 @@ from types import SimpleNamespace
 import unittest
 from unittest import mock
 
+from ea_node_editor.nodes.builtins.core import PYTHON_SCRIPT_DEFAULT_SOURCE
 from ea_node_editor.ui_qml.script_editor_model import ScriptEditorModel
 from tests.main_window_shell.base import MainWindowShellTestBase
 from tests.shell_isolation_runtime import format_child_output
@@ -26,7 +27,7 @@ class ScriptEditorDockTests(MainWindowShellTestBase):
         script_node_id = self.window.scene.add_node_from_type("core.python_script", x=40.0, y=40.0)
         workspace_id = self.window.workspace_manager.active_workspace_id()
         workspace = self.window.model.project.workspaces[workspace_id]
-        workspace.nodes[script_node_id].properties["script"] = "result = 42"
+        workspace.nodes[script_node_id].properties["script"] = PYTHON_SCRIPT_DEFAULT_SOURCE
 
         self.window.scene.focus_node(script_node_id)
         self.app.processEvents()
@@ -36,12 +37,16 @@ class ScriptEditorDockTests(MainWindowShellTestBase):
         self.assertEqual(self.window.script_editor.current_node_id, script_node_id)
         self.assertEqual(self.window.script_editor.current_node_label, workspace.nodes[script_node_id].title)
         self.assertNotIn(script_node_id, self.window.script_editor.current_node_label)
-        self.assertIn("result = 42", self.window.script_editor.script_text)
+        self.assertIn("@corex.node", self.window.script_editor.script_text)
 
-        self.window.script_editor.set_script_text("result = payload\nx = 7\n")
+        updated_source = PYTHON_SCRIPT_DEFAULT_SOURCE.replace(
+            'return {"result": payload}',
+            'return {"result": payload, **({} if ctx is None else {})}',
+        )
+        self.window.script_editor.set_script_text(updated_source)
         self.assertTrue(self.window.script_editor.apply())
         self.app.processEvents()
-        self.assertEqual(workspace.nodes[script_node_id].properties["script"], "result = payload\nx = 7\n")
+        self.assertEqual(workspace.nodes[script_node_id].properties["script"], updated_source)
         self.assertFalse(self.window.script_editor.dirty)
 
     def test_script_apply_failure_keeps_draft_dirty(self) -> None:
@@ -60,7 +65,34 @@ class ScriptEditorDockTests(MainWindowShellTestBase):
         self.assertTrue(editor.dirty)
         self.assertEqual(editor.script_text, "result = payload + 1")
 
-    def test_script_draft_survives_same_node_dynamic_port_refresh(self) -> None:
+    def test_numeric_overflow_draft_stays_dirty_and_leaves_graph_unchanged(self) -> None:
+        script_node_id = self.window.scene.add_node_from_type(
+            "core.python_script", x=40.0, y=40.0
+        )
+        workspace = self.window.model.active_workspace
+        applied_source = workspace.nodes[script_node_id].properties["script"]
+        self.window.scene.focus_node(script_node_id)
+        self.window.set_script_editor_panel_visible(True)
+        self.app.processEvents()
+
+        huge = "9" * 400
+        self.window.script_editor.set_script_text(
+            f'''@corex.node
+@corex.slider("scale", default={huge}, minimum=0.0, maximum=1.0)
+def run(ctx, scale):
+    return {{}}
+'''
+        )
+        self.assertFalse(self.window.script_editor.apply())
+        self.app.processEvents()
+
+        self.assertEqual(
+            workspace.nodes[script_node_id].properties["script"], applied_source
+        )
+        self.assertTrue(self.window.script_editor.dirty)
+        self.assertGreaterEqual(self.window.console_panel.error_count, 1)
+
+    def test_script_draft_survives_same_node_property_refresh(self) -> None:
         script_node_id = self.window.scene.add_node_from_type(
             "core.python_script",
             x=40.0,
@@ -69,24 +101,20 @@ class ScriptEditorDockTests(MainWindowShellTestBase):
         self.window.scene.focus_node(script_node_id)
         self.window.set_script_editor_panel_visible(True)
         self.app.processEvents()
-        self.window.script_editor.set_script_text("result = payload + 1")
+        draft = PYTHON_SCRIPT_DEFAULT_SOURCE.replace("payload}", "payload + 1}")
+        self.window.script_editor.set_script_text(draft)
 
         with mock.patch.object(
             self.window.script_editor,
             "set_node",
             wraps=self.window.script_editor.set_node,
         ) as set_node:
-            new_port_key = self.window.scene.insert_dynamic_port(
-                script_node_id,
-                "inputs",
-                1,
-            )
+            self.window.scene.set_node_property(script_node_id, "timeout_sec", 1.0)
             self.app.processEvents()
 
-        self.assertTrue(new_port_key)
         set_node.assert_not_called()
         self.assertTrue(self.window.script_editor.dirty)
-        self.assertEqual(self.window.script_editor.script_text, "result = payload + 1")
+        self.assertEqual(self.window.script_editor.script_text, draft)
 
     def test_script_editor_state_persists_in_metadata(self) -> None:
         self.assertFalse(self.window.model.project.metadata["ui"]["script_editor"]["visible"])
@@ -119,13 +147,15 @@ class ScriptEditorDockTests(MainWindowShellTestBase):
         script_node_id = self.window.scene.add_node_from_type("core.python_script", x=40.0, y=40.0)
         workspace_id = self.window.workspace_manager.active_workspace_id()
         workspace = self.window.model.project.workspaces[workspace_id]
-        workspace.nodes[script_node_id].properties["script"] = "alpha = 1\nbeta = 2\n"
+        workspace.nodes[script_node_id].properties["script"] = PYTHON_SCRIPT_DEFAULT_SOURCE
 
         self.window.scene.focus_node(script_node_id)
         self.window.set_script_editor_panel_visible(True)
         self.app.processEvents()
 
-        self.window.script_editor.set_script_text("alpha = 123\nbeta = 2\n")
+        self.window.script_editor.set_script_text(
+            PYTHON_SCRIPT_DEFAULT_SOURCE.replace("payload}", "payload + 123}")
+        )
         self.window.script_editor.set_cursor_metrics(1, 6, 5, 5)
         self.app.processEvents()
 
