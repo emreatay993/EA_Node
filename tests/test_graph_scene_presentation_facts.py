@@ -407,6 +407,23 @@ def test_targeted_node_and_edge_builds_create_only_invocation_local_presentation
 
 
 def test_named_settings_groups_project_collapsed_and_expanded_port_anchors_without_topology_changes() -> None:
+    def bottom_clearance(payload: dict[str, object]) -> float:
+        groups = payload["settings_groups"]
+        band = payload["settings_band"]
+        content_bottom = max(
+            [
+                group["header"]["y"] + group["header"]["height"]
+                for group in groups
+            ]
+            + [
+                item["y"] + item["height"]
+                for group in groups
+                for item in group["items"]
+                if item["visible"]
+            ]
+        )
+        return band["top"] + band["height"] - content_bottom
+
     source_payload, collapsed_payload, collapsed_edges, connection_payload = _settings_group_scene()
 
     assert "settings_groups" not in source_payload
@@ -414,6 +431,7 @@ def test_named_settings_groups_project_collapsed_and_expanded_port_anchors_witho
     assert all("presentation_anchor" not in port for port in source_payload["ports"])
     assert [group["group_id"] for group in collapsed_payload["settings_groups"]] == ["general", "plot"]
     assert collapsed_payload["settings_band"]["height"] > 0.0
+    assert bottom_clearance(collapsed_payload) == pytest.approx(18.0)
     assert collapsed_payload["port_presentation"]["total_row_count"] == 1
     assert collapsed_payload["inline_properties"] == []
 
@@ -444,6 +462,7 @@ def test_named_settings_groups_project_collapsed_and_expanded_port_anchors_witho
     expanded_ports = {port["key"]: port for port in expanded_payload["ports"]}
     assert expanded_payload["settings_groups"][0]["expanded"] is True
     assert expanded_payload["settings_groups"][1]["expanded"] is False
+    assert bottom_clearance(expanded_payload) == pytest.approx(18.0)
     assert expanded_ports["width"]["handle_visible"] is True
     assert expanded_ports["height"]["handle_visible"] is True
     assert expanded_ports["font_size"]["handle_visible"] is False

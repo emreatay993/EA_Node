@@ -1043,6 +1043,22 @@ class PassiveGraphSurfaceHostTests(PassiveGraphSurfaceHostTestBase):
                     if str(item.property("groupId")) == group_id
                 )
 
+            def assert_settings_bottom_clearance(target_host):
+                candidates = (
+                    named_child_items(target_host, "graphNodeSettingsGroupHeader")
+                    + named_child_items(target_host, "graphNodeSettingsGroupInlineProperty")
+                )
+                visible_items = [item for item in candidates if item.isVisible()]
+                content_bottom = max(
+                    item.mapToItem(target_host, QPointF(0.0, item.height())).y()
+                    for item in visible_items
+                )
+                assert float(target_host.height()) - content_bottom >= 17.5, (
+                    "settings-bottom-clearance",
+                    target_host.height(),
+                    content_bottom,
+                )
+
             def click_item(item):
                 point = item.mapToScene(QPointF(item.width() * 0.5, item.height() * 0.5))
                 QTest.mouseClick(
@@ -1054,6 +1070,7 @@ class PassiveGraphSurfaceHostTests(PassiveGraphSurfaceHostTestBase):
                 settle_events(1)
 
             collapsed_height = float(host.height())
+            assert_settings_bottom_clearance(host)
             general_header = group_header("general_options")
             click_item(general_header)
             assert node.expanded_settings_group_ids == ("general_options",)
@@ -1072,6 +1089,7 @@ class PassiveGraphSurfaceHostTests(PassiveGraphSurfaceHostTestBase):
             settle_events(3)
             assert not bool(host.property("settingsGroupAnimationRunning"))
             assert abs(float(host.height()) - general_target) < 0.75
+            assert_settings_bottom_clearance(host)
             width_slider = named_item(host, "graphNodeInlineSliderEditor", "width")
             list_candidates = named_child_items(host, "graphNodeInlineListEditor")
             labels_list = next(
@@ -1148,6 +1166,7 @@ class PassiveGraphSurfaceHostTests(PassiveGraphSurfaceHostTestBase):
             QTest.qWait(220)
             settle_events(3)
             assert abs(float(host.height()) - signal_target) < 0.75, ("signal-expand-final", host.height(), signal_target)
+            assert_settings_bottom_clearance(host)
             interval = named_item(host, "graphNodeInlineIntervalFieldsEditor", "x_axis_interval")
             colors_list = named_item(host, "graphNodeInlineListEditor", "colors")
             auto_button = interval.findChild(QObject, "graphSurfaceIntervalAutoButton")
@@ -1259,6 +1278,7 @@ class PassiveGraphSurfaceHostTests(PassiveGraphSurfaceHostTestBase):
             QTest.qWait(180)
             settle_events(3)
             assert abs(float(future_host.height()) - float(future_expanded["height"])) < 0.75, ("future-final", future_host.height(), future_expanded["height"])
+            assert_settings_bottom_clearance(future_host)
 
             future_host.setProperty("settingsGroupAnimationsEnabled", False)
             future_header = next(
@@ -1271,6 +1291,7 @@ class PassiveGraphSurfaceHostTests(PassiveGraphSurfaceHostTestBase):
             settle_events(2)
             assert not bool(future_host.property("settingsGroupAnimationRunning"))
             assert abs(float(future_host.height()) - float(future_collapsed["height"])) < 0.75
+            assert_settings_bottom_clearance(future_host)
 
             dispose_host_window(future_host, future_window)
             dispose_host_window(host, window)

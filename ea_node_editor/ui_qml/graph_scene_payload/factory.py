@@ -74,6 +74,9 @@ from ea_node_editor.ui_qml.graph_scene_payload.normalize import (
 )
 
 
+_SETTINGS_BAND_BOTTOM_CLEARANCE = 18.0
+
+
 @dataclass(frozen=True, slots=True)
 class PayloadBuildContext:
     """Frozen per-node build inputs handed to kind contributors.
@@ -501,7 +504,12 @@ class _GraphSceneNodePayloadFactory:
                 )
             )
 
-        band_height = max(0.0, cursor_y - float(settings_band_top)) if band_visible else 0.0
+        band_height = (
+            max(0.0, cursor_y - float(settings_band_top))
+            + _SETTINGS_BAND_BOTTOM_CLEARANCE
+            if band_visible
+            else 0.0
+        )
         return _PortPresentationLayout(
             total_row_count=max_row + 1,
             item_by_port_key=MappingProxyType(item_by_key),
