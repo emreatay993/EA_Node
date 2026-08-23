@@ -19,43 +19,11 @@ from ea_node_editor.graph.record_payloads import (
     node_instance_to_mapping,
 )
 from ea_node_editor.nodes.bootstrap import build_default_registry
-from ea_node_editor.nodes.decorators import node_type
-from ea_node_editor.nodes.types import ExecutionContext, NodeResult
 from ea_node_editor.ui.shell.runtime_history import RuntimeGraphHistory
 from ea_node_editor.ui_qml.graph_canvas_bridge import GraphCanvasBridge
 from ea_node_editor.ui_qml.graph_scene_bridge import GraphSceneBridge
 
 _REPO_ROOT = Path(__file__).resolve().parents[1]
-
-
-def _optimization_node(type_id: str, display_name: str):
-    return node_type(
-        type_id=type_id,
-        display_name=display_name,
-        category_path=("Tests",),
-        icon="circle",
-        ports=(),
-        properties=(),
-        runtime_behavior="passive",
-    )
-
-
-@_optimization_node(OPTIMIZATION_PARAMETER_SETUP_TYPE_ID, "Parameter Setup")
-class _ParameterSetupNode:
-    def execute(self, _ctx: ExecutionContext) -> NodeResult:
-        return NodeResult(outputs={})
-
-
-@_optimization_node(OPTIMIZATION_PARAMETER_POOL_TYPE_ID, "Parameter Pool")
-class _ParameterPoolNode:
-    def execute(self, _ctx: ExecutionContext) -> NodeResult:
-        return NodeResult(outputs={})
-
-
-@_optimization_node(OPTIMIZATION_RESPONSE_POOL_TYPE_ID, "Response Pool")
-class _ResponsePoolNode:
-    def execute(self, _ctx: ExecutionContext) -> NodeResult:
-        return NodeResult(outputs={})
 
 
 def _scene_fixture() -> tuple[
@@ -65,9 +33,6 @@ def _scene_fixture() -> tuple[
     GraphCanvasBridge,
 ]:
     registry = build_default_registry()
-    registry.register(_ParameterSetupNode)
-    registry.register(_ParameterPoolNode)
-    registry.register(_ResponsePoolNode)
     model = GraphModel()
     workspace_id = model.active_workspace.workspace_id
     scene = GraphSceneBridge()

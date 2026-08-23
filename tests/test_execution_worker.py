@@ -73,6 +73,7 @@ from ea_node_editor.nodes.ansys_dpf_data_types import (
 from ea_node_editor.nodes.decorators import node_type
 from ea_node_editor.nodes.output_artifacts import register_staged_artifact
 from ea_node_editor.nodes.plugin_contracts import PluginContractManifest
+from ea_node_editor.nodes.registry import NodeRegistry
 from ea_node_editor.nodes.types import (
     ExecutionContext,
     NodeResult,
@@ -535,6 +536,23 @@ class _OptimizationParameterPoolPlugin:
         _OPTIMIZATION_EXECUTION_ORDER.append((ctx.run_id, ctx.node_id))
         _OPTIMIZATION_STATE_READS[ctx.run_id] = ctx.read_node_state(ctx.node_id)
         return NodeResult(outputs={"reverse": "pool"})
+
+
+def _build_optimization_worker_test_registry() -> NodeRegistry:
+    default_registry = build_default_registry()
+    replaced_type_ids = {
+        OPTIMIZATION_PARAMETER_SETUP_TYPE_ID,
+        OPTIMIZATION_PARAMETER_POOL_TYPE_ID,
+    }
+    registry = NodeRegistry(data_types=default_registry.data_types)
+    registry.register_descriptors(
+        descriptor
+        for descriptor in default_registry.all_descriptors()
+        if descriptor.spec.type_id not in replaced_type_ids
+    )
+    registry.register(_OptimizationParameterSetupPlugin)
+    registry.register(_OptimizationParameterPoolPlugin)
+    return registry
 
 
 class ExecutionWorkerTests(unittest.TestCase):
@@ -1561,9 +1579,7 @@ class ExecutionWorkerTests(unittest.TestCase):
             )
         )
 
-        registry = build_default_registry()
-        registry.register(_OptimizationParameterSetupPlugin)
-        registry.register(_OptimizationParameterPoolPlugin)
+        registry = _build_optimization_worker_test_registry()
         runtime_snapshot = self._runtime_snapshot(model, registry=registry)
         first_command = _catalog_start_run_command(
             {
@@ -1689,9 +1705,7 @@ class ExecutionWorkerTests(unittest.TestCase):
     def test_parameter_setup_hidden_ordering_rejects_cycles_and_invalid_links(
         self,
     ) -> None:
-        registry = build_default_registry()
-        registry.register(_OptimizationParameterSetupPlugin)
-        registry.register(_OptimizationParameterPoolPlugin)
+        registry = _build_optimization_worker_test_registry()
 
         cycle_model = GraphModel()
         cycle_workspace = cycle_model.active_workspace
