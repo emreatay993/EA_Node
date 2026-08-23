@@ -1,9 +1,16 @@
 from __future__ import annotations
 
+import base64
 import unittest
 from unittest import mock
 
-from ea_node_editor.execution.protocol import RootExecutionError, SettledPortResult
+from ea_node_editor.execution.protocol import (
+    NodeSettledEvent,
+    RootExecutionError,
+    SettledPortResult,
+    TriggerCaptureSettledEvent,
+    event_to_dict,
+)
 from ea_node_editor.graph.model import GraphModel
 from ea_node_editor.nodes.bootstrap import build_default_registry
 from ea_node_editor.nodes.types import (
@@ -18,7 +25,12 @@ from ea_node_editor.ui.shell.controllers.run_controller import RunController
 from ea_node_editor.ui.shell.state import ShellRunState
 from ea_node_editor.ui.support.port_flow_state import resolve_runtime_port_flow_states
 from ea_node_editor.ui_qml.graph_scene_payload import GraphScenePayloadBuilder
-from ea_node_editor.runtime_contracts import DataTree
+from ea_node_editor.runtime_contracts import DataTree, ImageValue
+
+
+_PNG_BYTES = base64.b64decode(
+    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGNgYGBgAAAABQABpfZFQAAAAABJRU5ErkJggg=="
+)
 
 
 def _value_outputs(**values: object) -> dict[str, SettledPortResult]:
@@ -679,6 +691,69 @@ class RunControllerUnitTests(unittest.TestCase):
         self.assertEqual(host.run_state.trigger_publications_by_workspace_id, {})
         self.assertEqual(
             host.run_state.current_trigger_capture_node_ids_by_workspace_id, {}
+        )
+
+    def test_semantic_runtime_carrier_settlements_use_active_catalog(self) -> None:
+        host = _RunHostStub()
+        workspace_id = host.model.active_workspace.workspace_id
+        signal = host.model.add_node(
+            workspace_id, "plot.signal", "Signal Plot", 0, 0
+        )
+        trigger = host.model.add_node(
+            workspace_id, "core.trigger", "Trigger", 200, 0
+        )
+        controller = RunController(host)  # type: ignore[arg-type]
+        host.run_state.active_run_id = "run_live"
+        host.run_state.active_run_workspace_id = workspace_id
+
+        controller.handle_execution_event(
+            {
+                "type": "node_started",
+                "run_id": "run_live",
+                "workspace_id": workspace_id,
+                "node_id": signal.node_id,
+                "started_at_epoch_ms": 1.0,
+            }
+        )
+        image_result = _value_result(ImageValue.from_png(_PNG_BYTES))
+        controller.handle_execution_event(
+            event_to_dict(
+                NodeSettledEvent(
+                    run_id="run_live",
+                    workspace_id=workspace_id,
+                    node_id=signal.node_id,
+                    elapsed_ms=25.0,
+                    outputs={"image": image_result},
+                ),
+                catalog=host.registry.data_types,
+            )
+        )
+
+        self.assertNotIn(signal.node_id, host.run_state.running_node_ids)
+        self.assertIn(signal.node_id, host.run_state.completed_node_ids)
+        self.assertEqual(
+            host.run_state.cached_node_elapsed_ms_by_workspace_id[workspace_id][
+                signal.node_id
+            ],
+            25.0,
+        )
+
+        controller.handle_execution_event(
+            event_to_dict(
+                TriggerCaptureSettledEvent(
+                    run_id="run_live",
+                    workspace_id=workspace_id,
+                    trigger_node_id=trigger.node_id,
+                    result=image_result,
+                ),
+                catalog=host.registry.data_types,
+            )
+        )
+        self.assertEqual(
+            host.run_state.latest_trigger_inputs_by_workspace_id[workspace_id][
+                trigger.node_id
+            ],
+            image_result,
         )
 
     def test_trigger_applies_dirty_script_before_building_snapshot(self) -> None:

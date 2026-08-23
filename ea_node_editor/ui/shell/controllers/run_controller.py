@@ -614,7 +614,10 @@ class RunController:
             warning_messages = self._normalize_warning_messages(
                 event.get("warnings", ())
             )
-            outputs = normalize_settled_output_mapping(event.get("outputs", {}))
+            outputs = normalize_settled_output_mapping(
+                event.get("outputs", {}),
+                catalog=self._host.registry.data_types,
+            )
             errors = normalize_root_execution_errors(event.get("errors", ()))
             settled_event = dict(event)
             settled_event["outputs"] = outputs
@@ -638,7 +641,10 @@ class RunController:
             workspace_id = self._event_workspace_id(event)
             trigger_node_id = str(event.get("trigger_node_id", "") or "").strip()
             if workspace_id and trigger_node_id:
-                result = normalize_settled_port_result(event.get("result", {}))
+                result = normalize_settled_port_result(
+                    event.get("result", {}),
+                    catalog=self._host.registry.data_types,
+                )
                 if event_type == "trigger_capture_settled":
                     self._state.latest_trigger_inputs_by_workspace_id.setdefault(
                         workspace_id, {}
