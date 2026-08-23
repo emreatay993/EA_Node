@@ -83,6 +83,13 @@ _STANDARD_INLINE_LABEL_TEXT_PADDING = 4.0
 _STANDARD_INLINE_ROW_HORIZONTAL_MARGIN = 6.0
 _STANDARD_INLINE_ENUM_COMBO_CHROME_WIDTH = 62.0
 _STANDARD_INLINE_ENUM_COMBO_MIN_WIDTH = 124.0
+_STANDARD_INLINE_LIST_ADD_GAP = 4.0
+_STANDARD_INLINE_LIST_ADD_HEIGHT = 26.0
+_STANDARD_INLINE_LIST_FALLBACK_ROW_HEIGHT = 142.0
+_STANDARD_INLINE_LIST_ITEM_HEIGHT = 28.0
+_STANDARD_INLINE_LIST_ITEM_SPACING = 3.0
+_STANDARD_INLINE_LIST_VISIBLE_ITEM_CAP = 3
+_STANDARD_INLINE_LIST_VALUE_UNSET = object()
 _STANDARD_HEADER_BODY_GAP = max(
     0.0,
     STANDARD_BODY_TOP - (STANDARD_HEADER_TOP_MARGIN + STANDARD_HEADER_HEIGHT),
@@ -264,10 +271,35 @@ def standard_inline_textarea_row_height(value: object = DEFAULT_GRAPH_LABEL_PIXE
     return float(max(96, int(round(standard_inline_row_height(value) * 4.0))))
 
 
+def standard_inline_list_row_height(
+    list_value: object = _STANDARD_INLINE_LIST_VALUE_UNSET,
+    *,
+    graph_label_pixel_size: object = DEFAULT_GRAPH_LABEL_PIXEL_SIZE,
+) -> float:
+    if list_value is _STANDARD_INLINE_LIST_VALUE_UNSET:
+        return _STANDARD_INLINE_LIST_FALLBACK_ROW_HEIGHT
+    try:
+        item_count = max(0, len(list_value))
+    except TypeError:
+        item_count = 0
+    visible_item_count = min(item_count, _STANDARD_INLINE_LIST_VISIBLE_ITEM_CAP)
+    visible_items_height = (
+        visible_item_count * _STANDARD_INLINE_LIST_ITEM_HEIGHT
+        + max(0, visible_item_count - 1) * _STANDARD_INLINE_LIST_ITEM_SPACING
+    )
+    return float(
+        standard_inline_row_height(graph_label_pixel_size)
+        + visible_items_height
+        + _STANDARD_INLINE_LIST_ADD_GAP
+        + _STANDARD_INLINE_LIST_ADD_HEIGHT
+    )
+
+
 def standard_inline_property_row_height(
     editor: object,
     *,
     graph_label_pixel_size: object = DEFAULT_GRAPH_LABEL_PIXEL_SIZE,
+    list_value: object = _STANDARD_INLINE_LIST_VALUE_UNSET,
 ) -> float:
     editor_name = str(editor or "").strip().lower()
     if editor_name == "textarea":
@@ -275,7 +307,10 @@ def standard_inline_property_row_height(
     if editor_name in {"slider", "interval_slider"}:
         return standard_inline_slider_row_height(graph_label_pixel_size)
     if editor_name == "list":
-        return 142.0
+        return standard_inline_list_row_height(
+            list_value,
+            graph_label_pixel_size=graph_label_pixel_size,
+        )
     if editor_name == "interval_fields":
         return standard_inline_stacked_row_height(graph_label_pixel_size)
     if editor_name in {"text", "number", "enum", "secret"}:

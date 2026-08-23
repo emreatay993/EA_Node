@@ -562,7 +562,18 @@ def test_common_property_projection_covers_ordinary_grouped_and_default_rows() -
     expected_interval_height = standard_inline_property_row_height(
         "interval_slider", graph_label_pixel_size=10
     )
-    assert standard_inline_property_row_height("list", graph_label_pixel_size=10) == 142.0
+    assert standard_inline_property_row_height(
+        "list", graph_label_pixel_size=10, list_value=[]
+    ) == 56.0
+    assert standard_inline_property_row_height(
+        "list", graph_label_pixel_size=10, list_value=["A"]
+    ) == 84.0
+    assert standard_inline_property_row_height(
+        "list", graph_label_pixel_size=10, list_value=["A", "B", "C"]
+    ) == 146.0
+    assert standard_inline_property_row_height(
+        "list", graph_label_pixel_size=10, list_value=["A", "B", "C", "D"]
+    ) == 146.0
     assert standard_inline_property_row_height(
         "interval_fields", graph_label_pixel_size=10
     ) > standard_inline_property_row_height("toggle", graph_label_pixel_size=10)

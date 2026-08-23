@@ -120,6 +120,8 @@ Item {
     }
 
     function _rowHeightFor(propertyData) {
+        if (isFinite(root.contentHeightOverride))
+            return Math.max(0, root.contentHeightOverride);
         var editor = root._editorKind(propertyData);
         if (editor === "textarea")
             return host ? host._inlineTextareaRowHeight : root._textareaRowHeight;

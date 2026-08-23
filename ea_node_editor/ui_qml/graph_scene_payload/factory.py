@@ -324,6 +324,11 @@ class _GraphSceneNodePayloadFactory:
             editor_row_height = standard_inline_property_row_height(
                 editor,
                 graph_label_pixel_size=graph_label_pixel_size,
+                list_value=(
+                    default_payload.get("display_value", default_payload.get("value"))
+                    if default_payload is not None
+                    else None
+                ),
             )
             row_height = (
                 max(base_port_height, editor_row_height)
@@ -418,6 +423,11 @@ class _GraphSceneNodePayloadFactory:
                 property_height = standard_inline_property_row_height(
                     editor,
                     graph_label_pixel_size=graph_label_pixel_size,
+                    list_value=(
+                        editor_payload.get("display_value", editor_payload.get("value"))
+                        if editor_payload is not None
+                        else None
+                    ),
                 )
                 row_height = (
                     max(header_height, property_height)

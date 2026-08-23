@@ -978,6 +978,7 @@ class PassiveGraphSurfaceHostTests(PassiveGraphSurfaceHostTestBase):
             from PyQt6.QtTest import QTest
             from ea_node_editor.graph.model import GraphModel
             from ea_node_editor.nodes.bootstrap import build_default_registry
+            from ea_node_editor.ui_qml.graph_geometry.standard_metrics import standard_inline_property_row_height
             from ea_node_editor.ui_qml.graph_scene_payload.builder import GraphScenePayloadBuilder
 
             registry = build_default_registry()
@@ -1086,7 +1087,49 @@ class PassiveGraphSurfaceHostTests(PassiveGraphSurfaceHostTestBase):
                 for item in list_candidates
             ]
             assert bool(width_slider.property("enabled"))
-            assert abs(float(labels_list.height()) + float(host.property("_inlineRowHeight")) - 142.0) < 0.5
+            expected_labels_height = standard_inline_property_row_height(
+                "list", graph_label_pixel_size=10, list_value=[]
+            )
+            general_payload = next(
+                group
+                for group in variant_value(host.property("nodeData"))["settings_groups"]
+                if group["group_id"] == "general_options"
+            )
+            labels_payload = next(
+                item for item in general_payload["items"] if item["port_key"] == "labels"
+            )
+            assert abs(float(labels_payload["height"]) - expected_labels_height) < 0.5, (
+                "labels-payload-height",
+                labels_payload,
+            )
+            assert abs(float(labels_list.height()) + float(host.property("_inlineRowHeight")) - expected_labels_height) < 0.5, (
+                "labels-row-height",
+                labels_list.height(),
+                host.property("_inlineRowHeight"),
+                expected_labels_height,
+            )
+            labels_view = labels_list.findChild(QObject, "graphSurfaceListView")
+            labels_add = labels_list.findChild(QObject, "graphSurfaceListAddButton")
+            assert labels_view is not None and labels_add is not None, "labels-list-children"
+            assert abs(float(labels_view.height())) < 0.5, ("labels-list-gap", labels_view.height())
+            assert abs(float(labels_add.y()) - 4.0) < 0.5, ("labels-add-position", labels_add.y())
+            labels_top = labels_list.mapToItem(host, QPointF(0.0, 0.0)).y()
+            labels_bottom = labels_list.mapToItem(
+                host, QPointF(0.0, labels_list.height())
+            ).y()
+            show_legend_payload = next(
+                item for item in general_payload["items"] if item["port_key"] == "show_legend"
+            )
+            assert abs(labels_top - (float(labels_payload["y"]) + float(host.property("_inlineRowHeight")))) < 0.5, (
+                "labels-editor-top",
+                labels_top,
+                labels_payload,
+            )
+            assert abs(labels_bottom - float(show_legend_payload["y"])) < 0.5, (
+                "labels-following-gap",
+                labels_bottom,
+                show_legend_payload,
+            )
 
             click_item(group_header("general_options"))
             assert node.expanded_settings_group_ids == (), ("general-collapse-state", node.expanded_settings_group_ids)
@@ -1111,6 +1154,31 @@ class PassiveGraphSurfaceHostTests(PassiveGraphSurfaceHostTestBase):
             assert interval is not None and auto_button is not None, "signal-interval-controls"
             assert bool(interval.property("visible")) and bool(auto_button.property("enabled")), ("signal-interval-usable", interval.property("visible"), auto_button.property("enabled"))
             assert colors_list is not None and bool(colors_list.property("visible")), "signal-colors-list"
+            colors_view = colors_list.findChild(QObject, "graphSurfaceListView")
+            colors_add = colors_list.findChild(QObject, "graphSurfaceListAddButton")
+            assert colors_view is not None and colors_add is not None, "colors-list-children"
+            assert abs(float(colors_view.height()) - 28.0) < 0.5, ("colors-list-height", colors_view.height())
+            assert abs(float(colors_add.y()) - 32.0) < 0.5, ("colors-add-position", colors_add.y())
+            signal_payload_data = next(
+                group
+                for group in variant_value(host.property("nodeData"))["settings_groups"]
+                if group["group_id"] == "signal_plot_options"
+            )
+            colors_payload = next(
+                item for item in signal_payload_data["items"] if item["port_key"] == "colors"
+            )
+            line_styles_payload = next(
+                item for item in signal_payload_data["items"] if item["port_key"] == "line_styles"
+            )
+            colors_bottom = colors_list.mapToItem(
+                host, QPointF(0.0, colors_list.height())
+            ).y()
+            assert abs(colors_bottom - float(line_styles_payload["y"])) < 0.5, (
+                "colors-following-gap",
+                colors_bottom,
+                colors_payload,
+                line_styles_payload,
+            )
             color_candidates = named_child_items(host, "graphSurfaceListColorEditor")
             color_editor = next(
                 (

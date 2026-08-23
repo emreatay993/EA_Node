@@ -5,6 +5,18 @@ function _number(value, fallback) {
     return isFinite(numeric) ? numeric : (fallback === undefined ? 0 : fallback);
 }
 
+function listEditorRowHeight(value, baseRowHeight) {
+    var itemCount = value && value.length !== undefined
+        ? Math.max(0, Math.floor(_number(value.length, 0)))
+        : 0;
+    var visibleItemCount = Math.min(itemCount, 3);
+    return _number(baseRowHeight, 26)
+        + visibleItemCount * 28
+        + Math.max(0, visibleItemCount - 1) * 3
+        + 4
+        + 26;
+}
+
 function normalizedRect(rectLike) {
     if (!rectLike)
         return null;

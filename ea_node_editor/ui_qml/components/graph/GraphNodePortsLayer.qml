@@ -483,8 +483,12 @@ Item {
         var pixelSize = Number(root.graphSharedTypography ? root.graphSharedTypography.inlinePropertyPixelSize : 10);
         if (editor === "textarea")
             return root.host ? root.host._inlineTextareaRowHeight : 104;
-        if (editor === "list")
-            return 142;
+        if (editor === "list") {
+            var listValue = propertyData && propertyData.display_value !== undefined
+                ? propertyData.display_value
+                : (propertyData ? propertyData.value : []);
+            return SurfaceControlGeometry.listEditorRowHeight(listValue, baseHeight);
+        }
         if (editor === "interval_fields")
             return root.host ? root.host._inlineStackedRowHeight : baseHeight * 2 + spacing;
         if (editor === "slider" || editor === "interval_slider")
@@ -501,7 +505,9 @@ Item {
                 || editor === "text"
                 || editor === "number"
                 || editor === "enum"
-                || editor === "textarea") {
+                || editor === "textarea"
+                || editor === "list"
+                || editor === "interval_fields") {
             var baseHeight = root.host ? root.host._inlineRowHeight : 26;
             return root.host ? root.host._inlineLabelAnchorOffset : baseHeight * 0.5;
         }
