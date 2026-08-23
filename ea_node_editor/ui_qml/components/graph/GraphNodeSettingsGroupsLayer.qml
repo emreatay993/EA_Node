@@ -164,7 +164,8 @@ Item {
                     anchors.rightMargin: 8
                     anchors.verticalCenter: parent.verticalCenter
                     height: 1
-                    color: root.host ? root.host.inlineInputBorderColor : "#77808f"
+                    color: root.host ? root.host.inlineDrivenTextColor : "#95a0b8"
+                    opacity: 0.38
                 }
 
                 Text {
@@ -174,9 +175,7 @@ Item {
                     anchors.rightMargin: 12
                     anchors.verticalCenter: parent.verticalCenter
                     text: groupItem.expanded ? "\u25B4" : "\u25BE"
-                    color: root.interactionLocked
-                        ? (root.host ? root.host.inlineDrivenTextColor : "#95a0b8")
-                        : (root.host ? root.host.selectedOutlineColor : "#60CDFF")
+                    color: root.host ? root.host.inlineDrivenTextColor : "#95a0b8"
                     font.pixelSize: Math.max(12, root.host ? root.host.effectiveGraphLabelPixelSize + 3 : 13)
                     renderType: root.host ? root.host.nodeTextRenderType : Text.QtRendering
                 }

@@ -760,6 +760,7 @@ class PassiveGraphSurfaceHostTests(PassiveGraphSurfaceHostTestBase):
             "named-settings-groups-host",
             """
             from PyQt6.QtCore import QPointF
+            from PyQt6.QtGui import QColor
             from PyQt6.QtTest import QTest
 
             def settings_payload(expanded, surface_family="standard"):
@@ -867,6 +868,8 @@ class PassiveGraphSurfaceHostTests(PassiveGraphSurfaceHostTestBase):
             expanded_row = named_item(expanded_host, "graphNodeInputPortRow", "payload")
             port_label = named_item(expanded_host, "graphNodeInputPortLabel", "payload")
             property_labels = named_child_items(expanded_host, "graphNodeInlinePropertyLabel")
+            group_divider = named_child_items(expanded_host, "graphNodeSettingsGroupDivider")[0]
+            group_chevron = named_child_items(expanded_host, "graphNodeSettingsGroupChevron")[0]
 
             assert expanded_layer is not None
             assert expanded_row is not None and bool(expanded_row.property("visible"))
@@ -875,6 +878,10 @@ class PassiveGraphSurfaceHostTests(PassiveGraphSurfaceHostTestBase):
             assert str(property_labels[0].property("text")) == "Record"
             assert abs(float(expanded_loader.height()) - 88.0) < 0.5
             assert len(variant_list(expanded_layer.property("embeddedInteractiveRects"))) >= 2
+            neutral_decoration = QColor(expanded_host.property("inlineDrivenTextColor"))
+            assert QColor(group_divider.property("color")).rgba() == neutral_decoration.rgba()
+            assert abs(float(group_divider.property("opacity")) - 0.38) < 0.01
+            assert QColor(group_chevron.property("color")).rgba() == neutral_decoration.rgba()
 
             requests = []
             expanded_host.settingsGroupExpansionRequested.connect(

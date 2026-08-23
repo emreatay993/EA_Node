@@ -1106,6 +1106,16 @@ class GraphSurfaceInputInlineTests(unittest.TestCase):
             assert interval is not None
             assert sectors is not None
             assert searchable is not None
+            slider_handle = sectors.property("handle")
+            slider_background = sectors.property("background")
+            assert slider_handle is not None
+            assert slider_background is not None
+            assert float(slider_handle.property("width")) == 14.0
+            handle_center_y = float(slider_handle.property("y")) + float(slider_handle.property("height")) * 0.5
+            track_center_y = float(slider_background.property("y")) + float(slider_background.property("height")) * 0.5
+            assert abs(handle_center_y - track_center_y) < 0.01, (
+                f"slider handle/track center mismatch: handle={handle_center_y}, track={track_center_y}"
+            )
             assert bool(interval.property("enabled")) is True
             assert float(interval.property("semanticStart")) == 0.0
             assert float(interval.property("semanticEnd")) == 1.0

@@ -10,7 +10,7 @@ Slider {
     id: control
     property Item host: null
     property Item rectItem: control
-    property int knobDiameter: 12
+    property int knobDiameter: 14
     property color accentColor: host ? host.selectedOutlineColor : "#60CDFF"
     property color trackColor: host ? host.inlineInputBorderColor : "#4a4f5a"
     property color knobFillColor: host ? host.inlineInputBackgroundColor : "#22242a"
@@ -92,7 +92,7 @@ Slider {
 
     background: Item {
         implicitWidth: 80
-        implicitHeight: control.implicitHeight
+        height: control.availableHeight
 
         Rectangle {
             id: sliderTrack
