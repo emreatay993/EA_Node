@@ -1,12 +1,12 @@
 # Agent Map Atlas
 
-This atlas is a lookup layer for agents and maintainers. It is not a requirements source. Use it to find owners, likely insertion points, focused tests, and related proof docs before broad repo exploration.
+This atlas is an advisory lookup layer for agents and maintainers, not a requirements or ownership authority. Use it to compress broad discovery and attach owner, boundary, and focused-test context to source evidence.
 
 ## Agent Quick-Start
 
-1. **Query first** — `./venv/Scripts/python.exe scripts/nav.py find <term>` returns a compact likely-owner capsule with the best path, focused test, verification command, and paths to avoid. Add `--expand` only when you need the broader route/QML/source candidate lists; use `route`, `qml`, or `source` for a single index family.
-2. **Open the owning map** it points to (a subsystem or feature route below) for insertion points, guard rails, and breadcrumbs.
-3. **Jump to source/tests** via the candidates; use `nav.py source <path>` to find which map owns a file you already have, then `nav.py line <path> <symbol-or-heading>` when you need its current line.
+1. **Lead with exact evidence for narrow tasks** — search a known file, symbol, UI label, error, setting, or test with bounded `rg`; inspect the first useful hits instead of asking the fuzzy router to rediscover them.
+2. **Use navigation for ambiguity** — `./venv/Scripts/python.exe scripts/nav.py find <term>` returns a compact advisory owner/test capsule for broad or cross-layer work. Exact alias/title/component matches are labeled exact; other results explicitly say no owner is yet confirmed. Use `route`, `qml`, or `source` when the index family is already known.
+3. **Verify, then open one map** — confirm the candidate against source before choosing an owner or insertion point. Use `nav.py source <path>` to attach map/test context to a discovered file and `nav.py line <path> <symbol-or-heading>` for its current line. Open only the relevant map when its boundaries or guard rails matter.
 
 Indexes are generated — regenerate with `scripts/generate_agent_route_index.py`, then validate with `scripts/check_agent_maps.py` after any map edit.
 

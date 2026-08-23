@@ -3,7 +3,7 @@
 #          get a compact, complete answer instead of grepping megabyte JSON.
 # Map: subsystems/verification_testing_docs_hygiene
 # Tests: tests/test_nav_cli.py
-"""Agent navigation query CLI.
+"""Advisory agent navigation query CLI.
 
 Consumes the generated indexes under ``docs/`` and answers lookups without
 forcing an agent to read or grep the full 600 KB / 3.4 MB index files:
@@ -582,6 +582,11 @@ def find_owner_routes(
             candidate["origins"] & {"exact", "direct"}
         )
         owner["_nav_exact_qml_match"] = bool(candidate["exact_qml"])
+        owner["_nav_confidence"] = (
+            "exact"
+            if candidate["exact_qml"] or "exact" in candidate["origins"]
+            else "advisory"
+        )
         owners.append(owner)
     return owners
 
@@ -897,6 +902,7 @@ def build_owner_capsules(
         "route_key": primary.get("route_key"),
         "title": primary.get("title"),
         "owner_map": primary_owner,
+        "confidence": primary.get("_nav_confidence", "advisory"),
     }
     if reserved_source := reserve(source_path):
         primary_capsule["path"] = reserved_source
@@ -917,6 +923,7 @@ def build_owner_capsules(
                 "route_key": entry.get("route_key"),
                 "title": entry.get("title"),
                 "owner_map": owner_map,
+                "confidence": entry.get("_nav_confidence", "advisory"),
             }
         )
 
@@ -964,7 +971,11 @@ def _emit_owner_capsules(
         if as_json:
             print(
                 json.dumps(
-                    {"query": query[:MAX_QUERY_ECHO_CHARS], "owners": []},
+                    {
+                        "query": query[:MAX_QUERY_ECHO_CHARS],
+                        "confidence": "none",
+                        "owners": [],
+                    },
                     ensure_ascii=False,
                     separators=(",", ":"),
                 )
@@ -973,13 +984,26 @@ def _emit_owner_capsules(
             print("No matches.")
         return
     if as_json:
+        confidence = str(capsules[0].get("confidence", "advisory"))
         output = json.dumps(
-            {"query": query[:MAX_QUERY_ECHO_CHARS], "owners": list(capsules)},
+            {
+                "query": query[:MAX_QUERY_ECHO_CHARS],
+                "confidence": confidence,
+                "owners": list(capsules),
+            },
             ensure_ascii=False,
             separators=(",", ":"),
         )
     else:
-        heading = "Likely owners:" if len(capsules) > 1 else "Likely owner:"
+        exact = capsules[0].get("confidence") == "exact"
+        if exact:
+            heading = "Exact owner matches:" if len(capsules) > 1 else "Exact owner match:"
+        else:
+            heading = (
+                "No confident owner. Advisory candidates:"
+                if len(capsules) > 1
+                else "No confident owner. Advisory candidate:"
+            )
         output = heading + "\n" + "\n\n".join(
             _format_owner_capsule(capsule) for capsule in capsules
         )

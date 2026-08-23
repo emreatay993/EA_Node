@@ -356,6 +356,7 @@ class NavSearchTests(unittest.TestCase):
                         **short_entry,
                         "_nav_direct_match": True,
                         "_nav_exact_qml_match": False,
+                        "_nav_confidence": "advisory",
                     },
                 )
         self.assertEqual(nav.find_owner_routes([short_entry], "only marker"), [])
@@ -431,9 +432,20 @@ class NavCliTests(unittest.TestCase):
                 code = nav.main(["--repo-root", str(repo_root), "find", "plot"])
             self.assertEqual(code, 0)
             out = captured.getvalue()
-            self.assertIn("Likely owner:", out)
+            self.assertIn("No confident owner. Advisory candidate:", out)
             self.assertIn("tests/test_plotter_nodes.py", out)
             self.assertNotIn("== Source/Test ==", out)
+
+    def test_find_labels_exact_alias_as_exact_owner_match(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            repo_root = self._make_repo(temp_dir)
+            captured = io.StringIO()
+            with redirect_stdout(captured):
+                code = nav.main(
+                    ["--repo-root", str(repo_root), "find", "plotter", "nodes"]
+                )
+            self.assertEqual(code, 0)
+            self.assertTrue(captured.getvalue().startswith("Exact owner match:"))
 
     def test_find_routes_qml_component_to_owning_map_and_test(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -671,6 +683,7 @@ class NavCliTests(unittest.TestCase):
             self.assertEqual(code, 0)
             payload = json.loads(captured.getvalue())
             self.assertEqual(payload["query"], "plotter")
+            self.assertEqual(payload["confidence"], "advisory")
             self.assertEqual(len(payload["owners"]), 1)
             self.assertEqual(
                 payload["owners"][0]["owner_map"],
@@ -691,7 +704,7 @@ class NavCliTests(unittest.TestCase):
             self.assertEqual(code, 0)
             self.assertEqual(
                 json.loads(captured.getvalue()),
-                {"query": "missing", "owners": []},
+                {"query": "missing", "confidence": "none", "owners": []},
             )
 
     def test_no_matches_message(self) -> None:
@@ -834,7 +847,11 @@ class NavCliTests(unittest.TestCase):
                 nav.MAX_DEFAULT_OUTPUT_BYTES,
             )
             if not as_json:
-                self.assertTrue(captured.getvalue().startswith("Likely owners:"))
+                self.assertTrue(
+                    captured.getvalue().startswith(
+                        "No confident owner. Advisory candidates:"
+                    )
+                )
 
     def test_capsule_prefers_exact_evidence_and_omits_unrelated_test(self) -> None:
         evidence_path = "ea_node_editor/ui_qml/components/graph/ExactControl.qml"

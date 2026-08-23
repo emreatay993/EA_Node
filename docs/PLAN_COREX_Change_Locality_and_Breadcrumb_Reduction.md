@@ -59,7 +59,7 @@
 ### T01 Make navigation owner-first and establish the breadcrumb corpus
 
 - Goal: make one normal lookup identify the likely owner and proving test without opening several maps or inventories.
-- Preconditions: current `scripts/nav.py`, agent route index, and map tests pass; preserve the existing map-first authority model.
+- Preconditions: current `scripts/nav.py`, agent route index, and map tests pass. The original map-first authority model is superseded by the evidence-first, advisory-navigation policy in `AGENTS.md` and `docs/agent_maps/INDEX.md`.
 - Conservative write scope: `scripts/nav.py`, `scripts/generate_agent_route_index.py`, `tests/test_nav_cli.py`, `tests/test_agent_route_index.py`, one small corpus fixture under `tests/fixtures/`, and only the agent maps needed to express missing `Start Here` or `Do Not Start Here` facts.
 - Deliverables:
   - Add a labeled corpus of ten recent tasks, including notched-port A/B work, script-editor width, viewer settings expansion, fullscreen toolbar click, graph scene projection, viewer session ownership, and representative node/runtime lookups.
