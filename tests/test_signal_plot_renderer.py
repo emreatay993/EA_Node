@@ -197,7 +197,7 @@ def test_image_export_is_atomic_png_only_and_honors_overwrite(tmp_path: Path) ->
     plugin = ImageExportNodePlugin()
     output = tmp_path / "signal.png"
 
-    def context(path: Path, *, overwrite: bool = False, value: object = image) -> ExecutionContext:
+    def context(path: Path, *, overwrite: bool = True, value: object = image) -> ExecutionContext:
         return ExecutionContext(
             run_id="run_image_export",
             node_id="node_image_export",
@@ -211,9 +211,10 @@ def test_image_export_is_atomic_png_only_and_honors_overwrite(tmp_path: Path) ->
     result = plugin.execute(context(output))
     assert result.outputs == {"written_path": str(output)}
     assert output.read_bytes() == image.encoded_bytes
+    assert {prop.key: prop.default for prop in plugin.spec().properties}["overwrite"] is True
+    plugin.execute(context(output))
     with pytest.raises(FileExistsError):
-        plugin.execute(context(output))
-    plugin.execute(context(output, overwrite=True))
+        plugin.execute(context(output, overwrite=False))
     with pytest.raises(ValueError, match=".png"):
         plugin.execute(context(tmp_path / "signal.jpg"))
     with pytest.raises(ValueError, match="COREX Image"):

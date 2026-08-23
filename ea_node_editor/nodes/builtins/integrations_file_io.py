@@ -209,7 +209,7 @@ class ImageExportNodePlugin:
             ),
             properties=(
                 PropertySpec("path", "path", "", "PNG Path", file_filter=PNG_FILES_FILTER),
-                PropertySpec("overwrite", "bool", False, "Overwrite"),
+                PropertySpec("overwrite", "bool", True, "Overwrite"),
             ),
         )
 
@@ -223,7 +223,7 @@ class ImageExportNodePlugin:
             raise ValueError("Export Image destination must use the .png extension")
         if path.exists() and path.is_dir():
             raise ValueError(f"Export Image path must be a file, not a directory: {path}")
-        overwrite = bool(ctx.inputs.get("overwrite", ctx.properties.get("overwrite", False)))
+        overwrite = bool(ctx.inputs.get("overwrite", ctx.properties.get("overwrite", True)))
         if path.exists() and not overwrite:
             raise FileExistsError(f"Export Image destination already exists: {path}")
         path.parent.mkdir(parents=True, exist_ok=True)
