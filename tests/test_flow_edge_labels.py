@@ -856,6 +856,7 @@ class FlowEdgeLabelQmlTests(unittest.TestCase):
                 bezier_edge("passive", "passive_source", 320.0, access="list", active=False),
                 bezier_edge("passive_disabled", "passive_disabled_source", 340.0, enabled=False, active=False),
                 bezier_edge("replacement_hidden", "replacement_source", 360.0, access="tree", display_mode="hidden"),
+                bezier_edge("selected_disabled", "selected_disabled_source", 380.0, enabled=False),
             ]
             canvas_only_edges = [
                 bezier_edge("hidden", "hidden_source", 400.0, display_mode="hidden"),
@@ -877,12 +878,13 @@ class FlowEdgeLabelQmlTests(unittest.TestCase):
                     "passive_source": {"out": {"state": "current", "tooltip_text": "Passive"}},
                     "passive_disabled_source": {"out": {"state": "current", "tooltip_text": "Passive disabled"}},
                     "replacement_source": {"out": {"state": "current", "tooltip_text": "Replacing"}},
+                    "selected_disabled_source": {"out": {"state": "current", "tooltip_text": "Selected disabled"}},
                     "hidden_source": {"out": {"state": "current", "tooltip_text": "Hidden"}},
                     "invalid_source": {"out": {"state": "empty", "tooltip_text": "Empty"}},
                     "selected_source": {"out": {"state": "current", "tooltip_text": "Current"}},
                 },
             )
-            edge_layer.setProperty("selectedEdgeIds", ["selected_hidden"])
+            edge_layer.setProperty("selectedEdgeIds", ["selected_hidden", "selected_disabled"])
             edge_layer.setProperty("selectedNodeIds", ["selected_source"])
             edge_layer.setProperty("replacementPreviewEdgeIds", ["replacement_hidden"])
             view.set_zoom(0.5)
@@ -953,6 +955,16 @@ class FlowEdgeLabelQmlTests(unittest.TestCase):
                 assert disabled_paint["structure"] == "list"
                 assert disabled_paint["disabledMarkerVisible"] is True
                 assert list(disabled_paint["dashPatternScreenPx"]) == [1.0, 4.0]
+                assert color_name(disabled_paint["disabledMarkerColor"]) == color_name(
+                    edge_layer.property("dangerStrokeColor")
+                )
+                assert color_name(edge_layer.property("dangerStrokeColor")) == "#ff543e"
+                assert abs(float(disabled_paint["disabledMarkerAlpha"]) - 1.0) < 0.001
+
+                selected_disabled_paint = paint("selected_disabled")
+                assert selected_disabled_paint["disabledMarkerVisible"] is True
+                assert color_name(selected_disabled_paint["disabledMarkerColor"]) == "#75b4e7"
+                assert abs(float(selected_disabled_paint["disabledMarkerAlpha"]) - 1.0) < 0.001
 
                 selected_hidden_paint = paint("selected_hidden")
                 assert selected_hidden_paint["selected"] is True
@@ -964,6 +976,7 @@ class FlowEdgeLabelQmlTests(unittest.TestCase):
                 assert color_name(selected_hidden_paint["strokeColor"]) == color_name(
                     edge_layer.property("activeSelectedStrokeColor")
                 )
+                assert color_name(edge_layer.property("activeSelectedStrokeColor")) == "#75b4e7"
 
                 passive_paint = paint("passive")
                 assert passive_paint["activeDataWire"] is False
@@ -997,6 +1010,9 @@ class FlowEdgeLabelQmlTests(unittest.TestCase):
                     assert hit == edge_id, (renderer, edge_id, hit)
 
                 if renderer == "canvas":
+                    canvas_layer = edge_layer.findChild(QObject, "graphCanvasEdgeCanvasLayer")
+                    assert canvas_layer is not None
+                    assert list(to_variant(canvas_layer.hiddenEndpointArcRadiiScreenPx())) == [3.0, 6.0, 9.0]
                     hidden_paint = paint("hidden")
                     assert hidden_paint["displayMode"] == "hidden"
                     assert hidden_paint["bodyVisible"] is False

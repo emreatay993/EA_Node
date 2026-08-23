@@ -363,6 +363,10 @@ Item {
             strokeAlpha = Math.min(strokeAlpha, 0.18);
         if (snapshot.selected || snapshot.previewed)
             strokeAlpha = 1.0;
+        var disabledMarkerColor = root.edgeLayer.dangerStrokeColor;
+        if (!invalidGradient && (snapshot.selected || snapshot.previewed))
+            disabledMarkerColor = root.edgeLayer.activeSelectedStrokeColor;
+        var disabledMarkerAlpha = faint ? 0.18 : 1.0;
         return {
             "flowEdge": false,
             "activeDataWire": activeDataWire,
@@ -394,6 +398,8 @@ Item {
             "bodyVisible": !hidden,
             "endpointArcsVisible": hidden,
             "disabledMarkerVisible": activeDataWire && edge.enabled === false && !hidden,
+            "disabledMarkerColor": disabledMarkerColor,
+            "disabledMarkerAlpha": disabledMarkerAlpha,
             "nodeSelectionGradient": nodeSelectionGradient,
             "invalidGradient": invalidGradient,
             "gradientKind": gradientKind
@@ -589,14 +595,17 @@ Item {
     }
 
     function drawHiddenEndpointArcs(ctx, geometry, paintState, viewportTransform) {
-        var step = EdgeViewportMath.screenLengthToScene(4.0, viewportTransform);
-        var points = EdgeMath.sampleGeometryPolyline(geometry, step);
-        var metrics = EdgeMath.polylineMetrics(points);
-        if (!metrics || metrics.totalLength <= 1e-6)
+        var sourceAnchor = root.edgeAnchor(geometry, 0.0);
+        var targetAnchor = root.edgeAnchor(geometry, 1.0);
+        if (!sourceAnchor || !targetAnchor)
             return;
-        var startOffset = EdgeViewportMath.screenLengthToScene(2.0, viewportTransform);
-        var glyphLength = EdgeViewportMath.screenLengthToScene(4.0, viewportTransform);
-        var glyphSpacing = EdgeViewportMath.screenLengthToScene(8.0, viewportTransform);
+        var sampleStep = EdgeViewportMath.screenLengthToScene(4.0, viewportTransform);
+        var sampledPoints = EdgeMath.sampleGeometryPolyline(geometry, sampleStep);
+        var sampledMetrics = EdgeMath.polylineMetrics(sampledPoints);
+        if (!sampledMetrics || !sampledMetrics.segments || sampledMetrics.segments.length === 0)
+            return;
+        var firstSegment = sampledMetrics.segments[0];
+        var lastSegment = sampledMetrics.segments[sampledMetrics.segments.length - 1];
         var sourceColor = paintState.sourceNodeSelected
             ? root.edgeLayer.activeSelectedStrokeColor
             : paintState.baseColor;
@@ -608,19 +617,43 @@ Item {
         ctx.lineWidth = EdgeViewportMath.screenLengthToScene(1.6, viewportTransform);
         ctx.lineCap = "round";
         ctx.setLineDash([]);
-        for (var i = 0; i < 3; i++) {
-            var sourceStart = startOffset + i * glyphSpacing;
-            var targetEnd = metrics.totalLength - startOffset - i * glyphSpacing;
+        var sourceAngle = Math.atan2(
+            Number(firstSegment.b.y) - Number(firstSegment.a.y),
+            Number(firstSegment.b.x) - Number(firstSegment.a.x)
+        );
+        var targetAngle = Math.atan2(
+            Number(lastSegment.a.y) - Number(lastSegment.b.y),
+            Number(lastSegment.a.x) - Number(lastSegment.b.x)
+        );
+        var radii = root.hiddenEndpointArcRadiiScreenPx();
+        for (var i = 0; i < radii.length; i++) {
+            var radius = EdgeViewportMath.screenLengthToScene(Number(radii[i]), viewportTransform);
             ctx.strokeStyle = sourceColor;
             ctx.beginPath();
-            root._tracePolylineRange(ctx, metrics.segments, sourceStart, sourceStart + glyphLength);
+            ctx.arc(
+                Number(sourceAnchor.x),
+                Number(sourceAnchor.y),
+                radius,
+                sourceAngle - Math.PI * 0.5,
+                sourceAngle + Math.PI * 0.5
+            );
             ctx.stroke();
             ctx.strokeStyle = targetColor;
             ctx.beginPath();
-            root._tracePolylineRange(ctx, metrics.segments, targetEnd - glyphLength, targetEnd);
+            ctx.arc(
+                Number(targetAnchor.x),
+                Number(targetAnchor.y),
+                radius,
+                targetAngle - Math.PI * 0.5,
+                targetAngle + Math.PI * 0.5
+            );
             ctx.stroke();
         }
         ctx.restore();
+    }
+
+    function hiddenEndpointArcRadiiScreenPx() {
+        return [3.0, 6.0, 9.0];
     }
 
     function drawDisabledMarker(ctx, geometry, strokeColor, strokeAlpha, viewportTransform) {
@@ -1081,8 +1114,8 @@ Item {
                             root.drawDisabledMarker(
                                 ctx,
                                 geometry,
-                                standardPaint.strokeColor,
-                                standardPaint.strokeAlpha,
+                                standardPaint.disabledMarkerColor,
+                                standardPaint.disabledMarkerAlpha,
                                 viewportTransform
                             );
                         }

@@ -102,5 +102,7 @@
 ## Residual Desktop-Only Validation
 
 - Offscreen automation cannot judge final palette contrast, dotted/dashed cadence, endpoint-arc clarity, gradient quality, or diagnostic-badge legibility under real Windows compositing and dense graph zoom.
-- The manual list is a required display-attached acceptance checklist, not completed gallery evidence. It must be exercised against every required wire interaction and visual state before visual parity is accepted.
+- On 2026-08-24, the active-data wire subset received a display-attached Windows comparison using the real Canvas renderer: Default/Faint/Hidden crossed with Item/List/Tree/Empty, Default/Selected/Type-error crossed with structure/Empty/Disabled, and selected-node endpoint fade. The review corrected hidden-arc orientation, active selection blue, active danger coral, and disabled-marker color/opacity; the corrected matrix matched the retained neutral reference states.
+- The same display-attached pass confirmed checked single-wire display modes plus Enable and source/target jump rows in the live canvas menu. Real-pointer automation remains authoritative for replace/append/disconnect/copy/marquee commit behavior and tooltip dwell/dismissal.
+- The broader node lifecycle checks above remain required release evidence; the wire visual subset is completed gallery evidence, not a claim that every node/execution desktop scenario is closed.
 - Desktop acceptance should check only presentation quality. Palette values, absence of glow items/animations, display-mode persistence, atomic mutation semantics, state priority, cache lifetime, wire-state exclusion, and control-surface absence remain automated contracts.

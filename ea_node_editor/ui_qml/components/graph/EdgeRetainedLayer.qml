@@ -242,6 +242,8 @@ Item {
             root._offsetKey(entry.strokeOffsets),
             root._numberArrayKey(entry.dashPattern),
             entry.disabledMarkerVisible ? "disabled" : "enabled",
+            String(entry.disabledMarkerColor || ""),
+            root._fixed(entry.disabledMarkerAlpha, 4),
             root._fixed(entry.markerX, 2),
             root._fixed(entry.markerY, 2)
         ].join("|");
@@ -320,6 +322,8 @@ Item {
                 paintState.strokeWidthScreenPx
             ),
             "disabledMarkerVisible": Boolean(paintState.disabledMarkerVisible),
+            "disabledMarkerColor": paintState.disabledMarkerColor,
+            "disabledMarkerAlpha": Number(paintState.disabledMarkerAlpha || 0.0),
             "paintState": paintState
         };
         var markerAnchor = root.canvasLayer.edgeAnchor(sourceGeometry, 0.5);
@@ -549,7 +553,7 @@ Item {
 
                 Item {
                     visible: Boolean(retainedEdgeDelegate.edgeEntry.disabledMarkerVisible)
-                    opacity: Math.max(0.0, Math.min(1.0, Number(retainedEdgeDelegate.edgeEntry.strokeAlpha || 0.0)))
+                    opacity: Math.max(0.0, Math.min(1.0, Number(retainedEdgeDelegate.edgeEntry.disabledMarkerAlpha || 0.0)))
                     x: Number(retainedEdgeDelegate.edgeEntry.markerX || 0.0)
                         + (retainedEdgeDelegate.sourceDragDx + retainedEdgeDelegate.targetDragDx) * 0.5
                     y: Number(retainedEdgeDelegate.edgeEntry.markerY || 0.0)
@@ -561,7 +565,7 @@ Item {
                         width: 12
                         height: 2
                         radius: 1
-                        color: retainedEdgeDelegate.edgeEntry.strokeColor
+                        color: retainedEdgeDelegate.edgeEntry.disabledMarkerColor
                         rotation: 45
                     }
 
@@ -571,7 +575,7 @@ Item {
                         width: 12
                         height: 2
                         radius: 1
-                        color: retainedEdgeDelegate.edgeEntry.strokeColor
+                        color: retainedEdgeDelegate.edgeEntry.disabledMarkerColor
                         rotation: -45
                     }
                 }

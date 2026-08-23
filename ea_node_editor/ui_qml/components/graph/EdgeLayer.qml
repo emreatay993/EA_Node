@@ -135,13 +135,13 @@ Item {
     property bool _collectingEdgeSnapshotStats: false
     property bool _structuralEdgePayloadSyncActive: false
     readonly property color selectedStrokeColor: edgePalette.selected_stroke || "#f0f4fb"
-    readonly property color activeSelectedStrokeColor: shellPalette.accent || edgePalette.preview_stroke || "#2d7ff9"
+    readonly property color activeSelectedStrokeColor: "#75B4E7"
     readonly property color previewStrokeColor: edgePalette.preview_stroke || "#60CDFF"
     readonly property color validDragStrokeColor: edgePalette.valid_drag_stroke || "#60CDFF"
     readonly property color invalidDragStrokeColor: edgePalette.invalid_drag_stroke || "#d0d5de"
     readonly property color fallbackStrokeColor: portKindPalette.data || "#7AA8FF"
     readonly property color inactiveStrokeColor: shellPalette.muted_fg || "#7f8796"
-    readonly property color dangerStrokeColor: shellPalette.inspector_danger_fg || "#e45858"
+    readonly property color dangerStrokeColor: "#FF543E"
     readonly property color flowDefaultStrokeColor: shellPalette.muted_fg || invalidDragStrokeColor
     readonly property color flowDefaultLabelTextColor: shellPalette.panel_title_fg || selectedStrokeColor
     readonly property color flowDefaultLabelBackgroundColor: shellPalette.panel_bg || "#1b1d22"
