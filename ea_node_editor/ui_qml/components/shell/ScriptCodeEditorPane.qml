@@ -11,8 +11,11 @@ ColumnLayout {
     property var themeBridgeRef: typeof themeBridge !== "undefined" ? themeBridge : null
     property var graphCanvasStateBridgeRef: typeof graphCanvasStateBridge !== "undefined" ? graphCanvasStateBridge : null
     property var uiIconsRef: typeof uiIcons !== "undefined" ? uiIcons : null
+    property bool guideButtonVisible: false
+    property bool guideButtonSelected: false
     readonly property var themePalette: root.themeBridgeRef ? root.themeBridgeRef.palette : ({})
     readonly property bool editorAvailable: !!root.scriptEditorBridgeRef
+    signal guideRequested()
 
     spacing: 0
 
@@ -113,6 +116,23 @@ ColumnLayout {
             }
 
             Item { Layout.fillWidth: true }
+
+            ShellButton {
+                objectName: "pythonScriptGuideButton"
+                visible: root.guideButtonVisible
+                themeBridgeRef: root.themeBridgeRef
+                graphCanvasStateBridgeRef: root.graphCanvasStateBridgeRef
+                uiIconsRef: root.uiIconsRef
+                text: "Guide"
+                selectedStyle: root.guideButtonSelected
+                tooltipText: root.guideButtonSelected
+                    ? "Hide the Python Script customization guide"
+                    : "Show the Python Script customization guide"
+                Accessible.name: root.guideButtonSelected
+                    ? "Hide Python Script guide"
+                    : "Show Python Script guide"
+                onClicked: root.guideRequested()
+            }
 
             ShellButton {
                 themeBridgeRef: root.themeBridgeRef

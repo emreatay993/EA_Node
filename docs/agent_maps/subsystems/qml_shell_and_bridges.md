@@ -18,6 +18,7 @@ Use this for QML shell composition, Python-to-QML bridge wiring, shell bridge mo
 - `ea_node_editor/ui_qml/components/shell/ShellLabeledTabStrip.qml`
 - `ea_node_editor/ui_qml/components/shell/ScriptEditorOverlay.qml`
 - `ea_node_editor/ui_qml/components/shell/ScriptCodeEditorPane.qml`
+- `ea_node_editor/ui_qml/components/shell/PythonScriptGuidePane.qml`
 - `ea_node_editor/ui_qml/components/common/DialogSurface.qml`, `DialogTextField.qml`, and `DialogButton.qml`
 - `ea_node_editor/ui_qml/components/common/SecretEditor.qml`
 - `ea_node_editor/ui_qml/ContentFullscreenOverlay.qml`
@@ -64,7 +65,7 @@ Use this for QML shell composition, Python-to-QML bridge wiring, shell bridge mo
 - Keep `WorkspaceCenterPane.qml` bottom-console channel tabs, scroll views, and vertical resize handle aligned with `ShellWorkspaceBridge` console text/count properties and focused QML tests.
 - `ShellStatusStrip.qml` telemetry HUD canvas paints are change-gated; FPS gauge repaint keys include rounded FPS, gauge colors, and canvas size.
 - Keep outer shell pane collapse restore/write behavior aligned across `ShellCollapsibleSidePane.qml`, `WorkspaceCenterPane.qml`, and `ShellWorkspaceBridge.shell_panel_collapsed`.
-- Keep `ScriptCodeEditorPane.qml` as the shared Python script editor body for `ScriptEditorOverlay.qml` and script-editor content fullscreen. `ScriptEditorModel` owns the side overlay's interactive width: drag frames stay local in QML, resize release calls `ScriptEditorModel.set_width(...)` once, and project document I/O only snapshots/restores `ScriptEditorSessionState.width` for save/open persistence.
+- Keep `ScriptCodeEditorPane.qml` as the shared Python script editor body for `ScriptEditorOverlay.qml` and script-editor content fullscreen. The fullscreen-only Guide button opens the local theme-aware rich-HTML `PythonScriptGuidePane.qml`; it does not create a second editor or web/PDF host. `ScriptEditorModel` owns the side overlay's interactive width: drag frames stay local in QML, resize release calls `ScriptEditorModel.set_width(...)` once, and project document I/O only snapshots/restores `ScriptEditorSessionState.width` for save/open persistence.
 - Explicit Run, confirmed Run Selected, and Trigger consume a valid selected dirty script draft before snapshot assembly; failed Apply aborts dispatch. The consumed Apply still invalidates execution state but suppresses only its duplicate Auto rerun. Auto itself never applies an unsaved draft. Keep dynamic-port topology editing on the graph command/scene bridges rather than `ScriptEditorModel`.
 - Register QML image providers, including transient/in-memory providers, in `shell_context_bootstrap.py` and create them from shell composition.
 - QML context property names stay centralized in `shell_context_bootstrap.py`; shell composition passes the binding set from `ShellServices.qml_context`.

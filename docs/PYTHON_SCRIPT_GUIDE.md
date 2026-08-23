@@ -5,6 +5,11 @@ workflow. Put the declarations and `run` function in the script editor, then
 click **Apply**. COREX reads the declarations to create the node ports and
 controls; it does not run your script while it is applying the draft.
 
+Open the editor fullscreen from the Python Script node's code toolbar button,
+then click **Guide** beside Apply/Revert for the theme-aware HTML reference. It
+uses styled code cards, callouts, and tables and can be closed without changing
+the current draft.
+
 This guide is for the built-in Python Script node. It is not the external
 plugin API; keep using [Creating a Custom Node](../README.md#creating-a-custom-node)
 when you want to ship a reusable node package.

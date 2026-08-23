@@ -20,6 +20,7 @@ FocusScope {
     readonly property bool bridgeOpen: !!root.bridgeRef && Boolean(root.bridgeRef.open)
     readonly property string activeNodeId: root.bridgeRef ? String(root.bridgeRef.node_id || "") : ""
     readonly property string contentKind: root.bridgeRef ? String(root.bridgeRef.content_kind || "") : ""
+    property bool scriptGuideVisible: false
     readonly property string titleText: root.bridgeRef ? String(root.bridgeRef.title || "") : ""
     readonly property var mediaPayload: root.bridgeRef && root.bridgeRef.media_payload ? root.bridgeRef.media_payload : ({})
     readonly property var viewerPayload: root.bridgeRef && root.bridgeRef.viewer_payload ? root.bridgeRef.viewer_payload : ({})
@@ -2062,17 +2063,44 @@ FocusScope {
                 }
             }
 
-            ScriptCodeEditorPane {
-                id: scriptEditorPane
-                objectName: "contentFullscreenScriptEditorPane"
+            Item {
+                id: scriptEditorWorkspace
+                objectName: "contentFullscreenScriptEditorWorkspace"
                 anchors.fill: parent
                 anchors.margins: 12
                 visible: root.contentKind === "script_editor"
-                scriptEditorBridgeRef: root.scriptEditorBridgeRef
-                scriptHighlighterBridgeRef: root.scriptHighlighterBridgeRef
-                themeBridgeRef: themeBridge
-                graphCanvasStateBridgeRef: typeof graphCanvasStateBridge !== "undefined" ? graphCanvasStateBridge : null
-                uiIconsRef: typeof uiIcons !== "undefined" ? uiIcons : null
+
+                RowLayout {
+                    anchors.fill: parent
+                    spacing: 8
+
+                    ScriptCodeEditorPane {
+                        id: scriptEditorPane
+                        objectName: "contentFullscreenScriptEditorPane"
+                        Layout.fillWidth: true
+                        Layout.fillHeight: true
+                        scriptEditorBridgeRef: root.scriptEditorBridgeRef
+                        scriptHighlighterBridgeRef: root.scriptHighlighterBridgeRef
+                        themeBridgeRef: themeBridge
+                        graphCanvasStateBridgeRef: typeof graphCanvasStateBridge !== "undefined" ? graphCanvasStateBridge : null
+                        uiIconsRef: typeof uiIcons !== "undefined" ? uiIcons : null
+                        guideButtonVisible: true
+                        guideButtonSelected: root.scriptGuideVisible
+                        onGuideRequested: root.scriptGuideVisible = !root.scriptGuideVisible
+                    }
+
+                    PythonScriptGuidePane {
+                        id: pythonScriptGuidePane
+                        objectName: "contentFullscreenPythonScriptGuidePane"
+                        visible: root.scriptGuideVisible
+                        Layout.preferredWidth: Math.max(300, Math.min(440, scriptEditorWorkspace.width * 0.38))
+                        Layout.fillHeight: true
+                        themeBridgeRef: themeBridge
+                        graphCanvasStateBridgeRef: typeof graphCanvasStateBridge !== "undefined" ? graphCanvasStateBridge : null
+                        uiIconsRef: typeof uiIcons !== "undefined" ? uiIcons : null
+                        onCloseRequested: root.scriptGuideVisible = false
+                    }
+                }
             }
 
             Item {

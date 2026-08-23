@@ -31,7 +31,21 @@ from ea_node_editor.runtime_contracts import DataTree
 from ea_node_editor.runtime_contracts.data_tree import resolve_single_run_inputs
 
 
-PYTHON_SCRIPT_DEFAULT_SOURCE = """@corex.node
+PYTHON_SCRIPT_DEFAULT_SOURCE = """# Decorator templates: uncomment a line, then add its name to run(ctx, ...).
+# @corex.input("values", value_type=float, structure="tree", required=True, section="Data")
+# @corex.output("image", value_type=corex.Image)
+# @corex.text("title", default="Plot", section="Display", port=True)
+# @corex.number("count", default=10, minimum=1, maximum=100, section="Settings")
+# @corex.switch("show_legend", default=True, section="Display", port=True)
+# @corex.dropdown("mode", default="Mean", options=("Mean", "Maximum"), section="Settings")
+# @corex.slider("line_width", default=2.0, minimum=0.5, maximum=8.0, step=0.5, section="Display", port=True)
+# @corex.color("accent", default="#336699", section="Display")
+# @corex.path("source_file", default="", file_filter="All files (*)", section="Files")
+# @corex.text_area("notes", default="", section="Notes")
+# @corex.interval("bounds", default=(0.0, 1.0), section="Ranges", port=True)
+# @corex.list("labels", default=["A"], item_type=str, section="Data", port=True)
+
+@corex.node
 @corex.input("payload", value_type=corex.Any)
 @corex.output("result", value_type=corex.Any)
 def run(ctx, payload):

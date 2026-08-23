@@ -29,6 +29,8 @@ from ea_node_editor.ui_qml.viewer_session_bridge import ViewerSessionBridge
 _CONTENT_FULLSCREEN_PACKET_FILES = (
     _REPO_ROOT / "ea_node_editor" / "ui_qml" / "MainShell.qml",
     _REPO_ROOT / "ea_node_editor" / "ui_qml" / "ContentFullscreenOverlay.qml",
+    _REPO_ROOT / "ea_node_editor" / "ui_qml" / "components" / "shell" / "PythonScriptGuidePane.qml",
+    _REPO_ROOT / "ea_node_editor" / "ui_qml" / "components" / "shell" / "ScriptCodeEditorPane.qml",
 )
 
 
@@ -255,6 +257,8 @@ class MainWindowShellContentFullscreenStaticContractsTests(unittest.TestCase):
     def test_content_fullscreen_overlay_is_shell_owned_and_bridge_gated(self) -> None:
         main_shell = _packet_file_text(_CONTENT_FULLSCREEN_PACKET_FILES[0])
         overlay = _packet_file_text(_CONTENT_FULLSCREEN_PACKET_FILES[1])
+        guide = _packet_file_text(_CONTENT_FULLSCREEN_PACKET_FILES[2])
+        script_pane = _packet_file_text(_CONTENT_FULLSCREEN_PACKET_FILES[3])
 
         self.assertNotIn("ContentFullscreenOverlay {", main_shell)
         self.assertNotIn("sourceComponent:", main_shell)
@@ -275,6 +279,20 @@ class MainWindowShellContentFullscreenStaticContractsTests(unittest.TestCase):
         self.assertIn('objectName: "contentFullscreenScriptEditorPane"', overlay)
         self.assertIn('visible: root.contentKind === "script_editor"', overlay)
         self.assertIn("ScriptCodeEditorPane {", overlay)
+        self.assertIn('objectName: "contentFullscreenPythonScriptGuidePane"', overlay)
+        self.assertIn("guideButtonVisible: true", overlay)
+        self.assertIn("onGuideRequested: root.scriptGuideVisible", overlay)
+        self.assertIn("PythonScriptGuidePane {", overlay)
+        self.assertIn('objectName: "pythonScriptGuideButton"', script_pane)
+        self.assertIn("visible: root.guideButtonVisible", script_pane)
+        self.assertIn("selectedStyle: root.guideButtonSelected", script_pane)
+        self.assertIn('objectName: "pythonScriptDecoratorGuideText"', guide)
+        self.assertIn("textFormat: TextEdit.RichText", guide)
+        self.assertIn("<html><head><style>", guide)
+        self.assertIn("class='hero'", guide)
+        self.assertIn("<table>", guide)
+        self.assertIn("@corex.slider", guide)
+        self.assertIn("port=True", guide)
 
     def test_content_fullscreen_overlay_declares_media_modes_and_viewer_viewport(self) -> None:
         overlay = _packet_file_text(_CONTENT_FULLSCREEN_PACKET_FILES[1])

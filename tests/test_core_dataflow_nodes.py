@@ -121,6 +121,23 @@ def test_python_script_default_source_declares_instance_ports() -> None:
     assert spec.ports == ()
     assert set(properties) == {"script", "timeout_sec"}
     assert "@corex.node" in PYTHON_SCRIPT_DEFAULT_SOURCE
+    for decorator in (
+        "input",
+        "output",
+        "text",
+        "number",
+        "switch",
+        "dropdown",
+        "slider",
+        "color",
+        "path",
+        "text_area",
+        "interval",
+        "list",
+    ):
+        assert f"# @corex.{decorator}" in PYTHON_SCRIPT_DEFAULT_SOURCE
+    assert "uncomment a line" in PYTHON_SCRIPT_DEFAULT_SOURCE
+    assert "add its name to run(ctx, ...)" in PYTHON_SCRIPT_DEFAULT_SOURCE
     assert spec.dynamic_port_groups == ()
     assert spec.instance_spec_resolver is not None
 
