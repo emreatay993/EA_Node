@@ -592,6 +592,28 @@ class GraphSceneScopeSelection:
         item = self.node_item(node_id)
         if item is None:
             return None
+        bridge = self._scene_context._bridge
+        bridge._ensure_payload_cache_current()
+        cache = bridge._payload_cache
+        if not cache.indexes_valid:
+            cache.rebuild_indexes()
+        status, location = cache.resolve_node_payload_slot(str(node_id or "").strip())
+        if status == "ok" and location is not None:
+            collection_name, index = location
+            collection = cache.nodes if collection_name == "nodes" else cache.backdrop_nodes
+            payload = collection[index]
+            try:
+                payload_bounds = QRectF(
+                    float(payload["x"]),
+                    float(payload["y"]),
+                    float(payload["width"]),
+                    float(payload["height"]),
+                )
+            except (KeyError, TypeError, ValueError):
+                pass
+            else:
+                if payload_bounds.width() > 0.0 and payload_bounds.height() > 0.0:
+                    return payload_bounds
         return QRectF(item.sceneBoundingRect())
 
     def bounds_for_node_ids(self, node_ids: list[str]) -> QRectF | None:

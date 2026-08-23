@@ -3085,6 +3085,32 @@ class GraphSceneBridgeTrackBTests(unittest.TestCase):
         self.scene.clear_selection()
         self.assertIsNone(self.scene.selection_bounds())
 
+    def test_selection_bounds_include_expanded_settings_group_height(self) -> None:
+        node_id = self.scene.add_node_from_type(
+            "tests.track_b_settings_groups",
+            40.0,
+            60.0,
+        )
+        collapsed_payload = next(
+            item for item in self.scene.nodes_model if item["node_id"] == node_id
+        )
+
+        self.assertTrue(
+            self.scene.set_node_settings_group_expanded(node_id, "general", True)
+        )
+        expanded_payload = next(
+            item for item in self.scene.nodes_model if item["node_id"] == node_id
+        )
+        self.scene.select_node(node_id)
+        node_bounds = self.scene.node_bounds(node_id)
+        selection_bounds = self.scene.selection_bounds()
+
+        self.assertGreater(expanded_payload["height"], collapsed_payload["height"])
+        self.assertIsNotNone(node_bounds)
+        self.assertIsNotNone(selection_bounds)
+        self.assertAlmostEqual(node_bounds.height(), expanded_payload["height"], places=6)
+        self.assertAlmostEqual(selection_bounds.height(), expanded_payload["height"], places=6)
+
     def test_rect_selection_uses_drag_direction_for_enclosed_and_crossing_modes(self) -> None:
         enclosed_node = self.scene.add_node_from_type("core.constant", -140.0, -60.0)
         crossing_node = self.scene.add_node_from_type("core.python_script", 120.0, -60.0)
