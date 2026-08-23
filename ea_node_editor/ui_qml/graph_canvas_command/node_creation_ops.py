@@ -195,23 +195,25 @@ class NodeCreationOps:
             )
         )
 
-    @pyqtSlot(str, str, str, str, bool, result=bool)
-    def request_move_edge_endpoint(
+    @pyqtSlot("QVariantList", str, str, str, bool, bool, result=bool)
+    def request_rewire_edges(
         self,
-        edge_id: str,
+        edge_ids: list[Any],
         endpoint: str,
         node_id: str,
         port_key: str,
+        copy_requested: bool = False,
         append_requested: bool = False,
     ) -> bool:
         return bool(
             _invoke(
                 self._canvas_source,
-                "request_move_edge_endpoint",
-                edge_id,
+                "request_rewire_edges",
+                list(edge_ids or []),
                 endpoint,
                 node_id,
                 port_key,
+                bool(copy_requested),
                 bool(append_requested),
                 default=False,
             )

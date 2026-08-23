@@ -79,6 +79,16 @@ QtObject {
         root.selectedEdgeIds = edgeId ? [edgeId] : [];
     }
 
+    function setEdgeSelection(edgeIds, additive) {
+        var next = additive ? root.normalizeEdgeIds(root.selectedEdgeIds) : [];
+        var additions = root.normalizeEdgeIds(edgeIds);
+        for (var i = 0; i < additions.length; ++i) {
+            if (next.indexOf(additions[i]) < 0)
+                next.push(additions[i]);
+        }
+        root.selectedEdgeIds = next;
+    }
+
     function sceneBackdropNodesModel() {
         var stateBridge = root.sceneStateBridge();
         if (stateBridge && stateBridge.backdrop_nodes_model !== undefined)

@@ -424,6 +424,23 @@ def test_runtime_flow_states_treat_empty_trees_and_disabled_edges_as_no_data() -
         "flow_in": "flowing",
     }
 
+    for edge in edges:
+        if edge["target_port_key"] in {"optional", "invalid"}:
+            edge["enabled"] = True
+
+    restored_states = resolve_runtime_port_flow_states(
+        node_payloads=nodes,
+        edge_payloads=edges,
+        output_records_by_node=records,
+    )
+
+    assert restored_states["sink"] == {
+        "required": "waiting",
+        "optional": "flowing",
+        "invalid": "invalid",
+        "flow_in": "flowing",
+    }
+
 
 class _FlowSceneStub(QObject):
     nodes_changed = pyqtSignal()

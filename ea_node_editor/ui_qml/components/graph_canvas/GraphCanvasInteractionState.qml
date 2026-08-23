@@ -22,6 +22,7 @@ QtObject {
     property var pendingConnectionPort: null
     property var wireDragState: null
     property var wireDropCandidate: null
+    property var wireInvalidDropCandidate: null
     property bool edgeContextVisible: false
     property bool nodeContextVisible: false
     property bool selectionContextVisible: false
@@ -217,7 +218,7 @@ QtObject {
         state.compatibility_anchor_catalog_generation = "";
         state.compatible_endpoint_ids = [];
         state.compatible_endpoint_lookup = ({});
-        if (!root.sceneBridge || !root.sceneBridge.compatible_endpoint_snapshot)
+        if (!root.sceneBridge)
             return state;
 
         var sourcePort = _scenePortData(state.node_id, state.port_key);
@@ -225,11 +226,24 @@ QtObject {
         state.compatibility_anchor_catalog_generation = anchorGeneration;
         var snapshot = null;
         try {
-            snapshot = root.sceneBridge.compatible_endpoint_snapshot(
-                String(state.node_id || ""),
-                String(state.port_key || ""),
-                state.compatibility_candidate_role
-            );
+            if (state.rewire) {
+                if (!root.sceneBridge.compatible_rewire_endpoint_snapshot)
+                    return state;
+                snapshot = root.sceneBridge.compatible_rewire_endpoint_snapshot(
+                    state.moving_edge_ids || [],
+                    String(state.moving_endpoint || ""),
+                    Boolean(state.copy_requested),
+                    Boolean(state.append_requested)
+                );
+            } else {
+                if (!root.sceneBridge.compatible_endpoint_snapshot)
+                    return state;
+                snapshot = root.sceneBridge.compatible_endpoint_snapshot(
+                    String(state.node_id || ""),
+                    String(state.port_key || ""),
+                    state.compatibility_candidate_role
+                );
+            }
         } catch (_error) {
             return state;
         }
@@ -328,7 +342,7 @@ QtObject {
         return null;
     }
 
-    function _edgeEndpointMoveForPort(nodeId, portKey) {
+    function _edgeEndpointDragForPort(nodeId, portKey, direction, copyRequested) {
         var matches = [];
         var edges = _canvasEdges();
         for (var edgeIndex = 0; edgeIndex < edges.length; ++edgeIndex) {
@@ -344,13 +358,74 @@ QtObject {
                 matches.push({"edge": edge, "endpoint": "target"});
             }
         }
-        if (matches.length === 1)
-            return matches[0];
-        var selectedIds = root.canvasItem ? (root.canvasItem.selectedEdgeIds || []) : [];
-        var selectedMatches = matches.filter(function(match) {
-            return selectedIds.indexOf(String(match.edge.edge_id || "")) >= 0;
+
+        var normalizedDirection = _normalizedPortDirection(direction, "");
+        var expectedEndpoint = normalizedDirection === "out"
+            ? "source"
+            : (normalizedDirection === "in" ? "target" : "");
+        if (expectedEndpoint) {
+            matches = matches.filter(function(match) {
+                return match.endpoint === expectedEndpoint;
+            });
+        }
+        if (matches.length === 0)
+            return null;
+
+        var activeMatches = matches.filter(function(match) {
+            return Boolean(match.edge && match.edge.active_data_wire);
         });
-        return selectedMatches.length === 1 ? selectedMatches[0] : null;
+        var parityBundle = activeMatches.length > 0;
+        if (parityBundle)
+            matches = activeMatches;
+
+        var selectedIds = root.canvasItem ? (root.canvasItem.selectedEdgeIds || []) : [];
+        if (Boolean(copyRequested) || !parityBundle) {
+            if (matches.length !== 1) {
+                var selectedMatches = matches.filter(function(match) {
+                    return selectedIds.indexOf(String(match.edge.edge_id || "")) >= 0;
+                });
+                if (selectedMatches.length !== 1)
+                    return null;
+                matches = selectedMatches;
+            }
+        }
+
+        var endpoint = String(matches[0].endpoint || "");
+        var members = [];
+        var edgeIds = [];
+        for (var matchIndex = 0; matchIndex < matches.length; ++matchIndex) {
+            var match = matches[matchIndex];
+            if (String(match.endpoint || "") !== endpoint)
+                return null;
+            var edge = match.edge;
+            var fixedNodeId = endpoint === "source" ? edge.target_node_id : edge.source_node_id;
+            var fixedPortKey = endpoint === "source" ? edge.target_port_key : edge.source_port_key;
+            var fixedFacts = _scenePortFacts(fixedNodeId, fixedPortKey);
+            if (!fixedFacts)
+                return null;
+            var fixedPort = fixedFacts.port;
+            var member = {
+                "edge_id": String(edge.edge_id || ""),
+                "fixed_node_id": String(fixedNodeId || ""),
+                "fixed_port_key": String(fixedPortKey || ""),
+                "fixed_direction": _normalizedPortDirection(fixedPort.direction, ""),
+                "fixed_kind": String(fixedPort.kind || ""),
+                "fixed_x": Number(fixedFacts.point.x),
+                "fixed_y": Number(fixedFacts.point.y),
+                "active_data_wire": Boolean(edge.active_data_wire)
+            };
+            var fixedSide = _portCardinalSide(fixedPort, fixedPortKey);
+            if (fixedSide)
+                member.fixed_side = fixedSide;
+            members.push(member);
+            edgeIds.push(member.edge_id);
+        }
+        return {
+            "endpoint": endpoint,
+            "edge_ids": edgeIds,
+            "members": members,
+            "active_data_wire": parityBundle
+        };
     }
 
     function _connectionPreviewFacts(sourceDrag, candidate, appendRequested) {
@@ -358,13 +433,14 @@ QtObject {
             "append_requested": Boolean(appendRequested),
             "connection_mode": Boolean(appendRequested) ? "append" : "connect",
             "duplicate": false,
-            "replaces_existing": false
+            "replaces_existing": false,
+            "replacement_edge_ids": []
         };
         if (!sourceDrag || !candidate)
             return facts;
         var targetInput = _dropTargetInput(sourceDrag, candidate);
         var edges = _canvasEdges();
-        var targetConnectionCount = 0;
+        var targetEdges = [];
         for (var i = 0; i < edges.length; ++i) {
             var edge = edges[i];
             if (!edge
@@ -372,7 +448,7 @@ QtObject {
                     || String(edge.target_port_key || "") !== String(targetInput.port_key || "")) {
                 continue;
             }
-            targetConnectionCount += 1;
+            targetEdges.push(edge);
             if (_isExactDuplicate(sourceDrag, candidate, edge))
                 facts.duplicate = true;
         }
@@ -380,9 +456,18 @@ QtObject {
             facts.connection_mode = "noop";
             return facts;
         }
-        if (!facts.append_requested && targetConnectionCount > 0) {
+        if (!facts.append_requested && targetEdges.length > 0) {
             facts.connection_mode = "replace";
             facts.replaces_existing = true;
+            targetEdges.sort(function(left, right) {
+                var orderDelta = Number(left.input_order || 0) - Number(right.input_order || 0);
+                if (orderDelta !== 0)
+                    return orderDelta;
+                return String(left.edge_id || "").localeCompare(String(right.edge_id || ""));
+            });
+            for (var replacementIndex = 0; replacementIndex < targetEdges.length; ++replacementIndex) {
+                facts.replacement_edge_ids.push(String(targetEdges[replacementIndex].edge_id || ""));
+            }
         }
         return facts;
     }
@@ -856,12 +941,81 @@ QtObject {
         return payload;
     }
 
+    function _activeDataWirePreview(sourceDrag, candidate) {
+        if (!sourceDrag || !candidate)
+            return false;
+        if (String(sourceDrag.kind || "").trim().toLowerCase() === "flow"
+                || String(candidate.kind || "").trim().toLowerCase() === "flow") {
+            return false;
+        }
+        var endpointIds = [String(sourceDrag.node_id || ""), String(candidate.node_id || "")];
+        var nodes = _sceneNodes();
+        for (var nodeIndex = 0; nodeIndex < nodes.length; ++nodeIndex) {
+            var node = nodes[nodeIndex];
+            if (!node || endpointIds.indexOf(String(node.node_id || "")) < 0)
+                continue;
+            var behavior = String(node.runtime_behavior || "").trim().toLowerCase();
+            if (behavior === "active" || behavior === "compile_only")
+                return true;
+        }
+        return false;
+    }
+
+    function _rewirePreviewConnections(state, target) {
+        var connections = [];
+        var members = state ? (state.moving_edges || []) : [];
+        for (var index = 0; index < members.length; ++index) {
+            var member = members[index];
+            var mode = !target
+                ? (Boolean(state.copy_requested) ? "noop" : "disconnect")
+                : (!target.valid_drop
+                    ? "noop"
+                    : (Boolean(state.copy_requested) ? "copy" : "rewire"));
+            var connection = {
+                "edge_id": String(member.edge_id || ""),
+                "source_direction": String(member.fixed_direction || ""),
+                "source_node_id": String(member.fixed_node_id || ""),
+                "source_port_key": String(member.fixed_port_key || ""),
+                "source_kind": String(member.fixed_kind || ""),
+                "start_x": Number(member.fixed_x),
+                "start_y": Number(member.fixed_y),
+                "target_x": target ? Number(target.scene_x) : Number(state.cursor_x),
+                "target_y": target ? Number(target.scene_y) : Number(state.cursor_y),
+                "valid_drop": target ? Boolean(target.valid_drop) : false,
+                "append_requested": Boolean(state.append_requested),
+                "copy_requested": Boolean(state.copy_requested),
+                "connection_mode": mode,
+                "active_data_wire": Boolean(member.active_data_wire),
+                "duplicate": false,
+                "replaces_existing": false
+            };
+            if (member.fixed_side !== undefined)
+                connection.origin_side = GraphCanvasLogic.normalizedPortSide(member.fixed_side);
+            if (target) {
+                connection.target_node_id = target.node_id;
+                connection.target_port_key = target.port_key;
+                connection.target_kind = String(_portKind(target.node_id, target.port_key) || "");
+                if (target.side !== undefined)
+                    connection.target_side = GraphCanvasLogic.normalizedPortSide(target.side);
+            }
+            connections.push(connection);
+        }
+        if (connections.length === 1)
+            return connections[0];
+        return {"connections": connections};
+    }
+
     function wireDragPreviewConnection() {
         var state = root.wireDragState;
         if (!state || !state.active)
             state = null;
         if (state) {
             var target = root.wireDropCandidate;
+            if (state.rewire)
+                return _rewirePreviewConnections(
+                    state,
+                    target ? target : root.wireInvalidDropCandidate
+                );
             var sourcePort = _scenePortData(state.node_id, state.port_key);
             var sourceDrag = _wireDragSourceData(state);
             var previewFacts = _connectionPreviewFacts(
@@ -869,6 +1023,7 @@ QtObject {
                 target,
                 Boolean(state.append_requested)
             );
+            var activeDataWire = _activeDataWirePreview(sourceDrag, target);
             var preview = {
                 "source_direction": state.source_direction,
                 "source_node_id": state.node_id,
@@ -882,7 +1037,9 @@ QtObject {
                 "append_requested": previewFacts.append_requested,
                 "connection_mode": previewFacts.connection_mode,
                 "duplicate": previewFacts.duplicate,
-                "replaces_existing": previewFacts.replaces_existing
+                "replaces_existing": previewFacts.replaces_existing,
+                "replacement_edge_ids": previewFacts.replacement_edge_ids,
+                "active_data_wire": activeDataWire
             };
             if (state.origin_side !== undefined)
                 preview.origin_side = GraphCanvasLogic.normalizedPortSide(state.origin_side);
@@ -931,6 +1088,7 @@ QtObject {
         if (hovered.side !== undefined)
             pendingCandidate.side = hovered.side;
         var pendingFacts = _connectionPreviewFacts(pendingSource, pendingCandidate, false);
+        var pendingActiveDataWire = _activeDataWirePreview(pendingSource, pendingCandidate);
         var pendingPreview = {
             "source_direction": pending.direction,
             "source_node_id": pending.node_id,
@@ -944,7 +1102,9 @@ QtObject {
             "append_requested": pendingFacts.append_requested,
             "connection_mode": pendingFacts.connection_mode,
             "duplicate": pendingFacts.duplicate,
-            "replaces_existing": pendingFacts.replaces_existing
+            "replaces_existing": pendingFacts.replaces_existing,
+            "replacement_edge_ids": pendingFacts.replacement_edge_ids,
+            "active_data_wire": pendingActiveDataWire
         };
         pendingPreview.target_node_id = pendingCandidate.node_id;
         pendingPreview.target_port_key = pendingCandidate.port_key;
@@ -965,15 +1125,26 @@ QtObject {
             false,
             state
         );
+        root.wireInvalidDropCandidate = !candidate && state && state.rewire
+            ? _nearestDropCandidateForWireDrag(
+                screenX,
+                screenY,
+                _wireDragSourceData(state),
+                undefined,
+                true,
+                state
+            )
+            : null;
         root.wireDropCandidate = candidate;
         root.hoveredPort = candidate ? candidate : null;
     }
 
     function _clearWireDragState() {
-        if (!root.wireDragState && !root.wireDropCandidate)
+        if (!root.wireDragState && !root.wireDropCandidate && !root.wireInvalidDropCandidate)
             return;
         root.wireDragState = null;
         root.wireDropCandidate = null;
+        root.wireInvalidDropCandidate = null;
         root.hoveredPort = root.pendingConnectionPort ? root.pendingConnectionPort : null;
         _requestEdgeRedraw();
     }
@@ -984,24 +1155,23 @@ QtObject {
         root.canvasItem.forceActiveFocus();
         root._closeContextMenus();
         root.wireDropCandidate = null;
+        root.wireInvalidDropCandidate = null;
         var source = _authoringPortPayload(nodeId, portKey, direction, sceneX, sceneY);
-        var move = null;
-        if (_controlRequested(modifiers)) {
-            move = _edgeEndpointMoveForPort(nodeId, portKey);
-            if (!move)
+        var controlRequested = _controlRequested(modifiers);
+        var copyRequested = controlRequested && _appendRequested(modifiers);
+        var endpointDrag = null;
+        if (controlRequested) {
+            endpointDrag = _edgeEndpointDragForPort(nodeId, portKey, direction, copyRequested);
+            if (!endpointDrag)
                 return;
-            var edge = move.edge;
-            var fixedNodeId = move.endpoint === "source" ? edge.target_node_id : edge.source_node_id;
-            var fixedPortKey = move.endpoint === "source" ? edge.target_port_key : edge.source_port_key;
-            var fixedFacts = _scenePortFacts(fixedNodeId, fixedPortKey);
-            if (!fixedFacts)
-                return;
+            copyRequested = copyRequested && Boolean(endpointDrag.active_data_wire);
+            var firstMember = endpointDrag.members[0];
             source = _authoringPortPayload(
-                fixedNodeId,
-                fixedPortKey,
-                fixedFacts.port.direction,
-                fixedFacts.point.x,
-                fixedFacts.point.y
+                firstMember.fixed_node_id,
+                firstMember.fixed_port_key,
+                firstMember.fixed_direction,
+                firstMember.fixed_x,
+                firstMember.fixed_y
             );
         }
         var state = {
@@ -1016,11 +1186,13 @@ QtObject {
             "press_screen_y": Number(screenY),
             "active": false,
             "append_requested": root._appendRequested(modifiers),
-            "rewire": move !== null
+            "rewire": endpointDrag !== null,
+            "copy_requested": copyRequested
         };
-        if (move) {
-            state.moving_edge_id = String(move.edge.edge_id || "");
-            state.moving_endpoint = String(move.endpoint || "");
+        if (endpointDrag) {
+            state.moving_edge_ids = endpointDrag.edge_ids;
+            state.moving_edges = endpointDrag.members;
+            state.moving_endpoint = String(endpointDrag.endpoint || "");
             state.origin_node_id = String(nodeId || "");
             state.origin_port_key = String(portKey || "");
             state.origin_direction = _normalizedPortDirection(direction, "");
@@ -1060,11 +1232,15 @@ QtObject {
             "press_screen_x": state.press_screen_x,
             "press_screen_y": state.press_screen_y,
             "active": state.active || movedEnough,
-            "append_requested": root._appendRequested(modifiers),
-            "rewire": Boolean(state.rewire)
+            "append_requested": state.rewire
+                ? Boolean(state.append_requested)
+                : root._appendRequested(modifiers),
+            "rewire": Boolean(state.rewire),
+            "copy_requested": Boolean(state.copy_requested)
         };
         if (state.rewire) {
-            next.moving_edge_id = state.moving_edge_id;
+            next.moving_edge_ids = state.moving_edge_ids || [];
+            next.moving_edges = state.moving_edges || [];
             next.moving_endpoint = state.moving_endpoint;
             next.origin_node_id = state.origin_node_id;
             next.origin_port_key = state.origin_port_key;
@@ -1123,11 +1299,15 @@ QtObject {
             "press_screen_x": state.press_screen_x,
             "press_screen_y": state.press_screen_y,
             "active": true,
-            "append_requested": root._appendRequested(modifiers),
-            "rewire": Boolean(state.rewire)
+            "append_requested": state.rewire
+                ? Boolean(state.append_requested)
+                : root._appendRequested(modifiers),
+            "rewire": Boolean(state.rewire),
+            "copy_requested": Boolean(state.copy_requested)
         };
         if (state.rewire) {
-            finalState.moving_edge_id = state.moving_edge_id;
+            finalState.moving_edge_ids = state.moving_edge_ids || [];
+            finalState.moving_edges = state.moving_edges || [];
             finalState.moving_endpoint = state.moving_endpoint;
             finalState.origin_node_id = state.origin_node_id;
             finalState.origin_port_key = state.origin_port_key;
@@ -1161,15 +1341,16 @@ QtObject {
                 && String(candidate.node_id || "") === String(finalState.origin_node_id || "")
                 && String(candidate.port_key || "") === String(finalState.origin_port_key || "");
             if (candidate && candidate.valid_drop && !originalSocket
-                    && root.shellBridge && root.shellBridge.request_move_edge_endpoint) {
-                root.shellBridge.request_move_edge_endpoint(
-                    finalState.moving_edge_id,
+                    && root.shellBridge && root.shellBridge.request_rewire_edges) {
+                root.shellBridge.request_rewire_edges(
+                    finalState.moving_edge_ids,
                     finalState.moving_endpoint,
                     candidate.node_id,
                     candidate.port_key,
+                    finalState.copy_requested,
                     finalState.append_requested
                 );
-            } else if (!candidate) {
+            } else if (!candidate && !finalState.copy_requested) {
                 var nearbyPort = _nearestDropCandidateForWireDrag(
                     Number(screenX),
                     Number(screenY),
@@ -1178,12 +1359,13 @@ QtObject {
                     true,
                     finalState
                 );
-                if (!nearbyPort && root.shellBridge && root.shellBridge.request_move_edge_endpoint) {
-                    root.shellBridge.request_move_edge_endpoint(
-                        finalState.moving_edge_id,
+                if (!nearbyPort && root.shellBridge && root.shellBridge.request_rewire_edges) {
+                    root.shellBridge.request_rewire_edges(
+                        finalState.moving_edge_ids,
                         finalState.moving_endpoint,
                         "",
                         "",
+                        false,
                         false
                     );
                 }
@@ -1337,7 +1519,7 @@ QtObject {
         if (!edgeId || !root.canvasItem)
             return;
         root.canvasItem.forceActiveFocus();
-        var menuHeight = 174;
+        var menuHeight = 267;
         var position = root.canvasItem._clampMenuPosition(x, y, 206, menuHeight);
         root._closeContextMenus();
         root.edgeContextEdgeId = edgeId;
@@ -1440,7 +1622,8 @@ QtObject {
         if (!root.canvasItem)
             return;
         root.canvasItem.forceActiveFocus();
-        var position = root.canvasItem._clampMenuPosition(x, y, 252, 358);
+        var menuHeight = (root.canvasItem.selectedEdgeIds || []).length > 0 ? 411 : 358;
+        var position = root.canvasItem._clampMenuPosition(x, y, 252, menuHeight);
         root._closeContextMenus();
         root._setContextMenuPosition(position.x, position.y);
         root.canvasOptionsVisible = true;
@@ -1450,11 +1633,12 @@ QtObject {
         if (!root.canvasItem)
             return;
         root.canvasItem.forceActiveFocus();
+        var menuHeight = (root.canvasItem.selectedEdgeIds || []).length > 0 ? 411 : 358;
         var position = root.canvasItem._clampMenuPosition(
             root.canvasItem.sceneToScreenX(root._finiteCoordinate(sceneX)),
             root.canvasItem.sceneToScreenY(root._finiteCoordinate(sceneY)),
             252,
-            358
+            menuHeight
         );
         root._closeContextMenus();
         root._setContextMenuSceneAnchorFromScreen(position.x, position.y);
@@ -1495,6 +1679,7 @@ QtObject {
         root.hoveredPort = null;
         root.wireDragState = null;
         root.wireDropCandidate = null;
+        root.wireInvalidDropCandidate = null;
         root.clearLibraryDropPreview();
     }
 

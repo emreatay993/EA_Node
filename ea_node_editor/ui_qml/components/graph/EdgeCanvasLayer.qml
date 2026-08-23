@@ -17,6 +17,7 @@ Item {
     property real _paintViewportZoom: 1.0
     property real _paintViewportOffsetX: 0.0
     property real _paintViewportOffsetY: 0.0
+    readonly property color activeAppendMarkerColor: "#49BD53"
     readonly property var _currentViewportTransform: root.edgeLayer
         ? EdgeViewportMath.viewportTransform(root.edgeLayer)
         : ({"zoom": root._paintViewportZoom, "offsetX": root._paintViewportOffsetX, "offsetY": root._paintViewportOffsetY})
@@ -150,6 +151,19 @@ Item {
     function standardEdgeBaseColor(edge) {
         return edge && edge.color ? edge.color : root.edgeLayer.fallbackStrokeColor;
     }
+    function standardEdgeActive(edge) {
+        return Boolean(edge && edge.active_data_wire);
+    }
+    function standardEdgeDataAccess(edge) {
+        var access = String(edge && edge.data_access || "item").trim().toLowerCase();
+        return access === "list" || access === "tree" ? access : "item";
+    }
+    function standardEdgeDisplayMode(edge) {
+        if (!root.standardEdgeActive(edge))
+            return "default";
+        var mode = String((edge.visual_style || {}).display_mode || "default").trim().toLowerCase();
+        return mode === "faint" || mode === "hidden" ? mode : "default";
+    }
     function standardEdgeInvalid(edge) {
         return Boolean(edge && edge.data_type_warning);
     }
@@ -162,6 +176,11 @@ Item {
     function standardEdgeStrokeColor(snapshot, edge) {
         if (root.standardEdgeInvalid(edge))
             return root.standardEdgeBaseColor(edge);
+        if (root.standardEdgeActive(edge)) {
+            if (snapshot.selected || snapshot.previewed)
+                return root.edgeLayer.activeSelectedStrokeColor;
+            return root.standardEdgeBaseColor(edge);
+        }
         if (root.standardEdgeMuted(edge))
             return root.edgeLayer.inactiveStrokeColor;
         if (snapshot.selected)
@@ -170,26 +189,55 @@ Item {
             return root.edgeLayer.previewStrokeColor;
         return root.standardEdgeBaseColor(edge);
     }
-    function standardEdgeBaseWidthPx(snapshot) {
+    function standardEdgeBaseWidthPx(snapshot, edge, structure, zoom) {
+        if (root.standardEdgeActive(edge)) {
+            if (structure === "empty")
+                return 1.0;
+            if (snapshot.selected)
+                return 3.0;
+            if (snapshot.previewed)
+                return 2.8;
+            return 2.0;
+        }
         if (snapshot.selected)
             return 3.0;
         if (snapshot.previewed)
             return 2.8;
         return 2.0;
     }
-    function standardEdgeStrokeCount(edge) {
+    function standardEdgeStructure(edge) {
+        if (root.standardEdgeActive(edge)
+                && root.edgeLayer
+                && root.edgeLayer.edgeValueState(edge) === "empty") {
+            return "empty";
+        }
+        var access = root.standardEdgeDataAccess(edge);
+        return access === "tree" ? "tree" : (access === "list" ? "list" : "single");
+    }
+    function standardEdgeStrokeCount(edge, structure) {
+        if (root.standardEdgeActive(edge))
+            return structure === "empty" ? 2 : 1;
         var count = Math.round(Number(edge && edge.stroke_count || 1));
         return Math.max(1, Math.min(3, isFinite(count) ? count : 1));
     }
-    function standardEdgeStrokeOffsetsScreenPx(edge) {
-        var count = root.standardEdgeStrokeCount(edge);
+    function standardEdgeStrokeOffsetsScreenPx(edge, structure) {
+        if (root.standardEdgeActive(edge))
+            return structure === "empty" ? [-1.5, 1.5] : [0.0];
+        var count = root.standardEdgeStrokeCount(edge, structure);
         if (count === 2)
             return [-2.25, 2.25];
         if (count === 3)
             return [-3.5, 0.0, 3.5];
         return [0.0];
     }
-    function standardEdgeDashPattern(edge, zoom) {
+    function standardEdgeDashPattern(edge, structure, replacementPreviewed, zoom) {
+        if (root.standardEdgeActive(edge)) {
+            if (replacementPreviewed || structure === "list")
+                return [1.0, 4.0];
+            if (structure === "tree")
+                return [8.0, 5.0];
+            return [];
+        }
         if (!root.standardEdgeMuted(edge))
             return [];
         var unit = Math.max(1.0, zoom);
@@ -206,14 +254,21 @@ Item {
     }
     function dragConnectionMode(connection) {
         var mode = String(connection && connection.connection_mode || "connect").trim().toLowerCase();
-        return mode === "append" || mode === "replace" || mode === "noop" ? mode : "connect";
+        return mode === "append" || mode === "replace" || mode === "noop"
+                || mode === "disconnect" || mode === "copy" || mode === "rewire"
+            ? mode
+            : "connect";
     }
     function dragConnectionDashPattern(connection, zoom) {
         var unit = Math.max(1.0, zoom);
         var mode = root.dragConnectionMode(connection);
-        if (mode === "append")
+        if (mode === "append" || mode === "copy")
             return [Math.max(1.0, 2.0 * unit), Math.max(2.0, 3.0 * unit)];
-        if (mode === "replace")
+        if (mode === "replace"
+                && root.edgeLayer
+                && root.edgeLayer.dragConnectionActiveDataWire(connection))
+            return [];
+        if (mode === "replace" || mode === "disconnect" || mode === "rewire")
             return [Math.max(4.0, 10.0 * unit), Math.max(2.0, 4.0 * unit)];
         if (mode === "noop")
             return [Math.max(1.0, 1.0 * unit), Math.max(3.0, 5.0 * unit)];
@@ -221,13 +276,32 @@ Item {
     }
     function dragConnectionMarkerText(connection) {
         var mode = root.dragConnectionMode(connection);
-        if (mode === "append")
+        if (mode === "append" || mode === "copy")
             return "+";
-        if (mode === "replace")
-            return "R";
-        if (mode === "noop")
-            return "=";
-        return "";
+        if (root.edgeLayer && root.edgeLayer.dragConnectionActiveDataWire(connection))
+            return mode === "disconnect" ? "-" : "";
+        return mode === "replace" ? "R" : (mode === "noop" ? "=" : "");
+    }
+    function dragConnectionMarkerVisible(connection) {
+        var markerText = root.dragConnectionMarkerText(connection);
+        if (!markerText.length)
+            return false;
+        var mode = root.dragConnectionMode(connection);
+        var activeDataWire = root.edgeLayer
+            && root.edgeLayer.dragConnectionActiveDataWire(connection);
+        if (activeDataWire && mode === "disconnect")
+            return true;
+        if (!Boolean(connection && connection.valid_drop))
+            return false;
+        return !(activeDataWire && mode === "noop");
+    }
+    function dragConnectionMarkerColor(connection, dragStrokeColor) {
+        var mode = root.dragConnectionMode(connection);
+        if (root.edgeLayer
+                && root.edgeLayer.dragConnectionActiveDataWire(connection)
+                && (mode === "append" || mode === "copy"))
+            return root.activeAppendMarkerColor;
+        return dragStrokeColor;
     }
     function drawDragConnectionMarker(ctx, geometry, markerText, strokeColor, viewportTransform) {
         if (!ctx || !geometry || !String(markerText || "").length)
@@ -258,20 +332,71 @@ Item {
         ctx.restore();
     }
     function standardEdgePaintState(snapshot, edge, zoom) {
-        var baseWidthPx = root.standardEdgeBaseWidthPx(snapshot);
+        var activeDataWire = root.standardEdgeActive(edge);
+        var dataAccess = root.standardEdgeDataAccess(edge);
+        var displayMode = root.standardEdgeDisplayMode(edge);
+        var structure = root.standardEdgeStructure(edge);
+        var hidden = activeDataWire
+            && displayMode === "hidden"
+            && !snapshot.selected
+            && !snapshot.previewed
+            && !snapshot.replacementPreviewed;
+        var faint = activeDataWire && (displayMode === "faint" || snapshot.replacementPreviewed)
+            && !snapshot.selected
+            && !snapshot.previewed;
+        var invalidGradient = activeDataWire && root.standardEdgeInvalid(edge);
+        var nodeSelectionGradient = activeDataWire
+            && !snapshot.selected
+            && Boolean(snapshot.sourceNodeSelected || snapshot.targetNodeSelected);
+        var gradientKind = invalidGradient
+            ? "invalid_target"
+            : (nodeSelectionGradient
+                ? (snapshot.sourceNodeSelected
+                    ? (snapshot.targetNodeSelected ? "selected_both" : "selected_source")
+                    : "selected_target")
+                : "none");
+        var baseWidthPx = root.standardEdgeBaseWidthPx(snapshot, edge, structure, zoom);
+        var strokeAlpha = structure === "empty" ? 0.72 : 1.0;
+        if (activeDataWire && edge.enabled === false)
+            strokeAlpha = Math.min(strokeAlpha, 0.55);
+        if (faint)
+            strokeAlpha = Math.min(strokeAlpha, 0.18);
+        if (snapshot.selected || snapshot.previewed)
+            strokeAlpha = 1.0;
         return {
             "flowEdge": false,
+            "activeDataWire": activeDataWire,
+            "dataAccess": dataAccess,
+            "displayMode": displayMode,
+            "structure": structure,
             "selected": Boolean(snapshot.selected),
             "previewed": Boolean(snapshot.previewed),
+            "replacementPreviewed": Boolean(snapshot.replacementPreviewed),
+            "sourceNodeSelected": Boolean(snapshot.sourceNodeSelected),
+            "targetNodeSelected": Boolean(snapshot.targetNodeSelected),
             "baseColor": root.standardEdgeBaseColor(edge),
             "strokeColor": root.standardEdgeStrokeColor(snapshot, edge),
-            "strokeAlpha": 1.0,
-            "strokeWidthScreenPx": Math.max(1.0, baseWidthPx * zoom),
-            "strokeCount": root.standardEdgeStrokeCount(edge),
-            "strokeOffsetsScreenPx": root.standardEdgeStrokeOffsetsScreenPx(edge),
-            "dashPatternScreenPx": root.standardEdgeDashPattern(edge, zoom),
+            "strokeAlpha": strokeAlpha,
+            "strokeWidthScreenPx": Math.max(
+                1.0,
+                activeDataWire ? baseWidthPx : baseWidthPx * zoom
+            ),
+            "strokeCount": root.standardEdgeStrokeCount(edge, structure),
+            "strokeOffsetsScreenPx": root.standardEdgeStrokeOffsetsScreenPx(edge, structure),
+            "dashPatternScreenPx": root.standardEdgeDashPattern(
+                edge,
+                structure,
+                Boolean(snapshot.replacementPreviewed),
+                zoom
+            ),
             "muted": root.standardEdgeMuted(edge),
-            "invalid": root.standardEdgeInvalid(edge)
+            "invalid": root.standardEdgeInvalid(edge),
+            "bodyVisible": !hidden,
+            "endpointArcsVisible": hidden,
+            "disabledMarkerVisible": activeDataWire && edge.enabled === false && !hidden,
+            "nodeSelectionGradient": nodeSelectionGradient,
+            "invalidGradient": invalidGradient,
+            "gradientKind": gradientKind
         };
     }
     function traceBezierGeometry(ctx, geometry) {
@@ -307,6 +432,11 @@ Item {
         };
         ctx.moveTo(startPoint.x, startPoint.y);
         ctx.lineTo(endPoint.x, endPoint.y);
+    }
+
+    function _tracePolylineRange(ctx, segments, startDistance, endDistance) {
+        for (var i = 0; i < (segments || []).length; i++)
+            root._tracePolylineSegmentSpan(ctx, segments[i], startDistance, endDistance);
     }
 
     function traceBrokenGeometry(ctx, geometry, sampledPoints, breakRanges) {
@@ -351,6 +481,38 @@ Item {
         }
     }
 
+    function strokeStandardGeometry(ctx, geometry, sampledPoints, breakRanges, dashPatternScene) {
+        if (!(breakRanges || []).length) {
+            ctx.beginPath();
+            root.traceGeometry(ctx, geometry);
+            ctx.stroke();
+            return;
+        }
+        var metrics = EdgeMath.polylineMetrics(sampledPoints || []);
+        if (!metrics.points.length || metrics.totalLength <= 1e-6) {
+            ctx.beginPath();
+            root.traceGeometry(ctx, geometry);
+            ctx.stroke();
+            return;
+        }
+        var cursor = 0.0;
+        var ranges = breakRanges || [];
+        for (var i = 0; i <= ranges.length; i++) {
+            var visibleEnd = i < ranges.length
+                ? Math.max(0.0, Math.min(metrics.totalLength, Number(ranges[i].startDistance)))
+                : metrics.totalLength;
+            if (visibleEnd > cursor + 1e-6) {
+                ctx.beginPath();
+                root._tracePolylineRange(ctx, metrics.segments, cursor, visibleEnd);
+                ctx.lineDashOffset = (dashPatternScene || []).length ? -cursor : 0.0;
+                ctx.stroke();
+            }
+            if (i < ranges.length)
+                cursor = Math.max(cursor, Math.min(metrics.totalLength, Number(ranges[i].endDistance)));
+        }
+        ctx.lineDashOffset = 0.0;
+    }
+
     function traceGeometry(ctx, geometry) {
         if (!geometry)
             return;
@@ -378,6 +540,107 @@ Item {
             fraction,
             40
         );
+    }
+
+    function standardEdgeStrokeStyle(ctx, geometry, paintState) {
+        if (!ctx || !geometry || !paintState || paintState.gradientKind === "none")
+            return paintState ? paintState.strokeColor : root.edgeLayer.fallbackStrokeColor;
+        var gradient = ctx.createLinearGradient(
+            Number(geometry.sx),
+            Number(geometry.sy),
+            Number(geometry.tx),
+            Number(geometry.ty)
+        );
+        var sampled = EdgeMath.sampleGeometryPolyline(geometry, 12.0);
+        var totalLength = EdgeMath.polylineMetrics(sampled).totalLength;
+        var viewport = root.edgeLayer ? EdgeViewportMath.viewportTransform(root.edgeLayer) : ({"zoom": 1.0});
+        var fadeScene = EdgeViewportMath.screenLengthToScene(96.0, viewport);
+        var fadeRatio = totalLength > 1e-6
+            ? Math.max(0.02, Math.min(0.5, fadeScene / totalLength))
+            : 0.5;
+        var baseColor = paintState.baseColor;
+        if (paintState.invalidGradient) {
+            var sourceSelected = paintState.selected
+                || paintState.previewed
+                || paintState.sourceNodeSelected;
+            gradient.addColorStop(0.0, sourceSelected ? root.edgeLayer.activeSelectedStrokeColor : baseColor);
+            gradient.addColorStop(fadeRatio, baseColor);
+            gradient.addColorStop(Math.max(fadeRatio, 1.0 - fadeRatio), baseColor);
+            gradient.addColorStop(1.0, root.edgeLayer.dangerStrokeColor);
+        } else if (paintState.gradientKind === "selected_source") {
+            gradient.addColorStop(0.0, root.edgeLayer.activeSelectedStrokeColor);
+            gradient.addColorStop(fadeRatio, paintState.baseColor);
+            gradient.addColorStop(1.0, paintState.baseColor);
+        } else if (paintState.gradientKind === "selected_target") {
+            gradient.addColorStop(0.0, paintState.baseColor);
+            gradient.addColorStop(1.0 - fadeRatio, paintState.baseColor);
+            gradient.addColorStop(1.0, root.edgeLayer.activeSelectedStrokeColor);
+        } else if (paintState.gradientKind === "selected_both") {
+            gradient.addColorStop(0.0, root.edgeLayer.activeSelectedStrokeColor);
+            gradient.addColorStop(fadeRatio, paintState.baseColor);
+            gradient.addColorStop(1.0 - fadeRatio, paintState.baseColor);
+            gradient.addColorStop(1.0, root.edgeLayer.activeSelectedStrokeColor);
+        } else {
+            gradient.addColorStop(0.0, baseColor);
+            gradient.addColorStop(1.0 - fadeRatio, baseColor);
+            gradient.addColorStop(1.0, paintState.strokeColor);
+        }
+        return gradient;
+    }
+
+    function drawHiddenEndpointArcs(ctx, geometry, paintState, viewportTransform) {
+        var step = EdgeViewportMath.screenLengthToScene(4.0, viewportTransform);
+        var points = EdgeMath.sampleGeometryPolyline(geometry, step);
+        var metrics = EdgeMath.polylineMetrics(points);
+        if (!metrics || metrics.totalLength <= 1e-6)
+            return;
+        var startOffset = EdgeViewportMath.screenLengthToScene(2.0, viewportTransform);
+        var glyphLength = EdgeViewportMath.screenLengthToScene(4.0, viewportTransform);
+        var glyphSpacing = EdgeViewportMath.screenLengthToScene(8.0, viewportTransform);
+        var sourceColor = paintState.sourceNodeSelected
+            ? root.edgeLayer.activeSelectedStrokeColor
+            : paintState.baseColor;
+        var targetColor = paintState.invalid
+            ? root.edgeLayer.dangerStrokeColor
+            : (paintState.targetNodeSelected ? root.edgeLayer.activeSelectedStrokeColor : paintState.baseColor);
+        ctx.save();
+        ctx.globalAlpha = 0.72;
+        ctx.lineWidth = EdgeViewportMath.screenLengthToScene(1.6, viewportTransform);
+        ctx.lineCap = "round";
+        ctx.setLineDash([]);
+        for (var i = 0; i < 3; i++) {
+            var sourceStart = startOffset + i * glyphSpacing;
+            var targetEnd = metrics.totalLength - startOffset - i * glyphSpacing;
+            ctx.strokeStyle = sourceColor;
+            ctx.beginPath();
+            root._tracePolylineRange(ctx, metrics.segments, sourceStart, sourceStart + glyphLength);
+            ctx.stroke();
+            ctx.strokeStyle = targetColor;
+            ctx.beginPath();
+            root._tracePolylineRange(ctx, metrics.segments, targetEnd - glyphLength, targetEnd);
+            ctx.stroke();
+        }
+        ctx.restore();
+    }
+
+    function drawDisabledMarker(ctx, geometry, strokeColor, strokeAlpha, viewportTransform) {
+        var anchor = root.edgeAnchor(geometry, 0.5);
+        if (!anchor)
+            return;
+        var radius = EdgeViewportMath.screenLengthToScene(5.0, viewportTransform);
+        ctx.save();
+        ctx.globalAlpha = Number(strokeAlpha || 1.0);
+        ctx.strokeStyle = strokeColor;
+        ctx.lineWidth = EdgeViewportMath.screenLengthToScene(1.8, viewportTransform);
+        ctx.lineCap = "round";
+        ctx.setLineDash([]);
+        ctx.beginPath();
+        ctx.moveTo(anchor.x - radius, anchor.y - radius);
+        ctx.lineTo(anchor.x + radius, anchor.y + radius);
+        ctx.moveTo(anchor.x - radius, anchor.y + radius);
+        ctx.lineTo(anchor.x + radius, anchor.y - radius);
+        ctx.stroke();
+        ctx.restore();
     }
 
     function drawFlowArrowHead(ctx, geometry, edge, strokeColor, zoom, viewportTransform) {
@@ -442,6 +705,7 @@ Item {
 
     function orderSnapshotsForDraw(snapshots, preserveCrossingMetadata) {
         var background = [];
+        var emphasized = [];
         var elevated = [];
         var sourceSnapshots = snapshots || [];
         var preserve = Boolean(preserveCrossingMetadata);
@@ -452,10 +716,15 @@ Item {
             _resetSnapshot(snapshot, preserve);
             if (snapshot.previewed || snapshot.selected)
                 elevated.push(snapshot);
+            else if (snapshot.activeDataWire
+                    && (snapshot.sourceNodeSelected
+                        || snapshot.targetNodeSelected
+                        || Boolean(snapshot.edgeData && snapshot.edgeData.data_type_warning)))
+                emphasized.push(snapshot);
             else
                 background.push(snapshot);
         }
-        var ordered = background.concat(elevated);
+        var ordered = background.concat(emphasized).concat(elevated);
         for (i = 0; i < ordered.length; i++)
             ordered[i].drawOrderIndex = i;
         return ordered;
@@ -463,6 +732,8 @@ Item {
 
     function _samplingModelForSnapshot(snapshot, viewportTransform) {
         if (!snapshot || snapshot.culled || !snapshot.geometry)
+            return null;
+        if (snapshot.hiddenUnrevealed)
             return null;
         var sceneStep = EdgeViewportMath.screenLengthToScene(root.edgeLayer.edgeCrossingSampleStepScreenPx, viewportTransform);
         var points = EdgeMath.sampleGeometryPolyline(snapshot.geometry, sceneStep);
@@ -668,7 +939,7 @@ Item {
         for (i = 0; i < samplingModels.length; i++) {
             var underModel = samplingModels[i];
             var rawRanges = [];
-            if (crossingDecorationEnabled) {
+            if (crossingDecorationEnabled && !underModel.snapshot.selected && !underModel.snapshot.previewed) {
                 for (var j = i + 1; j < samplingModels.length; j++) {
                     rawRanges = rawRanges.concat(
                         _rawBreakRangesForPair(underModel, samplingModels[j], gapHalfScene, anchorMarginScene)
@@ -766,42 +1037,63 @@ Item {
                         };
                     } else {
                         var standardPaint = root.standardEdgePaintState(snapshot, edge, zoom);
-                        ctx.globalAlpha = standardPaint.strokeAlpha;
-                        ctx.strokeStyle = standardPaint.strokeColor;
-                        ctx.lineWidth = EdgeViewportMath.screenLengthToScene(
-                            standardPaint.strokeWidthScreenPx,
-                            viewportTransform
-                        );
-                        ctx.setLineDash(EdgeViewportMath.dashPatternToScene(
-                            standardPaint.dashPatternScreenPx,
-                            viewportTransform
-                        ));
-                        ctx.lineCap = "round";
-                        ctx.lineJoin = "round";
-                        var strokeOffsets = standardPaint.strokeOffsetsScreenPx || [0.0];
-                        for (var strokeIndex = 0; strokeIndex < strokeOffsets.length; ++strokeIndex) {
-                            var offset = root.standardStrokeOffsetVector(
+                        if (standardPaint.endpointArcsVisible) {
+                            root.drawHiddenEndpointArcs(
+                                ctx,
                                 geometry,
-                                Number(strokeOffsets[strokeIndex] || 0.0),
+                                standardPaint,
                                 viewportTransform
                             );
-                            ctx.save();
-                            ctx.translate(offset.x, offset.y);
-                            ctx.beginPath();
-                            if (crossingBreaks.length > 0)
-                                root.traceBrokenGeometry(ctx, geometry, snapshot.crossingSamplePoints || [], crossingBreaks);
-                            else
-                                root.traceGeometry(ctx, geometry);
-                            ctx.stroke();
-                            ctx.restore();
+                        } else if (standardPaint.bodyVisible) {
+                            ctx.globalAlpha = standardPaint.strokeAlpha;
+                            ctx.strokeStyle = root.standardEdgeStrokeStyle(ctx, geometry, standardPaint);
+                            ctx.lineWidth = EdgeViewportMath.screenLengthToScene(
+                                standardPaint.strokeWidthScreenPx,
+                                viewportTransform
+                            );
+                            var standardDashPatternScene = EdgeViewportMath.dashPatternToScene(
+                                standardPaint.dashPatternScreenPx,
+                                viewportTransform
+                            );
+                            ctx.setLineDash(standardDashPatternScene);
+                            ctx.lineCap = "round";
+                            ctx.lineJoin = "round";
+                            var strokeOffsets = standardPaint.strokeOffsetsScreenPx || [0.0];
+                            for (var strokeIndex = 0; strokeIndex < strokeOffsets.length; ++strokeIndex) {
+                                var offset = root.standardStrokeOffsetVector(
+                                    geometry,
+                                    Number(strokeOffsets[strokeIndex] || 0.0),
+                                    viewportTransform
+                                );
+                                ctx.save();
+                                ctx.translate(offset.x, offset.y);
+                                root.strokeStandardGeometry(
+                                    ctx,
+                                    geometry,
+                                    snapshot.crossingSamplePoints || [],
+                                    crossingBreaks,
+                                    standardDashPatternScene
+                                );
+                                ctx.restore();
+                            }
+                        }
+                        if (standardPaint.disabledMarkerVisible) {
+                            root.drawDisabledMarker(
+                                ctx,
+                                geometry,
+                                standardPaint.strokeColor,
+                                standardPaint.strokeAlpha,
+                                viewportTransform
+                            );
                         }
                         paintDiagnosticsByEdgeId[snapshot.edgeId] = standardPaint;
                     }
                     ctx.restore();
                 }
 
-                var liveDrag = root.edgeLayer.dragConnection;
-                if (liveDrag) {
+                var liveDrags = root.edgeLayer.dragConnectionList();
+                for (var liveDragIndex = 0; liveDragIndex < liveDrags.length; liveDragIndex++) {
+                    var liveDrag = liveDrags[liveDragIndex];
                     var dragGeometry = root.edgeLayer._dragGeometry(liveDrag);
                     if (dragGeometry) {
                         var dragStrokeColor = liveDrag.valid_drop
@@ -823,12 +1115,12 @@ Item {
                         );
                         ctx.lineCap = "round";
                         ctx.stroke();
-                        if (liveDrag.valid_drop) {
+                        if (root.dragConnectionMarkerVisible(liveDrag)) {
                             root.drawDragConnectionMarker(
                                 ctx,
                                 dragGeometry,
                                 root.dragConnectionMarkerText(liveDrag),
-                                dragStrokeColor,
+                                root.dragConnectionMarkerColor(liveDrag, dragStrokeColor),
                                 viewportTransform
                             );
                         }

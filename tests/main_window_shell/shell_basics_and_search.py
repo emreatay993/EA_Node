@@ -264,6 +264,30 @@ class MainWindowShellBasicsAndSearchTests(SharedMainWindowShellTestBase):
             self.assertEqual(entries[("Project", "Ctrl+N")], "Create a new project.")
             self.assertEqual(entries[("Node Browser", "Ctrl+B")], "Open the node browser.")
             self.assertEqual(
+                entries[("Selected edge", "Ctrl+Left or Ctrl+Right")],
+                "Center the view on the edge start or end.",
+            )
+            self.assertEqual(
+                entries[("Empty canvas", "W+left-drag")],
+                "Select wires crossed by the marquee.",
+            )
+            self.assertEqual(
+                entries[("Empty canvas", "W+Shift+left-drag")],
+                "Add crossed wires to the current selection.",
+            )
+            self.assertEqual(
+                entries[("Connected port", "Ctrl+drag")],
+                "Reconnect the incident wire endpoints as one operation.",
+            )
+            self.assertEqual(
+                entries[("Connected port", "Ctrl+drag to empty canvas")],
+                "Disconnect the incident wires as one operation.",
+            )
+            self.assertEqual(
+                entries[("Connected port", "Ctrl+Shift+drag")],
+                "Copy the sole or selected incident wire to a compatible endpoint.",
+            )
+            self.assertEqual(
                 entries[("Viewport", "Middle+right click")],
                 "Toggle unused optional data ports for the active view.",
             )

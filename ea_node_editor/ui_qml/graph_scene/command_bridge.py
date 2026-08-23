@@ -186,23 +186,25 @@ class GraphSceneCommandBridge(QObject):
             append_requested,
         )
 
-    @pyqtSlot(str, str, str, str, bool, result=bool)
-    def move_edge_endpoint(
+    @pyqtSlot("QVariantList", str, str, str, bool, bool, result=bool)
+    def request_rewire_edges(
         self,
-        edge_id: str,
+        edge_ids: list[Any],
         endpoint: str,
         node_id: str,
         port_key: str,
+        copy_requested: bool = False,
         append_requested: bool = False,
     ) -> bool:
         return bool(
             self._timed_authoring_call(
-                self._authoring_boundary.move_edge_endpoint,
-                edge_id,
+                self._authoring_boundary.request_rewire_edges,
+                list(edge_ids or []),
                 endpoint,
                 node_id,
                 port_key,
-                append_requested,
+                bool(copy_requested),
+                bool(append_requested),
             )
         )
 
@@ -561,6 +563,12 @@ class GraphSceneCommandBridge(QObject):
     def set_edges_enabled(self, edge_ids: list[Any], enabled: bool) -> bool:
         return self._timed_authoring_call(
             self._authoring_boundary.set_edges_enabled, edge_ids, enabled
+        )
+
+    @pyqtSlot("QVariantList", str, result=bool)
+    def set_edges_display_mode(self, edge_ids: list[Any], mode: str) -> bool:
+        return self._timed_authoring_call(
+            self._authoring_boundary.set_edges_display_mode, edge_ids, mode
         )
 
     @pyqtSlot(str, str, "QVariantList", result=bool)

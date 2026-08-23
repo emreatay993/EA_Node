@@ -276,6 +276,41 @@ def test_data_wires_replace_append_disable_and_round_trip_in_input_order() -> No
     assert len(workspace.edges) == 1
 
 
+def test_edge_display_mode_visual_style_round_trips() -> None:
+    registry = _registry()
+    model = GraphModel()
+    workspace = model.active_workspace
+    mutations = model.validated_mutations(workspace.workspace_id, registry)
+    source_a = mutations.add_node(type_id="tests.source", title="A", x=0, y=0)
+    source_b = mutations.add_node(type_id="tests.source", title="B", x=0, y=100)
+    sink = mutations.add_node(type_id="tests.sink", title="Sink", x=200, y=0)
+    first = mutations.add_edge(
+        source_node_id=source_a.node_id,
+        source_port_key="value",
+        target_node_id=sink.node_id,
+        target_port_key="value",
+        visual_style={
+            "stroke_pattern": "dashed",
+            "custom": {"weight": 2},
+            "display_mode": "faint",
+        },
+    )
+    second = mutations.add_edge(
+        source_node_id=source_b.node_id,
+        source_port_key="value",
+        target_node_id=sink.node_id,
+        target_port_key="value",
+        append_requested=True,
+        visual_style={"arrow": {"kind": "none"}, "display_mode": "default"},
+    )
+
+    document = JsonProjectSerializer(registry).to_persistent_document(model.project)
+    loaded = JsonProjectSerializer(registry).from_document(document)
+    loaded_edges = loaded.workspaces[workspace.workspace_id].edges
+    assert loaded_edges[first.edge_id].visual_style == workspace.edges[first.edge_id].visual_style
+    assert loaded_edges[second.edge_id].visual_style == workspace.edges[second.edge_id].visual_style
+
+
 def test_dynamic_port_insert_remove_is_ordered_and_cleans_all_incident_state() -> None:
     registry = _registry()
     model = GraphModel()

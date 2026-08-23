@@ -475,6 +475,44 @@ TestCase {
         verify(findNamedItems(host, "graphNodeOutputPortDot")[0].opacity > 0.99)
     }
 
+    function test_standard_data_grip_grows_on_real_pointer_hover_and_keeps_halo() {
+        mouseMove(stage, 1, 1)
+        var host = createHost(nodePayload())
+        verify(host !== null)
+        tryVerify(function() {
+            return findNamedItems(host, "graphNodeOutputPortDot").length >= 1
+                && findNamedItems(host, "graphNodeOutputPortMouseArea").length >= 1
+                && findNamedItems(host, "graphNodeOutputPortRing").length >= 1
+        })
+        var dot = findNamedItems(host, "graphNodeOutputPortDot")[0]
+        var mouseArea = findNamedItems(host, "graphNodeOutputPortMouseArea")[0]
+        var ring = findNamedItems(host, "graphNodeOutputPortRing")[0]
+        var restDiameter = dot.width
+        host.portHoverChanged.connect(function(nodeId, portKey, direction, sceneX, sceneY, hovered) {
+            host.hoveredPort = hovered
+                ? {"node_id": nodeId, "port_key": portKey, "direction": direction}
+                : null
+        })
+
+        mouseMove(host, host.width * 0.5, host.height * 0.5)
+        tryVerify(function() { return host.hoverActive })
+        var hoverPoint = mouseArea.mapToItem(
+            stage,
+            mouseArea.width * 0.5 - 4,
+            mouseArea.height * 0.5
+        )
+        mouseMove(stage, hoverPoint.x, hoverPoint.y)
+
+        tryVerify(function() { return dot.hoveredState })
+        tryVerify(function() { return dot.width > restDiameter })
+        verify(ring.visible)
+        verify(ring.width > dot.width)
+
+        mouseMove(stage, 1, 1)
+        tryVerify(function() { return !dot.hoveredState })
+        tryCompare(dot, "width", restDiameter)
+    }
+
     function test_flow_edge_ports_reveal_on_hover_and_pending_connection_only() {
         mouseMove(stage, 1, 1)
         var host = createHost(flowchartPayload("decision"))

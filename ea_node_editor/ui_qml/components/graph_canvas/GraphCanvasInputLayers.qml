@@ -23,6 +23,7 @@ Item {
     property var themePalette: ({})
     property real boxZoomDragThreshold: 4
     property real boxZoomPaddingPx: 24
+    property bool wireSelectionModeHeld: false
 
     function _findFrameScheduler(item) {
         if (!item)
@@ -142,6 +143,12 @@ Item {
     }
 
     Keys.onPressed: function(event) {
+        if (event.key === Qt.Key_W
+                && !(event.modifiers & (Qt.ControlModifier | Qt.AltModifier | Qt.MetaModifier))) {
+            root.wireSelectionModeHeld = true;
+            event.accepted = true;
+            return;
+        }
         if (event.key === Qt.Key_F11) {
             if (root._handleContentFullscreenShortcut())
                 event.accepted = true;
@@ -154,6 +161,20 @@ Item {
                 root.canvasItem.toggleSelectedEdgesEnabled("");
             event.accepted = true;
             return;
+        }
+        if ((event.modifiers & Qt.ControlModifier)
+                && !(event.modifiers & (Qt.ShiftModifier | Qt.AltModifier | Qt.MetaModifier))
+                && (event.key === Qt.Key_Left || event.key === Qt.Key_Right)) {
+            var endpoint = event.key === Qt.Key_Right ? "target" : "source";
+            var jumpedToEndpoint = root.canvasActionRouter
+                && root.canvasActionRouter.jumpToSelectedEdgeEndpoint
+                ? Boolean(root.canvasActionRouter.jumpToSelectedEdgeEndpoint(endpoint))
+                : false;
+            if (jumpedToEndpoint) {
+                event.accepted = true;
+                return;
+            }
+            event.accepted = false;
         }
         if ((event.key === Qt.Key_Left || event.key === Qt.Key_Right) && root._plainKeyEvent(event)) {
             var navigatedPdfPage = root.canvasActionRouter && root.canvasActionRouter.navigateSelectedPdfPage
@@ -201,6 +222,13 @@ Item {
         }
     }
 
+    Keys.onReleased: function(event) {
+        if (event.key !== Qt.Key_W)
+            return;
+        root.wireSelectionModeHeld = false;
+        event.accepted = true;
+    }
+
     Keys.onEscapePressed: function(event) {
         if (!root.canvasItem)
             return;
@@ -242,11 +270,29 @@ Item {
         property real startY: 0
         property real currentX: 0
         property real currentY: 0
+        property var edgeSelectionBaseline: []
 
         function resetGestureState() {
             selecting = false;
             additive = false;
             marqueeMode = "";
+            edgeSelectionBaseline = [];
+        }
+
+        function updateEdgeSelection() {
+            if (!root.canvasItem || marqueeMode !== "edge_selection")
+                return;
+            var left = Math.min(startX, currentX);
+            var top = Math.min(startY, currentY);
+            var width = Math.abs(currentX - startX);
+            var height = Math.abs(currentY - startY);
+            var intersected = root.canvasItem.edgeIdsIntersectingScreenRect
+                ? root.canvasItem.edgeIdsIntersectingScreenRect(left, top, width, height)
+                : [];
+            root.canvasItem.setEdgeSelection(
+                additive ? edgeSelectionBaseline.concat(intersected || []) : intersected,
+                false
+            );
         }
 
         onPressed: function(mouse) {
@@ -277,8 +323,18 @@ Item {
                 root.canvasItem._closeContextMenus();
                 root.canvasItem.clearPendingConnection();
                 selecting = true;
-                marqueeMode = "selection";
-                additive = Boolean((mouse.modifiers & Qt.ControlModifier) || (mouse.modifiers & Qt.ShiftModifier));
+                marqueeMode = root.wireSelectionModeHeld ? "edge_selection" : "selection";
+                additive = marqueeMode === "edge_selection"
+                    ? Boolean(mouse.modifiers & Qt.ShiftModifier)
+                    : Boolean((mouse.modifiers & Qt.ControlModifier) || (mouse.modifiers & Qt.ShiftModifier));
+                edgeSelectionBaseline = additive
+                    ? root.canvasItem._normalizeEdgeIds(root.canvasItem.selectedEdgeIds || [])
+                    : [];
+                if (marqueeMode === "edge_selection" && !additive) {
+                    if (root.sceneCommandBridge && root.sceneCommandBridge.clear_selection)
+                        root.sceneCommandBridge.clear_selection();
+                    root.canvasItem.setEdgeSelection([], false);
+                }
                 return;
             }
             if (mouse.button === Qt.RightButton) {
@@ -295,6 +351,8 @@ Item {
                 return;
             currentX = mouse.x;
             currentY = mouse.y;
+            if (marqueeMode === "edge_selection")
+                updateEdgeSelection();
             if (
                 marqueeMode === "zoom"
                 && root.canvasItem
@@ -316,7 +374,10 @@ Item {
             currentY = mouse.y;
             var dx = Math.abs(currentX - startX);
             var dy = Math.abs(currentY - startY);
-            if (marqueeMode === "selection" && root.sceneCommandBridge && root.canvasItem) {
+            if (marqueeMode === "edge_selection" && root.canvasItem) {
+                if (dx >= 4 || dy >= 4)
+                    updateEdgeSelection();
+            } else if (marqueeMode === "selection" && root.sceneCommandBridge && root.canvasItem) {
                 if (dx >= 4 || dy >= 4) {
                     root.sceneCommandBridge.select_nodes_in_rect(
                         root.canvasItem.screenToSceneX(startX),

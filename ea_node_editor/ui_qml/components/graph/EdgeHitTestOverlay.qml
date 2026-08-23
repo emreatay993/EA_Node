@@ -5,12 +5,18 @@ Item {
     id: root
     property Item edgeLayer: null
     property bool inputEnabled: true
+    property bool wireSelectionModeHeld: false
     property string hoveredEdgeId: ""
     property real hoverX: 0.0
     property real hoverY: 0.0
     readonly property string hoveredEdgeTooltipText: root.edgeLayer && root.edgeLayer.edgeTooltipText
         ? root.edgeLayer.edgeTooltipText(root.hoveredEdgeId)
         : ""
+
+    onWireSelectionModeHeldChanged: {
+        if (root.wireSelectionModeHeld)
+            root.hoveredEdgeId = "";
+    }
 
     signal edgeClicked(string edgeId, bool additive)
     signal edgeDoubleClicked(string edgeId)
@@ -19,7 +25,7 @@ Item {
     MouseArea {
         id: edgeHitMouse
         anchors.fill: parent
-        enabled: root.inputEnabled
+        enabled: root.inputEnabled && !root.wireSelectionModeHeld
         hoverEnabled: true
         acceptedButtons: Qt.LeftButton | Qt.RightButton
         propagateComposedEvents: true

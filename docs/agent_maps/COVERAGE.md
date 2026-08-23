@@ -21,6 +21,8 @@ implementation studies are intentionally excluded.
 ## Cross-layer feature routes
 
 - [Graph Scene Payload And Projection](feature_routes/graph_scene_payload_and_projection.md)
+- [Graph Canvas Input Layers](feature_routes/graph_canvas_input_layers.md)
+- [Edge Routing, Labels, And Progress](feature_routes/edge_routing_labels_progress.md)
 - [Surface Input And Inline Controls](feature_routes/surface_input_and_inline_controls.md)
 - [Port Availability And Default Values](feature_routes/port_availability_and_default_values.md)
 - [Plotter Nodes](feature_routes/plotter_nodes.md)
@@ -40,6 +42,7 @@ implementation studies are intentionally excluded.
   node registry, graph-scene projection, and shared graph controls. Rendered
   list/group/control geometry belongs to Surface Input; payload and settings-band
   calculation belongs to Graph Scene Payload.
+- Active-data wire behavior is owned jointly by graph mutation/history, graph-scene projection, graph-canvas input and action routing, and the retained/canvas edge renderers; passive-only and `flow` edges remain under their existing routes.
 - Exact feature-map citations own QML components when present; the broader QML
   or graph-canvas subsystem remains the fallback only when no feature map cites
   that exact component path.

@@ -77,6 +77,13 @@ Item {
             return false;
         if (snapshot.flowEdge)
             return false;
+        if (snapshot.hiddenUnrevealed)
+            return false;
+        if (snapshot.activeDataWire
+                && Boolean(snapshot.edgeData && snapshot.edgeData.data_type_warning))
+            return false;
+        if (!snapshot.selected && (snapshot.sourceNodeSelected || snapshot.targetNodeSelected))
+            return false;
         if ((snapshot.crossingBreaks || []).length > 0)
             return false;
         var route = String(snapshot.geometry.route || "bezier");
@@ -86,7 +93,7 @@ Item {
     function canRenderSnapshots(snapshots) {
         if (!root.rendererSupported || !root.edgeLayer || !root.canvasLayer)
             return false;
-        if (root.edgeLayer.dragConnection)
+        if (root.edgeLayer.dragConnectionList().length > 0)
             return false;
         var source = snapshots || [];
         for (var i = 0; i < source.length; i++) {
@@ -195,6 +202,21 @@ Item {
         return parts.join(",");
     }
 
+    function _numberArrayKey(values) {
+        var parts = [];
+        for (var i = 0; i < (values || []).length; i++)
+            parts.push(root._fixed(values[i], 3));
+        return parts.join(",");
+    }
+
+    function _shapeDashPattern(screenPattern, strokeWidthScreenPx) {
+        var width = Math.max(1.0, Number(strokeWidthScreenPx || 1.0));
+        var result = [];
+        for (var i = 0; i < (screenPattern || []).length; i++)
+            result.push(Math.max(0.1, Number(screenPattern[i] || 0.0) / width));
+        return result;
+    }
+
     function _contentKeyForEntry(entry) {
         return [
             String(entry.route || "bezier"),
@@ -218,7 +240,10 @@ Item {
             root._fixed(entry.strokeAlpha, 4),
             root._fixed(entry.strokeWidthScreenPx, 4),
             root._offsetKey(entry.strokeOffsets),
-            entry.dashed ? "dashed" : "solid"
+            root._numberArrayKey(entry.dashPattern),
+            entry.disabledMarkerVisible ? "disabled" : "enabled",
+            root._fixed(entry.markerX, 2),
+            root._fixed(entry.markerY, 2)
         ].join("|");
     }
 
@@ -290,8 +315,20 @@ Item {
                 paintState.strokeOffsetsScreenPx || [0.0]
             ),
             "dashed": (paintState.dashPatternScreenPx || []).length > 0,
+            "dashPattern": root._shapeDashPattern(
+                paintState.dashPatternScreenPx || [],
+                paintState.strokeWidthScreenPx
+            ),
+            "disabledMarkerVisible": Boolean(paintState.disabledMarkerVisible),
             "paintState": paintState
         };
+        var markerAnchor = root.canvasLayer.edgeAnchor(sourceGeometry, 0.5);
+        entry.markerX = markerAnchor
+            ? EdgeViewportMath.sceneXToScreen(Number(markerAnchor.x), viewportTransform)
+            : 0.0;
+        entry.markerY = markerAnchor
+            ? EdgeViewportMath.sceneYToScreen(Number(markerAnchor.y), viewportTransform)
+            : 0.0;
         entry.contentKey = root._contentKeyForEntry(entry);
         return entry;
     }
@@ -445,7 +482,7 @@ Item {
                                 strokeStyle: retainedEdgeDelegate.edgeEntry.dashed
                                     ? ShapePath.DashLine
                                     : ShapePath.SolidLine
-                                dashPattern: [4.0, 2.5]
+                                dashPattern: retainedEdgeDelegate.edgeEntry.dashPattern || []
                                 startX: Number(retainedEdgeDelegate.edgeEntry.sx || 0.0)
                                     + retainedEdgeDelegate.sourceDragDx
                                     + Number(retainedStrokeDelegate.strokeOffset.x || 0.0)
@@ -493,7 +530,7 @@ Item {
                                     strokeStyle: retainedEdgeDelegate.edgeEntry.dashed
                                         ? ShapePath.DashLine
                                         : ShapePath.SolidLine
-                                    dashPattern: [4.0, 2.5]
+                                    dashPattern: retainedEdgeDelegate.edgeEntry.dashPattern || []
                                     startX: Number(modelData.sx || 0.0)
                                         + Number(retainedStrokeDelegate.strokeOffset.x || 0.0)
                                     startY: Number(modelData.sy || 0.0)
@@ -507,6 +544,35 @@ Item {
                                 }
                             }
                         }
+                    }
+                }
+
+                Item {
+                    visible: Boolean(retainedEdgeDelegate.edgeEntry.disabledMarkerVisible)
+                    opacity: Math.max(0.0, Math.min(1.0, Number(retainedEdgeDelegate.edgeEntry.strokeAlpha || 0.0)))
+                    x: Number(retainedEdgeDelegate.edgeEntry.markerX || 0.0)
+                        + (retainedEdgeDelegate.sourceDragDx + retainedEdgeDelegate.targetDragDx) * 0.5
+                    y: Number(retainedEdgeDelegate.edgeEntry.markerY || 0.0)
+                        + (retainedEdgeDelegate.sourceDragDy + retainedEdgeDelegate.targetDragDy) * 0.5
+
+                    Rectangle {
+                        x: -6
+                        y: -1
+                        width: 12
+                        height: 2
+                        radius: 1
+                        color: retainedEdgeDelegate.edgeEntry.strokeColor
+                        rotation: 45
+                    }
+
+                    Rectangle {
+                        x: -6
+                        y: -1
+                        width: 12
+                        height: 2
+                        radius: 1
+                        color: retainedEdgeDelegate.edgeEntry.strokeColor
+                        rotation: -45
                     }
                 }
             }

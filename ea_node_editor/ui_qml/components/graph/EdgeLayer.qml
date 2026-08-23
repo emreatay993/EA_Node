@@ -29,15 +29,18 @@ Item {
     property real dragDy: 0.0
     property int dragRevision: 0
     property var liveNodeGeometry: ({})
+    property var selectedNodeIds: sceneBridge ? (sceneBridge.selected_node_ids || []) : []
     property var selectedEdgeIds: []
     property var visibleSceneRectPayload: ({})
     property string previewEdgeId: ""
+    property var replacementPreviewEdgeIds: []
     property var dragConnection: null
     property var outputPreviewLookup: ({})
     property string edgeCrossingStyle: "none"
     property string edgeRendererPreference: "retained_qml"
     property bool viewportInteractionActive: false
     property bool inputEnabled: true
+    property bool wireSelectionModeHeld: false
     property var frameScheduler: null
     property int _redrawRequestCount: 0
     property bool _viewStateRedrawDirty: false
@@ -132,11 +135,13 @@ Item {
     property bool _collectingEdgeSnapshotStats: false
     property bool _structuralEdgePayloadSyncActive: false
     readonly property color selectedStrokeColor: edgePalette.selected_stroke || "#f0f4fb"
+    readonly property color activeSelectedStrokeColor: shellPalette.accent || edgePalette.preview_stroke || "#2d7ff9"
     readonly property color previewStrokeColor: edgePalette.preview_stroke || "#60CDFF"
     readonly property color validDragStrokeColor: edgePalette.valid_drag_stroke || "#60CDFF"
     readonly property color invalidDragStrokeColor: edgePalette.invalid_drag_stroke || "#d0d5de"
     readonly property color fallbackStrokeColor: portKindPalette.data || "#7AA8FF"
     readonly property color inactiveStrokeColor: shellPalette.muted_fg || "#7f8796"
+    readonly property color dangerStrokeColor: shellPalette.inspector_danger_fg || "#e45858"
     readonly property color flowDefaultStrokeColor: shellPalette.muted_fg || invalidDragStrokeColor
     readonly property color flowDefaultLabelTextColor: shellPalette.panel_title_fg || selectedStrokeColor
     readonly property color flowDefaultLabelBackgroundColor: shellPalette.panel_bg || "#1b1d22"
@@ -190,7 +195,7 @@ Item {
     function _retainedFallbackReason(snapshots) {
         if (!edgeRetainedLayer.rendererSupported)
             return "retained_qml_renderer_unavailable";
-        if (root.dragConnection)
+        if (root.dragConnectionList().length > 0)
             return "wire_drag_preview_uses_canvas_fallback";
         if (!edgeRetainedLayer.canRenderSnapshots(snapshots))
             return "retained_qml_visible_set_requires_canvas_fallback";
@@ -315,8 +320,64 @@ Item {
     function _visibleEdgeSnapshot(edgeId) {
         return EdgeSnapshotCache.visibleEdgeSnapshot(root, edgeId);
     }
+    function edgeEndpointScenePoint(edgeId, endpoint) {
+        var snapshot = root._visibleEdgeSnapshot(edgeId);
+        var geometry = snapshot ? snapshot.geometry : null;
+        if (!geometry) {
+            var edge = root._edgeData(edgeId);
+            geometry = edge ? root._edgeGeometry(edge, root._nodeMap()) : null;
+        }
+        if (!geometry)
+            return null;
+        var target = String(endpoint || "source").trim().toLowerCase() === "target";
+        return target
+            ? ({"x": Number(geometry.tx), "y": Number(geometry.ty)})
+            : ({"x": Number(geometry.sx), "y": Number(geometry.sy)});
+    }
+
+    function dragConnectionActiveDataWire(connection) {
+        if (!connection)
+            return false;
+        if (connection.active_data_wire !== undefined)
+            return Boolean(connection.active_data_wire);
+        var sourceKind = String(connection.source_kind || "").trim().toLowerCase();
+        var targetKind = String(connection.target_kind || "").trim().toLowerCase();
+        if (sourceKind === "flow" || targetKind === "flow")
+            return false;
+        var nodeById = root._nodeMap();
+        var endpointIds = [connection.source_node_id, connection.target_node_id];
+        for (var i = 0; i < endpointIds.length; i++) {
+            var node = nodeById[String(endpointIds[i] || "")];
+            var behavior = String(node && node.runtime_behavior || "").trim().toLowerCase();
+            if (behavior === "active" || behavior === "compile_only")
+                return true;
+        }
+        return false;
+    }
     function edgeAtScreen(screenX, screenY) {
         return EdgeSnapshotCache.edgeAtScreen(root, edgeCanvasLayer, flowLabelLayer, screenX, screenY);
+    }
+    function edgeIdsIntersectingScreenRect(screenX, screenY, screenWidth, screenHeight) {
+        return EdgeSnapshotCache.edgeIdsIntersectingScreenRect(
+            root,
+            edgeCanvasLayer,
+            flowLabelLayer,
+            screenX,
+            screenY,
+            screenWidth,
+            screenHeight
+        );
+    }
+    function edgeIdsIntersectingSceneRect(sceneX, sceneY, sceneWidth, sceneHeight) {
+        return EdgeSnapshotCache.edgeIdsIntersectingSceneRect(
+            root,
+            edgeCanvasLayer,
+            flowLabelLayer,
+            sceneX,
+            sceneY,
+            sceneWidth,
+            sceneHeight
+        );
     }
 
     function _edgeData(edgeId) {
@@ -958,6 +1019,15 @@ Item {
             "pipe_points": []
         };
     }
+    function dragConnectionList() {
+        if (!root.dragConnection)
+            return [];
+        if (Array.isArray(root.dragConnection))
+            return root.dragConnection;
+        if (Array.isArray(root.dragConnection.connections))
+            return root.dragConnection.connections;
+        return [root.dragConnection];
+    }
 
     EdgeCanvasLayer {
         id: edgeCanvasLayer
@@ -992,6 +1062,7 @@ Item {
         anchors.fill: parent
         edgeLayer: root
         inputEnabled: root.inputEnabled
+        wireSelectionModeHeld: root.wireSelectionModeHeld
         onEdgeClicked: function(edgeId, additive) {
             root.edgeClicked(edgeId, additive);
         }
@@ -1010,6 +1081,14 @@ Item {
         }
     }
     onNodeDeltaPayloadChanged: EdgeSnapshotCache.applyNodePayloadDelta(root, nodeDeltaPayload)
+    onSelectedNodeIdsChanged: {
+        markSelectionDirty();
+        requestRedraw();
+    }
+    onReplacementPreviewEdgeIdsChanged: {
+        markSelectionDirty();
+        requestRedraw();
+    }
     onNodesChanged: {
         root._nodePayloadDeltaById = ({});
         markNodeGeometryDirty();

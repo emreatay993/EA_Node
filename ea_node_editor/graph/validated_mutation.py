@@ -176,6 +176,246 @@ class ValidatedGraphMutation:
             visual_style=dict(visual_style or {}),
         )
 
+    def rewire_edges(
+        self,
+        edge_ids: list[object] | tuple[object, ...],
+        endpoint: str,
+        node_id: str,
+        port_key: str,
+        *,
+        copy_requested: bool = False,
+        append_requested: bool = False,
+        _validate_only: bool = False,
+    ) -> tuple[str, ...]:
+        normalized_endpoint = str(endpoint or "").strip().lower()
+        normalized_node_id = str(node_id or "").strip()
+        normalized_port_key = str(port_key or "").strip()
+        if normalized_endpoint not in {"source", "target"}:
+            raise ValueError("Edge endpoint must be 'source' or 'target'.")
+        if bool(normalized_node_id) != bool(normalized_port_key):
+            raise ValueError("Edge endpoint request requires both node_id and port_key.")
+
+        normalized_edge_ids: list[str] = []
+        seen_edge_ids: set[str] = set()
+        for value in edge_ids:
+            edge_id = str(value or "").strip()
+            if edge_id and edge_id not in seen_edge_ids:
+                seen_edge_ids.add(edge_id)
+                normalized_edge_ids.append(edge_id)
+        if not normalized_edge_ids:
+            return ()
+        if any(edge_id not in self.workspace.edges for edge_id in normalized_edge_ids):
+            return ()
+        if copy_requested and (len(normalized_edge_ids) != 1 or not normalized_node_id):
+            return ()
+
+        requested_edges = sorted(
+            (self.workspace.edges[edge_id] for edge_id in normalized_edge_ids),
+            key=lambda edge: (int(edge.input_order), edge.edge_id),
+        )
+        endpoint_pairs = {
+            (
+                edge.source_node_id,
+                edge.source_port_key,
+            )
+            if normalized_endpoint == "source"
+            else (
+                edge.target_node_id,
+                edge.target_port_key,
+            )
+            for edge in requested_edges
+        }
+        if len(endpoint_pairs) != 1:
+            return ()
+        if not normalized_node_id:
+            if _validate_only:
+                return tuple(edge.edge_id for edge in requested_edges)
+            for edge in requested_edges:
+                self.model._remove_edge_record(self.workspace_id, edge.edge_id)
+            return tuple(edge.edge_id for edge in requested_edges)
+
+        candidate_edges: list[EdgeInstance] = []
+        for index, edge in enumerate(requested_edges):
+            candidate = edge.clone()
+            if copy_requested:
+                candidate.edge_id = f"__copy_{index}_{edge.edge_id}"
+            if normalized_endpoint == "source":
+                candidate.source_node_id = normalized_node_id
+                candidate.source_port_key = normalized_port_key
+            else:
+                candidate.target_node_id = normalized_node_id
+                candidate.target_port_key = normalized_port_key
+            candidate_edges.append(candidate)
+
+        if not copy_requested and all(
+            (
+                candidate.source_node_id,
+                candidate.source_port_key,
+                candidate.target_node_id,
+                candidate.target_port_key,
+            )
+            == (
+                edge.source_node_id,
+                edge.source_port_key,
+                edge.target_node_id,
+                edge.target_port_key,
+            )
+            for edge, candidate in zip(requested_edges, candidate_edges)
+        ):
+            return ()
+
+        requested_edge_id_set = {edge.edge_id for edge in requested_edges}
+        outside_connection_keys = {
+            (
+                edge.source_node_id,
+                edge.source_port_key,
+                edge.target_node_id,
+                edge.target_port_key,
+            )
+            for edge in self.workspace.edges.values()
+            if edge.edge_id not in requested_edge_id_set
+        }
+        if any(
+            (
+                edge.source_node_id,
+                edge.source_port_key,
+                edge.target_node_id,
+                edge.target_port_key,
+            )
+            in outside_connection_keys
+            for edge in candidate_edges
+        ):
+            return ()
+        retained_edges = [
+            edge.clone()
+            for edge in self.workspace.edges.values()
+            if copy_requested or edge.edge_id not in requested_edge_id_set
+        ]
+        replaced_edge_ids: set[str] = set()
+        if normalized_endpoint == "target" and not copy_requested and not append_requested:
+            replaced_edge_ids = {
+                edge.edge_id
+                for edge in retained_edges
+                if edge.target_node_id == normalized_node_id
+                and edge.target_port_key == normalized_port_key
+            }
+            retained_edges = [
+                edge for edge in retained_edges if edge.edge_id not in replaced_edge_ids
+            ]
+
+        if normalized_endpoint == "target":
+            next_order = (
+                1
+                + max(
+                    (
+                        edge.input_order
+                        for edge in retained_edges
+                        if edge.target_node_id == normalized_node_id
+                        and edge.target_port_key == normalized_port_key
+                    ),
+                    default=-1,
+                )
+                if append_requested or copy_requested
+                else 0
+            )
+            for offset, candidate in enumerate(candidate_edges):
+                candidate.input_order = next_order + offset
+        elif copy_requested:
+            candidate = candidate_edges[0]
+            candidate.input_order = 1 + max(
+                (
+                    edge.input_order
+                    for edge in retained_edges
+                    if edge.target_node_id == candidate.target_node_id
+                    and edge.target_port_key == candidate.target_port_key
+                ),
+                default=-1,
+            )
+
+        final_edges = retained_edges + candidate_edges
+        connection_keys = [
+            (
+                edge.source_node_id,
+                edge.source_port_key,
+                edge.target_node_id,
+                edge.target_port_key,
+            )
+            for edge in final_edges
+        ]
+        if len(connection_keys) != len(set(connection_keys)):
+            return ()
+        for candidate in candidate_edges:
+            GraphInvariantKernel(
+                registry=self.registry,
+                workspace_nodes=self.workspace.nodes,
+                workspace_edges=tuple(
+                    edge for edge in final_edges if edge.edge_id != candidate.edge_id
+                ),
+            ).add_edge_or_raise(
+                source_node_id=candidate.source_node_id,
+                source_port_key=candidate.source_port_key,
+                target_node_id=candidate.target_node_id,
+                target_port_key=candidate.target_port_key,
+                append_requested=True,
+            )
+
+        if _validate_only:
+            return tuple(edge.edge_id for edge in requested_edges)
+        for edge_id in replaced_edge_ids:
+            self.model._remove_edge_record(self.workspace_id, edge_id)
+        if copy_requested:
+            source = requested_edges[0]
+            candidate = candidate_edges[0]
+            copied = self.model._add_edge_record(
+                self.workspace_id,
+                source_node_id=candidate.source_node_id,
+                source_port_key=candidate.source_port_key,
+                target_node_id=candidate.target_node_id,
+                target_port_key=candidate.target_port_key,
+                enabled=source.enabled,
+                input_order=candidate.input_order,
+                label=source.label,
+                visual_style=source.visual_style,
+            )
+            return (copied.edge_id,)
+
+        for edge, candidate in zip(requested_edges, candidate_edges):
+            self.model._move_edge_endpoint_record(
+                self.workspace_id,
+                edge.edge_id,
+                source_node_id=candidate.source_node_id,
+                source_port_key=candidate.source_port_key,
+                target_node_id=candidate.target_node_id,
+                target_port_key=candidate.target_port_key,
+                input_order=candidate.input_order,
+            )
+        return tuple(edge.edge_id for edge in requested_edges)
+
+    def can_rewire_edges(
+        self,
+        edge_ids: list[object] | tuple[object, ...],
+        endpoint: str,
+        node_id: str,
+        port_key: str,
+        *,
+        copy_requested: bool = False,
+        append_requested: bool = False,
+    ) -> bool:
+        try:
+            return bool(
+                self.rewire_edges(
+                    edge_ids,
+                    endpoint,
+                    node_id,
+                    port_key,
+                    copy_requested=copy_requested,
+                    append_requested=append_requested,
+                    _validate_only=True,
+                )
+            )
+        except (KeyError, ValueError):
+            return False
+
     def move_edge_endpoint(
         self,
         edge_id: str,
@@ -184,89 +424,15 @@ class ValidatedGraphMutation:
         port_key: str,
         append_requested: bool = False,
     ) -> bool:
-        normalized_edge_id = str(edge_id or "").strip()
-        normalized_endpoint = str(endpoint or "").strip().lower()
-        normalized_node_id = str(node_id or "").strip()
-        normalized_port_key = str(port_key or "").strip()
-        if normalized_endpoint not in {"source", "target"}:
-            raise ValueError("Edge endpoint must be 'source' or 'target'.")
-        edge = self.workspace.edges.get(normalized_edge_id)
-        if edge is None:
-            raise KeyError(f"Unknown edge: {normalized_edge_id}")
-        if not normalized_node_id and not normalized_port_key:
-            self.model._remove_edge_record(self.workspace_id, normalized_edge_id)
-            return True
-        if not normalized_node_id or not normalized_port_key:
-            raise ValueError("Edge endpoint request requires both node_id and port_key.")
-
-        source_node_id = edge.source_node_id
-        source_port_key = edge.source_port_key
-        target_node_id = edge.target_node_id
-        target_port_key = edge.target_port_key
-        if normalized_endpoint == "source":
-            if (source_node_id, source_port_key) == (normalized_node_id, normalized_port_key):
-                return False
-            source_node_id, source_port_key = normalized_node_id, normalized_port_key
-        else:
-            if (target_node_id, target_port_key) == (normalized_node_id, normalized_port_key):
-                return False
-            target_node_id, target_port_key = normalized_node_id, normalized_port_key
-
-        if any(
-            candidate.edge_id != normalized_edge_id
-            and candidate.source_node_id == source_node_id
-            and candidate.source_port_key == source_port_key
-            and candidate.target_node_id == target_node_id
-            and candidate.target_port_key == target_port_key
-            for candidate in self.workspace.edges.values()
-        ):
-            return False
-
-        other_edges = tuple(
-            candidate
-            for candidate in self.workspace.edges.values()
-            if candidate.edge_id != normalized_edge_id
-        )
-        GraphInvariantKernel(
-            registry=self.registry,
-            workspace_nodes=self.workspace.nodes,
-            workspace_edges=other_edges,
-        ).add_edge_or_raise(
-            source_node_id=source_node_id,
-            source_port_key=source_port_key,
-            target_node_id=target_node_id,
-            target_port_key=target_port_key,
-            append_requested=bool(append_requested and normalized_endpoint == "target"),
-        )
-
-        input_order = edge.input_order
-        if normalized_endpoint == "target":
-            destination_edges = tuple(
-                candidate
-                for candidate in other_edges
-                if candidate.target_node_id == target_node_id
-                and candidate.target_port_key == target_port_key
+        return bool(
+            self.rewire_edges(
+                [edge_id],
+                endpoint,
+                node_id,
+                port_key,
+                append_requested=append_requested,
             )
-            if append_requested:
-                input_order = 1 + max(
-                    (candidate.input_order for candidate in destination_edges),
-                    default=-1,
-                )
-            else:
-                input_order = 0
-                for candidate in destination_edges:
-                    self.model._remove_edge_record(self.workspace_id, candidate.edge_id)
-
-        self.model._move_edge_endpoint_record(
-            self.workspace_id,
-            normalized_edge_id,
-            source_node_id=source_node_id,
-            source_port_key=source_port_key,
-            target_node_id=target_node_id,
-            target_port_key=target_port_key,
-            input_order=input_order,
         )
-        return True
 
     def ports_compatible(
         self,

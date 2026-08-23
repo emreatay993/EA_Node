@@ -473,6 +473,18 @@ scene_bridge.command_bridge directly."""
             )
         )
 
+    @pyqtSlot("QVariantList", str, result=bool)
+    def set_edges_display_mode(self, edge_ids: list[Any], mode: str) -> bool:
+        return bool(
+            _invoke(
+                self._scene_command_source,
+                "set_edges_display_mode",
+                list(edge_ids or []),
+                str(mode or ""),
+                default=False,
+            )
+        )
+
     @pyqtSlot(str, str, "QVariantList", result=bool)
     def set_port_modifiers(
         self,

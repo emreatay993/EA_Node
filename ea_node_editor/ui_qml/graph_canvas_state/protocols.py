@@ -106,6 +106,14 @@ class _GraphCanvasScenePolicySource(Protocol):
         candidate_role: str,
     ) -> dict[str, Any]: ...
 
+    def compatible_rewire_endpoint_snapshot(
+        self,
+        edge_ids: list[object],
+        endpoint: str,
+        copy_requested: bool = False,
+        append_requested: bool = False,
+    ) -> dict[str, Any]: ...
+
     def are_port_kinds_compatible(self, source_kind: str, target_kind: str) -> bool: ...
 
     def are_data_types_compatible(self, source_type: str, target_type: str) -> bool: ...

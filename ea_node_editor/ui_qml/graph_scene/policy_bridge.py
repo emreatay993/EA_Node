@@ -49,6 +49,22 @@ class GraphScenePolicyBridge(QObject):
             candidate_role,
         )
 
+    @pyqtSlot("QVariantList", str, result="QVariantMap")
+    @pyqtSlot("QVariantList", str, bool, bool, result="QVariantMap")
+    def compatible_rewire_endpoint_snapshot(
+        self,
+        edge_ids: list[object],
+        endpoint: str,
+        copy_requested: bool = False,
+        append_requested: bool = False,
+    ) -> dict[str, object]:
+        return self._policy.compatible_rewire_endpoint_snapshot(
+            list(edge_ids or []),
+            endpoint,
+            bool(copy_requested),
+            bool(append_requested),
+        )
+
     @pyqtSlot(str, str, result=bool)
     def are_port_kinds_compatible(self, source_kind: str, target_kind: str) -> bool:
         return are_port_kinds_compatible(str(source_kind), str(target_kind))

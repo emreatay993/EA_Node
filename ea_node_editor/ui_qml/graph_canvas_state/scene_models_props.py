@@ -581,6 +581,25 @@ class SceneModelsProps:
         )
         return dict(value) if isinstance(value, Mapping) else {}
 
+    @pyqtSlot("QVariantList", str, result="QVariantMap")
+    @pyqtSlot("QVariantList", str, bool, bool, result="QVariantMap")
+    def compatible_rewire_endpoint_snapshot(
+        self,
+        edge_ids: list[Any],
+        endpoint: str,
+        copy_requested: bool = False,
+        append_requested: bool = False,
+    ) -> dict[str, Any]:
+        value = _invoke_value(
+            self._scene_policy_source,
+            "compatible_rewire_endpoint_snapshot",
+            list(edge_ids or []),
+            endpoint,
+            bool(copy_requested),
+            bool(append_requested),
+        )
+        return dict(value) if isinstance(value, Mapping) else {}
+
     @pyqtSlot(str, str, result=bool)
     def are_data_types_compatible(self, source_type: str, target_type: str) -> bool:
         return _invoke_bool(

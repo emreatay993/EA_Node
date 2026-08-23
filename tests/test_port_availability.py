@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any
 
 import pytest
@@ -27,19 +28,21 @@ from ea_node_editor.runtime_contracts import (
     INTEGER_DATA_TYPE_ID,
     STRING_DATA_TYPE_ID,
 )
-from ea_node_editor.ui.graph_interactions import GraphInteractions
+from ea_node_editor.ui.graph_interactions import GraphActionResult, GraphInteractions
 from ea_node_editor.ui.port_availability import (
     clear_port_availability_runtime_workspace,
     observe_node_outputs,
     port_availability_for_node,
 )
 from ea_node_editor.ui_qml.graph_scene_payload import GraphScenePayloadBuilder
+from ea_node_editor.ui.shell.controllers.workspace_edit_ops import WorkspaceEditOps
 
 
 class _GraphScene:
     def __init__(self, model: GraphModel, workspace_id: str) -> None:
         self.model = model
         self.workspace_id = workspace_id
+        self.rewire_calls: list[tuple[list[object], str, str, str, bool, bool]] = []
 
     def current_workspace(self):
         return self.model.project.workspaces[self.workspace_id]
@@ -56,23 +59,37 @@ class _GraphScene:
     def remove_edge(self, edge_id: str) -> None:
         self.model.remove_edge(self.workspace_id, edge_id)
 
-    def move_edge_endpoint(
+    def request_rewire_edges(
         self,
-        edge_id: str,
+        edge_ids: list[object],
         endpoint: str,
         node_id: str,
         port_key: str,
+        copy_requested: bool = False,
         append_requested: bool = False,
     ) -> bool:
-        return self.model.validated_mutations(
-            self.workspace_id,
-            _registry(),
-        ).move_edge_endpoint(
-            edge_id,
-            endpoint,
-            node_id,
-            port_key,
-            append_requested,
+        self.rewire_calls.append(
+            (
+                list(edge_ids),
+                endpoint,
+                node_id,
+                port_key,
+                bool(copy_requested),
+                bool(append_requested),
+            )
+        )
+        return bool(
+            self.model.validated_mutations(
+                self.workspace_id,
+                _registry(),
+            ).rewire_edges(
+                edge_ids,
+                endpoint,
+                node_id,
+                port_key,
+                copy_requested=copy_requested,
+                append_requested=append_requested,
+            )
         )
 
     def remove_node(self, node_id: str) -> None:
@@ -270,41 +287,129 @@ def test_connect_ports_rejects_new_unavailable_output_connection(tmp_path: Path)
     assert workspace.edges == {}
 
 
-def test_move_edge_endpoint_rejects_existing_unavailable_connection(tmp_path: Path) -> None:
+def test_rewire_edges_rejects_unavailable_staged_batch_and_copy_atomically(tmp_path: Path) -> None:
     source_path = tmp_path / "rows.csv"
     source_path.write_text("name,value\nalpha,1\n", encoding="utf-8")
     registry = _registry()
     model = GraphModel()
     workspace = model.active_workspace
-    source = _tabular_node(model, source_path)
+    source_allowed = _tabular_node(model)
+    source_blocked = _tabular_node(model, source_path)
     sink_a = model.add_node(workspace.workspace_id, "tests.array_sink", "Array A", 240, 0)
-    sink_b = model.add_node(workspace.workspace_id, "tests.array_sink", "Array B", 240, 120)
-    edge = model.add_edge(
+    sink_c = model.add_node(workspace.workspace_id, "tests.array_sink", "Array C", 240, 240)
+    edge_a = model.add_edge(
         workspace.workspace_id,
-        source.node_id,
+        source_allowed.node_id,
         TABULAR_DATA_ARRAY_OUTPUT_KEY,
         sink_a.node_id,
         "array",
     )
+    edge_b = model.add_edge(
+        workspace.workspace_id,
+        source_blocked.node_id,
+        TABULAR_DATA_ARRAY_OUTPUT_KEY,
+        sink_a.node_id,
+        "array",
+    )
+    scene = _GraphScene(model, workspace.workspace_id)
+    interactions = GraphInteractions(scene, registry)
+    before = workspace.capture_snapshot()
 
-    result = GraphInteractions(_GraphScene(model, workspace.workspace_id), registry).move_edge_endpoint(
-        edge.edge_id,
+    result = interactions.rewire_edges(
+        [edge_a.edge_id, edge_b.edge_id],
         "target",
-        sink_b.node_id,
+        sink_c.node_id,
         "array",
     )
 
     assert result.ok is False
-    assert "Selected object is a table" in result.message
-    assert workspace.edges[edge.edge_id].target_node_id == sink_a.node_id
+    assert result.message == "Selected object is a table; choose an array dataset to use this output."
+    assert workspace.capture_snapshot() == before
+    assert scene.rewire_calls == []
 
-    disconnected = GraphInteractions(
-        _GraphScene(model, workspace.workspace_id),
-        registry,
-    ).move_edge_endpoint(edge.edge_id, "target", "", "")
+    copied = interactions.rewire_edges(
+        [edge_b.edge_id],
+        "target",
+        sink_c.node_id,
+        "array",
+        copy_requested=True,
+        append_requested=True,
+    )
+
+    assert copied.ok is False
+    assert copied.message == "Selected object is a table; choose an array dataset to use this output."
+    assert workspace.capture_snapshot() == before
+    assert scene.rewire_calls == []
+
+    disconnected = interactions.rewire_edges([edge_a.edge_id], "target", "", "")
 
     assert disconnected.ok is True
-    assert edge.edge_id not in workspace.edges
+    assert edge_a.edge_id not in workspace.edges
+    assert edge_b.edge_id in workspace.edges
+    assert scene.rewire_calls == [([edge_a.edge_id], "target", "", "", False, False)]
+
+
+def test_workspace_edit_ops_forwards_batch_rewire_results_and_selects_effects() -> None:
+    calls: list[tuple[list[object], str, str, str, bool, bool]] = []
+    effects: list[str] = []
+    results = [
+        GraphActionResult(True, "Connected."),
+        GraphActionResult(True, "Disconnected."),
+        GraphActionResult(
+            False,
+            "Selected object is a table; choose an array dataset to use this output.",
+        ),
+    ]
+
+    def rewire_edges(
+        edge_ids: list[object],
+        endpoint: str,
+        node_id: str,
+        port_key: str,
+        copy_requested: bool,
+        append_requested: bool,
+    ) -> GraphActionResult:
+        calls.append(
+            (
+                list(edge_ids),
+                endpoint,
+                node_id,
+                port_key,
+                copy_requested,
+                append_requested,
+            )
+        )
+        return results.pop(0)
+
+    ops = WorkspaceEditOps(
+        SimpleNamespace(graph_interactions=SimpleNamespace(rewire_edges=rewire_edges)),
+        SimpleNamespace(),
+        effects=SimpleNamespace(
+            after_connected_ports_request=lambda: effects.append("connected"),
+            after_edge_removed=lambda: effects.append("removed"),
+        ),
+    )
+
+    connected = ops.request_rewire_edges(
+        ["edge-a", "edge-b"], "target", "sink", "payload", True, True
+    )
+    disconnected = ops.request_rewire_edges(["edge-a"], "target", "", "", False, False)
+    rejected = ops.request_rewire_edges(
+        ["edge-a"], "target", "sink", "payload", True, True
+    )
+
+    assert connected.payload is True
+    assert connected.message == "Connected."
+    assert disconnected.payload is True
+    assert disconnected.message == "Disconnected."
+    assert rejected.payload is False
+    assert rejected.message == "Selected object is a table; choose an array dataset to use this output."
+    assert calls == [
+        (["edge-a", "edge-b"], "target", "sink", "payload", True, True),
+        (["edge-a"], "target", "", "", False, False),
+        (["edge-a"], "target", "sink", "payload", True, True),
+    ]
+    assert effects == ["connected", "removed"]
 
 
 def test_effective_ports_project_dynamic_port_metadata_without_node_type_branches() -> None:

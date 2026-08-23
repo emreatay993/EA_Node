@@ -190,6 +190,76 @@ Item {
         };
     }
 
+    function _normalizedEdgeDisplayMode(mode) {
+        var normalized = String(mode || "").trim().toLowerCase();
+        return normalized === "faint" || normalized === "hidden" ? normalized : "default";
+    }
+
+    function _edgeDisplayMode(edgePayload) {
+        var style = edgePayload && edgePayload.visual_style ? edgePayload.visual_style : ({});
+        return root._normalizedEdgeDisplayMode(style.display_mode);
+    }
+
+    function _edgeDisplayModeActions(edgeIds) {
+        var ids = root.canvasItem && root.canvasItem._normalizeEdgeIds
+            ? root.canvasItem._normalizeEdgeIds(edgeIds || [])
+            : (edgeIds || []);
+        var current = "";
+        for (var i = 0; i < ids.length; ++i) {
+            var mode = root._edgeDisplayMode(root.canvasItem._sceneEdgePayload(ids[i]));
+            if (!current)
+                current = mode;
+            else if (current !== mode) {
+                current = "mixed";
+                break;
+            }
+        }
+        return [
+            { "actionId": "edge_display_mode:default", "text": "Default", "checked": current === "default" },
+            { "actionId": "edge_display_mode:faint", "text": "Faint", "checked": current === "faint" },
+            { "actionId": "edge_display_mode:hidden", "text": "Hidden", "checked": current === "hidden" }
+        ];
+    }
+
+    function _handleEdgeDisplayModeAction(actionId) {
+        var normalized = String(actionId || "");
+        if (normalized === "edge_display_mode_menu") {
+            if (!edgeContextPopup.activeDataWire)
+                return true;
+            edgeContextPopup.displayModeSubmenuOpen = !edgeContextPopup.displayModeSubmenuOpen;
+            return true;
+        }
+        var prefix = "edge_display_mode:";
+        if (normalized.indexOf(prefix) !== 0)
+            return false;
+        var edgeId = root.canvasItem ? String(root.canvasItem.edgeContextEdgeId || "").trim() : "";
+        var edgePayload = root.canvasItem && edgeId.length
+            ? root.canvasItem._sceneEdgePayload(edgeId)
+            : null;
+        if (!edgePayload || !Boolean(edgePayload.active_data_wire))
+            return true;
+        var mode = root._normalizedEdgeDisplayMode(normalized.slice(prefix.length));
+        var router = root._actionRouter();
+        if (edgeId.length && router && router.setEdgesDisplayMode)
+            router.setEdgesDisplayMode([edgeId], mode);
+        if (root.canvasItem)
+            root.canvasItem._closeContextMenus();
+        return true;
+    }
+
+    function _handleEdgeNavigationAction(actionId) {
+        var normalized = String(actionId || "");
+        if (normalized !== "jump_edge_start" && normalized !== "jump_edge_end")
+            return false;
+        var edgeId = root.canvasItem ? String(root.canvasItem.edgeContextEdgeId || "").trim() : "";
+        var router = root._actionRouter();
+        if (edgeId.length && router && router.jumpToEdgeEndpoint)
+            router.jumpToEdgeEndpoint(edgeId, normalized === "jump_edge_end" ? "target" : "source");
+        if (root.canvasItem)
+            root.canvasItem._closeContextMenus();
+        return true;
+    }
+
     function _handleEdgePathAction(actionId) {
         var text = String(actionId || "");
         var prefix = "edge_path_mode:";
@@ -399,6 +469,12 @@ Item {
         readonly property bool isFlowEdge: edgePayload
             ? String(edgePayload.edge_family || "").toLowerCase() === "flow"
             : false
+        readonly property bool activeDataWire: Boolean(edgePayload && edgePayload.active_data_wire)
+        property bool displayModeSubmenuOpen: false
+        onVisibleChanged: {
+            if (!visible)
+                displayModeSubmenuOpen = false;
+        }
         actions: [
             {
                 "actionId": "toggle_edge_enabled",
@@ -408,12 +484,19 @@ Item {
                     : Boolean(edgeContextPopup.edgePayload && edgeContextPopup.edgePayload.enabled !== false),
                 "shortcutText": "Ctrl+E"
             },
+            { "actionId": "edge_display_mode_menu", "text": "Display Mode", "shortcutText": "\u203a", "visible": edgeContextPopup.activeDataWire },
+            { "actionId": "jump_edge_start", "text": "Jump to Start", "shortcutText": "Ctrl+Left" },
+            { "actionId": "jump_edge_end", "text": "Jump to End", "shortcutText": "Ctrl+Right" },
             root._edgePathAction("auto", "Auto", edgeContextPopup.edgePayload),
             root._edgePathAction("pipe", "Pipe", edgeContextPopup.edgePayload),
             root._edgePathAction("bezier", "Bezier", edgeContextPopup.edgePayload),
             { "actionId": root._edgeActionId("remove_edge"), "text": "Remove Connection", "destructive": true }
         ]
         onActionTriggered: function(actionId) {
+            if (root._handleEdgeDisplayModeAction(actionId))
+                return;
+            if (root._handleEdgeNavigationAction(actionId))
+                return;
             if (root._handleEdgeEnableAction(actionId))
                 return;
             if (root._handleEdgePathAction(actionId))
@@ -421,6 +504,31 @@ Item {
             var actionRouter = root._actionRouter();
             if (actionRouter && actionRouter.handleEdgeContextAction)
                 actionRouter.handleEdgeContextAction(actionId)
+        }
+    }
+
+    ShellComponents.ShellContextMenu {
+        id: edgeDisplayModeContextPopup
+        objectName: "graphCanvasEdgeDisplayModeContextPopup"
+        tooltipPolicyBridge: root.canvasItem ? root.canvasItem.canvasStateBridgeRef : null
+        readonly property bool opensLeft: root.canvasItem
+            && edgeContextPopup.x + edgeContextPopup.panelWidth + 6
+                + edgeDisplayModeContextPopup.panelWidth > root.canvasItem.width - 4
+        visible: edgeContextPopup.visible
+            && edgeContextPopup.activeDataWire
+            && edgeContextPopup.displayModeSubmenuOpen
+        x: edgeDisplayModeContextPopup.opensLeft
+            ? edgeContextPopup.x - edgeDisplayModeContextPopup.panelWidth - 6
+            : edgeContextPopup.x + edgeContextPopup.panelWidth + 6
+        y: edgeContextPopup.y
+        minimumWidth: 150
+        rowHeight: 30
+        contentPadding: 4
+        actions: root._edgeDisplayModeActions(
+            root.canvasItem ? [root.canvasItem.edgeContextEdgeId] : []
+        )
+        onActionTriggered: function(actionId) {
+            root._handleEdgeDisplayModeAction(actionId);
         }
     }
 

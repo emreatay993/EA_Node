@@ -1,5 +1,6 @@
 import QtQuick 2.15
 import QtQml 2.15
+import QtQuick.Window 2.15
 import "graph_canvas" as GraphCanvasComponents
 import "graph_canvas/GraphCanvasRootApi.js" as GraphCanvasRootApi
 Item {
@@ -311,7 +312,12 @@ Item {
     property alias profileLiveDragOffsetUpdateCount: sceneState.profileLiveDragOffsetUpdateCount
     property alias profileLiveDragMembershipFreezeCount: sceneState.profileLiveDragMembershipFreezeCount
     property alias selectedEdgeIds: sceneState.selectedEdgeIds
+    property alias wireSelectionModeHeld: inputLayers.wireSelectionModeHeld
     onLiveDragRevisionChanged: root.applyLiveDragOffsetToHosts()
+    onActiveFocusChanged: {
+        if (!activeFocus)
+            root.wireSelectionModeHeld = false;
+    }
 
     focus: true
     activeFocusOnTab: true
@@ -323,6 +329,17 @@ Item {
         interval: root.transientRecoveryDelayMs
         repeat: false
         onTriggered: interactionState.endViewportInteraction()
+    }
+
+    Connections {
+        target: root.Window.window
+        ignoreUnknownSignals: true
+
+        function onActiveChanged() {
+            var window = root.Window.window;
+            if (!window || !window.active)
+                root.wireSelectionModeHeld = false;
+        }
     }
 
     function toggleMinimapExpanded() { GraphCanvasRootApi.invoke(viewportController, "toggleMinimapExpanded"); }
@@ -352,6 +369,7 @@ Item {
     function clearEdgeSelection() { GraphCanvasRootApi.invoke(sceneState, "clearEdgeSelection"); }
     function toggleEdgeSelection(edgeId) { GraphCanvasRootApi.invoke(sceneState, "toggleEdgeSelection", [edgeId]); }
     function setExclusiveEdgeSelection(edgeId) { GraphCanvasRootApi.invoke(sceneState, "setExclusiveEdgeSelection", [edgeId]); }
+    function setEdgeSelection(edgeIds, additive) { GraphCanvasRootApi.invoke(sceneState, "setEdgeSelection", [edgeIds, additive]); }
     function edgeAtScreen(screenX, screenY) {
         var edgeLayer = rootLayers.edgeLayerItem;
         return edgeLayer && edgeLayer.edgeAtScreen ? edgeLayer.edgeAtScreen(screenX, screenY) : "";
@@ -414,6 +432,31 @@ Item {
             }
         }
         return Boolean(root.sceneCommandBridge.set_edges_enabled(edgeIds, allDisabled));
+    }
+    function setEdgesDisplayMode(edgeIds, mode) {
+        var normalized = root._normalizeEdgeIds(edgeIds || []);
+        if (!normalized.length || !root.sceneCommandBridge || !root.sceneCommandBridge.set_edges_display_mode)
+            return false;
+        return Boolean(root.sceneCommandBridge.set_edges_display_mode(normalized, String(mode || "default")));
+    }
+    function edgeIdsIntersectingScreenRect(screenX, screenY, screenWidth, screenHeight) {
+        var edgeLayer = rootLayers.edgeLayerItem;
+        return edgeLayer && edgeLayer.edgeIdsIntersectingScreenRect
+            ? edgeLayer.edgeIdsIntersectingScreenRect(screenX, screenY, screenWidth, screenHeight)
+            : [];
+    }
+    function edgeEndpointScenePoint(edgeId, endpoint) {
+        var edgeLayer = rootLayers.edgeLayerItem;
+        return edgeLayer && edgeLayer.edgeEndpointScenePoint
+            ? edgeLayer.edgeEndpointScenePoint(edgeId, endpoint)
+            : null;
+    }
+    function jumpToEdgeEndpoint(edgeId, endpoint) {
+        var point = root.edgeEndpointScenePoint(edgeId, endpoint);
+        if (!point || !root.viewBridge || !root.viewBridge.center_on_scene_point)
+            return false;
+        root.viewBridge.center_on_scene_point(Number(point.x), Number(point.y));
+        return true;
     }
     function _nodeSupportsPassiveStyle(nodeId) { return GraphCanvasRootApi.invoke(sceneState, "nodeSupportsPassiveStyle", [nodeId], false); }
     function _edgeSupportsFlowStyle(edgeId) { return GraphCanvasRootApi.invoke(sceneState, "edgeSupportsFlowStyle", [edgeId], false); }

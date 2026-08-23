@@ -131,4 +131,89 @@ def compatible_endpoint_snapshot(
     return result
 
 
-__all__ = ["are_ports_compatible", "compatible_endpoint_snapshot"]
+def compatible_rewire_endpoint_snapshot(
+    self,
+    edge_ids: list[object],
+    endpoint: str,
+    copy_requested: bool = False,
+    append_requested: bool = False,
+) -> dict[str, object]:
+    """Return the endpoints compatible with every edge in a rewire bundle."""
+    model = self._scene_context.model
+    registry = self._scene_context.registry
+    role = str(endpoint or "").strip().lower()
+    result: dict[str, object] = {
+        "catalog_generation": (
+            registry.data_types.fingerprint() if registry is not None else ""
+        ),
+        "candidate_role": role,
+        "compatible_endpoint_ids": [],
+    }
+    if model is None or registry is None or role not in {"source", "target"}:
+        return result
+    workspace = model.project.workspaces.get(self._scene_context.workspace_id)
+    if workspace is None:
+        return result
+
+    normalized_edge_ids: list[str] = []
+    seen_edge_ids: set[str] = set()
+    for value in edge_ids:
+        edge_id = str(value or "").strip()
+        if edge_id and edge_id not in seen_edge_ids:
+            seen_edge_ids.add(edge_id)
+            normalized_edge_ids.append(edge_id)
+    if not normalized_edge_ids or any(
+        edge_id not in workspace.edges for edge_id in normalized_edge_ids
+    ):
+        return result
+    edges = [workspace.edges[edge_id] for edge_id in normalized_edge_ids]
+    endpoint_pairs = {
+        (edge.source_node_id, edge.source_port_key)
+        if role == "source"
+        else (edge.target_node_id, edge.target_port_key)
+        for edge in edges
+    }
+    if len(endpoint_pairs) != 1:
+        return result
+    original_endpoint = next(iter(endpoint_pairs))
+
+    ports_by_node: dict[str, tuple[EffectivePort, ...]] = {}
+    for node_id in sorted(scope_node_ids(workspace, self._scene_context.scope_path)):
+        node = workspace.nodes.get(node_id)
+        spec = registry.spec_or_none(node.type_id) if node is not None else None
+        if node is None or spec is None:
+            continue
+        ports_by_node[node_id] = tuple(
+            effective_ports(node=node, spec=spec, workspace_nodes=workspace.nodes)
+        )
+
+    mutations = model.validated_mutations(
+        self._scene_context.workspace_id,
+        registry,
+    )
+    compatible_endpoint_ids: list[dict[str, str]] = []
+    for candidate_node_id, ports in ports_by_node.items():
+        for candidate in ports:
+            candidate_key = str(candidate.key)
+            if (candidate_node_id, candidate_key) == original_endpoint:
+                continue
+            if mutations.can_rewire_edges(
+                normalized_edge_ids,
+                role,
+                candidate_node_id,
+                candidate_key,
+                copy_requested=bool(copy_requested),
+                append_requested=bool(append_requested),
+            ):
+                compatible_endpoint_ids.append(
+                    {"node_id": candidate_node_id, "port_key": candidate_key}
+                )
+    result["compatible_endpoint_ids"] = compatible_endpoint_ids
+    return result
+
+
+__all__ = [
+    "are_ports_compatible",
+    "compatible_endpoint_snapshot",
+    "compatible_rewire_endpoint_snapshot",
+]

@@ -45,12 +45,13 @@ class _GraphSceneLike(Protocol):
 
     def remove_edge(self, edge_id: str) -> None: ...
 
-    def move_edge_endpoint(
+    def request_rewire_edges(
         self,
-        edge_id: str,
+        edge_ids: list[object],
         endpoint: str,
         node_id: str,
         port_key: str,
+        copy_requested: bool = False,
         append_requested: bool = False,
     ) -> bool: ...
 
@@ -198,19 +199,26 @@ class GraphInteractions:
         clear_port_availability_runtime_workspace(workspace.workspace_id)
         return GraphActionResult(True)
 
-    def move_edge_endpoint(
+    def rewire_edges(
         self,
-        edge_id: str,
+        edge_ids: list[object],
         endpoint: str,
         node_id: str,
         port_key: str,
+        copy_requested: bool = False,
         append_requested: bool = False,
     ) -> GraphActionResult:
-        normalized_edge_id = str(edge_id or "").strip()
         normalized_endpoint = str(endpoint or "").strip().lower()
         normalized_node_id = str(node_id or "").strip()
         normalized_port_key = str(port_key or "").strip()
-        if not normalized_edge_id:
+        normalized_edge_ids: list[str] = []
+        seen_edge_ids: set[str] = set()
+        for value in edge_ids:
+            edge_id = str(value or "").strip()
+            if edge_id and edge_id not in seen_edge_ids:
+                seen_edge_ids.add(edge_id)
+                normalized_edge_ids.append(edge_id)
+        if not normalized_edge_ids:
             return GraphActionResult(False, "Connection id is required.")
         if normalized_endpoint not in {"source", "target"}:
             return GraphActionResult(False, "Connection endpoint must be source or target.")
@@ -218,52 +226,62 @@ class GraphInteractions:
             return GraphActionResult(False, "Connection endpoint request is incomplete.")
 
         workspace = self._scene.current_workspace()
-        edge = workspace.edges.get(normalized_edge_id)
-        if edge is None:
+        if any(edge_id not in workspace.edges for edge_id in normalized_edge_ids):
             return GraphActionResult(False, "Connection not found.")
-        source_node = workspace.nodes.get(edge.source_node_id)
-        target_node = workspace.nodes.get(edge.target_node_id)
-        if source_node is None or target_node is None:
-            return GraphActionResult(False, "One or more nodes are missing.")
-        try:
-            source_spec = self._registry.get_spec(source_node.type_id)
-            target_spec = self._registry.get_spec(target_node.type_id)
-        except KeyError:
-            return GraphActionResult(False, "Unavailable add-on connections cannot be edited.")
         if normalized_node_id:
-            if normalized_endpoint == "source":
-                source_node = workspace.nodes.get(normalized_node_id)
-                source_port_key = normalized_port_key
-                target_port_key = edge.target_port_key
-            else:
-                target_node = workspace.nodes.get(normalized_node_id)
-                source_port_key = edge.source_port_key
-                target_port_key = normalized_port_key
-            if source_node is None or target_node is None:
-                return GraphActionResult(False, "One or more nodes are missing.")
-            try:
-                source_spec = self._registry.get_spec(source_node.type_id)
-                target_spec = self._registry.get_spec(target_node.type_id)
-            except KeyError:
-                return GraphActionResult(False, "Unavailable add-on connections cannot be edited.")
-            availability_reason = unavailable_connection_reason(
-                workspace=workspace,
-                source_node=source_node,
-                source_spec=source_spec,
-                source_port_key=source_port_key,
-                target_node=target_node,
-                target_spec=target_spec,
-                target_port_key=target_port_key,
-            )
-            if availability_reason:
-                return GraphActionResult(False, availability_reason)
+            for edge_id in normalized_edge_ids:
+                edge = workspace.edges[edge_id]
+                source_node_id = (
+                    normalized_node_id
+                    if normalized_endpoint == "source"
+                    else edge.source_node_id
+                )
+                source_port_key = (
+                    normalized_port_key
+                    if normalized_endpoint == "source"
+                    else edge.source_port_key
+                )
+                target_node_id = (
+                    normalized_node_id
+                    if normalized_endpoint == "target"
+                    else edge.target_node_id
+                )
+                target_port_key = (
+                    normalized_port_key
+                    if normalized_endpoint == "target"
+                    else edge.target_port_key
+                )
+                source_node = workspace.nodes.get(source_node_id)
+                target_node = workspace.nodes.get(target_node_id)
+                if source_node is None or target_node is None:
+                    return GraphActionResult(False, "One or more nodes are missing.")
+                try:
+                    source_spec = self._registry.get_spec(source_node.type_id)
+                    target_spec = self._registry.get_spec(target_node.type_id)
+                except KeyError:
+                    return GraphActionResult(
+                        False,
+                        "Unavailable add-on connections cannot be edited.",
+                    )
+                availability_reason = unavailable_connection_reason(
+                    workspace=workspace,
+                    source_node=source_node,
+                    source_spec=source_spec,
+                    source_port_key=source_port_key,
+                    target_node=target_node,
+                    target_spec=target_spec,
+                    target_port_key=target_port_key,
+                )
+                if availability_reason:
+                    return GraphActionResult(False, availability_reason)
 
         try:
-            changed = self._scene.move_edge_endpoint(
-                normalized_edge_id,
+            changed = self._scene.request_rewire_edges(
+                normalized_edge_ids,
                 normalized_endpoint,
                 normalized_node_id,
                 normalized_port_key,
+                bool(copy_requested),
                 bool(append_requested),
             )
         except (KeyError, ValueError) as exc:
@@ -272,6 +290,22 @@ class GraphInteractions:
             return GraphActionResult(False, "Connection was not changed.")
         clear_port_availability_runtime_workspace(workspace.workspace_id)
         return GraphActionResult(True)
+
+    def move_edge_endpoint(
+        self,
+        edge_id: str,
+        endpoint: str,
+        node_id: str,
+        port_key: str,
+        append_requested: bool = False,
+    ) -> GraphActionResult:
+        return self.rewire_edges(
+            [edge_id],
+            endpoint,
+            node_id,
+            port_key,
+            append_requested=append_requested,
+        )
 
     def remove_node(self, node_id: str) -> GraphActionResult:
         normalized_node_id = str(node_id).strip()

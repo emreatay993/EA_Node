@@ -1268,20 +1268,22 @@ class GraphSceneBridgeBase(QObject):
             append_requested,
         )
 
-    @pyqtSlot(str, str, str, str, bool, result=bool)
-    def move_edge_endpoint(
+    @pyqtSlot("QVariantList", str, str, str, bool, bool, result=bool)
+    def request_rewire_edges(
         self,
-        edge_id: str,
+        edge_ids: list[Any],
         endpoint: str,
         node_id: str,
         port_key: str,
+        copy_requested: bool = False,
         append_requested: bool = False,
     ) -> bool:
-        return self._command_bridge.move_edge_endpoint(
-            edge_id,
+        return self._command_bridge.request_rewire_edges(
+            edge_ids,
             endpoint,
             node_id,
             port_key,
+            copy_requested,
             append_requested,
         )
 
@@ -1489,6 +1491,10 @@ class GraphSceneBridgeBase(QObject):
     @pyqtSlot("QVariantList", bool, result=bool)
     def set_edges_enabled(self, edge_ids: list[Any], enabled: bool) -> bool:
         return self._command_bridge.set_edges_enabled(edge_ids, enabled)
+
+    @pyqtSlot("QVariantList", str, result=bool)
+    def set_edges_display_mode(self, edge_ids: list[Any], mode: str) -> bool:
+        return self._command_bridge.set_edges_display_mode(edge_ids, mode)
 
     @pyqtSlot(str, str, "QVariantList", result=bool)
     def set_port_modifiers(

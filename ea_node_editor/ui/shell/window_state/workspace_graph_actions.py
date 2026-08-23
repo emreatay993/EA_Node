@@ -187,21 +187,23 @@ class ShellWindowWorkspaceGraphActionsMixin:
             )
         )
 
-    @pyqtSlot(str, str, str, str, bool, result=bool)
-    def request_move_edge_endpoint(
+    @pyqtSlot("QVariantList", str, str, str, bool, bool, result=bool)
+    def request_rewire_edges(
         self: "ShellWindow",
-        edge_id: str,
+        edge_ids: list[Any],
         endpoint: str,
         node_id: str,
         port_key: str,
+        copy_requested: bool = False,
         append_requested: bool = False,
     ) -> bool:
         return bool(
-            self.graph_canvas_presenter.request_move_edge_endpoint(
-                edge_id,
+            self.graph_canvas_presenter.request_rewire_edges(
+                edge_ids,
                 endpoint,
                 node_id,
                 port_key,
+                copy_requested,
                 append_requested,
             )
         )

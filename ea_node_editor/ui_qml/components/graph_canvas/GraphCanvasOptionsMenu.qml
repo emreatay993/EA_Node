@@ -40,6 +40,11 @@ Item {
     readonly property color sectionFg: _token("group_title_fg", "#bdc5d3")
     readonly property var canvasPrefs: root.canvasItem ? root.canvasItem.prefs : null
     readonly property var canvasExecutionFacts: root.canvasItem ? root.canvasItem.executionFacts : null
+    readonly property var selectedWireEdgeIds: root._selectedActiveWireEdgeIds()
+    readonly property string selectedWireDisplayModeValue: root._selectedWireDisplayModeValue()
+    readonly property string selectedWireDisplayModeLabel: root.selectedWireDisplayModeValue === ""
+        ? "Mixed"
+        : root.selectedWireDisplayModeValue.charAt(0).toUpperCase() + root.selectedWireDisplayModeValue.slice(1)
     readonly property bool showGrid: root.canvasPrefs ? Boolean(root.canvasPrefs.showGrid) : true
     readonly property bool snapToGrid: root.canvasItem ? Boolean(root.canvasItem.snapToGridEnabled()) : false
     readonly property bool nodeShadows: root.canvasPrefs ? Boolean(root.canvasPrefs.nodeShadowEnabled) : true
@@ -99,6 +104,15 @@ Item {
     width: root.panelW + (root.hasActiveSubmenu ? root.menuGap + root.submenuW : 0)
     height: Math.max(mainPanel.height, activeSubmenuHeight())
 
+    onVisibleChanged: {
+        if (!visible)
+            root.activeSubmenu = "";
+    }
+    onSelectedWireEdgeIdsChanged: {
+        if (!root.selectedWireEdgeIds.length && root.activeSubmenu === "selectedWireDisplayMode")
+            root.activeSubmenu = "";
+    }
+
     function _token(name, fallback) {
         return root.themePalette && root.themePalette[name] !== undefined
             ? root.themePalette[name]
@@ -118,7 +132,51 @@ Item {
             return commentEditorSubmenuLoader.item.height;
         if (shellSubmenuLoader.active && shellSubmenuLoader.item)
             return shellSubmenuLoader.item.height;
+        if (selectedWireDisplayModeSubmenuLoader.active && selectedWireDisplayModeSubmenuLoader.item)
+            return selectedWireDisplayModeSubmenuLoader.item.height;
         return 0;
+    }
+
+    function _normalizedEdgeDisplayMode(mode) {
+        var normalized = String(mode || "").trim().toLowerCase();
+        return normalized === "faint" || normalized === "hidden" ? normalized : "default";
+    }
+
+    function _selectedActiveWireEdgeIds() {
+        var selected = root.canvasItem && root.canvasItem._normalizeEdgeIds
+            ? root.canvasItem._normalizeEdgeIds(root.canvasItem.selectedEdgeIds || [])
+            : [];
+        var active = [];
+        for (var i = 0; i < selected.length; ++i) {
+            var payload = root.canvasItem && root.canvasItem._sceneEdgePayload
+                ? root.canvasItem._sceneEdgePayload(selected[i])
+                : null;
+            if (payload && Boolean(payload.active_data_wire))
+                active.push(selected[i]);
+        }
+        return active;
+    }
+
+    function _selectedWireDisplayModeValue() {
+        var current = "";
+        for (var i = 0; i < root.selectedWireEdgeIds.length; ++i) {
+            var payload = root.canvasItem && root.canvasItem._sceneEdgePayload
+                ? root.canvasItem._sceneEdgePayload(root.selectedWireEdgeIds[i])
+                : null;
+            var style = payload && payload.visual_style ? payload.visual_style : ({});
+            var mode = root._normalizedEdgeDisplayMode(style.display_mode);
+            if (!current)
+                current = mode;
+            else if (current !== mode)
+                return "";
+        }
+        return current;
+    }
+
+    function setSelectedWiresDisplayMode(mode) {
+        if (!root.canvasItem || !root.canvasItem.setEdgesDisplayMode || !root.selectedWireEdgeIds.length)
+            return false;
+        return Boolean(root.canvasItem.setEdgesDisplayMode(root.selectedWireEdgeIds, mode));
     }
 
     function closeMenu() {
@@ -201,6 +259,26 @@ Item {
             y: root.contentPad
             width: root.panelW - (root.contentPad * 2)
             spacing: 0
+
+            SectionHeader {
+                label: "SELECTED WIRES"
+                visible: root.selectedWireEdgeIds.length > 0
+                height: visible ? 22 : 0
+            }
+            SubmenuRow {
+                label: "Selected Wires Display Mode"
+                value: root.selectedWireDisplayModeLabel
+                visible: root.selectedWireEdgeIds.length > 0
+                height: visible ? root.rowH : 0
+                isOpen: root.activeSubmenu === "selectedWireDisplayMode"
+                onClicked: root.activeSubmenu = root.activeSubmenu === "selectedWireDisplayMode"
+                    ? ""
+                    : "selectedWireDisplayMode"
+            }
+            Divider {
+                visible: root.selectedWireEdgeIds.length > 0
+                height: visible ? 1 : 0
+            }
 
             SectionHeader { label: "BACKGROUND" }
             SubmenuRow {
@@ -299,6 +377,26 @@ Item {
             ActionRow {
                 label: "Open full Graphics Settings..."
                 onClicked: root.openGraphicsSettings()
+            }
+        }
+    }
+
+    Loader {
+        id: selectedWireDisplayModeSubmenuLoader
+        active: root.activeSubmenu === "selectedWireDisplayMode"
+        x: root.submenuOffsetX
+        y: 0
+        sourceComponent: SubmenuPanel {
+            title: "Selected Wires Display Mode"
+            options: [
+                { "label": "Default", "value": "default" },
+                { "label": "Faint", "value": "faint" },
+                { "label": "Hidden", "value": "hidden" }
+            ]
+            currentValue: root.selectedWireDisplayModeValue
+            onPicked: function(value) {
+                root.setSelectedWiresDisplayMode(value);
+                root.activeSubmenu = "";
             }
         }
     }

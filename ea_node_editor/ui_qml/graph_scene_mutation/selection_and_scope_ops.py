@@ -84,6 +84,21 @@ if TYPE_CHECKING:
 
 _MISSING = object()
 ACTION_TOGGLE_HIDE_OPTIONAL_PORTS = "toggle-hide-optional-ports"
+_EDGE_DISPLAY_MODES = frozenset({"default", "faint", "hidden"})
+
+
+def _normalize_edge_display_mode(value: Any) -> str:
+    normalized = str(value or "").strip().lower()
+    return normalized if normalized in _EDGE_DISPLAY_MODES else "default"
+
+
+def _normalize_edge_visual_style(visual_style: Any) -> dict[str, Any]:
+    normalized = normalize_visual_style_payload(visual_style)
+    if "display_mode" in normalized:
+        normalized["display_mode"] = _normalize_edge_display_mode(
+            normalized["display_mode"]
+        )
+    return normalized
 
 
 def _protected_value_is_set(value: Any) -> bool:
@@ -502,12 +517,13 @@ def connect_nodes(self, node_a_id: str, node_b_id: str) -> str:
     raise ValueError("Selected nodes do not have compatible out/in ports.")
 
 
-def move_edge_endpoint(
+def request_rewire_edges(
     self,
-    edge_id: str,
+    edge_ids: list[Any],
     endpoint: str,
     node_id: str,
     port_key: str,
+    copy_requested: bool = False,
     append_requested: bool = False,
 ) -> bool:
     model = self._scene_context.model
@@ -516,12 +532,28 @@ def move_edge_endpoint(
     workspace = model.project.workspaces.get(self._scene_context.workspace_id)
     if workspace is None:
         return False
-    edge = workspace.edges.get(str(edge_id or "").strip())
-    if edge is None:
+
+    requested_edge_ids: list[str] = []
+    seen_edge_ids: set[str] = set()
+    for value in edge_ids:
+        edge_id = str(value or "").strip()
+        if edge_id and edge_id not in seen_edge_ids:
+            seen_edge_ids.add(edge_id)
+            requested_edge_ids.append(edge_id)
+    if not requested_edge_ids or any(
+        edge_id not in workspace.edges for edge_id in requested_edge_ids
+    ):
         return False
-    if not is_node_in_scope(workspace, edge.source_node_id, self._scene_context.scope_path):
-        return False
-    if not is_node_in_scope(workspace, edge.target_node_id, self._scene_context.scope_path):
+    requested_edges = [workspace.edges[edge_id] for edge_id in requested_edge_ids]
+    if any(
+        not is_node_in_scope(
+            workspace, edge.source_node_id, self._scene_context.scope_path
+        )
+        or not is_node_in_scope(
+            workspace, edge.target_node_id, self._scene_context.scope_path
+        )
+        for edge in requested_edges
+    ):
         return False
     normalized_node_id = str(node_id or "").strip()
     normalized_port_key = str(port_key or "").strip()
@@ -532,49 +564,81 @@ def move_edge_endpoint(
     ):
         return False
 
-    edge_before = edge.clone()
-    edge_endpoints_before = {
-        candidate.edge_id: (candidate.source_node_id, candidate.target_node_id)
-        for candidate in workspace.edges.values()
+    edges_before = {
+        edge_id: edge.clone() for edge_id, edge in workspace.edges.items()
     }
-    before_edge_ids = set(workspace.edges)
     history_before = self._capture_history_snapshot()
     try:
-        changed = self._validated_mutations().move_edge_endpoint(
-            edge.edge_id,
+        changed_edge_ids = self._validated_mutations().rewire_edges(
+            requested_edge_ids,
             endpoint,
             normalized_node_id,
             normalized_port_key,
-            append_requested,
+            copy_requested=bool(copy_requested),
+            append_requested=bool(append_requested),
         )
     except (KeyError, ValueError):
         return False
-    if not changed:
+    if not changed_edge_ids:
         return False
 
-    removed_edge_ids = before_edge_ids - set(workspace.edges)
-    moved_edge = workspace.edges.get(edge.edge_id)
-    related_edges = [edge_before]
-    if moved_edge is not None:
-        related_edges.append(moved_edge)
+    before_edge_ids = set(edges_before)
+    after_edge_ids = set(workspace.edges)
+    added_edge_ids = after_edge_ids - before_edge_ids
+    removed_edge_ids = before_edge_ids - after_edge_ids
+    related_edges = [
+        edges_before[edge_id]
+        for edge_id in requested_edge_ids
+        if edge_id in edges_before
+    ] + [
+        edges_before[edge_id]
+        for edge_id in removed_edge_ids
+        if edge_id in edges_before
+    ] + [
+        workspace.edges[edge_id]
+        for edge_id in set(changed_edge_ids) | added_edge_ids
+        if edge_id in workspace.edges
+    ]
     updated_edge_ids = self._scene_context.related_edge_ids_for_edges(related_edges)
-    dirty_node_ids = {edge_before.source_node_id, edge_before.target_node_id}
-    for removed_edge_id in removed_edge_ids:
-        dirty_node_ids.update(edge_endpoints_before.get(removed_edge_id, ()))
-    if moved_edge is not None:
-        dirty_node_ids.update({moved_edge.source_node_id, moved_edge.target_node_id})
-        updated_edge_ids.add(moved_edge.edge_id)
+    updated_edge_ids.update(
+        edge_id for edge_id in changed_edge_ids if edge_id in workspace.edges
+    )
+    dirty_node_ids: set[str] = set()
+    for edge in related_edges:
+        dirty_node_ids.update((edge.source_node_id, edge.target_node_id))
     self._scene_context.publish_edge_topology_delta(
+        added_edge_ids=added_edge_ids,
         updated_edge_ids=updated_edge_ids,
         removed_edge_ids=removed_edge_ids,
         dirty_node_ids=dirty_node_ids,
-        publication_path="edge_endpoint_move_delta",
+        publication_path="edge_batch_rewire_delta",
     )
     self._record_history(
-        ACTION_REMOVE_EDGE if moved_edge is None else ACTION_ADD_EDGE,
+        ACTION_REMOVE_EDGE
+        if not added_edge_ids
+        and all(edge_id not in workspace.edges for edge_id in requested_edge_ids)
+        else ACTION_ADD_EDGE,
         history_before,
     )
     return True
+
+
+def move_edge_endpoint(
+    self,
+    edge_id: str,
+    endpoint: str,
+    node_id: str,
+    port_key: str,
+    append_requested: bool = False,
+) -> bool:
+    return request_rewire_edges(
+        self,
+        [edge_id],
+        endpoint,
+        node_id,
+        port_key,
+        append_requested=append_requested,
+    )
 
 
 def remove_edge(self, edge_id: str) -> None:
@@ -1342,7 +1406,7 @@ def clear_edge_label(self, edge_id: str) -> None:
 
 
 def normalize_edge_visual_style(visual_style: Any) -> dict[str, Any]:
-    return normalize_visual_style_payload(visual_style)
+    return _normalize_edge_visual_style(visual_style)
 
 
 def set_edge_visual_style(self, edge_id: str, visual_style: Any) -> None:
@@ -1355,7 +1419,7 @@ def set_edge_visual_style(self, edge_id: str, visual_style: Any) -> None:
     edge = workspace.edges.get(edge_id)
     if edge is None:
         return
-    normalized = normalize_visual_style_payload(visual_style)
+    normalized = _normalize_edge_visual_style(visual_style)
     if edge.visual_style == normalized:
         return
     history_before = self._capture_history_snapshot()
@@ -1369,6 +1433,60 @@ def set_edge_visual_style(self, edge_id: str, visual_style: Any) -> None:
 
 def clear_edge_visual_style(self, edge_id: str) -> None:
     self.set_edge_visual_style(edge_id, {})
+
+
+def set_edges_display_mode(self, edge_ids: list[Any], mode: Any) -> bool:
+    model = self._scene_context.model
+    if model is None:
+        return False
+    workspace = model.project.workspaces.get(self._scene_context.workspace_id)
+    if workspace is None:
+        return False
+
+    requested_edge_ids: list[str] = []
+    seen_edge_ids: set[str] = set()
+    for value in edge_ids:
+        edge_id = str(value or "").strip()
+        if edge_id and edge_id not in seen_edge_ids:
+            seen_edge_ids.add(edge_id)
+            requested_edge_ids.append(edge_id)
+    if not requested_edge_ids or any(
+        edge_id not in workspace.edges for edge_id in requested_edge_ids
+    ):
+        return False
+
+    display_mode = _normalize_edge_display_mode(mode)
+    style_updates: dict[str, dict[str, Any]] = {}
+    for edge_id in requested_edge_ids:
+        edge = workspace.edges[edge_id]
+        if (
+            _normalize_edge_display_mode(edge.visual_style.get("display_mode"))
+            == display_mode
+        ):
+            continue
+        visual_style = dict(edge.visual_style)
+        if display_mode == "default":
+            visual_style.pop("display_mode", None)
+        else:
+            visual_style["display_mode"] = display_mode
+        style_updates[edge_id] = visual_style
+    if not style_updates:
+        return False
+
+    history_before = self._capture_history_snapshot()
+    mutations = self._record_mutations()
+    dirty_node_ids: set[str] = set()
+    for edge_id, visual_style in style_updates.items():
+        mutations.set_edge_visual_style(edge_id, visual_style)
+        edge = workspace.edges[edge_id]
+        dirty_node_ids.update((edge.source_node_id, edge.target_node_id))
+    self._scene_context.publish_edge_topology_delta(
+        updated_edge_ids=set(style_updates),
+        dirty_node_ids=dirty_node_ids,
+        publication_path="edge_display_mode_delta",
+    )
+    self._record_history(ACTION_EDIT_EDGE_STYLE, history_before)
+    return True
 
 
 def set_edges_enabled(self, edge_ids: list[Any], enabled: bool) -> bool:
@@ -2414,8 +2532,10 @@ __all__ = [
     "move_node_link",
     "mark_node_comments_read",
     "move_edge_endpoint",
+    "request_rewire_edges",
     "set_edge_label",
     "set_edge_enabled",
+    "set_edges_display_mode",
     "set_edges_enabled",
     "set_edge_visual_style",
     "set_exposed_port",

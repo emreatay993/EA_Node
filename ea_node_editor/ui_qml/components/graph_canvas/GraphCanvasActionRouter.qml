@@ -382,6 +382,30 @@ QtObject {
         return true;
     }
 
+    function setEdgesDisplayMode(edgeIds, mode) {
+        return root.canvasItem && root.canvasItem.setEdgesDisplayMode
+            ? Boolean(root.canvasItem.setEdgesDisplayMode(edgeIds || [], mode))
+            : false;
+    }
+
+    function jumpToEdgeEndpoint(edgeId, endpoint) {
+        var normalized = String(edgeId || "").trim();
+        return normalized.length > 0 && root.canvasItem && root.canvasItem.jumpToEdgeEndpoint
+            ? Boolean(root.canvasItem.jumpToEdgeEndpoint(normalized, endpoint))
+            : false;
+    }
+
+    function jumpToSelectedEdgeEndpoint(endpoint) {
+        if (!root.canvasItem)
+            return false;
+        var selected = root.canvasItem._normalizeEdgeIds
+            ? root.canvasItem._normalizeEdgeIds(root.canvasItem.selectedEdgeIds || [])
+            : (root.canvasItem.selectedEdgeIds || []);
+        return selected.length === 1
+            ? root.jumpToEdgeEndpoint(selected[0], endpoint)
+            : false;
+    }
+
     function clearFlowEdgeLabel(edgeId) {
         var normalized = String(edgeId || "").trim();
         if (!normalized.length || !root.edgeSupportsFlowStyle(normalized))

@@ -364,19 +364,21 @@ class WorkspaceGraphEditController:
             append_requested,
         )
 
-    def request_move_edge_endpoint(
+    def request_rewire_edges(
         self,
-        edge_id: str,
+        edge_ids: list[Any],
         endpoint: str,
         node_id: str,
         port_key: str,
+        copy_requested: bool = False,
         append_requested: bool = False,
     ) -> ControllerResult[bool]:
-        return self._edit_ops.request_move_edge_endpoint(
-            edge_id,
+        return self._edit_ops.request_rewire_edges(
+            edge_ids,
             endpoint,
             node_id,
             port_key,
+            copy_requested,
             append_requested,
         )
 

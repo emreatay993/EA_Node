@@ -965,6 +965,10 @@ Item {
             visibleSceneRectPayload: root.canvasItem ? root.canvasItem.visibleSceneRectPayload : ({})
             previewEdgeId: root.canvasItem ? root.canvasItem.dropPreviewEdgeId : ""
             dragConnection: root.canvasItem ? root.canvasItem.wireDragPreviewConnection() : null
+            replacementPreviewEdgeIds: dragConnection && dragConnection.replacement_edge_ids
+                ? dragConnection.replacement_edge_ids
+                : []
+            wireSelectionModeHeld: root.canvasItem ? Boolean(root.canvasItem.wireSelectionModeHeld) : false
             outputPreviewLookup: root.canvasItem && root.canvasItem.executionFacts
                 ? root.canvasItem.executionFacts.portValuePreviewLookup
                 : ({})

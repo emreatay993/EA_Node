@@ -149,12 +149,13 @@ class _GraphCanvasCommandSource(Protocol):
         append_requested: bool = False,
     ) -> bool: ...
 
-    def request_move_edge_endpoint(
+    def request_rewire_edges(
         self,
-        edge_id: str,
+        edge_ids: list[object],
         endpoint: str,
         node_id: str,
         port_key: str,
+        copy_requested: bool = False,
         append_requested: bool = False,
     ) -> bool: ...
 
@@ -262,6 +263,8 @@ class _GraphCanvasSceneCommandSource(Protocol):
     def set_edge_enabled(self, edge_id: str, enabled: bool) -> bool: ...
 
     def set_edges_enabled(self, edge_ids: list[Any], enabled: bool) -> bool: ...
+
+    def set_edges_display_mode(self, edge_ids: list[Any], mode: str) -> bool: ...
 
     def set_port_modifiers(
         self,

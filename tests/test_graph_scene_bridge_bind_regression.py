@@ -43,19 +43,29 @@ class _CountingRuntimeGraphHistory(RuntimeGraphHistory):
         return super().capture_workspace(workspace)
 
 
-class _EdgeMoveCanvasSource:
+class _EdgeRewireCanvasSource:
     def __init__(self) -> None:
-        self.calls: list[tuple[str, str, str, str, bool]] = []
+        self.calls: list[tuple[list[str], str, str, str, bool, bool]] = []
 
-    def request_move_edge_endpoint(
+    def request_rewire_edges(
         self,
-        edge_id: str,
+        edge_ids: list[str],
         endpoint: str,
         node_id: str,
         port_key: str,
+        copy_requested: bool = False,
         append_requested: bool = False,
     ) -> bool:
-        self.calls.append((edge_id, endpoint, node_id, port_key, append_requested))
+        self.calls.append(
+            (
+                list(edge_ids),
+                endpoint,
+                node_id,
+                port_key,
+                copy_requested,
+                append_requested,
+            )
+        )
         return True
 
 
@@ -277,7 +287,7 @@ class GraphSceneBridgeBindRegressionTests(unittest.TestCase):
         self.assertIn("GraphScenePolicyBridge", package_text)
         self.assertIn("GraphSceneReadBridge", package_text)
 
-    def test_scene_bridge_exposes_endpoint_move_and_optional_filter_slots_through_split_command_surface(self) -> None:
+    def test_scene_bridge_exposes_batch_rewire_and_optional_filter_slots_through_split_command_surface(self) -> None:
         package_root = _REPO_ROOT / "ea_node_editor" / "ui_qml" / "graph_scene"
         command_text = (package_root / "command_bridge.py").read_text(encoding="utf-8")
         state_support_text = (package_root / "state_support.py").read_text(encoding="utf-8")
@@ -297,9 +307,9 @@ class GraphSceneBridgeBindRegressionTests(unittest.TestCase):
         ).read_text(encoding="utf-8")
 
         for snippet, text in (
-            ("def move_edge_endpoint(", command_text),
+            ("def request_rewire_edges(", command_text),
             ("def set_hide_optional_ports(self, hide_optional_ports: bool) -> bool:", command_text),
-            ("def move_edge_endpoint(", state_support_text),
+            ("def request_rewire_edges(", state_support_text),
             ("def set_hide_optional_ports(self, hide_optional_ports: bool) -> bool:", state_support_text),
             ("def set_node_settings_group_expanded(", command_text),
             ("def set_node_settings_group_expanded(", state_support_text),
@@ -318,21 +328,40 @@ class GraphSceneBridgeBindRegressionTests(unittest.TestCase):
         scene_meta = scene.metaObject()
         command_meta = scene.command_bridge.metaObject()
         for signature in (
-            b"move_edge_endpoint(QString,QString,QString,QString,bool)",
+            b"request_rewire_edges(QVariantList,QString,QString,QString,bool,bool)",
             b"set_hide_optional_ports(bool)",
             b"set_node_settings_group_expanded(QString,QString,bool)",
         ):
             with self.subTest(signature=signature):
                 self.assertGreaterEqual(scene_meta.indexOfMethod(signature), 0)
                 self.assertGreaterEqual(command_meta.indexOfMethod(signature), 0)
+        for meta in (scene_meta, command_meta):
+            self.assertLess(
+                meta.indexOfMethod(b"move_edge_endpoint(QString,QString,QString,QString,bool)"),
+                0,
+            )
 
-    def test_canvas_endpoint_move_request_forwards_all_arguments(self) -> None:
-        source = _EdgeMoveCanvasSource()
+    def test_canvas_batch_rewire_request_forwards_all_arguments(self) -> None:
+        source = _EdgeRewireCanvasSource()
         command_bridge = GraphCanvasCommandBridge(canvas_source=source)
         facade = GraphCanvasBridge(command_bridge=command_bridge)
 
-        self.assertTrue(facade.request_move_edge_endpoint("edge", "target", "node", "port", True))
-        self.assertEqual(source.calls, [("edge", "target", "node", "port", True)])
+        self.assertTrue(
+            facade.request_rewire_edges(
+                ["edge-a", "edge-b"], "target", "node", "port", True, True
+            )
+        )
+        self.assertEqual(
+            source.calls,
+            [(["edge-a", "edge-b"], "target", "node", "port", True, True)],
+        )
+        for meta in (command_bridge.metaObject(), facade.metaObject()):
+            self.assertLess(
+                meta.indexOfMethod(
+                    b"request_move_edge_endpoint(QString,QString,QString,QString,bool)"
+                ),
+                0,
+            )
 
     def test_mutation_history_routes_to_direct_graph_operation_boundaries(self) -> None:
         helper_text = (
@@ -546,11 +575,17 @@ class GraphSceneBridgeBindRegressionTests(unittest.TestCase):
             b"request_open_subnode_scope(QString)",
             b"request_close_comment_peek()",
             b"request_delete_selected_graph_items(QVariantList)",
-            b"request_move_edge_endpoint(QString,QString,QString,QString,bool)",
+            b"request_rewire_edges(QVariantList,QString,QString,QString,bool,bool)",
             b"set_node_geometry(QString,double,double,double,double)",
         ):
             with self.subTest(retained_command_signature=signature):
                 self.assertGreaterEqual(command_meta.indexOfMethod(signature), 0)
+        self.assertLess(
+            command_meta.indexOfMethod(
+                b"request_move_edge_endpoint(QString,QString,QString,QString,bool)"
+            ),
+            0,
+        )
         for signature in (
             b"request_edit_flow_edge_style(QString)",
             b"request_remove_edge(QString)",

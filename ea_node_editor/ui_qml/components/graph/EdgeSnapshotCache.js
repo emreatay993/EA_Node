@@ -920,8 +920,9 @@ function _currentActiveNodeLookup(edgeLayer) {
         if (Object.prototype.hasOwnProperty.call(liveNodeGeometry, liveNodeId))
             _addLookupValue(lookup, liveNodeId);
     }
-    var dragConnection = edgeLayer.dragConnection || null;
-    if (dragConnection) {
+    var dragConnections = edgeLayer.dragConnectionList ? edgeLayer.dragConnectionList() : [];
+    for (var dragIndex = 0; dragIndex < dragConnections.length; dragIndex++) {
+        var dragConnection = dragConnections[dragIndex];
         _addLookupValue(lookup, dragConnection.source_node_id);
         _addLookupValue(lookup, dragConnection.target_node_id);
         _addLookupValue(lookup, dragConnection.source_anchor_node_id);
@@ -948,8 +949,22 @@ function _incidentEdgeLookup(edgeLayer, nodeLookup) {
 function _dragConnectionSceneBounds(edgeLayer) {
     if (!edgeLayer.dragConnection || !edgeLayer._dragGeometry)
         return null;
-    var geometry = edgeLayer._dragGeometry(edgeLayer.dragConnection);
-    return geometrySceneBounds(edgeLayer, geometry);
+    var connections = edgeLayer.dragConnectionList ? edgeLayer.dragConnectionList() : [edgeLayer.dragConnection];
+    var bounds = null;
+    for (var i = 0; i < connections.length; i++) {
+        var current = geometrySceneBounds(edgeLayer, edgeLayer._dragGeometry(connections[i]));
+        if (!current)
+            continue;
+        bounds = bounds
+            ? {
+                "left": Math.min(bounds.left, current.left),
+                "top": Math.min(bounds.top, current.top),
+                "right": Math.max(bounds.right, current.right),
+                "bottom": Math.max(bounds.bottom, current.bottom)
+            }
+            : current;
+    }
+    return bounds;
 }
 
 function _dirtyState(edgeLayer) {
@@ -977,6 +992,17 @@ function _canUseViewportOnlyRefresh(edgeLayer, dirty) {
 
 function _isSelected(edgeLayer, edgeId) {
     return (edgeLayer.selectedEdgeIds || []).indexOf(edgeId) >= 0;
+}
+
+function _displayMode(edge) {
+    if (!edge || !Boolean(edge.active_data_wire))
+        return "default";
+    var mode = String((edge.visual_style || {}).display_mode || "default").trim().toLowerCase();
+    return mode === "faint" || mode === "hidden" ? mode : "default";
+}
+
+function _isSelectedNode(edgeLayer, nodeId) {
+    return (edgeLayer.selectedNodeIds || []).indexOf(String(nodeId || "")) >= 0;
 }
 
 function _cloneObjectArray(values) {
@@ -1024,10 +1050,20 @@ function _buildSnapshotForEdge(
     var labelMode = labelLayer.flowLabelMode(edge);
     var selected = _isSelected(edgeLayer, edgeId);
     var previewed = Boolean(edgeLayer.previewEdgeId && edgeLayer.previewEdgeId === edgeId);
+    var replacementPreviewed = (edgeLayer.replacementPreviewEdgeIds || []).indexOf(edgeId) >= 0;
+    var activeDataWire = Boolean(edge.active_data_wire);
+    var displayMode = _displayMode(edge);
+    var sourceNodeSelected = activeDataWire
+        && edge.source_active_node !== false
+        && _isSelectedNode(edgeLayer, edge.source_node_id);
+    var targetNodeSelected = activeDataWire
+        && edge.target_active_node !== false
+        && _isSelectedNode(edgeLayer, edge.target_node_id);
     var previousSnapshot = previousSnapshotById[edgeId];
     var preserveCurrentCrossingMetadata = preserveCrossingMetadata
         && !selected
         && !previewed
+        && !replacementPreviewed
         && previousSnapshot
         && !previousSnapshot.culled
         && previousSnapshot.geometry;
@@ -1042,6 +1078,16 @@ function _buildSnapshotForEdge(
         "geometry": geometry,
         "selected": selected,
         "previewed": previewed,
+        "replacementPreviewed": replacementPreviewed,
+        "activeDataWire": activeDataWire,
+        "displayMode": displayMode,
+        "hiddenUnrevealed": activeDataWire
+            && displayMode === "hidden"
+            && !selected
+            && !previewed
+            && !replacementPreviewed,
+        "sourceNodeSelected": sourceNodeSelected,
+        "targetNodeSelected": targetNodeSelected,
         "flowEdge": canvasLayer.edgeIsFlow(edge),
         "labelText": labelLayer.edgeLabelText(edge),
         "labelMode": labelMode,
@@ -1150,6 +1196,7 @@ function buildVisibleEdgeSnapshots(edgeLayer, canvasLayer, labelLayer, revision)
     _addLookupKeys(paintLookup, previousVisibleLookup);
     _addLookupValues(paintLookup, edgeLayer.selectedEdgeIds || []);
     _addLookupValue(paintLookup, edgeLayer.previewEdgeId);
+    _addLookupValues(paintLookup, edgeLayer.replacementPreviewEdgeIds || []);
     _addLookupKeys(paintLookup, incidentActiveEdgeLookup);
     if (dirty.topologyDelta)
         _addLookupKeys(paintLookup, edgeLayer._edgeTopologyDirtyEdgeLookup || ({}));
@@ -1312,6 +1359,32 @@ function _edgeDistanceAtScreen(geometry, screenX, screenY, viewportTransform) {
     );
 }
 
+function _hiddenEndpointHitAtScreen(geometry, screenX, screenY, viewportTransform, threshold) {
+    var sceneX = EdgeViewportMath.screenToSceneX(screenX, viewportTransform);
+    var sceneY = EdgeViewportMath.screenToSceneY(screenY, viewportTransform);
+    var sceneStep = EdgeViewportMath.screenLengthToScene(4.0, viewportTransform);
+    var endpointSpan = EdgeViewportMath.screenLengthToScene(26.0, viewportTransform);
+    var metrics = EdgeMath.polylineMetrics(EdgeMath.sampleGeometryPolyline(geometry, sceneStep));
+    for (var i = 0; i < (metrics.segments || []).length; i++) {
+        var segment = metrics.segments[i];
+        if (segment.startDistance > endpointSpan
+                && segment.endDistance < metrics.totalLength - endpointSpan) {
+            continue;
+        }
+        if (EdgeMath.distanceSegment(
+                sceneX,
+                sceneY,
+                segment.a.x,
+                segment.a.y,
+                segment.b.x,
+                segment.b.y
+            ) <= threshold) {
+            return true;
+        }
+    }
+    return false;
+}
+
 function edgeAtScreen(edgeLayer, canvasLayer, labelLayer, screenX, screenY) {
     var snapshots = edgeLayer._visibleEdgeSnapshots || [];
     var snapshotById = edgeLayer._visibleEdgeSnapshotById || ({});
@@ -1352,6 +1425,18 @@ function edgeAtScreen(edgeLayer, canvasLayer, labelLayer, screenX, screenY) {
         var snapshot = hitSnapshots[i];
         if (!snapshot || snapshot.culled || !snapshot.geometry)
             continue;
+        if (snapshot.hiddenUnrevealed) {
+            if (_hiddenEndpointHitAtScreen(
+                    snapshot.geometry,
+                    screenX,
+                    screenY,
+                    viewportTransform,
+                    threshold
+                )) {
+                return snapshot.edgeId;
+            }
+            continue;
+        }
         var distance = _edgeDistanceAtScreen(snapshot.geometry, screenX, screenY, viewportTransform);
         if (distance < bestDistance && distance <= threshold) {
             bestDistance = distance;
@@ -1359,4 +1444,106 @@ function edgeAtScreen(edgeLayer, canvasLayer, labelLayer, screenX, screenY) {
         }
     }
     return bestId;
+}
+
+function _normalizedRect(x, y, width, height) {
+    var left = Number(x);
+    var top = Number(y);
+    var right = left + Number(width);
+    var bottom = top + Number(height);
+    if (![left, top, right, bottom].every(isFinite))
+        return null;
+    return {
+        "left": Math.min(left, right),
+        "top": Math.min(top, bottom),
+        "right": Math.max(left, right),
+        "bottom": Math.max(top, bottom)
+    };
+}
+
+function _pointInRect(point, rect) {
+    return point && rect
+        && Number(point.x) >= rect.left && Number(point.x) <= rect.right
+        && Number(point.y) >= rect.top && Number(point.y) <= rect.bottom;
+}
+
+function _segmentIntersectsRect(a, b, rect) {
+    if (_pointInRect(a, rect) || _pointInRect(b, rect))
+        return true;
+    if (!EdgeMath.rectsIntersect({
+        "left": Math.min(Number(a.x), Number(b.x)),
+        "top": Math.min(Number(a.y), Number(b.y)),
+        "right": Math.max(Number(a.x), Number(b.x)),
+        "bottom": Math.max(Number(a.y), Number(b.y))
+    }, rect)) {
+        return false;
+    }
+    var topLeft = {"x": rect.left, "y": rect.top};
+    var topRight = {"x": rect.right, "y": rect.top};
+    var bottomRight = {"x": rect.right, "y": rect.bottom};
+    var bottomLeft = {"x": rect.left, "y": rect.bottom};
+    return Boolean(
+        EdgeMath.segmentIntersection(a, b, topLeft, topRight)
+        || EdgeMath.segmentIntersection(a, b, topRight, bottomRight)
+        || EdgeMath.segmentIntersection(a, b, bottomRight, bottomLeft)
+        || EdgeMath.segmentIntersection(a, b, bottomLeft, topLeft)
+    );
+}
+
+function _geometryIntersectsRect(geometry, rect, sceneStep) {
+    var points = EdgeMath.sampleGeometryPolyline(geometry, sceneStep);
+    for (var i = 0; i < points.length; i++) {
+        if (_pointInRect(points[i], rect))
+            return true;
+        if (i > 0 && _segmentIntersectsRect(points[i - 1], points[i], rect))
+            return true;
+    }
+    return false;
+}
+
+function edgeIdsIntersectingSceneRect(edgeLayer, canvasLayer, labelLayer, x, y, width, height) {
+    var rect = _normalizedRect(x, y, width, height);
+    if (!rect)
+        return [];
+    if (!(edgeLayer._visibleEdgeSnapshots || []).length && (edgeLayer.edges || []).length)
+        refreshVisibleEdgeSnapshots(edgeLayer, canvasLayer, labelLayer);
+    ensureSpatialIndex(edgeLayer, edgeLayer.edges || [], getNodeMap(edgeLayer));
+    var candidateIds = (_querySpatialIndex(edgeLayer, rect).ids || []).slice(0);
+    var snapshotById = edgeLayer._visibleEdgeSnapshotById || ({});
+    var nodeById = getNodeMap(edgeLayer);
+    var step = EdgeViewportMath.screenLengthToScene(6.0, EdgeViewportMath.viewportTransform(edgeLayer));
+    var hits = [];
+    for (var i = 0; i < candidateIds.length; i++) {
+        var edgeId = candidateIds[i];
+        var snapshot = snapshotById[edgeId];
+        var geometry = snapshot && snapshot.geometry;
+        if (!geometry) {
+            var edge = (edgeLayer._edgeById || {})[edgeId];
+            var record = edge ? getCachedEdgeGeometryRecord(edgeLayer, edge, nodeById) : null;
+            geometry = record ? record.geometry : null;
+        }
+        if (geometry && _geometryIntersectsRect(geometry, rect, step))
+            hits.push(edgeId);
+    }
+    return hits;
+}
+
+function edgeIdsIntersectingScreenRect(edgeLayer, canvasLayer, labelLayer, x, y, width, height) {
+    var screenRect = _normalizedRect(x, y, width, height);
+    if (!screenRect)
+        return [];
+    var viewport = EdgeViewportMath.viewportTransform(edgeLayer);
+    var sceneLeft = EdgeViewportMath.screenToSceneX(screenRect.left, viewport);
+    var sceneTop = EdgeViewportMath.screenToSceneY(screenRect.top, viewport);
+    var sceneRight = EdgeViewportMath.screenToSceneX(screenRect.right, viewport);
+    var sceneBottom = EdgeViewportMath.screenToSceneY(screenRect.bottom, viewport);
+    return edgeIdsIntersectingSceneRect(
+        edgeLayer,
+        canvasLayer,
+        labelLayer,
+        sceneLeft,
+        sceneTop,
+        sceneRight - sceneLeft,
+        sceneBottom - sceneTop
+    );
 }

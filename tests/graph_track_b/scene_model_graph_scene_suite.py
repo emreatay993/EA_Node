@@ -1139,7 +1139,11 @@ class GraphSceneBridgeTrackBTests(unittest.TestCase):
         self.assertEqual(edge_payload[edge_id]["label"], "Primary path")
         self.assertEqual(
             edge_payload[edge_id]["visual_style"],
-            {"stroke": "dashed", "arrow": {"kind": "none"}},
+            {
+                "stroke": "dashed",
+                "arrow": {"kind": "none"},
+                "display_mode": "default",
+            },
         )
         self.assertEqual(edge_payload[edge_id]["source_port_kind"], "data")
         self.assertEqual(edge_payload[edge_id]["target_port_kind"], "data")
@@ -1415,8 +1419,82 @@ class GraphSceneBridgeTrackBTests(unittest.TestCase):
         self.assertEqual(edge_payload[edge_id]["label"], "Primary path")
         self.assertEqual(
             edge_payload[edge_id]["visual_style"],
-            {"stroke": "dashed", "arrow": {"kind": "none"}},
+            {
+                "stroke": "dashed",
+                "arrow": {"kind": "none"},
+                "display_mode": "default",
+            },
         )
+
+    def test_edge_display_modes_merge_style_history_and_reject_noops(self) -> None:
+        history = RuntimeGraphHistory()
+        self.scene.bind_runtime_history(history)
+        workspace = self.model.project.workspaces[self.workspace_id]
+        source_a = self.scene.add_node_from_type("core.constant", 0.0, 0.0)
+        source_b = self.scene.add_node_from_type("core.constant", 0.0, 100.0)
+        sink = self.scene.add_node_from_type("core.python_script", 320.0, 0.0)
+        first = self.scene.add_edge(source_a, "value", sink, "payload")
+        second = self.scene.add_edge(
+            source_b, "value", sink, "payload", append_requested=True
+        )
+        self.scene.set_edge_visual_style(first, {"stroke_pattern": "dashed"})
+        self.scene.set_edge_visual_style(second, {"arrow": {"kind": "none"}})
+        history.clear_workspace(self.workspace_id)
+
+        self.assertTrue(
+            self.scene.set_edges_display_mode([second, first, second], "faint")
+        )
+        self.assertEqual(
+            workspace.edges[first].visual_style,
+            {"stroke_pattern": "dashed", "display_mode": "faint"},
+        )
+        self.assertEqual(
+            workspace.edges[second].visual_style,
+            {"arrow": {"kind": "none"}, "display_mode": "faint"},
+        )
+        self.assertEqual(history.undo_depth(self.workspace_id), 1)
+        self.assertEqual(
+            history._undo_stacks[self.workspace_id][-1].action_type,
+            ACTION_EDIT_EDGE_STYLE,
+        )
+        self.assertIsNotNone(history.undo_workspace(self.workspace_id, workspace))
+        self.scene.refresh_workspace_from_model(self.workspace_id)
+        self.assertEqual(workspace.edges[first].visual_style, {"stroke_pattern": "dashed"})
+        self.assertEqual(workspace.edges[second].visual_style, {"arrow": {"kind": "none"}})
+        self.assertFalse(self.scene.set_edges_display_mode([first, second], "default"))
+        self.assertTrue(
+            all(
+                "display_mode" not in workspace.edges[edge_id].visual_style
+                for edge_id in (first, second)
+            )
+        )
+        document = JsonProjectSerializer(self.registry).to_persistent_document(
+            self.model.project
+        )
+        persisted_styles = {
+            edge["edge_id"]: edge["visual_style"]
+            for edge in document["workspaces"][0]["edges"]
+        }
+        self.assertNotIn("display_mode", persisted_styles[first])
+        self.assertNotIn("display_mode", persisted_styles[second])
+        self.assertEqual(history.undo_depth(self.workspace_id), 0)
+        self.assertIsNotNone(history.redo_workspace(self.workspace_id, workspace))
+        self.scene.refresh_workspace_from_model(self.workspace_id)
+
+        history.clear_workspace(self.workspace_id)
+        self.assertTrue(self.scene.set_edges_display_mode([first, second], "invalid"))
+        self.assertTrue(
+            all(
+                "display_mode" not in workspace.edges[edge_id].visual_style
+                for edge_id in (first, second)
+            )
+        )
+        self.assertEqual(history.undo_depth(self.workspace_id), 1)
+        self.assertFalse(self.scene.set_edges_display_mode([first, second], "default"))
+        before = workspace.capture_snapshot()
+        self.assertFalse(self.scene.set_edges_display_mode([first, "missing"], "hidden"))
+        self.assertEqual(workspace.capture_snapshot(), before)
+        self.assertEqual(history.undo_depth(self.workspace_id), 1)
 
     def test_validated_node_insertion_keeps_visual_style_only_for_passive_types(self) -> None:
         mutations = self.model.validated_mutations(self.workspace_id, self.registry)
@@ -1578,7 +1656,14 @@ class GraphSceneBridgeTrackBTests(unittest.TestCase):
         history.clear_workspace(self.workspace_id)
 
         self.assertTrue(
-            self.scene.move_edge_endpoint(edge_id, "source", source_b, "value")
+            self.scene.request_rewire_edges(
+                [edge_id],
+                "source",
+                source_b,
+                "value",
+                copy_requested=False,
+                append_requested=False,
+            )
         )
 
         moved = workspace.edges[edge_id]
@@ -1610,7 +1695,14 @@ class GraphSceneBridgeTrackBTests(unittest.TestCase):
         history.clear_workspace(self.workspace_id)
 
         self.assertTrue(
-            self.scene.move_edge_endpoint(edge_id, "target", sink_b, "payload")
+            self.scene.request_rewire_edges(
+                [edge_id],
+                "target",
+                sink_b,
+                "payload",
+                copy_requested=False,
+                append_requested=False,
+            )
         )
         self.assertIn(edge_id, workspace.edges)
         self.assertNotIn(replaced_id, workspace.edges)
@@ -1626,8 +1718,13 @@ class GraphSceneBridgeTrackBTests(unittest.TestCase):
         )
         history.clear_workspace(self.workspace_id)
         self.assertTrue(
-            self.scene.move_edge_endpoint(
-                edge_id, "target", sink_b, "payload", append_requested=True
+            self.scene.request_rewire_edges(
+                [edge_id],
+                "target",
+                sink_b,
+                "payload",
+                copy_requested=False,
+                append_requested=True,
             )
         )
         self.assertEqual(workspace.edges[appended_target_edge].input_order, 1)
@@ -1635,22 +1732,52 @@ class GraphSceneBridgeTrackBTests(unittest.TestCase):
 
         history.clear_workspace(self.workspace_id)
         self.assertFalse(
-            self.scene.move_edge_endpoint(edge_id, "target", sink_b, "payload")
+            self.scene.request_rewire_edges(
+                [edge_id],
+                "target",
+                sink_b,
+                "payload",
+                copy_requested=False,
+                append_requested=False,
+            )
         )
         self.assertEqual(history._undo_stacks.get(self.workspace_id, []), [])
         self.assertFalse(
-            self.scene.move_edge_endpoint(edge_id, "source", source_c, "value")
+            self.scene.request_rewire_edges(
+                [edge_id],
+                "source",
+                source_c,
+                "value",
+                copy_requested=False,
+                append_requested=False,
+            )
         )
         self.assertIn(edge_id, workspace.edges)
         self.assertEqual(history._undo_stacks.get(self.workspace_id, []), [])
 
         self.assertFalse(
-            self.scene.move_edge_endpoint(edge_id, "target", source_a, "value")
+            self.scene.request_rewire_edges(
+                [edge_id],
+                "target",
+                source_a,
+                "value",
+                copy_requested=False,
+                append_requested=False,
+            )
         )
         self.assertEqual(workspace.edges[edge_id].target_node_id, sink_b)
         self.assertEqual(history._undo_stacks.get(self.workspace_id, []), [])
 
-        self.assertTrue(self.scene.move_edge_endpoint(edge_id, "target", "", ""))
+        self.assertTrue(
+            self.scene.request_rewire_edges(
+                [edge_id],
+                "target",
+                "",
+                "",
+                copy_requested=False,
+                append_requested=False,
+            )
+        )
         self.assertNotIn(edge_id, workspace.edges)
         self.assertEqual(len(history._undo_stacks[self.workspace_id]), 1)
         self.assertEqual(
@@ -1659,6 +1786,230 @@ class GraphSceneBridgeTrackBTests(unittest.TestCase):
         )
         self.assertIsNotNone(history.undo_workspace(self.workspace_id, workspace))
         self.assertIn(edge_id, workspace.edges)
+
+    def test_request_rewire_edges_moves_and_disconnects_a_bundle_atomically(self) -> None:
+        history = RuntimeGraphHistory()
+        self.scene.bind_runtime_history(history)
+        workspace = self.model.project.workspaces[self.workspace_id]
+        source_a = self.scene.add_node_from_type("core.constant", 0.0, 0.0)
+        source_b = self.scene.add_node_from_type("core.constant", 0.0, 100.0)
+        sink_a = self.scene.add_node_from_type("core.python_script", 320.0, 0.0)
+        sink_b = self.scene.add_node_from_type("core.python_script", 640.0, 0.0)
+        first = self.scene.add_edge(source_a, "value", sink_a, "payload")
+        second = self.scene.add_edge(
+            source_b, "value", sink_a, "payload", append_requested=True
+        )
+        self.scene.set_edge_label(first, "Primary")
+        self.scene.set_edge_visual_style(first, {"stroke_pattern": "dashed"})
+        self.scene.set_edge_enabled(first, False)
+        history.clear_workspace(self.workspace_id)
+
+        self.assertTrue(
+            self.scene.request_rewire_edges(
+                [second, first], "target", sink_b, "payload"
+            )
+        )
+        self.assertEqual(
+            [
+                (edge.edge_id, edge.source_node_id, edge.input_order)
+                for edge in sorted(
+                    (
+                        edge
+                        for edge in workspace.edges.values()
+                        if edge.target_node_id == sink_b
+                    ),
+                    key=lambda edge: edge.input_order,
+                )
+            ],
+            [(first, source_a, 0), (second, source_b, 1)],
+        )
+        self.assertFalse(workspace.edges[first].enabled)
+        self.assertEqual(workspace.edges[first].label, "Primary")
+        self.assertEqual(
+            workspace.edges[first].visual_style, {"stroke_pattern": "dashed"}
+        )
+        self.assertEqual(history.undo_depth(self.workspace_id), 1)
+        self.assertIsNotNone(history.undo_workspace(self.workspace_id, workspace))
+        self.scene.refresh_workspace_from_model(self.workspace_id)
+        self.assertEqual(workspace.edges[first].target_node_id, sink_a)
+        self.assertEqual(workspace.edges[second].target_node_id, sink_a)
+        self.assertIsNotNone(history.redo_workspace(self.workspace_id, workspace))
+        self.scene.refresh_workspace_from_model(self.workspace_id)
+        self.assertEqual(workspace.edges[first].target_node_id, sink_b)
+        self.assertEqual(workspace.edges[second].target_node_id, sink_b)
+
+        history.clear_workspace(self.workspace_id)
+        self.assertTrue(
+            self.scene.request_rewire_edges([first, second], "target", "", "")
+        )
+        self.assertNotIn(first, workspace.edges)
+        self.assertNotIn(second, workspace.edges)
+        self.assertEqual(history.undo_depth(self.workspace_id), 1)
+        self.assertIsNotNone(history.undo_workspace(self.workspace_id, workspace))
+        self.scene.refresh_workspace_from_model(self.workspace_id)
+        self.assertEqual(workspace.edges[first].target_node_id, sink_b)
+        self.assertEqual(workspace.edges[second].target_node_id, sink_b)
+
+    def test_request_rewire_edges_rejects_mixed_duplicate_and_incompatible_batches(self) -> None:
+        history = RuntimeGraphHistory()
+        self.scene.bind_runtime_history(history)
+        workspace = self.model.project.workspaces[self.workspace_id]
+        source_a = self.scene.add_node_from_type("core.constant", 0.0, 0.0)
+        source_b = self.scene.add_node_from_type("core.constant", 0.0, 100.0)
+        sink = self.scene.add_node_from_type("core.python_script", 320.0, 0.0)
+        branch = self.scene.add_node_from_type("core.if", 640.0, 0.0)
+        first = self.scene.add_edge(source_a, "value", sink, "payload")
+        second = self.scene.add_edge(
+            source_b, "value", sink, "payload", append_requested=True
+        )
+        text_edge = self.scene.add_edge(
+            source_a, "as_text", sink, "payload", append_requested=True
+        )
+        history.clear_workspace(self.workspace_id)
+        before = workspace.capture_snapshot()
+
+        self.assertFalse(
+            self.scene.request_rewire_edges(
+                [first, second], "source", source_b, "value"
+            )
+        )
+        self.assertEqual(workspace.capture_snapshot(), before)
+        self.assertFalse(
+            self.scene.request_rewire_edges(
+                [first, text_edge], "target", branch, "condition"
+            )
+        )
+        self.assertEqual(workspace.capture_snapshot(), before)
+        self.assertFalse(
+            self.scene.request_rewire_edges(
+                [first, second], "target", sink, "payload", copy_requested=True
+            )
+        )
+        self.assertEqual(workspace.capture_snapshot(), before)
+        self.assertEqual(history.undo_depth(self.workspace_id), 0)
+
+    def test_rewire_compatibility_snapshot_intersects_the_whole_bundle(self) -> None:
+        string_source = self.scene.add_node_from_type("core.constant", 0.0, 0.0)
+        number_source = self.scene.add_node_from_type("data.number_slider", 0.0, 120.0)
+        shared_sink = self.scene.add_node_from_type("core.python_script", 320.0, 0.0)
+        other_sink = self.scene.add_node_from_type("core.python_script", 320.0, 160.0)
+        string_target = self.scene.add_node_from_type("core.logger", 640.0, 0.0)
+        number_target = self.scene.add_node_from_type("core.stream_gate", 640.0, 120.0)
+        common_target = self.scene.add_node_from_type("core.python_script", 640.0, 240.0)
+        duplicate_target = self.scene.add_node_from_type("core.python_script", 640.0, 480.0)
+        string_edge = self.scene.add_edge(
+            string_source, "as_text", shared_sink, "payload"
+        )
+        number_edge = self.scene.add_edge(
+            number_source,
+            "value",
+            shared_sink,
+            "payload",
+            append_requested=True,
+        )
+        other_number_edge = self.scene.add_edge(
+            number_source, "value", other_sink, "payload"
+        )
+        self.scene.add_edge(string_source, "as_text", duplicate_target, "payload")
+
+        def endpoint_ids(edge_ids: list[str]) -> set[tuple[str, str]]:
+            snapshot = self.scene.policy_bridge.compatible_rewire_endpoint_snapshot(
+                edge_ids, "target"
+            )
+            self.assertEqual(snapshot["candidate_role"], "target")
+            self.assertEqual(
+                snapshot["catalog_generation"], self.registry.data_types.fingerprint()
+            )
+            return {
+                (item["node_id"], item["port_key"])
+                for item in snapshot["compatible_endpoint_ids"]
+            }
+
+        string_candidates = endpoint_ids([string_edge])
+        number_candidates = endpoint_ids([number_edge])
+        bundle_candidates = endpoint_ids([number_edge, string_edge])
+        self.assertIn((string_target, "message"), string_candidates)
+        self.assertIn((number_target, "gate"), number_candidates)
+        self.assertIn((common_target, "payload"), bundle_candidates)
+        self.assertNotIn((string_target, "message"), bundle_candidates)
+        self.assertNotIn((number_target, "gate"), bundle_candidates)
+        self.assertNotIn((duplicate_target, "payload"), bundle_candidates)
+        self.assertEqual(endpoint_ids([string_edge, "missing"]), set())
+        self.assertEqual(endpoint_ids([string_edge, other_number_edge]), set())
+
+        dpf_source = self.scene.add_node_from_type("dpf.result_file", 0.0, 360.0)
+        rewire_origin = self.scene.add_node_from_type("dpf.model", 320.0, 360.0)
+        exclusive_target = self.scene.add_node_from_type("dpf.model", 640.0, 600.0)
+        path_source = self.scene.add_node_from_type("dpf.result_file", 0.0, 480.0)
+        dpf_edge = self.scene.add_edge(
+            dpf_source, "result_file", rewire_origin, "result_file"
+        )
+        self.scene.add_edge(
+            path_source, "normalized_path", exclusive_target, "path"
+        )
+        self.assertNotIn(
+            (exclusive_target, "result_file"), endpoint_ids([dpf_edge])
+        )
+
+    def test_request_rewire_edges_copies_one_selected_edge_with_one_history_entry(self) -> None:
+        history = RuntimeGraphHistory()
+        self.scene.bind_runtime_history(history)
+        workspace = self.model.project.workspaces[self.workspace_id]
+        source_a = self.scene.add_node_from_type("core.constant", 0.0, 0.0)
+        source_b = self.scene.add_node_from_type("core.constant", 0.0, 100.0)
+        source_c = self.scene.add_node_from_type("core.constant", 0.0, 200.0)
+        sink_a = self.scene.add_node_from_type("core.python_script", 320.0, 0.0)
+        sink_b = self.scene.add_node_from_type("core.python_script", 640.0, 0.0)
+        first = self.scene.add_edge(source_a, "value", sink_a, "payload")
+        second = self.scene.add_edge(
+            source_b, "value", sink_a, "payload", append_requested=True
+        )
+        existing = self.scene.add_edge(source_c, "value", sink_b, "payload")
+        self.scene.set_edge_label(first, "Primary")
+        self.scene.set_edge_visual_style(first, {"stroke_pattern": "dashed"})
+        self.scene.set_edge_enabled(first, False)
+        history.clear_workspace(self.workspace_id)
+
+        self.assertTrue(
+            self.scene.request_rewire_edges(
+                [first], "target", sink_b, "payload", copy_requested=True
+            )
+        )
+        copied = sorted(
+            (
+                edge
+                for edge in workspace.edges.values()
+                if edge.target_node_id == sink_b
+            ),
+            key=lambda edge: edge.input_order,
+        )
+        self.assertEqual(len(copied), 2)
+        self.assertEqual(copied[0].edge_id, existing)
+        copied_first = copied[1]
+        self.assertNotEqual(copied_first.edge_id, first)
+        self.assertEqual(
+            [(edge.source_node_id, edge.input_order) for edge in copied],
+            [(source_c, 0), (source_a, 1)],
+        )
+        self.assertFalse(copied_first.enabled)
+        self.assertEqual(copied_first.label, "Primary")
+        self.assertEqual(copied_first.visual_style, {"stroke_pattern": "dashed"})
+        self.assertEqual(history.undo_depth(self.workspace_id), 1)
+        copied_ids = {edge.edge_id for edge in copied}
+        self.assertIsNotNone(history.undo_workspace(self.workspace_id, workspace))
+        self.scene.refresh_workspace_from_model(self.workspace_id)
+        self.assertEqual(
+            {edge.edge_id for edge in workspace.edges.values() if edge.target_node_id == sink_b},
+            {existing},
+        )
+        self.assertIn(first, workspace.edges)
+        self.assertIn(second, workspace.edges)
+        self.assertIsNotNone(history.redo_workspace(self.workspace_id, workspace))
+        self.scene.refresh_workspace_from_model(self.workspace_id)
+        self.assertEqual(
+            {edge.edge_id for edge in workspace.edges.values() if edge.target_node_id == sink_b},
+            copied_ids,
+        )
 
     def test_propagate_passive_node_style_updates_workspace_passive_nodes_with_undo_redo(self) -> None:
         workspace = self.model.project.workspaces[self.workspace_id]

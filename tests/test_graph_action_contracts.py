@@ -551,6 +551,68 @@ def test_qml_graph_action_bridge_payloads_use_contract_keys() -> None:
     assert "inline_title_edit" in delegate_source
 
 
+def test_active_wire_actions_use_batch_rewire_display_mode_and_endpoint_navigation() -> None:
+    canvas_source = _source(REPO_ROOT / "ea_node_editor" / "ui_qml" / "components" / "GraphCanvas.qml")
+    context_source = _source(CONTEXT_MENUS_QML)
+    input_layers_source = _source(INPUT_LAYERS_QML)
+    action_router_source = _source(ACTION_ROUTER_QML)
+    options_source = _source(
+        REPO_ROOT
+        / "ea_node_editor"
+        / "ui_qml"
+        / "components"
+        / "graph_canvas"
+        / "GraphCanvasOptionsMenu.qml"
+    )
+    interaction_source = _source(
+        REPO_ROOT
+        / "ea_node_editor"
+        / "ui_qml"
+        / "components"
+        / "graph_canvas"
+        / "GraphCanvasInteractionState.qml"
+    )
+
+    for function_name in (
+        "setEdgesDisplayMode(edgeIds, mode)",
+        "edgeEndpointScenePoint(edgeId, endpoint)",
+        "jumpToEdgeEndpoint(edgeId, endpoint)",
+    ):
+        assert f"function {function_name}" in canvas_source
+    for function_name in (
+        "setEdgesDisplayMode(edgeIds, mode)",
+        "jumpToEdgeEndpoint(edgeId, endpoint)",
+        "jumpToSelectedEdgeEndpoint(endpoint)",
+    ):
+        assert f"function {function_name}" in action_router_source
+
+    assert '"edge_display_mode_menu"' in context_source
+    assert 'objectName: "graphCanvasEdgeDisplayModeContextPopup"' in context_source
+    assert 'var prefix = "edge_display_mode:";' in context_source
+    for mode in ("default", "faint", "hidden"):
+        assert f'"edge_display_mode:{mode}"' in context_source
+    assert '"jump_edge_start"' in context_source
+    assert '"jump_edge_end"' in context_source
+    assert 'activeSubmenu === "selectedWireDisplayMode"' in options_source
+    assert "selectedWireDisplayModeSubmenuLoader" in options_source
+    assert "Selected Wires Display Mode" in options_source
+
+    assert "root.shellBridge.request_rewire_edges(" in interaction_source
+    assert "finalState.moving_edge_ids" in interaction_source
+    assert "finalState.copy_requested" in interaction_source
+    assert "finalState.append_requested" in interaction_source
+    assert "compatible_rewire_endpoint_snapshot" in interaction_source
+    assert "request_move_edge_endpoint" not in interaction_source
+    assert "jumpToSelectedEdgeEndpoint(endpoint)" in input_layers_source
+    assert "property bool wireSelectionModeHeld: false" in input_layers_source
+    assert "Keys.onPressed" in input_layers_source
+    assert "Keys.onReleased" in input_layers_source
+    assert 'marqueeMode = root.wireSelectionModeHeld ? "edge_selection" : "selection";' in input_layers_source
+    assert "function updateEdgeSelection()" in input_layers_source
+    assert "canvasItem.edgeIdsIntersectingScreenRect" in input_layers_source
+    assert "canvasItem.setEdgeSelection" in input_layers_source
+
+
 def test_pyqt_graph_action_declarations_use_contract_ids() -> None:
     assignments = _window_graph_action_contract_assignments()
     missing_actions = set(PYQT_GRAPH_ACTIONS) - set(assignments)

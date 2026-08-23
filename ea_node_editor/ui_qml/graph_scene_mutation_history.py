@@ -762,11 +762,15 @@ GraphSceneMutationPolicy.are_ports_compatible = _policy.are_ports_compatible
 GraphSceneMutationPolicy.compatible_endpoint_snapshot = (
     _policy.compatible_endpoint_snapshot
 )
+GraphSceneMutationPolicy.compatible_rewire_endpoint_snapshot = (
+    _policy.compatible_rewire_endpoint_snapshot
+)
 
 GraphSceneMutationHistory.add_node_from_type = _selection_ops.add_node_from_type
 GraphSceneMutationHistory.add_subnode_shell_pin = _grouping_ops.add_subnode_shell_pin
 GraphSceneMutationHistory.create_node_from_type = _selection_ops.create_node_from_type
 GraphSceneMutationHistory.add_edge = _selection_ops.add_edge
+GraphSceneMutationHistory.request_rewire_edges = _selection_ops.request_rewire_edges
 GraphSceneMutationHistory.move_edge_endpoint = _selection_ops.move_edge_endpoint
 GraphSceneMutationHistory.connect_nodes = _selection_ops.connect_nodes
 GraphSceneMutationHistory.remove_edge = _selection_ops.remove_edge
@@ -839,6 +843,7 @@ GraphSceneMutationHistory.clear_edge_visual_style = (
 )
 GraphSceneMutationHistory.set_edge_enabled = _selection_ops.set_edge_enabled
 GraphSceneMutationHistory.set_edges_enabled = _selection_ops.set_edges_enabled
+GraphSceneMutationHistory.set_edges_display_mode = _selection_ops.set_edges_display_mode
 GraphSceneMutationHistory.set_exposed_port = _selection_ops.set_exposed_port
 GraphSceneMutationHistory.set_hide_optional_ports = (
     _selection_ops.set_hide_optional_ports

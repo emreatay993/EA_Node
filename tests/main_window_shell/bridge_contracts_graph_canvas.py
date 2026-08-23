@@ -22,6 +22,7 @@ from ea_node_editor.ui.shell.tooltip_policy import (
     TOOLTIP_CATEGORY_WARNING,
 )
 from ea_node_editor.ui_qml.graph_action_bridge import GraphActionBridge
+from ea_node_editor.ui_qml.graph_canvas_bridge import GraphCanvasBridge
 from ea_node_editor.ui_qml.graph_canvas_command import GraphCanvasCommandBridge
 from ea_node_editor.ui_qml.graph_canvas_state import GraphCanvasStateBridge
 from ea_node_editor.ui_qml.graph_canvas_state import graphics_preferences_props as graphics_preferences_module
@@ -139,6 +140,95 @@ class _AuthoringBoundaryForNodeLinkTests:
     def set_node_property(self, node_id: str, key: str, value: object) -> None:
         self.property_calls.append((str(node_id), str(key), value))
         self.model.set_node_property(self.workspace_id, str(node_id), str(key), value)
+
+
+class _BatchEdgeAuthoringBoundary:
+    def __init__(self) -> None:
+        self.calls: list[tuple[str, tuple[object, ...]]] = []
+        self.rewire_result = True
+        self.display_mode_result = True
+
+    def request_rewire_edges(
+        self,
+        edge_ids: list[object],
+        endpoint: str,
+        node_id: str,
+        port_key: str,
+        copy_requested: bool,
+        append_requested: bool,
+    ) -> bool:
+        self.calls.append(
+            (
+                "request_rewire_edges",
+                (
+                    list(edge_ids),
+                    endpoint,
+                    node_id,
+                    port_key,
+                    copy_requested,
+                    append_requested,
+                ),
+            )
+        )
+        return self.rewire_result
+
+    def set_edges_display_mode(self, edge_ids: list[object], mode: str) -> bool:
+        self.calls.append(("set_edges_display_mode", (list(edge_ids), mode)))
+        return self.display_mode_result
+
+
+class _CanvasRewireSource:
+    def __init__(self) -> None:
+        self.calls: list[tuple[str, tuple[object, ...]]] = []
+        self.result = True
+
+    def request_rewire_edges(
+        self,
+        edge_ids: list[object],
+        endpoint: str,
+        node_id: str,
+        port_key: str,
+        copy_requested: bool,
+        append_requested: bool,
+    ) -> bool:
+        self.calls.append(
+            (
+                "request_rewire_edges",
+                (
+                    list(edge_ids),
+                    endpoint,
+                    node_id,
+                    port_key,
+                    copy_requested,
+                    append_requested,
+                ),
+            )
+        )
+        return self.result
+
+
+class _RewireEndpointPolicy:
+    def __init__(self) -> None:
+        self.calls: list[tuple[str, tuple[object, ...]]] = []
+        self.result: object = {
+            "candidate_role": "target",
+            "compatible_endpoint_ids": [{"node_id": "sink", "port_key": "payload"}],
+        }
+
+    def compatible_rewire_endpoint_snapshot(
+        self,
+        edge_ids: list[object],
+        endpoint: str,
+        copy_requested: bool,
+        append_requested: bool,
+    ) -> object:
+        self.calls.append(
+            (
+                "compatible_rewire_endpoint_snapshot",
+                (list(edge_ids), endpoint, copy_requested, append_requested),
+            )
+        )
+        return self.result
 
 
 class GraphCanvasBridgeTests(unittest.TestCase):
@@ -328,6 +418,58 @@ class GraphCanvasBridgeTests(unittest.TestCase):
         self.assertEqual(authoring.property_calls, [(video.node_id, "position_ms", 7777)])
         self.assertEqual(authoring.focus_calls, [video.node_id])
         self.assertEqual(workspace.nodes[video.node_id].properties["position_ms"], 7777)
+
+    def test_scene_command_bridge_forwards_batch_rewire_and_display_mode_results(self) -> None:
+        scene = _SceneBridgeForNodeLinkTests(GraphModel(), "workspace-1")
+        authoring = _BatchEdgeAuthoringBoundary()
+        bridge = GraphSceneCommandBridge(
+            scene,
+            scope_selection=SimpleNamespace(),
+            authoring_boundary=authoring,
+            pending_surface_action=SimpleNamespace(node_id=""),
+        )
+
+        self.assertTrue(
+            bridge.request_rewire_edges(
+                ["edge-2", "edge-1"],
+                "target",
+                "sink-node",
+                "payload",
+                True,
+                True,
+            )
+        )
+        self.assertTrue(bridge.set_edges_display_mode(["edge-1", "edge-2"], "faint"))
+        authoring.rewire_result = False
+        authoring.display_mode_result = False
+        self.assertFalse(
+            bridge.request_rewire_edges(
+                ["edge-1"], "source", "", "", False, False
+            )
+        )
+        self.assertFalse(bridge.set_edges_display_mode(["edge-1"], "hidden"))
+        self.assertEqual(
+            authoring.calls,
+            [
+                (
+                    "request_rewire_edges",
+                    (
+                        ["edge-2", "edge-1"],
+                        "target",
+                        "sink-node",
+                        "payload",
+                        True,
+                        True,
+                    ),
+                ),
+                ("set_edges_display_mode", (["edge-1", "edge-2"], "faint")),
+                (
+                    "request_rewire_edges",
+                    (["edge-1"], "source", "", "", False, False),
+                ),
+                ("set_edges_display_mode", (["edge-1"], "hidden")),
+            ],
+        )
 
     def test_graph_action_controller_delegates_representative_action_families(self) -> None:
         workspace = _GraphActionSource()
@@ -767,6 +909,122 @@ class GraphCanvasBridgeTests(unittest.TestCase):
                         {"row_limit": 50, "column_limit": 50},
                     ),
                 )
+            ],
+        )
+
+    def test_canvas_command_bridge_forwards_batch_rewire_and_preserves_boolean_failure(self) -> None:
+        source = _CanvasRewireSource()
+        bridge = GraphCanvasCommandBridge(canvas_source=source)
+
+        self.assertTrue(
+            bridge.request_rewire_edges(
+                ["edge-a", "edge-b"],
+                "target",
+                "sink-node",
+                "payload",
+                True,
+                False,
+            )
+        )
+        source.result = False
+        self.assertFalse(
+            bridge.request_rewire_edges(["edge-a"], "target", "", "", False, False)
+        )
+        self.assertEqual(
+            source.calls,
+            [
+                (
+                    "request_rewire_edges",
+                    (
+                        ["edge-a", "edge-b"],
+                        "target",
+                        "sink-node",
+                        "payload",
+                        True,
+                        False,
+                    ),
+                ),
+                (
+                    "request_rewire_edges",
+                    (["edge-a"], "target", "", "", False, False),
+                ),
+            ],
+        )
+
+    def test_graph_canvas_bridge_exposes_only_the_batch_rewire_surface(self) -> None:
+        source = _CanvasRewireSource()
+        bridge = GraphCanvasBridge(
+            command_bridge=GraphCanvasCommandBridge(canvas_source=source),
+        )
+
+        self.assertTrue(
+            bridge.request_rewire_edges(
+                ["edge-a", "edge-b"],
+                "target",
+                "sink-node",
+                "payload",
+                False,
+                True,
+            )
+        )
+        meta = bridge.metaObject()
+        self.assertGreaterEqual(
+            meta.indexOfMethod(
+                b"request_rewire_edges(QVariantList,QString,QString,QString,bool,bool)"
+            ),
+            0,
+        )
+        self.assertEqual(
+            meta.indexOfMethod(
+                b"request_move_edge_endpoint(QString,QString,QString,QString,bool)"
+            ),
+            -1,
+        )
+        self.assertEqual(
+            source.calls,
+            [
+                (
+                    "request_rewire_edges",
+                    (
+                        ["edge-a", "edge-b"],
+                        "target",
+                        "sink-node",
+                        "payload",
+                        False,
+                        True,
+                    ),
+                )
+            ],
+        )
+
+    def test_state_bridge_forwards_compatible_rewire_snapshot_and_rejects_non_map(self) -> None:
+        scene = _bridge_support._GraphCanvasSceneBridgeStub()
+        policy = _RewireEndpointPolicy()
+        scene.policy_bridge = policy
+        bridge = GraphCanvasStateBridge(scene_bridge=scene)
+
+        self.assertEqual(
+            bridge.compatible_rewire_endpoint_snapshot(
+                ["edge-a", "edge-b"], "target", True, False
+            ),
+            policy.result,
+        )
+        policy.result = ["not", "a", "map"]
+        self.assertEqual(
+            bridge.compatible_rewire_endpoint_snapshot(["edge-a"], "source", False, True),
+            {},
+        )
+        self.assertEqual(
+            policy.calls,
+            [
+                (
+                    "compatible_rewire_endpoint_snapshot",
+                    (["edge-a", "edge-b"], "target", True, False),
+                ),
+                (
+                    "compatible_rewire_endpoint_snapshot",
+                    (["edge-a"], "source", False, True),
+                ),
             ],
         )
 

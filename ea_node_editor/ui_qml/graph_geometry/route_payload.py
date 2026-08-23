@@ -571,6 +571,11 @@ def _build_edge_payload_item(
     target_normal_x, target_normal_y = flowchart_anchor_normal(target_side)
     source_tangent_x, source_tangent_y = flowchart_anchor_tangent(source_side)
     target_tangent_x, target_tangent_y = flowchart_anchor_tangent(target_side)
+    visual_style = (
+        copy.deepcopy(edge.visual_style)
+        if isinstance(edge.visual_style, Mapping)
+        else {}
+    )
     path_mode = normalize_edge_path_mode(
         edge.visual_style.get("path_mode")
         if isinstance(edge.visual_style, Mapping)
@@ -606,12 +611,29 @@ def _build_edge_payload_item(
     )
     if source_data_access not in {"item", "list", "tree"}:
         source_data_access = "item"
+    source_active_node = (
+        str(context.source_spec.runtime_behavior or "active").strip().lower()
+        in {"active", "compile_only"}
+    )
+    target_active_node = (
+        str(context.target_spec.runtime_behavior or "active").strip().lower()
+        in {"active", "compile_only"}
+    )
+    active_data_wire = context.edge_family == "standard" and (
+        source_active_node or target_active_node
+    )
+    if active_data_wire:
+        display_mode = str(visual_style.get("display_mode", "default") or "default")
+        display_mode = display_mode.strip().lower()
+        visual_style["display_mode"] = (
+            display_mode if display_mode in {"default", "faint", "hidden"} else "default"
+        )
     color = resolve_edge_color(
         graph_theme,
         port_kind=context.source_port_kind,
         data_type_warning=context.data_type_warning,
     )
-    return {
+    payload = {
         "edge_id": edge.edge_id,
         "source_node_id": edge.source_node_id,
         "source_port_key": edge.source_port_key,
@@ -620,12 +642,14 @@ def _build_edge_payload_item(
         "source_port_kind": context.source_port_kind,
         "target_port_kind": context.target_port_kind,
         "edge_family": context.edge_family,
+        "active_data_wire": active_data_wire,
+        "source_active_node": source_active_node,
+        "target_active_node": target_active_node,
         "enabled": bool(edge.enabled),
         "input_order": int(edge.input_order),
         "data_access": source_data_access,
-        "stroke_count": {"item": 1, "list": 2, "tree": 3}[source_data_access],
         "label": str(edge.label),
-        "visual_style": copy.deepcopy(edge.visual_style),
+        "visual_style": visual_style,
         "flow_style": flow_style,
         "source_port_side": context.source_port_side,
         "target_port_side": context.target_port_side,
@@ -663,6 +687,11 @@ def _build_edge_payload_item(
         "data_type_warning": context.data_type_warning,
         "data_type_warning_reason": context.data_type_warning_reason,
     }
+    if not active_data_wire:
+        payload["stroke_count"] = {"item": 1, "list": 2, "tree": 3}[
+            source_data_access
+        ]
+    return payload
 
 
 def build_edge_payload(

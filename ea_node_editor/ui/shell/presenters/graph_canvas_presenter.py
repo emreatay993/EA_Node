@@ -835,19 +835,21 @@ class GraphCanvasPresenter(QObject):
             self.show_graph_hint(str(result.message), 2400)
         return bool(result.payload)
 
-    def request_move_edge_endpoint(
+    def request_rewire_edges(
         self,
-        edge_id: str,
+        edge_ids: list[Any],
         endpoint: str,
         node_id: str,
         port_key: str,
+        copy_requested: bool = False,
         append_requested: bool = False,
     ) -> bool:
-        result = self._host.workspace_library_controller.request_move_edge_endpoint(
-            edge_id,
+        result = self._host.workspace_library_controller.request_rewire_edges(
+            edge_ids,
             endpoint,
             node_id,
             port_key,
+            copy_requested,
             append_requested,
         )
         if not result.payload and str(result.message or "").strip():

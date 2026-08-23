@@ -1561,13 +1561,15 @@ class GraphSurfaceCanvasInteractionTests(GraphSurfaceInputContractTestBase):
             from ea_node_editor.graph.model import GraphModel
             from ea_node_editor.nodes.node_specs import NodeTypeSpec, PortSpec
             from ea_node_editor.nodes.registry import NodeRegistry
+            from ea_node_editor.ui.shell.runtime_history import RuntimeGraphHistory
             from ea_node_editor.ui_qml.graph_scene_bridge import GraphSceneBridge
             from ea_node_editor.ui_qml.viewport_bridge import ViewportBridge
 
             class EndpointMoveShellBridgeStub(QObject):
                 def __init__(self):
                     super().__init__()
-                    self.move_calls = []
+                    self.rewire_calls = []
+                    self.rewire_delegate = None
                     self.quick_insert_calls = []
 
                 @pyqtProperty(bool, constant=True)
@@ -1606,17 +1608,35 @@ class GraphSurfaceCanvasInteractionTests(GraphSurfaceInputContractTestBase):
                 def snap_grid_size(self):
                     return 20.0
 
-                @pyqtSlot(str, str, str, str, bool, result=bool)
-                def request_move_edge_endpoint(self, edge_id, endpoint, node_id, port_key, append):
-                    self.move_calls.append(
+                @pyqtSlot("QVariantList", str, str, str, bool, bool, result=bool)
+                def request_rewire_edges(
+                    self,
+                    edge_ids,
+                    endpoint,
+                    node_id,
+                    port_key,
+                    copy_requested,
+                    append_requested,
+                ):
+                    self.rewire_calls.append(
                         (
-                            str(edge_id or ""),
+                            [str(edge_id or "") for edge_id in edge_ids],
                             str(endpoint or ""),
                             str(node_id or ""),
                             str(port_key or ""),
-                            bool(append),
+                            bool(copy_requested),
+                            bool(append_requested),
                         )
                     )
+                    if self.rewire_delegate is not None:
+                        return bool(self.rewire_delegate.request_rewire_edges(
+                            edge_ids,
+                            endpoint,
+                            node_id,
+                            port_key,
+                            copy_requested,
+                            append_requested,
+                        ))
                     return True
 
                 @pyqtSlot(str, str, float, float, float, float, bool, result=bool)
@@ -1672,7 +1692,10 @@ class GraphSurfaceCanvasInteractionTests(GraphSurfaceInputContractTestBase):
                 display_name="Ctrl Drag Incompatible",
                 category_path=("Tests",),
                 icon="",
-                ports=(PortSpec("bad", "in", "data", 'COREX.DataTypes.Int', required=True),),
+                ports=(
+                    PortSpec("bad", "in", "data", 'COREX.DataTypes.Int', required=True),
+                    PortSpec("bad_out", "out", "data", 'COREX.DataTypes.Int'),
+                ),
                 properties=(),
             )
 
@@ -1700,12 +1723,41 @@ class GraphSurfaceCanvasInteractionTests(GraphSurfaceInputContractTestBase):
                     self.mode = "normal"
 
                 def compatible_endpoint_snapshot(self, node_id, port_key, candidate_role):
-                    self.calls.append((str(node_id), str(port_key), str(candidate_role)))
+                    self.calls.append(("connect", str(node_id), str(port_key), str(candidate_role)))
                     snapshot = dict(
                         self.delegate.compatible_endpoint_snapshot(
                             node_id,
                             port_key,
                             candidate_role,
+                        )
+                    )
+                    if self.mode == "generation_mismatch":
+                        snapshot["catalog_generation"] = "0" * 64
+                    elif self.mode == "malformed":
+                        snapshot["compatible_endpoint_ids"] = [{"node_id": target_b_id}]
+                    return snapshot
+
+                def compatible_rewire_endpoint_snapshot(
+                    self,
+                    edge_ids,
+                    endpoint,
+                    copy_requested=False,
+                    append_requested=False,
+                ):
+                    normalized_ids = [str(edge_id) for edge_id in edge_ids]
+                    self.calls.append((
+                        "rewire",
+                        normalized_ids,
+                        str(endpoint),
+                        bool(copy_requested),
+                        bool(append_requested),
+                    ))
+                    snapshot = dict(
+                        self.delegate.compatible_rewire_endpoint_snapshot(
+                            normalized_ids,
+                            endpoint,
+                            copy_requested,
+                            append_requested,
                         )
                     )
                     if self.mode == "generation_mismatch":
@@ -1729,7 +1781,14 @@ class GraphSurfaceCanvasInteractionTests(GraphSurfaceInputContractTestBase):
             target_b_id = scene.add_node_from_type("tests.ctrl_drag_target", 420.0, 280.0)
             incompatible_id = scene.add_node_from_type("tests.ctrl_drag_incompatible", 700.0, 400.0)
             edge_a_id = scene.add_edge(source_a_id, "out", target_a_id, "in")
-            scene.add_edge(source_a_id, "out", target_b_id, "in")
+            edge_b_id = scene.add_edge(source_a_id, "out", target_b_id, "in")
+            bundle_ids = sorted(
+                (edge_a_id, edge_b_id),
+                key=lambda edge_id: (
+                    model.active_workspace.edges[edge_id].input_order,
+                    edge_id,
+                ),
+            )
 
             canvas = create_component(
                 graph_canvas_qml_path,
@@ -1785,6 +1844,7 @@ class GraphSurfaceCanvasInteractionTests(GraphSurfaceInputContractTestBase):
                 release,
                 modifiers,
                 compatible_dot=None,
+                incompatible_dot=None,
             ):
                 snapshot_call_count = len(snapshot_policy.calls)
                 for _move_index in range(5):
@@ -1801,6 +1861,7 @@ class GraphSurfaceCanvasInteractionTests(GraphSurfaceInputContractTestBase):
                     )
                 settle_events(2)
                 active_state = variant_value(canvas.property("wireDragState"))
+                active_preview = variant_value(canvas.wireDragPreviewConnection())
                 assert len(snapshot_policy.calls) == snapshot_call_count + 1
                 if compatible_dot is not None:
                     assert bool(compatible_dot.property("compatibleTargetState")) is True
@@ -1816,6 +1877,8 @@ class GraphSurfaceCanvasInteractionTests(GraphSurfaceInputContractTestBase):
                     )
                     assert float(ring.property("width")) > float(compatible_dot.property("width"))
                     assert float(QQmlProperty.read(ring, "border.width")) > 0.0
+                if incompatible_dot is not None:
+                    assert bool(incompatible_dot.property("compatibleTargetState")) is False
                 canvas.finishPortWireDrag(
                     node_id,
                     port_key,
@@ -1829,7 +1892,7 @@ class GraphSurfaceCanvasInteractionTests(GraphSurfaceInputContractTestBase):
                 )
                 settle_events(2)
                 assert len(snapshot_policy.calls) == snapshot_call_count + 1
-                return active_state
+                return active_state, active_preview
 
             window = attach_host_to_window(canvas, 960, 700)
             control = int(Qt.KeyboardModifier.ControlModifier.value)
@@ -1841,11 +1904,142 @@ class GraphSurfaceCanvasInteractionTests(GraphSurfaceInputContractTestBase):
             )
             replacement_source = item_scene_point(replacement_source_dot)
 
-            begin_ctrl_drag(source_a_id, "out", "out", control)
+            def pointer_drag(node_id, direction, port_key, release, modifiers):
+                dot_name = (
+                    "graphNodeInputPortDot" if direction == "in" else "graphNodeOutputPortDot"
+                )
+                mouse_name = (
+                    "graphNodeInputPortMouseArea" if direction == "in" else "graphNodeOutputPortMouseArea"
+                )
+                dot = named_item(host_for(node_id), dot_name, port_key)
+                mouse_area = named_item(dot, mouse_name, port_key)
+                start = item_scene_point(mouse_area)
+                middle = QPoint(
+                    round((start.x() + release.x()) * 0.5),
+                    round((start.y() + release.y()) * 0.5),
+                )
+                QTest.mousePress(window, Qt.MouseButton.LeftButton, modifiers, start)
+                QTest.mouseMove(window, middle)
+                QTest.mouseMove(window, release)
+                canvas.updatePortWireDrag(
+                    node_id,
+                    port_key,
+                    direction,
+                    canvas.screenToSceneX(start.x()),
+                    canvas.screenToSceneY(start.y()),
+                    release.x(),
+                    release.y(),
+                    True,
+                    int(modifiers.value),
+                )
+                settle_events(4)
+                return variant_value(canvas.property("wireDragState")), variant_value(
+                    canvas.wireDragPreviewConnection()
+                )
+
+            canvas.setProperty("selectedEdgeIds", [])
+            multi_state, multi_preview = pointer_drag(
+                source_a_id,
+                "out",
+                "out",
+                replacement_source,
+                Qt.KeyboardModifier.ControlModifier,
+            )
+            assert multi_state["rewire"] is True
+            assert multi_state["moving_edge_ids"] == bundle_ids, multi_state
+            assert multi_state["moving_endpoint"] == "source"
+            assert multi_state["copy_requested"] is False
+            assert multi_state["append_requested"] is False
+            assert len(multi_preview["connections"]) == 2, multi_preview
+            assert all(
+                connection["connection_mode"] == "rewire"
+                and connection["valid_drop"] is True
+                for connection in multi_preview["connections"]
+            ), multi_preview
+            assert shell_bridge.rewire_calls == []
+            QTest.mouseRelease(
+                window,
+                Qt.MouseButton.LeftButton,
+                Qt.KeyboardModifier.ControlModifier,
+                replacement_source,
+            )
+            settle_events(4)
+            assert shell_bridge.rewire_calls == [
+                (bundle_ids, "source", source_b_id, "out", False, False)
+            ]
+            assert shell_bridge.quick_insert_calls == []
             assert canvas.property("wireDragState") is None
-            assert shell_bridge.move_calls == []
+            assert snapshot_policy.calls[-1] == (
+                "rewire",
+                bundle_ids,
+                "source",
+                False,
+                False,
+            )
+
+            incompatible_source_dot = named_item(
+                host_for(incompatible_id),
+                "graphNodeOutputPortDot",
+                "bad_out",
+            )
+            incompatible_source = item_scene_point(incompatible_source_dot)
+            multi_origin, multi_x, multi_y = begin_ctrl_drag(
+                source_a_id,
+                "out",
+                "out",
+                control,
+            )
+            rejected_call_count = len(shell_bridge.rewire_calls)
+            finish_ctrl_drag(
+                source_a_id,
+                "out",
+                "out",
+                multi_origin,
+                multi_x,
+                multi_y,
+                incompatible_source,
+                control,
+                incompatible_dot=incompatible_source_dot,
+            )
+            assert len(shell_bridge.rewire_calls) == rejected_call_count
+
+            canvas.setProperty("selectedEdgeIds", [])
+            begin_ctrl_drag(source_a_id, "out", "out", control_shift)
+            assert canvas.property("wireDragState") is None
+
+            canvas.setProperty("selectedEdgeIds", [edge_a_id, edge_b_id])
+            begin_ctrl_drag(source_a_id, "out", "out", control_shift)
+            assert canvas.property("wireDragState") is None
 
             canvas.setProperty("selectedEdgeIds", [edge_a_id])
+            copy_state, copy_preview = pointer_drag(
+                source_a_id,
+                "out",
+                "out",
+                replacement_source,
+                Qt.KeyboardModifier.ControlModifier | Qt.KeyboardModifier.ShiftModifier,
+            )
+            assert copy_state["moving_edge_ids"] == [edge_a_id], copy_state
+            assert copy_state["copy_requested"] is True
+            assert copy_state["append_requested"] is True
+            assert copy_preview["connection_mode"] == "copy", copy_preview
+            assert copy_preview["valid_drop"] is True
+            QTest.mouseRelease(
+                window,
+                Qt.MouseButton.LeftButton,
+                Qt.KeyboardModifier.ControlModifier | Qt.KeyboardModifier.ShiftModifier,
+                replacement_source,
+            )
+            settle_events(4)
+            assert shell_bridge.rewire_calls[-1] == (
+                [edge_a_id],
+                "source",
+                source_b_id,
+                "out",
+                True,
+                True,
+            )
+
             source_origin, source_x, source_y = begin_ctrl_drag(
                 source_a_id,
                 "out",
@@ -1854,11 +2048,11 @@ class GraphSurfaceCanvasInteractionTests(GraphSurfaceInputContractTestBase):
             )
             state = variant_value(canvas.property("wireDragState"))
             assert state["rewire"] is True
-            assert state["moving_edge_id"] == edge_a_id
+            assert state["moving_edge_ids"] == [edge_a_id]
             assert state["moving_endpoint"] == "source"
             assert state["origin_node_id"] == source_a_id
             assert state["origin_port_key"] == "out"
-            source_active_state = finish_ctrl_drag(
+            source_active_state, source_preview = finish_ctrl_drag(
                 source_a_id,
                 "out",
                 "out",
@@ -1872,12 +2066,15 @@ class GraphSurfaceCanvasInteractionTests(GraphSurfaceInputContractTestBase):
             assert source_active_state["compatibility_snapshot_valid"] is True
             assert source_active_state["compatibility_candidate_role"] == "source"
             assert len(source_active_state["compatibility_catalog_generation"]) == 64
-            assert shell_bridge.move_calls == [
-                (edge_a_id, "source", source_b_id, "out", True)
-            ]
+            assert source_preview["connection_mode"] == "copy", source_preview
+            assert shell_bridge.rewire_calls[-1] == (
+                [edge_a_id], "source", source_b_id, "out", True, True
+            )
             assert shell_bridge.quick_insert_calls == []
             assert canvas.property("wireDragState") is None
-            assert snapshot_policy.calls == [(target_a_id, "in", "source")]
+            assert snapshot_policy.calls[-1] == (
+                "rewire", [edge_a_id], "source", True, True
+            )
 
             canvas.setProperty("selectedEdgeIds", [])
             target_origin, target_x, target_y = begin_ctrl_drag(
@@ -1888,9 +2085,9 @@ class GraphSurfaceCanvasInteractionTests(GraphSurfaceInputContractTestBase):
             )
             target_state = variant_value(canvas.property("wireDragState"))
             assert target_state["rewire"] is True
-            assert target_state["moving_edge_id"] == edge_a_id
+            assert target_state["moving_edge_ids"] == [edge_a_id]
             assert target_state["moving_endpoint"] == "target"
-            finish_ctrl_drag(
+            _target_active_state, target_preview = finish_ctrl_drag(
                 target_a_id,
                 "in",
                 "in",
@@ -1900,11 +2097,16 @@ class GraphSurfaceCanvasInteractionTests(GraphSurfaceInputContractTestBase):
                 QPoint(850, 580),
                 control,
             )
-            assert shell_bridge.move_calls[-1] == (edge_a_id, "target", "", "", False)
+            assert target_preview["connection_mode"] == "disconnect", target_preview
+            assert shell_bridge.rewire_calls[-1] == (
+                [edge_a_id], "target", "", "", False, False
+            )
             assert shell_bridge.quick_insert_calls == []
-            assert snapshot_policy.calls[-1] == (source_a_id, "out", "target")
+            assert snapshot_policy.calls[-1] == (
+                "rewire", [edge_a_id], "target", False, False
+            )
 
-            no_op_count = len(shell_bridge.move_calls)
+            no_op_count = len(shell_bridge.rewire_calls)
             original_target = port_point(target_a_id, "graphNodeInputPortDot", "in")
             target_origin, target_x, target_y = begin_ctrl_drag(
                 target_a_id,
@@ -1922,7 +2124,7 @@ class GraphSurfaceCanvasInteractionTests(GraphSurfaceInputContractTestBase):
                 original_target,
                 control,
             )
-            assert len(shell_bridge.move_calls) == no_op_count
+            assert len(shell_bridge.rewire_calls) == no_op_count
 
             incompatible_target = port_point(incompatible_id, "graphNodeInputPortDot", "bad")
             target_origin, target_x, target_y = begin_ctrl_drag(
@@ -1941,13 +2143,13 @@ class GraphSurfaceCanvasInteractionTests(GraphSurfaceInputContractTestBase):
                 incompatible_target,
                 control,
             )
-            assert len(shell_bridge.move_calls) == no_op_count
+            assert len(shell_bridge.rewire_calls) == no_op_count
 
             begin_ctrl_drag(target_a_id, "in", "in", control)
             assert canvas.property("wireDragState") is not None
             canvas.cancelWireDrag()
             assert canvas.property("wireDragState") is None
-            assert len(shell_bridge.move_calls) == no_op_count
+            assert len(shell_bridge.rewire_calls) == no_op_count
             assert shell_bridge.quick_insert_calls == []
 
             def assert_fail_closed_snapshot(mode):
@@ -1979,7 +2181,9 @@ class GraphSurfaceCanvasInteractionTests(GraphSurfaceInputContractTestBase):
                 assert state["compatibility_snapshot_valid"] is False
                 assert preview["valid_drop"] is False
                 assert len(snapshot_policy.calls) == call_count + 1
-                assert snapshot_policy.calls[-1] == (source_b_id, "out", "target")
+                assert snapshot_policy.calls[-1] == (
+                    "connect", source_b_id, "out", "target"
+                )
                 canvas.cancelWireDrag()
 
             assert_fail_closed_snapshot("generation_mismatch")
@@ -2025,7 +2229,318 @@ class GraphSurfaceCanvasInteractionTests(GraphSurfaceInputContractTestBase):
             assert len(snapshot_policy.calls) == release_call_count + 1
             assert len(shell_bridge.quick_insert_calls) == 2
 
+            shell_bridge.rewire_delegate = scene
+            edge_layer = named_item(canvas, "graphCanvasEdgeLayer")
+            edge_canvas_layer = named_item(edge_layer, "graphCanvasEdgeCanvasLayer")
+            history = RuntimeGraphHistory()
+            scene.bind_runtime_history(history)
+            workspace_id = model.active_workspace.workspace_id
+            topology_before_copy = model.active_workspace.capture_snapshot()
+            history_before_copy = history.undo_depth(workspace_id)
+            canvas.setProperty("selectedEdgeIds", [edge_a_id])
+            copy_blank_origin, copy_blank_x, copy_blank_y = begin_ctrl_drag(
+                source_a_id,
+                "out",
+                "out",
+                control_shift,
+            )
+            _copy_blank_state, copy_blank_preview = finish_ctrl_drag(
+                source_a_id,
+                "out",
+                "out",
+                copy_blank_origin,
+                copy_blank_x,
+                copy_blank_y,
+                QPoint(880, 30),
+                control_shift,
+            )
+            assert copy_blank_preview["connection_mode"] == "noop", copy_blank_preview
+            assert str(edge_canvas_layer.dragConnectionMarkerText(copy_blank_preview)) == ""
+            assert model.active_workspace.capture_snapshot() == topology_before_copy
+            assert history.undo_depth(workspace_id) == history_before_copy
+
+            blank_origin, blank_x, blank_y = begin_ctrl_drag(
+                source_a_id,
+                "out",
+                "out",
+                control,
+            )
+            _blank_state, blank_preview = finish_ctrl_drag(
+                source_a_id,
+                "out",
+                "out",
+                blank_origin,
+                blank_x,
+                blank_y,
+                QPoint(880, 30),
+                control,
+            )
+            blank_connections = blank_preview["connections"]
+            assert [connection["edge_id"] for connection in blank_connections] == bundle_ids
+            assert all(
+                connection["connection_mode"] == "disconnect"
+                and str(edge_canvas_layer.dragConnectionMarkerText(connection)) == "-"
+                for connection in blank_connections
+            ), blank_connections
+            settle_events(4)
+            assert all(edge_id not in model.active_workspace.edges for edge_id in bundle_ids)
+
+            preserved_edge_ids = [
+                scene.add_edge(source_a_id, "out", target_a_id, "in"),
+                scene.add_edge(source_a_id, "out", target_b_id, "in"),
+            ]
+            preserved_edge_ids.sort(
+                key=lambda edge_id: (
+                    model.active_workspace.edges[edge_id].input_order,
+                    edge_id,
+                )
+            )
+            settle_events(4)
+            incompatible_source = port_point(
+                incompatible_id,
+                "graphNodeOutputPortDot",
+                "bad_out",
+            )
+            invalid_origin, invalid_x, invalid_y = begin_ctrl_drag(
+                source_a_id,
+                "out",
+                "out",
+                control,
+            )
+            _invalid_state, invalid_preview = finish_ctrl_drag(
+                source_a_id,
+                "out",
+                "out",
+                invalid_origin,
+                invalid_x,
+                invalid_y,
+                incompatible_source,
+                control,
+            )
+            invalid_connections = invalid_preview["connections"]
+            assert [connection["edge_id"] for connection in invalid_connections] == preserved_edge_ids
+            assert all(
+                connection["connection_mode"] == "noop"
+                and str(edge_canvas_layer.dragConnectionMarkerText(connection)) == ""
+                for connection in invalid_connections
+            ), invalid_connections
+            assert all(edge_id in model.active_workspace.edges for edge_id in preserved_edge_ids)
+
+            original_source = port_point(
+                source_a_id,
+                "graphNodeOutputPortDot",
+                "out",
+            )
+            original_origin, original_x, original_y = begin_ctrl_drag(
+                source_a_id,
+                "out",
+                "out",
+                control,
+            )
+            _original_state, original_preview = finish_ctrl_drag(
+                source_a_id,
+                "out",
+                "out",
+                original_origin,
+                original_x,
+                original_y,
+                original_source,
+                control,
+            )
+            original_connections = original_preview["connections"]
+            assert [connection["edge_id"] for connection in original_connections] == preserved_edge_ids
+            assert all(
+                connection["connection_mode"] == "noop"
+                and str(edge_canvas_layer.dragConnectionMarkerText(connection)) == ""
+                for connection in original_connections
+            ), original_connections
+            assert all(edge_id in model.active_workspace.edges for edge_id in preserved_edge_ids)
+
             dispose_host_window(canvas, window)
+            engine.deleteLater()
+            app.processEvents()
+            """,
+        )
+
+    def test_display_mode_menus_target_only_active_data_wires(self) -> None:
+        self._run_qml_probe(
+            "display-mode-menu-active-wire-filtering",
+            """
+            import textwrap
+
+            from PyQt6.QtCore import QObject, QUrl
+            from PyQt6.QtQml import QQmlComponent
+
+            canvas_component = QQmlComponent(engine)
+            canvas_component.setData(
+                textwrap.dedent(
+                    '''
+                    import QtQuick 2.15
+
+                    Item {
+                        id: root
+                        width: 900
+                        height: 700
+                        property bool edgeContextVisible: true
+                        property bool nodeContextVisible: false
+                        property bool selectionContextVisible: false
+                        property bool canvasOptionsVisible: false
+                        property bool prefs: false
+                        property var executionFacts: null
+                        property var canvasStateBridgeRef: null
+                        property var _canvasStateBridgeRef: null
+                        property string edgeContextEdgeId: "active_edge"
+                        property var selectedEdgeIds: ["active_edge", "passive_edge", "flow_edge"]
+                        property real contextMenuX: 180
+                        property real contextMenuY: 120
+                        property var displayCalls: []
+                        property var edgePayloads: ({
+                            "active_edge": {
+                                "edge_id": "active_edge",
+                                "active_data_wire": true,
+                                "edge_family": "data",
+                                "enabled": true,
+                                "visual_style": {"display_mode": "faint"}
+                            },
+                            "passive_edge": {
+                                "edge_id": "passive_edge",
+                                "active_data_wire": false,
+                                "edge_family": "data",
+                                "enabled": true,
+                                "visual_style": {"display_mode": "default"}
+                            },
+                            "flow_edge": {
+                                "edge_id": "flow_edge",
+                                "active_data_wire": false,
+                                "edge_family": "flow",
+                                "enabled": true,
+                                "visual_style": {"display_mode": "default"}
+                            }
+                        })
+
+                        function _normalizeEdgeIds(values) {
+                            var result = [];
+                            for (var i = 0; i < (values || []).length; ++i) {
+                                var edgeId = String(values[i] || "");
+                                if (edgeId.length && result.indexOf(edgeId) < 0)
+                                    result.push(edgeId);
+                            }
+                            return result;
+                        }
+                        function _sceneEdgePayload(edgeId) {
+                            return edgePayloads[String(edgeId || "")] || null;
+                        }
+                        function _edgeSupportsFlowStyle(edgeId) {
+                            var payload = _sceneEdgePayload(edgeId);
+                            return Boolean(payload && payload.edge_family === "flow");
+                        }
+                        function edgeSelectionAllEnabled(_edgeId) { return true; }
+                        function setEdgesDisplayMode(edgeIds, mode) {
+                            var next = displayCalls.slice(0);
+                            next.push({"edge_ids": _normalizeEdgeIds(edgeIds), "mode": String(mode || "")});
+                            displayCalls = next;
+                            return true;
+                        }
+                        function _closeContextMenus() {
+                            edgeContextVisible = false;
+                            canvasOptionsVisible = false;
+                        }
+                        function snapToGridEnabled() { return false; }
+                    }
+                    '''
+                ).encode("utf-8"),
+                QUrl.fromLocalFile(str(repo_root) + "/"),
+            )
+            if canvas_component.status() != QQmlComponent.Status.Ready:
+                errors = "\\n".join(error.toString() for error in canvas_component.errors())
+                raise AssertionError("Failed to load display-mode canvas stub:\\n" + errors)
+            canvas_item = canvas_component.create()
+            if canvas_item is None:
+                errors = "\\n".join(error.toString() for error in canvas_component.errors())
+                raise AssertionError("Failed to instantiate display-mode canvas stub:\\n" + errors)
+
+            action_router = create_component(
+                components_dir / "graph_canvas" / "GraphCanvasActionRouter.qml",
+                {"canvasItem": canvas_item},
+            )
+            menus = create_component(
+                components_dir / "graph_canvas" / "GraphCanvasContextMenus.qml",
+                {
+                    "canvasItem": canvas_item,
+                    "canvasActionRouter": action_router,
+                },
+            )
+            menus_window = attach_host_to_window(menus, 900, 700)
+            settle_events(4)
+            edge_popup = named_item(menus, "graphCanvasEdgeContextPopup")
+            display_popup = named_item(menus, "graphCanvasEdgeDisplayModeContextPopup")
+            active_actions = [variant_value(action) for action in variant_list(edge_popup.property("visibleActions"))]
+            assert "Display Mode" in [str(action.get("text", "")) for action in active_actions]
+
+            edge_popup.actionTriggered.emit("edge_display_mode_menu")
+            settle_events(2)
+            assert bool(display_popup.property("visible")) is True
+            display_actions = [
+                variant_value(action)
+                for action in variant_list(display_popup.property("visibleActions"))
+            ]
+            assert [str(action.get("text", "")) for action in display_actions] == [
+                "Default", "Faint", "Hidden"
+            ]
+            assert [bool(action.get("checked")) for action in display_actions] == [False, True, False]
+            display_popup.actionTriggered.emit("edge_display_mode:hidden")
+            settle_events(2)
+            assert variant_value(canvas_item.property("displayCalls")) == [
+                {"edge_ids": ["active_edge"], "mode": "hidden"}
+            ]
+
+            for unavailable_edge_id in ("passive_edge", "flow_edge"):
+                canvas_item.setProperty("edgeContextEdgeId", unavailable_edge_id)
+                canvas_item.setProperty("edgeContextVisible", True)
+                settle_events(2)
+                unavailable_actions = [
+                    variant_value(action)
+                    for action in variant_list(edge_popup.property("visibleActions"))
+                ]
+                assert "Display Mode" not in [
+                    str(action.get("text", "")) for action in unavailable_actions
+                ], (unavailable_edge_id, unavailable_actions)
+            assert variant_value(canvas_item.property("displayCalls")) == [
+                {"edge_ids": ["active_edge"], "mode": "hidden"}
+            ]
+
+            dispose_host_window(menus, menus_window)
+            options = create_component(
+                components_dir / "graph_canvas" / "GraphCanvasOptionsMenu.qml",
+                {"canvasItem": canvas_item},
+            )
+            options_window = attach_host_to_window(options, 900, 700)
+            canvas_item.setProperty(
+                "selectedEdgeIds",
+                ["active_edge", "passive_edge", "flow_edge"],
+            )
+            settle_events(3)
+            assert variant_list(options.property("selectedWireEdgeIds")) == ["active_edge"]
+            assert str(options.property("selectedWireDisplayModeValue")) == "faint"
+            calls_before_batch = len(variant_list(canvas_item.property("displayCalls")))
+            assert bool(options.setSelectedWiresDisplayMode("hidden")) is True
+            settle_events(2)
+            display_calls = [
+                variant_value(call)
+                for call in variant_list(canvas_item.property("displayCalls"))
+            ]
+            assert len(display_calls) == calls_before_batch + 1
+            assert display_calls[-1] == {"edge_ids": ["active_edge"], "mode": "hidden"}
+
+            canvas_item.setProperty("selectedEdgeIds", ["passive_edge", "flow_edge"])
+            settle_events(2)
+            assert variant_list(options.property("selectedWireEdgeIds")) == []
+            assert bool(options.setSelectedWiresDisplayMode("faint")) is False
+            assert len(variant_list(canvas_item.property("displayCalls"))) == calls_before_batch + 1
+
+            dispose_host_window(options, options_window)
+            action_router.deleteLater()
+            canvas_item.deleteLater()
             engine.deleteLater()
             app.processEvents()
             """,
@@ -3390,6 +3905,162 @@ class GraphSurfaceDataflowAuthoringTests(GraphSurfaceInputContractTestBase):
             duplicate_preview = preview_and_release(source_a_id, 0, False)
             assert duplicate_preview["connection_mode"] == "noop", duplicate_preview
             assert bool(duplicate_preview["duplicate"]) is True
+
+            source_dot = port_dot(source_b_id, "graphNodeOutputPortDot", "as_text")
+            source_mouse = named_item(source_dot, "graphNodeOutputPortMouseArea", "as_text")
+            target_dot = port_dot(target_id, "graphNodeInputPortDot", "a")
+            target_mouse = named_item(target_dot, "graphNodeInputPortMouseArea", "a")
+            pointer_start = item_scene_point(source_mouse)
+            pointer_end = item_scene_point(target_mouse)
+            pointer_mid = QPoint(
+                round((pointer_start.x() + pointer_end.x()) * 0.5),
+                round((pointer_start.y() + pointer_end.y()) * 0.5),
+            )
+
+            def update_pointer_drag(end, modifiers):
+                canvas.updatePortWireDrag(
+                    source_b_id,
+                    "as_text",
+                    "out",
+                    canvas.screenToSceneX(pointer_start.x()),
+                    canvas.screenToSceneY(pointer_start.y()),
+                    end.x(),
+                    end.y(),
+                    True,
+                    modifiers,
+                )
+
+            QTest.mouseMove(window, QPoint(960, 650))
+            settle_events(2)
+            rest_diameter = float(source_dot.property("width"))
+            QTest.mouseMove(window, pointer_start)
+            settle_events(4)
+            assert float(source_dot.property("width")) > rest_diameter
+            QTest.mouseMove(window, QPoint(960, 650))
+            settle_events(4)
+            assert float(source_dot.property("width")) == rest_diameter
+
+            edge_layer = named_item(canvas, "graphCanvasEdgeLayer")
+            scene.remove_edge(edge_id)
+            settle_events(4)
+            single_call_count = len(shell_bridge.connect_calls)
+            QTest.mousePress(
+                window,
+                Qt.MouseButton.LeftButton,
+                Qt.KeyboardModifier.NoModifier,
+                pointer_start,
+            )
+            QTest.mouseMove(window, pointer_mid)
+            QTest.mouseMove(window, pointer_end)
+            update_pointer_drag(pointer_end, 0)
+            settle_events(3)
+            single_preview = variant_value(canvas.wireDragPreviewConnection())
+            assert single_preview["connection_mode"] == "connect", single_preview
+            assert single_preview["replacement_edge_ids"] == []
+            assert len(shell_bridge.connect_calls) == single_call_count
+            QTest.mouseRelease(
+                window,
+                Qt.MouseButton.LeftButton,
+                Qt.KeyboardModifier.NoModifier,
+                pointer_end,
+            )
+            settle_events(4)
+            assert shell_bridge.connect_calls[-1] == (
+                source_b_id,
+                "as_text",
+                target_id,
+                "a",
+                False,
+            )
+            assert len(shell_bridge.connect_calls) == single_call_count + 1
+            edge_id = scene.add_edge(source_a_id, "as_text", target_id, "a")
+            settle_events(4)
+
+            calls_before_pointer_drag = len(shell_bridge.connect_calls)
+            QTest.mousePress(
+                window,
+                Qt.MouseButton.LeftButton,
+                Qt.KeyboardModifier.NoModifier,
+                pointer_start,
+            )
+            QTest.mouseMove(window, pointer_mid)
+            QTest.mouseMove(window, pointer_end)
+            update_pointer_drag(pointer_end, 0)
+            settle_events(4)
+            pointer_preview = variant_value(canvas.wireDragPreviewConnection())
+            assert pointer_preview["connection_mode"] == "replace", pointer_preview
+            assert pointer_preview["replaces_existing"] is True
+            assert len(shell_bridge.connect_calls) == calls_before_pointer_drag
+            assert variant_value(edge_layer.property("replacementPreviewEdgeIds")) == [edge_id]
+            replacement_snapshot = variant_value(edge_layer._visibleEdgeSnapshot(edge_id))
+            assert replacement_snapshot["replacementPreviewed"] is True, replacement_snapshot
+            assert canvas.cancelWireDrag() is True
+            settle_events(3)
+            assert variant_value(edge_layer.property("replacementPreviewEdgeIds")) == []
+            restored_snapshot = variant_value(edge_layer._visibleEdgeSnapshot(edge_id))
+            assert restored_snapshot["replacementPreviewed"] is False, restored_snapshot
+            QTest.mouseRelease(
+                window,
+                Qt.MouseButton.LeftButton,
+                Qt.KeyboardModifier.NoModifier,
+                pointer_end,
+            )
+
+            QTest.mousePress(
+                window,
+                Qt.MouseButton.LeftButton,
+                Qt.KeyboardModifier.NoModifier,
+                pointer_start,
+            )
+            QTest.mouseMove(window, pointer_mid)
+            QTest.mouseMove(window, pointer_end)
+            update_pointer_drag(pointer_end, 0)
+            settle_events(3)
+            assert len(shell_bridge.connect_calls) == calls_before_pointer_drag
+            QTest.mouseRelease(
+                window,
+                Qt.MouseButton.LeftButton,
+                Qt.KeyboardModifier.NoModifier,
+                pointer_end,
+            )
+            settle_events(4)
+            assert shell_bridge.connect_calls[-1] == (
+                source_b_id,
+                "as_text",
+                target_id,
+                "a",
+                False,
+            )
+            assert len(shell_bridge.connect_calls) == calls_before_pointer_drag + 1
+
+            QTest.mousePress(
+                window,
+                Qt.MouseButton.LeftButton,
+                Qt.KeyboardModifier.ShiftModifier,
+                pointer_start,
+            )
+            QTest.mouseMove(window, pointer_mid)
+            QTest.mouseMove(window, pointer_end)
+            update_pointer_drag(pointer_end, shift_value)
+            settle_events(3)
+            shift_preview = variant_value(canvas.wireDragPreviewConnection())
+            assert shift_preview["connection_mode"] == "append", shift_preview
+            assert shift_preview["append_requested"] is True
+            assert variant_value(edge_layer.property("replacementPreviewEdgeIds")) == []
+            QTest.mouseRelease(
+                window,
+                Qt.MouseButton.LeftButton,
+                Qt.KeyboardModifier.ShiftModifier,
+                pointer_end,
+            )
+            settle_events(4)
+            assert shell_bridge.connect_calls[-1] == (
+                source_b_id,
+                "as_text",
+                target_id,
+                "a",
+                True,
+            )
 
             canvas.setProperty("selectedEdgeIds", [edge_id])
             canvas.requestEdgeRedraw()
