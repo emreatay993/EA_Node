@@ -4,10 +4,10 @@
 Use this for app assets, app icons, shell/ui icon registry assets, node title icons, theme-aware icon sources, QML theme projection, and graphics theme defaults.
 
 ## Start Here
+- `ea_node_editor/nodes/builtins/icon_catalog.py`
 - `ea_node_editor/assets/`
 - `ea_node_editor/assets/node_title_icons/`
 - `ea_node_editor/addons/mars/icons/`
-- `ea_node_editor/nodes/builtins/icon_catalog.py`
 - `ea_node_editor/ui/icon_registry.py`
 - `ea_node_editor/ui_qml/components/shell/icons/`
 - `ea_node_editor/ui_qml/node_title_icon_sources.py`

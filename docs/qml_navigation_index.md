@@ -17,13 +17,13 @@ This compact index gives agents deterministic aliases for QML components, symbol
 
 | Metric | Count |
 | --- | ---: |
-| QML files | 168 |
+| QML files | 169 |
 | Repeater constructs | 96 |
 | Loader constructs | 21 |
-| Signal handlers | 858 |
+| Signal handlers | 861 |
 | Connections targets | 46 |
-| Property bindings | 7480 |
-| Local component refs | 266 |
+| Property bindings | 7523 |
+| Local component refs | 268 |
 
 ## Component Families
 
@@ -41,7 +41,7 @@ This compact index gives agents deterministic aliases for QML components, symbol
 | `components/graph/tabular` | 3 |
 | `components/graph/viewer` | 6 |
 | `components/graph_canvas` | 20 |
-| `components/shell` | 46 |
+| `components/shell` | 47 |
 | `components/web` | 7 |
 | `ea_node_editor/ui_qml` | 2 |
 
@@ -198,6 +198,7 @@ This compact index gives agents deterministic aliases for QML components, symbol
 | `LibraryWorkflowContextPopup.qml` | `ea_node_editor/ui_qml/components/shell/LibraryWorkflowContextPopup.qml` | `Item` | `Popup` | _None_ |
 | `NodeBrowserOverlay.qml` | `ea_node_editor/ui_qml/components/shell/NodeBrowserOverlay.qml` | `Item` | `Rectangle`, `MouseArea`, `Common.DialogSurface`, `RowLayout`, `ColumnLayout`, `Text`, `ListView`, `Repeater`, ... +7 more | `ListView`, `model`, `delegate`, `Repeater` |
 | `NodeLibraryPane.qml` | `ea_node_editor/ui_qml/components/shell/NodeLibraryPane.qml` | `ShellCollapsibleSidePane` | `TextField`, `ListView`, `Common.ManagedToolTip`, `Item`, `Row`, `Rectangle`, `LibraryNodeVisual`, `Text`, ... +4 more | `ListView`, `model`, `delegate`, `source`, `Repeater` |
+| `PythonScriptGuidePane.qml` | `ea_node_editor/ui_qml/components/shell/PythonScriptGuidePane.qml` | `Rectangle` | `ColumnLayout`, `RowLayout`, `Text`, `ShellButton`, `ScrollView`, `TextArea` | _None_ |
 | `ScriptCodeEditorPane.qml` | `ea_node_editor/ui_qml/components/shell/ScriptCodeEditorPane.qml` | `ColumnLayout` | `RowLayout`, `Rectangle`, `Text`, `ScrollView`, `TextArea`, `Item`, `ShellButton` | _None_ |
 | `ScriptEditorOverlay.qml` | `ea_node_editor/ui_qml/components/shell/ScriptEditorOverlay.qml` | `Rectangle` | `Connections`, `ColumnLayout`, `RowLayout`, `Text`, `Item`, `ShellButton`, `ScriptCodeEditorPane`, `MouseArea` | _None_ |
 | `ShellButton.qml` | `ea_node_editor/ui_qml/components/shell/ShellButton.qml` | `ToolButton` | `Common.ManagedToolTip`, `Row`, `Image`, `Text` | `source` |
@@ -215,7 +216,7 @@ This compact index gives agents deterministic aliases for QML components, symbol
 | `WebPageRetentionStore.qml` | `ea_node_editor/ui_qml/components/web/WebPageRetentionStore.qml` | `Item` | `Timer` | _None_ |
 | `WebPageStatusPane.qml` | `ea_node_editor/ui_qml/components/web/WebPageStatusPane.qml` | `Item` | `Rectangle`, `Column`, `Text` | _None_ |
 | `WebPageToolbar.qml` | `ea_node_editor/ui_qml/components/web/WebPageToolbar.qml` | `Rectangle` | `RowLayout`, `Image`, `Text`, `MouseArea`, `TextInput` | `source` |
-| `ContentFullscreenOverlay.qml` | `ea_node_editor/ui_qml/ContentFullscreenOverlay.qml` | `FocusScope` | `Connections`, `Timer`, `Rectangle`, `MouseArea`, `ColumnLayout`, `RowLayout`, `Text`, `ShellButton`, ... +16 more | `Loader`, `sourceComponent`, `source`, `model` |
+| `ContentFullscreenOverlay.qml` | `ea_node_editor/ui_qml/ContentFullscreenOverlay.qml` | `FocusScope` | `Connections`, `Timer`, `Rectangle`, `MouseArea`, `ColumnLayout`, `RowLayout`, `Text`, `ShellButton`, ... +17 more | `Loader`, `sourceComponent`, `source`, `model` |
 | `MainShell.qml` | `ea_node_editor/ui_qml/MainShell.qml` | `Rectangle` | `Connections`, `LibraryWorkflowContextPopup`, `ColumnLayout`, `ShellRunToolbar`, `RowLayout`, `NodeLibraryPane`, `WorkspaceCenterPane`, `InspectorPane`, ... +9 more | `Loader`, `source` |
 
 ## Component Details
@@ -2902,6 +2903,24 @@ This compact index gives agents deterministic aliases for QML components, symbol
 - Property bindings: `binding` `tooltipCategory`; `binding` `paneTitle`; `binding` `side`; `binding` `persistedPanelId`; `binding` `expandedWidth`; `binding` `collapseButtonTooltip` -> `shell.node_library.collapse`, `TooltipCopy.text`, `tooltipCopyBridge`; `binding` `expandHandleTooltip` -> `shell.node_library.expand`, `TooltipCopy.text`, `tooltipCopyBridge`; `binding` `contentData`; `binding` `Layout.fillWidth`; `binding` `placeholderText`; `binding` `color` -> `root.themePalette.input_fg`; `binding` `placeholderTextColor` -> `root.themePalette.muted_fg`; `binding` `background` -> `Rectangle`; `binding` `color` -> `root.themePalette.input_bg`; `binding` `border.color` -> `root.themePalette.input_border`; `binding` `radius`; `binding` `Layout.fillHeight`; `binding` `clip`; ... +78 more
 - Local component refs: `localComponent` `Common.ManagedToolTip`: `ea_node_editor/ui_qml/components/common/ManagedToolTip.qml`; `localComponent` `LibraryNodeVisual`: `ea_node_editor/ui_qml/components/shell/LibraryNodeVisual.qml`
 
+### `PythonScriptGuidePane.qml`
+
+- Path: `ea_node_editor/ui_qml/components/shell/PythonScriptGuidePane.qml`
+- Root component: `Rectangle`
+- Agent route aliases: `PythonScriptGuidePane`, `PythonScriptGuidePane.qml`, `ea_node_editor/ui_qml/components/shell/PythonScriptGuidePane.qml`, `ea_node_editor\ui_qml\components\shell\PythonScriptGuidePane.qml`
+- Imports: `QtQuick 2.15`, `QtQuick.Controls 2.15`, `QtQuick.Layouts 1.15`
+- IDs: `root`, `guideScroll`, `guideText`
+- Object names: `pythonScriptDecoratorGuidePane`, `pythonScriptDecoratorGuideCloseButton`, `pythonScriptDecoratorGuideScrollView`, `pythonScriptDecoratorGuideText`
+- Properties: `themeBridgeRef: var`, `graphCanvasStateBridgeRef: var`, `uiIconsRef: var`, `themePalette: var`, `guideHtml: string`
+- Signals: `closeRequested`
+- Functions: `_color`, `_buildGuideHtml`
+- Instantiates: `ColumnLayout`, `RowLayout`, `Text`, `ShellButton`, `ScrollView`, `TextArea`
+- Dynamic constructs: _None_
+- Signal handlers: `handler` `onClicked`
+- Connections: _None_
+- Property bindings: `binding` `radius`; `binding` `color` -> `root.themePalette.panel_bg`; `binding` `border.width`; `binding` `border.color` -> `root.themePalette.border`; `binding` `anchors.fill` -> `parent`; `binding` `spacing`; `binding` `Layout.fillWidth`; `binding` `Layout.preferredHeight`; `binding` `color` -> `root.themePalette.inspector_section_header_bg`; `binding` `anchors.leftMargin`; `binding` `anchors.rightMargin`; `binding` `text`; `binding` `color` -> `root.themePalette.panel_title_fg`; `binding` `font.pixelSize`; `binding` `font.bold`; `binding` `elide` -> `Text.ElideRight`; `binding` `themeBridgeRef` -> `root.themeBridgeRef`; `binding` `graphCanvasStateBridgeRef` -> `root.graphCanvasStateBridgeRef`; ... +17 more
+- Local component refs: `localComponent` `ShellButton`: `ea_node_editor/ui_qml/components/shell/ShellButton.qml`
+
 ### `ScriptCodeEditorPane.qml`
 
 - Path: `ea_node_editor/ui_qml/components/shell/ScriptCodeEditorPane.qml`
@@ -2909,15 +2928,15 @@ This compact index gives agents deterministic aliases for QML components, symbol
 - Agent route aliases: `ScriptCodeEditorPane`, `ScriptCodeEditorPane.qml`, `ea_node_editor/ui_qml/components/shell/ScriptCodeEditorPane.qml`, `ea_node_editor\ui_qml\components\shell\ScriptCodeEditorPane.qml`
 - Imports: `QtQuick 2.15`, `QtQuick.Controls 2.15`, `QtQuick.Layouts 1.15`, `"MainShellUtils.js" as MainShellUtils`
 - IDs: `root`, `scriptLineGutter`, `scriptLineNumberText`, `scriptEditorScroll`, `scriptEditorArea`
-- Object names: `scriptCodeEditorPane`, `scriptEditorArea`
-- Properties: `scriptEditorBridgeRef: var`, `scriptHighlighterBridgeRef: var`, `themeBridgeRef: var`, `graphCanvasStateBridgeRef: var`, `uiIconsRef: var`, `themePalette: var`, `editorAvailable: bool`
-- Signals: _None_
+- Object names: `scriptCodeEditorPane`, `scriptEditorArea`, `pythonScriptGuideButton`
+- Properties: `scriptEditorBridgeRef: var`, `scriptHighlighterBridgeRef: var`, `themeBridgeRef: var`, `graphCanvasStateBridgeRef: var`, `uiIconsRef: var`, `guideButtonVisible: bool`, `guideButtonSelected: bool`, `themePalette: var`, `editorAvailable: bool`
+- Signals: `guideRequested`
 - Functions: `updateCursorMetrics`
 - Instantiates: `RowLayout`, `Rectangle`, `Text`, `ScrollView`, `TextArea`, `Item`, `ShellButton`
 - Dynamic constructs: _None_
 - Signal handlers: `handler` `Component.onCompleted`; `handler` `onTextChanged`; `handler` `onCursorPositionChanged`; `handler` `onClicked`
 - Connections: _None_
-- Property bindings: `binding` `spacing`; `binding` `Layout.fillWidth`; `binding` `Layout.fillHeight`; `binding` `Layout.preferredWidth`; `binding` `color` -> `root.themePalette.console_bg`; `binding` `border.color` -> `root.themePalette.border`; `binding` `clip`; `binding` `anchors.right` -> `parent.right`; `binding` `anchors.rightMargin`; `binding` `y` -> `scriptEditorScroll.contentItem`, `scriptEditorScroll.contentItem.contentY`; `binding` `text` -> `MainShellUtils.lineNumbersText`, `scriptEditorArea.lineCount`; `binding` `color` -> `root.themePalette.muted_fg`; `binding` `font.family`; `binding` `font.pixelSize`; `binding` `horizontalAlignment` -> `Text.AlignRight`; `binding` `verticalAlignment` -> `Text.AlignTop`; `binding` `width` -> `scriptEditorScroll.availableWidth`; `binding` `text` -> `root.editorAvailable`, `root.scriptEditorBridgeRef.script_text`; ... +20 more
+- Property bindings: `binding` `spacing`; `binding` `Layout.fillWidth`; `binding` `Layout.fillHeight`; `binding` `Layout.preferredWidth`; `binding` `color` -> `root.themePalette.console_bg`; `binding` `border.color` -> `root.themePalette.border`; `binding` `clip`; `binding` `anchors.right` -> `parent.right`; `binding` `anchors.rightMargin`; `binding` `y` -> `scriptEditorScroll.contentItem`, `scriptEditorScroll.contentItem.contentY`; `binding` `text` -> `MainShellUtils.lineNumbersText`, `scriptEditorArea.lineCount`; `binding` `color` -> `root.themePalette.muted_fg`; `binding` `font.family`; `binding` `font.pixelSize`; `binding` `horizontalAlignment` -> `Text.AlignRight`; `binding` `verticalAlignment` -> `Text.AlignTop`; `binding` `width` -> `scriptEditorScroll.availableWidth`; `binding` `text` -> `root.editorAvailable`, `root.scriptEditorBridgeRef.script_text`; ... +24 more
 - Local component refs: `localComponent` `ShellButton`: `ea_node_editor/ui_qml/components/shell/ShellButton.qml`
 
 ### `ScriptEditorOverlay.qml`
@@ -3214,17 +3233,17 @@ This compact index gives agents deterministic aliases for QML components, symbol
 - Root component: `FocusScope`
 - Agent route aliases: `ContentFullscreenOverlay`, `ContentFullscreenOverlay.qml`, `ea_node_editor/ui_qml/ContentFullscreenOverlay.qml`, `ea_node_editor\ui_qml\ContentFullscreenOverlay.qml`
 - Imports: `QtQuick 2.15`, `QtQuick.Controls 2.15`, `QtQuick.Layouts 1.15`, `QtQuick.Pdf 6.0`, `"components/shell"`, `"components/web" as WebComponents`, `"components/graph/tabular" as TabularComponents`, `"components/graph/viewer" as ViewerComponents`, `"components/graph/passive" as PassiveComponents`, `"components/graph/passive/GraphMediaPanelGeometry.js" as GraphMediaPanelGeometry`, `"components/common/TooltipCopy.js" as TooltipCopy`
-- IDs: `root`, `webEditorCloseTimeout`, `interactionBlocker`, `layout`, `topBar`, `titleLabel`, `shortcutHint`, `closeButton`, `contentFrame`, `mediaLayout`, `mediaToolbar`, `pdfNavigationControls`, `pdfPageField`, `pdfReaderControls`, `pdfSearchControls`, `pdfSearchField`, `mediaViewport`, `pdfViewerLoader`, ... +24 more
-- Object names: `contentFullscreenOverlay`, `contentFullscreenInteractionBlocker`, `contentFullscreenTopBar`, `contentFullscreenTitleText`, `contentFullscreenShortcutHint`, `contentFullscreenCloseButton`, `contentFullscreenContentFrame`, `contentFullscreenMediaToolbar`, `contentFullscreenMediaSummary`, `contentFullscreenPdfNavigationControls`, `contentFullscreenPdfPreviousButton`, `contentFullscreenPdfPageField`, `contentFullscreenPdfPageTotalLabel`, `contentFullscreenPdfNextButton`, `contentFullscreenPdfReaderControls`, `contentFullscreenPdfSearchButton`, `contentFullscreenPdfZoomOutButton`, `contentFullscreenPdfZoomLabel`, ... +52 more
-- Properties: `bridgeRef: var`, `scriptEditorBridgeRef: var`, `scriptHighlighterBridgeRef: var`, `themePalette: var`, `bridgeOpen: bool`, `activeNodeId: string`, `contentKind: string`, `titleText: string`, `mediaPayload: var`, `viewerPayload: var`, `webEditorPayload: var`, `webPagePayload: var`, `plotPayload: var`, `plotOptions: var`, `plotHoverReadout: bool`, `plotVerticalGuide: bool`, `plotCrosshair: bool`, `plotThemeOption: string`, ... +71 more
+- IDs: `root`, `webEditorCloseTimeout`, `interactionBlocker`, `layout`, `topBar`, `titleLabel`, `shortcutHint`, `closeButton`, `contentFrame`, `mediaLayout`, `mediaToolbar`, `pdfNavigationControls`, `pdfPageField`, `pdfReaderControls`, `pdfSearchControls`, `pdfSearchField`, `mediaViewport`, `pdfViewerLoader`, ... +26 more
+- Object names: `contentFullscreenOverlay`, `contentFullscreenInteractionBlocker`, `contentFullscreenTopBar`, `contentFullscreenTitleText`, `contentFullscreenShortcutHint`, `contentFullscreenCloseButton`, `contentFullscreenContentFrame`, `contentFullscreenMediaToolbar`, `contentFullscreenMediaSummary`, `contentFullscreenPdfNavigationControls`, `contentFullscreenPdfPreviousButton`, `contentFullscreenPdfPageField`, `contentFullscreenPdfPageTotalLabel`, `contentFullscreenPdfNextButton`, `contentFullscreenPdfReaderControls`, `contentFullscreenPdfSearchButton`, `contentFullscreenPdfZoomOutButton`, `contentFullscreenPdfZoomLabel`, ... +54 more
+- Properties: `bridgeRef: var`, `scriptEditorBridgeRef: var`, `scriptHighlighterBridgeRef: var`, `themePalette: var`, `bridgeOpen: bool`, `activeNodeId: string`, `contentKind: string`, `scriptGuideVisible: bool`, `titleText: string`, `mediaPayload: var`, `viewerPayload: var`, `webEditorPayload: var`, `webPagePayload: var`, `plotPayload: var`, `plotOptions: var`, `plotHoverReadout: bool`, `plotVerticalGuide: bool`, `plotCrosshair: bool`, ... +72 more
 - Signals: `contentMetricsReady`
 - Functions: `requestClose`, `_activeWebPageHost`, `_liveWebPageHost`, `_topLevelItem`, `_findLiveWebPageHost`, `_usesBorrowedWebEngine`, `_scheduleBorrowedWebPageHostSync`, `_syncBorrowedWebPageHost`, `_releaseBorrowedWebPageHost`, `_requestWebEditorClose`, `_finishWebEditorClose`, `_normalizedPayloadFitMode`, `_intValue`, `_boolValue`, `_plotOptions`, `_plotOptionBool`, `_plotThemeOption`, `_setPlotOption`, ... +59 more
-- Instantiates: `Connections`, `Timer`, `Rectangle`, `MouseArea`, `ColumnLayout`, `RowLayout`, `Text`, `ShellButton`, `TextField`, `Loader`, `Item`, `PdfDocument`, `PdfMultiPageView`, `Image`, `PassiveComponents.GraphVideoPanelFullscreenSurface`, `ComboBox`, `ViewerComponents.ViewerSelectionControls`, `Column`, ... +6 more
+- Instantiates: `Connections`, `Timer`, `Rectangle`, `MouseArea`, `ColumnLayout`, `RowLayout`, `Text`, `ShellButton`, `TextField`, `Loader`, `Item`, `PdfDocument`, `PdfMultiPageView`, `Image`, `PassiveComponents.GraphVideoPanelFullscreenSurface`, `ComboBox`, `ViewerComponents.ViewerSelectionControls`, `Column`, ... +7 more
 - Dynamic constructs: `Loader`; `sourceComponent` -> `Component`; `source` -> `root.pdfSourceUrl`; `source` -> `root.mediaKind`, `root.mediaImageAnimationSupported`; `sourceComponent` -> `AnimatedImage`; `source` -> `root.imageResolvedSourceUrl`; `model`
-- Signal handlers: `handler` `onVisibleChanged`; `handler` `onActiveNodeIdChanged`; `handler` `onContentKindChanged`; `handler` `onBridgeOpenChanged`; `handler` `onPreviewSourceUrlChanged`; `handler` `onMailZoomFactorChanged`; `handler` `Component.onCompleted`; `handler` `Keys.onPressed`; `handler` `onMediaKindChanged`; `handler` `onPdfSourceUrlChanged`; `handler` `onPdfResolvedPageNumberChanged`; `handler` `onPdfPageCountChanged`; `handler` `onPdfCurrentPageNumberChanged`; `handler` `onPageZoomChanged`; `handler` `onLoadingChanged`; `handler` `onTriggered`; `handler` `onPressed`; `handler` `onReleased`; ... +15 more
+- Signal handlers: `handler` `onVisibleChanged`; `handler` `onActiveNodeIdChanged`; `handler` `onContentKindChanged`; `handler` `onBridgeOpenChanged`; `handler` `onPreviewSourceUrlChanged`; `handler` `onMailZoomFactorChanged`; `handler` `Component.onCompleted`; `handler` `Keys.onPressed`; `handler` `onMediaKindChanged`; `handler` `onPdfSourceUrlChanged`; `handler` `onPdfResolvedPageNumberChanged`; `handler` `onPdfPageCountChanged`; `handler` `onPdfCurrentPageNumberChanged`; `handler` `onPageZoomChanged`; `handler` `onLoadingChanged`; `handler` `onTriggered`; `handler` `onPressed`; `handler` `onReleased`; ... +17 more
 - Connections: `target` `root.webSurfaceBridge`; `target` `root.graphCanvasCommandBridgeRef`
-- Property bindings: `binding` `visible` -> `root.bridgeOpen`; `binding` `enabled` -> `visible`; `binding` `focus` -> `visible`; `binding` `activeFocusOnTab` -> `visible`; `binding` `z`; `binding` `Keys.priority` -> `Keys.BeforeItem`; `binding` `enabled` -> `root.webEditorClosePending`; `binding` `interval`; `binding` `repeat`; `binding` `anchors.fill` -> `parent`; `binding` `color` -> `root.themePalette.app_bg`; `binding` `acceptedButtons` -> `Qt.AllButtons`; `binding` `hoverEnabled`; `binding` `preventStealing`; `binding` `anchors.margins`; `binding` `spacing`; `binding` `Layout.fillWidth`; `binding` `Layout.preferredHeight`; ... +144 more
-- Local component refs: `localComponent` `ShellButton`: `ea_node_editor/ui_qml/components/shell/ShellButton.qml`; `localComponent` `PassiveComponents.GraphVideoPanelFullscreenSurface`: `ea_node_editor/ui_qml/components/graph/passive/GraphVideoPanelFullscreenSurface.qml`; `localComponent` `ViewerComponents.ViewerSelectionControls`: `ea_node_editor/ui_qml/components/graph/viewer/ViewerSelectionControls.qml`; `localComponent` `ViewerComponents.ViewerSidePanel`: `ea_node_editor/ui_qml/components/graph/viewer/ViewerSidePanel.qml`; `localComponent` `ViewerComponents.ViewerQuickControls`: `ea_node_editor/ui_qml/components/graph/viewer/ViewerQuickControls.qml`; `localComponent` `WebComponents.WebEditorHost`: `ea_node_editor/ui_qml/components/web/WebEditorHost.qml`; `localComponent` `ScriptCodeEditorPane`: `ea_node_editor/ui_qml/components/shell/ScriptCodeEditorPane.qml`; `localComponent` `WebComponents.WebPageHost`: `ea_node_editor/ui_qml/components/web/WebPageHost.qml`; `localComponent` `TabularComponents.TabularFullscreenSurface`: `ea_node_editor/ui_qml/components/graph/tabular/TabularFullscreenSurface.qml`
+- Property bindings: `binding` `visible` -> `root.bridgeOpen`; `binding` `enabled` -> `visible`; `binding` `focus` -> `visible`; `binding` `activeFocusOnTab` -> `visible`; `binding` `z`; `binding` `Keys.priority` -> `Keys.BeforeItem`; `binding` `enabled` -> `root.webEditorClosePending`; `binding` `interval`; `binding` `repeat`; `binding` `anchors.fill` -> `parent`; `binding` `color` -> `root.themePalette.app_bg`; `binding` `acceptedButtons` -> `Qt.AllButtons`; `binding` `hoverEnabled`; `binding` `preventStealing`; `binding` `anchors.margins`; `binding` `spacing`; `binding` `Layout.fillWidth`; `binding` `Layout.preferredHeight`; ... +148 more
+- Local component refs: `localComponent` `ShellButton`: `ea_node_editor/ui_qml/components/shell/ShellButton.qml`; `localComponent` `PassiveComponents.GraphVideoPanelFullscreenSurface`: `ea_node_editor/ui_qml/components/graph/passive/GraphVideoPanelFullscreenSurface.qml`; `localComponent` `ViewerComponents.ViewerSelectionControls`: `ea_node_editor/ui_qml/components/graph/viewer/ViewerSelectionControls.qml`; `localComponent` `ViewerComponents.ViewerSidePanel`: `ea_node_editor/ui_qml/components/graph/viewer/ViewerSidePanel.qml`; `localComponent` `ViewerComponents.ViewerQuickControls`: `ea_node_editor/ui_qml/components/graph/viewer/ViewerQuickControls.qml`; `localComponent` `WebComponents.WebEditorHost`: `ea_node_editor/ui_qml/components/web/WebEditorHost.qml`; `localComponent` `ScriptCodeEditorPane`: `ea_node_editor/ui_qml/components/shell/ScriptCodeEditorPane.qml`; `localComponent` `PythonScriptGuidePane`: `ea_node_editor/ui_qml/components/shell/PythonScriptGuidePane.qml`; `localComponent` `WebComponents.WebPageHost`: `ea_node_editor/ui_qml/components/web/WebPageHost.qml`; `localComponent` `TabularComponents.TabularFullscreenSurface`: `ea_node_editor/ui_qml/components/graph/tabular/TabularFullscreenSurface.qml`
 
 ### `MainShell.qml`
 

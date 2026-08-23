@@ -4,9 +4,9 @@
 Use this for local web assets, the web host, Chromium website viewer nodes, Excalidraw host/editor, and related generated bundles.
 
 ## Start Here
+- `ea_node_editor/nodes/builtins/web_viewer.py`
 - `ea_node_editor/web_assets/`
 - `ea_node_editor/web_host/`
-- `ea_node_editor/nodes/builtins/web_viewer.py`
 - `ea_node_editor/nodes/builtins/excalidraw.py`
 - `ea_node_editor/ui_qml/components/web/`
 - `web/excalidraw_host/`

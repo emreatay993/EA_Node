@@ -179,6 +179,189 @@ class NavSearchTests(unittest.TestCase):
         results = nav.search_routes(mixed, "plotter")
         self.assertTrue(all(r.get("kind") != "qml_component" for r in results))
 
+    def test_find_owner_routes_prefers_direct_route_to_inferred_qml_fallback(self) -> None:
+        direct = {
+            **ROUTE_ENTRIES[0],
+            "route_key": "feature_route:direct-control",
+            "title": "Direct Control",
+            "map_path": "docs/agent_maps/feature_routes/direct_control.md",
+            "keywords": ["shared", "control"],
+            "aliases": [],
+        }
+        inferred = {
+            **ROUTE_ENTRIES[1],
+            "route_key": "subsystem:qml-fallback",
+            "title": "QML Fallback",
+            "map_path": "docs/agent_maps/subsystems/qml_fallback.md",
+        }
+        component = {
+            **QML_ROUTE_ENTRIES[1],
+            "route_key": "qml:sharedcontrol",
+            "title": "SharedControl.qml",
+            "map_path": inferred["map_path"],
+            "source_candidates": ["ea_node_editor/ui_qml/SharedControl.qml"],
+            "qml_candidates": ["ea_node_editor/ui_qml/SharedControl.qml"],
+            "keywords": ["shared", "control"],
+        }
+
+        owners = nav.find_owner_routes([direct, inferred, component], "shared control")
+
+        self.assertEqual(owners[0]["map_path"], direct["map_path"])
+
+    def test_exact_route_keeps_qml_evidenced_secondary_not_unrelated_direct(self) -> None:
+        path = "ea_node_editor/ui_qml/EvidenceControl.qml"
+        primary = {
+            **ROUTE_ENTRIES[0],
+            "route_key": "feature_route:primary",
+            "map_path": "docs/agent_maps/feature_routes/primary.md",
+            "aliases": ["shared control"],
+        }
+        secondary = {
+            **ROUTE_ENTRIES[1],
+            "route_key": "subsystem:evidenced-secondary",
+            "map_path": "docs/agent_maps/subsystems/evidenced_secondary.md",
+            "keywords": ["shared", "control"],
+            "source_candidates": [path],
+            "qml_candidates": [path],
+            "start_here": [path],
+        }
+        unrelated = {
+            **ROUTE_ENTRIES[0],
+            "route_key": "feature_route:unrelated-direct",
+            "map_path": "docs/agent_maps/feature_routes/unrelated_direct.md",
+            "keywords": ["shared", "control"],
+            "aliases": [],
+        }
+        component = {
+            **QML_ROUTE_ENTRIES[1],
+            "route_key": "qml:evidencecontrol",
+            "title": "EvidenceControl.qml",
+            "source_candidates": [path],
+            "qml_candidates": [path],
+            "keywords": ["shared", "control"],
+        }
+
+        owners = nav.find_owner_routes(
+            [primary, secondary, unrelated, component], "shared control"
+        )
+
+        self.assertEqual(
+            [owner["map_path"] for owner in owners],
+            [primary["map_path"], secondary["map_path"]],
+        )
+
+    def test_find_owner_routes_prefers_explicit_feature_to_inferred_subsystem(self) -> None:
+        path = "ea_node_editor/ui_qml/components/graph_canvas/PreferenceFacts.qml"
+        feature = {
+            **ROUTE_ENTRIES[0],
+            "route_key": "feature_route:preference-facts",
+            "title": "Preference Facts Recipe",
+            "map_path": "docs/agent_maps/feature_routes/preference_facts.md",
+            "source_candidates": [path],
+            "qml_candidates": [path],
+            "keywords": [],
+            "aliases": [],
+            "start_here": [],
+        }
+        inferred = {
+            **ROUTE_ENTRIES[1],
+            "route_key": "subsystem:graph-canvas",
+            "title": "Graph Canvas",
+            "map_path": "docs/agent_maps/subsystems/graph_canvas.md",
+            "start_here": ["PreferenceFacts.qml"],
+        }
+        component = {
+            **QML_ROUTE_ENTRIES[1],
+            "route_key": "qml:preferencefacts",
+            "title": "PreferenceFacts.qml",
+            "map_path": inferred["map_path"],
+            "source_candidates": [path],
+            "qml_candidates": [path],
+            "keywords": ["preferencefacts"],
+        }
+
+        owners = nav.find_owner_routes([feature, inferred, component], "PreferenceFacts")
+
+        self.assertEqual(owners[0]["map_path"], feature["map_path"])
+        self.assertEqual(owners[0]["_nav_evidence_paths"], [path])
+
+    def test_exact_qml_inferred_owner_outranks_broad_direct_feature(self) -> None:
+        path = "ea_node_editor/ui_qml/components/graph_canvas/ViewportController.qml"
+        broad_feature = {
+            **ROUTE_ENTRIES[0],
+            "route_key": "feature_route:broad-viewport",
+            "title": "Broad Viewport Feature",
+            "map_path": "docs/agent_maps/feature_routes/broad_viewport.md",
+            "keywords": ["viewport", "controller"],
+            "aliases": [],
+        }
+        inferred = {
+            **ROUTE_ENTRIES[1],
+            "route_key": "subsystem:graph-canvas",
+            "title": "Graph Canvas",
+            "map_path": "docs/agent_maps/subsystems/graph_canvas.md",
+        }
+        component = {
+            **QML_ROUTE_ENTRIES[1],
+            "route_key": "qml:viewportcontroller",
+            "title": "ViewportController.qml",
+            "map_path": inferred["map_path"],
+            "source_candidates": [path],
+            "qml_candidates": [path],
+            "keywords": ["viewportcontroller"],
+        }
+
+        owners = nav.find_owner_routes(
+            [broad_feature, inferred, component], "ViewportController"
+        )
+        capsule = nav.build_owner_capsules(owners, "ViewportController")[0]
+
+        self.assertEqual(owners[0]["map_path"], inferred["map_path"])
+        self.assertTrue(owners[0]["_nav_exact_qml_match"])
+        self.assertEqual(capsule["path"], path)
+
+    def test_find_owner_routes_is_deterministic_for_semantic_ties(self) -> None:
+        second = {
+            **ROUTE_ENTRIES[0],
+            "route_key": "feature_route:second",
+            "map_path": "docs/agent_maps/feature_routes/second.md",
+            "aliases": ["shared lookup"],
+        }
+        first = {
+            **second,
+            "route_key": "feature_route:first",
+            "map_path": "docs/agent_maps/feature_routes/first.md",
+        }
+
+        owners = nav.find_owner_routes([second, first], "shared lookup")
+
+        self.assertEqual(
+            [owner["route_key"] for owner in owners],
+            ["feature_route:first", "feature_route:second"],
+        )
+
+    def test_find_owner_routes_handles_no_match_short_tokens_and_avoid_paths(self) -> None:
+        short_entry = {
+            **ROUTE_ENTRIES[0],
+            "route_key": "feature_route:short",
+            "keywords": ["ui", "io", "id", "qt"],
+            "aliases": [],
+            "do_not_start_here": ["ea_node_editor/forbidden/only_marker.py"],
+        }
+        for token in ("ui", "io", "id", "qt"):
+            with self.subTest(token=token):
+                self.assertEqual(
+                    nav.find_owner_routes([short_entry], token)[0],
+                    {
+                        **short_entry,
+                        "_nav_direct_match": True,
+                        "_nav_exact_qml_match": False,
+                    },
+                )
+        self.assertEqual(nav.find_owner_routes([short_entry], "only marker"), [])
+        self.assertEqual(nav.find_owner_routes([short_entry], "the and"), [])
+        self.assertEqual(nav.find_owner_routes([short_entry], "missing"), [])
+
     def test_search_qml_matches_component_and_alias(self) -> None:
         by_name = nav.search_qml(QML_ENTRIES, "ManagedToolTip")
         self.assertEqual(by_name[0]["component_name"], "ManagedToolTip")
@@ -332,6 +515,137 @@ class NavCliTests(unittest.TestCase):
                 "docs/agent_maps/feature_routes/workspace_ui.md",
                 [owner["owner_map"] for owner in payload["owners"]],
             )
+
+    def test_multiple_exact_aliases_select_distinct_owner_paths(self) -> None:
+        list_path = "ea_node_editor/ui_qml/components/graph/ListEditor.qml"
+        metrics_path = "ea_node_editor/ui_qml/graph_geometry/standard_metrics.py"
+        target_test = "tests/test_shared_surface.py"
+        owner = {
+            **ROUTE_ENTRIES[0],
+            "route_key": "feature_route:shared-surface",
+            "title": "Shared Surface",
+            "map_path": "docs/agent_maps/feature_routes/shared_surface.md",
+            "aliases": ["list editor", "standard metrics"],
+            "start_here": [
+                "ea_node_editor/ui_qml/components/graph/",
+                list_path,
+                metrics_path,
+                target_test,
+            ],
+            "focused_verification": [f"pytest {target_test} -q"],
+        }
+        component = {
+            **QML_ROUTE_ENTRIES[1],
+            "route_key": "qml:listeditor",
+            "title": "ListEditor.qml",
+            "map_path": QML_ROUTE_ENTRIES[1]["map_path"],
+            "source_candidates": [list_path],
+            "qml_candidates": [list_path],
+            "keywords": ["list", "editor"],
+        }
+
+        for query, expected_path in (
+            ("list editor", list_path),
+            ("standard metrics", metrics_path),
+        ):
+            with self.subTest(query=query):
+                routes = nav.find_owner_routes([owner, component], query)
+                capsule = nav.build_owner_capsules(routes, query)[0]
+                self.assertEqual(capsule["owner_map"], owner["map_path"])
+                self.assertEqual(capsule["path"], expected_path)
+                self.assertEqual(capsule["focused_test"], target_test)
+                self.assertEqual(
+                    capsule["verification"], f"pytest {target_test} -q"
+                )
+
+    def test_fuzzy_qml_match_does_not_override_exact_alias_path_affinity(self) -> None:
+        list_path = "ea_node_editor/ui_qml/components/graph/ListEditor.qml"
+        inline_path = "ea_node_editor/ui_qml/components/graph/InlineProperties.qml"
+        owner = {
+            **ROUTE_ENTRIES[0],
+            "route_key": "feature_route:shared-surface",
+            "title": "Shared Surface",
+            "map_path": "docs/agent_maps/feature_routes/shared_surface.md",
+            "aliases": ["inline list height"],
+            "start_here": [list_path, inline_path],
+            "source_candidates": [list_path, inline_path],
+            "qml_candidates": [list_path, inline_path],
+            "focused_verification": [],
+        }
+        component = {
+            **QML_ROUTE_ENTRIES[1],
+            "route_key": "qml:inlineproperties",
+            "title": "InlineProperties.qml",
+            "map_path": QML_ROUTE_ENTRIES[1]["map_path"],
+            "source_candidates": [inline_path],
+            "qml_candidates": [inline_path],
+            "keywords": ["inline", "list", "height"],
+        }
+
+        routes = nav.find_owner_routes([owner, component], "inline list height")
+        capsule = nav.build_owner_capsules(routes, "inline list height")[0]
+
+        self.assertNotIn("_nav_evidence_paths", routes[0])
+        self.assertEqual(capsule["path"], list_path)
+
+    def test_one_owner_selects_tests_by_per_query_affinity(self) -> None:
+        fullscreen_test = "tests/test_content_fullscreen_bridge.py"
+        session_test = "tests/test_viewer_session_bridge.py"
+        owner = {
+            **ROUTE_ENTRIES[0],
+            "aliases": ["fullscreen toolbar click", "viewer session ownership"],
+            "start_here": [fullscreen_test, session_test],
+            "focused_verification": [
+                f"pytest {fullscreen_test} -q",
+                f"pytest {session_test} -q",
+            ],
+        }
+
+        for query, expected_test in (
+            ("fullscreen toolbar click", fullscreen_test),
+            ("viewer session ownership", session_test),
+        ):
+            with self.subTest(query=query):
+                route = nav.find_owner_routes([owner], query)
+                capsule = nav.build_owner_capsules(route, query)[0]
+                self.assertEqual(capsule["focused_test"], expected_test)
+                self.assertEqual(
+                    capsule["verification"], f"pytest {expected_test} -q"
+                )
+
+    def test_exact_qml_test_affinity_omits_unrelated_and_keeps_script_editor(self) -> None:
+        script_test = "tests/test_script_editor_dock.py"
+        inferred = {
+            **ROUTE_ENTRIES[1],
+            "route_key": "subsystem:qml-shell",
+            "title": "QML Shell",
+            "map_path": "docs/agent_maps/subsystems/qml_shell.md",
+            "start_here": [script_test],
+            "focused_verification": [f"pytest {script_test} -q"],
+        }
+        for component_name, expects_test in (
+            ("InspectorPropertyEditor", False),
+            ("ScriptEditorOverlay", True),
+        ):
+            path = f"ea_node_editor/ui_qml/{component_name}.qml"
+            component = {
+                **QML_ROUTE_ENTRIES[1],
+                "route_key": f"qml:{component_name.lower()}",
+                "title": f"{component_name}.qml",
+                "map_path": inferred["map_path"],
+                "source_candidates": [path],
+                "qml_candidates": [path],
+                "keywords": [component_name.lower()],
+            }
+            with self.subTest(component=component_name):
+                routes = nav.find_owner_routes([inferred, component], component_name)
+                capsule = nav.build_owner_capsules(routes, component_name)[0]
+                self.assertEqual(capsule["path"], path)
+                if expects_test:
+                    self.assertEqual(capsule["focused_test"], script_test)
+                else:
+                    self.assertNotIn("focused_test", capsule)
+                    self.assertNotIn("verification", capsule)
 
     def test_find_expand_preserves_broad_discovery_output(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -492,6 +806,9 @@ class NavCliTests(unittest.TestCase):
                         f"tests/test_tied_{index}.py",
                     ],
                     "test_candidates": [f"tests/test_tied_{index}.py"],
+                    "focused_verification": [
+                        f"pytest tests/test_tied_{index}.py -q"
+                    ],
                     "do_not_start_here": [],
                 }
             )
@@ -516,6 +833,47 @@ class NavCliTests(unittest.TestCase):
                 len(captured.getvalue().encode("utf-8")),
                 nav.MAX_DEFAULT_OUTPUT_BYTES,
             )
+            if not as_json:
+                self.assertTrue(captured.getvalue().startswith("Likely owners:"))
+
+    def test_capsule_prefers_exact_evidence_and_omits_unrelated_test(self) -> None:
+        evidence_path = "ea_node_editor/ui_qml/components/graph/ExactControl.qml"
+        entry = {
+            **ROUTE_ENTRIES[0],
+            "start_here": [
+                "ea_node_editor/ui_qml/components/graph/",
+                "ea_node_editor/ui_qml/components/graph/Unrelated.qml",
+                "tests/test_script_editor_dock.py",
+            ],
+            "test_candidates": ["tests/test_script_editor_dock.py"],
+            "focused_verification": ["pytest tests/test_script_editor_dock.py -q"],
+            "_nav_evidence_paths": [evidence_path],
+            "_nav_direct_match": False,
+        }
+
+        capsule = nav.build_owner_capsules([entry], "list geometry")[0]
+
+        self.assertEqual(capsule["path"], evidence_path)
+        self.assertNotIn("focused_test", capsule)
+        self.assertNotIn("verification", capsule)
+
+    def test_capsule_uses_exact_file_before_start_here_directory(self) -> None:
+        entry = {
+            **ROUTE_ENTRIES[0],
+            "start_here": [
+                "ea_node_editor/ui_qml/components/graph/",
+                "ea_node_editor/ui_qml/components/graph/ExactControl.qml",
+            ],
+            "focused_verification": [],
+            "test_candidates": [],
+        }
+
+        capsule = nav.build_owner_capsules([entry], "unrelated")[0]
+
+        self.assertEqual(
+            capsule["path"],
+            "ea_node_editor/ui_qml/components/graph/ExactControl.qml",
+        )
 
 
 class NavOwnerCorpusTests(unittest.TestCase):
@@ -525,22 +883,76 @@ class NavOwnerCorpusTests(unittest.TestCase):
         cls.entries = [indexer.route_entry_to_dict(entry) for entry in index_data.entries]
         cls.corpus = json.loads(CORPUS_PATH.read_text(encoding="utf-8"))
 
+    def test_all_canonical_map_titles_resolve_through_default_find(self) -> None:
+        map_entries = [
+            entry for entry in self.entries if entry.get("kind") != "qml_component"
+        ]
+        self.assertEqual(len(map_entries), 68)
+        for entry in map_entries:
+            with self.subTest(route=entry["route_key"]):
+                owners = nav.find_owner_routes(self.entries, entry["title"])
+                self.assertTrue(owners)
+                self.assertEqual(owners[0]["map_path"], entry["map_path"])
+
+    def test_new_task_owner_contracts(self) -> None:
+        new_case_ids = {f"CL-{number}" for number in range(14, 21)}
+        for case in self.corpus["cases"]:
+            if case["id"] not in new_case_ids:
+                continue
+            with self.subTest(case=case["id"]):
+                captured = io.StringIO()
+                with redirect_stdout(captured):
+                    code = nav.main(
+                        [
+                            "--repo-root",
+                            str(REPO_ROOT),
+                            "find",
+                            *case["query"].split(),
+                            "--json",
+                        ]
+                    )
+                self.assertEqual(code, 0)
+                owners = json.loads(captured.getvalue())["owners"]
+                expected_maps = [case["primary_owner"], *case["secondary_owners"]]
+                self.assertEqual(
+                    [owner["owner_map"] for owner in owners],
+                    expected_maps,
+                )
+                self.assertEqual(owners[0].get("path"), case["primary_path"])
+                self.assertEqual(
+                    owners[0].get("focused_test"), case["focused_test"]
+                )
+
     def test_owner_corpus_accuracy_and_default_output_budgets(self) -> None:
         cases = self.corpus["cases"]
         self.assertEqual(self.corpus["version"], 1)
         self.assertGreaterEqual(len(cases), 10)
-        top_one_matches = 0
 
         for case in cases:
             with self.subTest(case=case["id"]):
                 self.assertLessEqual(len(case["secondary_owners"]), 2)
-                ranked = nav.rank_routes(self.entries, case["query"])
-                ranked_maps = [entry["map_path"] for entry in ranked]
-                self.assertTrue(ranked_maps)
-                self.assertIn(case["primary_owner"], ranked_maps[:3])
-                top_one_matches += ranked_maps[0] == case["primary_owner"]
+                owners = nav.find_owner_routes(self.entries, case["query"])
+                owner_maps = [entry["map_path"] for entry in owners]
+                expected_maps = [case["primary_owner"], *case["secondary_owners"]]
+                self.assertEqual(owner_maps, expected_maps)
 
-                owners = nav.search_routes(self.entries, case["query"])
+                captured = io.StringIO()
+                with redirect_stdout(captured):
+                    code = nav.main(
+                        [
+                            "--repo-root",
+                            str(REPO_ROOT),
+                            "find",
+                            *case["query"].split(),
+                            "--json",
+                        ]
+                    )
+                self.assertEqual(code, 0)
+                cli_owners = json.loads(captured.getvalue())["owners"]
+                self.assertEqual(
+                    [owner["owner_map"] for owner in cli_owners],
+                    expected_maps,
+                )
                 capsules = nav.build_owner_capsules(owners, case["query"])
                 paths: set[str] = set()
                 for capsule in capsules:
@@ -559,23 +971,17 @@ class NavOwnerCorpusTests(unittest.TestCase):
                         nav.MAX_DEFAULT_OUTPUT_BYTES,
                     )
 
-                primary_capsule = nav.build_owner_capsules(
-                    [ranked[0]], case["query"]
-                )[0]
+                primary_capsule = capsules[0]
                 if expected_primary_path := case.get("primary_path"):
-                    self.assertEqual(ranked_maps[0], case["primary_owner"])
                     self.assertEqual(
                         primary_capsule.get("path"), expected_primary_path
                     )
-                if ranked_maps[0] == case["primary_owner"]:
-                    self.assertEqual(
-                        primary_capsule.get("focused_test"), case["focused_test"]
-                    )
+                self.assertEqual(
+                    primary_capsule.get("focused_test"), case["focused_test"]
+                )
                 self.assertNotIn(
                     primary_capsule.get("path"), case["not_first_paths"]
                 )
-
-        self.assertGreaterEqual(top_one_matches, len(cases) - 2)
 
 
 if __name__ == "__main__":

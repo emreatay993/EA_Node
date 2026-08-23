@@ -8,6 +8,7 @@ Use this for edge routing, retained edge layers, Item/List/Tree structure stylin
 - `ea_node_editor/ui_qml/graph_geometry/route_payload.py`
 - `ea_node_editor/ui_qml/graph_scene_payload/normalize.py`
 - `ea_node_editor/ui_qml/components/graph/EdgeLayer.qml`
+- `ea_node_editor/ui_qml/components/graph/EdgeScenegraphLayer.qml`
 - `ea_node_editor/ui_qml/components/graph/EdgeSnapshotCache.js`
 - `ea_node_editor/ui_qml/components/graph/EdgeCanvasLayer.qml`
 - `ea_node_editor/ui_qml/components/graph/EdgeRetainedLayer.qml`
@@ -20,6 +21,7 @@ Use this for edge routing, retained edge layers, Item/List/Tree structure stylin
 - `ea_node_editor/ui_qml/graph_scene_mutation/selection_and_scope_ops.py`
 - `ea_node_editor/ui_qml/components/graph/EdgeMath.js`
 - `tests/test_data_type_ui_projection.py`
+- `tests/graph_track_b/qml_preference_rendering_suite.py`
 
 ## Focused Verification
 - Data-access structure comes from the source port: Item renders one stroke, List two parallel strokes, and Tree three. Empty and disabled edges remain selectable/hittable but render gray/dashed; invalid type remains red and has precedence over disabled styling.
@@ -33,6 +35,7 @@ Use this for edge routing, retained edge layers, Item/List/Tree structure stylin
 - `EdgeCanvasLayer.qml` exposes `canvasStateBridgeRef` from `EdgeLayer.sceneBridge`; inline edge typography and flow-label shared roles depend on that bridge projection.
 
 ```powershell
+.\venv\Scripts\python.exe -m pytest tests/graph_track_b/qml_preference_rendering_suite.py --ignore=venv -q
 .\venv\Scripts\python.exe -m pytest tests/test_graph_output_mode_ui.py tests/test_flow_edge_labels.py tests/test_edge_snapshot_spatial_index.py --ignore=venv -q
 .\venv\Scripts\python.exe -m pytest tests/test_data_tree_ui.py tests/test_graph_surface_input_controls.py -k "port_and_edge_authoring or edge" --ignore=venv -q
 .\venv\Scripts\python.exe -m pytest tests/test_data_type_ui_projection.py -k "type_warning or availability_annotation" --ignore=venv -q

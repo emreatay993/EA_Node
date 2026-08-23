@@ -7,6 +7,12 @@ Use this for Chromium website viewer nodes, web host services, web surface bridg
 - `ea_node_editor/nodes/builtins/web_viewer.py`
 - `ea_node_editor/web_host/`
 - `ea_node_editor/ui_qml/components/web/`
+- `ea_node_editor/ui_qml/components/web/WebPageAddressPopover.qml`
+- `ea_node_editor/ui_qml/components/web/WebPageDetachedWindow.qml`
+- `ea_node_editor/ui_qml/components/web/WebPageHost.qml`
+- `ea_node_editor/ui_qml/components/web/WebPageRetentionStore.qml`
+- `ea_node_editor/ui_qml/components/web/WebPageStatusPane.qml`
+- `ea_node_editor/ui_qml/components/web/WebPageToolbar.qml`
 - `ea_node_editor/ui_qml/graph_scene_payload/`
 - `ea_node_editor/ui/shell/host_presenter.py`
 - `ea_node_editor/ui_qml/components/graph/passive/GraphWebBoardSurface.qml`
@@ -26,7 +32,7 @@ Use this for Chromium website viewer nodes, web host services, web surface bridg
 
 ## Focused Verification
 ```powershell
-.\venv\Scripts\python.exe -m pytest tests/test_web_page_retention_store.py tests/test_web_page_viewer_node.py tests/test_corex_web_host_assets.py tests/test_corex_web_surface_bridge.py --ignore=venv -q
+.\venv\Scripts\python.exe -m pytest tests/test_corex_web_surface_bridge.py tests/test_web_page_retention_store.py tests/test_web_page_viewer_node.py tests/test_corex_web_host_assets.py --ignore=venv -q
 ```
 
 ## Breadcrumbs

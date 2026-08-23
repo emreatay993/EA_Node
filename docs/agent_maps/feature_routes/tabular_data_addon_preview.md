@@ -4,9 +4,9 @@
 Use this for the tabular data add-on, tabular input node, preview provider, sheet/key selector UX, tabular QML surface, durable selected-column/slice hints, tabular-to-plot auto-preview payloads, and dependency-gated availability.
 
 ## Start Here
+- `ea_node_editor/addons/tabular_data/input_node.py`
 - `ea_node_editor/addons/tabular_data/`
 - `ea_node_editor/addons/tabular_data/loader_cache_service.py` — shared parquet-first loader service (see notes)
-- `ea_node_editor/addons/tabular_data/input_node.py`
 - `ea_node_editor/addons/tabular_data/extraction_nodes.py`
 - `ea_node_editor/addons/tabular_data/property_edit_adapter.py`
 - `ea_node_editor/ui/tabular_preview_provider.py`
@@ -14,6 +14,8 @@ Use this for the tabular data add-on, tabular input node, preview provider, shee
 - `ea_node_editor/ui/shell/window_library_inspector.py`
 - `ea_node_editor/ui_qml/tabular_preview_table_model.py`
 - `ea_node_editor/ui_qml/components/graph/tabular/`
+- `ea_node_editor/ui_qml/components/graph/tabular/GraphTabularPreviewSurface.qml`
+- `ea_node_editor/ui_qml/components/graph/tabular/TabularTableViewport.qml`
 - `ea_node_editor/ui_qml/content_fullscreen_bridge.py`
 - `ea_node_editor/ui/shell/host_presenter.py`
 - `scripts/verify_tabular_perf.py` — perf harness (budgets + cold/warm cache runs)
@@ -35,9 +37,10 @@ Use this for the tabular data add-on, tabular input node, preview provider, shee
 
 ## Focused Verification
 ```powershell
+.\venv\Scripts\python.exe -m pytest tests/test_tabular_preview_provider.py --ignore=venv -q
 .\venv\Scripts\python.exe -m pytest tests/test_tabular_input_node.py tests/test_tabular_loaders.py tests/test_tabular_project_managed_data.py tests/test_tabular_runtime_refs.py --ignore=venv -q
 .\venv\Scripts\python.exe -m pytest tests/test_tabular_extraction_nodes.py --ignore=venv -q
-.\venv\Scripts\python.exe -m pytest tests/test_tabular_preview_provider.py tests/test_passive_property_editors.py tests/test_graph_surface_input_controls.py tests/graph_surface/passive_host_interaction_suite.py --ignore=venv -q
+.\venv\Scripts\python.exe -m pytest tests/test_passive_property_editors.py tests/test_graph_surface_input_controls.py tests/graph_surface/passive_host_interaction_suite.py --ignore=venv -q
 ```
 
 ## Breadcrumbs

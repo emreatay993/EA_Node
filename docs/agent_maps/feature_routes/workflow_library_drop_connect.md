@@ -9,6 +9,8 @@ Use this for workflow library actions, drag/drop connect, workflow IO, and custo
 - `ea_node_editor/ui/shell/controllers/workspace_library_controller.py`
 - `ea_node_editor/custom_workflows/`
 - `ea_node_editor/ui_qml/shell_library_bridge.py`
+- `ea_node_editor/ui_qml/components/graph_canvas/GraphCanvasDropPreview.qml`
+- `tests/test_graph_output_mode_ui.py`
 
 ## Notes
 - `.cxwf` is v2 and the global custom-workflow store is v2. Legacy workflows migrate with the same control-edge/node/pin removal and data-access defaults as project graphs; workflows left empty are removed and included in the one sorted migration report.
@@ -20,6 +22,7 @@ Use this for workflow library actions, drag/drop connect, workflow IO, and custo
 
 ## Focused Verification
 ```powershell
+.\venv\Scripts\python.exe -m pytest tests/test_graph_output_mode_ui.py --ignore=venv -q
 .\venv\Scripts\python.exe -m pytest tests/main_window_shell/drop_connect_and_workflow_io.py tests/test_window_library_inspector.py tests/test_workspace_library_controller_unit.py --ignore=venv -q
 .\venv\Scripts\python.exe -m pytest tests/test_dataflow_graph_persistence.py tests/main_window_shell/view_library_inspector.py -k "replaces_occupied_data_input or workflow" --ignore=venv -q
 ```

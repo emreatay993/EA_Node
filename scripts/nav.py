@@ -69,6 +69,8 @@ _QML_QUERY_CONTEXT_WORDS = {
     "ui",
 }
 
+_TEST_QUERY_CONTEXT_WORDS = {"editor", "plot", "runtime"}
+
 _TABLE_PATH_RE = re.compile(r"^\|\s*`(?P<path>[^`]+)`\s*\|")
 _TEST_PATH_RE = re.compile(
     r"(?<![A-Za-z0-9_.-])(tests[\\/][A-Za-z0-9_./\\-]+\.py)"
@@ -121,6 +123,7 @@ def load_source_test_paths(repo_root: Path = REPO_ROOT) -> tuple[list[str], list
 # Matching / scoring
 # --------------------------------------------------------------------------- #
 def _tokens(query: str) -> list[str]:
+    query = re.sub(r"(?<=[a-z0-9])(?=[A-Z])", " ", query)
     return [
         token
         for token in re.findall(r"[a-z0-9]+", query.lower())
@@ -178,6 +181,30 @@ def _score_route(entry: dict[str, Any], tokens: Sequence[str]) -> int:
     return score
 
 
+def _exact_route_match(entry: dict[str, Any], tokens: Sequence[str]) -> bool:
+    identifiers = [
+        *entry.get("aliases", []),
+        entry.get("title", ""),
+        Path(str(entry.get("map_path", ""))).stem,
+        str(entry.get("route_key", "")).split(":")[-1],
+    ]
+    return any(_tokens(str(value)) == list(tokens) for value in identifiers)
+
+
+def _route_rank_fields(
+    entry: dict[str, Any], tokens: Sequence[str]
+) -> tuple[int, int, int, int]:
+    haystack_tokens = set(_tokens(_route_haystack(entry)))
+    return (
+        int(_exact_route_match(entry, tokens)),
+        int(all(token in haystack_tokens for token in tokens)),
+        -{"feature_route": 0, "subsystem": 1, "testing": 2}.get(
+            str(entry.get("kind")), 3
+        ),
+        _score_route(entry, tokens),
+    )
+
+
 def rank_routes(
     entries: Sequence[dict[str, Any]], query: str, *, require_all: bool = True
 ) -> list[dict[str, Any]]:
@@ -198,7 +225,10 @@ def rank_routes(
         entry
         for entry, _score in sorted(
             scored,
-            key=lambda item: (-item[1], str(item[0].get("route_key", ""))),
+            key=lambda item: (
+                *(-value for value in _route_rank_fields(item[0], tokens)),
+                str(item[0].get("route_key", "")),
+            ),
         )
     ]
 
@@ -255,8 +285,8 @@ def search_routes(
     if not ranked or not ties_only:
         return ranked[:limit]
     tokens = _tokens(query)
-    top_score = _score_route(ranked[0], tokens)
-    return [entry for entry in ranked if _score_route(entry, tokens) == top_score][
+    top_rank = _route_rank_fields(ranked[0], tokens)
+    return [entry for entry in ranked if _route_rank_fields(entry, tokens) == top_rank][
         :limit
     ]
 
@@ -314,62 +344,147 @@ def _build_owner_index(route_entries: Sequence[dict[str, Any]]) -> dict[str, lis
 def _same_qml_path(candidate: str, qml_path: str) -> bool:
     candidate = candidate.replace("\\", "/").strip().lstrip("./")
     qml_path = qml_path.replace("\\", "/").strip().lstrip("./")
-    return candidate == qml_path or (
-        "/" not in candidate and qml_path.endswith(f"/{candidate}")
-    )
+    return candidate == qml_path
 
 
-def search_qml_owner_routes(
+def _is_exact_qml_query(entry: dict[str, Any], query: str) -> bool:
+    normalized_query = query.replace("\\", "/").strip().lstrip("./").casefold()
+    values = [
+        entry.get("title", ""),
+        *entry.get("qml_candidates", []),
+        *entry.get("source_candidates", []),
+    ]
+    for value in values:
+        normalized = str(value).replace("\\", "/").strip().lstrip("./").casefold()
+        if normalized_query in {
+            normalized,
+            Path(normalized).name,
+            Path(normalized).stem,
+        }:
+            return True
+    return False
+
+
+def find_owner_routes(
     entries: Sequence[dict[str, Any]], query: str, limit: int = 5
 ) -> list[dict[str, Any]]:
-    tokens = [
+    tokens = _tokens(query)
+    qml_tokens = [
         token
-        for token in _tokens(query)
+        for token in tokens
         if token not in _QML_QUERY_CONTEXT_WORDS
     ]
     if not tokens:
         return []
 
-    scored_components: list[tuple[dict[str, Any], int, int]] = []
-    for entry in entries:
-        if str(entry.get("kind")) != "qml_component":
-            continue
-        haystack = _route_haystack(entry)
-        matched = sum(token in haystack for token in tokens)
-        if matched:
-            scored_components.append((entry, matched, _score_route(entry, tokens)))
-    if not scored_components:
-        return []
-    scored_components.sort(
-        key=lambda item: (
-            -item[1],
-            -item[2],
-            str(item[0].get("route_key", "")),
-        )
-    )
-    best_matched, best_score = scored_components[0][1:]
-    if best_matched < min(2, len(tokens)):
-        return []
-    best_components = [
-        entry
-        for entry, matched, score in scored_components
-        if (matched, score) == (best_matched, best_score)
-    ]
-    if len(tokens) == 1 and best_score <= 1 and len(best_components) > 1:
-        return []
-
     map_entries = [entry for entry in entries if entry.get("kind") != "qml_component"]
-    owners: list[dict[str, Any]] = []
-    seen_maps: set[str] = set()
-    kind_order = {"feature_route": 0, "subsystem": 1, "testing": 2}
+    candidates: dict[str, dict[str, Any]] = {}
+
+    def add_candidate(
+        entry: dict[str, Any],
+        origin: str,
+        *,
+        evidence_path: str = "",
+        exact_owner: bool = False,
+        exact_qml: bool = False,
+        exact_alias: bool = False,
+    ) -> None:
+        map_path = str(entry.get("map_path", ""))
+        normalized_map = map_path.replace("\\", "/").casefold()
+        if not normalized_map:
+            return
+        candidate = candidates.setdefault(
+            normalized_map,
+            {
+                "entry": entry,
+                "origins": set(),
+                "evidence_paths": [],
+                "exact_owner": False,
+                "exact_start": False,
+                "exact_qml": False,
+                "exact_alias": False,
+            },
+        )
+        candidate["origins"].add(origin)
+        if evidence_path and evidence_path not in candidate["evidence_paths"]:
+            candidate["evidence_paths"].append(evidence_path)
+        candidate["exact_owner"] |= exact_owner
+        candidate["exact_qml"] |= exact_qml
+        candidate["exact_alias"] |= exact_alias
+        candidate["exact_start"] |= exact_owner and any(
+            _same_qml_path(str(value), evidence_path)
+            for value in entry.get("start_here", [])
+        )
+
+    exact_matches = [
+        entry for entry in map_entries if _exact_route_match(entry, tokens)
+    ]
+    exact_alias_matches = [
+        entry
+        for entry in map_entries
+        if any(_tokens(str(alias)) == tokens for alias in entry.get("aliases", []))
+    ]
+    for entry in map_entries:
+        haystack_tokens = set(_tokens(_route_haystack(entry)))
+        exact_match = entry in exact_matches
+        if not exact_match and not all(token in haystack_tokens for token in tokens):
+            continue
+        score = _score_route(entry, tokens)
+        if not exact_match and score <= 0:
+            continue
+        origin = "exact" if exact_match else "direct"
+        add_candidate(
+            entry,
+            origin,
+            exact_alias=entry in exact_alias_matches,
+        )
+
+    qml_entries = [
+        entry for entry in entries if str(entry.get("kind")) == "qml_component"
+    ]
+    exact_components = [
+        entry for entry in qml_entries if _is_exact_qml_query(entry, query)
+    ]
+    scored_components: list[tuple[dict[str, Any], int, int]] = []
+    if qml_tokens and not exact_components:
+        for entry in qml_entries:
+            haystack = _route_haystack(entry)
+            matched = sum(token in haystack for token in qml_tokens)
+            if matched:
+                scored_components.append(
+                    (entry, matched, _score_route(entry, qml_tokens))
+                )
+    best_components = sorted(
+        exact_components,
+        key=lambda entry: str(entry.get("route_key", "")),
+    )
+    if scored_components:
+        scored_components.sort(
+            key=lambda item: (
+                -item[1],
+                -item[2],
+                str(item[0].get("route_key", "")),
+            )
+        )
+        best_matched, best_score = scored_components[0][1:]
+        if best_matched >= min(2, len(qml_tokens)):
+            best_components = [
+                entry
+                for entry, matched, score in scored_components
+                if (matched, score) == (best_matched, best_score)
+            ]
+            if len(qml_tokens) == 1 and best_score <= 1 and len(best_components) > 1:
+                best_components = []
+
     for component in best_components:
+        exact_qml = component in exact_components
         qml_paths = [str(path) for path in component.get("qml_candidates", [])]
         if not qml_paths:
             qml_paths = [str(path) for path in component.get("source_candidates", [])]
         if not qml_paths:
             continue
         qml_path = qml_paths[0]
-        matching_owners = [
+        explicit_owners = [
             entry
             for entry in map_entries
             if any(
@@ -378,33 +493,96 @@ def search_qml_owner_routes(
                 for candidate in entry.get(field, [])
             )
         ]
-        if not matching_owners:
-            matching_owners = [
+        if explicit_owners:
+            for owner in explicit_owners:
+                add_candidate(
+                    owner,
+                    "qml",
+                    evidence_path=qml_path,
+                    exact_owner=True,
+                    exact_qml=exact_qml,
+                )
+        else:
+            inferred_owners = [
                 entry
                 for entry in map_entries
                 if entry.get("map_path") == component.get("map_path")
             ]
-        matching_owners.sort(
-            key=lambda entry: (
-                not any(
-                    _same_qml_path(str(candidate), qml_path)
-                    for candidate in entry.get("start_here", [])
-                ),
-                kind_order.get(str(entry.get("kind")), 3),
-                -_score_route(entry, tokens),
-                str(entry.get("route_key", "")),
-            )
+            for owner in inferred_owners:
+                add_candidate(
+                    owner,
+                    "qml_inferred",
+                    evidence_path=qml_path,
+                    exact_qml=exact_qml,
+                )
+
+    if not candidates:
+        return []
+
+    def rank(
+        candidate: dict[str, Any],
+    ) -> tuple[int, int, int, int, int, int, int, int, int, int]:
+        entry = candidate["entry"]
+        route_rank = _route_rank_fields(entry, tokens)
+        return (
+            int(
+                candidate["exact_qml"]
+                and candidate["exact_owner"]
+                and entry.get("kind") == "feature_route"
+            ),
+            int(candidate["exact_alias"]),
+            int(candidate["exact_qml"]),
+            int(candidate["exact_qml"] and candidate["exact_owner"]),
+            route_rank[0],
+            int(not candidate["exact_qml"] and candidate["exact_owner"]),
+            int(candidate["exact_start"]),
+            route_rank[1],
+            route_rank[2],
+            route_rank[3],
         )
-        for owner in matching_owners:
-            map_path = str(owner.get("map_path", ""))
-            if not map_path or map_path in seen_maps:
-                continue
-            routed_owner = dict(owner)
-            routed_owner["start_here"] = [qml_path, *owner.get("start_here", [])]
-            owners.append(routed_owner)
-            seen_maps.add(map_path)
-            if len(owners) >= limit:
-                return owners
+
+    ranked = sorted(
+        candidates.values(),
+        key=lambda candidate: (
+            *(-value for value in rank(candidate)),
+            str(candidate["entry"].get("route_key", "")),
+        ),
+    )
+    exact_candidates = [
+        candidate for candidate in ranked if "exact" in candidate["origins"]
+    ]
+    if ranked[0]["exact_qml"]:
+        top_rank = rank(ranked[0])
+        retained = [candidate for candidate in ranked if rank(candidate) == top_rank]
+    elif exact_candidates:
+        retained = [*exact_candidates]
+        if len(exact_candidates) == 1:
+            evidenced_secondaries = [
+                candidate
+                for candidate in ranked
+                if candidate not in exact_candidates
+                and {"direct", "qml"}.issubset(candidate["origins"])
+            ]
+            if evidenced_secondaries and (
+                len(evidenced_secondaries) == 1
+                or rank(evidenced_secondaries[0])
+                != rank(evidenced_secondaries[1])
+            ):
+                retained.append(evidenced_secondaries[0])
+    else:
+        top_rank = rank(ranked[0])
+        retained = [candidate for candidate in ranked if rank(candidate) == top_rank]
+
+    owners: list[dict[str, Any]] = []
+    for candidate in retained[: min(limit, 3)]:
+        owner = dict(candidate["entry"])
+        if candidate["exact_qml"] and candidate["evidence_paths"]:
+            owner["_nav_evidence_paths"] = candidate["evidence_paths"]
+        owner["_nav_direct_match"] = bool(
+            candidate["origins"] & {"exact", "direct"}
+        )
+        owner["_nav_exact_qml_match"] = bool(candidate["exact_qml"])
+        owners.append(owner)
     return owners
 
 
@@ -583,19 +761,38 @@ def _looks_like_path(value: str) -> bool:
     )
 
 
-def _best_path(values: Sequence[str], tokens: Sequence[str], *, tests: bool) -> str:
+def _best_path(
+    values: Sequence[str],
+    tokens: Sequence[str],
+    *,
+    tests: bool,
+    positive_only: bool = False,
+    minimum_affinity: int = 1,
+) -> str:
+    def affinity(value: str) -> int:
+        normalized = value.lower().replace("\\", "/").rstrip("/")
+        candidate = Path(normalized)
+        haystack = candidate.name if candidate.suffix else normalized
+        return sum(token in haystack for token in tokens)
+
     candidates = [
         str(value)
         for value in values
         if _looks_like_path(str(value))
         and str(value).replace("\\", "/").startswith("tests/") is tests
+        and (not tests or str(value).replace("\\", "/").endswith(".py"))
+        and (
+            not positive_only
+            or affinity(str(value)) >= minimum_affinity
+        )
     ]
     if not candidates:
         return ""
     return max(
         enumerate(candidates),
         key=lambda item: (
-            sum(token in item[1].lower().replace("\\", "/") for token in tokens),
+            affinity(item[1]),
+            int(bool(Path(item[1].rstrip("/\\")).suffix)),
             -item[0],
         ),
     )[1]
@@ -625,22 +822,57 @@ def build_owner_capsules(
 
     def candidate_details(entry: dict[str, Any]) -> tuple[str, str, str]:
         start_here = [str(value) for value in entry.get("start_here", [])]
-        source_path = _best_path(start_here, tokens, tests=False)
-        focused_test = _best_path(start_here, tokens, tests=True)
+        source_path = _best_path(
+            [str(value) for value in entry.get("_nav_evidence_paths", [])],
+            tokens,
+            tests=False,
+        )
+        if not source_path:
+            source_path = _best_path(
+                start_here,
+                tokens,
+                tests=False,
+                positive_only=True,
+            )
+        if not source_path:
+            source_path = _best_path(start_here, tokens, tests=False)
         verification_commands = [
             str(value) for value in entry.get("focused_verification", [])
         ]
+        verification_tests = _verification_test_paths(entry)
+        exact_qml = bool(entry.get("_nav_exact_qml_match"))
+        test_tokens = [
+            token for token in tokens if token not in _TEST_QUERY_CONTEXT_WORDS
+        ]
+        focused_test = _best_path(
+            start_here,
+            test_tokens,
+            tests=True,
+            positive_only=True,
+        )
         if not focused_test:
             focused_test = _best_path(
-                _verification_test_paths(entry),
-                tokens,
+                verification_tests,
+                test_tokens,
+                tests=True,
+                positive_only=True,
+            )
+        if (
+            not focused_test
+            and not exact_qml
+            and entry.get("_nav_direct_match", True)
+        ):
+            focused_test = _best_path(
+                verification_tests,
+                (),
                 tests=True,
             )
-        if not focused_test:
+        if not focused_test and not exact_qml:
             focused_test = _best_path(
                 [str(value) for value in entry.get("test_candidates", [])],
-                tokens,
+                test_tokens,
                 tests=True,
+                positive_only=True,
             )
         if focused_test:
             verification = next(
@@ -653,11 +885,7 @@ def build_owner_capsules(
                 "--ignore=venv -q",
             )
         else:
-            verification = (
-                verification_commands[0][:MAX_VERIFICATION_CHARS]
-                if verification_commands
-                else ""
-            )
+            verification = ""
         return source_path, focused_test, verification
 
     primary = entries[0]
@@ -751,7 +979,7 @@ def _emit_owner_capsules(
             separators=(",", ":"),
         )
     else:
-        heading = "Tied owners:" if len(capsules) > 1 else "Likely owner:"
+        heading = "Likely owners:" if len(capsules) > 1 else "Likely owner:"
         output = heading + "\n" + "\n\n".join(
             _format_owner_capsule(capsule) for capsule in capsules
         )
@@ -810,24 +1038,7 @@ def cmd_line(args: argparse.Namespace, repo_root: Path) -> int:
 def cmd_find(args: argparse.Namespace, repo_root: Path) -> int:
     route_entries = load_route_entries(repo_root)
     if not args.expand:
-        query_tokens = _tokens(args.query)
-        routes = sorted(
-            (
-                entry
-                for entry in route_entries
-                if query_tokens
-                and entry.get("kind") != "qml_component"
-                and any(
-                    _tokens(str(alias)) == query_tokens
-                    for alias in entry.get("aliases", [])
-                )
-            ),
-            key=lambda entry: str(entry.get("route_key", "")),
-        )[: args.limit]
-        if not routes:
-            routes = search_qml_owner_routes(route_entries, args.query, args.limit)
-        if not routes:
-            routes = search_routes(route_entries, args.query, args.limit)
+        routes = find_owner_routes(route_entries, args.query, args.limit)
         _emit_owner_capsules(
             args.query, build_owner_capsules(routes, args.query), args.json
         )

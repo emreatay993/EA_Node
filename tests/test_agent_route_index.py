@@ -8,6 +8,39 @@ from contextlib import redirect_stdout
 from pathlib import Path
 
 from scripts import generate_agent_route_index as indexer
+from scripts import nav
+
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
+
+# This route intentionally indexes retained proof documents rather than live code.
+DOCS_ONLY_ROUTE_EXEMPTIONS = {
+    "docs/agent_maps/COVERAGE.md": "coverage matrix navigation",
+    "docs/agent_maps/INDEX.md": "agent-map atlas navigation",
+    "docs/agent_maps/MAINTENANCE.md": "agent-map maintenance guidance",
+    "docs/agent_maps/feature_routes/work_packet_docs_status_qa.md": (
+        "retained spec and QA navigation"
+    ),
+}
+
+# Both maps deliberately publish the same bounded-preview task phrase.
+SEMANTIC_ALIAS_TIES = {
+    "bounded rich preview": {
+        "docs/agent_maps/feature_routes/graph_scene_payload_and_projection.md",
+        "docs/agent_maps/feature_routes/node_execution_visualization.md",
+    },
+}
+
+
+def _exact_repo_path(value: object) -> str:
+    path = str(value).replace("\\", "/").rstrip("/")
+    if not path.startswith(
+        ("ea_node_editor/", "tests/", "docs/", "scripts/", "examples/", "web/")
+    ):
+        return ""
+    if any(marker in path for marker in ("*", "<", ">", "::", " ")):
+        return ""
+    return path
 
 
 def _write(path: Path, text: str) -> None:
@@ -16,6 +49,78 @@ def _write(path: Path, text: str) -> None:
 
 
 class AgentRouteIndexTests(unittest.TestCase):
+    def test_live_repository_map_routes_are_complete_and_routable(self) -> None:
+        index_data = indexer.build_index_data(REPO_ROOT)
+        entries = [indexer.route_entry_to_dict(entry) for entry in index_data.entries]
+        map_entries = [entry for entry in entries if entry["kind"] != "qml_component"]
+
+        self.assertEqual(len(map_entries), 68)
+        self.assertEqual(len({entry["route_key"] for entry in map_entries}), 68)
+        self.assertEqual(len({entry["map_path"] for entry in map_entries}), 68)
+        self.assertEqual(len({entry["title"] for entry in map_entries}), 68)
+
+        for entry in map_entries:
+            with self.subTest(route=entry["route_key"]):
+                map_path = entry["map_path"]
+                self.assertTrue((REPO_ROOT / map_path).is_file())
+
+                canonical = nav.find_owner_routes(entries, entry["title"])
+                self.assertTrue(canonical)
+                self.assertEqual(canonical[0]["map_path"], map_path)
+
+                for alias in entry["aliases"]:
+                    owners = nav.find_owner_routes(entries, alias)
+                    self.assertTrue(owners)
+                    owner_paths = [owner["map_path"] for owner in owners]
+                    if tied_maps := SEMANTIC_ALIAS_TIES.get(alias):
+                        self.assertIn(owner_paths[0], tied_maps)
+                        self.assertTrue(tied_maps.issubset(owner_paths))
+                    else:
+                        self.assertEqual(owner_paths[0], map_path)
+
+                positive_paths = {
+                    path
+                    for field in (
+                        "source_candidates",
+                        "test_candidates",
+                        "qml_candidates",
+                        "start_here",
+                    )
+                    for value in entry[field]
+                    if (path := _exact_repo_path(value))
+                }
+                for path in positive_paths:
+                    self.assertTrue((REPO_ROOT / path).exists(), path)
+
+                for avoided in entry["do_not_start_here"]:
+                    self.assertNotIn(avoided.replace("\\", "/").rstrip("/"), positive_paths)
+
+                if map_path in DOCS_ONLY_ROUTE_EXEMPTIONS:
+                    continue
+
+                if entry["kind"] != "testing":
+                    start_sources = [
+                        path
+                        for value in entry["start_here"]
+                        if (path := _exact_repo_path(value))
+                        and path.startswith(
+                            ("ea_node_editor/", "scripts/", "examples/", "web/")
+                        )
+                    ]
+                    self.assertTrue(start_sources)
+                    self.assertTrue(
+                        (REPO_ROOT / start_sources[0]).is_file(), start_sources[0]
+                    )
+
+                capsule = nav.build_owner_capsules(
+                    [{**entry, "_nav_direct_match": True}], entry["title"]
+                )[0]
+                focused_test = capsule.get("focused_test")
+                self.assertTrue(focused_test, map_path)
+                self.assertTrue((REPO_ROOT / focused_test).is_file(), focused_test)
+                self.assertIn(focused_test, capsule.get("verification", ""))
+                self.assertTrue(entry["focused_verification"], map_path)
+
     def test_build_index_links_coverage_maps_sources_tests_and_qml(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             repo_root = Path(temp_dir)

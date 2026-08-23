@@ -5,6 +5,13 @@ Step-by-step recipes for the three most common graph-canvas feature classes afte
 
 These feature classes require **zero edits** to: `GraphCanvas.qml`, `GraphNodeHost.qml`, `GraphCanvasNodeDelegate.qml`, `graph_canvas_bridge.py`, `graph_scene_bridge.py`, `shell_context_bootstrap.py`.
 
+## Start Here
+- `ea_node_editor/ui_qml/components/graph_canvas/GraphCanvasPreferenceFacts.qml`
+- `tests/test_graph_canvas_bridge_surface_snapshot.py`
+- `tests/test_qml_drill_budget.py`
+- `tests/test_graph_canvas_command_ops_modules.py`
+- `tests/test_bridge_mixin_meta_registration.py`
+
 ## Recipe A — New payload field for a node kind
 
 Files (2; +1 one-time registration if the kind has no contributor yet):
@@ -54,6 +61,11 @@ ea_node_editor/ui_qml/components/graph/GraphNodeChromeBackground.qml
 - `tests/test_qml_drill_budget.py` — two-way ratchet on pass-through drilling (`canvasItem.` in `GraphNodeHost.qml`, `rootBindings.` in `GraphCanvas.qml` pinned at 0).
 - `tests/test_graph_canvas_command_ops_modules.py` — every command-mixin slot must register on the composed bridge; no cross-domain name collisions.
 - `tests/test_bridge_mixin_meta_registration.py` — pins the PyQt6 mixin meta-object guarantees the bridge packages rely on.
+
+## Focused Verification
+```powershell
+.\venv\Scripts\python.exe -m pytest tests/test_graph_canvas_bridge_surface_snapshot.py tests/test_qml_drill_budget.py tests/test_graph_canvas_command_ops_modules.py tests/test_bridge_mixin_meta_registration.py --ignore=venv -q
+```
 
 ## Breadcrumbs
 - [Graph Scene Payload And Projection](graph_scene_payload_and_projection.md)

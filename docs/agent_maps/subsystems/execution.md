@@ -112,9 +112,10 @@ Use this for runtime snapshot assembly, ordered data-edge DTOs, dependency sched
 
 ## Focused Verification
 ```powershell
+.\venv\Scripts\python.exe -m pytest tests/test_handle_registry_leases.py --ignore=venv -q
 .\venv\Scripts\python.exe -m pytest tests/test_execution_type_enforcement.py --ignore=venv -q
 .\venv\Scripts\python.exe -m pytest tests/test_execution_handle_registry.py tests/test_typed_runtime_values.py --ignore=venv -q
-.\venv\Scripts\python.exe -m pytest tests/test_handle_registry_leases.py tests/test_execution_handle_registry.py tests/test_execution_worker.py tests/test_execution_viewer_service.py tests/test_engineering_import_nodes.py tests/test_dpf_runtime_service.py --ignore=venv -q
+.\venv\Scripts\python.exe -m pytest tests/test_execution_handle_registry.py tests/test_execution_worker.py tests/test_execution_viewer_service.py tests/test_engineering_import_nodes.py tests/test_dpf_runtime_service.py --ignore=venv -q
 .\venv\Scripts\python.exe -m pytest tests/test_execution_protocol.py tests/test_execution_viewer_protocol.py --ignore=venv -q
 .\venv\Scripts\python.exe -m pytest tests/test_execution_worker.py tests/test_execution_client.py tests/test_execution_artifact_refs.py tests/test_execution_viewer_protocol.py --ignore=venv -q
 .\venv\Scripts\python.exe -m pytest tests/test_run_controller_unit.py tests/test_execution_worker.py tests/test_execution_client.py --ignore=venv -q

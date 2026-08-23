@@ -5,13 +5,13 @@
     "ea_node_editor/ui_qml"
   ],
   "summary": {
-    "qml_files": 168,
+    "qml_files": 169,
     "repeater_constructs": 96,
     "loader_constructs": 21,
-    "signal_handlers": 858,
+    "signal_handlers": 861,
     "connections": 46,
-    "property_bindings": 7480,
-    "local_component_refs": 266
+    "property_bindings": 7523,
+    "local_component_refs": 268
   },
   "entries": [
     {
@@ -124355,6 +124355,362 @@
       ]
     },
     {
+      "path": "ea_node_editor/ui_qml/components/shell/PythonScriptGuidePane.qml",
+      "component_name": "PythonScriptGuidePane",
+      "aliases": [
+        "PythonScriptGuidePane",
+        "PythonScriptGuidePane.qml",
+        "ea_node_editor/ui_qml/components/shell/PythonScriptGuidePane.qml",
+        "ea_node_editor\\ui_qml\\components\\shell\\PythonScriptGuidePane.qml"
+      ],
+      "root_component": "Rectangle",
+      "imports": [
+        "QtQuick 2.15",
+        "QtQuick.Controls 2.15",
+        "QtQuick.Layouts 1.15"
+      ],
+      "ids": [
+        {
+          "name": "root"
+        },
+        {
+          "name": "guideScroll"
+        },
+        {
+          "name": "guideText"
+        }
+      ],
+      "object_names": [
+        {
+          "name": "pythonScriptDecoratorGuidePane"
+        },
+        {
+          "name": "pythonScriptDecoratorGuideCloseButton"
+        },
+        {
+          "name": "pythonScriptDecoratorGuideScrollView"
+        },
+        {
+          "name": "pythonScriptDecoratorGuideText"
+        }
+      ],
+      "properties": [
+        {
+          "kind": "var",
+          "name": "themeBridgeRef"
+        },
+        {
+          "kind": "var",
+          "name": "graphCanvasStateBridgeRef"
+        },
+        {
+          "kind": "var",
+          "name": "uiIconsRef"
+        },
+        {
+          "kind": "var",
+          "name": "themePalette"
+        },
+        {
+          "kind": "string",
+          "name": "guideHtml"
+        }
+      ],
+      "signals": [
+        {
+          "name": "closeRequested"
+        }
+      ],
+      "functions": [
+        {
+          "name": "_color"
+        },
+        {
+          "name": "_buildGuideHtml"
+        }
+      ],
+      "instantiated_components": [
+        {
+          "name": "ColumnLayout"
+        },
+        {
+          "name": "RowLayout"
+        },
+        {
+          "name": "Text"
+        },
+        {
+          "name": "ShellButton"
+        },
+        {
+          "name": "ScrollView"
+        },
+        {
+          "name": "TextArea"
+        }
+      ],
+      "dynamic_refs": [],
+      "signal_handlers": [
+        {
+          "kind": "handler",
+          "name": "onClicked"
+        }
+      ],
+      "connections": [],
+      "property_bindings": [
+        {
+          "kind": "binding",
+          "name": "radius"
+        },
+        {
+          "kind": "binding",
+          "name": "color",
+          "targets": [
+            "root.themePalette.panel_bg"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "border.width"
+        },
+        {
+          "kind": "binding",
+          "name": "border.color",
+          "targets": [
+            "root.themePalette.border"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "anchors.fill",
+          "targets": [
+            "parent"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "spacing"
+        },
+        {
+          "kind": "binding",
+          "name": "Layout.fillWidth"
+        },
+        {
+          "kind": "binding",
+          "name": "Layout.preferredHeight"
+        },
+        {
+          "kind": "binding",
+          "name": "color",
+          "targets": [
+            "root.themePalette.inspector_section_header_bg"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "anchors.leftMargin"
+        },
+        {
+          "kind": "binding",
+          "name": "anchors.rightMargin"
+        },
+        {
+          "kind": "binding",
+          "name": "text"
+        },
+        {
+          "kind": "binding",
+          "name": "color",
+          "targets": [
+            "root.themePalette.panel_title_fg"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "font.pixelSize"
+        },
+        {
+          "kind": "binding",
+          "name": "font.bold"
+        },
+        {
+          "kind": "binding",
+          "name": "elide",
+          "targets": [
+            "Text.ElideRight"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "themeBridgeRef",
+          "targets": [
+            "root.themeBridgeRef"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "graphCanvasStateBridgeRef",
+          "targets": [
+            "root.graphCanvasStateBridgeRef"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "uiIconsRef",
+          "targets": [
+            "root.uiIconsRef"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "tooltipText"
+        },
+        {
+          "kind": "binding",
+          "name": "Accessible.name"
+        },
+        {
+          "kind": "binding",
+          "name": "Layout.fillHeight"
+        },
+        {
+          "kind": "binding",
+          "name": "clip"
+        },
+        {
+          "kind": "binding",
+          "name": "width",
+          "targets": [
+            "guideScroll.availableWidth"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "readOnly"
+        },
+        {
+          "kind": "binding",
+          "name": "selectByMouse"
+        },
+        {
+          "kind": "binding",
+          "name": "wrapMode",
+          "targets": [
+            "TextArea.WrapAtWordBoundaryOrAnywhere"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "textFormat",
+          "targets": [
+            "TextEdit.RichText"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "text",
+          "targets": [
+            "root.guideHtml"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "color",
+          "targets": [
+            "root.themePalette.app_fg"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "leftPadding"
+        },
+        {
+          "kind": "binding",
+          "name": "rightPadding"
+        },
+        {
+          "kind": "binding",
+          "name": "topPadding"
+        },
+        {
+          "kind": "binding",
+          "name": "bottomPadding"
+        },
+        {
+          "kind": "binding",
+          "name": "background",
+          "targets": [
+            "Rectangle"
+          ]
+        }
+      ],
+      "local_component_refs": [
+        {
+          "kind": "localComponent",
+          "name": "ShellButton",
+          "detail": "ea_node_editor/ui_qml/components/shell/ShellButton.qml"
+        }
+      ],
+      "symbol_anchors": [
+        {
+          "anchor": "PythonScriptGuidePanePropertyThemeBridgeRef",
+          "kind": "property",
+          "name": "themeBridgeRef",
+          "detail": "var"
+        },
+        {
+          "anchor": "PythonScriptGuidePanePropertyGraphCanvasStateBridgeRef",
+          "kind": "property",
+          "name": "graphCanvasStateBridgeRef",
+          "detail": "var"
+        },
+        {
+          "anchor": "PythonScriptGuidePanePropertyUiIconsRef",
+          "kind": "property",
+          "name": "uiIconsRef",
+          "detail": "var"
+        },
+        {
+          "anchor": "PythonScriptGuidePanePropertyThemePalette",
+          "kind": "property",
+          "name": "themePalette",
+          "detail": "var"
+        },
+        {
+          "anchor": "PythonScriptGuidePanePropertyGuideHtml",
+          "kind": "property",
+          "name": "guideHtml",
+          "detail": "string"
+        },
+        {
+          "anchor": "PythonScriptGuidePaneSignalCloseRequested",
+          "kind": "signal",
+          "name": "closeRequested"
+        },
+        {
+          "anchor": "PythonScriptGuidePaneFunctionColor",
+          "kind": "function",
+          "name": "_color"
+        },
+        {
+          "anchor": "PythonScriptGuidePaneFunctionBuildGuideHtml",
+          "kind": "function",
+          "name": "_buildGuideHtml"
+        },
+        {
+          "anchor": "PythonScriptGuidePaneHandlerOnClicked",
+          "kind": "handler",
+          "name": "onClicked"
+        },
+        {
+          "anchor": "PythonScriptGuidePaneLocalComponentShellButton",
+          "kind": "localComponent",
+          "name": "ShellButton",
+          "detail": "ea_node_editor/ui_qml/components/shell/ShellButton.qml"
+        }
+      ]
+    },
+    {
       "path": "ea_node_editor/ui_qml/components/shell/ScriptCodeEditorPane.qml",
       "component_name": "ScriptCodeEditorPane",
       "aliases": [
@@ -124393,6 +124749,9 @@
         },
         {
           "name": "scriptEditorArea"
+        },
+        {
+          "name": "pythonScriptGuideButton"
         }
       ],
       "properties": [
@@ -124417,6 +124776,14 @@
           "name": "uiIconsRef"
         },
         {
+          "kind": "bool",
+          "name": "guideButtonVisible"
+        },
+        {
+          "kind": "bool",
+          "name": "guideButtonSelected"
+        },
+        {
           "kind": "var",
           "name": "themePalette"
         },
@@ -124425,7 +124792,11 @@
           "name": "editorAvailable"
         }
       ],
-      "signals": [],
+      "signals": [
+        {
+          "name": "guideRequested"
+        }
+      ],
       "functions": [
         {
           "name": "updateCursorMetrics"
@@ -124665,6 +125036,13 @@
         },
         {
           "kind": "binding",
+          "name": "visible",
+          "targets": [
+            "root.guideButtonVisible"
+          ]
+        },
+        {
+          "kind": "binding",
           "name": "themeBridgeRef",
           "targets": [
             "root.themeBridgeRef"
@@ -124687,6 +125065,27 @@
         {
           "kind": "binding",
           "name": "text"
+        },
+        {
+          "kind": "binding",
+          "name": "selectedStyle",
+          "targets": [
+            "root.guideButtonSelected"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "tooltipText",
+          "targets": [
+            "root.guideButtonSelected"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "Accessible.name",
+          "targets": [
+            "root.guideButtonSelected"
+          ]
         },
         {
           "kind": "binding",
@@ -124736,6 +125135,18 @@
           "detail": "var"
         },
         {
+          "anchor": "ScriptCodeEditorPanePropertyGuideButtonVisible",
+          "kind": "property",
+          "name": "guideButtonVisible",
+          "detail": "bool"
+        },
+        {
+          "anchor": "ScriptCodeEditorPanePropertyGuideButtonSelected",
+          "kind": "property",
+          "name": "guideButtonSelected",
+          "detail": "bool"
+        },
+        {
           "anchor": "ScriptCodeEditorPanePropertyThemePalette",
           "kind": "property",
           "name": "themePalette",
@@ -124746,6 +125157,11 @@
           "kind": "property",
           "name": "editorAvailable",
           "detail": "bool"
+        },
+        {
+          "anchor": "ScriptCodeEditorPaneSignalGuideRequested",
+          "kind": "signal",
+          "name": "guideRequested"
         },
         {
           "anchor": "ScriptCodeEditorPaneFunctionUpdateCursorMetrics",
@@ -138682,7 +139098,13 @@
           "name": "webEditorHost"
         },
         {
+          "name": "scriptEditorWorkspace"
+        },
+        {
           "name": "scriptEditorPane"
+        },
+        {
+          "name": "pythonScriptGuidePane"
         },
         {
           "name": "webPageBorrowedViewport"
@@ -138891,7 +139313,13 @@
           "name": "contentFullscreenWebEditorHost"
         },
         {
+          "name": "contentFullscreenScriptEditorWorkspace"
+        },
+        {
           "name": "contentFullscreenScriptEditorPane"
+        },
+        {
+          "name": "contentFullscreenPythonScriptGuidePane"
         },
         {
           "name": "contentFullscreenBorrowedWebPageViewport"
@@ -138934,6 +139362,10 @@
         {
           "kind": "string",
           "name": "contentKind"
+        },
+        {
+          "kind": "bool",
+          "name": "scriptGuideVisible"
         },
         {
           "kind": "string",
@@ -139570,6 +140002,9 @@
           "name": "ScriptCodeEditorPane"
         },
         {
+          "name": "PythonScriptGuidePane"
+        },
+        {
           "name": "WebComponents.WebPageHost"
         },
         {
@@ -139743,6 +140178,14 @@
         {
           "kind": "handler",
           "name": "onClosePreviewExportResult"
+        },
+        {
+          "kind": "handler",
+          "name": "onGuideRequested"
+        },
+        {
+          "kind": "handler",
+          "name": "onCloseRequested"
         },
         {
           "kind": "handler",
@@ -140808,6 +141251,33 @@
         },
         {
           "kind": "binding",
+          "name": "guideButtonVisible"
+        },
+        {
+          "kind": "binding",
+          "name": "guideButtonSelected",
+          "targets": [
+            "root.scriptGuideVisible"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "visible",
+          "targets": [
+            "root.scriptGuideVisible"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "Layout.preferredWidth",
+          "targets": [
+            "Math.max",
+            "Math.min",
+            "scriptEditorWorkspace.width"
+          ]
+        },
+        {
+          "kind": "binding",
           "name": "visible",
           "targets": [
             "root._usesBorrowedWebEngine",
@@ -140878,6 +141348,11 @@
         },
         {
           "kind": "localComponent",
+          "name": "PythonScriptGuidePane",
+          "detail": "ea_node_editor/ui_qml/components/shell/PythonScriptGuidePane.qml"
+        },
+        {
+          "kind": "localComponent",
           "name": "WebComponents.WebPageHost",
           "detail": "ea_node_editor/ui_qml/components/web/WebPageHost.qml"
         },
@@ -140929,6 +141404,12 @@
           "kind": "property",
           "name": "contentKind",
           "detail": "string"
+        },
+        {
+          "anchor": "ContentFullscreenOverlayPropertyScriptGuideVisible",
+          "kind": "property",
+          "name": "scriptGuideVisible",
+          "detail": "bool"
         },
         {
           "anchor": "ContentFullscreenOverlayPropertyTitleText",
@@ -141973,6 +142454,16 @@
           "name": "onClosePreviewExportResult"
         },
         {
+          "anchor": "ContentFullscreenOverlayHandlerOnGuideRequested",
+          "kind": "handler",
+          "name": "onGuideRequested"
+        },
+        {
+          "anchor": "ContentFullscreenOverlayHandlerOnCloseRequested",
+          "kind": "handler",
+          "name": "onCloseRequested"
+        },
+        {
           "anchor": "ContentFullscreenOverlayHandlerOnFullscreenRequested",
           "kind": "handler",
           "name": "onFullscreenRequested"
@@ -142028,6 +142519,12 @@
           "kind": "localComponent",
           "name": "ScriptCodeEditorPane",
           "detail": "ea_node_editor/ui_qml/components/shell/ScriptCodeEditorPane.qml"
+        },
+        {
+          "anchor": "ContentFullscreenOverlayLocalComponentPythonScriptGuidePane",
+          "kind": "localComponent",
+          "name": "PythonScriptGuidePane",
+          "detail": "ea_node_editor/ui_qml/components/shell/PythonScriptGuidePane.qml"
         },
         {
           "anchor": "ContentFullscreenOverlayLocalComponentWebComponentsWebPageHost",

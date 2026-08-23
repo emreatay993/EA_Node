@@ -10,6 +10,7 @@
 - `ea_node_editor/persistence/artifact_store.py`
 - `ea_node_editor/persistence/artifact_resolution.py`
 - `ea_node_editor/workspace/`
+- `tests/test_project_session_controller_unit.py`
 
 ## Notes
 - Startup session restore keeps the active project empty instead of reopening the saved `last_session.json` project path; `ProjectSessionLifecycleService.restore_session()` still keeps that path in Recent Projects and uses it only as an autosave comparison/recovery baseline.
@@ -27,7 +28,10 @@
 - Manual Save and Save As snapshot the current `ScriptEditorModel` state immediately before persistent document conversion. Project open restores through the existing script-editor panel adapter; autosave, session, and close synchronization stay on `ProjectSessionLifecycleService._sync_session_state()`.
 - Artifact-store, workflow, passive-style preset, and script-editor metadata writers should call `ProjectData.replace_metadata(...)` so the autosave epoch changes without hashing full project metadata on idle ticks.
 - Project install/open/new flows reset `ViewerHostService` before `ViewerSessionBridge.project_loaded(...)` reseeds project viewer projections; this clears native overlay bindings, cached previews, and viewer view state before fixed `(workspace_id, node_id)` viewer keys are reused.
-
+## Focused Verification
+```powershell
+.\venv\Scripts\python.exe -m pytest tests/test_project_session_controller_unit.py --ignore=venv -q
+```
 
 ## Breadcrumbs
 - [Persistence, Documents, Artifacts, And Migrations](../subsystems/persistence.md)

@@ -6,6 +6,9 @@ Use this for passive media surfaces, image/video/PDF/mail nodes, video playback 
 ## Start Here
 - `ea_node_editor/nodes/builtins/passive_media.py`
 - `ea_node_editor/ui_qml/components/graph/passive/GraphMediaPanelSurface.qml`
+- `ea_node_editor/ui_qml/components/graph/passive/GraphMediaPanelHeaderControls.qml`
+- `ea_node_editor/ui_qml/components/graph/passive/GraphMediaPanelPreviewPlaceholder.qml`
+- `ea_node_editor/ui_qml/components/graph/passive/GraphMediaPanelPreviewViewport.qml`
 - `ea_node_editor/ui_qml/components/graph/passive/GraphMailPanelSurface.qml`
 - `ea_node_editor/ui_qml/components/graph/overlay/GraphNodeFloatingToolbar.qml`
 - `ea_node_editor/ui_qml/components/graph/passive/GraphVideoPanelSurface.qml`

@@ -4,14 +4,17 @@
 Use this for Excalidraw host assets, real local/offline editor integration, web bundle rebuilds, and Excalidraw node behavior.
 
 ## Start Here
+- `ea_node_editor/nodes/builtins/excalidraw.py`
 - `web/excalidraw_host/`
 - `ea_node_editor/web_assets/excalidraw_host/`
-- `ea_node_editor/nodes/builtins/excalidraw.py`
 - `ea_node_editor/ui_qml/components/graph/passive/GraphWebBoardSurface.qml`
+- `ea_node_editor/ui_qml/components/web/WebEditorHost.qml`
 - `scripts/build_excalidraw_host.ps1`
+- `tests/test_corex_web_surface_bridge.py`
 
 ## Focused Verification
 ```powershell
+.\venv\Scripts\python.exe -m pytest tests/test_corex_web_surface_bridge.py --ignore=venv -q
 .\scripts\build_excalidraw_host.ps1
 .\venv\Scripts\python.exe -m pytest tests/test_corex_web_host_assets.py --ignore=venv -q
 ```

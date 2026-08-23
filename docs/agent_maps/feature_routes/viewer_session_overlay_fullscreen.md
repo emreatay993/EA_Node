@@ -20,6 +20,9 @@ Use this for execution viewer sessions, native overlay lifecycle, fullscreen con
 - `ea_node_editor/ui_qml/ContentFullscreenOverlay.qml`
 - `ea_node_editor/ui_qml/components/shell/PythonScriptGuidePane.qml`
 - `ea_node_editor/ui_qml/components/graph/viewer/GraphViewerSurfaceBody.qml`
+- `ea_node_editor/ui_qml/components/graph/viewer/GraphViewerSurface.qml`
+- `ea_node_editor/ui_qml/components/graph/viewer/ViewerSelectionControls.qml`
+- `ea_node_editor/ui_qml/components/graph/viewer/ViewerToolButton.qml`
 - `ea_node_editor/ui_qml/components/graph/viewer/ViewerQuickControls.qml`
 - `ea_node_editor/ui_qml/components/graph/viewer/ViewerSidePanel.qml`
 - `ea_node_editor/ui_qml/components/graph/tabular/TabularFullscreenSurface.qml`
@@ -28,11 +31,12 @@ Use this for execution viewer sessions, native overlay lifecycle, fullscreen con
 - `ea_node_editor/execution/protocol.py`
 - `ea_node_editor/execution/worker_protocol.py`
 - `ea_node_editor/execution/viewer_session_service.py`
+- `tests/test_viewer_session_bridge.py`
+- `tests/test_content_fullscreen_bridge.py`
+- `tests/test_viewer_surface_contract.py`
 - `tests/test_execution_client.py`
 - `tests/test_execution_worker.py`
 - `tests/test_execution_viewer_service.py`
-- `tests/test_viewer_session_bridge.py`
-- `tests/test_content_fullscreen_bridge.py`
 - `tests/test_engineering_viewer_node.py`
 - `tests/test_engineering_viewer_widget_binder.py`
 
@@ -119,7 +123,7 @@ Use this for execution viewer sessions, native overlay lifecycle, fullscreen con
 
 ## Focused Verification
 ```powershell
-.\venv\Scripts\python.exe -m pytest tests/test_execution_viewer_service.py tests/test_viewer_session_bridge.py tests/test_viewer_control_bridge.py tests/test_viewer_host_service.py tests/test_viewer_preview_cache_provider.py tests/test_embedded_viewer_overlay_manager.py tests/test_viewer_surface_contract.py tests/test_viewer_surface_host.py tests/test_execution_viewer_protocol.py --ignore=venv -q
+.\venv\Scripts\python.exe -m pytest tests/test_viewer_session_bridge.py tests/test_execution_viewer_service.py tests/test_viewer_control_bridge.py tests/test_viewer_host_service.py tests/test_viewer_preview_cache_provider.py tests/test_embedded_viewer_overlay_manager.py tests/test_viewer_surface_contract.py tests/test_viewer_surface_host.py tests/test_execution_viewer_protocol.py --ignore=venv -q
 .\venv\Scripts\python.exe -m pytest tests/test_content_fullscreen_bridge.py --ignore=venv -q
 .\venv\Scripts\python.exe -m pytest tests/test_shell_window_lifecycle.py -k content_fullscreen_overlay_renders_pdf_media --ignore=venv -q
 .\venv\Scripts\python.exe -m pytest tests/main_window_shell/shell_runtime_contracts.py -k content_fullscreen --ignore=venv -q

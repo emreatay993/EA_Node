@@ -4,8 +4,8 @@
 Use this for Ansys DPF add-on nodes, operator docs, DPF-typed plot nodes, DPF viewer nodes, cross-process viewer transport, and DPF runtime package behavior.
 
 ## Start Here
-- `ea_node_editor/addons/ansys_dpf/`
 - `ea_node_editor/nodes/ansys_dpf_data_types.py`
+- `ea_node_editor/addons/ansys_dpf/`
 - `ea_node_editor/addons/ansys_dpf/curated_catalog.py`
 - `ea_node_editor/addons/ansys_dpf/plot_catalog.py`
 - `ea_node_editor/addons/ansys_dpf/property_edit_adapter.py`

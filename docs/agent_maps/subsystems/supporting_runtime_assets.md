@@ -4,6 +4,7 @@
 Use this for support layers that are not owned by graph, persistence, or UI: telemetry, help, benchmarks, runtime contracts, mockups, and custom workflows.
 
 ## Start Here
+- `ea_node_editor/runtime_contracts/data_types.py`
 - `ea_node_editor/telemetry/`
 - `ea_node_editor/help/`
 - `ea_node_editor/benchmarks/`
@@ -34,7 +35,7 @@ Use this for support layers that are not owned by graph, persistence, or UI: tel
 - `tests/test_core_media_types.py`
 - `tests/test_unit_types.py`
 
-## Verification
+## Focused Verification
 ```powershell
 .\venv\Scripts\python.exe -m pytest tests/test_typed_runtime_values.py tests/test_data_type_catalog.py tests/test_core_value_codecs.py -q
 ```

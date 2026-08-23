@@ -81,6 +81,7 @@ Use this for QML shell composition, Python-to-QML bridge wiring, shell bridge mo
 
 ## Focused Verification
 ```powershell
+.\venv\Scripts\python.exe -m pytest tests/test_script_editor_dock.py --ignore=venv -q
 .\venv\Scripts\python.exe -m pytest tests/main_window_shell/bridge_qml_boundaries.py tests/main_window_shell/test_qml_shell_roots.py --ignore=venv -q
 .\venv\Scripts\python.exe -m pytest tests/test_content_fullscreen_bridge.py --ignore=venv -q
 .\venv\Scripts\python.exe -m pytest tests/graph_track_b/qml_preference_bindings.py --ignore=venv -q

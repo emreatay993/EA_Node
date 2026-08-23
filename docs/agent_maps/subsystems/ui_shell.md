@@ -4,8 +4,8 @@
 Use this for shell-backed workflows, controllers, presenters, context bridges, and high-risk shell composition edits.
 
 ## Start Here
-- `ea_node_editor/ui/shell/composition/` — one domain per module: `state.py`, `primitives.py`, `preferences.py`, `library_workspace.py`, `controllers.py`, `presenters.py`, `runtime_services.py`, `bridges.py`, `graph_actions.py`, `qml_context.py`; aggregates in `services.py`, sequencing in `factory.py`, attach/startup in `bootstrap.py`, public API re-exported from `__init__.py`
 - `ea_node_editor/ui/shell/window.py`
+- `ea_node_editor/ui/shell/composition/` — one domain per module: `state.py`, `primitives.py`, `preferences.py`, `library_workspace.py`, `controllers.py`, `presenters.py`, `runtime_services.py`, `bridges.py`, `graph_actions.py`, `qml_context.py`; aggregates in `services.py`, sequencing in `factory.py`, attach/startup in `bootstrap.py`, public API re-exported from `__init__.py`
 - `ea_node_editor/ui/shell/window_actions.py`
 - `ea_node_editor/ui/shell/window_state/`
 - `ea_node_editor/ui/shell/context_bridges.py`
@@ -13,6 +13,7 @@ Use this for shell-backed workflows, controllers, presenters, context bridges, a
 - `ea_node_editor/ui/shell/controllers/project_session_services_support/document_io_service.py`
 - `ea_node_editor/ui/shell/controllers/mutation_ui_effects.py`
 - `ea_node_editor/ui/shell/presenters/`
+- `tests/test_run_controller_unit.py`
 
 ## Do Not Start Here
 - QML component files when behavior is owned by shell controllers.
@@ -74,7 +75,10 @@ Exact touch-point lists for the most common shell additions. One domain = one
 1. Add the module-level `_qt_<name>(self: "ShellWindow")` fget in `window_state/context_properties.py`.
 2. Add one `pyqtProperty(..., fget=context_properties._qt_<name>, notify=<owning signal>)` declaration in the `ShellWindow` class body in `window.py`.
 3. Make sure the owning notify signal is emitted on every change path.
-
+## Focused Verification
+```powershell
+.\venv\Scripts\python.exe -m pytest tests/test_run_controller_unit.py --ignore=venv -q
+```
 
 ## Breadcrumbs
 - [Graph Actions And Context Menus](../feature_routes/graph_actions_and_context_menus.md)

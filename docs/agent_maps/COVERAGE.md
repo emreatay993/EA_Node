@@ -37,7 +37,12 @@ implementation studies are intentionally excluded.
 - Signal Plot behavior is owned by `nodes/builtins/plot/signal.py`,
   `execution/signal_plot_renderer.py`, and the plotter route.
 - Declarative node controls are shared metadata-to-QML behavior owned by the
-  node registry, graph-scene projection, and shared graph controls.
+  node registry, graph-scene projection, and shared graph controls. Rendered
+  list/group/control geometry belongs to Surface Input; payload and settings-band
+  calculation belongs to Graph Scene Payload.
+- Exact feature-map citations own QML components when present; the broader QML
+  or graph-canvas subsystem remains the fallback only when no feature map cites
+  that exact component path.
 - Decorator-driven Python Script declarations are owned jointly by the node
   registry/parser, graph-owned atomic Apply, worker revalidation, and generic persistence.
 - Geometry, spatial, mesh, FEM, voxel, security, reporting, media, and unit

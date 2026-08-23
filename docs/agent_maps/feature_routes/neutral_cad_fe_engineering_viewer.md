@@ -4,6 +4,9 @@
 Use this route for neutral engineering geometry, prepared scenes, viewer
 sessions, selection, clipping, export, and the shared fullscreen/detached host.
 
+## Lookup Aliases
+- `viewer settings expansion`
+
 ## Start Here
 - `ea_node_editor/nodes/builtins/engineering_viewer.py`
 - `ea_node_editor/nodes/builtins/geometry_primitives.py`
@@ -11,6 +14,7 @@ sessions, selection, clipping, export, and the shared fullscreen/detached host.
 - `ea_node_editor/execution/viewer_session_service.py`
 - `ea_node_editor/ui_qml/viewer_session_bridge.py`
 - `ea_node_editor/ui_qml/components/graph/viewer/`
+- `tests/test_engineering_viewer_example_project.py`
 
 ## Behavior
 - Model Viewer accepts supported engineering carriers and produces an owned
@@ -39,7 +43,8 @@ sessions, selection, clipping, export, and the shared fullscreen/detached host.
 - `tests/test_viewer_control_bridge.py`
 - `tests/test_content_fullscreen_bridge.py`
 
-## Verification
+## Focused Verification
 ```powershell
+.\venv\Scripts\python.exe -m pytest tests/test_engineering_viewer_example_project.py -q
 .\venv\Scripts\python.exe -m pytest tests/test_engineering_viewer_backend.py tests/test_engineering_viewer_node.py tests/test_viewer_session_bridge.py tests/test_viewer_control_bridge.py -q
 ```

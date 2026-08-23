@@ -9,8 +9,12 @@ Lookup aliases: `stress_1200_nodes`, `notched port rendering`, `benchmark report
 - `ea_node_editor/ui/perf/performance_harness.py`
 - `ea_node_editor/ui/perf/engineering_viewer_benchmark.py`
 - `scripts/profile_canvas_lag.py`
+- `ea_node_editor/ui_qml/components/graph_canvas/GraphCanvasFrameScheduler.qml`
+- `ea_node_editor/ui_qml/components/graph/GraphNodeHostRenderQuality.qml`
 - `ea_node_editor/ui_qml/components/graph/EdgeLayer.qml` edge churn counters: spatial query cache hits/misses, retained entry skips, and flow-label sync skips. Execution-flash scoped refreshes are removed with control-edge animation.
 - `tests/test_track_h_perf_harness.py`
+- `tests/test_graph_canvas_frame_coalescing.py`
+- `tests/graph_surface/passive_host_boundary_suite.py`
 - `docs/specs/perf/TRACK_H_BENCHMARK_REPORT.md`
 - `docs/specs/perf/GRAPH_CANVAS_PERF_QA_MATRIX.md`
 - `docs/specs/perf/COREX_CHANGE_LOCALITY_QA_MATRIX.md`

@@ -4,8 +4,8 @@
 Use this for elapsed execution-time persistence, runtime projection, node chrome display, and retained timing proof.
 
 ## Start Here
-- `ea_node_editor/execution/`
 - `ea_node_editor/persistence/serializer.py`
+- `ea_node_editor/execution/`
 - `ea_node_editor/ui_qml/graph_scene_payload/`
 - `ea_node_editor/ui_qml/components/graph/GraphNodeHost.qml`
 - `ea_node_editor/ui_qml/components/graph_canvas/GraphCanvasExecutionFacts.qml`

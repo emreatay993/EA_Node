@@ -12,10 +12,18 @@ Use this for passive node host loading, surface contracts, metrics, surface sizi
 - `ea_node_editor/ui_qml/components/graph/GraphNodeHostTheme.qml`
 - `ea_node_editor/ui_qml/components/graph/GraphNodeChromeBackground.qml`
 - `ea_node_editor/ui_qml/components/graph/GraphNodeSurfaceLoader.qml`
+- `ea_node_editor/ui_qml/components/graph/GraphNodeHostLayout.qml`
 - `ea_node_editor/ui_qml/components/graph/GraphSurfaceBase.qml` - base Item for passive/viewer surfaces: host plumbing, null-safe `nodeProperties`, the shared propRaw/propValue/propString/propBool/propNumber accessors, and the single chrome-fact derivation (`surfaceShowTitle`/`surfaceShowFrame`/`surfaceContentOnly`). New surfaces root on this; do not re-declare private accessor copies.
 - `ea_node_editor/ui_qml/components/graph/passive/`
+- `ea_node_editor/ui_qml/components/graph/passive/FlowchartShapeCanvas.qml`
+- `ea_node_editor/ui_qml/components/graph/passive/GraphAnnotationNoteSurface.qml`
+- `ea_node_editor/ui_qml/components/graph/passive/GraphBareTextSurface.qml`
+- `ea_node_editor/ui_qml/components/graph/passive/GraphFlowchartNodeSurface.qml`
+- `ea_node_editor/ui_qml/components/graph/passive/GraphPlanningCardSurface.qml`
+- `ea_node_editor/ui_qml/components/graph/passive/GraphTimestampDateTimePopover.qml`
 - `ea_node_editor/ui_qml/components/graph/GraphNodeSurfaceMetricContract.json`
 - `tests/qml_quick/tst_graph_node_host.qml`
+- `tests/graph_surface/passive_host_boundary_suite.py`
 
 ## Viewport Visibility
 - Every loaded node surface receives its `GraphNodeHost` through the existing `host` property. Read the canonical `host.inVisibleViewport` fact behind the surface's normal host-null guard to suspend expensive work; surfaces must not independently calculate canvas geometry.
@@ -54,6 +62,7 @@ Use this for passive node host loading, surface contracts, metrics, surface sizi
 
 ## Focused Verification
 ```powershell
+.\venv\Scripts\python.exe -m pytest tests/graph_surface/passive_host_boundary_suite.py --ignore=venv -q
 .\venv\Scripts\python.exe .\scripts\run_verification.py --mode gui --dry-run
 $env:QT_QPA_PLATFORM = "offscreen"
 $env:QT_QUICK_CONTROLS_STYLE = "Basic"

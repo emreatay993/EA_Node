@@ -17,7 +17,6 @@ Use this for node execution state projection, declarative readiness diagnostics,
 - `ea_node_editor/ui/shell/state.py` - ShellRunState session caches and revisions.
 - `ea_node_editor/ui/shell/controllers/run_controller.py` - execution-event handling and cache updates.
 - `ea_node_editor/ui_qml/components/graph_canvas/GraphCanvasExecutionFacts.qml` - shared-by-reference QML facts object.
-- `ea_node_editor/ui_qml/components/graph/GraphNodeHost.qml` - node chrome and grip-state consumer.
 - `tests/test_port_flow_state.py` - focused port-flow semantic and projection proof.
 - `tests/test_data_type_ui_projection.py` - bounded type projection, warning separation, and rich-preview security proof.
 
@@ -49,7 +48,7 @@ Stale records are ignored for current grip flow. Typed EMPTY remains distinct fr
 ## Common Changes
 - Exact catalog-validated ImageValue outputs project a bounded `thumbnail` rich-preview DTO. SHA-keyed entries reuse the existing `viewer-preview-cache` image provider under the reserved `image-value` workspace key; runtime solution reset clears those entries and bytes never enter QML payloads.
 
-- Data-port grip state, bounded preview, and per-node retained run count are projected from typed settled results in the existing output cache. Keep these lookups on the shared `GraphCanvasExecutionFacts.qml` object; do not drill them through each host or add a second runtime-value cache.
+- Data-port grip state, bounded preview, and per-node retained run count are projected from typed settled results in the existing output cache. Keep these lookups on the shared `GraphCanvasExecutionFacts.qml` object; `GraphNodeHost.qml` consumes them but does not own the projection route. Do not drill them through each host or add a second runtime-value cache.
 - Rich previews never call custom `repr`/`str`, iterators, mappings, or file/network/model providers. Typed carriers require the exact production `DataTypeCatalog`, exact `DataTypeSpec` records read without overridable catalog callbacks, and valid type/schema/carrier/payload facts. Engineering/DPF/FEM/geometry/mesh handles may expose only allowlisted integer counts; artifacts expose only the catalog label plus `artifact`, never IDs, refs, scopes, hashes, paths, provenance, or transport identity.
 - Secret and SSH Host runtime markers become unavailable recursively before key/value string conversion, including nested containers and hostile non-string keys. Panel display rows and both copy modes route each item through this same callback-free projector.
 - Warning diagnostics call the same evaluator as `NodeExecutor`; do not rebuild prerequisite semantics from `optional` or grip color. Evaluator issues can also mark implicated visible ports waiting, while retained worker warnings are merged without duplicate rows. An unwired declared default uses the outlined-green `default` state. A completion arriving after invalidation must not repopulate warning caches. `GraphNodeHost.isWarningChromeNode` combines transient warning state with retained diagnostics; failed state outranks the yellow body, selected active blue fill outranks it while retaining the warning badge, and running alone does not add a body color.

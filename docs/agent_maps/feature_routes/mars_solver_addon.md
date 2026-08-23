@@ -4,6 +4,7 @@
 Use this for the `mars.corex` add-on, managed MARS installation, guided MARS nodes, JSONL process execution, and MARS result artifacts.
 
 ## Start Here
+- `ea_node_editor/addons/mars/catalog.py`
 - `ea_node_editor/addons/mars/`
 - `ea_node_editor/addons/mars/icons/mars_icon_64.png`
 - `ea_node_editor/execution/managed_runtime.py`

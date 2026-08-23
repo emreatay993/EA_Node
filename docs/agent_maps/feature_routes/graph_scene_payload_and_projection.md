@@ -6,8 +6,11 @@ Use this for graph scene payload construction, state projection, data-port/edge 
 ## Lookup Aliases
 - `graph scene projection`
 - `bounded rich preview`
+- `settings band geometry`
+- `grouped inline property projection`
 
 ## Start Here
+- `ea_node_editor/ui_qml/graph_scene_payload/factory.py`
 - `ea_node_editor/ui_qml/graph_scene_payload/` — payload construction package:
   - `kinds/` — **the insertion point for kind-specific payload fields.** One module per node kind (`media_panel`, `plot`, `web_page`, `excalidraw`, `viewer`, `group_backdrop`); `kinds/__init__.py` resolves contributors per `(type_id, family, variant)` (cached, registration order frozen). A new payload field for kind X = edit `kinds/<kind>.py` + the consuming surface QML, nothing else.
   - `factory.py` — kind-independent base assembly (`_GraphSceneNodePayloadFactory.build_node_payload`) + frozen `PayloadBuildContext` handed to contributors. New build inputs are added to the context once, not threaded through signatures.
@@ -30,6 +33,7 @@ Use this for graph scene payload construction, state projection, data-port/edge 
 - `ea_node_editor/ui/shell/controllers/mutation_ui_effects.py`
 - `ea_node_editor/ui_qml/components/graph/GraphNodeSurfaceMetrics.js`
 - `ea_node_editor/ui_qml/components/graph_canvas/GraphCanvasOptionsMenu.qml`
+- `tests/test_graph_scene_presentation_facts.py`
 - `tests/test_data_type_ui_projection.py`
 
 ## Port Presentation Notes
@@ -70,6 +74,7 @@ Use this for graph scene payload construction, state projection, data-port/edge 
 
 ## Focused Verification
 ```powershell
+.\venv\Scripts\python.exe -m pytest tests/test_graph_scene_presentation_facts.py --ignore=venv -q
 .\venv\Scripts\python.exe -m pytest tests/test_graph_scene_bridge_bind_regression.py tests/graph_track_b/scene_model_graph_scene_suite.py --ignore=venv -q
 .\venv\Scripts\python.exe -m pytest tests/graph_track_b/qml_preference_bindings.py tests/test_plot_node_contracts.py --ignore=venv -q
 .\venv\Scripts\python.exe -m pytest tests/test_graph_output_mode_ui.py tests/test_graph_action_contracts.py --ignore=venv -q

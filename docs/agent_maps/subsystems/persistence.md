@@ -30,7 +30,7 @@ Use this for `.cxproj` documents, serializers, migrations, workspace-scoped proj
 - `tests/test_project_artifact_store.py`
 - `tests/test_project_session_controller_unit.py`
 
-## Verification
+## Focused Verification
 ```powershell
 .\venv\Scripts\python.exe -m pytest tests/test_serializer.py tests/test_project_save_as_flow.py tests/test_project_artifact_store.py -q
 ```

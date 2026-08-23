@@ -16,6 +16,8 @@ Use this for plotter node planning, backend registry/static export work, generic
 - `ea_node_editor/ui_qml/plot_auto_preview_service.py` — async render-request builds + shared cache
 - `ea_node_editor/execution/plot_series_decimation.py` — min-max envelope / stride sampling contract
 - `ea_node_editor/ui_qml/plot_widget_binder.py`
+- `ea_node_editor/ui_qml/components/graph/plot/GraphPlotSurface.qml`
+- `ea_node_editor/ui_qml/components/graph/plot/GraphPlotSurfaceBody.qml`
 - `ea_node_editor/persistence/project_codec.py`
 - `ea_node_editor/persistence/migration.py`
 - `ea_node_editor/graph/project_state.py`
@@ -30,7 +32,7 @@ Use this for plotter node planning, backend registry/static export work, generic
 - `pyproject.toml`
 - `ea_node_editor/nodes/builtins/`
 - `ea_node_editor/ui_qml/components/graph/`
-- `tests/`
+- `tests/test_plot_surface_integration.py`
 
 ## Focused Verification
 ```powershell
@@ -66,7 +68,7 @@ $env:QT_QPA_PLATFORM='offscreen'; .\venv\Scripts\python.exe -m pytest tests/test
 - `GraphPlotSurfaceBody.qml` calls `PlotHostService.set_embedded_interaction_active` synchronously from its `liveSurfaceActive`/`plotNodeId`/`contentFullscreenOpen` change handlers (unlike `GraphViewerSurfaceBody.qml`, which had to defer the equivalent call through a coalesced `Qt.callLater` queue to fix a `bridgeSessionProjectionSeed` binding loop). The deactivation path (`_capture_cached_live_state_for_key` + `_release_inactive_embedded_overlay`) does re-emit `preview_cache_changed` and `state_changed` synchronously, but `liveSurfaceActive`'s own dependency set (`serviceAvailable`, `plotNodeId`, `plotLiveBackendId`, `embeddedSuppressed`, `contentFullscreenOpen`, `transientInteractionPreviewActive`, `liveSurfaceSizeViable`, `hostSurfaceActive`, `viewportHoverActive`, `autoPreviewPulse.running`) never reads `plot_overlay_revision`, `active_overlay_count`, or `preview_cache_revision` — those notifications only reach the strictly downstream `hostOverlayRevision`/`liveOverlayReady`/`cachedPreviewSource`/`cachedPreviewVisible` chain, which has no change handler that re-enters `_syncEmbeddedInteraction`. Verified with a synchronous-signal probe (`tests/test_plot_surface_integration.py::PlotSurfaceInteractionQmlTests::test_live_surface_deactivation_survives_synchronous_state_flip_without_binding_loop`) that mirrors the real `state_changed`/`preview_cache_changed` wiring and asserts no `Binding loop detected` message fires. If a future change makes `liveSurfaceActive` (or any of its dependencies) read one of those revision properties, re-apply the viewer's `Qt.callLater` deferral pattern here too.
 - Plot fullscreen targeting should use the active fullscreen plot's workspace/node identity directly instead of trusting payload `native_overlay` metadata; stale or missing payload policy must not leave the live widget on the inline node viewport. Plot live overlays that are marked as the fullscreen target should wait hidden until `contentFullscreenViewerViewport` has real geometry rather than falling back to `graphNodeViewerViewport`.
 - Cached preview provider URLs must preserve exact workspace/node IDs without double-decoding percent-encoded text, and QML cached preview images should blank their source before applying a new node/source so a reused delegate cannot paint another plot's previous texture for one frame.
-- During canvas viewport interaction or node drag, inline plot surfaces should use the cached raster preview instead of the native live overlay. Keep the plot eligibility checks paired between `GraphCanvasViewportController.qml` and `graph_canvas_state/` so wheel zoom enters the transient preview window for live plot surfaces.
+- During canvas viewport interaction or node drag, inline plot surfaces should use the cached raster preview instead of the native live overlay. Keep the plot eligibility checks paired between GraphCanvasViewportController.qml and `graph_canvas_state/` so wheel zoom enters the transient preview window for live plot surfaces.
 - Plot session windows and `plot_session_layout` persistence were removed. Keep legacy `.cxproj` load compatibility by ignoring/stripping old `plot_session_layout` keys; do not restore user-facing session actions or retarget live widgets into a session presentation.
 - PyVista/QVTK plot widgets should be finalized while their Qt/native window handle is still attached; avoid hidden/detached render-window cleanup paths that call into an invalid Win32 OpenGL context.
 - Generic plot nodes accept `TabularDataRef`, `ArrayDataRef`, `TabularWindowRef`, and `ArraySlice2DRef` inputs through plot-side normalization. Keep backend contracts on existing `x`/`y`/`values`/`points` series shapes; ref reopening, selected-column/slice hints, and window/slice bounds are owned by the tabular add-on.

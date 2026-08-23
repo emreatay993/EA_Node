@@ -11,6 +11,8 @@ Use this for workspace-scoped node project files, saved/temporary artifact refs,
 - `ea_node_editor/persistence/file_issues.py`
 - `ea_node_editor/ui/shell/host_presenter.py`
 - `ea_node_editor/ui/dialogs/project_files_dialog.py`
+- `tests/test_project_artifact_store.py`
+- `tests/test_project_artifact_resolution.py`
 
 ## Notes
 - The OS sidecar layout is `<project>.data/workspaces/<Workspace [hash]>/nodes/<Node [hash]>/{in,out,tmp}/...`; the workspace hash is stable from `workspace_id`, while the readable prefix follows workspace renames.
@@ -22,7 +24,10 @@ Use this for workspace-scoped node project files, saved/temporary artifact refs,
 - A typed persisted artifact property accepts either a `RuntimeArtifactRef` carrier or a literal `saved://`/`temp://` string only when the owned managed/staged store entry has the exact `runtime_artifact` descriptor and its concrete type is catalog-compatible with the property's `persistence_data_type_id`. `to_persistent_document()` performs this metadata-only preflight before Save/Save As mutation. Staged refs are valid only until promotion; `commit_referenced_artifacts(...)` plus `rewrite_project_artifact_refs(...)` converts nested temp literals and carriers to saved strings while retaining the descriptor in managed metadata.
 - Staged replacement and `discard_staged_entries(...)` / `discard_staged_paths(...)` prevalidate the whole batch before mutation or deletion. Reject absolute hints, traversal, symlink/reparse/special targets, managed paths, and tracked overlaps; safe file/directory/missing targets preserve the unsaved staging root.
 - Cleanup remains best effort after prevalidation: a locked file can leave untracked residue, and a same-user post-`lstat` path-swap window remains. Closing that window requires Windows handle-relative deletion rather than path-based removal.
-
+## Focused Verification
+```powershell
+.\venv\Scripts\python.exe -m pytest tests/test_project_artifact_store.py tests/test_project_artifact_resolution.py --ignore=venv -q
+```
 
 ## Breadcrumbs
 - [Persistence, Documents, Artifacts, And Migrations](../subsystems/persistence.md)

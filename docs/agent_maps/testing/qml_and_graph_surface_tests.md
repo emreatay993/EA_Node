@@ -69,9 +69,11 @@ Use this for graph surface, QML bridge, passive host, inline input, pointer, mod
 ## Focused Verification
 ```powershell
 $env:QT_QPA_PLATFORM = "offscreen"
+$env:QT_QUICK_CONTROLS_STYLE = "Basic"
+& (Join-Path $env:QT_ROOT "bin\qmltestrunner.exe") -input tests/qml_quick/tst_graph_surface_controls.qml -eventdelay 0 -keydelay 0 -mousedelay 0 -o -,txt
 .\venv\Scripts\python.exe -m unittest tests.test_graph_surface_input_contract tests.test_graph_surface_input_inline tests.test_passive_graph_surface_host tests.test_passive_image_nodes -v
 .\venv\Scripts\python.exe -m pytest tests/test_graph_canvas_viewport_virtualization.py --ignore=venv -q
-Remove-Item Env:QT_QPA_PLATFORM -ErrorAction SilentlyContinue
+Remove-Item Env:QT_QPA_PLATFORM, Env:QT_QUICK_CONTROLS_STYLE -ErrorAction SilentlyContinue
 $env:QT_QPA_PLATFORM = "offscreen"
 .\venv\Scripts\python.exe -m pytest tests/test_viewer_control_bridge.py tests/test_viewer_host_service.py tests/test_viewer_surface_host.py tests/test_viewer_surface_contract.py --ignore=venv -q
 Remove-Item Env:QT_QPA_PLATFORM -ErrorAction SilentlyContinue

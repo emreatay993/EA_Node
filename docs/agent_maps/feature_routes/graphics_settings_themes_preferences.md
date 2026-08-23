@@ -12,10 +12,14 @@ Use this for graph themes, graphics settings, app preferences, theme editor dial
 - `ea_node_editor/ui_qml/graph_canvas_state/`
 - `ea_node_editor/ui_qml/graph_canvas_command/`
 - `ea_node_editor/ui_qml/components/graph_canvas/GraphCanvasOptionsMenu.qml`
+- `ea_node_editor/ui_qml/components/graph_canvas/GraphCanvasBackground.qml`
+- `ea_node_editor/ui_qml/components/graph_canvas/GraphCanvasGridTiled.qml`
+- `ea_node_editor/ui_qml/components/graph/GraphNodeGradientFill.qml`
 - `ea_node_editor/ui_qml/components/graph/passive/GraphNativeExplorerSurface.qml`
 - `ea_node_editor/ui_qml/graph_theme_bridge.py`
 - `ea_node_editor/ui_qml/theme_bridge.py`
 - `ea_node_editor/text_style.py`
+- `tests/graph_track_b/qml_preference_rendering_suite.py`
 
 ## Common Changes
 - Folder Explorer column widths flow through app-wide graphics preferences at `graphics.folder_explorer.column_widths` and are projected to graph-canvas QML state; header resizing persists through the graph-canvas command bridge rather than the Graphics Settings dialog.
@@ -37,6 +41,7 @@ Use this for graph themes, graphics settings, app preferences, theme editor dial
 
 ## Focused Verification
 ```powershell
+.\venv\Scripts\python.exe -m pytest tests/graph_track_b/qml_preference_rendering_suite.py --ignore=venv -q
 .\venv\Scripts\python.exe -m pytest tests/test_graph_theme_editor_dialog.py tests/test_graphics_settings_dialog.py --ignore=venv -q
 .\venv\Scripts\python.exe -m pytest tests/test_app_preferences.py tests/test_graphics_settings_preferences.py tests/test_graphics_settings_dialog.py --ignore=venv -q
 .\venv\Scripts\python.exe -m pytest tests/test_app_preferences_import_defaults.py tests/test_workspace_library_controller_unit.py --ignore=venv -q

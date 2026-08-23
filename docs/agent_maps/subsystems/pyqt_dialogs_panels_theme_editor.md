@@ -4,6 +4,7 @@
 Use this for PyQt dialogs, script/editor support, graph theme editors, and non-QML support widgets.
 
 ## Start Here
+- `ea_node_editor/ui/dialogs/graphics_settings_dialog.py`
 - `ea_node_editor/ui/dialogs/`
 - `ea_node_editor/ui/editor/`
 - `ea_node_editor/ui/graph_theme/`

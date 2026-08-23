@@ -3,23 +3,54 @@
 ## Purpose
 Use this for inline editors, surface controls, editable passive surfaces, text/path/color controls, and surface interactive regions.
 
+## Lookup Aliases
+- `inline list height`
+- `list editor`
+- `expandable inline controls`
+- `standard inline property row height`
+- `standard_inline_property_row_height`
+- `signal plot inline control height`
+
 ## Start Here
+- `ea_node_editor/ui_qml/components/graph/surface_controls/GraphSurfaceListEditor.qml`
+- `ea_node_editor/ui_qml/components/graph/GraphNodeSettingsGroupsLayer.qml`
+- `ea_node_editor/ui_qml/graph_geometry/standard_metrics.py`
+- `ea_node_editor/ui_qml/components/graph/GraphInlinePropertiesLayer.qml`
+- `ea_node_editor/ui_qml/components/graph/GraphNodePortsLayer.qml`
+- `ea_node_editor/ui_qml/components/graph/passive/GraphBooleanToggleSurface.qml`
+- `ea_node_editor/ui_qml/components/graph/passive/GraphNumberSliderSettingsPopover.qml`
+- `ea_node_editor/ui_qml/components/graph/passive/GraphNumberSliderSurface.qml`
+- `ea_node_editor/ui_qml/components/graph/passive/GraphTriggerSurface.qml`
+- `ea_node_editor/ui_qml/components/graph/GraphStandardNodeSurface.qml`
+- `ea_node_editor/ui_qml/components/graph/surface_controls/GraphSurfaceButton.qml`
+- `ea_node_editor/ui_qml/components/graph/surface_controls/GraphSurfaceCheckBox.qml`
+- `ea_node_editor/ui_qml/components/graph/surface_controls/GraphSurfaceColorEditor.qml`
+- `ea_node_editor/ui_qml/components/graph/surface_controls/GraphSurfaceComboBox.qml`
+- `ea_node_editor/ui_qml/components/graph/surface_controls/GraphSurfaceDoubleClickTarget.qml`
+- `ea_node_editor/ui_qml/components/graph/surface_controls/GraphSurfaceInlineTextEditor.qml`
+- `ea_node_editor/ui_qml/components/graph/surface_controls/GraphSurfaceInteractiveRegion.qml`
+- `ea_node_editor/ui_qml/components/graph/surface_controls/GraphSurfaceIntervalFields.qml`
+- `ea_node_editor/ui_qml/components/graph/surface_controls/GraphSurfaceIntervalSlider.qml`
+- `ea_node_editor/ui_qml/components/graph/surface_controls/GraphSurfacePathEditor.qml`
+- `ea_node_editor/ui_qml/components/graph/surface_controls/GraphSurfaceSlider.qml`
+- `ea_node_editor/ui_qml/components/graph/surface_controls/GraphSurfaceTextArea.qml`
+- `ea_node_editor/ui_qml/components/graph/surface_controls/GraphSurfaceTextareaEditor.qml`
+- `ea_node_editor/ui_qml/components/graph/surface_controls/GraphSurfaceTextField.qml`
+- `ea_node_editor/ui_qml/components/graph/surface_controls/SurfaceControlGeometry.js`
 - `ea_node_editor/ui_qml/components/graph/surface_controls/`
 - `ea_node_editor/ui_qml/components/graph/surface_controls/GraphSurfaceSearchableComboBox.qml`
 - `ea_node_editor/ui_qml/components/graph/passive/GraphSelectSurface.qml`
 - `ea_node_editor/ui_qml/components/graph/passive/GraphSelectSettingsPopover.qml`
 - `ea_node_editor/ui_qml/components/graph/passive/GraphPanelSurface.qml`
 - `ea_node_editor/ui_qml/components/graph/passive/GraphPanelEditorPopover.qml`
-- `ea_node_editor/ui_qml/components/graph/GraphNodePortsLayer.qml`
 - `ea_node_editor/ui_qml/components/graph/GraphNodeSurfaceMetrics.js`
-- `ea_node_editor/ui_qml/graph_geometry/standard_metrics.py`
 - `ea_node_editor/ui_qml/components/shell/InspectorEditableComboBox.qml`
 - `ea_node_editor/ui_qml/components/common/SecretEditor.qml`
 - `ea_node_editor/ui_qml/components/graph_canvas/GraphCanvasNodeSurfaceBridge.qml`
 - `ea_node_editor/ui_qml/components/graph_canvas/GraphCanvasInputLayers.qml`
+- `tests/test_graph_surface_input_inline.py`
 - `tests/graph_surface/inline_editor_suite.py`
 - `tests/qml_quick/tst_graph_surface_controls.qml`
-- `tests/test_graph_surface_input_inline.py`
 - `tests/test_select_surface.py`
 - `tests/test_panel_surface.py`
 - `tests/qml_quick/tst_secret_editor.qml`
@@ -55,12 +86,12 @@ Use this for inline editors, surface controls, editable passive surfaces, text/p
 
 ## Focused Verification
 ```powershell
+.\venv\Scripts\python.exe -m pytest tests/test_graph_surface_input_inline.py tests/graph_surface/inline_editor_suite.py tests/test_graph_surface_input_controls.py --ignore=venv -q
 .\venv\Scripts\python.exe .\scripts\run_verification.py --mode gui --dry-run
 $env:QT_QPA_PLATFORM = "offscreen"
 $env:QT_QUICK_CONTROLS_STYLE = "Basic"
 & (Join-Path $env:QT_ROOT "bin\qmltestrunner.exe") -input tests/qml_quick/tst_graph_surface_controls.qml -eventdelay 0 -keydelay 0 -mousedelay 0 -o -,txt
 Remove-Item Env:QT_QPA_PLATFORM, Env:QT_QUICK_CONTROLS_STYLE -ErrorAction SilentlyContinue
-.\venv\Scripts\python.exe -m pytest tests/graph_surface/inline_editor_suite.py tests/test_graph_surface_input_inline.py tests/test_graph_surface_input_controls.py --ignore=venv -q
 .\venv\Scripts\python.exe -m pytest tests/test_boolean_toggle_surface.py tests/graph_surface/number_slider_suite.py tests/test_select_surface.py tests/test_trigger_surface.py --ignore=venv -q
 .\venv\Scripts\python.exe -m pytest tests/test_panel_surface.py --ignore=venv -q
 .\venv\Scripts\python.exe -m pytest tests/test_sensitive_property_controls.py --ignore=venv -q

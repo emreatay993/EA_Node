@@ -4,8 +4,8 @@
 Use this for `category_path`, nested library categories, subnodes, group transforms, and grouping/ungrouping behavior. The shell `Group Selection` action runs the structural subnode transform with `Ctrl+Alt+G`.
 
 ## Start Here
-- `ea_node_editor/nodes/`
 - `ea_node_editor/nodes/builtins/subnode.py`
+- `ea_node_editor/nodes/`
 - `ea_node_editor/graph/subnode_contract.py`
 - `ea_node_editor/graph/hierarchy.py`
 - `ea_node_editor/graph/transform_fragment_ops.py`

@@ -3,6 +3,9 @@
 ## Purpose
 Use this for node definitions, registry validation, built-in node families, data-type contracts, packages, and plugin loading.
 
+## Lookup Aliases
+- `node registry builtins`
+
 ## Start Here
 - `ea_node_editor/nodes/bootstrap.py`
 - `ea_node_editor/nodes/registry.py`
@@ -40,7 +43,7 @@ Use this for node definitions, registry validation, built-in node families, data
 - `tests/test_signal_plot_renderer.py`
 - `tests/test_python_script_declaration.py`
 
-## Verification
+## Focused Verification
 ```powershell
 .\venv\Scripts\python.exe -m pytest tests/test_registry_validation.py tests/test_plugin_loader.py tests/test_corex_contract_catalog.py tests/test_corex_type_conformance.py tests/test_python_script_declaration.py -q
 ```

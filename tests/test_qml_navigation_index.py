@@ -7,10 +7,112 @@ import unittest
 from contextlib import redirect_stdout
 from pathlib import Path
 
+from scripts import generate_agent_route_index as agent_indexer
 from scripts import generate_qml_navigation_index as indexer
+from scripts import nav
+
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
 
 
 class QmlNavigationIndexTests(unittest.TestCase):
+    def test_live_repository_qml_routes_have_exact_bounded_owners(self) -> None:
+        qml_entries = json.loads(
+            (REPO_ROOT / "docs" / "qml_navigation_index.json").read_text(
+                encoding="utf-8"
+            )
+        )["entries"]
+        route_index = agent_indexer.build_index_data(REPO_ROOT)
+        routes = [
+            agent_indexer.route_entry_to_dict(entry) for entry in route_index.entries
+        ]
+        map_entries = [entry for entry in routes if entry["kind"] != "qml_component"]
+        qml_routes = [entry for entry in routes if entry["kind"] == "qml_component"]
+
+        self.assertEqual(len(qml_entries), 169)
+        self.assertEqual(len(qml_routes), 169)
+        self.assertEqual(len({entry["path"] for entry in qml_entries}), 169)
+        self.assertEqual(len({entry["component_name"] for entry in qml_entries}), 169)
+
+        qml_route_by_path = {
+            entry["qml_candidates"][0]: entry
+            for entry in qml_routes
+            if entry["qml_candidates"]
+        }
+        for component in qml_entries:
+            component_name = component["component_name"]
+            with self.subTest(component=component_name):
+                path = component["path"]
+                qml_route = qml_route_by_path[path]
+                owners = nav.find_owner_routes(routes, component_name)
+                self.assertTrue(owners)
+                self.assertTrue(all(owner["kind"] != "qml_component" for owner in owners))
+
+                explicit_owners = [
+                    entry
+                    for entry in map_entries
+                    if any(
+                        str(candidate).replace("\\", "/").rstrip("/") == path
+                        for field in (
+                            "source_candidates",
+                            "qml_candidates",
+                            "start_here",
+                        )
+                        for candidate in entry[field]
+                    )
+                ]
+                primary_owner = owners[0]
+                if explicit_owners:
+                    self.assertIn(
+                        primary_owner["map_path"],
+                        {entry["map_path"] for entry in explicit_owners},
+                    )
+                    feature_owners = [
+                        entry for entry in explicit_owners if entry["kind"] == "feature_route"
+                    ]
+                    if feature_owners:
+                        self.assertEqual(primary_owner["kind"], "feature_route")
+                else:
+                    self.assertEqual(primary_owner["map_path"], qml_route["map_path"])
+
+                capsules = nav.build_owner_capsules(owners, component_name)
+                self.assertTrue(capsules)
+                self.assertEqual(capsules[0].get("path"), path)
+
+                focused_test = capsules[0].get("focused_test")
+                if focused_test:
+                    self.assertTrue((REPO_ROOT / focused_test).is_file(), focused_test)
+                    self.assertTrue(
+                        focused_test in primary_owner["test_candidates"]
+                        or focused_test in nav._verification_test_paths(primary_owner)
+                    )
+                if focused_test == "tests/test_script_editor_dock.py":
+                    self.assertIn(
+                        component_name,
+                        {"ScriptCodeEditorPane", "ScriptEditorOverlay"},
+                    )
+
+                distinct_paths = {
+                    str(value)
+                    for capsule in capsules
+                    for field in ("owner_map", "path", "focused_test")
+                    if (value := capsule.get(field))
+                }
+                for capsule in capsules:
+                    distinct_paths.update(capsule.get("do_not_start_here", []))
+                self.assertLessEqual(len(distinct_paths), nav.MAX_DEFAULT_PATHS)
+
+                for as_json in (False, True):
+                    captured = io.StringIO()
+                    with redirect_stdout(captured):
+                        nav._emit_owner_capsules(
+                            component_name, capsules, as_json
+                        )
+                    self.assertLessEqual(
+                        len(captured.getvalue().encode("utf-8")),
+                        nav.MAX_DEFAULT_OUTPUT_BYTES,
+                    )
+
     def test_parse_qml_file_extracts_navigation_anchors(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             repo_root = Path(temp_dir)

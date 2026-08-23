@@ -39,6 +39,8 @@ Use this for verification mode selection, pytest defaults, shell isolation, docs
 - For docs-only changes, prefer markdown/link checks and targeted hygiene tests.
 - Keep generated-metadata tracking and dead-code guardrails in focused hygiene tests, not broad lint phases.
 - Keep `scripts/nav.py find` joined to generated QML component metadata so UI terms and QML symbols resolve to the map-owned source path, focused test, and verification command.
+- Keep task-language aliases neutral and exact. Put each alias on the narrowest owning map, cite the exact live file that should open first, and place its smallest route-owned proving test in `Start Here` and `Focused Verification`.
+- When a QML component has a feature owner, cite its exact repository path on that feature map so the explicit owner beats the inferred subsystem. Omit a focused test when no route-owned test is defensible instead of borrowing an unrelated test from another surface.
 - Documentation-only executable declarations belong under `docs/examples/` with one focused test that imports and validates them against the real public SDK. When that documentation provides partial packet proof, register its QA matrix from `docs/specs/INDEX.md` and name outstanding acceptance gates explicitly.
 - Regenerate `docs/agent_route_index.md` and `docs/agent_route_index.json` with their script when agent maps, coverage rows, QML metadata, or source/test inventory change.
 - Regenerate `docs/source_test_file_index.md` with its script when refreshing the stable source/test path inventory; current lines are resolved on demand with `scripts/nav.py line`.
@@ -60,4 +62,4 @@ Use this for verification mode selection, pytest defaults, shell isolation, docs
 - [Docs, Traceability, And Hygiene Tests](../testing/docs_traceability_hygiene.md)
 
 ## Update Triggers
-Update when verification mode commands, pytest defaults, shell-isolation ownership, documentation-example validation, docs hygiene, static hygiene, generated navigation indexes, or traceability checks change.
+Update when verification mode commands, pytest defaults, shell-isolation ownership, documentation-example validation, docs hygiene, static hygiene, navigation alias/path/test maintenance, generated navigation indexes, or traceability checks change.
