@@ -93,6 +93,26 @@ class InspectorReflectionTests(unittest.TestCase):
         self.assertEqual(node.properties["title"], "Approved")
         self.assertEqual(node.title, "Approved")
 
+    def test_signal_plot_title_property_does_not_rename_node(self) -> None:
+        node_id = self.scene.add_node_from_type("plot.signal", 0.0, 0.0)
+        node = self.model.project.workspaces[self.workspace_id].nodes[node_id]
+        original_node_title = node.title
+
+        self.scene.set_node_property(node_id, "title", "Engine response")
+
+        self.assertEqual(node.title, original_node_title)
+        self.assertEqual(node.properties["title"], "Engine response")
+
+        self.assertTrue(
+            self.scene.set_node_properties(
+                node_id,
+                {"title": "Updated response", "font_size": 18},
+            )
+        )
+        self.assertEqual(node.title, original_node_title)
+        self.assertEqual(node.properties["title"], "Updated response")
+        self.assertEqual(node.properties["font_size"], 18)
+
     def test_flowchart_set_node_title_writes_back_title_property(self) -> None:
         node_id = self.scene.add_node_from_type("passive.flowchart.process", 0.0, 0.0)
 

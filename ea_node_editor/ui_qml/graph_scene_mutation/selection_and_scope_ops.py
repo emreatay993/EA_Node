@@ -944,7 +944,17 @@ def set_node_property(self, node_id: str, key: str, value: Any) -> None:
     if node is None:
         return
     spec = registry.resolve_spec(node.type_id, node.properties)
-    if key == "title":
+    property_spec = next(
+        (
+            property_spec
+            for property_spec in spec.properties
+            if property_spec.key == key
+        ),
+        None,
+    )
+    if key == "title" and (
+        property_spec is None or self._scene_context.surface_title_sync_enabled(spec)
+    ):
         normalized_title = self._normalized_title_update(node, value)
         if normalized_title is None:
             return
@@ -956,14 +966,6 @@ def set_node_property(self, node_id: str, key: str, value: Any) -> None:
         self.notify_selected_node_context_updated(node_id)
         self._record_history(ACTION_RENAME_NODE, history_before)
         return
-    property_spec = next(
-        (
-            property_spec
-            for property_spec in spec.properties
-            if property_spec.key == key
-        ),
-        None,
-    )
     if property_spec is None or bool(getattr(property_spec, "sensitive", False)):
         return
     if node.type_id == "core.python_script" and key == "script":
@@ -1040,9 +1042,6 @@ def set_node_properties(self, node_id: str, values: dict[str, Any]) -> bool:
         key = str(raw_key or "")
         if not key:
             continue
-        if key == "title":
-            normalized_title = self._normalized_title_update(node, raw_value)
-            continue
         property_spec = next(
             (
                 property_spec
@@ -1051,6 +1050,11 @@ def set_node_properties(self, node_id: str, values: dict[str, Any]) -> bool:
             ),
             None,
         )
+        if key == "title" and (
+            property_spec is None or self._scene_context.surface_title_sync_enabled(spec)
+        ):
+            normalized_title = self._normalized_title_update(node, raw_value)
+            continue
         if property_spec is None or bool(
             getattr(property_spec, "sensitive", False)
         ):
