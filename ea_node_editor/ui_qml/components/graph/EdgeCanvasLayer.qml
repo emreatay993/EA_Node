@@ -17,7 +17,7 @@ Item {
     property real _paintViewportZoom: 1.0
     property real _paintViewportOffsetX: 0.0
     property real _paintViewportOffsetY: 0.0
-    readonly property color activeAppendMarkerColor: "#49BD53"
+    readonly property color activeAppendMarkerColor: "#419248"
     readonly property var _currentViewportTransform: root.edgeLayer
         ? EdgeViewportMath.viewportTransform(root.edgeLayer)
         : ({"zoom": root._paintViewportZoom, "offsetX": root._paintViewportOffsetX, "offsetY": root._paintViewportOffsetY})
@@ -149,6 +149,8 @@ Item {
         return [];
     }
     function standardEdgeBaseColor(edge) {
+        if (root.standardEdgeActive(edge))
+            return root.edgeLayer.activeDefaultStrokeColor;
         return edge && edge.color ? edge.color : root.edgeLayer.fallbackStrokeColor;
     }
     function standardEdgeActive(edge) {
@@ -193,10 +195,6 @@ Item {
         if (root.standardEdgeActive(edge)) {
             if (structure === "empty")
                 return 1.0;
-            if (snapshot.selected)
-                return 3.0;
-            if (snapshot.previewed)
-                return 2.8;
             return 2.0;
         }
         if (snapshot.selected)
@@ -262,12 +260,14 @@ Item {
     function dragConnectionDashPattern(connection, zoom) {
         var unit = Math.max(1.0, zoom);
         var mode = root.dragConnectionMode(connection);
+        var activeDataWire = root.edgeLayer
+            && root.edgeLayer.dragConnectionActiveDataWire(connection);
+        if (activeDataWire)
+            return mode === "disconnect" || mode === "rewire"
+                ? [Math.max(4.0, 10.0 * unit), Math.max(2.0, 4.0 * unit)]
+                : [];
         if (mode === "append" || mode === "copy")
             return [Math.max(1.0, 2.0 * unit), Math.max(2.0, 3.0 * unit)];
-        if (mode === "replace"
-                && root.edgeLayer
-                && root.edgeLayer.dragConnectionActiveDataWire(connection))
-            return [];
         if (mode === "replace" || mode === "disconnect" || mode === "rewire")
             return [Math.max(4.0, 10.0 * unit), Math.max(2.0, 4.0 * unit)];
         if (mode === "noop")
@@ -279,21 +279,18 @@ Item {
         if (mode === "append" || mode === "copy")
             return "+";
         if (root.edgeLayer && root.edgeLayer.dragConnectionActiveDataWire(connection))
-            return mode === "disconnect" ? "-" : "";
+            return "";
         return mode === "replace" ? "R" : (mode === "noop" ? "=" : "");
     }
     function dragConnectionMarkerVisible(connection) {
         var markerText = root.dragConnectionMarkerText(connection);
         if (!markerText.length)
             return false;
-        var mode = root.dragConnectionMode(connection);
-        var activeDataWire = root.edgeLayer
-            && root.edgeLayer.dragConnectionActiveDataWire(connection);
-        if (activeDataWire && mode === "disconnect")
-            return true;
         if (!Boolean(connection && connection.valid_drop))
             return false;
-        return !(activeDataWire && mode === "noop");
+        return !(root.edgeLayer
+            && root.edgeLayer.dragConnectionActiveDataWire(connection)
+            && root.dragConnectionMode(connection) === "noop");
     }
     function dragConnectionMarkerColor(connection, dragStrokeColor) {
         var mode = root.dragConnectionMode(connection);
@@ -303,7 +300,25 @@ Item {
             return root.activeAppendMarkerColor;
         return dragStrokeColor;
     }
-    function drawDragConnectionMarker(ctx, geometry, markerText, strokeColor, viewportTransform) {
+    function dragConnectionMarkerPlain(connection) {
+        var mode = root.dragConnectionMode(connection);
+        return Boolean(root.edgeLayer
+            && root.edgeLayer.dragConnectionActiveDataWire(connection)
+            && (mode === "append" || mode === "copy"));
+    }
+    function dragConnectionStrokeColor(connection) {
+        if (root.edgeLayer && root.edgeLayer.dragConnectionActiveDataWire(connection))
+            return root.edgeLayer.activeDefaultStrokeColor;
+        return connection && connection.valid_drop
+            ? root.edgeLayer.validDragStrokeColor
+            : root.edgeLayer.invalidDragStrokeColor;
+    }
+    function dragConnectionStrokeWidthScreenPx(connection, zoom) {
+        if (root.edgeLayer && root.edgeLayer.dragConnectionActiveDataWire(connection))
+            return 2.0;
+        return Math.max(1.0, (connection && connection.valid_drop ? 2.7 : 2.0) * zoom);
+    }
+    function drawDragConnectionMarker(ctx, geometry, markerText, strokeColor, viewportTransform, plain) {
         if (!ctx || !geometry || !String(markerText || "").length)
             return;
         var dx = Number(geometry.tx || 0.0) - Number(geometry.sx || 0.0);
@@ -317,15 +332,17 @@ Item {
         var centerY = Number(geometry.ty) - dy * lead / length;
         ctx.save();
         ctx.setLineDash([]);
-        ctx.beginPath();
-        ctx.arc(centerX, centerY, radius, 0.0, Math.PI * 2.0);
-        ctx.fillStyle = String(root.shellPalette.canvas_bg || "#151821");
-        ctx.fill();
-        ctx.strokeStyle = strokeColor;
-        ctx.lineWidth = EdgeViewportMath.screenLengthToScene(1.5, viewportTransform);
-        ctx.stroke();
+        if (!plain) {
+            ctx.beginPath();
+            ctx.arc(centerX, centerY, radius, 0.0, Math.PI * 2.0);
+            ctx.fillStyle = String(root.shellPalette.canvas_bg || "#151821");
+            ctx.fill();
+            ctx.strokeStyle = strokeColor;
+            ctx.lineWidth = EdgeViewportMath.screenLengthToScene(1.5, viewportTransform);
+            ctx.stroke();
+        }
         ctx.fillStyle = strokeColor;
-        ctx.font = "600 " + EdgeViewportMath.screenLengthToScene(10.0, viewportTransform) + "px sans-serif";
+        ctx.font = "600 " + EdgeViewportMath.screenLengthToScene(plain ? 13.0 : 10.0, viewportTransform) + "px sans-serif";
         ctx.textAlign = "center";
         ctx.textBaseline = "middle";
         ctx.fillText(String(markerText), centerX, centerY);
@@ -338,6 +355,7 @@ Item {
         var structure = root.standardEdgeStructure(edge);
         var hidden = activeDataWire
             && displayMode === "hidden"
+            && !(root.edgeLayer && root.edgeLayer.wireSelectionModeHeld)
             && !snapshot.selected
             && !snapshot.previewed
             && !snapshot.replacementPreviewed;
@@ -356,17 +374,15 @@ Item {
                     : "selected_target")
                 : "none");
         var baseWidthPx = root.standardEdgeBaseWidthPx(snapshot, edge, structure, zoom);
-        var strokeAlpha = structure === "empty" ? 0.72 : 1.0;
-        if (activeDataWire && edge.enabled === false)
-            strokeAlpha = Math.min(strokeAlpha, 0.55);
+        var strokeAlpha = 1.0;
         if (faint)
-            strokeAlpha = Math.min(strokeAlpha, 0.18);
+            strokeAlpha = Math.min(strokeAlpha, 0.30);
         if (snapshot.selected || snapshot.previewed)
             strokeAlpha = 1.0;
         var disabledMarkerColor = root.edgeLayer.dangerStrokeColor;
         if (!invalidGradient && (snapshot.selected || snapshot.previewed))
             disabledMarkerColor = root.edgeLayer.activeSelectedStrokeColor;
-        var disabledMarkerAlpha = faint ? 0.18 : 1.0;
+        var disabledMarkerAlpha = faint ? 0.30 : 1.0;
         return {
             "flowEdge": false,
             "activeDataWire": activeDataWire,
@@ -395,7 +411,7 @@ Item {
             ),
             "muted": root.standardEdgeMuted(edge),
             "invalid": root.standardEdgeInvalid(edge),
-            "bodyVisible": !hidden,
+            "bodyVisible": !hidden && !(activeDataWire && invalidGradient && structure === "empty"),
             "endpointArcsVisible": hidden,
             "disabledMarkerVisible": activeDataWire && edge.enabled === false && !hidden,
             "disabledMarkerColor": disabledMarkerColor,
@@ -564,34 +580,49 @@ Item {
         var fadeRatio = totalLength > 1e-6
             ? Math.max(0.02, Math.min(0.5, fadeScene / totalLength))
             : 0.5;
+        var stops = root.standardEdgeGradientStops(paintState, fadeRatio);
+        for (var i = 0; i < stops.length; i++)
+            gradient.addColorStop(Number(stops[i].position), stops[i].color);
+        return gradient;
+    }
+
+    function standardEdgeGradientStops(paintState, fadeRatio) {
         var baseColor = paintState.baseColor;
+        var selectedColor = root.edgeLayer.activeSelectedStrokeColor;
+        var dangerColor = root.edgeLayer.dangerStrokeColor;
+        var ratio = Math.max(0.02, Math.min(0.5, Number(fadeRatio)));
         if (paintState.invalidGradient) {
             var sourceSelected = paintState.selected
                 || paintState.previewed
                 || paintState.sourceNodeSelected;
-            gradient.addColorStop(0.0, sourceSelected ? root.edgeLayer.activeSelectedStrokeColor : baseColor);
-            gradient.addColorStop(fadeRatio, baseColor);
-            gradient.addColorStop(Math.max(fadeRatio, 1.0 - fadeRatio), baseColor);
-            gradient.addColorStop(1.0, root.edgeLayer.dangerStrokeColor);
-        } else if (paintState.gradientKind === "selected_source") {
-            gradient.addColorStop(0.0, root.edgeLayer.activeSelectedStrokeColor);
-            gradient.addColorStop(fadeRatio, paintState.baseColor);
-            gradient.addColorStop(1.0, paintState.baseColor);
-        } else if (paintState.gradientKind === "selected_target") {
-            gradient.addColorStop(0.0, paintState.baseColor);
-            gradient.addColorStop(1.0 - fadeRatio, paintState.baseColor);
-            gradient.addColorStop(1.0, root.edgeLayer.activeSelectedStrokeColor);
-        } else if (paintState.gradientKind === "selected_both") {
-            gradient.addColorStop(0.0, root.edgeLayer.activeSelectedStrokeColor);
-            gradient.addColorStop(fadeRatio, paintState.baseColor);
-            gradient.addColorStop(1.0 - fadeRatio, paintState.baseColor);
-            gradient.addColorStop(1.0, root.edgeLayer.activeSelectedStrokeColor);
-        } else {
-            gradient.addColorStop(0.0, baseColor);
-            gradient.addColorStop(1.0 - fadeRatio, baseColor);
-            gradient.addColorStop(1.0, paintState.strokeColor);
+            return [
+                {"position": 0.0, "color": sourceSelected ? selectedColor : baseColor},
+                {"position": ratio, "color": dangerColor},
+                {"position": 1.0, "color": dangerColor}
+            ];
         }
-        return gradient;
+        if (paintState.gradientKind === "selected_source")
+            return [
+                {"position": 0.0, "color": selectedColor},
+                {"position": 1.0 - ratio, "color": selectedColor},
+                {"position": 1.0, "color": baseColor}
+            ];
+        if (paintState.gradientKind === "selected_target")
+            return [
+                {"position": 0.0, "color": baseColor},
+                {"position": ratio, "color": selectedColor},
+                {"position": 1.0, "color": selectedColor}
+            ];
+        if (paintState.gradientKind === "selected_both")
+            return [
+                {"position": 0.0, "color": selectedColor},
+                {"position": 1.0, "color": selectedColor}
+            ];
+        return [
+            {"position": 0.0, "color": baseColor},
+            {"position": 1.0 - ratio, "color": baseColor},
+            {"position": 1.0, "color": paintState.strokeColor}
+        ];
     }
 
     function drawHiddenEndpointArcs(ctx, geometry, paintState, viewportTransform) {
@@ -653,7 +684,7 @@ Item {
     }
 
     function hiddenEndpointArcRadiiScreenPx() {
-        return [3.0, 6.0, 9.0];
+        return [9.0, 12.0, 15.0];
     }
 
     function drawDisabledMarker(ctx, geometry, strokeColor, strokeAlpha, viewportTransform) {
@@ -766,7 +797,7 @@ Item {
     function _samplingModelForSnapshot(snapshot, viewportTransform) {
         if (!snapshot || snapshot.culled || !snapshot.geometry)
             return null;
-        if (snapshot.hiddenUnrevealed)
+        if (snapshot.displayMode === "hidden")
             return null;
         var sceneStep = EdgeViewportMath.screenLengthToScene(root.edgeLayer.edgeCrossingSampleStepScreenPx, viewportTransform);
         var points = EdgeMath.sampleGeometryPolyline(snapshot.geometry, sceneStep);
@@ -1129,15 +1160,13 @@ Item {
                     var liveDrag = liveDrags[liveDragIndex];
                     var dragGeometry = root.edgeLayer._dragGeometry(liveDrag);
                     if (dragGeometry) {
-                        var dragStrokeColor = liveDrag.valid_drop
-                            ? root.edgeLayer.validDragStrokeColor
-                            : root.edgeLayer.invalidDragStrokeColor;
+                        var dragStrokeColor = root.dragConnectionStrokeColor(liveDrag);
                         ctx.save();
                         ctx.beginPath();
                         root.traceGeometry(ctx, dragGeometry);
                         ctx.strokeStyle = dragStrokeColor;
                         ctx.lineWidth = EdgeViewportMath.screenLengthToScene(
-                            Math.max(1.0, (liveDrag.valid_drop ? 2.7 : 2.0) * zoom),
+                            root.dragConnectionStrokeWidthScreenPx(liveDrag, zoom),
                             viewportTransform
                         );
                         ctx.setLineDash(
@@ -1154,7 +1183,8 @@ Item {
                                 dragGeometry,
                                 root.dragConnectionMarkerText(liveDrag),
                                 root.dragConnectionMarkerColor(liveDrag, dragStrokeColor),
-                                viewportTransform
+                                viewportTransform,
+                                root.dragConnectionMarkerPlain(liveDrag)
                             );
                         }
                         ctx.restore();

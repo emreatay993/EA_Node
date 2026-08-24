@@ -83,9 +83,12 @@ Item {
             active: root.hoveredEdgeId.length > 0
             text: root.hoveredEdgeTooltipText
             delay: 400
-            maximumTextWidth: 520
+            maximumTextWidth: 360
+            font.family: "monospace"
+            font.pixelSize: 12
             screenStablePositioning: true
-            screenStablePlacement: "above"
+            screenStablePlacement: "below"
+            screenGap: 6
         }
     }
 }

@@ -1146,7 +1146,10 @@ QtObject {
         root.wireDropCandidate = null;
         root.wireInvalidDropCandidate = null;
         root.hoveredPort = root.pendingConnectionPort ? root.pendingConnectionPort : null;
-        _requestEdgeRedraw();
+        if (root.edgeLayerItem && root.edgeLayerItem.requestImmediateRedraw)
+            root.edgeLayerItem.requestImmediateRedraw();
+        else
+            _requestEdgeRedraw();
     }
 
     function beginPortWireDrag(nodeId, portKey, direction, sceneX, sceneY, screenX, screenY, modifiers) {

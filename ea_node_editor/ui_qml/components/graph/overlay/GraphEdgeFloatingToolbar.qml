@@ -24,7 +24,17 @@ Item {
     readonly property string activeEdgeId: root.editingEdgeId.length > 0
         ? root.editingEdgeId
         : root.selectedEdgeId
-    readonly property var activeEdgePayload: root._edgePayload(root.activeEdgeId)
+    readonly property int edgeTopologyRevision: root.edgeLayer
+        ? Number(root.edgeLayer._edgeTopologyRevision || 0)
+        : 0
+    readonly property var activeEdgePayload: {
+        var revision = root.edgeTopologyRevision;
+        void(revision);
+        return root._edgePayload(root.activeEdgeId);
+    }
+    readonly property bool activeDataWire: root.selectedEdgeId.length > 0
+        && root.activeEdgeId === root.selectedEdgeId
+        && Boolean(root.activeEdgePayload && root.activeEdgePayload.active_data_wire)
     readonly property bool flowEdgeActive: root.activeEdgeId.length > 0 && root._edgeSupportsFlowStyle(root.activeEdgeId)
     readonly property var activeSnapshot: root._edgeSnapshot(root.activeEdgeId)
     readonly property var activeAnchorScene: root._edgeAnchorScene(root.activeSnapshot)
@@ -47,6 +57,7 @@ Item {
     readonly property var activeFlowStyle: root._flowStyle(root.activeEdgePayload)
     readonly property string activeLabelText: String(root.activeEdgePayload && root.activeEdgePayload.label || "").trim()
     readonly property string toolbarPathMode: root._currentPathMode()
+    readonly property string toolbarDisplayMode: root._currentDisplayMode()
     readonly property string toolbarPatternGlyphKind: root._currentStrokePattern()
     readonly property string toolbarArrowGlyphKind: root._currentArrowHead()
     readonly property string toolbarPatternIconName: root._strokePatternIconName(root.toolbarPatternGlyphKind)
@@ -110,6 +121,11 @@ Item {
         { "label": "Pipe", "value": "pipe" },
         { "label": "Bezier", "value": "bezier" }
     ]
+    readonly property var displayModeChoices: [
+        { "label": "Default", "value": "default" },
+        { "label": "Faint", "value": "faint" },
+        { "label": "Hidden", "value": "hidden" }
+    ]
     readonly property var arrowChoices: [
         { "label": "Filled", "value": "filled" },
         { "label": "Open", "value": "open" },
@@ -158,6 +174,14 @@ Item {
             { "id": "path_mode", "label": "Path mode", "icon": "path-style", "popover": "path_mode" },
             { "id": "frame_edge", "label": "Zoom to selection", "icon": "zoom-fit" }
         ];
+        if (root.activeDataWire) {
+            actions.push({
+                "id": "display_mode",
+                "label": "Display mode: " + root._displayModeLabel(root.toolbarDisplayMode),
+                "icon": "palette",
+                "popover": "display_mode"
+            });
+        }
         if (root.flowEdgeActive) {
             actions.push(
                 { "id": "edge_color", "label": "Set color", "icon": "palette", "popover": "color" },
@@ -420,6 +444,20 @@ Item {
         return root._normalizedPathMode(root._visualStyle(root.activeEdgePayload).path_mode);
     }
 
+    function _normalizedDisplayMode(displayMode) {
+        var value = String(displayMode || "").trim().toLowerCase();
+        return value === "faint" || value === "hidden" ? value : "default";
+    }
+
+    function _currentDisplayMode() {
+        return root._normalizedDisplayMode(root._visualStyle(root.activeEdgePayload).display_mode);
+    }
+
+    function _displayModeLabel(displayMode) {
+        var value = root._normalizedDisplayMode(displayMode);
+        return value.charAt(0).toUpperCase() + value.slice(1);
+    }
+
     function _strokePatternIconName(pattern) {
         var value = String(pattern || "solid").toLowerCase();
         if (value === "dashed")
@@ -449,6 +487,8 @@ Item {
         var id = String(action && action.id || "");
         if (id === "path_mode")
             return pathModePopup.opened;
+        if (id === "display_mode")
+            return displayModePopup.opened;
         if (id === "stroke_pattern")
             return patternPopup.opened;
         if (id === "arrow_head")
@@ -475,6 +515,8 @@ Item {
             colorPopup.close();
         if (pathModePopup !== exceptPopup && pathModePopup.opened)
             pathModePopup.close();
+        if (displayModePopup !== exceptPopup && displayModePopup.opened)
+            displayModePopup.close();
         if (patternPopup !== exceptPopup && patternPopup.opened)
             patternPopup.close();
         if (arrowPopup !== exceptPopup && arrowPopup.opened)
@@ -495,6 +537,10 @@ Item {
         }
         if (popover === "path_mode") {
             root._openPopup(pathModePopup, button);
+            return;
+        }
+        if (popover === "display_mode") {
+            root._openPopup(displayModePopup, button);
             return;
         }
         if (popover === "pattern") {
@@ -723,6 +769,62 @@ Item {
             onActiveFocusChanged: {
                 if (!activeFocus && root.labelEditorActive)
                     root.commitLabelEdit();
+            }
+        }
+    }
+
+    Popup {
+        id: displayModePopup
+        objectName: "graphEdgeDisplayModePopup"
+        parent: root
+        modal: false
+        focus: true
+        padding: 6
+        closePolicy: root.stylePopupClosePolicy
+        background: Rectangle {
+            radius: 7
+            color: root.chromeFillColor
+            border.width: 1
+            border.color: Qt.alpha(root.chromeBorderColor, 0.74)
+        }
+        contentItem: Row {
+            spacing: 8
+            Repeater {
+                model: root.displayModeChoices
+                Button {
+                    id: displayModeChoiceButton
+                    objectName: "graphEdgeDisplayModeChoice_" + String(modelData.value || "")
+                    text: String(modelData.label || "")
+                    width: 62
+                    height: 34
+                    padding: 0
+                    checkable: true
+                    checked: root.toolbarDisplayMode === String(modelData.value || "")
+                    autoExclusive: true
+                    onClicked: {
+                        var mode = String(modelData.value || "default");
+                        if (root.canvasItem && root.canvasItem.setEdgesDisplayMode) {
+                            root.canvasItem.setEdgesDisplayMode([root.activeEdgeId], mode);
+                            displayModePopup.close();
+                        }
+                    }
+                    contentItem: Text {
+                        text: String(modelData.label || "")
+                        horizontalAlignment: Text.AlignHCenter
+                        verticalAlignment: Text.AlignVCenter
+                        color: root.toolbarDisplayMode === String(modelData.value || "")
+                            ? root.accentColor
+                            : root.foregroundColor
+                        font.pixelSize: 12
+                        font.bold: root.toolbarDisplayMode === String(modelData.value || "")
+                    }
+                    background: Rectangle {
+                        radius: 5
+                        color: root.toolbarDisplayMode === String(modelData.value || "")
+                            ? Qt.alpha(root.accentColor, 0.16)
+                            : (displayModeChoiceButton.hovered ? Qt.alpha(root.foregroundColor, 0.10) : "transparent")
+                    }
+                }
             }
         }
     }

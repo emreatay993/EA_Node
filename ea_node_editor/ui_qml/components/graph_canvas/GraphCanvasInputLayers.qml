@@ -488,9 +488,29 @@ Item {
         height: Math.abs(marqueeArea.currentY - marqueeArea.startY)
         color: marqueeArea.marqueeMode === "zoom"
             ? Qt.alpha(root.themePalette.accent, 0.12)
-            : Qt.alpha(root.themePalette.accent, 0.2)
-        border.width: 1
+            : (marqueeArea.marqueeMode === "edge_selection"
+                ? Qt.rgba(0.27, 0.72, 0.82, 0.16)
+                : Qt.alpha(root.themePalette.accent, 0.2))
+        border.width: marqueeArea.marqueeMode === "edge_selection" ? 0 : 1
         border.color: root.themePalette.accent
+
+        Canvas {
+            anchors.fill: parent
+            visible: marqueeArea.marqueeMode === "edge_selection"
+            onVisibleChanged: requestPaint()
+            onWidthChanged: requestPaint()
+            onHeightChanged: requestPaint()
+            onPaint: {
+                var ctx = getContext("2d");
+                ctx.reset();
+                if (!visible || width < 1 || height < 1)
+                    return;
+                ctx.strokeStyle = "#45B8D2";
+                ctx.lineWidth = 1;
+                ctx.setLineDash([1, 3]);
+                ctx.strokeRect(0.5, 0.5, Math.max(0, width - 1), Math.max(0, height - 1));
+            }
+        }
     }
 
     MouseArea {

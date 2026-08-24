@@ -195,6 +195,9 @@ class FlowEdgeLabelPayloadTests(unittest.TestCase):
         root_layers_text = (graph_canvas_dir / "GraphCanvasRootLayers.qml").read_text(
             encoding="utf-8"
         )
+        input_layers_text = (graph_canvas_dir / "GraphCanvasInputLayers.qml").read_text(
+            encoding="utf-8"
+        )
         edge_layer_text = (graph_dir / "EdgeLayer.qml").read_text(encoding="utf-8")
         canvas_layer_text = (graph_dir / "EdgeCanvasLayer.qml").read_text(
             encoding="utf-8"
@@ -224,6 +227,10 @@ class FlowEdgeLabelPayloadTests(unittest.TestCase):
         )
         self.assertIn("ShapePath.DashLine", retained_layer_text)
         self.assertIn('objectName: "graphEdgeValuePreviewToolTip"', hit_overlay_text)
+        self.assertIn(
+            'marqueeArea.marqueeMode === "edge_selection"', input_layers_text
+        )
+        self.assertIn('ctx.setLineDash([1, 3])', input_layers_text)
         combined = "\n".join(
             (root_layers_text, edge_layer_text, canvas_layer_text, retained_layer_text)
         )
@@ -869,9 +876,34 @@ class FlowEdgeLabelQmlTests(unittest.TestCase):
             edge_layer.setProperty(
                 "outputPreviewLookup",
                 {
-                    "item_source": {"out": {"state": "current", "tooltip_text": "Current item"}},
-                    "faint_list_source": {"out": {"state": "current", "tooltip_text": "3 items\\n[0] A\\n[1] B"}},
-                    "tree_source": {"out": {"state": "current", "tooltip_text": "2 branches\\n{0}\\n[0] A"}},
+                    "item_source": {"out": {
+                        "state": "current",
+                        "tooltip_text": "Current\\nCurrent item",
+                        "rows": [
+                            {"kind": "branch", "path": "0"},
+                            {"kind": "item", "path": "0", "index": 0, "text": "Current item"},
+                        ],
+                    }},
+                    "faint_list_source": {"out": {
+                        "state": "current",
+                        "tooltip_text": "Current\\nList: 3 items\\n[0] A\\n[1] B\\n[2] C",
+                        "rows": [
+                            {"kind": "branch", "path": "0"},
+                            {"kind": "item", "path": "0", "index": 0, "text": "A"},
+                            {"kind": "item", "path": "0", "index": 1, "text": "B"},
+                            {"kind": "item", "path": "0", "index": 2, "text": "C"},
+                        ],
+                    }},
+                    "tree_source": {"out": {
+                        "state": "current",
+                        "tooltip_text": "Current\\nTree: 2 branches, 2 items\\n{0}\\n  [0] A\\n{1}\\n  [0] B",
+                        "rows": [
+                            {"kind": "branch", "path": "0"},
+                            {"kind": "item", "path": "0", "index": 0, "text": "A"},
+                            {"kind": "branch", "path": "1"},
+                            {"kind": "item", "path": "1", "index": 0, "text": "B"},
+                        ],
+                    }},
                     "empty_source": {"out": {"state": "empty", "tooltip_text": "Empty"}},
                     "disabled_source": {"out": {"state": "current", "tooltip_text": "Current"}},
                     "selected_hidden_source": {"out": {"state": "current", "tooltip_text": "Selected"}},
@@ -932,13 +964,20 @@ class FlowEdgeLabelQmlTests(unittest.TestCase):
                 assert int(item_paint["strokeCount"]) == 1
                 assert len(item_paint["strokeOffsetsScreenPx"]) == 1
                 assert len(item_paint["dashPatternScreenPx"]) == 0
+                assert color_name(item_paint["baseColor"]) == color_name(
+                    edge_layer.property("activeDefaultStrokeColor")
+                )
+                assert color_name(item_paint["strokeColor"]) == color_name(
+                    edge_layer.property("activeDefaultStrokeColor")
+                )
+                assert abs(float(item_paint["strokeWidthScreenPx"]) - 2.0) < 0.001
 
                 faint_paint = paint("faint_list")
                 assert faint_paint["structure"] == "list"
                 assert faint_paint["displayMode"] == "faint"
                 assert int(faint_paint["strokeCount"]) == 1
                 assert list(faint_paint["dashPatternScreenPx"]) == [1.0, 4.0]
-                assert abs(float(faint_paint["strokeAlpha"]) - 0.18) < 0.001
+                assert abs(float(faint_paint["strokeAlpha"]) - 0.30) < 0.001
 
                 tree_paint = paint("tree")
                 assert tree_paint["structure"] == "tree"
@@ -950,6 +989,7 @@ class FlowEdgeLabelQmlTests(unittest.TestCase):
                 assert len(empty_paint["strokeOffsetsScreenPx"]) == 2
                 assert len(empty_paint["dashPatternScreenPx"]) == 0
                 assert empty_paint["disabledMarkerVisible"] is False
+                assert abs(float(empty_paint["strokeAlpha"]) - 1.0) < 0.001
 
                 disabled_paint = paint("disabled")
                 assert disabled_paint["structure"] == "list"
@@ -960,6 +1000,7 @@ class FlowEdgeLabelQmlTests(unittest.TestCase):
                 )
                 assert color_name(edge_layer.property("dangerStrokeColor")) == "#ff543e"
                 assert abs(float(disabled_paint["disabledMarkerAlpha"]) - 1.0) < 0.001
+                assert abs(float(disabled_paint["strokeAlpha"]) - 1.0) < 0.001
 
                 selected_disabled_paint = paint("selected_disabled")
                 assert selected_disabled_paint["disabledMarkerVisible"] is True
@@ -977,6 +1018,7 @@ class FlowEdgeLabelQmlTests(unittest.TestCase):
                     edge_layer.property("activeSelectedStrokeColor")
                 )
                 assert color_name(edge_layer.property("activeSelectedStrokeColor")) == "#75b4e7"
+                assert abs(float(selected_hidden_paint["strokeWidthScreenPx"]) - 2.0) < 0.001
 
                 passive_paint = paint("passive")
                 assert passive_paint["activeDataWire"] is False
@@ -992,8 +1034,21 @@ class FlowEdgeLabelQmlTests(unittest.TestCase):
                 assert replacement_paint["displayMode"] == "hidden"
                 assert replacement_paint["bodyVisible"] is True
                 assert replacement_paint["endpointArcsVisible"] is False
-                assert abs(float(replacement_paint["strokeAlpha"]) - 0.18) < 0.001
+                assert abs(float(replacement_paint["strokeAlpha"]) - 0.30) < 0.001
                 assert list(replacement_paint["dashPatternScreenPx"]) == [1.0, 4.0]
+
+                item_tooltip = str(edge_layer.edgeTooltipText("item"))
+                assert item_tooltip == "Current item", item_tooltip
+                faint_tooltip = str(edge_layer.edgeTooltipText("faint_list"))
+                assert faint_tooltip == "List: 3 items\\n[0]  A\\n[1]  B\\n[2]  C", faint_tooltip
+                tree_tooltip = str(edge_layer.edgeTooltipText("tree"))
+                assert tree_tooltip == "Tree: 2 branches, 2 items\\n{0}\\n  [0]  A\\n{1}\\n  [0]  B", tree_tooltip
+                passive_tooltip = str(edge_layer.edgeTooltipText("passive"))
+                assert passive_tooltip == "List data\\nPassive", passive_tooltip
+                passive_disabled_tooltip = str(edge_layer.edgeTooltipText("passive_disabled"))
+                assert passive_disabled_tooltip == "Item data\\nDisabled\\nPassive disabled", passive_disabled_tooltip
+                assert " data" not in faint_tooltip
+                assert "Current\\n" not in faint_tooltip
 
                 for edge_id, y in (
                     ("item", 80.0),
@@ -1012,7 +1067,7 @@ class FlowEdgeLabelQmlTests(unittest.TestCase):
                 if renderer == "canvas":
                     canvas_layer = edge_layer.findChild(QObject, "graphCanvasEdgeCanvasLayer")
                     assert canvas_layer is not None
-                    assert list(to_variant(canvas_layer.hiddenEndpointArcRadiiScreenPx())) == [3.0, 6.0, 9.0]
+                    assert list(to_variant(canvas_layer.hiddenEndpointArcRadiiScreenPx())) == [9.0, 12.0, 15.0]
                     hidden_paint = paint("hidden")
                     assert hidden_paint["displayMode"] == "hidden"
                     assert hidden_paint["bodyVisible"] is False
@@ -1046,9 +1101,46 @@ class FlowEdgeLabelQmlTests(unittest.TestCase):
                     assert "hidden" in screen_rect_hits
                     assert "Hidden" in str(edge_layer.edgeTooltipText("hidden"))
 
+                    hidden_revision = int(edge_layer.property("_visibleEdgeSnapshotRevision"))
+                    hidden_key = str(edge_layer.property("_lastVisibleEdgeSetKey"))
+                    edge_layer.setProperty("wireSelectionModeHeld", True)
+                    refresh(edge_layer)
+                    assert int(edge_layer.property("_visibleEdgeSnapshotRevision")) > hidden_revision
+                    assert str(edge_layer.property("_lastVisibleEdgeSetKey")) != hidden_key
+                    assert str(edge_layer.property("_lastVisibleEdgeSetKey")).startswith("w|")
+                    w_hidden_snapshot = snapshot(edge_layer, "hidden")
+                    assert w_hidden_snapshot["hiddenUnrevealed"] is False
+                    w_revealed_paint = to_variant(canvas_layer.standardEdgePaintState(
+                        w_hidden_snapshot,
+                        w_hidden_snapshot["edgeData"],
+                        0.5,
+                    ))
+                    assert w_revealed_paint["bodyVisible"] is True
+                    assert w_revealed_paint["endpointArcsVisible"] is False
+                    assert color_name(w_revealed_paint["strokeColor"]) == color_name(
+                        edge_layer.property("activeDefaultStrokeColor")
+                    )
+                    edge_layer.setProperty(
+                        "selectedEdgeIds",
+                        ["selected_hidden", "selected_disabled", "hidden"],
+                    )
+                    refresh(edge_layer)
+                    selected_w_snapshot = snapshot(edge_layer, "hidden")
+                    selected_w_paint = to_variant(canvas_layer.standardEdgePaintState(
+                        selected_w_snapshot,
+                        selected_w_snapshot["edgeData"],
+                        0.5,
+                    ))
+                    assert color_name(selected_w_paint["strokeColor"]) == "#75b4e7"
+                    edge_layer.setProperty("wireSelectionModeHeld", False)
+                    edge_layer.setProperty("selectedEdgeIds", ["selected_hidden", "selected_disabled"])
+                    refresh(edge_layer)
+
                     invalid_paint = paint("invalid")
                     assert invalid_paint["invalidGradient"] is True
                     assert invalid_paint["nodeSelectionGradient"] is False
+                    assert invalid_paint["structure"] == "empty"
+                    assert invalid_paint["bodyVisible"] is False
                     selected_endpoint_paint = paint("selected_endpoint")
                     assert selected_endpoint_paint["nodeSelectionGradient"] is True
                     assert selected_endpoint_paint["invalidGradient"] is False
@@ -1056,15 +1148,50 @@ class FlowEdgeLabelQmlTests(unittest.TestCase):
                     assert selected_invalid_paint["nodeSelectionGradient"] is True
                     assert selected_invalid_paint["invalidGradient"] is True
                     assert str(selected_invalid_paint["gradientKind"]) not in {"", "none"}
+
+                    base_color = edge_layer.property("activeDefaultStrokeColor")
+                    selected_color = edge_layer.property("activeSelectedStrokeColor")
+                    danger_color = edge_layer.property("dangerStrokeColor")
+
+                    def gradient_stops(kind, *, invalid=False, source_selected=False):
+                        return to_variant(canvas_layer.standardEdgeGradientStops({
+                            "gradientKind": kind,
+                            "invalidGradient": invalid,
+                            "selected": False,
+                            "previewed": False,
+                            "sourceNodeSelected": source_selected,
+                            "baseColor": base_color,
+                            "strokeColor": selected_color,
+                        }, 0.25))
+
+                    source_stops = gradient_stops("selected_source")
+                    assert [float(stop["position"]) for stop in source_stops] == [0.0, 0.75, 1.0]
+                    assert [color_name(stop["color"]) for stop in source_stops] == [
+                        color_name(selected_color), color_name(selected_color), color_name(base_color)
+                    ]
+                    target_stops = gradient_stops("selected_target")
+                    assert [float(stop["position"]) for stop in target_stops] == [0.0, 0.25, 1.0]
+                    assert [color_name(stop["color"]) for stop in target_stops] == [
+                        color_name(base_color), color_name(selected_color), color_name(selected_color)
+                    ]
+                    both_stops = gradient_stops("selected_both")
+                    assert [color_name(stop["color"]) for stop in both_stops] == [
+                        color_name(selected_color), color_name(selected_color)
+                    ]
+                    invalid_stops = gradient_stops("invalid_target", invalid=True, source_selected=True)
+                    assert [float(stop["position"]) for stop in invalid_stops] == [0.0, 0.25, 1.0]
+                    assert [color_name(stop["color"]) for stop in invalid_stops] == [
+                        color_name(selected_color), color_name(danger_color), color_name(danger_color)
+                    ]
                     assert int(paint("flow")["strokeCount"]) == 1
                     assert abs(float(paint("flow")["strokeWidthScreenPx"]) - 1.0) < 0.001
                     assert abs(float(paint("flow_disabled")["strokeAlpha"]) - 1.0) < 0.001
 
-                faint_tooltip = str(edge_layer.edgeTooltipText("faint_list"))
-                assert faint_tooltip.startswith("List data\\n")
-                assert "3 items" in faint_tooltip
                 tooltip = edge_layer.findChild(QObject, "graphEdgeValuePreviewToolTip")
                 assert tooltip is not None
+                assert tooltip.property("screenStablePlacement") == "below"
+                assert int(tooltip.property("delay")) == 400
+                assert int(tooltip.property("maximumTextWidth")) == 360
                 QTest.mouseMove(window, QPoint(
                     round(edge_layer.sceneToScreenX(200.0)),
                     round(edge_layer.sceneToScreenY(120.0)),
@@ -1072,7 +1199,7 @@ class FlowEdgeLabelQmlTests(unittest.TestCase):
                 QTest.qWait(450)
                 app.processEvents()
                 assert bool(tooltip.property("active"))
-                assert "3 items" in str(tooltip.property("text"))
+                assert str(tooltip.property("text")).startswith("List: 3 items")
                 QTest.mouseMove(window, QPoint(8, 8))
                 app.processEvents()
                 assert not bool(tooltip.property("active"))
@@ -1094,7 +1221,7 @@ class FlowEdgeLabelQmlTests(unittest.TestCase):
             """,
         )
 
-    def test_active_data_wire_base_color_tracks_canvas_contrast_across_crossed_palettes(
+    def test_active_data_wire_base_color_is_neutral_and_contrast_safe_across_canvas_palettes(
         self,
     ) -> None:
         self._run_edge_layer_probe(
@@ -1102,6 +1229,14 @@ class FlowEdgeLabelQmlTests(unittest.TestCase):
             """
             edge_canvas = edge_layer.findChild(QObject, "graphCanvasEdgeCanvasLayer")
             assert edge_canvas is not None
+
+            from PyQt6.QtGui import QColor
+
+            def color_name(value):
+                return value.name().lower() if hasattr(value, "name") else str(value).lower()
+
+            assert color_name(edge_layer.neutralActiveStrokeColor(QColor("#F7FAFC"))) == "#6b7277"
+            assert color_name(edge_layer.neutralActiveStrokeColor(QColor("#151821"))) == "#a7adb2"
 
             fixtures = (
                 {
@@ -1171,15 +1306,13 @@ class FlowEdgeLabelQmlTests(unittest.TestCase):
                     1.0,
                 ))
 
-            def color_name(value):
-                return value.name().lower() if hasattr(value, "name") else str(value).lower()
-
             for fixture, edges in cases:
-                expected_base = fixture["edge_color"].lower()
+                expected_base = color_name(edge_layer.property("activeDefaultStrokeColor"))
                 for state in ("normal", "empty", "disabled", "invalid"):
                     state_paint = paint(ordinary_snapshot, edges[state])
                     assert color_name(state_paint["baseColor"]) == expected_base, (fixture["name"], state, state_paint)
                     assert color_name(state_paint["strokeColor"]) == expected_base, (fixture["name"], state, state_paint)
+                    assert color_name(state_paint["baseColor"]) != fixture["edge_color"].lower()
 
                 selected_paint = paint(selected_snapshot, edges["normal"])
                 assert color_name(selected_paint["strokeColor"]) == color_name(
@@ -1197,7 +1330,8 @@ class FlowEdgeLabelQmlTests(unittest.TestCase):
                 )
 
                 assert paint(ordinary_snapshot, edges["empty"])["structure"] == "empty"
-                assert abs(float(paint(ordinary_snapshot, edges["disabled"])["strokeAlpha"]) - 0.55) < 0.001
+                assert abs(float(paint(ordinary_snapshot, edges["empty"])["strokeAlpha"]) - 1.0) < 0.001
+                assert abs(float(paint(ordinary_snapshot, edges["disabled"])["strokeAlpha"]) - 1.0) < 0.001
             """,
         )
 
@@ -1365,7 +1499,7 @@ class FlowEdgeLabelQmlTests(unittest.TestCase):
             ) == ""
             assert edge_canvas.dragConnectionMarkerText(
                 {"connection_mode": "disconnect", "source_kind": "data", "active_data_wire": True}
-            ) == "-"
+            ) == ""
             assert to_variant(edge_canvas.dragConnectionDashPattern(
                 {"connection_mode": "replace", "source_kind": "data", "active_data_wire": True},
                 1.0,
@@ -1381,8 +1515,35 @@ class FlowEdgeLabelQmlTests(unittest.TestCase):
                 "active_data_wire": True,
                 "valid_drop": False,
             }
-            assert edge_canvas.dragConnectionMarkerText(disconnect_drag) == "-"
-            assert edge_canvas.dragConnectionMarkerVisible(disconnect_drag) is True
+            assert edge_canvas.dragConnectionMarkerText(disconnect_drag) == ""
+            assert edge_canvas.dragConnectionMarkerVisible(disconnect_drag) is False
+
+            active_default_color = edge_layer.property("activeDefaultStrokeColor")
+            for active_mode in ("connect", "replace", "append", "copy", "noop"):
+                for valid_drop in (False, True):
+                    active_drag = {
+                        "connection_mode": active_mode,
+                        "source_kind": "data",
+                        "active_data_wire": True,
+                        "valid_drop": valid_drop,
+                    }
+                    assert to_variant(edge_canvas.dragConnectionDashPattern(active_drag, 1.0)) == []
+                    assert color_name(edge_canvas.dragConnectionStrokeColor(active_drag)) == color_name(
+                        active_default_color
+                    )
+                    assert abs(float(edge_canvas.dragConnectionStrokeWidthScreenPx(active_drag, 1.75)) - 2.0) < 0.001
+
+            for active_mode in ("disconnect", "rewire"):
+                active_drag = {
+                    "connection_mode": active_mode,
+                    "source_kind": "data",
+                    "active_data_wire": True,
+                    "valid_drop": False,
+                }
+                assert len(to_variant(edge_canvas.dragConnectionDashPattern(active_drag, 1.0))) > 0
+                assert color_name(edge_canvas.dragConnectionStrokeColor(active_drag)) == color_name(
+                    active_default_color
+                )
 
             for inactive_mode in ("connect", "noop"):
                 inactive_drag = {
@@ -1408,8 +1569,9 @@ class FlowEdgeLabelQmlTests(unittest.TestCase):
                     active_add_drag,
                     valid_drag_color,
                 )
-                assert color_name(marker_color) == "#49bd53"
+                assert color_name(marker_color) == "#419248"
                 assert color_name(marker_color) != color_name(valid_drag_color)
+                assert edge_canvas.dragConnectionMarkerPlain(active_add_drag) is True
 
             for legacy_mode, legacy_marker in (("replace", "R"), ("noop", "=")):
                 legacy_drag = {
@@ -1424,6 +1586,23 @@ class FlowEdgeLabelQmlTests(unittest.TestCase):
                     legacy_drag,
                     valid_drag_color,
                 )) == color_name(valid_drag_color)
+                assert edge_canvas.dragConnectionMarkerPlain(legacy_drag) is False
+
+            legacy_add_drag = {
+                "connection_mode": "append",
+                "source_kind": "flow",
+                "active_data_wire": False,
+                "valid_drop": True,
+            }
+            assert edge_canvas.dragConnectionMarkerText(legacy_add_drag) == "+"
+            assert edge_canvas.dragConnectionMarkerPlain(legacy_add_drag) is False
+            assert len(to_variant(edge_canvas.dragConnectionDashPattern(
+                legacy_add_drag,
+                1.0,
+            ))) > 0
+            assert color_name(edge_canvas.dragConnectionStrokeColor(
+                legacy_add_drag
+            )) == color_name(valid_drag_color)
             """,
         )
 
@@ -2108,6 +2287,36 @@ class FlowEdgeLabelQmlTests(unittest.TestCase):
             assert second["crossingBreaks"] == []
             assert first["crossingSamplePoints"]
             assert first["crossingBreaks"][0]["centerDistance"] > first["crossingBreaks"][0]["startDistance"]
+
+            hidden_over = bezier_edge("hidden_over", 80.0, 320.0, 320.0, 80.0)
+            hidden_over.update({
+                "active_data_wire": True,
+                "enabled": True,
+                "data_access": "item",
+                "visual_style": {"display_mode": "hidden"},
+            })
+            edge_layer.setProperty(
+                "edges",
+                [
+                    bezier_edge("visible_under", 80.0, 80.0, 320.0, 320.0),
+                    hidden_over,
+                ],
+            )
+            refresh(edge_layer)
+            assert snapshot(edge_layer, "visible_under")["crossingBreaks"] == []
+            assert snapshot(edge_layer, "hidden_over")["crossingBreaks"] == []
+
+            edge_layer.setProperty("selectedEdgeIds", ["hidden_over"])
+            refresh(edge_layer)
+            assert snapshot(edge_layer, "visible_under")["crossingBreaks"] == []
+            assert snapshot(edge_layer, "hidden_over")["crossingBreaks"] == []
+
+            edge_layer.setProperty("selectedEdgeIds", [])
+            edge_layer.setProperty("wireSelectionModeHeld", True)
+            refresh(edge_layer)
+            assert snapshot(edge_layer, "hidden_over")["hiddenUnrevealed"] is False
+            assert snapshot(edge_layer, "visible_under")["crossingBreaks"] == []
+            assert snapshot(edge_layer, "hidden_over")["crossingBreaks"] == []
 
             """,
         )

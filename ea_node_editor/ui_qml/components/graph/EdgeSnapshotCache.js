@@ -1083,6 +1083,7 @@ function _buildSnapshotForEdge(
         "displayMode": displayMode,
         "hiddenUnrevealed": activeDataWire
             && displayMode === "hidden"
+            && !Boolean(edgeLayer.wireSelectionModeHeld)
             && !selected
             && !previewed
             && !replacementPreviewed,
@@ -1106,7 +1107,7 @@ function _buildSnapshotForEdge(
     };
 }
 
-function _visibleEdgeSetKey(snapshots) {
+function _visibleEdgeSetKey(snapshots, wireSelectionModeHeld) {
     var visible = [];
     for (var i = 0; i < snapshots.length; i++) {
         var snapshot = snapshots[i];
@@ -1114,7 +1115,7 @@ function _visibleEdgeSetKey(snapshots) {
             visible.push(String(snapshot.edgeId));
     }
     visible.sort();
-    return visible.join("|");
+    return (wireSelectionModeHeld ? "w|" : "p|") + visible.join("|");
 }
 
 function _lookupKeys(lookup) {
@@ -1273,7 +1274,7 @@ function buildVisibleEdgeSnapshots(edgeLayer, canvasLayer, labelLayer, revision)
         }
     }
 
-    var visibleSetKey = _visibleEdgeSetKey(drawSnapshots);
+    var visibleSetKey = _visibleEdgeSetKey(drawSnapshots, edgeLayer.wireSelectionModeHeld);
     var visibleSetChanged = visibleSetKey !== edgeLayer._lastVisibleEdgeSetKey;
     var canPreserveCrossings = reuseCrossingMetadata && !visibleSetChanged;
     if (canPreserveCrossings && canvasLayer.orderSnapshotsForDraw)
@@ -1281,7 +1282,7 @@ function buildVisibleEdgeSnapshots(edgeLayer, canvasLayer, labelLayer, revision)
     else
         drawSnapshots = canvasLayer.applyCrossingMetadata(drawSnapshots, viewportTransform);
 
-    edgeLayer._lastVisibleEdgeSetKey = _visibleEdgeSetKey(drawSnapshots);
+    edgeLayer._lastVisibleEdgeSetKey = _visibleEdgeSetKey(drawSnapshots, edgeLayer.wireSelectionModeHeld);
     var visibleCount = 0;
     for (i = 0; i < drawSnapshots.length; i++) {
         if (drawSnapshots[i] && !drawSnapshots[i].culled)

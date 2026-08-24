@@ -463,9 +463,13 @@ Item {
         minimumWidth: 198
         rowHeight: 30
         contentPadding: 4
-        readonly property var edgePayload: root.canvasItem
-            ? root.canvasItem._sceneEdgePayload(root.canvasItem.edgeContextEdgeId)
-            : null
+        readonly property var edgePayload: {
+            var revision = root.canvasItem ? Number(root.canvasItem.edgeTopologyRevision || 0) : 0;
+            void(revision);
+            return root.canvasItem
+                ? root.canvasItem._liveEdgePayload(root.canvasItem.edgeContextEdgeId)
+                : null;
+        }
         readonly property bool isFlowEdge: edgePayload
             ? String(edgePayload.edge_family || "").toLowerCase() === "flow"
             : false

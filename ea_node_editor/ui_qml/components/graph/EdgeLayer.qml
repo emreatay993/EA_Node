@@ -140,6 +140,8 @@ Item {
     readonly property color validDragStrokeColor: edgePalette.valid_drag_stroke || "#60CDFF"
     readonly property color invalidDragStrokeColor: edgePalette.invalid_drag_stroke || "#d0d5de"
     readonly property color fallbackStrokeColor: portKindPalette.data || "#7AA8FF"
+    readonly property color canvasBackgroundColor: shellPalette.canvas_bg || "#151821"
+    readonly property color activeDefaultStrokeColor: root.neutralActiveStrokeColor(root.canvasBackgroundColor)
     readonly property color inactiveStrokeColor: shellPalette.muted_fg || "#7f8796"
     readonly property color dangerStrokeColor: "#FF543E"
     readonly property color flowDefaultStrokeColor: shellPalette.muted_fg || invalidDragStrokeColor
@@ -155,6 +157,13 @@ Item {
     signal edgeClicked(string edgeId, bool additive)
     signal edgeDoubleClicked(string edgeId)
     signal edgeContextRequested(string edgeId, real screenX, real screenY)
+    function neutralActiveStrokeColor(canvasColor) {
+        var color = canvasColor || root.canvasBackgroundColor;
+        var luminance = Number(color.r) * 0.299
+            + Number(color.g) * 0.587
+            + Number(color.b) * 0.114;
+        return luminance < 0.5 ? "#A7ADB2" : "#6B7277";
+    }
     function requestRedraw() {
         if (root.frameScheduler && root.frameScheduler.requestEdgeRedraw) {
             root.markScheduledRedrawDirty();
@@ -414,17 +423,81 @@ Item {
         if (!edge || edgeCanvasLayer.edgeIsFlow(edge))
             return "";
         var access = String(edge.data_access || "item").trim().toLowerCase();
-        var accessLabel = access === "tree" ? "Tree" : (access === "list" ? "List" : "Item");
-        var rows = [accessLabel + " data"];
+        if (!Boolean(edge.active_data_wire)) {
+            var accessLabel = access === "tree" ? "Tree" : (access === "list" ? "List" : "Item");
+            var legacyRows = [accessLabel + " data"];
+            if (edge.enabled === false)
+                legacyRows.push("Disabled");
+            if (Boolean(edge.data_type_warning))
+                legacyRows.push("Invalid type");
+            var legacyPreview = root.outputPreviewForEdge(edge);
+            var legacyPreviewText = String(legacyPreview && legacyPreview.tooltip_text || "").trim();
+            if (legacyPreviewText.length > 0)
+                legacyRows.push(legacyPreviewText);
+            return legacyRows.join("\n");
+        }
         if (edge.enabled === false)
-            rows.push("Disabled");
+            return "Disabled";
+        var result = [];
         if (Boolean(edge.data_type_warning))
-            rows.push("Invalid type");
+            result.push("Invalid type");
         var preview = root.outputPreviewForEdge(edge);
         var previewText = String(preview && preview.tooltip_text || "").trim();
-        if (previewText.length > 0)
-            rows.push(previewText);
-        return rows.join("\n");
+        var previewLines = previewText.length > 0 ? previewText.split(/\r?\n/) : [];
+        if (previewLines.length > 0 && previewLines[0] === "Current")
+            previewLines.shift();
+        else if (previewLines.length > 0
+                && ["Stale", "Empty", "Failed", "Pending", "Never run"].indexOf(previewLines[0]) >= 0)
+            result.push(previewLines.shift());
+        if (!preview)
+            return result.join("\n");
+        var structuredRows = preview.rows || [];
+        if (access === "item") {
+            for (var itemIndex = 0; itemIndex < structuredRows.length; itemIndex++) {
+                if (String(structuredRows[itemIndex].kind || "") === "item") {
+                    result.push(String(structuredRows[itemIndex].text || ""));
+                    return result.join("\n");
+                }
+            }
+            return result.concat(previewLines).join("\n");
+        }
+        var headerPrefix = access === "tree" ? "Tree:" : "List:";
+        var header = "";
+        for (var lineIndex = 0; lineIndex < previewLines.length; lineIndex++) {
+            if (String(previewLines[lineIndex]).indexOf(headerPrefix) === 0) {
+                header = String(previewLines[lineIndex]);
+                break;
+            }
+        }
+        if (header.length > 0)
+            result.push(header);
+        if (!structuredRows.length)
+            return result.concat(previewLines.filter(function(line) { return line !== header; })).join("\n");
+        var maxIndex = 0;
+        for (var rowIndex = 0; rowIndex < structuredRows.length; rowIndex++) {
+            if (String(structuredRows[rowIndex].kind || "") === "item")
+                maxIndex = Math.max(maxIndex, Number(structuredRows[rowIndex].index || 0));
+        }
+        var indexWidth = String("[" + maxIndex + "]").length;
+        var flatIndex = 0;
+        for (rowIndex = 0; rowIndex < structuredRows.length; rowIndex++) {
+            var row = structuredRows[rowIndex] || ({});
+            var kind = String(row.kind || "");
+            if (access === "tree" && kind === "branch") {
+                result.push("{" + String(row.path || "") + "}");
+                continue;
+            }
+            if (kind !== "item")
+                continue;
+            var displayIndex = access === "list" ? flatIndex++ : Number(row.index || 0);
+            var indexText = "[" + displayIndex + "]";
+            while (indexText.length < indexWidth)
+                indexText = " " + indexText;
+            result.push((access === "tree" ? "  " : "") + indexText + "  " + String(row.text || ""));
+        }
+        if (Boolean(preview.truncated))
+            result.push("…");
+        return result.join("\n");
     }
 
     function _rectIntersects(a, b) {
@@ -1098,6 +1171,7 @@ Item {
     onLiveNodeGeometryChanged: { markActiveNodeGeometryDirty(); requestRedraw(); }
     onVisibleSceneRectPayloadChanged: markViewportDirty()
     onSelectedEdgeIdsChanged: { markSelectionDirty(); requestRedraw(); }
+    onWireSelectionModeHeldChanged: { markSelectionDirty(); requestRedraw(); }
     onPreviewEdgeIdChanged: { markSelectionDirty(); requestRedraw(); }
     onDragConnectionChanged: requestRedraw()
     onOutputPreviewLookupChanged: requestRedraw()

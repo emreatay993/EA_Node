@@ -305,7 +305,9 @@ Item {
         || isSelectSurface || isTriggerSurface
     readonly property bool usesCardinalNeutralFlowHandles: !!nodeData
         && GraphNodeSurfaceMetrics.nodeUsesCardinalNeutralFlowHandles(nodeData)
-    readonly property bool isPassiveNode: !!nodeData && String(nodeData.runtime_behavior || "").toLowerCase() === "passive"
+    readonly property string runtimeBehavior: String(nodeData && nodeData.runtime_behavior || "").toLowerCase()
+    readonly property bool isActiveWireNode: runtimeBehavior === "active" || runtimeBehavior === "compile_only"
+    readonly property bool isPassiveNode: runtimeBehavior === "passive"
     readonly property bool lockEligible: !!nodeData && String(nodeData.type_id || "").indexOf("passive.") === 0
     readonly property bool authorLocked: lockEligible && Boolean(nodeData.locked)
     readonly property bool lockedInteractionEnabled: !!canvasItem && Boolean(canvasItem.interactWithLockedObjects)
@@ -870,7 +872,9 @@ Item {
         if (state === "flowing")
             return palette.valid || "#67D487";
         if (state === "invalid")
-            return palette.invalid_fill || "#D94F4F";
+            return card.isActiveWireNode && String(portData && portData.direction || "").toLowerCase() === "in"
+                ? "#FF543E"
+                : (palette.invalid_fill || "#D94F4F");
         if (state === "invalid_muted")
             return palette.invalid_muted_fill || "#f4f6f9";
         if (state === "default" || state === "waiting" || state === "idle")
@@ -886,7 +890,11 @@ Item {
         if (state === "idle")
             return palette.idle_outline || "#6b7280";
         if (state === "invalid" || state === "invalid_muted")
-            return palette.invalid_border || "#FF8C74";
+            return state === "invalid"
+                && card.isActiveWireNode
+                && String(portData && portData.direction || "").toLowerCase() === "in"
+                ? "#FF543E"
+                : (palette.invalid_border || "#FF8C74");
         if (String(portData && portData.data_type_color_token || "").trim().length > 0)
             return card.portTypeAccentColor(portData);
         return palette.valid || "#67D487";

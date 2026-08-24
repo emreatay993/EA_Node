@@ -133,6 +133,9 @@ Item {
     readonly property string nodeElapsedTimeUnit: executionFactsObject.nodeElapsedTimeUnit
     readonly property var freshRunNodeLookup: executionFactsObject.freshRunNodeLookup
     readonly property int nodeExecutionRevision: executionFactsObject.nodeExecutionRevision
+    readonly property int edgeTopologyRevision: rootLayers.edgeLayerItem
+        ? Number(rootLayers.edgeLayerItem._edgeTopologyRevision || 0)
+        : 0
     readonly property var canvasViewportController: viewportController
     readonly property var canvasSceneLifecycle: sceneLifecycle
     readonly property var nodeRenderActivationSceneRectPayload: root._nodeRenderActivationSceneRectPayload()
@@ -401,19 +404,33 @@ Item {
     function _sceneBackdropNodesModel() { return GraphCanvasRootApi.invoke(sceneState, "sceneBackdropNodesModel", [], []); }
     function _sceneAllNodesModel() { return GraphCanvasRootApi.invoke(sceneState, "sceneAllNodesModel", [], []); }
     function _sceneEdgePayload(edgeId) { return GraphCanvasRootApi.invoke(sceneState, "sceneEdgePayload", [edgeId], null); }
+    function _liveEdgePayload(edgeId) {
+        var edgeLayer = rootLayers.edgeLayerItem;
+        var livePayload = edgeLayer && edgeLayer._edgeData ? edgeLayer._edgeData(edgeId) : null;
+        return livePayload || root._sceneEdgePayload(edgeId);
+    }
     function edgeIdsForEnableToggle(preferredEdgeId) {
         var preferred = String(preferredEdgeId || "").trim();
         var selected = root._normalizeEdgeIds(root.selectedEdgeIds || []);
-        if (preferred.length && selected.indexOf(preferred) < 0)
+        var liveSelected = [];
+        for (var i = 0; i < selected.length; ++i) {
+            if (root._liveEdgePayload(selected[i]))
+                liveSelected.push(selected[i]);
+        }
+        if (preferred.length && !root._liveEdgePayload(preferred))
+            return [];
+        if (preferred.length && liveSelected.indexOf(preferred) < 0)
             return [preferred];
-        return selected;
+        return liveSelected;
     }
     function edgeSelectionAllEnabled(preferredEdgeId) {
+        var revision = root.edgeTopologyRevision;
+        void(revision);
         var edgeIds = root.edgeIdsForEnableToggle(preferredEdgeId);
         if (!edgeIds.length)
             return false;
         for (var i = 0; i < edgeIds.length; ++i) {
-            var payload = root._sceneEdgePayload(edgeIds[i]);
+            var payload = root._liveEdgePayload(edgeIds[i]);
             if (!payload || payload.enabled === false)
                 return false;
         }
@@ -423,15 +440,10 @@ Item {
         var edgeIds = root.edgeIdsForEnableToggle(preferredEdgeId);
         if (!edgeIds.length || !root.sceneCommandBridge || !root.sceneCommandBridge.set_edges_enabled)
             return false;
-        var allDisabled = true;
-        for (var i = 0; i < edgeIds.length; ++i) {
-            var payload = root._sceneEdgePayload(edgeIds[i]);
-            if (!payload || payload.enabled !== false) {
-                allDisabled = false;
-                break;
-            }
-        }
-        return Boolean(root.sceneCommandBridge.set_edges_enabled(edgeIds, allDisabled));
+        return Boolean(root.sceneCommandBridge.set_edges_enabled(
+            edgeIds,
+            !root.edgeSelectionAllEnabled(preferredEdgeId)
+        ));
     }
     function setEdgesDisplayMode(edgeIds, mode) {
         var normalized = root._normalizeEdgeIds(edgeIds || []);

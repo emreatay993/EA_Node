@@ -2279,7 +2279,7 @@ class GraphSurfaceCanvasInteractionTests(GraphSurfaceInputContractTestBase):
             assert [connection["edge_id"] for connection in blank_connections] == bundle_ids
             assert all(
                 connection["connection_mode"] == "disconnect"
-                and str(edge_canvas_layer.dragConnectionMarkerText(connection)) == "-"
+                and str(edge_canvas_layer.dragConnectionMarkerText(connection)) == ""
                 for connection in blank_connections
             ), blank_connections
             settle_events(4)
@@ -2429,6 +2429,9 @@ class GraphSurfaceCanvasInteractionTests(GraphSurfaceInputContractTestBase):
                         }
                         function _sceneEdgePayload(edgeId) {
                             return edgePayloads[String(edgeId || "")] || null;
+                        }
+                        function _liveEdgePayload(edgeId) {
+                            return _sceneEdgePayload(edgeId);
                         }
                         function _edgeSupportsFlowStyle(edgeId) {
                             var payload = _sceneEdgePayload(edgeId);
@@ -4041,8 +4044,11 @@ class GraphSurfaceDataflowAuthoringTests(GraphSurfaceInputContractTestBase):
             )
             QTest.mouseMove(window, pointer_mid)
             QTest.mouseMove(window, pointer_end)
-            update_pointer_drag(pointer_end, shift_value)
             settle_events(3)
+            update_pointer_drag(pointer_end, shift_value)
+            settle_events(1)
+            shift_state = variant_value(canvas.property("wireDragState"))
+            assert shift_state["append_requested"] is True, shift_state
             shift_preview = variant_value(canvas.wireDragPreviewConnection())
             assert shift_preview["connection_mode"] == "append", shift_preview
             assert shift_preview["append_requested"] is True
@@ -4072,16 +4078,97 @@ class GraphSurfaceDataflowAuthoringTests(GraphSurfaceInputContractTestBase):
 
             enable_button = named_item(canvas, "graphEdgeFloatingToolbarAction_toggle_edge_enabled")
             assert bool(enable_button.property("visible")) is True
+            assert str(enable_button.property("tooltipText")) == "Enable connection"
+            assert bool(enable_button.property("checked")) is False
             mouse_click(window, item_scene_point(enable_button))
             settle_events(4)
             assert model.active_workspace.edges[edge_id].enabled is True
+
+            enable_button = named_item(canvas, "graphEdgeFloatingToolbarAction_toggle_edge_enabled")
+            assert str(enable_button.property("tooltipText")) == "Disable connection"
+            assert bool(enable_button.property("checked")) is True
+
+            display_button = named_item(canvas, "graphEdgeFloatingToolbarAction_display_mode")
+            assert bool(display_button.property("visible")) is True
+            assert str(display_button.property("tooltipText")) == "Display mode: Default"
+            mouse_click(window, item_scene_point(display_button))
+            settle_events(2)
+            edge_toolbar = named_item(canvas, "graphEdgeFloatingToolbar")
+            display_popup = edge_toolbar.findChild(QObject, "graphEdgeDisplayModePopup")
+            assert display_popup is not None
+            assert bool(display_popup.property("opened")) is True
+            display_content = display_popup.property("contentItem")
+            default_choice = named_item(display_content, "graphEdgeDisplayModeChoice_default")
+            faint_choice = named_item(display_content, "graphEdgeDisplayModeChoice_faint")
+            hidden_choice = named_item(display_content, "graphEdgeDisplayModeChoice_hidden")
+            assert [
+                bool(default_choice.property("checked")),
+                bool(faint_choice.property("checked")),
+                bool(hidden_choice.property("checked")),
+            ] == [True, False, False]
+            mouse_click(window, item_scene_point(faint_choice))
+            settle_events(4)
+            assert model.active_workspace.edges[edge_id].visual_style.get("display_mode") == "faint"
+
+            display_button = named_item(canvas, "graphEdgeFloatingToolbarAction_display_mode")
+            assert str(display_button.property("tooltipText")) == "Display mode: Faint"
+            mouse_click(window, item_scene_point(display_button))
+            settle_events(2)
+            default_choice = named_item(display_content, "graphEdgeDisplayModeChoice_default")
+            faint_choice = named_item(display_content, "graphEdgeDisplayModeChoice_faint")
+            assert [
+                bool(default_choice.property("checked")),
+                bool(faint_choice.property("checked")),
+            ] == [False, True]
+            mouse_click(window, item_scene_point(default_choice))
+            settle_events(4)
+            assert "display_mode" not in model.active_workspace.edges[edge_id].visual_style
+            display_button = named_item(canvas, "graphEdgeFloatingToolbarAction_display_mode")
+            assert str(display_button.property("tooltipText")) == "Display mode: Default"
+
+            assert scene.set_edge_enabled(gate_edge_id, False) is True
+            settle_events(4)
+            canvas.setProperty("selectedEdgeIds", [edge_id, gate_edge_id, "stale_edge"])
+            canvas.forceActiveFocus()
+            settle_events(2)
+            QTest.keyClick(window, Qt.Key.Key_E, Qt.KeyboardModifier.ControlModifier)
+            settle_events(4)
+            assert model.active_workspace.edges[edge_id].enabled is True, "mixed toggle did not enable the selected edge"
+            assert model.active_workspace.edges[gate_edge_id].enabled is True, "mixed toggle did not enable the disabled edge"
+
+            canvas.setProperty("selectedEdgeIds", [edge_id, gate_edge_id])
+            canvas.forceActiveFocus()
+            QTest.keyClick(window, Qt.Key.Key_E, Qt.KeyboardModifier.ControlModifier)
+            settle_events(4)
+            assert model.active_workspace.edges[edge_id].enabled is False, "all-enabled toggle did not disable the selected edge"
+            assert model.active_workspace.edges[gate_edge_id].enabled is False, "all-enabled toggle did not disable the selected gate edge"
+
+            assert scene.set_edge_enabled(edge_id, True) is True
+            settle_events(4)
+            canvas.setProperty("selectedEdgeIds", [edge_id, gate_edge_id])
+            toggle_edge_ids = variant_value(canvas.edgeIdsForEnableToggle(edge_id))
+            assert toggle_edge_ids == [edge_id, gate_edge_id], toggle_edge_ids
+            toggle_payloads = [variant_value(canvas._sceneEdgePayload(toggle_id)) for toggle_id in toggle_edge_ids]
+            assert canvas.edgeSelectionAllEnabled(edge_id) is False, toggle_payloads
+            canvas._openEdgeContext(edge_id, 200.0, 160.0)
+            settle_events(3)
+            edge_popup = named_item(canvas, "graphCanvasEdgeContextPopup")
+            enabled_action = next(
+                variant_value(action)
+                for action in variant_list(edge_popup.property("visibleActions"))
+                if str(variant_value(action).get("actionId", "")) == "toggle_edge_enabled"
+            )
+            assert bool(enabled_action.get("checked")) is False, enabled_action
+            edge_popup.actionTriggered.emit("toggle_edge_enabled")
+            settle_events(4)
+            assert model.active_workspace.edges[edge_id].enabled is True, "context action did not keep the clicked edge enabled"
+            assert model.active_workspace.edges[gate_edge_id].enabled is True, "context action did not re-enable the mixed selected edge"
 
             dispose_host_window(canvas, window)
             engine.deleteLater()
             app.processEvents()
             """,
         )
-
 
 if __name__ == "__main__":
     unittest.main()

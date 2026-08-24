@@ -475,6 +475,39 @@ TestCase {
         verify(findNamedItems(host, "graphNodeOutputPortDot")[0].opacity > 0.99)
     }
 
+    function test_active_invalid_input_grip_uses_coral_without_changing_passive_palette() {
+        var activePayload = nodePayload()
+        activePayload.ports[0].flow_state = "invalid"
+        var activeHost = createHost(activePayload)
+        verify(activeHost !== null)
+        tryVerify(function() { return findNamedItems(activeHost, "graphNodeInputPortDot").length >= 1 })
+        var activeDot = findNamedItems(activeHost, "graphNodeInputPortDot")[0]
+        compare(String(activeDot.color).toLowerCase(), "#ff543e")
+        compare(String(activeDot.border.color).toLowerCase(), "#ff543e")
+
+        var compileOnlyPayload = nodePayload()
+        compileOnlyPayload.x = 350.0
+        compileOnlyPayload.runtime_behavior = "compile_only"
+        compileOnlyPayload.ports[0].flow_state = "invalid"
+        var compileOnlyHost = createHost(compileOnlyPayload)
+        verify(compileOnlyHost !== null)
+        tryVerify(function() { return findNamedItems(compileOnlyHost, "graphNodeInputPortDot").length >= 1 })
+        var compileOnlyDot = findNamedItems(compileOnlyHost, "graphNodeInputPortDot")[0]
+        compare(String(compileOnlyDot.color).toLowerCase(), "#ff543e")
+        compare(String(compileOnlyDot.border.color).toLowerCase(), "#ff543e")
+
+        var passivePayload = nodePayload()
+        passivePayload.y = 300.0
+        passivePayload.runtime_behavior = "passive"
+        passivePayload.ports[0].flow_state = "invalid"
+        var passiveHost = createHost(passivePayload)
+        verify(passiveHost !== null)
+        tryVerify(function() { return findNamedItems(passiveHost, "graphNodeInputPortDot").length >= 1 })
+        var passiveDot = findNamedItems(passiveHost, "graphNodeInputPortDot")[0]
+        compare(String(passiveDot.color).toLowerCase(), "#d94f4f")
+        compare(String(passiveDot.border.color).toLowerCase(), "#ff8c74")
+    }
+
     function test_standard_data_grip_grows_on_real_pointer_hover_and_keeps_halo() {
         mouseMove(stage, 1, 1)
         var host = createHost(nodePayload())
