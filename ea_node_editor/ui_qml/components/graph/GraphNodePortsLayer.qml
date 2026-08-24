@@ -3,6 +3,7 @@ import QtQuick.Controls 2.15
 import "../common" as Common
 import "../common/TooltipPolicy.js" as TooltipPolicy
 import "../graph_canvas/CanvasBackgroundStyle.js" as CanvasBackgroundStyle
+import "GraphNodeSurfaceMetrics.js" as GraphNodeSurfaceMetrics
 import "surface_controls" as SurfaceControls
 import "surface_controls/SurfaceControlGeometry.js" as SurfaceControlGeometry
 
@@ -50,6 +51,16 @@ Item {
         typeof themeBridge !== "undefined" && themeBridge ? themeBridge.palette : ({})
     )
     readonly property url notchSvgSource: root._notchSvgSource()
+    readonly property var settingsGroups: root.host ? root.host.settingsGroups : []
+    readonly property real settingsBandYOffset: root.host && root.host.nodeData
+        ? GraphNodeSurfaceMetrics.settingsBandYOffset(
+            root.host.nodeData,
+            root.host.settingsGroupLayoutHeight
+        )
+        : 0.0
+    readonly property color settingsGroupPortColor: root.host
+        ? ((root.host.portStatePalette || ({})).valid || "#67D487")
+        : "#67D487"
     readonly property var _visibleInputPorts: {
         if (!root.host)
             return [];
@@ -305,6 +316,21 @@ Item {
         }
         svg += '</svg>';
         return "data:image/svg+xml;charset=utf-8," + encodeURIComponent(svg);
+    }
+
+    function _portFlowOutlineColor(portData) {
+        if (!root.host)
+            return root.settingsGroupPortColor;
+        var groupId = String(portData && portData.settings_group_id || "").trim();
+        var state = String(root.host.resolvedPortFlowState(portData));
+        if (groupId.length > 0
+                && state !== "waiting"
+                && state !== "idle"
+                && state !== "invalid"
+                && state !== "invalid_muted") {
+            return root.settingsGroupPortColor;
+        }
+        return root.host.portFlowOutlineColor(portData);
     }
 
     function _dynamicPortGroupById(groupId) {
@@ -873,6 +899,67 @@ Item {
     visible: root.host && root.host.nodeData ? !root.host.nodeData.collapsed : false
 
     Repeater {
+        model: root.settingsGroups
+
+        delegate: Item {
+            id: settingsGroupAggregate
+            property var groupData: modelData || ({})
+            property string groupId: String(groupData.group_id || "")
+            readonly property var anchor: groupData.aggregate_anchor || null
+            readonly property int connectedCount: anchor ? Number(anchor.connected_count || 0) : 0
+            visible: Boolean(anchor) && !Boolean(groupData.expanded)
+            width: root.width
+            height: root.height
+
+            Image {
+                objectName: "graphNodeSettingsGroupAggregateNotch"
+                property string groupId: settingsGroupAggregate.groupId
+                readonly property bool nodeFacingEdgeOnRight: true
+                readonly property color notchFillColor: root.notchColor
+                readonly property color notchStrokeColor: root.notchOutlineColor
+                readonly property real notchStrokeWidth: root.notchOutlineWidth
+                visible: root.notchedPortsEffective
+                width: root.notchDiameter * 0.5
+                height: root.notchDiameter
+                x: settingsGroupAggregate.anchor ? Number(settingsGroupAggregate.anchor.x || 0) : 0
+                y: settingsGroupAggregate.anchor
+                    ? Number(settingsGroupAggregate.anchor.y || 0)
+                        + root.settingsBandYOffset - height * 0.5
+                    : 0
+                sourceSize: Qt.size(9, 18)
+                source: root.notchSvgSource
+                cache: true
+                asynchronous: false
+                smooth: true
+                mipmap: false
+                fillMode: Image.Stretch
+                z: -1
+            }
+
+            Rectangle {
+                objectName: "graphNodeSettingsGroupAggregateSocket"
+                property string groupId: settingsGroupAggregate.groupId
+                property int connectedCount: settingsGroupAggregate.connectedCount
+                x: settingsGroupAggregate.anchor
+                    ? Number(settingsGroupAggregate.anchor.x || 0) - width * 0.5
+                    : 0
+                y: settingsGroupAggregate.anchor
+                    ? Number(settingsGroupAggregate.anchor.y || 0)
+                        + root.settingsBandYOffset - height * 0.5
+                    : 0
+                width: root.standardRestPortDiameter
+                height: width
+                radius: width * 0.5
+                color: connectedCount > 0
+                    ? root.settingsGroupPortColor
+                    : (root.host ? root.host.surfaceColor : "transparent")
+                border.width: 1.6
+                border.color: root.settingsGroupPortColor
+            }
+        }
+    }
+
+    Repeater {
         id: inputPortsRepeater
         model: root._visibleInputPorts
 
@@ -1032,7 +1119,7 @@ Item {
                     ? (root.host ? root.host.portInteractiveBorderColor : portColor)
                     : (root.host && root.host.usesCardinalNeutralFlowHandles
                         ? (selectedState ? root.host.selectedOutlineColor : portColor)
-                        : (root.host ? root.host.portFlowOutlineColor(modelData) : portColor))))
+                        : root._portFlowOutlineColor(modelData))))
 
                 Rectangle {
                     objectName: "graphNodeInputPortRing"
@@ -1050,7 +1137,7 @@ Item {
                     border.color: inputDot.attentionState && root.host
                         ? root.host.portInteractiveRingBorderColor
                         : (inputDot.compatibleTargetState && root.host
-                            ? root.host.portFlowOutlineColor(modelData)
+                            ? root._portFlowOutlineColor(modelData)
                             : "transparent")
                 }
 

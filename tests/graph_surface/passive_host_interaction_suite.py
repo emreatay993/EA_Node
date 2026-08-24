@@ -761,6 +761,7 @@ class PassiveGraphSurfaceHostTests(PassiveGraphSurfaceHostTestBase):
             """
             from PyQt6.QtCore import QPointF
             from PyQt6.QtGui import QColor
+            from PyQt6.QtQml import QQmlProperty
             from PyQt6.QtTest import QTest
 
             def settings_payload(expanded, surface_family="standard"):
@@ -787,6 +788,8 @@ class PassiveGraphSurfaceHostTests(PassiveGraphSurfaceHostTestBase):
                     "layout_row": -1,
                     "settings_group_id": "options",
                     "settings_property_key": "message",
+                    "data_type_color_token": "settings-control",
+                    "flow_state": "default",
                     "handle_visible": expanded,
                     "presentation_anchor": {
                         "x": 0.0,
@@ -841,6 +844,18 @@ class PassiveGraphSurfaceHostTests(PassiveGraphSurfaceHostTestBase):
                 for item in named_child_items(collapsed_host, "graphNodeInputPortDot")
                 if str(item.property("propertyKey")) == "payload"
             ]
+            aggregate_notch = next(
+                item
+                for item in named_child_items(
+                    collapsed_host,
+                    "graphNodeSettingsGroupAggregateNotch",
+                )
+                if str(item.property("groupId")) == "options"
+            )
+            collapsed_chevron = named_child_items(
+                collapsed_host,
+                "graphNodeSettingsGroupChevron",
+            )[0]
 
             assert collapsed_layer is not None
             assert len(aggregate_matches) == 1, {
@@ -854,6 +869,28 @@ class PassiveGraphSurfaceHostTests(PassiveGraphSurfaceHostTestBase):
             aggregate = aggregate_matches[0]
             assert collapsed_dots == []
             assert aggregate is not None and bool(aggregate.property("visible"))
+            valid_green = QColor("#67D487")
+            aggregate_center = aggregate.mapToItem(
+                collapsed_host,
+                QPointF(float(aggregate.width()) * 0.5, float(aggregate.height()) * 0.5),
+            )
+            notch_center = aggregate_notch.mapToItem(collapsed_host, QPointF(0.0, 9.0))
+            assert abs(aggregate_center.x()) < 0.01
+            assert abs(notch_center.x()) < 0.01
+            assert bool(aggregate_notch.property("visible"))
+            assert abs(float(aggregate_notch.width()) - 9.0) < 0.01
+            assert abs(float(aggregate_notch.height()) - 18.0) < 0.01
+            assert abs(float(aggregate.width()) - 10.0) < 0.01
+            assert QColor(aggregate.property("color")).rgba() == valid_green.rgba()
+            assert QColor(QQmlProperty.read(aggregate, "border.color")).rgba() == valid_green.rgba()
+            assert abs(float(QQmlProperty.read(aggregate, "border.width")) - 1.6) < 0.01
+            collapsed_decoration = QColor(collapsed_host.property("inlineDrivenTextColor"))
+            assert str(collapsed_chevron.property("direction")) == "right"
+            assert not bool(collapsed_chevron.property("expandedState"))
+            assert abs(float(collapsed_chevron.width()) - 12.0) < 0.01
+            assert QColor(collapsed_chevron.property("color")).alpha() == 0
+            assert QColor(QQmlProperty.read(collapsed_chevron, "border.color")).rgba() == collapsed_decoration.rgba()
+            assert abs(float(QQmlProperty.read(collapsed_chevron, "border.width")) - 1.2) < 0.01
             assert abs(float(collapsed_loader.height()) - 88.0) < 0.5
             assert len(variant_list(collapsed_layer.property("embeddedInteractiveRects"))) == 1
 
@@ -866,6 +903,8 @@ class PassiveGraphSurfaceHostTests(PassiveGraphSurfaceHostTestBase):
             expanded_layer = expanded_host.findChild(QObject, "graphNodeSettingsGroupsLayer")
             expanded_loader = expanded_host.findChild(QObject, "graphNodeSurfaceLoader")
             expanded_row = named_item(expanded_host, "graphNodeInputPortRow", "payload")
+            expanded_dot = named_item(expanded_host, "graphNodeInputPortDot", "payload")
+            expanded_notch = named_item(expanded_host, "graphNodeInputPortNotch", "payload")
             port_label = named_item(expanded_host, "graphNodeInputPortLabel", "payload")
             property_labels = named_child_items(expanded_host, "graphNodeInlinePropertyLabel")
             group_divider = named_child_items(expanded_host, "graphNodeSettingsGroupDivider")[0]
@@ -873,6 +912,10 @@ class PassiveGraphSurfaceHostTests(PassiveGraphSurfaceHostTestBase):
 
             assert expanded_layer is not None
             assert expanded_row is not None and bool(expanded_row.property("visible"))
+            assert expanded_dot is not None and bool(expanded_dot.property("visible"))
+            assert expanded_notch is not None and bool(expanded_notch.property("visible"))
+            assert QColor(QQmlProperty.read(expanded_dot, "border.color")).rgba() == valid_green.rgba()
+            assert QColor(QQmlProperty.read(expanded_dot, "border.color")).name() != QColor("#7AA8FF").name()
             assert port_label is not None and not bool(port_label.property("visible"))
             assert len(property_labels) == 1
             assert str(property_labels[0].property("text")) == "Record"
@@ -882,6 +925,14 @@ class PassiveGraphSurfaceHostTests(PassiveGraphSurfaceHostTestBase):
             assert QColor(group_divider.property("color")).rgba() == neutral_decoration.rgba()
             assert abs(float(group_divider.property("opacity")) - 0.38) < 0.01
             assert QColor(group_chevron.property("color")).rgba() == neutral_decoration.rgba()
+            assert str(group_chevron.property("direction")) == "down"
+            assert bool(group_chevron.property("expandedState"))
+            assert abs(float(QQmlProperty.read(group_chevron, "border.width"))) < 0.01
+            group_chevron_glyph = named_child_items(
+                expanded_host,
+                "graphNodeSettingsGroupChevronGlyph",
+            )[0]
+            assert QColor(group_chevron_glyph.property("strokeColor")).name() == "#ffffff"
 
             requests = []
             expanded_host.settingsGroupExpansionRequested.connect(
