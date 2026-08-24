@@ -13,6 +13,7 @@ ColumnLayout {
     property var uiIconsRef: typeof uiIcons !== "undefined" ? uiIcons : null
     property bool guideButtonVisible: false
     property bool guideButtonSelected: false
+    property bool applyFailed: false
     readonly property var themePalette: root.themeBridgeRef ? root.themeBridgeRef.palette : ({})
     readonly property bool editorAvailable: !!root.scriptEditorBridgeRef
     signal guideRequested()
@@ -29,6 +30,14 @@ ColumnLayout {
         var sel = Math.abs(scriptEditorArea.selectionStart - scriptEditorArea.selectionEnd);
         root.scriptEditorBridgeRef.set_cursor_metrics(line, col, scriptEditorArea.cursorPosition, sel);
     }
+
+    function attachSyntaxHighlighter() {
+        if (root.scriptHighlighterBridgeRef && root.scriptHighlighterBridgeRef.attach_document)
+            root.scriptHighlighterBridgeRef.attach_document(scriptEditorArea.textDocument);
+    }
+
+    onScriptHighlighterBridgeRefChanged: root.attachSyntaxHighlighter()
+    Component.onCompleted: root.attachSyntaxHighlighter()
 
     RowLayout {
         Layout.fillWidth: true
@@ -83,14 +92,17 @@ ColumnLayout {
                 topPadding: 6
                 bottomPadding: 6
 
-                Component.onCompleted: {
-                    if (root.scriptHighlighterBridgeRef && root.scriptHighlighterBridgeRef.attach_document)
-                        root.scriptHighlighterBridgeRef.attach_document(textDocument);
+                Keys.onTabPressed: function(event) {
+                    var insertionPosition = cursorPosition;
+                    insert(insertionPosition, "    ");
+                    cursorPosition = insertionPosition + 4;
+                    event.accepted = true;
                 }
 
                 onTextChanged: {
                     if (root.editorAvailable && text !== root.scriptEditorBridgeRef.script_text)
                         root.scriptEditorBridgeRef.set_script_text(text);
+                    root.applyFailed = false;
                     root.updateCursorMetrics();
                 }
 
@@ -110,8 +122,12 @@ ColumnLayout {
             anchors.rightMargin: 8
 
             Text {
-                text: root.editorAvailable ? root.scriptEditorBridgeRef.cursor_label : ""
-                color: root.themePalette.muted_fg
+                text: root.applyFailed
+                    ? "Apply failed - see Console for details"
+                    : (root.editorAvailable ? root.scriptEditorBridgeRef.cursor_label : "")
+                color: root.applyFailed
+                    ? (root.themePalette.inspector_danger_fg || "#f1b0b7")
+                    : root.themePalette.muted_fg
                 font.pixelSize: 11
             }
 
@@ -149,7 +165,7 @@ ColumnLayout {
                 uiIconsRef: root.uiIconsRef
                 text: "Apply"
                 enabled: root.editorAvailable && root.scriptEditorBridgeRef.dirty
-                onClicked: root.scriptEditorBridgeRef.apply()
+                onClicked: root.applyFailed = !root.scriptEditorBridgeRef.apply()
             }
         }
     }

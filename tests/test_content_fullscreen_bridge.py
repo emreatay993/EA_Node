@@ -7,8 +7,9 @@ import json
 from pathlib import Path
 from typing import Any
 
-from PyQt6.QtCore import QObject, QPointF, QMarginsF, QRectF, QUrl
+from PyQt6.QtCore import QObject, QPointF, QMarginsF, QRectF, Qt, QUrl
 from PyQt6.QtGui import QImage, QPainter, QPageLayout, QPageSize, QPdfWriter
+from PyQt6.QtTest import QTest
 
 from ea_node_editor.nodes.builtins.ansys_dpf_common import DPF_VIEWER_NODE_TYPE_ID
 from ea_node_editor.nodes.builtins.core import PYTHON_SCRIPT_DEFAULT_SOURCE
@@ -1105,6 +1106,64 @@ class ContentFullscreenBridgeTests(MainWindowShellTestBase):
         self.assertEqual(bridge.tabular_payload, {})
         self.assertEqual(self.window.script_editor.current_node_id, node_id)
         self.assertEqual(self.window.script_editor.script_text, PYTHON_SCRIPT_DEFAULT_SOURCE)
+
+    def test_content_fullscreen_script_editor_attaches_syntax_highlighter(self) -> None:
+        node_id = self.window.scene.add_node_from_type(
+            "core.python_script", x=240.0, y=140.0
+        )
+        existing_documents = set(self.window.script_highlighter._highlighters)
+
+        self.assertTrue(self.window.content_fullscreen_bridge.request_open_node(node_id))
+        self.app.processEvents()
+
+        new_documents = set(self.window.script_highlighter._highlighters) - existing_documents
+        self.assertEqual(len(new_documents), 1)
+        document, highlighter = self.window.script_highlighter._highlighters[
+            new_documents.pop()
+        ]
+        highlighter.rehighlight()
+        colors = {
+            color_range.format.foreground().color().name()
+            for block_number in range(document.blockCount())
+            for color_range in document.findBlockByNumber(block_number).layout().formats()
+        }
+        self.assertIn("#68a5ff", colors)
+
+    def test_content_fullscreen_script_editor_tab_and_history_stay_local(self) -> None:
+        node_id = self.window.scene.add_node_from_type(
+            "core.python_script", x=240.0, y=140.0
+        )
+        self.assertTrue(self.window.content_fullscreen_bridge.request_open_node(node_id))
+        self.app.processEvents()
+        editor = next(
+            item
+            for item in self._qml_root_object().findChildren(QObject, "scriptEditorArea")
+            if item.isVisible()
+        )
+        self.window.quick_widget.setFocus()
+        editor.setProperty("text", "pass")
+        editor.setProperty("cursorPosition", 4)
+        editor.forceActiveFocus()
+
+        QTest.keyClick(self.window.quick_widget, Qt.Key.Key_Tab)
+        self.app.processEvents()
+        self.assertEqual(editor.property("text"), "pass    ")
+        self.assertTrue(editor.property("activeFocus"))
+
+        QTest.keyClick(
+            self.window.quick_widget,
+            Qt.Key.Key_Z,
+            Qt.KeyboardModifier.ControlModifier,
+        )
+        self.app.processEvents()
+        self.assertEqual(editor.property("text"), "pass")
+        QTest.keyClick(
+            self.window.quick_widget,
+            Qt.Key.Key_Y,
+            Qt.KeyboardModifier.ControlModifier,
+        )
+        self.app.processEvents()
+        self.assertEqual(editor.property("text"), "pass    ")
 
     def test_content_fullscreen_script_reopen_preserves_same_node_dirty_draft(
         self,

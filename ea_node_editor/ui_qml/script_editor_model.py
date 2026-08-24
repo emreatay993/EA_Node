@@ -108,7 +108,14 @@ class ScriptEditorModel(QObject):
             return
 
         script = str(getattr(node, "properties", {}).get("script", ""))
-        self._current_node_id = str(getattr(node, "node_id", ""))
+        node_id = str(getattr(node, "node_id", ""))
+        if (
+            self._dirty
+            and self._current_node_id == node_id
+            and script == self._base_script
+        ):
+            return
+        self._current_node_id = node_id
         self._current_node_label = str(getattr(node, "title", "")).strip() or "Python Script"
         self._base_script = script
         self._set_script_text_internal(script)

@@ -92,6 +92,32 @@ def run(ctx, scale):
         self.assertTrue(self.window.script_editor.dirty)
         self.assertGreaterEqual(self.window.console_panel.error_count, 1)
 
+    def test_script_apply_failure_draft_survives_panel_reopen(self) -> None:
+        script_node_id = self.window.scene.add_node_from_type(
+            "core.python_script", x=40.0, y=40.0
+        )
+        workspace = self.window.model.active_workspace
+        applied_source = workspace.nodes[script_node_id].properties["script"]
+        self.window.scene.focus_node(script_node_id)
+        self.window.set_script_editor_panel_visible(True)
+        self.app.processEvents()
+
+        draft = applied_source.replace(
+            "@corex.node",
+            '@corex.node\n@corex.text("title", default="Plot")',
+        )
+        self.window.script_editor.set_script_text(draft)
+        self.assertFalse(self.window.script_editor.apply())
+        self.window.set_script_editor_panel_visible(False)
+        self.window.set_script_editor_panel_visible(True)
+        self.app.processEvents()
+
+        self.assertEqual(
+            workspace.nodes[script_node_id].properties["script"], applied_source
+        )
+        self.assertEqual(self.window.script_editor.script_text, draft)
+        self.assertTrue(self.window.script_editor.dirty)
+
     def test_script_draft_survives_same_node_property_refresh(self) -> None:
         script_node_id = self.window.scene.add_node_from_type(
             "core.python_script",
