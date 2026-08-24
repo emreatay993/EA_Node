@@ -227,6 +227,7 @@ class FlowEdgeLabelPayloadTests(unittest.TestCase):
         )
         self.assertIn("ShapePath.DashLine", retained_layer_text)
         self.assertIn('objectName: "graphEdgeValuePreviewToolTip"', hit_overlay_text)
+        self.assertIn("popupType: Popup.Item", hit_overlay_text)
         self.assertIn(
             'marqueeArea.marqueeMode === "edge_selection"', input_layers_text
         )

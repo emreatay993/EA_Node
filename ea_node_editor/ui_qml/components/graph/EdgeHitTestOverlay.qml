@@ -1,4 +1,5 @@
 import QtQuick 2.15
+import QtQuick.Controls 2.15
 import "../common" as Common
 
 Item {
@@ -78,6 +79,7 @@ Item {
 
         Common.ManagedToolTip {
             objectName: "graphEdgeValuePreviewToolTip"
+            popupType: Popup.Item
             policyBridge: root.edgeLayer ? root.edgeLayer.sceneBridge : null
             category: "general"
             active: root.hoveredEdgeId.length > 0
