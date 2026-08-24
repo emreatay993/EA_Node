@@ -952,7 +952,7 @@ Item {
                 radius: width * 0.5
                 color: connectedCount > 0
                     ? root.settingsGroupPortColor
-                    : (root.host ? root.host.surfaceColor : "transparent")
+                    : (root.host ? root.host.themeSurfaceColor : "transparent")
                 border.width: 1.6
                 border.color: root.settingsGroupPortColor
             }

@@ -805,7 +805,7 @@ class PassiveGraphSurfaceHostTests(PassiveGraphSurfaceHostTestBase):
                     "aggregate_anchor": {
                         "x": 0.0,
                         "y": content_height + 9.0,
-                        "connected_count": 1,
+                        "connected_count": 0,
                     },
                     "items": [{
                         "kind": "paired",
@@ -881,7 +881,11 @@ class PassiveGraphSurfaceHostTests(PassiveGraphSurfaceHostTestBase):
             assert abs(float(aggregate_notch.width()) - 9.0) < 0.01
             assert abs(float(aggregate_notch.height()) - 18.0) < 0.01
             assert abs(float(aggregate.width()) - 10.0) < 0.01
-            assert QColor(aggregate.property("color")).rgba() == valid_green.rgba()
+            neutral_surface = QColor(collapsed_host.property("themeSurfaceColor"))
+            assert QColor(aggregate.property("color")).rgba() == neutral_surface.rgba(), (
+                QColor(aggregate.property("color")).name(),
+                neutral_surface.name(),
+            )
             assert QColor(QQmlProperty.read(aggregate, "border.color")).rgba() == valid_green.rgba()
             assert abs(float(QQmlProperty.read(aggregate, "border.width")) - 1.6) < 0.01
             collapsed_decoration = QColor(collapsed_host.property("inlineDrivenTextColor"))
