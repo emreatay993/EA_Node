@@ -22,7 +22,13 @@ from ea_node_editor.execution.protocol import (
 from ea_node_editor.execution.runtime_snapshot import build_runtime_snapshot
 from ea_node_editor.graph.model import GraphModel
 from ea_node_editor.nodes.bootstrap import build_builtin_registry, build_default_registry
-from ea_node_editor.nodes.builtin_functions import core_value, source_modules, spatial, unit_math
+from ea_node_editor.nodes.builtin_functions import (
+    core_value,
+    plot_signal,
+    source_modules,
+    spatial,
+    unit_math,
+)
 from ea_node_editor.nodes.execution_context import ExecutionContext
 from ea_node_editor.nodes.function_plugin import (
     EMPTY_PLUGIN_FINGERPRINT,
@@ -86,7 +92,7 @@ def test_placeholder_sources_form_one_noop_internal_bundle(
     tmp_path: Path,
     monkeypatch,
 ) -> None:  # noqa: ANN001
-    for module in (core_value, unit_math, spatial):
+    for module in (core_value, unit_math, spatial, plot_signal):
         monkeypatch.setattr(module, "SOURCE", "import corex\n")
 
     registry = build_builtin_registry(generation_root=tmp_path / "generations")
@@ -95,6 +101,7 @@ def test_placeholder_sources_form_one_noop_internal_bundle(
         "core_value.py",
         "unit_math.py",
         "spatial.py",
+        "plot_signal.py",
     ]
     assert registry.all_python_function_refs() == ()
     assert len(registry.plugin_bundle_refs()) == 1

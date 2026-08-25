@@ -462,6 +462,199 @@ def signal(ctx): return {}
     assert declaration.spec.type_id == "plot.signal"
 
 
+def test_internal_control_fields_preserve_spec_order_and_customize_group_order() -> None:
+    source = '''
+@corex.node(id="plot.private_fields", name="Private Fields", category=("Plot",))
+@corex.slider(
+    "width",
+    default=600,
+    minimum=2,
+    maximum=3840,
+    description="Property width.",
+    section="General",
+    port=True,
+    _port_description="Port width.",
+    _section_order=1,
+)
+@corex.interval(
+    "bounds",
+    default=None,
+    section="General",
+    port=True,
+    _section_order=0,
+    _persistence_type=None,
+)
+def private_fields(ctx, settings):
+    return {}
+'''
+
+    (declaration,) = discover_plugin_declarations(
+        source,
+        allow_reserved_ids=True,
+        owner_id=INTERNAL_BUILTIN_FUNCTION_OWNER_ID,
+    )
+
+    assert [prop.key for prop in declaration.spec.properties] == ["width", "bounds"]
+    assert [port.key for port in declaration.spec.ports] == ["width", "bounds"]
+    assert [
+        item.property_key for item in declaration.spec.settings_groups[0].items
+    ] == ["bounds", "width"]
+    assert declaration.spec.properties[0].description == "Property width."
+    assert declaration.spec.ports[0].description == "Port width."
+    assert declaration.spec.properties[1].persistence_data_type_id == ""
+
+
+def test_internal_control_field_omission_preserves_public_defaults() -> None:
+    source = '''
+@corex.node(id="plot.private_defaults", name="Private Defaults", category=("Plot",))
+@corex.interval("first", default=None, description="Shared.", section="General", port=True)
+@corex.text("second", description="Second.", section="General", port=True)
+def private_defaults(ctx, settings):
+    return {}
+'''
+
+    (declaration,) = discover_plugin_declarations(
+        source,
+        allow_reserved_ids=True,
+        owner_id=INTERNAL_BUILTIN_FUNCTION_OWNER_ID,
+    )
+
+    assert [
+        item.property_key for item in declaration.spec.settings_groups[0].items
+    ] == ["first", "second"]
+    assert declaration.spec.ports[0].description == "Shared."
+    assert (
+        declaration.spec.properties[0].persistence_data_type_id
+        == "COREX.DataTypes.Interval1D"
+    )
+
+
+@pytest.mark.parametrize(
+    "persistence_type",
+    ("corex.Interval", '"COREX.DataTypes.Interval1D"'),
+)
+def test_internal_interval_accepts_explicit_interval_persistence_type(
+    persistence_type: str,
+) -> None:
+    source = f'''
+@corex.node(id="plot.private_persistence", name="Private", category=("Plot",))
+@corex.interval("bounds", default=None, _persistence_type={persistence_type})
+def private_persistence(ctx, settings): return {{}}
+'''
+
+    (declaration,) = discover_plugin_declarations(
+        source,
+        allow_reserved_ids=True,
+        owner_id=INTERNAL_BUILTIN_FUNCTION_OWNER_ID,
+    )
+    assert (
+        declaration.spec.properties[0].persistence_data_type_id
+        == "COREX.DataTypes.Interval1D"
+    )
+
+
+@pytest.mark.parametrize(
+    ("decorator", "message"),
+    (
+        (
+            '@corex.text("value", _port_description="Private")',
+            "Private decorator field '_port_description'",
+        ),
+        (
+            '@corex.text("value", _section_order=0)',
+            "Private decorator field '_section_order'",
+        ),
+        (
+            '@corex.interval("value", _persistence_type=None)',
+            "Private decorator field '_persistence_type'",
+        ),
+    ),
+)
+def test_external_plugins_reject_internal_control_fields(
+    decorator: str,
+    message: str,
+) -> None:
+    source = f'''
+@corex.node(id="custom.private.1234abcd", name="Private", category=("Tests",))
+{decorator}
+def private(ctx, settings): return {{}}
+'''
+
+    with pytest.raises(PluginDeclarationError, match=message):
+        discover_plugin_declarations(source)
+
+
+@pytest.mark.parametrize(
+    ("decorator", "message"),
+    (
+        ('@corex.text("value", _port_description="Private")', "port=True"),
+        ('@corex.text("value", section="General", _section_order=-1)', "non-negative"),
+        (
+            '@corex.interval("value", _persistence_type=corex.Color)',
+            "corex.Interval",
+        ),
+        (
+            '@corex.text("value", _persistence_type=None)',
+            "Private decorator field '_persistence_type'",
+        ),
+        (
+            '@corex.text("value", _section_order=0)',
+            "requires a non-empty section",
+        ),
+    ),
+)
+def test_internal_control_fields_validate_their_narrow_contract(
+    decorator: str,
+    message: str,
+) -> None:
+    source = f'''
+@corex.node(id="plot.private_validation", name="Private", category=("Tests",))
+{decorator}
+def private_validation(ctx, settings): return {{}}
+'''
+
+    with pytest.raises(PluginDeclarationError, match=message):
+        discover_plugin_declarations(
+            source,
+            allow_reserved_ids=True,
+            owner_id=INTERNAL_BUILTIN_FUNCTION_OWNER_ID,
+        )
+
+
+def test_internal_section_order_rejects_duplicates_deterministically() -> None:
+    source = '''
+@corex.node(id="plot.private_order", name="Private", category=("Tests",))
+@corex.text("first", section="General", _section_order=0)
+@corex.text("second", section="General", _section_order=0)
+def private_order(ctx, settings): return {}
+'''
+
+    with pytest.raises(PluginDeclarationError, match="Duplicate _section_order 0"):
+        discover_plugin_declarations(
+            source,
+            allow_reserved_ids=True,
+            owner_id=INTERNAL_BUILTIN_FUNCTION_OWNER_ID,
+        )
+
+
+def test_runtime_decorators_ignore_internal_control_fields() -> None:
+    @corex.node(id="plot.runtime_private", name="Runtime", category=("Tests",))
+    @corex.interval("bounds", _persistence_type=None)
+    @corex.text(
+        "title",
+        port=True,
+        _port_description="Port title.",
+        _section_order=0,
+    )
+    def runtime_private(ctx, settings):  # noqa: ANN001
+        return {"ctx": ctx, "settings": settings}
+
+    assert runtime_private("context", "settings") == {
+        "ctx": "context",
+        "settings": "settings",
+    }
+
+
 def test_source_and_decorator_counts_are_bounded() -> None:
     with pytest.raises(PluginDeclarationError, match="source is too large"):
         discover_plugin_declarations("#" * (256 * 1024 + 1))

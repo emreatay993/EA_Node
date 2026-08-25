@@ -193,6 +193,29 @@ def run(ctx):
         registry.normalize_properties("core.python_script", {"script": source})
 
 
+@pytest.mark.parametrize(
+    "decorator",
+    (
+        '@corex.text("value", _port_description="Private")',
+        '@corex.text("value", _section_order=0)',
+        '@corex.interval("value", _persistence_type=None)',
+    ),
+)
+def test_python_script_rejects_internal_control_fields(decorator: str) -> None:
+    source = f'''@corex.node
+{decorator}
+def run(ctx, value):
+    return {{}}
+'''
+
+    registry = build_builtin_registry()
+    with pytest.raises(
+        PythonScriptDeclarationError,
+        match="Private decorator field .* is reserved for internal built-ins",
+    ):
+        registry.normalize_properties("core.python_script", {"script": source})
+
+
 def test_apply_is_atomic_and_reconciles_values_wires_and_structure() -> None:
     registry = build_builtin_registry()
     model = GraphModel()

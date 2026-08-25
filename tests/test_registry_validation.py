@@ -2106,14 +2106,8 @@ class RegistryValidationTests(unittest.TestCase):
     def test_plot_builtin_descriptors_declare_variadic_series_and_standard_properties(
         self,
     ) -> None:
-        self.assertEqual(len(PLOT_NODE_DESCRIPTORS), 9)
-        generic_descriptors = tuple(
-            descriptor
-            for descriptor in PLOT_NODE_DESCRIPTORS
-            if descriptor.spec.type_id != "plot.signal"
-        )
-        self.assertEqual(len(generic_descriptors), 8)
-        for descriptor in generic_descriptors:
+        self.assertEqual(len(PLOT_NODE_DESCRIPTORS), 8)
+        for descriptor in PLOT_NODE_DESCRIPTORS:
             spec = descriptor.spec
             self.assertEqual(spec.category_path, ("Plot",))
             series_port = next(port for port in spec.ports if port.key == "series")
@@ -2137,16 +2131,6 @@ class RegistryValidationTests(unittest.TestCase):
                     "archive_export_on_run",
                 }.issubset(property_keys)
             )
-        signal_spec = next(
-            descriptor.spec
-            for descriptor in PLOT_NODE_DESCRIPTORS
-            if descriptor.spec.type_id == "plot.signal"
-        )
-        self.assertEqual(len([port for port in signal_spec.ports if port.direction == "in"]), 20)
-        self.assertEqual(
-            [port.key for port in signal_spec.ports if port.direction == "out"],
-            ["image"],
-        )
 
     def test_nested_category_sdk_node_type_spec_accepts_one_level_path(self) -> None:
         spec = NodeTypeSpec(

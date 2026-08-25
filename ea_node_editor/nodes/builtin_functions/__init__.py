@@ -4,7 +4,7 @@
 
 from __future__ import annotations
 
-from ea_node_editor.nodes.builtin_functions import core_value, spatial, unit_math
+from ea_node_editor.nodes.builtin_functions import core_value, plot_signal, spatial, unit_math
 
 
 def source_modules() -> tuple[tuple[str, str], ...]:
@@ -14,6 +14,7 @@ def source_modules() -> tuple[tuple[str, str], ...]:
         ("core_value.py", core_value.SOURCE),
         ("unit_math.py", unit_math.SOURCE),
         ("spatial.py", spatial.SOURCE),
+        ("plot_signal.py", plot_signal.SOURCE),
     )
 
 

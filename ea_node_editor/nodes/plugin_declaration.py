@@ -381,10 +381,13 @@ def _parse_function(
     output_keys: list[str] = []
     control_keys: list[str] = []
     used_keys: set[str] = set()
-    section_items: OrderedDict[str, list[SettingsGroupItemSpec]] = OrderedDict()
+    section_items: OrderedDict[
+        str, list[tuple[int | None, int, SettingsGroupItemSpec]]
+    ] = OrderedDict()
 
     for decorator, name in zip(decorators[1:], names[1:], strict=True):
         assert name is not None
+        section_order: int | None = None
         if name == "input":
             key, values, _nodes = _engine.call_values(
                 decorator,
@@ -444,10 +447,15 @@ def _parse_function(
             section = ""
             output_keys.append(key)
         elif name in _engine.CONTROL_DECORATORS:
+            internal_builtin = allow_reserved_ids
             key, values, _nodes = _engine.call_values(
                 decorator,
                 name,
-                allowed=_engine.CONTROL_ALLOWED_FIELDS[name],
+                allowed=(
+                    _engine.INTERNAL_CONTROL_ALLOWED_FIELDS[name]
+                    if internal_builtin
+                    else _engine.CONTROL_ALLOWED_FIELDS[name]
+                ),
                 fail=fail,
                 constants=constants,
                 cache=cache,
@@ -466,13 +474,28 @@ def _parse_function(
                 )
                 raise fail(decorator, message) from exc
             section = _engine.string_value(values, "section")
+            section_order = values.get("_section_order")
+            if section_order is not None and not section:
+                raise fail(
+                    decorator,
+                    "_section_order requires a non-empty section",
+                )
+            if "_port_description" in values and not _engine.bool_value(
+                values, "port"
+            ):
+                raise fail(
+                    decorator,
+                    "_port_description requires port=True",
+                )
             port = (
                 _engine.port_spec(
                     key,
                     direction="in",
                     data_type=data_type,
                     label=prop.label,
-                    description=prop.description,
+                    description=_engine.string_value(
+                        values, "_port_description", prop.description
+                    ),
                     required=False,
                     data_access=data_access,
                     uses_property_default=True,
@@ -493,10 +516,22 @@ def _parse_function(
         if prop is not None:
             properties.append(prop)
         if section:
-            section_items.setdefault(section, []).append(
-                SettingsGroupItemSpec(
-                    port_key=key if port is not None else "",
-                    property_key=key if prop is not None else "",
+            items = section_items.setdefault(section, [])
+            if section_order is not None and any(
+                item_order == section_order for item_order, _index, _item in items
+            ):
+                raise fail(
+                    decorator,
+                    f"Duplicate _section_order {section_order} in section {section!r}",
+                )
+            items.append(
+                (
+                    section_order,
+                    len(items),
+                    SettingsGroupItemSpec(
+                        port_key=key if port is not None else "",
+                        property_key=key if prop is not None else "",
+                    ),
                 )
             )
 
@@ -527,7 +562,17 @@ def _parse_function(
         SettingsGroupSpec(
             _engine.group_id(label, used_group_ids),
             label,
-            tuple(items),
+            tuple(
+                item
+                for _order, _index, item in sorted(
+                    items,
+                    key=lambda entry: (
+                        entry[0] is None,
+                        entry[0] if entry[0] is not None else entry[1],
+                        entry[1],
+                    ),
+                )
+            ),
         )
         for label, items in section_items.items()
     )

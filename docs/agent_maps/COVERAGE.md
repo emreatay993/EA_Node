@@ -36,8 +36,8 @@ implementation studies are intentionally excluded.
 
 ## Current ownership notes
 
-- Signal Plot behavior is owned by `nodes/builtins/plot/signal.py`,
-  `execution/signal_plot_renderer.py`, and the plotter route.
+- Signal Plot declaration/execution is owned by `nodes/builtin_functions/plot_signal.py`,
+  rendering by `execution/signal_plot_renderer.py`, and navigation by the plotter route.
 - Declarative node controls are shared metadata-to-QML behavior owned by the
   node registry, graph-scene projection, and shared graph controls. Rendered
   list/group/control geometry belongs to Surface Input; payload and settings-band

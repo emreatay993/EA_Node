@@ -62,7 +62,6 @@ EXPECTED_PLOT_TYPE_IDS = (
     "plot.surface",
     "plot.point_cloud",
     "plot.streamlines",
-    "plot.signal",
 )
 EXPECTED_DISPLAY_NAMES = {
     "plot.scatter": "Scatter Plot",
@@ -73,9 +72,8 @@ EXPECTED_DISPLAY_NAMES = {
     "plot.surface": "Surface Plot",
     "plot.point_cloud": "Point Cloud Plot",
     "plot.streamlines": "Streamlines Plot",
-    "plot.signal": "Signal Plot",
 }
-EXPECTED_GENERIC_PLOT_TYPE_IDS = EXPECTED_PLOT_TYPE_IDS[:-1]
+EXPECTED_GENERIC_PLOT_TYPE_IDS = EXPECTED_PLOT_TYPE_IDS
 STANDARD_PROPERTY_KEYS = {
     "backend",
     "title",

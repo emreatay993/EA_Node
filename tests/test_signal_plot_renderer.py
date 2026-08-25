@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from dataclasses import asdict
+import json
 from pathlib import Path
 import pytest
 
@@ -11,13 +13,15 @@ from ea_node_editor.execution.signal_plot_renderer import (
     render_signal_plot,
 )
 from ea_node_editor.nodes.bootstrap import build_default_registry
+from ea_node_editor.nodes.builtin_functions.plot_signal import SOURCE
 from ea_node_editor.nodes.builtins.integrations_file_io import ImageExportNodePlugin, ImageImportNodePlugin
-from ea_node_editor.nodes.builtins.plot.signal import (
-    LINE_STYLE_LABELS,
-    MARKER_LABELS,
-    SIGNAL_PLOT_TYPE_ID,
+from ea_node_editor.nodes.function_plugin import (
+    INTERNAL_BUILTIN_FUNCTION_OWNER_ID,
+    PythonFunctionAdapter,
 )
 from ea_node_editor.nodes.execution_context import ExecutionContext
+from ea_node_editor.nodes.plugin_declaration import discover_plugin_declarations
+from ea_node_editor.nodes.registry import PythonFunctionEntry
 from ea_node_editor.runtime_contracts import (
     IMAGE_VALUE_MAX_ENCODED_BYTES,
     DataTree,
@@ -26,6 +30,7 @@ from ea_node_editor.runtime_contracts import (
 )
 
 
+SIGNAL_PLOT_TYPE_ID = "plot.signal"
 INPUT_KEYS = (
     "width",
     "height",
@@ -54,9 +59,28 @@ def _tree(*branches: tuple[float, ...]) -> DataTree:
     return DataTree(((index,), branch) for index, branch in enumerate(branches))
 
 
-def test_signal_plot_contract_is_exact_and_generic_siblings_remain() -> None:
-    registry = build_default_registry()
+def test_signal_plot_contract_is_exact_and_generic_siblings_remain(
+    tmp_path: Path,
+) -> None:
+    registry = build_default_registry(generation_root=tmp_path / "generations")
     spec = registry.get_spec(SIGNAL_PLOT_TYPE_ID)
+    expected = next(
+        row["spec"]
+        for row in json.loads(
+            (
+                Path(__file__).parent
+                / "fixtures"
+                / "node_catalog"
+                / "pre_cutover_non_dpf_catalog.json"
+            ).read_text(encoding="utf-8")
+        )
+        if row["spec"]["type_id"] == SIGNAL_PLOT_TYPE_ID
+    )
+    assert json.loads(json.dumps(asdict(spec))) == expected
+    entry = registry.get_entry(SIGNAL_PLOT_TYPE_ID)
+    assert isinstance(entry, PythonFunctionEntry)
+    assert entry.owner_id == INTERNAL_BUILTIN_FUNCTION_OWNER_ID
+    assert registry.descriptor_or_none(SIGNAL_PLOT_TYPE_ID) is None
     inputs = tuple(port for port in spec.ports if port.direction == "in")
     outputs = tuple(port for port in spec.ports if port.direction == "out")
     assert tuple(port.key for port in inputs) == INPUT_KEYS
@@ -133,13 +157,81 @@ def test_signal_plot_static_ui_metadata_is_exact() -> None:
         "Upper left", "Upper center", "Upper right", "Middle left", "Middle center",
         "Middle right", "Lower left", "Lower center", "Lower right",
     )
-    assert properties["line_styles"].list_item_enum_values == LINE_STYLE_LABELS
-    assert properties["marker_shapes"].list_item_enum_values == MARKER_LABELS
+    assert properties["line_styles"].list_item_enum_values == (
+        "None", "Solid", "Dash", "Dash Dot", "Dash Dot Dot", "Dot",
+    )
+    assert properties["marker_shapes"].list_item_enum_values == (
+        "None", "Filled circle", "Filled square", "Open circle", "Open square",
+        "Filled diamond", "Open diamond", "Asterisk", "Hashtag", "Cross", "X",
+        "Vertical bar", "Tri upwards", "Tri downwards", "Filled triangle upwards",
+        "Filled triangle downwards", "Open triangle upwards", "Open triangle downwards",
+    )
     assert (properties["line_widths"].list_item_minimum, properties["line_widths"].list_item_maximum) == (0, 5)
     assert (properties["marker_sizes"].list_item_minimum, properties["marker_sizes"].list_item_maximum) == (1, 72)
     assert properties["x_axis_interval"].inline_editor == "interval_fields"
     assert properties["x_axis_interval"].nullable is True
     assert all(port.description for port in spec.ports)
+
+
+def test_signal_plot_function_adapter_preserves_present_overrides_and_warnings() -> None:
+    declaration = discover_plugin_declarations(
+        SOURCE,
+        filename="plot_signal.py",
+        allow_reserved_ids=True,
+        owner_id=INTERNAL_BUILTIN_FUNCTION_OWNER_ID,
+    )[0]
+    namespace: dict[str, object] = {}
+    exec(compile(SOURCE, "plot_signal.py", "exec"), namespace)  # noqa: S102
+    captured: dict[str, object] = {}
+    image = object()
+
+    def render(values):  # noqa: ANN001
+        captured.update(values)
+        return image, ("first", "second")
+
+    namespace["render_signal_plot"] = render
+    adapter = PythonFunctionAdapter(
+        declaration.spec,
+        namespace[declaration.function_name],  # type: ignore[arg-type]
+    )
+    values = _tree((1.0, 2.0))
+    properties = {prop.key: prop.default for prop in declaration.spec.properties}
+    properties.update(
+        {
+            "title": "property title",
+            "show_legend": True,
+            "x_axis_interval": Interval1D(0.0, 1.0),
+            "line_widths": [1],
+        }
+    )
+    result = adapter.execute(
+        ExecutionContext(
+            run_id="run_signal_adapter",
+            node_id="node_signal_adapter",
+            workspace_id="workspace_signal_adapter",
+            inputs={
+                "values": values,
+                "title": "",
+                "show_legend": False,
+                "x_axis_interval": None,
+                "line_widths": [],
+            },
+            properties=properties,
+            emit_log=lambda _level, _message: None,
+        )
+    )
+
+    assert captured["values"] is values
+    assert captured["title"] == ""
+    assert captured["show_legend"] is False
+    assert captured["x_axis_interval"] is None
+    assert captured["line_widths"] == []
+    assert result.outputs == {"image": image}
+    assert result.warnings == ("first", "second")
+    assert tuple(warning.code for warning in result.plugin_warnings) == (
+        "signal_plot_render",
+        "signal_plot_render",
+    )
 
 
 def test_signal_plot_renders_all_style_codes_and_deterministic_png() -> None:

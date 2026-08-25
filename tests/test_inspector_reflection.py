@@ -47,6 +47,7 @@ class InspectorReflectionTests(unittest.TestCase):
             workspace_id=self.workspace_id,
             registry=self.registry,
         )
+        runtime_registry = build_default_registry()
         run_workflow(
             coerce_start_run_command(
                 {
@@ -54,8 +55,14 @@ class InspectorReflectionTests(unittest.TestCase):
                     "workspace_id": self.workspace_id,
                     "runtime_snapshot": runtime_snapshot,
                     "trigger": {},
+                    "plugin_bundles": runtime_registry.plugin_bundle_refs(),
+                    "plugin_fingerprint": runtime_registry.plugin_fingerprint(),
+                    "registry_contract_fingerprint": (
+                        runtime_registry.contract_fingerprint()
+                    ),
+                    "addon_runtime_config": runtime_registry.addon_runtime_config(),
                 },
-                catalog=self.registry.data_types,
+                catalog=runtime_registry.data_types,
             ),
             event_queue,
         )

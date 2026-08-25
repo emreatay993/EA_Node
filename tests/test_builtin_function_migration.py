@@ -30,7 +30,7 @@ from ea_node_editor.persistence.serializer import JsonProjectSerializer
 from ea_node_editor.runtime_contracts import DataTree, deserialize_runtime_value
 from ea_node_editor.ui.shell.controllers.workspace_io_ops import WorkspaceIOOps
 
-_CONVERTED_TYPE_IDS = (
+_T10_CONVERTED_TYPE_IDS = (
     "core.if",
     "data.deconstruct_color",
     "data.construct_path",
@@ -55,6 +55,8 @@ _CONVERTED_TYPE_IDS = (
     "geometry.chain_transforms",
     "geometry.unchain_transforms",
 )
+_T11_CONVERTED_TYPE_IDS = ("plot.signal",)
+_CONVERTED_TYPE_IDS = (*_T10_CONVERTED_TYPE_IDS, *_T11_CONVERTED_TYPE_IDS)
 _PRE_CUTOVER_CATALOG = (
     Path(__file__).parent
     / "fixtures"
@@ -70,16 +72,17 @@ def test_exact_t10_entries_match_golden_and_leave_truthful_descriptor_boundary(
     expected = {
         row["spec"]["type_id"]: row["spec"]
         for row in json.loads(_PRE_CUTOVER_CATALOG.read_text(encoding="utf-8"))
-        if row["spec"]["type_id"] in _CONVERTED_TYPE_IDS
+        if row["spec"]["type_id"] in _T10_CONVERTED_TYPE_IDS
     }
 
-    assert set(expected) == set(_CONVERTED_TYPE_IDS)
+    assert len(_T10_CONVERTED_TYPE_IDS) == 23
+    assert set(expected) == set(_T10_CONVERTED_TYPE_IDS)
     assert {
         spec.type_id
         for spec in registry.all_specs()
         if isinstance(registry.get_entry(spec.type_id), PythonFunctionEntry)
     } == set(_CONVERTED_TYPE_IDS)
-    for type_id in _CONVERTED_TYPE_IDS:
+    for type_id in _T10_CONVERTED_TYPE_IDS:
         entry = registry.get_entry(type_id)
         assert isinstance(entry, PythonFunctionEntry)
         assert entry.owner_id == INTERNAL_BUILTIN_FUNCTION_OWNER_ID
@@ -114,6 +117,16 @@ def test_exact_t10_entries_match_golden_and_leave_truthful_descriptor_boundary(
         registry,
         tmp_path / "plugins",
     ) == []
+
+
+def test_t11_signal_is_a_separate_internal_function_entry(tmp_path: Path) -> None:
+    registry = build_builtin_registry(generation_root=tmp_path / "generations")
+    entry = registry.get_entry("plot.signal")
+
+    assert _T11_CONVERTED_TYPE_IDS == ("plot.signal",)
+    assert isinstance(entry, PythonFunctionEntry)
+    assert entry.owner_id == INTERNAL_BUILTIN_FUNCTION_OWNER_ID
+    assert registry.descriptor_or_none("plot.signal") is None
 
 
 def test_t10_representatives_execute_in_spawned_process_worker(
@@ -215,7 +228,7 @@ def test_t10_representatives_execute_in_spawned_process_worker(
         assert settled[node_id]["outputs"]["output"]["status"] == "empty"
 
 
-def test_t10_nodes_roundtrip_without_implementation_records(
+def test_converted_function_nodes_roundtrip_without_implementation_records(
     tmp_path: Path,
 ) -> None:
     registry = build_builtin_registry(generation_root=tmp_path / "generations")

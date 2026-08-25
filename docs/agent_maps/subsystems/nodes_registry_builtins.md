@@ -31,7 +31,7 @@ Use this for node definitions, registry validation, built-in node families, data
 - Geometry and spatial values: `geometry_contracts.py`, `geometry_primitives.py`, and `spatial_values.py`.
 - Engineering contracts: `mesh_contracts.py`, `fem_contracts.py`, and `voxel_contracts.py`.
 - Support values and nodes: `tree_path.py`, `units.py`, `viewer_viewport.py`, `security_contracts.py`, `reporting.py`, and `ai_ml_contracts.py`.
-- Signal Plot is owned by `builtins/plot/signal.py` and emits `COREX.DataTypes.Image`.
+- Signal Plot declaration/execution is owned by inert `builtin_functions/plot_signal.py`; rendering remains in `execution/signal_plot_renderer.py` and emits `COREX.DataTypes.Image`.
 - Public function plugins use the dependency-free top-level `corex` decorators and static `plugin_declaration.py` discovery. Python Script keeps its one-`run` signature while sharing only the bounded literal/control engine.
 - The internal owner `corex:builtin:functions` is the only reserved-ID function bundle. GUI bootstrap imports inert source strings, materializes the normal content-addressed generation, and registers `PythonFunctionEntry` records; workers independently attest and lazily execute it. T10 converts exactly 23 simple core/value/unit/math/spatial IDs while retaining deferred construct-interval/transform descriptors.
 - `TrustedFactoryEntry` and `PythonFunctionEntry` are the mutually exclusive private registry implementations. Public function entries store only `PythonFunctionRef`; process workers re-hash the immutable generation and use `PythonFunctionAdapter` without exposing a callable to GUI discovery.

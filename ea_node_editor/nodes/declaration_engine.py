@@ -75,6 +75,13 @@ CONTROL_ALLOWED_FIELDS = {
     "list": _COMMON_CONTROL_FIELDS
     | {"item_type", "options", "codes", "minimum", "maximum", "step"},
 }
+_INTERNAL_CONTROL_FIELDS = frozenset({"_port_description", "_section_order"})
+INTERNAL_CONTROL_ALLOWED_FIELDS = {
+    name: fields
+    | _INTERNAL_CONTROL_FIELDS
+    | ({"_persistence_type"} if name == "interval" else frozenset())
+    for name, fields in CONTROL_ALLOWED_FIELDS.items()
+}
 
 FailureFactory = Callable[[ast.AST | None, str], Exception]
 
@@ -243,6 +250,11 @@ def call_values(
         if keyword_node.arg is None:
             raise fail(keyword_node.value, "Decorator keyword unpacking is not allowed")
         if keyword_node.arg not in allowed:
+            if keyword_node.arg.startswith("_"):
+                raise fail(
+                    keyword_node.value,
+                    f"Private decorator field {keyword_node.arg!r} is reserved for internal built-ins",
+                )
             raise fail(
                 keyword_node.value,
                 f"@corex.{name} does not accept {keyword_node.arg!r}",
@@ -254,13 +266,18 @@ def call_values(
             )
         nodes[keyword_node.arg] = keyword_node.value
         values[keyword_node.arg] = (
-            declaration_type_id(
+            None
+            if keyword_node.arg == "_persistence_type"
+            and isinstance(keyword_node.value, ast.Constant)
+            and keyword_node.value.value is None
+            else declaration_type_id(
                 keyword_node.value,
                 fail=fail,
                 constants=constants,
                 cache=cache,
             )
-            if keyword_node.arg in {"value_type", "item_type"}
+            if keyword_node.arg
+            in {"value_type", "item_type", "_persistence_type"}
             else bounded_literal(
                 keyword_node.value,
                 fail=fail,
@@ -275,12 +292,22 @@ def call_values(
             "structure",
             "file_filter",
             "direction",
+            "_port_description",
         } and not isinstance(values[keyword_node.arg], str):
             raise fail(keyword_node.value, f"{keyword_node.arg} must be a string literal")
         if keyword_node.arg in {"required", "port", "searchable"} and not isinstance(
             values[keyword_node.arg], bool
         ):
             raise fail(keyword_node.value, f"{keyword_node.arg} must be true or false")
+        if keyword_node.arg == "_section_order" and (
+            isinstance(values[keyword_node.arg], bool)
+            or not isinstance(values[keyword_node.arg], int)
+            or values[keyword_node.arg] < 0
+        ):
+            raise fail(
+                keyword_node.value,
+                "_section_order must be a non-negative integer",
+            )
     return key, values, nodes
 
 
@@ -541,6 +568,13 @@ def control_spec(
                 "interval sliders require minimum, maximum, and a non-null default"
             )
         direction = string_value(values, "direction", "increasing") if slider else ""
+        persistence_type = values.get(
+            "_persistence_type", INTERVAL_1D_GRAPH_DATA_TYPE_ID
+        )
+        if persistence_type not in {None, INTERVAL_1D_GRAPH_DATA_TYPE_ID}:
+            raise DeclarationValueError(
+                "_persistence_type must be corex.Interval, its type-ID, or None"
+            )
         return (
             PropertySpec(
                 key,
@@ -553,7 +587,9 @@ def control_spec(
                 inline_editor="interval_slider" if slider else "interval_fields",
                 interval_direction=direction,  # type: ignore[arg-type]
                 nullable=nullable,
-                persistence_data_type_id=INTERVAL_1D_GRAPH_DATA_TYPE_ID,
+                persistence_data_type_id=(
+                    "" if persistence_type is None else INTERVAL_1D_GRAPH_DATA_TYPE_ID
+                ),
                 description=description,
                 group=section,
             ),
