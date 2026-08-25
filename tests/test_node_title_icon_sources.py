@@ -5,6 +5,7 @@ from pathlib import Path
 import pytest
 
 from ea_node_editor.graph.model import GraphModel
+from ea_node_editor.nodes.function_plugin import PythonFunctionRef
 from ea_node_editor.nodes.registry import NodeRegistry
 from ea_node_editor.nodes.types import (
     NodeResult,
@@ -381,3 +382,45 @@ def test_title_icon_scene_payload_marks_builtin_svg_icons_theme_aware() -> None:
     payload = nodes_payload[0]
     assert payload["icon_source"].endswith("/ea_node_editor/assets/node_title_icons/core/data_object.svg")
     assert payload["icon_theme_aware"]
+
+
+def test_title_icon_scene_payload_uses_public_function_package_provenance(
+    tmp_path: Path,
+) -> None:
+    package_root = tmp_path / ("a" * 64)
+    icon_path = package_root / "assets" / "node.svg"
+    icon_path.parent.mkdir(parents=True)
+    icon_path.write_bytes(b"icon")
+    spec = _spec("custom.title_icon.1234abcd", "assets/node.svg")
+    provenance = PluginProvenance(
+        kind="package",
+        source_path=package_root / "nodes.py",
+        package_root=package_root,
+        package_name="title_icons",
+    )
+    registry = NodeRegistry()
+    registry.register_python_function(
+        spec,
+        PythonFunctionRef(
+            bundle_id="plugin:package:title_icons",
+            bundle_digest="a" * 64,
+            module_relative_path="nodes.py",
+            function_name="title_icon",
+            source_digest="b" * 64,
+        ),
+        provenance=provenance,
+    )
+    model = GraphModel()
+    workspace_id = model.active_workspace.workspace_id
+    model.add_node(workspace_id, spec.type_id, spec.display_name, 80.0, 90.0)
+
+    nodes_payload, _backdrops, _minimap, _edges = GraphScenePayloadBuilder().rebuild_partitioned_models(
+        model=model,
+        registry=registry,
+        workspace_id=workspace_id,
+        scope_path=(),
+        graph_theme_bridge=None,
+    )
+
+    assert nodes_payload[0]["icon_source"] == icon_path.resolve().as_uri()
+    assert not nodes_payload[0]["icon_theme_aware"]

@@ -16,7 +16,7 @@ import sys
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, fields, is_dataclass, replace
 from enum import Enum
-from pathlib import Path, PurePosixPath, PureWindowsPath
+from pathlib import Path, PurePosixPath
 from typing import Any
 
 from ea_node_editor.nodes.function_plugin import PluginBundleRef, PythonFunctionRef
@@ -39,9 +39,12 @@ from ea_node_editor.nodes.plugin_generation import (
     PLUGIN_MEMBER_LIMIT,
     PLUGIN_SOURCE_LIMIT,
     PLUGIN_TOTAL_LIMIT,
+    SCHEMA_1_UNSUPPORTED_MESSAGE,
     _is_reparse_point,
     canonical_bundle_digest,
     materialize_plugin_generation,
+    validate_plugin_regular_file,
+    validated_plugin_member_path,
 )
 from ea_node_editor.nodes.registry import NodeRegistry
 from ea_node_editor.settings import plugin_generations_dir, plugins_dir
@@ -111,6 +114,8 @@ class _PreparedBundle:
     declarations: tuple[tuple[str, PythonFunctionDeclaration], ...]
     unavailable_reason: str
     log_label: str
+    source_root: Path
+    package_name: str = ""
 
 
 def _safe_segment(value: object, *, fallback: str) -> str:
@@ -147,24 +152,6 @@ def _sha256(field_name: str, value: object) -> str:
     return text
 
 
-def _member_path(value: object, *, root_python: bool = False) -> str:
-    text = _trimmed("member path", value)
-    posix = PurePosixPath(text)
-    windows = PureWindowsPath(text)
-    if (
-        "\\" in text
-        or ":" in text
-        or posix.is_absolute()
-        or windows.drive
-        or windows.root
-        or posix.as_posix() != text
-        or any(part in {"", ".", ".."} for part in posix.parts)
-        or (root_python and (len(posix.parts) != 1 or posix.suffix != ".py"))
-    ):
-        raise ValueError("Manifest paths must be canonical relative paths")
-    return text
-
-
 def _source_digest(payload: bytes) -> str:
     return hashlib.sha256(payload).hexdigest()
 
@@ -196,7 +183,10 @@ def _manifest_records(
     for raw_record in raw_records:
         if not isinstance(raw_record, dict) or set(raw_record) != {"path", "sha256"}:
             raise ValueError(f"Manifest {field_name} entries require path and sha256")
-        path = _member_path(raw_record["path"], root_python=not asset)
+        path = validated_plugin_member_path(
+            raw_record["path"],
+            root_python=not asset,
+        )
         if asset and PurePosixPath(path).suffix.lower() not in PLUGIN_ASSET_SUFFIXES:
             raise ValueError(f"Unsupported plugin asset: {path}")
         folded = path.casefold()
@@ -216,6 +206,7 @@ def _read_package_member(package_dir: Path, relative_path: str, *, limit: int) -
             raise ValueError("Plugin package may not contain path aliases")
     if not target.is_file():
         raise ValueError(f"Declared package member is unavailable: {relative_path}")
+    validate_plugin_regular_file(target)
     try:
         target.resolve().relative_to(package_dir.resolve())
     except ValueError as exc:
@@ -231,6 +222,7 @@ def _package_manifest(package_dir: Path) -> tuple[dict[str, object], dict[str, b
     manifest_path = package_dir / MANIFEST_FILENAME
     if not manifest_path.is_file() or _is_reparse_point(manifest_path):
         raise ValueError(f"Installed plugin package requires {MANIFEST_FILENAME}")
+    validate_plugin_regular_file(manifest_path)
     raw_manifest = _read_bounded(
         manifest_path,
         limit=PLUGIN_MANIFEST_LIMIT,
@@ -242,14 +234,19 @@ def _package_manifest(package_dir: Path) -> tuple[dict[str, object], dict[str, b
         raise ValueError("Plugin package manifest is not valid UTF-8 JSON") from exc
     if not isinstance(manifest, dict):
         raise ValueError("Plugin package manifest must be a JSON object")
+    schema_version = manifest.get("schema_version")
+    if schema_version is None or (
+        type(schema_version) is int and schema_version == 1
+    ):
+        raise ValueError(SCHEMA_1_UNSUPPORTED_MESSAGE)
+    if type(schema_version) is not int or schema_version != 2:
+        raise ValueError("Only node package schema 2 is supported")
     if set(manifest) - _ALLOWED_MANIFEST_FIELDS:
         raise ValueError("Plugin package manifest contains unknown fields")
     if _REQUIRED_MANIFEST_FIELDS - set(manifest):
         raise ValueError("Plugin package manifest is missing required fields")
-    if type(manifest["schema_version"]) is not int or manifest["schema_version"] != 2:
-        raise ValueError("Only node package schema 2 is supported")
-    name = _trimmed("Manifest name", manifest["name"])
-    if PurePosixPath(name).parts != (name,) or name.startswith((".", "_")):
+    name = validated_plugin_member_path(_trimmed("Manifest name", manifest["name"]))
+    if len(PurePosixPath(name).parts) != 1 or name.startswith((".", "_")):
         raise ValueError("Manifest name must be a safe directory name")
     if package_dir.name != name:
         raise ValueError("Installed package directory must match manifest name")
@@ -261,7 +258,10 @@ def _package_manifest(package_dir: Path) -> tuple[dict[str, object], dict[str, b
     raw_modules = manifest["modules"]
     if not isinstance(raw_modules, list) or not raw_modules:
         raise ValueError("Manifest modules must be a non-empty list")
-    modules = tuple(_member_path(value, root_python=True) for value in raw_modules)
+    modules = tuple(
+        validated_plugin_member_path(value, root_python=True)
+        for value in raw_modules
+    )
     if len({module.casefold() for module in modules}) != len(modules):
         raise ValueError("Manifest modules must be unique")
     sources = _manifest_records(manifest, "sources", asset=False)
@@ -269,12 +269,14 @@ def _package_manifest(package_dir: Path) -> tuple[dict[str, object], dict[str, b
     source_paths = {path for path, _digest_value in sources}
     if not set(modules) <= source_paths:
         raise ValueError("Manifest modules must be declared sources")
-    if len(sources) + len(assets) > PLUGIN_MEMBER_LIMIT:
+    if len(sources) + len(assets) + 1 > PLUGIN_MEMBER_LIMIT:
         raise ValueError("Plugin package contains too many members")
 
     members: dict[str, bytes] = {}
     asset_paths = {item[0] for item in assets}
-    expanded_size = 0
+    expanded_size = len(raw_manifest)
+    if expanded_size > PLUGIN_TOTAL_LIMIT:
+        raise ValueError("Plugin package expanded size is too large")
     for path, expected_digest in (*sources, *assets):
         try:
             declared_size = (package_dir / path).stat().st_size
@@ -361,7 +363,7 @@ def _validated_manifest_nodes(
         nodes.append(
             (
                 _trimmed("node id", raw_node["id"]),
-                _member_path(raw_node["module"], root_python=True),
+                validated_plugin_member_path(raw_node["module"], root_python=True),
                 _trimmed("node function", raw_node["function"]),
             )
         )
@@ -381,6 +383,9 @@ def validated_generation_declarations(
         members,
         filename_prefix=filename_prefix,
     )
+    type_ids = [declaration.spec.type_id for _path, declaration in declarations]
+    if len(type_ids) != len(set(type_ids)):
+        raise ValueError("Plugin bundle contains duplicate node ids")
     discovered = {
         (item["id"], item["module"], item["function"])
         for item in _node_inventory(declarations)
@@ -486,6 +491,8 @@ def _prepare_loose_file(source_path: Path) -> _PreparedBundle | None:
     declarations = discover_plugin_declarations(source, filename=source_path.name)
     if not declarations:
         return None
+    if any(declaration.spec.icon for declaration in declarations):
+        raise ValueError("Loose plugins cannot declare custom icons; export a package")
     name = _safe_segment(source_path.stem, fallback="plugin")
     owner_id = f"plugin:file:{name}"
     module_path = source_path.name
@@ -514,6 +521,7 @@ def _prepare_loose_file(source_path: Path) -> _PreparedBundle | None:
         declarations=tuple((module_path, item) for item in declarations),
         unavailable_reason=unavailable_reason,
         log_label=_bounded_plugin_log_label(owner_id),
+        source_root=source_path.parent.resolve(),
     )
 
 
@@ -526,6 +534,20 @@ def _prepare_package(package_dir: Path) -> _PreparedBundle:
         members,
         filename_prefix=str(manifest["name"]),
     )
+    asset_paths = {
+        str(record["path"])
+        for record in manifest["assets"]  # type: ignore[union-attr]
+    }
+    for _module_path, declaration in declarations:
+        icon = declaration.spec.icon
+        if not icon:
+            continue
+        try:
+            icon_path = validated_plugin_member_path(icon)
+        except ValueError as exc:
+            raise ValueError(f"Plugin node icon path is invalid: {icon}") from exc
+        if icon_path not in asset_paths:
+            raise ValueError(f"Plugin node icon is not a declared asset: {icon_path}")
     source_paths = {str(record["path"]) for record in manifest["sources"]}  # type: ignore[index]
     missing = _missing_imports(members, source_paths)
     unavailable_reason = (
@@ -540,6 +562,8 @@ def _prepare_package(package_dir: Path) -> _PreparedBundle:
         declarations=declarations,
         unavailable_reason=unavailable_reason,
         log_label=_bounded_plugin_log_label(owner_id),
+        source_root=package_dir.resolve(),
+        package_name=str(manifest["name"]),
     )
 
 
@@ -603,9 +627,23 @@ def _register_prepared_bundle(
     for (_module_path, declaration), function_ref in zip(
         prepared.declarations, function_refs, strict=True
     ):
+        provenance = (
+            PluginProvenance(
+                kind="package",
+                source_path=generation / function_ref.module_relative_path,
+                package_root=generation,
+                package_name=prepared.package_name,
+            )
+            if prepared.package_name
+            else PluginProvenance(
+                kind="file",
+                source_path=prepared.source_root / function_ref.module_relative_path,
+            )
+        )
         registry.register_python_function(
             declaration.spec,
             function_ref,
+            provenance=provenance,
             owner_id=prepared.owner_id,
             unavailable_reason=prepared.unavailable_reason,
         )
@@ -731,11 +769,18 @@ def discover_static_plugins(
                 continue
             try:
                 candidates.append(_prepare_package(package_dir))
-            except (OSError, ValueError, PluginDeclarationError):
-                logger.warning(
-                    "Plugin %s skipped [invalid_bundle]",
-                    _bounded_plugin_log_label(f"plugin:package:{package_dir.name}"),
+            except (OSError, ValueError, PluginDeclarationError) as exc:
+                label = _bounded_plugin_log_label(
+                    f"plugin:package:{package_dir.name}"
                 )
+                if str(exc) == SCHEMA_1_UNSUPPORTED_MESSAGE:
+                    logger.warning(
+                        "Plugin %s skipped [schema_1]: %s",
+                        label,
+                        SCHEMA_1_UNSUPPORTED_MESSAGE,
+                    )
+                else:
+                    logger.warning("Plugin %s skipped [invalid_bundle]", label)
         for prepared in candidates:
             try:
                 bundle, type_ids = _register_prepared_bundle(

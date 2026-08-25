@@ -48,6 +48,9 @@ implementation studies are intentionally excluded.
   that exact component path.
 - Decorator-driven Python Script declarations are owned jointly by the node
   registry/parser, graph-owned atomic Apply, worker revalidation, and generic persistence.
+- Deterministic `.cxpkg` schema-2 archive IO, static package validation, and
+  immutable function-package asset provenance are owned by the Nodes map;
+  title-icon projection remains owned by the icon and graph-scene routes.
 - Geometry, spatial, mesh, FEM, voxel, security, reporting, media, and unit
   contracts use neutral COREX identifiers and functional module names.
 - Retired import and placeholder surfaces are absent from current ownership.

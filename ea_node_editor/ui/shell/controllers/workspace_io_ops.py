@@ -16,8 +16,8 @@ from ea_node_editor.settings import plugins_dir
 from ea_node_editor.ui.shell.controllers.dialog_support import resolve_dialog_parent
 
 if TYPE_CHECKING:
-    from ea_node_editor.nodes.package_manager import PackageExportSource
-    from ea_node_editor.nodes.plugin_contracts import PluginDescriptor, PluginProvenance
+    from ea_node_editor.nodes.package_manager import PackageExportAsset, PackageExportSource
+    from ea_node_editor.nodes.plugin_contracts import PluginProvenance
     from ea_node_editor.ui.shell.window import ShellWindow
 
 
@@ -60,11 +60,10 @@ class _NodePackageExportCandidate:
     source_kind: str
     node_type_ids: tuple[str, ...]
     source_files: tuple[PackageExportSource, ...]
-    descriptors: tuple[PluginDescriptor, ...]
+    asset_files: tuple[PackageExportAsset, ...]
     version: str = "1.0.0"
     author: str = ""
     description: str = ""
-    dependencies: tuple[str, ...] = ()
 
 
 class WorkspaceIOOps:
@@ -145,7 +144,6 @@ class WorkspaceIOOps:
             "version": "1.0.0",
             "author": "",
             "description": "",
-            "dependencies": (),
         }
         if not manifest_path.is_file():
             return metadata
@@ -159,15 +157,19 @@ class WorkspaceIOOps:
             metadata["version"] = str(raw_manifest.get("version", "1.0.0"))
             metadata["author"] = str(raw_manifest.get("author", ""))
             metadata["description"] = str(raw_manifest.get("description", ""))
-            metadata["dependencies"] = tuple(str(item) for item in raw_manifest.get("dependencies", []))
         return metadata
 
     @staticmethod
-    def _descriptor_export_source(
+    def _plugin_export_source(
         provenance: PluginProvenance | None,
         plugin_root: Path,
-    ) -> tuple[tuple[str, str], tuple[PackageExportSource, ...], dict[str, Any]] | None:
-        from ea_node_editor.nodes.package_manager import PackageExportSource
+    ) -> tuple[
+        tuple[str, str],
+        tuple[PackageExportSource, ...],
+        tuple[PackageExportAsset, ...],
+        dict[str, Any],
+    ] | None:
+        from ea_node_editor.nodes.package_manager import PackageExportAsset, PackageExportSource
 
         if provenance is None:
             return None
@@ -186,12 +188,12 @@ class WorkspaceIOOps:
             return (
                 ("file", relative_path.name),
                 (PackageExportSource(source_path=source_path, archive_name=relative_path.name),),
+                (),
                 {
                     "name": source_path.stem,
                     "version": "1.0.0",
                     "author": "",
                     "description": "",
-                    "dependencies": (),
                 },
             )
 
@@ -205,23 +207,42 @@ class WorkspaceIOOps:
                 return None
             package_dir = source_path.parent
         package_dir = package_dir.resolve()
-        try:
-            relative_path = package_dir.relative_to(plugin_root)
-        except ValueError:
-            return None
-        if len(relative_path.parts) != 1:
-            return None
 
+        manifest_path = package_dir / "node_package.json"
+        try:
+            raw_manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            return None
+        if not isinstance(raw_manifest, dict) or raw_manifest.get("schema_version") != 2:
+            return None
+        raw_sources = raw_manifest.get("sources")
+        raw_assets = raw_manifest.get("assets")
+        if not isinstance(raw_sources, list) or not isinstance(raw_assets, list):
+            return None
+        if any(
+            not isinstance(record, dict) or set(record) != {"path", "sha256"}
+            for record in (*raw_sources, *raw_assets)
+        ):
+            return None
         source_files = tuple(
-            PackageExportSource(source_path=source_path, archive_name=source_path.name)
-            for source_path in sorted(package_dir.glob("*.py"))
-            if source_path.is_file()
+            PackageExportSource(
+                source_path=package_dir / str(record["path"]),
+                archive_name=str(record["path"]),
+            )
+            for record in raw_sources
+        )
+        asset_files = tuple(
+            PackageExportAsset(
+                source_path=package_dir / str(record["path"]),
+                archive_name=str(record["path"]),
+            )
+            for record in raw_assets
         )
         if not source_files:
             return None
-        fallback_name = provenance.package_name or relative_path.parts[0]
+        fallback_name = provenance.package_name or package_dir.name
         metadata = WorkspaceIOOps._existing_package_metadata(package_dir, fallback_name)
-        return (("package", relative_path.parts[0]), source_files, metadata)
+        return (("package", fallback_name), source_files, asset_files, metadata)
 
     @staticmethod
     def collect_node_package_export_candidates(
@@ -231,15 +252,17 @@ class WorkspaceIOOps:
 
         builders: dict[tuple[str, str], dict[str, Any]] = {}
         plugin_root = plugin_root.resolve()
-        descriptors = tuple(registry.all_descriptors())
-        for descriptor in descriptors:
-            export_source = WorkspaceIOOps._descriptor_export_source(
-                descriptor.provenance,
+        provenance_or_none = getattr(registry, "provenance_or_none", None)
+        if not callable(provenance_or_none):
+            return []
+        for spec in registry.all_specs():
+            export_source = WorkspaceIOOps._plugin_export_source(
+                provenance_or_none(spec.type_id),
                 plugin_root,
             )
             if export_source is None:
                 continue
-            key, source_files, metadata = export_source
+            key, source_files, asset_files, metadata = export_source
 
             builder = builders.setdefault(
                 key,
@@ -247,16 +270,14 @@ class WorkspaceIOOps:
                     "package_name": metadata["name"],
                     "source_kind": key[0],
                     "source_files": source_files,
+                    "asset_files": asset_files,
                     "node_type_ids": [],
-                    "descriptors": [],
                     "version": metadata["version"],
                     "author": metadata["author"],
                     "description": metadata["description"],
-                    "dependencies": metadata["dependencies"],
                 },
             )
-            builder["node_type_ids"].append(descriptor.spec.type_id)
-            builder["descriptors"].append(descriptor)
+            builder["node_type_ids"].append(spec.type_id)
 
         candidates = [
             _NodePackageExportCandidate(
@@ -264,14 +285,13 @@ class WorkspaceIOOps:
                 source_kind=str(builder["source_kind"]),
                 node_type_ids=WorkspaceIOOps._normalized_node_type_ids(builder["node_type_ids"]),
                 source_files=tuple(builder["source_files"]),
-                descriptors=tuple(builder["descriptors"]),
+                asset_files=tuple(builder["asset_files"]),
                 version=str(builder["version"]),
                 author=str(builder["author"]),
                 description=str(builder["description"]),
-                dependencies=tuple(str(item) for item in builder["dependencies"]),
             )
             for builder in builders.values()
-            if builder["source_files"] and builder["node_type_ids"] and builder["descriptors"]
+            if builder["source_files"] and builder["node_type_ids"]
         ]
         candidates.sort(key=lambda candidate: (candidate.package_name.lower(), candidate.source_kind))
         return candidates
@@ -551,14 +571,13 @@ class WorkspaceIOOps:
             author=selected_candidate.author,
             description=selected_candidate.description,
             nodes=list(selected_candidate.node_type_ids),
-            dependencies=list(selected_candidate.dependencies),
         )
         try:
             saved_path = export_package(
                 list(selected_candidate.source_files),
                 manifest,
                 Path(path),
-                descriptors=selected_candidate.descriptors,
+                assets=list(selected_candidate.asset_files),
             )
             QMessageBox.information(resolve_dialog_parent(self._host), "Export Successful", f"Package saved to {saved_path}")
         except Exception as exc:  # noqa: BLE001

@@ -21,6 +21,7 @@ Use this for shell-backed workflows, controllers, presenters, context bridges, a
 
 ## Common Changes
 - Route shell commands through the relevant controller, then update bridges/presenters.
+- Node-package export candidates in `workspace_io_ops.py` come from registry specs plus private provenance. The shell forwards only explicit schema-2 source/asset members and metadata to `package_manager.py`; it does not pass descriptors, dependencies, or executable validation records.
 - Keep shell-isolated behavior covered by shell tests instead of broad app startup checks only.
 - Treat the `composition/` package and bridge installation as high-risk.
 - `composition/services.py` owns the `ShellServices` aggregate; a new shell-owned dependency enters through its domain module's dataclass + `create_*` function before it is exposed to `ShellWindow` or QML (see Recipes below).

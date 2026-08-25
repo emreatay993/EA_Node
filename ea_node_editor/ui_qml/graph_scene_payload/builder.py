@@ -81,6 +81,10 @@ class GraphScenePayloadBuilder:
             provenance = descriptor.provenance
         if spec is None:
             spec = registry.spec_or_none(type_id)
+        if provenance is None:
+            provenance_or_none = getattr(registry, "provenance_or_none", None)
+            if callable(provenance_or_none):
+                provenance = provenance_or_none(type_id)
         if spec is not None and properties is not None:
             spec = registry.resolve_spec(type_id, properties)
         return spec, provenance

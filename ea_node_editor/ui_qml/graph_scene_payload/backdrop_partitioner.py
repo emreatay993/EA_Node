@@ -110,6 +110,10 @@ class _GraphSceneBackdropPartitioner:
                 provenance = descriptor.provenance
             if spec is None:
                 spec = registry.spec_or_none(node.type_id)
+            if provenance is None:
+                provenance_or_none = getattr(registry, "provenance_or_none", None)
+                if callable(provenance_or_none):
+                    provenance = provenance_or_none(node.type_id)
             if spec is None:
                 continue
             spec = registry.resolve_spec(node.type_id, node.properties)

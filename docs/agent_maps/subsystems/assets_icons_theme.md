@@ -24,6 +24,7 @@ Use this for app assets, app icons, shell/ui icon registry assets, node title ic
 - Keep icon catalog, asset files, QML source projection, and tests aligned.
 - SSH/SFTP built-ins own six title icons under `assets/node_title_icons/ssh_sftp/`. The retired HPC icon directory is absent; COREX's `HPC` connector keywords do not restore an HPC asset family.
 - Branded add-on title icons stay with their owning package. MARS resolves `addons/mars/icons/mars_icon_64.png`, the 64 px frame from its official ICO, through package provenance so Qt displays the complete executable artwork without SVG text/clip loss or monochrome tinting.
+- Public schema-2 plugin icons are declared, hashed package assets resolved through `PythonFunctionEntry` provenance rooted at the immutable generation. Do not resolve them from mutable author/install paths; loose plugins use the default icon.
 - Passive flowchart nodes intentionally do not use the icon catalog or title-icon assets; their library and canvas visuals come from `surface_family="flowchart"` plus `surface_variant`.
 - Register shell toolbar icons in `ui/icon_registry.py`; QML should consume them through `uiIcons.sourceSized(...)` instead of drawing duplicate inline glyphs.
 - Timestamp toolbar affordances use the shell icon registry (`keep-live`, `clock-update`, `calendar`) so graph-surface actions stay on the shared asset path. Subnode toolbar entry uses the Tabler-sourced `door-enter` icon through the same registry. Annotation text formatting actions also use registered Tabler-sourced shell icons.

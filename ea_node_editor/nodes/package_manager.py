@@ -1,478 +1,507 @@
-# Purpose: Import/export validated .cxpkg node and semantic data-type inventories.
+# Purpose: Import and export deterministic schema-2 public-function node packages.
 # Map: subsystems/nodes_registry_builtins.md
 # Tests: tests/test_package_manager.py
 
-"""Import and export shareable .cxpkg node packages.
-
-A .cxpkg file is a zip archive containing:
-  node_package.json   -- manifest with name, version, author, description, node list
-  *.py                -- Python source files that expose PluginDescriptor records
-"""
+"""Validated, non-executing ``.cxpkg`` schema-2 package IO."""
 
 from __future__ import annotations
 
+import hashlib
 import json
 import logging
 import shutil
+import stat
 import zipfile
-from dataclasses import asdict, dataclass, field
+from dataclasses import dataclass, field
 from pathlib import Path, PurePosixPath
 from uuid import uuid4
 
 from ea_node_editor.nodes import plugin_loader
-from ea_node_editor.nodes.registry import NodeRegistry
-from ea_node_editor.nodes.plugin_contracts import (
-    ArtifactDescriptor,
-    PluginContractManifest,
-    PluginDescriptor,
-    RuntimeBackendSpec,
-    SurfaceCapabilitySpec,
-    ToolchainSpec,
+from ea_node_editor.nodes.plugin_declaration import discover_plugin_declarations
+from ea_node_editor.nodes.plugin_generation import (
+    MANIFEST_FILENAME,
+    PLUGIN_ASSET_LIMIT,
+    PLUGIN_ASSET_SUFFIXES,
+    PLUGIN_MANIFEST_LIMIT,
+    PLUGIN_MEMBER_LIMIT,
+    PLUGIN_SOURCE_LIMIT,
+    PLUGIN_TOTAL_LIMIT,
+    SCHEMA_1_UNSUPPORTED_MESSAGE,
+    _is_reparse_point,
+    canonical_manifest_bytes,
+    validate_plugin_regular_file,
+    validated_plugin_member_path,
 )
 from ea_node_editor.settings import plugins_dir
 
 logger = logging.getLogger(__name__)
 
 PACKAGE_EXTENSION = ".cxpkg"
-MANIFEST_FILENAME = "node_package.json"
+_ARCHIVE_TIMESTAMP = (1980, 1, 1, 0, 0, 0)
 _HIDDEN_PACKAGE_PREFIXES = (".", "_")
+_IMPORT_FILESYSTEM_ERROR = "Package import failed [filesystem]"
+_EXPORT_FILESYSTEM_ERROR = "Package export failed [filesystem]"
+_CLEANUP_CODES = frozenset(
+    {"activation_backup", "export_archive", "export_validation", "import_staging"}
+)
 
 
-@dataclass
+@dataclass(slots=True)
 class PackageManifest:
+    """Package metadata plus the validated generated inventory."""
+
     name: str
     version: str = "1.0.0"
     author: str = ""
     description: str = ""
     nodes: list[str] = field(default_factory=list)
-    data_type_ids: list[str] = field(default_factory=list)
-    dependencies: list[str] = field(default_factory=list)
-    runtime_backends: tuple[RuntimeBackendSpec, ...] = ()
-    toolchains: tuple[ToolchainSpec, ...] = ()
-    artifacts: tuple[ArtifactDescriptor, ...] = ()
-    surface_capabilities: tuple[SurfaceCapabilitySpec, ...] = ()
-
-    @property
-    def contract_manifest(self) -> PluginContractManifest:
-        return PluginContractManifest(
-            runtime_backends=self.runtime_backends,
-            toolchains=self.toolchains,
-            artifacts=self.artifacts,
-            surface_capabilities=self.surface_capabilities,
-        )
+    modules: list[str] = field(default_factory=list)
+    sources: list[dict[str, str]] = field(default_factory=list)
+    assets: list[dict[str, str]] = field(default_factory=list)
+    schema_version: int = 2
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class PackageExportSource:
     source_path: Path
     archive_name: str | None = None
 
 
-def _manifest_from_data(raw: object) -> PackageManifest:
-    if not isinstance(raw, dict):
-        raise ValueError("Manifest must be a JSON object")
-
-    name = raw.get("name")
-    if not name:
-        raise ValueError("Manifest must contain at least a 'name' field")
-
-    contract_manifest = PluginContractManifest.from_value(
-        {
-            "runtime_backends": raw.get("runtime_backends", ()),
-            "toolchains": raw.get("toolchains", ()),
-            "artifacts": raw.get("artifacts", ()),
-            "surface_capabilities": raw.get("surface_capabilities", ()),
-        }
-    )
-
-    return PackageManifest(
-        name=str(name),
-        version=str(raw.get("version", "1.0.0")),
-        author=str(raw.get("author", "")),
-        description=str(raw.get("description", "")),
-        nodes=[str(n) for n in raw.get("nodes", [])],
-        data_type_ids=_normalized_manifest_data_type_ids(
-            raw.get("data_type_ids", ()),
-        ),
-        dependencies=[str(d) for d in raw.get("dependencies", [])],
-        runtime_backends=contract_manifest.runtime_backends,
-        toolchains=contract_manifest.toolchains,
-        artifacts=contract_manifest.artifacts,
-        surface_capabilities=contract_manifest.surface_capabilities,
-    )
+@dataclass(frozen=True, slots=True)
+class PackageExportAsset:
+    source_path: Path
+    archive_name: str | None = None
 
 
-def _read_manifest(archive: zipfile.ZipFile) -> PackageManifest:
-    try:
-        raw = json.loads(archive.read(MANIFEST_FILENAME))
-    except KeyError as exc:
-        raise ValueError(f"Package is missing {MANIFEST_FILENAME}") from exc
-    except json.JSONDecodeError as exc:
-        raise ValueError(f"Invalid JSON in {MANIFEST_FILENAME}") from exc
-
-    return _manifest_from_data(raw)
+@dataclass(frozen=True, slots=True)
+class _ExportMember:
+    path: str
+    payload: bytes
+    is_asset: bool
 
 
-def _normalized_manifest_node_ids(
-    node_ids: list[str],
-    *,
-    require_at_least_one: bool,
-) -> tuple[str, ...]:
-    normalized: list[str] = []
-    seen: set[str] = set()
-    for raw_node_id in node_ids:
-        node_id = str(raw_node_id).strip()
-        if not node_id:
-            raise ValueError("Package manifest node ids must be non-empty strings")
-        if node_id in seen:
-            raise ValueError(f"Package manifest node ids must be unique: {node_id}")
-        seen.add(node_id)
-        normalized.append(node_id)
-
-    if require_at_least_one and not normalized:
-        raise ValueError("Package manifest must list at least one exported node type")
-    return tuple(normalized)
+def _trimmed(field_name: str, value: object, *, allow_empty: bool = False) -> str:
+    if not isinstance(value, str) or value != value.strip():
+        raise ValueError(f"{field_name} must be a trimmed string")
+    if not value and not allow_empty:
+        raise ValueError(f"{field_name} must not be empty")
+    return value
 
 
-def _normalized_manifest_data_type_ids(value: object) -> list[str]:
-    if value is None:
-        raw_values: object = ()
-    else:
-        raw_values = value
-    if isinstance(raw_values, str) or not isinstance(raw_values, (list, tuple)):
-        raise ValueError("Package manifest data_type_ids must be a list of strings")
-    normalized: list[str] = []
-    seen: set[str] = set()
-    for raw_type_id in raw_values:
-        if not isinstance(raw_type_id, str):
-            raise ValueError("Package manifest data_type_ids must contain strings")
-        type_id = raw_type_id.strip()
-        if not type_id:
-            raise ValueError("Package manifest data_type_ids must be non-empty strings")
-        if type_id in seen:
-            continue
-        normalized.append(type_id)
-        seen.add(type_id)
-    return normalized
-
-
-def _validated_manifest(
-    manifest: PackageManifest,
-    *,
-    require_nodes: bool,
-) -> PackageManifest:
-    normalized_manifest = _manifest_from_data(asdict(manifest))
-    normalized_manifest.name = _validate_package_name(normalized_manifest.name)
-    normalized_manifest.nodes = list(
-        _normalized_manifest_node_ids(
-            normalized_manifest.nodes,
-            require_at_least_one=require_nodes,
-        )
-    )
-    normalized_manifest.data_type_ids = _normalized_manifest_data_type_ids(
-        normalized_manifest.data_type_ids,
-    )
-    return normalized_manifest
-
-
-def _validate_package_name(package_name: str) -> str:
-    candidate = str(package_name).strip()
-    if not candidate:
-        raise ValueError("Package name must be a non-empty directory name")
-    if "/" in candidate or "\\" in candidate:
-        raise ValueError("Package name must be a single directory name")
-    if PurePosixPath(candidate).parts != (candidate,):
-        raise ValueError("Package name must be a single directory name")
-    if candidate in {".", ".."}:
-        raise ValueError("Package name must be a safe directory name")
-    if candidate.startswith(_HIDDEN_PACKAGE_PREFIXES):
-        raise ValueError(
-            "Package name must not start with '.' or '_' because the loader ignores hidden package directories",
-        )
+def _validate_package_name(value: object) -> str:
+    candidate = validated_plugin_member_path(_trimmed("Package name", value))
+    if (
+        len(PurePosixPath(candidate).parts) != 1
+        or candidate.startswith(_HIDDEN_PACKAGE_PREFIXES)
+    ):
+        raise ValueError("Package name must be a safe visible directory name")
     return candidate
 
 
-def _validated_archive_member_name(raw_name: str) -> str:
-    normalized = raw_name.replace("\\", "/")
-    member_path = PurePosixPath(normalized)
-    if not normalized or normalized.endswith("/"):
-        raise ValueError("Package archive may only contain files at the archive root")
-    if member_path.is_absolute() or len(member_path.parts) != 1:
-        raise ValueError(f"Unsafe package archive member: {raw_name}")
-    if any(part in {"", ".", ".."} for part in member_path.parts):
-        raise ValueError(f"Unsafe package archive member: {raw_name}")
+def _read_local_member(path: Path, *, limit: int, label: str) -> bytes:
+    if _is_reparse_point(path) or not path.is_file():
+        raise ValueError(f"{label} must be a regular file")
+    member_status = validate_plugin_regular_file(path)
+    try:
+        if member_status.st_size > limit:
+            raise ValueError(f"{label} is too large")
+        with path.open("rb") as stream:
+            payload = stream.read(limit + 1)
+    except OSError as exc:
+        raise ValueError(f"{label} cannot be read") from exc
+    if len(payload) > limit:
+        raise ValueError(f"{label} is too large")
+    return payload
 
-    member_name = member_path.name
-    if member_name != MANIFEST_FILENAME and not member_name.endswith(".py"):
-        raise ValueError(
-            f"Unsupported package archive member: {raw_name}. Only {MANIFEST_FILENAME} and top-level .py files are allowed",
+
+def _export_source(value: PackageExportSource | Path | str) -> _ExportMember:
+    item = value if isinstance(value, PackageExportSource) else PackageExportSource(Path(value))
+    source_path = Path(item.source_path)
+    archive_name = validated_plugin_member_path(
+        item.archive_name or source_path.name,
+        root_python=True,
+    )
+    if archive_name == MANIFEST_FILENAME:
+        raise ValueError(f"{MANIFEST_FILENAME} is reserved for the package manifest")
+    return _ExportMember(
+        path=archive_name,
+        payload=_read_local_member(
+            source_path,
+            limit=PLUGIN_SOURCE_LIMIT,
+            label=f"Package source {archive_name}",
+        ),
+        is_asset=False,
+    )
+
+
+def _export_asset(value: PackageExportAsset | Path | str) -> _ExportMember:
+    item = value if isinstance(value, PackageExportAsset) else PackageExportAsset(Path(value))
+    source_path = Path(item.source_path)
+    archive_name = validated_plugin_member_path(item.archive_name or source_path.name)
+    if PurePosixPath(archive_name).suffix.lower() not in PLUGIN_ASSET_SUFFIXES:
+        raise ValueError(f"Unsupported package asset: {archive_name}")
+    return _ExportMember(
+        path=archive_name,
+        payload=_read_local_member(
+            source_path,
+            limit=PLUGIN_ASSET_LIMIT,
+            label=f"Package asset {archive_name}",
+        ),
+        is_asset=True,
+    )
+
+
+def _export_payload(
+    source_files: list[PackageExportSource | Path | str],
+    assets: list[PackageExportAsset | Path | str],
+    manifest: PackageManifest,
+) -> tuple[dict[str, object], dict[str, bytes]]:
+    if not source_files:
+        raise ValueError("Package export requires at least one Python source file")
+    if not isinstance(manifest, PackageManifest):
+        raise TypeError("manifest must be a PackageManifest")
+    if type(manifest.schema_version) is not int or manifest.schema_version != 2:
+        raise ValueError("Package export requires schema_version 2")
+    if len(source_files) + len(assets) + 1 > PLUGIN_MEMBER_LIMIT:
+        raise ValueError("Plugin package contains too many members")
+
+    normalized = [*map(_export_source, source_files), *map(_export_asset, assets)]
+    folded_paths = [member.path.casefold() for member in normalized]
+    if len(folded_paths) != len(set(folded_paths)):
+        raise ValueError("Package export members must be unique on Windows")
+
+    members = {member.path: member.payload for member in normalized}
+    total_size = sum(len(payload) for payload in members.values())
+    if total_size > PLUGIN_TOTAL_LIMIT:
+        raise ValueError("Plugin package expanded size is too large")
+
+    modules: list[str] = []
+    node_inventory: list[dict[str, str]] = []
+    declarations_by_module = []
+    for member in sorted(
+        (item for item in normalized if not item.is_asset),
+        key=lambda item: item.path,
+    ):
+        try:
+            source = member.payload.decode("utf-8")
+        except UnicodeDecodeError as exc:
+            raise ValueError(f"Plugin source is not UTF-8: {member.path}") from exc
+        declarations = discover_plugin_declarations(
+            source,
+            filename=f"{manifest.name}:{member.path}",
         )
-    return member_name
+        if declarations:
+            modules.append(member.path)
+        for declaration in declarations:
+            declarations_by_module.append(declaration)
+            node_inventory.append(
+                {
+                    "id": declaration.spec.type_id,
+                    "module": member.path,
+                    "function": declaration.function_name,
+                }
+            )
+    if not node_inventory:
+        raise ValueError("Package export requires at least one declared node function")
+    node_inventory.sort(key=lambda item: (item["id"], item["module"], item["function"]))
+    discovered_node_ids = [item["id"] for item in node_inventory]
+    if len(discovered_node_ids) != len(set(discovered_node_ids)):
+        raise ValueError("Package export contains duplicate node ids")
+    if manifest.nodes and (
+        len(manifest.nodes) != len(set(manifest.nodes))
+        or set(manifest.nodes) != set(discovered_node_ids)
+    ):
+        raise ValueError("Package manifest nodes do not match static declarations")
+
+    asset_paths = {member.path for member in normalized if member.is_asset}
+    for declaration in declarations_by_module:
+        icon = declaration.spec.icon
+        if not icon:
+            continue
+        try:
+            icon_path = validated_plugin_member_path(icon)
+        except ValueError as exc:
+            raise ValueError(f"Plugin node icon path is invalid: {icon}") from exc
+        if icon_path not in asset_paths:
+            raise ValueError(f"Plugin node icon is not a declared asset: {icon_path}")
+
+    source_records = [
+        {"path": member.path, "sha256": hashlib.sha256(member.payload).hexdigest()}
+        for member in sorted(
+            (item for item in normalized if not item.is_asset),
+            key=lambda item: item.path,
+        )
+    ]
+    asset_records = [
+        {"path": member.path, "sha256": hashlib.sha256(member.payload).hexdigest()}
+        for member in sorted(
+            (item for item in normalized if item.is_asset),
+            key=lambda item: item.path,
+        )
+    ]
+    package_manifest: dict[str, object] = {
+        "schema_version": 2,
+        "name": _validate_package_name(manifest.name),
+        "version": _trimmed("Package version", manifest.version),
+        "author": _trimmed("Package author", manifest.author, allow_empty=True),
+        "description": _trimmed(
+            "Package description",
+            manifest.description,
+            allow_empty=True,
+        ),
+        "modules": sorted(modules),
+        "sources": source_records,
+        "assets": asset_records,
+        "nodes": node_inventory,
+    }
+    manifest_bytes = canonical_manifest_bytes(package_manifest)
+    if len(manifest_bytes) > PLUGIN_MANIFEST_LIMIT:
+        raise ValueError("Plugin package manifest is too large")
+    if total_size + len(manifest_bytes) > PLUGIN_TOTAL_LIMIT:
+        raise ValueError("Plugin package expanded size is too large")
+    return package_manifest, members
 
 
-def _validate_archive_contents(archive: zipfile.ZipFile) -> tuple[PackageManifest, list[zipfile.ZipInfo]]:
-    members: list[zipfile.ZipInfo] = []
-    seen_members: set[str] = set()
+def _manifest_from_data(raw: object) -> PackageManifest:
+    if not isinstance(raw, dict):
+        raise ValueError("Plugin package manifest must be a JSON object")
+    nodes = raw.get("nodes")
+    if not isinstance(nodes, list):
+        raise ValueError("Manifest nodes must be a list")
+    return PackageManifest(
+        schema_version=2,
+        name=str(raw["name"]),
+        version=str(raw["version"]),
+        author=str(raw.get("author", "")),
+        description=str(raw.get("description", "")),
+        modules=[str(item) for item in raw["modules"]],  # type: ignore[index]
+        sources=[dict(item) for item in raw["sources"]],  # type: ignore[index]
+        assets=[dict(item) for item in raw["assets"]],  # type: ignore[index]
+        nodes=[str(item["id"]) for item in nodes],
+    )
 
-    for info in archive.infolist():
-        member_name = _validated_archive_member_name(info.filename)
-        if member_name in seen_members:
+
+def _archive_info_has_non_regular_mode(info: zipfile.ZipInfo) -> bool:
+    file_type = stat.S_IFMT((info.external_attr >> 16) & 0xFFFF)
+    return file_type not in {0, stat.S_IFREG}
+
+
+def _read_archive_member(
+    archive: zipfile.ZipFile,
+    info: zipfile.ZipInfo,
+    *,
+    limit: int,
+) -> bytes:
+    if info.file_size > limit:
+        raise ValueError(f"Package archive member is too large: {info.filename}")
+    try:
+        with archive.open(info, "r") as stream:
+            payload = stream.read(limit + 1)
+    except (OSError, RuntimeError, zipfile.BadZipFile) as exc:
+        raise ValueError(f"Package archive member cannot be read: {info.filename}") from exc
+    if len(payload) > limit:
+        raise ValueError(f"Package archive member is too large: {info.filename}")
+    return payload
+
+
+def _read_archive(
+    archive: zipfile.ZipFile,
+) -> tuple[dict[str, object], dict[str, bytes]]:
+    infos = archive.infolist()
+    if len(infos) > PLUGIN_MEMBER_LIMIT:
+        raise ValueError("Plugin package contains too many members")
+    seen: set[str] = set()
+    members: dict[str, bytes] = {}
+    declared_expanded_size = 0
+    expanded_size = 0
+    for info in infos:
+        if info.flag_bits & 0x1:
+            raise ValueError("Package archive may not contain encrypted members")
+        if (
+            info.is_dir()
+            or _archive_info_has_non_regular_mode(info)
+        ):
+            raise ValueError("Package archive members must be regular files")
+        raw_member_name = info.orig_filename
+        try:
+            member_name = validated_plugin_member_path(raw_member_name)
+        except ValueError as exc:
+            raise ValueError(f"Unsafe package archive member: {raw_member_name}") from exc
+        folded = member_name.casefold()
+        if folded in seen:
             raise ValueError(f"Duplicate package archive member: {member_name}")
-        seen_members.add(member_name)
-        members.append(info)
+        seen.add(folded)
+        suffix = PurePosixPath(member_name).suffix.lower()
+        if member_name == MANIFEST_FILENAME:
+            limit = PLUGIN_MANIFEST_LIMIT
+        elif suffix == ".py":
+            limit = PLUGIN_SOURCE_LIMIT
+        elif suffix in PLUGIN_ASSET_SUFFIXES:
+            limit = PLUGIN_ASSET_LIMIT
+        else:
+            raise ValueError(f"Unsupported package archive member: {member_name}")
+        declared_expanded_size += info.file_size
+        if declared_expanded_size > PLUGIN_TOTAL_LIMIT:
+            raise ValueError("Plugin package expanded size is too large")
+        payload = _read_archive_member(archive, info, limit=limit)
+        expanded_size += len(payload)
+        if expanded_size > PLUGIN_TOTAL_LIMIT:
+            raise ValueError("Plugin package expanded size is too large")
+        members[member_name] = payload
 
-    if MANIFEST_FILENAME not in seen_members:
-        raise ValueError(f"Package is missing {MANIFEST_FILENAME}")
-
-    manifest = _read_manifest(archive)
-    manifest = _validated_manifest(manifest, require_nodes=False)
+    try:
+        manifest_bytes = members.pop(MANIFEST_FILENAME)
+    except KeyError as exc:
+        raise ValueError(f"Package is missing {MANIFEST_FILENAME}") from exc
+    try:
+        manifest = json.loads(manifest_bytes)
+    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise ValueError(f"Invalid UTF-8 JSON in {MANIFEST_FILENAME}") from exc
+    if not isinstance(manifest, dict):
+        raise ValueError("Plugin package manifest must be a JSON object")
+    schema_version = manifest.get("schema_version")
+    if schema_version is None or (
+        type(schema_version) is int and schema_version == 1
+    ):
+        raise ValueError(SCHEMA_1_UNSUPPORTED_MESSAGE)
+    if type(schema_version) is not int or schema_version != 2:
+        raise ValueError("Only node package schema 2 is supported")
+    _validate_package_name(manifest.get("name"))
     return manifest, members
 
 
-def _validated_manifest_for_export(manifest: PackageManifest) -> PackageManifest:
-    return _validated_manifest(manifest, require_nodes=True)
+def _temporary_container(parent: Path, package_name: str, *, kind: str) -> Path:
+    return parent / f".{package_name}.{kind}-{uuid4().hex}"
 
 
-def _normalized_export_source(source: PackageExportSource | Path | str) -> PackageExportSource:
-    if isinstance(source, PackageExportSource):
-        source_path = Path(source.source_path)
-        archive_name = source.archive_name or source_path.name
-        return PackageExportSource(source_path=source_path, archive_name=archive_name)
-
-    source_path = Path(source)
-    return PackageExportSource(source_path=source_path, archive_name=source_path.name)
-
-
-def _validated_export_member_name(raw_name: str) -> str:
-    member_name = _validated_archive_member_name(raw_name)
-    if member_name == MANIFEST_FILENAME:
-        raise ValueError(f"{MANIFEST_FILENAME} is reserved for the package manifest")
-    return member_name
-
-
-def _is_discoverable_archive_member(member_name: str) -> bool:
-    return member_name == "__init__.py" or not member_name.startswith(_HIDDEN_PACKAGE_PREFIXES)
-
-
-def _validated_export_sources(
-    source_files: list[PackageExportSource | Path | str],
-) -> list[PackageExportSource]:
-    if not source_files:
-        raise ValueError("Package export requires at least one Python source file")
-
-    export_sources: list[PackageExportSource] = []
-    seen_members: set[str] = set()
-    has_discoverable_source = False
-
-    for source in source_files:
-        export_source = _normalized_export_source(source)
-        if not export_source.source_path.is_file():
-            raise ValueError(f"Package export source does not exist: {export_source.source_path}")
-        if export_source.source_path.suffix != ".py":
-            raise ValueError(f"Package export source must be a .py file: {export_source.source_path}")
-
-        member_name = _validated_export_member_name(export_source.archive_name or export_source.source_path.name)
-        if member_name in seen_members:
-            raise ValueError(f"Duplicate package export member: {member_name}")
-        seen_members.add(member_name)
-        has_discoverable_source = has_discoverable_source or _is_discoverable_archive_member(member_name)
-        export_sources.append(
-            PackageExportSource(source_path=export_source.source_path, archive_name=member_name),
-        )
-
-    if not has_discoverable_source:
-        raise ValueError("Package export requires at least one discoverable top-level plugin module")
-
-    return export_sources
+def _cleanup_path(path: Path, *, code: str) -> None:
+    cleanup_code = code if code in _CLEANUP_CODES else "unknown"
+    try:
+        file_status = path.lstat()
+    except FileNotFoundError:
+        return
+    except OSError:
+        logger.warning("Package cleanup failed [%s]", cleanup_code)
+        return
+    attributes = getattr(file_status, "st_file_attributes", 0)
+    is_alias = stat.S_ISLNK(file_status.st_mode) or bool(
+        attributes & getattr(stat, "FILE_ATTRIBUTE_REPARSE_POINT", 0)
+    )
+    try:
+        if stat.S_ISDIR(file_status.st_mode) and not is_alias:
+            shutil.rmtree(path)
+        else:
+            path.unlink()
+    except OSError:
+        logger.warning("Package cleanup failed [%s]", cleanup_code)
 
 
-def _validated_descriptor_overrides(
-    descriptors: list[PluginDescriptor] | tuple[PluginDescriptor, ...] | None,
-    export_sources: list[PackageExportSource],
-) -> dict[str, tuple[PluginDescriptor, ...]] | None:
-    if descriptors is None:
-        return None
-
-    source_members = {
-        export_source.source_path.resolve(): export_source.archive_name
-        for export_source in export_sources
-    }
-    overrides: dict[str, list[PluginDescriptor]] = {}
-    for descriptor in tuple(descriptors):
-        if not isinstance(descriptor, PluginDescriptor):
-            raise TypeError("Package export descriptors must be PluginDescriptor values")
-        provenance = descriptor.provenance
-        source_path = provenance.source_path if provenance is not None else None
-        if source_path is None:
-            raise ValueError("Package export descriptors must include source_path provenance")
-        member_name = source_members.get(source_path.resolve())
-        if member_name is None:
-            raise ValueError(
-                f"Package export descriptor source is not included in export sources: {source_path}",
-            )
-        overrides.setdefault(member_name, []).append(descriptor)
-
-    return {
-        member_name: tuple(member_descriptors)
-        for member_name, member_descriptors in overrides.items()
-    }
+def _write_package_directory(
+    container: Path,
+    manifest: dict[str, object],
+    members: dict[str, bytes],
+) -> Path:
+    package_dir = container / str(manifest["name"])
+    package_dir.mkdir(parents=True, exist_ok=False)
+    (package_dir / MANIFEST_FILENAME).write_bytes(canonical_manifest_bytes(manifest))
+    for relative_path, payload in members.items():
+        destination = package_dir / relative_path
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        destination.write_bytes(payload)
+    return package_dir
 
 
-def _write_archive_members(
-    archive: zipfile.ZipFile,
-    members: list[zipfile.ZipInfo],
-    destination_dir: Path,
-) -> None:
-    for member in members:
-        member_name = _validated_archive_member_name(member.filename)
-        (destination_dir / member_name).write_bytes(archive.read(member))
-
-
-def _temporary_package_directory(target_dir: Path, package_name: str, *, kind: str) -> Path:
-    return target_dir / f".{package_name}.{kind}-{uuid4().hex}"
-
-
-def _temporary_export_archive_path(output_path: Path) -> Path:
-    return output_path.with_name(f".{output_path.stem}.export-{uuid4().hex}{output_path.suffix}")
-
-
-def _staged_export_validation_directory(output_path: Path, package_name: str) -> Path:
-    return output_path.parent / f".{package_name}.export-validation-{uuid4().hex}"
+def _validated_package_directory(package_dir: Path) -> dict[str, object]:
+    prepared = plugin_loader._prepare_package(package_dir)
+    return prepared.manifest
 
 
 def _activate_staged_install(staged_dir: Path, package_dir: Path) -> None:
     backup_dir: Path | None = None
     try:
-        if package_dir.exists():
-            if not package_dir.is_dir():
-                raise ValueError(f"Installed package target is not a directory: {package_dir}")
-            backup_dir = _temporary_package_directory(package_dir.parent, package_dir.name, kind="backup")
+        if package_dir.exists() or _is_reparse_point(package_dir):
+            if _is_reparse_point(package_dir) or not package_dir.is_dir():
+                raise ValueError("Installed package target is not a regular directory")
+            backup_dir = _temporary_container(
+                package_dir.parent,
+                package_dir.name,
+                kind="backup",
+            )
             package_dir.replace(backup_dir)
         staged_dir.replace(package_dir)
     except Exception:
         if backup_dir is not None and backup_dir.exists() and not package_dir.exists():
-            backup_dir.replace(package_dir)
+            try:
+                backup_dir.replace(package_dir)
+            except OSError as exc:
+                raise OSError("package activation rollback failed") from exc
         raise
     else:
-        if backup_dir is not None and backup_dir.exists():
-            shutil.rmtree(backup_dir)
+        if backup_dir is not None:
+            _cleanup_path(backup_dir, code="activation_backup")
 
 
-def _discovered_package_inventory(
-    package_dir: Path,
-    *,
-    descriptor_overrides: dict[str, tuple[PluginDescriptor, ...]] | None = None,
-) -> tuple[tuple[str, ...], tuple[str, ...]]:
-    registry = NodeRegistry()
-    baseline_data_type_ids = {
-        spec.type_id for spec in registry.data_types.all_specs()
-    }
-    loaded_type_ids = plugin_loader.discover_package_plugins(
-        package_dir,
-        registry,
-        descriptor_overrides=descriptor_overrides,
-    )
-    normalized: list[str] = []
-    seen: set[str] = set()
-    for raw_type_id in loaded_type_ids:
-        type_id = str(raw_type_id).strip()
-        if not type_id or type_id in seen:
-            continue
-        seen.add(type_id)
-        normalized.append(type_id)
-    contributed_data_type_ids = tuple(
-        spec.type_id
-        for spec in registry.data_types.all_specs()
-        if spec.type_id not in baseline_data_type_ids
-    )
-    return tuple(normalized), contributed_data_type_ids
+def _zip_info(member_name: str) -> zipfile.ZipInfo:
+    info = zipfile.ZipInfo(member_name, _ARCHIVE_TIMESTAMP)
+    info.create_system = 3
+    info.compress_type = zipfile.ZIP_STORED
+    info.external_attr = (stat.S_IFREG | 0o644) << 16
+    return info
 
 
-def _validate_manifest_against_package_directory(
-    manifest: PackageManifest,
-    package_dir: Path,
-    *,
-    descriptor_overrides: dict[str, tuple[PluginDescriptor, ...]] | None = None,
+def _write_archive(
+    archive_path: Path,
+    manifest: dict[str, object],
+    members: dict[str, bytes],
 ) -> None:
-    declared_node_ids = tuple(manifest.nodes)
-    discovered_node_ids, discovered_data_type_ids = _discovered_package_inventory(
-        package_dir,
-        descriptor_overrides=descriptor_overrides,
-    )
-
-    declared_node_id_set = set(declared_node_ids)
-    discovered_node_id_set = set(discovered_node_ids)
-    if declared_node_id_set != discovered_node_id_set:
-        details: list[str] = []
-        missing_node_ids = [node_id for node_id in declared_node_ids if node_id not in discovered_node_id_set]
-        undeclared_node_ids = [node_id for node_id in discovered_node_ids if node_id not in declared_node_id_set]
-        if missing_node_ids:
-            details.append(f"missing from package load: {', '.join(missing_node_ids)}")
-        if undeclared_node_ids:
-            details.append(f"not declared in manifest: {', '.join(undeclared_node_ids)}")
-        detail = "; ".join(details) if details else "manifest and discoverable node types differ"
-        raise ValueError(f"Package manifest nodes do not match discoverable node types: {detail}")
-
-    declared_data_type_ids = tuple(manifest.data_type_ids)
-    declared_data_type_id_set = set(declared_data_type_ids)
-    discovered_data_type_id_set = set(discovered_data_type_ids)
-    if declared_data_type_id_set != discovered_data_type_id_set:
-        details = []
-        missing_data_type_ids = [
-            type_id
-            for type_id in declared_data_type_ids
-            if type_id not in discovered_data_type_id_set
-        ]
-        undeclared_data_type_ids = [
-            type_id
-            for type_id in discovered_data_type_ids
-            if type_id not in declared_data_type_id_set
-        ]
-        if missing_data_type_ids:
-            details.append(
-                "missing from package load: " + ", ".join(missing_data_type_ids)
-            )
-        if undeclared_data_type_ids:
-            details.append(
-                "not declared in manifest: " + ", ".join(undeclared_data_type_ids)
-            )
-        raise ValueError(
-            "Package manifest data_type_ids do not match executable data types: "
-            + "; ".join(details)
+    with zipfile.ZipFile(
+        archive_path,
+        "w",
+        compression=zipfile.ZIP_STORED,
+    ) as archive:
+        archive.writestr(
+            _zip_info(MANIFEST_FILENAME),
+            canonical_manifest_bytes(manifest),
         )
-
-
-def _stage_export_sources(
-    package_dir: Path,
-    export_sources: list[PackageExportSource],
-) -> None:
-    package_dir.mkdir(parents=True, exist_ok=False)
-    for export_source in export_sources:
-        shutil.copy2(export_source.source_path, package_dir / export_source.archive_name)
+        for member_name in sorted(members):
+            archive.writestr(
+                _zip_info(member_name),
+                members[member_name],
+            )
 
 
 def import_package(package_path: Path, target_dir: Path | None = None) -> PackageManifest:
-    """Extract a .cxpkg package into the plugins directory.
+    """Validate and atomically install one schema-2 archive without source execution."""
 
-    Returns the manifest so the caller can report what was installed.
-    """
-    target = target_dir or plugins_dir()
-    target.mkdir(parents=True, exist_ok=True)
-
-    with zipfile.ZipFile(package_path, "r") as archive:
-        manifest, members = _validate_archive_contents(archive)
-        package_dir = target / manifest.name
-        staged_dir = _temporary_package_directory(target, manifest.name, kind="incoming")
-        staged_dir.mkdir(parents=True, exist_ok=False)
+    source = Path(package_path)
+    if _is_reparse_point(source) or not source.is_file():
+        raise ValueError("Node package archive must be a regular file")
+    target = Path(target_dir) if target_dir is not None else plugins_dir()
+    if _is_reparse_point(target):
+        raise ValueError("Plugin install root must not be a path alias")
+    container: Path | None = None
+    try:
         try:
-            _write_archive_members(archive, members, staged_dir)
-            _validate_manifest_against_package_directory(manifest, staged_dir)
-            _activate_staged_install(staged_dir, package_dir)
-        except Exception:
-            if staged_dir.exists():
-                shutil.rmtree(staged_dir, ignore_errors=True)
-            raise
+            target.mkdir(parents=True, exist_ok=True)
+            try:
+                with zipfile.ZipFile(source, "r") as archive:
+                    raw_manifest, members = _read_archive(archive)
+            except zipfile.BadZipFile as exc:
+                raise ValueError("Node package archive is not a valid ZIP file") from exc
 
+            package_name = _validate_package_name(raw_manifest["name"])
+            container = _temporary_container(target, package_name, kind="incoming")
+            package_dir = target / package_name
+            staged_dir = _write_package_directory(container, raw_manifest, members)
+            validated_manifest = _validated_package_directory(staged_dir)
+            _activate_staged_install(staged_dir, package_dir)
+        finally:
+            if container is not None:
+                _cleanup_path(container, code="import_staging")
+    except OSError:
+        raise ValueError(_IMPORT_FILESYSTEM_ERROR) from None
+
+    manifest = _manifest_from_data(validated_manifest)
     logger.info("Imported node package '%s' v%s to %s", manifest.name, manifest.version, package_dir)
     return manifest
 
@@ -482,72 +511,91 @@ def export_package(
     manifest: PackageManifest,
     output_path: Path,
     *,
-    descriptors: list[PluginDescriptor] | tuple[PluginDescriptor, ...] | None = None,
+    assets: list[PackageExportAsset | Path | str] | None = None,
 ) -> Path:
-    """Bundle explicit Python source files and a manifest into a .cxpkg archive."""
-    normalized_manifest = _validated_manifest_for_export(manifest)
-    export_sources = _validated_export_sources(source_files)
-    descriptor_overrides = _validated_descriptor_overrides(descriptors, export_sources)
-    output_path = output_path.with_suffix(PACKAGE_EXTENSION)
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-    temporary_output_path = _temporary_export_archive_path(output_path)
-    staged_validation_dir = _staged_export_validation_directory(output_path, normalized_manifest.name)
+    """Statically validate and deterministically export one schema-2 archive."""
 
+    raw_manifest, members = _export_payload(source_files, assets or [], manifest)
+    destination = Path(output_path).with_suffix(PACKAGE_EXTENSION)
+    if _is_reparse_point(destination.parent):
+        raise ValueError("Package export directory must not be a path alias")
+    temporary_archive: Path | None = None
+    verification_container: Path | None = None
     try:
-        _stage_export_sources(staged_validation_dir, export_sources)
-        _validate_manifest_against_package_directory(
-            normalized_manifest,
-            staged_validation_dir,
-            descriptor_overrides=descriptor_overrides,
-        )
-        with zipfile.ZipFile(temporary_output_path, "w", zipfile.ZIP_DEFLATED) as archive:
-            archive.writestr(MANIFEST_FILENAME, json.dumps(asdict(normalized_manifest), indent=2))
-            for export_source in export_sources:
-                archive.write(export_source.source_path, export_source.archive_name)
+        try:
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            temporary_archive = destination.with_name(
+                f".{destination.stem}.export-{uuid4().hex}{PACKAGE_EXTENSION}"
+            )
+            _write_archive(temporary_archive, raw_manifest, members)
+            try:
+                with zipfile.ZipFile(temporary_archive, "r") as archive:
+                    archive_manifest, archive_members = _read_archive(archive)
+            except zipfile.BadZipFile as exc:
+                raise ValueError("Package export failed [archive]") from exc
+            verification_container = _temporary_container(
+                destination.parent,
+                str(raw_manifest["name"]),
+                kind="archive-validation",
+            )
+            verification_dir = _write_package_directory(
+                verification_container,
+                archive_manifest,
+                archive_members,
+            )
+            _validated_package_directory(verification_dir)
+            temporary_archive.replace(destination)
+        finally:
+            if verification_container is not None:
+                _cleanup_path(verification_container, code="export_validation")
+            if temporary_archive is not None:
+                _cleanup_path(temporary_archive, code="export_archive")
+    except OSError:
+        raise ValueError(_EXPORT_FILESYSTEM_ERROR) from None
 
-        # Re-validate the produced archive against the import contract before publishing it.
-        with zipfile.ZipFile(temporary_output_path, "r") as archive:
-            _validate_archive_contents(archive)
-        temporary_output_path.replace(output_path)
-    except Exception:
-        temporary_output_path.unlink(missing_ok=True)
-        raise
-    finally:
-        if staged_validation_dir.exists():
-            shutil.rmtree(staged_validation_dir, ignore_errors=True)
-
-    logger.info("Exported node package '%s' to %s", normalized_manifest.name, output_path)
-    return output_path
+    logger.info("Exported node package '%s' to %s", raw_manifest["name"], destination)
+    return destination
 
 
 def list_installed_packages(target_dir: Path | None = None) -> list[PackageManifest]:
-    """Return manifests of all packages currently installed in the plugins directory."""
-    target = target_dir or plugins_dir()
+    target = Path(target_dir) if target_dir is not None else plugins_dir()
+    if not target.is_dir() or _is_reparse_point(target):
+        return []
     manifests: list[PackageManifest] = []
-    if not target.is_dir():
-        return manifests
-
-    for child in sorted(target.iterdir()):
-        try:
-            _validate_package_name(child.name)
-        except ValueError:
+    for child in sorted(target.iterdir(), key=lambda path: path.name.casefold()):
+        if child.name.startswith(_HIDDEN_PACKAGE_PREFIXES) or not child.is_dir():
             continue
-        manifest_path = child / MANIFEST_FILENAME
-        if child.is_dir() and manifest_path.exists():
-            try:
-                raw = json.loads(manifest_path.read_text(encoding="utf-8"))
-                manifests.append(_manifest_from_data(raw))
-            except Exception:  # noqa: BLE001
-                logger.warning("Could not read manifest in %s", child)
+        try:
+            raw = _validated_package_directory(child)
+        except ValueError as exc:
+            if str(exc) == SCHEMA_1_UNSUPPORTED_MESSAGE:
+                raise
+            logger.warning("Could not validate installed package %s", child.name)
+            continue
+        manifests.append(_manifest_from_data(raw))
     return manifests
 
 
 def uninstall_package(package_name: str, target_dir: Path | None = None) -> bool:
-    """Remove an installed package by name. Returns True if removed."""
-    target = target_dir or plugins_dir()
+    target = Path(target_dir) if target_dir is not None else plugins_dir()
     package_dir = target / _validate_package_name(package_name)
+    if _is_reparse_point(target) or _is_reparse_point(package_dir):
+        raise ValueError("Package uninstall paths must not contain path aliases")
     if package_dir.is_dir():
         shutil.rmtree(package_dir)
         logger.info("Uninstalled node package '%s'", package_name)
         return True
     return False
+
+
+__all__ = [
+    "MANIFEST_FILENAME",
+    "PACKAGE_EXTENSION",
+    "PackageExportAsset",
+    "PackageExportSource",
+    "PackageManifest",
+    "export_package",
+    "import_package",
+    "list_installed_packages",
+    "uninstall_package",
+]

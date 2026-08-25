@@ -397,6 +397,7 @@ class TrustedFactoryEntry:
 class PythonFunctionEntry:
     spec: NodeTypeSpec
     function_ref: PythonFunctionRef
+    provenance: PluginProvenance | None = None
     owner_id: str = ""
     unavailable_reason: str = ""
 
@@ -691,6 +692,7 @@ class NodeRegistry:
         spec: NodeTypeSpec,
         function_ref: PythonFunctionRef,
         *,
+        provenance: PluginProvenance | None = None,
         owner_id: str = "",
         unavailable_reason: str = "",
     ) -> None:
@@ -705,6 +707,7 @@ class NodeRegistry:
         self._entries[spec.type_id] = PythonFunctionEntry(
             spec=spec,
             function_ref=function_ref,
+            provenance=provenance,
             owner_id=normalized_owner_id,
             unavailable_reason=unavailable_reason,
         )
@@ -735,6 +738,10 @@ class NodeRegistry:
     def python_function_ref_or_none(self, type_id: str) -> PythonFunctionRef | None:
         entry = self._entries.get(type_id)
         return entry.function_ref if isinstance(entry, PythonFunctionEntry) else None
+
+    def provenance_or_none(self, type_id: str) -> PluginProvenance | None:
+        entry = self._entries.get(type_id)
+        return entry.provenance if entry is not None else None
 
     def unavailable_reason(self, type_id: str) -> str:
         entry = self._entries.get(type_id)
