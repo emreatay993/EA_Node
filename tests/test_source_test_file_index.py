@@ -40,6 +40,7 @@ class SourceTestFileIndexTests(unittest.TestCase):
     def test_default_exclusions_skip_generated_and_vendor_paths(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             repo_root = Path(temp_dir)
+            public_sdk_path = repo_root / "corex" / "__init__.py"
             live_path = repo_root / "ea_node_editor" / "live.py"
             generated_path = (
                 repo_root
@@ -49,9 +50,11 @@ class SourceTestFileIndexTests(unittest.TestCase):
                 / "chunk.js"
             )
             vendor_path = repo_root / "web" / "excalidraw_host" / "node_modules" / "dep.js"
+            public_sdk_path.parent.mkdir(parents=True)
             live_path.parent.mkdir(parents=True)
             generated_path.parent.mkdir(parents=True)
             vendor_path.parent.mkdir(parents=True)
+            public_sdk_path.write_text("Any = object()\n", encoding="utf-8")
             live_path.write_text("print('live')\n", encoding="utf-8")
             generated_path.write_text("console.log('generated')\n", encoding="utf-8")
             vendor_path.write_text("console.log('vendor')\n", encoding="utf-8")
@@ -60,7 +63,10 @@ class SourceTestFileIndexTests(unittest.TestCase):
 
         self.assertEqual(
             index_data.source_entries,
-            (indexer.FileEntry("ea_node_editor/live.py"),),
+            (
+                indexer.FileEntry("corex/__init__.py"),
+                indexer.FileEntry("ea_node_editor/live.py"),
+            ),
         )
         self.assertEqual(index_data.test_entries, ())
 

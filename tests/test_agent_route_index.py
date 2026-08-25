@@ -35,7 +35,15 @@ SEMANTIC_ALIAS_TIES = {
 def _exact_repo_path(value: object) -> str:
     path = str(value).replace("\\", "/").rstrip("/")
     if not path.startswith(
-        ("ea_node_editor/", "tests/", "docs/", "scripts/", "examples/", "web/")
+        (
+            "corex/",
+            "ea_node_editor/",
+            "tests/",
+            "docs/",
+            "scripts/",
+            "examples/",
+            "web/",
+        )
     ):
         return ""
     if any(marker in path for marker in ("*", "<", ">", "::", " ")):
@@ -104,7 +112,13 @@ class AgentRouteIndexTests(unittest.TestCase):
                         for value in entry["start_here"]
                         if (path := _exact_repo_path(value))
                         and path.startswith(
-                            ("ea_node_editor/", "scripts/", "examples/", "web/")
+                            (
+                                "corex/",
+                                "ea_node_editor/",
+                                "scripts/",
+                                "examples/",
+                                "web/",
+                            )
                         )
                     ]
                     self.assertTrue(start_sources)

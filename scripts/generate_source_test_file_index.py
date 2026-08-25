@@ -14,6 +14,7 @@ from typing import Iterable, Sequence
 REPO_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_OUTPUT_PATH = REPO_ROOT / "docs" / "source_test_file_index.md"
 DEFAULT_SOURCE_ROOTS = (
+    Path("corex"),
     Path("ea_node_editor"),
     Path("web/excalidraw_host"),
 )

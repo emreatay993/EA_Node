@@ -140,7 +140,7 @@ corex-runtime = "ea_node_editor.bootstrap:headless_main"
 [project.entry-points."ea_node_editor.plugins"]
 
 [tool.setuptools.packages.find]
-include = ["ea_node_editor*"]
+include = ["ea_node_editor*", "corex*"]
 
 [tool.setuptools.package-data]
 ea_node_editor = [

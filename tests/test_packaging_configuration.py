@@ -114,6 +114,18 @@ def _uncovered_asset_paths(asset_paths: list[str], glob_patterns: set[str]) -> l
     ]
 
 
+def test_public_corex_sdk_is_packaged_for_setuptools_and_pyinstaller() -> None:
+    pyproject = _load_pyproject()
+    spec_source = SPEC_PATH.read_text(encoding="utf-8")
+
+    assert pyproject["tool"]["setuptools"]["packages"]["find"]["include"] == [
+        "ea_node_editor*",
+        "corex*",
+    ]
+    assert '    "corex",' in spec_source
+    assert (REPO_ROOT / "corex" / "__init__.py").is_file()
+
+
 def test_optional_dependency_groups_wire_ansys_and_viewer_into_all_and_dev() -> None:
     pyproject = _load_pyproject()
     optional_dependencies = pyproject["project"]["optional-dependencies"]

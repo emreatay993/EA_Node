@@ -47,8 +47,8 @@ Source handoff: `codex-plan-01a03779-f09e-70b2-825b-a371a8b0ccc2-01a03779-f0.md`
 | Task | State | Write owner | Verification / review evidence |
 |---|---|---|---|
 | T01 | Completed | Root orchestrator | 938-ID inventory and 133-node golden fixture reconciled; catalog tests 3 passed; traceability, links, and maps passed. |
-| T02 | In Progress | Root orchestrator | Shared literal parser and public `corex` SDK in progress. |
-| T03 | Pending | Unassigned | — |
+| T02 | Completed | Root orchestrator | Independent review cleared; 71 tests and 68 subtests passed; Ruff, compile, wheel/editable import, packaging, maps, and indexes passed. |
+| T03 | In Progress | Root orchestrator | Private function entries, adapter, Settings binding, and warnings in progress. |
 | T04 | Pending | Unassigned | — |
 | T05 | Pending | Unassigned | — |
 | T06 | Pending | Unassigned | — |

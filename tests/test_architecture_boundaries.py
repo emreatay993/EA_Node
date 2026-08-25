@@ -394,6 +394,49 @@ class GraphArchitectureBoundaryTests(unittest.TestCase):
 
         self.assertEqual(offenders, {})
 
+    def test_public_corex_sdk_is_dependency_free(self) -> None:
+        offenders: dict[str, list[str]] = {}
+        for source_path in (REPO_ROOT / "corex").rglob("*.py"):
+            relative_path = source_path.relative_to(REPO_ROOT).as_posix()
+            imports = imported_modules(parse_module(relative_path))
+            forbidden = sorted(
+                module
+                for module in imports
+                if module == "ea_node_editor"
+                or module.startswith("ea_node_editor.")
+                or module.startswith("PyQt")
+            )
+            if forbidden:
+                offenders[relative_path] = forbidden
+
+        self.assertEqual(offenders, {})
+
+    def test_function_declaration_modules_stay_inside_nodes_sdk_boundary(self) -> None:
+        forbidden_prefixes = (
+            "ea_node_editor.execution",
+            "ea_node_editor.persistence",
+            "ea_node_editor.ui",
+            "ea_node_editor.ui_qml",
+        )
+        offenders: dict[str, list[str]] = {}
+        for relative_path in (
+            "ea_node_editor/nodes/declaration_engine.py",
+            "ea_node_editor/nodes/plugin_declaration.py",
+        ):
+            imports = top_level_imported_modules(parse_module(relative_path))
+            forbidden = sorted(
+                module
+                for module in imports
+                if any(
+                    module == prefix or module.startswith(f"{prefix}.")
+                    for prefix in forbidden_prefixes
+                )
+            )
+            if forbidden:
+                offenders[relative_path] = forbidden
+
+        self.assertEqual(offenders, {})
+
     def test_package_internal_code_does_not_import_nodes_types_barrel(self) -> None:
         package_root = REPO_ROOT / "ea_node_editor"
         forbidden_module = "ea_node_editor.nodes.types"
