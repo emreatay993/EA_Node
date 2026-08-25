@@ -24541,6 +24541,7 @@
         "ea_node_editor/nodes/dpf_runtime_contracts.py",
         "ea_node_editor/nodes/execution_context.py",
         "ea_node_editor/nodes/file_dialog_filters.py",
+        "ea_node_editor/nodes/function_plugin.py",
         "ea_node_editor/nodes/internalized_values.py",
         "ea_node_editor/nodes/node_specs.py",
         "ea_node_editor/nodes/output_artifacts.py",
@@ -24550,8 +24551,7 @@
         "ea_node_editor/nodes/plugin_loader.py",
         "ea_node_editor/nodes/python_script_declaration.py",
         "ea_node_editor/nodes/readiness.py",
-        "ea_node_editor/nodes/registry.py",
-        "ea_node_editor/nodes/runtime_refs.py"
+        "ea_node_editor/nodes/registry.py"
       ],
       "test_candidates": [
         "tests/fixtures/node_catalog/pre_cutover_non_dpf_catalog.json",
@@ -24559,6 +24559,7 @@
         "tests/test_corex_contract_catalog.py",
         "tests/test_corex_type_conformance.py",
         "tests/test_fem_contracts.py",
+        "tests/test_function_plugin.py",
         "tests/test_geometry_contracts.py",
         "tests/test_mesh_contracts.py",
         "tests/test_plugin_declaration.py",
@@ -24585,8 +24586,11 @@
         "bootstrap",
         "declaration",
         "engine",
+        "function",
         "python",
         "script",
+        "execution",
+        "context",
         "contracts",
         "loader",
         "runtime",
@@ -24622,8 +24626,14 @@
         "datatypes",
         "image",
         "run",
+        "trustedfactoryentry",
+        "pythonfunctionentry",
+        "pythonfunctionref",
+        "pythonfunctionadapter",
         "build",
         "builtin",
+        "noderegistry",
+        "create",
         "tests",
         "fixtures",
         "catalog",
@@ -24648,15 +24658,17 @@
         "node registry builtins"
       ],
       "focused_verification": [
-        ".\\venv\\Scripts\\python.exe -m pytest tests/test_plugin_declaration.py tests/test_registry_validation.py tests/test_plugin_loader.py tests/test_corex_contract_catalog.py tests/test_corex_type_conformance.py tests/test_python_script_declaration.py -q"
+        ".\\venv\\Scripts\\python.exe -m pytest tests/test_plugin_declaration.py tests/test_function_plugin.py tests/test_registry_validation.py tests/test_plugin_loader.py tests/test_corex_contract_catalog.py tests/test_corex_type_conformance.py tests/test_python_script_declaration.py -q"
       ],
       "start_here": [
         "corex/__init__.py",
         "ea_node_editor/nodes/bootstrap.py",
         "ea_node_editor/nodes/registry.py",
         "ea_node_editor/nodes/declaration_engine.py",
+        "ea_node_editor/nodes/function_plugin.py",
         "ea_node_editor/nodes/plugin_declaration.py",
         "ea_node_editor/nodes/python_script_declaration.py",
+        "ea_node_editor/nodes/execution_context.py",
         "ea_node_editor/nodes/plugin_contracts.py",
         "ea_node_editor/nodes/plugin_loader.py",
         "ea_node_editor/nodes/builtins/",

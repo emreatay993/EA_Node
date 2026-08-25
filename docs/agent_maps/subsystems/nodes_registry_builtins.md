@@ -11,8 +11,10 @@ Use this for node definitions, registry validation, built-in node families, data
 - `ea_node_editor/nodes/bootstrap.py`
 - `ea_node_editor/nodes/registry.py`
 - `ea_node_editor/nodes/declaration_engine.py`
+- `ea_node_editor/nodes/function_plugin.py`
 - `ea_node_editor/nodes/plugin_declaration.py`
 - `ea_node_editor/nodes/python_script_declaration.py`
+- `ea_node_editor/nodes/execution_context.py`
 - `ea_node_editor/nodes/plugin_contracts.py`
 - `ea_node_editor/nodes/plugin_loader.py`
 - `ea_node_editor/nodes/builtins/`
@@ -27,12 +29,14 @@ Use this for node definitions, registry validation, built-in node families, data
 - Support values and nodes: `tree_path.py`, `units.py`, `viewer_viewport.py`, `security_contracts.py`, `reporting.py`, and `ai_ml_contracts.py`.
 - Signal Plot is owned by `builtins/plot/signal.py` and emits `COREX.DataTypes.Image`.
 - Public function plugins use the dependency-free top-level `corex` decorators and static `plugin_declaration.py` discovery. Python Script keeps its one-`run` signature while sharing only the bounded literal/control engine.
+- `TrustedFactoryEntry` and `PythonFunctionEntry` are the mutually exclusive private registry implementations. Public function entries store only `PythonFunctionRef`; `PythonFunctionAdapter` is the private binding path that T06 process workers will use after digest-pinned loading.
 - Python Script decorators resolve one applied source into ordinary ports,
   properties, and settings groups through the registry's instance-spec path.
 
 ## Boundaries
 - Register built-ins through `build_builtin_registry()`; do not mutate catalog internals.
 - Keep `corex/` dependency-free and normalize its static declarations into the existing registry/presentation model; do not import public plugin source in GUI discovery.
+- Keep public function entries non-constructible through `NodeRegistry.create()` so trusted in-process execution cannot acquire their callable.
 - During the novice function-SDK cutover, preserve the normalized 133-node non-DPF baseline in `tests/fixtures/node_catalog/pre_cutover_non_dpf_catalog.json` and follow the migration inventory's exact convert/internal-exception/DPF-exclusion classification.
 - Keep canonical data-type IDs under the `COREX.*` namespace.
 - Keep source-product provenance, import adapters, comparison studies, and installed-product evidence outside the tracked repository.
@@ -41,6 +45,7 @@ Use this for node definitions, registry validation, built-in node families, data
 ## Focused Tests
 - `tests/test_registry_validation.py`
 - `tests/test_plugin_declaration.py`
+- `tests/test_function_plugin.py`
 - `tests/test_plugin_loader.py`
 - `tests/test_corex_contract_catalog.py`
 - `tests/test_corex_type_conformance.py`
@@ -54,5 +59,5 @@ Use this for node definitions, registry validation, built-in node families, data
 
 ## Focused Verification
 ```powershell
-.\venv\Scripts\python.exe -m pytest tests/test_plugin_declaration.py tests/test_registry_validation.py tests/test_plugin_loader.py tests/test_corex_contract_catalog.py tests/test_corex_type_conformance.py tests/test_python_script_declaration.py -q
+.\venv\Scripts\python.exe -m pytest tests/test_plugin_declaration.py tests/test_function_plugin.py tests/test_registry_validation.py tests/test_plugin_loader.py tests/test_corex_contract_catalog.py tests/test_corex_type_conformance.py tests/test_python_script_declaration.py -q
 ```

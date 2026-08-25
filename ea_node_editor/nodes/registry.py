@@ -1,7 +1,7 @@
 # Purpose: Validate and compose node descriptors with their semantic data-type catalog.
 # Map: subsystems/nodes_registry_builtins.md
 # Tests: tests/test_registry_validation.py
-# Landmarks: resolve_instance_ports; NodeRegistry; register_plugin_bundle; descriptor validation
+# Landmarks: resolve_instance_ports; TrustedFactoryEntry; PythonFunctionEntry; NodeRegistry; descriptor validation
 
 from __future__ import annotations
 
@@ -39,6 +39,7 @@ from .core_data_types import (
     CORE_DATA_TYPE_OWNER_VERSION,
     CORE_DATA_TYPES,
 )
+from .function_plugin import PythonFunctionRef
 from .node_specs import (
     DpfCallableSourceSpec,
     DpfOperatorSourceSpec,
@@ -373,8 +374,8 @@ def resolve_instance_spec(
     return resolved
 
 
-@dataclass(slots=True)
-class NodeRegistryEntry:
+@dataclass(slots=True, frozen=True)
+class TrustedFactoryEntry:
     spec: NodeTypeSpec
     factory: Callable[[], NodePlugin]
     provenance: PluginProvenance | None = None
@@ -386,6 +387,24 @@ class NodeRegistryEntry:
             factory=self.factory,
             provenance=self.provenance,
         )
+
+
+@dataclass(slots=True, frozen=True)
+class PythonFunctionEntry:
+    spec: NodeTypeSpec
+    function_ref: PythonFunctionRef
+    owner_id: str = ""
+
+    def __post_init__(self) -> None:
+        if self.spec.is_async != self.function_ref.is_async:
+            raise ValueError(
+                "Python function reference async state must match NodeTypeSpec.is_async"
+            )
+        if self.owner_id != self.function_ref.bundle_id:
+            raise ValueError("Python function entry owner_id must match function bundle_id")
+
+
+RegistryEntry = TrustedFactoryEntry | PythonFunctionEntry
 
 
 class NodeRegistry:
@@ -455,7 +474,7 @@ class NodeRegistry:
         elif not isinstance(data_types, DataTypeCatalog):
             raise TypeError("data_types must be a DataTypeCatalog")
         self._data_types = data_types
-        self._entries: dict[str, NodeRegistryEntry] = {}
+        self._entries: dict[str, RegistryEntry] = {}
         self._contract_manifests: dict[str, PluginContractManifest] = {}
         self._contract_manifest_versions: dict[str, str] = {}
         self._owner_source_identities: dict[str, str] = {}
@@ -617,7 +636,7 @@ class NodeRegistry:
         self._validate_spec(spec)
         if spec.type_id in self._entries:
             raise ValueError(f"Node type already registered: {spec.type_id}")
-        self._entries[spec.type_id] = NodeRegistryEntry(
+        self._entries[spec.type_id] = TrustedFactoryEntry(
             spec=spec,
             factory=factory,
             provenance=provenance,
@@ -644,7 +663,7 @@ class NodeRegistry:
             type_id = descriptor.spec.type_id
             if type_id in staged_entries:
                 raise ValueError(f"Node type already registered: {type_id}")
-            staged_entries[type_id] = NodeRegistryEntry(
+            staged_entries[type_id] = TrustedFactoryEntry(
                 spec=descriptor.spec,
                 factory=descriptor.factory,
                 provenance=descriptor.provenance,
@@ -652,12 +671,50 @@ class NodeRegistry:
             )
         self._entries = staged_entries
 
+    def register_python_function(
+        self,
+        spec: NodeTypeSpec,
+        function_ref: PythonFunctionRef,
+        *,
+        owner_id: str = "",
+    ) -> None:
+        if not isinstance(function_ref, PythonFunctionRef):
+            raise TypeError("function_ref must be a PythonFunctionRef")
+        normalized_owner_id = str(owner_id).strip() or function_ref.bundle_id
+        if normalized_owner_id != function_ref.bundle_id:
+            raise ValueError("owner_id must match function_ref.bundle_id")
+        self._validate_spec(spec)
+        if spec.type_id in self._entries:
+            raise ValueError(f"Node type already registered: {spec.type_id}")
+        self._entries[spec.type_id] = PythonFunctionEntry(
+            spec=spec,
+            function_ref=function_ref,
+            owner_id=normalized_owner_id,
+        )
+
     def create(self, type_id: str) -> NodePlugin:
         try:
             entry = self._entries[type_id]
         except KeyError as exc:
             raise KeyError(f"Unknown node type: {type_id}") from exc
+        if isinstance(entry, PythonFunctionEntry):
+            raise RuntimeError(
+                f"Public function node {type_id!r} requires process-worker resolution"
+            )
         return entry.factory()
+
+    def entry_or_none(self, type_id: str) -> RegistryEntry | None:
+        return self._entries.get(type_id)
+
+    def get_entry(self, type_id: str) -> RegistryEntry:
+        try:
+            return self._entries[type_id]
+        except KeyError as exc:
+            raise KeyError(f"Unknown node type: {type_id}") from exc
+
+    def python_function_ref_or_none(self, type_id: str) -> PythonFunctionRef | None:
+        entry = self._entries.get(type_id)
+        return entry.function_ref if isinstance(entry, PythonFunctionEntry) else None
 
     def get_spec(self, type_id: str) -> NodeTypeSpec:
         try:
@@ -684,21 +741,35 @@ class NodeRegistry:
 
     def get_descriptor(self, type_id: str) -> PluginDescriptor:
         try:
-            return self._entries[type_id].descriptor()
+            entry = self._entries[type_id]
         except KeyError as exc:
             raise KeyError(f"Unknown node type: {type_id}") from exc
+        if isinstance(entry, PythonFunctionEntry):
+            raise TypeError(f"Node type {type_id!r} does not use a trusted descriptor")
+        return entry.descriptor()
 
     def descriptor_or_none(self, type_id: str) -> PluginDescriptor | None:
         entry = self._entries.get(type_id)
         if entry is None:
             return None
-        return entry.descriptor()
+        return entry.descriptor() if isinstance(entry, TrustedFactoryEntry) else None
 
     def all_specs(self) -> list[NodeTypeSpec]:
         return [entry.spec for entry in self._entries.values()]
 
     def all_descriptors(self) -> list[PluginDescriptor]:
-        return [entry.descriptor() for entry in self._entries.values()]
+        return [
+            entry.descriptor()
+            for entry in self._entries.values()
+            if isinstance(entry, TrustedFactoryEntry)
+        ]
+
+    def all_python_function_refs(self) -> tuple[PythonFunctionRef, ...]:
+        return tuple(
+            entry.function_ref
+            for entry in self._entries.values()
+            if isinstance(entry, PythonFunctionEntry)
+        )
 
     def default_properties(self, type_id: str) -> dict[str, Any]:
         return self.normalize_properties(type_id, {}, include_defaults=True)

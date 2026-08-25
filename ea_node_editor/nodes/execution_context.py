@@ -1,6 +1,11 @@
+# Purpose: Carry per-invocation node inputs, services, outputs, and structured warnings.
+# Map: subsystems/nodes_registry_builtins.md
+# Tests: tests/test_function_plugin.py
+
 from __future__ import annotations
 
 import copy
+import re
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -73,6 +78,19 @@ def _read_node_state_unavailable(_node_id: str) -> Any | None:
     raise RuntimeError("ExecutionContext does not have run-scoped node state.")
 
 
+_PLUGIN_WARNING_CODE = re.compile(r"^[a-z][a-z0-9_.-]*$")
+
+
+@dataclass(slots=True, frozen=True)
+class PluginWarning:
+    message: str
+    code: str
+    run_id: str
+    node_id: str
+    path: DataPath
+    iteration: int
+
+
 @dataclass(slots=True)
 class ExecutionContext:
     run_id: str
@@ -109,6 +127,7 @@ class ExecutionContext:
         default=_read_node_state_unavailable,
         repr=False,
     )
+    _plugin_warnings: list[PluginWarning] = field(default_factory=list, repr=False)
 
     @property
     def artifact_store(self) -> Any | None:
@@ -133,6 +152,36 @@ class ExecutionContext:
 
     def log_error(self, message: str) -> None:
         self.emit_log("error", message)
+
+    def warn(self, message: str, *, code: str = "plugin_warning") -> None:
+        if not isinstance(message, str):
+            raise TypeError("Plugin warning message must be a string")
+        if not message.strip():
+            raise ValueError("Plugin warning message must not be empty")
+        if len(message) > 2048:
+            raise ValueError("Plugin warning message must contain at most 2048 characters")
+        if not isinstance(code, str):
+            raise TypeError("Plugin warning code must be a string")
+        if len(code) > 64 or _PLUGIN_WARNING_CODE.fullmatch(code) is None:
+            raise ValueError(
+                "Plugin warning code must match [a-z][a-z0-9_.-]* and contain at most 64 characters"
+            )
+        self._plugin_warnings.append(
+            PluginWarning(
+                message=message,
+                code=code,
+                run_id=self.run_id,
+                node_id=self.node_id,
+                path=self.target_path,
+                iteration=self.target_iteration,
+            )
+        )
+
+    def _plugin_warning_cursor(self) -> int:
+        return len(self._plugin_warnings)
+
+    def _plugin_warnings_since(self, cursor: int) -> tuple[PluginWarning, ...]:
+        return tuple(self._plugin_warnings[max(0, int(cursor)) :])
 
     def publish_node_state(self, node_id: str, value: Any) -> None:
         normalized_node_id = str(node_id or "").strip()
@@ -240,6 +289,7 @@ class ExecutionContext:
 class NodeResult:
     outputs: dict[str, Any] = field(default_factory=dict)
     warnings: tuple[str, ...] = ()
+    plugin_warnings: tuple[PluginWarning, ...] = ()
 
 
 __all__ = [
