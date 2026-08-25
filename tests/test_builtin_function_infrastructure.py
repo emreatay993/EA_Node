@@ -24,6 +24,11 @@ from ea_node_editor.graph.model import GraphModel
 from ea_node_editor.nodes.bootstrap import build_builtin_registry, build_default_registry
 from ea_node_editor.nodes.builtin_functions import (
     core_value,
+    integrations_email,
+    integrations_file_io,
+    integrations_process,
+    integrations_spreadsheet,
+    integrations_ssh_sftp,
     plot_signal,
     source_modules,
     spatial,
@@ -92,7 +97,17 @@ def test_placeholder_sources_form_one_noop_internal_bundle(
     tmp_path: Path,
     monkeypatch,
 ) -> None:  # noqa: ANN001
-    for module in (core_value, unit_math, spatial, plot_signal):
+    for module in (
+        core_value,
+        unit_math,
+        spatial,
+        plot_signal,
+        integrations_file_io,
+        integrations_process,
+        integrations_email,
+        integrations_spreadsheet,
+        integrations_ssh_sftp,
+    ):
         monkeypatch.setattr(module, "SOURCE", "import corex\n")
 
     registry = build_builtin_registry(generation_root=tmp_path / "generations")
@@ -102,6 +117,11 @@ def test_placeholder_sources_form_one_noop_internal_bundle(
         "unit_math.py",
         "spatial.py",
         "plot_signal.py",
+        "integrations_file_io.py",
+        "integrations_process.py",
+        "integrations_email.py",
+        "integrations_spreadsheet.py",
+        "integrations_ssh_sftp.py",
     ]
     assert registry.all_python_function_refs() == ()
     assert len(registry.plugin_bundle_refs()) == 1

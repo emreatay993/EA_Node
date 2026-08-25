@@ -31,9 +31,9 @@ from ea_node_editor.execution.runtime_value_codec import (
     deserialize_runtime_value,
     serialize_runtime_value,
 )
-from ea_node_editor.nodes.builtins.integrations import (
-    FileReadNodePlugin,
-    FileWriteNodePlugin,
+from ea_node_editor.nodes.builtins.integrations_file_io import (
+    execute_file_read,
+    execute_file_write,
 )
 from ea_node_editor.nodes.output_artifacts import (
     register_staged_artifact,
@@ -49,7 +49,9 @@ from ea_node_editor.execution.worker_runtime import RuntimeArtifactService
 from ea_node_editor.execution.worker_runner import NodeExecutor
 
 
-_DATA_TYPES = NodeRegistry().data_types
+_FIXTURE_REGISTRY = NodeRegistry()
+_FIXTURE_REGISTRY.freeze()
+_DATA_TYPES = _FIXTURE_REGISTRY.data_types
 _PATH_TYPE = _DATA_TYPES.require(PATH_DATA_TYPE_ID)
 _FIXTURE_SIZE_BYTES = 0
 _FIXTURE_SHA256 = hashlib.sha256(b"").hexdigest()
@@ -247,6 +249,12 @@ class ExecutionArtifactRefProtocolTests(unittest.TestCase):
             workspace_id="ws_main",
             trigger={"kind": "manual"},
             runtime_snapshot=snapshot,
+            plugin_bundles=_FIXTURE_REGISTRY.plugin_bundle_refs(),
+            plugin_fingerprint=_FIXTURE_REGISTRY.plugin_fingerprint(),
+            registry_contract_fingerprint=(
+                _FIXTURE_REGISTRY.contract_fingerprint()
+            ),
+            addon_runtime_config=_FIXTURE_REGISTRY.addon_runtime_config(),
         )
 
         payload = command_to_dict(command, catalog=_DATA_TYPES)
@@ -341,7 +349,16 @@ class ExecutionArtifactRefProtocolTests(unittest.TestCase):
                     "workspace_id": "ws_main",
                     "project_path": "demo.cxproj",
                     "trigger": {"kind": "manual"},
-                }
+                    "plugin_bundles": _FIXTURE_REGISTRY.plugin_bundle_refs(),
+                    "plugin_fingerprint": _FIXTURE_REGISTRY.plugin_fingerprint(),
+                    "registry_contract_fingerprint": (
+                        _FIXTURE_REGISTRY.contract_fingerprint()
+                    ),
+                    "addon_runtime_config": (
+                        _FIXTURE_REGISTRY.addon_runtime_config()
+                    ),
+                },
+                catalog=_DATA_TYPES,
             )
 
     def test_runtime_snapshot_mapping_requires_workspace_order(self) -> None:
@@ -462,7 +479,7 @@ class ExecutionArtifactRefProtocolTests(unittest.TestCase):
                 node_type_id="io.file_write",
             )
 
-            write_result = FileWriteNodePlugin().execute(write_ctx)
+            write_result = execute_file_write(write_ctx)
 
             written_ref = write_result.outputs["written_path"]
             self.assertIsInstance(written_ref, RuntimeArtifactRef)
@@ -506,7 +523,7 @@ class ExecutionArtifactRefProtocolTests(unittest.TestCase):
                 path_resolver=resolver.resolve_to_path,
             )
 
-            read_result = FileReadNodePlugin().execute(read_ctx)
+            read_result = execute_file_read(read_ctx)
             self.assertEqual(read_result.outputs["text"], "managed output")
 
     def test_managed_output_rejects_descriptor_free_intermediate_reparse_before_write(
@@ -1383,6 +1400,7 @@ class ExecutionArtifactRefProtocolTests(unittest.TestCase):
             plan = SimpleNamespace(
                 nodes={node_id: node},
                 node_specs={node_id: spec},
+                node_preflight_errors={},
                 input_ports=lambda _node_id: (port,),
                 output_ports=lambda _node_id: (),
                 incoming_edges_for=lambda _node_id, _port_key=None: (),
@@ -1398,6 +1416,7 @@ class ExecutionArtifactRefProtocolTests(unittest.TestCase):
             registry = SimpleNamespace(
                 normalize_properties=lambda _type_id, properties: dict(properties),
                 create=lambda _type_id: SimpleNamespace(execute=execute),
+                python_function_ref_or_none=lambda _type_id: None,
             )
             control = Mock()
             control.shutdown_requested = False

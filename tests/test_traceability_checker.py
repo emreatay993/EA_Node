@@ -1041,10 +1041,25 @@ COREX_NO_LEGACY_ARCHITECTURE_CLEANUP_REQUIREMENT_TOKENS: dict[str, dict[str, tup
     },
 }
 COREX_NO_LEGACY_ARCHITECTURE_CLEANUP_TRACEABILITY_ROW_TOKENS: dict[str, tuple[str, ...]] = {
+    "REQ-NODE-002": (
+        "nodes/builtin_functions/",
+        "nodes/function_plugin.py",
+        "retained trusted descriptors/helpers",
+    ),
+    "REQ-INT-002": (
+        "builtin_functions/integrations_*.py",
+        "ssh_sftp_values.py",
+        "test_builtin_integration_function_migration.py",
+    ),
     "REQ-INT-006": (
-        "explicit public built-ins export",
-        "descriptor aggregation",
-        "INTEGRATION_NODE_DESCRIPTORS",
+        "External process runner function",
+        "integrations_process.py::process_run",
+        "process_subprocess_policy.py",
+    ),
+    "REQ-INT-007": (
+        "nodes/builtin_functions/__init__.py",
+        "io.path_pointer",
+        "io.folder_explorer",
     ),
     "REQ-QA-042": manifest.TRACEABILITY_ROW_REQUIRED_TOKENS["REQ-QA-042"],
     "AC-REQ-QA-042-01": manifest.TRACEABILITY_ROW_REQUIRED_TOKENS["AC-REQ-QA-042-01"],

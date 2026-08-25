@@ -9,6 +9,7 @@ import keyword
 import math
 import re
 from collections.abc import Callable, Mapping
+from dataclasses import replace
 from typing import Any
 
 from ea_node_editor.nodes.builtins.core_values import (
@@ -75,13 +76,53 @@ CONTROL_ALLOWED_FIELDS = {
     "list": _COMMON_CONTROL_FIELDS
     | {"item_type", "options", "codes", "minimum", "maximum", "step"},
 }
-_INTERNAL_CONTROL_FIELDS = frozenset({"_port_description", "_section_order"})
+_INTERNAL_CONTROL_FIELDS = frozenset(
+    {
+        "_inline_editor",
+        "_inspector_editor",
+        "_persistence_type",
+        "_port_accepted_data_types",
+        "_port_description",
+        "_port_label",
+        "_port_required",
+        "_port_structure",
+        "_port_value_type",
+        "_property_default",
+        "_property_type",
+        "_section_order",
+        "_sensitive",
+        "_sensitive_scope_key",
+    }
+)
 INTERNAL_CONTROL_ALLOWED_FIELDS = {
-    name: fields
-    | _INTERNAL_CONTROL_FIELDS
-    | ({"_persistence_type"} if name == "interval" else frozenset())
+    name: fields | _INTERNAL_CONTROL_FIELDS
     for name, fields in CONTROL_ALLOWED_FIELDS.items()
 }
+
+PROPERTY_TYPES = frozenset(
+    {"str", "int", "float", "bool", "path", "enum", "json", "interval_1d"}
+)
+INLINE_EDITORS = frozenset(
+    {
+        "",
+        "text",
+        "number",
+        "toggle",
+        "enum",
+        "path",
+        "textarea",
+        "color",
+        "slider",
+        "interval_slider",
+        "interval_fields",
+        "list",
+        "secret",
+    }
+)
+INSPECTOR_EDITORS = frozenset(
+    {"", "text", "textarea", "path", "toggle", "enum", "color", "font_family", "secret"}
+)
+DATA_ACCESS_VALUES = frozenset({"item", "list", "tree"})
 
 FailureFactory = Callable[[ast.AST | None, str], Exception]
 
@@ -277,7 +318,12 @@ def call_values(
                 cache=cache,
             )
             if keyword_node.arg
-            in {"value_type", "item_type", "_persistence_type"}
+            in {
+                "value_type",
+                "item_type",
+                "_persistence_type",
+                "_port_value_type",
+            }
             else bounded_literal(
                 keyword_node.value,
                 fail=fail,
@@ -292,10 +338,22 @@ def call_values(
             "structure",
             "file_filter",
             "direction",
+            "_inline_editor",
+            "_inspector_editor",
             "_port_description",
+            "_port_label",
+            "_port_structure",
+            "_property_type",
+            "_sensitive_scope_key",
         } and not isinstance(values[keyword_node.arg], str):
             raise fail(keyword_node.value, f"{keyword_node.arg} must be a string literal")
-        if keyword_node.arg in {"required", "port", "searchable"} and not isinstance(
+        if keyword_node.arg in {
+            "required",
+            "port",
+            "searchable",
+            "_port_required",
+            "_sensitive",
+        } and not isinstance(
             values[keyword_node.arg], bool
         ):
             raise fail(keyword_node.value, f"{keyword_node.arg} must be true or false")
@@ -332,6 +390,123 @@ def label_value(key: str, values: Mapping[str, Any]) -> str:
     if "label" in values:
         return string_value(values, "label")
     return key.replace("_", " ").strip().title()
+
+
+def type_id_tuple(value: Any, *, field: str) -> tuple[str, ...]:
+    if not isinstance(value, (list, tuple)):
+        raise DeclarationValueError(f"{field} must be a tuple or list literal")
+    if len(value) > 64:
+        raise DeclarationValueError(f"{field} contains too many type IDs")
+    normalized: list[str] = []
+    for item in value:
+        if not isinstance(item, str) or not item or item != item.strip():
+            raise DeclarationValueError(
+                f"{field} must contain non-empty canonical type-ID strings"
+            )
+        if any(character.isspace() for character in item):
+            raise DeclarationValueError(
+                f"{field} must contain non-empty canonical type-ID strings"
+            )
+        if item in normalized:
+            raise DeclarationValueError(f"{field} must not contain duplicates")
+        normalized.append(item)
+    return tuple(normalized)
+
+
+def _validate_property_default(prop: PropertySpec) -> None:
+    value = prop.default
+    valid = (
+        isinstance(value, str)
+        if prop.type in {"str", "path"}
+        else isinstance(value, int) and not isinstance(value, bool)
+        if prop.type == "int"
+        else isinstance(value, (int, float))
+        and not isinstance(value, bool)
+        and math.isfinite(float(value))
+        if prop.type == "float"
+        else isinstance(value, bool)
+        if prop.type == "bool"
+        else value in (prop.enum_codes or prop.enum_values)
+        if prop.type == "enum"
+        else True
+        if prop.type == "json"
+        else isinstance(value, Interval1D) or (value is None and prop.nullable)
+    )
+    if not valid:
+        raise DeclarationValueError(
+            f"_property_default does not match property type {prop.type!r}"
+        )
+
+
+def apply_internal_control_overrides(
+    prop: PropertySpec,
+    data_type: str,
+    accepted_data_types: tuple[str, ...],
+    data_access: str,
+    values: Mapping[str, Any],
+) -> tuple[PropertySpec, str, tuple[str, ...], str]:
+    property_type = values.get("_property_type", prop.type)
+    if property_type not in PROPERTY_TYPES:
+        raise DeclarationValueError(
+            "_property_type must be str, int, float, bool, path, enum, json, or interval_1d"
+        )
+    inline_editor = values.get("_inline_editor", prop.inline_editor)
+    if inline_editor not in INLINE_EDITORS:
+        raise DeclarationValueError("_inline_editor is unsupported")
+    inspector_editor = values.get("_inspector_editor", prop.inspector_editor)
+    if inspector_editor not in INSPECTOR_EDITORS:
+        raise DeclarationValueError("_inspector_editor is unsupported")
+    persistence_type = values.get(
+        "_persistence_type", prop.persistence_data_type_id
+    )
+    sensitive = values.get("_sensitive", prop.sensitive)
+    sensitive_scope_key = values.get(
+        "_sensitive_scope_key", prop.sensitive_scope_key
+    )
+    if sensitive_scope_key and (
+        not sensitive_scope_key.isidentifier() or sensitive_scope_key.startswith("_")
+    ):
+        raise DeclarationValueError(
+            "_sensitive_scope_key must be a public declaration key"
+        )
+    if sensitive_scope_key and not sensitive:
+        raise DeclarationValueError(
+            "_sensitive_scope_key requires _sensitive=True"
+        )
+    secret_editor = inline_editor == "secret" or inspector_editor == "secret"
+    if secret_editor and not sensitive:
+        raise DeclarationValueError("secret editors require _sensitive=True")
+    if sensitive and (property_type != "json" or not secret_editor):
+        raise DeclarationValueError(
+            "sensitive properties require type json and a secret editor"
+        )
+    prop = replace(
+        prop,
+        type=property_type,
+        default=values.get("_property_default", prop.default),
+        inline_editor=inline_editor,
+        inspector_editor=inspector_editor,
+        sensitive=sensitive,
+        sensitive_scope_key=sensitive_scope_key,
+        persistence_data_type_id="" if persistence_type is None else persistence_type,
+    )
+    _validate_property_default(prop)
+
+    port_data_type = values.get("_port_value_type", data_type)
+    port_accepted = (
+        type_id_tuple(
+            values["_port_accepted_data_types"],
+            field="_port_accepted_data_types",
+        )
+        if "_port_accepted_data_types" in values
+        else accepted_data_types
+    )
+    port_access = values.get("_port_structure", data_access)
+    if port_access not in DATA_ACCESS_VALUES:
+        raise DeclarationValueError(
+            "_port_structure must be 'item', 'list', or 'tree'"
+        )
+    return prop, port_data_type, port_accepted, port_access
 
 
 def port_spec(

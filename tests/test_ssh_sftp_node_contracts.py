@@ -1,13 +1,23 @@
 from __future__ import annotations
 
+from dataclasses import asdict
 import json
+import multiprocessing
+from pathlib import Path
+import subprocess
+import sys
 
 import pytest
 
+from ea_node_editor.nodes.builtin_functions.integrations_ssh_sftp import SOURCE
 from ea_node_editor.nodes.builtins import integrations_ssh_sftp as ssh_sftp
-from ea_node_editor.nodes.execution_context import ExecutionContext, NodeResult
+from ea_node_editor.nodes.builtins.ssh_sftp_values import compute_host, compute_secret
+from ea_node_editor.nodes.execution_context import ExecutionContext
+from ea_node_editor.nodes.function_plugin import INTERNAL_BUILTIN_FUNCTION_OWNER_ID
 from ea_node_editor.nodes.plugin_contracts import PluginContractManifest
+from ea_node_editor.nodes.plugin_declaration import discover_plugin_declarations
 from ea_node_editor.nodes.registry import NodeRegistry
+from ea_node_editor.nodes.registry import PythonFunctionEntry
 from ea_node_editor.runtime_contracts import (
     DataTypeCatalogError,
     deserialize_runtime_value,
@@ -446,8 +456,60 @@ PORT_CONTRACTS = {
 }
 
 
+_PRE_CUTOVER_CATALOG = (
+    Path(__file__).parent
+    / "fixtures"
+    / "node_catalog"
+    / "pre_cutover_non_dpf_catalog.json"
+)
+
+
 def _specs():
-    return tuple(descriptor.spec for descriptor in ssh_sftp.SSH_SFTP_NODE_DESCRIPTORS)
+    return tuple(
+        declaration.spec
+        for declaration in discover_plugin_declarations(
+            SOURCE,
+            filename="integrations_ssh_sftp.py",
+            allow_reserved_ids=True,
+            owner_id=INTERNAL_BUILTIN_FUNCTION_OWNER_ID,
+        )
+    )
+
+
+def _spawn_value_construction(queue) -> None:  # noqa: ANN001
+    sys.modules["paramiko"] = None
+    from ea_node_editor.nodes.builtins.ssh_sftp_values import (
+        compute_host as spawned_compute_host,
+        compute_secret as spawned_compute_secret,
+    )
+
+    envelope = {
+        "schema": "corex.protected_secret.v1",
+        "provider": "windows_dpapi",
+        "scope": "CurrentUser",
+        "ciphertext_b64": "AA==",
+    }
+    secret = spawned_compute_secret(
+        ExecutionContext(
+            run_id="run",
+            node_id="secret",
+            workspace_id="workspace",
+            inputs={},
+            properties={"protected_value": envelope},
+            emit_log=lambda *_args: None,
+        )
+    ).outputs["secret_value"]
+    host = spawned_compute_host(
+        ExecutionContext(
+            run_id="run",
+            node_id="host",
+            workspace_id="workspace",
+            inputs={"address": "host", "username": "user", "password": secret},
+            properties={},
+            emit_log=lambda *_args: None,
+        )
+    ).outputs["host"]
+    queue.put((secret, host, "paramiko" in sys.modules and sys.modules["paramiko"] is not None))
 
 
 def test_ssh_sftp_node_metadata_and_catalogue_port_contracts() -> None:
@@ -476,6 +538,18 @@ def test_ssh_sftp_node_metadata_and_catalogue_port_contracts() -> None:
             )
             for port in spec.ports
         ) == PORT_CONTRACTS[spec.type_id]
+
+
+def test_ssh_sftp_function_specs_match_pre_cutover_golden_exactly() -> None:
+    expected = {
+        row["spec"]["type_id"]: row["spec"]
+        for row in json.loads(_PRE_CUTOVER_CATALOG.read_text(encoding="utf-8"))
+        if row["spec"]["type_id"] in NODE_METADATA
+    }
+
+    assert {
+        spec.type_id: json.loads(json.dumps(asdict(spec))) for spec in _specs()
+    } == expected
 
 
 def test_ssh_sftp_properties_and_typed_credential_boundaries() -> None:
@@ -534,20 +608,29 @@ def test_ssh_sftp_properties_and_typed_credential_boundaries() -> None:
         )
 
 
-def test_ssh_sftp_descriptors_validate_and_have_complete_authored_help() -> None:
+def test_ssh_sftp_function_entries_have_no_descriptor_and_complete_help(
+    tmp_path: Path,
+) -> None:
+    from ea_node_editor.nodes.bootstrap import build_builtin_registry
+
+    registry = build_builtin_registry(generation_root=tmp_path / "generations")
+    for spec in _specs():
+        assert isinstance(registry.entry_or_none(spec.type_id), PythonFunctionEntry)
+        assert registry.descriptor_or_none(spec.type_id) is None
+        assert spec.description.strip() and spec.keywords
+        assert all(port.description.strip() for port in spec.ports)
+
+
+def test_ssh_sftp_data_type_contracts_validate_without_descriptors() -> None:
     registry = NodeRegistry()
     registry.register_plugin_bundle(
         PluginContractManifest(
             data_type_families=ssh_sftp.SSH_SFTP_DATA_TYPE_FAMILIES,
             data_types=ssh_sftp.SSH_SFTP_DATA_TYPES,
         ),
-        ssh_sftp.SSH_SFTP_NODE_DESCRIPTORS,
+        (),
         owner_id=ssh_sftp.SSH_SFTP_DATA_TYPE_OWNER_ID,
     )
-
-    specs = _specs()
-    assert all(spec.description.strip() and spec.keywords for spec in specs)
-    assert all(port.description.strip() for spec in specs for port in spec.ports)
 
 
 def test_ssh_sftp_runtime_type_contracts_and_process_transport_are_exact() -> None:
@@ -557,7 +640,7 @@ def test_ssh_sftp_runtime_type_contracts_and_process_transport_are_exact() -> No
             data_type_families=ssh_sftp.SSH_SFTP_DATA_TYPE_FAMILIES,
             data_types=ssh_sftp.SSH_SFTP_DATA_TYPES,
         ),
-        ssh_sftp.SSH_SFTP_NODE_DESCRIPTORS,
+        (),
         owner_id=ssh_sftp.SSH_SFTP_DATA_TYPE_OWNER_ID,
     )
 
@@ -595,7 +678,7 @@ def test_ssh_sftp_runtime_type_contracts_and_process_transport_are_exact() -> No
         "scope": "CurrentUser",
         "ciphertext_b64": "AA==",
     }
-    secret = ssh_sftp.compute_secret(
+    secret = compute_secret(
         ExecutionContext(
             run_id="run",
             node_id="node",
@@ -613,7 +696,7 @@ def test_ssh_sftp_runtime_type_contracts_and_process_transport_are_exact() -> No
         "ciphertext_b64": "AA==",
     }
 
-    host = ssh_sftp.compute_host(
+    host = compute_host(
         ExecutionContext(
             run_id="run",
             node_id="node",
@@ -669,36 +752,130 @@ def test_ssh_sftp_runtime_type_contracts_and_process_transport_are_exact() -> No
         assert restored == value
 
 
-@pytest.mark.parametrize(
-    ("type_id", "callback_name"),
-    (
-        ("ssh_sftp.secret", "compute_secret"),
-        ("ssh_sftp.host", "compute_host"),
-        ("ssh_sftp.run_command", "run_ssh_command"),
-        ("ssh_sftp.run_script", "run_ssh_script"),
-        ("ssh_sftp.upload", "sftp_upload"),
-        ("ssh_sftp.download", "sftp_download"),
-    ),
-)
-def test_ssh_sftp_plugin_execute_delegates_to_runtime_callback(
-    monkeypatch: pytest.MonkeyPatch,
-    type_id: str,
-    callback_name: str,
+def test_ssh_value_functions_execute_through_reserved_worker_adapters(
+    tmp_path: Path,
 ) -> None:
-    descriptor = next(
-        descriptor
-        for descriptor in ssh_sftp.SSH_SFTP_NODE_DESCRIPTORS
-        if descriptor.spec.type_id == type_id
+    from ea_node_editor.execution.plugin_worker_runtime import WorkerPluginRuntime
+    from ea_node_editor.execution.protocol import (
+        StartRunCommand,
+        catalog_agreement,
+        runtime_registry_fingerprint,
     )
-    context = object()
-    expected = NodeResult(outputs={"sentinel": callback_name})
-    seen = []
+    from ea_node_editor.nodes.bootstrap import build_builtin_registry
 
-    def callback(ctx):
-        seen.append(ctx)
-        return expected
+    registry = build_builtin_registry(generation_root=tmp_path / "generations")
+    catalog_fingerprint, revisions = catalog_agreement(registry.data_types)
+    plugin_digest = registry.plugin_fingerprint()
+    command = StartRunCommand(
+        run_id="run",
+        workspace_id="workspace",
+        catalog_fingerprint=catalog_fingerprint,
+        catalog_revisions=revisions,
+        plugin_bundles=registry.plugin_bundle_refs(),
+        plugin_fingerprint=plugin_digest,
+        runtime_registry_fingerprint=runtime_registry_fingerprint(
+            catalog_fingerprint,
+            plugin_digest,
+        ),
+        registry_contract_fingerprint=registry.contract_fingerprint(),
+    )
+    runtime = WorkerPluginRuntime()
+    prepared = runtime.prepare_registry(command, registry)
+    envelope = {
+        "schema": "corex.protected_secret.v1",
+        "provider": "windows_dpapi",
+        "scope": "CurrentUser",
+        "ciphertext_b64": "AA==",
+    }
+    try:
+        secret_entry = prepared.get_entry("ssh_sftp.secret")
+        assert isinstance(secret_entry, PythonFunctionEntry)
+        secret = runtime.create_adapter(
+            secret_entry.function_ref,
+            secret_entry.spec,
+        ).execute(
+            ExecutionContext(
+                run_id="run",
+                node_id="secret",
+                workspace_id="workspace",
+                inputs={},
+                properties={
+                    "protected_value": envelope,
+                    "data_protection_scope": "Current user",
+                },
+                emit_log=lambda *_args: None,
+            )
+        ).outputs["secret_value"]
 
-    monkeypatch.setattr(ssh_sftp, callback_name, callback)
+        host_entry = prepared.get_entry("ssh_sftp.host")
+        assert isinstance(host_entry, PythonFunctionEntry)
+        host = runtime.create_adapter(
+            host_entry.function_ref,
+            host_entry.spec,
+        ).execute(
+            ExecutionContext(
+                run_id="run",
+                node_id="host",
+                workspace_id="workspace",
+                inputs={
+                    "address": "host",
+                    "username": "user",
+                    "password": secret,
+                    "port": 22,
+                    "use_openssh_agent": False,
+                    "use_pageant": False,
+                },
+                properties={
+                    "port": 22,
+                    "use_openssh_agent": False,
+                    "use_pageant": False,
+                },
+                emit_log=lambda *_args: None,
+            )
+        ).outputs["host"]
+    finally:
+        runtime.clear()
 
-    assert descriptor.factory().execute(context) is expected
-    assert seen == [context]
+    assert host["address"] == "host"
+    assert host["password"] == secret
+
+
+def test_ssh_value_construction_is_spawn_safe_and_paramiko_free() -> None:
+    context = multiprocessing.get_context("spawn")
+    queue = context.Queue()
+    process = context.Process(target=_spawn_value_construction, args=(queue,))
+    process.start()
+    process.join(timeout=15.0)
+
+    assert process.exitcode == 0
+    secret, host, paramiko_loaded = queue.get(timeout=1.0)
+    assert secret["__ea_runtime_value__"] == "secret_data"
+    assert host["__ea_runtime_value__"] == "ssh_sftp_host_data"
+    assert paramiko_loaded is False
+
+
+def test_ssh_catalogue_and_source_import_without_paramiko() -> None:
+    script = r'''
+import importlib.abc
+import sys
+
+class BlockParamiko(importlib.abc.MetaPathFinder):
+    def find_spec(self, fullname, path=None, target=None):
+        if fullname == "paramiko" or fullname.startswith("paramiko."):
+            raise AssertionError("Paramiko imported during SSH catalogue bootstrap")
+        return None
+
+sys.meta_path.insert(0, BlockParamiko())
+from ea_node_editor.nodes.builtin_functions.integrations_ssh_sftp import SOURCE
+from ea_node_editor.nodes.builtins.integrations_ssh_sftp import SSH_SFTP_DATA_TYPES
+assert len(SSH_SFTP_DATA_TYPES) == 2
+assert "ssh_sftp.run_command" in SOURCE
+'''
+    completed = subprocess.run(
+        [sys.executable, "-c", script],
+        capture_output=True,
+        text=True,
+        timeout=15.0,
+        check=False,
+    )
+    assert completed.returncode == 0, completed.stderr

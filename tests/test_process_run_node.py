@@ -23,13 +23,13 @@ from ea_node_editor.graph.model import GraphModel
 from ea_node_editor.nodes.bootstrap import build_default_registry
 from ea_node_editor.nodes.builtins.integrations_process import (
     PROCESS_OUTPUT_MODE_STORED,
-    ProcessRunNodePlugin,
     _discard_stored_transcripts,
-    normalize_args,
-    normalize_env,
+    execute_process_run,
 )
 from ea_node_editor.nodes.builtins.process_subprocess_policy import (
     ExternalSubprocessPolicy,
+    normalize_args,
+    normalize_env,
 )
 from ea_node_editor.nodes.output_artifacts import (
     allocate_managed_output,
@@ -77,7 +77,7 @@ def _context(
 
 class ProcessRunNodeTests(unittest.TestCase):
     def test_process_run_declares_typed_property_defaults(self) -> None:
-        spec = ProcessRunNodePlugin().spec()
+        spec = build_default_registry().get_spec("io.process_run")
         ports = {port.key: port for port in spec.ports}
         properties = {prop.key: prop for prop in spec.properties}
 
@@ -134,8 +134,8 @@ class ProcessRunNodeTests(unittest.TestCase):
         )
 
     def test_process_run_node_success_path(self) -> None:
-        plugin = ProcessRunNodePlugin()
-        result = plugin.execute(
+        plugin = execute_process_run
+        result = plugin(
             _context(
                 inputs={
                     "command": sys.executable,
@@ -160,13 +160,13 @@ class ProcessRunNodeTests(unittest.TestCase):
         self.assertIsInstance(result.outputs["stderr"], str)
 
     def test_process_run_node_applies_policy_env_and_stdin(self) -> None:
-        plugin = ProcessRunNodePlugin()
+        plugin = execute_process_run
         script = (
             "import os, sys\n"
             "print(os.environ.get('EA_PROCESS_POLICY_TEST', ''))\n"
             "print(sys.stdin.read())\n"
         )
-        result = plugin.execute(
+        result = plugin(
             _context(
                 inputs={
                     "command": sys.executable,
@@ -197,7 +197,7 @@ class ProcessRunNodeTests(unittest.TestCase):
     def test_process_run_node_stored_mode_emits_runtime_artifact_refs_and_stages_transcripts(
         self,
     ) -> None:
-        plugin = ProcessRunNodePlugin()
+        plugin = execute_process_run
         stdout_chars = 275_000
         stderr_text = "warn-line-0\nwarn-line-1\n"
 
@@ -244,7 +244,7 @@ class ProcessRunNodeTests(unittest.TestCase):
                 "register_staged_path_artifact",
                 side_effect=register_final_transcript,
             ):
-                result = plugin.execute(
+                result = plugin(
                     _context(
                         inputs={
                             "command": sys.executable,
@@ -481,7 +481,7 @@ class ProcessRunNodeTests(unittest.TestCase):
     def test_unsaved_process_run_replaces_transcripts_in_place_on_rerun(
         self,
     ) -> None:
-        plugin = ProcessRunNodePlugin()
+        plugin = execute_process_run
         run_payloads = (
             ("first stdout payload", "first stderr payload"),
             ("replacement stdout payload", "replacement stderr payload"),
@@ -588,7 +588,7 @@ class ProcessRunNodeTests(unittest.TestCase):
                             ]
                         ),
                     }
-                    result = plugin.execute(ctx)
+                    result = plugin(ctx)
                     refs = {
                         "stdout": result.outputs["stdout"],
                         "stderr": result.outputs["stderr"],
@@ -713,7 +713,7 @@ class ProcessRunNodeTests(unittest.TestCase):
     def test_process_run_second_transcript_open_failure_cleans_setup(
         self,
     ) -> None:
-        plugin = ProcessRunNodePlugin()
+        plugin = execute_process_run
 
         with tempfile.TemporaryDirectory() as temp_dir:
             project_path = Path(temp_dir) / "process_open_failure.cxproj"
@@ -770,7 +770,7 @@ class ProcessRunNodeTests(unittest.TestCase):
                     "forced transcript open failure",
                 ) as caught,
             ):
-                plugin.execute(
+                plugin(
                     _context(
                         inputs={
                             "command": sys.executable,
@@ -817,7 +817,7 @@ class ProcessRunNodeTests(unittest.TestCase):
     def test_process_cleanup_preserves_primary_failure_when_discard_is_rejected(
         self,
     ) -> None:
-        plugin = ProcessRunNodePlugin()
+        plugin = execute_process_run
 
         with tempfile.TemporaryDirectory() as temp_dir:
             project_path = Path(temp_dir) / "process_cleanup_failure.cxproj"
@@ -991,7 +991,7 @@ class ProcessRunNodeTests(unittest.TestCase):
                 ),
                 self.assertRaises(RuntimeError) as primary_caught,
             ):
-                plugin.execute(
+                plugin(
                     _context(
                         inputs={
                             "command": sys.executable,
@@ -1040,7 +1040,7 @@ class ProcessRunNodeTests(unittest.TestCase):
     def test_process_run_node_stored_mode_nonzero_discards_staged_artifact_state(
         self,
     ) -> None:
-        plugin = ProcessRunNodePlugin()
+        plugin = execute_process_run
 
         with tempfile.TemporaryDirectory() as temp_dir:
             project_path = Path(temp_dir) / "process_run_failure.cxproj"
@@ -1064,7 +1064,7 @@ class ProcessRunNodeTests(unittest.TestCase):
             )
 
             with self.assertRaises(RuntimeError) as error:
-                plugin.execute(
+                plugin(
                     _context(
                         inputs={
                             "command": sys.executable,
@@ -1133,7 +1133,7 @@ class ProcessRunNodeTests(unittest.TestCase):
     def test_process_run_node_stored_mode_cancellation_discards_targets(
         self,
     ) -> None:
-        plugin = ProcessRunNodePlugin()
+        plugin = execute_process_run
 
         with tempfile.TemporaryDirectory() as temp_dir:
             project_path = Path(temp_dir) / "process_run_cancel.cxproj"
@@ -1160,7 +1160,7 @@ class ProcessRunNodeTests(unittest.TestCase):
                 InterruptedError,
                 "run_stop_requested",
             ) as caught:
-                plugin.execute(
+                plugin(
                     _context(
                         inputs={
                             "command": sys.executable,
@@ -1200,10 +1200,10 @@ class ProcessRunNodeTests(unittest.TestCase):
             )
 
     def test_process_run_node_nonzero_timeout_and_invalid_cwd(self) -> None:
-        plugin = ProcessRunNodePlugin()
+        plugin = execute_process_run
 
         with self.assertRaises(RuntimeError):
-            plugin.execute(
+            plugin(
                 _context(
                     inputs={
                         "command": sys.executable,
@@ -1222,7 +1222,7 @@ class ProcessRunNodeTests(unittest.TestCase):
             )
 
         with self.assertRaises(TimeoutError):
-            plugin.execute(
+            plugin(
                 _context(
                     inputs={
                         "command": sys.executable,
@@ -1241,7 +1241,7 @@ class ProcessRunNodeTests(unittest.TestCase):
             )
 
         with self.assertRaises(ValueError) as cwd_error:
-            plugin.execute(
+            plugin(
                 _context(
                     inputs={
                         "command": sys.executable,
@@ -1255,7 +1255,7 @@ class ProcessRunNodeTests(unittest.TestCase):
         self.assertIn("working directory", str(cwd_error.exception).lower())
 
     def test_process_run_node_streams_stdout_and_stderr_logs(self) -> None:
-        plugin = ProcessRunNodePlugin()
+        plugin = execute_process_run
         stream_logs: list[tuple[str, str]] = []
         script = (
             "import sys, time\n"
@@ -1265,7 +1265,7 @@ class ProcessRunNodeTests(unittest.TestCase):
             "time.sleep(0.15)\n"
             "print('tick_1', flush=True)\n"
         )
-        result = plugin.execute(
+        result = plugin(
             _context(
                 inputs={
                     "command": sys.executable,
@@ -1354,6 +1354,10 @@ class ProcessRunNodeTests(unittest.TestCase):
                         "workspace_id": workspace.workspace_id,
                         "runtime_snapshot": runtime_snapshot,
                         "trigger": {},
+                        "plugin_bundles": registry.plugin_bundle_refs(),
+                        "plugin_fingerprint": registry.plugin_fingerprint(),
+                        "registry_contract_fingerprint": registry.contract_fingerprint(),
+                        "addon_runtime_config": registry.addon_runtime_config(),
                     },
                     catalog=registry.data_types,
                 ),
@@ -1441,6 +1445,10 @@ class ProcessRunNodeTests(unittest.TestCase):
                         "workspace_id": workspace.workspace_id,
                         "runtime_snapshot": runtime_snapshot,
                         "trigger": {},
+                        "plugin_bundles": registry.plugin_bundle_refs(),
+                        "plugin_fingerprint": registry.plugin_fingerprint(),
+                        "registry_contract_fingerprint": registry.contract_fingerprint(),
+                        "addon_runtime_config": registry.addon_runtime_config(),
                     },
                     catalog=registry.data_types,
                 ),

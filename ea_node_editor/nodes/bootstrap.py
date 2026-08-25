@@ -17,12 +17,11 @@ from ea_node_editor.nodes.builtins.engineering_viewer import (
     ENGINEERING_VIEWER_NODE_DESCRIPTORS,
 )
 from ea_node_editor.nodes.builtins.excalidraw import EXCALIDRAW_NODE_DESCRIPTORS
-from ea_node_editor.nodes.builtins.integrations import INTEGRATION_NODE_DESCRIPTORS
+from ea_node_editor.nodes.builtins.integrations_file_io import FILE_IO_NODE_DESCRIPTORS
 from ea_node_editor.nodes.builtins.integrations_ssh_sftp import (
     SSH_SFTP_DATA_TYPE_FAMILIES,
     SSH_SFTP_DATA_TYPE_OWNER_ID,
     SSH_SFTP_DATA_TYPES,
-    SSH_SFTP_NODE_DESCRIPTORS,
 )
 from ea_node_editor.nodes.builtins.jupyter_notebook import (
     JUPYTER_NOTEBOOK_NODE_DESCRIPTORS,
@@ -143,13 +142,12 @@ from ea_node_editor.settings import plugin_generations_dir, plugins_dir
 BUILTIN_NODE_DESCRIPTORS = (
     *CORE_NODE_DESCRIPTORS,
     *DATA_CONTROL_NODE_DESCRIPTORS,
-    *INTEGRATION_NODE_DESCRIPTORS,
+    *FILE_IO_NODE_DESCRIPTORS,
     *ENGINEERING_IMPORT_NODE_DESCRIPTORS,
     *ENGINEERING_VIEWER_NODE_DESCRIPTORS,
     *COREX_AI_ML_VECTOR_DATABASE_NODE_DESCRIPTORS,
     *COREX_RICH_VALUE_NODE_DESCRIPTORS,
     *COREX_GEOMETRY_PRIMITIVE_NODE_DESCRIPTORS,
-    *SSH_SFTP_NODE_DESCRIPTORS,
     *MATH_INTERVAL_NODE_DESCRIPTORS,
     *COREX_SPATIAL_VALUES_TRANSFORM_NODE_DESCRIPTORS,
     *COREX_DECONSTRUCT_MESH_FACE_CANDIDATE_NODE_DESCRIPTORS,
@@ -304,7 +302,7 @@ def build_builtin_registry(*, generation_root: Path | None = None) -> NodeRegist
             data_type_families=SSH_SFTP_DATA_TYPE_FAMILIES,
             data_types=SSH_SFTP_DATA_TYPES,
         ),
-        SSH_SFTP_NODE_DESCRIPTORS,
+        (),
         owner_id=SSH_SFTP_DATA_TYPE_OWNER_ID,
         source_label="ea_node_editor.nodes.builtins.integrations_ssh_sftp",
     )
@@ -327,7 +325,6 @@ def build_builtin_registry(*, generation_root: Path | None = None) -> NodeRegist
             *COREX_VIEWER_VIEWPORT_NODE_DESCRIPTORS,
             *COREX_REPORTING_NODE_DESCRIPTORS,
             *COREX_WINDOWS_AUTHENTICATION_NODE_DESCRIPTORS,
-            *SSH_SFTP_NODE_DESCRIPTORS,
         )
     )
     registry.freeze()

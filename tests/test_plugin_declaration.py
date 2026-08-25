@@ -12,6 +12,7 @@ from ea_node_editor.nodes.plugin_declaration import (
     discover_plugin_declarations as _discover_plugin_declarations,
 )
 from ea_node_editor.nodes.function_plugin import INTERNAL_BUILTIN_FUNCTION_OWNER_ID
+from ea_node_editor.nodes.node_specs import PropertyConditionSpec
 from ea_node_editor.runtime_contracts import Interval1D
 
 
@@ -38,6 +39,14 @@ PUBLIC_EXPORTS = [
 
 def discover_plugin_declarations(source: str, **kwargs):
     return _discover_plugin_declarations("import corex\n" + source, **kwargs)
+
+
+def discover_internal(source: str):
+    return discover_plugin_declarations(
+        source,
+        allow_reserved_ids=True,
+        owner_id=INTERNAL_BUILTIN_FUNCTION_OWNER_ID,
+    )
 
 
 def test_corex_public_exports_and_runtime_decorators_are_exact() -> None:
@@ -594,10 +603,6 @@ def private(ctx, settings): return {{}}
             "corex.Interval",
         ),
         (
-            '@corex.text("value", _persistence_type=None)',
-            "Private decorator field '_persistence_type'",
-        ),
-        (
             '@corex.text("value", _section_order=0)',
             "requires a non-empty section",
         ),
@@ -653,6 +658,280 @@ def test_runtime_decorators_ignore_internal_control_fields() -> None:
         "ctx": "context",
         "settings": "settings",
     }
+
+
+def test_internal_file_and_process_metadata_preserve_exact_specs() -> None:
+    source = '''
+@corex.node(id="io.file_read", name="File Read", category=("Input / Output",))
+@corex.path(
+    "path", default="", label="File Path", file_filter="Text files (*.txt)", port=True,
+    _port_label="", _port_required=True, _port_description="File path.",
+)
+@corex.output("text", value_type=str, description="UTF-8 text.")
+def file_read(ctx, settings): return {"text": ""}
+
+@corex.node(id="io.process_run", name="Process Run", category=("Input / Output",))
+@corex.text(
+    "command", label="Command", port=True, _port_required=True,
+    _port_structure="tree", _port_description="Command to run.",
+)
+@corex.text(
+    "args", _property_type="json", _property_default=[], _inline_editor="",
+    port=True, _port_value_type="COREX.DataTypes.StringList", _port_structure="tree",
+)
+@corex.text(
+    "env", _property_type="json", _property_default={}, _inline_editor="",
+)
+@corex.output("exit_code", value_type=int)
+def process_run(ctx, settings): return {"exit_code": 0}
+'''
+
+    file_read, process_run = discover_internal(source)
+    assert [port.key for port in file_read.spec.ports] == ["path", "text"]
+    assert [prop.key for prop in file_read.spec.properties] == ["path"]
+    assert file_read.spec.ports[0].required is True
+    assert file_read.spec.ports[0].label == ""
+    assert file_read.spec.ports[0].uses_property_default is True
+
+    assert [port.key for port in process_run.spec.ports] == [
+        "command",
+        "args",
+        "exit_code",
+    ]
+    assert [prop.key for prop in process_run.spec.properties] == [
+        "command",
+        "args",
+        "env",
+    ]
+    command, args, _exit_code = process_run.spec.ports
+    assert (command.required, command.data_access) == (True, "tree")
+    assert (args.data_type, args.data_access) == (
+        "COREX.DataTypes.StringList",
+        "tree",
+    )
+    assert process_run.spec.properties[1].type == "json"
+    assert process_run.spec.properties[1].default == []
+    assert process_run.spec.properties[1].inline_editor == ""
+    assert process_run.spec.properties[2].default == {}
+
+
+def test_internal_email_readiness_and_ssh_security_metadata_are_typed() -> None:
+    source = '''
+@corex.node(
+    id="io.email_send", name="Email Send", category=("Input / Output",),
+    _readiness_requirements=(
+        {"any_of_properties": ("smtp_host",)},
+        {"any_of_properties": ("sender",)},
+        {"any_of_properties": ("to",)},
+        {
+            "any_of_properties": ("password",),
+            "when_properties": ({"property_key": "username"},),
+        },
+    ),
+)
+@corex.text("smtp_host", default="localhost", label="SMTP Host")
+@corex.text("sender", label="Sender")
+@corex.text("to", label="To")
+@corex.text("username", label="Username")
+@corex.text("password", label="Password")
+@corex.output("sent", value_type=bool)
+def email_send(ctx, settings): return {"sent": True}
+
+@corex.node(id="ssh_sftp.secret", name="Secret", category=("Control", "SSH/SFTP"))
+@corex.text(
+    "protected_value", label="Value", _property_type="json", _property_default={},
+    _inline_editor="secret", _inspector_editor="secret", _sensitive=True,
+    _sensitive_scope_key="data_protection_scope",
+)
+@corex.dropdown(
+    "data_protection_scope", default="Current user",
+    options=("Current user", "All users on this machine"),
+    label="Data Protection Scope", _inspector_editor="enum",
+)
+@corex.output(
+    "secret_value", value_type="SSH_SFTP_Connector.Nodes.Control.SSH_SFTP.SecretData",
+)
+def secret(ctx, settings): return {"secret_value": {}}
+
+@corex.node(id="ssh_sftp.host", name="SSH Host", category=("Control", "SSH/SFTP"))
+@corex.input(
+    "private_key_path", value_type=str,
+    _accepted_data_types=("COREX.DataTypes.String", "COREX.DataTypes.Path"),
+)
+@corex.output("host", value_type="SSH_SFTP_Connector.Nodes.Control.SSH_SFTP.SshSftpHostData")
+def host(ctx, private_key_path): return {"host": {}}
+'''
+
+    email, secret, host = discover_internal(source)
+    assert [requirement.any_of_properties for requirement in email.spec.readiness_requirements] == [
+        ("smtp_host",),
+        ("sender",),
+        ("to",),
+        ("password",),
+    ]
+    assert email.spec.readiness_requirements[-1].when_properties[0] == (
+        PropertyConditionSpec("username")
+    )
+    protected_value = secret.spec.properties[0]
+    assert (
+        protected_value.type,
+        protected_value.default,
+        protected_value.inline_editor,
+        protected_value.inspector_editor,
+        protected_value.sensitive,
+        protected_value.sensitive_scope_key,
+    ) == ("json", {}, "secret", "secret", True, "data_protection_scope")
+    assert host.spec.ports[0].accepted_data_types == (
+        "COREX.DataTypes.String",
+        "COREX.DataTypes.Path",
+    )
+
+
+@pytest.mark.parametrize(
+    ("private_field", "value"),
+    (
+        ("_port_required", "True"),
+        ("_port_label", '""'),
+        ("_port_structure", '"tree"'),
+        ("_port_value_type", '"COREX.DataTypes.Any"'),
+        ("_port_accepted_data_types", '("COREX.DataTypes.Any",)'),
+        ("_property_type", '"json"'),
+        ("_property_default", "{}"),
+        ("_inline_editor", '"secret"'),
+        ("_inspector_editor", '"secret"'),
+        ("_sensitive", "True"),
+        ("_sensitive_scope_key", '"scope"'),
+    ),
+)
+def test_external_plugins_reject_all_t12_private_control_fields(
+    private_field: str,
+    value: str,
+) -> None:
+    source = f'''
+@corex.node(id="custom.private_t12.1234abcd", name="Private", category=("Tests",))
+@corex.text("value", {private_field}={value})
+def private_t12(ctx, settings): return {{}}
+'''
+    with pytest.raises(PluginDeclarationError, match="reserved for internal built-ins"):
+        discover_plugin_declarations(source)
+
+
+@pytest.mark.parametrize(
+    "decorator",
+    (
+        '@corex.input("value", _accepted_data_types=("COREX.DataTypes.Any",))',
+        '@corex.node(id="custom.private_node.1234abcd", name="Private", category=("Tests",), _readiness_requirements=())',
+    ),
+)
+def test_external_plugins_reject_t12_private_input_and_node_fields(
+    decorator: str,
+) -> None:
+    if decorator.startswith("@corex.node"):
+        source = f"{decorator}\ndef private_node(ctx): return {{}}"
+    else:
+        source = f'''
+@corex.node(id="custom.private_input.1234abcd", name="Private", category=("Tests",))
+{decorator}
+def private_input(ctx, value): return {{}}
+'''
+    with pytest.raises(PluginDeclarationError, match="reserved for internal built-ins"):
+        discover_plugin_declarations(source)
+
+
+@pytest.mark.parametrize(
+    ("decorator", "message"),
+    (
+        ('@corex.input("value", _accepted_data_types="Bad")', "tuple or list"),
+        (
+            '@corex.input("value", _accepted_data_types=("Type.One", "Type.One"))',
+            "duplicates",
+        ),
+        (
+            '@corex.text("value", port=True, _port_structure="branch")',
+            "item.*list.*tree",
+        ),
+        ('@corex.text("value", _property_type="object")', "_property_type"),
+        ('@corex.text("value", _inline_editor="wizard")', "_inline_editor"),
+        ('@corex.text("value", _sensitive=True)', "type json.*secret editor"),
+        (
+            '@corex.text("value", _sensitive_scope_key="scope")',
+            "requires _sensitive=True",
+        ),
+    ),
+)
+def test_internal_t12_metadata_rejects_bad_values(
+    decorator: str,
+    message: str,
+) -> None:
+    source = f'''
+@corex.node(id="io.private_validation", name="Private", category=("Tests",))
+{decorator}
+def private_validation(ctx, value): return {{}}
+'''
+    if "@corex.text" in decorator:
+        source = source.replace("ctx, value", "ctx, settings")
+    with pytest.raises(PluginDeclarationError, match=message):
+        discover_internal(source)
+
+
+@pytest.mark.parametrize(
+    ("readiness", "message"),
+    (
+        ('{"any_of_properties": ("missing",)}', "unknown property"),
+        ('{"when_properties": ()}', "at least one target"),
+        ('{"any_of_properties": ("value",), "unsupported": ()}', "supported fields"),
+        (
+            '{"any_of_properties": ("value",), "when_properties": '
+            '({"property_key": "missing"},)}',
+            "unknown property",
+        ),
+    ),
+)
+def test_internal_readiness_rejects_unknown_or_malformed_literals(
+    readiness: str,
+    message: str,
+) -> None:
+    source = f'''
+@corex.node(
+    id="io.readiness_validation", name="Private", category=("Tests",),
+    _readiness_requirements=({readiness},),
+)
+@corex.text("value")
+def readiness_validation(ctx, settings): return {{}}
+'''
+    with pytest.raises(PluginDeclarationError, match=message):
+        discover_internal(source)
+
+
+def test_runtime_private_metadata_accepts_known_fields_and_rejects_unknown() -> None:
+    @corex.node(
+        id="io.runtime_private",
+        name="Runtime",
+        category=("Tests",),
+        _readiness_requirements=(),
+    )
+    @corex.input("path", _accepted_data_types=("COREX.DataTypes.Path",))
+    @corex.text(
+        "value",
+        _property_type="json",
+        _property_default={},
+        _inline_editor="secret",
+        _inspector_editor="secret",
+        _sensitive=True,
+        _sensitive_scope_key="scope",
+        port=True,
+        _port_required=True,
+        _port_label="",
+        _port_structure="tree",
+        _port_value_type="COREX.DataTypes.Any",
+        _port_accepted_data_types=("COREX.DataTypes.String",),
+    )
+    def runtime_private(ctx, path, settings):  # noqa: ANN001
+        return ctx, path, settings
+
+    assert runtime_private(1, 2, 3) == (1, 2, 3)
+    with pytest.raises(TypeError, match="Unsupported private decorator field"):
+        corex.text("value", _unknown_private=True)
 
 
 def test_source_and_decorator_counts_are_bounded() -> None:

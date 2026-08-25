@@ -6,14 +6,18 @@ from ea_node_editor.nodes.execution_context import ExecutionContext, NodeInputNo
 
 
 def pick_optional_path(ctx: ExecutionContext, *, input_key: str, property_key: str) -> Path | None:
-    for candidate in (ctx.inputs.get(input_key), ctx.properties.get(property_key)):
-        if candidate is None:
-            continue
-        text = str(candidate).strip()
-        if text:
-            resolved_path = ctx.resolve_path_value(candidate)
-            return resolved_path if resolved_path is not None else Path(text)
-    return None
+    candidate = (
+        ctx.inputs[input_key]
+        if input_key in ctx.inputs
+        else ctx.properties.get(property_key)
+    )
+    if candidate is None:
+        return None
+    text = str(candidate).strip()
+    if not text:
+        return None
+    resolved_path = ctx.resolve_path_value(candidate)
+    return resolved_path if resolved_path is not None else Path(text)
 
 
 def pick_path(ctx: ExecutionContext, *, input_key: str, property_key: str, node_name: str) -> Path:

@@ -17,7 +17,9 @@ from ea_node_editor.nodes.function_plugin import INTERNAL_BUILTIN_FUNCTION_OWNER
 from ea_node_editor.nodes.node_specs import (
     NodeTypeSpec,
     PortSpec,
+    PropertyConditionSpec,
     PropertySpec,
+    ReadinessRequirementSpec,
     SettingsGroupItemSpec,
     SettingsGroupSpec,
 )
@@ -29,6 +31,7 @@ _CUSTOM_TYPE_ID = re.compile(
 _NODE_FIELDS = frozenset(
     {"id", "name", "category", "description", "keywords", "icon"}
 )
+_INTERNAL_NODE_FIELDS = _NODE_FIELDS | {"_readiness_requirements"}
 _REQUIRED_NODE_FIELDS = frozenset({"id", "name", "category"})
 _RESERVED_DECLARATION_NAMES = frozenset(
     {"ctx", "settings", "to_dict", "corex", "__builtins__"}
@@ -225,7 +228,13 @@ def _node_metadata(
     for keyword_node in decorator.keywords:
         if keyword_node.arg is None:
             raise fail(keyword_node.value, "@corex.node keyword unpacking is not allowed")
-        if keyword_node.arg not in _NODE_FIELDS:
+        allowed_fields = _INTERNAL_NODE_FIELDS if allow_reserved_ids else _NODE_FIELDS
+        if keyword_node.arg not in allowed_fields:
+            if keyword_node.arg.startswith("_"):
+                raise fail(
+                    keyword_node.value,
+                    f"Private decorator field {keyword_node.arg!r} is reserved for internal built-ins",
+                )
             raise fail(
                 keyword_node.value,
                 f"@corex.node does not accept {keyword_node.arg!r}",
@@ -297,7 +306,158 @@ def _node_metadata(
         "description": description,
         "keywords": tuple(keywords),
         "icon": icon,
+        "readiness_requirements": values.get("_readiness_requirements", ()),
     }
+
+
+def _key_tuple(value: Any, *, field: str, fail, node: ast.AST) -> tuple[str, ...]:
+    if not isinstance(value, (list, tuple)):
+        raise fail(node, f"{field} must be a tuple or list literal")
+    if len(value) > 32:
+        raise fail(node, f"{field} contains too many keys")
+    keys: list[str] = []
+    for key in value:
+        if not isinstance(key, str) or not key.isidentifier() or key.startswith("_"):
+            raise fail(node, f"{field} must contain public declaration keys")
+        if key in keys:
+            raise fail(node, f"{field} must not contain duplicates")
+        keys.append(key)
+    return tuple(keys)
+
+
+def _readiness_requirements(
+    value: Any,
+    *,
+    ports: tuple[PortSpec, ...],
+    properties: tuple[PropertySpec, ...],
+    fail,
+    node: ast.AST,
+) -> tuple[ReadinessRequirementSpec, ...]:
+    if not isinstance(value, (list, tuple)):
+        raise fail(node, "_readiness_requirements must be a tuple or list literal")
+    if len(value) > 32:
+        raise fail(node, "_readiness_requirements declares too many requirements")
+    port_by_key = {
+        port.key: port
+        for port in ports
+        if port.direction == "in" and port.kind == "data"
+    }
+    port_keys = port_by_key.keys()
+    property_by_key = {prop.key: prop for prop in properties}
+    requirements: list[ReadinessRequirementSpec] = []
+    allowed_requirement_fields = {
+        "any_of_ports",
+        "any_of_properties",
+        "when_ports_present",
+        "when_properties",
+    }
+    for raw in value:
+        if not isinstance(raw, dict) or not set(raw) <= allowed_requirement_fields:
+            raise fail(
+                node,
+                "Each readiness requirement must be a mapping with supported fields",
+            )
+        any_of_ports = _key_tuple(
+            raw.get("any_of_ports", ()), field="any_of_ports", fail=fail, node=node
+        )
+        any_of_properties = _key_tuple(
+            raw.get("any_of_properties", ()),
+            field="any_of_properties",
+            fail=fail,
+            node=node,
+        )
+        when_ports_present = _key_tuple(
+            raw.get("when_ports_present", ()),
+            field="when_ports_present",
+            fail=fail,
+            node=node,
+        )
+        if not any_of_ports and not any_of_properties:
+            raise fail(node, "Each readiness requirement must declare at least one target")
+        unknown_ports = (set(any_of_ports) | set(when_ports_present)) - port_keys
+        if unknown_ports:
+            raise fail(
+                node,
+                "Readiness requirement references unknown input port: "
+                + sorted(unknown_ports)[0],
+            )
+        if set(any_of_ports) & set(when_ports_present):
+            raise fail(node, "A readiness port cannot be both target and condition")
+        if any(port_by_key[key].required is True for key in any_of_ports):
+            raise fail(
+                node,
+                "A readiness target port cannot duplicate required=True",
+            )
+        unknown_properties = set(any_of_properties) - property_by_key.keys()
+        if unknown_properties:
+            raise fail(
+                node,
+                "Readiness requirement references unknown property: "
+                + sorted(unknown_properties)[0],
+            )
+        if set(any_of_ports) & set(any_of_properties):
+            raise fail(node, "Readiness target keys must be unambiguous")
+
+        raw_conditions = raw.get("when_properties", ())
+        if not isinstance(raw_conditions, (list, tuple)):
+            raise fail(node, "when_properties must be a tuple or list literal")
+        if len(raw_conditions) > 32:
+            raise fail(node, "when_properties declares too many conditions")
+        conditions: list[PropertyConditionSpec] = []
+        condition_keys: set[str] = set()
+        for raw_condition in raw_conditions:
+            if (
+                not isinstance(raw_condition, dict)
+                or not set(raw_condition) <= {"property_key", "values"}
+                or "property_key" not in raw_condition
+            ):
+                raise fail(
+                    node,
+                    "Each readiness property condition requires property_key and optional values",
+                )
+            property_key = raw_condition["property_key"]
+            if (
+                not isinstance(property_key, str)
+                or not property_key.isidentifier()
+                or property_key not in property_by_key
+            ):
+                raise fail(node, "Readiness condition references an unknown property")
+            if property_key in condition_keys:
+                raise fail(node, "Readiness conditions must use unique property keys")
+            raw_values = raw_condition.get("values", ())
+            if not isinstance(raw_values, (list, tuple)) or len(raw_values) > 32:
+                raise fail(node, "Readiness condition values must be a bounded tuple or list")
+            if any(
+                not isinstance(item, (str, int, float, bool)) and item is not None
+                for item in raw_values
+            ):
+                raise fail(node, "Readiness condition values must be scalar literals")
+            if len({repr(item) for item in raw_values}) != len(raw_values):
+                raise fail(node, "Readiness condition values must be unique")
+            conditions.append(PropertyConditionSpec(property_key, tuple(raw_values)))
+            condition_keys.add(property_key)
+        if set(any_of_properties) & condition_keys:
+            raise fail(node, "A readiness property cannot be both target and condition")
+        requirement = ReadinessRequirementSpec(
+            any_of_ports=any_of_ports,
+            any_of_properties=any_of_properties,
+            when_ports_present=when_ports_present,
+            when_properties=tuple(conditions),
+        )
+        if requirement in requirements:
+            raise fail(node, "Readiness requirements must not contain duplicates")
+        requirements.append(requirement)
+
+    for prop in properties:
+        if not prop.sensitive_scope_key:
+            continue
+        scope = property_by_key.get(prop.sensitive_scope_key)
+        if scope is None or scope.type != "enum":
+            raise fail(
+                node,
+                f"Sensitive property {prop.key!r} scope must reference an enum property",
+            )
+    return tuple(requirements)
 
 
 def _validate_settings_body(
@@ -392,14 +552,26 @@ def _parse_function(
             key, values, _nodes = _engine.call_values(
                 decorator,
                 name,
-                allowed={
-                    "value_type",
-                    "structure",
-                    "required",
-                    "label",
-                    "description",
-                    "section",
-                },
+                allowed=(
+                    {
+                        "value_type",
+                        "structure",
+                        "required",
+                        "label",
+                        "description",
+                        "section",
+                        "_accepted_data_types",
+                    }
+                    if allow_reserved_ids
+                    else {
+                        "value_type",
+                        "structure",
+                        "required",
+                        "label",
+                        "description",
+                        "section",
+                    }
+                ),
                 fail=fail,
                 constants=constants,
                 cache=cache,
@@ -409,15 +581,27 @@ def _parse_function(
             structure = _engine.string_value(values, "structure", "item")
             if structure not in {"item", "list", "tree"}:
                 raise fail(decorator, "structure must be 'item', 'list', or 'tree'")
-            port = _engine.port_spec(
-                key,
-                direction="in",
-                data_type=values.get("value_type", GRAPH_DATA_TYPE_ID),
-                label=_engine.label_value(key, values),
-                description=_engine.string_value(values, "description"),
-                required=_engine.bool_value(values, "required"),
-                data_access=structure,
-            )
+            try:
+                accepted_data_types = (
+                    _engine.type_id_tuple(
+                        values["_accepted_data_types"],
+                        field="_accepted_data_types",
+                    )
+                    if "_accepted_data_types" in values
+                    else ()
+                )
+                port = _engine.port_spec(
+                    key,
+                    direction="in",
+                    data_type=values.get("value_type", GRAPH_DATA_TYPE_ID),
+                    label=_engine.label_value(key, values),
+                    description=_engine.string_value(values, "description"),
+                    required=_engine.bool_value(values, "required"),
+                    data_access=structure,
+                    accepted_data_types=accepted_data_types,
+                )
+            except _engine.DeclarationValueError as exc:
+                raise fail(decorator, str(exc)) from exc
             prop = None
             section = _engine.string_value(values, "section")
             input_keys.append(key)
@@ -466,6 +650,16 @@ def _parse_function(
                 prop, data_type, accepted, data_access = _engine.control_spec(
                     name, key, values
                 )
+                if internal_builtin:
+                    prop, data_type, accepted, data_access = (
+                        _engine.apply_internal_control_overrides(
+                            prop,
+                            data_type,
+                            accepted,
+                            data_access,
+                            values,
+                        )
+                    )
             except (OverflowError, _engine.DeclarationValueError) as exc:
                 message = (
                     "Decorator numeric literal is outside the supported range"
@@ -480,23 +674,31 @@ def _parse_function(
                     decorator,
                     "_section_order requires a non-empty section",
                 )
-            if "_port_description" in values and not _engine.bool_value(
+            private_port_fields = {
+                "_port_accepted_data_types",
+                "_port_description",
+                "_port_label",
+                "_port_required",
+                "_port_structure",
+                "_port_value_type",
+            }
+            if private_port_fields & values.keys() and not _engine.bool_value(
                 values, "port"
             ):
                 raise fail(
                     decorator,
-                    "_port_description requires port=True",
+                    "Private port metadata requires port=True",
                 )
             port = (
                 _engine.port_spec(
                     key,
                     direction="in",
                     data_type=data_type,
-                    label=prop.label,
-                    description=_engine.string_value(
-                        values, "_port_description", prop.description
-                    ),
-                    required=False,
+                    label=str(values.get("_port_label", prop.label)).strip(),
+                    description=str(
+                        values.get("_port_description", prop.description)
+                    ).strip(),
+                    required=values.get("_port_required", False),
                     data_access=data_access,
                     uses_property_default=True,
                     accepted_data_types=accepted,
@@ -577,6 +779,13 @@ def _parse_function(
         for label, items in section_items.items()
     )
     is_async = isinstance(function, ast.AsyncFunctionDef)
+    readiness_requirements = _readiness_requirements(
+        metadata["readiness_requirements"],
+        ports=tuple(ports),
+        properties=tuple(properties),
+        fail=fail,
+        node=decorators[0],
+    )
     return PythonFunctionDeclaration(
         spec=NodeTypeSpec(
             type_id=metadata["type_id"],
@@ -589,6 +798,7 @@ def _parse_function(
             is_async=is_async,
             keywords=metadata["keywords"],
             settings_groups=settings_groups,
+            readiness_requirements=readiness_requirements,
         ),
         function_name=function.name,
         input_keys=tuple(input_keys),

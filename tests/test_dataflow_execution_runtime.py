@@ -17,7 +17,7 @@ from ea_node_editor.execution.worker import run_workflow
 from ea_node_editor.graph.model import GraphModel
 from ea_node_editor.graph.validated_mutation import ValidatedGraphMutation
 from ea_node_editor.nodes.bootstrap import build_default_registry
-from ea_node_editor.nodes.builtins.integrations_file_io import FileWriteNodePlugin
+from ea_node_editor.nodes.builtins.integrations_file_io import execute_file_write
 from ea_node_editor.nodes.decorators import node_type
 from ea_node_editor.nodes.types import (
     DynamicPortGroupSpec,
@@ -486,6 +486,10 @@ def _run(
                     "trigger_publications": trigger_publications or {},
                     "trigger_captures": trigger_captures or {},
                     "trigger": {},
+                    "plugin_bundles": registry.plugin_bundle_refs(),
+                    "plugin_fingerprint": registry.plugin_fingerprint(),
+                    "registry_contract_fingerprint": registry.contract_fingerprint(),
+                    "addon_runtime_config": registry.addon_runtime_config(),
                 },
                 catalog=registry.data_types,
             ),
@@ -650,18 +654,17 @@ def test_ordered_shift_fan_in_and_disabled_wire_exclusion() -> None:
 def test_side_effect_tree_input_invokes_once_and_preserves_single_item_behavior() -> (
     None
 ):
-    original_execute = FileWriteNodePlugin.execute
+    original_execute = execute_file_write
     received_inputs: list[object] = []
 
-    def counted_execute(plugin, ctx):  # noqa: ANN001
+    def counted_execute(ctx):  # noqa: ANN001
         received_inputs.append(ctx.inputs["text"])
-        return original_execute(plugin, ctx)
+        return original_execute(ctx)
 
     with (
         tempfile.TemporaryDirectory() as temp_dir,
-        mock.patch.object(
-            FileWriteNodePlugin,
-            "execute",
+        mock.patch(
+            "ea_node_editor.nodes.builtins.integrations_file_io.execute_file_write",
             counted_execute,
         ),
     ):

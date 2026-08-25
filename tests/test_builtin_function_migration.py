@@ -56,7 +56,27 @@ _T10_CONVERTED_TYPE_IDS = (
     "geometry.unchain_transforms",
 )
 _T11_CONVERTED_TYPE_IDS = ("plot.signal",)
-_CONVERTED_TYPE_IDS = (*_T10_CONVERTED_TYPE_IDS, *_T11_CONVERTED_TYPE_IDS)
+_T12_CONVERTED_TYPE_IDS = (
+    "io.email_send",
+    "io.excel_read",
+    "io.excel_write",
+    "io.file_read",
+    "io.file_write",
+    "io.image_export",
+    "io.image_import",
+    "io.process_run",
+    "ssh_sftp.download",
+    "ssh_sftp.host",
+    "ssh_sftp.run_command",
+    "ssh_sftp.run_script",
+    "ssh_sftp.secret",
+    "ssh_sftp.upload",
+)
+_CONVERTED_TYPE_IDS = (
+    *_T10_CONVERTED_TYPE_IDS,
+    *_T11_CONVERTED_TYPE_IDS,
+    *_T12_CONVERTED_TYPE_IDS,
+)
 _PRE_CUTOVER_CATALOG = (
     Path(__file__).parent
     / "fixtures"

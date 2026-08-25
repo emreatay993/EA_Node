@@ -31,6 +31,7 @@ implementation studies are intentionally excluded.
 - [Managed Artifacts And Project Data](feature_routes/managed_artifacts_project_data.md)
 - [Project Session Files And Managed Artifacts](feature_routes/project_session_files_managed_artifacts.md)
 - [Workspace Tabs, Library, And Context Menus](feature_routes/workspace_tabs_library_context_menus.md)
+- [Core Integrations: File, Process, Email, Spreadsheet](feature_routes/core_integrations_file_process_email_spreadsheet.md)
 - [SSH/SFTP Nodes](feature_routes/ssh_sftp_nodes.md)
 - [Performance Harness And Graph Stress](feature_routes/performance_harness_graph_stress.md)
 
@@ -60,6 +61,9 @@ implementation studies are intentionally excluded.
 - Simple built-in function migration is owned by `nodes/builtin_functions/` plus
   the exact retained helper/contract modules; the migration inventory and golden
   catalog distinguish these function entries from deferred trusted exceptions.
+- Core integrations contribute eight reserved function entries plus the trusted
+  Path Pointer and Folder Explorer exceptions. SSH/SFTP contributes six reserved
+  function entries, Paramiko-free value contracts, and a worker-lazy Paramiko runtime.
 - Geometry, spatial, mesh, FEM, voxel, security, reporting, media, and unit
   contracts use neutral COREX identifiers and functional module names.
 - Retired import and placeholder surfaces are absent from current ownership.

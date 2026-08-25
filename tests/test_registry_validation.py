@@ -73,31 +73,14 @@ from ea_node_editor.nodes.builtins.ansys_dpf_common import (
     DPF_RESULT_FIELD_OPERATOR_VARIANT_KEY,
     DPF_TIME_SELECTION_EXCLUSIVE_GROUP,
 )
-from ea_node_editor.nodes.builtins.core import CORE_NODE_DESCRIPTORS
 from ea_node_editor.nodes.builtins.icon_catalog import builtin_node_type
-from ea_node_editor.nodes.builtins.integrations import INTEGRATION_NODE_DESCRIPTORS
 from ea_node_editor.nodes.builtins.integrations_ssh_sftp import (
     SSH_SFTP_HOST_DATA_TYPE_ID,
-    SSH_SFTP_NODE_DESCRIPTORS,
     SSH_SFTP_SECRET_DATA_TYPE_ID,
 )
-from ea_node_editor.nodes.builtins.passive_annotation import (
-    PASSIVE_ANNOTATION_NODE_DESCRIPTORS,
-)
-from ea_node_editor.nodes.builtins.passive_flowchart import (
-    PASSIVE_FLOWCHART_NODE_DESCRIPTORS,
-)
-from ea_node_editor.nodes.builtins.passive_media import PASSIVE_MEDIA_NODE_DESCRIPTORS
-from ea_node_editor.nodes.builtins.passive_planning import (
-    PASSIVE_PLANNING_NODE_DESCRIPTORS,
-)
 from ea_node_editor.nodes.builtins.plot import PLOT_NODE_DESCRIPTORS, PLOT_NODE_TYPE_IDS
-from ea_node_editor.nodes.builtins.subnode import SUBNODE_NODE_DESCRIPTORS
 from ea_node_editor.nodes.builtins.fem_contracts import LOAD_STEP_DATA_TYPE_ID
-from ea_node_editor.nodes.builtins.web_viewer import (
-    WEB_PAGE_VIEWER_NODE_DESCRIPTORS,
-    WEB_PAGE_VIEWER_TYPE_ID,
-)
+from ea_node_editor.nodes.builtins.web_viewer import WEB_PAGE_VIEWER_TYPE_ID
 from ea_node_editor.nodes import (
     dpf_runtime_contracts,
     execution_context as node_execution_context,
@@ -2027,36 +2010,12 @@ class RegistryValidationTests(unittest.TestCase):
                 kind="gpu_magic",  # type: ignore[arg-type]
             )
 
-    def test_default_builtin_catalog_is_registered_from_descriptor_records(
-        self,
-    ) -> None:
-        descriptor_tables = (
-            CORE_NODE_DESCRIPTORS,
-            INTEGRATION_NODE_DESCRIPTORS,
-            SSH_SFTP_NODE_DESCRIPTORS,
-            PLOT_NODE_DESCRIPTORS,
-            SUBNODE_NODE_DESCRIPTORS,
-            PASSIVE_FLOWCHART_NODE_DESCRIPTORS,
-            PASSIVE_PLANNING_NODE_DESCRIPTORS,
-            PASSIVE_ANNOTATION_NODE_DESCRIPTORS,
-            PASSIVE_MEDIA_NODE_DESCRIPTORS,
-            WEB_PAGE_VIEWER_NODE_DESCRIPTORS,
-        )
-        descriptors = [
-            descriptor for table in descriptor_tables for descriptor in table
-        ]
+    def test_default_builtin_catalog_registers_all_current_specs(self) -> None:
+        registry = build_default_registry(include_public_plugins=False)
+        type_ids = {spec.type_id for spec in registry.all_specs()}
 
-        self.assertTrue(descriptors)
-        self.assertTrue(
-            all(isinstance(descriptor, PluginDescriptor) for descriptor in descriptors)
-        )
-        self.assertEqual(
-            len({descriptor.spec.type_id for descriptor in descriptors}),
-            len(descriptors),
-        )
-        type_ids = {descriptor.spec.type_id for descriptor in descriptors}
         self.assertTrue({"core.trigger", "core.stream_gate"}.issubset(type_ids))
-        self.assertNotIn("core.if", type_ids)
+        self.assertIn("core.if", type_ids)
         self.assertTrue(
             {
                 "ssh_sftp.secret",
@@ -2079,18 +2038,9 @@ class RegistryValidationTests(unittest.TestCase):
         self.assertTrue(
             {"hpc.submit", "hpc.monitor", "hpc.fetch_result"}.isdisjoint(type_ids)
         )
-        self.assertIn(
-            "io.path_pointer", {descriptor.spec.type_id for descriptor in descriptors}
-        )
-        self.assertTrue(
-            set(PLOT_NODE_TYPE_IDS).issubset(
-                {descriptor.spec.type_id for descriptor in descriptors}
-            )
-        )
-        self.assertIn(
-            WEB_PAGE_VIEWER_TYPE_ID,
-            {descriptor.spec.type_id for descriptor in descriptors},
-        )
+        self.assertIn("io.path_pointer", type_ids)
+        self.assertTrue(set(PLOT_NODE_TYPE_IDS).issubset(type_ids))
+        self.assertIn(WEB_PAGE_VIEWER_TYPE_ID, type_ids)
 
     def test_retired_active_hpc_module_is_removed(self) -> None:
         self.assertFalse(

@@ -14,6 +14,7 @@ import pytest
 from ea_node_editor.common.protected_values import protect_secret
 from ea_node_editor.execution.worker_runner import NodeExecutor, RunEventPublisher
 from ea_node_editor.nodes.builtins import ssh_sftp_runtime as runtime
+from ea_node_editor.nodes.builtins import ssh_sftp_values as values
 from ea_node_editor.nodes.execution_context import (
     ExecutionContext,
     NodeInputNotReadyError,
@@ -232,7 +233,7 @@ class _MemorySftp:
 @pytest.mark.skipif(os.name != "nt", reason="Windows DPAPI is required")
 def test_secret_and_host_values_are_tagged_and_process_safe() -> None:
     envelope = protect_secret("password", "Current user")
-    secret = runtime.compute_secret(
+    secret = values.compute_secret(
         _ctx(
             properties={
                 "protected_value": envelope,
@@ -248,7 +249,7 @@ def test_secret_and_host_values_are_tagged_and_process_safe() -> None:
         "scope": "CurrentUser",
         "ciphertext_b64": envelope["ciphertext_b64"],
     }
-    host = runtime.compute_host(
+    host = values.compute_host(
         _ctx(
             inputs={
                 "address": "host",
@@ -267,12 +268,12 @@ def test_secret_and_host_values_are_tagged_and_process_safe() -> None:
 
 def test_host_requires_a_coherent_authentication_source() -> None:
     with pytest.raises(NodeInputNotReadyError, match="password, private key"):
-        runtime.compute_host(
+        values.compute_host(
             _ctx(inputs={"address": "host", "username": "user", "port": 22})
         )
 
     with pytest.raises(ValueError, match="requires a Private key path"):
-        runtime.compute_host(
+        values.compute_host(
             _ctx(
                 inputs={
                     "address": "host",

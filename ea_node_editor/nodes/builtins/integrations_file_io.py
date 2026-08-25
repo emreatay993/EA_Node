@@ -15,31 +15,29 @@ from ea_node_editor.nodes.builtins.integrations_common import (
     require_existing_folder,
 )
 from ea_node_editor.nodes.decorators import plugin_descriptor
-from ea_node_editor.nodes.builtins.core_values import IMAGE_DATA_TYPE_ID
 from ea_node_editor.nodes.output_artifacts import write_managed_output
 from ea_node_editor.nodes.execution_context import NodeResult
-from ea_node_editor.nodes.file_dialog_filters import ALL_FILES_FILTER, TEXT_FILES_FILTER
+from ea_node_editor.nodes.file_dialog_filters import ALL_FILES_FILTER
 from ea_node_editor.nodes.node_specs import NodeTypeSpec, PortSpec, PropertySpec
 from ea_node_editor.platform_paths import default_user_desktop_path
 from ea_node_editor.runtime_contracts.data_tree import resolve_single_run_inputs
-from ea_node_editor.runtime_contracts import (
-    BOOLEAN_DATA_TYPE_ID,
-    IMAGE_VALUE_MAX_ENCODED_BYTES,
-    ImageValue,
-    PATH_DATA_TYPE_ID,
-)
-
-PNG_FILES_FILTER = "PNG Image (*.png)"
+from ea_node_editor.runtime_contracts import IMAGE_VALUE_MAX_ENCODED_BYTES, ImageValue
 
 
-def _write_file_payload(path: Path, *, inputs: dict[str, object], as_json: bool) -> None:
+def _write_file_payload(
+    path: Path, *, inputs: dict[str, object], as_json: bool
+) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     if as_json:
         payload = inputs["data"] if "data" in inputs else inputs.get("text", "")
         try:
-            serialized = json.dumps(payload, indent=2, sort_keys=True, ensure_ascii=True)
+            serialized = json.dumps(
+                payload, indent=2, sort_keys=True, ensure_ascii=True
+            )
         except TypeError as exc:
-            raise ValueError(f"File Write could not serialize payload as JSON: {exc}") from exc
+            raise ValueError(
+                f"File Write could not serialize payload as JSON: {exc}"
+            ) from exc
         path.write_text(serialized, encoding="utf-8")
         return
 
@@ -47,238 +45,92 @@ def _write_file_payload(path: Path, *, inputs: dict[str, object], as_json: bool)
     path.write_text("" if payload is None else str(payload), encoding="utf-8")
 
 
-class FileReadNodePlugin:
-    def spec(self) -> NodeTypeSpec:
-        return builtin_node_type_spec(
-            type_id="io.file_read",
-            display_name="File Read",
-            category_path=("Input / Output",),
-            description="Reads a UTF-8 text file into a string output.",
-            keywords=("file", "read", "text"),
-            ports=(
-                PortSpec(
-                    "path",
-                    "in",
-                    "data",
-                    'COREX.DataTypes.Path',
-                    required=True,
-                    uses_property_default=True,
-                    description="File path to read; overrides the configured File Path property when connected.",
-                ),
-                PortSpec(
-                    "text",
-                    "out",
-                    "data",
-                    'COREX.DataTypes.String',
-                    exposed=True,
-                    description="UTF-8 text read from the file.",
-                ),
-            ),
-            properties=(
-                PropertySpec(
-                    "path",
-                    "path",
-                    "",
-                    "File Path",
-                    file_filter=TEXT_FILES_FILTER,
-                ),
+def execute_file_read(ctx) -> NodeResult:  # noqa: ANN001
+    path = pick_path(ctx, input_key="path", property_key="path", node_name="File Read")
+    require_existing_file(path, node_name="File Read")
+    try:
+        text = path.read_text(encoding="utf-8")
+    except OSError as exc:
+        raise RuntimeError(f"File Read failed for '{path}': {exc}") from exc
+    return NodeResult(outputs={"text": text})
+
+
+def execute_file_write(ctx) -> NodeResult:  # noqa: ANN001
+    ctx.inputs = resolve_single_run_inputs(ctx.inputs, node_name="File Write")
+    as_json = bool(ctx.properties.get("as_json", False))
+    path = pick_optional_path(ctx, input_key="path", property_key="path")
+    if path is None:
+        write_result = write_managed_output(
+            ctx,
+            output_key="written_path",
+            default_suffix=".json" if as_json else ".txt",
+            write_payload=lambda output_path: _write_file_payload(
+                output_path,
+                inputs=ctx.inputs,
+                as_json=as_json,
             ),
         )
+        return NodeResult(outputs={"written_path": write_result.artifact_ref})
 
-    def execute(self, ctx) -> NodeResult:  # noqa: ANN001
-        path = pick_path(ctx, input_key="path", property_key="path", node_name="File Read")
-        require_existing_file(path, node_name="File Read")
-        try:
-            text = path.read_text(encoding="utf-8")
-        except OSError as exc:
-            raise RuntimeError(f"File Read failed for '{path}': {exc}") from exc
-        return NodeResult(outputs={"text": text})
+    if path.exists() and path.is_dir():
+        raise ValueError(f"File Write path must be a file, not a directory: {path}")
+
+    _write_file_payload(path, inputs=ctx.inputs, as_json=as_json)
+    return NodeResult(outputs={"written_path": str(path)})
 
 
-class FileWriteNodePlugin:
-    def spec(self) -> NodeTypeSpec:
-        return builtin_node_type_spec(
-            type_id="io.file_write",
-            display_name="File Write",
-            category_path=("Input / Output",),
-            description="Writes text or JSON-compatible data to a chosen or managed output file.",
-            keywords=("file", "write", "json"),
-            ports=(
-                PortSpec(
-                    "path",
-                    "in",
-                    "data",
-                    'COREX.DataTypes.Path',
-                    required=False,
-                    uses_property_default=True,
-                    data_access="tree",
-                    description="Optional output path; a managed output is created when empty.",
-                ),
-                PortSpec(
-                    "text",
-                    "in",
-                    "data",
-                    'COREX.DataTypes.String',
-                    required=False,
-                    data_access="tree",
-                    description="Text content to write when JSON serialization is disabled.",
-                ),
-                PortSpec(
-                    "data",
-                    "in",
-                    "data",
-                    'COREX.DataTypes.Any',
-                    required=False,
-                    data_access="tree",
-                    description="JSON-compatible value to serialize when JSON output is enabled.",
-                ),
-                PortSpec(
-                    "written_path",
-                    "out",
-                    "data",
-                    'COREX.DataTypes.Path',
-                    exposed=True,
-                    description="Path or managed artifact reference for the written file.",
-                ),
-            ),
-            properties=(
-                PropertySpec(
-                    "path",
-                    "path",
-                    "output.txt",
-                    "Output Path",
-                    file_filter=TEXT_FILES_FILTER,
-                ),
-                PropertySpec("as_json", "bool", False, "Serialize As JSON"),
-            ),
-        )
-
-    def execute(self, ctx) -> NodeResult:  # noqa: ANN001
-        ctx.inputs = resolve_single_run_inputs(ctx.inputs, node_name="File Write")
-        as_json = bool(ctx.properties.get("as_json", False))
-        path = pick_optional_path(ctx, input_key="path", property_key="path")
-        if path is None:
-            write_result = write_managed_output(
-                ctx,
-                output_key="written_path",
-                default_suffix=".json" if as_json else ".txt",
-                write_payload=lambda output_path: _write_file_payload(
-                    output_path,
-                    inputs=ctx.inputs,
-                    as_json=as_json,
-                ),
-            )
-            return NodeResult(outputs={"written_path": write_result.artifact_ref})
-
-        if path.exists() and path.is_dir():
-            raise ValueError(f"File Write path must be a file, not a directory: {path}")
-
-        _write_file_payload(path, inputs=ctx.inputs, as_json=as_json)
-        return NodeResult(outputs={"written_path": str(path)})
+def execute_image_export(ctx) -> NodeResult:  # noqa: ANN001
+    ctx.inputs = resolve_single_run_inputs(ctx.inputs, node_name="Export Image")
+    image = ctx.inputs.get("image")
+    if type(image) is not ImageValue:
+        raise ValueError("Export Image requires a COREX Image value")
+    path = pick_path(
+        ctx, input_key="path", property_key="path", node_name="Export Image"
+    )
+    if path.suffix.lower() != ".png":
+        raise ValueError("Export Image destination must use the .png extension")
+    if path.exists() and path.is_dir():
+        raise ValueError(f"Export Image path must be a file, not a directory: {path}")
+    overwrite = bool(ctx.inputs.get("overwrite", ctx.properties.get("overwrite", True)))
+    if path.exists() and not overwrite:
+        raise FileExistsError(f"Export Image destination already exists: {path}")
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fd, temporary = tempfile.mkstemp(
+        prefix=f".{path.name}.", suffix=".tmp", dir=path.parent
+    )
+    temporary_path = Path(temporary)
+    try:
+        with os.fdopen(fd, "wb") as stream:
+            stream.write(image.encoded_bytes)
+            stream.flush()
+            os.fsync(stream.fileno())
+        if overwrite:
+            os.replace(temporary_path, path)
+        else:
+            os.link(temporary_path, path)
+            temporary_path.unlink()
+    finally:
+        temporary_path.unlink(missing_ok=True)
+    return NodeResult(outputs={"written_path": str(path)})
 
 
-class ImageExportNodePlugin:
-    def spec(self) -> NodeTypeSpec:
-        return builtin_node_type_spec(
-            type_id="io.image_export",
-            display_name="Export Image",
-            category_path=("Input / Output",),
-            description="Writes an in-memory COREX Image to a PNG file.",
-            keywords=("image", "export", "png"),
-            ports=(
-                PortSpec("image", "in", "data", IMAGE_DATA_TYPE_ID, required=True, data_access="tree"),
-                PortSpec(
-                    "path",
-                    "in",
-                    "data",
-                    PATH_DATA_TYPE_ID,
-                    required=True,
-                    uses_property_default=True,
-                    data_access="tree",
-                ),
-                PortSpec(
-                    "overwrite",
-                    "in",
-                    "data",
-                    BOOLEAN_DATA_TYPE_ID,
-                    required=False,
-                    uses_property_default=True,
-                    data_access="tree",
-                ),
-                PortSpec("written_path", "out", "data", PATH_DATA_TYPE_ID, exposed=True),
-            ),
-            properties=(
-                PropertySpec("path", "path", "", "PNG Path", file_filter=PNG_FILES_FILTER),
-                PropertySpec("overwrite", "bool", True, "Overwrite"),
-            ),
-        )
-
-    def execute(self, ctx) -> NodeResult:  # noqa: ANN001
-        ctx.inputs = resolve_single_run_inputs(ctx.inputs, node_name="Export Image")
-        image = ctx.inputs.get("image")
-        if type(image) is not ImageValue:
-            raise ValueError("Export Image requires a COREX Image value")
-        path = pick_path(ctx, input_key="path", property_key="path", node_name="Export Image")
-        if path.suffix.lower() != ".png":
-            raise ValueError("Export Image destination must use the .png extension")
-        if path.exists() and path.is_dir():
-            raise ValueError(f"Export Image path must be a file, not a directory: {path}")
-        overwrite = bool(ctx.inputs.get("overwrite", ctx.properties.get("overwrite", True)))
-        if path.exists() and not overwrite:
-            raise FileExistsError(f"Export Image destination already exists: {path}")
-        path.parent.mkdir(parents=True, exist_ok=True)
-        fd, temporary = tempfile.mkstemp(prefix=f".{path.name}.", suffix=".tmp", dir=path.parent)
-        temporary_path = Path(temporary)
-        try:
-            with os.fdopen(fd, "wb") as stream:
-                stream.write(image.encoded_bytes)
-                stream.flush()
-                os.fsync(stream.fileno())
-            if overwrite:
-                os.replace(temporary_path, path)
-            else:
-                os.link(temporary_path, path)
-                temporary_path.unlink()
-        finally:
-            temporary_path.unlink(missing_ok=True)
-        return NodeResult(outputs={"written_path": str(path)})
-
-
-class ImageImportNodePlugin:
-    def spec(self) -> NodeTypeSpec:
-        return builtin_node_type_spec(
-            type_id="io.image_import",
-            display_name="Import Image",
-            category_path=("Input / Output",),
-            description="Loads a validated PNG file into an in-memory COREX Image.",
-            keywords=("image", "import", "png"),
-            ports=(
-                PortSpec(
-                    "path", "in", "data", PATH_DATA_TYPE_ID,
-                    required=True, uses_property_default=True,
-                ),
-                PortSpec("image", "out", "data", IMAGE_DATA_TYPE_ID, exposed=True),
-            ),
-            properties=(
-                PropertySpec("path", "path", "", "PNG Path", file_filter=PNG_FILES_FILTER),
-            ),
-        )
-
-    def execute(self, ctx) -> NodeResult:  # noqa: ANN001
-        ctx.inputs = resolve_single_run_inputs(ctx.inputs, node_name="Import Image")
-        path = pick_path(ctx, input_key="path", property_key="path", node_name="Import Image")
-        require_existing_file(path, node_name="Import Image")
-        if path.suffix.lower() != ".png":
-            raise ValueError("Import Image source must use the .png extension")
-        try:
-            with path.open("rb") as stream:
-                payload = stream.read(IMAGE_VALUE_MAX_ENCODED_BYTES + 1)
-        except OSError as exc:
-            raise RuntimeError(f"Import Image failed for '{path}': {exc}") from exc
-        if len(payload) > IMAGE_VALUE_MAX_ENCODED_BYTES:
-            raise ValueError("Import Image source exceeds the 64 MiB encoded-byte limit")
-        image = ImageValue.from_png(payload)
-        return NodeResult(outputs={"image": image})
+def execute_image_import(ctx) -> NodeResult:  # noqa: ANN001
+    ctx.inputs = resolve_single_run_inputs(ctx.inputs, node_name="Import Image")
+    path = pick_path(
+        ctx, input_key="path", property_key="path", node_name="Import Image"
+    )
+    require_existing_file(path, node_name="Import Image")
+    if path.suffix.lower() != ".png":
+        raise ValueError("Import Image source must use the .png extension")
+    try:
+        with path.open("rb") as stream:
+            payload = stream.read(IMAGE_VALUE_MAX_ENCODED_BYTES + 1)
+    except OSError as exc:
+        raise RuntimeError(f"Import Image failed for '{path}': {exc}") from exc
+    if len(payload) > IMAGE_VALUE_MAX_ENCODED_BYTES:
+        raise ValueError("Import Image source exceeds the 64 MiB encoded-byte limit")
+    image = ImageValue.from_png(payload)
+    return NodeResult(outputs={"image": image})
 
 
 class PathPointerNodePlugin:
@@ -318,7 +170,7 @@ class PathPointerNodePlugin:
                     "path",
                     "out",
                     "data",
-                    'COREX.DataTypes.Path',
+                    "COREX.DataTypes.Path",
                     exposed=True,
                     description="Configured file or folder path.",
                 ),
@@ -326,7 +178,7 @@ class PathPointerNodePlugin:
                     "exists",
                     "out",
                     "data",
-                    'COREX.DataTypes.Bool',
+                    "COREX.DataTypes.Bool",
                     exposed=True,
                     description="True when the configured path exists and matches the selected mode.",
                 ),
@@ -389,7 +241,9 @@ class PathPointerNodePlugin:
             return NodeResult(outputs={"path": "", "exists": False})
 
         exists = path.exists()
-        type_ok = (path.is_file() if mode == "file" else path.is_dir()) if exists else False
+        type_ok = (
+            (path.is_file() if mode == "file" else path.is_dir()) if exists else False
+        )
 
         if must_exist:
             if not exists:
@@ -425,7 +279,7 @@ class FolderExplorerNodePlugin:
                     "current",
                     "out",
                     "data",
-                    'COREX.DataTypes.Path',
+                    "COREX.DataTypes.Path",
                     exposed=True,
                     description="Current folder selected in the Explorer-style surface.",
                 ),
@@ -489,7 +343,9 @@ _FOLDER_EXPLORER_DEFAULT_WIDTH_PX = 620.0
 _FOLDER_EXPLORER_DEFAULT_HEIGHT_PX = 420.0
 
 
-def _path_pointer_node_size(node, _spec, *, base_width: float, base_height: float) -> tuple[float, float]:
+def _path_pointer_node_size(
+    node, _spec, *, base_width: float, base_height: float
+) -> tuple[float, float]:
     """Width override for the ``io.path_pointer`` node.
 
     When ``show_full_path`` is ``True``, return a width large enough to show
@@ -516,7 +372,9 @@ def _path_pointer_node_size(node, _spec, *, base_width: float, base_height: floa
 register_node_type_size_resolver("io.path_pointer", _path_pointer_node_size)
 
 
-def _folder_explorer_node_size(node, _spec, *, base_width: float, base_height: float) -> tuple[float, float]:
+def _folder_explorer_node_size(
+    node, _spec, *, base_width: float, base_height: float
+) -> tuple[float, float]:
     width = float(base_width)
     height = float(base_height)
     if getattr(node, "custom_width", None) is None:
@@ -530,10 +388,6 @@ register_node_type_size_resolver("io.folder_explorer", _folder_explorer_node_siz
 
 
 FILE_IO_NODE_DESCRIPTORS = (
-    plugin_descriptor(FileReadNodePlugin),
-    plugin_descriptor(FileWriteNodePlugin),
-    plugin_descriptor(ImageImportNodePlugin),
-    plugin_descriptor(ImageExportNodePlugin),
     plugin_descriptor(PathPointerNodePlugin),
     plugin_descriptor(FolderExplorerNodePlugin),
 )

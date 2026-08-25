@@ -14,7 +14,10 @@ from ea_node_editor.execution.signal_plot_renderer import (
 )
 from ea_node_editor.nodes.bootstrap import build_default_registry
 from ea_node_editor.nodes.builtin_functions.plot_signal import SOURCE
-from ea_node_editor.nodes.builtins.integrations_file_io import ImageExportNodePlugin, ImageImportNodePlugin
+from ea_node_editor.nodes.builtins.integrations_file_io import (
+    execute_image_export,
+    execute_image_import,
+)
 from ea_node_editor.nodes.function_plugin import (
     INTERNAL_BUILTIN_FUNCTION_OWNER_ID,
     PythonFunctionAdapter,
@@ -286,7 +289,6 @@ def test_signal_plot_log_gaps_and_validation_are_clear() -> None:
 
 def test_image_export_is_atomic_png_only_and_honors_overwrite(tmp_path: Path) -> None:
     image, _warnings = render_signal_plot({"values": _tree((1.0, 2.0, 3.0)), "marker_shapes": [0]})
-    plugin = ImageExportNodePlugin()
     output = tmp_path / "signal.png"
 
     def context(path: Path, *, overwrite: bool = True, value: object = image) -> ExecutionContext:
@@ -300,17 +302,18 @@ def test_image_export_is_atomic_png_only_and_honors_overwrite(tmp_path: Path) ->
             trigger={},
         )
 
-    result = plugin.execute(context(output))
+    result = execute_image_export(context(output))
     assert result.outputs == {"written_path": str(output)}
     assert output.read_bytes() == image.encoded_bytes
-    assert {prop.key: prop.default for prop in plugin.spec().properties}["overwrite"] is True
-    plugin.execute(context(output))
+    spec = build_default_registry().get_spec("io.image_export")
+    assert {prop.key: prop.default for prop in spec.properties}["overwrite"] is True
+    execute_image_export(context(output))
     with pytest.raises(FileExistsError):
-        plugin.execute(context(output, overwrite=False))
+        execute_image_export(context(output, overwrite=False))
     with pytest.raises(ValueError, match=".png"):
-        plugin.execute(context(tmp_path / "signal.jpg"))
+        execute_image_export(context(tmp_path / "signal.jpg"))
     with pytest.raises(ValueError, match="COREX Image"):
-        plugin.execute(context(tmp_path / "bad.png", value="not-an-image"))
+        execute_image_export(context(tmp_path / "bad.png", value="not-an-image"))
 
 
 def test_image_import_and_export_round_trip_validated_image_value(tmp_path: Path) -> None:
@@ -323,7 +326,7 @@ def test_image_import_and_export_round_trip_validated_image_value(tmp_path: Path
     image, _warnings = render_signal_plot({"values": _tree((1.0, 2.0)), "marker_shapes": [0]})
     source = tmp_path / "source.png"
     source.write_bytes(image.encoded_bytes)
-    imported = ImageImportNodePlugin().execute(
+    imported = execute_image_import(
         ExecutionContext(
             run_id="run_import",
             node_id="node_import",
@@ -336,7 +339,7 @@ def test_image_import_and_export_round_trip_validated_image_value(tmp_path: Path
     ).outputs["image"]
     assert imported == image
     destination = tmp_path / "roundtrip.png"
-    ImageExportNodePlugin().execute(
+    execute_image_export(
         ExecutionContext(
             run_id="run_export",
             node_id="node_export",
@@ -355,7 +358,7 @@ def test_image_import_and_export_round_trip_validated_image_value(tmp_path: Path
     bad = tmp_path / "bad.png"
     bad.write_bytes(b"not-png")
     with pytest.raises(ValueError, match="PNG"):
-        ImageImportNodePlugin().execute(
+        execute_image_import(
             ExecutionContext(
                 run_id="run_bad_import",
                 node_id="node_bad_import",
@@ -371,7 +374,7 @@ def test_image_import_and_export_round_trip_validated_image_value(tmp_path: Path
         stream.seek(IMAGE_VALUE_MAX_ENCODED_BYTES)
         stream.write(b"\x00")
     with pytest.raises(ValueError, match="64 MiB"):
-        ImageImportNodePlugin().execute(
+        execute_image_import(
             ExecutionContext(
                 run_id="run_oversized_import",
                 node_id="node_oversized_import",

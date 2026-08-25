@@ -199,6 +199,18 @@ def run(ctx):
         '@corex.text("value", _port_description="Private")',
         '@corex.text("value", _section_order=0)',
         '@corex.interval("value", _persistence_type=None)',
+        '@corex.text("value", _port_required=True)',
+        '@corex.text("value", _port_label="")',
+        '@corex.text("value", _port_structure="tree")',
+        '@corex.text("value", _port_value_type="COREX.DataTypes.Any")',
+        '@corex.text("value", _port_accepted_data_types=("COREX.DataTypes.Any",))',
+        '@corex.text("value", _property_type="json")',
+        '@corex.text("value", _property_default={})',
+        '@corex.text("value", _inline_editor="secret")',
+        '@corex.text("value", _inspector_editor="secret")',
+        '@corex.text("value", _sensitive=True)',
+        '@corex.text("value", _sensitive_scope_key="scope")',
+        '@corex.input("value", _accepted_data_types=("COREX.DataTypes.Any",))',
     ),
 )
 def test_python_script_rejects_internal_control_fields(decorator: str) -> None:
@@ -212,6 +224,20 @@ def run(ctx, value):
     with pytest.raises(
         PythonScriptDeclarationError,
         match="Private decorator field .* is reserved for internal built-ins",
+    ):
+        registry.normalize_properties("core.python_script", {"script": source})
+
+
+def test_python_script_rejects_internal_node_readiness_metadata() -> None:
+    source = '''@corex.node(_readiness_requirements=())
+@corex.output("result")
+def run(ctx):
+    return {}
+'''
+    registry = build_builtin_registry()
+    with pytest.raises(
+        PythonScriptDeclarationError,
+        match="@corex.node does not accept arguments",
     ):
         registry.normalize_properties("core.python_script", {"script": source})
 

@@ -17,6 +17,16 @@ Color = "COREX.DataTypes.Color"
 Interval = "COREX.DataTypes.Interval1D"
 
 
+def _reject_unknown_private(
+    metadata: _Mapping[str, object], allowed: _Set[str]
+) -> None:
+    unknown = sorted(
+        key for key in metadata if key.startswith("_") and key not in allowed
+    )
+    if unknown:
+        raise TypeError(f"Unsupported private decorator field {unknown[0]!r}")
+
+
 def _identity_decorator(*_args: object, **_kwargs: object):
     def decorate(function):
         return function
@@ -25,23 +35,48 @@ def _identity_decorator(*_args: object, **_kwargs: object):
 
 
 def node(function=None, **_metadata: object):
+    _reject_unknown_private(_metadata, {"_readiness_requirements"})
     if callable(function) and not _metadata:
         return function
     return _identity_decorator()
 
 
-input = _identity_decorator
-output = _identity_decorator
-text = _identity_decorator
-text_area = _identity_decorator
-number = _identity_decorator
-switch = _identity_decorator
-dropdown = _identity_decorator
-slider = _identity_decorator
-color = _identity_decorator
-path = _identity_decorator
-interval = _identity_decorator
-list = _identity_decorator
+def _decorator(private_fields: _Set[str]):
+    def decorate(*args: object, **metadata: object):
+        _reject_unknown_private(metadata, private_fields)
+        return _identity_decorator(*args, **metadata)
+
+    return decorate
+
+
+input = _decorator({"_accepted_data_types"})
+output = _decorator(set())
+_CONTROL_PRIVATE_FIELDS = {
+    "_inline_editor",
+    "_inspector_editor",
+    "_persistence_type",
+    "_port_accepted_data_types",
+    "_port_description",
+    "_port_label",
+    "_port_required",
+    "_port_structure",
+    "_port_value_type",
+    "_property_default",
+    "_property_type",
+    "_section_order",
+    "_sensitive",
+    "_sensitive_scope_key",
+}
+text = _decorator(_CONTROL_PRIVATE_FIELDS)
+text_area = _decorator(_CONTROL_PRIVATE_FIELDS)
+number = _decorator(_CONTROL_PRIVATE_FIELDS)
+switch = _decorator(_CONTROL_PRIVATE_FIELDS)
+dropdown = _decorator(_CONTROL_PRIVATE_FIELDS)
+slider = _decorator(_CONTROL_PRIVATE_FIELDS)
+color = _decorator(_CONTROL_PRIVATE_FIELDS)
+path = _decorator(_CONTROL_PRIVATE_FIELDS)
+interval = _decorator(_CONTROL_PRIVATE_FIELDS)
+list = _decorator(_CONTROL_PRIVATE_FIELDS)
 
 
 def _unknown_setting_message(name: object, known_names: object) -> str:

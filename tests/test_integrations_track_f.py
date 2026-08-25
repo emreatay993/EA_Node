@@ -7,6 +7,7 @@ import smtplib
 import tempfile
 import types
 import unittest
+from dataclasses import asdict
 from pathlib import Path
 from unittest import mock
 
@@ -18,30 +19,48 @@ from ea_node_editor.graph.boundary_adapters import _fallback_node_size
 from ea_node_editor.graph.model import GraphModel
 from ea_node_editor.graph.records import NodeInstance
 from ea_node_editor.graph.validated_mutation import ValidatedGraphMutation
-from ea_node_editor.nodes.bootstrap import build_default_registry
+from ea_node_editor.nodes.bootstrap import build_builtin_registry, build_default_registry
+from ea_node_editor.nodes.builtin_functions.integrations_email import (
+    SOURCE as EMAIL_SOURCE,
+)
+from ea_node_editor.nodes.builtin_functions.integrations_file_io import (
+    SOURCE as FILE_IO_SOURCE,
+)
+from ea_node_editor.nodes.builtin_functions.integrations_process import (
+    SOURCE as PROCESS_SOURCE,
+)
+from ea_node_editor.nodes.builtin_functions.integrations_spreadsheet import (
+    SOURCE as SPREADSHEET_SOURCE,
+)
 from ea_node_editor.nodes.builtins import integrations_email, integrations_spreadsheet
 from ea_node_editor.nodes.builtins.core import PythonScriptNodePlugin
-from ea_node_editor.nodes.builtins.integrations import (
-    EmailSendNodePlugin,
-    ExcelReadNodePlugin,
-    ExcelWriteNodePlugin,
-    FileReadNodePlugin,
-    FileWriteNodePlugin,
-    PathPointerNodePlugin,
-    ProcessRunNodePlugin,
-)
 from ea_node_editor.nodes.builtins.integrations_file_io import (
     FILE_IO_NODE_DESCRIPTORS,
     FolderExplorerNodePlugin,
+    PathPointerNodePlugin,
     _FOLDER_EXPLORER_DEFAULT_HEIGHT_PX,
     _FOLDER_EXPLORER_DEFAULT_WIDTH_PX,
     _PATH_POINTER_CHAR_WIDTH_PX,
     _PATH_POINTER_MAX_WIDTH_PX,
     _PATH_POINTER_WIDTH_CHROME_PX,
+    execute_file_read,
+    execute_file_write,
+)
+from ea_node_editor.nodes.builtins.integrations_email import execute_email_send
+from ea_node_editor.nodes.builtins.integrations_spreadsheet import (
+    execute_excel_read,
+    execute_excel_write,
 )
 from ea_node_editor.nodes.readiness import evaluate_node_readiness
+from ea_node_editor.nodes.function_plugin import (
+    INTERNAL_BUILTIN_FUNCTION_OWNER_ID,
+    PythonFunctionAdapter,
+)
+from ea_node_editor.nodes.plugin_declaration import discover_plugin_declarations
+from ea_node_editor.nodes.registry import PythonFunctionEntry
 from ea_node_editor.nodes.types import (
     ExecutionContext,
+    NodeResult,
     RuntimeArtifactRef,
     deserialize_runtime_value,
 )
@@ -86,14 +105,65 @@ def _decorated_transform(body: str) -> str:
 
 
 class IntegrationNodesTrackFTests(unittest.TestCase):
+    def test_converted_function_specs_match_frozen_catalog_exactly(self) -> None:
+        converted_ids = {
+            "io.file_read",
+            "io.file_write",
+            "io.image_import",
+            "io.image_export",
+            "io.process_run",
+            "io.email_send",
+            "io.excel_read",
+            "io.excel_write",
+        }
+        source_modules = (
+            ("integrations_file_io.py", FILE_IO_SOURCE),
+            ("integrations_process.py", PROCESS_SOURCE),
+            ("integrations_email.py", EMAIL_SOURCE),
+            ("integrations_spreadsheet.py", SPREADSHEET_SOURCE),
+        )
+        with tempfile.TemporaryDirectory() as temp_dir, mock.patch(
+            "ea_node_editor.nodes.builtin_functions.source_modules",
+            return_value=source_modules,
+        ):
+            registry = build_builtin_registry(
+                generation_root=Path(temp_dir) / "generations"
+            )
+
+        fixture = json.loads(
+            (
+                Path(__file__).parent
+                / "fixtures"
+                / "node_catalog"
+                / "pre_cutover_non_dpf_catalog.json"
+            ).read_text(encoding="utf-8")
+        )
+        expected = {
+            row["spec"]["type_id"]: row["spec"]
+            for row in fixture
+            if row["spec"]["type_id"] in converted_ids
+        }
+        self.assertEqual(set(expected), converted_ids)
+        for type_id in sorted(converted_ids):
+            self.assertEqual(
+                json.loads(json.dumps(asdict(registry.get_spec(type_id)))),
+                expected[type_id],
+            )
+            self.assertIsInstance(registry.get_entry(type_id), PythonFunctionEntry)
+            self.assertIsNone(registry.descriptor_or_none(type_id))
+
     def test_external_effect_inputs_use_tree_access_without_reclassifying_readers(
         self,
     ) -> None:
-        effect_specs = (
-            FileWriteNodePlugin().spec(),
-            EmailSendNodePlugin().spec(),
-            ProcessRunNodePlugin().spec(),
-            ExcelWriteNodePlugin().spec(),
+        registry = build_default_registry()
+        effect_specs = tuple(
+            registry.get_spec(type_id)
+            for type_id in (
+                "io.file_write",
+                "io.email_send",
+                "io.process_run",
+                "io.excel_write",
+            )
         )
         for spec in effect_specs:
             inputs = [port for port in spec.ports if port.direction == "in"]
@@ -102,18 +172,19 @@ class IntegrationNodesTrackFTests(unittest.TestCase):
                 all(port.data_access == "tree" for port in inputs), spec.type_id
             )
 
-        self.assertEqual(FileReadNodePlugin().spec().ports[0].data_access, "item")
-        self.assertEqual(ExcelReadNodePlugin().spec().ports[0].data_access, "item")
-        self.assertTrue(FileReadNodePlugin().spec().ports[0].required)
-        self.assertTrue(ExcelReadNodePlugin().spec().ports[0].required)
+        self.assertEqual(registry.get_spec("io.file_read").ports[0].data_access, "item")
+        self.assertEqual(registry.get_spec("io.excel_read").ports[0].data_access, "item")
+        self.assertTrue(registry.get_spec("io.file_read").ports[0].required)
+        self.assertTrue(registry.get_spec("io.excel_read").ports[0].required)
 
     def test_process_and_email_readiness_is_declared_centrally(self) -> None:
-        process_spec = ProcessRunNodePlugin().spec()
+        registry = build_default_registry()
+        process_spec = registry.get_spec("io.process_run")
         process_ports = {port.key: port for port in process_spec.ports}
         self.assertTrue(process_ports["command"].required)
         self.assertTrue(process_ports["command"].uses_property_default)
 
-        email_spec = EmailSendNodePlugin().spec()
+        email_spec = registry.get_spec("io.email_send")
         email_properties = {prop.key: prop.default for prop in email_spec.properties}
         email_issues = evaluate_node_readiness(
             email_spec,
@@ -144,13 +215,13 @@ class IntegrationNodesTrackFTests(unittest.TestCase):
                 {"a": "3", "b": "4"},
             ]
 
-            write_result = ExcelWriteNodePlugin().execute(
+            write_result = execute_excel_write(
                 _context(inputs={"rows": rows}, properties={"path": str(output_path)})
             )
             self.assertEqual(write_result.outputs["written_path"], str(output_path))
             self.assertTrue(output_path.exists())
 
-            read_result = ExcelReadNodePlugin().execute(
+            read_result = execute_excel_read(
                 _context(properties={"path": str(output_path)})
             )
             self.assertEqual(
@@ -163,15 +234,15 @@ class IntegrationNodesTrackFTests(unittest.TestCase):
             read_path = Path(temp_dir) / "input.xlsx"
             read_path.write_text("placeholder", encoding="utf-8")
             write_path = Path(temp_dir) / "output.xlsx"
-            with mock.patch.object(integrations_spreadsheet, "openpyxl", None):
+            with mock.patch.object(integrations_spreadsheet, "_openpyxl", None):
                 with self.assertRaises(RuntimeError) as read_error:
-                    ExcelReadNodePlugin().execute(
+                    execute_excel_read(
                         _context(properties={"path": str(read_path)})
                     )
                 self.assertIn("openpyxl", str(read_error.exception).lower())
 
                 with self.assertRaises(RuntimeError) as write_error:
-                    ExcelWriteNodePlugin().execute(
+                    execute_excel_write(
                         _context(
                             inputs={"rows": [{"name": "x"}]},
                             properties={"path": str(write_path)},
@@ -187,7 +258,7 @@ class IntegrationNodesTrackFTests(unittest.TestCase):
             read_path = Path(temp_dir) / "input.xlsx"
             read_path.write_text("placeholder", encoding="utf-8")
             with (
-                mock.patch.object(integrations_spreadsheet, "openpyxl", None),
+                mock.patch.object(integrations_spreadsheet, "_openpyxl", None),
                 mock.patch.object(
                     integrations_spreadsheet.sys,
                     "frozen",
@@ -196,7 +267,7 @@ class IntegrationNodesTrackFTests(unittest.TestCase):
                 ),
             ):
                 with self.assertRaises(RuntimeError) as read_error:
-                    ExcelReadNodePlugin().execute(
+                    execute_excel_read(
                         _context(properties={"path": str(read_path)})
                     )
         message = str(read_error.exception).lower()
@@ -210,25 +281,25 @@ class IntegrationNodesTrackFTests(unittest.TestCase):
             text_path = temp_path / "message.txt"
             json_path = temp_path / "payload.json"
 
-            FileWriteNodePlugin().execute(
+            execute_file_write(
                 _context(
                     inputs={"text": "hello world"},
                     properties={"path": str(text_path), "as_json": False},
                 )
             )
-            text_result = FileReadNodePlugin().execute(
+            text_result = execute_file_read(
                 _context(properties={"path": str(text_path)})
             )
             self.assertEqual(text_result.outputs["text"], "hello world")
 
             payload = {"z": 2, "a": 1}
-            FileWriteNodePlugin().execute(
+            execute_file_write(
                 _context(
                     inputs={"data": payload},
                     properties={"path": str(json_path), "as_json": True},
                 )
             )
-            json_result = FileReadNodePlugin().execute(
+            json_result = execute_file_read(
                 _context(properties={"path": str(json_path)})
             )
             self.assertEqual(
@@ -264,20 +335,33 @@ class IntegrationNodesTrackFTests(unittest.TestCase):
             def send_message(self, message) -> None:  # noqa: ANN001
                 self.messages.append(message)
 
+        declaration = discover_plugin_declarations(
+            EMAIL_SOURCE,
+            filename="integrations_email.py",
+            allow_reserved_ids=True,
+            owner_id=INTERNAL_BUILTIN_FUNCTION_OWNER_ID,
+        )[0]
+        namespace: dict[str, object] = {}
+        exec(compile(EMAIL_SOURCE, "integrations_email.py", "exec"), namespace)  # noqa: S102
+        adapter = PythonFunctionAdapter(
+            declaration.spec,
+            namespace[declaration.function_name],  # type: ignore[arg-type]
+        )
+        properties = {prop.key: prop.default for prop in declaration.spec.properties}
+        properties.update(
+            {
+                "smtp_host": "smtp.example.com",
+                "smtp_port": 2525,
+                "username": "user",
+                "password": "pass",
+                "sender": "from@example.com",
+                "to": "a@example.com, b@example.com",
+                "use_tls": True,
+            }
+        )
         with mock.patch.object(integrations_email.smtplib, "SMTP", FakeSMTP):
-            result = EmailSendNodePlugin().execute(
-                _context(
-                    inputs={"subject": "subj", "body": "body"},
-                    properties={
-                        "smtp_host": "smtp.example.com",
-                        "smtp_port": 2525,
-                        "username": "user",
-                        "password": "pass",
-                        "sender": "from@example.com",
-                        "to": "a@example.com, b@example.com",
-                        "use_tls": True,
-                    },
-                )
+            result = adapter.execute(
+                _context(inputs={"subject": "", "body": ""}, properties=properties)
             )
 
         self.assertTrue(result.outputs["sent"])
@@ -290,6 +374,8 @@ class IntegrationNodesTrackFTests(unittest.TestCase):
         self.assertEqual(len(smtp.messages), 1)
         self.assertEqual(smtp.messages[0]["From"], "from@example.com")
         self.assertEqual(smtp.messages[0]["To"], "a@example.com, b@example.com")
+        self.assertEqual(smtp.messages[0]["Subject"], "")
+        self.assertEqual(smtp.messages[0].get_content().strip(), "")
 
     def test_email_send_backend_errors_remain_failures(self) -> None:
         class FailingSMTP:
@@ -307,7 +393,7 @@ class IntegrationNodesTrackFTests(unittest.TestCase):
 
         with mock.patch.object(integrations_email.smtplib, "SMTP", FailingSMTP):
             with self.assertRaises(RuntimeError) as smtp_error:
-                EmailSendNodePlugin().execute(
+                execute_email_send(
                     _context(
                         properties={
                             "smtp_host": "localhost",
@@ -319,16 +405,44 @@ class IntegrationNodesTrackFTests(unittest.TestCase):
                 )
         self.assertIn("smtp error", str(smtp_error.exception).lower())
 
+    def test_function_shell_replays_helper_warnings_in_order(self) -> None:
+        declaration = discover_plugin_declarations(
+            EMAIL_SOURCE,
+            filename="integrations_email.py",
+            allow_reserved_ids=True,
+            owner_id=INTERNAL_BUILTIN_FUNCTION_OWNER_ID,
+        )[0]
+        namespace: dict[str, object] = {}
+        exec(compile(EMAIL_SOURCE, "integrations_email.py", "exec"), namespace)  # noqa: S102
+        namespace["execute_email_send"] = lambda _ctx: NodeResult(
+            outputs={"sent": True},
+            warnings=("first", "second"),
+        )
+        adapter = PythonFunctionAdapter(
+            declaration.spec,
+            namespace[declaration.function_name],  # type: ignore[arg-type]
+        )
+        properties = {prop.key: prop.default for prop in declaration.spec.properties}
+        properties.update({"sender": "from@example.com", "to": "to@example.com"})
+
+        result = adapter.execute(_context(properties=properties))
+
+        self.assertEqual(result.warnings, ("first", "second"))
+        self.assertEqual(
+            tuple(warning.code for warning in result.plugin_warnings),
+            ("email_send", "email_send"),
+        )
+
     def test_file_and_excel_error_messages_are_clear(self) -> None:
         with self.assertRaises(ValueError) as file_error:
-            FileReadNodePlugin().execute(_context())
+            execute_file_read(_context())
         self.assertIn("file path", str(file_error.exception).lower())
 
         with tempfile.TemporaryDirectory() as temp_dir:
             bad_path = Path(temp_dir) / "unsupported.bin"
             bad_path.write_text("x", encoding="utf-8")
             with self.assertRaises(ValueError) as excel_error:
-                ExcelReadNodePlugin().execute(
+                execute_excel_read(
                     _context(properties={"path": str(bad_path)})
                 )
         self.assertIn("supports only", str(excel_error.exception).lower())
@@ -757,13 +871,13 @@ class PathPointerWidthResolverTests(unittest.TestCase):
 
     def test_path_pointer_resolver_does_not_affect_other_node_types(self) -> None:
         """Sanity: the per-type override is keyed by type_id and must not leak."""
-        other_spec = FileReadNodePlugin().spec()
+        other_spec = build_default_registry().get_spec("io.file_read")
         node = self._node(
             {"show_full_path": True, "path": "C:/anything/at/all.txt"},
             custom_width=200.0,
         )
         width, _h = _fallback_node_size(node, other_spec)
-        # FileReadNodePlugin has no override, so base/custom width is returned untouched.
+        # File Read has no override, so base/custom width is returned untouched.
         self.assertEqual(width, 200.0)
 
 
@@ -808,6 +922,10 @@ class IntegrationFlowSmokeTests(unittest.TestCase):
                     "project_path": project_path,
                     "runtime_snapshot": runtime_snapshot,
                     "trigger": {},
+                    "plugin_bundles": registry.plugin_bundle_refs(),
+                    "plugin_fingerprint": registry.plugin_fingerprint(),
+                    "registry_contract_fingerprint": registry.contract_fingerprint(),
+                    "addon_runtime_config": registry.addon_runtime_config(),
                 },
                 catalog=registry.data_types,
             ),
@@ -1040,6 +1158,80 @@ class IntegrationFlowSmokeTests(unittest.TestCase):
                 project_path.with_name("managed_file_output.data").rglob("*.txt")
             )
             self.assertTrue(staged_files)
+
+    def test_connected_blank_file_write_path_overrides_configured_path(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_path = Path(temp_dir)
+            project_path = temp_path / "connected_blank_path.cxproj"
+            configured_path = temp_path / "sentinel.txt"
+            configured_path.write_text("sentinel", encoding="utf-8")
+
+            model = GraphModel()
+            workspace = model.active_workspace
+            blank_path = model.add_node(
+                workspace.workspace_id,
+                "core.constant",
+                "Blank Path",
+                120,
+                0,
+                properties={"value": ""},
+            )
+            payload = model.add_node(
+                workspace.workspace_id,
+                "core.constant",
+                "Payload",
+                120,
+                100,
+                properties={"value": "managed from connected blank"},
+            )
+            file_write = model.add_node(
+                workspace.workspace_id,
+                "io.file_write",
+                "File Write",
+                240,
+                0,
+                properties={"path": str(configured_path), "as_json": False},
+            )
+            model.add_edge(
+                workspace.workspace_id,
+                blank_path.node_id,
+                "value",
+                file_write.node_id,
+                "path",
+            )
+            model.add_edge(
+                workspace.workspace_id,
+                payload.node_id,
+                "value",
+                file_write.node_id,
+                "text",
+            )
+
+            events = self._run_model_with_runtime_snapshot(
+                model,
+                workspace.workspace_id,
+                project_path=str(project_path),
+            )
+
+            self.assertNotIn("run_failed", {event["type"] for event in events})
+            write_completed = next(
+                event
+                for event in events
+                if event.get("type") == "node_settled"
+                and event.get("node_id") == file_write.node_id
+            )
+            written_ref = self._output_value(write_completed, "written_path")
+            self.assertIsInstance(written_ref, RuntimeArtifactRef)
+            self.assertEqual(written_ref.scope, "staged")
+            self.assertEqual(configured_path.read_text(encoding="utf-8"), "sentinel")
+            staged_files = list(
+                project_path.with_name("connected_blank_path.data").rglob("*.txt")
+            )
+            self.assertEqual(len(staged_files), 1)
+            self.assertEqual(
+                staged_files[0].read_text(encoding="utf-8"),
+                "managed from connected blank",
+            )
 
     def test_smoke_excel_write_blank_path_stages_managed_output_for_downstream_read(
         self,
