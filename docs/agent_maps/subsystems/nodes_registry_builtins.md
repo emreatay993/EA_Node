@@ -14,6 +14,8 @@ Use this for node definitions, registry validation, built-in node families, data
 - `ea_node_editor/nodes/plugin_loader.py`
 - `ea_node_editor/nodes/builtins/`
 - `ea_node_editor/runtime_contracts/data_types.py`
+- `docs/PLAN_COREX_NOVICE_PLUGIN_SDK.md`
+- `docs/specs/requirements/COREX_NOVICE_PLUGIN_SDK_MIGRATION_INVENTORY.md`
 
 ## Built-in Contract Families
 - Core values and media: `core_values.py`, `core_media.py`, and `core_value_nodes.py`.
@@ -26,6 +28,7 @@ Use this for node definitions, registry validation, built-in node families, data
 
 ## Boundaries
 - Register built-ins through `build_builtin_registry()`; do not mutate catalog internals.
+- During the novice function-SDK cutover, preserve the normalized 133-node non-DPF baseline in `tests/fixtures/node_catalog/pre_cutover_non_dpf_catalog.json` and follow the migration inventory's exact convert/internal-exception/DPF-exclusion classification.
 - Keep canonical data-type IDs under the `COREX.*` namespace.
 - Keep source-product provenance, import adapters, comparison studies, and installed-product evidence outside the tracked repository.
 - Add no compatibility alias for removed internal contracts unless an active public format requires it.

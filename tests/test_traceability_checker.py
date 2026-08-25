@@ -3548,7 +3548,7 @@ class TraceabilityCheckerTests(unittest.TestCase):
         self.assertEqual([], self.checker.audit_repository(REPO_ROOT))
 
     def test_planned_requirement_registry_matches_current_repo(self) -> None:
-        self.assertEqual(21, len(self.manifest.PLANNED_REQUIREMENT_OWNERS))
+        self.assertEqual(28, len(self.manifest.PLANNED_REQUIREMENT_OWNERS))
         self.assertEqual([], self.checker.audit_repository(REPO_ROOT))
 
     def test_audit_repository_reports_missing_planned_row(self) -> None:

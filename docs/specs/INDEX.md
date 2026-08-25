@@ -37,6 +37,10 @@ These requirements are authoritative design intent, but they are not implemented
 | `SYN-OPP-0007` | Solver-neutral FEA process contracts | `REQ-NODE-037`, `REQ-EXEC-021`, `REQ-INT-019`, `REQ-UI-057` | `PLANNED` |
 | `SYN-OPP-0008` | Permissioned agent orchestration | `REQ-ARCH-020`, `REQ-EXEC-022`, `REQ-UI-058` | `PLANNED` |
 
+## Active Implementation Plans — No Implementation Proof
+
+- [COREX Novice Function Plugin SDK](../PLAN_COREX_NOVICE_PLUGIN_SDK.md) — `IN PROGRESS — T01 COMPLETE, T02 ACTIVE`
+
 ### Completed Semantic-Type Architecture and Evidence
 
 T01–T17 are complete, and the locked 176-type snapshot is fully classified.
