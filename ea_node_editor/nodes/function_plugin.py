@@ -18,6 +18,7 @@ from ea_node_editor.nodes.execution_context import ExecutionContext, NodeResult
 from ea_node_editor.nodes.node_specs import NodeTypeSpec
 
 _SHA256 = re.compile(r"^[0-9a-f]{64}$")
+INTERNAL_BUILTIN_FUNCTION_OWNER_ID = "corex:builtin:functions"
 EMPTY_PLUGIN_FINGERPRINT = hashlib.sha256(
     b'{"bundles":[],"entries":[]}'
 ).hexdigest()
@@ -240,6 +241,7 @@ class PythonFunctionAdapter:
 
 __all__ = [
     "EMPTY_PLUGIN_FINGERPRINT",
+    "INTERNAL_BUILTIN_FUNCTION_OWNER_ID",
     "PluginBundleRef",
     "PythonFunctionAdapter",
     "PythonFunctionRef",

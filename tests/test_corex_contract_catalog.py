@@ -76,17 +76,16 @@ def _catalog_value(value: object) -> object:
 
 
 def _current_non_dpf_catalog() -> list[dict[str, object]]:
-    descriptors = (
-        *build_builtin_registry().all_descriptors(),
-        *load_tabular_data_plugin_descriptors(),
-        *MARS_NODE_DESCRIPTORS,
+    specs = (
+        *build_builtin_registry().all_specs(),
+        *(descriptor.spec for descriptor in load_tabular_data_plugin_descriptors()),
+        *(descriptor.spec for descriptor in MARS_NODE_DESCRIPTORS),
     )
-    type_ids = [descriptor.spec.type_id for descriptor in descriptors]
+    type_ids = [spec.type_id for spec in specs]
     assert len(type_ids) == len(set(type_ids))
 
     catalog: list[dict[str, object]] = []
-    for descriptor in sorted(descriptors, key=lambda item: item.spec.type_id):
-        spec = descriptor.spec
+    for spec in sorted(specs, key=lambda item: item.type_id):
         defaults = {property_spec.key: property_spec.default for property_spec in spec.properties}
         resolved_spec = resolve_instance_spec(spec, defaults)
         catalog.append(
@@ -137,33 +136,36 @@ def test_novice_plugin_sdk_migration_inventory_is_exhaustive() -> None:
         if (match := _INVENTORY_ROW.match(line)) is not None
     }
     non_dpf = (
-        *build_builtin_registry().all_descriptors(),
-        *load_tabular_data_plugin_descriptors(),
-        *MARS_NODE_DESCRIPTORS,
+        *build_builtin_registry().all_specs(),
+        *(descriptor.spec for descriptor in load_tabular_data_plugin_descriptors()),
+        *(descriptor.spec for descriptor in MARS_NODE_DESCRIPTORS),
     )
-    dpf = (
-        *load_ansys_dpf_helper_plugin_descriptors(),
-        *load_ansys_dpf_curated_plugin_descriptors(),
-        *load_ansys_dpf_plot_plugin_descriptors(),
-        *load_ansys_dpf_operator_plugin_descriptors(),
+    dpf = tuple(
+        descriptor.spec
+        for descriptor in (
+            *load_ansys_dpf_helper_plugin_descriptors(),
+            *load_ansys_dpf_curated_plugin_descriptors(),
+            *load_ansys_dpf_plot_plugin_descriptors(),
+            *load_ansys_dpf_operator_plugin_descriptors(),
+        )
     )
-    descriptors = (*non_dpf, *dpf)
+    specs = (*non_dpf, *dpf)
 
-    assert len(rows) == len(descriptors) == 938
-    assert set(rows) == {descriptor.spec.type_id for descriptor in descriptors}
+    assert len(rows) == len(specs) == 938
+    assert set(rows) == {spec.type_id for spec in specs}
     assert {type_id for type_id, row in rows.items() if row["disposition"] == "DPF excluded"} == {
-        descriptor.spec.type_id for descriptor in dpf
+        spec.type_id for spec in dpf
     }
     assert [row["disposition"] for row in rows.values()].count("convert") == 78
     assert [row["disposition"] for row in rows.values()].count("internal exception") == 55
 
-    for descriptor in descriptors:
-        row = rows[descriptor.spec.type_id]
+    for spec in specs:
+        row = rows[spec.type_id]
         assert row["ports"] == (
-            ", ".join(port.key for port in descriptor.spec.ports) or "—"
+            ", ".join(port.key for port in spec.ports) or "—"
         )
         assert row["properties"] == (
-            ", ".join(prop.key for prop in descriptor.spec.properties) or "—"
+            ", ".join(prop.key for prop in spec.properties) or "—"
         )
         assert (Path(__file__).resolve().parents[1] / row["owner"]).is_file()
         assert (Path(__file__).resolve().parents[1] / row["test"]).is_file()

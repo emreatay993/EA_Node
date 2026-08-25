@@ -67,6 +67,7 @@ from ea_node_editor.execution.worker_runtime import (
 from ea_node_editor.execution.worker_services import WorkerServices
 from ea_node_editor.nodes.function_plugin import (
     EMPTY_PLUGIN_FINGERPRINT,
+    INTERNAL_BUILTIN_FUNCTION_OWNER_ID,
     PluginBundleRef,
 )
 from ea_node_editor.nodes.registry import NodeRegistry
@@ -2461,11 +2462,16 @@ class TrustedInProcessExecutionClient(_ExecutionClientCommon):
             "clicked_trigger_node_id", clicked_trigger_node_id
         )
         command_developer_mode = trigger_payload.pop("developer_mode", False)
-        if plugin_bundles:
+        external_function_bundles = tuple(
+            bundle
+            for bundle in plugin_bundles
+            if bundle.owner_id != INTERNAL_BUILTIN_FUNCTION_OWNER_ID
+        )
+        if external_function_bundles:
             self._emit_protocol_error(
-                "Public function plugins require process-isolated execution; "
-                "trusted in-process execution is unavailable while public plugin "
-                "generations are active.",
+                "External function nodes require process-isolated execution; "
+                "trusted in-process execution is unavailable while external "
+                "function generations are active.",
                 run_id=run_id,
                 command="start_run",
             )

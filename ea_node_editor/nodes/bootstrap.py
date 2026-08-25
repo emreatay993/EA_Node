@@ -56,12 +56,6 @@ from ea_node_editor.nodes.builtins.core_media import (
     COREX_CORE_MEDIA_OWNER_ID,
     COREX_CORE_MEDIA_OWNER_VERSION,
 )
-from ea_node_editor.nodes.builtins.core_unit_nodes import (
-    COREX_CORE_UNIT_NODE_CONTRACT_MANIFEST,
-    COREX_CORE_UNIT_NODE_DESCRIPTORS,
-    COREX_CORE_UNIT_NODE_OWNER_ID,
-    COREX_CORE_UNIT_NODE_OWNER_VERSION,
-)
 from ea_node_editor.nodes.builtins.fem_contracts import (
     COREX_FEM_CONTRACT_MANIFEST,
     COREX_FEM_CONTRACTS_OWNER_ID,
@@ -112,17 +106,10 @@ from ea_node_editor.nodes.builtins.security_contracts import (
     COREX_WINDOWS_AUTHENTICATION_NODE_OWNER_VERSION,
 )
 from ea_node_editor.nodes.builtins.spatial_values import (
-    COREX_SPATIAL_VALUES_CONSTRUCTION_NODE_DESCRIPTORS,
     COREX_SPATIAL_VALUES_OWNER_ID,
     COREX_SPATIAL_VALUES_OWNER_VERSION,
     COREX_SPATIAL_VALUES_COORDINATE_SYSTEM_CANDIDATE_CONTRACT_MANIFEST,
-)
-from ea_node_editor.nodes.builtins.core_value_nodes import (
-    COREX_CORE_VALUE_NODE_BUNDLE_DESCRIPTORS,
-    COREX_CORE_VALUE_NODE_CONTRACT_MANIFEST,
-    COREX_CORE_VALUE_NODE_NEW_DESCRIPTORS,
-    COREX_CORE_VALUE_NODE_OWNER_ID,
-    COREX_CORE_VALUE_NODE_OWNER_VERSION,
+    COREX_SPATIAL_VALUES_TRANSFORM_NODE_DESCRIPTORS,
 )
 from ea_node_editor.nodes.builtins.tree_path import (
     COREX_TREE_PATH_CONTRACT_MANIFEST,
@@ -150,7 +137,7 @@ from ea_node_editor.nodes.core_data_types import (
 )
 from ea_node_editor.nodes.registry import NodeRegistry
 from ea_node_editor.nodes.plugin_contracts import PluginContractManifest
-from ea_node_editor.settings import plugins_dir
+from ea_node_editor.settings import plugin_generations_dir, plugins_dir
 
 
 BUILTIN_NODE_DESCRIPTORS = (
@@ -164,9 +151,7 @@ BUILTIN_NODE_DESCRIPTORS = (
     *COREX_GEOMETRY_PRIMITIVE_NODE_DESCRIPTORS,
     *SSH_SFTP_NODE_DESCRIPTORS,
     *MATH_INTERVAL_NODE_DESCRIPTORS,
-    *COREX_CORE_VALUE_NODE_NEW_DESCRIPTORS,
-    *COREX_CORE_UNIT_NODE_DESCRIPTORS,
-    *COREX_SPATIAL_VALUES_CONSTRUCTION_NODE_DESCRIPTORS,
+    *COREX_SPATIAL_VALUES_TRANSFORM_NODE_DESCRIPTORS,
     *COREX_DECONSTRUCT_MESH_FACE_CANDIDATE_NODE_DESCRIPTORS,
     *COREX_VIEWER_VIEWPORT_NODE_DESCRIPTORS,
     *COREX_REPORTING_NODE_DESCRIPTORS,
@@ -183,7 +168,7 @@ BUILTIN_NODE_DESCRIPTORS = (
 )
 
 
-def build_builtin_registry() -> NodeRegistry:
+def build_builtin_registry(*, generation_root: Path | None = None) -> NodeRegistry:
     registry = NodeRegistry()
     registry.register_plugin_bundle(
         PluginContractManifest(
@@ -277,7 +262,7 @@ def build_builtin_registry() -> NodeRegistry:
     )
     registry.register_plugin_bundle(
         COREX_SPATIAL_VALUES_COORDINATE_SYSTEM_CANDIDATE_CONTRACT_MANIFEST,
-        COREX_SPATIAL_VALUES_CONSTRUCTION_NODE_DESCRIPTORS,
+        COREX_SPATIAL_VALUES_TRANSFORM_NODE_DESCRIPTORS,
         owner_id=COREX_SPATIAL_VALUES_OWNER_ID,
         owner_version=COREX_SPATIAL_VALUES_OWNER_VERSION,
         source_label="ea_node_editor.nodes.builtins.spatial_values",
@@ -315,20 +300,6 @@ def build_builtin_registry() -> NodeRegistry:
         source_label="ea_node_editor.nodes.builtins.security_contracts",
     )
     registry.register_plugin_bundle(
-        COREX_CORE_VALUE_NODE_CONTRACT_MANIFEST,
-        COREX_CORE_VALUE_NODE_BUNDLE_DESCRIPTORS,
-        owner_id=COREX_CORE_VALUE_NODE_OWNER_ID,
-        owner_version=COREX_CORE_VALUE_NODE_OWNER_VERSION,
-        source_label="ea_node_editor.nodes.builtins.core_value_nodes",
-    )
-    registry.register_plugin_bundle(
-        COREX_CORE_UNIT_NODE_CONTRACT_MANIFEST,
-        COREX_CORE_UNIT_NODE_DESCRIPTORS,
-        owner_id=COREX_CORE_UNIT_NODE_OWNER_ID,
-        owner_version=COREX_CORE_UNIT_NODE_OWNER_VERSION,
-        source_label="ea_node_editor.nodes.builtins.core_unit_nodes",
-    )
-    registry.register_plugin_bundle(
         PluginContractManifest(
             data_type_families=SSH_SFTP_DATA_TYPE_FAMILIES,
             data_types=SSH_SFTP_DATA_TYPES,
@@ -336,6 +307,12 @@ def build_builtin_registry() -> NodeRegistry:
         SSH_SFTP_NODE_DESCRIPTORS,
         owner_id=SSH_SFTP_DATA_TYPE_OWNER_ID,
         source_label="ea_node_editor.nodes.builtins.integrations_ssh_sftp",
+    )
+    from ea_node_editor.nodes.plugin_loader import register_internal_builtin_functions
+
+    register_internal_builtin_functions(
+        registry,
+        generation_root=generation_root or plugin_generations_dir(),
     )
     registry.register_descriptors(
         descriptor
@@ -345,9 +322,7 @@ def build_builtin_registry() -> NodeRegistry:
             *COREX_AI_ML_VECTOR_DATABASE_NODE_DESCRIPTORS,
             *COREX_RICH_VALUE_NODE_DESCRIPTORS,
             *COREX_GEOMETRY_PRIMITIVE_NODE_DESCRIPTORS,
-            *COREX_CORE_VALUE_NODE_BUNDLE_DESCRIPTORS,
-            *COREX_CORE_UNIT_NODE_DESCRIPTORS,
-            *COREX_SPATIAL_VALUES_CONSTRUCTION_NODE_DESCRIPTORS,
+            *COREX_SPATIAL_VALUES_TRANSFORM_NODE_DESCRIPTORS,
             *COREX_DECONSTRUCT_MESH_FACE_CANDIDATE_NODE_DESCRIPTORS,
             *COREX_VIEWER_VIEWPORT_NODE_DESCRIPTORS,
             *COREX_REPORTING_NODE_DESCRIPTORS,
@@ -364,8 +339,9 @@ def _build_trusted_registry(
     app_preferences_store: Any = None,
     preferences_document: Any = None,
     addon_runtime_config: Iterable[tuple[str, bool]] | None = None,
+    generation_root: Path | None = None,
 ) -> NodeRegistry:
-    registry = build_builtin_registry()
+    registry = build_builtin_registry(generation_root=generation_root)
 
     from ea_node_editor.addons.catalog import (
         addon_registration_is_live_enabled,
@@ -463,16 +439,22 @@ def build_default_registry(
     preferences_document: Any = None,
     include_public_plugins: bool = True,
     addon_runtime_config: Iterable[tuple[str, bool]] | None = None,
+    generation_root: Path | None = None,
 ) -> NodeRegistry:
     registry = _build_trusted_registry(
         app_preferences_store=app_preferences_store,
         preferences_document=preferences_document,
         addon_runtime_config=addon_runtime_config,
+        generation_root=generation_root,
     )
     if include_public_plugins:
         from ea_node_editor.nodes.plugin_loader import discover_and_load_plugins
 
-        discover_and_load_plugins(registry, extra_dirs=extra_plugin_dirs)
+        discover_and_load_plugins(
+            registry,
+            extra_dirs=extra_plugin_dirs,
+            generation_root=generation_root,
+        )
     registry.freeze()
     return registry
 
@@ -490,6 +472,7 @@ def build_plugin_candidate_registry(
     registry = _build_trusted_registry(
         app_preferences_store=app_preferences_store,
         preferences_document=preferences_document,
+        generation_root=Path(generation_root),
     )
     from ea_node_editor.nodes.plugin_loader import discover_static_plugin_candidate
 

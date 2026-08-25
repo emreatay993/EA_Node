@@ -2,6 +2,11 @@ from __future__ import annotations
 
 import json
 import math
+from collections.abc import Mapping
+from dataclasses import fields, is_dataclass
+from enum import Enum
+from functools import lru_cache
+from pathlib import Path
 
 import pytest
 
@@ -12,6 +17,7 @@ from ea_node_editor.execution.protocol import (
     event_to_dict,
 )
 from ea_node_editor.nodes import bootstrap
+from ea_node_editor.nodes.builtin_functions import spatial as spatial_functions
 from ea_node_editor.nodes.builtins import spatial_values as spatial
 from ea_node_editor.nodes.builtins.core_media import (
     INTERVAL_2D_DATA_TYPE_ID,
@@ -46,7 +52,12 @@ from ea_node_editor.nodes.core_data_types import (
     GRAPH_DATA_TYPE_ID,
 )
 from ea_node_editor.nodes.execution_context import ExecutionContext
-from ea_node_editor.nodes.registry import NodeRegistry
+from ea_node_editor.nodes.function_plugin import (
+    INTERNAL_BUILTIN_FUNCTION_OWNER_ID,
+    PythonFunctionAdapter,
+)
+from ea_node_editor.nodes.plugin_declaration import discover_plugin_declarations
+from ea_node_editor.nodes.registry import NodeRegistry, PythonFunctionEntry
 from ea_node_editor.runtime_contracts import (
     DataTree,
     DataTypeCatalogError,
@@ -167,7 +178,7 @@ def _d024_registry() -> NodeRegistry:
     )
     registry.register_plugin_bundle(
         spatial.COREX_SPATIAL_VALUES_BOUNDING_INTERVAL_2D_CANDIDATE_CONTRACT_MANIFEST,
-        spatial.COREX_SPATIAL_VALUES_BOUNDING_INTERVAL_2D_CANDIDATE_NODE_DESCRIPTORS,
+        spatial.COREX_SPATIAL_VALUES_TRANSFORM_NODE_DESCRIPTORS,
         owner_id=spatial.COREX_SPATIAL_VALUES_OWNER_ID,
         owner_version=spatial.COREX_SPATIAL_VALUES_OWNER_VERSION,
     )
@@ -176,15 +187,6 @@ def _d024_registry() -> NodeRegistry:
 
 
 
-def _context(coordinates: object) -> ExecutionContext:
-    return ExecutionContext(
-        run_id="run",
-        node_id="node",
-        workspace_id="workspace",
-        inputs={"coordinates": coordinates},
-        properties={},
-        emit_log=lambda _level, _message: None,
-    )
 
 
 
@@ -197,99 +199,13 @@ def _context(coordinates: object) -> ExecutionContext:
 
 
 
-
-
-def _d034_registry() -> NodeRegistry:
-    registry = bootstrap.build_builtin_registry()
-    registry.register_plugin_bundle(
-        spatial.COREX_SPATIAL_VALUES_REVERSE_VECTOR_CANDIDATE_CONTRACT_MANIFEST,
-        spatial.COREX_SPATIAL_VALUES_REVERSE_VECTOR_CANDIDATE_NODE_DESCRIPTORS,
-        owner_id=spatial.COREX_SPATIAL_VALUES_OWNER_ID,
-        owner_version=spatial.COREX_SPATIAL_VALUES_OWNER_VERSION,
-        source_label=spatial.__name__,
-        replace_owner=True,
-    )
-    return registry
-
-
-def _d035_registry() -> NodeRegistry:
-    registry = bootstrap.build_builtin_registry()
-    registry.register_plugin_bundle(
-        spatial.COREX_SPATIAL_VALUES_DECONSTRUCT_VECTOR_CANDIDATE_CONTRACT_MANIFEST,
-        spatial.COREX_SPATIAL_VALUES_DECONSTRUCT_VECTOR_CANDIDATE_NODE_DESCRIPTORS,
-        owner_id=spatial.COREX_SPATIAL_VALUES_OWNER_ID,
-        owner_version=spatial.COREX_SPATIAL_VALUES_OWNER_VERSION,
-        source_label=spatial.__name__,
-        replace_owner=True,
-    )
-    return registry
-
-
-def _d036_registry() -> NodeRegistry:
-    registry = bootstrap.build_builtin_registry()
-    registry.register_plugin_bundle(
-        spatial.COREX_SPATIAL_VALUES_DECONSTRUCT_POINT_CANDIDATE_CONTRACT_MANIFEST,
-        spatial.COREX_SPATIAL_VALUES_DECONSTRUCT_POINT_CANDIDATE_NODE_DESCRIPTORS,
-        owner_id=spatial.COREX_SPATIAL_VALUES_OWNER_ID,
-        owner_version=spatial.COREX_SPATIAL_VALUES_OWNER_VERSION,
-        source_label=spatial.__name__,
-        replace_owner=True,
-    )
-    return registry
-
-
-def _d038_registry() -> NodeRegistry:
-    registry = bootstrap.build_builtin_registry()
-    registry.register_plugin_bundle(
-        spatial.COREX_SPATIAL_VALUES_FIELD_VECTOR_CONTAINER_CANDIDATE_CONTRACT_MANIFEST,
-        spatial.COREX_SPATIAL_VALUES_FIELD_VECTOR_CONTAINER_CANDIDATE_NODE_DESCRIPTORS,
-        owner_id=spatial.COREX_SPATIAL_VALUES_OWNER_ID,
-        owner_version=spatial.COREX_SPATIAL_VALUES_OWNER_VERSION,
-        source_label=spatial.__name__,
-        replace_owner=True,
-    )
-    return registry
-
-
-def _reverse_vector_context(vector: object) -> ExecutionContext:
-    return ExecutionContext(
-        run_id="run",
-        node_id="node",
-        workspace_id="workspace",
-        inputs={"vector": vector},
-        properties={},
-        emit_log=lambda _level, _message: None,
-    )
-
-
-def _deconstruct_vector_context(vector: object) -> ExecutionContext:
-    return ExecutionContext(
-        run_id="run",
-        node_id="node",
-        workspace_id="workspace",
-        inputs={"vector": vector},
-        properties={},
-        emit_log=lambda _level, _message: None,
-    )
-
-
-def _deconstruct_point_context(point: object) -> ExecutionContext:
-    return ExecutionContext(
-        run_id="run",
-        node_id="node",
-        workspace_id="workspace",
-        inputs={"point": point},
-        properties={},
-        emit_log=lambda _level, _message: None,
-    )
-
-
-def _field_vector_container_context(
+def _node_context(
+    node_type_id: str,
     inputs: dict[str, object],
 ) -> ExecutionContext:
     return ExecutionContext(
         run_id="run",
-        node_id="node",
+        node_id=node_type_id,
         workspace_id="workspace",
         inputs=inputs,
         properties={},
@@ -297,6 +213,227 @@ def _field_vector_container_context(
     )
 
 
+@lru_cache(maxsize=1)
+def _spatial_function_adapters() -> dict[str, PythonFunctionAdapter]:
+    namespace: dict[str, object] = {}
+    exec(compile(spatial_functions.SOURCE, "spatial.py", "exec"), namespace)
+    declarations = discover_plugin_declarations(
+        spatial_functions.SOURCE,
+        filename="spatial.py",
+        allow_reserved_ids=True,
+        owner_id=INTERNAL_BUILTIN_FUNCTION_OWNER_ID,
+    )
+    return {
+        declaration.spec.type_id: PythonFunctionAdapter(
+            declaration.spec,
+            namespace[declaration.function_name],  # type: ignore[arg-type]
+        )
+        for declaration in declarations
+    }
+
+
+def _execute_spatial(
+    node_type_id: str,
+    inputs: dict[str, object],
+) -> dict[str, object]:
+    return _spatial_function_adapters()[node_type_id].execute(
+        _node_context(node_type_id, inputs)
+    ).outputs
+
+
+def _catalog_value(value: object) -> object:
+    if callable(value):
+        return True
+    if is_dataclass(value):
+        return {
+            field.name: _catalog_value(getattr(value, field.name))
+            for field in fields(value)
+        }
+    if isinstance(value, Mapping):
+        return {
+            str(key): _catalog_value(item)
+            for key, item in sorted(value.items(), key=lambda pair: str(pair[0]))
+        }
+    if isinstance(value, (tuple, list)):
+        return [_catalog_value(item) for item in value]
+    if isinstance(value, (set, frozenset)):
+        return sorted((_catalog_value(item) for item in value), key=str)
+    if isinstance(value, Enum):
+        return _catalog_value(value.value)
+    if isinstance(value, Path):
+        return value.as_posix()
+    if value is None or isinstance(value, (bool, int, float, str)):
+        return value
+    raise TypeError(f"Unsupported catalog value: {type(value).__qualname__}")
+
+
+
+
+_CONVERTED_SPATIAL_TYPE_IDS = (
+    spatial.BOUNDING_INTERVAL_2D_TYPE_ID,
+    spatial.FIELD_VECTOR_CONTAINER_TYPE_ID,
+    spatial.REVERSE_VECTOR_TYPE_ID,
+    spatial.DECONSTRUCT_VECTOR_TYPE_ID,
+    spatial.DECONSTRUCT_POINT_TYPE_ID,
+    spatial.CONSTRUCT_POINT_TYPE_ID,
+    spatial.CONSTRUCT_VECTOR_TYPE_ID,
+    spatial.XY_PLANE_TYPE_ID,
+    spatial.CONSTRUCT_PLANE_TYPE_ID,
+    spatial.VECTOR_LENGTH_TYPE_ID,
+    spatial.CHAIN_TRANSFORMS_TYPE_ID,
+    spatial.UNCHAIN_TRANSFORMS_TYPE_ID,
+)
+
+
+def test_converted_spatial_specs_match_golden_and_use_function_entries(
+    tmp_path: Path,
+) -> None:
+    expected_rows = json.loads(
+        (
+            Path(__file__).parent
+            / "fixtures"
+            / "node_catalog"
+            / "pre_cutover_non_dpf_catalog.json"
+        ).read_text(encoding="utf-8")
+    )
+    expected = {
+        row["spec"]["type_id"]: row["spec"]
+        for row in expected_rows
+        if row["spec"]["type_id"] in _CONVERTED_SPATIAL_TYPE_IDS
+    }
+    registry = bootstrap.build_builtin_registry(generation_root=tmp_path / "generations")
+
+    assert set(expected) == set(_CONVERTED_SPATIAL_TYPE_IDS)
+    for type_id in _CONVERTED_SPATIAL_TYPE_IDS:
+        entry = registry.get_entry(type_id)
+        assert isinstance(entry, PythonFunctionEntry)
+        assert entry.owner_id == INTERNAL_BUILTIN_FUNCTION_OWNER_ID
+        assert registry.descriptor_or_none(type_id) is None
+        assert _catalog_value(entry.spec) == expected[type_id]
+
+
+def test_only_deferred_transform_nodes_retain_trusted_descriptors() -> None:
+    deferred = (
+        spatial.CONSTRUCT_TRANSFORM_TYPE_ID,
+        spatial.DECONSTRUCT_TRANSFORM_TYPE_ID,
+    )
+    assert tuple(
+        item.spec.type_id
+        for item in spatial.COREX_SPATIAL_VALUES_TRANSFORM_NODE_DESCRIPTORS
+    ) == deferred
+    for class_name in (
+        "BoundingInterval2DNodePlugin",
+        "FieldVectorContainerNodePlugin",
+        "ReverseVectorNodePlugin",
+        "DeconstructVectorNodePlugin",
+        "DeconstructPointNodePlugin",
+        "ConstructPointNodePlugin",
+        "ConstructVectorNodePlugin",
+        "XYPlaneNodePlugin",
+        "ConstructPlaneNodePlugin",
+        "VectorLengthNodePlugin",
+        "ChainTransformsNodePlugin",
+        "UnchainTransformsNodePlugin",
+    ):
+        assert not hasattr(spatial, class_name)
+
+
+def test_converted_spatial_vector_container_and_transform_behavior_is_exact() -> None:
+    point = spatial.make_point3d_value(1, 2, 3)
+    vector = spatial.make_vector3d_value(3, -4, 0)
+    assert _execute_spatial(spatial.REVERSE_VECTOR_TYPE_ID, {"vector": vector}) == {
+        "reversed_vector": spatial.make_vector3d_value(-3, 4, 0)
+    }
+    assert _execute_spatial(
+        spatial.DECONSTRUCT_VECTOR_TYPE_ID,
+        {"vector": vector},
+    ) == {"x": 3, "y": -4, "z": 0}
+    assert _execute_spatial(
+        spatial.DECONSTRUCT_POINT_TYPE_ID,
+        {"point": point},
+    ) == {"x": 1, "y": 2, "z": 3}
+    assert _execute_spatial(spatial.VECTOR_LENGTH_TYPE_ID, {"vector": vector}) == {
+        "length": 5.0
+    }
+
+    field = TypedInlineValue(spatial.FIELD_VECTOR_DATA_TYPE_ID, 1, [1, -2.5])
+    assert _execute_spatial(spatial.FIELD_VECTOR_CONTAINER_TYPE_ID, {}) == {}
+    assert _execute_spatial(
+        spatial.FIELD_VECTOR_CONTAINER_TYPE_ID,
+        {"input": None},
+    ) == {"output": None}
+    assert _execute_spatial(
+        spatial.FIELD_VECTOR_CONTAINER_TYPE_ID,
+        {"input": field},
+    ) == {"output": field}
+
+    first = spatial.make_transform3d_value(
+        [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 2, 3, 4, 1]
+    )
+    second = spatial.make_transform3d_value(
+        [2, 0, 0, 0, 0, 2, 0, 0, 0, 0, 2, 0, 0, 0, 0, 1]
+    )
+    chained = _execute_spatial(
+        spatial.CHAIN_TRANSFORMS_TYPE_ID,
+        {"transforms": [first, second]},
+    )["transform"]
+    assert _execute_spatial(
+        spatial.UNCHAIN_TRANSFORMS_TYPE_ID,
+        {"transform": chained},
+    ) == {"transforms": [first, second]}
+
+
+def test_converted_spatial_validation_keeps_exact_failures() -> None:
+    point = spatial.make_point3d_value(1, 2, 3)
+    vector = spatial.make_vector3d_value(1, 0, 0)
+    for type_id, inputs in (
+        (spatial.REVERSE_VECTOR_TYPE_ID, {"vector": point}),
+        (spatial.DECONSTRUCT_VECTOR_TYPE_ID, {"vector": point}),
+        (spatial.DECONSTRUCT_POINT_TYPE_ID, {"point": vector}),
+        (spatial.VECTOR_LENGTH_TYPE_ID, {"vector": point}),
+    ):
+        with pytest.raises(ValueError, match="spatial value is invalid"):
+            _execute_spatial(type_id, inputs)
+    with pytest.raises(ValueError, match="Field Vector input is invalid"):
+        _execute_spatial(
+            spatial.FIELD_VECTOR_CONTAINER_TYPE_ID,
+            {"input": TypedInlineValue(spatial.FIELD_VECTOR_DATA_TYPE_ID, 1, [])},
+        )
+    with pytest.raises(ValueError, match="spatial coordinates are invalid"):
+        _execute_spatial(
+            spatial.CONSTRUCT_POINT_TYPE_ID,
+            {"x": True, "y": 0, "z": 0},
+        )
+    with pytest.raises(ValueError, match="spatial coordinates are invalid"):
+        _execute_spatial(
+            spatial.CONSTRUCT_VECTOR_TYPE_ID,
+            {"x": 0, "y": float("nan"), "z": 0},
+        )
+    with pytest.raises(ValueError, match="spatial value is invalid"):
+        _execute_spatial(spatial.XY_PLANE_TYPE_ID, {"origin": vector})
+    with pytest.raises(ValueError, match="ChainedTransform3D transforms are invalid"):
+        _execute_spatial(spatial.CHAIN_TRANSFORMS_TYPE_ID, {"transforms": []})
+    with pytest.raises(ValueError, match="ChainedTransform3D value is invalid"):
+        _execute_spatial(
+            spatial.UNCHAIN_TRANSFORMS_TYPE_ID,
+            {"transform": spatial.make_transform3d_value(list(range(16)))},
+        )
+    required_inputs = {
+        spatial.BOUNDING_INTERVAL_2D_TYPE_ID: {},
+        spatial.REVERSE_VECTOR_TYPE_ID: {},
+        spatial.DECONSTRUCT_VECTOR_TYPE_ID: {},
+        spatial.DECONSTRUCT_POINT_TYPE_ID: {},
+        spatial.CONSTRUCT_POINT_TYPE_ID: {"x": 0, "y": 0},
+        spatial.CONSTRUCT_VECTOR_TYPE_ID: {"x": 0, "y": 0},
+        spatial.XY_PLANE_TYPE_ID: {},
+        spatial.CONSTRUCT_PLANE_TYPE_ID: {},
+        spatial.VECTOR_LENGTH_TYPE_ID: {},
+        spatial.CHAIN_TRANSFORMS_TYPE_ID: {},
+        spatial.UNCHAIN_TRANSFORMS_TYPE_ID: {},
+    }
+    for type_id, inputs in required_inputs.items():
+        with pytest.raises(KeyError):
+            _execute_spatial(type_id, inputs)
 
 
 def test_type_facts_and_parent_relations_are_exact() -> None:
@@ -361,7 +498,7 @@ def test_type_facts_and_parent_relations_are_exact() -> None:
     )
     candidate_registry.register_plugin_bundle(
         spatial.COREX_SPATIAL_VALUES_VECTOR_2D_CANDIDATE_CONTRACT_MANIFEST,
-        spatial.COREX_SPATIAL_VALUES_BOUNDING_INTERVAL_2D_CANDIDATE_NODE_DESCRIPTORS,
+        spatial.COREX_SPATIAL_VALUES_TRANSFORM_NODE_DESCRIPTORS,
         owner_id=COREX_SPATIAL_VALUES_OWNER_ID,
         owner_version=COREX_SPATIAL_VALUES_OWNER_VERSION,
         replace_owner=True,
@@ -452,7 +589,7 @@ def test_type_facts_and_parent_relations_are_exact() -> None:
 
     candidate_registry.register_plugin_bundle(
         spatial.COREX_SPATIAL_VALUES_FIELD_VECTOR_CANDIDATE_CONTRACT_MANIFEST,
-        spatial.COREX_SPATIAL_VALUES_DECONSTRUCT_POINT_CANDIDATE_NODE_DESCRIPTORS,
+        spatial.COREX_SPATIAL_VALUES_TRANSFORM_NODE_DESCRIPTORS,
         owner_id=COREX_SPATIAL_VALUES_OWNER_ID,
         owner_version=COREX_SPATIAL_VALUES_OWNER_VERSION,
         replace_owner=True,
@@ -562,33 +699,20 @@ def test_constructors_and_extractors_preserve_exact_copy_safe_coordinates() -> N
 
 
 def test_corex_style_point_vector_and_plane_constructors_compose() -> None:
-    registry = bootstrap.build_builtin_registry()
-
-    def execute(node_type_id: str, inputs: dict[str, object]) -> dict[str, object]:
-        context = ExecutionContext(
-            run_id="spatial-values",
-            node_id=node_type_id,
-            workspace_id="workspace",
-            inputs=inputs,
-            properties={},
-            emit_log=lambda _level, _message: None,
-        )
-        return registry.get_descriptor(node_type_id).factory().execute(context).outputs
-
-    point = execute(
+    point = _execute_spatial(
         spatial.CONSTRUCT_POINT_TYPE_ID,
         {"x": 2.0, "y": -3.0, "z": 5.0},
     )["point"]
-    x_axis = execute(
+    x_axis = _execute_spatial(
         spatial.CONSTRUCT_VECTOR_TYPE_ID,
         {"x": 2.0, "y": 0.0, "z": 0.0},
     )["vector"]
-    y_axis = execute(
+    y_axis = _execute_spatial(
         spatial.CONSTRUCT_VECTOR_TYPE_ID,
         {"x": 0.0, "y": 3.0, "z": 0.0},
     )["vector"]
-    xy_plane = execute(spatial.XY_PLANE_TYPE_ID, {"origin": point})["plane"]
-    plane = execute(
+    xy_plane = _execute_spatial(spatial.XY_PLANE_TYPE_ID, {"origin": point})["plane"]
+    plane = _execute_spatial(
         spatial.CONSTRUCT_PLANE_TYPE_ID,
         {"origin": point, "x_axis": x_axis, "y_axis": y_axis},
     )["plane"]
@@ -602,7 +726,7 @@ def test_corex_style_point_vector_and_plane_constructors_compose() -> None:
         "normal": [0.0, 0.0, 1.0],
     }
     with pytest.raises(ValueError, match="orthogonal"):
-        execute(
+        _execute_spatial(
             spatial.CONSTRUCT_PLANE_TYPE_ID,
             {"origin": point, "x_axis": x_axis, "y_axis": x_axis},
         )
@@ -763,7 +887,7 @@ def test_direct_datatree_and_stdio_json_round_trip_through_catalog() -> None:
     )
     registry.register_plugin_bundle(
         spatial.COREX_SPATIAL_VALUES_FIELD_VECTOR_CANDIDATE_CONTRACT_MANIFEST,
-        spatial.COREX_SPATIAL_VALUES_DECONSTRUCT_POINT_CANDIDATE_NODE_DESCRIPTORS,
+        spatial.COREX_SPATIAL_VALUES_TRANSFORM_NODE_DESCRIPTORS,
         owner_id=COREX_SPATIAL_VALUES_OWNER_ID,
         owner_version=COREX_SPATIAL_VALUES_OWNER_VERSION,
         replace_owner=True,
@@ -1053,12 +1177,7 @@ def test_point2d_exact_payload_and_hostile_values_fail_closed() -> None:
 
 
 def test_bounding_interval_node_has_exact_ports_and_pure_min_max_results() -> None:
-    descriptor = (
-        spatial.COREX_SPATIAL_VALUES_BOUNDING_INTERVAL_2D_CANDIDATE_NODE_DESCRIPTORS[
-            -1
-        ]
-    )
-    spec = descriptor.spec
+    spec = _spatial_function_adapters()[spatial.BOUNDING_INTERVAL_2D_TYPE_ID].spec()
     assert (spec.type_id, spec.properties) == ("math.bounding_interval_2d", ())
     assert [
         (port.key, port.direction, port.data_type, port.data_access, port.required)
@@ -1079,8 +1198,11 @@ def test_bounding_interval_node_has_exact_ports_and_pure_min_max_results() -> No
     assert spec.runtime_behavior == "active"
     assert all(port.uses_property_default is False for port in spec.ports)
 
-    one = descriptor.factory().execute(_context([spatial.make_point2d_value(4, -3.5)]))
-    assert one.outputs == {
+    one = _execute_spatial(
+        spatial.BOUNDING_INTERVAL_2D_TYPE_ID,
+        {"coordinates": [spatial.make_point2d_value(4, -3.5)]},
+    )
+    assert one == {
         "interval": TypedInlineValue(
             INTERVAL_2D_DATA_TYPE_ID,
             1,
@@ -1091,16 +1213,17 @@ def test_bounding_interval_node_has_exact_ports_and_pure_min_max_results() -> No
         )
     }
 
-    multiple = descriptor.factory().execute(
-        _context(
-            [
+    multiple = _execute_spatial(
+        spatial.BOUNDING_INTERVAL_2D_TYPE_ID,
+        {
+            "coordinates": [
                 spatial.make_point2d_value(4, -3.5),
                 spatial.make_point2d_value(-2.25, 8),
                 spatial.make_point2d_value(1.5, 0),
             ]
-        )
+        },
     )
-    interval = multiple.outputs["interval"]
+    interval = multiple["interval"]
     assert interval == TypedInlineValue(
         INTERVAL_2D_DATA_TYPE_ID,
         1,
@@ -1118,33 +1241,30 @@ def test_bounding_interval_node_has_exact_ports_and_pure_min_max_results() -> No
 
 
 def test_bounding_interval_rejects_empty_nonlist_and_invalid_points() -> None:
-    plugin = (
-        spatial.COREX_SPATIAL_VALUES_BOUNDING_INTERVAL_2D_CANDIDATE_NODE_DESCRIPTORS[
-            -1
-        ].factory()
-    )
     for coordinates in (
         [],
         (spatial.make_point2d_value(0, 0),),
         _ListSubclass([spatial.make_point2d_value(0, 0)]),
     ):
         with pytest.raises(ValueError, match="nonempty Point2D list"):
-            plugin.execute(_context(coordinates))
+            _execute_spatial(
+                spatial.BOUNDING_INTERVAL_2D_TYPE_ID,
+                {"coordinates": coordinates},
+            )
     with pytest.raises(ValueError, match="Point2D value is invalid"):
-        plugin.execute(_context([spatial.make_point3d_value(0, 0, 0)]))
+        _execute_spatial(
+            spatial.BOUNDING_INTERVAL_2D_TYPE_ID,
+            {"coordinates": [spatial.make_point3d_value(0, 0, 0)]},
+        )
 
 
 def test_point2d_and_interval2d_round_trip_through_foreign_owner_catalog() -> None:
     registry = _d024_registry()
     point = spatial.make_point2d_value(1, -2.5)
-    interval = (
-        spatial.COREX_SPATIAL_VALUES_BOUNDING_INTERVAL_2D_CANDIDATE_NODE_DESCRIPTORS[
-            -1
-        ]
-        .factory()
-        .execute(_context([point]))
-        .outputs["interval"]
-    )
+    interval = _execute_spatial(
+        spatial.BOUNDING_INTERVAL_2D_TYPE_ID,
+        {"coordinates": [point]},
+    )["interval"]
     registry.data_types.validate_carrier(spatial.POINT_2D_DATA_TYPE_ID, point)
     registry.data_types.validate_carrier(INTERVAL_2D_DATA_TYPE_ID, interval)
     assert registry.data_types.owner_of(INTERVAL_2D_DATA_TYPE_ID) == (
@@ -1227,7 +1347,7 @@ def test_planar_tree_pattern_spec_is_abstract_handle_and_graph_root_only() -> No
     registry = bootstrap.build_builtin_registry()
     registry.register_plugin_bundle(
         spatial.COREX_SPATIAL_VALUES_PLANAR_TREE_PATTERN_CANDIDATE_CONTRACT_MANIFEST,
-        spatial.COREX_SPATIAL_VALUES_FIELD_VECTOR_CONTAINER_CANDIDATE_NODE_DESCRIPTORS,
+        spatial.COREX_SPATIAL_VALUES_TRANSFORM_NODE_DESCRIPTORS,
         owner_id=spatial.COREX_SPATIAL_VALUES_OWNER_ID,
         owner_version=spatial.COREX_SPATIAL_VALUES_OWNER_VERSION,
         source_label=spatial.__name__,
@@ -1271,7 +1391,7 @@ def test_planar_tree_pattern_abstract_validator_and_exact_handle_reject() -> Non
     registry = bootstrap.build_builtin_registry()
     registry.register_plugin_bundle(
         spatial.COREX_SPATIAL_VALUES_PLANAR_TREE_PATTERN_CANDIDATE_CONTRACT_MANIFEST,
-        spatial.COREX_SPATIAL_VALUES_FIELD_VECTOR_CONTAINER_CANDIDATE_NODE_DESCRIPTORS,
+        spatial.COREX_SPATIAL_VALUES_TRANSFORM_NODE_DESCRIPTORS,
         owner_id=spatial.COREX_SPATIAL_VALUES_OWNER_ID,
         owner_version=spatial.COREX_SPATIAL_VALUES_OWNER_VERSION,
         source_label=spatial.__name__,
@@ -1465,7 +1585,7 @@ def test_coordinate_system_runtime_json_round_trip_is_catalog_checked() -> None:
     )
     registry.register_plugin_bundle(
         spatial.COREX_SPATIAL_VALUES_COORDINATE_SYSTEM_CANDIDATE_CONTRACT_MANIFEST,
-        spatial.COREX_SPATIAL_VALUES_VECTOR_LENGTH_CANDIDATE_NODE_DESCRIPTORS,
+        spatial.COREX_SPATIAL_VALUES_TRANSFORM_NODE_DESCRIPTORS,
         owner_id=spatial.COREX_SPATIAL_VALUES_OWNER_ID,
         owner_version=spatial.COREX_SPATIAL_VALUES_OWNER_VERSION,
         source_label=spatial.__name__,

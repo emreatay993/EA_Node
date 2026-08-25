@@ -6,7 +6,7 @@ import pytest
 
 from ea_node_editor.nodes.bootstrap import build_builtin_registry
 from ea_node_editor.nodes.builtins.spatial_values import (
-    COREX_SPATIAL_VALUES_STAGE_3_CANDIDATE_NODE_DESCRIPTORS,
+    COREX_SPATIAL_VALUES_TRANSFORM_NODE_DESCRIPTORS,
     TRANSFORM_3D_DATA_TYPE,
     TRANSFORM_3D_DATA_TYPE_FAMILY,
     TRANSFORM_3D_DATA_TYPE_ID,
@@ -70,7 +70,7 @@ def _context(
 def _plugins() -> tuple[object, object]:
     return tuple(
         descriptor.factory()
-        for descriptor in COREX_SPATIAL_VALUES_STAGE_3_CANDIDATE_NODE_DESCRIPTORS
+        for descriptor in COREX_SPATIAL_VALUES_TRANSFORM_NODE_DESCRIPTORS
     )  # type: ignore[return-value]
 
 

@@ -1,22 +1,36 @@
 from __future__ import annotations
 
+from dataclasses import asdict
+import json
+from pathlib import Path
 import queue
 from unittest import mock
 
 import pytest
 
-from ea_node_editor.execution.protocol import coerce_start_run_command
+from ea_node_editor.execution.protocol import (
+    StartRunCommand,
+    catalog_agreement,
+    runtime_registry_fingerprint,
+)
 from ea_node_editor.execution.runtime_snapshot import build_runtime_snapshot
 from ea_node_editor.execution.worker import run_workflow
 from ea_node_editor.graph.model import GraphModel
 from ea_node_editor.nodes.bootstrap import build_builtin_registry
+from ea_node_editor.nodes.builtin_functions.unit_math import SOURCE
 from ea_node_editor.nodes.builtins.math_interval import (
     CONSTRUCT_INTERVAL_TYPE_ID,
     DECONSTRUCT_INTERVAL_TYPE_ID,
     ConstructIntervalNodePlugin,
-    DeconstructIntervalNodePlugin,
+    MATH_INTERVAL_NODE_DESCRIPTORS,
 )
 from ea_node_editor.nodes.execution_context import ExecutionContext
+from ea_node_editor.nodes.function_plugin import (
+    INTERNAL_BUILTIN_FUNCTION_OWNER_ID,
+    PythonFunctionAdapter,
+)
+from ea_node_editor.nodes.plugin_declaration import discover_plugin_declarations
+from ea_node_editor.nodes.registry import PythonFunctionEntry, TrustedFactoryEntry
 from ea_node_editor.runtime_contracts import (
     DOUBLE_DATA_TYPE_ID,
     GRAPH_DATA_TYPE_ID,
@@ -26,6 +40,27 @@ from ea_node_editor.runtime_contracts import (
     Interval1D,
     deserialize_runtime_value,
 )
+
+
+_DECONSTRUCT_DECLARATION = next(
+    declaration
+    for declaration in discover_plugin_declarations(
+        SOURCE,
+        filename="unit_math.py",
+        allow_reserved_ids=True,
+        owner_id=INTERNAL_BUILTIN_FUNCTION_OWNER_ID,
+    )
+    if declaration.spec.type_id == DECONSTRUCT_INTERVAL_TYPE_ID
+)
+_FUNCTIONS: dict[str, object] = {"__name__": "tests.unit_math_interval_function"}
+exec(compile(SOURCE, "unit_math.py", "exec"), _FUNCTIONS)  # noqa: S102
+
+
+def _deconstruct_plugin() -> PythonFunctionAdapter:
+    return PythonFunctionAdapter(
+        _DECONSTRUCT_DECLARATION.spec,
+        _FUNCTIONS[_DECONSTRUCT_DECLARATION.function_name],  # type: ignore[arg-type]
+    )
 
 
 def _context(
@@ -48,24 +83,28 @@ def _run(model: GraphModel, registry) -> list[dict[str, object]]:  # noqa: ANN00
     snapshot = build_runtime_snapshot(
         model.project, workspace_id=workspace_id, registry=registry
     )
+    catalog_fingerprint, revisions = catalog_agreement(registry.data_types)
+    plugin_digest = registry.plugin_fingerprint()
     event_queue: queue.Queue = queue.Queue()
     with mock.patch(
         "ea_node_editor.nodes.bootstrap.build_default_registry",
         return_value=registry,
     ):
         run_workflow(
-            coerce_start_run_command(
-                {
-                    "run_id": "interval-run",
-                    "workspace_id": workspace_id,
-                    "runtime_snapshot": snapshot,
-                    "target_node_ids": (),
-                    "clicked_trigger_node_id": "",
-                    "trigger_publications": {},
-                    "trigger_captures": {},
-                    "trigger": {},
-                },
-                catalog=registry.data_types,
+            StartRunCommand(
+                run_id="interval-run",
+                workspace_id=workspace_id,
+                runtime_snapshot=snapshot,
+                catalog_fingerprint=catalog_fingerprint,
+                catalog_revisions=revisions,
+                plugin_bundles=registry.plugin_bundle_refs(),
+                plugin_fingerprint=plugin_digest,
+                runtime_registry_fingerprint=runtime_registry_fingerprint(
+                    catalog_fingerprint,
+                    plugin_digest,
+                ),
+                registry_contract_fingerprint=registry.contract_fingerprint(),
+                addon_runtime_config=registry.addon_runtime_config(),
             ),
             event_queue,
         )
@@ -94,8 +133,10 @@ def _output_tree(event: dict[str, object], port_key: str) -> DataTree:
     return tree
 
 
-def test_interval_node_specs_register_with_numeric_defaults_and_icon() -> None:
-    registry = build_builtin_registry()
+def test_interval_node_specs_register_with_numeric_defaults_and_icon(
+    tmp_path: Path,
+) -> None:
+    registry = build_builtin_registry(generation_root=tmp_path / "generations")
     construct = registry.get_spec(CONSTRUCT_INTERVAL_TYPE_ID)
     deconstruct = registry.get_spec(DECONSTRUCT_INTERVAL_TYPE_ID)
     construct_ports = {port.key: port for port in construct.ports}
@@ -126,6 +167,30 @@ def test_interval_node_specs_register_with_numeric_defaults_and_icon() -> None:
         DOUBLE_DATA_TYPE_ID,
         DOUBLE_DATA_TYPE_ID,
     )
+    assert [item.spec.type_id for item in MATH_INTERVAL_NODE_DESCRIPTORS] == [
+        CONSTRUCT_INTERVAL_TYPE_ID
+    ]
+    assert isinstance(registry.get_entry(CONSTRUCT_INTERVAL_TYPE_ID), TrustedFactoryEntry)
+    assert isinstance(registry.get_entry(DECONSTRUCT_INTERVAL_TYPE_ID), PythonFunctionEntry)
+    assert registry.descriptor_or_none(DECONSTRUCT_INTERVAL_TYPE_ID) is None
+
+
+def test_interval_specs_match_golden(tmp_path: Path) -> None:
+    expected = {
+        item["spec"]["type_id"]: item["spec"]
+        for item in json.loads(
+            (
+                Path(__file__).parent
+                / "fixtures"
+                / "node_catalog"
+                / "pre_cutover_non_dpf_catalog.json"
+            ).read_text(encoding="utf-8")
+        )
+    }
+    registry = build_builtin_registry(generation_root=tmp_path / "generations")
+
+    for type_id in (CONSTRUCT_INTERVAL_TYPE_ID, DECONSTRUCT_INTERVAL_TYPE_ID):
+        assert json.loads(json.dumps(asdict(registry.get_spec(type_id)))) == expected[type_id]
 
 
 @pytest.mark.parametrize(
@@ -146,7 +211,7 @@ def test_construct_interval_preserves_order_from_property_defaults(
     (Interval1D(0.0, 10.0), Interval1D(10.0, 0.0), Interval1D(5.0, 5.0)),
 )
 def test_deconstruct_interval_recovers_original_order(interval: Interval1D) -> None:
-    result = DeconstructIntervalNodePlugin().execute(
+    result = _deconstruct_plugin().execute(
         _context(inputs={"interval": interval})
     )
     assert result.outputs == {"start": interval.start, "end": interval.end}
@@ -155,7 +220,7 @@ def test_deconstruct_interval_recovers_original_order(interval: Interval1D) -> N
 @pytest.mark.parametrize("invalid", ({"start": 10.0, "end": 0.0}, [10.0, 0.0]))
 def test_deconstruct_interval_rejects_untyped_pairs(invalid: object) -> None:
     with pytest.raises(TypeError, match="Interval1D instances"):
-        DeconstructIntervalNodePlugin().execute(_context(inputs={"interval": invalid}))
+        _deconstruct_plugin().execute(_context(inputs={"interval": invalid}))
 
 
 def test_construct_to_deconstruct_graph_converts_integer_inputs_and_preserves_decreasing_order() -> (

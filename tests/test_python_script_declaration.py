@@ -81,6 +81,30 @@ def run(ctx, values, image, title, count, enabled, mode, width, accent, folder, 
     ]
 
 
+def test_python_script_labels_preserve_explicit_blank_and_derive_omitted() -> None:
+    source = '''@corex.node
+@corex.input("omitted_input")
+@corex.input("blank_input", label="")
+@corex.output("omitted_output")
+@corex.output("blank_output", label="")
+@corex.text("omitted_control")
+@corex.text("blank_control", label="")
+def run(ctx, omitted_input, blank_input, omitted_control, blank_control):
+    return {}
+'''
+
+    _registry, _properties, spec = _resolve(source)
+    ports = {port.key: port for port in spec.ports}
+    properties = {prop.key: prop for prop in spec.properties}
+
+    assert ports["omitted_input"].label == "Omitted Input"
+    assert ports["blank_input"].label == ""
+    assert ports["omitted_output"].label == "Omitted Output"
+    assert ports["blank_output"].label == ""
+    assert properties["omitted_control"].label == "Omitted Control"
+    assert properties["blank_control"].label == ""
+
+
 def test_decorator_discovery_rejects_expressions_without_executing_them() -> None:
     source = """
 def explode():

@@ -20,6 +20,7 @@ from typing import Any
 from ea_node_editor.execution.protocol import StartRunCommand, runtime_registry_fingerprint
 from ea_node_editor.nodes.function_plugin import (
     EMPTY_PLUGIN_FINGERPRINT,
+    INTERNAL_BUILTIN_FUNCTION_OWNER_ID,
     PluginBundleRef,
     PythonFunctionAdapter,
     PythonFunctionRef,
@@ -82,6 +83,21 @@ class WorkerPluginRuntime:
                     )
                 return self._registry
 
+            expected_internal = tuple(
+                self._bundle_attestation(bundle)
+                for bundle in trusted_registry.plugin_bundle_refs()
+                if bundle.owner_id == INTERNAL_BUILTIN_FUNCTION_OWNER_ID
+            )
+            requested_internal = tuple(
+                self._bundle_attestation(bundle)
+                for bundle in command.plugin_bundles
+                if bundle.owner_id == INTERNAL_BUILTIN_FUNCTION_OWNER_ID
+            )
+            if requested_internal and requested_internal != expected_internal:
+                raise ValueError(
+                    "Internal built-in function generation is not attested"
+                )
+
             candidate = (
                 trusted_registry
                 if not command.plugin_bundles
@@ -95,6 +111,7 @@ class WorkerPluginRuntime:
                     generation.manifest,
                     generation.members,
                     filename_prefix=bundle.owner_id,
+                    owner_id=bundle.owner_id,
                 )
                 declaration_by_identity = {
                     (module_path, declaration.function_name): declaration
@@ -165,6 +182,17 @@ class WorkerPluginRuntime:
             }
             self._generations = generations
             return candidate
+
+    @staticmethod
+    def _bundle_attestation(bundle: PluginBundleRef) -> tuple[object, ...]:
+        return (
+            bundle.owner_id,
+            bundle.version,
+            bundle.generation_id,
+            bundle.bundle_digest,
+            bundle.functions,
+            bundle.unavailable_reason,
+        )
 
     def create_adapter(
         self,

@@ -57,6 +57,9 @@ implementation studies are intentionally excluded.
 - Novice plugin authoring is shared by the nodes-owned static/save backend, native
   PyQt dialog/editor, and shell controller/File actions; reload still routes only
   through the guarded registry replacement coordinator.
+- Simple built-in function migration is owned by `nodes/builtin_functions/` plus
+  the exact retained helper/contract modules; the migration inventory and golden
+  catalog distinguish these function entries from deferred trusted exceptions.
 - Geometry, spatial, mesh, FEM, voxel, security, reporting, media, and unit
   contracts use neutral COREX identifiers and functional module names.
 - Retired import and placeholder surfaces are absent from current ownership.

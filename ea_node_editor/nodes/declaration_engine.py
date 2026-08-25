@@ -302,7 +302,9 @@ def bool_value(values: Mapping[str, Any], key: str, default: bool = False) -> bo
 
 
 def label_value(key: str, values: Mapping[str, Any]) -> str:
-    return string_value(values, "label") or key.replace("_", " ").strip().title()
+    if "label" in values:
+        return string_value(values, "label")
+    return key.replace("_", " ").strip().title()
 
 
 def port_spec(

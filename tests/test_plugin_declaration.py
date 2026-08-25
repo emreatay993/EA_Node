@@ -11,6 +11,7 @@ from ea_node_editor.nodes.plugin_declaration import (
     PluginDeclarationError,
     discover_plugin_declarations as _discover_plugin_declarations,
 )
+from ea_node_editor.nodes.function_plugin import INTERNAL_BUILTIN_FUNCTION_OWNER_ID
 from ea_node_editor.runtime_contracts import Interval1D
 
 
@@ -151,6 +152,31 @@ def controls(ctx, settings):
     assert declaration.spec.properties[8].default == Interval1D(0.0, 1.0)
     factor = next(port for port in declaration.spec.ports if port.key == "factor")
     assert factor.uses_property_default
+
+
+def test_labels_derive_only_when_omitted_and_preserve_explicit_blank() -> None:
+    source = '''
+@corex.node(id="custom.labels.1234abcd", name="Labels", category=("Tests",))
+@corex.input("omitted_input")
+@corex.input("blank_input", label="")
+@corex.output("omitted_output")
+@corex.output("blank_output", label="")
+@corex.text("omitted_control")
+@corex.text("blank_control", label="")
+def labels(ctx, omitted_input, blank_input, settings):
+    return {}
+'''
+
+    (declaration,) = discover_plugin_declarations(source)
+    ports = {port.key: port for port in declaration.spec.ports}
+    properties = {prop.key: prop for prop in declaration.spec.properties}
+
+    assert ports["omitted_input"].label == "Omitted Input"
+    assert ports["blank_input"].label == ""
+    assert ports["omitted_output"].label == "Omitted Output"
+    assert ports["blank_output"].label == ""
+    assert properties["omitted_control"].label == "Omitted Control"
+    assert properties["blank_control"].label == ""
 
 
 def test_hostile_source_is_never_executed_during_discovery(tmp_path: Path) -> None:
@@ -425,7 +451,14 @@ def signal(ctx): return {}
     with pytest.raises(PluginDeclarationError, match="External node ids"):
         discover_plugin_declarations(source)
 
-    (declaration,) = discover_plugin_declarations(source, allow_reserved_ids=True)
+    with pytest.raises(ValueError, match="internal built-in owner"):
+        discover_plugin_declarations(source, allow_reserved_ids=True)
+
+    (declaration,) = discover_plugin_declarations(
+        source,
+        allow_reserved_ids=True,
+        owner_id=INTERNAL_BUILTIN_FUNCTION_OWNER_ID,
+    )
     assert declaration.spec.type_id == "plot.signal"
 
 

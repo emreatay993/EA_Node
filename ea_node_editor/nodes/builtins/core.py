@@ -321,60 +321,6 @@ def _trigger_node_size(node, _spec, *, base_width: float, base_height: float) ->
 register_node_type_size_resolver(TRIGGER_TYPE_ID, _trigger_node_size)
 
 
-class IfNodePlugin:
-    def spec(self) -> NodeTypeSpec:
-        return builtin_node_type_spec(
-            type_id="core.if",
-            display_name="If",
-            category_path=("Core",),
-            description="Selects one of two data trees from a Boolean condition.",
-            keywords=("if", "condition", "select", "branch"),
-            ports=(
-                PortSpec(
-                    "condition",
-                    "in",
-                    "data",
-                    'COREX.DataTypes.Bool',
-                    required=True,
-                    description="Boolean item selecting the true or false value.",
-                ),
-                PortSpec(
-                    "true_value",
-                    "in",
-                    "data",
-                    'COREX.DataTypes.Any',
-                    required=True,
-                    data_access="tree",
-                    description="Tree returned when Condition is true.",
-                ),
-                PortSpec(
-                    "false_value",
-                    "in",
-                    "data",
-                    'COREX.DataTypes.Any',
-                    required=False,
-                    data_access="tree",
-                    description="Optional tree returned when Condition is false.",
-                ),
-                PortSpec(
-                    "result",
-                    "out",
-                    "data",
-                    'COREX.DataTypes.Any',
-                    data_access="tree",
-                    description="Selected tree; empty when the optional false value is absent.",
-                ),
-            ),
-            properties=(),
-        )
-
-    def execute(self, ctx: ExecutionContext) -> NodeResult:
-        key = "true_value" if bool(ctx.inputs["condition"]) else "false_value"
-        if key not in ctx.inputs:
-            return NodeResult()
-        return NodeResult(outputs={"result": ctx.inputs[key]})
-
-
 STREAM_GATE_OUTPUT_IDS_PROPERTY = "output_port_ids"
 DEFAULT_STREAM_GATE_OUTPUT_IDS = ("output_0", "output_1")
 
@@ -510,7 +456,6 @@ CORE_NODE_DESCRIPTORS = (
     plugin_descriptor(LoggerNodePlugin),
     plugin_descriptor(PythonScriptNodePlugin),
     plugin_descriptor(TriggerNodePlugin),
-    plugin_descriptor(IfNodePlugin),
     plugin_descriptor(StreamGateNodePlugin),
 )
 
@@ -519,7 +464,6 @@ __all__ = [
     "CORE_NODE_DESCRIPTORS",
     "DEFAULT_STREAM_GATE_OUTPUT_IDS",
     "STREAM_GATE_OUTPUT_IDS_PROPERTY",
-    "IfNodePlugin",
     "StreamGateNodePlugin",
     "TriggerNodePlugin",
     "normalize_stream_gate_output_ids",

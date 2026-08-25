@@ -19,7 +19,11 @@ from enum import Enum
 from pathlib import Path, PurePosixPath
 from typing import Any
 
-from ea_node_editor.nodes.function_plugin import PluginBundleRef, PythonFunctionRef
+from ea_node_editor.nodes.function_plugin import (
+    INTERNAL_BUILTIN_FUNCTION_OWNER_ID,
+    PluginBundleRef,
+    PythonFunctionRef,
+)
 from ea_node_editor.nodes.plugin_contracts import (
     PluginBackendDescriptor,
     PluginContractManifest,
@@ -315,6 +319,7 @@ def _module_declarations(
     members: Mapping[str, bytes],
     *,
     filename_prefix: str,
+    owner_id: str = "",
 ) -> tuple[tuple[str, PythonFunctionDeclaration], ...]:
     declarations: list[tuple[str, PythonFunctionDeclaration]] = []
     for module_path in manifest["modules"]:  # type: ignore[union-attr]
@@ -328,6 +333,8 @@ def _module_declarations(
             for declaration in discover_plugin_declarations(
                 source,
                 filename=f"{filename_prefix}:{path}",
+                allow_reserved_ids=owner_id == INTERNAL_BUILTIN_FUNCTION_OWNER_ID,
+                owner_id=owner_id,
             )
         )
     return tuple(declarations)
@@ -377,11 +384,13 @@ def validated_generation_declarations(
     members: Mapping[str, bytes],
     *,
     filename_prefix: str,
+    owner_id: str = "",
 ) -> tuple[tuple[str, PythonFunctionDeclaration], ...]:
     declarations = _module_declarations(
         manifest,
         members,
         filename_prefix=filename_prefix,
+        owner_id=owner_id,
     )
     type_ids = [declaration.spec.type_id for _path, declaration in declarations]
     if len(type_ids) != len(set(type_ids)):
@@ -529,10 +538,12 @@ def _prepare_package(package_dir: Path) -> _PreparedBundle:
     if _is_reparse_point(package_dir) or not package_dir.is_dir():
         raise ValueError("Installed plugin package must be a regular directory")
     manifest, members = _package_manifest(package_dir)
+    owner_id = f"plugin:package:{_safe_segment(manifest['name'], fallback='package')}"
     declarations = validated_generation_declarations(
         manifest,
         members,
         filename_prefix=str(manifest["name"]),
+        owner_id=owner_id,
     )
     asset_paths = {
         str(record["path"])
@@ -553,7 +564,6 @@ def _prepare_package(package_dir: Path) -> _PreparedBundle:
     unavailable_reason = (
         f"{missing[0]} is not included in this COREX bundle." if missing else ""
     )
-    owner_id = f"plugin:package:{_safe_segment(manifest['name'], fallback='package')}"
     return _PreparedBundle(
         owner_id=owner_id,
         version=str(manifest["version"]),
@@ -591,6 +601,11 @@ def _validate_registration(prepared: _PreparedBundle, registry: NodeRegistry) ->
     if any(registry.spec_or_none(type_id) is not None for type_id in type_ids):
         raise ValueError("Plugin bundle conflicts with an active node id")
     if any(
+        bundle.owner_id == prepared.owner_id
+        for bundle in registry.plugin_bundle_refs()
+    ):
+        raise ValueError("Plugin bundle owner is already active")
+    if any(
         entry.owner_id == prepared.owner_id
         for entry in (registry.entry_or_none(spec.type_id) for spec in registry.all_specs())
         if entry is not None
@@ -627,7 +642,7 @@ def _register_prepared_bundle(
     for (_module_path, declaration), function_ref in zip(
         prepared.declarations, function_refs, strict=True
     ):
-        provenance = (
+        provenance = None if prepared.owner_id == INTERNAL_BUILTIN_FUNCTION_OWNER_ID else (
             PluginProvenance(
                 kind="package",
                 source_path=generation / function_ref.module_relative_path,
@@ -680,10 +695,11 @@ def plugin_fingerprint(
     registry: NodeRegistry,
     bundles: Sequence[PluginBundleRef],
 ) -> str:
+    included_owners = {bundle.owner_id for bundle in bundles}
     entries = []
     for spec in sorted(registry.all_specs(), key=lambda item: item.type_id):
         function_ref = registry.python_function_ref_or_none(spec.type_id)
-        if function_ref is None:
+        if function_ref is None or function_ref.bundle_id not in included_owners:
             continue
         entries.append({"spec": _stable_value(spec), "function": _stable_value(function_ref)})
     bundle_payload = [
@@ -705,6 +721,73 @@ def plugin_fingerprint(
         allow_nan=False,
     ).encode("utf-8")
     return hashlib.sha256(payload).hexdigest()
+
+
+def register_internal_builtin_functions(
+    registry: NodeRegistry,
+    *,
+    generation_root: Path,
+) -> PluginDiscoveryResult:
+    """Register packaged inert source as one reserved function bundle."""
+
+    from ea_node_editor.nodes.builtin_functions import source_modules
+
+    source_items = source_modules()
+    module_names = [name for name, _source in source_items]
+    if len(module_names) != len({name.casefold() for name in module_names}):
+        raise ValueError("Internal built-in source module names must be unique")
+    members: dict[str, bytes] = {}
+    for raw_path, source in source_items:
+        path = validated_plugin_member_path(raw_path, root_python=True)
+        if not isinstance(source, str):
+            raise TypeError("Internal built-in function source must be a string")
+        payload = source.encode("utf-8")
+        if len(payload) > PLUGIN_SOURCE_LIMIT:
+            raise ValueError("Internal built-in function source is too large")
+        members[path] = payload
+    manifest: dict[str, object] = {
+        "schema_version": 2,
+        "name": "corex_builtin_functions",
+        "version": "1.0.0",
+        "author": "COREX",
+        "description": "Ordinary built-in nodes implemented with the function SDK.",
+        "modules": module_names,
+        "sources": [
+            {"path": path, "sha256": _source_digest(members[path])}
+            for path in module_names
+        ],
+        "assets": [],
+        "nodes": [],
+    }
+    declarations = _module_declarations(
+        manifest,
+        members,
+        filename_prefix=INTERNAL_BUILTIN_FUNCTION_OWNER_ID,
+        owner_id=INTERNAL_BUILTIN_FUNCTION_OWNER_ID,
+    )
+    manifest["nodes"] = _node_inventory(declarations)
+    missing = _missing_imports(members, set(module_names))
+    prepared = _PreparedBundle(
+        owner_id=INTERNAL_BUILTIN_FUNCTION_OWNER_ID,
+        version="1.0.0",
+        manifest=manifest,
+        members=members,
+        declarations=declarations,
+        unavailable_reason=(
+            f"{missing[0]} is not included in this COREX bundle." if missing else ""
+        ),
+        log_label=INTERNAL_BUILTIN_FUNCTION_OWNER_ID,
+        source_root=Path(__file__).parent / "builtin_functions",
+    )
+    bundle, type_ids = _register_prepared_bundle(
+        prepared,
+        registry,
+        Path(generation_root),
+    )
+    bundles = (*registry.plugin_bundle_refs(), bundle)
+    fingerprint = plugin_fingerprint(registry, bundles)
+    registry.set_python_plugin_catalog(bundles, plugin_fingerprint=fingerprint)
+    return PluginDiscoveryResult(type_ids, bundles, fingerprint)
 
 
 def _root_entries(root: Path) -> tuple[Path, ...]:

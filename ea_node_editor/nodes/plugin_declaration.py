@@ -13,6 +13,7 @@ from typing import Any, Mapping
 
 from corex import _unknown_setting_message
 from ea_node_editor.nodes import declaration_engine as _engine
+from ea_node_editor.nodes.function_plugin import INTERNAL_BUILTIN_FUNCTION_OWNER_ID
 from ea_node_editor.nodes.node_specs import (
     NodeTypeSpec,
     PortSpec,
@@ -653,7 +654,10 @@ def discover_plugin_declarations(
     *,
     filename: str = "<plugin>",
     allow_reserved_ids: bool = False,
+    owner_id: str = "",
 ) -> tuple[PythonFunctionDeclaration, ...]:
+    if allow_reserved_ids and owner_id != INTERNAL_BUILTIN_FUNCTION_OWNER_ID:
+        raise ValueError("Reserved node ids require the internal built-in owner")
     return _discover(str(source), str(filename), bool(allow_reserved_ids))
 
 

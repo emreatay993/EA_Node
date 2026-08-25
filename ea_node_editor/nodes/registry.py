@@ -813,7 +813,7 @@ class NodeRegistry:
             if entry.unavailable_reason:
                 raise RuntimeError(entry.unavailable_reason)
             raise RuntimeError(
-                f"Public function node {type_id!r} requires process-worker resolution"
+                f"Function node {type_id!r} requires worker resolution"
             )
         return entry.factory()
 
@@ -1940,9 +1940,13 @@ class NodeRegistry:
             raise ValueError(
                 f"Node {type_id} property {prop.key} has invalid type: {prop.type}"
             )
-        if not prop.label.strip():
+        if not isinstance(prop.label, str):
+            raise TypeError(
+                f"Node {type_id} property {prop.key} label must be a string"
+            )
+        if prop.label.strip() != prop.label:
             raise ValueError(
-                f"Node {type_id} property {prop.key} label must be non-empty"
+                f"Node {type_id} property {prop.key} label must be trimmed"
             )
         if not isinstance(prop.expose_port_toggle, bool):
             raise TypeError(

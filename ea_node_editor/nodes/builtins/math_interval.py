@@ -10,7 +10,6 @@ from ea_node_editor.nodes.execution_context import ExecutionContext, NodeResult
 from ea_node_editor.nodes.node_specs import PortSpec
 from ea_node_editor.runtime_contracts import (
     Interval1D,
-    coerce_interval_1d,
 )
 
 
@@ -65,44 +64,8 @@ class ConstructIntervalNodePlugin:
         return NodeResult(outputs={"interval": Interval1D(start, end)})
 
 
-@builtin_node_type(
-    type_id=DECONSTRUCT_INTERVAL_TYPE_ID,
-    display_name="Deconstruct Interval",
-    category_path=("Math", "Interval"),
-    description="Extracts the original ordered Start and End endpoints from an Interval 1D.",
-    keywords=("interval", "deconstruct", "range", "start", "end"),
-    ports=(
-        PortSpec(
-            "interval",
-            "in",
-            "data",
-            'COREX.DataTypes.Interval1D',
-            label="Interval",
-            required=True,
-            description="Interval 1D whose original endpoints will be extracted.",
-        ),
-        out_port(
-            "start",
-            data_type='COREX.DataTypes.Double',
-            description="Original Interval 1D Start endpoint.",
-        ),
-        out_port(
-            "end",
-            data_type='COREX.DataTypes.Double',
-            description="Original Interval 1D End endpoint.",
-        ),
-    ),
-    properties=(),
-)
-class DeconstructIntervalNodePlugin:
-    def execute(self, ctx: ExecutionContext) -> NodeResult:
-        interval = coerce_interval_1d(ctx.inputs["interval"])
-        return NodeResult(outputs={"start": interval.start, "end": interval.end})
-
-
 MATH_INTERVAL_NODE_DESCRIPTORS = (
     plugin_descriptor(ConstructIntervalNodePlugin),
-    plugin_descriptor(DeconstructIntervalNodePlugin),
 )
 
 
@@ -110,6 +73,5 @@ __all__ = [
     "CONSTRUCT_INTERVAL_TYPE_ID",
     "DECONSTRUCT_INTERVAL_TYPE_ID",
     "ConstructIntervalNodePlugin",
-    "DeconstructIntervalNodePlugin",
     "MATH_INTERVAL_NODE_DESCRIPTORS",
 ]

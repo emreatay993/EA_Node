@@ -122,6 +122,8 @@ def _default_registry_agreement() -> dict[str, object]:
     registry = build_default_registry()
     return {
         "data_types": registry.data_types,
+        "plugin_bundles": registry.plugin_bundle_refs(),
+        "plugin_fingerprint": registry.plugin_fingerprint(),
         "registry_contract_fingerprint": registry.contract_fingerprint(),
         "addon_runtime_config": registry.addon_runtime_config(),
     }
@@ -2225,6 +2227,8 @@ class ProcessExecutionClientTests(unittest.TestCase):
             trigger_captures={trigger.node_id: captured},
             clicked_trigger_node_id=trigger.node_id,
             data_types=self.data_types,
+            plugin_bundles=self.registry.plugin_bundle_refs(),
+            plugin_fingerprint=self.registry.plugin_fingerprint(),
             registry_contract_fingerprint=self.registry.contract_fingerprint(),
             addon_runtime_config=self.registry.addon_runtime_config(),
         )
@@ -2369,6 +2373,8 @@ class ProcessExecutionClientTests(unittest.TestCase):
             trigger={"kind": "manual", "runtime_snapshot": runtime_snapshot},
             target_node_ids=(signal.node_id,),
             data_types=registry.data_types,
+            plugin_bundles=registry.plugin_bundle_refs(),
+            plugin_fingerprint=registry.plugin_fingerprint(),
             registry_contract_fingerprint=registry.contract_fingerprint(),
             addon_runtime_config=registry.addon_runtime_config(),
         )
@@ -2580,6 +2586,8 @@ class ProcessExecutionClientTests(unittest.TestCase):
             workspace_id=workspace_id,
             trigger={"kind": "manual", "runtime_snapshot": long_runtime_snapshot},
             data_types=self.data_types,
+            plugin_bundles=self.registry.plugin_bundle_refs(),
+            plugin_fingerprint=self.registry.plugin_fingerprint(),
             registry_contract_fingerprint=self.registry.contract_fingerprint(),
             addon_runtime_config=self.registry.addon_runtime_config(),
         )
@@ -2618,6 +2626,8 @@ class ProcessExecutionClientTests(unittest.TestCase):
             workspace_id=recovery_workspace_id,
             trigger={"kind": "manual", "runtime_snapshot": recovery_runtime_snapshot},
             data_types=self.data_types,
+            plugin_bundles=self.registry.plugin_bundle_refs(),
+            plugin_fingerprint=self.registry.plugin_fingerprint(),
             registry_contract_fingerprint=self.registry.contract_fingerprint(),
             addon_runtime_config=self.registry.addon_runtime_config(),
         )
@@ -2644,6 +2654,8 @@ class ProcessExecutionClientTests(unittest.TestCase):
             workspace_id=workspace_id,
             trigger={"kind": "manual", "runtime_snapshot": runtime_snapshot},
             data_types=self.data_types,
+            plugin_bundles=self.registry.plugin_bundle_refs(),
+            plugin_fingerprint=self.registry.plugin_fingerprint(),
             registry_contract_fingerprint=self.registry.contract_fingerprint(),
             addon_runtime_config=self.registry.addon_runtime_config(),
         )
@@ -2681,6 +2693,8 @@ class ProcessExecutionClientTests(unittest.TestCase):
             workspace_id=workspace_id,
             trigger={"kind": "manual", "runtime_snapshot": runtime_snapshot},
             data_types=self.data_types,
+            plugin_bundles=self.registry.plugin_bundle_refs(),
+            plugin_fingerprint=self.registry.plugin_fingerprint(),
             registry_contract_fingerprint=self.registry.contract_fingerprint(),
             addon_runtime_config=self.registry.addon_runtime_config(),
         )
@@ -2749,6 +2763,8 @@ class ProcessExecutionClientTests(unittest.TestCase):
             workspace_id=workspace.workspace_id,
             trigger={"kind": "manual", "runtime_snapshot": runtime_snapshot},
             data_types=self.data_types,
+            plugin_bundles=self.registry.plugin_bundle_refs(),
+            plugin_fingerprint=self.registry.plugin_fingerprint(),
             registry_contract_fingerprint=self.registry.contract_fingerprint(),
             addon_runtime_config=self.registry.addon_runtime_config(),
         )
@@ -2799,6 +2815,8 @@ class ProcessExecutionClientTests(unittest.TestCase):
                 "workflow_settings": {"general": {"project_name": "Demo"}},
             },
             data_types=self.data_types,
+            plugin_bundles=self.registry.plugin_bundle_refs(),
+            plugin_fingerprint=self.registry.plugin_fingerprint(),
             registry_contract_fingerprint=self.registry.contract_fingerprint(),
             addon_runtime_config=self.registry.addon_runtime_config(),
         )

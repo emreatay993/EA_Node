@@ -244,7 +244,11 @@ def test_candidate_registry_statically_overrides_package_and_matches_final(
         spec.type_id
         for spec in candidate.all_specs()
         if candidate.python_function_ref_or_none(spec.type_id) is None
-    } == {spec.type_id for spec in baseline.all_specs()}
+    } == {
+        spec.type_id
+        for spec in baseline.all_specs()
+        if baseline.python_function_ref_or_none(spec.type_id) is None
+    }
 
     final_root = tmp_path / "final-installed"
     _write_text(final_root / "loose.py", _function_source(loose_type_id))
@@ -368,7 +372,7 @@ def test_loose_function_plugins_are_discovered_without_execution_and_materialize
     assert registry.plugin_bundle_refs() == (bundle,)
     assert registry.plugin_fingerprint() == result.plugin_fingerprint
     assert len(result.plugin_fingerprint) == 64
-    with pytest.raises(RuntimeError, match="process-worker"):
+    with pytest.raises(RuntimeError, match="worker resolution"):
         registry.create("custom.safe_node.1234abcd")
 
 

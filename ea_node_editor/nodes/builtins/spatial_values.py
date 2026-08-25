@@ -1,7 +1,7 @@
 # Purpose: Declare strict COREX spatial inline-value contracts and staged transforms.
 # Map: subsystems/nodes_registry_builtins.md
 # Tests: tests/test_spatial_values.py, tests/test_transform3d.py
-# Landmarks: make_point2d_value; make_transform3d_value; BoundingInterval2DNodePlugin; ReverseVectorNodePlugin; DeconstructVectorNodePlugin; DeconstructPointNodePlugin; FieldVectorContainerNodePlugin; COREX_SPATIAL_VALUES_DECONSTRUCT_POINT_CANDIDATE_CONTRACT_MANIFEST; COREX_SPATIAL_VALUES_FIELD_VECTOR_CANDIDATE_CONTRACT_MANIFEST; COREX_SPATIAL_VALUES_FIELD_VECTOR_CONTAINER_CANDIDATE_CONTRACT_MANIFEST; COREX_SPATIAL_VALUES_PLANAR_TREE_PATTERN_CANDIDATE_CONTRACT_MANIFEST; COREX_SPATIAL_VALUES_COORDINATE_SYSTEM_CANDIDATE_CONTRACT_MANIFEST
+# Landmarks: make_point2d_value; make_transform3d_value; ConstructTransformNodePlugin; DeconstructTransformNodePlugin; COREX_SPATIAL_VALUES_DECONSTRUCT_POINT_CANDIDATE_CONTRACT_MANIFEST; COREX_SPATIAL_VALUES_FIELD_VECTOR_CANDIDATE_CONTRACT_MANIFEST; COREX_SPATIAL_VALUES_FIELD_VECTOR_CONTAINER_CANDIDATE_CONTRACT_MANIFEST; COREX_SPATIAL_VALUES_PLANAR_TREE_PATTERN_CANDIDATE_CONTRACT_MANIFEST; COREX_SPATIAL_VALUES_COORDINATE_SYSTEM_CANDIDATE_CONTRACT_MANIFEST
 
 from __future__ import annotations
 
@@ -16,10 +16,6 @@ from ea_node_editor.nodes.core_data_types import (
 from ea_node_editor.nodes.decorators import node_type, plugin_descriptor
 from ea_node_editor.nodes.execution_context import ExecutionContext, NodeResult
 from ea_node_editor.nodes.node_specs import PortSpec, PropertySpec
-from ea_node_editor.nodes.builtins.core_media import (
-    INTERVAL_2D_DATA_TYPE_ID,
-    is_interval_2d_payload,
-)
 from ea_node_editor.nodes.builtins.geometry_contracts import (
     COORDINATE_SYSTEM_DATA_TYPE_ID as _COORDINATE_SYSTEM_DATA_TYPE_ID,
     SPATIAL_OBJECT_DATA_TYPE_ID as _SPATIAL_OBJECT_DATA_TYPE_ID,
@@ -521,417 +517,6 @@ POINT_2D_DATA_TYPE = DataTypeSpec(
 )
 
 
-@node_type(
-    type_id=BOUNDING_INTERVAL_2D_TYPE_ID,
-    display_name="Bounding Interval 2D",
-    category_path=("Math", "Interval"),
-    icon="aspect_ratio",
-    description=(
-        "Create a numeric two-dimensional interval which encompasses a list of "
-        "coordinates."
-    ),
-    keywords=("interval", "2d", "bounding", "coordinates"),
-    ports=(
-        PortSpec(
-            "coordinates",
-            "in",
-            "data",
-            POINT_2D_DATA_TYPE_ID,
-            label="Coordinates",
-            required=True,
-            data_access="list",
-            description="2D-coordinates to include in the interval.",
-        ),
-        PortSpec(
-            "interval",
-            "out",
-            "data",
-            INTERVAL_2D_DATA_TYPE_ID,
-            label="Interval 2D",
-            description="2D-Interval containing all given coordinates.",
-        ),
-    ),
-    properties=(),
-)
-class BoundingInterval2DNodePlugin:
-    def execute(self, ctx: ExecutionContext) -> NodeResult:
-        coordinates = ctx.inputs["coordinates"]
-        if type(coordinates) is not list or not coordinates:
-            raise ValueError("Bounding Interval 2D requires a nonempty Point2D list")
-        points = tuple(point2d_coordinates(value) for value in coordinates)
-        x_values, y_values = zip(*points, strict=True)
-        payload = {
-            "u": {"start": float(min(x_values)), "end": float(max(x_values))},
-            "v": {"start": float(min(y_values)), "end": float(max(y_values))},
-        }
-        if not is_interval_2d_payload(payload):
-            raise ValueError("Bounding Interval 2D result is invalid")
-        return NodeResult(
-            outputs={"interval": TypedInlineValue(INTERVAL_2D_DATA_TYPE_ID, 1, payload)}
-        )
-
-
-@node_type(
-    type_id=REVERSE_VECTOR_TYPE_ID,
-    display_name="Reverse Vector",
-    category_path=("Reference", "Vector"),
-    icon="swap_horiz",
-    description="Reverse a vector (multiply by -1).",
-    keywords=("Flip",),
-    ports=(
-        PortSpec(
-            "vector",
-            "in",
-            "data",
-            VECTOR_3D_DATA_TYPE_ID,
-            label="Vector",
-            required=True,
-            description="Vector to reverse.",
-        ),
-        PortSpec(
-            "reversed_vector",
-            "out",
-            "data",
-            VECTOR_3D_DATA_TYPE_ID,
-            label="Vector",
-            description="Reversed vector.",
-        ),
-    ),
-    properties=(),
-)
-class ReverseVectorNodePlugin:
-    def execute(self, ctx: ExecutionContext) -> NodeResult:
-        x, y, z = vector3d_coordinates(ctx.inputs["vector"])
-        return NodeResult(outputs={"reversed_vector": make_vector3d_value(-x, -y, -z)})
-
-
-@node_type(
-    type_id=DECONSTRUCT_VECTOR_TYPE_ID,
-    display_name="Deconstruct Vector",
-    category_path=("Reference", "Vector"),
-    icon="view_in_ar",
-    description="Deconstruct a vector into its component parts.",
-    keywords=("vector", "deconstruct", "coordinates"),
-    ports=(
-        PortSpec(
-            "vector",
-            "in",
-            "data",
-            VECTOR_3D_DATA_TYPE_ID,
-            label="Vector",
-            required=True,
-            description="Vector to deconstruct into its coordinates.",
-        ),
-        PortSpec(
-            "x",
-            "out",
-            "data",
-            DOUBLE_DATA_TYPE_ID,
-            label="X-coordinate",
-            description="X-coordinate of the vector.",
-        ),
-        PortSpec(
-            "y",
-            "out",
-            "data",
-            DOUBLE_DATA_TYPE_ID,
-            label="Y-coordinate",
-            description="Y-coordinate of the vector.",
-        ),
-        PortSpec(
-            "z",
-            "out",
-            "data",
-            DOUBLE_DATA_TYPE_ID,
-            label="Z-coordinate",
-            description="Z-coordinate of the vector.",
-        ),
-    ),
-    properties=(),
-)
-class DeconstructVectorNodePlugin:
-    def execute(self, ctx: ExecutionContext) -> NodeResult:
-        x, y, z = vector3d_coordinates(ctx.inputs["vector"])
-        return NodeResult(outputs={"x": x, "y": y, "z": z})
-
-
-@node_type(
-    type_id=DECONSTRUCT_POINT_TYPE_ID,
-    display_name="Deconstruct Point",
-    category_path=("Reference", "Point"),
-    # COREX-chosen analogy to Deconstruct Vector; not COREX evidence.
-    icon="view_in_ar",
-    description="Deconstruct a point into its x-, y- and z-coordinate.",
-    keywords=("point", "deconstruct", "coordinates"),
-    ports=(
-        PortSpec(
-            "point",
-            "in",
-            "data",
-            POINT_3D_DATA_TYPE_ID,
-            label="Point",
-            required=True,
-            description="Point to deconstruct into its coordinates.",
-        ),
-        PortSpec(
-            "x",
-            "out",
-            "data",
-            DOUBLE_DATA_TYPE_ID,
-            label="X-coordinate",
-            description="X-coordinate of the point.",
-        ),
-        PortSpec(
-            "y",
-            "out",
-            "data",
-            DOUBLE_DATA_TYPE_ID,
-            label="Y-coordinate",
-            description="Y-coordinate of the point.",
-        ),
-        PortSpec(
-            "z",
-            "out",
-            "data",
-            DOUBLE_DATA_TYPE_ID,
-            label="Z-coordinate",
-            description="Z-coordinate of the point.",
-        ),
-    ),
-    properties=(),
-)
-class DeconstructPointNodePlugin:
-    def execute(self, ctx: ExecutionContext) -> NodeResult:
-        x, y, z = point3d_coordinates(ctx.inputs["point"])
-        return NodeResult(outputs={"x": x, "y": y, "z": z})
-
-
-@node_type(
-    type_id=CONSTRUCT_POINT_TYPE_ID,
-    display_name="Construct Point",
-    category_path=("Reference", "Point"),
-    icon="location_on",
-    description="Create a point from global x-, y- and z-coordinates.",
-    keywords=("point", "construct", "coordinates"),
-    ports=(
-        PortSpec(
-            "x", "in", "data", DOUBLE_DATA_TYPE_ID, label="X-coordinate", required=True
-        ),
-        PortSpec(
-            "y", "in", "data", DOUBLE_DATA_TYPE_ID, label="Y-coordinate", required=True
-        ),
-        PortSpec(
-            "z", "in", "data", DOUBLE_DATA_TYPE_ID, label="Z-coordinate", required=True
-        ),
-        PortSpec("point", "out", "data", POINT_3D_DATA_TYPE_ID, label="Point"),
-    ),
-    properties=(),
-)
-class ConstructPointNodePlugin:
-    def execute(self, ctx: ExecutionContext) -> NodeResult:
-        return NodeResult(
-            outputs={
-                "point": make_point3d_value(
-                    ctx.inputs["x"], ctx.inputs["y"], ctx.inputs["z"]
-                )
-            }
-        )
-
-
-@node_type(
-    type_id=CONSTRUCT_VECTOR_TYPE_ID,
-    display_name="Construct Vector",
-    category_path=("Reference", "Vector"),
-    icon="arrow_forward",
-    description="Create a vector from x-, y- and z-coordinates.",
-    keywords=("vector", "construct", "coordinates"),
-    ports=(
-        PortSpec(
-            "x", "in", "data", DOUBLE_DATA_TYPE_ID, label="X-coordinate", required=True
-        ),
-        PortSpec(
-            "y", "in", "data", DOUBLE_DATA_TYPE_ID, label="Y-coordinate", required=True
-        ),
-        PortSpec(
-            "z", "in", "data", DOUBLE_DATA_TYPE_ID, label="Z-coordinate", required=True
-        ),
-        PortSpec("vector", "out", "data", VECTOR_3D_DATA_TYPE_ID, label="Vector"),
-    ),
-    properties=(),
-)
-class ConstructVectorNodePlugin:
-    def execute(self, ctx: ExecutionContext) -> NodeResult:
-        return NodeResult(
-            outputs={
-                "vector": make_vector3d_value(
-                    ctx.inputs["x"], ctx.inputs["y"], ctx.inputs["z"]
-                )
-            }
-        )
-
-
-@node_type(
-    type_id=XY_PLANE_TYPE_ID,
-    display_name="XY Plane",
-    category_path=("Reference", "Plane"),
-    icon="grid_4x4",
-    description="Create an XY plane from an origin point.",
-    keywords=("plane", "xy", "construct", "reference"),
-    ports=(
-        PortSpec(
-            "origin", "in", "data", POINT_3D_DATA_TYPE_ID, label="Origin", required=True
-        ),
-        PortSpec("plane", "out", "data", PLANE_DATA_TYPE_ID, label="Plane"),
-    ),
-    properties=(),
-)
-class XYPlaneNodePlugin:
-    def execute(self, ctx: ExecutionContext) -> NodeResult:
-        return NodeResult(
-            outputs={
-                "plane": _plane_value(
-                    ctx.inputs["origin"],
-                    make_vector3d_value(1.0, 0.0, 0.0),
-                    make_vector3d_value(0.0, 1.0, 0.0),
-                )
-            }
-        )
-
-
-@node_type(
-    type_id=CONSTRUCT_PLANE_TYPE_ID,
-    display_name="Construct Plane",
-    category_path=("Reference", "Plane"),
-    icon="3d_rotation",
-    description="Create a plane from an origin point and orthogonal x- and y-axes.",
-    keywords=("plane", "construct", "reference", "axes"),
-    ports=(
-        PortSpec(
-            "origin", "in", "data", POINT_3D_DATA_TYPE_ID, label="Origin", required=True
-        ),
-        PortSpec(
-            "x_axis",
-            "in",
-            "data",
-            VECTOR_3D_DATA_TYPE_ID,
-            label="X-axis",
-            required=True,
-        ),
-        PortSpec(
-            "y_axis",
-            "in",
-            "data",
-            VECTOR_3D_DATA_TYPE_ID,
-            label="Y-axis",
-            required=True,
-        ),
-        PortSpec("plane", "out", "data", PLANE_DATA_TYPE_ID, label="Plane"),
-    ),
-    properties=(),
-)
-class ConstructPlaneNodePlugin:
-    def execute(self, ctx: ExecutionContext) -> NodeResult:
-        return NodeResult(
-            outputs={
-                "plane": _plane_value(
-                    ctx.inputs["origin"],
-                    ctx.inputs["x_axis"],
-                    ctx.inputs["y_axis"],
-                )
-            }
-        )
-
-
-@node_type(
-    type_id=FIELD_VECTOR_CONTAINER_TYPE_ID,
-    display_name="Field Vector",
-    category_path=("Math", "Container"),
-    # COREX-chosen icon; not COREX evidence.
-    icon="storage",
-    description=(
-        "Storage space for {0} data. You can use this container to organize "
-        "your data flow and to store data permanently by internalizing them "
-        "(Right-click and Internalize). You can also use this container for "
-        "filtering: All input data that cannot be converted to {0} will be set "
-        "to null."
-    ),
-    keywords=(),
-    ports=(
-        PortSpec(
-            "input",
-            "in",
-            "data",
-            FIELD_VECTOR_DATA_TYPE_ID,
-            label="Input",
-            required=False,
-            description="The input of the container.",
-        ),
-        PortSpec(
-            "output",
-            "out",
-            "data",
-            FIELD_VECTOR_DATA_TYPE_ID,
-            label="Output",
-            description="The output of the container.",
-        ),
-    ),
-    properties=(),
-)
-class FieldVectorContainerNodePlugin:
-    def execute(self, ctx: ExecutionContext) -> NodeResult:
-        if "input" not in ctx.inputs:
-            return NodeResult()
-        value = ctx.inputs["input"]
-        if value is None:
-            return NodeResult(outputs={"output": None})
-        if (
-            type(value) is not TypedInlineValue
-            or type(value.data_type_id) is not str
-            or value.data_type_id != FIELD_VECTOR_DATA_TYPE_ID
-            or type(value.schema_version) is not int
-            or value.schema_version != 1
-            or not _is_field_vector_payload(value.payload)
-        ):
-            raise ValueError("Field Vector input is invalid")
-        return NodeResult(outputs={"output": value})
-
-
-@node_type(
-    type_id=VECTOR_LENGTH_TYPE_ID,
-    display_name="Vector Length",
-    category_path=("Reference", "Vector"),
-    icon="straighten",
-    description="Compute length (amplitude) of a vector.",
-    keywords=(),
-    ports=(
-        PortSpec(
-            "vector",
-            "in",
-            "data",
-            VECTOR_3D_DATA_TYPE_ID,
-            label="Vector",
-            required=True,
-            description="Vector whose length shall be calculated.",
-        ),
-        PortSpec(
-            "length",
-            "out",
-            "data",
-            DOUBLE_DATA_TYPE_ID,
-            label="Length",
-            description="Length of the vector.",
-        ),
-    ),
-    properties=(),
-)
-class VectorLengthNodePlugin:
-    def execute(self, ctx: ExecutionContext) -> NodeResult:
-        length = math.hypot(*vector3d_coordinates(ctx.inputs["vector"]))
-        if not math.isfinite(length):
-            raise ValueError("Vector Length result is invalid")
-        return NodeResult(outputs={"length": 0.0 if length == 0.0 else length})
-
-
 def _order_value(ctx: ExecutionContext) -> int:
     return _transform_order(ctx.inputs.get("order", ctx.properties.get("order", 0)))
 
@@ -1052,103 +637,10 @@ class DeconstructTransformNodePlugin:
         )
 
 
-@node_type(
-    type_id=CHAIN_TRANSFORMS_TYPE_ID,
-    display_name="Chain Transforms",
-    category_path=("Geometry", "Transform"),
-    icon="matrix",
-    description="Combine ordered transforms into one chained transform.",
-    keywords=("transform", "matrix", "chain"),
-    ports=(
-        PortSpec(
-            "transforms",
-            "in",
-            "data",
-            TRANSFORM_3D_DATA_TYPE_ID,
-            label="Transforms",
-            required=True,
-            data_access="list",
-        ),
-        PortSpec(
-            "transform",
-            "out",
-            "data",
-            CHAINED_TRANSFORM_3D_DATA_TYPE_ID,
-            label="Transform",
-        ),
-    ),
-    properties=(),
-)
-class ChainTransformsNodePlugin:
-    def execute(self, ctx: ExecutionContext) -> NodeResult:
-        return NodeResult(
-            outputs={
-                "transform": make_chained_transform3d_value(ctx.inputs["transforms"])
-            }
-        )
-
-
-@node_type(
-    type_id=UNCHAIN_TRANSFORMS_TYPE_ID,
-    display_name="Unchain Transforms",
-    category_path=("Geometry", "Transform"),
-    icon="matrix",
-    description="Restore the ordered transforms from a chained transform.",
-    keywords=("transform", "matrix", "unchain"),
-    ports=(
-        PortSpec(
-            "transform",
-            "in",
-            "data",
-            CHAINED_TRANSFORM_3D_DATA_TYPE_ID,
-            label="Transform",
-            required=True,
-        ),
-        PortSpec(
-            "transforms",
-            "out",
-            "data",
-            TRANSFORM_3D_DATA_TYPE_ID,
-            label="Transforms",
-            data_access="list",
-        ),
-    ),
-    properties=(),
-)
-class UnchainTransformsNodePlugin:
-    def execute(self, ctx: ExecutionContext) -> NodeResult:
-        return NodeResult(
-            outputs={
-                "transforms": list(
-                    chained_transform3d_transforms(ctx.inputs["transform"])
-                )
-            }
-        )
-
-
-COREX_SPATIAL_VALUES_STAGE_3_CANDIDATE_NODE_DESCRIPTORS = (
+COREX_SPATIAL_VALUES_TRANSFORM_NODE_DESCRIPTORS = (
     plugin_descriptor(ConstructTransformNodePlugin),
     plugin_descriptor(DeconstructTransformNodePlugin),
 )
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 
@@ -1163,13 +655,6 @@ COREX_SPATIAL_VALUES_STAGE_3_CANDIDATE_CONTRACT_MANIFEST = PluginContractManifes
     data_types=COREX_SPATIAL_VALUES_STAGE_3_CANDIDATE_DATA_TYPES,
 )
 
-COREX_SPATIAL_VALUES_CHAINED_TRANSFORM_CANDIDATE_NODE_DESCRIPTORS = (
-    *COREX_SPATIAL_VALUES_STAGE_3_CANDIDATE_NODE_DESCRIPTORS,
-    plugin_descriptor(ChainTransformsNodePlugin),
-    plugin_descriptor(UnchainTransformsNodePlugin),
-)
-
-
 COREX_SPATIAL_VALUES_CHAINED_TRANSFORM_CANDIDATE_DATA_TYPES = (
     *COREX_SPATIAL_VALUES_STAGE_3_CANDIDATE_DATA_TYPES,
     CHAINED_TRANSFORM_3D_DATA_TYPE,
@@ -1181,12 +666,6 @@ COREX_SPATIAL_VALUES_CHAINED_TRANSFORM_CANDIDATE_CONTRACT_MANIFEST = (
         data_types=COREX_SPATIAL_VALUES_CHAINED_TRANSFORM_CANDIDATE_DATA_TYPES,
     )
 )
-
-COREX_SPATIAL_VALUES_BOUNDING_INTERVAL_2D_CANDIDATE_NODE_DESCRIPTORS = (
-    *COREX_SPATIAL_VALUES_CHAINED_TRANSFORM_CANDIDATE_NODE_DESCRIPTORS,
-    plugin_descriptor(BoundingInterval2DNodePlugin),
-)
-
 
 COREX_SPATIAL_VALUES_BOUNDING_INTERVAL_2D_CANDIDATE_DATA_TYPES = (
     *COREX_SPATIAL_VALUES_CHAINED_TRANSFORM_CANDIDATE_DATA_TYPES,
@@ -1222,12 +701,6 @@ COREX_SPATIAL_VALUES_VECTOR_2D_CANDIDATE_CONTRACT_MANIFEST = PluginContractManif
     data_types=COREX_SPATIAL_VALUES_VECTOR_2D_CANDIDATE_DATA_TYPES,
 )
 
-COREX_SPATIAL_VALUES_REVERSE_VECTOR_CANDIDATE_NODE_DESCRIPTORS = (
-    *COREX_SPATIAL_VALUES_BOUNDING_INTERVAL_2D_CANDIDATE_NODE_DESCRIPTORS,
-    plugin_descriptor(ReverseVectorNodePlugin),
-)
-
-
 COREX_SPATIAL_VALUES_REVERSE_VECTOR_CANDIDATE_CONTRACT_MANIFEST = (
     PluginContractManifest(
         data_type_families=(TRANSFORM_3D_DATA_TYPE_FAMILY,),
@@ -1235,24 +708,12 @@ COREX_SPATIAL_VALUES_REVERSE_VECTOR_CANDIDATE_CONTRACT_MANIFEST = (
     )
 )
 
-COREX_SPATIAL_VALUES_DECONSTRUCT_VECTOR_CANDIDATE_NODE_DESCRIPTORS = (
-    *COREX_SPATIAL_VALUES_REVERSE_VECTOR_CANDIDATE_NODE_DESCRIPTORS,
-    plugin_descriptor(DeconstructVectorNodePlugin),
-)
-
-
 COREX_SPATIAL_VALUES_DECONSTRUCT_VECTOR_CANDIDATE_CONTRACT_MANIFEST = (
     PluginContractManifest(
         data_type_families=(TRANSFORM_3D_DATA_TYPE_FAMILY,),
         data_types=COREX_SPATIAL_VALUES_VECTOR_2D_CANDIDATE_DATA_TYPES,
     )
 )
-
-COREX_SPATIAL_VALUES_DECONSTRUCT_POINT_CANDIDATE_NODE_DESCRIPTORS = (
-    *COREX_SPATIAL_VALUES_DECONSTRUCT_VECTOR_CANDIDATE_NODE_DESCRIPTORS,
-    plugin_descriptor(DeconstructPointNodePlugin),
-)
-
 
 COREX_SPATIAL_VALUES_DECONSTRUCT_POINT_CANDIDATE_CONTRACT_MANIFEST = (
     PluginContractManifest(
@@ -1281,12 +742,6 @@ COREX_SPATIAL_VALUES_FIELD_VECTOR_CANDIDATE_CONTRACT_MANIFEST = PluginContractMa
     data_type_families=(TRANSFORM_3D_DATA_TYPE_FAMILY,),
     data_types=COREX_SPATIAL_VALUES_FIELD_VECTOR_CANDIDATE_DATA_TYPES,
 )
-
-COREX_SPATIAL_VALUES_FIELD_VECTOR_CONTAINER_CANDIDATE_NODE_DESCRIPTORS = (
-    *COREX_SPATIAL_VALUES_DECONSTRUCT_POINT_CANDIDATE_NODE_DESCRIPTORS,
-    plugin_descriptor(FieldVectorContainerNodePlugin),
-)
-
 
 COREX_SPATIAL_VALUES_FIELD_VECTOR_CONTAINER_CANDIDATE_CONTRACT_MANIFEST = (
     PluginContractManifest(
@@ -1318,20 +773,6 @@ COREX_SPATIAL_VALUES_PLANAR_TREE_PATTERN_CANDIDATE_CONTRACT_MANIFEST = (
         data_types=COREX_SPATIAL_VALUES_PLANAR_TREE_PATTERN_CANDIDATE_DATA_TYPES,
     )
 )
-
-COREX_SPATIAL_VALUES_VECTOR_LENGTH_CANDIDATE_NODE_DESCRIPTORS = (
-    *COREX_SPATIAL_VALUES_FIELD_VECTOR_CONTAINER_CANDIDATE_NODE_DESCRIPTORS,
-    plugin_descriptor(VectorLengthNodePlugin),
-)
-
-COREX_SPATIAL_VALUES_CONSTRUCTION_NODE_DESCRIPTORS = (
-    *COREX_SPATIAL_VALUES_VECTOR_LENGTH_CANDIDATE_NODE_DESCRIPTORS,
-    plugin_descriptor(ConstructPointNodePlugin),
-    plugin_descriptor(ConstructVectorNodePlugin),
-    plugin_descriptor(XYPlaneNodePlugin),
-    plugin_descriptor(ConstructPlaneNodePlugin),
-)
-
 
 COREX_SPATIAL_VALUES_VECTOR_LENGTH_CANDIDATE_CONTRACT_MANIFEST = (
     PluginContractManifest(
@@ -1365,23 +806,18 @@ COREX_SPATIAL_VALUES_COORDINATE_SYSTEM_CANDIDATE_CONTRACT_MANIFEST = (
 
 __all__ = [
     "BOUNDING_INTERVAL_2D_TYPE_ID",
-    "BoundingInterval2DNodePlugin",
     "CHAINED_TRANSFORM_3D_DATA_TYPE",
     "CHAINED_TRANSFORM_3D_DATA_TYPE_ID",
     "CHAIN_TRANSFORMS_TYPE_ID",
-    "ChainTransformsNodePlugin",
     "CONCRETE_COORDINATE_SYSTEM_DATA_TYPE_ID",
     "CONSTRUCT_TRANSFORM_TYPE_ID",
     "ConstructTransformNodePlugin",
     "DECONSTRUCT_POINT_TYPE_ID",
-    "DeconstructPointNodePlugin",
     "DECONSTRUCT_VECTOR_TYPE_ID",
-    "DeconstructVectorNodePlugin",
     "DECONSTRUCT_TRANSFORM_TYPE_ID",
     "DeconstructTransformNodePlugin",
     "FIELD_VECTOR_CONTAINER_TYPE_ID",
     "FIELD_VECTOR_DATA_TYPE_ID",
-    "FieldVectorContainerNodePlugin",
     "IVECTOR_DATA_TYPE_ID",
     "ISPATIAL_FIELD_DATA_TYPE",
     "ISPATIAL_FIELD_DATA_TYPE_ID",
@@ -1390,7 +826,6 @@ __all__ = [
     "POINT_3D_DATA_TYPE_ID",
     "PLANAR_TREE_PATTERN_DATA_TYPE_ID",
     "REVERSE_VECTOR_TYPE_ID",
-    "ReverseVectorNodePlugin",
     "COREX_SPATIAL_VALUE_DATA_TYPES",
     "COREX_SPATIAL_VALUES_CONTRACT_MANIFEST",
     "COREX_SPATIAL_VALUES_COORDINATE_SYSTEM_CANDIDATE_CONTRACT_MANIFEST",
@@ -1399,38 +834,29 @@ __all__ = [
     "COREX_SPATIAL_VALUES_OWNER_VERSION",
     "COREX_SPATIAL_VALUES_CHAINED_TRANSFORM_CANDIDATE_CONTRACT_MANIFEST",
     "COREX_SPATIAL_VALUES_CHAINED_TRANSFORM_CANDIDATE_DATA_TYPES",
-    "COREX_SPATIAL_VALUES_CHAINED_TRANSFORM_CANDIDATE_NODE_DESCRIPTORS",
     "COREX_SPATIAL_VALUES_DECONSTRUCT_POINT_CANDIDATE_CONTRACT_MANIFEST",
-    "COREX_SPATIAL_VALUES_DECONSTRUCT_POINT_CANDIDATE_NODE_DESCRIPTORS",
     "COREX_SPATIAL_VALUES_DECONSTRUCT_VECTOR_CANDIDATE_CONTRACT_MANIFEST",
-    "COREX_SPATIAL_VALUES_DECONSTRUCT_VECTOR_CANDIDATE_NODE_DESCRIPTORS",
     "COREX_SPATIAL_VALUES_FIELD_VECTOR_CANDIDATE_CONTRACT_MANIFEST",
     "COREX_SPATIAL_VALUES_FIELD_VECTOR_CANDIDATE_DATA_TYPES",
     "COREX_SPATIAL_VALUES_FIELD_VECTOR_CONTAINER_CANDIDATE_CONTRACT_MANIFEST",
-    "COREX_SPATIAL_VALUES_FIELD_VECTOR_CONTAINER_CANDIDATE_NODE_DESCRIPTORS",
     "COREX_SPATIAL_VALUES_PLANAR_TREE_PATTERN_CANDIDATE_CONTRACT_MANIFEST",
     "COREX_SPATIAL_VALUES_PLANAR_TREE_PATTERN_CANDIDATE_DATA_TYPES",
     "COREX_SPATIAL_VALUES_BOUNDING_INTERVAL_2D_CANDIDATE_CONTRACT_MANIFEST",
     "COREX_SPATIAL_VALUES_BOUNDING_INTERVAL_2D_CANDIDATE_DATA_TYPES",
-    "COREX_SPATIAL_VALUES_BOUNDING_INTERVAL_2D_CANDIDATE_NODE_DESCRIPTORS",
     "COREX_SPATIAL_VALUES_STAGE_3_CANDIDATE_CONTRACT_MANIFEST",
     "COREX_SPATIAL_VALUES_STAGE_3_CANDIDATE_DATA_TYPES",
-    "COREX_SPATIAL_VALUES_STAGE_3_CANDIDATE_NODE_DESCRIPTORS",
     "COREX_SPATIAL_VALUES_REVERSE_VECTOR_CANDIDATE_CONTRACT_MANIFEST",
-    "COREX_SPATIAL_VALUES_REVERSE_VECTOR_CANDIDATE_NODE_DESCRIPTORS",
+    "COREX_SPATIAL_VALUES_TRANSFORM_NODE_DESCRIPTORS",
     "COREX_SPATIAL_VALUES_VECTOR_2D_CANDIDATE_CONTRACT_MANIFEST",
     "COREX_SPATIAL_VALUES_VECTOR_2D_CANDIDATE_DATA_TYPES",
     "TRANSFORM_3D_DATA_TYPE",
     "TRANSFORM_3D_DATA_TYPE_FAMILY",
     "TRANSFORM_3D_DATA_TYPE_ID",
     "UNCHAIN_TRANSFORMS_TYPE_ID",
-    "UnchainTransformsNodePlugin",
     "VECTOR_2D_DATA_TYPE_ID",
     "VECTOR_3D_DATA_TYPE_ID",
     "VECTOR_LENGTH_TYPE_ID",
-    "VectorLengthNodePlugin",
     "COREX_SPATIAL_VALUES_VECTOR_LENGTH_CANDIDATE_CONTRACT_MANIFEST",
-    "COREX_SPATIAL_VALUES_VECTOR_LENGTH_CANDIDATE_NODE_DESCRIPTORS",
     "chained_transform3d_transforms",
     "make_chained_transform3d_value",
     "make_point2d_value",

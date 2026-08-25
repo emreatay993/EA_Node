@@ -71,8 +71,8 @@ from ea_node_editor.nodes.builtins.mesh_contracts import (
 from ea_node_editor.nodes.builtins.spatial_values import (
     COREX_SPATIAL_VALUES_OWNER_ID,
     COREX_SPATIAL_VALUES_OWNER_VERSION,
+    COREX_SPATIAL_VALUES_TRANSFORM_NODE_DESCRIPTORS,
     COREX_SPATIAL_VALUES_VECTOR_LENGTH_CANDIDATE_CONTRACT_MANIFEST,
-    COREX_SPATIAL_VALUES_VECTOR_LENGTH_CANDIDATE_NODE_DESCRIPTORS,
 )
 from ea_node_editor.nodes.core_data_types import (
     CLIPPABLE_GRAPH_DATA_TYPE_ID,
@@ -896,7 +896,7 @@ def test_d030_icoordinate_system_owner_replacement_is_atomic_and_reversible() ->
     )
     registry.register_plugin_bundle(
         COREX_SPATIAL_VALUES_VECTOR_LENGTH_CANDIDATE_CONTRACT_MANIFEST,
-        COREX_SPATIAL_VALUES_VECTOR_LENGTH_CANDIDATE_NODE_DESCRIPTORS,
+        COREX_SPATIAL_VALUES_TRANSFORM_NODE_DESCRIPTORS,
         owner_id=COREX_SPATIAL_VALUES_OWNER_ID,
         owner_version=COREX_SPATIAL_VALUES_OWNER_VERSION,
         source_label="ea_node_editor.nodes.builtins.spatial_values",

@@ -7,7 +7,6 @@ from ea_node_editor.nodes.builtins.core import (
     DEFAULT_STREAM_GATE_OUTPUT_IDS,
     PYTHON_SCRIPT_DEFAULT_SOURCE,
     STREAM_GATE_OUTPUT_IDS_PROPERTY,
-    IfNodePlugin,
     PythonScriptNodePlugin,
     StreamGateNodePlugin,
     TriggerNodePlugin,
@@ -93,24 +92,6 @@ def test_subnode_pin_descriptors_publish_hidden_data_access_metadata() -> None:
         assert access.default == "item"
         assert access.enum_values == SUBNODE_PIN_DATA_ACCESS_VALUES
         assert access.inspector_visible is False
-
-
-def test_if_selects_tree_and_omits_absent_optional_branch() -> None:
-    plugin = IfNodePlugin()
-    ports = {port.key: port for port in plugin.spec().ports}
-    assert ports["condition"].data_access == "item"
-    assert ports["true_value"].data_access == "tree"
-    assert ports["false_value"].data_access == "tree"
-    assert ports["result"].data_access == "tree"
-
-    true_tree = DataTree({(0,): (1, 2)})
-    false_tree = DataTree({(1,): (3,)})
-    assert plugin.execute(
-        _context(inputs={"condition": True, "true_value": true_tree, "false_value": false_tree})
-    ).outputs == {"result": true_tree}
-    assert plugin.execute(
-        _context(inputs={"condition": False, "true_value": true_tree})
-    ).outputs == {}
 
 
 def test_python_script_default_source_declares_instance_ports() -> None:

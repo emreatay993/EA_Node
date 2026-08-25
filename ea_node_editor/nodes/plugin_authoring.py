@@ -16,6 +16,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal
 
+from ea_node_editor.nodes.function_plugin import INTERNAL_BUILTIN_FUNCTION_OWNER_ID
 from ea_node_editor.nodes.plugin_declaration import PluginDeclarationError
 from ea_node_editor.nodes.plugin_generation import (
     PLUGIN_SOURCE_LIMIT,
@@ -23,7 +24,10 @@ from ea_node_editor.nodes.plugin_generation import (
     validate_plugin_regular_file,
     validated_plugin_member_path,
 )
-from ea_node_editor.nodes.plugin_loader import discover_static_plugin_candidate
+from ea_node_editor.nodes.plugin_loader import (
+    discover_static_plugin_candidate,
+    plugin_fingerprint,
+)
 from ea_node_editor.nodes.registry import NodeRegistry
 from ea_node_editor.settings import plugins_dir
 
@@ -199,7 +203,10 @@ def summarize_plugin_registry(registry: NodeRegistry) -> PluginValidationReport:
     unavailable_count = 0
     for spec in sorted(registry.all_specs(), key=lambda item: item.type_id):
         function_ref = registry.python_function_ref_or_none(spec.type_id)
-        if function_ref is None:
+        if (
+            function_ref is None
+            or function_ref.bundle_id == INTERNAL_BUILTIN_FUNCTION_OWNER_ID
+        ):
             continue
         unavailable_reason = registry.unavailable_reason(spec.type_id)
         if unavailable_reason:
@@ -216,13 +223,18 @@ def summarize_plugin_registry(registry: NodeRegistry) -> PluginValidationReport:
                 unavailable_reason=unavailable_reason,
             )
         )
+    external_bundles = tuple(
+        bundle
+        for bundle in registry.plugin_bundle_refs()
+        if bundle.owner_id != INTERNAL_BUILTIN_FUNCTION_OWNER_ID
+    )
     return PluginValidationReport(
         success=True,
         diagnostics=tuple(diagnostics),
         summary=PluginAuthoringSummary(
-            bundle_count=len(registry.plugin_bundle_refs()),
+            bundle_count=len(external_bundles),
             node_count=len(diagnostics),
-            plugin_digest=registry.plugin_fingerprint(),
+            plugin_digest=plugin_fingerprint(registry, external_bundles),
             unavailable_node_count=unavailable_count,
         ),
     )

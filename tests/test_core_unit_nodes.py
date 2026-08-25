@@ -1,24 +1,18 @@
 from __future__ import annotations
 
+from dataclasses import asdict
+import json
+from pathlib import Path
 
 import pytest
 
+from ea_node_editor.nodes.bootstrap import build_builtin_registry
+from ea_node_editor.nodes.builtin_functions.unit_math import SOURCE
 from ea_node_editor.nodes.builtins.core_media import (
     CELL_DATA_TYPE_ID,
     DATETIME_DATA_TYPE_ID,
     INTERVAL_2D_DATA_TYPE_ID,
     TENSOR_DATA_TYPE_ID,
-)
-from ea_node_editor.nodes.builtins.core_unit_nodes import (
-    CONSTRUCT_PATH_TYPE_ID,
-    DECONSTRUCT_DATE_TIME_TYPE_ID,
-    DECONSTRUCT_INTERVAL_2D_TYPE_ID,
-    DECONSTRUCT_PATH_TYPE_ID,
-    DECONSTRUCT_TENSOR_TYPE_ID,
-    EXCEL_CELL_TYPE_ID,
-    PHYSICAL_QUANTITY_CONTAINER_TYPE_ID,
-    COREX_CORE_UNIT_NODE_DESCRIPTORS,
-    UNIT_SYSTEM_CONTAINER_TYPE_ID,
 )
 from ea_node_editor.nodes.builtins.tree_path import (
     TREE_PATH_DATA_TYPE_ID,
@@ -30,7 +24,45 @@ from ea_node_editor.nodes.builtins.units import (
     UNIT_SYSTEM_IDENTIFIERS,
 )
 from ea_node_editor.nodes.execution_context import ExecutionContext
+from ea_node_editor.nodes.function_plugin import (
+    INTERNAL_BUILTIN_FUNCTION_OWNER_ID,
+    PythonFunctionAdapter,
+)
+from ea_node_editor.nodes.plugin_declaration import discover_plugin_declarations
+from ea_node_editor.nodes.registry import PythonFunctionEntry
 from ea_node_editor.runtime_contracts import Interval1D, TypedInlineValue
+
+CONSTRUCT_PATH_TYPE_ID = "data.construct_path"
+DECONSTRUCT_PATH_TYPE_ID = "data.deconstruct_path"
+DECONSTRUCT_DATE_TIME_TYPE_ID = "utilities.deconstruct_date_time"
+DECONSTRUCT_TENSOR_TYPE_ID = "math.deconstruct_tensor"
+EXCEL_CELL_TYPE_ID = "data.excel_cell"
+DECONSTRUCT_INTERVAL_2D_TYPE_ID = "math.deconstruct_interval_2d"
+PHYSICAL_QUANTITY_CONTAINER_TYPE_ID = "math.physical_quantity_container"
+UNIT_SYSTEM_CONTAINER_TYPE_ID = "math.unit_system_container"
+
+
+_DECLARATIONS = {
+    declaration.spec.type_id: declaration
+    for declaration in discover_plugin_declarations(
+        SOURCE,
+        filename="unit_math.py",
+        allow_reserved_ids=True,
+        owner_id=INTERNAL_BUILTIN_FUNCTION_OWNER_ID,
+    )
+}
+_FUNCTIONS: dict[str, object] = {"__name__": "tests.unit_math_functions"}
+exec(compile(SOURCE, "unit_math.py", "exec"), _FUNCTIONS)  # noqa: S102
+_TYPE_IDS = (
+    CONSTRUCT_PATH_TYPE_ID,
+    DECONSTRUCT_PATH_TYPE_ID,
+    DECONSTRUCT_DATE_TIME_TYPE_ID,
+    DECONSTRUCT_TENSOR_TYPE_ID,
+    EXCEL_CELL_TYPE_ID,
+    DECONSTRUCT_INTERVAL_2D_TYPE_ID,
+    PHYSICAL_QUANTITY_CONTAINER_TYPE_ID,
+    UNIT_SYSTEM_CONTAINER_TYPE_ID,
+)
 
 
 def _context(inputs: dict[str, object]) -> ExecutionContext:
@@ -45,12 +77,31 @@ def _context(inputs: dict[str, object]) -> ExecutionContext:
 
 
 def _plugin(type_id: str):
-    descriptor = next(
-        item
-        for item in COREX_CORE_UNIT_NODE_DESCRIPTORS
-        if item.spec.type_id == type_id
+    declaration = _DECLARATIONS[type_id]
+    return PythonFunctionAdapter(
+        declaration.spec,
+        _FUNCTIONS[declaration.function_name],  # type: ignore[arg-type]
     )
-    return descriptor.factory()
+
+
+def test_specs_match_golden_and_use_function_entries(tmp_path: Path) -> None:
+    expected = {
+        item["spec"]["type_id"]: item["spec"]
+        for item in json.loads(
+            (
+                Path(__file__).parent
+                / "fixtures"
+                / "node_catalog"
+                / "pre_cutover_non_dpf_catalog.json"
+            ).read_text(encoding="utf-8")
+        )
+    }
+    registry = build_builtin_registry(generation_root=tmp_path / "generations")
+
+    for type_id in _TYPE_IDS:
+        assert json.loads(json.dumps(asdict(registry.get_spec(type_id)))) == expected[type_id]
+        assert isinstance(registry.get_entry(type_id), PythonFunctionEntry)
+        assert registry.descriptor_or_none(type_id) is None
 
 
 

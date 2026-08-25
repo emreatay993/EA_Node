@@ -2055,9 +2055,8 @@ class RegistryValidationTests(unittest.TestCase):
             len(descriptors),
         )
         type_ids = {descriptor.spec.type_id for descriptor in descriptors}
-        self.assertTrue(
-            {"core.trigger", "core.if", "core.stream_gate"}.issubset(type_ids)
-        )
+        self.assertTrue({"core.trigger", "core.stream_gate"}.issubset(type_ids))
+        self.assertNotIn("core.if", type_ids)
         self.assertTrue(
             {
                 "ssh_sftp.secret",

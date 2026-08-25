@@ -1,0 +1,298 @@
+# Purpose: Prove the exact T10 built-in function cutover across catalog, runtime, and persistence.
+# Map: subsystems/nodes_registry_builtins.md
+# Tests: tests/test_builtin_function_migration.py
+
+from __future__ import annotations
+
+from dataclasses import asdict
+import json
+from pathlib import Path
+import sys
+import threading
+
+from ea_node_editor.custom_workflows import (
+    export_custom_workflow_file,
+    import_custom_workflow_file,
+)
+from ea_node_editor.execution.client import ProcessExecutionClient
+from ea_node_editor.execution.runtime_snapshot import build_runtime_snapshot
+from ea_node_editor.graph.fragment_payloads import build_graph_fragment_payload
+from ea_node_editor.graph.model import GraphModel
+from ea_node_editor.graph.transform_fragment_ops import (
+    build_subtree_fragment_payload_data,
+    insert_graph_fragment,
+)
+from ea_node_editor.nodes.bootstrap import build_builtin_registry, build_default_registry
+from ea_node_editor.nodes.function_plugin import INTERNAL_BUILTIN_FUNCTION_OWNER_ID
+from ea_node_editor.nodes.plugin_authoring import summarize_plugin_registry
+from ea_node_editor.nodes.registry import PythonFunctionEntry, TrustedFactoryEntry
+from ea_node_editor.persistence.serializer import JsonProjectSerializer
+from ea_node_editor.runtime_contracts import DataTree, deserialize_runtime_value
+from ea_node_editor.ui.shell.controllers.workspace_io_ops import WorkspaceIOOps
+
+_CONVERTED_TYPE_IDS = (
+    "core.if",
+    "data.deconstruct_color",
+    "data.construct_path",
+    "data.deconstruct_path",
+    "data.excel_cell",
+    "utilities.deconstruct_date_time",
+    "math.deconstruct_tensor",
+    "math.deconstruct_interval_2d",
+    "math.physical_quantity_container",
+    "math.unit_system_container",
+    "math.deconstruct_interval",
+    "math.bounding_interval_2d",
+    "math.field_vector_container",
+    "reference.reverse_vector",
+    "reference.deconstruct_vector",
+    "reference.deconstruct_point",
+    "reference.construct_point",
+    "reference.construct_vector",
+    "reference.xy_plane",
+    "reference.construct_plane",
+    "reference.vector_length",
+    "geometry.chain_transforms",
+    "geometry.unchain_transforms",
+)
+_PRE_CUTOVER_CATALOG = (
+    Path(__file__).parent
+    / "fixtures"
+    / "node_catalog"
+    / "pre_cutover_non_dpf_catalog.json"
+)
+
+
+def test_exact_t10_entries_match_golden_and_leave_truthful_descriptor_boundary(
+    tmp_path: Path,
+) -> None:
+    registry = build_builtin_registry(generation_root=tmp_path / "generations")
+    expected = {
+        row["spec"]["type_id"]: row["spec"]
+        for row in json.loads(_PRE_CUTOVER_CATALOG.read_text(encoding="utf-8"))
+        if row["spec"]["type_id"] in _CONVERTED_TYPE_IDS
+    }
+
+    assert set(expected) == set(_CONVERTED_TYPE_IDS)
+    assert {
+        spec.type_id
+        for spec in registry.all_specs()
+        if isinstance(registry.get_entry(spec.type_id), PythonFunctionEntry)
+    } == set(_CONVERTED_TYPE_IDS)
+    for type_id in _CONVERTED_TYPE_IDS:
+        entry = registry.get_entry(type_id)
+        assert isinstance(entry, PythonFunctionEntry)
+        assert entry.owner_id == INTERNAL_BUILTIN_FUNCTION_OWNER_ID
+        assert registry.descriptor_or_none(type_id) is None
+        assert json.loads(json.dumps(asdict(entry.spec))) == expected[type_id]
+
+    trusted_type_ids = {
+        spec.type_id
+        for spec in registry.all_specs()
+        if isinstance(registry.get_entry(spec.type_id), TrustedFactoryEntry)
+    }
+    assert trusted_type_ids == {
+        spec.type_id for spec in registry.all_specs()
+    } - set(_CONVERTED_TYPE_IDS)
+    assert {
+        "math.construct_interval",
+        "geometry.construct_transform",
+        "geometry.deconstruct_transform",
+    } <= trusted_type_ids
+
+    bundle = registry.plugin_bundle_refs()[0]
+    assert bundle.owner_id == INTERNAL_BUILTIN_FUNCTION_OWNER_ID
+    assert len(bundle.functions) == len(_CONVERTED_TYPE_IDS)
+    assert not any(
+        name == f"_corex_plugin_{bundle.bundle_digest}"
+        or name.startswith(f"_corex_plugin_{bundle.bundle_digest}.")
+        for name in sys.modules
+    )
+    report = summarize_plugin_registry(registry)
+    assert report.summary.bundle_count == report.summary.node_count == 0
+    assert WorkspaceIOOps.collect_node_package_export_candidates(
+        registry,
+        tmp_path / "plugins",
+    ) == []
+
+
+def test_t10_representatives_execute_in_spawned_process_worker(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:  # noqa: ANN001
+    monkeypatch.setenv("APPDATA", str(tmp_path / "appdata"))
+    registry = build_default_registry(include_public_plugins=False)
+    model = GraphModel()
+    workspace = model.active_workspace
+    condition = model.add_node(
+        workspace.workspace_id,
+        "data.boolean_toggle",
+        "Condition",
+        0,
+        0,
+        properties={"value": True},
+    )
+    value = model.add_node(
+        workspace.workspace_id,
+        "core.constant",
+        "Value",
+        0,
+        120,
+        properties={"value": 7},
+    )
+    core_node = model.add_node(workspace.workspace_id, "core.if", "If", 240, 0)
+    unit_node = model.add_node(
+        workspace.workspace_id,
+        "math.physical_quantity_container",
+        "Quantity",
+        240,
+        160,
+    )
+    spatial_node = model.add_node(
+        workspace.workspace_id,
+        "math.field_vector_container",
+        "Field Vector",
+        240,
+        320,
+    )
+    model.add_edge(
+        workspace.workspace_id,
+        condition.node_id,
+        "boolean",
+        core_node.node_id,
+        "condition",
+    )
+    model.add_edge(
+        workspace.workspace_id,
+        value.node_id,
+        "value",
+        core_node.node_id,
+        "true_value",
+    )
+    snapshot = build_runtime_snapshot(
+        model.project,
+        workspace_id=workspace.workspace_id,
+        registry=registry,
+    )
+    events: list[dict[str, object]] = []
+    terminal = threading.Event()
+
+    def collect(event: dict[str, object]) -> None:
+        events.append(event)
+        if event.get("type") in {"run_completed", "run_failed", "run_stopped"}:
+            terminal.set()
+
+    client = ProcessExecutionClient()
+    client.subscribe(collect)
+    try:
+        run_id = client.start_run(
+            "",
+            workspace.workspace_id,
+            {"runtime_snapshot": snapshot},
+            data_types=registry.data_types,
+            plugin_bundles=registry.plugin_bundle_refs(),
+            plugin_fingerprint=registry.plugin_fingerprint(),
+            registry_contract_fingerprint=registry.contract_fingerprint(),
+            addon_runtime_config=registry.addon_runtime_config(),
+        )
+        assert run_id
+        assert terminal.wait(timeout=20.0)
+    finally:
+        client.shutdown()
+
+    assert not [event for event in events if event.get("type") == "run_failed"]
+    settled = {
+        str(event.get("node_id")): event
+        for event in events
+        if event.get("type") == "node_settled"
+    }
+    assert {core_node.node_id, unit_node.node_id, spatial_node.node_id} <= set(settled)
+    core_result = settled[core_node.node_id]["outputs"]["result"]
+    assert core_result["status"] == "value"
+    assert deserialize_runtime_value(core_result["value"]) == DataTree.from_item(7)
+    for node_id in (unit_node.node_id, spatial_node.node_id):
+        assert settled[node_id]["status"] == "empty"
+        assert settled[node_id]["outputs"]["output"]["status"] == "empty"
+
+
+def test_t10_nodes_roundtrip_without_implementation_records(
+    tmp_path: Path,
+) -> None:
+    registry = build_builtin_registry(generation_root=tmp_path / "generations")
+    model = GraphModel()
+    workspace = model.active_workspace
+    node_ids = [
+        model.add_node(
+            workspace.workspace_id,
+            type_id,
+            type_id,
+            float(index * 20),
+            float(index * 10),
+        ).node_id
+        for index, type_id in enumerate(_CONVERTED_TYPE_IDS)
+    ]
+    duplicate = model.duplicate_workspace(workspace.workspace_id)
+    assert {node.type_id for node in duplicate.nodes.values()} == set(
+        _CONVERTED_TYPE_IDS
+    )
+
+    fragment_data = build_subtree_fragment_payload_data(
+        workspace=workspace,
+        selected_node_ids=node_ids,
+    )
+    assert fragment_data is not None
+    fragment = build_graph_fragment_payload(**fragment_data)
+    target = model.create_workspace("Fragment Target")
+    inserted = insert_graph_fragment(
+        model=model,
+        workspace_id=target.workspace_id,
+        fragment_payload=fragment,
+        delta_x=40.0,
+        delta_y=40.0,
+        registry=registry,
+    )
+    assert len(inserted) == len(_CONVERTED_TYPE_IDS)
+
+    serializer = JsonProjectSerializer(registry)
+    project_document = serializer.to_persistent_document(model.project)
+    restored = serializer.from_document(project_document)
+    assert set(_CONVERTED_TYPE_IDS) <= {
+        node.type_id
+        for restored_workspace in restored.workspaces.values()
+        for node in restored_workspace.nodes.values()
+    }
+
+    workflow_path = export_custom_workflow_file(
+        {
+            "workflow_id": "t10_functions",
+            "name": "T10 Functions",
+            "description": "",
+            "revision": 1,
+            "ports": [],
+            "fragment": fragment,
+        },
+        tmp_path / "t10_functions",
+    )
+    imported_workflow = import_custom_workflow_file(workflow_path, registry=registry)
+    assert {
+        node["type_id"] for node in imported_workflow["fragment"]["nodes"]
+    } == set(_CONVERTED_TYPE_IDS)
+
+    serialized_payloads = (
+        json.dumps(project_document, sort_keys=True),
+        json.dumps(fragment, sort_keys=True),
+        workflow_path.read_text(encoding="utf-8"),
+    )
+    bundle = registry.plugin_bundle_refs()[0]
+    forbidden = {
+        bundle.approved_generation_root,
+        bundle.bundle_digest,
+        *(function.source_digest for function in bundle.functions),
+        "plugin_bundles",
+        "function_name",
+    }
+    assert all(
+        token not in payload
+        for token in forbidden
+        for payload in serialized_payloads
+    )
