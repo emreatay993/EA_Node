@@ -338,7 +338,8 @@ def _build_trusted_registry(
     addon_runtime_config: Iterable[tuple[str, bool]] | None = None,
     generation_root: Path | None = None,
 ) -> NodeRegistry:
-    registry = build_builtin_registry(generation_root=generation_root)
+    resolved_generation_root = generation_root or plugin_generations_dir()
+    registry = build_builtin_registry(generation_root=resolved_generation_root)
 
     from ea_node_editor.addons.catalog import (
         addon_registration_is_live_enabled,
@@ -380,6 +381,8 @@ def _build_trusted_registry(
         )
         runtime_store = app_preferences_store
     else:
+        from ea_node_editor.app_preferences import default_app_preferences_document
+
         requested_config = dict(addon_runtime_config)
         known_ids = {
             registration.manifest.addon_id for registration in registrations
@@ -401,18 +404,15 @@ def _build_trusted_registry(
             )
         )
         accepted_by_id = dict(accepted_config)
-        runtime_preferences = {
-            "addons": {
-                "states": {
-                    registration.manifest.addon_id: {
-                        "enabled": accepted_by_id.get(
-                            registration.manifest.addon_id,
-                            False,
-                        )
-                    }
-                    for registration in registrations
-                }
+        runtime_preferences = default_app_preferences_document()
+        runtime_preferences["addons"]["states"] = {
+            registration.manifest.addon_id: {
+                "enabled": accepted_by_id.get(
+                    registration.manifest.addon_id,
+                    False,
+                )
             }
+            for registration in registrations
         }
         runtime_store = None
     registry.set_addon_runtime_config(accepted_config)
@@ -425,6 +425,7 @@ def _build_trusted_registry(
             addon_backends.backends,
             registry,
             addon_backends.source,
+            generation_root=resolved_generation_root,
         )
     return registry
 

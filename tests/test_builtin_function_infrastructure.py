@@ -10,6 +10,7 @@ from pathlib import Path
 
 import pytest
 
+from ea_node_editor.addons.tabular_data.metadata import TABULAR_DATA_ADDON_ID
 from ea_node_editor.execution.client import TrustedInProcessExecutionClient
 from ea_node_editor.execution.plugin_worker_runtime import WorkerPluginRuntime
 from ea_node_editor.execution.protocol import (
@@ -203,7 +204,10 @@ def test_trusted_client_allows_only_attested_internal_function_bundle(
 ) -> None:  # noqa: ANN001
     monkeypatch.setenv("APPDATA", str(tmp_path / "appdata"))
     monkeypatch.setattr(core_value, "SOURCE", _source())
-    registry = build_default_registry(include_public_plugins=False)
+    registry = build_default_registry(
+        include_public_plugins=False,
+        addon_runtime_config=((TABULAR_DATA_ADDON_ID, False),),
+    )
     model = GraphModel()
     workspace = model.active_workspace
     model.add_node(workspace.workspace_id, _TYPE_ID, "Internal", 0, 0)

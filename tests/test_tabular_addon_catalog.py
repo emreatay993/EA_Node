@@ -57,12 +57,11 @@ def test_tabular_data_backend_reports_available_when_optional_stack_is_discovera
     assert availability.missing_dependencies == ()
 
 
-def test_tabular_data_backend_exposes_input_node_when_available() -> None:
+def test_tabular_data_backend_exposes_function_nodes_when_available() -> None:
     with patch.object(tabular_catalog, "_find_spec", return_value=object()):
-        descriptors = tabular_catalog.load_tabular_data_plugin_descriptors()
         availability = tabular_catalog.TABULAR_DATA_PLUGIN_BACKEND.get_availability()
 
-    assert [descriptor.spec.type_id for descriptor in descriptors] == [
+    assert tabular_catalog.TABULAR_DATA_PLUGIN_BACKEND.function_type_ids == (
         "tabular.input",
         "tabular.table_filter",
         "tabular.array_slice_2d",
@@ -70,12 +69,12 @@ def test_tabular_data_backend_exposes_input_node_when_available() -> None:
         "tabular.write_array_slice_2d",
         "tabular.materialize_table_filter",
         "tabular.materialize_array_slice_2d",
-    ]
+    )
     assert availability.is_available
-    backend_descriptors = tabular_catalog.TABULAR_DATA_PLUGIN_BACKEND.load_descriptors()
-    assert [descriptor.spec.type_id for descriptor in backend_descriptors] == [
-        descriptor.spec.type_id for descriptor in descriptors
-    ]
+    assert tabular_catalog.TABULAR_DATA_PLUGIN_BACKEND.load_descriptors() == ()
+    sources = tabular_catalog.TABULAR_DATA_PLUGIN_BACKEND.load_function_sources
+    assert sources is not None
+    assert tuple(path for path, _source in sources()) == ("tabular_data.py",)
     assert tabular_catalog.TABULAR_DATA_PLUGIN_BACKEND.addon_manifest == TABULAR_DATA_ADDON_MANIFEST
     assert tabular_catalog.TABULAR_DATA_PLUGIN_BACKEND.toolchains == TABULAR_DATA_TOOLCHAINS
     assert tabular_catalog.TABULAR_DATA_PLUGIN_BACKEND.contract_manifest.runtime_backends == ()
@@ -100,6 +99,28 @@ def test_registered_addon_catalog_reports_tabular_data_unavailable_without_nodes
     assert record.availability.missing_dependencies == TABULAR_DATA_DEPENDENCIES
     assert record.provided_node_type_ids == ()
     assert record.manifest.contract_manifest.toolchains == TABULAR_DATA_TOOLCHAINS
+
+
+def test_registered_addon_catalog_reports_function_ids_when_available() -> None:
+    with patch.object(tabular_catalog, "_find_spec", return_value=object()):
+        enabled = addon_catalog.addon_record_by_id(
+            TABULAR_DATA_ADDON_ID,
+            preferences_document=default_app_preferences_document(),
+        )
+        preferences = default_app_preferences_document()
+        preferences["addons"]["states"][TABULAR_DATA_ADDON_ID] = {
+            "enabled": False,
+            "pending_restart": False,
+        }
+        disabled = addon_catalog.addon_record_by_id(
+            TABULAR_DATA_ADDON_ID,
+            preferences_document=preferences,
+        )
+
+    assert enabled is not None
+    assert enabled.provided_node_type_ids == tabular_catalog.TABULAR_DATA_FUNCTION_TYPE_IDS
+    assert disabled is not None
+    assert disabled.provided_node_type_ids == tabular_catalog.TABULAR_DATA_FUNCTION_TYPE_IDS
 
 
 def test_registered_addon_catalog_exposes_tabular_property_edit_adapter_factory() -> None:

@@ -12,15 +12,8 @@ from ea_node_editor.addons.tabular_data.loader_cache_service import (
     TabularLoaderCacheService,
     shared_tabular_loader_cache_service,
 )
-from ea_node_editor.addons.tabular_data.metadata import TABULAR_DATA_ADDON_CATEGORY
 from ea_node_editor.nodes.builtins.integrations_common import pick_optional_path
-from ea_node_editor.nodes.decorators import plugin_descriptor
 from ea_node_editor.nodes.execution_context import ExecutionContext, NodeResult
-from ea_node_editor.nodes.file_dialog_filters import (
-    TABULAR_ARRAY_OUTPUT_FILES_FILTER,
-    TABULAR_TABLE_OUTPUT_FILES_FILTER,
-)
-from ea_node_editor.nodes.node_specs import NodeTypeSpec, PortSpec, PropertySpec
 from ea_node_editor.nodes.output_artifacts import write_managed_output
 from ea_node_editor.runtime_contracts import (
     ArrayDataRef,
@@ -362,360 +355,118 @@ def _unbounded_array_message(ref: ArraySlice2DRef) -> str:
     return "Materialize Array Slice 2D is loading all remaining columns into memory."
 
 
-def _bounds_properties(*, row_limit: int, column_limit: int) -> tuple[PropertySpec, ...]:
-    return (
-        PropertySpec("row_offset", "int", 0, "Row Offset", inspector_visible=False, group="Selection"),
-        PropertySpec("row_limit", "int", row_limit, "Row Limit", inspector_visible=False, group="Selection"),
-        PropertySpec("column_offset", "int", 0, "Column Offset", inspector_visible=False, group="Selection"),
-        PropertySpec("column_limit", "int", column_limit, "Column Limit", inspector_visible=False, group="Selection"),
+def execute_table_filter(ctx: ExecutionContext) -> NodeResult:
+    table_ref = coerce_tabular_data_ref(ctx.inputs.get("table_data"))
+    if table_ref is None:
+        raise TypeError("Table Filter requires table_data as a tabular_data_ref.")
+    return NodeResult(
+        outputs={
+            TABULAR_WINDOW_OUTPUT_KEY: _table_window_ref_from_properties(
+                table_ref,
+                ctx.properties,
+            ),
+        }
     )
 
 
-class TabularTableWindowNodePlugin:
-    def spec(self) -> NodeTypeSpec:
-        return NodeTypeSpec(
-            type_id=TABULAR_TABLE_WINDOW_NODE_TYPE_ID,
-            display_name=TABULAR_TABLE_WINDOW_DISPLAY_NAME,
-            category_path=(TABULAR_DATA_ADDON_CATEGORY,),
-            icon="integrations/tabular_data.svg",
-            description="Creates a lazy filtered-table reference from tabular data.",
-            keywords=("table", "filter", "window"),
-            ports=(
-                PortSpec(
-                    "table_data",
-                    "in",
-                    "data",
-                    'COREX.Runtime.TabularDataRef',
-                    "Table Data",
-                    required=True,
-                    description="Lazy tabular source to filter by row, column, and selection settings.",
-                ),
-                PortSpec(
-                    TABULAR_WINDOW_OUTPUT_KEY,
-                    "out",
-                    "data",
-                    'COREX.Runtime.TabularWindowRef',
-                    "Window",
-                    exposed=True,
-                    description="Lazy reference to the selected table window.",
-                ),
+def execute_array_slice_2d(ctx: ExecutionContext) -> NodeResult:
+    array_ref = coerce_array_data_ref(ctx.inputs.get("array_data"))
+    if array_ref is None:
+        raise TypeError("Array Slice 2D requires array_data as an array_data_ref.")
+    return NodeResult(
+        outputs={
+            TABULAR_ARRAY_SLICE_2D_OUTPUT_KEY: _array_slice_ref_from_properties(
+                array_ref,
+                ctx.properties,
             ),
-            properties=(
-                *_bounds_properties(row_limit=1000, column_limit=0),
-                PropertySpec("columns", "str", "", "Columns", inspector_visible=False, group="Selection"),
-            ),
-        )
-
-    def execute(self, ctx: ExecutionContext) -> NodeResult:
-        table_ref = coerce_tabular_data_ref(ctx.inputs.get("table_data"))
-        if table_ref is None:
-            raise TypeError("Table Filter requires table_data as a tabular_data_ref.")
-        return NodeResult(
-            outputs={
-                TABULAR_WINDOW_OUTPUT_KEY: _table_window_ref_from_properties(table_ref, ctx.properties),
-            }
-        )
+        }
+    )
 
 
-class TabularArraySlice2DNodePlugin:
-    def spec(self) -> NodeTypeSpec:
-        return NodeTypeSpec(
-            type_id=TABULAR_ARRAY_SLICE_2D_NODE_TYPE_ID,
-            display_name=TABULAR_ARRAY_SLICE_2D_DISPLAY_NAME,
-            category_path=(TABULAR_DATA_ADDON_CATEGORY,),
-            icon="integrations/tabular_data.svg",
-            description="Creates a lazy 2D array-slice reference from array data.",
-            keywords=("array", "slice", "2d"),
-            ports=(
-                PortSpec(
-                    "array_data",
-                    "in",
-                    "data",
-                    'COREX.Runtime.ArrayDataRef',
-                    "Array Data",
-                    required=True,
-                    description="Lazy dense-array source to slice by row and column bounds.",
-                ),
-                PortSpec(
-                    TABULAR_ARRAY_SLICE_2D_OUTPUT_KEY,
-                    "out",
-                    "data",
-                    'COREX.Runtime.ArraySlice2DRef',
-                    "Slice 2D",
-                    exposed=True,
-                    description="Lazy reference to the selected two-dimensional array slice.",
-                ),
-            ),
-            properties=_bounds_properties(row_limit=1000, column_limit=100),
-        )
-
-    def execute(self, ctx: ExecutionContext) -> NodeResult:
-        array_ref = coerce_array_data_ref(ctx.inputs.get("array_data"))
-        if array_ref is None:
-            raise TypeError("Array Slice 2D requires array_data as an array_data_ref.")
-        return NodeResult(
-            outputs={
-                TABULAR_ARRAY_SLICE_2D_OUTPUT_KEY: _array_slice_ref_from_properties(array_ref, ctx.properties),
-            }
-        )
-
-
-class TabularWriteTableWindowNodePlugin:
-    def spec(self) -> NodeTypeSpec:
-        return NodeTypeSpec(
-            type_id=TABULAR_WRITE_TABLE_WINDOW_NODE_TYPE_ID,
-            display_name=TABULAR_WRITE_TABLE_WINDOW_DISPLAY_NAME,
-            category_path=(TABULAR_DATA_ADDON_CATEGORY,),
-            icon="integrations/tabular_data.svg",
-            description="Exports a lazy filtered table without materializing it as a list first.",
-            keywords=("table", "export", "csv"),
-            ports=(
-                PortSpec(
-                    "window",
-                    "in",
-                    "data",
-                    'COREX.Runtime.TabularWindowRef',
-                    "Window",
-                    required=True,
-                    data_access="tree",
-                    description="Lazy filtered-table window to export.",
-                ),
-                PortSpec(
-                    "path",
-                    "in",
-                    "data",
-                    'COREX.DataTypes.Path',
-                    "Path",
-                    required=False,
-                    uses_property_default=True,
-                    data_access="tree",
-                    description="Optional output path; a managed CSV is created when empty.",
-                ),
-                PortSpec(
-                    "written_path",
-                    "out",
-                    "data",
-                    'COREX.DataTypes.Path',
-                    exposed=True,
-                    description="Path or managed artifact reference for the exported table.",
-                ),
-            ),
-            properties=(
-                PropertySpec(
-                    "path",
-                    "path",
-                    "",
-                    "Output Path",
-                    inline_editor="path",
-                    inspector_editor="path",
-                    group="Output",
-                    file_filter=TABULAR_TABLE_OUTPUT_FILES_FILTER,
-                ),
+def execute_write_table_filter(ctx: ExecutionContext) -> NodeResult:
+    ctx.inputs = resolve_single_run_inputs(
+        ctx.inputs,
+        node_name=TABULAR_WRITE_TABLE_WINDOW_DISPLAY_NAME,
+    )
+    window_ref = coerce_tabular_window_ref(ctx.inputs.get("window"))
+    if window_ref is None:
+        raise TypeError("Write Filtered Table requires window as a tabular_window_ref.")
+    path = pick_optional_path(ctx, input_key="path", property_key="path")
+    if path is None:
+        result = write_managed_output(
+            ctx,
+            output_key="written_path",
+            default_suffix=".csv",
+            managed_subdirectory="tabular/writes",
+            write_payload=lambda output_path: _write_table_window_to_path(
+                output_path,
+                window_ref,
             ),
         )
-
-    def execute(self, ctx: ExecutionContext) -> NodeResult:
-        ctx.inputs = resolve_single_run_inputs(ctx.inputs, node_name=TABULAR_WRITE_TABLE_WINDOW_DISPLAY_NAME)
-        window_ref = coerce_tabular_window_ref(ctx.inputs.get("window"))
-        if window_ref is None:
-            raise TypeError("Write Filtered Table requires window as a tabular_window_ref.")
-        path = pick_optional_path(ctx, input_key="path", property_key="path")
-        if path is None:
-            result = write_managed_output(
-                ctx,
-                output_key="written_path",
-                default_suffix=".csv",
-                managed_subdirectory="tabular/writes",
-                write_payload=lambda output_path: _write_table_window_to_path(output_path, window_ref),
-            )
-            return NodeResult(outputs={"written_path": result.artifact_ref})
-        _prepare_explicit_output_path(
-            path,
-            node_name=TABULAR_WRITE_TABLE_WINDOW_DISPLAY_NAME,
-            suffixes=_TABLE_OUTPUT_SUFFIXES,
-        )
-        _write_table_window_to_path(path, window_ref)
-        return NodeResult(outputs={"written_path": str(path)})
+        return NodeResult(outputs={"written_path": result.artifact_ref})
+    _prepare_explicit_output_path(
+        path,
+        node_name=TABULAR_WRITE_TABLE_WINDOW_DISPLAY_NAME,
+        suffixes=_TABLE_OUTPUT_SUFFIXES,
+    )
+    _write_table_window_to_path(path, window_ref)
+    return NodeResult(outputs={"written_path": str(path)})
 
 
-class TabularWriteArraySlice2DNodePlugin:
-    def spec(self) -> NodeTypeSpec:
-        return NodeTypeSpec(
-            type_id=TABULAR_WRITE_ARRAY_SLICE_2D_NODE_TYPE_ID,
-            display_name=TABULAR_WRITE_ARRAY_SLICE_2D_DISPLAY_NAME,
-            category_path=(TABULAR_DATA_ADDON_CATEGORY,),
-            icon="integrations/tabular_data.svg",
-            description="Exports a lazy 2D array slice without materializing it through a script.",
-            keywords=("array", "slice", "export"),
-            ports=(
-                PortSpec(
-                    "slice_2d",
-                    "in",
-                    "data",
-                    'COREX.Runtime.ArraySlice2DRef',
-                    "Slice 2D",
-                    required=True,
-                    data_access="tree",
-                    description="Lazy two-dimensional array slice to export.",
-                ),
-                PortSpec(
-                    "path",
-                    "in",
-                    "data",
-                    'COREX.DataTypes.Path',
-                    "Path",
-                    required=False,
-                    uses_property_default=True,
-                    data_access="tree",
-                    description="Optional output path; a managed CSV is created when empty.",
-                ),
-                PortSpec(
-                    "written_path",
-                    "out",
-                    "data",
-                    'COREX.DataTypes.Path',
-                    exposed=True,
-                    description="Path or managed artifact reference for the exported array slice.",
-                ),
-            ),
-            properties=(
-                PropertySpec(
-                    "path",
-                    "path",
-                    "",
-                    "Output Path",
-                    inline_editor="path",
-                    inspector_editor="path",
-                    group="Output",
-                    file_filter=TABULAR_ARRAY_OUTPUT_FILES_FILTER,
-                ),
+def execute_write_array_slice_2d(ctx: ExecutionContext) -> NodeResult:
+    ctx.inputs = resolve_single_run_inputs(
+        ctx.inputs,
+        node_name=TABULAR_WRITE_ARRAY_SLICE_2D_DISPLAY_NAME,
+    )
+    slice_ref = coerce_array_slice_2d_ref(ctx.inputs.get("slice_2d"))
+    if slice_ref is None:
+        raise TypeError("Write Array Slice 2D requires slice_2d as an array_slice_2d_ref.")
+    path = pick_optional_path(ctx, input_key="path", property_key="path")
+    if path is None:
+        result = write_managed_output(
+            ctx,
+            output_key="written_path",
+            default_suffix=".csv",
+            managed_subdirectory="tabular/writes",
+            write_payload=lambda output_path: _write_array_slice_to_path(
+                output_path,
+                slice_ref,
             ),
         )
-
-    def execute(self, ctx: ExecutionContext) -> NodeResult:
-        ctx.inputs = resolve_single_run_inputs(ctx.inputs, node_name=TABULAR_WRITE_ARRAY_SLICE_2D_DISPLAY_NAME)
-        slice_ref = coerce_array_slice_2d_ref(ctx.inputs.get("slice_2d"))
-        if slice_ref is None:
-            raise TypeError("Write Array Slice 2D requires slice_2d as an array_slice_2d_ref.")
-        path = pick_optional_path(ctx, input_key="path", property_key="path")
-        if path is None:
-            result = write_managed_output(
-                ctx,
-                output_key="written_path",
-                default_suffix=".csv",
-                managed_subdirectory="tabular/writes",
-                write_payload=lambda output_path: _write_array_slice_to_path(output_path, slice_ref),
-            )
-            return NodeResult(outputs={"written_path": result.artifact_ref})
-        _prepare_explicit_output_path(
-            path,
-            node_name=TABULAR_WRITE_ARRAY_SLICE_2D_DISPLAY_NAME,
-            suffixes=_ARRAY_OUTPUT_SUFFIXES,
-        )
-        _write_array_slice_to_path(path, slice_ref)
-        return NodeResult(outputs={"written_path": str(path)})
+        return NodeResult(outputs={"written_path": result.artifact_ref})
+    _prepare_explicit_output_path(
+        path,
+        node_name=TABULAR_WRITE_ARRAY_SLICE_2D_DISPLAY_NAME,
+        suffixes=_ARRAY_OUTPUT_SUFFIXES,
+    )
+    _write_array_slice_to_path(path, slice_ref)
+    return NodeResult(outputs={"written_path": str(path)})
 
 
-class TabularMaterializeTableWindowNodePlugin:
-    def spec(self) -> NodeTypeSpec:
-        return NodeTypeSpec(
-            type_id=TABULAR_MATERIALIZE_TABLE_WINDOW_NODE_TYPE_ID,
-            display_name=TABULAR_MATERIALIZE_TABLE_WINDOW_DISPLAY_NAME,
-            category_path=(TABULAR_DATA_ADDON_CATEGORY,),
-            icon="integrations/tabular_data.svg",
-            description="Loads a filtered table into memory as list[dict] for scripts and debugging.",
-            keywords=("table", "materialize", "rows"),
-            ports=(
-                PortSpec(
-                    "window",
-                    "in",
-                    "data",
-                    'COREX.Runtime.TabularWindowRef',
-                    "Window",
-                    required=True,
-                    description="Lazy filtered-table window to materialize.",
-                ),
-                PortSpec(
-                    "rows",
-                    "out",
-                    "data",
-                    'COREX.DataTypes.GraphDictionary',
-                    "Rows",
-                    exposed=True,
-                    data_access="list",
-                    description="Materialized table rows represented as dictionaries.",
-                ),
-            ),
-            properties=(),
-        )
-
-    def execute(self, ctx: ExecutionContext) -> NodeResult:
-        window_ref = coerce_tabular_window_ref(ctx.inputs.get("window"))
-        if window_ref is None:
-            raise TypeError("Materialize Filtered Table requires window as a tabular_window_ref.")
-        warnings: tuple[str, ...] = ()
-        if window_ref.row_limit == 0 or window_ref.column_limit == 0:
-            message = _unbounded_table_message(window_ref)
-            ctx.log_warning(message)
-            warnings = (message,)
-        rows = [dict(row) for row in load_table_window(window_ref).rows]
-        return NodeResult(outputs={"rows": rows}, warnings=warnings)
+def execute_materialize_table_filter(ctx: ExecutionContext) -> NodeResult:
+    window_ref = coerce_tabular_window_ref(ctx.inputs.get("window"))
+    if window_ref is None:
+        raise TypeError("Materialize Filtered Table requires window as a tabular_window_ref.")
+    warnings = (
+        (_unbounded_table_message(window_ref),)
+        if window_ref.row_limit == 0 or window_ref.column_limit == 0
+        else ()
+    )
+    rows = [dict(row) for row in load_table_window(window_ref).rows]
+    return NodeResult(outputs={"rows": rows}, warnings=warnings)
 
 
-class TabularMaterializeArraySlice2DNodePlugin:
-    def spec(self) -> NodeTypeSpec:
-        return NodeTypeSpec(
-            type_id=TABULAR_MATERIALIZE_ARRAY_SLICE_2D_NODE_TYPE_ID,
-            display_name=TABULAR_MATERIALIZE_ARRAY_SLICE_2D_DISPLAY_NAME,
-            category_path=(TABULAR_DATA_ADDON_CATEGORY,),
-            icon="integrations/tabular_data.svg",
-            description="Loads a 2D array slice into memory as list[list] for scripts and debugging.",
-            keywords=("array", "materialize", "values"),
-            ports=(
-                PortSpec(
-                    "slice_2d",
-                    "in",
-                    "data",
-                    'COREX.Runtime.ArraySlice2DRef',
-                    "Slice 2D",
-                    required=True,
-                    description="Lazy two-dimensional array slice to materialize.",
-                ),
-                PortSpec(
-                    "values",
-                    "out",
-                    "data",
-                    'COREX.DataTypes.GraphArray',
-                    "Values",
-                    exposed=True,
-                    data_access="list",
-                    description="Materialized two-dimensional values represented as nested lists.",
-                ),
-            ),
-            properties=(),
-        )
-
-    def execute(self, ctx: ExecutionContext) -> NodeResult:
-        slice_ref = coerce_array_slice_2d_ref(ctx.inputs.get("slice_2d"))
-        if slice_ref is None:
-            raise TypeError("Materialize Array Slice 2D requires slice_2d as an array_slice_2d_ref.")
-        warnings: tuple[str, ...] = ()
-        if slice_ref.row_limit == 0 or slice_ref.column_limit == 0:
-            message = _unbounded_array_message(slice_ref)
-            ctx.log_warning(message)
-            warnings = (message,)
-        values = [list(row) for row in load_array_slice_2d(slice_ref).values]
-        return NodeResult(outputs={"values": values}, warnings=warnings)
-
-
-TABULAR_EXTRACTION_NODE_DESCRIPTORS = (
-    plugin_descriptor(TabularTableWindowNodePlugin),
-    plugin_descriptor(TabularArraySlice2DNodePlugin),
-    plugin_descriptor(TabularWriteTableWindowNodePlugin),
-    plugin_descriptor(TabularWriteArraySlice2DNodePlugin),
-    plugin_descriptor(TabularMaterializeTableWindowNodePlugin),
-    plugin_descriptor(TabularMaterializeArraySlice2DNodePlugin),
-)
+def execute_materialize_array_slice_2d(ctx: ExecutionContext) -> NodeResult:
+    slice_ref = coerce_array_slice_2d_ref(ctx.inputs.get("slice_2d"))
+    if slice_ref is None:
+        raise TypeError("Materialize Array Slice 2D requires slice_2d as an array_slice_2d_ref.")
+    warnings = (
+        (_unbounded_array_message(slice_ref),)
+        if slice_ref.row_limit == 0 or slice_ref.column_limit == 0
+        else ()
+    )
+    values = [list(row) for row in load_array_slice_2d(slice_ref).values]
+    return NodeResult(outputs={"values": values}, warnings=warnings)
 
 __all__ = [
     "ARRAY_SLICE_COLUMN_COUNT_PROPERTY",
@@ -732,7 +483,6 @@ __all__ = [
     "TABULAR_ARRAY_SLICE_2D_DISPLAY_NAME",
     "TABULAR_ARRAY_SLICE_2D_NODE_TYPE_ID",
     "TABULAR_ARRAY_SLICE_2D_OUTPUT_KEY",
-    "TABULAR_EXTRACTION_NODE_DESCRIPTORS",
     "TABULAR_MATERIALIZE_ARRAY_SLICE_2D_NODE_TYPE_ID",
     "TABULAR_MATERIALIZE_TABLE_WINDOW_NODE_TYPE_ID",
     "TABULAR_TABLE_WINDOW_DISPLAY_NAME",
@@ -740,12 +490,12 @@ __all__ = [
     "TABULAR_WINDOW_OUTPUT_KEY",
     "TABULAR_WRITE_ARRAY_SLICE_2D_NODE_TYPE_ID",
     "TABULAR_WRITE_TABLE_WINDOW_NODE_TYPE_ID",
-    "TabularArraySlice2DNodePlugin",
-    "TabularMaterializeArraySlice2DNodePlugin",
-    "TabularMaterializeTableWindowNodePlugin",
-    "TabularTableWindowNodePlugin",
-    "TabularWriteArraySlice2DNodePlugin",
-    "TabularWriteTableWindowNodePlugin",
+    "execute_array_slice_2d",
+    "execute_materialize_array_slice_2d",
+    "execute_materialize_table_filter",
+    "execute_table_filter",
+    "execute_write_array_slice_2d",
+    "execute_write_table_filter",
     "load_array_slice_2d",
     "load_table_window",
     "stream_array_slice_2d_rows",

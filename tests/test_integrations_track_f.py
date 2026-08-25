@@ -14,7 +14,7 @@ from unittest import mock
 from ea_node_editor.execution.protocol import coerce_start_run_command
 from ea_node_editor.execution.worker import run_workflow
 from ea_node_editor.execution.runtime_snapshot import build_runtime_snapshot
-from ea_node_editor.addons.tabular_data.input_node import TabularDataInputNodePlugin
+from ea_node_editor.addons.tabular_data.input_node import execute_tabular_input
 from ea_node_editor.graph.boundary_adapters import _fallback_node_size
 from ea_node_editor.graph.model import GraphModel
 from ea_node_editor.graph.records import NodeInstance
@@ -452,7 +452,7 @@ class IntegrationNodesTrackFTests(unittest.TestCase):
             source = Path(temp_dir) / "rows.csv"
             source.write_text("name,value\nalpha,1\n", encoding="utf-8")
 
-            result = TabularDataInputNodePlugin().execute(
+            result = execute_tabular_input(
                 _context(properties={"path": str(source)})
             )
 

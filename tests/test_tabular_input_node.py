@@ -9,6 +9,7 @@ import pytest
 from ea_node_editor.addons import catalog as addon_catalog
 from ea_node_editor.addons.property_edit_adapters import PropertyEditAdapterContext
 from ea_node_editor.addons.tabular_data import catalog as tabular_catalog
+from ea_node_editor.addons.tabular_data.function_nodes import SOURCE as TABULAR_FUNCTION_SOURCE
 from ea_node_editor.addons.tabular_data.input_node import (
     TABULAR_ARRAY_SLICE_2D_PROPERTY,
     TABULAR_DATA_INPUT_CACHE_POLICY_APP_MANAGED_PARQUET,
@@ -21,7 +22,7 @@ from ea_node_editor.addons.tabular_data.input_node import (
     TABULAR_TABLE_VIEW_STATE_MAX_COLUMN_WIDTH,
     TABULAR_TABLE_VIEW_STATE_MIN_COLUMN_WIDTH,
     TABULAR_TABLE_VIEW_STATE_PROPERTY,
-    TabularDataInputNodePlugin,
+    execute_tabular_input,
     normalize_tabular_table_view_state,
     normalize_tabular_selected_columns,
     tabular_array_column_label_from_offset,
@@ -41,8 +42,9 @@ from ea_node_editor.app_preferences import default_app_preferences_document
 from ea_node_editor.graph.model import GraphModel
 from ea_node_editor.nodes.bootstrap import build_default_registry
 from ea_node_editor.nodes.execution_context import ExecutionContext
+from ea_node_editor.nodes.function_plugin import INTERNAL_BUILTIN_FUNCTION_OWNER_ID
 from ea_node_editor.nodes.node_specs import property_visible_in_inspector
-from ea_node_editor.nodes.registry import NodeRegistry
+from ea_node_editor.nodes.plugin_declaration import discover_plugin_declarations
 from ea_node_editor.persistence.serializer import JsonProjectSerializer
 from ea_node_editor.runtime_contracts import ArrayDataRef, TabularDataRef
 from ea_node_editor.ui.shell.controllers.workspace_edit_ops import WorkspaceEditOps
@@ -64,22 +66,28 @@ def _context(
     )
 
 
-def _descriptor():
-    for descriptor in tabular_catalog.load_tabular_data_plugin_descriptors():
-        if descriptor.spec.type_id == TABULAR_DATA_INPUT_NODE_TYPE_ID:
-            return descriptor
-    raise AssertionError("tabular input descriptor was not registered")
+def _spec():
+    declarations = discover_plugin_declarations(
+        TABULAR_FUNCTION_SOURCE,
+        allow_reserved_ids=True,
+        owner_id=INTERNAL_BUILTIN_FUNCTION_OWNER_ID,
+    )
+    return next(
+        declaration.spec
+        for declaration in declarations
+        if declaration.spec.type_id == TABULAR_DATA_INPUT_NODE_TYPE_ID
+    )
 
 
 def test_tabular_data_input_descriptor_publishes_one_ref_only_source_node() -> None:
-    descriptor = _descriptor()
-    spec = descriptor.spec
+    spec = _spec()
 
     assert spec.type_id == TABULAR_DATA_INPUT_NODE_TYPE_ID
     assert spec.display_name == TABULAR_DATA_INPUT_DISPLAY_NAME
     assert spec.category_path == ("Data",)
     assert spec.icon == "integrations/tabular_data.svg"
     assert spec.runtime_behavior == "active"
+    assert spec.settings_groups == ()
 
     ports_by_key = {port.key: port for port in spec.ports}
     assert tuple(ports_by_key) == ("path", "table_data", "array_data")
@@ -112,14 +120,9 @@ def test_tabular_data_input_descriptor_publishes_one_ref_only_source_node() -> N
     }
 
 
-def test_tabular_data_input_descriptor_registers_without_instantiating_factory() -> None:
-    descriptor = _descriptor()
-    registry = NodeRegistry()
-
-    registry.register_descriptor(descriptor)
-
+def test_tabular_data_input_function_entry_has_isolated_mutable_defaults() -> None:
+    registry = build_default_registry()
     assert registry.get_spec(TABULAR_DATA_INPUT_NODE_TYPE_ID).display_name == TABULAR_DATA_INPUT_DISPLAY_NAME
-    assert registry.create(TABULAR_DATA_INPUT_NODE_TYPE_ID).spec().type_id == TABULAR_DATA_INPUT_NODE_TYPE_ID
     first_defaults = registry.default_properties(TABULAR_DATA_INPUT_NODE_TYPE_ID)
     second_defaults = registry.default_properties(TABULAR_DATA_INPUT_NODE_TYPE_ID)
     first_defaults["schema_hints"]["temperature"] = "float64"
@@ -227,7 +230,7 @@ def test_tabular_property_edit_adapter_rewrites_friendly_selection_fields_to_sto
 
 
 def test_selected_property_edit_uses_tabular_adapter_for_array_slice_fields() -> None:
-    descriptor = _descriptor()
+    spec = _spec()
     node = SimpleNamespace(
         node_id="node-tabular-input",
         type_id=TABULAR_DATA_INPUT_NODE_TYPE_ID,
@@ -244,7 +247,7 @@ def test_selected_property_edit_uses_tabular_adapter_for_array_slice_fields() ->
 
     class _Controller:
         def selected_node_context(self):
-            return node, descriptor.spec
+            return node, spec
 
         def active_workspace(self):
             return SimpleNamespace(nodes={node.node_id: node}, edges={})
@@ -273,7 +276,7 @@ def test_tabular_data_input_executes_csv_as_table_data_only(tmp_path: Path) -> N
     source = tmp_path / "weather.csv"
     source.write_text("station,temp\nA,21.5\nB,22.0\n", encoding="utf-8")
 
-    result = TabularDataInputNodePlugin().execute(_context(properties={"path": str(source)}))
+    result = execute_tabular_input(_context(properties={"path": str(source)}))
 
     assert result.warnings == ()
     assert "exec_out" not in result.outputs
@@ -298,7 +301,7 @@ def test_tabular_data_input_embeds_selected_columns_in_ref_metadata(tmp_path: Pa
     source = tmp_path / "weather.csv"
     source.write_text("station,temp,pressure\nA,21.5,100.0\nB,22.0,101.0\n", encoding="utf-8")
 
-    result = TabularDataInputNodePlugin().execute(
+    result = execute_tabular_input(
         _context(
             properties={
                 "path": str(source),
@@ -317,7 +320,7 @@ def test_tabular_data_input_executes_npy_as_array_data_only(tmp_path: Path) -> N
     source = tmp_path / "array.npy"
     numpy.save(source, numpy.arange(6).reshape(3, 2))
 
-    result = TabularDataInputNodePlugin().execute(_context(properties={"path": str(source)}))
+    result = execute_tabular_input(_context(properties={"path": str(source)}))
 
     assert "exec_out" not in result.outputs
     assert "table_data" not in result.outputs
@@ -332,15 +335,15 @@ def test_tabular_data_input_requires_persisted_selection_for_multi_object_npz(tm
     numpy = pytest.importorskip("numpy")
     source = tmp_path / "archive.npz"
     numpy.savez(source, first=numpy.arange(4).reshape(2, 2), second=numpy.arange(6).reshape(3, 2))
-    plugin = TabularDataInputNodePlugin()
+    execute = execute_tabular_input
 
     with pytest.raises(SelectionRequiredError) as exc_info:
-        plugin.execute(_context(properties={"path": str(source)}))
+        execute(_context(properties={"path": str(source)}))
 
     assert exc_info.value.structured_error["code"] == TABULAR_DATA_INPUT_ERROR_SELECTOR_REQUIRED
     assert [choice["object_id"] for choice in exc_info.value.structured_error["choices"]] == ["first", "second"]
 
-    result = plugin.execute(_context(properties={"path": str(source), "selected_object": "second"}))
+    result = execute(_context(properties={"path": str(source), "selected_object": "second"}))
     ref = result.outputs["array_data"]
     assert isinstance(ref, ArrayDataRef)
     assert ref.object_id == "second"
@@ -368,7 +371,7 @@ def test_tabular_data_input_reports_missing_backend_as_structured_error(
     )
 
     with pytest.raises(MissingTabularDependencyError) as exc_info:
-        TabularDataInputNodePlugin().execute(_context(properties={"path": str(source)}))
+        execute_tabular_input(_context(properties={"path": str(source)}))
 
     assert exc_info.value.structured_error["code"] == TABULAR_DATA_INPUT_ERROR_MISSING_BACKEND
     assert exc_info.value.structured_error["format_id"] == "parquet"
@@ -395,7 +398,7 @@ def test_tabular_data_input_promotes_large_source_warnings_to_ref_metadata(
         _LargeCsvService,
     )
 
-    result = TabularDataInputNodePlugin().execute(_context(properties={"path": str(source)}))
+    result = execute_tabular_input(_context(properties={"path": str(source)}))
     ref = result.outputs["table_data"]
 
     assert result.warnings == (WARNING_LARGE_SOURCE,)
@@ -427,7 +430,7 @@ def test_tabular_data_input_reports_large_npz_preview_gate_as_structured_error(
     )
 
     with pytest.raises(LargeDataMaterializationError) as exc_info:
-        TabularDataInputNodePlugin().execute(_context(properties={"path": str(source)}))
+        execute_tabular_input(_context(properties={"path": str(source)}))
 
     assert exc_info.value.structured_error["code"] == TABULAR_DATA_INPUT_ERROR_LARGE_DATA_GATED
     assert exc_info.value.structured_error["size_bytes"] == 2 * 1024 * 1024 * 1024
@@ -453,9 +456,7 @@ def test_tabular_data_input_addon_record_and_default_registry_are_availability_g
     )
     assert available_record is not None
     assert available_record.status == "installed"
-    assert available_record.provided_node_type_ids == tuple(
-        descriptor.spec.type_id for descriptor in tabular_catalog.load_tabular_data_plugin_descriptors()
-    )
+    assert available_record.provided_node_type_ids == tabular_catalog.TABULAR_DATA_FUNCTION_TYPE_IDS
     registry = build_default_registry()
     assert registry.spec_or_none(TABULAR_DATA_INPUT_NODE_TYPE_ID) is not None
     assert registry.spec_or_none("tabular.table_filter") is not None
@@ -463,8 +464,7 @@ def test_tabular_data_input_addon_record_and_default_registry_are_availability_g
 
 
 def test_tabular_data_input_properties_round_trip_as_semantic_project_data() -> None:
-    registry = NodeRegistry()
-    registry.register_descriptor(_descriptor())
+    registry = build_default_registry()
     model = GraphModel()
     workspace = model.active_workspace
     properties = {

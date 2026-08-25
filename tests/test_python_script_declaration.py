@@ -208,6 +208,8 @@ def run(ctx):
         '@corex.text("value", _property_default={})',
         '@corex.text("value", _inline_editor="secret")',
         '@corex.text("value", _inspector_editor="secret")',
+        '@corex.text("value", _inspector_visible=False)',
+        '@corex.text("value", _property_group="Internal")',
         '@corex.text("value", _sensitive=True)',
         '@corex.text("value", _sensitive_scope_key="scope")',
         '@corex.input("value", _accepted_data_types=("COREX.DataTypes.Any",))',

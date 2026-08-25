@@ -48,9 +48,6 @@ from ea_node_editor.graph.transform_grouping_ops import (
     group_selection_into_subnode,
     ungroup_subnode,
 )
-from ea_node_editor.addons.tabular_data.catalog import (
-    load_tabular_data_plugin_descriptors,
-)
 from ea_node_editor.addons.tabular_data.input_node import (
     TABULAR_DATA_INPUT_NODE_TYPE_ID,
 )
@@ -1689,10 +1686,8 @@ class RegistryValidationTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "unknown port: payload"):
             NodeRegistry().register_descriptor(spec, _factory(spec))
 
-    def test_tabular_data_input_descriptor_preserves_semantic_defaults(self) -> None:
-        registry = NodeRegistry()
-
-        registry.register_descriptors(load_tabular_data_plugin_descriptors())
+    def test_tabular_data_input_function_preserves_semantic_defaults(self) -> None:
+        registry = build_default_registry(include_public_plugins=False)
 
         spec = registry.get_spec(TABULAR_DATA_INPUT_NODE_TYPE_ID)
         self.assertEqual(spec.display_name, "Tabular Data Input")

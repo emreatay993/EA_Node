@@ -54,6 +54,7 @@ output = _decorator(set())
 _CONTROL_PRIVATE_FIELDS = {
     "_inline_editor",
     "_inspector_editor",
+    "_inspector_visible",
     "_persistence_type",
     "_port_accepted_data_types",
     "_port_description",
@@ -62,6 +63,7 @@ _CONTROL_PRIVATE_FIELDS = {
     "_port_structure",
     "_port_value_type",
     "_property_default",
+    "_property_group",
     "_property_type",
     "_section_order",
     "_sensitive",

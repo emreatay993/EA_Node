@@ -6,23 +6,23 @@ from types import SimpleNamespace
 import pytest
 
 from ea_node_editor.addons.property_edit_adapters import PropertyEditAdapterContext
+from ea_node_editor.addons.tabular_data.function_nodes import SOURCE as TABULAR_FUNCTION_SOURCE
 from ea_node_editor.addons.tabular_data.extraction_nodes import (
     TABULAR_ARRAY_SLICE_2D_NODE_TYPE_ID,
     TABULAR_TABLE_WINDOW_NODE_TYPE_ID,
     TABULAR_WRITE_ARRAY_SLICE_2D_NODE_TYPE_ID,
     TABULAR_WRITE_TABLE_WINDOW_NODE_TYPE_ID,
-    TabularArraySlice2DNodePlugin,
-    TabularMaterializeArraySlice2DNodePlugin,
-    TabularMaterializeTableWindowNodePlugin,
-    TabularTableWindowNodePlugin,
-    TabularWriteArraySlice2DNodePlugin,
-    TabularWriteTableWindowNodePlugin,
+    execute_array_slice_2d,
+    execute_materialize_table_filter,
+    execute_table_filter,
+    execute_write_array_slice_2d,
+    execute_write_table_filter,
     load_array_slice_2d,
     load_table_window,
     write_array_rows_to_path,
     write_table_rows_to_path,
 )
-from ea_node_editor.addons.tabular_data.input_node import TabularDataInputNodePlugin
+from ea_node_editor.addons.tabular_data.input_node import execute_tabular_input
 from ea_node_editor.addons.tabular_data.property_edit_adapter import create_tabular_property_edit_adapters
 from ea_node_editor.execution.runtime_snapshot import RuntimeSnapshot, RuntimeSnapshotContext
 from ea_node_editor.nodes.execution_context import ExecutionContext
@@ -30,6 +30,8 @@ from ea_node_editor.nodes.file_dialog_filters import (
     TABULAR_ARRAY_OUTPUT_FILES_FILTER,
     TABULAR_TABLE_OUTPUT_FILES_FILTER,
 )
+from ea_node_editor.nodes.function_plugin import INTERNAL_BUILTIN_FUNCTION_OWNER_ID
+from ea_node_editor.nodes.plugin_declaration import discover_plugin_declarations
 from ea_node_editor.persistence.artifact_resolution import ProjectArtifactResolver
 from ea_node_editor.persistence.artifact_store import ProjectArtifactStore
 from ea_node_editor.runtime_contracts import (
@@ -76,7 +78,7 @@ def _context(
 def _table_ref(tmp_path: Path) -> TabularDataRef:
     source = tmp_path / "weather.csv"
     source.write_text("station,temp,pressure\nA,21.5,100\nB,22.0,101\n", encoding="utf-8")
-    result = TabularDataInputNodePlugin().execute(_context(properties={"path": str(source)}))
+    result = execute_tabular_input(_context(properties={"path": str(source)}))
     ref = result.outputs["table_data"]
     assert isinstance(ref, TabularDataRef)
     return ref
@@ -86,19 +88,27 @@ def _array_ref(tmp_path: Path) -> ArrayDataRef:
     numpy = pytest.importorskip("numpy")
     source = tmp_path / "array.npy"
     numpy.save(source, numpy.arange(12).reshape(3, 4))
-    result = TabularDataInputNodePlugin().execute(_context(properties={"path": str(source)}))
+    result = execute_tabular_input(_context(properties={"path": str(source)}))
     ref = result.outputs["array_data"]
     assert isinstance(ref, ArrayDataRef)
     return ref
 
 
 def test_extraction_node_descriptors_publish_guided_ref_interfaces() -> None:
-    table_spec = TabularTableWindowNodePlugin().spec()
-    array_spec = TabularArraySlice2DNodePlugin().spec()
-    table_writer_spec = TabularWriteTableWindowNodePlugin().spec()
-    array_writer_spec = TabularWriteArraySlice2DNodePlugin().spec()
-    table_materializer_spec = TabularMaterializeTableWindowNodePlugin().spec()
-    array_materializer_spec = TabularMaterializeArraySlice2DNodePlugin().spec()
+    specs_by_type_id = {
+        declaration.spec.type_id: declaration.spec
+        for declaration in discover_plugin_declarations(
+            TABULAR_FUNCTION_SOURCE,
+            allow_reserved_ids=True,
+            owner_id=INTERNAL_BUILTIN_FUNCTION_OWNER_ID,
+        )
+    }
+    table_spec = specs_by_type_id[TABULAR_TABLE_WINDOW_NODE_TYPE_ID]
+    array_spec = specs_by_type_id[TABULAR_ARRAY_SLICE_2D_NODE_TYPE_ID]
+    table_writer_spec = specs_by_type_id[TABULAR_WRITE_TABLE_WINDOW_NODE_TYPE_ID]
+    array_writer_spec = specs_by_type_id[TABULAR_WRITE_ARRAY_SLICE_2D_NODE_TYPE_ID]
+    table_materializer_spec = specs_by_type_id["tabular.materialize_table_filter"]
+    array_materializer_spec = specs_by_type_id["tabular.materialize_array_slice_2d"]
 
     specs = (
         table_spec,
@@ -109,6 +119,7 @@ def test_extraction_node_descriptors_publish_guided_ref_interfaces() -> None:
         array_materializer_spec,
     )
     assert all(port.kind == "data" for spec in specs for port in spec.ports)
+    assert all(spec.settings_groups == () for spec in specs)
 
     assert table_spec.type_id == TABULAR_TABLE_WINDOW_NODE_TYPE_ID
     assert table_spec.display_name == "Table Filter"
@@ -247,7 +258,7 @@ def test_visible_export_helpers_write_bounded_table_and_array_rows(tmp_path: Pat
 def test_table_window_ref_full_limit_loads_all_remaining_rows_and_selected_columns(tmp_path: Path) -> None:
     table_ref = _table_ref(tmp_path)
 
-    result = TabularTableWindowNodePlugin().execute(
+    result = execute_table_filter(
         _context(
             inputs={"table_data": table_ref},
             properties={
@@ -273,7 +284,7 @@ def test_table_window_ref_full_limit_loads_all_remaining_rows_and_selected_colum
 def test_array_slice_ref_full_limit_loads_all_remaining_values(tmp_path: Path) -> None:
     array_ref = _array_ref(tmp_path)
 
-    result = TabularArraySlice2DNodePlugin().execute(
+    result = execute_array_slice_2d(
         _context(
             inputs={"array_data": array_ref},
             properties={"row_offset": 1, "row_limit": 0, "column_offset": 2, "column_limit": 0},
@@ -290,7 +301,7 @@ def test_array_slice_ref_full_limit_loads_all_remaining_values(tmp_path: Path) -
 
 def test_table_window_writer_exports_csv_and_materializer_warns_for_unbounded_ref(tmp_path: Path) -> None:
     table_ref = _table_ref(tmp_path)
-    window_ref = TabularTableWindowNodePlugin().execute(
+    window_ref = execute_table_filter(
         _context(
             inputs={"table_data": table_ref},
             properties={"row_offset": 0, "row_limit": 0, "column_offset": 0, "column_limit": 0, "columns": ""},
@@ -298,7 +309,7 @@ def test_table_window_writer_exports_csv_and_materializer_warns_for_unbounded_re
     ).outputs["window"]
     output = tmp_path / "window.csv"
 
-    write_result = TabularWriteTableWindowNodePlugin().execute(
+    write_result = execute_write_table_filter(
         _context(inputs={"window": window_ref}, properties={"path": str(output)})
     )
 
@@ -309,22 +320,20 @@ def test_table_window_writer_exports_csv_and_materializer_warns_for_unbounded_re
         "B,22.0,101",
     ]
 
-    logs: list[tuple[str, str]] = []
-    materialized = TabularMaterializeTableWindowNodePlugin().execute(
-        _context(inputs={"window": window_ref}, logs=logs)
+    materialized = execute_materialize_table_filter(
+        _context(inputs={"window": window_ref})
     )
     assert materialized.outputs["rows"] == [
         {"station": "A", "temp": 21.5, "pressure": 100},
         {"station": "B", "temp": 22.0, "pressure": 101},
     ]
     assert materialized.warnings
-    assert logs[0][0] == "warning"
 
 
 def test_array_slice_writer_exports_csv_and_npy(tmp_path: Path) -> None:
     numpy = pytest.importorskip("numpy")
     array_ref = _array_ref(tmp_path)
-    slice_ref = TabularArraySlice2DNodePlugin().execute(
+    slice_ref = execute_array_slice_2d(
         _context(
             inputs={"array_data": array_ref},
             properties={"row_offset": 0, "row_limit": 2, "column_offset": 1, "column_limit": 2},
@@ -333,10 +342,10 @@ def test_array_slice_writer_exports_csv_and_npy(tmp_path: Path) -> None:
     csv_output = tmp_path / "slice.csv"
     npy_output = tmp_path / "slice.npy"
 
-    TabularWriteArraySlice2DNodePlugin().execute(
+    execute_write_array_slice_2d(
         _context(inputs={"slice_2d": slice_ref}, properties={"path": str(csv_output)})
     )
-    TabularWriteArraySlice2DNodePlugin().execute(
+    execute_write_array_slice_2d(
         _context(inputs={"slice_2d": slice_ref}, properties={"path": str(npy_output)})
     )
 
@@ -346,7 +355,7 @@ def test_array_slice_writer_exports_csv_and_npy(tmp_path: Path) -> None:
 
 def test_table_writer_blank_path_creates_managed_csv_artifact(tmp_path: Path) -> None:
     table_ref = _table_ref(tmp_path)
-    window_ref = TabularTableWindowNodePlugin().execute(
+    window_ref = execute_table_filter(
         _context(
             inputs={"table_data": table_ref},
             properties={"row_offset": 0, "row_limit": 1, "column_offset": 0, "column_limit": 2, "columns": ""},
@@ -365,7 +374,7 @@ def test_table_writer_blank_path_creates_managed_csv_artifact(tmp_path: Path) ->
     )
     resolver = ProjectArtifactResolver(project_path=project_path, artifact_store=artifact_store)
 
-    result = TabularWriteTableWindowNodePlugin().execute(
+    result = execute_write_table_filter(
         _context(
             inputs={"window": window_ref},
             properties={"path": ""},

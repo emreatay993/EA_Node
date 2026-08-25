@@ -780,6 +780,8 @@ class PluginBackendDescriptor:
     data_type_families: tuple[DataTypeFamilySpec, ...] = ()
     data_types: tuple[DataTypeSpec, ...] = ()
     data_conversions: tuple[DataConversionSpec, ...] = ()
+    load_function_sources: Callable[[], tuple[tuple[str, str], ...]] | None = None
+    function_type_ids: tuple[str, ...] = ()
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "plugin_id", _normalize_trimmed_string("plugin_backend.plugin_id", self.plugin_id))
@@ -792,6 +794,26 @@ class PluginBackendDescriptor:
             raise TypeError("plugin_backend.get_availability must be callable")
         if not callable(self.load_descriptors):
             raise TypeError("plugin_backend.load_descriptors must be callable")
+        if self.load_function_sources is not None and not callable(
+            self.load_function_sources
+        ):
+            raise TypeError("plugin_backend.load_function_sources must be callable")
+        if not isinstance(self.function_type_ids, tuple):
+            raise TypeError("plugin_backend.function_type_ids must be a tuple")
+        function_type_ids = tuple(
+            _normalize_trimmed_string(
+                f"plugin_backend.function_type_ids[{index}]",
+                type_id,
+            )
+            for index, type_id in enumerate(self.function_type_ids)
+        )
+        if len(function_type_ids) != len(set(function_type_ids)):
+            raise ValueError("plugin_backend.function_type_ids must be unique")
+        if bool(function_type_ids) != (self.load_function_sources is not None):
+            raise ValueError(
+                "plugin_backend function sources and type ids must be declared together"
+            )
+        object.__setattr__(self, "function_type_ids", function_type_ids)
         if self.addon_manifest is not None and not isinstance(self.addon_manifest, AddOnManifest):
             raise TypeError("plugin_backend.addon_manifest must be an AddOnManifest")
         object.__setattr__(

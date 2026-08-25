@@ -15,12 +15,9 @@ from ea_node_editor.addons.tabular_data.loader_cache_service import (
     UnsupportedTabularFormatError,
     shared_tabular_loader_cache_service,
 )
-from ea_node_editor.addons.tabular_data.metadata import TABULAR_DATA_ADDON_CATEGORY
 from ea_node_editor.nodes.builtins.integrations_common import pick_path, require_existing_file
-from ea_node_editor.nodes.decorators import plugin_descriptor
 from ea_node_editor.nodes.execution_context import ExecutionContext, NodeResult
 from ea_node_editor.nodes.file_dialog_filters import TABULAR_DATA_FILES_FILTER
-from ea_node_editor.nodes.node_specs import NodeTypeSpec, PortSpec, PropertySpec
 from ea_node_editor.runtime_contracts import (
     ArrayDataRef,
     TabularDataRef,
@@ -366,199 +363,37 @@ def _ref_with_node_metadata(
     return replace(ref, metadata=metadata), warning_codes
 
 
-class TabularDataInputNodePlugin:
-    def spec(self) -> NodeTypeSpec:
-        return NodeTypeSpec(
-            type_id=TABULAR_DATA_INPUT_NODE_TYPE_ID,
-            display_name=TABULAR_DATA_INPUT_DISPLAY_NAME,
-            category_path=(TABULAR_DATA_ADDON_CATEGORY,),
-            icon="integrations/tabular_data.svg",
-            description="Creates lazy table or dense-array references from a tabular data file.",
-            keywords=("tabular", "csv", "array"),
-            ports=(
-                PortSpec(
-                    "path",
-                    "in",
-                    "data",
-                    'COREX.DataTypes.Path',
-                    "Path",
-                    required=True,
-                    uses_property_default=True,
-                    description="Path to a CSV, spreadsheet, or supported array source.",
-                ),
-                PortSpec(
-                    TABULAR_DATA_TABLE_OUTPUT_KEY,
-                    "out",
-                    "data",
-                    'COREX.Runtime.TabularDataRef',
-                    "Table Data",
-                    exposed=True,
-                    description="Lazy reference to row-oriented tabular data.",
-                ),
-                PortSpec(
-                    TABULAR_DATA_ARRAY_OUTPUT_KEY,
-                    "out",
-                    "data",
-                    'COREX.Runtime.ArrayDataRef',
-                    "Array Data",
-                    exposed=True,
-                    description="Lazy reference to dense multidimensional array data.",
-                ),
-            ),
-            properties=(
-                PropertySpec(
-                    "path",
-                    "path",
-                    "",
-                    "Path",
-                    inline_editor="path",
-                    inspector_editor="path",
-                    group="Source",
-                    file_filter=TABULAR_DATA_INPUT_PATH_FILTER,
-                ),
-                PropertySpec(
-                    "delimiter",
-                    "str",
-                    "",
-                    "Delimiter",
-                    inspector_editor="text",
-                    group="Text Parsing",
-                ),
-                PropertySpec(
-                    "encoding",
-                    "str",
-                    "utf-8",
-                    "Encoding",
-                    inspector_editor="text",
-                    group="Text Parsing",
-                ),
-                PropertySpec(
-                    "header_row",
-                    "json",
-                    0,
-                    "Header Row",
-                    inspector_editor="text",
-                    group="Text Parsing",
-                ),
-                PropertySpec(
-                    "skip_rows",
-                    "int",
-                    0,
-                    "Skip Rows",
-                    inspector_editor="text",
-                    group="Text Parsing",
-                ),
-                PropertySpec(
-                    "schema_hints",
-                    "json",
-                    {},
-                    "Schema Hints",
-                    inspector_editor="textarea",
-                    group="Text Parsing",
-                ),
-                PropertySpec(
-                    "selected_object",
-                    "str",
-                    "",
-                    "Data Source",
-                    inspector_editor="text",
-                    group="Selection",
-                ),
-                PropertySpec(
-                    TABULAR_ARRAY_SLICE_2D_PROPERTY,
-                    "json",
-                    dict(_DEFAULT_ARRAY_SLICE_2D),
-                    "Selected 2D Array Slice",
-                    inspector_visible=False,
-                    group="Selection",
-                ),
-                PropertySpec(
-                    TABULAR_SELECTED_COLUMNS_PROPERTY,
-                    "json",
-                    [],
-                    "Selected Columns",
-                    inspector_visible=False,
-                    group="Selection",
-                ),
-                PropertySpec(
-                    "cache_policy",
-                    "enum",
-                    TABULAR_DATA_INPUT_CACHE_POLICY_APP_MANAGED_PARQUET,
-                    "Cache Policy",
-                    enum_values=TABULAR_DATA_INPUT_CACHE_POLICIES,
-                    inspector_editor="enum",
-                    group="Cache",
-                ),
-                PropertySpec(
-                    "project_managed_source",
-                    "bool",
-                    False,
-                    "Project-Managed Source",
-                    inspector_editor="toggle",
-                    group="Portability",
-                ),
-                PropertySpec(
-                    "project_managed_cache",
-                    "bool",
-                    False,
-                    "Project-Managed Cache",
-                    inspector_editor="toggle",
-                    group="Portability",
-                ),
-                PropertySpec(
-                    "allow_npz_archive_preview",
-                    "bool",
-                    False,
-                    "Allow NPZ Archive Preview",
-                    inspector_editor="toggle",
-                    group="Safety",
-                ),
-                PropertySpec(
-                    TABULAR_TABLE_VIEW_STATE_PROPERTY,
-                    "json",
-                    {},
-                    "Tabular Table View State",
-                    inspector_visible=False,
-                ),
-            ),
-        )
+def execute_tabular_input(ctx: ExecutionContext) -> NodeResult:
+    source_path = pick_path(
+        ctx,
+        input_key="path",
+        property_key="path",
+        node_name=TABULAR_DATA_INPUT_DISPLAY_NAME,
+    )
+    require_existing_file(source_path, node_name=TABULAR_DATA_INPUT_DISPLAY_NAME)
+    options = tabular_load_options_from_node_properties(ctx.properties)
+    service = shared_tabular_loader_cache_service()
+    try:
+        ref = service.open_source(source_path, options)
+    except (
+        SelectionRequiredError,
+        MissingTabularDependencyError,
+        LargeDataMaterializationError,
+        UnsupportedTabularFormatError,
+    ) as exc:
+        raise _attach_structured_error(exc, source_path=source_path)
 
-    def execute(self, ctx: ExecutionContext) -> NodeResult:
-        source_path = pick_path(
-            ctx,
-            input_key="path",
-            property_key="path",
-            node_name=TABULAR_DATA_INPUT_DISPLAY_NAME,
-        )
-        require_existing_file(source_path, node_name=TABULAR_DATA_INPUT_DISPLAY_NAME)
-        options = tabular_load_options_from_node_properties(ctx.properties)
-        service = shared_tabular_loader_cache_service()
-        try:
-            ref = service.open_source(source_path, options)
-        except (
-            SelectionRequiredError,
-            MissingTabularDependencyError,
-            LargeDataMaterializationError,
-            UnsupportedTabularFormatError,
-        ) as exc:
-            raise _attach_structured_error(exc, source_path=source_path)
-
-        ref, warning_codes = _ref_with_node_metadata(
-            ref,
-            source_path=source_path,
-            properties=ctx.properties,
-        )
-        outputs: dict[str, Any] = {}
-        if isinstance(ref, TabularDataRef):
-            outputs[TABULAR_DATA_TABLE_OUTPUT_KEY] = ref
-        else:
-            outputs[TABULAR_DATA_ARRAY_OUTPUT_KEY] = ref
-        return NodeResult(outputs=outputs, warnings=warning_codes)
-
-
-TABULAR_DATA_INPUT_NODE_DESCRIPTORS = (
-    plugin_descriptor(TabularDataInputNodePlugin),
-)
+    ref, warning_codes = _ref_with_node_metadata(
+        ref,
+        source_path=source_path,
+        properties=ctx.properties,
+    )
+    outputs: dict[str, Any] = {}
+    if isinstance(ref, TabularDataRef):
+        outputs[TABULAR_DATA_TABLE_OUTPUT_KEY] = ref
+    else:
+        outputs[TABULAR_DATA_ARRAY_OUTPUT_KEY] = ref
+    return NodeResult(outputs=outputs, warnings=warning_codes)
 
 __all__ = [
     "TABULAR_DATA_INPUT_CACHE_POLICIES",
@@ -570,7 +405,6 @@ __all__ = [
     "TABULAR_DATA_INPUT_ERROR_MISSING_BACKEND",
     "TABULAR_DATA_INPUT_ERROR_SELECTOR_REQUIRED",
     "TABULAR_DATA_INPUT_ERROR_UNSUPPORTED_FORMAT",
-    "TABULAR_DATA_INPUT_NODE_DESCRIPTORS",
     "TABULAR_DATA_INPUT_NODE_TYPE_ID",
     "TABULAR_DATA_INPUT_PATH_FILTER",
     "TABULAR_DATA_TABLE_OUTPUT_KEY",
@@ -586,7 +420,7 @@ __all__ = [
     "TABULAR_TABLE_VIEW_STATE_MIN_COLUMN_WIDTH",
     "TABULAR_TABLE_VIEW_STATE_PROPERTY",
     "TABULAR_TABLE_VIEW_STATE_VERSION",
-    "TabularDataInputNodePlugin",
+    "execute_tabular_input",
     "normalize_tabular_table_view_state",
     "normalize_tabular_selected_columns",
     "tabular_array_column_label_from_offset",

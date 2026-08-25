@@ -158,7 +158,7 @@ def test_generic_plot_node_archives_headless_line_export_without_qapplication(tm
         from ea_node_editor.addons.tabular_data.input_node import (
             TABULAR_DATA_TABLE_OUTPUT_KEY,
             TABULAR_SELECTED_COLUMNS_PROPERTY,
-            TabularDataInputNodePlugin,
+            execute_tabular_input,
         )
         from ea_node_editor.execution.runtime_snapshot import RuntimeSnapshot, RuntimeSnapshotContext
         from ea_node_editor.nodes.bootstrap import build_default_registry
@@ -182,7 +182,7 @@ def test_generic_plot_node_archives_headless_line_export_without_qapplication(tm
         plugin = registry.create("plot.scatter")
         source = project_path.with_suffix(".csv")
         source.write_text("time,value\\n0,1.0\\n1,2.5\\n2,4.0\\n", encoding="utf-8")
-        table_ref = TabularDataInputNodePlugin().execute(
+        table_ref = execute_tabular_input(
             ExecutionContext(
                 run_id="run_tabular_headless",
                 node_id="node_tabular",

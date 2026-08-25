@@ -10,7 +10,6 @@ from ea_node_editor.addons.tabular_data.input_node import (
     TABULAR_DATA_ARRAY_OUTPUT_KEY,
     TABULAR_DATA_INPUT_NODE_TYPE_ID,
     TABULAR_DATA_TABLE_OUTPUT_KEY,
-    TabularDataInputNodePlugin,
 )
 from ea_node_editor.graph.effective_ports import effective_ports
 from ea_node_editor.graph.model import GraphModel
@@ -21,6 +20,7 @@ from ea_node_editor.nodes.node_specs import (
     PortSpec,
     PropertySpec,
 )
+from ea_node_editor.nodes.bootstrap import build_default_registry
 from ea_node_editor.nodes.registry import NodeRegistry
 from ea_node_editor.runtime_contracts import (
     ARRAY_DATA_REF_TYPE_ID,
@@ -125,6 +125,15 @@ class _ArraySinkPlugin:
         raise NotImplementedError
 
 
+_TABULAR_INPUT_REGISTRY = build_default_registry(include_public_plugins=False)
+_TABULAR_INPUT_SPEC = _TABULAR_INPUT_REGISTRY.get_spec(
+    TABULAR_DATA_INPUT_NODE_TYPE_ID
+)
+_TABULAR_INPUT_FUNCTION_REF = _TABULAR_INPUT_REGISTRY.python_function_ref_or_none(
+    TABULAR_DATA_INPUT_NODE_TYPE_ID
+)
+
+
 def _resolved_test_outputs(properties) -> tuple[PortSpec, ...]:  # noqa: ANN001
     return tuple(
         PortSpec(
@@ -149,7 +158,8 @@ def _next_test_output(_properties) -> str:  # noqa: ANN001
 
 def _registry() -> NodeRegistry:
     registry = NodeRegistry()
-    registry.register_descriptor(TabularDataInputNodePlugin().spec(), TabularDataInputNodePlugin)
+    assert _TABULAR_INPUT_FUNCTION_REF is not None
+    registry.register_python_function(_TABULAR_INPUT_SPEC, _TABULAR_INPUT_FUNCTION_REF)
     registry.register(_ArraySinkPlugin)
     return registry
 
@@ -172,7 +182,7 @@ def test_tabular_static_table_marks_array_output_unavailable(tmp_path: Path) -> 
     model = GraphModel()
     workspace = model.active_workspace
     node = _tabular_node(model, source)
-    spec = TabularDataInputNodePlugin().spec()
+    spec = _TABULAR_INPUT_SPEC
 
     availability = port_availability_for_node(workspace=workspace, node=node, spec=spec)
 
@@ -189,7 +199,7 @@ def test_tabular_static_array_marks_table_output_unavailable(tmp_path: Path) -> 
     model = GraphModel()
     workspace = model.active_workspace
     node = _tabular_node(model, source)
-    spec = TabularDataInputNodePlugin().spec()
+    spec = _TABULAR_INPUT_SPEC
 
     availability = port_availability_for_node(workspace=workspace, node=node, spec=spec)
 
@@ -209,7 +219,7 @@ def test_tabular_empty_path_and_dynamic_path_without_observation_stay_auto() -> 
         source.node_id,
         "path",
     )
-    spec = TabularDataInputNodePlugin().spec()
+    spec = _TABULAR_INPUT_SPEC
 
     availability = port_availability_for_node(workspace=workspace, node=source, spec=spec)
 
@@ -223,7 +233,7 @@ def test_tabular_dynamic_path_uses_last_runtime_observation() -> None:
     source = _tabular_node(model)
     path_source = model.add_node(workspace.workspace_id, "tests.path_source", "Path Source", -160, 0)
     model.add_edge(workspace.workspace_id, path_source.node_id, "path", source.node_id, "path")
-    spec = TabularDataInputNodePlugin().spec()
+    spec = _TABULAR_INPUT_SPEC
 
     observe_node_outputs(
         workspace_id=workspace.workspace_id,

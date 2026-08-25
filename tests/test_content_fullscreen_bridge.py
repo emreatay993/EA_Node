@@ -33,7 +33,6 @@ from ea_node_editor.nodes.builtins.passive_media import (
 from ea_node_editor.nodes.bootstrap import build_default_registry
 from ea_node_editor.graph.records import NodeInstance
 from ea_node_editor.nodes.builtins.web_viewer import WEB_PAGE_VIEWER_TYPE_ID
-from ea_node_editor.addons.tabular_data import catalog as tabular_catalog
 from ea_node_editor.addons.tabular_data.input_node import (
     TABULAR_DATA_INPUT_NODE_TYPE_ID,
     TABULAR_SELECTED_COLUMNS_PROPERTY,
@@ -281,17 +280,13 @@ class ContentFullscreenBridgeTests(MainWindowShellTestBase):
         self.app.processEvents()
         return node_id, state, preview_ref
 
-    def _register_tabular_descriptor(self) -> None:
-        descriptors = tabular_catalog.load_tabular_data_plugin_descriptors()
-        for descriptor in descriptors:
-            if descriptor.spec.type_id == TABULAR_DATA_INPUT_NODE_TYPE_ID:
-                if self.window.registry.spec_or_none(TABULAR_DATA_INPUT_NODE_TYPE_ID) is None:
-                    self.window.registry.register_descriptor(descriptor)
-                return
-        self.fail("tabular.input descriptor was not loaded")
+    def _ensure_tabular_function_registered(self) -> None:
+        self.assertIsNotNone(
+            self.window.registry.spec_or_none(TABULAR_DATA_INPUT_NODE_TYPE_ID)
+        )
 
     def _add_tabular_node(self) -> tuple[str, Path]:
-        self._register_tabular_descriptor()
+        self._ensure_tabular_function_registered()
         source = Path(self._env.temp_path) / "content-fullscreen-tabular.csv"
         rows = ["station,temp,count"]
         rows.extend(f"S{index},{20 + index / 10:.1f},{index}" for index in range(120))

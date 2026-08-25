@@ -41,7 +41,7 @@ from ea_node_editor.nodes.plugin_contracts import (
     ToolchainRequirementSpec,
     ToolchainSpec,
 )
-from ea_node_editor.nodes.registry import NodeRegistry
+from ea_node_editor.nodes.registry import NodeRegistry, PythonFunctionEntry
 from ea_node_editor.nodes.plugin_generation import prune_plugin_generations
 from ea_node_editor.runtime_contracts import (
     DataTypeFamilySpec,
@@ -140,6 +140,28 @@ def _function_source(
 def static_node(ctx, value):
     return {{"result": value}}
 '''
+
+
+def _function_backend(
+    *,
+    owner_id: str,
+    type_id: str,
+    source: str | None = None,
+    descriptors: tuple[PluginDescriptor, ...] = (),
+    availability=None,
+) -> PluginBackendDescriptor:
+    return PluginBackendDescriptor(
+        plugin_id=owner_id,
+        display_name="Function Backend",
+        get_availability=(
+            availability
+            if availability is not None
+            else lambda: PluginAvailability.available()
+        ),
+        load_descriptors=lambda: descriptors,
+        load_function_sources=lambda: (("functions.py", source or _function_source(type_id)),),
+        function_type_ids=(type_id,),
+    )
 
 
 def _write_schema2_package(
@@ -906,6 +928,309 @@ def test_public_loader_has_no_entry_point_or_import_execution_surface() -> None:
     assert ".load()" not in source
     assert "exec_module" not in source
     assert "ea_node_editor.plugins" not in pyproject
+
+
+def test_plugin_backend_function_contract_rejects_inconsistent_fields() -> None:
+    fields = {
+        "plugin_id": "packet.functions",
+        "display_name": "Packet Functions",
+        "get_availability": lambda: PluginAvailability.available(),
+        "load_descriptors": lambda: (),
+    }
+    with pytest.raises(TypeError, match="load_function_sources"):
+        PluginBackendDescriptor(
+            **fields,
+            load_function_sources="not callable",  # type: ignore[arg-type]
+        )
+    with pytest.raises(TypeError, match="function_type_ids must be a tuple"):
+        PluginBackendDescriptor(
+            **fields,
+            load_function_sources=lambda: (("node.py", ""),),
+            function_type_ids=["packet.function"],  # type: ignore[arg-type]
+        )
+    with pytest.raises(ValueError, match="must be unique"):
+        PluginBackendDescriptor(
+            **fields,
+            load_function_sources=lambda: (("node.py", ""),),
+            function_type_ids=("packet.function", "packet.function"),
+        )
+    with pytest.raises(ValueError, match="trimmed"):
+        PluginBackendDescriptor(
+            **fields,
+            load_function_sources=lambda: (("node.py", ""),),
+            function_type_ids=(" packet.function",),
+        )
+    with pytest.raises(ValueError, match="declared together"):
+        PluginBackendDescriptor(**fields, function_type_ids=("packet.function",))
+    with pytest.raises(ValueError, match="declared together"):
+        PluginBackendDescriptor(
+            **fields,
+            load_function_sources=lambda: (("node.py", ""),),
+        )
+
+
+def test_plugin_backend_functions_are_static_deterministic_and_worker_compatible(
+    tmp_path: Path,
+) -> None:
+    owner_id = "packet.functions"
+    type_id = "packet.function"
+    marker = tmp_path / "executed.txt"
+    availability_calls = 0
+
+    def availability() -> PluginAvailability:
+        nonlocal availability_calls
+        availability_calls += 1
+        return PluginAvailability.available()
+
+    source = f'''import corex
+from pathlib import Path
+Path({str(marker)!r}).write_text("executed", encoding="utf-8")
+
+@corex.node(id={type_id!r}, name="Static Node", category=("Tests",))
+@corex.text(
+    "setting",
+    default="",
+    _property_group="Configuration",
+    _inspector_visible=False,
+)
+@corex.output("result", value_type=float)
+def static_node(ctx, settings):
+    return {{"result": float(bool(settings.setting))}}
+'''
+    descriptor = _packet_descriptor("packet.descriptor", "Packet Descriptor")
+    backend = _function_backend(
+        owner_id=owner_id,
+        type_id=type_id,
+        source=source,
+        descriptors=(descriptor,),
+        availability=availability,
+    )
+
+    first = NodeRegistry()
+    loaded = plugin_loader.register_plugin_backends(
+        (backend,),
+        first,
+        "packet.functions",
+        generation_root=tmp_path / "first",
+    )
+
+    assert availability_calls == 1
+    assert loaded == [descriptor.spec.type_id, type_id]
+    assert not marker.exists()
+    assert first.descriptor_or_none(descriptor.spec.type_id) is not None
+    assert isinstance(first.get_entry(type_id), PythonFunctionEntry)
+    bundle = first.plugin_bundle_refs()[0]
+    assert bundle.owner_id == owner_id
+    assert tuple(ref.bundle_id for ref in bundle.functions) == (owner_id,)
+    generation = plugin_generation.read_verified_plugin_generation(bundle)
+    declarations = plugin_loader.validated_generation_declarations(
+        generation.manifest,
+        generation.members,
+        filename_prefix=owner_id,
+        owner_id=owner_id,
+        allow_internal_metadata=True,
+    )
+    assert tuple(item.spec.type_id for _path, item in declarations) == (type_id,)
+    assert not marker.exists()
+
+    second = NodeRegistry()
+    plugin_loader.register_plugin_backends(
+        (backend,),
+        second,
+        "packet.functions",
+        generation_root=tmp_path / "second",
+    )
+    assert first.plugin_fingerprint() == second.plugin_fingerprint()
+    assert first.contract_fingerprint() == second.contract_fingerprint()
+    assert (
+        first.plugin_bundle_refs()[0].approved_generation_root
+        != second.plugin_bundle_refs()[0].approved_generation_root
+    )
+
+
+@pytest.mark.parametrize(
+    "sources",
+    [
+        [("list.py", _function_source("packet.function"))],
+        (("../escape.py", _function_source("packet.function")),),
+        (
+            ("duplicate.py", _function_source("packet.function")),
+            ("DUPLICATE.py", _function_source("packet.other")),
+        ),
+        (("bytes.py", b"not source text"),),
+        (("large.py", " " * (plugin_generation.PLUGIN_SOURCE_LIMIT + 1)),),
+    ],
+)
+def test_plugin_backend_function_sources_reject_path_duplicate_and_size_bounds(
+    tmp_path: Path,
+    sources: object,
+) -> None:
+    backend = PluginBackendDescriptor(
+        plugin_id="packet.functions",
+        display_name="Packet Functions",
+        get_availability=lambda: PluginAvailability.available(),
+        load_descriptors=lambda: (),
+        load_function_sources=lambda: sources,  # type: ignore[return-value]
+        function_type_ids=("packet.function",),
+    )
+    registry = NodeRegistry()
+
+    assert plugin_loader.register_plugin_backends(
+        (backend,),
+        registry,
+        "packet.functions",
+        generation_root=tmp_path / "generations",
+    ) == []
+    assert registry.spec_or_none("packet.function") is None
+    assert registry.plugin_bundle_refs() == ()
+
+
+def test_plugin_backend_function_mismatch_and_unavailability_contribute_nothing(
+    tmp_path: Path,
+) -> None:
+    source_calls = 0
+
+    def unavailable_sources() -> tuple[tuple[str, str], ...]:
+        nonlocal source_calls
+        source_calls += 1
+        return (("functions.py", _function_source("packet.unavailable")),)
+
+    mismatch = _function_backend(
+        owner_id="packet.mismatch",
+        type_id="packet.expected",
+        source=_function_source("packet.actual"),
+    )
+    unavailable = PluginBackendDescriptor(
+        plugin_id="packet.unavailable",
+        display_name="Unavailable Functions",
+        get_availability=lambda: PluginAvailability.missing_dependency("packet"),
+        load_descriptors=lambda: (),
+        load_function_sources=unavailable_sources,
+        function_type_ids=("packet.unavailable",),
+    )
+    registry = NodeRegistry()
+
+    assert plugin_loader.register_plugin_backends(
+        (mismatch, unavailable),
+        registry,
+        "packet.functions",
+        generation_root=tmp_path / "generations",
+    ) == []
+    assert source_calls == 0
+    assert registry.all_specs() == []
+    assert registry.plugin_bundle_refs() == ()
+
+
+def test_plugin_backend_owner_replacement_removes_old_functions_and_descriptors(
+    tmp_path: Path,
+) -> None:
+    owner_id = "packet.replace"
+    registry = NodeRegistry()
+    old_backend = _function_backend(
+        owner_id=owner_id,
+        type_id="packet.old_function",
+        descriptors=(_packet_descriptor("packet.old_descriptor", "Old"),),
+    )
+    new_backend = _function_backend(
+        owner_id=owner_id,
+        type_id="packet.new_function",
+        descriptors=(_packet_descriptor("packet.new_descriptor", "New"),),
+    )
+    plugin_loader.register_plugin_backends(
+        (old_backend,),
+        registry,
+        "packet.replace",
+        generation_root=tmp_path / "generations",
+    )
+    old_fingerprint = registry.plugin_fingerprint()
+
+    loaded = plugin_loader.register_plugin_backends(
+        (new_backend,),
+        registry,
+        "packet.replace",
+        generation_root=tmp_path / "generations",
+    )
+
+    assert loaded == ["packet.new_descriptor", "packet.new_function"]
+    assert registry.spec_or_none("packet.old_descriptor") is None
+    assert registry.spec_or_none("packet.old_function") is None
+    assert registry.spec_or_none("packet.new_descriptor") is not None
+    assert registry.spec_or_none("packet.new_function") is not None
+    assert tuple(bundle.owner_id for bundle in registry.plugin_bundle_refs()) == (
+        owner_id,
+    )
+    assert registry.plugin_fingerprint() != old_fingerprint
+
+
+def test_plugin_bundle_and_fingerprint_failures_roll_back_the_whole_owner(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    owner_id = "packet.atomic_functions"
+    type_id = "packet.atomic_function"
+    registry = NodeRegistry()
+    backend = _function_backend(owner_id=owner_id, type_id=type_id)
+    plugin_loader.register_plugin_backends(
+        (backend,),
+        registry,
+        "packet.atomic_functions",
+        generation_root=tmp_path / "generations",
+    )
+    entry = registry.get_entry(type_id)
+    assert isinstance(entry, PythonFunctionEntry)
+    bundle = registry.plugin_bundle_refs()[0]
+    before = (
+        tuple(registry.all_specs()),
+        registry.plugin_bundle_refs(),
+        registry.plugin_fingerprint(),
+        registry.contract_fingerprint(),
+    )
+
+    with pytest.raises(ValueError, match="must match Python function entries"):
+        registry.register_plugin_bundle(
+            None,
+            (),
+            owner_id=owner_id,
+            replace_owner=True,
+            python_function_entries=(entry,),
+            plugin_bundle=type(bundle)(
+                owner_id=bundle.owner_id,
+                version=bundle.version,
+                generation_id=bundle.generation_id,
+                bundle_digest=bundle.bundle_digest,
+                approved_generation_root=bundle.approved_generation_root,
+                functions=(),
+            ),
+        )
+    assert (
+        tuple(registry.all_specs()),
+        registry.plugin_bundle_refs(),
+        registry.plugin_fingerprint(),
+        registry.contract_fingerprint(),
+    ) == before
+
+    def fail_fingerprint(*_args, **_kwargs):
+        raise ValueError("fingerprint failed")
+
+    monkeypatch.setattr(
+        "ea_node_editor.nodes.registry.plugin_fingerprint",
+        fail_fingerprint,
+    )
+    with pytest.raises(ValueError, match="fingerprint failed"):
+        registry.register_plugin_bundle(
+            None,
+            (),
+            owner_id=owner_id,
+            replace_owner=True,
+            python_function_entries=(entry,),
+            plugin_bundle=bundle,
+        )
+    assert (
+        tuple(registry.all_specs()),
+        registry.plugin_bundle_refs(),
+        registry.plugin_fingerprint(),
+        registry.contract_fingerprint(),
+    ) == before
 
 
 def test_register_plugin_backends_redacts_availability_and_failure_details(

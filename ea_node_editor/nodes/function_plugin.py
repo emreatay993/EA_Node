@@ -6,11 +6,13 @@ from __future__ import annotations
 
 import hashlib
 import inspect
+import json
 import keyword
 import re
-from collections.abc import Callable, Mapping
-from dataclasses import dataclass
-from pathlib import PurePosixPath, PureWindowsPath
+from collections.abc import Callable, Mapping, Sequence
+from dataclasses import dataclass, fields, is_dataclass
+from enum import Enum
+from pathlib import Path, PurePosixPath, PureWindowsPath
 from typing import Any
 
 from corex import _Settings
@@ -141,6 +143,67 @@ class PluginBundleRef:
         )
 
 
+def _stable_fingerprint_value(value: object) -> object:
+    if is_dataclass(value):
+        return {
+            field.name: _stable_fingerprint_value(getattr(value, field.name))
+            for field in fields(value)
+        }
+    if isinstance(value, Mapping):
+        return {
+            str(key): _stable_fingerprint_value(item)
+            for key, item in sorted(value.items(), key=lambda pair: str(pair[0]))
+        }
+    if isinstance(value, (tuple, list)):
+        return [_stable_fingerprint_value(item) for item in value]
+    if isinstance(value, (set, frozenset)):
+        items = [_stable_fingerprint_value(item) for item in value]
+        return sorted(items, key=lambda item: json.dumps(item, sort_keys=True))
+    if isinstance(value, Enum):
+        return _stable_fingerprint_value(value.value)
+    if isinstance(value, Path):
+        return value.as_posix()
+    if value is None or isinstance(value, (bool, int, float, str)):
+        return value
+    raise TypeError(
+        f"Unsupported plugin fingerprint value: {type(value).__qualname__}"
+    )
+
+
+def plugin_fingerprint(
+    entries: Sequence[tuple[NodeTypeSpec, PythonFunctionRef]],
+    bundles: Sequence[PluginBundleRef],
+) -> str:
+    included_owners = {bundle.owner_id for bundle in bundles}
+    entry_payload = [
+        {
+            "spec": _stable_fingerprint_value(spec),
+            "function": _stable_fingerprint_value(function_ref),
+        }
+        for spec, function_ref in sorted(entries, key=lambda item: item[0].type_id)
+        if function_ref.bundle_id in included_owners
+    ]
+    bundle_payload = [
+        {
+            "owner_id": bundle.owner_id,
+            "version": bundle.version,
+            "generation_id": bundle.generation_id,
+            "bundle_digest": bundle.bundle_digest,
+            "functions": _stable_fingerprint_value(bundle.functions),
+            "unavailable_reason": bundle.unavailable_reason,
+        }
+        for bundle in sorted(bundles, key=lambda item: item.owner_id)
+    ]
+    payload = json.dumps(
+        {"bundles": bundle_payload, "entries": entry_payload},
+        sort_keys=True,
+        separators=(",", ":"),
+        ensure_ascii=False,
+        allow_nan=False,
+    ).encode("utf-8")
+    return hashlib.sha256(payload).hexdigest()
+
+
 class PythonFunctionAdapter:
     __slots__ = (
         "_control_keys",
@@ -245,4 +308,5 @@ __all__ = [
     "PluginBundleRef",
     "PythonFunctionAdapter",
     "PythonFunctionRef",
+    "plugin_fingerprint",
 ]

@@ -20,10 +20,10 @@ from ea_node_editor.addons.ansys_dpf.plot_catalog import (
     load_ansys_dpf_plot_plugin_descriptors,
 )
 from ea_node_editor.addons.mars.nodes import MARS_NODE_DESCRIPTORS
-from ea_node_editor.addons.tabular_data.catalog import (
-    load_tabular_data_plugin_descriptors,
-)
+from ea_node_editor.addons.tabular_data.function_nodes import SOURCE as TABULAR_SOURCE
+from ea_node_editor.addons.tabular_data.metadata import TABULAR_DATA_ADDON_ID
 from ea_node_editor.nodes.bootstrap import build_builtin_registry
+from ea_node_editor.nodes.plugin_declaration import discover_plugin_declarations
 from ea_node_editor.nodes.registry import resolve_instance_ports, resolve_instance_spec
 
 
@@ -76,9 +76,19 @@ def _catalog_value(value: object) -> object:
 
 
 def _current_non_dpf_catalog() -> list[dict[str, object]]:
+    tabular_specs = tuple(
+        declaration.spec
+        for declaration in discover_plugin_declarations(
+            TABULAR_SOURCE,
+            filename="tabular_data.py",
+            allow_reserved_ids=True,
+            owner_id=TABULAR_DATA_ADDON_ID,
+            allow_internal_metadata=True,
+        )
+    )
     specs = (
         *build_builtin_registry().all_specs(),
-        *(descriptor.spec for descriptor in load_tabular_data_plugin_descriptors()),
+        *tabular_specs,
         *(descriptor.spec for descriptor in MARS_NODE_DESCRIPTORS),
     )
     type_ids = [spec.type_id for spec in specs]
@@ -135,9 +145,19 @@ def test_novice_plugin_sdk_migration_inventory_is_exhaustive() -> None:
         for line in _MIGRATION_INVENTORY.read_text(encoding="utf-8").splitlines()
         if (match := _INVENTORY_ROW.match(line)) is not None
     }
+    tabular_specs = tuple(
+        declaration.spec
+        for declaration in discover_plugin_declarations(
+            TABULAR_SOURCE,
+            filename="tabular_data.py",
+            allow_reserved_ids=True,
+            owner_id=TABULAR_DATA_ADDON_ID,
+            allow_internal_metadata=True,
+        )
+    )
     non_dpf = (
         *build_builtin_registry().all_specs(),
-        *(descriptor.spec for descriptor in load_tabular_data_plugin_descriptors()),
+        *tabular_specs,
         *(descriptor.spec for descriptor in MARS_NODE_DESCRIPTORS),
     )
     dpf = tuple(

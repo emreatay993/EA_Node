@@ -80,6 +80,7 @@ _INTERNAL_CONTROL_FIELDS = frozenset(
     {
         "_inline_editor",
         "_inspector_editor",
+        "_inspector_visible",
         "_persistence_type",
         "_port_accepted_data_types",
         "_port_description",
@@ -88,6 +89,7 @@ _INTERNAL_CONTROL_FIELDS = frozenset(
         "_port_structure",
         "_port_value_type",
         "_property_default",
+        "_property_group",
         "_property_type",
         "_section_order",
         "_sensitive",
@@ -343,6 +345,7 @@ def call_values(
             "_port_description",
             "_port_label",
             "_port_structure",
+            "_property_group",
             "_property_type",
             "_sensitive_scope_key",
         } and not isinstance(values[keyword_node.arg], str):
@@ -352,6 +355,7 @@ def call_values(
             "port",
             "searchable",
             "_port_required",
+            "_inspector_visible",
             "_sensitive",
         } and not isinstance(
             values[keyword_node.arg], bool
@@ -456,6 +460,12 @@ def apply_internal_control_overrides(
     inspector_editor = values.get("_inspector_editor", prop.inspector_editor)
     if inspector_editor not in INSPECTOR_EDITORS:
         raise DeclarationValueError("_inspector_editor is unsupported")
+    inspector_visible = values.get("_inspector_visible", prop.inspector_visible)
+    if not isinstance(inspector_visible, bool):
+        raise DeclarationValueError("_inspector_visible must be true or false")
+    property_group = values.get("_property_group", prop.group)
+    if not isinstance(property_group, str):
+        raise DeclarationValueError("_property_group must be a string literal")
     persistence_type = values.get(
         "_persistence_type", prop.persistence_data_type_id
     )
@@ -486,6 +496,8 @@ def apply_internal_control_overrides(
         default=values.get("_property_default", prop.default),
         inline_editor=inline_editor,
         inspector_editor=inspector_editor,
+        inspector_visible=inspector_visible,
+        group=property_group.strip(),
         sensitive=sensitive,
         sensitive_scope_key=sensitive_scope_key,
         persistence_data_type_id="" if persistence_type is None else persistence_type,

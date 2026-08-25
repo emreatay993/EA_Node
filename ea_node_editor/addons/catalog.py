@@ -344,7 +344,12 @@ def discover_addon_records(*, preferences_document: Any = None) -> tuple[AddOnRe
                 )
             else:
                 provided_node_type_ids = tuple(
-                    dict.fromkeys(descriptor.spec.type_id for descriptor in descriptors)
+                    dict.fromkeys(
+                        (
+                            *(descriptor.spec.type_id for descriptor in descriptors),
+                            *backend.function_type_ids,
+                        )
+                    )
                 )
 
         manifest = replace(

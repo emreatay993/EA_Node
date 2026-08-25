@@ -45,6 +45,7 @@ from .function_plugin import (
     EMPTY_PLUGIN_FINGERPRINT,
     PluginBundleRef,
     PythonFunctionRef,
+    plugin_fingerprint,
 )
 from .node_specs import (
     DpfCallableSourceSpec,
@@ -595,6 +596,8 @@ class NodeRegistry:
         source_label: str = "",
         source_identity: str = "",
         replace_owner: bool = False,
+        python_function_entries: Iterable[PythonFunctionEntry] = (),
+        plugin_bundle: PluginBundleRef | None = None,
     ) -> None:
         normalized_owner_id = str(owner_id).strip()
         if not normalized_owner_id:
@@ -614,6 +617,7 @@ class NodeRegistry:
                 record.get("owner_id") == normalized_owner_id
                 for record in self._data_types.snapshot()
             )
+            or normalized_owner_id in self._plugin_bundle_refs
         )
         if owner_is_active and not replace_owner:
             raise ValueError(
@@ -670,7 +674,11 @@ class NodeRegistry:
             for existing_owner, identity in self._owner_source_identities.items()
             if not replace_owner or existing_owner != normalized_owner_id
         }
-        staged._plugin_bundle_refs = dict(self._plugin_bundle_refs)
+        staged._plugin_bundle_refs = {
+            existing_owner: bundle
+            for existing_owner, bundle in self._plugin_bundle_refs.items()
+            if not replace_owner or existing_owner != normalized_owner_id
+        }
         staged._plugin_fingerprint = self._plugin_fingerprint
         staged_catalog.register_many(
             families=normalized_manifest.data_type_families,
@@ -681,6 +689,57 @@ class NodeRegistry:
             source_label=str(source_label),
         )
         staged.register_descriptors(descriptors, owner_id=normalized_owner_id)
+        function_entries = tuple(python_function_entries)
+        for entry in function_entries:
+            if not isinstance(entry, PythonFunctionEntry):
+                raise TypeError(
+                    "python_function_entries must contain PythonFunctionEntry values"
+                )
+            if entry.owner_id != normalized_owner_id:
+                raise ValueError(
+                    "Python function entry owner_id must match plugin bundle owner_id"
+                )
+            staged.register_python_function(
+                entry.spec,
+                entry.function_ref,
+                provenance=entry.provenance,
+                owner_id=entry.owner_id,
+                unavailable_reason=entry.unavailable_reason,
+            )
+        if plugin_bundle is not None:
+            if not isinstance(plugin_bundle, PluginBundleRef):
+                raise TypeError("plugin_bundle must be a PluginBundleRef or None")
+            if plugin_bundle.owner_id != normalized_owner_id:
+                raise ValueError(
+                    "plugin_bundle owner_id must match registry bundle owner_id"
+                )
+            if set(plugin_bundle.functions) != {
+                entry.function_ref for entry in function_entries
+            }:
+                raise ValueError(
+                    "plugin_bundle functions must match Python function entries"
+                )
+            staged._plugin_bundle_refs[normalized_owner_id] = plugin_bundle
+        elif function_entries:
+            raise ValueError(
+                "plugin_bundle is required with Python function entries"
+            )
+        bundles = tuple(
+            staged._plugin_bundle_refs[owner]
+            for owner in sorted(staged._plugin_bundle_refs)
+        )
+        fingerprint = plugin_fingerprint(
+            tuple(
+                (entry.spec, entry.function_ref)
+                for entry in staged._entries.values()
+                if isinstance(entry, PythonFunctionEntry)
+            ),
+            bundles,
+        )
+        staged.set_python_plugin_catalog(
+            bundles,
+            plugin_fingerprint=fingerprint,
+        )
         for entry in staged._entries.values():
             staged._validate_spec(entry.spec)
         staged._contract_manifests[normalized_owner_id] = normalized_manifest

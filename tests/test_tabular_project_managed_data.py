@@ -10,7 +10,6 @@ from unittest.mock import patch
 from PyQt6.QtCore import QObject
 from PyQt6.QtWidgets import QApplication
 
-from ea_node_editor.addons.tabular_data import catalog as tabular_catalog
 from ea_node_editor.addons.tabular_data.input_node import TABULAR_DATA_INPUT_NODE_TYPE_ID
 from ea_node_editor.graph.file_issue_state import (
     EXTERNAL_LINK_MODE,
@@ -234,16 +233,6 @@ class TabularProjectManagedSaveFlowTests(unittest.TestCase):
         )
 
     @staticmethod
-    def _register_tabular_descriptor(host: _ProjectHostStub) -> None:
-        descriptor = next(
-            descriptor
-            for descriptor in tabular_catalog.load_tabular_data_plugin_descriptors()
-            if descriptor.spec.type_id == TABULAR_DATA_INPUT_NODE_TYPE_ID
-        )
-        if host.registry.spec_or_none(TABULAR_DATA_INPUT_NODE_TYPE_ID) is None:
-            host.registry.register_descriptor(descriptor)
-
-    @staticmethod
     def _tabular_document(*, node_properties: dict, artifact_store: dict) -> dict:
         return {
             "schema_version": 1,
@@ -336,7 +325,6 @@ class TabularProjectManagedSaveFlowTests(unittest.TestCase):
                 },
             )
             host = _ProjectHostStub(project_path=str(source_project), persistent_document=persistent_document)
-            self._register_tabular_descriptor(host)
             controller = ProjectSessionController(host)  # type: ignore[arg-type]
 
             with patch.object(
@@ -416,7 +404,6 @@ class TabularProjectManagedSaveFlowTests(unittest.TestCase):
             stale_target_staging.parent.mkdir(parents=True, exist_ok=True)
             stale_target_staging.write_bytes(b"stale")
             host = _ProjectHostStub(project_path=str(source_project), persistent_document=persistent_document)
-            self._register_tabular_descriptor(host)
             controller = ProjectSessionController(host)  # type: ignore[arg-type]
 
             with patch.object(

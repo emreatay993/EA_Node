@@ -471,6 +471,49 @@ def signal(ctx): return {}
     assert declaration.spec.type_id == "plot.signal"
 
 
+def test_trusted_non_builtin_owner_can_parse_property_group_and_visibility() -> None:
+    source = '''
+@corex.node(id="tabular.input", name="Tabular Input", category=("Tabular",))
+@corex.text(
+    "table",
+    default="",
+    _property_group="Internal",
+    _inspector_visible=False,
+)
+def tabular_input(ctx, settings): return {}
+'''
+
+    (declaration,) = discover_plugin_declarations(
+        source,
+        allow_reserved_ids=True,
+        owner_id="corex:addon:tabular",
+        allow_internal_metadata=True,
+    )
+
+    assert declaration.spec.properties[0].group == "Internal"
+    assert declaration.spec.properties[0].inspector_visible is False
+    assert declaration.spec.settings_groups == ()
+
+
+@pytest.mark.parametrize(
+    "kwargs",
+    (
+        {"owner_id": "corex:addon:tabular", "allow_internal_metadata": True},
+        {"allow_reserved_ids": True, "allow_internal_metadata": True},
+        {
+            "allow_reserved_ids": True,
+            "owner_id": " ",
+            "allow_internal_metadata": True,
+        },
+    ),
+)
+def test_internal_metadata_flag_requires_reserved_ids_and_non_empty_owner(
+    kwargs: dict[str, object],
+) -> None:
+    with pytest.raises(ValueError, match="reserved node ids.*non-empty owner"):
+        discover_plugin_declarations("", **kwargs)
+
+
 def test_internal_control_fields_preserve_spec_order_and_customize_group_order() -> None:
     source = '''
 @corex.node(id="plot.private_fields", name="Private Fields", category=("Plot",))
@@ -799,11 +842,13 @@ def host(ctx, private_key_path): return {"host": {}}
         ("_property_default", "{}"),
         ("_inline_editor", '"secret"'),
         ("_inspector_editor", '"secret"'),
+        ("_inspector_visible", "False"),
+        ("_property_group", '"Internal"'),
         ("_sensitive", "True"),
         ("_sensitive_scope_key", '"scope"'),
     ),
 )
-def test_external_plugins_reject_all_t12_private_control_fields(
+def test_external_plugins_reject_all_private_control_fields(
     private_field: str,
     value: str,
 ) -> None:
@@ -852,6 +897,8 @@ def private_input(ctx, value): return {{}}
         ),
         ('@corex.text("value", _property_type="object")', "_property_type"),
         ('@corex.text("value", _inline_editor="wizard")', "_inline_editor"),
+        ('@corex.text("value", _inspector_visible="no")', "_inspector_visible"),
+        ('@corex.text("value", _property_group=1)', "_property_group"),
         ('@corex.text("value", _sensitive=True)', "type json.*secret editor"),
         (
             '@corex.text("value", _sensitive_scope_key="scope")',
@@ -917,6 +964,8 @@ def test_runtime_private_metadata_accepts_known_fields_and_rejects_unknown() -> 
         _property_default={},
         _inline_editor="secret",
         _inspector_editor="secret",
+        _inspector_visible=False,
+        _property_group="Internal",
         _sensitive=True,
         _sensitive_scope_key="scope",
         port=True,

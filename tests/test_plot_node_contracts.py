@@ -11,13 +11,13 @@ from ea_node_editor.addons.tabular_data.input_node import (
     TABULAR_DATA_ARRAY_OUTPUT_KEY,
     TABULAR_DATA_TABLE_OUTPUT_KEY,
     TABULAR_SELECTED_COLUMNS_PROPERTY,
-    TabularDataInputNodePlugin,
+    execute_tabular_input,
 )
 from ea_node_editor.addons.tabular_data.extraction_nodes import (
     TABULAR_ARRAY_SLICE_2D_OUTPUT_KEY,
     TABULAR_WINDOW_OUTPUT_KEY,
-    TabularArraySlice2DNodePlugin,
-    TabularTableWindowNodePlugin,
+    execute_array_slice_2d,
+    execute_table_filter,
 )
 from ea_node_editor.execution.plot_backend import (
     AUTO_PLOT_BACKEND_ID,
@@ -852,7 +852,7 @@ def _core_series(render_request) -> tuple[dict, ...]:
 def test_generic_line_plot_materializes_selected_tabular_columns(tmp_path: Path) -> None:
     source = tmp_path / "weather.csv"
     source.write_text("time,temp,pressure\n0,21.5,100.0\n1,22.0,101.5\n", encoding="utf-8")
-    tabular_result = TabularDataInputNodePlugin().execute(
+    tabular_result = execute_tabular_input(
         _tabular_input_context(source, **{TABULAR_SELECTED_COLUMNS_PROPERTY: ["time", "temp"]})
     )
     ref = tabular_result.outputs[TABULAR_DATA_TABLE_OUTPUT_KEY]
@@ -878,10 +878,10 @@ def test_generic_line_plot_materializes_table_window_ref(tmp_path: Path) -> None
         "Time_s,Accel_g,Pressure\n0,-2.0,100\n0.01,-1.4,101\n0.02,-1.8,102\n",
         encoding="utf-8",
     )
-    table_ref = TabularDataInputNodePlugin().execute(
+    table_ref = execute_tabular_input(
         _tabular_input_context(source)
     ).outputs[TABULAR_DATA_TABLE_OUTPUT_KEY]
-    window_ref = TabularTableWindowNodePlugin().execute(
+    window_ref = execute_table_filter(
         _execution_context(
             inputs={"table_data": table_ref},
             properties={"row_offset": 1, "row_limit": 2, "columns": "Time_s, Accel_g"},
@@ -904,7 +904,7 @@ def test_generic_line_plot_materializes_table_window_ref(tmp_path: Path) -> None
 def test_generic_histogram_plot_auto_ignores_text_columns(tmp_path: Path) -> None:
     source = tmp_path / "weather.csv"
     source.write_text("station,temp,pressure\nA,21.5,100.0\nB,22.0,101.5\n", encoding="utf-8")
-    ref = TabularDataInputNodePlugin().execute(_tabular_input_context(source)).outputs[TABULAR_DATA_TABLE_OUTPUT_KEY]
+    ref = execute_tabular_input(_tabular_input_context(source)).outputs[TABULAR_DATA_TABLE_OUTPUT_KEY]
 
     render_request = _generic_render_request(type_id="plot.histogram", series_input=ref)
     assert _core_series(render_request) == (
@@ -916,7 +916,7 @@ def test_generic_histogram_plot_auto_ignores_text_columns(tmp_path: Path) -> Non
 def test_generic_scatter_plot_reports_unknown_tabular_mapping_column(tmp_path: Path) -> None:
     source = tmp_path / "weather.csv"
     source.write_text("time,temp\n0,21.5\n1,22.0\n", encoding="utf-8")
-    ref = TabularDataInputNodePlugin().execute(_tabular_input_context(source)).outputs[TABULAR_DATA_TABLE_OUTPUT_KEY]
+    ref = execute_tabular_input(_tabular_input_context(source)).outputs[TABULAR_DATA_TABLE_OUTPUT_KEY]
     registry = build_default_registry()
     plugin = registry.create("plot.scatter")
     properties = registry.normalize_properties(
@@ -939,7 +939,7 @@ def test_generic_scatter_plot_reports_generated_headers_when_header_row_is_disab
 ) -> None:
     source = tmp_path / "weather.csv"
     source.write_text("time,temp\n0,21.5\n1,22.0\n", encoding="utf-8")
-    ref = TabularDataInputNodePlugin().execute(
+    ref = execute_tabular_input(
         _tabular_input_context(source, header_row=None)
     ).outputs[TABULAR_DATA_TABLE_OUTPUT_KEY]
     registry = build_default_registry()
@@ -957,7 +957,7 @@ def test_generic_scatter_plot_reports_generated_headers_when_header_row_is_disab
 def test_generic_scatter_plot_reports_empty_tabular_input(tmp_path: Path) -> None:
     source = tmp_path / "weather.csv"
     source.write_text("time,temp\n", encoding="utf-8")
-    ref = TabularDataInputNodePlugin().execute(_tabular_input_context(source)).outputs[TABULAR_DATA_TABLE_OUTPUT_KEY]
+    ref = execute_tabular_input(_tabular_input_context(source)).outputs[TABULAR_DATA_TABLE_OUTPUT_KEY]
     registry = build_default_registry()
     plugin = registry.create("plot.scatter")
 
@@ -973,7 +973,7 @@ def test_generic_scatter_plot_reports_empty_tabular_input(tmp_path: Path) -> Non
 def test_generic_heatmap_plot_materializes_numeric_tabular_grid(tmp_path: Path) -> None:
     source = tmp_path / "grid.csv"
     source.write_text("a,b,c\n1,2,3\n4,5,6\n", encoding="utf-8")
-    ref = TabularDataInputNodePlugin().execute(
+    ref = execute_tabular_input(
         _tabular_input_context(source, **{TABULAR_SELECTED_COLUMNS_PROPERTY: ["a", "b", "c"]})
     ).outputs[TABULAR_DATA_TABLE_OUTPUT_KEY]
 
@@ -986,7 +986,7 @@ def test_generic_heatmap_plot_materializes_numeric_tabular_grid(tmp_path: Path) 
 def test_generic_point_cloud_plot_infers_named_xyz_tabular_columns(tmp_path: Path) -> None:
     source = tmp_path / "points.csv"
     source.write_text("name,x,y,z\np1,1,2,3\np2,4,5,6\n", encoding="utf-8")
-    ref = TabularDataInputNodePlugin().execute(_tabular_input_context(source)).outputs[TABULAR_DATA_TABLE_OUTPUT_KEY]
+    ref = execute_tabular_input(_tabular_input_context(source)).outputs[TABULAR_DATA_TABLE_OUTPUT_KEY]
 
     render_request = _generic_render_request(type_id="plot.point_cloud", series_input=ref)
     assert _core_series(render_request) == (
@@ -997,7 +997,7 @@ def test_generic_point_cloud_plot_infers_named_xyz_tabular_columns(tmp_path: Pat
 def test_generic_streamlines_plot_reports_missing_xyz_mapping(tmp_path: Path) -> None:
     source = tmp_path / "points.csv"
     source.write_text("x,y\n1,2\n3,4\n", encoding="utf-8")
-    ref = TabularDataInputNodePlugin().execute(_tabular_input_context(source)).outputs[TABULAR_DATA_TABLE_OUTPUT_KEY]
+    ref = execute_tabular_input(_tabular_input_context(source)).outputs[TABULAR_DATA_TABLE_OUTPUT_KEY]
     registry = build_default_registry()
     plugin = registry.create("plot.streamlines")
 
@@ -1009,7 +1009,7 @@ def test_generic_scatter_plot_materializes_array_ref_slice(tmp_path: Path) -> No
     numpy = pytest.importorskip("numpy")
     source = tmp_path / "points.npy"
     numpy.save(source, numpy.array([[1.0, 2.0], [3.0, 4.0]]))
-    ref = TabularDataInputNodePlugin().execute(_tabular_input_context(source)).outputs[TABULAR_DATA_ARRAY_OUTPUT_KEY]
+    ref = execute_tabular_input(_tabular_input_context(source)).outputs[TABULAR_DATA_ARRAY_OUTPUT_KEY]
 
     render_request = _generic_render_request(type_id="plot.scatter", series_input=ref)
     assert _core_series(render_request) == (
@@ -1024,10 +1024,10 @@ def test_generic_scatter_plot_materializes_array_slice_ref(tmp_path: Path) -> No
     numpy = pytest.importorskip("numpy")
     source = tmp_path / "points.npy"
     numpy.save(source, numpy.array([[1.0, 2.0, 5.0], [3.0, 4.0, 6.0], [7.0, 8.0, 9.0]]))
-    array_ref = TabularDataInputNodePlugin().execute(
+    array_ref = execute_tabular_input(
         _tabular_input_context(source)
     ).outputs[TABULAR_DATA_ARRAY_OUTPUT_KEY]
-    slice_ref = TabularArraySlice2DNodePlugin().execute(
+    slice_ref = execute_array_slice_2d(
         _execution_context(
             inputs={"array_data": array_ref},
             properties={"row_limit": 2, "column_limit": 2},
@@ -1330,7 +1330,7 @@ def test_tabular_plot_archive_export_streams_all_source_columns(tmp_path: Path) 
         artifact_store=artifact_store,
     )
     resolver = ProjectArtifactResolver(project_path=project_path, artifact_store=artifact_store)
-    table_ref = TabularDataInputNodePlugin().execute(
+    table_ref = execute_tabular_input(
         _tabular_input_context(source)
     ).outputs[TABULAR_DATA_TABLE_OUTPUT_KEY]
     properties = registry.normalize_properties(
@@ -1383,7 +1383,7 @@ def test_array_plot_archive_export_streams_all_source_rows(tmp_path: Path) -> No
         artifact_store=artifact_store,
     )
     resolver = ProjectArtifactResolver(project_path=project_path, artifact_store=artifact_store)
-    array_ref = TabularDataInputNodePlugin().execute(
+    array_ref = execute_tabular_input(
         _tabular_input_context(source, array_slice_2d={"row_limit": 4500, "column_limit": 2})
     ).outputs[TABULAR_DATA_ARRAY_OUTPUT_KEY]
     properties = registry.normalize_properties(

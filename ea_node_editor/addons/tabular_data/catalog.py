@@ -11,7 +11,17 @@ from ea_node_editor.addons.tabular_data.metadata import (
 from ea_node_editor.nodes.plugin_contracts import (
     PluginAvailability,
     PluginBackendDescriptor,
-    PluginDescriptor,
+)
+
+
+TABULAR_DATA_FUNCTION_TYPE_IDS = (
+    "tabular.input",
+    "tabular.table_filter",
+    "tabular.array_slice_2d",
+    "tabular.write_table_filter",
+    "tabular.write_array_slice_2d",
+    "tabular.materialize_table_filter",
+    "tabular.materialize_array_slice_2d",
 )
 
 
@@ -45,11 +55,10 @@ def get_tabular_data_addon_availability() -> PluginAvailability:
     )
 
 
-def load_tabular_data_plugin_descriptors() -> tuple[PluginDescriptor, ...]:
-    from ea_node_editor.addons.tabular_data.extraction_nodes import TABULAR_EXTRACTION_NODE_DESCRIPTORS
-    from ea_node_editor.addons.tabular_data.input_node import TABULAR_DATA_INPUT_NODE_DESCRIPTORS
+def load_tabular_data_function_sources() -> tuple[tuple[str, str], ...]:
+    from ea_node_editor.addons.tabular_data.function_nodes import SOURCE
 
-    return TABULAR_DATA_INPUT_NODE_DESCRIPTORS + TABULAR_EXTRACTION_NODE_DESCRIPTORS
+    return (("tabular_data.py", SOURCE),)
 
 
 def create_tabular_property_edit_adapters() -> tuple[object, ...]:
@@ -64,7 +73,9 @@ TABULAR_DATA_PLUGIN_BACKEND = PluginBackendDescriptor(
     plugin_id=TABULAR_DATA_ADDON_MANIFEST.addon_id,
     display_name=TABULAR_DATA_ADDON_MANIFEST.display_name,
     get_availability=get_tabular_data_addon_availability,
-    load_descriptors=load_tabular_data_plugin_descriptors,
+    load_descriptors=lambda: (),
+    load_function_sources=load_tabular_data_function_sources,
+    function_type_ids=TABULAR_DATA_FUNCTION_TYPE_IDS,
     addon_manifest=TABULAR_DATA_ADDON_MANIFEST,
     toolchains=TABULAR_DATA_TOOLCHAINS,
 )
@@ -76,9 +87,10 @@ __all__ = [
     "TABULAR_DATA_ADDON_MANIFEST",
     "TABULAR_DATA_DEPENDENCIES",
     "TABULAR_DATA_PLUGIN_BACKEND",
+    "TABULAR_DATA_FUNCTION_TYPE_IDS",
     "TABULAR_DATA_TOOLCHAINS",
     "create_tabular_property_edit_adapters",
     "get_tabular_data_addon_availability",
-    "load_tabular_data_plugin_descriptors",
+    "load_tabular_data_function_sources",
     "missing_tabular_data_dependencies",
 ]

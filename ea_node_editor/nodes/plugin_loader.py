@@ -14,8 +14,7 @@ import os
 import re
 import sys
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass, fields, is_dataclass, replace
-from enum import Enum
+from dataclasses import dataclass, replace
 from pathlib import Path, PurePosixPath
 from typing import Any
 
@@ -23,6 +22,7 @@ from ea_node_editor.nodes.function_plugin import (
     INTERNAL_BUILTIN_FUNCTION_OWNER_ID,
     PluginBundleRef,
     PythonFunctionRef,
+    plugin_fingerprint as _function_plugin_fingerprint,
 )
 from ea_node_editor.nodes.plugin_contracts import (
     PluginBackendDescriptor,
@@ -46,11 +46,12 @@ from ea_node_editor.nodes.plugin_generation import (
     SCHEMA_1_UNSUPPORTED_MESSAGE,
     _is_reparse_point,
     canonical_bundle_digest,
+    canonical_manifest_bytes,
     materialize_plugin_generation,
     validate_plugin_regular_file,
     validated_plugin_member_path,
 )
-from ea_node_editor.nodes.registry import NodeRegistry
+from ea_node_editor.nodes.registry import NodeRegistry, PythonFunctionEntry
 from ea_node_editor.settings import plugin_generations_dir, plugins_dir
 
 logger = logging.getLogger(__name__)
@@ -320,6 +321,7 @@ def _module_declarations(
     *,
     filename_prefix: str,
     owner_id: str = "",
+    allow_internal_metadata: bool = False,
 ) -> tuple[tuple[str, PythonFunctionDeclaration], ...]:
     declarations: list[tuple[str, PythonFunctionDeclaration]] = []
     for module_path in manifest["modules"]:  # type: ignore[union-attr]
@@ -333,8 +335,12 @@ def _module_declarations(
             for declaration in discover_plugin_declarations(
                 source,
                 filename=f"{filename_prefix}:{path}",
-                allow_reserved_ids=owner_id == INTERNAL_BUILTIN_FUNCTION_OWNER_ID,
+                allow_reserved_ids=(
+                    owner_id == INTERNAL_BUILTIN_FUNCTION_OWNER_ID
+                    or allow_internal_metadata
+                ),
                 owner_id=owner_id,
+                allow_internal_metadata=allow_internal_metadata,
             )
         )
     return tuple(declarations)
@@ -385,12 +391,14 @@ def validated_generation_declarations(
     *,
     filename_prefix: str,
     owner_id: str = "",
+    allow_internal_metadata: bool = False,
 ) -> tuple[tuple[str, PythonFunctionDeclaration], ...]:
     declarations = _module_declarations(
         manifest,
         members,
         filename_prefix=filename_prefix,
         owner_id=owner_id,
+        allow_internal_metadata=bool(allow_internal_metadata),
     )
     type_ids = [declaration.spec.type_id for _path, declaration in declarations]
     if len(type_ids) != len(set(type_ids)):
@@ -577,6 +585,92 @@ def _prepare_package(package_dir: Path) -> _PreparedBundle:
     )
 
 
+def _prepare_backend_function_bundle(
+    backend: PluginBackendDescriptor,
+) -> _PreparedBundle:
+    load_sources = backend.load_function_sources
+    if load_sources is None:
+        raise ValueError("Plugin backend does not declare function sources")
+    raw_sources = load_sources()
+    if not isinstance(raw_sources, tuple) or not raw_sources:
+        raise TypeError("Plugin backend function sources must be a non-empty tuple")
+    if len(raw_sources) + 1 > PLUGIN_MEMBER_LIMIT:
+        raise ValueError("Plugin backend function bundle contains too many members")
+
+    members: dict[str, bytes] = {}
+    seen_paths: set[str] = set()
+    module_names: list[str] = []
+    for index, raw_item in enumerate(raw_sources):
+        if not isinstance(raw_item, tuple) or len(raw_item) != 2:
+            raise TypeError(
+                f"Plugin backend function source {index} must be a path/source tuple"
+            )
+        raw_path, source = raw_item
+        path = validated_plugin_member_path(raw_path, root_python=True)
+        folded_path = path.casefold()
+        if folded_path in seen_paths:
+            raise ValueError("Plugin backend function source paths must be unique")
+        if not isinstance(source, str):
+            raise TypeError("Plugin backend function source must be a string")
+        payload = source.encode("utf-8")
+        if len(payload) > PLUGIN_SOURCE_LIMIT:
+            raise ValueError("Plugin backend function source is too large")
+        seen_paths.add(folded_path)
+        module_names.append(path)
+        members[path] = payload
+
+    package_name = _safe_segment(backend.plugin_id, fallback="addon")
+    version = backend.addon_manifest.version if backend.addon_manifest else "0.0.0"
+    manifest: dict[str, object] = {
+        "schema_version": 2,
+        "name": package_name,
+        "version": version,
+        "author": "",
+        "description": "",
+        "modules": module_names,
+        "sources": [
+            {"path": path, "sha256": _source_digest(members[path])}
+            for path in module_names
+        ],
+        "assets": [],
+        "nodes": [],
+    }
+    declarations = _module_declarations(
+        manifest,
+        members,
+        filename_prefix=backend.plugin_id,
+        owner_id=backend.plugin_id,
+        allow_internal_metadata=True,
+    )
+    parsed_type_ids = tuple(
+        declaration.spec.type_id for _path, declaration in declarations
+    )
+    if parsed_type_ids != backend.function_type_ids:
+        raise ValueError(
+            "Plugin backend function type ids do not match static declarations"
+        )
+    manifest["nodes"] = _node_inventory(declarations)
+    manifest_size = len(canonical_manifest_bytes(manifest))
+    if manifest_size > PLUGIN_MANIFEST_LIMIT:
+        raise ValueError("Plugin backend function manifest is too large")
+    if manifest_size + sum(map(len, members.values())) > PLUGIN_TOTAL_LIMIT:
+        raise ValueError("Plugin backend function bundle is too large")
+    missing = _missing_imports(members, set(module_names))
+    return _PreparedBundle(
+        owner_id=backend.plugin_id,
+        version=version,
+        manifest=manifest,
+        members=members,
+        declarations=declarations,
+        unavailable_reason=(
+            f"{missing[0]} is not included in this COREX bundle." if missing else ""
+        ),
+        log_label=_bounded_plugin_log_label(backend.plugin_id),
+        source_root=Path(__file__).parent,
+        package_name=package_name,
+    )
+
+
 def _function_refs(
     prepared: _PreparedBundle,
     bundle_digest: str,
@@ -621,6 +715,25 @@ def _register_prepared_bundle(
     generation_root: Path,
 ) -> tuple[PluginBundleRef, tuple[str, ...]]:
     _validate_registration(prepared, registry)
+    bundle_ref, function_entries = _materialize_prepared_bundle(
+        prepared,
+        generation_root,
+    )
+    for entry in function_entries:
+        registry.register_python_function(
+            entry.spec,
+            entry.function_ref,
+            provenance=entry.provenance,
+            owner_id=entry.owner_id,
+            unavailable_reason=entry.unavailable_reason,
+        )
+    return bundle_ref, tuple(entry.spec.type_id for entry in function_entries)
+
+
+def _materialize_prepared_bundle(
+    prepared: _PreparedBundle,
+    generation_root: Path,
+) -> tuple[PluginBundleRef, tuple[PythonFunctionEntry, ...]]:
     bundle_digest = canonical_bundle_digest(prepared.manifest, prepared.members)
     function_refs = _function_refs(prepared, bundle_digest)
     generation = materialize_plugin_generation(
@@ -638,7 +751,7 @@ def _register_prepared_bundle(
         functions=function_refs,
         unavailable_reason=prepared.unavailable_reason,
     )
-    type_ids: list[str] = []
+    entries: list[PythonFunctionEntry] = []
     for (_module_path, declaration), function_ref in zip(
         prepared.declarations, function_refs, strict=True
     ):
@@ -655,72 +768,29 @@ def _register_prepared_bundle(
                 source_path=prepared.source_root / function_ref.module_relative_path,
             )
         )
-        registry.register_python_function(
-            declaration.spec,
-            function_ref,
-            provenance=provenance,
-            owner_id=prepared.owner_id,
-            unavailable_reason=prepared.unavailable_reason,
+        entries.append(
+            PythonFunctionEntry(
+                spec=declaration.spec,
+                function_ref=function_ref,
+                provenance=provenance,
+                owner_id=prepared.owner_id,
+                unavailable_reason=prepared.unavailable_reason,
+            )
         )
-        type_ids.append(declaration.spec.type_id)
-    return bundle_ref, tuple(type_ids)
-
-
-def _stable_value(value: object) -> object:
-    if is_dataclass(value):
-        return {
-            field.name: _stable_value(getattr(value, field.name))
-            for field in fields(value)
-        }
-    if isinstance(value, Mapping):
-        return {
-            str(key): _stable_value(item)
-            for key, item in sorted(value.items(), key=lambda pair: str(pair[0]))
-        }
-    if isinstance(value, (tuple, list)):
-        return [_stable_value(item) for item in value]
-    if isinstance(value, (set, frozenset)):
-        items = [_stable_value(item) for item in value]
-        return sorted(items, key=lambda item: json.dumps(item, sort_keys=True))
-    if isinstance(value, Enum):
-        return _stable_value(value.value)
-    if isinstance(value, Path):
-        return value.as_posix()
-    if value is None or isinstance(value, (bool, int, float, str)):
-        return value
-    raise TypeError(f"Unsupported plugin fingerprint value: {type(value).__qualname__}")
+    return bundle_ref, tuple(entries)
 
 
 def plugin_fingerprint(
     registry: NodeRegistry,
     bundles: Sequence[PluginBundleRef],
 ) -> str:
-    included_owners = {bundle.owner_id for bundle in bundles}
-    entries = []
-    for spec in sorted(registry.all_specs(), key=lambda item: item.type_id):
-        function_ref = registry.python_function_ref_or_none(spec.type_id)
-        if function_ref is None or function_ref.bundle_id not in included_owners:
-            continue
-        entries.append({"spec": _stable_value(spec), "function": _stable_value(function_ref)})
-    bundle_payload = [
-        {
-            "owner_id": bundle.owner_id,
-            "version": bundle.version,
-            "generation_id": bundle.generation_id,
-            "bundle_digest": bundle.bundle_digest,
-            "functions": _stable_value(bundle.functions),
-            "unavailable_reason": bundle.unavailable_reason,
-        }
-        for bundle in sorted(bundles, key=lambda item: item.owner_id)
-    ]
-    payload = json.dumps(
-        {"bundles": bundle_payload, "entries": entries},
-        sort_keys=True,
-        separators=(",", ":"),
-        ensure_ascii=False,
-        allow_nan=False,
-    ).encode("utf-8")
-    return hashlib.sha256(payload).hexdigest()
+    entries = tuple(
+        (spec, function_ref)
+        for spec in registry.all_specs()
+        if (function_ref := registry.python_function_ref_or_none(spec.type_id))
+        is not None
+    )
+    return _function_plugin_fingerprint(entries, bundles)
 
 
 def register_internal_builtin_functions(
@@ -1100,6 +1170,7 @@ def _register_plugin_backend(
     source: Path | str,
     *,
     provenance: PluginProvenance | None = None,
+    generation_root: Path,
 ) -> list[str]:
     availability = backend.get_availability()
     if not availability.is_available:
@@ -1110,8 +1181,38 @@ def _register_plugin_backend(
         return []
     owner_version = backend.addon_manifest.version if backend.addon_manifest else ""
     manifest = _merge_contract_manifests(backend.contract_manifest)
+    descriptors = backend.load_descriptors()
+    if backend.load_function_sources is not None:
+        prepared = _prepare_backend_function_bundle(backend)
+        bundle, function_entries = _materialize_prepared_bundle(
+            prepared,
+            generation_root,
+        )
+        effective_provenance = backend.provenance or provenance
+        normalized_descriptors = tuple(
+            descriptor
+            if effective_provenance is None
+            or descriptor.provenance == effective_provenance
+            else replace(descriptor, provenance=effective_provenance)
+            for descriptor in descriptors
+        )
+        registry.register_plugin_bundle(
+            manifest,
+            normalized_descriptors,
+            owner_id=backend.plugin_id,
+            owner_version=owner_version,
+            source_label=str(source),
+            source_identity=_plugin_source_identity(effective_provenance),
+            replace_owner=True,
+            python_function_entries=function_entries,
+            plugin_bundle=bundle,
+        )
+        return [
+            *(descriptor.spec.type_id for descriptor in normalized_descriptors),
+            *(entry.spec.type_id for entry in function_entries),
+        ]
     return _register_plugin_descriptors(
-        backend.load_descriptors(),
+        descriptors,
         registry,
         source,
         provenance=backend.provenance or provenance,
@@ -1127,8 +1228,10 @@ def register_plugin_backends(
     source: Path | str,
     *,
     provenance: PluginProvenance | None = None,
+    generation_root: Path | None = None,
 ) -> list[str]:
     loaded: list[str] = []
+    resolved_generation_root = generation_root or plugin_generations_dir()
     for backend in backends:
         try:
             loaded.extend(
@@ -1137,6 +1240,7 @@ def register_plugin_backends(
                     registry,
                     source,
                     provenance=provenance,
+                    generation_root=resolved_generation_root,
                 )
             )
         except Exception:  # noqa: BLE001

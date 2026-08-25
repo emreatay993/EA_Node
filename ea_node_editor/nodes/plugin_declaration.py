@@ -219,6 +219,7 @@ def _node_metadata(
     constants: Mapping[str, ast.AST],
     cache: dict[str, Any],
     allow_reserved_ids: bool,
+    allow_internal_metadata: bool,
 ) -> dict[str, Any]:
     if not isinstance(decorator, ast.Call):
         raise fail(decorator, "@corex.node requires parentheses and metadata")
@@ -228,7 +229,9 @@ def _node_metadata(
     for keyword_node in decorator.keywords:
         if keyword_node.arg is None:
             raise fail(keyword_node.value, "@corex.node keyword unpacking is not allowed")
-        allowed_fields = _INTERNAL_NODE_FIELDS if allow_reserved_ids else _NODE_FIELDS
+        allowed_fields = (
+            _INTERNAL_NODE_FIELDS if allow_internal_metadata else _NODE_FIELDS
+        )
         if keyword_node.arg not in allowed_fields:
             if keyword_node.arg.startswith("_"):
                 raise fail(
@@ -512,6 +515,7 @@ def _parse_function(
     constants: Mapping[str, ast.AST],
     cache: dict[str, Any],
     allow_reserved_ids: bool,
+    allow_internal_metadata: bool,
 ) -> PythonFunctionDeclaration:
     fail = _failure(filename)
     decorators = function.decorator_list
@@ -534,6 +538,7 @@ def _parse_function(
         constants=constants,
         cache=cache,
         allow_reserved_ids=allow_reserved_ids,
+        allow_internal_metadata=allow_internal_metadata,
     )
     ports: list[PortSpec] = []
     properties: list[PropertySpec] = []
@@ -562,7 +567,7 @@ def _parse_function(
                         "section",
                         "_accepted_data_types",
                     }
-                    if allow_reserved_ids
+                    if allow_internal_metadata
                     else {
                         "value_type",
                         "structure",
@@ -631,13 +636,12 @@ def _parse_function(
             section = ""
             output_keys.append(key)
         elif name in _engine.CONTROL_DECORATORS:
-            internal_builtin = allow_reserved_ids
             key, values, _nodes = _engine.call_values(
                 decorator,
                 name,
                 allowed=(
                     _engine.INTERNAL_CONTROL_ALLOWED_FIELDS[name]
-                    if internal_builtin
+                    if allow_internal_metadata
                     else _engine.CONTROL_ALLOWED_FIELDS[name]
                 ),
                 fail=fail,
@@ -650,7 +654,7 @@ def _parse_function(
                 prop, data_type, accepted, data_access = _engine.control_spec(
                     name, key, values
                 )
-                if internal_builtin:
+                if allow_internal_metadata:
                     prop, data_type, accepted, data_access = (
                         _engine.apply_internal_control_overrides(
                             prop,
@@ -813,6 +817,7 @@ def _discover(
     source: str,
     filename: str,
     allow_reserved_ids: bool,
+    allow_internal_metadata: bool,
 ) -> tuple[PythonFunctionDeclaration, ...]:
     fail = _failure(filename)
     if len(source.encode("utf-8")) > _engine.MAX_SOURCE_BYTES:
@@ -894,6 +899,7 @@ def _discover(
             constants=constants,
             cache=cache,
             allow_reserved_ids=allow_reserved_ids,
+            allow_internal_metadata=allow_internal_metadata,
         )
         for function in functions
     )
@@ -910,10 +916,31 @@ def discover_plugin_declarations(
     filename: str = "<plugin>",
     allow_reserved_ids: bool = False,
     owner_id: str = "",
+    allow_internal_metadata: bool = False,
 ) -> tuple[PythonFunctionDeclaration, ...]:
-    if allow_reserved_ids and owner_id != INTERNAL_BUILTIN_FUNCTION_OWNER_ID:
+    if allow_internal_metadata and (
+        not allow_reserved_ids
+        or not isinstance(owner_id, str)
+        or not owner_id.strip()
+    ):
+        raise ValueError(
+            "Internal metadata requires reserved node ids and a non-empty owner"
+        )
+    if (
+        allow_reserved_ids
+        and owner_id != INTERNAL_BUILTIN_FUNCTION_OWNER_ID
+        and not allow_internal_metadata
+    ):
         raise ValueError("Reserved node ids require the internal built-in owner")
-    return _discover(str(source), str(filename), bool(allow_reserved_ids))
+    internal_metadata = (
+        owner_id == INTERNAL_BUILTIN_FUNCTION_OWNER_ID or allow_internal_metadata
+    )
+    return _discover(
+        str(source),
+        str(filename),
+        bool(allow_reserved_ids),
+        bool(internal_metadata),
+    )
 
 
 __all__ = [

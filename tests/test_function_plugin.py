@@ -174,7 +174,7 @@ def test_registry_keeps_trusted_factories_and_function_refs_mutually_exclusive()
     assert not hasattr(function_entry, "factory")
     assert not hasattr(function_ref, "function")
     assert registry.create("tests.trusted").spec() == trusted_spec
-    with pytest.raises(RuntimeError, match="process-worker"):
+    with pytest.raises(RuntimeError, match="worker resolution"):
         registry.create(function_spec.type_id)
     assert registry.descriptor_or_none(function_spec.type_id) is None
     with pytest.raises(TypeError, match="trusted descriptor"):

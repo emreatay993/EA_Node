@@ -83,19 +83,28 @@ class WorkerPluginRuntime:
                     )
                 return self._registry
 
-            expected_internal = tuple(
+            expected_trusted = tuple(
                 self._bundle_attestation(bundle)
                 for bundle in trusted_registry.plugin_bundle_refs()
                 if bundle.owner_id == INTERNAL_BUILTIN_FUNCTION_OWNER_ID
+                or trusted_registry.plugin_contract_manifest(bundle.owner_id)
+                is not None
             )
-            requested_internal = tuple(
+            trusted_owner_ids = {
+                bundle.owner_id
+                for bundle in trusted_registry.plugin_bundle_refs()
+                if bundle.owner_id == INTERNAL_BUILTIN_FUNCTION_OWNER_ID
+                or trusted_registry.plugin_contract_manifest(bundle.owner_id)
+                is not None
+            }
+            requested_trusted = tuple(
                 self._bundle_attestation(bundle)
                 for bundle in command.plugin_bundles
-                if bundle.owner_id == INTERNAL_BUILTIN_FUNCTION_OWNER_ID
+                if bundle.owner_id in trusted_owner_ids
             )
-            if requested_internal and requested_internal != expected_internal:
+            if requested_trusted and requested_trusted != expected_trusted:
                 raise ValueError(
-                    "Internal built-in function generation is not attested"
+                    "Trusted function generation is not attested"
                 )
 
             candidate = (
@@ -112,6 +121,7 @@ class WorkerPluginRuntime:
                     generation.members,
                     filename_prefix=bundle.owner_id,
                     owner_id=bundle.owner_id,
+                    allow_internal_metadata=bundle.owner_id in trusted_owner_ids,
                 )
                 declaration_by_identity = {
                     (module_path, declaration.function_name): declaration
