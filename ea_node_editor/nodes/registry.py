@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 import copy
+import hashlib
 import json
 import math
 import re
@@ -39,7 +40,7 @@ from .core_data_types import (
     CORE_DATA_TYPE_OWNER_VERSION,
     CORE_DATA_TYPES,
 )
-from .function_plugin import PythonFunctionRef
+from .function_plugin import PluginBundleRef, PythonFunctionRef
 from .node_specs import (
     DpfCallableSourceSpec,
     DpfOperatorSourceSpec,
@@ -394,6 +395,7 @@ class PythonFunctionEntry:
     spec: NodeTypeSpec
     function_ref: PythonFunctionRef
     owner_id: str = ""
+    unavailable_reason: str = ""
 
     def __post_init__(self) -> None:
         if self.spec.is_async != self.function_ref.is_async:
@@ -402,6 +404,10 @@ class PythonFunctionEntry:
             )
         if self.owner_id != self.function_ref.bundle_id:
             raise ValueError("Python function entry owner_id must match function bundle_id")
+        if not isinstance(self.unavailable_reason, str):
+            raise TypeError("Python function entry unavailable_reason must be a string")
+        if self.unavailable_reason != self.unavailable_reason.strip():
+            raise ValueError("Python function entry unavailable_reason must be trimmed")
 
 
 RegistryEntry = TrustedFactoryEntry | PythonFunctionEntry
@@ -478,6 +484,8 @@ class NodeRegistry:
         self._contract_manifests: dict[str, PluginContractManifest] = {}
         self._contract_manifest_versions: dict[str, str] = {}
         self._owner_source_identities: dict[str, str] = {}
+        self._plugin_bundle_refs: dict[str, PluginBundleRef] = {}
+        self._plugin_fingerprint = hashlib.sha256(b"[]").hexdigest()
 
     @property
     def data_types(self) -> DataTypeCatalog:
@@ -571,6 +579,8 @@ class NodeRegistry:
             for existing_owner, identity in self._owner_source_identities.items()
             if not replace_owner or existing_owner != normalized_owner_id
         }
+        staged._plugin_bundle_refs = dict(self._plugin_bundle_refs)
+        staged._plugin_fingerprint = self._plugin_fingerprint
         staged_catalog.register_many(
             families=normalized_manifest.data_type_families,
             types=normalized_manifest.data_types,
@@ -600,6 +610,8 @@ class NodeRegistry:
         self._contract_manifests = staged._contract_manifests
         self._contract_manifest_versions = staged._contract_manifest_versions
         self._owner_source_identities = staged._owner_source_identities
+        self._plugin_bundle_refs = staged._plugin_bundle_refs
+        self._plugin_fingerprint = staged._plugin_fingerprint
 
     def register(
         self,
@@ -677,6 +689,7 @@ class NodeRegistry:
         function_ref: PythonFunctionRef,
         *,
         owner_id: str = "",
+        unavailable_reason: str = "",
     ) -> None:
         if not isinstance(function_ref, PythonFunctionRef):
             raise TypeError("function_ref must be a PythonFunctionRef")
@@ -690,7 +703,9 @@ class NodeRegistry:
             spec=spec,
             function_ref=function_ref,
             owner_id=normalized_owner_id,
+            unavailable_reason=unavailable_reason,
         )
+        self._plugin_fingerprint = ""
 
     def create(self, type_id: str) -> NodePlugin:
         try:
@@ -698,6 +713,8 @@ class NodeRegistry:
         except KeyError as exc:
             raise KeyError(f"Unknown node type: {type_id}") from exc
         if isinstance(entry, PythonFunctionEntry):
+            if entry.unavailable_reason:
+                raise RuntimeError(entry.unavailable_reason)
             raise RuntimeError(
                 f"Public function node {type_id!r} requires process-worker resolution"
             )
@@ -716,11 +733,22 @@ class NodeRegistry:
         entry = self._entries.get(type_id)
         return entry.function_ref if isinstance(entry, PythonFunctionEntry) else None
 
+    def unavailable_reason(self, type_id: str) -> str:
+        entry = self._entries.get(type_id)
+        return (
+            entry.unavailable_reason
+            if isinstance(entry, PythonFunctionEntry)
+            else ""
+        )
+
     def get_spec(self, type_id: str) -> NodeTypeSpec:
         try:
             return self._entries[type_id].spec
         except KeyError as exc:
             raise KeyError(f"Unknown node type: {type_id}") from exc
+
+    def validate_spec(self, spec: NodeTypeSpec) -> None:
+        self._validate_spec(spec)
 
     def resolve_spec(
         self,
@@ -770,6 +798,41 @@ class NodeRegistry:
             for entry in self._entries.values()
             if isinstance(entry, PythonFunctionEntry)
         )
+
+    def set_python_plugin_catalog(
+        self,
+        bundles: tuple[PluginBundleRef, ...],
+        *,
+        plugin_fingerprint: str,
+    ) -> None:
+        if not isinstance(bundles, tuple) or not all(
+            isinstance(bundle, PluginBundleRef) for bundle in bundles
+        ):
+            raise TypeError("bundles must be a tuple of PluginBundleRef values")
+        owners = [bundle.owner_id for bundle in bundles]
+        if len(owners) != len(set(owners)):
+            raise ValueError("Plugin bundle owner ids must be unique")
+        bundled_functions = {
+            function for bundle in bundles for function in bundle.functions
+        }
+        if bundled_functions != set(self.all_python_function_refs()):
+            raise ValueError("Plugin bundles must match registered Python function refs")
+        fingerprint = str(plugin_fingerprint)
+        if len(fingerprint) != 64 or any(
+            character not in "0123456789abcdef" for character in fingerprint
+        ):
+            raise ValueError("plugin_fingerprint must be a lowercase SHA-256 digest")
+        self._plugin_bundle_refs = {bundle.owner_id: bundle for bundle in bundles}
+        self._plugin_fingerprint = fingerprint
+
+    def plugin_bundle_refs(self) -> tuple[PluginBundleRef, ...]:
+        return tuple(
+            self._plugin_bundle_refs[owner_id]
+            for owner_id in sorted(self._plugin_bundle_refs)
+        )
+
+    def plugin_fingerprint(self) -> str:
+        return self._plugin_fingerprint
 
     def default_properties(self, type_id: str) -> dict[str, Any]:
         return self.normalize_properties(type_id, {}, include_defaults=True)

@@ -1,47 +1,786 @@
-# Purpose: Discover plugins and atomically register their contracts before node descriptors.
+# Purpose: Discover public function plugins statically and register trusted add-on backends.
 # Map: subsystems/nodes_registry_builtins.md
 # Tests: tests/test_plugin_loader.py
 
-"""Discovers and loads user-authored node plugins from disk and installed packages."""
-
 from __future__ import annotations
 
-from dataclasses import replace
-import importlib
-import importlib.util
+import ast
 import hashlib
+import importlib.machinery
+import importlib.util
+import json
 import logging
 import os
 import re
 import sys
-from pathlib import Path
+from collections.abc import Mapping, Sequence
+from dataclasses import dataclass, fields, is_dataclass, replace
+from enum import Enum
+from pathlib import Path, PurePosixPath, PureWindowsPath
 from typing import Any
 
-from ea_node_editor.nodes.registry import NodeRegistry
+from ea_node_editor.nodes.function_plugin import PluginBundleRef, PythonFunctionRef
 from ea_node_editor.nodes.plugin_contracts import (
     PluginBackendDescriptor,
     PluginContractManifest,
     PluginDescriptor,
     PluginProvenance,
 )
-from ea_node_editor.settings import plugins_dir
+from ea_node_editor.nodes.plugin_declaration import (
+    PluginDeclarationError,
+    PythonFunctionDeclaration,
+    discover_plugin_declarations,
+)
+from ea_node_editor.nodes.plugin_generation import (
+    MANIFEST_FILENAME,
+    _is_reparse_point,
+    canonical_bundle_digest,
+    materialize_plugin_generation,
+)
+from ea_node_editor.nodes.registry import NodeRegistry
+from ea_node_editor.settings import plugin_generations_dir, plugins_dir
 
 logger = logging.getLogger(__name__)
 
-ENTRY_POINT_GROUP = "ea_node_editor.plugins"
-_SAFE_MODULE_SEGMENT_RE = re.compile(r"[^0-9A-Za-z_]+")
+_SAFE_SEGMENT = re.compile(r"[^0-9A-Za-z_]+")
+_SHA256 = re.compile(r"^[0-9a-f]{64}$")
 _PLUGIN_LOG_LABEL_LENGTH = 256
-def _module_plugin_contract_manifest(
-    module: Any,
-) -> PluginContractManifest | None:
-    raw_manifest = getattr(module, "PLUGIN_CONTRACT_MANIFEST", None)
-    if raw_manifest is None:
-        return None
-    if not isinstance(raw_manifest, PluginContractManifest):
-        raise TypeError(
-            "PLUGIN_CONTRACT_MANIFEST must be a PluginContractManifest"
+_MANIFEST_LIMIT = 64 * 1024
+_SOURCE_LIMIT = 256 * 1024
+_ASSET_LIMIT = 4 * 1024 * 1024
+_MEMBER_LIMIT = 128
+_ROOT_ENTRY_LIMIT = 512
+_PACKAGE_PATH_ENTRY_LIMIT = 256
+_TOTAL_LIMIT = 16 * 1024 * 1024
+_ASSET_SUFFIXES = {".svg", ".png", ".jpg", ".jpeg"}
+_REQUIRED_MANIFEST_FIELDS = {
+    "schema_version",
+    "name",
+    "version",
+    "modules",
+    "sources",
+    "assets",
+    "nodes",
+}
+_ALLOWED_MANIFEST_FIELDS = _REQUIRED_MANIFEST_FIELDS | {"author", "description"}
+_BUNDLED_MODULE_ROOTS = frozenset(
+    {
+        "OCP",
+        "PyQt6",
+        "ansys",
+        "corex",
+        "duckdb",
+        "ea_node_editor",
+        "h5py",
+        "imageio_ffmpeg",
+        "llvmlite",
+        "matplotlib",
+        "numba",
+        "numpy",
+        "openpyxl",
+        "pandas",
+        "paramiko",
+        "polars",
+        "psutil",
+        "pyarrow",
+        "pyqtgraph",
+        "pyvista",
+        "pyvistaqt",
+        "qtpy",
+        "scipy",
+        "tables",
+        "vtkmodules",
+        "xy",
+    }
+)
+
+
+@dataclass(frozen=True, slots=True)
+class PluginDiscoveryResult:
+    type_ids: tuple[str, ...]
+    bundles: tuple[PluginBundleRef, ...]
+    plugin_fingerprint: str
+
+
+@dataclass(frozen=True, slots=True)
+class _PreparedBundle:
+    owner_id: str
+    version: str
+    manifest: dict[str, object]
+    members: dict[str, bytes]
+    declarations: tuple[tuple[str, PythonFunctionDeclaration], ...]
+    unavailable_reason: str
+    log_label: str
+
+
+def _safe_segment(value: object, *, fallback: str) -> str:
+    segment = _SAFE_SEGMENT.sub("_", str(value)).strip("_")
+    if not segment:
+        return fallback
+    return f"_{segment}" if segment[0].isdigit() else segment
+
+
+def _bounded_plugin_log_label(value: object) -> str:
+    text = str(value or "")
+    if (
+        text
+        and len(text) <= _PLUGIN_LOG_LABEL_LENGTH
+        and all(character.isalnum() or character in "._:@+-" for character in text)
+    ):
+        return text
+    digest = hashlib.sha256(text.encode("utf-8", errors="replace")).hexdigest()[:12]
+    return f"plugin:opaque:{digest}"
+
+
+def _trimmed(field_name: str, value: object, *, allow_empty: bool = False) -> str:
+    if not isinstance(value, str) or value != value.strip():
+        raise ValueError(f"{field_name} must be a trimmed string")
+    if not value and not allow_empty:
+        raise ValueError(f"{field_name} must not be empty")
+    return value
+
+
+def _sha256(field_name: str, value: object) -> str:
+    text = _trimmed(field_name, value)
+    if _SHA256.fullmatch(text) is None:
+        raise ValueError(f"{field_name} must be a lowercase SHA-256 digest")
+    return text
+
+
+def _member_path(value: object, *, root_python: bool = False) -> str:
+    text = _trimmed("member path", value)
+    posix = PurePosixPath(text)
+    windows = PureWindowsPath(text)
+    if (
+        "\\" in text
+        or ":" in text
+        or posix.is_absolute()
+        or windows.drive
+        or windows.root
+        or posix.as_posix() != text
+        or any(part in {"", ".", ".."} for part in posix.parts)
+        or (root_python and (len(posix.parts) != 1 or posix.suffix != ".py"))
+    ):
+        raise ValueError("Manifest paths must be canonical relative paths")
+    return text
+
+
+def _source_digest(payload: bytes) -> str:
+    return hashlib.sha256(payload).hexdigest()
+
+
+def _read_bounded(path: Path, *, limit: int, label: str) -> bytes:
+    try:
+        if path.stat().st_size > limit:
+            raise ValueError(f"{label} is too large")
+        with path.open("rb") as stream:
+            payload = stream.read(limit + 1)
+    except OSError as exc:
+        raise ValueError(f"{label} cannot be read") from exc
+    if len(payload) > limit:
+        raise ValueError(f"{label} is too large")
+    return payload
+
+
+def _manifest_records(
+    manifest: Mapping[str, object],
+    field_name: str,
+    *,
+    asset: bool,
+) -> tuple[tuple[str, str], ...]:
+    raw_records = manifest.get(field_name)
+    if not isinstance(raw_records, list):
+        raise ValueError(f"Manifest {field_name} must be a list")
+    records: list[tuple[str, str]] = []
+    seen: set[str] = set()
+    for raw_record in raw_records:
+        if not isinstance(raw_record, dict) or set(raw_record) != {"path", "sha256"}:
+            raise ValueError(f"Manifest {field_name} entries require path and sha256")
+        path = _member_path(raw_record["path"], root_python=not asset)
+        if asset and PurePosixPath(path).suffix.lower() not in _ASSET_SUFFIXES:
+            raise ValueError(f"Unsupported plugin asset: {path}")
+        folded = path.casefold()
+        if folded in seen:
+            raise ValueError(f"Manifest {field_name} paths must be unique")
+        seen.add(folded)
+        records.append((path, _sha256(f"{field_name} sha256", raw_record["sha256"])))
+    return tuple(records)
+
+
+def _read_package_member(package_dir: Path, relative_path: str, *, limit: int) -> bytes:
+    target = package_dir / relative_path
+    cursor = package_dir
+    for part in PurePosixPath(relative_path).parts:
+        cursor /= part
+        if _is_reparse_point(cursor):
+            raise ValueError("Plugin package may not contain path aliases")
+    if not target.is_file():
+        raise ValueError(f"Declared package member is unavailable: {relative_path}")
+    try:
+        target.resolve().relative_to(package_dir.resolve())
+    except ValueError as exc:
+        raise ValueError("Declared package member escapes the package root") from exc
+    return _read_bounded(
+        target,
+        limit=limit,
+        label=f"Declared package member {relative_path}",
+    )
+
+
+def _package_manifest(package_dir: Path) -> tuple[dict[str, object], dict[str, bytes]]:
+    manifest_path = package_dir / MANIFEST_FILENAME
+    if not manifest_path.is_file() or _is_reparse_point(manifest_path):
+        raise ValueError(f"Installed plugin package requires {MANIFEST_FILENAME}")
+    raw_manifest = _read_bounded(
+        manifest_path,
+        limit=_MANIFEST_LIMIT,
+        label="Plugin package manifest",
+    )
+    try:
+        manifest = json.loads(raw_manifest)
+    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise ValueError("Plugin package manifest is not valid UTF-8 JSON") from exc
+    if not isinstance(manifest, dict):
+        raise ValueError("Plugin package manifest must be a JSON object")
+    if set(manifest) - _ALLOWED_MANIFEST_FIELDS:
+        raise ValueError("Plugin package manifest contains unknown fields")
+    if _REQUIRED_MANIFEST_FIELDS - set(manifest):
+        raise ValueError("Plugin package manifest is missing required fields")
+    if type(manifest["schema_version"]) is not int or manifest["schema_version"] != 2:
+        raise ValueError("Only node package schema 2 is supported")
+    name = _trimmed("Manifest name", manifest["name"])
+    if PurePosixPath(name).parts != (name,) or name.startswith((".", "_")):
+        raise ValueError("Manifest name must be a safe directory name")
+    if package_dir.name != name:
+        raise ValueError("Installed package directory must match manifest name")
+    _trimmed("Manifest version", manifest["version"])
+    for optional_field in ("author", "description"):
+        if optional_field in manifest:
+            _trimmed(optional_field, manifest[optional_field], allow_empty=True)
+
+    raw_modules = manifest["modules"]
+    if not isinstance(raw_modules, list) or not raw_modules:
+        raise ValueError("Manifest modules must be a non-empty list")
+    modules = tuple(_member_path(value, root_python=True) for value in raw_modules)
+    if len({module.casefold() for module in modules}) != len(modules):
+        raise ValueError("Manifest modules must be unique")
+    sources = _manifest_records(manifest, "sources", asset=False)
+    assets = _manifest_records(manifest, "assets", asset=True)
+    source_paths = {path for path, _digest_value in sources}
+    if not set(modules) <= source_paths:
+        raise ValueError("Manifest modules must be declared sources")
+    if len(sources) + len(assets) > _MEMBER_LIMIT:
+        raise ValueError("Plugin package contains too many members")
+
+    members: dict[str, bytes] = {}
+    asset_paths = {item[0] for item in assets}
+    expanded_size = 0
+    for path, expected_digest in (*sources, *assets):
+        try:
+            declared_size = (package_dir / path).stat().st_size
+        except OSError as exc:
+            raise ValueError(f"Declared package member is unavailable: {path}") from exc
+        if expanded_size + declared_size > _TOTAL_LIMIT:
+            raise ValueError("Plugin package expanded size is too large")
+        payload = _read_package_member(
+            package_dir,
+            path,
+            limit=_ASSET_LIMIT if path in asset_paths else _SOURCE_LIMIT,
         )
-    return raw_manifest
+        if expanded_size + len(payload) > _TOTAL_LIMIT:
+            raise ValueError("Plugin package expanded size is too large")
+        if _source_digest(payload) != expected_digest:
+            raise ValueError(f"Plugin package hash mismatch: {path}")
+        members[path] = payload
+        expanded_size += len(payload)
+
+    declared_files = {MANIFEST_FILENAME, *members}
+    actual_files: set[str] = set()
+    for index, path in enumerate(package_dir.rglob("*")):
+        if index >= _PACKAGE_PATH_ENTRY_LIMIT:
+            raise ValueError("Plugin package contains too many path entries")
+        if _is_reparse_point(path):
+            raise ValueError("Plugin package may not contain symlinks")
+        if path.is_file():
+            actual_files.add(path.relative_to(package_dir).as_posix())
+    if actual_files != declared_files:
+        raise ValueError("Plugin package contains undeclared members")
+    return dict(manifest), members
+
+
+def _module_declarations(
+    manifest: Mapping[str, object],
+    members: Mapping[str, bytes],
+    *,
+    filename_prefix: str,
+) -> tuple[tuple[str, PythonFunctionDeclaration], ...]:
+    declarations: list[tuple[str, PythonFunctionDeclaration]] = []
+    for module_path in manifest["modules"]:  # type: ignore[union-attr]
+        path = str(module_path)
+        try:
+            source = members[path].decode("utf-8")
+        except UnicodeDecodeError as exc:
+            raise ValueError(f"Plugin source is not UTF-8: {path}") from exc
+        declarations.extend(
+            (path, declaration)
+            for declaration in discover_plugin_declarations(
+                source,
+                filename=f"{filename_prefix}:{path}",
+            )
+        )
+    return tuple(declarations)
+
+
+def _node_inventory(
+    declarations: Sequence[tuple[str, PythonFunctionDeclaration]],
+) -> list[dict[str, str]]:
+    return [
+        {
+            "id": declaration.spec.type_id,
+            "module": module_path,
+            "function": declaration.function_name,
+        }
+        for module_path, declaration in declarations
+    ]
+
+
+def _validated_manifest_nodes(
+    manifest: Mapping[str, object],
+) -> tuple[tuple[str, str, str], ...]:
+    raw_nodes = manifest.get("nodes")
+    if not isinstance(raw_nodes, list):
+        raise ValueError("Manifest nodes must be a list")
+    nodes: list[tuple[str, str, str]] = []
+    for raw_node in raw_nodes:
+        if not isinstance(raw_node, dict) or set(raw_node) != {
+            "id",
+            "module",
+            "function",
+        }:
+            raise ValueError("Manifest node entries require id, module, and function")
+        nodes.append(
+            (
+                _trimmed("node id", raw_node["id"]),
+                _member_path(raw_node["module"], root_python=True),
+                _trimmed("node function", raw_node["function"]),
+            )
+        )
+    if len(nodes) != len(set(nodes)):
+        raise ValueError("Manifest node entries must be unique")
+    return tuple(nodes)
+
+
+def _pathfinder_module_available(module_name: str) -> bool:
+    parts = module_name.split(".")
+    try:
+        spec = importlib.machinery.PathFinder.find_spec(parts[0])
+        qualified_name = parts[0]
+        for part in parts[1:]:
+            if spec is None or spec.submodule_search_locations is None:
+                return False
+            qualified_name = f"{qualified_name}.{part}"
+            spec = importlib.machinery.PathFinder.find_spec(
+                qualified_name,
+                spec.submodule_search_locations,
+            )
+        return spec is not None
+    except (ImportError, AttributeError, ValueError):
+        return False
+
+
+def _bundled_module_available(module_name: str) -> bool:
+    if module_name in {"corex", "__future__"}:
+        return True
+    root = module_name.partition(".")[0]
+    if root in sys.builtin_module_names:
+        return module_name == root
+    if root in getattr(sys, "stdlib_module_names", ()):
+        return module_name == root or _pathfinder_module_available(module_name)
+    if root not in _BUNDLED_MODULE_ROOTS:
+        return False
+    if getattr(sys, "frozen", False):
+        try:
+            return importlib.util.find_spec(module_name) is not None
+        except (ImportError, AttributeError, ValueError):
+            return False
+    return _pathfinder_module_available(module_name)
+
+
+def _missing_imports(
+    members: Mapping[str, bytes],
+    source_paths: set[str],
+) -> tuple[str, ...]:
+    source_stems = {PurePosixPath(path).stem for path in source_paths}
+    missing: set[str] = set()
+    for source_path in sorted(source_paths):
+        try:
+            tree = ast.parse(members[source_path].decode("utf-8"), filename=source_path)
+        except (UnicodeDecodeError, SyntaxError) as exc:
+            raise ValueError(f"Plugin source cannot be parsed: {source_path}") from exc
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Import):
+                for alias in node.names:
+                    root = alias.name.partition(".")[0]
+                    bundled_source = alias.name == root and root in source_stems
+                    if not bundled_source and not _bundled_module_available(alias.name):
+                        missing.add(alias.name)
+            elif isinstance(node, ast.ImportFrom):
+                if node.level:
+                    if node.level != 1:
+                        missing.add(node.module or node.names[0].name)
+                        continue
+                    if node.module:
+                        relative_source = f"{node.module.replace('.', '/')}.py"
+                        if relative_source not in source_paths:
+                            missing.add(node.module)
+                    else:
+                        for alias in node.names:
+                            relative_source = f"{alias.name}.py"
+                            if relative_source not in source_paths:
+                                missing.add(alias.name)
+                    continue
+                root = (node.module or "").partition(".")[0]
+                module_name = node.module or ""
+                bundled_source = module_name == root and root in source_stems
+                if (
+                    module_name
+                    and not bundled_source
+                    and not _bundled_module_available(module_name)
+                ):
+                    missing.add(module_name)
+    return tuple(sorted(missing))
+
+
+def _prepare_loose_file(source_path: Path) -> _PreparedBundle | None:
+    if _is_reparse_point(source_path) or not source_path.is_file():
+        raise ValueError("Loose plugin source must be a regular file")
+    payload = _read_bounded(
+        source_path,
+        limit=_SOURCE_LIMIT,
+        label="Loose plugin source",
+    )
+    try:
+        source = payload.decode("utf-8")
+    except UnicodeDecodeError as exc:
+        raise ValueError("Loose plugin source must be UTF-8") from exc
+    declarations = discover_plugin_declarations(source, filename=source_path.name)
+    if not declarations:
+        return None
+    name = _safe_segment(source_path.stem, fallback="plugin")
+    owner_id = f"plugin:file:{name}"
+    module_path = source_path.name
+    inventory = _node_inventory(tuple((module_path, item) for item in declarations))
+    manifest: dict[str, object] = {
+        "schema_version": 2,
+        "name": name,
+        "version": "0.0.0",
+        "author": "",
+        "description": "",
+        "modules": [module_path],
+        "sources": [{"path": module_path, "sha256": _source_digest(payload)}],
+        "assets": [],
+        "nodes": inventory,
+    }
+    members = {module_path: payload}
+    missing = _missing_imports(members, {module_path})
+    unavailable_reason = (
+        f"{missing[0]} is not included in this COREX bundle." if missing else ""
+    )
+    return _PreparedBundle(
+        owner_id=owner_id,
+        version="0.0.0",
+        manifest=manifest,
+        members=members,
+        declarations=tuple((module_path, item) for item in declarations),
+        unavailable_reason=unavailable_reason,
+        log_label=_bounded_plugin_log_label(owner_id),
+    )
+
+
+def _prepare_package(package_dir: Path) -> _PreparedBundle:
+    if _is_reparse_point(package_dir) or not package_dir.is_dir():
+        raise ValueError("Installed plugin package must be a regular directory")
+    manifest, members = _package_manifest(package_dir)
+    declarations = _module_declarations(
+        manifest,
+        members,
+        filename_prefix=str(manifest["name"]),
+    )
+    discovered = {
+        (item["id"], item["module"], item["function"])
+        for item in _node_inventory(declarations)
+    }
+    declared = set(_validated_manifest_nodes(manifest))
+    if discovered != declared:
+        raise ValueError("Manifest nodes do not match static declarations")
+    source_paths = {str(record["path"]) for record in manifest["sources"]}  # type: ignore[index]
+    missing = _missing_imports(members, source_paths)
+    unavailable_reason = (
+        f"{missing[0]} is not included in this COREX bundle." if missing else ""
+    )
+    owner_id = f"plugin:package:{_safe_segment(manifest['name'], fallback='package')}"
+    return _PreparedBundle(
+        owner_id=owner_id,
+        version=str(manifest["version"]),
+        manifest=manifest,
+        members=members,
+        declarations=declarations,
+        unavailable_reason=unavailable_reason,
+        log_label=_bounded_plugin_log_label(owner_id),
+    )
+
+
+def _function_refs(
+    prepared: _PreparedBundle,
+    bundle_digest: str,
+) -> tuple[PythonFunctionRef, ...]:
+    return tuple(
+        PythonFunctionRef(
+            bundle_id=prepared.owner_id,
+            bundle_digest=bundle_digest,
+            module_relative_path=module_path,
+            function_name=declaration.function_name,
+            source_digest=_source_digest(prepared.members[module_path]),
+            is_async=declaration.is_async,
+        )
+        for module_path, declaration in prepared.declarations
+    )
+
+
+def _validate_registration(prepared: _PreparedBundle, registry: NodeRegistry) -> None:
+    type_ids = [declaration.spec.type_id for _path, declaration in prepared.declarations]
+    if len(type_ids) != len(set(type_ids)):
+        raise ValueError("Plugin bundle contains duplicate node ids")
+    if any(registry.spec_or_none(type_id) is not None for type_id in type_ids):
+        raise ValueError("Plugin bundle conflicts with an active node id")
+    if any(
+        entry.owner_id == prepared.owner_id
+        for entry in (registry.entry_or_none(spec.type_id) for spec in registry.all_specs())
+        if entry is not None
+    ):
+        raise ValueError("Plugin bundle owner is already active")
+    for _module_path, declaration in prepared.declarations:
+        registry.validate_spec(declaration.spec)
+
+
+def _register_prepared_bundle(
+    prepared: _PreparedBundle,
+    registry: NodeRegistry,
+    generation_root: Path,
+) -> tuple[PluginBundleRef, tuple[str, ...]]:
+    _validate_registration(prepared, registry)
+    bundle_digest = canonical_bundle_digest(prepared.manifest, prepared.members)
+    function_refs = _function_refs(prepared, bundle_digest)
+    generation = materialize_plugin_generation(
+        generation_root,
+        bundle_digest=bundle_digest,
+        manifest=prepared.manifest,
+        members=prepared.members,
+    )
+    bundle_ref = PluginBundleRef(
+        owner_id=prepared.owner_id,
+        version=prepared.version,
+        generation_id=bundle_digest,
+        bundle_digest=bundle_digest,
+        approved_generation_root=str(generation),
+        functions=function_refs,
+        unavailable_reason=prepared.unavailable_reason,
+    )
+    type_ids: list[str] = []
+    for (_module_path, declaration), function_ref in zip(
+        prepared.declarations, function_refs, strict=True
+    ):
+        registry.register_python_function(
+            declaration.spec,
+            function_ref,
+            owner_id=prepared.owner_id,
+            unavailable_reason=prepared.unavailable_reason,
+        )
+        type_ids.append(declaration.spec.type_id)
+    return bundle_ref, tuple(type_ids)
+
+
+def _stable_value(value: object) -> object:
+    if is_dataclass(value):
+        return {
+            field.name: _stable_value(getattr(value, field.name))
+            for field in fields(value)
+        }
+    if isinstance(value, Mapping):
+        return {
+            str(key): _stable_value(item)
+            for key, item in sorted(value.items(), key=lambda pair: str(pair[0]))
+        }
+    if isinstance(value, (tuple, list)):
+        return [_stable_value(item) for item in value]
+    if isinstance(value, (set, frozenset)):
+        items = [_stable_value(item) for item in value]
+        return sorted(items, key=lambda item: json.dumps(item, sort_keys=True))
+    if isinstance(value, Enum):
+        return _stable_value(value.value)
+    if isinstance(value, Path):
+        return value.as_posix()
+    if value is None or isinstance(value, (bool, int, float, str)):
+        return value
+    raise TypeError(f"Unsupported plugin fingerprint value: {type(value).__qualname__}")
+
+
+def _plugin_fingerprint(registry: NodeRegistry, bundles: Sequence[PluginBundleRef]) -> str:
+    entries = []
+    for spec in sorted(registry.all_specs(), key=lambda item: item.type_id):
+        function_ref = registry.python_function_ref_or_none(spec.type_id)
+        if function_ref is None:
+            continue
+        entries.append({"spec": _stable_value(spec), "function": _stable_value(function_ref)})
+    bundle_payload = [
+        {
+            "owner_id": bundle.owner_id,
+            "version": bundle.version,
+            "generation_id": bundle.generation_id,
+            "bundle_digest": bundle.bundle_digest,
+            "functions": _stable_value(bundle.functions),
+            "unavailable_reason": bundle.unavailable_reason,
+        }
+        for bundle in sorted(bundles, key=lambda item: item.owner_id)
+    ]
+    payload = json.dumps(
+        {"bundles": bundle_payload, "entries": entries},
+        sort_keys=True,
+        separators=(",", ":"),
+        ensure_ascii=False,
+        allow_nan=False,
+    ).encode("utf-8")
+    return hashlib.sha256(payload).hexdigest()
+
+
+def _root_entries(root: Path) -> tuple[Path, ...]:
+    entries: list[Path] = []
+    for index, entry in enumerate(root.iterdir()):
+        if index >= _ROOT_ENTRY_LIMIT:
+            raise ValueError("Plugin root contains too many entries")
+        entries.append(entry)
+    return tuple(sorted(entries, key=lambda path: path.name.casefold()))
+
+
+def discover_static_plugins(
+    registry: NodeRegistry,
+    *,
+    roots: Sequence[Path],
+    generation_root: Path,
+) -> PluginDiscoveryResult:
+    loaded: list[str] = []
+    new_bundles: list[PluginBundleRef] = []
+    seen_roots: set[Path] = set()
+    for raw_root in roots:
+        configured_root = Path(raw_root)
+        if _is_reparse_point(configured_root):
+            logger.warning("Plugin root skipped [symlink_root]")
+            continue
+        root = configured_root.resolve()
+        if root in seen_roots:
+            continue
+        seen_roots.add(root)
+        if not root.is_dir():
+            continue
+        try:
+            entries = _root_entries(root)
+        except (OSError, ValueError):
+            logger.warning("Plugin root skipped [invalid_root]")
+            continue
+        candidates: list[_PreparedBundle] = []
+        for source_path in entries:
+            if (
+                source_path.suffix != ".py"
+                or source_path.name.startswith("_")
+                or _is_reparse_point(source_path)
+                or not source_path.is_file()
+            ):
+                continue
+            try:
+                prepared = _prepare_loose_file(source_path)
+                if prepared is not None:
+                    candidates.append(prepared)
+            except (OSError, ValueError, PluginDeclarationError):
+                logger.warning(
+                    "Plugin %s skipped [invalid_bundle]",
+                    _bounded_plugin_log_label(f"plugin:file:{source_path.stem}"),
+                )
+        for package_dir in entries:
+            if (
+                not package_dir.is_dir()
+                or _is_reparse_point(package_dir)
+                or package_dir.name.startswith((".", "_"))
+                or not (package_dir / MANIFEST_FILENAME).exists()
+            ):
+                continue
+            try:
+                candidates.append(_prepare_package(package_dir))
+            except (OSError, ValueError, PluginDeclarationError):
+                logger.warning(
+                    "Plugin %s skipped [invalid_bundle]",
+                    _bounded_plugin_log_label(f"plugin:package:{package_dir.name}"),
+                )
+        for prepared in candidates:
+            try:
+                bundle, type_ids = _register_prepared_bundle(
+                    prepared,
+                    registry,
+                    Path(generation_root),
+                )
+            except (OSError, TypeError, ValueError):
+                logger.warning(
+                    "Plugin %s skipped [invalid_bundle]",
+                    prepared.log_label,
+                )
+                continue
+            new_bundles.append(bundle)
+            loaded.extend(type_ids)
+
+    bundles = (*registry.plugin_bundle_refs(), *new_bundles)
+    fingerprint = _plugin_fingerprint(registry, bundles)
+    registry.set_python_plugin_catalog(tuple(bundles), plugin_fingerprint=fingerprint)
+    return PluginDiscoveryResult(tuple(loaded), tuple(bundles), fingerprint)
+
+
+def discover_package_plugins(
+    package_dir: Path,
+    registry: NodeRegistry,
+    *,
+    generation_root: Path | None = None,
+    descriptor_overrides: Mapping[str, tuple[PluginDescriptor, ...]] | None = None,
+) -> list[str]:
+    if descriptor_overrides is not None:
+        raise TypeError("Descriptor overrides are not supported by schema-2 discovery")
+    prepared = _prepare_package(Path(package_dir))
+    bundle, type_ids = _register_prepared_bundle(
+        prepared,
+        registry,
+        generation_root or plugin_generations_dir(),
+    )
+    bundles = (*registry.plugin_bundle_refs(), bundle)
+    fingerprint = _plugin_fingerprint(registry, bundles)
+    registry.set_python_plugin_catalog(tuple(bundles), plugin_fingerprint=fingerprint)
+    return list(type_ids)
+
+
+def discover_and_load_plugins(
+    registry: NodeRegistry,
+    extra_dirs: list[Path] | None = None,
+    *,
+    generation_root: Path | None = None,
+) -> list[str]:
+    result = discover_static_plugins(
+        registry,
+        roots=(plugins_dir(), *(extra_dirs or ())),
+        generation_root=generation_root or plugin_generations_dir(),
+    )
+    if result.type_ids:
+        logger.info(
+            "Loaded %d plugin node(s): %s",
+            len(result.type_ids),
+            ", ".join(result.type_ids),
+        )
+    return list(result.type_ids)
 
 
 def _merge_contract_manifests(
@@ -58,210 +797,32 @@ def _merge_contract_manifests(
             item for manifest in manifests for item in manifest.artifacts
         ),
         surface_capabilities=tuple(
-            item
-            for manifest in manifests
-            for item in manifest.surface_capabilities
+            item for manifest in manifests for item in manifest.surface_capabilities
         ),
         data_type_families=tuple(
-            item
-            for manifest in manifests
-            for item in manifest.data_type_families
+            item for manifest in manifests for item in manifest.data_type_families
         ),
         data_types=tuple(
             item for manifest in manifests for item in manifest.data_types
         ),
         data_conversions=tuple(
-            item
-            for manifest in manifests
-            for item in manifest.data_conversions
+            item for manifest in manifests for item in manifest.data_conversions
         ),
     )
 
 
-def _module_plugin_backends(
-    module: Any,
-    *,
-    collection_attr: str = "PLUGIN_BACKENDS",
-) -> tuple[PluginBackendDescriptor, ...] | None:
-    raw_backends = getattr(module, collection_attr, None)
-    if raw_backends is None:
-        return None
-    try:
-        backends = tuple(raw_backends)
-    except TypeError as exc:
-        raise TypeError(f"{collection_attr} must be an iterable of PluginBackendDescriptor values") from exc
-    if any(not isinstance(backend, PluginBackendDescriptor) for backend in backends):
-        raise TypeError(f"{collection_attr} entries must be PluginBackendDescriptor values")
-    return backends
-
-
-def _module_plugin_descriptors(module: Any) -> tuple[PluginDescriptor, ...] | None:
-    raw_descriptors = getattr(module, "PLUGIN_DESCRIPTORS", None)
-    if raw_descriptors is None:
-        return None
-    try:
-        descriptors = tuple(raw_descriptors)
-    except TypeError as exc:
-        raise TypeError("PLUGIN_DESCRIPTORS must be an iterable of PluginDescriptor values") from exc
-    if any(not isinstance(descriptor, PluginDescriptor) for descriptor in descriptors):
-        raise TypeError("PLUGIN_DESCRIPTORS entries must be PluginDescriptor values")
-    return descriptors
-
-
-def _descriptor_with_provenance(
-    descriptor: PluginDescriptor,
-    provenance: PluginProvenance | None,
-) -> PluginDescriptor:
-    if provenance is None or descriptor.provenance == provenance:
-        return descriptor
-    return replace(descriptor, provenance=provenance)
-
-
-def _file_plugin_provenance(py_file: Path) -> PluginProvenance:
-    return PluginProvenance(kind="file", source_path=py_file.resolve())
-
-
-def _package_plugin_provenance(package_dir: Path, source_path: Path) -> PluginProvenance:
-    return PluginProvenance(
-        kind="package",
-        source_path=source_path.resolve(),
-        package_root=package_dir.resolve(),
-        package_name=package_dir.name,
-    )
-
-
-def _entry_point_plugin_provenance(entry_point: Any) -> PluginProvenance:
-    distribution = getattr(entry_point, "dist", None)
-    return PluginProvenance(
-        kind="entry_point",
-        entry_point_name=str(getattr(entry_point, "name", "") or ""),
-        distribution_name=str(getattr(distribution, "name", "") or ""),
-    )
-
-
-def _entry_points_for_group() -> tuple[Any, ...]:
-    from importlib.metadata import entry_points
-
-    return tuple(entry_points(group=ENTRY_POINT_GROUP))
-
-
-def _safe_module_segment(value: str, *, fallback: str) -> str:
-    segment = _SAFE_MODULE_SEGMENT_RE.sub("_", value).strip("_")
-    if not segment:
-        return fallback
-    if segment[0].isdigit():
-        return f"_{segment}"
-    return segment
-
-
-def _bounded_plugin_log_label(value: object) -> str:
-    text = str(value or "")
-    if (
-        text
-        and len(text) <= _PLUGIN_LOG_LABEL_LENGTH
-        and not (len(text) >= 2 and text[0].isalpha() and text[1] == ":")
-        and all(character.isalnum() or character in "._:@+-" for character in text)
-    ):
-        return text
-    digest = hashlib.sha256(text.encode("utf-8", errors="replace")).hexdigest()[:12]
-    return f"plugin:opaque:{digest}"
-
-
-def _module_name_for_path(py_file: Path, *, prefix: str) -> str:
-    safe_stem = _safe_module_segment(py_file.stem, fallback="plugin")
-    digest = hashlib.sha1(str(py_file.resolve()).encode("utf-8")).hexdigest()[:12]
-    return f"{prefix}_{safe_stem}_{digest}"
-
-
-def _plugin_owner_id(
-    source: Path | str,
-    provenance: PluginProvenance | None,
-) -> str:
-    if provenance is None:
-        source_name = Path(str(source)).stem
-        return (
-            "plugin:module:"
-            f"{_safe_module_segment(source_name, fallback='plugin')}"
-        )
-    if provenance.kind == "entry_point":
-        distribution = _safe_module_segment(
-            provenance.distribution_name,
-            fallback="unknown_distribution",
-        )
-        entry_point = _safe_module_segment(
-            provenance.entry_point_name,
-            fallback="plugin",
-        )
-        return f"plugin:entry_point:{distribution}:{entry_point}"
-    if provenance.kind == "package":
-        package_name = _safe_module_segment(
-            provenance.package_name,
-            fallback="package",
-        )
-        source_path = provenance.source_path
-        package_root = provenance.package_root
-        relative_path = Path(source_path.name if source_path else "plugin.py")
-        if source_path is not None and package_root is not None:
-            try:
-                relative_path = source_path.relative_to(package_root)
-            except ValueError:
-                pass
-        module_id = ".".join(
-            _safe_module_segment(part, fallback="module")
-            for part in relative_path.with_suffix("").parts
-        )
-        return f"plugin:package:{package_name}:{module_id}"
-    source_path = provenance.source_path
-    source_name = source_path.stem if source_path is not None else str(source)
-    return (
-        "plugin:file:"
-        f"{_safe_module_segment(source_name, fallback='plugin')}"
-    )
+def _trusted_owner_id(source: Path | str, provenance: PluginProvenance | None) -> str:
+    if provenance is not None and provenance.kind == "package":
+        return f"plugin:package:{_safe_segment(provenance.package_name, fallback='package')}"
+    source_path = provenance.source_path if provenance is not None else None
+    source_name = source_path.stem if source_path is not None else Path(str(source)).stem
+    return f"plugin:file:{_safe_segment(source_name, fallback='plugin')}"
 
 
 def _plugin_source_identity(provenance: PluginProvenance | None) -> str:
     if provenance is None or provenance.source_path is None:
         return ""
     return os.path.normcase(str(provenance.source_path.resolve()))
-
-
-def _public_plugin_files(directory: Path) -> list[Path]:
-    if not directory.is_dir():
-        return []
-    return [py_file for py_file in sorted(directory.glob("*.py")) if not py_file.name.startswith("_")]
-
-
-def _plugin_package_directories(root_directory: Path) -> list[Path]:
-    if not root_directory.is_dir():
-        return []
-    return [
-        child
-        for child in sorted(root_directory.iterdir())
-        if child.is_dir() and not child.name.startswith((".", "_"))
-    ]
-
-
-def _load_module(
-    module_name: str,
-    module_path: Path,
-    *,
-    search_locations: list[str] | None = None,
-):
-    spec = importlib.util.spec_from_file_location(
-        module_name,
-        module_path,
-        submodule_search_locations=search_locations,
-    )
-    if spec is None or spec.loader is None:
-        raise ImportError(f"Could not create import spec for {module_path}")
-    module = importlib.util.module_from_spec(spec)
-    sys.modules[module_name] = module
-    try:
-        spec.loader.exec_module(module)
-    except Exception:  # noqa: BLE001
-        sys.modules.pop(module_name, None)
-        raise
-    return module
 
 
 def _register_plugin_descriptors(
@@ -275,10 +836,12 @@ def _register_plugin_descriptors(
     owner_version: str = "",
 ) -> list[str]:
     normalized_descriptors = tuple(
-        _descriptor_with_provenance(descriptor, provenance)
+        descriptor
+        if provenance is None or descriptor.provenance == provenance
+        else replace(descriptor, provenance=provenance)
         for descriptor in descriptors
     )
-    normalized_owner_id = owner_id or _plugin_owner_id(source, provenance)
+    normalized_owner_id = owner_id or _trusted_owner_id(source, provenance)
     try:
         registry.register_plugin_bundle(
             manifest,
@@ -289,7 +852,7 @@ def _register_plugin_descriptors(
             source_identity=_plugin_source_identity(provenance),
             replace_owner=True,
         )
-    except (ValueError, TypeError, KeyError):
+    except (KeyError, TypeError, ValueError):
         logger.warning(
             "Plugin %s skipped [invalid_bundle]",
             _bounded_plugin_log_label(normalized_owner_id),
@@ -304,7 +867,6 @@ def _register_plugin_backend(
     source: Path | str,
     *,
     provenance: PluginProvenance | None = None,
-    module_manifest: PluginContractManifest | None = None,
 ) -> list[str]:
     availability = backend.get_availability()
     if not availability.is_available:
@@ -313,20 +875,13 @@ def _register_plugin_backend(
             _bounded_plugin_log_label(backend.plugin_id),
         )
         return []
-    owner_version = (
-        backend.addon_manifest.version
-        if backend.addon_manifest is not None
-        else ""
-    )
-    manifest = _merge_contract_manifests(
-        module_manifest or PluginContractManifest(),
-        backend.contract_manifest,
-    )
+    owner_version = backend.addon_manifest.version if backend.addon_manifest else ""
+    manifest = _merge_contract_manifests(backend.contract_manifest)
     return _register_plugin_descriptors(
         backend.load_descriptors(),
         registry,
         source,
-        provenance=backend.provenance if backend.provenance is not None else provenance,
+        provenance=backend.provenance or provenance,
         manifest=manifest,
         owner_id=backend.plugin_id,
         owner_version=owner_version,
@@ -359,264 +914,24 @@ def register_plugin_backends(
     return loaded
 
 
-def _register_module_plugins(
-    module: Any,
-    registry: NodeRegistry,
-    source: Path | str,
-    *,
-    provenance: PluginProvenance | None = None,
-    preferred_descriptors: tuple[PluginDescriptor, ...] | None = None,
-) -> list[str]:
-    manifest = _module_plugin_contract_manifest(module)
-    backends = _module_plugin_backends(module)
-    if backends is not None:
-        if len(backends) == 1:
-            try:
-                return _register_plugin_backend(
-                    backends[0],
-                    registry,
-                    source,
-                    provenance=provenance,
-                    module_manifest=manifest,
-                )
-            except Exception:  # noqa: BLE001
-                logger.warning(
-                    "Plugin backend %s failed [backend_load]",
-                    _bounded_plugin_log_label(backends[0].plugin_id),
-                )
-                return []
-        if manifest is not None and manifest != PluginContractManifest():
-            raise TypeError(
-                "Module-level plugin contracts require exactly one backend; "
-                "multi-backend modules must declare contracts on each backend"
-            )
-        return register_plugin_backends(
-            backends,
-            registry,
-            source,
-            provenance=provenance,
-        )
-    descriptors = preferred_descriptors
-    if descriptors is None:
-        descriptors = _module_plugin_descriptors(module)
-    if descriptors is not None:
-        return _register_plugin_descriptors(
-            descriptors,
-            registry,
-            source,
-            provenance=provenance,
-            manifest=manifest,
-        )
-    return []
-
-
-def _load_plugins_from_directory(directory: Path, registry: NodeRegistry) -> list[str]:
-    """Import every descriptor-bearing .py file in *directory*."""
-    loaded: list[str] = []
-
-    for py_file in _public_plugin_files(directory):
-        provenance = _file_plugin_provenance(py_file)
-        log_label = _bounded_plugin_log_label(_plugin_owner_id(py_file, provenance))
-        try:
-            module = _load_module(_module_name_for_path(py_file, prefix="_ea_plugin"), py_file)
-        except Exception:  # noqa: BLE001
-            logger.warning(
-                "Plugin %s failed [module_import]",
-                log_label,
-            )
-            continue
-
-        try:
-            loaded.extend(
-                _register_module_plugins(
-                    module,
-                    registry,
-                    py_file,
-                    provenance=provenance,
-                )
-            )
-        except TypeError:
-            logger.warning(
-                "Plugin %s skipped [invalid_api]",
-                log_label,
-            )
-    return loaded
-
-
-def _load_plugins_from_package_directory(
-    package_dir: Path,
-    registry: NodeRegistry,
-    *,
-    descriptor_overrides: dict[str, tuple[PluginDescriptor, ...]] | None = None,
-) -> list[str]:
-    """Import public descriptor modules from a package directory beneath the plugins root."""
-    loaded: list[str] = []
-    if not package_dir.is_dir():
-        return loaded
-
-    package_name = _module_name_for_path(package_dir / "__init__.py", prefix="_ea_plugin_pkg")
-    init_file = package_dir / "__init__.py"
-    init_provenance = _package_plugin_provenance(package_dir, init_file)
-    init_log_label = _bounded_plugin_log_label(
-        _plugin_owner_id(init_file, init_provenance)
-    )
-
-    if not init_file.is_file():
-        logger.warning(
-            "Plugin %s skipped [missing_init]",
-            init_log_label,
-        )
-        return loaded
-
-    try:
-        package_module = _load_module(
-            package_name,
-            init_file,
-            search_locations=[str(package_dir)],
-        )
-    except Exception:  # noqa: BLE001
-        logger.warning(
-            "Plugin %s failed [package_init]",
-            init_log_label,
-        )
-        return loaded
-
-    try:
-        loaded.extend(
-            _register_module_plugins(
-                package_module,
-                registry,
-                init_file,
-                provenance=init_provenance,
-                preferred_descriptors=(descriptor_overrides or {}).get(init_file.name),
-            )
-        )
-    except TypeError:
-        logger.warning(
-            "Plugin %s skipped [invalid_api]",
-            init_log_label,
-        )
-
-    for py_file in _public_plugin_files(package_dir):
-        module_name = f"{package_name}.{_safe_module_segment(py_file.stem, fallback='plugin')}"
-        provenance = _package_plugin_provenance(package_dir, py_file)
-        log_label = _bounded_plugin_log_label(_plugin_owner_id(py_file, provenance))
-        try:
-            module = _load_module(module_name, py_file)
-        except Exception:  # noqa: BLE001
-            logger.warning(
-                "Plugin %s failed [module_import]",
-                log_label,
-            )
-            continue
-
-        try:
-            loaded.extend(
-                _register_module_plugins(
-                    module,
-                    registry,
-                    py_file,
-                    provenance=provenance,
-                    preferred_descriptors=(descriptor_overrides or {}).get(py_file.name),
-                )
-            )
-        except TypeError:
-            logger.warning(
-                "Plugin %s skipped [invalid_api]",
-                log_label,
-            )
-    return loaded
-
-
-def discover_package_plugins(
-    package_dir: Path,
-    registry: NodeRegistry,
-    *,
-    descriptor_overrides: dict[str, tuple[PluginDescriptor, ...]] | None = None,
-) -> list[str]:
-    """Load discoverable plugin modules from one installed package directory."""
-    return _load_plugins_from_package_directory(
-        package_dir,
-        registry,
-        descriptor_overrides=descriptor_overrides,
-    )
-
-
-def _load_plugins_from_root(root_directory: Path, registry: NodeRegistry) -> list[str]:
-    """Load public plugin modules from a plugin root and its package subdirectories."""
-    loaded = _load_plugins_from_directory(root_directory, registry)
-    for package_dir in _plugin_package_directories(root_directory):
-        loaded.extend(discover_package_plugins(package_dir, registry))
-    return loaded
-
-
-def _load_plugins_from_entry_points(registry: NodeRegistry) -> list[str]:
-    """Load plugins registered via Python package entry points."""
-    loaded: list[str] = []
-    try:
-        eps = _entry_points_for_group()
-    except Exception:  # noqa: BLE001
-        return loaded
-
-    for ep in eps:
-        provenance = _entry_point_plugin_provenance(ep)
-        log_label = _bounded_plugin_log_label(_plugin_owner_id(ep.name, provenance))
-        try:
-            plugin_target = ep.load()
-            loaded.extend(
-                _register_module_plugins(
-                    plugin_target,
-                    registry,
-                    ep.name,
-                    provenance=provenance,
-                )
-            )
-        except Exception:  # noqa: BLE001
-            logger.warning(
-                "Plugin %s failed [entry_point_load]",
-                log_label,
-            )
-    return loaded
-
-
 def discover_addon_records(*, preferences_document: Any = None):
-    """Compatibility shim; add-on record discovery is owned by ``ea_node_editor.addons``."""
-    from ea_node_editor.addons.catalog import discover_addon_records as _discover_addon_records
+    from ea_node_editor.addons.catalog import discover_addon_records as discover
 
-    return _discover_addon_records(preferences_document=preferences_document)
+    return discover(preferences_document=preferences_document)
 
 
 def addon_record_by_id(addon_id: str, *, preferences_document: Any = None):
-    """Compatibility shim; add-on record lookup is owned by ``ea_node_editor.addons``."""
-    from ea_node_editor.addons.catalog import addon_record_by_id as _addon_record_by_id
+    from ea_node_editor.addons.catalog import addon_record_by_id as find_record
 
-    return _addon_record_by_id(addon_id, preferences_document=preferences_document)
-
-
-def discover_and_load_plugins(
-    registry: NodeRegistry,
-    extra_dirs: list[Path] | None = None,
-) -> list[str]:
-    """Load plugins from all sources and return the list of registered type_ids."""
-    loaded: list[str] = []
-
-    loaded.extend(_load_plugins_from_root(plugins_dir(), registry))
-
-    for directory in extra_dirs or []:
-        loaded.extend(_load_plugins_from_root(directory, registry))
-
-    loaded.extend(_load_plugins_from_entry_points(registry))
-
-    if loaded:
-        logger.info("Loaded %d plugin node(s): %s", len(loaded), ", ".join(loaded))
-    return loaded
+    return find_record(addon_id, preferences_document=preferences_document)
 
 
 __all__ = [
-    "ENTRY_POINT_GROUP",
+    "PluginDiscoveryResult",
     "addon_record_by_id",
     "discover_addon_records",
     "discover_and_load_plugins",
     "discover_package_plugins",
+    "discover_static_plugins",
     "register_plugin_backends",
 ]

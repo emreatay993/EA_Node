@@ -13,6 +13,7 @@ Use this for node definitions, registry validation, built-in node families, data
 - `ea_node_editor/nodes/declaration_engine.py`
 - `ea_node_editor/nodes/function_plugin.py`
 - `ea_node_editor/nodes/plugin_declaration.py`
+- `ea_node_editor/nodes/plugin_generation.py`
 - `ea_node_editor/nodes/python_script_declaration.py`
 - `ea_node_editor/nodes/execution_context.py`
 - `ea_node_editor/nodes/plugin_contracts.py`
@@ -30,6 +31,7 @@ Use this for node definitions, registry validation, built-in node families, data
 - Signal Plot is owned by `builtins/plot/signal.py` and emits `COREX.DataTypes.Image`.
 - Public function plugins use the dependency-free top-level `corex` decorators and static `plugin_declaration.py` discovery. Python Script keeps its one-`run` signature while sharing only the bounded literal/control engine.
 - `TrustedFactoryEntry` and `PythonFunctionEntry` are the mutually exclusive private registry implementations. Public function entries store only `PythonFunctionRef`; `PythonFunctionAdapter` is the private binding path that T06 process workers will use after digest-pinned loading.
+- Public loose files and installed schema-2 directories are parsed without import, checked for bundled imports, and copied byte-for-byte into `runtime/plugin_generations/<bundle-digest>/`; registry fingerprints exclude author/install paths.
 - Python Script decorators resolve one applied source into ordinary ports,
   properties, and settings groups through the registry's instance-spec path.
 
@@ -37,6 +39,7 @@ Use this for node definitions, registry validation, built-in node families, data
 - Register built-ins through `build_builtin_registry()`; do not mutate catalog internals.
 - Keep `corex/` dependency-free and normalize its static declarations into the existing registry/presentation model; do not import public plugin source in GUI discovery.
 - Keep public function entries non-constructible through `NodeRegistry.create()` so trusted in-process execution cannot acquire their callable.
+- Keep generation pruning explicit and protect both active and externally referenced digests; never overwrite a mismatched existing digest directory.
 - During the novice function-SDK cutover, preserve the normalized 133-node non-DPF baseline in `tests/fixtures/node_catalog/pre_cutover_non_dpf_catalog.json` and follow the migration inventory's exact convert/internal-exception/DPF-exclusion classification.
 - Keep canonical data-type IDs under the `COREX.*` namespace.
 - Keep source-product provenance, import adapters, comparison studies, and installed-product evidence outside the tracked repository.

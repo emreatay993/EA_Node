@@ -137,8 +137,6 @@ dev = [
 corex-node-editor = "ea_node_editor.bootstrap:main"
 corex-runtime = "ea_node_editor.bootstrap:headless_main"
 
-[project.entry-points."ea_node_editor.plugins"]
-
 [tool.setuptools.packages.find]
 include = ["ea_node_editor*", "corex*"]
 

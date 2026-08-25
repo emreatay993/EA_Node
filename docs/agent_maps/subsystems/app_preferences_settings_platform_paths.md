@@ -22,6 +22,7 @@ Use this for app-wide settings, graphics preferences, solution-mode defaults, se
 - Keep path resolution centralized in `platform_paths.py`.
 - Keep OS launch of files/folders centralized in `platform_open.py` (`open_path_with_default_handler` for "Open", `open_path_with_app_chooser` for "Open with..."); the folder-explorer open actions and the Path Pointer toolbar open actions route through it instead of inlining `os.startfile`/`QDesktopServices`/`rundll32` shell logic.
 - Managed workflow runtimes live under `user_data_dir() / "runtimes"` and are selected through project workflow metadata, not app preferences.
+- Validated public plugin bytes live under `user_data_dir() / "runtime" / "plugin_generations"`; this content-addressed runtime cache is app-local and never enters `.cxproj` persistence.
 - Keep app-global plot preferences such as `graphics.plot.lightweight_canvas` and `graphics.plot.plot_default_backend_per_type` in app preferences, not `.cxproj` project documents.
 - Keep shell pane collapse state in app preferences as `graphics.shell.panel_collapsed`; it covers only the outer node-library, properties, and output panes, not library categories, inspector groups, selected-node body collapse, output tabs, or output height.
 - Keep Folder Explorer details-column defaults in app preferences as `graphics.folder_explorer.column_widths`; the app-wide JSON is the source of truth, not project `.cxproj` files.
@@ -46,4 +47,4 @@ Use this for app-wide settings, graphics preferences, solution-mode defaults, se
 - [Assets, Icons, Title Icons, And Theme Assets](assets_icons_theme.md)
 
 ## Update Triggers
-Update when app settings storage/migrations, platform paths, OS file/folder open helpers, preferences controllers, learned node-library usage, solution-mode or selected-run defaults, node comment editor defaults, node floating-toolbar hover preference, plot defaults, or graphics settings routing changes.
+Update when app settings storage/migrations, platform paths, plugin-generation paths, OS file/folder open helpers, preferences controllers, learned node-library usage, solution-mode or selected-run defaults, node comment editor defaults, node floating-toolbar hover preference, plot defaults, or graphics settings routing changes.

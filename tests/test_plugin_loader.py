@@ -1,7 +1,11 @@
 from __future__ import annotations
 
-import importlib.metadata
+import hashlib
+import json
 import logging
+import os
+import re
+import stat
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -22,6 +26,7 @@ from ea_node_editor.app_preferences import (
     set_addon_state,
 )
 from ea_node_editor.nodes import plugin_loader
+from ea_node_editor.nodes import plugin_generation
 from ea_node_editor.nodes.core_data_types import GRAPH_DATA_TYPE_ID
 from ea_node_editor.nodes.node_specs import NodeTypeSpec, PortSpec
 from ea_node_editor.nodes.plugin_contracts import (
@@ -31,17 +36,16 @@ from ea_node_editor.nodes.plugin_contracts import (
     PluginBackendDescriptor,
     PluginContractManifest,
     PluginDescriptor,
-    PluginProvenance,
     RuntimeBackendSpec,
     SurfaceCapabilitySpec,
     ToolchainRequirementSpec,
     ToolchainSpec,
 )
 from ea_node_editor.nodes.registry import NodeRegistry
+from ea_node_editor.nodes.plugin_generation import prune_plugin_generations
 from ea_node_editor.runtime_contracts import (
     DataTypeFamilySpec,
     DataTypeSpec,
-    RuntimeArtifactRef,
 )
 
 
@@ -49,39 +53,6 @@ def _write_text(path: Path, contents: str) -> Path:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(contents, encoding="utf-8")
     return path
-
-
-def _write_plugin(path: Path, *, type_id: str, display_name: str, class_name: str = "PacketPlugin") -> Path:
-    return _write_text(
-        path,
-        f"""
-from ea_node_editor.nodes.types import NodeResult, NodeTypeSpec, PluginDescriptor
-
-
-PLUGIN_SPEC = NodeTypeSpec(
-    type_id={type_id!r},
-    display_name={display_name!r},
-    category_path=("Packet Tests",),
-    icon="packet",
-    ports=(),
-    properties=(),
-)
-
-
-class {class_name}:
-    def spec(self):
-        return PLUGIN_SPEC
-
-    def execute(self, ctx):
-        return NodeResult()
-
-
-PLUGIN_DESCRIPTORS = (
-    PluginDescriptor(spec=PLUGIN_SPEC, factory={class_name}),
-)
-""".strip()
-        + "\n",
-    )
 
 
 def _packet_descriptor(type_id: str, display_name: str) -> PluginDescriptor:
@@ -129,149 +100,6 @@ def _typed_packet_descriptor(
     return PluginDescriptor(spec=spec, factory=TypedPacketPlugin)
 
 
-def test_plugin_owner_ids_are_stable_and_path_free_across_install_roots(
-    tmp_path: Path,
-) -> None:
-    root_a = tmp_path / "private_a" / "plugins"
-    root_b = tmp_path / "private_b" / "plugins"
-    file_a = root_a / "catalog_plugin.py"
-    file_b = root_b / "catalog_plugin.py"
-    file_owner_a = plugin_loader._plugin_owner_id(  # noqa: SLF001
-        file_a,
-        PluginProvenance(kind="file", source_path=file_a),
-    )
-    file_owner_b = plugin_loader._plugin_owner_id(  # noqa: SLF001
-        file_b,
-        PluginProvenance(kind="file", source_path=file_b),
-    )
-    package_owner_a = plugin_loader._plugin_owner_id(  # noqa: SLF001
-        root_a / "sample" / "nodes.py",
-        PluginProvenance(
-            kind="package",
-            source_path=root_a / "sample" / "nodes.py",
-            package_root=root_a / "sample",
-            package_name="sample",
-        ),
-    )
-    package_owner_b = plugin_loader._plugin_owner_id(  # noqa: SLF001
-        root_b / "sample" / "nodes.py",
-        PluginProvenance(
-            kind="package",
-            source_path=root_b / "sample" / "nodes.py",
-            package_root=root_b / "sample",
-            package_name="sample",
-        ),
-    )
-    entry_owner = plugin_loader._plugin_owner_id(  # noqa: SLF001
-        "catalog-entry",
-        PluginProvenance(
-            kind="entry_point",
-            entry_point_name="catalog-entry",
-            distribution_name="catalog-package",
-        ),
-    )
-
-    assert file_owner_a == file_owner_b == "plugin:file:catalog_plugin"
-    assert package_owner_a == package_owner_b == "plugin:package:sample:nodes"
-    assert entry_owner == "plugin:entry_point:catalog_package:catalog_entry"
-    for owner_id in (file_owner_a, package_owner_a, entry_owner):
-        assert str(tmp_path) not in owner_id
-        assert "/" not in owner_id
-        assert "\\" not in owner_id
-
-    registry = NodeRegistry()
-    descriptor = _packet_descriptor("packet.owner.stable", "Stable Owner")
-    loaded = plugin_loader._register_plugin_descriptors(  # noqa: SLF001
-        (descriptor,),
-        registry,
-        file_a,
-        provenance=PluginProvenance(kind="file", source_path=file_a),
-    )
-
-    assert loaded == ["packet.owner.stable"]
-    assert registry.plugin_contract_manifest(file_owner_a) == PluginContractManifest()
-
-
-def test_same_basename_loose_plugins_fail_closed_without_replacing_first_owner(
-    tmp_path: Path,
-    caplog,
-) -> None:
-    root_a = tmp_path / "private_a" / "plugins"
-    root_b = tmp_path / "private_b" / "plugins"
-    file_a = root_a / "shared.py"
-    file_b = root_b / "shared.py"
-    provenance_a = PluginProvenance(kind="file", source_path=file_a)
-    provenance_b = PluginProvenance(kind="file", source_path=file_b)
-    first_families, first_types = _packet_data_type_contract(
-        family_id="packet_first",
-        type_id="Packet.First.Value",
-    )
-    second_families, second_types = _packet_data_type_contract(
-        family_id="packet_second",
-        type_id="Packet.Second.Value",
-    )
-    registry = NodeRegistry()
-    caplog.set_level(logging.WARNING, logger=plugin_loader.__name__)
-
-    first_loaded = plugin_loader._register_plugin_descriptors(  # noqa: SLF001
-        (_typed_packet_descriptor("packet.first", "Packet.First.Value"),),
-        registry,
-        file_a,
-        provenance=provenance_a,
-        manifest=PluginContractManifest(
-            data_type_families=first_families,
-            data_types=first_types,
-        ),
-    )
-    before_fingerprint = registry.data_types.fingerprint()
-    second_loaded = plugin_loader._register_plugin_descriptors(  # noqa: SLF001
-        (_typed_packet_descriptor("packet.second", "Packet.Second.Value"),),
-        registry,
-        file_b,
-        provenance=provenance_b,
-        manifest=PluginContractManifest(
-            data_type_families=second_families,
-            data_types=second_types,
-        ),
-    )
-
-    assert first_loaded == ["packet.first"]
-    assert second_loaded == []
-    assert registry.data_types.fingerprint() == before_fingerprint
-    assert registry.spec_or_none("packet.first") is not None
-    assert registry.spec_or_none("packet.second") is None
-    assert registry.data_types.get("Packet.First.Value") is not None
-    assert registry.data_types.get("Packet.Second.Value") is None
-    assert "plugin:file:shared" in caplog.text
-    assert str(root_a) not in caplog.text
-    assert str(root_b) not in caplog.text
-    assert all(record.exc_info is None for record in caplog.records)
-
-
-def test_same_loose_plugin_source_can_reload_its_owner(tmp_path: Path) -> None:
-    plugin_file = tmp_path / "plugins" / "shared.py"
-    provenance = PluginProvenance(kind="file", source_path=plugin_file)
-    registry = NodeRegistry()
-
-    first_loaded = plugin_loader._register_plugin_descriptors(  # noqa: SLF001
-        (_packet_descriptor("packet.first", "First"),),
-        registry,
-        plugin_file,
-        provenance=provenance,
-    )
-    second_loaded = plugin_loader._register_plugin_descriptors(  # noqa: SLF001
-        (_packet_descriptor("packet.second", "Second"),),
-        registry,
-        plugin_file,
-        provenance=provenance,
-    )
-
-    assert first_loaded == ["packet.first"]
-    assert second_loaded == ["packet.second"]
-    assert registry.spec_or_none("packet.first") is None
-    assert registry.spec_or_none("packet.second") is not None
-
-
 def _packet_data_type_contract(
     *,
     family_id: str = "packet_plugin",
@@ -291,448 +119,639 @@ def _packet_data_type_contract(
     )
 
 
-def test_discover_and_load_plugins_preserves_root_py_dropins(
-    tmp_path: Path,
-    monkeypatch,
-) -> None:
-    plugins_root = tmp_path / "plugins"
-    _write_plugin(plugins_root / "root_dropin.py", type_id="packet.root", display_name="Root Drop-In")
-    _write_plugin(plugins_root / "_private.py", type_id="packet.private", display_name="Private")
+def _function_source(
+    type_id: str,
+    *,
+    description: str = "",
+    prelude: str = "",
+    import_line: str = "",
+) -> str:
+    extra_import = f"{import_line}\n" if import_line else ""
+    return f'''import corex
+{extra_import}{prelude}
+@corex.node(
+    id={type_id!r},
+    name="Static Node",
+    category=("Tests",),
+    description={description!r},
+)
+@corex.input("value", value_type=float)
+@corex.output("result", value_type=float)
+def static_node(ctx, value):
+    return {{"result": value}}
+'''
 
-    monkeypatch.setattr(plugin_loader, "plugins_dir", lambda: plugins_root)
-    monkeypatch.setattr(plugin_loader, "_load_plugins_from_entry_points", lambda registry: [])
 
-    registry = NodeRegistry()
-    loaded = plugin_loader.discover_and_load_plugins(registry)
-
-    assert loaded == ["packet.root"]
-    assert registry.get_spec("packet.root").display_name == "Root Drop-In"
-    descriptor = registry.get_descriptor("packet.root")
-    assert descriptor.provenance is not None
-    assert descriptor.provenance.kind == "file"
-    assert descriptor.provenance.source_path == (plugins_root / "root_dropin.py").resolve()
-    assert registry.spec_or_none("packet.private") is None
-
-
-def test_discover_and_load_plugins_discovers_package_directories(
-    tmp_path: Path,
-    monkeypatch,
-) -> None:
-    plugins_root = tmp_path / "plugins"
-    package_dir = plugins_root / "example_package"
-    _write_text(package_dir / "__init__.py", "\n")
-    _write_text(package_dir / "helper.py", 'DISPLAY_NAME = "Package Directory Plugin"\n')
+def _write_schema2_package(
+    root: Path,
+    *,
+    name: str,
+    sources: dict[str, str],
+    modules: list[str],
+    nodes: list[dict[str, str]],
+) -> Path:
+    package_dir = root / name
+    source_records = []
+    for relative_path, source in sources.items():
+        source_path = _write_text(package_dir / relative_path, source)
+        payload = source_path.read_bytes()
+        source_records.append(
+            {"path": relative_path, "sha256": hashlib.sha256(payload).hexdigest()}
+        )
+    manifest = {
+        "schema_version": 2,
+        "name": name,
+        "version": "1.0.0",
+        "author": "",
+        "description": "",
+        "modules": modules,
+        "sources": source_records,
+        "assets": [],
+        "nodes": nodes,
+    }
     _write_text(
-        package_dir / "package_plugin.py",
-        """
-from .helper import DISPLAY_NAME
-from ea_node_editor.nodes.types import NodeResult, NodeTypeSpec, PluginDescriptor
+        package_dir / "node_package.json",
+        json.dumps(manifest, indent=2) + "\n",
+    )
+    return package_dir
 
 
-PLUGIN_SPEC = NodeTypeSpec(
-    type_id="packet.package",
-    display_name=DISPLAY_NAME,
-    category_path=("Packet Tests",),
-    icon="packet",
-    ports=(),
-    properties=(),
-)
 
 
-class PackagePlugin:
-    def spec(self):
-        return PLUGIN_SPEC
-
-    def execute(self, ctx):
-        return NodeResult()
 
 
-PLUGIN_DESCRIPTORS = (
-    PluginDescriptor(spec=PLUGIN_SPEC, factory=PackagePlugin),
-)
-""".strip()
-        + "\n",
+def test_loose_function_plugins_are_discovered_without_execution_and_materialized(
+    tmp_path: Path,
+) -> None:
+    plugin_root = tmp_path / "plugins"
+    generation_root = tmp_path / "generations"
+    marker = tmp_path / "executed.txt"
+    source_path = _write_text(
+        plugin_root / "safe_node.py",
+        _function_source(
+            "custom.safe_node.1234abcd",
+            prelude=(
+                "from pathlib import Path\n"
+                f"Path({str(marker)!r}).write_text('executed', encoding='utf-8')"
+            ),
+        ),
+    )
+    source_bytes = source_path.read_bytes()
+    registry = NodeRegistry()
+
+    result = plugin_loader.discover_static_plugins(
+        registry,
+        roots=(plugin_root,),
+        generation_root=generation_root,
     )
 
-    monkeypatch.setattr(plugin_loader, "plugins_dir", lambda: plugins_root)
-    monkeypatch.setattr(plugin_loader, "_load_plugins_from_entry_points", lambda registry: [])
-
-    registry = NodeRegistry()
-    loaded = plugin_loader.discover_and_load_plugins(registry)
-
-    assert loaded == ["packet.package"]
-    assert registry.get_spec("packet.package").display_name == "Package Directory Plugin"
-    descriptor = registry.get_descriptor("packet.package")
-    assert descriptor.provenance is not None
-    assert descriptor.provenance.kind == "package"
-    assert descriptor.provenance.package_root == package_dir.resolve()
-    assert descriptor.provenance.source_path == (package_dir / "package_plugin.py").resolve()
-
-
-def test_discover_package_plugins_loads_one_package_directory(tmp_path: Path) -> None:
-    package_dir = tmp_path / "plugins" / "example_package"
-    _write_text(package_dir / "__init__.py", "\n")
-    _write_text(package_dir / "helper.py", 'DISPLAY_NAME = "Package Directory Plugin"\n')
-    _write_text(
-        package_dir / "package_plugin.py",
-        """
-from .helper import DISPLAY_NAME
-from ea_node_editor.nodes.types import NodeResult, NodeTypeSpec, PluginDescriptor
+    assert result.type_ids == ("custom.safe_node.1234abcd",)
+    assert len(result.bundles) == 1
+    bundle = result.bundles[0]
+    generation = Path(bundle.approved_generation_root)
+    assert generation.parent == generation_root.resolve()
+    assert (generation / "safe_node.py").read_bytes() == source_bytes
+    assert (generation / "node_package.json").is_file()
+    assert not marker.exists()
+    assert registry.spec_or_none("custom.safe_node.1234abcd") is not None
+    assert registry.descriptor_or_none("custom.safe_node.1234abcd") is None
+    assert registry.plugin_bundle_refs() == (bundle,)
+    assert registry.plugin_fingerprint() == result.plugin_fingerprint
+    assert len(result.plugin_fingerprint) == 64
+    with pytest.raises(RuntimeError, match="process-worker"):
+        registry.create("custom.safe_node.1234abcd")
 
 
-PLUGIN_SPEC = NodeTypeSpec(
-    type_id="packet.package.single",
-    display_name=DISPLAY_NAME,
-    category_path=("Packet Tests",),
-    icon="packet",
-    ports=(),
-    properties=(),
-)
-
-
-class PackagePlugin:
-    def spec(self):
-        return PLUGIN_SPEC
-
-    def execute(self, ctx):
-        return NodeResult()
-
-
-PLUGIN_DESCRIPTORS = (
-    PluginDescriptor(spec=PLUGIN_SPEC, factory=PackagePlugin),
-)
-""".strip()
-        + "\n",
+def test_generation_reuse_and_source_changes_are_content_addressed(tmp_path: Path) -> None:
+    plugin_root = tmp_path / "plugins"
+    generation_root = tmp_path / "generations"
+    source_path = _write_text(
+        plugin_root / "scale.py",
+        _function_source("custom.scale.1234abcd", description="first"),
     )
 
+    first_registry = NodeRegistry()
+    first = plugin_loader.discover_static_plugins(
+        first_registry,
+        roots=(plugin_root,),
+        generation_root=generation_root,
+    )
+    first_bundle = first.bundles[0]
+    first_generation = Path(first_bundle.approved_generation_root)
+    first_bytes = (first_generation / "scale.py").read_bytes()
+
+    second = plugin_loader.discover_static_plugins(
+        NodeRegistry(),
+        roots=(plugin_root,),
+        generation_root=generation_root,
+    )
+    assert second.bundles[0].bundle_digest == first_bundle.bundle_digest
+    assert second.bundles[0].approved_generation_root == str(first_generation)
+    assert second.plugin_fingerprint == first.plugin_fingerprint
+
+    source_path.write_text(
+        _function_source("custom.scale.1234abcd", description="second"),
+        encoding="utf-8",
+    )
+    third_registry = NodeRegistry()
+    third = plugin_loader.discover_static_plugins(
+        third_registry,
+        roots=(plugin_root,),
+        generation_root=generation_root,
+    )
+    assert third.bundles[0].bundle_digest != first_bundle.bundle_digest
+    assert third.plugin_fingerprint != first.plugin_fingerprint
+    assert third_registry.get_spec("custom.scale.1234abcd").description == "second"
+    assert (first_generation / "scale.py").read_bytes() == first_bytes
+
+    source_path.write_text("raise RuntimeError('mutable source changed')\n", encoding="utf-8")
+    assert third_registry.get_spec("custom.scale.1234abcd").description == "second"
+    assert (first_generation / "scale.py").read_bytes() == first_bytes
+    assert len(
+        [
+            path
+            for path in generation_root.iterdir()
+            if path.is_dir() and len(path.name) == 64
+        ]
+    ) == 2
+
+
+def test_missing_import_keeps_node_visible_with_exact_locked_reason(tmp_path: Path) -> None:
+    plugin_root = tmp_path / "plugins"
+    missing_module = "codex_missing_dependency_7f31a9"
+    _write_text(
+        plugin_root / "missing.py",
+        _function_source(
+            "custom.missing.1234abcd",
+            import_line=f"import {missing_module}",
+        ),
+    )
     registry = NodeRegistry()
-    loaded = plugin_loader.discover_package_plugins(package_dir, registry)
 
-    assert loaded == ["packet.package.single"]
-    descriptor = registry.get_descriptor("packet.package.single")
-    assert descriptor.provenance is not None
-    assert descriptor.provenance.kind == "package"
-    assert descriptor.provenance.package_root == package_dir.resolve()
+    result = plugin_loader.discover_static_plugins(
+        registry,
+        roots=(plugin_root,),
+        generation_root=tmp_path / "generations",
+    )
+
+    reason = f"{missing_module} is not included in this COREX bundle."
+    assert result.type_ids == ("custom.missing.1234abcd",)
+    assert registry.spec_or_none("custom.missing.1234abcd") is not None
+    assert registry.unavailable_reason("custom.missing.1234abcd") == reason
+    assert result.bundles[0].unavailable_reason == reason
+    assert str(tmp_path) not in reason
+    with pytest.raises(RuntimeError, match=re.escape(reason)):
+        registry.create("custom.missing.1234abcd")
 
 
-def test_discover_package_plugins_requires_real_package_init(
+def test_invalid_and_conflicting_loose_bundles_fail_closed_without_side_effects(
     tmp_path: Path,
     caplog,
 ) -> None:
-    package_dir = tmp_path / "plugins" / "namespace_only_package"
-    _write_plugin(package_dir / "package_plugin.py", type_id="packet.namespace", display_name="Namespace Package")
+    plugin_root = tmp_path / "plugins"
+    generation_root = tmp_path / "generations"
+    marker = tmp_path / "invalid-executed.txt"
+    _write_text(
+        plugin_root / "a_first.py",
+        _function_source("custom.duplicate.1234abcd", description="first"),
+    )
+    _write_text(
+        plugin_root / "b_duplicate.py",
+        _function_source("custom.duplicate.1234abcd", description="second"),
+    )
+    _write_text(
+        plugin_root / "c_invalid.py",
+        f'''import corex
+from pathlib import Path
+Path({str(marker)!r}).write_text("executed", encoding="utf-8")
+@corex.node(id="custom.invalid.1234abcd", name="Invalid", category=("Tests",))
+@corex.number("factor", default=make_default())
+def invalid(ctx, settings): return {{}}
+''',
+    )
+    _write_text(
+        plugin_root / "d_partial.py",
+        '''import corex
+@corex.node(id="custom.partial_good.1234abcd", name="Good", category=("Tests",))
+def good(ctx): return {}
+@corex.node(id="custom.partial_bad.1234abcd", name="Bad", category=("Tests",))
+@corex.output("value", value_type="Missing.Type")
+def bad(ctx): return {"value": 1}
+''',
+    )
     caplog.set_level(logging.WARNING, logger=plugin_loader.__name__)
-
     registry = NodeRegistry()
-    loaded = plugin_loader.discover_package_plugins(package_dir, registry)
 
-    assert loaded == []
-    assert registry.spec_or_none("packet.namespace") is None
-    assert "plugin:package:namespace_only_package:init" in caplog.text
-    assert "[missing_init]" in caplog.text
+    result = plugin_loader.discover_static_plugins(
+        registry,
+        roots=(plugin_root,),
+        generation_root=generation_root,
+    )
+
+    assert result.type_ids == ("custom.duplicate.1234abcd",)
+    assert registry.get_spec("custom.duplicate.1234abcd").description == "first"
+    assert registry.spec_or_none("custom.invalid.1234abcd") is None
+    assert registry.spec_or_none("custom.partial_good.1234abcd") is None
+    assert registry.spec_or_none("custom.partial_bad.1234abcd") is None
+    assert not marker.exists()
     assert str(tmp_path) not in caplog.text
     assert all(record.exc_info is None for record in caplog.records)
+    assert len([path for path in generation_root.iterdir() if len(path.name) == 64]) == 1
 
 
-def test_discover_and_load_plugins_continues_after_bad_modules(
+def test_schema2_package_is_static_and_schema1_directory_is_rejected(
     tmp_path: Path,
-    monkeypatch,
     caplog,
 ) -> None:
-    plugins_root = tmp_path / "plugins"
-    private_detail = f"secret-token at {plugins_root}"
-    _write_text(
-        plugins_root / "broken_root.py",
-        f"raise RuntimeError({private_detail!r})\n",
+    plugin_root = tmp_path / "plugins"
+    marker = tmp_path / "package-executed.txt"
+    nodes_source = f'''import corex
+from pathlib import Path
+from .helpers import helper
+Path({str(marker)!r}).write_text("executed", encoding="utf-8")
+@corex.node(id="custom.package_node.1234abcd", name="Package Node", category=("Tests",))
+@corex.input("value", value_type=float)
+@corex.output("result", value_type=float)
+def package_node(ctx, value): return {{"result": helper(value)}}
+'''
+    package_dir = _write_schema2_package(
+        plugin_root,
+        name="static_package",
+        sources={"nodes.py": nodes_source, "helpers.py": "def helper(value): return value\n"},
+        modules=["nodes.py"],
+        nodes=[
+            {
+                "id": "custom.package_node.1234abcd",
+                "module": "nodes.py",
+                "function": "package_node",
+            }
+        ],
     )
-    _write_plugin(plugins_root / "good_root.py", type_id="packet.root.good", display_name="Good Root")
-
-    package_dir = plugins_root / "installed_package"
-    _write_text(package_dir / "__init__.py", "\n")
+    legacy_dir = plugin_root / "legacy_package"
     _write_text(
-        package_dir / "bad_module.py",
-        f"raise RuntimeError({private_detail!r})\n",
+        legacy_dir / "node_package.json",
+        json.dumps({"name": "legacy_package", "version": "1.0.0", "nodes": []}),
     )
-    _write_plugin(package_dir / "good_package.py", type_id="packet.package.good", display_name="Good Package")
-
-    monkeypatch.setattr(plugin_loader, "plugins_dir", lambda: plugins_root)
-    monkeypatch.setattr(plugin_loader, "_load_plugins_from_entry_points", lambda registry: [])
     caplog.set_level(logging.WARNING, logger=plugin_loader.__name__)
-
     registry = NodeRegistry()
-    loaded = plugin_loader.discover_and_load_plugins(registry)
 
-    assert loaded == ["packet.root.good", "packet.package.good"]
-    assert registry.spec_or_none("packet.root.good") is not None
-    assert registry.spec_or_none("packet.package.good") is not None
-    assert "plugin:file:broken_root" in caplog.text
-    assert "plugin:package:installed_package:bad_module" in caplog.text
-    assert "[module_import]" in caplog.text
-    assert private_detail not in caplog.text
-    assert str(plugins_root) not in caplog.text
-    assert all(record.exc_info is None for record in caplog.records)
-
-
-def test_discover_and_load_plugins_loads_descriptor_records_without_constructor_probing(
-    tmp_path: Path,
-    monkeypatch,
-) -> None:
-    plugins_root = tmp_path / "plugins"
-    _write_text(
-        plugins_root / "descriptor_plugin.py",
-        """
-from ea_node_editor.nodes.types import NodeResult, NodeTypeSpec, PluginDescriptor
-
-
-class ShouldNotBeScanned:
-    def __init__(self):
-        raise RuntimeError("legacy class probing should not run when PLUGIN_DESCRIPTORS is present")
-
-
-PLUGIN_SPEC = NodeTypeSpec(
-    type_id="packet.descriptor",
-    display_name="Descriptor Plugin",
-    category_path=("Packet Tests",),
-    icon="packet",
-    ports=(),
-    properties=(),
-)
-
-
-class DescriptorPlugin:
-    def spec(self):
-        return PLUGIN_SPEC
-
-    def execute(self, ctx):
-        return NodeResult()
-
-
-PLUGIN_DESCRIPTORS = (
-    PluginDescriptor(spec=PLUGIN_SPEC, factory=DescriptorPlugin),
-)
-""".strip()
-        + "\n",
+    result = plugin_loader.discover_static_plugins(
+        registry,
+        roots=(plugin_root,),
+        generation_root=tmp_path / "generations",
     )
 
-    monkeypatch.setattr(plugin_loader, "plugins_dir", lambda: plugins_root)
-    monkeypatch.setattr(plugin_loader, "_load_plugins_from_entry_points", lambda registry: [])
+    assert result.type_ids == ("custom.package_node.1234abcd",)
+    bundle = result.bundles[0]
+    generation = Path(bundle.approved_generation_root)
+    assert (generation / "nodes.py").read_text(encoding="utf-8") == nodes_source
+    assert (generation / "helpers.py").read_text(encoding="utf-8") == (
+        package_dir / "helpers.py"
+    ).read_text(encoding="utf-8")
+    assert not marker.exists()
+    assert registry.spec_or_none("custom.package_node.1234abcd") is not None
+    assert "plugin:package:legacy_package" in caplog.text
+    assert str(tmp_path) not in caplog.text
 
-    registry = NodeRegistry()
-    loaded = plugin_loader.discover_and_load_plugins(registry)
-
-    assert loaded == ["packet.descriptor"]
-    assert registry.get_spec("packet.descriptor").display_name == "Descriptor Plugin"
-
-
-def test_discover_and_load_plugins_rejects_descriptor_tuple_shorthand(
-    tmp_path: Path,
-    monkeypatch,
-    caplog,
-) -> None:
-    plugins_root = tmp_path / "plugins"
-    _write_text(
-        plugins_root / "tuple_shorthand.py",
-        """
-from ea_node_editor.nodes.types import NodeResult, NodeTypeSpec
-
-
-class TuplePlugin:
-    def spec(self):
-        return NodeTypeSpec(
-            type_id="packet.tuple",
-            display_name="Tuple Plugin",
-            category_path=("Packet Tests",),
-            icon="packet",
-            ports=(),
-            properties=(),
+    direct_registry = NodeRegistry()
+    assert plugin_loader.discover_package_plugins(
+        package_dir,
+        direct_registry,
+        generation_root=tmp_path / "direct-generations",
+        descriptor_overrides=None,
+    ) == ["custom.package_node.1234abcd"]
+    with pytest.raises(TypeError, match="Descriptor overrides"):
+        plugin_loader.discover_package_plugins(
+            package_dir,
+            NodeRegistry(),
+            generation_root=tmp_path / "rejected-generations",
+            descriptor_overrides={},
         )
 
-    def execute(self, ctx):
-        return NodeResult()
 
+def test_dotted_bundled_source_and_dev_only_imports_are_locked(tmp_path: Path) -> None:
+    plugin_root = tmp_path / "plugins"
+    nodes_source = '''import corex
+from .helpers.missing import value
+@corex.node(id="custom.dotted.1234abcd", name="Dotted", category=("Tests",))
+def dotted(ctx): return {}
+'''
+    _write_schema2_package(
+        plugin_root,
+        name="dotted_package",
+        sources={"nodes.py": nodes_source, "helpers.py": "VALUE = 1\n"},
+        modules=["nodes.py"],
+        nodes=[
+            {
+                "id": "custom.dotted.1234abcd",
+                "module": "nodes.py",
+                "function": "dotted",
+            }
+        ],
+    )
+    _write_text(
+        plugin_root / "dev_only.py",
+        _function_source(
+            "custom.dev_only.1234abcd",
+            import_line="import pytest",
+        ),
+    )
+    registry = NodeRegistry()
 
-PLUGIN_DESCRIPTORS = (
-    (TuplePlugin().spec(), TuplePlugin),
-)
-""".strip()
-        + "\n",
+    result = plugin_loader.discover_static_plugins(
+        registry,
+        roots=(plugin_root,),
+        generation_root=tmp_path / "generations",
     )
 
-    monkeypatch.setattr(plugin_loader, "plugins_dir", lambda: plugins_root)
-    monkeypatch.setattr(plugin_loader, "_load_plugins_from_entry_points", lambda registry: [])
-    caplog.set_level(logging.WARNING, logger=plugin_loader.__name__)
-
-    registry = NodeRegistry()
-    loaded = plugin_loader.discover_and_load_plugins(registry)
-
-    assert loaded == []
-    assert registry.spec_or_none("packet.tuple") is None
-    assert "plugin:file:tuple_shorthand" in caplog.text
-    assert "[invalid_api]" in caplog.text
-    assert str(tmp_path) not in caplog.text
-    assert all(record.exc_info is None for record in caplog.records)
+    assert set(result.type_ids) == {
+        "custom.dev_only.1234abcd",
+        "custom.dotted.1234abcd",
+    }
+    assert registry.unavailable_reason("custom.dotted.1234abcd") == (
+        "helpers.missing is not included in this COREX bundle."
+    )
+    assert registry.unavailable_reason("custom.dev_only.1234abcd") == (
+        "pytest is not included in this COREX bundle."
+    )
 
 
-def test_discover_and_load_plugins_preserves_entry_point_loading(
+def test_symlinked_discovery_roots_and_entries_are_rejected(
     tmp_path: Path,
     monkeypatch,
 ) -> None:
-    calls: list[dict[str, object]] = []
-
-    class EntryPointPlugin:
-        def spec(self):
-            from ea_node_editor.nodes.types import NodeTypeSpec
-
-            return NodeTypeSpec(
-                type_id="packet.entry-point",
-                display_name="Entry Point",
-                category_path=("Packet Tests",),
-                icon="packet",
-                ports=(),
-                properties=(),
-            )
-
-        def execute(self, ctx):
-            from ea_node_editor.nodes.types import NodeResult
-
-            return NodeResult()
-
-    entry_point_descriptor = PluginDescriptor(
-        spec=EntryPointPlugin().spec(),
-        factory=EntryPointPlugin,
+    linked_root = tmp_path / "linked-root"
+    _write_text(
+        linked_root / "outside.py",
+        _function_source("custom.outside.1234abcd"),
     )
-
-    class FakeEntryPoint:
-        def __init__(self, name: str) -> None:
-            self.name = name
-
-        def load(self):
-            return SimpleNamespace(PLUGIN_DESCRIPTORS=(entry_point_descriptor,))
-
-    def fake_entry_points(*args, **kwargs):
-        calls.append(dict(kwargs))
-        entry_points = [FakeEntryPoint("packet-entry-point")]
-        assert kwargs == {"group": plugin_loader.ENTRY_POINT_GROUP}
-        return entry_points
-
-    monkeypatch.setattr(plugin_loader, "plugins_dir", lambda: tmp_path / "plugins")
-    monkeypatch.setattr(importlib.metadata, "entry_points", fake_entry_points)
-
-    registry = NodeRegistry()
-    loaded = plugin_loader.discover_and_load_plugins(registry)
-
-    assert loaded == ["packet.entry-point"]
-    assert registry.get_spec("packet.entry-point").display_name == "Entry Point"
-    descriptor = registry.get_descriptor("packet.entry-point")
-    assert descriptor.provenance is not None
-    assert descriptor.provenance.kind == "entry_point"
-    assert descriptor.provenance.entry_point_name == "packet-entry-point"
-    assert calls == [{"group": plugin_loader.ENTRY_POINT_GROUP}]
-
-
-def test_discover_and_load_plugins_does_not_probe_entry_point_classes(
-    tmp_path: Path,
-    monkeypatch,
-) -> None:
-    class EntryPointPlugin:
-        def spec(self):
-            return NodeTypeSpec(
-                type_id="packet.entry-point-class",
-                display_name="Entry Point Class",
-                category_path=("Packet Tests",),
-                icon="packet",
-                ports=(),
-                properties=(),
-            )
-
-        def execute(self, ctx):
-            from ea_node_editor.nodes.types import NodeResult
-
-            return NodeResult()
-
-    class FakeEntryPoint:
-        name = "packet-entry-point-class"
-
-        def load(self):
-            return EntryPointPlugin
-
-    monkeypatch.setattr(plugin_loader, "plugins_dir", lambda: tmp_path / "plugins")
+    regular_root = tmp_path / "regular-root"
+    linked_file = _write_text(
+        regular_root / "linked.py",
+        _function_source("custom.linked_entry.1234abcd"),
+    )
+    simulated_symlinks = {linked_root, linked_file}
     monkeypatch.setattr(
-        importlib.metadata,
-        "entry_points",
-        lambda *, group: [FakeEntryPoint()] if group == plugin_loader.ENTRY_POINT_GROUP else [],
+        plugin_loader,
+        "_is_reparse_point",
+        lambda path: path in simulated_symlinks,
     )
 
     registry = NodeRegistry()
-    loaded = plugin_loader.discover_and_load_plugins(registry)
+    result = plugin_loader.discover_static_plugins(
+        registry,
+        roots=(linked_root, regular_root),
+        generation_root=tmp_path / "generations",
+    )
 
-    assert loaded == []
-    assert registry.spec_or_none("packet.entry-point-class") is None
+    assert result.type_ids == ()
+    assert registry.spec_or_none("custom.outside.1234abcd") is None
 
 
-def test_discover_and_load_plugins_supports_neutral_runtime_contract_imports(
+def test_path_alias_detector_recognizes_posix_symlink_mode(monkeypatch) -> None:
+    monkeypatch.setattr(
+        plugin_generation.os,
+        "lstat",
+        lambda _path: SimpleNamespace(st_mode=stat.S_IFLNK, st_file_attributes=0),
+    )
+
+    assert plugin_generation._is_reparse_point(Path("alias"))  # noqa: SLF001
+
+
+def test_oversized_sources_and_unbounded_roots_fail_before_full_discovery(
+    tmp_path: Path,
+) -> None:
+    oversized_root = tmp_path / "oversized"
+    oversized_root.mkdir()
+    (oversized_root / "huge.py").write_bytes(b"#" * (256 * 1024 + 1))
+    oversized = plugin_loader.discover_static_plugins(
+        NodeRegistry(),
+        roots=(oversized_root,),
+        generation_root=tmp_path / "oversized-generations",
+    )
+    assert oversized.type_ids == ()
+
+    crowded_root = tmp_path / "crowded"
+    crowded_root.mkdir()
+    for index in range(513):
+        (crowded_root / f"empty-{index}.txt").touch()
+    crowded = plugin_loader.discover_static_plugins(
+        NodeRegistry(),
+        roots=(crowded_root,),
+        generation_root=tmp_path / "crowded-generations",
+    )
+    assert crowded.type_ids == ()
+
+
+def test_package_aggregate_limit_rejects_before_reading_excess_member(
     tmp_path: Path,
     monkeypatch,
 ) -> None:
-    plugins_root = tmp_path / "plugins"
-    _write_text(
-        plugins_root / "runtime_contract_plugin.py",
-        """
-from ea_node_editor.nodes.types import NodeResult, NodeTypeSpec, PluginDescriptor
-from ea_node_editor.runtime_contracts import PATH_DATA_TYPE_ID, RuntimeArtifactRef
+    package_dir = tmp_path / "plugins" / "aggregate_package"
+    source_path = _write_text(package_dir / "nodes.py", "import corex\n")
+    zero_digest = hashlib.sha256(b"\0" * (4 * 1024 * 1024)).hexdigest()
+    assets = []
+    for index in range(4):
+        asset_path = package_dir / f"asset-{index}.png"
+        asset_path.parent.mkdir(parents=True, exist_ok=True)
+        with asset_path.open("wb") as stream:
+            stream.seek(4 * 1024 * 1024 - 1)
+            stream.write(b"\0")
+        assets.append({"path": asset_path.name, "sha256": zero_digest})
+    manifest = {
+        "schema_version": 2,
+        "name": "aggregate_package",
+        "version": "1.0.0",
+        "modules": ["nodes.py"],
+        "sources": [
+            {
+                "path": "nodes.py",
+                "sha256": hashlib.sha256(source_path.read_bytes()).hexdigest(),
+            }
+        ],
+        "assets": assets,
+        "nodes": [],
+    }
+    _write_text(package_dir / "node_package.json", json.dumps(manifest))
+    calls: list[str] = []
+    read_member = plugin_loader._read_package_member  # noqa: SLF001
+
+    def recording_read_member(package_root, relative_path, *, limit):  # noqa: ANN001
+        calls.append(relative_path)
+        return read_member(package_root, relative_path, limit=limit)
+
+    monkeypatch.setattr(plugin_loader, "_read_package_member", recording_read_member)
+
+    with pytest.raises(ValueError, match="expanded size"):
+        plugin_loader._package_manifest(package_dir)  # noqa: SLF001
+    assert calls == ["nodes.py", "asset-0.png", "asset-1.png", "asset-2.png"]
 
 
-PLUGIN_SPEC = NodeTypeSpec(
-    type_id="packet.runtime_contracts",
-    display_name="Runtime Contracts",
-    category_path=("Packet Tests",),
-    icon="packet",
-    ports=(),
-    properties=(),
-)
+def test_frozen_import_availability_uses_the_actual_bundle_importer(monkeypatch) -> None:
+    monkeypatch.setattr(plugin_loader.sys, "frozen", True, raising=False)
+    monkeypatch.setattr(plugin_loader.importlib.util, "find_spec", lambda _name: None)
+
+    assert not plugin_loader._bundled_module_available("ansys")  # noqa: SLF001
 
 
-class RuntimeContractPlugin:
-    def spec(self):
-        return PLUGIN_SPEC
+def test_plugin_fingerprint_is_independent_of_install_and_generation_roots(
+    tmp_path: Path,
+) -> None:
+    source = _function_source("custom.portable.1234abcd")
+    root_a = tmp_path / "install-a" / "plugins"
+    root_b = tmp_path / "install-b" / "plugins"
+    _write_text(root_a / "portable.py", source)
+    _write_text(root_b / "portable.py", source)
 
-    def execute(self, ctx):
-        return NodeResult(
-            outputs={
-                "artifact": RuntimeArtifactRef.staged(
-                    "packet_runtime_contract",
-                    data_type_id=PATH_DATA_TYPE_ID,
-                    schema_version=1,
-                    format="bin",
-                    size_bytes=0,
-                    sha256="0" * 64,
-                    provenance="corex.test.fixture",
-                )
-            },
-        )
-
-
-PLUGIN_DESCRIPTORS = (
-    PluginDescriptor(spec=PLUGIN_SPEC, factory=RuntimeContractPlugin),
-)
-""".strip()
-        + "\n",
+    first = plugin_loader.discover_static_plugins(
+        NodeRegistry(),
+        roots=(root_a,),
+        generation_root=tmp_path / "generations-a",
+    )
+    second = plugin_loader.discover_static_plugins(
+        NodeRegistry(),
+        roots=(root_b,),
+        generation_root=tmp_path / "generations-b",
     )
 
-    monkeypatch.setattr(plugin_loader, "plugins_dir", lambda: plugins_root)
-    monkeypatch.setattr(plugin_loader, "_load_plugins_from_entry_points", lambda registry: [])
+    assert first.plugin_fingerprint == second.plugin_fingerprint
+    assert first.bundles[0].bundle_digest == second.bundles[0].bundle_digest
+    assert (
+        first.bundles[0].approved_generation_root
+        != second.bundles[0].approved_generation_root
+    )
+
+
+def test_tampered_existing_generation_is_never_reused(tmp_path: Path) -> None:
+    plugin_root = tmp_path / "plugins"
+    generation_root = tmp_path / "generations"
+    _write_text(
+        plugin_root / "tamper.py",
+        _function_source("custom.tamper.1234abcd"),
+    )
+    first = plugin_loader.discover_static_plugins(
+        NodeRegistry(),
+        roots=(plugin_root,),
+        generation_root=generation_root,
+    )
+    generation = Path(first.bundles[0].approved_generation_root)
+    (generation / "tamper.py").write_text("tampered\n", encoding="utf-8")
+    registry = NodeRegistry()
+
+    second = plugin_loader.discover_static_plugins(
+        registry,
+        roots=(plugin_root,),
+        generation_root=generation_root,
+    )
+
+    assert second.type_ids == ()
+    assert registry.spec_or_none("custom.tamper.1234abcd") is None
+
+
+def test_symlinked_generation_member_is_never_accepted_as_immutable(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    plugin_root = tmp_path / "plugins"
+    generation_root = tmp_path / "generations"
+    _write_text(
+        plugin_root / "alias.py",
+        _function_source("custom.alias_generation.1234abcd"),
+    )
+    first = plugin_loader.discover_static_plugins(
+        NodeRegistry(),
+        roots=(plugin_root,),
+        generation_root=generation_root,
+    )
+    generation_source = Path(first.bundles[0].approved_generation_root) / "alias.py"
+    monkeypatch.setattr(
+        plugin_generation,
+        "_is_reparse_point",
+        lambda path: path == generation_source,
+    )
 
     registry = NodeRegistry()
-    loaded = plugin_loader.discover_and_load_plugins(registry)
+    second = plugin_loader.discover_static_plugins(
+        registry,
+        roots=(plugin_root,),
+        generation_root=generation_root,
+    )
 
-    assert loaded == ["packet.runtime_contracts"]
-    descriptor = registry.get_descriptor("packet.runtime_contracts")
-    result = descriptor.factory().execute(None)
-
-    assert isinstance(result.outputs["artifact"], RuntimeArtifactRef)
-    assert result.outputs["artifact"].artifact_id == "packet_runtime_contract"
+    assert second.type_ids == ()
+    assert registry.spec_or_none("custom.alias_generation.1234abcd") is None
 
 
+def test_hard_linked_generation_member_is_never_accepted_as_immutable(
+    tmp_path: Path,
+) -> None:
+    plugin_root = tmp_path / "plugins"
+    generation_root = tmp_path / "generations"
+    source_path = _write_text(
+        plugin_root / "hardlink.py",
+        _function_source("custom.hardlink_generation.1234abcd"),
+    )
+    first = plugin_loader.discover_static_plugins(
+        NodeRegistry(),
+        roots=(plugin_root,),
+        generation_root=generation_root,
+    )
+    generation_source = Path(first.bundles[0].approved_generation_root) / "hardlink.py"
+    generation_source.unlink()
+    os.link(source_path, generation_source)
+    assert generation_source.stat().st_nlink > 1
+
+    registry = NodeRegistry()
+    second = plugin_loader.discover_static_plugins(
+        registry,
+        roots=(plugin_root,),
+        generation_root=generation_root,
+    )
+
+    assert second.type_ids == ()
+    assert registry.spec_or_none("custom.hardlink_generation.1234abcd") is None
+
+
+def test_generation_pruning_preserves_active_referenced_and_unknown_directories(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    generation_root = tmp_path / "generations"
+    active = "a" * 64
+    referenced = "b" * 64
+    inactive = "c" * 64
+    aliased = "d" * 64
+    for name in (active, referenced, inactive, aliased, "manual-not-a-generation"):
+        _write_text(generation_root / name / "marker.txt", name)
+    monkeypatch.setattr(
+        plugin_generation,
+        "_is_reparse_point",
+        lambda path: path == generation_root / aliased,
+    )
+
+    removed = prune_plugin_generations(
+        generation_root,
+        active_digests=(active,),
+        referenced_digests=(referenced,),
+    )
+
+    assert removed == (inactive,)
+    assert (generation_root / active).is_dir()
+    assert (generation_root / referenced).is_dir()
+    assert not (generation_root / inactive).exists()
+    assert (generation_root / aliased).is_dir()
+    assert (generation_root / "manual-not-a-generation").is_dir()
+
+
+def test_public_loader_has_no_entry_point_or_import_execution_surface() -> None:
+    source = Path(plugin_loader.__file__).read_text(encoding="utf-8")
+    pyproject = (Path(__file__).resolve().parents[1] / "pyproject.toml").read_text(
+        encoding="utf-8"
+    )
+
+    assert "ENTRY_POINT_GROUP" not in source
+    assert ".load()" not in source
+    assert "exec_module" not in source
+    assert "ea_node_editor.plugins" not in pyproject
 
 
 def test_register_plugin_backends_redacts_availability_and_failure_details(
@@ -808,213 +827,12 @@ def test_plugin_failure_logs_omit_hostile_dynamic_exception_class_names(
     assert all(record.exc_info is None for record in caplog.records)
 
 
-def test_module_level_types_are_omitted_when_single_backend_is_unavailable() -> None:
-    descriptor_loader_called = False
-    families, data_types = _packet_data_type_contract(
-        family_id="packet_module_optional",
-        type_id="Packet.Module.Optional",
-    )
-
-    def load_descriptors() -> tuple[PluginDescriptor, ...]:
-        nonlocal descriptor_loader_called
-        descriptor_loader_called = True
-        return (
-            _typed_packet_descriptor(
-                "packet.module.optional",
-                "Packet.Module.Optional",
-            ),
-        )
-
-    backend = PluginBackendDescriptor(
-        plugin_id="packet.module.optional",
-        display_name="Module Optional",
-        get_availability=lambda: PluginAvailability.missing_dependency(
-            "packet.module.optional.dep",
-        ),
-        load_descriptors=load_descriptors,
-    )
-    module = SimpleNamespace(
-        PLUGIN_CONTRACT_MANIFEST=PluginContractManifest(
-            data_type_families=families,
-            data_types=data_types,
-        ),
-        PLUGIN_BACKENDS=(backend,),
-    )
-    registry = NodeRegistry()
-
-    loaded = plugin_loader._register_module_plugins(
-        module,
-        registry,
-        "packet.module.optional",
-    )
-
-    assert loaded == []
-    assert descriptor_loader_called is False
-    assert registry.spec_or_none("packet.module.optional") is None
-    assert registry.data_types.get("Packet.Module.Optional") is None
-    assert registry.plugin_contract_manifest("packet.module.optional") is None
 
 
-def test_module_backend_invalid_descriptor_preserves_active_owner_bundle() -> None:
-    registry = NodeRegistry()
-    active_families, active_types = _packet_data_type_contract(
-        family_id="packet_module_active",
-        type_id="Packet.Module.Active",
-    )
-    active_spec = _typed_packet_descriptor(
-        "packet.module.replace",
-        "Packet.Module.Active",
-    )
-    registry.register_plugin_bundle(
-        PluginContractManifest(
-            data_type_families=active_families,
-            data_types=active_types,
-        ),
-        (active_spec,),
-        owner_id="packet.module.replace",
-    )
-    before_fingerprint = registry.data_types.fingerprint()
-
-    replacement_families, replacement_types = _packet_data_type_contract(
-        family_id="packet_module_replacement",
-        type_id="Packet.Module.Replacement",
-    )
-    backend = PluginBackendDescriptor(
-        plugin_id="packet.module.replace",
-        display_name="Module Replacement",
-        get_availability=lambda: PluginAvailability.available("available"),
-        load_descriptors=lambda: (
-            _typed_packet_descriptor(
-                "packet.module.invalid",
-                "Packet.Unknown",
-            ),
-        ),
-    )
-    module = SimpleNamespace(
-        PLUGIN_CONTRACT_MANIFEST=PluginContractManifest(
-            data_type_families=replacement_families,
-            data_types=replacement_types,
-        ),
-        PLUGIN_BACKENDS=(backend,),
-    )
-
-    loaded = plugin_loader._register_module_plugins(
-        module,
-        registry,
-        "packet.module.replace",
-    )
-
-    assert loaded == []
-    assert registry.data_types.fingerprint() == before_fingerprint
-    assert registry.data_types.get("Packet.Module.Active") is not None
-    assert registry.data_types.get("Packet.Module.Replacement") is None
-    assert registry.spec_or_none("packet.module.replace") is not None
-    assert registry.spec_or_none("packet.module.invalid") is None
 
 
-def test_module_backend_descriptor_loader_exception_leaves_no_contribution() -> None:
-    families, data_types = _packet_data_type_contract(
-        family_id="packet_module_throwing",
-        type_id="Packet.Module.Throwing",
-    )
-
-    def load_descriptors() -> tuple[PluginDescriptor, ...]:
-        raise RuntimeError("descriptor load failed")
-
-    backend = PluginBackendDescriptor(
-        plugin_id="packet.module.throwing",
-        display_name="Module Throwing",
-        get_availability=lambda: PluginAvailability.available("available"),
-        load_descriptors=load_descriptors,
-    )
-    module = SimpleNamespace(
-        PLUGIN_CONTRACT_MANIFEST=PluginContractManifest(
-            data_type_families=families,
-            data_types=data_types,
-        ),
-        PLUGIN_BACKENDS=(backend,),
-    )
-    registry = NodeRegistry()
-
-    loaded = plugin_loader._register_module_plugins(
-        module,
-        registry,
-        "packet.module.throwing",
-    )
-
-    assert loaded == []
-    assert registry.data_types.get("Packet.Module.Throwing") is None
-    assert registry.spec_or_none("packet.module.throwing") is None
-    assert registry.plugin_contract_manifest("packet.module.throwing") is None
 
 
-def test_multi_backend_modules_require_backend_owned_type_contracts() -> None:
-    module_families, module_types = _packet_data_type_contract(
-        family_id="packet_module_ambiguous",
-        type_id="Packet.Module.Ambiguous",
-    )
-    first_families, first_types = _packet_data_type_contract(
-        family_id="packet_backend_first",
-        type_id="Packet.Backend.First",
-    )
-    second_families, second_types = _packet_data_type_contract(
-        family_id="packet_backend_second",
-        type_id="Packet.Backend.Second",
-    )
-    first_backend = PluginBackendDescriptor(
-        plugin_id="packet.backend.first",
-        display_name="First Backend",
-        get_availability=lambda: PluginAvailability.available("available"),
-        load_descriptors=lambda: (
-            _typed_packet_descriptor(
-                "packet.backend.first",
-                "Packet.Backend.First",
-            ),
-        ),
-        data_type_families=first_families,
-        data_types=first_types,
-    )
-    second_backend = PluginBackendDescriptor(
-        plugin_id="packet.backend.second",
-        display_name="Second Backend",
-        get_availability=lambda: PluginAvailability.available("available"),
-        load_descriptors=lambda: (
-            _typed_packet_descriptor(
-                "packet.backend.second",
-                "Packet.Backend.Second",
-            ),
-        ),
-        data_type_families=second_families,
-        data_types=second_types,
-    )
-    registry = NodeRegistry()
-
-    with pytest.raises(TypeError, match="multi-backend modules"):
-        plugin_loader._register_module_plugins(
-            SimpleNamespace(
-                PLUGIN_CONTRACT_MANIFEST=PluginContractManifest(
-                    data_type_families=module_families,
-                    data_types=module_types,
-                ),
-                PLUGIN_BACKENDS=(first_backend, second_backend),
-            ),
-            registry,
-            "packet.module.ambiguous",
-        )
-
-    assert registry.data_types.get("Packet.Module.Ambiguous") is None
-    assert registry.spec_or_none("packet.backend.first") is None
-    assert registry.spec_or_none("packet.backend.second") is None
-
-    loaded = plugin_loader._register_module_plugins(
-        SimpleNamespace(PLUGIN_BACKENDS=(first_backend, second_backend)),
-        registry,
-        "packet.module.explicit",
-    )
-
-    assert loaded == ["packet.backend.first", "packet.backend.second"]
-    assert registry.data_types.get("Packet.Backend.First") is not None
-    assert registry.data_types.get("Packet.Backend.Second") is not None
 
 
 

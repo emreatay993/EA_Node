@@ -380,6 +380,12 @@ def plugins_dir() -> Path:
     return plugin_path
 
 
+def plugin_generations_dir() -> Path:
+    generation_path = user_data_dir() / "runtime" / "plugin_generations"
+    generation_path.mkdir(parents=True, exist_ok=True)
+    return generation_path
+
+
 def tabular_data_cache_dir() -> Path:
     override = os.environ.get("EA_TABULAR_CACHE_DIR", "").strip()
     cache_path = Path(override) if override else user_data_dir() / TABULAR_DATA_CACHE_DIRNAME
