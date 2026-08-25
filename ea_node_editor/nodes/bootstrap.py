@@ -5,6 +5,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from collections.abc import Iterable
 from typing import Any
 
 from ea_node_editor.nodes.builtins.core import CORE_NODE_DESCRIPTORS
@@ -149,6 +150,7 @@ from ea_node_editor.nodes.core_data_types import (
 )
 from ea_node_editor.nodes.registry import NodeRegistry
 from ea_node_editor.nodes.plugin_contracts import PluginContractManifest
+from ea_node_editor.settings import plugins_dir
 
 
 BUILTIN_NODE_DESCRIPTORS = (
@@ -357,31 +359,145 @@ def build_builtin_registry() -> NodeRegistry:
     return registry
 
 
-def build_default_registry(
-    extra_plugin_dirs: list[Path] | None = None,
+def _build_trusted_registry(
     *,
     app_preferences_store: Any = None,
     preferences_document: Any = None,
-    include_public_plugins: bool = True,
+    addon_runtime_config: Iterable[tuple[str, bool]] | None = None,
 ) -> NodeRegistry:
     registry = build_builtin_registry()
 
-    from ea_node_editor.addons.catalog import live_addon_backend_collections
-    from ea_node_editor.nodes.plugin_loader import (
-        discover_and_load_plugins,
-        register_plugin_backends,
+    from ea_node_editor.addons.catalog import (
+        addon_registration_is_live_enabled,
+        live_addon_backend_collections,
+        registered_addon_registrations,
     )
+    from ea_node_editor.nodes.plugin_loader import register_plugin_backends
+
+    registrations = registered_addon_registrations()
+    if addon_runtime_config is None:
+        from ea_node_editor.app_preferences import (
+            default_app_preferences_document,
+            normalize_app_preferences_document,
+        )
+
+        source_preferences = (
+            preferences_document
+            if preferences_document is not None
+            else (
+                app_preferences_store.load_document()
+                if app_preferences_store is not None
+                else default_app_preferences_document()
+            )
+        )
+        runtime_preferences = normalize_app_preferences_document(
+            source_preferences
+        )
+        accepted_config = tuple(
+            sorted(
+                (
+                    registration.manifest.addon_id,
+                    addon_registration_is_live_enabled(
+                        registration,
+                        preferences_document=runtime_preferences,
+                    ),
+                )
+                for registration in registrations
+            )
+        )
+        runtime_store = app_preferences_store
+    else:
+        requested_config = dict(addon_runtime_config)
+        known_ids = {
+            registration.manifest.addon_id for registration in registrations
+        }
+        unknown_ids = set(requested_config) - known_ids
+        if unknown_ids:
+            raise ValueError("add-on runtime configuration contains unknown ids")
+        accepted_config = tuple(
+            sorted(
+                (
+                    registration.manifest.addon_id,
+                    True
+                    if registration.manifest.apply_policy != "hot_apply"
+                    else bool(requested_config.get(registration.manifest.addon_id, False)),
+                )
+                for registration in registrations
+                if registration.manifest.addon_id in requested_config
+                or registration.manifest.apply_policy != "hot_apply"
+            )
+        )
+        accepted_by_id = dict(accepted_config)
+        runtime_preferences = {
+            "addons": {
+                "states": {
+                    registration.manifest.addon_id: {
+                        "enabled": accepted_by_id.get(
+                            registration.manifest.addon_id,
+                            False,
+                        )
+                    }
+                    for registration in registrations
+                }
+            }
+        }
+        runtime_store = None
+    registry.set_addon_runtime_config(accepted_config)
 
     for addon_backends in live_addon_backend_collections(
-        preferences_document=preferences_document,
-        store=app_preferences_store,
+        preferences_document=runtime_preferences,
+        store=runtime_store,
     ):
         register_plugin_backends(
             addon_backends.backends,
             registry,
             addon_backends.source,
         )
+    return registry
+
+
+def build_default_registry(
+    extra_plugin_dirs: list[Path] | None = None,
+    *,
+    app_preferences_store: Any = None,
+    preferences_document: Any = None,
+    include_public_plugins: bool = True,
+    addon_runtime_config: Iterable[tuple[str, bool]] | None = None,
+) -> NodeRegistry:
+    registry = _build_trusted_registry(
+        app_preferences_store=app_preferences_store,
+        preferences_document=preferences_document,
+        addon_runtime_config=addon_runtime_config,
+    )
     if include_public_plugins:
+        from ea_node_editor.nodes.plugin_loader import discover_and_load_plugins
+
         discover_and_load_plugins(registry, extra_dirs=extra_plugin_dirs)
+    registry.freeze()
+    return registry
+
+
+def build_plugin_candidate_registry(
+    extra_plugin_dirs: list[Path] | None = None,
+    *,
+    generation_root: Path,
+    staged_package_root: Path | None = None,
+    app_preferences_store: Any = None,
+    preferences_document: Any = None,
+) -> NodeRegistry:
+    """Build a fresh fail-closed registry from static public-plugin sources."""
+
+    registry = _build_trusted_registry(
+        app_preferences_store=app_preferences_store,
+        preferences_document=preferences_document,
+    )
+    from ea_node_editor.nodes.plugin_loader import discover_static_plugin_candidate
+
+    discover_static_plugin_candidate(
+        registry,
+        roots=(plugins_dir(), *(extra_plugin_dirs or ())),
+        generation_root=Path(generation_root),
+        staged_package_root=staged_package_root,
+    )
     registry.freeze()
     return registry

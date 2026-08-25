@@ -42,6 +42,7 @@ class WorkerPluginRuntime:
     def __init__(self) -> None:
         self._lock = threading.RLock()
         self._runtime_fingerprint = ""
+        self._contract_fingerprint = ""
         self._registry: NodeRegistry | None = None
         self._bundles: dict[str, PluginBundleRef] = {}
         self._generations: dict[str, VerifiedPluginGeneration] = {}
@@ -73,6 +74,8 @@ class WorkerPluginRuntime:
                         and command.runtime_registry_fingerprint
                         != self._runtime_fingerprint
                     )
+                    or command.registry_contract_fingerprint
+                    != self._contract_fingerprint
                 ):
                     raise ValueError(
                         "Worker plugin generation must be retired before registry replacement"
@@ -149,7 +152,13 @@ class WorkerPluginRuntime:
                 raise ValueError(
                     "Public plugin registry uses a different data-type catalog"
                 )
+            expected_contract_fingerprint = candidate.contract_fingerprint()
+            if command.registry_contract_fingerprint != expected_contract_fingerprint:
+                raise ValueError(
+                    "Worker registry contract does not match the requested generation"
+                )
             self._runtime_fingerprint = expected_runtime_fingerprint
+            self._contract_fingerprint = expected_contract_fingerprint
             self._registry = candidate
             self._bundles = {
                 bundle.owner_id: bundle for bundle in command.plugin_bundles
@@ -206,6 +215,7 @@ class WorkerPluginRuntime:
             self._bundles.clear()
             self._registry = None
             self._runtime_fingerprint = ""
+            self._contract_fingerprint = ""
 
     @staticmethod
     def _package_name(bundle_digest: str) -> str:

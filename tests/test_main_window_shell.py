@@ -117,18 +117,10 @@ class MainWindowShellContextBootstrapTests(SharedMainWindowShellTestBase):
         active_scene_registry = self.window.scene._registry
         active_document = self.window.app_preferences_controller.document()
         persisted_document = self.window.app_preferences_controller._store.load_document()
-        replacement_registry = object()
-
-        with (
-            patch(
-                "ea_node_editor.nodes.bootstrap.build_default_registry",
-                return_value=replacement_registry,
-            ),
-            patch.object(
-                self.window.scene,
-                "rebuild_registry",
-                side_effect=RuntimeError("scene rebuild failed"),
-            ),
+        with patch.object(
+            self.window.registry_replacement_coordinator,
+            "apply_addon_enabled_state",
+            side_effect=RuntimeError("registry replacement failed"),
         ):
             self.assertFalse(
                 presenter.set_addon_enabled(ANSYS_DPF_ADDON_ID, False)

@@ -29,6 +29,9 @@ from ea_node_editor.ui.shell.composition.preferences import ShellPreferencesThem
 from ea_node_editor.ui.shell.composition.presenters import ShellPresenterDependencies
 from ea_node_editor.ui.shell.composition.primitives import ShellPrimitiveDependencies
 from ea_node_editor.ui.shell.composition.qml_context import ShellQmlContextDependencies
+from ea_node_editor.ui.shell.composition.registry_replacement import (
+    ShellRegistryReplacementDependencies,
+)
 from ea_node_editor.ui.shell.composition.runtime_services import ShellRuntimeDependencies
 from ea_node_editor.ui.shell.composition.services import ShellServices, ShellWindowComposition
 from ea_node_editor.ui.shell.composition.state import ShellStateDependencies
@@ -43,6 +46,7 @@ __all__ = [
     "ShellPresenterDependencies",
     "ShellPrimitiveDependencies",
     "ShellQmlContextDependencies",
+    "ShellRegistryReplacementDependencies",
     "ShellRuntimeDependencies",
     "ShellServices",
     "ShellStateDependencies",

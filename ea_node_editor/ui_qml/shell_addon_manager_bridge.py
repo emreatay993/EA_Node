@@ -306,7 +306,6 @@ class ShellAddOnManagerBridge(QObject):
     def _sync_presenter_bindings(self) -> None:
         self._presenter.bind(
             shell_window=self._shell_window(),
-            viewer_host_service=self._viewer_host_service,
         )
 
     def _refresh_from_request(self) -> None:

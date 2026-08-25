@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import queue
 import subprocess
@@ -113,6 +114,19 @@ def _revision_catalog(implementation_version: str) -> DataTypeCatalog:
     return catalog
 
 
+def _catalog_contract_fingerprint(catalog: DataTypeCatalog) -> str:
+    return hashlib.sha256(f"test:{catalog.fingerprint()}".encode()).hexdigest()
+
+
+def _default_registry_agreement() -> dict[str, object]:
+    registry = build_default_registry()
+    return {
+        "data_types": registry.data_types,
+        "registry_contract_fingerprint": registry.contract_fingerprint(),
+        "addon_runtime_config": registry.addon_runtime_config(),
+    }
+
+
 class _RoutingClient:
     def __init__(self, name: str) -> None:
         self.name = name
@@ -179,6 +193,7 @@ class ExecutionClientCommonTests(unittest.TestCase):
 
                 client = object.__new__(client_type)
                 client._callbacks = []  # noqa: SLF001
+                client._start_lock = threading.RLock()  # noqa: SLF001
                 client._state_lock = threading.Lock()  # noqa: SLF001
                 client._active_run_id = ""  # noqa: SLF001
                 client._active_workspace_id = ""  # noqa: SLF001
@@ -391,6 +406,7 @@ class ExecutionClientCommonTests(unittest.TestCase):
                         workspace.workspace_id,
                         {"runtime_snapshot": runtime_snapshot},
                         data_types=catalog,
+                        registry_contract_fingerprint=_catalog_contract_fingerprint(catalog),
                     )
                 )
 
@@ -417,6 +433,7 @@ class ExecutionClientCommonTests(unittest.TestCase):
                             python_executable=sys.executable,
                         ),
                         data_types=catalog,
+                        registry_contract_fingerprint=_catalog_contract_fingerprint(catalog),
                     )
                 )
 
@@ -431,6 +448,7 @@ class ExecutionClientCommonTests(unittest.TestCase):
                     workspace.workspace_id,
                     {"runtime_snapshot": runtime_snapshot},
                     data_types=catalog,
+                    registry_contract_fingerprint=_catalog_contract_fingerprint(catalog),
                 )
             )
             trusted._run_thread.join(timeout=2.0)  # noqa: SLF001
@@ -491,6 +509,7 @@ class ExecutionClientCommonTests(unittest.TestCase):
                     workspace.workspace_id,
                     {"runtime_snapshot": runtime_snapshot},
                     data_types=active_catalog,
+                    registry_contract_fingerprint=_catalog_contract_fingerprint(active_catalog),
                 )
                 self.assertTrue(active_run_id)
                 self.assertEqual(
@@ -499,6 +518,7 @@ class ExecutionClientCommonTests(unittest.TestCase):
                         workspace.workspace_id,
                         {"runtime_snapshot": runtime_snapshot},
                         data_types=competing_catalog,
+                        registry_contract_fingerprint=_catalog_contract_fingerprint(competing_catalog),
                     ),
                     "",
                 )
@@ -595,6 +615,7 @@ class ExecutionClientCommonTests(unittest.TestCase):
                                 else None
                             ),
                             data_types=first_catalog,
+                            registry_contract_fingerprint=_catalog_contract_fingerprint(first_catalog),
                         )
                         self.assertTrue(first_run_id)
                         if isinstance(client, TrustedInProcessExecutionClient):
@@ -614,6 +635,7 @@ class ExecutionClientCommonTests(unittest.TestCase):
                                 else None
                             ),
                             data_types=second_catalog,
+                            registry_contract_fingerprint=_catalog_contract_fingerprint(second_catalog),
                         )
                         self.assertTrue(second_run_id)
                         if isinstance(client, TrustedInProcessExecutionClient):
@@ -659,6 +681,9 @@ class ExecutionClientCommonTests(unittest.TestCase):
                     client._data_types = first_catalog  # noqa: SLF001
                     client._catalog_generation_fingerprint = (  # noqa: SLF001
                         first_catalog.fingerprint()
+                    )
+                    client._registry_contract_generation_fingerprint = (  # noqa: SLF001
+                        _catalog_contract_fingerprint(first_catalog)
                     )
                     client._catalog_generation_token = 7  # noqa: SLF001
                     termination_context = (
@@ -1107,6 +1132,9 @@ class ExecutionClientCommonTests(unittest.TestCase):
         client._catalog_generation_fingerprint = (  # noqa: SLF001
             first_catalog.fingerprint()
         )
+        client._registry_contract_generation_fingerprint = (  # noqa: SLF001
+            _catalog_contract_fingerprint(first_catalog)
+        )
         client._run_workflow_thread = (  # type: ignore[method-assign]  # noqa: SLF001
             lambda _command, _generation: None
         )
@@ -1123,6 +1151,7 @@ class ExecutionClientCommonTests(unittest.TestCase):
                     workspace.workspace_id,
                     {"runtime_snapshot": runtime_snapshot},
                     data_types=second_catalog,
+                    registry_contract_fingerprint=_catalog_contract_fingerprint(second_catalog),
                 )
                 self.assertTrue(run_id)
                 client._run_thread.join(timeout=2.0)  # noqa: SLF001
@@ -1153,6 +1182,9 @@ class ExecutionClientCommonTests(unittest.TestCase):
         client._data_types = first_catalog  # noqa: SLF001
         client._catalog_generation_fingerprint = (  # noqa: SLF001
             first_catalog.fingerprint()
+        )
+        client._registry_contract_generation_fingerprint = (  # noqa: SLF001
+            _catalog_contract_fingerprint(first_catalog)
         )
         client._catalog_generation_token = 1  # noqa: SLF001
         client._accepted_physical_generation_token = 1  # noqa: SLF001
@@ -1231,6 +1263,7 @@ class ExecutionClientCommonTests(unittest.TestCase):
                 workspace.workspace_id,
                 {"runtime_snapshot": runtime_snapshot},
                 data_types=second_catalog,
+                registry_contract_fingerprint=_catalog_contract_fingerprint(second_catalog),
             )
             self.assertTrue(successor_run_id)
             client._run_thread.join(timeout=1.0)  # noqa: SLF001
@@ -1311,6 +1344,9 @@ class ExecutionClientCommonTests(unittest.TestCase):
         client._catalog_generation_fingerprint = (  # noqa: SLF001
             first_catalog.fingerprint()
         )
+        client._registry_contract_generation_fingerprint = (  # noqa: SLF001
+            _catalog_contract_fingerprint(first_catalog)
+        )
         process = Mock()
         process.is_alive.return_value = True
         client._process = process  # noqa: SLF001
@@ -1339,6 +1375,7 @@ class ExecutionClientCommonTests(unittest.TestCase):
                         workspace.workspace_id,
                         {"runtime_snapshot": runtime_snapshot},
                         data_types=second_catalog,
+                        registry_contract_fingerprint=_catalog_contract_fingerprint(second_catalog),
                     ),
                     "",
                 )
@@ -1392,6 +1429,9 @@ class ExecutionClientCommonTests(unittest.TestCase):
                     client._data_types = first_catalog  # noqa: SLF001
                     client._catalog_generation_fingerprint = (  # noqa: SLF001
                         first_catalog.fingerprint()
+                    )
+                    client._registry_contract_generation_fingerprint = (  # noqa: SLF001
+                        _catalog_contract_fingerprint(first_catalog)
                     )
                     client._catalog_generation_token = 1  # noqa: SLF001
                     client._physical_generation_token = 1  # noqa: SLF001
@@ -2121,7 +2161,8 @@ class ExecutionClientCommonTests(unittest.TestCase):
 class ProcessExecutionClientTests(unittest.TestCase):
     def setUp(self) -> None:
         self.client = ProcessExecutionClient()
-        self.data_types = build_default_registry().data_types
+        self.registry = build_default_registry()
+        self.data_types = self.registry.data_types
         # Viewer-only tests emulate a catalog retained from their owning run.
         self.client._data_types = self.data_types  # noqa: SLF001
         self._events: list[dict] = []
@@ -2184,6 +2225,8 @@ class ProcessExecutionClientTests(unittest.TestCase):
             trigger_captures={trigger.node_id: captured},
             clicked_trigger_node_id=trigger.node_id,
             data_types=self.data_types,
+            registry_contract_fingerprint=self.registry.contract_fingerprint(),
+            addon_runtime_config=self.registry.addon_runtime_config(),
         )
         published = self._wait_for_event(
             lambda event: (
@@ -2326,6 +2369,8 @@ class ProcessExecutionClientTests(unittest.TestCase):
             trigger={"kind": "manual", "runtime_snapshot": runtime_snapshot},
             target_node_ids=(signal.node_id,),
             data_types=registry.data_types,
+            registry_contract_fingerprint=registry.contract_fingerprint(),
+            addon_runtime_config=registry.addon_runtime_config(),
         )
         settled = self._wait_for_event(
             lambda event: event.get("type") == "node_settled"
@@ -2535,6 +2580,8 @@ class ProcessExecutionClientTests(unittest.TestCase):
             workspace_id=workspace_id,
             trigger={"kind": "manual", "runtime_snapshot": long_runtime_snapshot},
             data_types=self.data_types,
+            registry_contract_fingerprint=self.registry.contract_fingerprint(),
+            addon_runtime_config=self.registry.addon_runtime_config(),
         )
         self.assertTrue(first_run_id)
 
@@ -2571,6 +2618,8 @@ class ProcessExecutionClientTests(unittest.TestCase):
             workspace_id=recovery_workspace_id,
             trigger={"kind": "manual", "runtime_snapshot": recovery_runtime_snapshot},
             data_types=self.data_types,
+            registry_contract_fingerprint=self.registry.contract_fingerprint(),
+            addon_runtime_config=self.registry.addon_runtime_config(),
         )
         self.assertTrue(second_run_id)
         self.assertNotEqual(first_run_id, second_run_id)
@@ -2595,6 +2644,8 @@ class ProcessExecutionClientTests(unittest.TestCase):
             workspace_id=workspace_id,
             trigger={"kind": "manual", "runtime_snapshot": runtime_snapshot},
             data_types=self.data_types,
+            registry_contract_fingerprint=self.registry.contract_fingerprint(),
+            addon_runtime_config=self.registry.addon_runtime_config(),
         )
         self.assertTrue(run_id)
 
@@ -2630,6 +2681,8 @@ class ProcessExecutionClientTests(unittest.TestCase):
             workspace_id=workspace_id,
             trigger={"kind": "manual", "runtime_snapshot": runtime_snapshot},
             data_types=self.data_types,
+            registry_contract_fingerprint=self.registry.contract_fingerprint(),
+            addon_runtime_config=self.registry.addon_runtime_config(),
         )
         self.assertTrue(run_id)
 
@@ -2696,6 +2749,8 @@ class ProcessExecutionClientTests(unittest.TestCase):
             workspace_id=workspace.workspace_id,
             trigger={"kind": "manual", "runtime_snapshot": runtime_snapshot},
             data_types=self.data_types,
+            registry_contract_fingerprint=self.registry.contract_fingerprint(),
+            addon_runtime_config=self.registry.addon_runtime_config(),
         )
         self.assertTrue(run_id)
 
@@ -2744,6 +2799,8 @@ class ProcessExecutionClientTests(unittest.TestCase):
                 "workflow_settings": {"general": {"project_name": "Demo"}},
             },
             data_types=self.data_types,
+            registry_contract_fingerprint=self.registry.contract_fingerprint(),
+            addon_runtime_config=self.registry.addon_runtime_config(),
         )
         self.assertEqual(run_id, "")
 
@@ -2907,7 +2964,7 @@ class ProcessExecutionClientTests(unittest.TestCase):
                     project_path="",
                     workspace_id=workspace_id,
                     trigger={"kind": "manual", "runtime_snapshot": runtime_snapshot},
-                    data_types=build_default_registry().data_types,
+                    **_default_registry_agreement(),
                 )
                 self.assertEqual(run_id, "")
                 rejected = _wait_for_event(
@@ -2958,7 +3015,7 @@ class ProcessExecutionClientTests(unittest.TestCase):
                 project_path="",
                 workspace_id=workspace_id,
                 trigger={"kind": "manual", "runtime_snapshot": runtime_snapshot},
-                data_types=build_default_registry().data_types,
+                **_default_registry_agreement(),
             )
             self.assertTrue(run_id)
             completed = _wait_for_event(
@@ -3037,7 +3094,7 @@ class ProcessExecutionClientTests(unittest.TestCase):
                 workspace_id=workspace_id,
                 trigger={"kind": "manual", "runtime_snapshot": runtime_snapshot},
                 execution_backend={"requested_backend": TRUSTED_IN_PROCESS_BACKEND},
-                data_types=build_default_registry().data_types,
+                **_default_registry_agreement(),
             )
             self.assertEqual(rejected_run_id, "")
             rejected = _wait_for_event(
@@ -3057,7 +3114,7 @@ class ProcessExecutionClientTests(unittest.TestCase):
                     "requested_backend": TRUSTED_IN_PROCESS_BACKEND,
                     "allow_trusted_in_process": True,
                 },
-                data_types=build_default_registry().data_types,
+                **_default_registry_agreement(),
             )
             self.assertTrue(run_id)
 
@@ -3119,7 +3176,7 @@ class ProcessExecutionClientTests(unittest.TestCase):
                     "requested_backend": TRUSTED_IN_PROCESS_BACKEND,
                     "allow_trusted_in_process": True,
                 },
-                data_types=build_default_registry().data_types,
+                **_default_registry_agreement(),
             )
             self.assertEqual(run_id, "")
             rejected = _wait_for_event(

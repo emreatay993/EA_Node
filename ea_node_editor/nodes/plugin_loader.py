@@ -716,18 +716,28 @@ def _root_entries(root: Path) -> tuple[Path, ...]:
     return tuple(sorted(entries, key=lambda path: path.name.casefold()))
 
 
-def discover_static_plugins(
-    registry: NodeRegistry,
-    *,
+def _prepared_static_bundles(
     roots: Sequence[Path],
-    generation_root: Path,
-) -> PluginDiscoveryResult:
-    loaded: list[str] = []
-    new_bundles: list[PluginBundleRef] = []
+    *,
+    strict: bool,
+    staged_package_root: Path | None,
+) -> tuple[_PreparedBundle, ...]:
+    staged = (
+        _prepare_package(Path(staged_package_root))
+        if staged_package_root is not None
+        else None
+    )
+    replacement_name = staged.package_name if staged is not None else ""
+    replacement_root = (
+        Path(roots[0]).resolve() if replacement_name and roots else None
+    )
+    candidates: list[_PreparedBundle] = []
     seen_roots: set[Path] = set()
     for raw_root in roots:
         configured_root = Path(raw_root)
         if _is_reparse_point(configured_root):
+            if strict:
+                raise ValueError("Plugin root must not be a path alias")
             logger.warning("Plugin root skipped [symlink_root]")
             continue
         root = configured_root.resolve()
@@ -739,9 +749,10 @@ def discover_static_plugins(
         try:
             entries = _root_entries(root)
         except (OSError, ValueError):
+            if strict:
+                raise ValueError("Plugin root is invalid") from None
             logger.warning("Plugin root skipped [invalid_root]")
             continue
-        candidates: list[_PreparedBundle] = []
         for source_path in entries:
             if (
                 source_path.suffix != ".py"
@@ -754,7 +765,16 @@ def discover_static_plugins(
                 prepared = _prepare_loose_file(source_path)
                 if prepared is not None:
                     candidates.append(prepared)
-            except (OSError, ValueError, PluginDeclarationError):
+            except OSError:
+                if strict:
+                    raise ValueError("Loose plugin source cannot be read") from None
+                logger.warning(
+                    "Plugin %s skipped [invalid_bundle]",
+                    _bounded_plugin_log_label(f"plugin:file:{source_path.stem}"),
+                )
+            except (ValueError, PluginDeclarationError):
+                if strict:
+                    raise
                 logger.warning(
                     "Plugin %s skipped [invalid_bundle]",
                     _bounded_plugin_log_label(f"plugin:file:{source_path.stem}"),
@@ -767,9 +787,24 @@ def discover_static_plugins(
                 or not (package_dir / MANIFEST_FILENAME).exists()
             ):
                 continue
+            if (
+                root == replacement_root
+                and replacement_name
+                and package_dir.name == replacement_name
+            ):
+                continue
             try:
                 candidates.append(_prepare_package(package_dir))
-            except (OSError, ValueError, PluginDeclarationError) as exc:
+            except OSError:
+                if strict:
+                    raise ValueError("Plugin package cannot be read") from None
+                logger.warning(
+                    "Plugin %s skipped [invalid_bundle]",
+                    _bounded_plugin_log_label(f"plugin:package:{package_dir.name}"),
+                )
+            except (ValueError, PluginDeclarationError) as exc:
+                if strict:
+                    raise
                 label = _bounded_plugin_log_label(
                     f"plugin:package:{package_dir.name}"
                 )
@@ -781,26 +816,80 @@ def discover_static_plugins(
                     )
                 else:
                     logger.warning("Plugin %s skipped [invalid_bundle]", label)
-        for prepared in candidates:
-            try:
-                bundle, type_ids = _register_prepared_bundle(
-                    prepared,
-                    registry,
-                    Path(generation_root),
-                )
-            except (OSError, TypeError, ValueError):
-                logger.warning(
-                    "Plugin %s skipped [invalid_bundle]",
-                    prepared.log_label,
-                )
-                continue
-            new_bundles.append(bundle)
-            loaded.extend(type_ids)
+    if staged is not None:
+        candidates.append(staged)
+    return tuple(candidates)
+
+
+def _discover_static_plugins(
+    registry: NodeRegistry,
+    *,
+    roots: Sequence[Path],
+    generation_root: Path,
+    strict: bool,
+    staged_package_root: Path | None = None,
+) -> PluginDiscoveryResult:
+    loaded: list[str] = []
+    new_bundles: list[PluginBundleRef] = []
+    candidates = _prepared_static_bundles(
+        roots,
+        strict=strict,
+        staged_package_root=staged_package_root,
+    )
+    for prepared in candidates:
+        try:
+            bundle, type_ids = _register_prepared_bundle(
+                prepared,
+                registry,
+                Path(generation_root),
+            )
+        except (OSError, TypeError, ValueError):
+            if strict:
+                raise
+            logger.warning(
+                "Plugin %s skipped [invalid_bundle]",
+                prepared.log_label,
+            )
+            continue
+        new_bundles.append(bundle)
+        loaded.extend(type_ids)
 
     bundles = (*registry.plugin_bundle_refs(), *new_bundles)
     fingerprint = plugin_fingerprint(registry, bundles)
     registry.set_python_plugin_catalog(tuple(bundles), plugin_fingerprint=fingerprint)
     return PluginDiscoveryResult(tuple(loaded), tuple(bundles), fingerprint)
+
+
+def discover_static_plugins(
+    registry: NodeRegistry,
+    *,
+    roots: Sequence[Path],
+    generation_root: Path,
+) -> PluginDiscoveryResult:
+    return _discover_static_plugins(
+        registry,
+        roots=roots,
+        generation_root=generation_root,
+        strict=False,
+    )
+
+
+def discover_static_plugin_candidate(
+    registry: NodeRegistry,
+    *,
+    roots: Sequence[Path],
+    generation_root: Path,
+    staged_package_root: Path | None = None,
+) -> PluginDiscoveryResult:
+    """Build one fail-closed public-plugin candidate without executing source."""
+
+    return _discover_static_plugins(
+        registry,
+        roots=roots,
+        generation_root=generation_root,
+        strict=True,
+        staged_package_root=staged_package_root,
+    )
 
 
 def discover_package_plugins(

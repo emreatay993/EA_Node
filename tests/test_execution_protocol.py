@@ -1829,12 +1829,16 @@ class ExecutionProtocolTests(unittest.TestCase):
                     event_to_dict(event)
 
     def test_active_stdio_rejects_duplicate_start_before_registry_rebind(self) -> None:
-        catalog = _catalog()
+        registry = build_default_registry()
+        catalog = registry.data_types
+        DEFAULT_RUNTIME_PREPARATION_CACHE.clear()
         first = command_to_dict(
             StartRunCommand(
                 run_id="run_a",
                 workspace_id="ws_protocol",
                 runtime_snapshot=_typed_snapshot(),
+                registry_contract_fingerprint=registry.contract_fingerprint(),
+                addon_runtime_config=registry.addon_runtime_config(),
             ),
             catalog=catalog,
         )

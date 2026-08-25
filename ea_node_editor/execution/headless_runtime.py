@@ -10,6 +10,7 @@ import sys
 import threading
 import time
 from collections.abc import Callable, Iterator, Mapping, Sequence
+from contextlib import contextmanager
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Literal
@@ -247,6 +248,7 @@ class CorexRuntime:
         self._client = client or ExecutionBackendClient()
         self._owns_client = client is None
         self._registry = registry
+        self._registry_publication_lock = threading.RLock()
         self._event_stream = ExecutionEventStream()
         self._client.subscribe(self._event_stream.publish)
 
@@ -257,17 +259,38 @@ class CorexRuntime:
     def subscribe(self, callback: ExecutionEventCallback) -> Callable[[], None]:
         return self._event_stream.subscribe(callback)
 
+    @contextmanager
+    def registry_publication_guard(self) -> Iterator[None]:
+        client_guard = getattr(self._client, "registry_publication_guard", None)
+        if callable(getattr(type(self._client), "registry_publication_guard", None)):
+            with client_guard():
+                yield
+            return
+        with self._registry_publication_lock:
+            yield
+
+    def assert_registry_replaceable(self) -> None:
+        with self.registry_publication_guard():
+            assert_replaceable = getattr(
+                self._client,
+                "assert_registry_replaceable",
+                None,
+            )
+            if callable(assert_replaceable):
+                assert_replaceable()
+
     def replace_registry(self, registry: NodeRegistry) -> bool:
         if not isinstance(registry, NodeRegistry):
             raise TypeError("registry must be a NodeRegistry")
-        replace_client_registry = getattr(self._client, "replace_registry", None)
-        retired = (
-            bool(replace_client_registry(registry))
-            if callable(replace_client_registry)
-            else False
-        )
-        self._registry = registry
-        return retired
+        with self.registry_publication_guard():
+            replace_client_registry = getattr(self._client, "replace_registry", None)
+            retired = (
+                bool(replace_client_registry(registry))
+                if callable(replace_client_registry)
+                else False
+            )
+            self._registry = registry
+            return retired
 
     def load_project(
         self,
@@ -325,7 +348,8 @@ class CorexRuntime:
         )
 
     def start(self, request: ExecutionRequest) -> str:
-        return self._start_prepared(self.prepare_request(request))
+        with self.registry_publication_guard():
+            return self._start_prepared(self.prepare_request(request))
 
     def start_run(
         self,
@@ -455,7 +479,8 @@ class CorexRuntime:
         self._client.stop_run(run_id)
 
     def open_viewer_session(self, *args: Any, **kwargs: Any) -> str:
-        return self._client.open_viewer_session(*args, **kwargs)
+        with self.registry_publication_guard():
+            return self._client.open_viewer_session(*args, **kwargs)
 
     def update_viewer_session(self, *args: Any, **kwargs: Any) -> str:
         return self._client.update_viewer_session(*args, **kwargs)
@@ -487,6 +512,8 @@ class CorexRuntime:
             data_types=self._registry.data_types,
             plugin_bundles=self._registry.plugin_bundle_refs(),
             plugin_fingerprint=self._registry.plugin_fingerprint(),
+            registry_contract_fingerprint=self._registry.contract_fingerprint(),
+            addon_runtime_config=self._registry.addon_runtime_config(),
         )
 
     @staticmethod

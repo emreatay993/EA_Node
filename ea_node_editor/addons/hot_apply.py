@@ -10,6 +10,7 @@ from ea_node_editor.addons.catalog import (
 )
 from ea_node_editor.app_preferences import (
     AppPreferencesStore,
+    addon_state,
     default_app_preferences_document,
     normalize_app_preferences_document,
     set_addon_state,
@@ -48,6 +49,8 @@ class AddOnRuntimeCoordinator(Protocol):
 
 @dataclass(slots=True)
 class AddOnRuntimeRebuildCoordinator:
+    """Standalone service rebuild helper; the live shell uses its guarded coordinator."""
+
     graph_scene_bridge: "GraphSceneBridge | None" = None
     worker_services: "WorkerServices | None" = None
     viewer_host_service: "ViewerHostService | None" = None
@@ -70,6 +73,13 @@ class AddOnRuntimeRebuildCoordinator:
             app_preferences_store=app_preferences_store,
             preferences_document=normalized_document,
         )
+        accepted_enabled = dict(rebuilt_registry.addon_runtime_config()).get(
+            addon_id
+        )
+        requested_enabled = bool(addon_state(normalized_document, addon_id)["enabled"])
+        if accepted_enabled is not requested_enabled:
+            raise RuntimeError("Add-on registry identity does not match preferences")
+        rebuilt_registry.contract_fingerprint()
         if self.worker_services is not None:
             self.worker_services.rebuild_addon_runtime(preferences_document=normalized_document)
         if self.viewer_host_service is not None:
@@ -78,7 +88,7 @@ class AddOnRuntimeRebuildCoordinator:
                 reason=f"addon_apply:{addon_id}",
             )
         if self.graph_scene_bridge is not None:
-            self.graph_scene_bridge.rebuild_registry(rebuilt_registry)
+            self.graph_scene_bridge.replace_registry(rebuilt_registry)
         if callable(self.on_registry_rebuilt):
             self.on_registry_rebuilt(rebuilt_registry)
         return rebuilt_registry

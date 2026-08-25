@@ -4,6 +4,7 @@ import json
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 from ea_node_editor.settings import (
     APP_PREFERENCES_KIND,
@@ -109,6 +110,40 @@ class SourceImportPreferencesTests(unittest.TestCase):
             reloaded_controller.node_library_usage(),
             [f"core.node_{index}" for index in range(2, 66)],
         )
+
+    def test_explicit_store_and_document_replacement_apis_keep_cache_in_sync(self) -> None:
+        initial = self._controller.load()
+        replacement = dict(initial)
+        replacement["source_import"] = {"default_mode": "managed_copy"}
+
+        self.assertIs(self._controller.store(), self._store)
+        replaced = self._controller.replace_document(replacement)
+        self.assertEqual(replaced["source_import"]["default_mode"], "managed_copy")
+        self.assertFalse(self._preferences_path.exists())
+
+        persisted = self._controller.persist_document(replaced)
+        self.assertEqual(persisted, self._controller.document())
+        self.assertEqual(
+            json.loads(self._preferences_path.read_text(encoding="utf-8")),
+            persisted,
+        )
+
+    def test_failed_explicit_persist_leaves_cached_document_unchanged(self) -> None:
+        before = self._controller.load()
+        replacement = dict(before)
+        replacement["source_import"] = {"default_mode": "managed_copy"}
+
+        with (
+            mock.patch.object(
+                self._store,
+                "persist_document",
+                side_effect=OSError("write failed"),
+            ),
+            self.assertRaisesRegex(OSError, "write failed"),
+        ):
+            self._controller.persist_document(replacement)
+
+        self.assertEqual(self._controller.document(), before)
 
 
 if __name__ == "__main__":

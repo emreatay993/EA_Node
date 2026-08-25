@@ -1473,7 +1473,9 @@ class WorkflowRunner:
         data_types: DataTypeCatalog | None = None
         try:
             preflight_catalog = (
-                DEFAULT_RUNTIME_PREPARATION_CACHE.default_registry().data_types
+                DEFAULT_RUNTIME_PREPARATION_CACHE.default_registry(
+                    command.addon_runtime_config
+                ).data_types
             )
             mismatch = catalog_mismatch_message(
                 command.catalog_fingerprint,

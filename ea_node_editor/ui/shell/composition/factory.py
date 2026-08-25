@@ -35,6 +35,10 @@ from ea_node_editor.ui.shell.composition.qml_context import (
     ShellQmlContextDependencies,
     create_qml_context_dependencies,
 )
+from ea_node_editor.ui.shell.composition.registry_replacement import (
+    ShellRegistryReplacementDependencies,
+    create_registry_replacement_dependencies,
+)
 from ea_node_editor.ui.shell.composition.runtime_services import (
     ShellRuntimeDependencies,
     create_viewer_service_dependencies,
@@ -82,6 +86,8 @@ class ShellWindowDependencyFactory:
             presenters = self.create_presenter_dependencies(state)
         with phase("factory.viewer_services"):
             runtime = self.create_viewer_service_dependencies(primitives)
+        with phase("factory.registry_replacement"):
+            registry_replacement = self.create_registry_replacement_dependencies()
         with phase("factory.context_bridges"):
             context_bridges = self.create_context_bridge_dependencies(
                 primitives, controllers, presenters, runtime
@@ -111,6 +117,7 @@ class ShellWindowDependencyFactory:
                 controllers=controllers,
                 presenters=presenters,
                 runtime=runtime,
+                registry_replacement=registry_replacement,
                 context_bridges=context_bridges,
                 graph_actions=graph_actions,
                 qml_context=qml_context,
@@ -129,6 +136,7 @@ class ShellWindowDependencyFactory:
         controllers: ShellControllerDependencies,
         presenters: ShellPresenterDependencies,
         runtime: ShellRuntimeDependencies,
+        registry_replacement: ShellRegistryReplacementDependencies,
         context_bridges: ShellContextBridgeDependencies,
         graph_actions: ShellGraphActionDependencies,
         qml_context: ShellQmlContextDependencies,
@@ -141,6 +149,7 @@ class ShellWindowDependencyFactory:
             controllers=controllers,
             presenters=presenters,
             runtime=runtime,
+            registry_replacement=registry_replacement,
             context_bridges=context_bridges,
             graph_actions=graph_actions,
             qml_context=qml_context,
@@ -196,6 +205,11 @@ class ShellWindowDependencyFactory:
         self, primitives: ShellPrimitiveDependencies
     ) -> ShellRuntimeDependencies:
         return self.create_viewer_service_dependencies(primitives)
+
+    def create_registry_replacement_dependencies(
+        self,
+    ) -> ShellRegistryReplacementDependencies:
+        return create_registry_replacement_dependencies(self._host)
 
     def create_viewer_service_dependencies(
         self, primitives: ShellPrimitiveDependencies

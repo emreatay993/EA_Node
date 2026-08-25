@@ -11,6 +11,9 @@ from ea_node_editor.ui.shell.composition.preferences import ShellPreferencesThem
 from ea_node_editor.ui.shell.composition.presenters import ShellPresenterDependencies
 from ea_node_editor.ui.shell.composition.primitives import ShellPrimitiveDependencies
 from ea_node_editor.ui.shell.composition.qml_context import ShellQmlContextDependencies
+from ea_node_editor.ui.shell.composition.registry_replacement import (
+    ShellRegistryReplacementDependencies,
+)
 from ea_node_editor.ui.shell.composition.runtime_services import ShellRuntimeDependencies
 from ea_node_editor.ui.shell.composition.state import ShellStateDependencies
 
@@ -27,6 +30,7 @@ class ShellServices:
     controllers: ShellControllerDependencies
     presenters: ShellPresenterDependencies
     runtime: ShellRuntimeDependencies
+    registry_replacement: ShellRegistryReplacementDependencies
     context_bridges: ShellContextBridgeDependencies
     graph_actions: ShellGraphActionDependencies
     qml_context: ShellQmlContextDependencies
@@ -40,6 +44,7 @@ class ShellServices:
         self.controllers.attach(host)
         self.presenters.attach(host)
         self.runtime.attach(host)
+        self.registry_replacement.attach(host)
         self.context_bridges.attach(host)
         self.graph_actions.attach(host)
 

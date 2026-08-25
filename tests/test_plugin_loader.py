@@ -25,7 +25,7 @@ from ea_node_editor.app_preferences import (
     normalize_app_preferences_document,
     set_addon_state,
 )
-from ea_node_editor.nodes import plugin_loader
+from ea_node_editor.nodes import bootstrap, plugin_loader
 from ea_node_editor.nodes import plugin_generation
 from ea_node_editor.nodes.core_data_types import GRAPH_DATA_TYPE_ID
 from ea_node_editor.nodes.node_specs import NodeTypeSpec, PortSpec
@@ -174,6 +174,156 @@ def _write_schema2_package(
         json.dumps(manifest, indent=2) + "\n",
     )
     return package_dir
+
+
+def _write_function_package(
+    root: Path,
+    *,
+    name: str,
+    type_id: str,
+    source: str,
+) -> Path:
+    return _write_schema2_package(
+        root,
+        name=name,
+        sources={"nodes.py": source},
+        modules=["nodes.py"],
+        nodes=[{"id": type_id, "module": "nodes.py", "function": "static_node"}],
+    )
+
+
+def test_candidate_registry_statically_overrides_package_and_matches_final(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    installed_root = tmp_path / "installed"
+    loose_type_id = "custom.candidate_loose.1234abcd"
+    replaced_type_id = "custom.candidate_replaced.1234abcd"
+    _write_text(installed_root / "loose.py", _function_source(loose_type_id))
+    installed_package = _write_function_package(
+        installed_root,
+        name="candidate_package",
+        type_id=replaced_type_id,
+        source=_function_source(replaced_type_id, description="installed"),
+    )
+    installed_bytes = (installed_package / "nodes.py").read_bytes()
+    marker = tmp_path / "executed.txt"
+    replacement_source = _function_source(
+        replaced_type_id,
+        description="replacement",
+        prelude=(
+            "from pathlib import Path\n"
+            f"Path({str(marker)!r}).write_text('executed', encoding='utf-8')"
+        ),
+    )
+    staged_package = _write_function_package(
+        tmp_path / "staged",
+        name="candidate_package",
+        type_id=replaced_type_id,
+        source=replacement_source,
+    )
+    baseline = bootstrap.build_default_registry(include_public_plugins=False)
+    monkeypatch.setattr(bootstrap, "plugins_dir", lambda: installed_root)
+
+    candidate_root = tmp_path / "candidate-generations"
+    candidate = bootstrap.build_plugin_candidate_registry(
+        generation_root=candidate_root,
+        staged_package_root=staged_package,
+    )
+
+    assert candidate.get_spec(replaced_type_id).description == "replacement"
+    assert candidate.spec_or_none(loose_type_id) is not None
+    assert (installed_package / "nodes.py").read_bytes() == installed_bytes
+    assert not marker.exists()
+    assert {
+        Path(bundle.approved_generation_root).parent
+        for bundle in candidate.plugin_bundle_refs()
+    } == {candidate_root.resolve()}
+    assert candidate.data_types.fingerprint() == baseline.data_types.fingerprint()
+    assert {
+        spec.type_id
+        for spec in candidate.all_specs()
+        if candidate.python_function_ref_or_none(spec.type_id) is None
+    } == {spec.type_id for spec in baseline.all_specs()}
+
+    final_root = tmp_path / "final-installed"
+    _write_text(final_root / "loose.py", _function_source(loose_type_id))
+    _write_function_package(
+        final_root,
+        name="candidate_package",
+        type_id=replaced_type_id,
+        source=replacement_source,
+    )
+    monkeypatch.setattr(bootstrap, "plugins_dir", lambda: final_root)
+    final = bootstrap.build_plugin_candidate_registry(
+        generation_root=tmp_path / "canonical-generations",
+    )
+
+    assert candidate.plugin_fingerprint() == final.plugin_fingerprint()
+    assert {
+        bundle.bundle_digest for bundle in candidate.plugin_bundle_refs()
+    } == {bundle.bundle_digest for bundle in final.plugin_bundle_refs()}
+    assert not marker.exists()
+
+
+def test_candidate_registry_rejects_conflict_outside_replaced_package(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    installed_root = tmp_path / "installed"
+    replaced_type_id = "custom.replaced.1234abcd"
+    retained_type_id = "custom.retained.1234abcd"
+    _write_function_package(
+        installed_root,
+        name="replace_me",
+        type_id=replaced_type_id,
+        source=_function_source(replaced_type_id),
+    )
+    _write_function_package(
+        installed_root,
+        name="retain_me",
+        type_id=retained_type_id,
+        source=_function_source(retained_type_id),
+    )
+    staged_package = _write_function_package(
+        tmp_path / "staged",
+        name="replace_me",
+        type_id=retained_type_id,
+        source=_function_source(retained_type_id, description="conflict"),
+    )
+    monkeypatch.setattr(bootstrap, "plugins_dir", lambda: installed_root)
+
+    with pytest.raises(ValueError, match="conflicts with an active node id"):
+        bootstrap.build_plugin_candidate_registry(
+            generation_root=tmp_path / "generations",
+            staged_package_root=staged_package,
+        )
+
+
+def test_candidate_override_requires_exact_installed_package_name(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    installed_root = tmp_path / "installed"
+    _write_function_package(
+        installed_root,
+        name="same-owner",
+        type_id="custom.same_owner_old.1234abcd",
+        source=_function_source("custom.same_owner_old.1234abcd"),
+    )
+    staged_package = _write_function_package(
+        tmp_path / "staged",
+        name="same_owner",
+        type_id="custom.same_owner_new.1234abcd",
+        source=_function_source("custom.same_owner_new.1234abcd"),
+    )
+    monkeypatch.setattr(bootstrap, "plugins_dir", lambda: installed_root)
+
+    with pytest.raises(ValueError, match="owner is already active"):
+        bootstrap.build_plugin_candidate_registry(
+            generation_root=tmp_path / "generations",
+            staged_package_root=staged_package,
+        )
 
 
 
@@ -1196,6 +1346,7 @@ def test_hot_apply_failure_keeps_consumers_and_persisted_preference_unchanged(
 
     active_registry = NodeRegistry()
     replacement_registry = NodeRegistry()
+    replacement_registry.set_addon_runtime_config(((ANSYS_DPF_ADDON_ID, False),))
     active_serializer = object()
     consumers = SimpleNamespace(
         registry=active_registry,
@@ -1206,7 +1357,7 @@ def test_hot_apply_failure_keeps_consumers_and_persisted_preference_unchanged(
         def __init__(self) -> None:
             self.registry = active_registry
 
-        def rebuild_registry(self, registry) -> None:  # noqa: ANN001
+        def replace_registry(self, registry) -> None:  # noqa: ANN001
             assert registry is replacement_registry
             raise RuntimeError("scene rebuild failed")
 
@@ -1265,11 +1416,12 @@ def test_hot_apply_publishes_consumers_then_persists_success(
     calls.clear()
 
     replacement_registry = NodeRegistry()
+    replacement_registry.set_addon_runtime_config(((ANSYS_DPF_ADDON_ID, False),))
 
     class RecordingScene:
         registry = None
 
-        def rebuild_registry(self, registry) -> None:  # noqa: ANN001
+        def replace_registry(self, registry) -> None:  # noqa: ANN001
             self.registry = registry
             calls.append("scene")
 

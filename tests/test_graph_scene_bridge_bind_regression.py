@@ -70,6 +70,76 @@ class _EdgeRewireCanvasSource:
 
 
 class GraphSceneBridgeBindRegressionTests(unittest.TestCase):
+    def test_scene_registry_replace_never_normalizes_open_graph_data(self) -> None:
+        active_registry = build_default_registry()
+        replacement_registry = NodeRegistry()
+        replacement_registry.freeze()
+        model = GraphModel()
+        workspace = model.active_workspace
+        node = model.add_node(
+            workspace.workspace_id,
+            "core.constant",
+            "Preserved",
+            0.0,
+            0.0,
+            properties={"value": "authored"},
+        )
+        workspace.dirty = False
+        workspace.mutation_revision = 11
+        snapshot = workspace.capture_snapshot()
+        project_revision = model.project.project_document_revision
+        scene = GraphSceneBridge()
+        scene.set_workspace(model, active_registry, workspace.workspace_id)
+
+        scene.replace_registry(replacement_registry)
+
+        self.assertIs(scene._registry, replacement_registry)
+        self.assertEqual(workspace.capture_snapshot(), snapshot)
+        self.assertEqual(workspace.mutation_revision, 11)
+        self.assertEqual(model.project.project_document_revision, project_revision)
+        self.assertIn(node.node_id, workspace.nodes)
+
+    def test_scene_registry_replace_restores_payloads_on_publication_failure(
+        self,
+    ) -> None:
+        active_registry = build_default_registry()
+        replacement_registry = NodeRegistry()
+        replacement_registry.freeze()
+        model = GraphModel()
+        workspace = model.active_workspace
+        model.add_node(
+            workspace.workspace_id,
+            "core.constant",
+            "Preserved",
+            0.0,
+            0.0,
+        )
+        scene = GraphSceneBridge()
+        scene.set_workspace(model, active_registry, workspace.workspace_id)
+        cache_before = copy.deepcopy(scene._payload_cache)
+        nodes_before = copy.deepcopy(scene.nodes_model)
+        edges_before = copy.deepcopy(scene.edges_model)
+        real_rebuild_models = scene._scene_context.rebuild_models
+
+        def rebuild_then_fail() -> None:
+            real_rebuild_models()
+            raise RuntimeError("payload publication failed")
+
+        with (
+            patch.object(
+                scene._scene_context,
+                "rebuild_models",
+                side_effect=rebuild_then_fail,
+            ),
+            self.assertRaisesRegex(RuntimeError, "payload publication failed"),
+        ):
+            scene.replace_registry(replacement_registry)
+
+        self.assertIs(scene._registry, active_registry)
+        self.assertEqual(scene._payload_cache, cache_before)
+        self.assertEqual(scene.nodes_model, nodes_before)
+        self.assertEqual(scene.edges_model, edges_before)
+
     def test_scene_registry_rebuild_restores_project_and_scene_on_publication_failure(
         self,
     ) -> None:

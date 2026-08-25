@@ -102,6 +102,28 @@ class GraphSceneBridge(GraphSceneBridgeBase):
             self.edges_changed.emit()
             raise
 
+    def replace_registry(self, registry: NodeRegistry) -> None:
+        """Replace the presentation registry without normalizing graph data."""
+
+        if not isinstance(registry, NodeRegistry):
+            raise TypeError("registry must be a NodeRegistry")
+        previous_registry = self._registry
+        previous_payload_cache = copy.deepcopy(self._payload_cache)
+        previous_node_delta_payload = copy.deepcopy(
+            self._state_bridge.node_delta_payload
+        )
+        self._registry = registry
+        try:
+            if self._model is not None:
+                self._scene_context.rebuild_models()
+        except Exception:
+            self._registry = previous_registry
+            self._payload_cache = previous_payload_cache
+            self._state_bridge.node_delta_payload = previous_node_delta_payload
+            self.nodes_changed.emit()
+            self.edges_changed.emit()
+            raise
+
     def resync_scene_payloads(self) -> None:
         """Defensive full resync: rebuild scene payload models from the graph
         model. Used by view-layer consumers (e.g. the visible-model duplicate

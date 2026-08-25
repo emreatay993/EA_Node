@@ -438,6 +438,7 @@ class DpfViewerNodeTests(unittest.TestCase):
 
         disabled_nodes = {payload["node_id"]: payload for payload in scene.nodes_model}
         self.assertNotIn("node_dpf_viewer", disabled_nodes)
+        self.assertIn("node_dpf_viewer", model.project.workspaces["ws_dpf_viewer"].nodes)
         self.assertIsNotNone(disabled.registry)
         self.assertIsNone(disabled.registry.spec_or_none(DPF_VIEWER_NODE_TYPE_ID))
         self.assertIsNone(rebuilt_registries[-1].spec_or_none(DPF_VIEWER_NODE_TYPE_ID))
@@ -451,7 +452,7 @@ class DpfViewerNodeTests(unittest.TestCase):
         )
 
         reenabled_nodes = {payload["node_id"]: payload for payload in scene.nodes_model}
-        self.assertNotIn("node_dpf_viewer", reenabled_nodes)
+        self.assertIn("node_dpf_viewer", reenabled_nodes)
         self.assertIsNotNone(reenabled.registry)
         self.assertIsNotNone(reenabled.registry.spec_or_none(DPF_VIEWER_NODE_TYPE_ID))
         self.assertIsNotNone(rebuilt_registries[-1].spec_or_none(DPF_VIEWER_NODE_TYPE_ID))

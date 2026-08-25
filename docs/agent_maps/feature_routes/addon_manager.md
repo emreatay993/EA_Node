@@ -8,6 +8,7 @@ Use this for add-on catalog metadata, add-on manager shell/QML payloads, depende
 - `ea_node_editor/addons/hot_apply.py`
 - `ea_node_editor/ui/shell/controllers/addon_manager_controller.py`
 - `ea_node_editor/ui/shell/presenters/addon_manager_presenter.py`
+- `ea_node_editor/ui/shell/registry_replacement.py`
 - `ea_node_editor/ui/shell/presenters/_addon_manager_payloads.py`
 - `ea_node_editor/ui_qml/shell_addon_manager_bridge.py`
 - `ea_node_editor/ui_qml/components/shell/AddOnManagerPane.qml`
@@ -18,7 +19,7 @@ Use this for add-on catalog metadata, add-on manager shell/QML payloads, depende
 - Managed package setup has no default five-minute ceiling. The runtime command runner streams its latest phase/output line through the install worker and bridge to `AddOnManagerPane.qml`.
 - Add-on setup reports the exact selected COREX Python path. Source runs use the active interpreter; frozen runs use the app-managed AppData interpreter.
 - Keep progress transient and bridge-owned: QML displays only the latest line while installation is active, and thread cleanup clears it.
-- Hot-apply registry replacement commits in this order: runtime services, graph scene, shell registry/serializer consumers, then the persisted enabled-state preference. A failed graph-scene replacement leaves the active scene/shell registry, serializers, and stored preference unchanged.
+- Hot apply builds and checks a fresh registry, then holds the shared runtime admission guard through final contract verification, non-normalizing runtime/scene/shell publication, preference persistence, and complete reverse rollback. Notifications occur only after durable success; workers receive the accepted bounded add-on configuration rather than default preferences.
 
 ## Focused Verification
 ```powershell

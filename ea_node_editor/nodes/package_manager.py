@@ -13,6 +13,7 @@ import shutil
 import stat
 import zipfile
 from dataclasses import dataclass, field
+from enum import Enum
 from pathlib import Path, PurePosixPath
 from uuid import uuid4
 
@@ -59,6 +60,214 @@ class PackageManifest:
     sources: list[dict[str, str]] = field(default_factory=list)
     assets: list[dict[str, str]] = field(default_factory=list)
     schema_version: int = 2
+
+
+class PackageInstallState(str, Enum):
+    """Observable states for a reversible package installation."""
+
+    STAGED = "staged"
+    ACTIVATED = "activated"
+    COMMITTED = "committed"
+    ROLLED_BACK = "rolled_back"
+    FAILED = "failed"
+
+
+@dataclass(slots=True)
+class PackageInstallTransaction:
+    """One validated package staged for reversible activation."""
+
+    manifest: PackageManifest
+    staged_package_root: Path
+    installed_package_root: Path
+    _container: Path = field(repr=False)
+    _manifest_bytes: bytes = field(repr=False)
+    _state: PackageInstallState = field(
+        default=PackageInstallState.STAGED,
+        init=False,
+        repr=False,
+    )
+    _backup_root: Path | None = field(default=None, init=False, repr=False)
+    _activation_completed: bool = field(default=False, init=False, repr=False)
+    _had_previous_install: bool = field(default=False, init=False, repr=False)
+    _rollback_filesystem_restored: bool = field(default=False, init=False, repr=False)
+    _issues: tuple[str, ...] = field(default=(), init=False, repr=False)
+
+    @property
+    def state(self) -> PackageInstallState:
+        return self._state
+
+    @property
+    def issues(self) -> tuple[str, ...]:
+        """Stable, path-free codes for unresolved transaction work."""
+
+        return self._issues
+
+    def _require(self, action: str, *states: PackageInstallState) -> None:
+        if self._state not in states:
+            raise RuntimeError(
+                f"Cannot {action} package install transaction from state "
+                f"'{self._state.value}'"
+            )
+
+    def _fail(self, *issues: str) -> None:
+        self._state = PackageInstallState.FAILED
+        self._issues = tuple(dict.fromkeys(issues))
+        raise RuntimeError(
+            f"Package install rollback failed [{','.join(self._issues)}]"
+        )
+
+    def activate(self) -> None:
+        """Publish the staged package while retaining any previous install."""
+
+        if self._state is PackageInstallState.ACTIVATED:
+            return
+        self._require("activate", PackageInstallState.STAGED)
+        self._issues = ()
+        backup_root: Path | None = None
+        try:
+            current_manifest = _validated_package_directory(self.staged_package_root)
+            if canonical_manifest_bytes(current_manifest) != self._manifest_bytes:
+                raise ValueError("Staged package changed after validation")
+            if self.installed_package_root.exists() or _is_reparse_point(
+                self.installed_package_root
+            ):
+                if _is_reparse_point(
+                    self.installed_package_root
+                ) or not self.installed_package_root.is_dir():
+                    raise ValueError(
+                        "Installed package target is not a regular directory"
+                    )
+                backup_root = _temporary_container(
+                    self.installed_package_root.parent,
+                    self.installed_package_root.name,
+                    kind="backup",
+                )
+                self.installed_package_root.replace(backup_root)
+                self._backup_root = backup_root
+                self._had_previous_install = True
+            try:
+                self.staged_package_root.replace(self.installed_package_root)
+            except OSError:
+                if backup_root is not None and not self.installed_package_root.exists():
+                    try:
+                        backup_root.replace(self.installed_package_root)
+                    except OSError:
+                        self._state = PackageInstallState.FAILED
+                        self._issues = ("activation_prior_restore",)
+                        raise OSError("package activation rollback failed") from None
+                    self._backup_root = None
+                raise
+        except OSError:
+            raise ValueError(_IMPORT_FILESYSTEM_ERROR) from None
+        self._activation_completed = True
+        self._state = PackageInstallState.ACTIVATED
+
+    def commit(self) -> None:
+        """Make the activated install final and remove retained staging."""
+
+        if self._state is PackageInstallState.COMMITTED:
+            self._cleanup_retained_paths()
+            return
+        self._require("commit", PackageInstallState.ACTIVATED)
+        self._state = PackageInstallState.COMMITTED
+        self._cleanup_retained_paths()
+
+    def rollback(self) -> None:
+        """Restore the exact install state that existed before staging."""
+
+        if self._state is PackageInstallState.ROLLED_BACK:
+            return
+        self._require(
+            "roll back",
+            PackageInstallState.STAGED,
+            PackageInstallState.ACTIVATED,
+            PackageInstallState.FAILED,
+        )
+        self._issues = ()
+        if self._rollback_filesystem_restored:
+            self._finish_rollback()
+            return
+
+        backup_root = self._backup_root
+        if not self._activation_completed:
+            if backup_root is not None:
+                if self.installed_package_root.exists() or _is_reparse_point(
+                    self.installed_package_root
+                ):
+                    self._fail("rollback_installed_state")
+                if _is_reparse_point(backup_root) or not backup_root.is_dir():
+                    self._fail("rollback_backup_state")
+                try:
+                    backup_root.replace(self.installed_package_root)
+                except OSError:
+                    self._fail("rollback_prior_restore")
+                self._backup_root = None
+            self._finish_rollback()
+            return
+
+        if self._had_previous_install and backup_root is None:
+            if _is_reparse_point(
+                self.installed_package_root
+            ) or not self.installed_package_root.is_dir():
+                self._fail("rollback_prior_state")
+        else:
+            installed_exists = self.installed_package_root.exists() or _is_reparse_point(
+                self.installed_package_root
+            )
+            staged_exists = self.staged_package_root.exists() or _is_reparse_point(
+                self.staged_package_root
+            )
+            if installed_exists:
+                if _is_reparse_point(
+                    self.installed_package_root
+                ) or not self.installed_package_root.is_dir():
+                    self._fail("rollback_installed_state")
+                if staged_exists:
+                    self._fail("rollback_staging_state")
+                try:
+                    self.installed_package_root.replace(self.staged_package_root)
+                except OSError:
+                    self._fail("rollback_active_move")
+            elif _is_reparse_point(
+                self.staged_package_root
+            ) or not self.staged_package_root.is_dir():
+                self._fail("rollback_staging_state")
+
+            if self._had_previous_install:
+                if backup_root is None or _is_reparse_point(
+                    backup_root
+                ) or not backup_root.is_dir():
+                    self._fail("rollback_backup_state")
+                try:
+                    backup_root.replace(self.installed_package_root)
+                except OSError:
+                    issues = ["rollback_prior_restore"]
+                    try:
+                        self.staged_package_root.replace(self.installed_package_root)
+                    except OSError:
+                        issues.append("rollback_active_restore")
+                    self._fail(*issues)
+                self._backup_root = None
+
+        self._finish_rollback()
+
+    def _finish_rollback(self) -> None:
+        self._rollback_filesystem_restored = True
+        if not _cleanup_path(self._container, code="import_staging"):
+            self._fail("rollback_staging_cleanup")
+        self._state = PackageInstallState.ROLLED_BACK
+        self._issues = ()
+
+    def _cleanup_retained_paths(self) -> None:
+        issues: list[str] = []
+        if self._backup_root is not None:
+            if _cleanup_path(self._backup_root, code="activation_backup"):
+                self._backup_root = None
+            else:
+                issues.append("commit_backup_cleanup")
+        if not _cleanup_path(self._container, code="import_staging"):
+            issues.append("commit_staging_cleanup")
+        self._issues = tuple(issues)
 
 
 @dataclass(frozen=True, slots=True)
@@ -374,15 +583,15 @@ def _temporary_container(parent: Path, package_name: str, *, kind: str) -> Path:
     return parent / f".{package_name}.{kind}-{uuid4().hex}"
 
 
-def _cleanup_path(path: Path, *, code: str) -> None:
+def _cleanup_path(path: Path, *, code: str) -> bool:
     cleanup_code = code if code in _CLEANUP_CODES else "unknown"
     try:
         file_status = path.lstat()
     except FileNotFoundError:
-        return
+        return True
     except OSError:
         logger.warning("Package cleanup failed [%s]", cleanup_code)
-        return
+        return False
     attributes = getattr(file_status, "st_file_attributes", 0)
     is_alias = stat.S_ISLNK(file_status.st_mode) or bool(
         attributes & getattr(stat, "FILE_ATTRIBUTE_REPARSE_POINT", 0)
@@ -394,6 +603,8 @@ def _cleanup_path(path: Path, *, code: str) -> None:
             path.unlink()
     except OSError:
         logger.warning("Package cleanup failed [%s]", cleanup_code)
+        return False
+    return True
 
 
 def _write_package_directory(
@@ -414,31 +625,6 @@ def _write_package_directory(
 def _validated_package_directory(package_dir: Path) -> dict[str, object]:
     prepared = plugin_loader._prepare_package(package_dir)
     return prepared.manifest
-
-
-def _activate_staged_install(staged_dir: Path, package_dir: Path) -> None:
-    backup_dir: Path | None = None
-    try:
-        if package_dir.exists() or _is_reparse_point(package_dir):
-            if _is_reparse_point(package_dir) or not package_dir.is_dir():
-                raise ValueError("Installed package target is not a regular directory")
-            backup_dir = _temporary_container(
-                package_dir.parent,
-                package_dir.name,
-                kind="backup",
-            )
-            package_dir.replace(backup_dir)
-        staged_dir.replace(package_dir)
-    except Exception:
-        if backup_dir is not None and backup_dir.exists() and not package_dir.exists():
-            try:
-                backup_dir.replace(package_dir)
-            except OSError as exc:
-                raise OSError("package activation rollback failed") from exc
-        raise
-    else:
-        if backup_dir is not None:
-            _cleanup_path(backup_dir, code="activation_backup")
 
 
 def _zip_info(member_name: str) -> zipfile.ZipInfo:
@@ -470,8 +656,11 @@ def _write_archive(
             )
 
 
-def import_package(package_path: Path, target_dir: Path | None = None) -> PackageManifest:
-    """Validate and atomically install one schema-2 archive without source execution."""
+def stage_package_import(
+    package_path: Path,
+    target_dir: Path | None = None,
+) -> PackageInstallTransaction:
+    """Validate one schema-2 archive and stage it without activating it."""
 
     source = Path(package_path)
     if _is_reparse_point(source) or not source.is_file():
@@ -479,30 +668,54 @@ def import_package(package_path: Path, target_dir: Path | None = None) -> Packag
     target = Path(target_dir) if target_dir is not None else plugins_dir()
     if _is_reparse_point(target):
         raise ValueError("Plugin install root must not be a path alias")
+    transaction: PackageInstallTransaction | None = None
     container: Path | None = None
     try:
+        target.mkdir(parents=True, exist_ok=True)
         try:
-            target.mkdir(parents=True, exist_ok=True)
-            try:
-                with zipfile.ZipFile(source, "r") as archive:
-                    raw_manifest, members = _read_archive(archive)
-            except zipfile.BadZipFile as exc:
-                raise ValueError("Node package archive is not a valid ZIP file") from exc
+            with zipfile.ZipFile(source, "r") as archive:
+                raw_manifest, members = _read_archive(archive)
+        except zipfile.BadZipFile as exc:
+            raise ValueError("Node package archive is not a valid ZIP file") from exc
 
-            package_name = _validate_package_name(raw_manifest["name"])
-            container = _temporary_container(target, package_name, kind="incoming")
-            package_dir = target / package_name
-            staged_dir = _write_package_directory(container, raw_manifest, members)
-            validated_manifest = _validated_package_directory(staged_dir)
-            _activate_staged_install(staged_dir, package_dir)
-        finally:
-            if container is not None:
-                _cleanup_path(container, code="import_staging")
+        package_name = _validate_package_name(raw_manifest["name"])
+        container = _temporary_container(target, package_name, kind="incoming")
+        staged_dir = _write_package_directory(container, raw_manifest, members)
+        validated_manifest = _validated_package_directory(staged_dir)
+        manifest_bytes = canonical_manifest_bytes(validated_manifest)
+        transaction = PackageInstallTransaction(
+            manifest=_manifest_from_data(validated_manifest),
+            staged_package_root=staged_dir,
+            installed_package_root=target / package_name,
+            _container=container,
+            _manifest_bytes=manifest_bytes,
+        )
+        return transaction
     except OSError:
         raise ValueError(_IMPORT_FILESYSTEM_ERROR) from None
+    finally:
+        if transaction is None and container is not None:
+            _cleanup_path(container, code="import_staging")
 
-    manifest = _manifest_from_data(validated_manifest)
-    logger.info("Imported node package '%s' v%s to %s", manifest.name, manifest.version, package_dir)
+
+def import_package(package_path: Path, target_dir: Path | None = None) -> PackageManifest:
+    """Validate and atomically install one schema-2 archive without source execution."""
+
+    transaction = stage_package_import(package_path, target_dir=target_dir)
+    try:
+        transaction.activate()
+    except Exception:
+        transaction.rollback()
+        raise
+    transaction.commit()
+
+    manifest = transaction.manifest
+    logger.info(
+        "Imported node package '%s' v%s to %s",
+        manifest.name,
+        manifest.version,
+        transaction.installed_package_root,
+    )
     return manifest
 
 
@@ -593,9 +806,12 @@ __all__ = [
     "PACKAGE_EXTENSION",
     "PackageExportAsset",
     "PackageExportSource",
+    "PackageInstallState",
+    "PackageInstallTransaction",
     "PackageManifest",
     "export_package",
     "import_package",
     "list_installed_packages",
+    "stage_package_import",
     "uninstall_package",
 ]

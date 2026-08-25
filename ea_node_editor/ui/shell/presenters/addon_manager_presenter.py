@@ -1,13 +1,10 @@
 from __future__ import annotations
 
-import copy
 from typing import Any
 
 from ea_node_editor.addons.catalog import ANSYS_DPF_ADDON_ID
-from ea_node_editor.addons.hot_apply import apply_addon_enabled_state
 from ea_node_editor.nodes.plugin_contracts import AddOnRecord
 from ea_node_editor.nodes.plugin_loader import discover_addon_records
-from ea_node_editor.persistence.serializer import JsonProjectSerializer
 from ._addon_manager_payloads import canonical_token
 from ._addon_manager_payloads import detail_payload
 from ._addon_manager_payloads import normalized_filter
@@ -18,7 +15,6 @@ from ._addon_manager_payloads import row_payload
 class AddOnManagerPresenter:
     def __init__(self) -> None:
         self._shell_window = None
-        self._viewer_host_service = None
         self._records: tuple[AddOnRecord, ...] = ()
         self._selected_addon_id = ""
         self._active_tab = "about"
@@ -28,9 +24,8 @@ class AddOnManagerPresenter:
         self._filtered_rows_cache: list[dict[str, Any]] = []
         self._selected_payload_cache: dict[str, Any] = {}
 
-    def bind(self, *, shell_window=None, viewer_host_service=None) -> None:  # noqa: ANN001
+    def bind(self, *, shell_window=None) -> None:  # noqa: ANN001
         self._shell_window = shell_window
-        self._viewer_host_service = viewer_host_service
 
     @property
     def active_tab(self) -> str:
@@ -161,19 +156,15 @@ class AddOnManagerPresenter:
             return False
         app_preferences_controller = shell_window.app_preferences_controller
         try:
-            result = apply_addon_enabled_state(
+            result = shell_window.registry_replacement_coordinator.apply_addon_enabled_state(
                 normalized_addon_id,
                 enabled=bool(enabled),
-                app_preferences_store=app_preferences_controller._store,
+                app_preferences_controller=app_preferences_controller,
                 preferences_document=app_preferences_controller.document(),
-                graph_scene_bridge=shell_window.scene,
-                viewer_host_service=self._viewer_host_service,
-                on_registry_rebuilt=self._on_registry_rebuilt,
             )
         except Exception as exc:  # noqa: BLE001
             self._last_error = str(exc)
             return False
-        app_preferences_controller._document = copy.deepcopy(result.preferences_document)
         if result.restart_required:
             shell_window.workspace_state_changed.emit()
         self.refresh(
@@ -243,23 +234,5 @@ class AddOnManagerPresenter:
             if record_token.endswith(requested_token) or requested_token.endswith(record_token):
                 return record.addon_id
         return ""
-
-    def _on_registry_rebuilt(self, rebuilt_registry) -> None:  # noqa: ANN001
-        shell_window = self._shell_window
-        if shell_window is None:
-            return
-        shell_window.registry = rebuilt_registry
-        graph_interactions = getattr(shell_window, "graph_interactions", None)
-        if graph_interactions is not None and hasattr(graph_interactions, "_registry"):
-            graph_interactions._registry = rebuilt_registry
-        serializer = JsonProjectSerializer(rebuilt_registry)
-        shell_window.serializer = serializer
-        session_store = getattr(shell_window, "session_store", None)
-        if session_store is not None and hasattr(session_store, "_serializer"):
-            session_store._serializer = serializer
-        shell_window.node_library_changed.emit()
-        shell_window.selected_node_changed.emit()
-        shell_window.workspace_state_changed.emit()
-
 
 __all__ = ["AddOnManagerPresenter"]

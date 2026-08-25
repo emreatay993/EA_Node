@@ -116,17 +116,32 @@ def _decorated_python_script(body: str) -> str:
     )
 
 
-def _catalog_start_run_command(command, *, catalog=None):  # noqa: ANN001
+def _catalog_start_run_command(  # noqa: ANN001
+    command,
+    *,
+    catalog=None,
+    registry=None,
+):
     if catalog is None:
         from ea_node_editor.nodes import bootstrap as node_bootstrap
 
         provider = node_bootstrap.build_default_registry
-        active_catalog = _TEST_START_CATALOGS.get(provider)
-        if active_catalog is None:
-            active_catalog = provider().data_types
-            _TEST_START_CATALOGS[provider] = active_catalog
+        active_registry = _TEST_START_CATALOGS.get(provider)
+        if active_registry is None:
+            active_registry = provider()
+            _TEST_START_CATALOGS[provider] = active_registry
+        active_catalog = active_registry.data_types
     else:
         active_catalog = catalog
+        active_registry = registry
+    if active_registry is not None and isinstance(command, dict):
+        command = {
+            **command,
+            "registry_contract_fingerprint": (
+                active_registry.contract_fingerprint()
+            ),
+            "addon_runtime_config": active_registry.addon_runtime_config(),
+        }
     return coerce_start_run_command(command, catalog=active_catalog)
 
 
@@ -854,12 +869,15 @@ class ExecutionWorkerTests(unittest.TestCase):
         )
         desktop_catalog = _revision_catalog("desktop-v2")
         fingerprint, revisions = catalog_agreement(desktop_catalog)
+        registry = build_default_registry()
         command = StartRunCommand(
             run_id="run_catalog_mismatch",
             workspace_id=workspace.workspace_id,
-            runtime_snapshot=self._runtime_snapshot(model),
+            runtime_snapshot=self._runtime_snapshot(model, registry=registry),
             catalog_fingerprint=fingerprint,
             catalog_revisions=revisions,
+            registry_contract_fingerprint=registry.contract_fingerprint(),
+            addon_runtime_config=registry.addon_runtime_config(),
         )
         event_queue: queue.Queue = queue.Queue()
         services = WorkerServices()
@@ -1064,11 +1082,14 @@ class ExecutionWorkerTests(unittest.TestCase):
         model = GraphModel()
         ws = model.active_workspace
         logger = model.add_node(ws.workspace_id, "core.logger", "Logger", 100, 0)
-        runtime_snapshot = self._runtime_snapshot(model)
+        registry = build_default_registry()
+        runtime_snapshot = self._runtime_snapshot(model, registry=registry)
         command = StartRunCommand(
             run_id="run_cache",
             workspace_id=ws.workspace_id,
             runtime_snapshot=runtime_snapshot,
+            registry_contract_fingerprint=registry.contract_fingerprint(),
+            addon_runtime_config=registry.addon_runtime_config(),
         )
         cache = RuntimePreparationCache()
 
@@ -1093,11 +1114,14 @@ class ExecutionWorkerTests(unittest.TestCase):
         model = GraphModel()
         ws = model.active_workspace
         logger = model.add_node(ws.workspace_id, "core.logger", "Logger", 100, 0)
-        runtime_snapshot = self._runtime_snapshot(model)
+        registry = build_default_registry()
+        runtime_snapshot = self._runtime_snapshot(model, registry=registry)
         command = StartRunCommand(
             run_id="run_builtin_registry",
             workspace_id=ws.workspace_id,
             runtime_snapshot=runtime_snapshot,
+            registry_contract_fingerprint=registry.contract_fingerprint(),
+            addon_runtime_config=registry.addon_runtime_config(),
         )
 
         cache = RuntimePreparationCache()
@@ -1113,8 +1137,8 @@ class ExecutionWorkerTests(unittest.TestCase):
             addon_payload["workspaces"][0]["nodes"][0]["type_id"] = (
                 "dpf.workflow.result_fields"
             )
-            builtin_registry = cache.default_registry()
-            addon_registry = cache.default_registry()
+            builtin_registry = cache.default_registry(command.addon_runtime_config)
+            addon_registry = cache.default_registry(command.addon_runtime_config)
             addon_snapshot = RuntimeSnapshot.from_mapping(
                 addon_payload,
                 catalog=addon_registry.data_types,
@@ -1124,6 +1148,10 @@ class ExecutionWorkerTests(unittest.TestCase):
                     run_id="run_addon_registry",
                     workspace_id=ws.workspace_id,
                     runtime_snapshot=addon_snapshot,
+                    registry_contract_fingerprint=(
+                        addon_registry.contract_fingerprint()
+                    ),
+                    addon_runtime_config=addon_registry.addon_runtime_config(),
                 ),
                 cache=cache,
             )
@@ -1710,6 +1738,7 @@ def run(ctx):
                 "trigger": {},
             },
             catalog=registry.data_types,
+            registry=registry,
         )
         worker_services = WorkerServices()
 
@@ -1746,6 +1775,7 @@ def run(ctx):
                     "trigger": {},
                 },
                 catalog=registry.data_types,
+                registry=registry,
             )
             clicked_plan = prepare_runtime(second_command).plan
             self.assertEqual(
@@ -2383,6 +2413,8 @@ def run(ctx):
                     run_id="run_crash",
                     workspace_id=model.active_workspace.workspace_id,
                     runtime_snapshot=runtime_snapshot,
+                    registry_contract_fingerprint=registry.contract_fingerprint(),
+                    addon_runtime_config=registry.addon_runtime_config(),
                 ),
                 catalog=registry.data_types,
             )
@@ -2510,6 +2542,10 @@ def run(ctx):
                                 run_id="run_viewer_worker",
                                 workspace_id=ws.workspace_id,
                                 runtime_snapshot=runtime_snapshot,
+                                registry_contract_fingerprint=(
+                                    registry.contract_fingerprint()
+                                ),
+                                addon_runtime_config=registry.addon_runtime_config(),
                             ),
                             catalog=registry.data_types,
                         )
@@ -2867,6 +2903,10 @@ def run(ctx):
                             run_id="run_viewer_cache_a",
                             workspace_id=ws.workspace_id,
                             runtime_snapshot=runtime_snapshot,
+                            registry_contract_fingerprint=(
+                                registry.contract_fingerprint()
+                            ),
+                            addon_runtime_config=registry.addon_runtime_config(),
                         ),
                         catalog=registry.data_types,
                     )
@@ -2911,6 +2951,10 @@ def run(ctx):
                             run_id="run_viewer_cache_b",
                             workspace_id=ws.workspace_id,
                             runtime_snapshot=runtime_snapshot,
+                            registry_contract_fingerprint=(
+                                registry.contract_fingerprint()
+                            ),
+                            addon_runtime_config=registry.addon_runtime_config(),
                         ),
                         catalog=registry.data_types,
                     )

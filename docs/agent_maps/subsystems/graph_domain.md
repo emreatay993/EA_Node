@@ -12,6 +12,8 @@ Use this for graph data structures, invariants, mutation services, transforms, h
 - `ea_node_editor/graph/fragment_payloads.py` for clipboard/fragment payload normalization and validation.
 - `ea_node_editor/graph/invariant_kernel.py` for graph-local edge compatibility, exposed-port, capacity, and registry edge checks.
 - `ea_node_editor/graph/registry_normalization.py` for project/workspace normalization against the active node registry.
+- `ea_node_editor/graph/registry_compatibility.py` for read-only open-session registry replacement checks.
+- `ea_node_editor/graph/property_validation.py` for saved/default property validation shared by reload safety and Python Script Apply.
 - `ea_node_editor/graph/validated_mutation.py` for registry-backed node, edge, endpoint reassignment, Python Script Apply, dynamic-port insert/remove/rename, property, parent, exposed-port, view-filter, and PDF page-policy mutations.
 - `ea_node_editor/graph/record_mutation_ops.py` for record-level graph edits that intentionally use private `GraphModel` record writers.
 - `ea_node_editor/graph/workspace_view_ops.py` for workspace view lifecycle and camera-state mutations.
@@ -32,6 +34,7 @@ Use this for graph data structures, invariants, mutation services, transforms, h
 
 ## Common Changes
 - Preserve graph independence from UI and persistence implementation details.
+- Registry replacement uses `check_registry_compatibility(...)` as a read-only reload-safety gate; it must never call destructive registry normalization. It checks every open workspace, effective port, incident edge, saved/default property, persistence/sensitivity field, and candidate-catalog carrier while preserving project/workspace revisions and dirty state.
 - Import graph state from the focused owner modules instead of using `ea_node_editor.graph.model` as a catch-all; `graph/model.py` owns `GraphModel` only.
 - Import graph normalization behavior from the focused owner modules; the retired `graph/normalization.py` path is not an internal compatibility surface.
 - Use focused graph mutation modules and private model record writers consistently; `WorkspaceMutationService` is retired.
@@ -59,6 +62,7 @@ Use this for graph data structures, invariants, mutation services, transforms, h
 .\venv\Scripts\python.exe -m unittest tests.graph_track_b.scene_model_graph_model_suite -q
 .\venv\Scripts\python.exe -m pytest tests/test_dataflow_graph_persistence.py tests/test_data_tree_ui.py --ignore=venv -q
 .\venv\Scripts\python.exe -m pytest tests/test_graph_type_enforcement.py tests/test_data_type_catalog.py tests/test_registry_validation.py --ignore=venv -q
+.\venv\Scripts\python.exe -m pytest tests/test_registry_compatibility.py tests/test_python_script_declaration.py --ignore=venv -q
 ```
 
 ## Breadcrumbs

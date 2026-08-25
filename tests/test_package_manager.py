@@ -715,6 +715,483 @@ def test_schema1_archive_and_installed_directory_use_migration_message(
     assert SCHEMA_1_UNSUPPORTED_MESSAGE in caplog.text
 
 
+def test_stage_package_import_validates_without_activating(tmp_path: Path) -> None:
+    plugins = tmp_path / "plugins"
+    installed = plugins / "example_package"
+    installed.mkdir(parents=True)
+    sentinel = installed / "keep.txt"
+    sentinel.write_text("original", encoding="utf-8")
+    marker = tmp_path / "executed.txt"
+    archive = _valid_raw_archive(tmp_path / "staged.cxpkg", marker=marker)
+
+    transaction = package_manager.stage_package_import(archive, target_dir=plugins)
+
+    assert transaction.state is package_manager.PackageInstallState.STAGED
+    assert transaction.manifest.name == "example_package"
+    assert transaction.staged_package_root.is_dir()
+    assert transaction.installed_package_root == installed
+    assert sentinel.read_text(encoding="utf-8") == "original"
+    assert not marker.exists()
+    transaction.rollback()
+    assert transaction.state is package_manager.PackageInstallState.ROLLED_BACK
+    assert sentinel.read_text(encoding="utf-8") == "original"
+    assert not list(plugins.glob(".example_package.*"))
+
+
+def test_activation_revalidates_staged_bytes(tmp_path: Path) -> None:
+    archive = _valid_raw_archive(tmp_path / "mutated.cxpkg")
+    transaction = package_manager.stage_package_import(
+        archive,
+        target_dir=tmp_path / "plugins",
+    )
+    (transaction.staged_package_root / "nodes.py").write_text(
+        _node_source() + "# changed\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError, match="hash mismatch"):
+        transaction.activate()
+
+    assert transaction.state is package_manager.PackageInstallState.STAGED
+    assert not transaction.installed_package_root.exists()
+    transaction.rollback()
+
+
+def test_new_install_rollback_is_idempotent(tmp_path: Path) -> None:
+    plugins = tmp_path / "plugins"
+    transaction = package_manager.stage_package_import(
+        _valid_raw_archive(tmp_path / "new.cxpkg"),
+        target_dir=plugins,
+    )
+
+    transaction.activate()
+    assert transaction.state is package_manager.PackageInstallState.ACTIVATED
+    assert (transaction.installed_package_root / "nodes.py").is_file()
+    transaction.rollback()
+    transaction.rollback()
+
+    assert transaction.state is package_manager.PackageInstallState.ROLLED_BACK
+    assert not transaction.installed_package_root.exists()
+    assert not list(plugins.glob(".example_package.*"))
+    with pytest.raises(RuntimeError, match="rolled_back"):
+        transaction.commit()
+
+
+def test_replacement_rollback_restores_exact_prior_directory(tmp_path: Path) -> None:
+    plugins = tmp_path / "plugins"
+    installed = plugins / "example_package"
+    installed.mkdir(parents=True)
+    (installed / "keep.txt").write_text("original", encoding="utf-8")
+    transaction = package_manager.stage_package_import(
+        _valid_raw_archive(tmp_path / "replacement.cxpkg"),
+        target_dir=plugins,
+    )
+
+    transaction.activate()
+    assert not (installed / "keep.txt").exists()
+    assert (installed / "nodes.py").is_file()
+    transaction.rollback()
+
+    assert transaction.state is package_manager.PackageInstallState.ROLLED_BACK
+    assert [path.name for path in installed.iterdir()] == ["keep.txt"]
+    assert (installed / "keep.txt").read_text(encoding="utf-8") == "original"
+    assert not list(plugins.glob(".example_package.*"))
+
+
+def test_commit_removes_retained_paths_and_is_idempotent(tmp_path: Path) -> None:
+    plugins = tmp_path / "plugins"
+    installed = plugins / "example_package"
+    installed.mkdir(parents=True)
+    (installed / "keep.txt").write_text("original", encoding="utf-8")
+    transaction = package_manager.stage_package_import(
+        _valid_raw_archive(tmp_path / "replacement.cxpkg"),
+        target_dir=plugins,
+    )
+
+    transaction.activate()
+    assert len(list(plugins.glob(".example_package.backup-*"))) == 1
+    transaction.commit()
+    transaction.commit()
+
+    assert transaction.state is package_manager.PackageInstallState.COMMITTED
+    assert (installed / "nodes.py").is_file()
+    assert not list(plugins.glob(".example_package.*"))
+    with pytest.raises(RuntimeError, match="committed"):
+        transaction.rollback()
+
+
+def test_activation_failure_restores_prior_install_and_stays_staged(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    plugins = tmp_path / "plugins"
+    installed = plugins / "example_package"
+    installed.mkdir(parents=True)
+    sentinel = installed / "keep.txt"
+    sentinel.write_text("original", encoding="utf-8")
+    transaction = package_manager.stage_package_import(
+        _valid_raw_archive(tmp_path / "replacement.cxpkg"),
+        target_dir=plugins,
+    )
+    original_replace = Path.replace
+
+    def fail_staged_activation(path: Path, target: Path) -> Path:
+        if path == transaction.staged_package_root:
+            raise OSError("activation failed")
+        return original_replace(path, target)
+
+    monkeypatch.setattr(Path, "replace", fail_staged_activation)
+    with pytest.raises(ValueError) as error:
+        transaction.activate()
+
+    assert str(error.value) == "Package import failed [filesystem]"
+    assert transaction.state is package_manager.PackageInstallState.STAGED
+    assert sentinel.read_text(encoding="utf-8") == "original"
+    transaction.rollback()
+    assert not list(plugins.glob(".example_package.*"))
+
+
+def test_staged_rollback_cleanup_failure_is_recoverable_and_path_free(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    plugins = tmp_path / "plugins"
+    transaction = package_manager.stage_package_import(
+        _valid_raw_archive(tmp_path / "staged.cxpkg"),
+        target_dir=plugins,
+    )
+    container = transaction.staged_package_root.parent
+    original_rmtree = package_manager.shutil.rmtree
+    fail_cleanup = True
+
+    def injected_rmtree(path: Path) -> None:
+        if fail_cleanup and Path(path) == container:
+            raise OSError(f"cannot remove {path}")
+        original_rmtree(path)
+
+    monkeypatch.setattr(package_manager.shutil, "rmtree", injected_rmtree)
+    with pytest.raises(RuntimeError) as error:
+        transaction.rollback()
+
+    assert str(error.value) == (
+        "Package install rollback failed [rollback_staging_cleanup]"
+    )
+    assert str(tmp_path) not in str(error.value)
+    assert transaction.state is package_manager.PackageInstallState.FAILED
+    assert transaction.issues == ("rollback_staging_cleanup",)
+    assert transaction.staged_package_root.is_dir()
+    assert not transaction.installed_package_root.exists()
+
+    fail_cleanup = False
+    transaction.rollback()
+    transaction.rollback()
+    assert transaction.state is package_manager.PackageInstallState.ROLLED_BACK
+    assert transaction.issues == ()
+    assert not container.exists()
+
+
+@pytest.mark.parametrize("replacement", [False, True])
+def test_activated_rollback_move_failure_preserves_active_install_for_retry(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    replacement: bool,
+) -> None:
+    plugins = tmp_path / "plugins"
+    installed = plugins / "example_package"
+    if replacement:
+        installed.mkdir(parents=True)
+        (installed / "keep.txt").write_text("original", encoding="utf-8")
+    transaction = package_manager.stage_package_import(
+        _valid_raw_archive(tmp_path / "package.cxpkg"),
+        target_dir=plugins,
+    )
+    transaction.activate()
+    staged = transaction.staged_package_root
+    original_replace = Path.replace
+    fail_move = True
+
+    def injected_replace(path: Path, target: Path) -> Path:
+        if fail_move and path == installed and target == staged:
+            raise OSError(f"cannot move {path}")
+        return original_replace(path, target)
+
+    monkeypatch.setattr(Path, "replace", injected_replace)
+    with pytest.raises(RuntimeError) as error:
+        transaction.rollback()
+
+    assert str(error.value) == "Package install rollback failed [rollback_active_move]"
+    assert str(tmp_path) not in str(error.value)
+    assert transaction.state is package_manager.PackageInstallState.FAILED
+    assert transaction.issues == ("rollback_active_move",)
+    assert (installed / "nodes.py").is_file()
+
+    fail_move = False
+    transaction.rollback()
+    assert transaction.state is package_manager.PackageInstallState.ROLLED_BACK
+    assert transaction.issues == ()
+    if replacement:
+        assert [path.name for path in installed.iterdir()] == ["keep.txt"]
+    else:
+        assert not installed.exists()
+    assert not list(plugins.glob(".example_package.*"))
+
+
+@pytest.mark.parametrize("partial_cleanup", [False, True])
+def test_new_install_rollback_cleanup_failure_is_recoverable(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    partial_cleanup: bool,
+) -> None:
+    plugins = tmp_path / "plugins"
+    transaction = package_manager.stage_package_import(
+        _valid_raw_archive(tmp_path / "new.cxpkg"),
+        target_dir=plugins,
+    )
+    transaction.activate()
+    container = transaction.staged_package_root.parent
+    original_rmtree = package_manager.shutil.rmtree
+    fail_cleanup = True
+
+    def injected_rmtree(path: Path) -> None:
+        if fail_cleanup and Path(path) == container:
+            if partial_cleanup:
+                original_rmtree(path)
+            raise OSError(f"cannot remove {path}")
+        original_rmtree(path)
+
+    monkeypatch.setattr(package_manager.shutil, "rmtree", injected_rmtree)
+    with pytest.raises(RuntimeError) as error:
+        transaction.rollback()
+
+    assert str(error.value) == (
+        "Package install rollback failed [rollback_staging_cleanup]"
+    )
+    assert transaction.state is package_manager.PackageInstallState.FAILED
+    assert not transaction.installed_package_root.exists()
+    assert transaction.staged_package_root.is_dir() == (not partial_cleanup)
+
+    fail_cleanup = False
+    transaction.rollback()
+    assert transaction.state is package_manager.PackageInstallState.ROLLED_BACK
+    assert not container.exists()
+
+
+@pytest.mark.parametrize("fail_active_restore", [False, True])
+def test_replacement_prior_restore_failure_preserves_both_versions_for_retry(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    fail_active_restore: bool,
+) -> None:
+    plugins = tmp_path / "plugins"
+    installed = plugins / "example_package"
+    installed.mkdir(parents=True)
+    (installed / "keep.txt").write_text("original", encoding="utf-8")
+    transaction = package_manager.stage_package_import(
+        _valid_raw_archive(tmp_path / "replacement.cxpkg"),
+        target_dir=plugins,
+    )
+    transaction.activate()
+    backup = transaction._backup_root
+    assert backup is not None
+    original_replace = Path.replace
+    inject_failures = True
+
+    def injected_replace(path: Path, target: Path) -> Path:
+        if inject_failures and path == backup and target == installed:
+            raise OSError(f"cannot restore {path}")
+        if (
+            inject_failures
+            and fail_active_restore
+            and path == transaction.staged_package_root
+            and target == installed
+        ):
+            raise OSError(f"cannot republish {path}")
+        return original_replace(path, target)
+
+    monkeypatch.setattr(Path, "replace", injected_replace)
+    with pytest.raises(RuntimeError) as error:
+        transaction.rollback()
+
+    expected_issues = ("rollback_prior_restore",) + (
+        ("rollback_active_restore",) if fail_active_restore else ()
+    )
+    assert transaction.state is package_manager.PackageInstallState.FAILED
+    assert transaction.issues == expected_issues
+    assert str(tmp_path) not in str(error.value)
+    assert (backup / "keep.txt").read_text(encoding="utf-8") == "original"
+    if fail_active_restore:
+        assert not installed.exists()
+        assert (transaction.staged_package_root / "nodes.py").is_file()
+    else:
+        assert (installed / "nodes.py").is_file()
+        assert not transaction.staged_package_root.exists()
+
+    inject_failures = False
+    transaction.rollback()
+    assert transaction.state is package_manager.PackageInstallState.ROLLED_BACK
+    assert transaction.issues == ()
+    assert [path.name for path in installed.iterdir()] == ["keep.txt"]
+    assert not list(plugins.glob(".example_package.*"))
+
+
+def test_activation_backup_move_failure_leaves_prior_install_untouched(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    plugins = tmp_path / "plugins"
+    installed = plugins / "example_package"
+    installed.mkdir(parents=True)
+    sentinel = installed / "keep.txt"
+    sentinel.write_text("original", encoding="utf-8")
+    transaction = package_manager.stage_package_import(
+        _valid_raw_archive(tmp_path / "replacement.cxpkg"),
+        target_dir=plugins,
+    )
+    original_replace = Path.replace
+    inject_failure = True
+
+    def injected_replace(path: Path, target: Path) -> Path:
+        if inject_failure and path == installed and ".backup-" in Path(target).name:
+            raise OSError(f"cannot back up {path}")
+        return original_replace(path, target)
+
+    monkeypatch.setattr(Path, "replace", injected_replace)
+    with pytest.raises(ValueError) as error:
+        transaction.activate()
+
+    assert str(error.value) == "Package import failed [filesystem]"
+    assert str(tmp_path) not in str(error.value)
+    assert transaction.state is package_manager.PackageInstallState.STAGED
+    assert sentinel.read_text(encoding="utf-8") == "original"
+    assert transaction.staged_package_root.is_dir()
+
+    inject_failure = False
+    transaction.rollback()
+    assert transaction.state is package_manager.PackageInstallState.ROLLED_BACK
+    assert sentinel.read_text(encoding="utf-8") == "original"
+    assert not list(plugins.glob(".example_package.*"))
+
+
+def test_activation_restore_failure_can_be_rolled_back_without_data_loss(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    plugins = tmp_path / "plugins"
+    installed = plugins / "example_package"
+    installed.mkdir(parents=True)
+    (installed / "keep.txt").write_text("original", encoding="utf-8")
+    transaction = package_manager.stage_package_import(
+        _valid_raw_archive(tmp_path / "replacement.cxpkg"),
+        target_dir=plugins,
+    )
+    original_replace = Path.replace
+    inject_failures = True
+
+    def injected_replace(path: Path, target: Path) -> Path:
+        if inject_failures and path == transaction.staged_package_root:
+            raise OSError(f"cannot activate {path}")
+        if inject_failures and ".backup-" in path.name and target == installed:
+            raise OSError(f"cannot restore {path}")
+        return original_replace(path, target)
+
+    monkeypatch.setattr(Path, "replace", injected_replace)
+    with pytest.raises(ValueError) as error:
+        transaction.activate()
+
+    backup = transaction._backup_root
+    assert backup is not None
+    assert str(error.value) == "Package import failed [filesystem]"
+    assert transaction.state is package_manager.PackageInstallState.FAILED
+    assert transaction.issues == ("activation_prior_restore",)
+    assert not installed.exists()
+    assert (backup / "keep.txt").is_file()
+    assert transaction.staged_package_root.is_dir()
+
+    inject_failures = False
+    transaction.rollback()
+    assert transaction.state is package_manager.PackageInstallState.ROLLED_BACK
+    assert [path.name for path in installed.iterdir()] == ["keep.txt"]
+    assert not list(plugins.glob(".example_package.*"))
+
+
+def test_import_recovers_from_one_failed_activation_restore(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    plugins = tmp_path / "plugins"
+    installed = plugins / "example_package"
+    installed.mkdir(parents=True)
+    (installed / "keep.txt").write_text("original", encoding="utf-8")
+    archive = _valid_raw_archive(tmp_path / "replacement.cxpkg")
+    original_replace = Path.replace
+    restore_attempts = 0
+
+    def injected_replace(path: Path, target: Path) -> Path:
+        nonlocal restore_attempts
+        if path.parent.name.startswith(".example_package.incoming-"):
+            raise OSError(f"cannot activate {path}")
+        if ".backup-" in path.name and target == installed:
+            restore_attempts += 1
+            if restore_attempts == 1:
+                raise OSError(f"cannot restore {path}")
+        return original_replace(path, target)
+
+    monkeypatch.setattr(Path, "replace", injected_replace)
+    with pytest.raises(ValueError) as error:
+        package_manager.import_package(archive, target_dir=plugins)
+
+    assert str(error.value) == "Package import failed [filesystem]"
+    assert str(tmp_path) not in str(error.value)
+    assert restore_attempts == 2
+    assert [path.name for path in installed.iterdir()] == ["keep.txt"]
+    assert not list(plugins.glob(".example_package.*"))
+
+
+def test_committed_cleanup_failures_are_observable_without_undoing_install(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    plugins = tmp_path / "plugins"
+    installed = plugins / "example_package"
+    installed.mkdir(parents=True)
+    (installed / "keep.txt").write_text("original", encoding="utf-8")
+    transaction = package_manager.stage_package_import(
+        _valid_raw_archive(tmp_path / "replacement.cxpkg"),
+        target_dir=plugins,
+    )
+    transaction.activate()
+    backup = transaction._backup_root
+    assert backup is not None
+    container = transaction.staged_package_root.parent
+    original_rmtree = package_manager.shutil.rmtree
+    fail_cleanup = True
+
+    def injected_rmtree(path: Path) -> None:
+        if fail_cleanup and Path(path) in {backup, container}:
+            raise OSError(f"cannot remove {path}")
+        original_rmtree(path)
+
+    monkeypatch.setattr(package_manager.shutil, "rmtree", injected_rmtree)
+    transaction.commit()
+
+    assert transaction.state is package_manager.PackageInstallState.COMMITTED
+    assert transaction.issues == (
+        "commit_backup_cleanup",
+        "commit_staging_cleanup",
+    )
+    assert (installed / "nodes.py").is_file()
+    assert backup.is_dir()
+    assert container.is_dir()
+
+    fail_cleanup = False
+    transaction.commit()
+    assert transaction.state is package_manager.PackageInstallState.COMMITTED
+    assert transaction.issues == ()
+    assert (installed / "nodes.py").is_file()
+    assert not backup.exists()
+    assert not container.exists()
+
+
 def test_failed_replacement_restores_existing_installed_package(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -791,11 +1268,14 @@ def test_cleanup_failure_logs_only_a_bounded_code(
         raise OSError(f"cannot remove {staging}")
 
     monkeypatch.setattr(package_manager.shutil, "rmtree", fail_cleanup)
-    package_manager._cleanup_path(staging, code="import_staging")
+    assert not package_manager._cleanup_path(staging, code="import_staging")
 
     assert "Package cleanup failed [import_staging]" in caplog.text
     assert str(tmp_path) not in caplog.text
     assert "incoming-secret" not in caplog.text
+    monkeypatch.undo()
+    assert package_manager._cleanup_path(staging, code="import_staging")
+    assert package_manager._cleanup_path(staging, code="import_staging")
 
 
 def test_list_and_uninstall_validate_schema2_packages(tmp_path: Path) -> None:

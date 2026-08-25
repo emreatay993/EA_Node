@@ -73,6 +73,11 @@ class GraphInteractions:
         self._registry = registry
         self._history = history
 
+    def replace_registry(self, registry: NodeRegistry) -> None:
+        if not isinstance(registry, NodeRegistry):
+            raise TypeError("registry must be a NodeRegistry")
+        self._registry = registry
+
     def connect_ports(
         self,
         node_a_id: str,

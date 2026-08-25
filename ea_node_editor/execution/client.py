@@ -16,8 +16,9 @@ import traceback
 import uuid
 from collections import deque
 from collections.abc import Callable, Mapping
-from contextlib import nullcontext
+from contextlib import contextmanager, nullcontext
 from dataclasses import dataclass, replace
+from functools import wraps
 from typing import Any
 
 from ea_node_editor.execution.backends import (
@@ -29,6 +30,7 @@ from ea_node_editor.execution.backends import (
 )
 from ea_node_editor.execution.protocol import (
     CloseViewerSessionCommand,
+    EMPTY_REGISTRY_CONTRACT_FINGERPRINT,
     MaterializeViewerDataCommand,
     OpenViewerSessionCommand,
     PauseRunCommand,
@@ -51,6 +53,7 @@ from ea_node_editor.execution.protocol import (
     coerce_start_run_command,
     dict_to_event,
     event_to_dict,
+    normalize_addon_runtime_config,
     runtime_registry_fingerprint,
 )
 from ea_node_editor.execution.python_environment import (
@@ -70,6 +73,26 @@ from ea_node_editor.nodes.registry import NodeRegistry
 from ea_node_editor.runtime_contracts import DataTypeCatalog, DataTypeCatalogError
 
 _LISTENER_SHUTDOWN_SENTINEL = {"type": "__listener_shutdown__"}
+
+
+def _registry_contract_digest(value: object) -> str:
+    digest = str(value)
+    if len(digest) != 64 or any(
+        character not in "0123456789abcdef" for character in digest
+    ):
+        raise ValueError(
+            "registry_contract_fingerprint must be a lowercase SHA-256 digest"
+        )
+    return digest
+
+
+def _registry_admitted(method: Callable[..., Any]) -> Callable[..., Any]:
+    @wraps(method)
+    def guarded(self: Any, *args: Any, **kwargs: Any) -> Any:
+        with self.registry_publication_guard():
+            return method(self, *args, **kwargs)
+
+    return guarded
 
 
 @dataclass(frozen=True)
@@ -143,12 +166,19 @@ def _python_script_timeout_by_node_id(
 class _ExecutionClientCommon:
     _TERMINAL_EVENT_TYPES = {"run_completed", "run_failed", "run_stopped"}
 
+    @contextmanager
+    def registry_publication_guard(self):  # noqa: ANN201
+        with self._start_lock:
+            yield
+
     def _bind_data_types(
         self,
         data_types: DataTypeCatalog | None,
         *,
         plugin_bundles: tuple[PluginBundleRef, ...] = (),
         plugin_fingerprint: str = EMPTY_PLUGIN_FINGERPRINT,
+        registry_contract_fingerprint: str,
+        addon_runtime_config: tuple[tuple[str, bool], ...],
     ) -> None:
         if not isinstance(data_types, DataTypeCatalog):
             raise DataTypeCatalogError(
@@ -161,17 +191,23 @@ class _ExecutionClientCommon:
             requested_fingerprint,
             plugin_fingerprint,
         )
+        requested_contract_fingerprint = _registry_contract_digest(
+            registry_contract_fingerprint
+        )
+        normalized_addon_runtime_config = normalize_addon_runtime_config(
+            addon_runtime_config
+        )
         pinned_fingerprint = getattr(
             self,
-            "_runtime_registry_generation_fingerprint",
+            "_registry_contract_generation_fingerprint",
             "",
         )
         if (
             pinned_fingerprint
-            and pinned_fingerprint != requested_runtime_fingerprint
+            and pinned_fingerprint != requested_contract_fingerprint
         ):
             raise DataTypeCatalogError(
-                "data-type catalog differs from the active worker generation"
+                "registry contract differs from the active worker generation"
             )
         self._data_types = data_types
         self._catalog_generation_fingerprint = requested_fingerprint
@@ -180,6 +216,10 @@ class _ExecutionClientCommon:
         self._runtime_registry_generation_fingerprint = (
             requested_runtime_fingerprint
         )
+        self._registry_contract_generation_fingerprint = (
+            requested_contract_fingerprint
+        )
+        self._addon_runtime_config = normalized_addon_runtime_config
 
     def _catalog_agreement(self) -> tuple[str, tuple[Any, ...]]:
         return catalog_agreement(self._data_types)
@@ -198,6 +238,18 @@ class _ExecutionClientCommon:
             runtime_registry_fingerprint(
                 catalog_fingerprint,
                 plugin_fingerprint,
+            ),
+        )
+
+    def _registry_contract_agreement(
+        self,
+    ) -> tuple[str, tuple[tuple[str, bool], ...]]:
+        return (
+            _registry_contract_digest(
+                getattr(self, "_registry_contract_generation_fingerprint", "")
+            ),
+            normalize_addon_runtime_config(
+                getattr(self, "_addon_runtime_config", ())
             ),
         )
 
@@ -289,36 +341,43 @@ class _ExecutionClientCommon:
     def _viewer_generation_is_live(self) -> bool:
         return True
 
+    def _assert_registry_replaceable_locked(self) -> None:
+        with self._state_lock:
+            run_thread = getattr(self, "_run_thread", None)
+            if (
+                self._active_run_id
+                or self._start_run_pending_id
+                or (run_thread is not None and run_thread.is_alive())
+            ):
+                raise DataTypeCatalogError(
+                    "Cannot replace the registry during an active run"
+                )
+        with self._viewer_request_lock:
+            if self._pending_viewer_requests or self._viewer_session_ids:
+                raise DataTypeCatalogError(
+                    "Cannot replace the registry while viewer requests or sessions remain active"
+                )
+
+    def assert_registry_replaceable(self) -> None:
+        with self._start_lock:
+            self._assert_registry_replaceable_locked()
+
     def replace_registry(self, registry: NodeRegistry) -> bool:
         if not isinstance(registry, NodeRegistry):
             raise TypeError("registry must be a NodeRegistry")
         if not registry.data_types.is_frozen:
             raise DataTypeCatalogError("replacement data-type catalog must be frozen")
-        requested_fingerprint = runtime_registry_fingerprint(
-            registry.data_types.fingerprint(),
-            registry.plugin_fingerprint(),
-        )
+        requested_fingerprint = registry.contract_fingerprint()
         with self._start_lock:
+            self._assert_registry_replaceable_locked()
             with self._state_lock:
-                run_thread = getattr(self, "_run_thread", None)
-                if self._active_run_id or (
-                    run_thread is not None and run_thread.is_alive()
-                ):
-                    raise DataTypeCatalogError(
-                        "Cannot replace the registry during an active run"
-                    )
                 pinned_fingerprint = str(
                     getattr(
                         self,
-                        "_runtime_registry_generation_fingerprint",
+                        "_registry_contract_generation_fingerprint",
                         "",
                     )
                 )
-            with self._viewer_request_lock:
-                if self._pending_viewer_requests or self._viewer_session_ids:
-                    raise DataTypeCatalogError(
-                        "Cannot replace the registry while viewer requests or sessions remain active"
-                    )
             if not pinned_fingerprint or pinned_fingerprint == requested_fingerprint:
                 return False
             self._recycle_catalog_generation()
@@ -328,6 +387,8 @@ class _ExecutionClientCommon:
                 self._plugin_bundles = ()
                 self._plugin_fingerprint = EMPTY_PLUGIN_FINGERPRINT
                 self._runtime_registry_generation_fingerprint = ""
+                self._registry_contract_generation_fingerprint = ""
+                self._addon_runtime_config = ()
             return True
 
     def _prepare_start_run(
@@ -337,6 +398,8 @@ class _ExecutionClientCommon:
         data_types: DataTypeCatalog | None,
         plugin_bundles: tuple[PluginBundleRef, ...] = (),
         plugin_fingerprint: str = EMPTY_PLUGIN_FINGERPRINT,
+        registry_contract_fingerprint: str = EMPTY_REGISTRY_CONTRACT_FINGERPRINT,
+        addon_runtime_config: tuple[tuple[str, bool], ...] = (),
     ) -> bool:
         if not isinstance(data_types, DataTypeCatalog):
             raise DataTypeCatalogError(
@@ -345,9 +408,8 @@ class _ExecutionClientCommon:
         if not data_types.is_frozen:
             raise DataTypeCatalogError("data-type catalog must be frozen")
         requested_fingerprint = data_types.fingerprint()
-        requested_runtime_fingerprint = runtime_registry_fingerprint(
-            requested_fingerprint,
-            plugin_fingerprint,
+        requested_contract_fingerprint = _registry_contract_digest(
+            registry_contract_fingerprint
         )
         with self._start_lock:
             with self._state_lock:
@@ -358,18 +420,9 @@ class _ExecutionClientCommon:
                     return False
                 pinned_fingerprint = getattr(
                     self,
-                    "_runtime_registry_generation_fingerprint",
+                    "_registry_contract_generation_fingerprint",
                     "",
                 )
-                if not pinned_fingerprint and self._catalog_generation_fingerprint:
-                    pinned_fingerprint = runtime_registry_fingerprint(
-                        self._catalog_generation_fingerprint,
-                        getattr(
-                            self,
-                            "_plugin_fingerprint",
-                            EMPTY_PLUGIN_FINGERPRINT,
-                        ),
-                    )
                 physical_generation = int(
                     getattr(self, "_physical_generation_token", 0)
                 )
@@ -387,12 +440,12 @@ class _ExecutionClientCommon:
                     == physical_generation
                     == accepted_physical_generation
                 )
-            catalog_changed = bool(
+            contract_changed = bool(
                 pinned_fingerprint
-                and pinned_fingerprint != requested_runtime_fingerprint
+                and pinned_fingerprint != requested_contract_fingerprint
             )
             dropped_dead_viewer_generation = False
-            if catalog_changed and not self._viewer_generation_is_live():
+            if contract_changed and not self._viewer_generation_is_live():
                 self._invalidate_physical_generation()
                 self._drop_stale_viewer_generation(
                     "The worker generation ended before the viewer request "
@@ -400,16 +453,16 @@ class _ExecutionClientCommon:
                 )
                 dropped_dead_viewer_generation = True
             with self._viewer_request_lock:
-                if catalog_changed and (
+                if contract_changed and (
                     self._pending_viewer_requests
                     or self._viewer_session_ids
                 ):
                     raise DataTypeCatalogError(
-                        "Cannot start a different data-type catalog while viewer "
+                        "Cannot start a different registry contract while viewer "
                         "requests or sessions from the current worker generation "
                         "remain active."
                     )
-            if catalog_changed:
+            if contract_changed:
                 try:
                     self._recycle_catalog_generation()
                 except Exception as exc:  # noqa: BLE001
@@ -417,7 +470,7 @@ class _ExecutionClientCommon:
                         self._invalidate_physical_generation()
                     raise DataTypeCatalogError(
                         "Failed to recycle the idle worker generation for "
-                        "the requested data-type catalog."
+                        "the requested registry contract."
                     ) from exc
                 with self._state_lock:
                     self._data_types = None
@@ -425,7 +478,9 @@ class _ExecutionClientCommon:
                     self._plugin_bundles = ()
                     self._plugin_fingerprint = EMPTY_PLUGIN_FINGERPRINT
                     self._runtime_registry_generation_fingerprint = ""
-            new_generation = catalog_changed or (
+                    self._registry_contract_generation_fingerprint = ""
+                    self._addon_runtime_config = ()
+            new_generation = contract_changed or (
                 not pinned_fingerprint
                 and not reuse_unpinned_physical_generation
             )
@@ -440,6 +495,8 @@ class _ExecutionClientCommon:
                     data_types,
                     plugin_bundles=plugin_bundles,
                     plugin_fingerprint=plugin_fingerprint,
+                    registry_contract_fingerprint=requested_contract_fingerprint,
+                    addon_runtime_config=addon_runtime_config,
                 )
                 self._active_run_id = run_id
                 self._active_workspace_id = workspace_id
@@ -750,6 +807,7 @@ class _ExecutionClientCommon:
         if run_id:
             self._post_command(StopRunCommand(run_id=run_id))
 
+    @_registry_admitted
     def open_viewer_session(
         self,
         workspace_id: str,
@@ -897,6 +955,8 @@ class ProcessExecutionClient(_ExecutionClientCommon):
         self._plugin_bundles: tuple[PluginBundleRef, ...] = ()
         self._plugin_fingerprint = EMPTY_PLUGIN_FINGERPRINT
         self._runtime_registry_generation_fingerprint = ""
+        self._registry_contract_generation_fingerprint = ""
+        self._addon_runtime_config: tuple[tuple[str, bool], ...] = ()
         self._catalog_generation_token = 0
         self._physical_generation_token = 0
         self._accepted_physical_generation_token = 0
@@ -1098,6 +1158,7 @@ class ProcessExecutionClient(_ExecutionClientCommon):
                 self._dispatch_viewer_request_failure(pending, error_message)
         return request_id
 
+    @_registry_admitted
     def start_run(
         self,
         project_path: str,
@@ -1112,6 +1173,8 @@ class ProcessExecutionClient(_ExecutionClientCommon):
         data_types: DataTypeCatalog | None = None,
         plugin_bundles: tuple[PluginBundleRef, ...] = (),
         plugin_fingerprint: str = EMPTY_PLUGIN_FINGERPRINT,
+        registry_contract_fingerprint: str = EMPTY_REGISTRY_CONTRACT_FINGERPRINT,
+        addon_runtime_config: tuple[tuple[str, bool], ...] = (),
     ) -> str:
         trigger_payload = dict(trigger or {})
         run_id = f"run_{uuid.uuid4().hex[:8]}"
@@ -1137,6 +1200,8 @@ class ProcessExecutionClient(_ExecutionClientCommon):
                 data_types,
                 plugin_bundles,
                 plugin_fingerprint,
+                registry_contract_fingerprint,
+                addon_runtime_config,
             )
         except (TypeError, ValueError) as exc:
             self._emit_protocol_error(str(exc), run_id=run_id, command="start_run")
@@ -1152,6 +1217,9 @@ class ProcessExecutionClient(_ExecutionClientCommon):
             catalog_fingerprint, catalog_revisions = self._catalog_agreement()
             command_plugin_bundles, command_plugin_fingerprint, runtime_fingerprint = (
                 self._plugin_agreement()
+            )
+            contract_fingerprint, command_addon_runtime_config = (
+                self._registry_contract_agreement()
             )
             command = coerce_start_run_command(
                 {
@@ -1171,6 +1239,8 @@ class ProcessExecutionClient(_ExecutionClientCommon):
                     "plugin_bundles": command_plugin_bundles,
                     "plugin_fingerprint": command_plugin_fingerprint,
                     "runtime_registry_fingerprint": runtime_fingerprint,
+                    "registry_contract_fingerprint": contract_fingerprint,
+                    "addon_runtime_config": command_addon_runtime_config,
                 },
                 catalog=self._data_types,
             )
@@ -1501,6 +1571,8 @@ class ExternalPythonExecutionClient(_ExecutionClientCommon):
         self._plugin_bundles: tuple[PluginBundleRef, ...] = ()
         self._plugin_fingerprint = EMPTY_PLUGIN_FINGERPRINT
         self._runtime_registry_generation_fingerprint = ""
+        self._registry_contract_generation_fingerprint = ""
+        self._addon_runtime_config: tuple[tuple[str, bool], ...] = ()
         self._catalog_generation_token = 0
         self._physical_generation_token = 0
         self._accepted_physical_generation_token = 0
@@ -1737,6 +1809,7 @@ class ExternalPythonExecutionClient(_ExecutionClientCommon):
         success, _message = self._try_post_command(command)
         return success
 
+    @_registry_admitted
     def start_run(
         self,
         project_path: str,
@@ -1751,6 +1824,8 @@ class ExternalPythonExecutionClient(_ExecutionClientCommon):
         data_types: DataTypeCatalog | None = None,
         plugin_bundles: tuple[PluginBundleRef, ...] = (),
         plugin_fingerprint: str = EMPTY_PLUGIN_FINGERPRINT,
+        registry_contract_fingerprint: str = EMPTY_REGISTRY_CONTRACT_FINGERPRINT,
+        addon_runtime_config: tuple[tuple[str, bool], ...] = (),
     ) -> str:
         trigger_payload = dict(trigger or {})
         run_id = f"run_{uuid.uuid4().hex[:8]}"
@@ -1784,6 +1859,8 @@ class ExternalPythonExecutionClient(_ExecutionClientCommon):
                 data_types,
                 plugin_bundles,
                 plugin_fingerprint,
+                registry_contract_fingerprint,
+                addon_runtime_config,
             )
         except (TypeError, ValueError) as exc:
             self._emit_protocol_error(str(exc), run_id=run_id, command="start_run")
@@ -1799,6 +1876,9 @@ class ExternalPythonExecutionClient(_ExecutionClientCommon):
             catalog_fingerprint, catalog_revisions = self._catalog_agreement()
             command_plugin_bundles, command_plugin_fingerprint, runtime_fingerprint = (
                 self._plugin_agreement()
+            )
+            contract_fingerprint, command_addon_runtime_config = (
+                self._registry_contract_agreement()
             )
             command = coerce_start_run_command(
                 {
@@ -1818,6 +1898,8 @@ class ExternalPythonExecutionClient(_ExecutionClientCommon):
                     "plugin_bundles": command_plugin_bundles,
                     "plugin_fingerprint": command_plugin_fingerprint,
                     "runtime_registry_fingerprint": runtime_fingerprint,
+                    "registry_contract_fingerprint": contract_fingerprint,
+                    "addon_runtime_config": command_addon_runtime_config,
                 },
                 catalog=self._data_types,
             )
@@ -2271,6 +2353,8 @@ class TrustedInProcessExecutionClient(_ExecutionClientCommon):
         self._plugin_bundles: tuple[PluginBundleRef, ...] = ()
         self._plugin_fingerprint = EMPTY_PLUGIN_FINGERPRINT
         self._runtime_registry_generation_fingerprint = ""
+        self._registry_contract_generation_fingerprint = ""
+        self._addon_runtime_config: tuple[tuple[str, bool], ...] = ()
         self._catalog_generation_token = 0
         self._accepted_physical_generation_token = 0
         self._run_generation_tokens: dict[str, int] = {}
@@ -2278,7 +2362,7 @@ class TrustedInProcessExecutionClient(_ExecutionClientCommon):
         self._event_queue: queue.Queue[Any] = queue.Queue()
         self._worker_services = worker_services or WorkerServices()
         self._run_thread: threading.Thread | None = None
-        self._start_lock = threading.Lock()
+        self._start_lock = threading.RLock()
         self._state_lock = threading.Lock()
         self._callbacks: list[Callable[[dict[str, Any]], None]] = []
         self._generation_callbacks: list[Callable[..., None]] = []
@@ -2343,6 +2427,7 @@ class TrustedInProcessExecutionClient(_ExecutionClientCommon):
         with self._state_lock:
             self._run_thread = None
 
+    @_registry_admitted
     def start_run(
         self,
         project_path: str,
@@ -2357,6 +2442,8 @@ class TrustedInProcessExecutionClient(_ExecutionClientCommon):
         data_types: DataTypeCatalog | None = None,
         plugin_bundles: tuple[PluginBundleRef, ...] = (),
         plugin_fingerprint: str = EMPTY_PLUGIN_FINGERPRINT,
+        registry_contract_fingerprint: str = EMPTY_REGISTRY_CONTRACT_FINGERPRINT,
+        addon_runtime_config: tuple[tuple[str, bool], ...] = (),
     ) -> str:
         trigger_payload = dict(trigger or {})
         run_id = f"run_{uuid.uuid4().hex[:8]}"
@@ -2399,6 +2486,8 @@ class TrustedInProcessExecutionClient(_ExecutionClientCommon):
                 data_types,
                 plugin_bundles,
                 plugin_fingerprint,
+                registry_contract_fingerprint,
+                addon_runtime_config,
             )
         except (TypeError, ValueError) as exc:
             self._emit_protocol_error(str(exc), run_id=run_id, command="start_run")
@@ -2418,6 +2507,9 @@ class TrustedInProcessExecutionClient(_ExecutionClientCommon):
             command_plugin_bundles, command_plugin_fingerprint, runtime_fingerprint = (
                 self._plugin_agreement()
             )
+            contract_fingerprint, command_addon_runtime_config = (
+                self._registry_contract_agreement()
+            )
             command = coerce_start_run_command(
                 {
                     "run_id": run_id,
@@ -2436,6 +2528,8 @@ class TrustedInProcessExecutionClient(_ExecutionClientCommon):
                     "plugin_bundles": command_plugin_bundles,
                     "plugin_fingerprint": command_plugin_fingerprint,
                     "runtime_registry_fingerprint": runtime_fingerprint,
+                    "registry_contract_fingerprint": contract_fingerprint,
+                    "addon_runtime_config": command_addon_runtime_config,
                 },
                 catalog=self._data_types,
             )
@@ -2817,6 +2911,7 @@ class ExecutionBackendClient:
         self._next_viewer_request_order = 0
         self._terminal_run_ids_seen: set[str] = set()
         self._active_lock = threading.Lock()
+        self._registry_publication_lock = threading.RLock()
         self._process_client.subscribe(
             lambda event, generation: self._dispatch_client_event(
                 self._process_client,
@@ -3388,22 +3483,42 @@ class ExecutionBackendClient:
             self._next_viewer_request_order = 0
             self._terminal_run_ids_seen.clear()
 
+    def _assert_registry_replaceable_locked(self) -> None:
+        self._ensure_route_generation_maps_locked()
+        if self._active_clients:
+            raise DataTypeCatalogError(
+                "Cannot replace the registry during an active run"
+            )
+        if self._session_clients or self._provisional_viewer_routes:
+            raise DataTypeCatalogError(
+                "Cannot replace the registry while viewer routes remain active"
+            )
+
+    @contextmanager
+    def registry_publication_guard(self):  # noqa: ANN201
+        lock = getattr(self, "_registry_publication_lock", None)
+        if lock is None:
+            lock = self._registry_publication_lock = threading.RLock()
+        with lock:
+            yield
+
+    @_registry_admitted
+    def assert_registry_replaceable(self) -> None:
+        with self._active_lock:
+            self._assert_registry_replaceable_locked()
+        for client in (
+            self._process_client,
+            self._external_python_client,
+            self._trusted_client,
+        ):
+            client.assert_registry_replaceable()
+
+    @_registry_admitted
     def replace_registry(self, registry: NodeRegistry) -> bool:
         if not isinstance(registry, NodeRegistry):
             raise TypeError("registry must be a NodeRegistry")
         with self._active_lock:
-            self._ensure_route_generation_maps_locked()
-            if self._active_clients:
-                raise DataTypeCatalogError(
-                    "Cannot replace the registry during an active run"
-                )
-            if (
-                self._session_clients
-                or self._provisional_viewer_routes
-            ):
-                raise DataTypeCatalogError(
-                    "Cannot replace the registry while viewer routes remain active"
-                )
+            self._assert_registry_replaceable_locked()
         retirement_results = tuple(
             client.replace_registry(registry)
             for client in (
@@ -3428,6 +3543,7 @@ class ExecutionBackendClient:
             )
         )
 
+    @_registry_admitted
     def start_run(
         self,
         project_path: str,
@@ -3442,6 +3558,8 @@ class ExecutionBackendClient:
         data_types: DataTypeCatalog | None = None,
         plugin_bundles: tuple[PluginBundleRef, ...] = (),
         plugin_fingerprint: str = EMPTY_PLUGIN_FINGERPRINT,
+        registry_contract_fingerprint: str = EMPTY_REGISTRY_CONTRACT_FINGERPRINT,
+        addon_runtime_config: tuple[tuple[str, bool], ...] = (),
     ) -> str:
         if not self._require_start_catalog(data_types):
             return ""
@@ -3526,6 +3644,8 @@ class ExecutionBackendClient:
             data_types=data_types,
             plugin_bundles=plugin_bundles,
             plugin_fingerprint=plugin_fingerprint,
+            registry_contract_fingerprint=registry_contract_fingerprint,
+            addon_runtime_config=addon_runtime_config,
         )
         current_catalog_generation = self._client_generation_token(client)
         with self._active_lock:
@@ -3581,6 +3701,7 @@ class ExecutionBackendClient:
         if client is not None:
             client.stop_run(run_id)
 
+    @_registry_admitted
     def open_viewer_session(self, *args: Any, **kwargs: Any) -> str:
         run_id, workspace_id, session_id = self._viewer_route_ids(args, kwargs)
         client = self._viewer_client(

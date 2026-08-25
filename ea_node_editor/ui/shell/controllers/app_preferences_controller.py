@@ -69,6 +69,19 @@ class AppPreferencesController:
     def document(self) -> dict[str, Any]:
         return copy.deepcopy(self._ensure_document())
 
+    def store(self) -> AppPreferencesStore:
+        return self._store
+
+    def replace_document(self, document: Any) -> dict[str, Any]:
+        self._document = normalize_app_preferences_document(document)
+        return copy.deepcopy(self._document)
+
+    def persist_document(self, document: Any) -> dict[str, Any]:
+        normalized = normalize_app_preferences_document(document)
+        persisted = self._store.persist_document(normalized)
+        self._document = normalize_app_preferences_document(persisted)
+        return copy.deepcopy(self._document)
+
     def graphics_settings(self) -> dict[str, Any]:
         return copy.deepcopy(self._ensure_document()["graphics"])
 
@@ -433,8 +446,7 @@ class AppPreferencesController:
         return _find_custom_theme(saved_settings.get("custom_themes"), normalized_theme.theme_id) or saved_theme
 
     def persist(self) -> dict[str, Any]:
-        self._document = self._store.persist_document(self._ensure_document())
-        return copy.deepcopy(self._document)
+        return self.persist_document(self._ensure_document())
 
     def _ensure_document(self) -> dict[str, Any]:
         if self._document is None:

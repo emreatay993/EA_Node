@@ -110,6 +110,9 @@ _CATALOG_DIAGNOSTIC_IDENTITY_LENGTH = 160
 _CATALOG_DIAGNOSTIC_MESSAGE_LENGTH = 2048
 _PLUGIN_BUNDLE_LIMIT = 128
 _PLUGIN_FUNCTION_LIMIT = 4096
+_ADDON_RUNTIME_CONFIG_LIMIT = 64
+_ADDON_RUNTIME_ID_LIMIT = 128
+EMPTY_REGISTRY_CONTRACT_FINGERPRINT = hashlib.sha256(b"").hexdigest()
 _PLUGIN_OWNER_LENGTH = 256
 _PLUGIN_VERSION_LENGTH = 128
 _PLUGIN_PATH_LENGTH = 1024
@@ -163,6 +166,8 @@ class StartRunCommand:
     plugin_bundles: tuple[PluginBundleRef, ...] = ()
     plugin_fingerprint: str = ""
     runtime_registry_fingerprint: str = ""
+    registry_contract_fingerprint: str = EMPTY_REGISTRY_CONTRACT_FINGERPRINT
+    addon_runtime_config: tuple[tuple[str, bool], ...] = ()
 
 
 @dataclass(frozen=True)
@@ -927,6 +932,67 @@ def _logical_catalog_identifier(value: str, *, field_name: str) -> str:
     ):
         raise ValueError(f"{field_name} must be a path-free logical identifier.")
     return value
+
+
+def normalize_addon_runtime_config(
+    value: object,
+) -> tuple[tuple[str, bool], ...]:
+    if value is None:
+        return ()
+    if isinstance(value, (str, bytes)) or not isinstance(value, Sequence):
+        raise ValueError("addon_runtime_config must be a list")
+    if len(value) > _ADDON_RUNTIME_CONFIG_LIMIT:
+        raise ValueError("addon_runtime_config contains too many entries")
+    normalized: dict[str, bool] = {}
+    for index, raw_entry in enumerate(value):
+        if isinstance(raw_entry, Mapping):
+            if set(raw_entry) != {"addon_id", "enabled"}:
+                raise ValueError(
+                    f"addon_runtime_config[{index}] must contain addon_id and enabled"
+                )
+            raw_addon_id = raw_entry["addon_id"]
+            enabled = raw_entry["enabled"]
+        elif (
+            isinstance(raw_entry, Sequence)
+            and not isinstance(raw_entry, (str, bytes))
+            and len(raw_entry) == 2
+        ):
+            raw_addon_id, enabled = raw_entry
+        else:
+            raise ValueError(
+                f"addon_runtime_config[{index}] must be an add-on state"
+            )
+        if not isinstance(raw_addon_id, str):
+            raise ValueError(
+                f"addon_runtime_config[{index}].addon_id must be a string"
+            )
+        addon_id = raw_addon_id.strip()
+        if not addon_id or len(addon_id) > _ADDON_RUNTIME_ID_LIMIT:
+            raise ValueError(
+                f"addon_runtime_config[{index}].addon_id must be 1 to "
+                f"{_ADDON_RUNTIME_ID_LIMIT} characters"
+            )
+        _logical_catalog_identifier(
+            addon_id,
+            field_name=f"addon_runtime_config[{index}].addon_id",
+        )
+        if type(enabled) is not bool:
+            raise ValueError(
+                f"addon_runtime_config[{index}].enabled must be a boolean"
+            )
+        if addon_id in normalized:
+            raise ValueError("addon_runtime_config contains duplicate add-on ids")
+        normalized[addon_id] = enabled
+    return tuple(sorted(normalized.items()))
+
+
+def _addon_runtime_config_payload(
+    value: tuple[tuple[str, bool], ...],
+) -> list[dict[str, object]]:
+    return [
+        {"addon_id": addon_id, "enabled": enabled}
+        for addon_id, enabled in normalize_addon_runtime_config(value)
+    ]
 
 
 def _canonical_catalog_type_id(value: str, *, field_name: str) -> str:
@@ -1737,6 +1803,10 @@ def command_to_dict(
             ],
             "plugin_fingerprint": command.plugin_fingerprint,
             "runtime_registry_fingerprint": command.runtime_registry_fingerprint,
+            "registry_contract_fingerprint": command.registry_contract_fingerprint,
+            "addon_runtime_config": _addon_runtime_config_payload(
+                command.addon_runtime_config
+            ),
         }
         dict_to_command(payload, catalog=catalog)
         return payload
@@ -2091,6 +2161,8 @@ def _start_run_command_from_payload(
         "plugin_bundles",
         "plugin_fingerprint",
         "runtime_registry_fingerprint",
+        "registry_contract_fingerprint",
+        "addon_runtime_config",
     }
     if missing_plugin_fields := required_plugin_fields - set(payload):
         raise ValueError(
@@ -2103,6 +2175,13 @@ def _start_run_command_from_payload(
     _sha256_digest(
         payload["runtime_registry_fingerprint"],
         field_name="runtime_registry_fingerprint",
+    )
+    registry_contract_fingerprint = _sha256_digest(
+        payload["registry_contract_fingerprint"],
+        field_name="registry_contract_fingerprint",
+    )
+    addon_runtime_config = normalize_addon_runtime_config(
+        payload["addon_runtime_config"]
     )
     catalog_fingerprint, catalog_revisions = catalog_agreement_from_payload(payload)
     if catalog is not None:
@@ -2161,6 +2240,8 @@ def _start_run_command_from_payload(
         plugin_bundles=plugin_bundles,
         plugin_fingerprint=plugin_fingerprint,
         runtime_registry_fingerprint=runtime_fingerprint,
+        registry_contract_fingerprint=registry_contract_fingerprint,
+        addon_runtime_config=addon_runtime_config,
     )
 
 
@@ -2193,6 +2274,13 @@ def coerce_start_run_command(
             command.plugin_fingerprint,
             command.runtime_registry_fingerprint,
             catalog_fingerprint=catalog_fingerprint,
+        )
+        registry_contract_fingerprint = _sha256_digest(
+            command.registry_contract_fingerprint,
+            field_name="registry_contract_fingerprint",
+        )
+        addon_runtime_config = normalize_addon_runtime_config(
+            command.addon_runtime_config
         )
         return StartRunCommand(
             run_id=_string_field({"run_id": command.run_id}, "run_id"),
@@ -2227,6 +2315,8 @@ def coerce_start_run_command(
             plugin_bundles=plugin_bundles,
             plugin_fingerprint=plugin_fingerprint,
             runtime_registry_fingerprint=runtime_fingerprint,
+            registry_contract_fingerprint=registry_contract_fingerprint,
+            addon_runtime_config=addon_runtime_config,
         )
 
     if (
@@ -2252,6 +2342,13 @@ def coerce_start_run_command(
         command.get("plugin_fingerprint", ""),
         command.get("runtime_registry_fingerprint", ""),
         catalog_fingerprint=catalog_fingerprint,
+    )
+    registry_contract_fingerprint = _sha256_digest(
+        command.get("registry_contract_fingerprint", ""),
+        field_name="registry_contract_fingerprint",
+    )
+    addon_runtime_config = normalize_addon_runtime_config(
+        command.get("addon_runtime_config", ())
     )
     raw_trigger = command.get("trigger", {})
     if not isinstance(raw_trigger, Mapping):
@@ -2289,6 +2386,8 @@ def coerce_start_run_command(
         plugin_bundles=plugin_bundles,
         plugin_fingerprint=plugin_fingerprint,
         runtime_registry_fingerprint=runtime_fingerprint,
+        registry_contract_fingerprint=registry_contract_fingerprint,
+        addon_runtime_config=addon_runtime_config,
     )
 
 

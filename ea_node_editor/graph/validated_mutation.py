@@ -1,9 +1,7 @@
 from __future__ import annotations
 
 import copy
-import math
 from dataclasses import dataclass, field
-from numbers import Real
 
 from ea_node_editor.graph.boundary_adapters import GraphBoundaryAdapters, fallback_graph_boundary_adapters
 from ea_node_editor.graph.effective_ports import (
@@ -18,6 +16,7 @@ from ea_node_editor.graph.invariant_kernel import (
 )
 from ea_node_editor.graph.model import GraphModel
 from ea_node_editor.graph.pdf_panel_page_policy import PDF_PANEL_PROPERTY_KEYS, normalize_pdf_panel_page_number
+from ea_node_editor.graph.property_validation import is_saved_property_value_valid
 from ea_node_editor.graph.records import EdgeInstance, NodeInstance
 from ea_node_editor.graph.subnode_contract import (
     SUBNODE_PIN_ACCEPTED_DATA_TYPES_PROPERTY,
@@ -29,7 +28,6 @@ from ea_node_editor.graph.subnode_contract import (
 from ea_node_editor.graph.workspace_state import ViewState, WorkspaceData
 from ea_node_editor.nodes.registry import NodeRegistry, resolve_instance_ports
 from ea_node_editor.nodes.node_specs import DynamicPortGroupSpec, NodeTypeSpec, PortSpec
-from ea_node_editor.runtime_contracts import Interval1D
 
 _MISSING = object()
 
@@ -743,7 +741,7 @@ class ValidatedGraphMutation:
                 candidate_values[prop.key] = str(source)
                 continue
             previous = node.properties.get(prop.key, _MISSING)
-            if previous is not _MISSING and self._python_script_property_value_is_valid(
+            if previous is not _MISSING and is_saved_property_value_valid(
                 prop,
                 previous,
             ):
@@ -871,74 +869,6 @@ class ValidatedGraphMutation:
         for edge_id in removed_edge_ids:
             self.model._remove_edge_record(self.workspace_id, edge_id)
         return tuple(reset_keys), tuple(removed_edge_ids)
-
-    @staticmethod
-    def _python_script_property_value_is_valid(prop, value: object) -> bool:
-        if prop.type in {"str", "path"}:
-            return isinstance(value, str)
-        if prop.type == "bool":
-            return isinstance(value, bool)
-        if prop.type == "int":
-            valid = isinstance(value, int) and not isinstance(value, bool)
-        elif prop.type == "float":
-            valid = isinstance(value, Real) and not isinstance(value, bool)
-        elif prop.type == "enum":
-            return isinstance(value, str) and value in prop.enum_values
-        elif prop.type == "interval_1d":
-            if value is None:
-                return bool(prop.nullable)
-            if not isinstance(value, Interval1D):
-                return False
-            values = (value.start, value.end)
-            valid = True
-            if prop.interval_direction == "increasing" and value.start > value.end:
-                valid = False
-            if prop.interval_direction == "decreasing" and value.start < value.end:
-                valid = False
-        elif prop.inline_editor == "list":
-            if not isinstance(value, list):
-                return False
-            if prop.list_item_type == "enum":
-                return all(item in prop.list_item_enum_codes for item in value)
-            expected = {
-                "str": str,
-                "color": str,
-                "int": int,
-                "float": Real,
-            }.get(prop.list_item_type)
-            if expected is None or any(
-                isinstance(item, bool) or not isinstance(item, expected)
-                for item in value
-            ):
-                return False
-            if prop.list_item_type in {"str", "color"}:
-                return True
-            values = tuple(value)
-            valid = True
-        else:
-            return True
-        if not valid:
-            return False
-        if prop.enum_codes and value not in prop.enum_codes:
-            return False
-        numeric_values = values if "values" in locals() else (value,)
-        try:
-            return all(
-                math.isfinite(float(item))
-                and (prop.minimum is None or float(item) >= float(prop.minimum))
-                and (prop.maximum is None or float(item) <= float(prop.maximum))
-                and (
-                    prop.list_item_minimum is None
-                    or float(item) >= float(prop.list_item_minimum)
-                )
-                and (
-                    prop.list_item_maximum is None
-                    or float(item) <= float(prop.list_item_maximum)
-                )
-                for item in numeric_values
-            )
-        except (TypeError, ValueError, OverflowError):
-            return False
 
     def set_node_properties(self, node_id: str, values: dict[str, object]) -> dict[str, object]:
         node = self.workspace.nodes[node_id]

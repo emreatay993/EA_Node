@@ -65,6 +65,29 @@ class _HostStub:
         self.registry = _RegistryStub()
         self.node_library_changed = _SignalStub()
         self.project_meta_changed = _SignalStub()
+        self.registry_replacement_coordinator = _RegistryReplacementCoordinatorStub(self)
+
+
+class _RegistryReplacementCoordinatorStub:
+    def __init__(self, host: _HostStub) -> None:
+        self._host = host
+        self._manifest = None
+        self._available_node_ids: tuple[str, ...] = ()
+
+    def prepare(self, manifest, *available_node_ids: str) -> None:  # noqa: ANN001
+        self._manifest = manifest
+        self._available_node_ids = tuple(available_node_ids)
+
+    def import_package(self, _path: Path):  # noqa: ANN201
+        for type_id in self._available_node_ids:
+            self._host.registry.add_available(type_id)
+        self._host.node_library_changed.emit()
+        return SimpleNamespace(
+            applied=True,
+            report=SimpleNamespace(issues=()),
+            registry=self._host.registry,
+            package_manifest=self._manifest,
+        )
 
 
 class WorkspaceIONodePackageTests(unittest.TestCase):
@@ -72,20 +95,12 @@ class WorkspaceIONodePackageTests(unittest.TestCase):
         host = _HostStub()
         ops = WorkspaceIOOps(host, _ControllerStub())  # type: ignore[arg-type]
         manifest = SimpleNamespace(name="packet_pkg", version="2.0.0", nodes=["packet.alpha"])
-
-        def _discover(registry: _RegistryStub) -> list[str]:
-            registry.add_available("packet.alpha")
-            return ["packet.alpha"]
+        host.registry_replacement_coordinator.prepare(manifest, "packet.alpha")
 
         with (
             patch(
                 "PyQt6.QtWidgets.QFileDialog.getOpenFileName",
                 return_value=("C:/tmp/packet_pkg.cxpkg", "Node Package (*.cxpkg)"),
-            ),
-            patch("ea_node_editor.nodes.package_manager.import_package", return_value=manifest),
-            patch(
-                "ea_node_editor.nodes.plugin_loader.discover_and_load_plugins",
-                side_effect=_discover,
             ),
             patch("PyQt6.QtWidgets.QMessageBox.information") as info_mock,
             patch("PyQt6.QtWidgets.QMessageBox.warning") as warning_mock,
@@ -103,14 +118,13 @@ class WorkspaceIONodePackageTests(unittest.TestCase):
         host.registry.add_available("packet.alpha")
         ops = WorkspaceIOOps(host, _ControllerStub())  # type: ignore[arg-type]
         manifest = SimpleNamespace(name="packet_pkg", version="2.1.0", nodes=["packet.alpha"])
+        host.registry_replacement_coordinator.prepare(manifest, "packet.alpha")
 
         with (
             patch(
                 "PyQt6.QtWidgets.QFileDialog.getOpenFileName",
                 return_value=("C:/tmp/packet_pkg.cxpkg", "Node Package (*.cxpkg)"),
             ),
-            patch("ea_node_editor.nodes.package_manager.import_package", return_value=manifest),
-            patch("ea_node_editor.nodes.plugin_loader.discover_and_load_plugins", return_value=[]),
             patch("PyQt6.QtWidgets.QMessageBox.information") as info_mock,
             patch("PyQt6.QtWidgets.QMessageBox.warning") as warning_mock,
         ):
@@ -125,20 +139,19 @@ class WorkspaceIONodePackageTests(unittest.TestCase):
         host = _HostStub()
         ops = WorkspaceIOOps(host, _ControllerStub())  # type: ignore[arg-type]
         manifest = SimpleNamespace(name="packet_pkg", version="2.0.0", nodes=["packet.alpha"])
+        host.registry_replacement_coordinator.prepare(manifest)
 
         with (
             patch(
                 "PyQt6.QtWidgets.QFileDialog.getOpenFileName",
                 return_value=("C:/tmp/packet_pkg.cxpkg", "Node Package (*.cxpkg)"),
             ),
-            patch("ea_node_editor.nodes.package_manager.import_package", return_value=manifest),
-            patch("ea_node_editor.nodes.plugin_loader.discover_and_load_plugins", return_value=[]),
             patch("PyQt6.QtWidgets.QMessageBox.information") as info_mock,
             patch("PyQt6.QtWidgets.QMessageBox.warning") as warning_mock,
         ):
             ops.import_node_package()
 
-        self.assertEqual(host.node_library_changed.calls, 0)
+        self.assertEqual(host.node_library_changed.calls, 1)
         self.assertEqual(info_mock.call_count, 0)
         self.assertEqual(warning_mock.call_count, 1)
         self.assertEqual(warning_mock.call_args.args[1], "Import Incomplete")
@@ -148,20 +161,19 @@ class WorkspaceIONodePackageTests(unittest.TestCase):
         host = _HostStub()
         ops = WorkspaceIOOps(host, _ControllerStub())  # type: ignore[arg-type]
         manifest = SimpleNamespace(name="packet_pkg", version="2.0.0", nodes=[])
+        host.registry_replacement_coordinator.prepare(manifest)
 
         with (
             patch(
                 "PyQt6.QtWidgets.QFileDialog.getOpenFileName",
                 return_value=("C:/tmp/packet_pkg.cxpkg", "Node Package (*.cxpkg)"),
             ),
-            patch("ea_node_editor.nodes.package_manager.import_package", return_value=manifest),
-            patch("ea_node_editor.nodes.plugin_loader.discover_and_load_plugins", return_value=[]),
             patch("PyQt6.QtWidgets.QMessageBox.information") as info_mock,
             patch("PyQt6.QtWidgets.QMessageBox.warning") as warning_mock,
         ):
             ops.import_node_package()
 
-        self.assertEqual(host.node_library_changed.calls, 0)
+        self.assertEqual(host.node_library_changed.calls, 1)
         self.assertEqual(info_mock.call_count, 1)
         self.assertEqual(warning_mock.call_count, 0)
         self.assertIn("declares no node types", info_mock.call_args.args[2])

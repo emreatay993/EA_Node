@@ -51,6 +51,9 @@ implementation studies are intentionally excluded.
 - Deterministic `.cxpkg` schema-2 archive IO, static package validation, and
   immutable function-package asset provenance are owned by the Nodes map;
   title-icon projection remains owned by the icon and graph-scene routes.
+- Open-session registry reload safety is shared by the graph compatibility checker,
+  nodes candidate/package transaction, execution identity/admission guard, and the
+  shell registry replacement coordinator; it is not a legacy compatibility layer.
 - Geometry, spatial, mesh, FEM, voxel, security, reporting, media, and unit
   contracts use neutral COREX identifiers and functional module names.
 - Retired import and placeholder surfaces are absent from current ownership.

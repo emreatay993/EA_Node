@@ -104,6 +104,9 @@ class SessionAutosaveStore:
         self._autosave_path_provider = autosave_path_provider
         self._staging_workspace_root_provider = staging_workspace_root_provider
 
+    def replace_serializer(self, serializer: _SerializerProtocol) -> None:
+        self._serializer = serializer
+
     def staging_workspace_root(self) -> Path:
         if self._staging_workspace_root_provider is not None:
             path = self._staging_workspace_root_provider()

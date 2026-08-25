@@ -25,11 +25,15 @@ from ea_node_editor.execution.protocol import (
 )
 from ea_node_editor.execution.runtime_snapshot import build_runtime_snapshot
 from ea_node_editor.execution.worker_runner import WorkflowRunner
-from ea_node_editor.execution.worker_runtime import DEFAULT_RUNTIME_PREPARATION_CACHE
+from ea_node_editor.execution.worker_runtime import (
+    DEFAULT_RUNTIME_PREPARATION_CACHE,
+    RuntimePreparationCache,
+)
 from ea_node_editor.graph.model import GraphModel
 from ea_node_editor.nodes.bootstrap import build_builtin_registry, build_default_registry
 from ea_node_editor.nodes.execution_context import ExecutionContext
 from ea_node_editor.nodes.function_plugin import PluginBundleRef, PythonFunctionRef
+from ea_node_editor.nodes.node_specs import NodeTypeSpec
 from ea_node_editor.nodes.plugin_loader import discover_static_plugins
 from ea_node_editor.nodes.registry import NodeRegistry
 from ea_node_editor.runtime_contracts import DataTree, deserialize_runtime_value
@@ -116,6 +120,8 @@ def _command(
             catalog_fingerprint,
             plugin_fingerprint,
         ),
+        registry_contract_fingerprint=registry.contract_fingerprint(),
+        addon_runtime_config=registry.addon_runtime_config(),
     )
 
 
@@ -128,6 +134,48 @@ def _context() -> ExecutionContext:
         properties={},
         emit_log=lambda _level, _message: None,
     )
+
+
+def test_runtime_cache_uses_only_accepted_addon_configuration(monkeypatch) -> None:
+    from ea_node_editor.nodes import bootstrap
+
+    spec = NodeTypeSpec(
+        type_id="tests.synthetic_addon",
+        display_name="Synthetic Add-on",
+        category_path=("Tests",),
+        icon="",
+        ports=(),
+        properties=(),
+    )
+    builds: list[tuple[tuple[str, bool], ...]] = []
+
+    def build_registry(*, addon_runtime_config, **_kwargs):  # noqa: ANN001
+        config = tuple(addon_runtime_config)
+        registry = NodeRegistry(addon_runtime_config=config)
+        if dict(config).get("tests.synthetic_addon", False):
+            registry.register_descriptor(spec, lambda: None, owner_id=spec.type_id)
+        registry.freeze()
+        builds.append(config)
+        return registry
+
+    monkeypatch.setattr(bootstrap, "build_default_registry", build_registry)
+    cache = RuntimePreparationCache()
+    disabled_config = (("tests.synthetic_addon", False),)
+    enabled_config = (("tests.synthetic_addon", True),)
+
+    disabled = cache.default_registry(disabled_config)
+    assert cache.default_registry(disabled_config) is disabled
+    with pytest.raises(ValueError, match="must be retired"):
+        cache.default_registry(enabled_config)
+    cache.clear()
+    enabled = cache.default_registry(enabled_config)
+
+    assert disabled.spec_or_none(spec.type_id) is None
+    assert enabled.spec_or_none(spec.type_id) == spec
+    assert disabled.data_types.fingerprint() == enabled.data_types.fingerprint()
+    assert disabled.plugin_fingerprint() == enabled.plugin_fingerprint()
+    assert disabled.contract_fingerprint() != enabled.contract_fingerprint()
+    assert builds == [disabled_config, enabled_config]
 
 
 def _loose_source(type_id: str, value: int, *, marker: Path | None = None) -> str:
@@ -516,6 +564,8 @@ def test_spawned_worker_uses_pinned_generation_after_author_source_is_deleted(
             data_types=registry.data_types,
             plugin_bundles=registry.plugin_bundle_refs(),
             plugin_fingerprint=registry.plugin_fingerprint(),
+            registry_contract_fingerprint=registry.contract_fingerprint(),
+            addon_runtime_config=registry.addon_runtime_config(),
         )
         assert run_id
         assert terminal.wait(timeout=20.0)

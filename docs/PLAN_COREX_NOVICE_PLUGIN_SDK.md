@@ -53,7 +53,7 @@ Source handoff: `codex-plan-01a03779-f09e-70b2-825b-a371a8b0ccc2-01a03779-f0.md`
 | T05 | Completed | Root orchestrator | Independent cross-layer review cleared; 145 tests and 170 subtests passed; protocol bounds, client retirement, persistence exclusion, Ruff, compile, maps, and indexes passed. |
 | T06 | Completed | Root orchestrator | Mandatory runtime/security review cleared; 277 tests and 279 subtests passed across plugin, registry, worker/client, protocol, and catalog gates; spawned-process source-deletion proof, Ruff, compile, maps, and indexes passed. |
 | T07 | Completed | T07 implementation subagent | Mandatory package-security and activation reviews cleared; 285 tests and 256 subtests passed; deterministic schema-2 round trip, non-execution, path/hash/member/hard-link limits, rollback, icon provenance, Ruff, compile, maps, and links passed. Two unchanged built-in icon-audit failures were independently classified unrelated. |
-| T08 | Pending | Unassigned | — |
+| T08 | Completed | T08 implementation team | Mandatory transaction/data-loss and architecture reviews cleared; final lanes passed 230 tests/145 subtests, 93/30, 125/31, and 64/53 with one optional skip. Full registry identity, bounded add-on worker config, guarded admission, persistence-aware reload safety, reversible packages, exact consumer rollback, Ruff, compile, traceability, maps, and links passed. |
 | T09 | Pending | Unassigned | — |
 | T10 | Pending | Unassigned | — |
 | T11 | Pending | Unassigned | — |

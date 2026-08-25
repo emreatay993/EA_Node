@@ -193,6 +193,10 @@ class MarsAddOnContractTests(unittest.TestCase):
                             "workspace_id": workspace.workspace_id,
                             "runtime_snapshot": snapshot,
                             "trigger": {},
+                            "registry_contract_fingerprint": (
+                                registry.contract_fingerprint()
+                            ),
+                            "addon_runtime_config": registry.addon_runtime_config(),
                         },
                         catalog=registry.data_types,
                     ),

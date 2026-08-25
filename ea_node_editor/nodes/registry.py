@@ -1,16 +1,18 @@
 # Purpose: Validate and compose node descriptors with their semantic data-type catalog.
 # Map: subsystems/nodes_registry_builtins.md
-# Tests: tests/test_registry_validation.py
+# Tests: tests/test_registry_validation.py, tests/test_plugin_runtime_agreement.py
 # Landmarks: resolve_instance_ports; TrustedFactoryEntry; PythonFunctionEntry; NodeRegistry; descriptor validation
 
 from __future__ import annotations
 
 import copy
+import hashlib
 import json
 import math
 import re
 from collections.abc import Iterable, Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, fields, is_dataclass
+from functools import partial
 from numbers import Real
 from typing import Any, Callable
 
@@ -417,6 +419,78 @@ class PythonFunctionEntry:
 RegistryEntry = TrustedFactoryEntry | PythonFunctionEntry
 
 
+def _contract_value(value: object) -> object:
+    if value is None or isinstance(value, (bool, int, float, str)):
+        return value
+    if isinstance(value, bytes):
+        return {"__bytes__": value.hex()}
+    if isinstance(value, partial):
+        return {
+            "__partial__": _contract_value(value.func),
+            "args": _contract_value(value.args),
+            "keywords": _contract_value(value.keywords or {}),
+        }
+    if callable(value):
+        module = str(getattr(value, "__module__", "") or "")
+        qualname = str(
+            getattr(value, "__qualname__", getattr(value, "__name__", "")) or ""
+        )
+        if not module or not qualname:
+            raise TypeError("Registry contract callables require module and qualified names")
+        return {"__callable__": f"{module}:{qualname}"}
+    if is_dataclass(value) and not isinstance(value, type):
+        return {
+            "__type__": f"{type(value).__module__}:{type(value).__qualname__}",
+            **{
+                item.name: _contract_value(getattr(value, item.name))
+                for item in fields(value)
+            },
+        }
+    if isinstance(value, Mapping):
+        items = [
+            (_contract_value(key), _contract_value(item))
+            for key, item in value.items()
+        ]
+        items.sort(
+            key=lambda pair: json.dumps(
+                pair[0], sort_keys=True, separators=(",", ":"), ensure_ascii=True
+            )
+        )
+        return {"__mapping__": items}
+    if isinstance(value, tuple):
+        return {"__tuple__": [_contract_value(item) for item in value]}
+    if isinstance(value, list):
+        return {"__list__": [_contract_value(item) for item in value]}
+    if isinstance(value, (set, frozenset)):
+        items = [_contract_value(item) for item in value]
+        items.sort(
+            key=lambda item: json.dumps(
+                item, sort_keys=True, separators=(",", ":"), ensure_ascii=True
+            )
+        )
+        return {"__set__": items}
+    raise TypeError(
+        "Registry contract contains unsupported value type "
+        f"{type(value).__module__}.{type(value).__qualname__}"
+    )
+
+
+def _normalize_addon_runtime_config(
+    value: Iterable[tuple[str, bool]],
+) -> tuple[tuple[str, bool], ...]:
+    normalized: dict[str, bool] = {}
+    for addon_id, enabled in value:
+        normalized_id = str(addon_id).strip()
+        if not normalized_id:
+            raise ValueError("add-on runtime ids must be non-empty strings")
+        if type(enabled) is not bool:
+            raise TypeError("add-on runtime enabled states must be booleans")
+        if normalized_id in normalized:
+            raise ValueError(f"duplicate add-on runtime id: {normalized_id}")
+        normalized[normalized_id] = enabled
+    return tuple(sorted(normalized.items()))
+
+
 class NodeRegistry:
     _TYPE_ID_PATTERN = re.compile(r"^[A-Za-z0-9_.-]+$")
     _SETTINGS_GROUP_ID_PATTERN = re.compile(r"^[a-z][a-z0-9_.-]*$")
@@ -470,7 +544,12 @@ class NodeRegistry:
         "jupyter",
     }
 
-    def __init__(self, *, data_types: DataTypeCatalog | None = None) -> None:
+    def __init__(
+        self,
+        *,
+        data_types: DataTypeCatalog | None = None,
+        addon_runtime_config: Iterable[tuple[str, bool]] = (),
+    ) -> None:
         if data_types is None:
             data_types = DataTypeCatalog()
             data_types.register_many(
@@ -490,6 +569,10 @@ class NodeRegistry:
         self._owner_source_identities: dict[str, str] = {}
         self._plugin_bundle_refs: dict[str, PluginBundleRef] = {}
         self._plugin_fingerprint = EMPTY_PLUGIN_FINGERPRINT
+        self._addon_runtime_config = _normalize_addon_runtime_config(
+            addon_runtime_config
+        )
+        self._contract_fingerprint = ""
 
     @property
     def data_types(self) -> DataTypeCatalog:
@@ -497,6 +580,7 @@ class NodeRegistry:
 
     def freeze(self) -> None:
         self._data_types.freeze()
+        self._contract_fingerprint = ""
 
     def plugin_contract_manifest(self, owner_id: str) -> PluginContractManifest | None:
         return self._contract_manifests.get(str(owner_id).strip())
@@ -562,7 +646,10 @@ class NodeRegistry:
         staged_catalog = self._data_types.fork(
             excluding_owner_id=normalized_owner_id if replace_owner else "",
         )
-        staged = NodeRegistry(data_types=staged_catalog)
+        staged = NodeRegistry(
+            data_types=staged_catalog,
+            addon_runtime_config=self._addon_runtime_config,
+        )
         staged._entries = {
             type_id: entry
             for type_id, entry in self._entries.items()
@@ -616,6 +703,7 @@ class NodeRegistry:
         self._owner_source_identities = staged._owner_source_identities
         self._plugin_bundle_refs = staged._plugin_bundle_refs
         self._plugin_fingerprint = staged._plugin_fingerprint
+        self._contract_fingerprint = ""
 
     def register(
         self,
@@ -658,6 +746,7 @@ class NodeRegistry:
             provenance=provenance,
             owner_id=str(owner_id).strip(),
         )
+        self._contract_fingerprint = ""
 
     def register_descriptors(
         self,
@@ -686,6 +775,7 @@ class NodeRegistry:
                 owner_id=normalized_owner_id,
             )
         self._entries = staged_entries
+        self._contract_fingerprint = ""
 
     def register_python_function(
         self,
@@ -712,6 +802,7 @@ class NodeRegistry:
             unavailable_reason=unavailable_reason,
         )
         self._plugin_fingerprint = ""
+        self._contract_fingerprint = ""
 
     def create(self, type_id: str) -> NodePlugin:
         try:
@@ -803,7 +894,10 @@ class NodeRegistry:
         ]
 
     def trusted_runtime_copy(self) -> NodeRegistry:
-        staged = NodeRegistry(data_types=self._data_types)
+        staged = NodeRegistry(
+            data_types=self._data_types,
+            addon_runtime_config=self._addon_runtime_config,
+        )
         staged._entries = {
             type_id: entry
             for type_id, entry in self._entries.items()
@@ -846,6 +940,7 @@ class NodeRegistry:
             raise ValueError("plugin_fingerprint must be a lowercase SHA-256 digest")
         self._plugin_bundle_refs = {bundle.owner_id: bundle for bundle in bundles}
         self._plugin_fingerprint = fingerprint
+        self._contract_fingerprint = ""
 
     def plugin_bundle_refs(self) -> tuple[PluginBundleRef, ...]:
         return tuple(
@@ -855,6 +950,55 @@ class NodeRegistry:
 
     def plugin_fingerprint(self) -> str:
         return self._plugin_fingerprint
+
+    def set_addon_runtime_config(
+        self,
+        value: Iterable[tuple[str, bool]],
+    ) -> None:
+        self._addon_runtime_config = _normalize_addon_runtime_config(value)
+        self._contract_fingerprint = ""
+
+    def addon_runtime_config(self) -> tuple[tuple[str, bool], ...]:
+        return self._addon_runtime_config
+
+    def contract_fingerprint(self) -> str:
+        if self._contract_fingerprint:
+            return self._contract_fingerprint
+        entries = []
+        for type_id, entry in sorted(self._entries.items()):
+            implementation = (
+                entry.function_ref
+                if isinstance(entry, PythonFunctionEntry)
+                else entry.factory
+            )
+            entries.append(
+                {
+                    "type_id": type_id,
+                    "kind": type(entry).__name__,
+                    "owner_id": entry.owner_id,
+                    "spec": _contract_value(entry.spec),
+                    "implementation": _contract_value(implementation),
+                }
+            )
+        payload = {
+            "schema_version": 1,
+            "data_type_catalog": self._data_types.fingerprint(),
+            "public_plugins": self._plugin_fingerprint,
+            "addon_runtime_config": list(self._addon_runtime_config),
+            "entries": entries,
+        }
+        fingerprint = hashlib.sha256(
+            json.dumps(
+                payload,
+                sort_keys=True,
+                separators=(",", ":"),
+                ensure_ascii=True,
+                allow_nan=False,
+            ).encode("utf-8")
+        ).hexdigest()
+        if self._data_types.is_frozen:
+            self._contract_fingerprint = fingerprint
+        return fingerprint
 
     def default_properties(self, type_id: str) -> dict[str, Any]:
         return self.normalize_properties(type_id, {}, include_defaults=True)

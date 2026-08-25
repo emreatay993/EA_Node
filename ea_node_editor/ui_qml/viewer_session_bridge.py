@@ -498,6 +498,20 @@ class ViewerSessionBridge(QObject):
             scene_bridge.nodes_changed.connect(self._on_nodes_changed)
             scene_bridge.edges_changed.connect(self._on_edges_changed)
 
+    def assert_registry_replaceable(self) -> None:
+        if any(
+            self._display_phase(state) in {*_OPEN_SESSION_PHASES, "closing"}
+            for state in self._sessions.values()
+        ):
+            raise RuntimeError(
+                "Cannot replace the registry while a viewer session is active"
+            )
+
+    def replace_data_types(self, data_types: DataTypeCatalog) -> None:
+        if not isinstance(data_types, DataTypeCatalog):
+            raise TypeError("data_types must be a DataTypeCatalog")
+        self._data_types = data_types
+
     @pyqtProperty(str, notify=active_workspace_changed)
     def active_workspace_id(self) -> str:
         return self._current_workspace_id()

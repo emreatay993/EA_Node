@@ -470,24 +470,49 @@ class WorkspaceIOOps:
     def import_node_package(self) -> None:
         from PyQt6.QtWidgets import QFileDialog, QMessageBox
 
-        from ea_node_editor.nodes.package_manager import import_package
-        from ea_node_editor.nodes.plugin_loader import discover_and_load_plugins
-
         path, _ = QFileDialog.getOpenFileName(
             resolve_dialog_parent(self._host), "Import Node Package", "", "Node Package (*.cxpkg)"
         )
         if not path:
             return
+        available_before = {
+            spec.type_id for spec in self._host.registry.all_specs()
+        }
         try:
-            manifest = import_package(Path(path))
-            loaded_type_ids = discover_and_load_plugins(self._host.registry)
+            result = self._host.registry_replacement_coordinator.import_package(
+                Path(path)
+            )
         except Exception as exc:  # noqa: BLE001
             QMessageBox.warning(resolve_dialog_parent(self._host), "Import Failed", f"Could not import package.\n{exc}")
             return
 
+        if not result.applied:
+            issue_summary = "\n".join(
+                f"- {issue.message}" for issue in result.report.issues[:8]
+            )
+            QMessageBox.warning(
+                resolve_dialog_parent(self._host),
+                "Import Refused",
+                "The package is incompatible with the open project."
+                + (f"\n\n{issue_summary}" if issue_summary else ""),
+            )
+            return
+
+        manifest = result.package_manifest
+        if manifest is None:
+            QMessageBox.warning(
+                resolve_dialog_parent(self._host),
+                "Import Failed",
+                "Could not import package.\nThe package transaction returned no manifest.",
+            )
+            return
+        loaded_type_ids = [
+            spec.type_id
+            for spec in result.registry.all_specs()
+            if spec.type_id not in available_before
+        ]
+
         outcome = self._node_package_import_outcome(manifest.nodes, loaded_type_ids)
-        if outcome.available_node_ids:
-            self._host.node_library_changed.emit()
 
         if outcome.approved_no_node_outcome:
             QMessageBox.information(
@@ -509,7 +534,7 @@ class WorkspaceIOOps:
                 f"{len(outcome.missing_node_ids)} of {len(outcome.declared_node_ids)} declared node(s) "
                 f"are not currently available.{available_summary}\n\n"
                 f"Missing: {', '.join(outcome.missing_node_ids)}.\n\n"
-                "Restart the application if this package replaced node types that were already loaded.",
+                "The active registry was left unchanged.",
             )
             return
 

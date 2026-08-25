@@ -23,6 +23,7 @@ from ea_node_editor.common.optimization_links import (
 )
 from ea_node_editor.execution.compiler import compile_runtime_snapshot
 from ea_node_editor.execution.protocol import StartRunCommand
+from ea_node_editor.execution.protocol import normalize_addon_runtime_config
 from ea_node_editor.execution.plugin_worker_runtime import WorkerPluginRuntime
 from ea_node_editor.execution.runtime_dto import RuntimeEdge, RuntimeWorkspace
 from ea_node_editor.execution.runtime_snapshot import (
@@ -763,18 +764,43 @@ class RuntimePreparationCache:
         self._lock = threading.RLock()
         self._registry: Any | None = None
         self._registry_provider_id: Any = 0
+        self._registry_addon_runtime_config: tuple[tuple[str, bool], ...] | None = None
         self._compiled_workspaces: dict[tuple[int, str, str], RuntimeWorkspace] = {}
         self._plugin_runtime = WorkerPluginRuntime()
 
-    def default_registry(self) -> Any:
+    def default_registry(
+        self,
+        addon_runtime_config: tuple[tuple[str, bool], ...] | None = None,
+    ) -> Any:
         from ea_node_editor.nodes.bootstrap import build_default_registry
 
         provider_id = id(build_default_registry)
+        normalized_config = (
+            None
+            if addon_runtime_config is None
+            else normalize_addon_runtime_config(addon_runtime_config)
+        )
         with self._lock:
-            if self._registry is None or self._registry_provider_id != provider_id:
+            if (
+                self._registry is not None
+                and self._registry_provider_id == provider_id
+                and self._registry_addon_runtime_config != normalized_config
+            ):
+                raise ValueError(
+                    "Runtime preparation cache must be retired before add-on "
+                    "configuration changes"
+                )
+            if (
+                self._registry is None
+                or self._registry_provider_id != provider_id
+            ):
                 self._plugin_runtime.clear()
-                self._registry = build_default_registry(include_public_plugins=False)
+                self._registry = build_default_registry(
+                    include_public_plugins=False,
+                    addon_runtime_config=normalized_config,
+                )
                 self._registry_provider_id = provider_id
+                self._registry_addon_runtime_config = normalized_config
                 self._compiled_workspaces.clear()
             return self._registry
 
@@ -836,6 +862,7 @@ class RuntimePreparationCache:
             self._compiled_workspaces.clear()
             self._registry = None
             self._registry_provider_id = 0
+            self._registry_addon_runtime_config = None
 
 
 DEFAULT_RUNTIME_PREPARATION_CACHE = RuntimePreparationCache()
@@ -847,7 +874,7 @@ def prepare_runtime(
     cache: RuntimePreparationCache | None = None,
 ) -> PreparedRuntime:
     runtime_cache = cache or DEFAULT_RUNTIME_PREPARATION_CACHE
-    trusted_registry = runtime_cache.default_registry()
+    trusted_registry = runtime_cache.default_registry(command.addon_runtime_config)
     registry, plugin_runtime = runtime_cache.prepare_plugin_registry(
         command,
         trusted_registry,

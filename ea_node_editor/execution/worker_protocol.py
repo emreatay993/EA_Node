@@ -23,6 +23,7 @@ from ea_node_editor.execution.protocol import (
     catalog_mismatch_message,
     dict_to_command,
     event_to_dict,
+    normalize_addon_runtime_config,
 )
 from ea_node_editor.execution.worker_services import WorkerServices
 from ea_node_editor.nodes.ansys_dpf_data_types import DPF_FIELDS_CONTAINER_DATA_TYPE
@@ -224,7 +225,10 @@ def decode_command_payload(
             )
 
             cache = runtime_cache or DEFAULT_RUNTIME_PREPARATION_CACHE
-            registry = cache.default_registry()
+            addon_runtime_config = normalize_addon_runtime_config(
+                payload.get("addon_runtime_config", ())
+            )
+            registry = cache.default_registry(addon_runtime_config)
             active_catalog = registry.data_types
             expected_fingerprint, expected_revisions = (
                 catalog_agreement_from_payload(payload)
