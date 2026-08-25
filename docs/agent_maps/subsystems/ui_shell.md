@@ -13,6 +13,7 @@ Use this for shell-backed workflows, controllers, presenters, context bridges, a
 - `ea_node_editor/ui/shell/controllers/`
 - `ea_node_editor/ui/shell/controllers/project_session_services_support/document_io_service.py`
 - `ea_node_editor/ui/shell/controllers/mutation_ui_effects.py`
+- `ea_node_editor/ui/shell/controllers/plugin_authoring_controller.py`
 - `ea_node_editor/ui/shell/presenters/`
 - `tests/test_run_controller_unit.py`
 - `tests/test_registry_replacement.py`
@@ -23,6 +24,7 @@ Use this for shell-backed workflows, controllers, presenters, context bridges, a
 
 ## Common Changes
 - Route shell commands through the relevant controller, then update bridges/presenters.
+- File > New Plugin and Reload Plugins are native shell actions owned by `PluginAuthoringController`. The controller creates one fresh identity per dialog lifecycle, atomically owns a saved draft by expected content, attests the real file before calling the registry replacement coordinator, and opens the canonical plugins folder through the platform handler. It emits no library notification itself.
 - `ui/shell/registry_replacement.py` owns the guarded registry transaction used by plugin reload, package import, and live add-on apply; `composition/registry_replacement.py` attaches it after runtime/controller services. The accepted order is disposable candidate + read-only graph check, guarded final recheck/activation/canonical rebuild, runtime and shell consumer publication, durable package/preference finalization, then best-effort notifications. Rollback continues across every owner and surfaces aggregate bounded failures.
 - Node-package export candidates in `workspace_io_ops.py` come from registry specs plus private provenance. The shell forwards only explicit schema-2 source/asset members and metadata to `package_manager.py`; it does not pass descriptors, dependencies, or executable validation records.
 - Keep shell-isolated behavior covered by shell tests instead of broad app startup checks only.
@@ -83,6 +85,7 @@ Exact touch-point lists for the most common shell additions. One domain = one
 ```powershell
 .\venv\Scripts\python.exe -m pytest tests/test_run_controller_unit.py --ignore=venv -q
 .\venv\Scripts\python.exe -m pytest tests/test_registry_replacement.py tests/test_node_package_io_ops.py tests/test_main_window_shell.py -k "registry or package or addon" --ignore=venv -q
+.\venv\Scripts\python.exe -m pytest tests/test_plugin_authoring_controller.py -q
 ```
 
 ## Breadcrumbs

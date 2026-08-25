@@ -413,6 +413,16 @@ class ShellWindowRunAndStyleStateMixin:
     def show_third_party_notices_dialog(self: "ShellWindow", _checked: bool = False) -> None:
         self.shell_host_presenter.show_third_party_notices_dialog(_checked)
 
+    @pyqtSlot()
+    @pyqtSlot(bool)
+    def show_plugin_authoring_dialog(self: "ShellWindow", _checked: bool = False) -> None:
+        self.plugin_authoring_controller.show_dialog()
+
+    @pyqtSlot()
+    @pyqtSlot(bool)
+    def reload_plugins(self: "ShellWindow", _checked: bool = False) -> None:
+        self.plugin_authoring_controller.reload_plugins()
+
     def edit_graph_theme_settings(
         self: "ShellWindow",
         graph_theme_settings: Any,

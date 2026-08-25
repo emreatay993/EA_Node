@@ -8,6 +8,7 @@ from PyQt6.QtCore import Qt
 from ea_node_editor.execution.headless_runtime import CorexRuntime
 from ea_node_editor.ui.shell.controllers import (
     AddonManagerController,
+    PluginAuthoringController,
     ProjectSessionController,
     RunController,
 )
@@ -25,6 +26,7 @@ if TYPE_CHECKING:
 class ShellControllerDependencies:
     search_scope_controller: WindowSearchScopeController
     addon_manager_controller: AddonManagerController
+    plugin_authoring_controller: PluginAuthoringController
     project_session_controller: ProjectSessionController
     run_controller: RunController
     execution_client: object
@@ -32,6 +34,7 @@ class ShellControllerDependencies:
     def attach(self, host: "ShellWindow") -> None:
         host.search_scope_controller = self.search_scope_controller
         host.addon_manager_controller = self.addon_manager_controller
+        host.plugin_authoring_controller = self.plugin_authoring_controller
         host.project_session_controller = self.project_session_controller
         host.run_controller = self.run_controller
         host.execution_client = self.execution_client
@@ -51,6 +54,7 @@ def create_controller_dependencies(
         host, state.search_scope_state
     )
     addon_manager_controller = AddonManagerController(host)
+    plugin_authoring_controller = PluginAuthoringController(host)
     project_session_controller = ProjectSessionController(host)
     run_controller = RunController(host)
     execution_client = _create_shell_execution_client(registry)
@@ -61,6 +65,7 @@ def create_controller_dependencies(
     return ShellControllerDependencies(
         search_scope_controller=search_scope_controller,
         addon_manager_controller=addon_manager_controller,
+        plugin_authoring_controller=plugin_authoring_controller,
         project_session_controller=project_session_controller,
         run_controller=run_controller,
         execution_client=execution_client,

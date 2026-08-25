@@ -54,6 +54,9 @@ implementation studies are intentionally excluded.
 - Open-session registry reload safety is shared by the graph compatibility checker,
   nodes candidate/package transaction, execution identity/admission guard, and the
   shell registry replacement coordinator; it is not a legacy compatibility layer.
+- Novice plugin authoring is shared by the nodes-owned static/save backend, native
+  PyQt dialog/editor, and shell controller/File actions; reload still routes only
+  through the guarded registry replacement coordinator.
 - Geometry, spatial, mesh, FEM, voxel, security, reporting, media, and unit
   contracts use neutral COREX identifiers and functional module names.
 - Retired import and placeholder surfaces are absent from current ownership.

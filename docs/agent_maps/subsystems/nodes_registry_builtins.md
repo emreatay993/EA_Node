@@ -19,6 +19,7 @@ Use this for node definitions, registry validation, built-in node families, data
 - `ea_node_editor/nodes/plugin_contracts.py`
 - `ea_node_editor/nodes/plugin_loader.py`
 - `ea_node_editor/nodes/package_manager.py`
+- `ea_node_editor/nodes/plugin_authoring.py`
 - `ea_node_editor/nodes/builtins/`
 - `ea_node_editor/runtime_contracts/data_types.py`
 - `docs/PLAN_COREX_NOVICE_PLUGIN_SDK.md`
@@ -36,6 +37,7 @@ Use this for node definitions, registry validation, built-in node families, data
 - `build_plugin_candidate_registry(...)` builds fail-closed candidates into a caller-owned disposable generation root; one staged schema-2 package may replace only the installed package with the same exact name. Candidate and canonical registries must have the same full `NodeRegistry.contract_fingerprint()` before publication.
 - `.cxpkg` import/export accepts schema 2 only. `package_manager.py` applies the shared static directory/declaration checks, exact source/asset hashes, Windows-safe paths and documented size/member limits; the 128-file ceiling includes `node_package.json`, and filesystem members must be singly linked regular files. ZIP exports use canonical manifest JSON, sorted members, fixed timestamps, and stored bytes for deterministic output. `PackageInstallTransaction` separates stage, reversible activation, commit, and retryable rollback; unresolved cleanup/restore work is exposed only as bounded issue codes.
 - Package node icons must name declared `.svg`/`.png`/`.jpg`/`.jpeg` assets. Function entries expose private provenance rooted at the immutable validated generation, so title-icon projection never reopens mutable installed assets. Loose files cannot claim custom assets.
+- `plugin_authoring.py` owns one-time readable/random identities, novice templates, non-executing temporary validation, structured summaries, direct-child no-clobber saves, expected-content overwrites, and attested saved-draft reads. It has no watcher, installer, environment selection, or legacy descriptor path.
 - Python Script decorators resolve one applied source into ordinary ports,
   properties, and settings groups through the registry's instance-spec path.
 
@@ -58,6 +60,7 @@ Use this for node definitions, registry validation, built-in node families, data
 - `tests/test_plugin_worker_loading.py`
 - `tests/test_package_manager.py`
 - `tests/test_node_package_io_ops.py`
+- `tests/test_plugin_authoring.py`
 - `tests/test_corex_contract_catalog.py`
 - `tests/test_corex_type_conformance.py`
 - `tests/test_core_value_types.py`
@@ -71,4 +74,5 @@ Use this for node definitions, registry validation, built-in node families, data
 ## Focused Verification
 ```powershell
 .\venv\Scripts\python.exe -m pytest tests/test_plugin_declaration.py tests/test_function_plugin.py tests/test_registry_validation.py tests/test_plugin_loader.py tests/test_package_manager.py tests/test_corex_contract_catalog.py tests/test_corex_type_conformance.py tests/test_python_script_declaration.py -q
+.\venv\Scripts\python.exe -m pytest tests/test_plugin_authoring.py tests/test_plugin_authoring_controller.py tests/test_plugin_authoring_dialog.py -q
 ```

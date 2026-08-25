@@ -130,6 +130,11 @@ def create_window_actions(window: ShellWindow) -> None:
     window.action_open_project.setShortcut(QKeySequence.StandardKey.Open)
     window.action_open_project.triggered.connect(window._open_project)
 
+    window.action_new_plugin = QAction("New Plugin...", window)
+    window.action_new_plugin.triggered.connect(window.show_plugin_authoring_dialog)
+
+    window.action_reload_plugins = QAction("Reload Plugins", window)
+    window.action_reload_plugins.triggered.connect(window.reload_plugins)
 
     window.action_clear_recent_projects = QAction("Clear Recent Files", window)
     window.action_clear_recent_projects.triggered.connect(window._clear_recent_projects)
@@ -328,6 +333,8 @@ def create_window_actions(window: ShellWindow) -> None:
         window.action_save_project_as,
         window.action_project_files,
         window.action_open_project,
+        window.action_new_plugin,
+        window.action_reload_plugins,
         window.action_clear_recent_projects,
         window.action_workflow_settings,
         window.action_graphics_settings,
@@ -398,6 +405,9 @@ def build_window_menu_bar(window: ShellWindow) -> None:
     file_menu.addAction(window.action_save_project)
     file_menu.addAction(window.action_save_project_as)
     file_menu.addAction(window.action_project_files)
+    file_menu.addSeparator()
+    file_menu.addAction(window.action_new_plugin)
+    file_menu.addAction(window.action_reload_plugins)
     file_menu.addSeparator()
     file_menu.addAction(window.action_import_custom_workflow)
     file_menu.addAction(window.action_export_custom_workflow)

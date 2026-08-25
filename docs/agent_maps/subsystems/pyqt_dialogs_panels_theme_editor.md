@@ -5,6 +5,7 @@ Use this for PyQt dialogs, script/editor support, graph theme editors, and non-Q
 
 ## Start Here
 - `ea_node_editor/ui/dialogs/graphics_settings_dialog.py`
+- `ea_node_editor/ui/dialogs/plugin_authoring_dialog.py`
 - `ea_node_editor/ui/dialogs/`
 - `ea_node_editor/ui/editor/`
 - `ea_node_editor/ui/graph_theme/`
@@ -18,6 +19,7 @@ Use this for PyQt dialogs, script/editor support, graph theme editors, and non-Q
 
 ## Common Changes
 - Keep dialog-specific state inside the dialog/controller pair.
+- `PluginAuthoringDialog` is the native novice plugin editor. It reuses `PythonCodeEditor`, projects structured static-validation diagnostics, never executes source or closes on Save/Validate/Reload, and leaves filesystem/reload ownership in `PluginAuthoringController`.
 - For theme or style changes, update theme assets and focused dialog tests together.
 - App-owned `QDialog`, `QMessageBox`, and `QInputDialog` surfaces inherit their shared adaptive styling from `ea_node_editor/ui/theme/styles.py`. Use `dialogRole` only for semantic muted/error/danger states; keep native `QFileDialog` and `QColorDialog` behavior and native title bars.
 - Graph Theme Manager gradient controls are typed node-token editors, not generic hex rows; update color, boolean, and direction handling together.
@@ -32,6 +34,7 @@ Use this for PyQt dialogs, script/editor support, graph theme editors, and non-Q
 ```powershell
 .\venv\Scripts\python.exe -m pytest tests/test_graph_theme_editor_dialog.py tests/test_graphics_settings_dialog.py tests/test_script_editor_dock.py --ignore=venv -q
 .\venv\Scripts\python.exe -m pytest tests/test_project_review_deck.py --ignore=venv -q
+.\venv\Scripts\python.exe -m pytest tests/test_plugin_authoring_dialog.py --ignore=venv -q
 ```
 
 ## Breadcrumbs
