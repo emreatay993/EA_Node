@@ -6,7 +6,6 @@
 from __future__ import annotations
 
 import copy
-import hashlib
 import json
 import math
 import re
@@ -40,7 +39,11 @@ from .core_data_types import (
     CORE_DATA_TYPE_OWNER_VERSION,
     CORE_DATA_TYPES,
 )
-from .function_plugin import PluginBundleRef, PythonFunctionRef
+from .function_plugin import (
+    EMPTY_PLUGIN_FINGERPRINT,
+    PluginBundleRef,
+    PythonFunctionRef,
+)
 from .node_specs import (
     DpfCallableSourceSpec,
     DpfOperatorSourceSpec,
@@ -485,7 +488,7 @@ class NodeRegistry:
         self._contract_manifest_versions: dict[str, str] = {}
         self._owner_source_identities: dict[str, str] = {}
         self._plugin_bundle_refs: dict[str, PluginBundleRef] = {}
-        self._plugin_fingerprint = hashlib.sha256(b"[]").hexdigest()
+        self._plugin_fingerprint = EMPTY_PLUGIN_FINGERPRINT
 
     @property
     def data_types(self) -> DataTypeCatalog:

@@ -4,6 +4,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import inspect
 import keyword
 import re
@@ -17,6 +18,9 @@ from ea_node_editor.nodes.execution_context import ExecutionContext, NodeResult
 from ea_node_editor.nodes.node_specs import NodeTypeSpec
 
 _SHA256 = re.compile(r"^[0-9a-f]{64}$")
+EMPTY_PLUGIN_FINGERPRINT = hashlib.sha256(
+    b'{"bundles":[],"entries":[]}'
+).hexdigest()
 
 
 def _trimmed(field_name: str, value: object, *, allow_empty: bool = False) -> str:
@@ -235,6 +239,7 @@ class PythonFunctionAdapter:
 
 
 __all__ = [
+    "EMPTY_PLUGIN_FINGERPRINT",
     "PluginBundleRef",
     "PythonFunctionAdapter",
     "PythonFunctionRef",

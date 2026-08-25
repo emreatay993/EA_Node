@@ -257,6 +257,18 @@ class CorexRuntime:
     def subscribe(self, callback: ExecutionEventCallback) -> Callable[[], None]:
         return self._event_stream.subscribe(callback)
 
+    def replace_registry(self, registry: NodeRegistry) -> bool:
+        if not isinstance(registry, NodeRegistry):
+            raise TypeError("registry must be a NodeRegistry")
+        replace_client_registry = getattr(self._client, "replace_registry", None)
+        retired = (
+            bool(replace_client_registry(registry))
+            if callable(replace_client_registry)
+            else False
+        )
+        self._registry = registry
+        return retired
+
     def load_project(
         self,
         project_path: str | Path,
@@ -284,7 +296,7 @@ class CorexRuntime:
 
         if runtime_snapshot is None:
             loaded_project = self.load_project(project_path)
-            self._registry = loaded_project.registry
+            self.replace_registry(loaded_project.registry)
             workspace = loaded_project.select_workspace(
                 WorkspaceSelection(workspace_id)
             )
@@ -473,6 +485,8 @@ class CorexRuntime:
             trigger_captures=request.trigger_captures,
             clicked_trigger_node_id=request.clicked_trigger_node_id,
             data_types=self._registry.data_types,
+            plugin_bundles=self._registry.plugin_bundle_refs(),
+            plugin_fingerprint=self._registry.plugin_fingerprint(),
         )
 
     @staticmethod

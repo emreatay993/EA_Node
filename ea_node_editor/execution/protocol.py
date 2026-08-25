@@ -8,11 +8,12 @@ worker/client modules, and viewer state machines in ``viewer_session_service``.
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field, fields, replace
 import hashlib
 import json
 from math import isfinite
+from pathlib import Path
 from typing import Any, Literal, TypeAlias
 
 from ea_node_editor.common.clr_type_names import (
@@ -24,6 +25,13 @@ from ea_node_editor.execution.backends import (
     ExecutionBackendSelection,
     coerce_execution_backend_selection,
 )
+from ea_node_editor.nodes.function_plugin import (
+    EMPTY_PLUGIN_FINGERPRINT,
+    PluginBundleRef,
+    PythonFunctionRef,
+)
+from ea_node_editor.nodes.plugin_generation import _is_reparse_point
+from ea_node_editor.settings import plugin_generations_dir
 from ea_node_editor.runtime_contracts import (
     DataTree,
     DataTypeCatalog,
@@ -100,6 +108,13 @@ _CATALOG_REVISION_KINDS = frozenset({"family", "type", "conversion"})
 _CATALOG_DIAGNOSTIC_DIFFERENCE_LIMIT = 8
 _CATALOG_DIAGNOSTIC_IDENTITY_LENGTH = 160
 _CATALOG_DIAGNOSTIC_MESSAGE_LENGTH = 2048
+_PLUGIN_BUNDLE_LIMIT = 128
+_PLUGIN_FUNCTION_LIMIT = 4096
+_PLUGIN_OWNER_LENGTH = 256
+_PLUGIN_VERSION_LENGTH = 128
+_PLUGIN_PATH_LENGTH = 1024
+_PLUGIN_FUNCTION_NAME_LENGTH = 128
+_PLUGIN_UNAVAILABLE_REASON_LENGTH = 2048
 
 
 @dataclass(frozen=True)
@@ -145,6 +160,9 @@ class StartRunCommand:
     developer_mode: bool = False
     catalog_fingerprint: str = ""
     catalog_revisions: tuple[CatalogRevisionRecord, ...] = ()
+    plugin_bundles: tuple[PluginBundleRef, ...] = ()
+    plugin_fingerprint: str = ""
+    runtime_registry_fingerprint: str = ""
 
 
 @dataclass(frozen=True)
@@ -624,6 +642,280 @@ def _sha256_digest(value: object, *, field_name: str) -> str:
 
 def _catalog_fingerprint(value: object) -> str:
     return _sha256_digest(value, field_name="catalog_fingerprint")
+
+
+def _plugin_fingerprint(value: object) -> str:
+    return _sha256_digest(value, field_name="plugin_fingerprint")
+
+
+def runtime_registry_fingerprint(
+    catalog_fingerprint: object,
+    plugin_fingerprint: object,
+) -> str:
+    catalog_digest = _catalog_fingerprint(catalog_fingerprint)
+    plugin_digest = _plugin_fingerprint(plugin_fingerprint)
+    return hashlib.sha256(
+        f"{catalog_digest}:{plugin_digest}".encode("ascii")
+    ).hexdigest()
+
+
+def _python_function_ref_payload(function: PythonFunctionRef) -> dict[str, object]:
+    return {
+        "bundle_id": function.bundle_id,
+        "bundle_digest": function.bundle_digest,
+        "module_relative_path": function.module_relative_path,
+        "function_name": function.function_name,
+        "source_digest": function.source_digest,
+        "is_async": function.is_async,
+    }
+
+
+def _python_function_ref(
+    value: PythonFunctionRef | Mapping[str, object],
+    *,
+    index: int,
+) -> PythonFunctionRef:
+    payload = (
+        _python_function_ref_payload(value)
+        if isinstance(value, PythonFunctionRef)
+        else value
+    )
+    if not isinstance(payload, Mapping):
+        raise ValueError(f"plugin function {index} must be a mapping")
+    expected_fields = {
+        "bundle_id",
+        "bundle_digest",
+        "module_relative_path",
+        "function_name",
+        "source_digest",
+        "is_async",
+    }
+    if set(payload) != expected_fields:
+        raise ValueError(f"plugin function {index} has unexpected fields")
+    bundle_id = _logical_catalog_identifier(
+        _bounded_catalog_text(
+            payload["bundle_id"],
+            field_name=f"plugin function {index} bundle_id",
+            max_length=_PLUGIN_OWNER_LENGTH,
+        ),
+        field_name=f"plugin function {index} bundle_id",
+    )
+    module_relative_path = _bounded_catalog_text(
+        payload["module_relative_path"],
+        field_name=f"plugin function {index} module_relative_path",
+        max_length=_PLUGIN_PATH_LENGTH,
+    )
+    function_name = _bounded_catalog_text(
+        payload["function_name"],
+        field_name=f"plugin function {index} function_name",
+        max_length=_PLUGIN_FUNCTION_NAME_LENGTH,
+    )
+    is_async = payload["is_async"]
+    if not isinstance(is_async, bool):
+        raise ValueError(f"plugin function {index} is_async must be a boolean")
+    try:
+        return PythonFunctionRef(
+            bundle_id=bundle_id,
+            bundle_digest=_sha256_digest(
+                payload["bundle_digest"],
+                field_name=f"plugin function {index} bundle_digest",
+            ),
+            module_relative_path=module_relative_path,
+            function_name=function_name,
+            source_digest=_sha256_digest(
+                payload["source_digest"],
+                field_name=f"plugin function {index} source_digest",
+            ),
+            is_async=is_async,
+        )
+    except (TypeError, ValueError) as exc:
+        raise ValueError(f"plugin function {index} is invalid: {exc}") from exc
+
+
+def _approved_generation_path(value: object, *, bundle_digest: str) -> str:
+    text = _bounded_catalog_text(
+        value,
+        field_name="approved_generation_root",
+        max_length=_PLUGIN_PATH_LENGTH,
+    )
+    candidate = Path(text)
+    if not candidate.is_absolute():
+        raise ValueError("approved_generation_root must be absolute")
+    try:
+        resolved = candidate.resolve(strict=True)
+    except OSError as exc:
+        raise ValueError("approved_generation_root does not exist") from exc
+    approved_root = plugin_generations_dir().resolve()
+    if (
+        resolved.parent != approved_root
+        or resolved.name != bundle_digest
+        or not resolved.is_dir()
+        or _is_reparse_point(resolved)
+    ):
+        raise ValueError(
+            "approved_generation_root must be a direct immutable generation child"
+        )
+    return str(resolved)
+
+
+def _plugin_bundle_ref(
+    value: PluginBundleRef | Mapping[str, object],
+    *,
+    index: int,
+    function_offset: int,
+) -> PluginBundleRef:
+    payload: Mapping[str, object]
+    if isinstance(value, PluginBundleRef):
+        payload = {
+            "owner_id": value.owner_id,
+            "version": value.version,
+            "generation_id": value.generation_id,
+            "bundle_digest": value.bundle_digest,
+            "approved_generation_root": value.approved_generation_root,
+            "functions": [_python_function_ref_payload(item) for item in value.functions],
+            "unavailable_reason": value.unavailable_reason,
+        }
+    elif isinstance(value, Mapping):
+        payload = value
+    else:
+        raise ValueError(f"plugin bundle {index} must be a mapping")
+    expected_fields = {
+        "owner_id",
+        "version",
+        "generation_id",
+        "bundle_digest",
+        "approved_generation_root",
+        "functions",
+        "unavailable_reason",
+    }
+    if set(payload) != expected_fields:
+        raise ValueError(f"plugin bundle {index} has unexpected fields")
+    owner_id = _logical_catalog_identifier(
+        _bounded_catalog_text(
+            payload["owner_id"],
+            field_name=f"plugin bundle {index} owner_id",
+            max_length=_PLUGIN_OWNER_LENGTH,
+        ),
+        field_name=f"plugin bundle {index} owner_id",
+    )
+    version = _bounded_catalog_text(
+        payload["version"],
+        field_name=f"plugin bundle {index} version",
+        max_length=_PLUGIN_VERSION_LENGTH,
+        allow_empty=True,
+    )
+    generation_id = _sha256_digest(
+        payload["generation_id"],
+        field_name=f"plugin bundle {index} generation_id",
+    )
+    bundle_digest = _sha256_digest(
+        payload["bundle_digest"],
+        field_name=f"plugin bundle {index} bundle_digest",
+    )
+    raw_functions = payload["functions"]
+    if isinstance(raw_functions, (str, bytes)) or not isinstance(
+        raw_functions, Sequence
+    ):
+        raise ValueError(f"plugin bundle {index} functions must be a list")
+    if len(raw_functions) > _PLUGIN_FUNCTION_LIMIT - function_offset:
+        raise ValueError("plugin_bundles contains too many functions")
+    functions = tuple(
+        _python_function_ref(item, index=function_offset + offset)
+        for offset, item in enumerate(raw_functions)
+    )
+    unavailable_reason = _bounded_catalog_text(
+        payload["unavailable_reason"],
+        field_name=f"plugin bundle {index} unavailable_reason",
+        max_length=_PLUGIN_UNAVAILABLE_REASON_LENGTH,
+        allow_empty=True,
+    )
+    try:
+        return PluginBundleRef(
+            owner_id=owner_id,
+            version=version,
+            generation_id=generation_id,
+            bundle_digest=bundle_digest,
+            approved_generation_root=_approved_generation_path(
+                payload["approved_generation_root"],
+                bundle_digest=bundle_digest,
+            ),
+            functions=functions,
+            unavailable_reason=unavailable_reason,
+        )
+    except (TypeError, ValueError) as exc:
+        raise ValueError(f"plugin bundle {index} is invalid: {exc}") from exc
+
+
+def normalize_plugin_bundle_refs(
+    value: object,
+) -> tuple[PluginBundleRef, ...]:
+    if value is None:
+        return ()
+    if isinstance(value, (str, bytes)) or not isinstance(value, Sequence):
+        raise ValueError("plugin_bundles must be a list")
+    if len(value) > _PLUGIN_BUNDLE_LIMIT:
+        raise ValueError("plugin_bundles contains too many bundles")
+    bundles: list[PluginBundleRef] = []
+    function_offset = 0
+    for index, item in enumerate(value):
+        bundle = _plugin_bundle_ref(
+            item,
+            index=index,
+            function_offset=function_offset,
+        )
+        function_offset += len(bundle.functions)
+        if function_offset > _PLUGIN_FUNCTION_LIMIT:
+            raise ValueError("plugin_bundles contains too many functions")
+        bundles.append(bundle)
+    owners = [bundle.owner_id for bundle in bundles]
+    if len(owners) != len(set(owners)):
+        raise ValueError("plugin_bundles contains duplicate owner ids")
+    functions = [function for bundle in bundles for function in bundle.functions]
+    if len(functions) != len(set(functions)):
+        raise ValueError("plugin_bundles contains duplicate function refs")
+    return tuple(bundles)
+
+
+def _plugin_bundle_payload(bundle: PluginBundleRef) -> dict[str, object]:
+    return {
+        "owner_id": bundle.owner_id,
+        "version": bundle.version,
+        "generation_id": bundle.generation_id,
+        "bundle_digest": bundle.bundle_digest,
+        "approved_generation_root": bundle.approved_generation_root,
+        "functions": [_python_function_ref_payload(item) for item in bundle.functions],
+        "unavailable_reason": bundle.unavailable_reason,
+    }
+
+
+def _plugin_agreement(
+    plugin_bundles: object,
+    plugin_fingerprint: object,
+    runtime_fingerprint: object,
+    *,
+    catalog_fingerprint: str,
+) -> tuple[tuple[PluginBundleRef, ...], str, str]:
+    bundles = normalize_plugin_bundle_refs(plugin_bundles)
+    if not plugin_fingerprint:
+        if bundles:
+            raise ValueError("plugin_fingerprint is required when plugin_bundles is non-empty")
+        plugin_digest = EMPTY_PLUGIN_FINGERPRINT
+    else:
+        plugin_digest = _plugin_fingerprint(plugin_fingerprint)
+    expected_runtime = runtime_registry_fingerprint(
+        catalog_fingerprint,
+        plugin_digest,
+    )
+    if runtime_fingerprint:
+        supplied_runtime = _sha256_digest(
+            runtime_fingerprint,
+            field_name="runtime_registry_fingerprint",
+        )
+        if supplied_runtime != expected_runtime:
+            raise ValueError(
+                "runtime_registry_fingerprint does not match catalog and plugin fingerprints"
+            )
+    return bundles, plugin_digest, expected_runtime
 
 
 def _logical_catalog_identifier(value: str, *, field_name: str) -> str:
@@ -1440,6 +1732,11 @@ def command_to_dict(
                 _catalog_revision_payload(record)
                 for record in command.catalog_revisions
             ],
+            "plugin_bundles": [
+                _plugin_bundle_payload(bundle) for bundle in command.plugin_bundles
+            ],
+            "plugin_fingerprint": command.plugin_fingerprint,
+            "runtime_registry_fingerprint": command.runtime_registry_fingerprint,
         }
         dict_to_command(payload, catalog=catalog)
         return payload
@@ -1790,6 +2087,23 @@ def _start_run_command_from_payload(
     *,
     catalog: DataTypeCatalog | None,
 ) -> StartRunCommand:
+    required_plugin_fields = {
+        "plugin_bundles",
+        "plugin_fingerprint",
+        "runtime_registry_fingerprint",
+    }
+    if missing_plugin_fields := required_plugin_fields - set(payload):
+        raise ValueError(
+            "start_run requires plugin agreement fields: "
+            + ", ".join(sorted(missing_plugin_fields))
+        )
+    if not isinstance(payload["plugin_bundles"], list):
+        raise ValueError("start_run plugin_bundles must be a list")
+    _plugin_fingerprint(payload["plugin_fingerprint"])
+    _sha256_digest(
+        payload["runtime_registry_fingerprint"],
+        field_name="runtime_registry_fingerprint",
+    )
     catalog_fingerprint, catalog_revisions = catalog_agreement_from_payload(payload)
     if catalog is not None:
         mismatch = catalog_mismatch_message(
@@ -1799,6 +2113,12 @@ def _start_run_command_from_payload(
         )
         if mismatch:
             raise ValueError(mismatch)
+    plugin_bundles, plugin_fingerprint, runtime_fingerprint = _plugin_agreement(
+        payload.get("plugin_bundles", ()),
+        payload.get("plugin_fingerprint", ""),
+        payload.get("runtime_registry_fingerprint", ""),
+        catalog_fingerprint=catalog_fingerprint,
+    )
     raw_trigger = payload.get("trigger", {})
     if not isinstance(raw_trigger, Mapping):
         raise ValueError("trigger must be a mapping.")
@@ -1838,6 +2158,9 @@ def _start_run_command_from_payload(
         developer_mode=_bool_field(payload, "developer_mode"),
         catalog_fingerprint=catalog_fingerprint,
         catalog_revisions=catalog_revisions,
+        plugin_bundles=plugin_bundles,
+        plugin_fingerprint=plugin_fingerprint,
+        runtime_registry_fingerprint=runtime_fingerprint,
     )
 
 
@@ -1865,6 +2188,12 @@ def coerce_start_run_command(
             )
             if mismatch:
                 raise ValueError(mismatch)
+        plugin_bundles, plugin_fingerprint, runtime_fingerprint = _plugin_agreement(
+            command.plugin_bundles,
+            command.plugin_fingerprint,
+            command.runtime_registry_fingerprint,
+            catalog_fingerprint=catalog_fingerprint,
+        )
         return StartRunCommand(
             run_id=_string_field({"run_id": command.run_id}, "run_id"),
             project_path=_string_field(
@@ -1895,6 +2224,9 @@ def coerce_start_run_command(
             developer_mode=command.developer_mode,
             catalog_fingerprint=catalog_fingerprint,
             catalog_revisions=catalog_revisions,
+            plugin_bundles=plugin_bundles,
+            plugin_fingerprint=plugin_fingerprint,
+            runtime_registry_fingerprint=runtime_fingerprint,
         )
 
     if (
@@ -1915,6 +2247,12 @@ def coerce_start_run_command(
         )
         if mismatch:
             raise ValueError(mismatch)
+    plugin_bundles, plugin_fingerprint, runtime_fingerprint = _plugin_agreement(
+        command.get("plugin_bundles", ()),
+        command.get("plugin_fingerprint", ""),
+        command.get("runtime_registry_fingerprint", ""),
+        catalog_fingerprint=catalog_fingerprint,
+    )
     raw_trigger = command.get("trigger", {})
     if not isinstance(raw_trigger, Mapping):
         raise ValueError("trigger must be a mapping.")
@@ -1948,6 +2286,9 @@ def coerce_start_run_command(
         developer_mode=_bool_field(command, "developer_mode"),
         catalog_fingerprint=catalog_fingerprint,
         catalog_revisions=catalog_revisions,
+        plugin_bundles=plugin_bundles,
+        plugin_fingerprint=plugin_fingerprint,
+        runtime_registry_fingerprint=runtime_fingerprint,
     )
 
 
