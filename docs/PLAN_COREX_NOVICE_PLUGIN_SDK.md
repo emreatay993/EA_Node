@@ -51,7 +51,7 @@ Source handoff: `codex-plan-01a03779-f09e-70b2-825b-a371a8b0ccc2-01a03779-f0.md`
 | T03 | Completed | Root orchestrator | Mandatory independent architecture review cleared; 73 tests passed; Ruff, compile, registry/warning regressions, maps, and indexes passed. |
 | T04 | Completed | Root orchestrator | Independent security review cleared; 103 tests passed; static non-execution, generation, import-lock, fingerprint, pruning, Ruff, compile, maps, and indexes passed. |
 | T05 | Completed | Root orchestrator | Independent cross-layer review cleared; 145 tests and 170 subtests passed; protocol bounds, client retirement, persistence exclusion, Ruff, compile, maps, and indexes passed. |
-| T06 | In Progress | Root orchestrator | Digest-pinned lazy worker loading and process-only execution in progress. |
+| T06 | Completed | Root orchestrator | Mandatory runtime/security review cleared; 277 tests and 279 subtests passed across plugin, registry, worker/client, protocol, and catalog gates; spawned-process source-deletion proof, Ruff, compile, maps, and indexes passed. |
 | T07 | Pending | Unassigned | — |
 | T08 | Pending | Unassigned | — |
 | T09 | Pending | Unassigned | — |

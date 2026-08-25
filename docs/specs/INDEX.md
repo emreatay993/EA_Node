@@ -39,7 +39,7 @@ These requirements are authoritative design intent, but they are not implemented
 
 ## Active Implementation Plans — No Implementation Proof
 
-- [COREX Novice Function Plugin SDK](../PLAN_COREX_NOVICE_PLUGIN_SDK.md) — `IN PROGRESS — T01–T05 COMPLETE, T06 ACTIVE`
+- [COREX Novice Function Plugin SDK](../PLAN_COREX_NOVICE_PLUGIN_SDK.md) — `IN PROGRESS — T01–T06 COMPLETE, T07 NEXT`
 
 ### Completed Semantic-Type Architecture and Evidence
 

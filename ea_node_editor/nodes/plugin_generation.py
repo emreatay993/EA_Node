@@ -1,6 +1,6 @@
 # Purpose: Materialize and prune immutable content-addressed public-plugin generations.
 # Map: subsystems/nodes_registry_builtins.md
-# Tests: tests/test_plugin_loader.py
+# Tests: tests/test_plugin_loader.py, tests/test_plugin_worker_loading.py
 
 from __future__ import annotations
 
@@ -10,11 +10,27 @@ import os
 import shutil
 import stat
 from collections.abc import Iterable, Mapping
+from dataclasses import dataclass
 from pathlib import Path, PurePosixPath, PureWindowsPath
+from types import MappingProxyType
 from uuid import uuid4
 
+from ea_node_editor.nodes.function_plugin import PluginBundleRef
+
 MANIFEST_FILENAME = "node_package.json"
+PLUGIN_MANIFEST_LIMIT = 64 * 1024
+PLUGIN_SOURCE_LIMIT = 256 * 1024
+PLUGIN_ASSET_LIMIT = 4 * 1024 * 1024
+PLUGIN_MEMBER_LIMIT = 128
+PLUGIN_TOTAL_LIMIT = 16 * 1024 * 1024
+PLUGIN_ASSET_SUFFIXES = frozenset({".svg", ".png", ".jpg", ".jpeg"})
 _SHA256_LENGTH = 64
+
+
+@dataclass(frozen=True, slots=True)
+class VerifiedPluginGeneration:
+    manifest: Mapping[str, object]
+    members: Mapping[str, bytes]
 
 
 def _is_reparse_point(path: Path) -> bool:
@@ -123,6 +139,154 @@ def _generation_matches(directory: Path, expected: Mapping[str, bytes]) -> bool:
     return True
 
 
+def _read_generation_member(
+    root: Path,
+    relative_path: str,
+    *,
+    limit: int,
+) -> bytes:
+    target = root / relative_path
+    cursor = root
+    for part in PurePosixPath(relative_path).parts:
+        cursor /= part
+        if _is_reparse_point(cursor):
+            raise ValueError("Plugin generation contains a path alias")
+    try:
+        member_status = target.stat()
+        if not target.is_file() or member_status.st_nlink != 1:
+            raise ValueError("Plugin generation members must be regular files")
+        if member_status.st_size > limit:
+            raise ValueError("Plugin generation member is too large")
+        with target.open("rb") as stream:
+            payload = stream.read(limit + 1)
+    except OSError as exc:
+        raise ValueError("Plugin generation member cannot be read") from exc
+    if len(payload) > limit:
+        raise ValueError("Plugin generation member is too large")
+    return payload
+
+
+def _generation_manifest_records(
+    manifest: Mapping[str, object],
+    field_name: str,
+    *,
+    asset: bool,
+) -> tuple[tuple[str, str], ...]:
+    raw_records = manifest.get(field_name)
+    if not isinstance(raw_records, list):
+        raise ValueError(f"Plugin generation manifest {field_name} must be a list")
+    records: list[tuple[str, str]] = []
+    seen: set[str] = set()
+    for raw_record in raw_records:
+        if not isinstance(raw_record, dict) or set(raw_record) != {"path", "sha256"}:
+            raise ValueError(
+                f"Plugin generation manifest {field_name} entries are invalid"
+            )
+        path = _member_path(raw_record["path"])
+        suffix = PurePosixPath(path).suffix.lower()
+        if asset:
+            if suffix not in PLUGIN_ASSET_SUFFIXES:
+                raise ValueError("Plugin generation contains an unsupported asset")
+        elif len(PurePosixPath(path).parts) != 1 or suffix != ".py":
+            raise ValueError("Plugin generation Python sources must be root-level")
+        folded = path.casefold()
+        if folded in seen:
+            raise ValueError("Plugin generation manifest paths must be unique")
+        seen.add(folded)
+        records.append((path, _digest(raw_record["sha256"])))
+    return tuple(records)
+
+
+def read_verified_plugin_generation(
+    bundle: PluginBundleRef,
+) -> VerifiedPluginGeneration:
+    """Read and verify one immutable generation without reopening execution bytes."""
+
+    if not isinstance(bundle, PluginBundleRef):
+        raise TypeError("bundle must be a PluginBundleRef")
+    if bundle.generation_id != bundle.bundle_digest:
+        raise ValueError("Plugin generation identity does not match its bundle digest")
+    configured_root = Path(bundle.approved_generation_root)
+    if not configured_root.is_absolute() or _is_reparse_point(configured_root):
+        raise ValueError("Plugin generation root is invalid")
+    try:
+        root = configured_root.resolve(strict=True)
+    except OSError as exc:
+        raise ValueError("Plugin generation root is unavailable") from exc
+    if root.name != bundle.bundle_digest or not root.is_dir() or _is_reparse_point(root):
+        raise ValueError("Plugin generation root does not match its bundle digest")
+
+    raw_manifest = _read_generation_member(
+        root,
+        MANIFEST_FILENAME,
+        limit=PLUGIN_MANIFEST_LIMIT,
+    )
+    try:
+        manifest = json.loads(raw_manifest)
+    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise ValueError("Plugin generation manifest is invalid") from exc
+    if not isinstance(manifest, dict) or canonical_manifest_bytes(manifest) != raw_manifest:
+        raise ValueError("Plugin generation manifest is not canonical")
+    if manifest.get("schema_version") != 2:
+        raise ValueError("Plugin generation requires package schema 2")
+
+    sources = _generation_manifest_records(manifest, "sources", asset=False)
+    assets = _generation_manifest_records(manifest, "assets", asset=True)
+    records = (*sources, *assets)
+    if len(records) > PLUGIN_MEMBER_LIMIT:
+        raise ValueError("Plugin generation contains too many members")
+    folded_paths = [path.casefold() for path, _digest_value in records]
+    if len(folded_paths) != len(set(folded_paths)):
+        raise ValueError("Plugin generation manifest paths must be unique")
+
+    members: dict[str, bytes] = {}
+    expanded_size = 0
+    asset_paths = {path for path, _digest_value in assets}
+    for path, expected_digest in records:
+        payload = _read_generation_member(
+            root,
+            path,
+            limit=PLUGIN_ASSET_LIMIT if path in asset_paths else PLUGIN_SOURCE_LIMIT,
+        )
+        expanded_size += len(payload)
+        if expanded_size > PLUGIN_TOTAL_LIMIT:
+            raise ValueError("Plugin generation expanded size is too large")
+        if hashlib.sha256(payload).hexdigest() != expected_digest:
+            raise ValueError("Plugin generation member digest mismatch")
+        members[path] = payload
+
+    expected_paths = {MANIFEST_FILENAME, *members}
+    actual_paths: set[str] = set()
+    path_limit = max(16, len(expected_paths) * 4)
+    for index, path in enumerate(root.rglob("*")):
+        if index >= path_limit or _is_reparse_point(path):
+            raise ValueError("Plugin generation contains invalid path entries")
+        if path.is_file():
+            try:
+                if path.stat().st_nlink != 1:
+                    raise ValueError("Plugin generation members must not be hard linked")
+            except OSError as exc:
+                raise ValueError("Plugin generation member cannot be inspected") from exc
+            actual_paths.add(path.relative_to(root).as_posix())
+    if actual_paths != expected_paths:
+        raise ValueError("Plugin generation contains undeclared members")
+
+    source_paths = {path for path, _digest_value in sources}
+    for function in bundle.functions:
+        if function.module_relative_path not in source_paths:
+            raise ValueError("Plugin function source is not declared by its generation")
+        if hashlib.sha256(members[function.module_relative_path]).hexdigest() != (
+            function.source_digest
+        ):
+            raise ValueError("Plugin function source digest mismatch")
+    if canonical_bundle_digest(manifest, members) != bundle.bundle_digest:
+        raise ValueError("Plugin generation bundle digest mismatch")
+    return VerifiedPluginGeneration(
+        manifest=MappingProxyType(manifest),
+        members=MappingProxyType(members),
+    )
+
+
 def materialize_plugin_generation(
     generation_root: Path,
     *,
@@ -204,8 +368,16 @@ def prune_plugin_generations(
 
 __all__ = [
     "MANIFEST_FILENAME",
+    "PLUGIN_ASSET_LIMIT",
+    "PLUGIN_ASSET_SUFFIXES",
+    "PLUGIN_MANIFEST_LIMIT",
+    "PLUGIN_MEMBER_LIMIT",
+    "PLUGIN_SOURCE_LIMIT",
+    "PLUGIN_TOTAL_LIMIT",
+    "VerifiedPluginGeneration",
     "canonical_bundle_digest",
     "canonical_manifest_bytes",
     "materialize_plugin_generation",
     "prune_plugin_generations",
+    "read_verified_plugin_generation",
 ]

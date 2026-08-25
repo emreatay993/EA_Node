@@ -30,8 +30,8 @@ Use this for node definitions, registry validation, built-in node families, data
 - Support values and nodes: `tree_path.py`, `units.py`, `viewer_viewport.py`, `security_contracts.py`, `reporting.py`, and `ai_ml_contracts.py`.
 - Signal Plot is owned by `builtins/plot/signal.py` and emits `COREX.DataTypes.Image`.
 - Public function plugins use the dependency-free top-level `corex` decorators and static `plugin_declaration.py` discovery. Python Script keeps its one-`run` signature while sharing only the bounded literal/control engine.
-- `TrustedFactoryEntry` and `PythonFunctionEntry` are the mutually exclusive private registry implementations. Public function entries store only `PythonFunctionRef`; `PythonFunctionAdapter` is the private binding path that T06 process workers will use after digest-pinned loading.
-- Public loose files and installed schema-2 directories are parsed without import, checked for bundled imports, and copied byte-for-byte into `runtime/plugin_generations/<bundle-digest>/`; registry fingerprints exclude author/install paths.
+- `TrustedFactoryEntry` and `PythonFunctionEntry` are the mutually exclusive private registry implementations. Public function entries store only `PythonFunctionRef`; process workers re-hash the immutable generation and use `PythonFunctionAdapter` without exposing a callable to GUI discovery.
+- Public loose files and installed schema-2 directories are parsed without import, checked for bundled imports, and copied byte-for-byte into `runtime/plugin_generations/<bundle-digest>/`; registry fingerprints exclude author/install paths. Worker registry construction reparses only the verified generation and never the mutable discovery roots.
 - Python Script decorators resolve one applied source into ordinary ports,
   properties, and settings groups through the registry's instance-spec path.
 
@@ -50,6 +50,7 @@ Use this for node definitions, registry validation, built-in node families, data
 - `tests/test_plugin_declaration.py`
 - `tests/test_function_plugin.py`
 - `tests/test_plugin_loader.py`
+- `tests/test_plugin_worker_loading.py`
 - `tests/test_corex_contract_catalog.py`
 - `tests/test_corex_type_conformance.py`
 - `tests/test_core_value_types.py`

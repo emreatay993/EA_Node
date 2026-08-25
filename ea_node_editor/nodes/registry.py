@@ -795,6 +795,18 @@ class NodeRegistry:
             if isinstance(entry, TrustedFactoryEntry)
         ]
 
+    def trusted_runtime_copy(self) -> NodeRegistry:
+        staged = NodeRegistry(data_types=self._data_types)
+        staged._entries = {
+            type_id: entry
+            for type_id, entry in self._entries.items()
+            if isinstance(entry, TrustedFactoryEntry)
+        }
+        staged._contract_manifests = dict(self._contract_manifests)
+        staged._contract_manifest_versions = dict(self._contract_manifest_versions)
+        staged._owner_source_identities = dict(self._owner_source_identities)
+        return staged
+
     def all_python_function_refs(self) -> tuple[PythonFunctionRef, ...]:
         return tuple(
             entry.function_ref

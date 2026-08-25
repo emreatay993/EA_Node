@@ -23,6 +23,7 @@ from ea_node_editor.common.optimization_links import (
 )
 from ea_node_editor.execution.compiler import compile_runtime_snapshot
 from ea_node_editor.execution.protocol import StartRunCommand
+from ea_node_editor.execution.plugin_worker_runtime import WorkerPluginRuntime
 from ea_node_editor.execution.runtime_dto import RuntimeEdge, RuntimeWorkspace
 from ea_node_editor.execution.runtime_snapshot import (
     RuntimeSnapshot,
@@ -387,6 +388,7 @@ class ExecutionPlan:
 @dataclass(slots=True)
 class PreparedRuntime:
     registry: Any
+    plugin_runtime: WorkerPluginRuntime
     runtime_snapshot: RuntimeSnapshot
     runtime_context: RuntimeSnapshotContext
     workspace: RuntimeWorkspace
@@ -762,6 +764,7 @@ class RuntimePreparationCache:
         self._registry: Any | None = None
         self._registry_provider_id: Any = 0
         self._compiled_workspaces: dict[tuple[int, str, str], RuntimeWorkspace] = {}
+        self._plugin_runtime = WorkerPluginRuntime()
 
     def default_registry(self) -> Any:
         from ea_node_editor.nodes.bootstrap import build_default_registry
@@ -769,10 +772,21 @@ class RuntimePreparationCache:
         provider_id = id(build_default_registry)
         with self._lock:
             if self._registry is None or self._registry_provider_id != provider_id:
-                self._registry = build_default_registry()
+                self._plugin_runtime.clear()
+                self._registry = build_default_registry(include_public_plugins=False)
                 self._registry_provider_id = provider_id
                 self._compiled_workspaces.clear()
             return self._registry
+
+    def prepare_plugin_registry(
+        self,
+        command: StartRunCommand,
+        registry: Any,
+    ) -> tuple[Any, WorkerPluginRuntime]:
+        return (
+            self._plugin_runtime.prepare_registry(command, registry),
+            self._plugin_runtime,
+        )
 
     def compiled_workspace(
         self,
@@ -818,6 +832,7 @@ class RuntimePreparationCache:
 
     def clear(self) -> None:
         with self._lock:
+            self._plugin_runtime.clear()
             self._compiled_workspaces.clear()
             self._registry = None
             self._registry_provider_id = 0
@@ -832,8 +847,12 @@ def prepare_runtime(
     cache: RuntimePreparationCache | None = None,
 ) -> PreparedRuntime:
     runtime_cache = cache or DEFAULT_RUNTIME_PREPARATION_CACHE
+    trusted_registry = runtime_cache.default_registry()
+    registry, plugin_runtime = runtime_cache.prepare_plugin_registry(
+        command,
+        trusted_registry,
+    )
     runtime_snapshot = load_runtime_snapshot(command)
-    registry = runtime_cache.default_registry()
     artifact_context_project_path = command.project_path
     runtime_context = RuntimeSnapshotContext.from_snapshot(
         runtime_snapshot,
@@ -846,6 +865,7 @@ def prepare_runtime(
     )
     return PreparedRuntime(
         registry=registry,
+        plugin_runtime=plugin_runtime,
         runtime_snapshot=runtime_snapshot,
         runtime_context=runtime_context,
         workspace=workspace,

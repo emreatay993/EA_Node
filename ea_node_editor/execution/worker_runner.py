@@ -41,6 +41,7 @@ from ea_node_editor.execution.worker_protocol import (
     emit_run_state,
     is_viewer_command,
 )
+from ea_node_editor.execution.plugin_worker_runtime import WorkerPluginRuntime
 from ea_node_editor.execution.worker_runtime import (
     DEFAULT_RUNTIME_PREPARATION_CACHE,
     ExecutionPlan,
@@ -443,6 +444,7 @@ class NodeExecutor:
         project_path: str,
         runtime_snapshot: RuntimeSnapshot,
         runtime_context: RuntimeSnapshotContext,
+        plugin_runtime: WorkerPluginRuntime,
         trigger: dict[str, Any],
         trigger_publications: Mapping[str, SettledPortResult] | None = None,
         trigger_captures: Mapping[str, SettledPortResult] | None = None,
@@ -458,6 +460,7 @@ class NodeExecutor:
         self._artifact_context_project_path = str(project_path).strip()
         self._runtime_snapshot = runtime_snapshot
         self._runtime_context = runtime_context
+        self._plugin_runtime = plugin_runtime
         self._trigger = trigger
         self._developer_mode = bool(developer_mode)
         self._trigger_publications = dict(trigger_publications or {})
@@ -575,7 +578,16 @@ class NodeExecutor:
                     node_id, started_at_epoch_ms=started_at_epoch_ms
                 )
 
-            plugin = self._registry.create(node_type_id)
+            function_ref = self._registry.python_function_ref_or_none(node_type_id)
+            plugin = (
+                self._registry.create(node_type_id)
+                if function_ref is None
+                else self._plugin_runtime.create_adapter(
+                    function_ref,
+                    spec,
+                    unavailable_reason=self._registry.unavailable_reason(node_type_id),
+                )
+            )
             aggregates: dict[str, DataTree] = {}
             warnings: list[str] = []
             for iteration, (target_path, branch_ordinal, item_ordinal) in enumerate(
@@ -1537,6 +1549,7 @@ class WorkflowRunner:
                 project_path=command.project_path,
                 runtime_snapshot=prepared.runtime_snapshot,
                 runtime_context=prepared.runtime_context,
+                plugin_runtime=prepared.plugin_runtime,
                 trigger=dict(command.trigger),
                 trigger_publications=command.trigger_publications,
                 trigger_captures=command.trigger_captures,

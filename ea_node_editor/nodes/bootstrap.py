@@ -362,6 +362,7 @@ def build_default_registry(
     *,
     app_preferences_store: Any = None,
     preferences_document: Any = None,
+    include_public_plugins: bool = True,
 ) -> NodeRegistry:
     registry = build_builtin_registry()
 
@@ -380,6 +381,7 @@ def build_default_registry(
             registry,
             addon_backends.source,
         )
-    discover_and_load_plugins(registry, extra_dirs=extra_plugin_dirs)
+    if include_public_plugins:
+        discover_and_load_plugins(registry, extra_dirs=extra_plugin_dirs)
     registry.freeze()
     return registry

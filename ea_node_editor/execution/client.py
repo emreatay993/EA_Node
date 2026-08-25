@@ -2374,6 +2374,15 @@ class TrustedInProcessExecutionClient(_ExecutionClientCommon):
             "clicked_trigger_node_id", clicked_trigger_node_id
         )
         command_developer_mode = trigger_payload.pop("developer_mode", False)
+        if plugin_bundles:
+            self._emit_protocol_error(
+                "Public function plugins require process-isolated execution; "
+                "trusted in-process execution is unavailable while public plugin "
+                "generations are active.",
+                run_id=run_id,
+                command="start_run",
+            )
+            return ""
         selection = coerce_execution_backend_selection(
             execution_backend
             or ExecutionBackendSelection(

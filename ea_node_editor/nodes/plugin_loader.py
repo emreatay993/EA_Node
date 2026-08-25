@@ -33,6 +33,12 @@ from ea_node_editor.nodes.plugin_declaration import (
 )
 from ea_node_editor.nodes.plugin_generation import (
     MANIFEST_FILENAME,
+    PLUGIN_ASSET_LIMIT,
+    PLUGIN_ASSET_SUFFIXES,
+    PLUGIN_MANIFEST_LIMIT,
+    PLUGIN_MEMBER_LIMIT,
+    PLUGIN_SOURCE_LIMIT,
+    PLUGIN_TOTAL_LIMIT,
     _is_reparse_point,
     canonical_bundle_digest,
     materialize_plugin_generation,
@@ -45,14 +51,8 @@ logger = logging.getLogger(__name__)
 _SAFE_SEGMENT = re.compile(r"[^0-9A-Za-z_]+")
 _SHA256 = re.compile(r"^[0-9a-f]{64}$")
 _PLUGIN_LOG_LABEL_LENGTH = 256
-_MANIFEST_LIMIT = 64 * 1024
-_SOURCE_LIMIT = 256 * 1024
-_ASSET_LIMIT = 4 * 1024 * 1024
-_MEMBER_LIMIT = 128
 _ROOT_ENTRY_LIMIT = 512
 _PACKAGE_PATH_ENTRY_LIMIT = 256
-_TOTAL_LIMIT = 16 * 1024 * 1024
-_ASSET_SUFFIXES = {".svg", ".png", ".jpg", ".jpeg"}
 _REQUIRED_MANIFEST_FIELDS = {
     "schema_version",
     "name",
@@ -197,7 +197,7 @@ def _manifest_records(
         if not isinstance(raw_record, dict) or set(raw_record) != {"path", "sha256"}:
             raise ValueError(f"Manifest {field_name} entries require path and sha256")
         path = _member_path(raw_record["path"], root_python=not asset)
-        if asset and PurePosixPath(path).suffix.lower() not in _ASSET_SUFFIXES:
+        if asset and PurePosixPath(path).suffix.lower() not in PLUGIN_ASSET_SUFFIXES:
             raise ValueError(f"Unsupported plugin asset: {path}")
         folded = path.casefold()
         if folded in seen:
@@ -233,7 +233,7 @@ def _package_manifest(package_dir: Path) -> tuple[dict[str, object], dict[str, b
         raise ValueError(f"Installed plugin package requires {MANIFEST_FILENAME}")
     raw_manifest = _read_bounded(
         manifest_path,
-        limit=_MANIFEST_LIMIT,
+        limit=PLUGIN_MANIFEST_LIMIT,
         label="Plugin package manifest",
     )
     try:
@@ -269,7 +269,7 @@ def _package_manifest(package_dir: Path) -> tuple[dict[str, object], dict[str, b
     source_paths = {path for path, _digest_value in sources}
     if not set(modules) <= source_paths:
         raise ValueError("Manifest modules must be declared sources")
-    if len(sources) + len(assets) > _MEMBER_LIMIT:
+    if len(sources) + len(assets) > PLUGIN_MEMBER_LIMIT:
         raise ValueError("Plugin package contains too many members")
 
     members: dict[str, bytes] = {}
@@ -280,14 +280,14 @@ def _package_manifest(package_dir: Path) -> tuple[dict[str, object], dict[str, b
             declared_size = (package_dir / path).stat().st_size
         except OSError as exc:
             raise ValueError(f"Declared package member is unavailable: {path}") from exc
-        if expanded_size + declared_size > _TOTAL_LIMIT:
+        if expanded_size + declared_size > PLUGIN_TOTAL_LIMIT:
             raise ValueError("Plugin package expanded size is too large")
         payload = _read_package_member(
             package_dir,
             path,
-            limit=_ASSET_LIMIT if path in asset_paths else _SOURCE_LIMIT,
+            limit=PLUGIN_ASSET_LIMIT if path in asset_paths else PLUGIN_SOURCE_LIMIT,
         )
-        if expanded_size + len(payload) > _TOTAL_LIMIT:
+        if expanded_size + len(payload) > PLUGIN_TOTAL_LIMIT:
             raise ValueError("Plugin package expanded size is too large")
         if _source_digest(payload) != expected_digest:
             raise ValueError(f"Plugin package hash mismatch: {path}")
@@ -368,6 +368,26 @@ def _validated_manifest_nodes(
     if len(nodes) != len(set(nodes)):
         raise ValueError("Manifest node entries must be unique")
     return tuple(nodes)
+
+
+def validated_generation_declarations(
+    manifest: Mapping[str, object],
+    members: Mapping[str, bytes],
+    *,
+    filename_prefix: str,
+) -> tuple[tuple[str, PythonFunctionDeclaration], ...]:
+    declarations = _module_declarations(
+        manifest,
+        members,
+        filename_prefix=filename_prefix,
+    )
+    discovered = {
+        (item["id"], item["module"], item["function"])
+        for item in _node_inventory(declarations)
+    }
+    if discovered != set(_validated_manifest_nodes(manifest)):
+        raise ValueError("Manifest nodes do not match static declarations")
+    return declarations
 
 
 def _pathfinder_module_available(module_name: str) -> bool:
@@ -456,7 +476,7 @@ def _prepare_loose_file(source_path: Path) -> _PreparedBundle | None:
         raise ValueError("Loose plugin source must be a regular file")
     payload = _read_bounded(
         source_path,
-        limit=_SOURCE_LIMIT,
+        limit=PLUGIN_SOURCE_LIMIT,
         label="Loose plugin source",
     )
     try:
@@ -501,18 +521,11 @@ def _prepare_package(package_dir: Path) -> _PreparedBundle:
     if _is_reparse_point(package_dir) or not package_dir.is_dir():
         raise ValueError("Installed plugin package must be a regular directory")
     manifest, members = _package_manifest(package_dir)
-    declarations = _module_declarations(
+    declarations = validated_generation_declarations(
         manifest,
         members,
         filename_prefix=str(manifest["name"]),
     )
-    discovered = {
-        (item["id"], item["module"], item["function"])
-        for item in _node_inventory(declarations)
-    }
-    declared = set(_validated_manifest_nodes(manifest))
-    if discovered != declared:
-        raise ValueError("Manifest nodes do not match static declarations")
     source_paths = {str(record["path"]) for record in manifest["sources"]}  # type: ignore[index]
     missing = _missing_imports(members, source_paths)
     unavailable_reason = (
@@ -625,7 +638,10 @@ def _stable_value(value: object) -> object:
     raise TypeError(f"Unsupported plugin fingerprint value: {type(value).__qualname__}")
 
 
-def _plugin_fingerprint(registry: NodeRegistry, bundles: Sequence[PluginBundleRef]) -> str:
+def plugin_fingerprint(
+    registry: NodeRegistry,
+    bundles: Sequence[PluginBundleRef],
+) -> str:
     entries = []
     for spec in sorted(registry.all_specs(), key=lambda item: item.type_id):
         function_ref = registry.python_function_ref_or_none(spec.type_id)
@@ -737,7 +753,7 @@ def discover_static_plugins(
             loaded.extend(type_ids)
 
     bundles = (*registry.plugin_bundle_refs(), *new_bundles)
-    fingerprint = _plugin_fingerprint(registry, bundles)
+    fingerprint = plugin_fingerprint(registry, bundles)
     registry.set_python_plugin_catalog(tuple(bundles), plugin_fingerprint=fingerprint)
     return PluginDiscoveryResult(tuple(loaded), tuple(bundles), fingerprint)
 
@@ -758,7 +774,7 @@ def discover_package_plugins(
         generation_root or plugin_generations_dir(),
     )
     bundles = (*registry.plugin_bundle_refs(), bundle)
-    fingerprint = _plugin_fingerprint(registry, bundles)
+    fingerprint = plugin_fingerprint(registry, bundles)
     registry.set_python_plugin_catalog(tuple(bundles), plugin_fingerprint=fingerprint)
     return list(type_ids)
 
@@ -933,5 +949,7 @@ __all__ = [
     "discover_and_load_plugins",
     "discover_package_plugins",
     "discover_static_plugins",
+    "plugin_fingerprint",
     "register_plugin_backends",
+    "validated_generation_declarations",
 ]
