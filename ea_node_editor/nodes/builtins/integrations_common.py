@@ -14,9 +14,16 @@ def pick_optional_path(ctx: ExecutionContext, *, input_key: str, property_key: s
     if candidate is None:
         return None
     text = str(candidate).strip()
+    if (
+        isinstance(candidate, str)
+        and len(text) >= 2
+        and text[0] == text[-1]
+        and text[0] in "\"'"
+    ):
+        text = text[1:-1].strip()
     if not text:
         return None
-    resolved_path = ctx.resolve_path_value(candidate)
+    resolved_path = ctx.resolve_path_value(text if isinstance(candidate, str) else candidate)
     return resolved_path if resolved_path is not None else Path(text)
 
 

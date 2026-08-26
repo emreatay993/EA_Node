@@ -284,6 +284,10 @@ class IntegrationNodesTrackFTests(unittest.TestCase):
                 _context(properties={"path": str(text_path)})
             )
             self.assertEqual(text_result.outputs["text"], "hello world")
+            quoted_text_result = execute_file_read(
+                _context(properties={"path": f'"{text_path}"'})
+            )
+            self.assertEqual(quoted_text_result.outputs["text"], "hello world")
 
             payload = {"z": 2, "a": 1}
             execute_file_write(
