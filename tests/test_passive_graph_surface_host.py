@@ -178,7 +178,7 @@ class PortTypePresentationQmlTests(PassiveGraphSurfaceHostTestBase):
 
                 data_accent = QColor("#7AA8FF").name()
                 waiting = QColor("#E8A838").name()
-                invalid = QColor("#FF8C74").name()
+                invalid = QColor("#FF543E").name()
                 assert QColor(normal_dot.property("portColor")).name() == data_accent
                 assert QColor(QQmlProperty.read(normal_dot, "border.color")).name() == data_accent
                 assert QColor(QQmlProperty.read(input_dot, "border.color")).name() == invalid

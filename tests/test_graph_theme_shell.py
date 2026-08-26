@@ -133,7 +133,15 @@ class GraphThemeShellTests(SharedMainWindowShellTestBase):
         standalone_id = self.window.scene.add_node_from_type("core.python_script", 20.0, 20.0)
         constant_id = self.window.scene.add_node_from_type("core.constant", 220.0, 20.0)
         if_id = self.window.scene.add_node_from_type("core.if", 500.0, 20.0)
-        edge_id = self.window.scene.add_edge(constant_id, "as_text", if_id, "condition")
+        workspace_id, _workspace = self._active_workspace()
+        edge_id = self.window.model._add_edge_record(
+            workspace_id,
+            source_node_id=constant_id,
+            source_port_key="as_text",
+            target_node_id=if_id,
+            target_port_key="condition",
+        ).edge_id
+        self.window.scene.refresh_workspace_from_model(workspace_id)
 
         nodes_payload = {item["node_id"]: item for item in self.window.scene.nodes_model}
         edges_payload = {item["edge_id"]: item for item in self.window.scene.edges_model}

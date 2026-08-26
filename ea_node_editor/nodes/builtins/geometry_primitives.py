@@ -11,7 +11,6 @@ from numbers import Real
 from typing import Any, Callable
 from uuid import uuid4
 
-from ea_node_editor.execution.handle_registry import StaleHandleError
 from ea_node_editor.nodes.builtins.geometry_contracts import BODY_DATA_TYPE_ID
 from ea_node_editor.nodes.builtins.rich_value_nodes import (
     PLANE_DATA_TYPE_ID,
@@ -173,7 +172,7 @@ class _ZoneRecord:
         for child_ref in reversed(child_leases):
             try:
                 self._release_handle(child_ref)
-            except (StaleHandleError, TypeError):
+            except (LookupError, TypeError):
                 continue
             except Exception as exc:  # noqa: BLE001
                 first_error = first_error or exc

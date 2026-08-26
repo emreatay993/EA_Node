@@ -251,6 +251,7 @@ def test_open_project_shows_migration_report_after_finalization_without_overwrit
     service = object.__new__(ProjectDocumentIOService)
     service._host = SimpleNamespace(
         serializer=SimpleNamespace(load=lambda _path: project),
+        model=SimpleNamespace(project=SimpleNamespace(workspaces={})),
     )
     service._project_files = SimpleNamespace(
         build_project_files_snapshot=lambda **_kwargs: object(),

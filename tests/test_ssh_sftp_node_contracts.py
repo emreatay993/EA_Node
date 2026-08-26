@@ -23,6 +23,7 @@ from ea_node_editor.runtime_contracts import (
     deserialize_runtime_value,
     serialize_runtime_value,
 )
+from tests.non_dpf_catalog_fixture import load_effective_non_dpf_catalog
 
 
 NODE_METADATA = {
@@ -456,14 +457,6 @@ PORT_CONTRACTS = {
 }
 
 
-_PRE_CUTOVER_CATALOG = (
-    Path(__file__).parent
-    / "fixtures"
-    / "node_catalog"
-    / "pre_cutover_non_dpf_catalog.json"
-)
-
-
 def _specs():
     return tuple(
         declaration.spec
@@ -543,7 +536,7 @@ def test_ssh_sftp_node_metadata_and_catalogue_port_contracts() -> None:
 def test_ssh_sftp_function_specs_match_pre_cutover_golden_exactly() -> None:
     expected = {
         row["spec"]["type_id"]: row["spec"]
-        for row in json.loads(_PRE_CUTOVER_CATALOG.read_text(encoding="utf-8"))
+        for row in load_effective_non_dpf_catalog()
         if row["spec"]["type_id"] in NODE_METADATA
     }
 
@@ -872,7 +865,7 @@ assert len(SSH_SFTP_DATA_TYPES) == 2
 assert "ssh_sftp.run_command" in SOURCE
 '''
     completed = subprocess.run(
-        [sys.executable, "-c", script],
+        [sys.executable, "-E", "-c", script],
         capture_output=True,
         text=True,
         timeout=15.0,

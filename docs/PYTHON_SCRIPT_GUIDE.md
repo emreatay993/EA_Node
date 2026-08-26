@@ -10,9 +10,10 @@ then click **Guide** beside Apply/Revert for the theme-aware HTML reference. It
 uses styled code cards, callouts, and tables and can be closed without changing
 the current draft.
 
-This guide is for the built-in Python Script node. It is not the external
-plugin API; keep using [Creating a Custom Node](../README.md#creating-a-custom-node)
-when you want to ship a reusable node package.
+This guide is only for the built-in Python Script node. Its source is stored in
+the project, its function is synchronous, and its declaration changes only on
+**Apply**. Use the [Plugin Authoring Guide](PLUGIN_AUTHORING_GUIDE.md) when a
+node should be reusable across projects.
 
 ## Start with a pass-through
 
@@ -77,7 +78,8 @@ Inputs are optional by default.
 
 ## Add a control
 
-A control decorator creates a saved setting and a `run` parameter. Add
+A control decorator creates a project-local saved setting and a direct `run`
+parameter. Add
 `port=True` when the setting should also have an optional input socket: a wire
 temporarily overrides the saved value, and disconnecting restores that value.
 
@@ -179,8 +181,8 @@ to scan.
 
 Return a mapping of declared output names to values. You may omit a declared
 output to leave it unset; returning an undeclared output key fails the run.
-Trusted scripts may instead import and return an existing `NodeResult` instance
-with the same output-key rule; a mapping is the normal and simpler choice.
+Return the mapping directly; internal runtime result types are not part of this
+authoring surface.
 
 `ctx` provides `log_info(message)`, `log_warning(message)`, and
 `log_error(message)` for the run console. Set the node's **Timeout (sec)**
@@ -206,9 +208,8 @@ def run(ctx, series):
 ## Apply, errors, and old scripts
 
 COREX updates a Python Script node only when you click **Apply**. It reads the
-decorators with a bounded, literal-only AST pass and then resolves the normal
-`NodeTypeSpec` used by graph, persistence, presentation, and the worker. It
-does not import the script or execute decorator expressions while applying.
+decorators with a bounded, literal-only AST pass and does not import the script
+or execute decorator expressions while applying.
 
 An invalid draft stays dirty, shows a line-and-column error in the console, and
 leaves the last applied source, ports, settings, wires, and collapsed-section
@@ -231,5 +232,7 @@ ports on the canvas.
 
 Python Script declarations do not update while you type. There are no output
 sections, asynchronous `run` functions, varargs, secret defaults, or arbitrary
-decorator expressions. Use a normal custom node when you need reusable package
-metadata or capabilities outside this compact local-script surface.
+decorator expressions. Python Script source stays in its `.cxproj`; it is not a
+plugin file and cannot be exported as a node package. Use a
+[plugin](PLUGIN_AUTHORING_GUIDE.md) for reusable package metadata or behavior
+outside this compact local-script surface.

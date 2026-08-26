@@ -6,11 +6,11 @@
   ],
   "summary": {
     "qml_files": 169,
-    "repeater_constructs": 96,
-    "loader_constructs": 21,
-    "signal_handlers": 861,
-    "connections": 46,
-    "property_bindings": 7523,
+    "repeater_constructs": 98,
+    "loader_constructs": 22,
+    "signal_handlers": 879,
+    "connections": 47,
+    "property_bindings": 7569,
     "local_component_refs": 268
   },
   "entries": [
@@ -3806,6 +3806,10 @@
           "name": "_paintViewportOffsetY"
         },
         {
+          "kind": "color",
+          "name": "activeAppendMarkerColor"
+        },
+        {
           "kind": "var",
           "name": "_currentViewportTransform"
         },
@@ -3876,6 +3880,15 @@
           "name": "standardEdgeBaseColor"
         },
         {
+          "name": "standardEdgeActive"
+        },
+        {
+          "name": "standardEdgeDataAccess"
+        },
+        {
+          "name": "standardEdgeDisplayMode"
+        },
+        {
           "name": "standardEdgeInvalid"
         },
         {
@@ -3886,6 +3899,9 @@
         },
         {
           "name": "standardEdgeBaseWidthPx"
+        },
+        {
+          "name": "standardEdgeStructure"
         },
         {
           "name": "standardEdgeStrokeCount"
@@ -3909,6 +3925,21 @@
           "name": "dragConnectionMarkerText"
         },
         {
+          "name": "dragConnectionMarkerVisible"
+        },
+        {
+          "name": "dragConnectionMarkerColor"
+        },
+        {
+          "name": "dragConnectionMarkerPlain"
+        },
+        {
+          "name": "dragConnectionStrokeColor"
+        },
+        {
+          "name": "dragConnectionStrokeWidthScreenPx"
+        },
+        {
           "name": "drawDragConnectionMarker"
         },
         {
@@ -3924,13 +3955,34 @@
           "name": "_tracePolylineSegmentSpan"
         },
         {
+          "name": "_tracePolylineRange"
+        },
+        {
           "name": "traceBrokenGeometry"
+        },
+        {
+          "name": "strokeStandardGeometry"
         },
         {
           "name": "traceGeometry"
         },
         {
           "name": "edgeAnchor"
+        },
+        {
+          "name": "standardEdgeStrokeStyle"
+        },
+        {
+          "name": "standardEdgeGradientStops"
+        },
+        {
+          "name": "drawHiddenEndpointArcs"
+        },
+        {
+          "name": "hiddenEndpointArcRadiiScreenPx"
+        },
+        {
+          "name": "drawDisabledMarker"
         },
         {
           "name": "drawFlowArrowHead"
@@ -4135,6 +4187,12 @@
           "detail": "real"
         },
         {
+          "anchor": "EdgeCanvasLayerPropertyActiveAppendMarkerColor",
+          "kind": "property",
+          "name": "activeAppendMarkerColor",
+          "detail": "color"
+        },
+        {
           "anchor": "EdgeCanvasLayerPropertyCurrentViewportTransform",
           "kind": "property",
           "name": "_currentViewportTransform",
@@ -4242,6 +4300,21 @@
           "name": "standardEdgeBaseColor"
         },
         {
+          "anchor": "EdgeCanvasLayerFunctionStandardEdgeActive",
+          "kind": "function",
+          "name": "standardEdgeActive"
+        },
+        {
+          "anchor": "EdgeCanvasLayerFunctionStandardEdgeDataAccess",
+          "kind": "function",
+          "name": "standardEdgeDataAccess"
+        },
+        {
+          "anchor": "EdgeCanvasLayerFunctionStandardEdgeDisplayMode",
+          "kind": "function",
+          "name": "standardEdgeDisplayMode"
+        },
+        {
           "anchor": "EdgeCanvasLayerFunctionStandardEdgeInvalid",
           "kind": "function",
           "name": "standardEdgeInvalid"
@@ -4260,6 +4333,11 @@
           "anchor": "EdgeCanvasLayerFunctionStandardEdgeBaseWidthPx",
           "kind": "function",
           "name": "standardEdgeBaseWidthPx"
+        },
+        {
+          "anchor": "EdgeCanvasLayerFunctionStandardEdgeStructure",
+          "kind": "function",
+          "name": "standardEdgeStructure"
         },
         {
           "anchor": "EdgeCanvasLayerFunctionStandardEdgeStrokeCount",
@@ -4297,6 +4375,31 @@
           "name": "dragConnectionMarkerText"
         },
         {
+          "anchor": "EdgeCanvasLayerFunctionDragConnectionMarkerVisible",
+          "kind": "function",
+          "name": "dragConnectionMarkerVisible"
+        },
+        {
+          "anchor": "EdgeCanvasLayerFunctionDragConnectionMarkerColor",
+          "kind": "function",
+          "name": "dragConnectionMarkerColor"
+        },
+        {
+          "anchor": "EdgeCanvasLayerFunctionDragConnectionMarkerPlain",
+          "kind": "function",
+          "name": "dragConnectionMarkerPlain"
+        },
+        {
+          "anchor": "EdgeCanvasLayerFunctionDragConnectionStrokeColor",
+          "kind": "function",
+          "name": "dragConnectionStrokeColor"
+        },
+        {
+          "anchor": "EdgeCanvasLayerFunctionDragConnectionStrokeWidthScreenPx",
+          "kind": "function",
+          "name": "dragConnectionStrokeWidthScreenPx"
+        },
+        {
           "anchor": "EdgeCanvasLayerFunctionDrawDragConnectionMarker",
           "kind": "function",
           "name": "drawDragConnectionMarker"
@@ -4322,9 +4425,19 @@
           "name": "_tracePolylineSegmentSpan"
         },
         {
+          "anchor": "EdgeCanvasLayerFunctionTracePolylineRange",
+          "kind": "function",
+          "name": "_tracePolylineRange"
+        },
+        {
           "anchor": "EdgeCanvasLayerFunctionTraceBrokenGeometry",
           "kind": "function",
           "name": "traceBrokenGeometry"
+        },
+        {
+          "anchor": "EdgeCanvasLayerFunctionStrokeStandardGeometry",
+          "kind": "function",
+          "name": "strokeStandardGeometry"
         },
         {
           "anchor": "EdgeCanvasLayerFunctionTraceGeometry",
@@ -4335,6 +4448,31 @@
           "anchor": "EdgeCanvasLayerFunctionEdgeAnchor",
           "kind": "function",
           "name": "edgeAnchor"
+        },
+        {
+          "anchor": "EdgeCanvasLayerFunctionStandardEdgeStrokeStyle",
+          "kind": "function",
+          "name": "standardEdgeStrokeStyle"
+        },
+        {
+          "anchor": "EdgeCanvasLayerFunctionStandardEdgeGradientStops",
+          "kind": "function",
+          "name": "standardEdgeGradientStops"
+        },
+        {
+          "anchor": "EdgeCanvasLayerFunctionDrawHiddenEndpointArcs",
+          "kind": "function",
+          "name": "drawHiddenEndpointArcs"
+        },
+        {
+          "anchor": "EdgeCanvasLayerFunctionHiddenEndpointArcRadiiScreenPx",
+          "kind": "function",
+          "name": "hiddenEndpointArcRadiiScreenPx"
+        },
+        {
+          "anchor": "EdgeCanvasLayerFunctionDrawDisabledMarker",
+          "kind": "function",
+          "name": "drawDisabledMarker"
         },
         {
           "anchor": "EdgeCanvasLayerFunctionDrawFlowArrowHead",
@@ -5202,6 +5340,7 @@
       "root_component": "Item",
       "imports": [
         "QtQuick 2.15",
+        "QtQuick.Controls 2.15",
         "\"../common\" as Common"
       ],
       "ids": [
@@ -5228,6 +5367,10 @@
         {
           "kind": "bool",
           "name": "inputEnabled"
+        },
+        {
+          "kind": "bool",
+          "name": "wireSelectionModeHeld"
         },
         {
           "kind": "string",
@@ -5270,6 +5413,10 @@
       "signal_handlers": [
         {
           "kind": "handler",
+          "name": "onWireSelectionModeHeldChanged"
+        },
+        {
+          "kind": "handler",
           "name": "onPositionChanged"
         },
         {
@@ -5298,7 +5445,8 @@
           "kind": "binding",
           "name": "enabled",
           "targets": [
-            "root.inputEnabled"
+            "root.inputEnabled",
+            "root.wireSelectionModeHeld"
           ]
         },
         {
@@ -5341,6 +5489,13 @@
         },
         {
           "kind": "binding",
+          "name": "popupType",
+          "targets": [
+            "Popup.Item"
+          ]
+        },
+        {
+          "kind": "binding",
           "name": "policyBridge",
           "targets": [
             "root.edgeLayer",
@@ -5375,11 +5530,23 @@
         },
         {
           "kind": "binding",
+          "name": "font.family"
+        },
+        {
+          "kind": "binding",
+          "name": "font.pixelSize"
+        },
+        {
+          "kind": "binding",
           "name": "screenStablePositioning"
         },
         {
           "kind": "binding",
           "name": "screenStablePlacement"
+        },
+        {
+          "kind": "binding",
+          "name": "screenGap"
         }
       ],
       "local_component_refs": [
@@ -5400,6 +5567,12 @@
           "anchor": "EdgeHitTestOverlayPropertyInputEnabled",
           "kind": "property",
           "name": "inputEnabled",
+          "detail": "bool"
+        },
+        {
+          "anchor": "EdgeHitTestOverlayPropertyWireSelectionModeHeld",
+          "kind": "property",
+          "name": "wireSelectionModeHeld",
           "detail": "bool"
         },
         {
@@ -5440,6 +5613,11 @@
           "anchor": "EdgeHitTestOverlaySignalEdgeContextRequested",
           "kind": "signal",
           "name": "edgeContextRequested"
+        },
+        {
+          "anchor": "EdgeHitTestOverlayHandlerOnWireSelectionModeHeldChanged",
+          "kind": "handler",
+          "name": "onWireSelectionModeHeldChanged"
         },
         {
           "anchor": "EdgeHitTestOverlayHandlerOnPositionChanged",
@@ -5567,6 +5745,10 @@
         },
         {
           "kind": "var",
+          "name": "selectedNodeIds"
+        },
+        {
+          "kind": "var",
           "name": "selectedEdgeIds"
         },
         {
@@ -5576,6 +5758,10 @@
         {
           "kind": "string",
           "name": "previewEdgeId"
+        },
+        {
+          "kind": "var",
+          "name": "replacementPreviewEdgeIds"
         },
         {
           "kind": "var",
@@ -5600,6 +5786,10 @@
         {
           "kind": "bool",
           "name": "inputEnabled"
+        },
+        {
+          "kind": "bool",
+          "name": "wireSelectionModeHeld"
         },
         {
           "kind": "var",
@@ -5939,6 +6129,10 @@
         },
         {
           "kind": "color",
+          "name": "activeSelectedStrokeColor"
+        },
+        {
+          "kind": "color",
           "name": "previewStrokeColor"
         },
         {
@@ -5955,7 +6149,19 @@
         },
         {
           "kind": "color",
+          "name": "canvasBackgroundColor"
+        },
+        {
+          "kind": "color",
+          "name": "activeDefaultStrokeColor"
+        },
+        {
+          "kind": "color",
           "name": "inactiveStrokeColor"
+        },
+        {
+          "kind": "color",
+          "name": "dangerStrokeColor"
         },
         {
           "kind": "color",
@@ -6010,6 +6216,9 @@
         }
       ],
       "functions": [
+        {
+          "name": "neutralActiveStrokeColor"
+        },
         {
           "name": "requestRedraw"
         },
@@ -6080,7 +6289,19 @@
           "name": "_visibleEdgeSnapshot"
         },
         {
+          "name": "edgeEndpointScenePoint"
+        },
+        {
+          "name": "dragConnectionActiveDataWire"
+        },
+        {
           "name": "edgeAtScreen"
+        },
+        {
+          "name": "edgeIdsIntersectingScreenRect"
+        },
+        {
+          "name": "edgeIdsIntersectingSceneRect"
         },
         {
           "name": "_edgeData"
@@ -6156,6 +6377,9 @@
         },
         {
           "name": "_dragGeometry"
+        },
+        {
+          "name": "dragConnectionList"
         }
       ],
       "instantiated_components": [
@@ -6199,6 +6423,14 @@
         },
         {
           "kind": "handler",
+          "name": "onSelectedNodeIdsChanged"
+        },
+        {
+          "kind": "handler",
+          "name": "onReplacementPreviewEdgeIdsChanged"
+        },
+        {
+          "kind": "handler",
           "name": "onNodesChanged"
         },
         {
@@ -6216,6 +6448,10 @@
         {
           "kind": "handler",
           "name": "onSelectedEdgeIdsChanged"
+        },
+        {
+          "kind": "handler",
+          "name": "onWireSelectionModeHeldChanged"
         },
         {
           "kind": "handler",
@@ -6285,6 +6521,13 @@
           "name": "inputEnabled",
           "targets": [
             "root.inputEnabled"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "wireSelectionModeHeld",
+          "targets": [
+            "root.wireSelectionModeHeld"
           ]
         }
       ],
@@ -6401,6 +6644,12 @@
           "detail": "var"
         },
         {
+          "anchor": "EdgeLayerPropertySelectedNodeIds",
+          "kind": "property",
+          "name": "selectedNodeIds",
+          "detail": "var"
+        },
+        {
           "anchor": "EdgeLayerPropertySelectedEdgeIds",
           "kind": "property",
           "name": "selectedEdgeIds",
@@ -6417,6 +6666,12 @@
           "kind": "property",
           "name": "previewEdgeId",
           "detail": "string"
+        },
+        {
+          "anchor": "EdgeLayerPropertyReplacementPreviewEdgeIds",
+          "kind": "property",
+          "name": "replacementPreviewEdgeIds",
+          "detail": "var"
         },
         {
           "anchor": "EdgeLayerPropertyDragConnection",
@@ -6452,6 +6707,12 @@
           "anchor": "EdgeLayerPropertyInputEnabled",
           "kind": "property",
           "name": "inputEnabled",
+          "detail": "bool"
+        },
+        {
+          "anchor": "EdgeLayerPropertyWireSelectionModeHeld",
+          "kind": "property",
+          "name": "wireSelectionModeHeld",
           "detail": "bool"
         },
         {
@@ -6959,6 +7220,12 @@
           "detail": "color"
         },
         {
+          "anchor": "EdgeLayerPropertyActiveSelectedStrokeColor",
+          "kind": "property",
+          "name": "activeSelectedStrokeColor",
+          "detail": "color"
+        },
+        {
           "anchor": "EdgeLayerPropertyPreviewStrokeColor",
           "kind": "property",
           "name": "previewStrokeColor",
@@ -6983,9 +7250,27 @@
           "detail": "color"
         },
         {
+          "anchor": "EdgeLayerPropertyCanvasBackgroundColor",
+          "kind": "property",
+          "name": "canvasBackgroundColor",
+          "detail": "color"
+        },
+        {
+          "anchor": "EdgeLayerPropertyActiveDefaultStrokeColor",
+          "kind": "property",
+          "name": "activeDefaultStrokeColor",
+          "detail": "color"
+        },
+        {
           "anchor": "EdgeLayerPropertyInactiveStrokeColor",
           "kind": "property",
           "name": "inactiveStrokeColor",
+          "detail": "color"
+        },
+        {
+          "anchor": "EdgeLayerPropertyDangerStrokeColor",
+          "kind": "property",
+          "name": "dangerStrokeColor",
           "detail": "color"
         },
         {
@@ -7062,6 +7347,11 @@
           "anchor": "EdgeLayerSignalEdgeContextRequested",
           "kind": "signal",
           "name": "edgeContextRequested"
+        },
+        {
+          "anchor": "EdgeLayerFunctionNeutralActiveStrokeColor",
+          "kind": "function",
+          "name": "neutralActiveStrokeColor"
         },
         {
           "anchor": "EdgeLayerFunctionRequestRedraw",
@@ -7179,9 +7469,29 @@
           "name": "_visibleEdgeSnapshot"
         },
         {
+          "anchor": "EdgeLayerFunctionEdgeEndpointScenePoint",
+          "kind": "function",
+          "name": "edgeEndpointScenePoint"
+        },
+        {
+          "anchor": "EdgeLayerFunctionDragConnectionActiveDataWire",
+          "kind": "function",
+          "name": "dragConnectionActiveDataWire"
+        },
+        {
           "anchor": "EdgeLayerFunctionEdgeAtScreen",
           "kind": "function",
           "name": "edgeAtScreen"
+        },
+        {
+          "anchor": "EdgeLayerFunctionEdgeIdsIntersectingScreenRect",
+          "kind": "function",
+          "name": "edgeIdsIntersectingScreenRect"
+        },
+        {
+          "anchor": "EdgeLayerFunctionEdgeIdsIntersectingSceneRect",
+          "kind": "function",
+          "name": "edgeIdsIntersectingSceneRect"
         },
         {
           "anchor": "EdgeLayerFunctionEdgeData",
@@ -7309,6 +7619,11 @@
           "name": "_dragGeometry"
         },
         {
+          "anchor": "EdgeLayerFunctionDragConnectionList",
+          "kind": "function",
+          "name": "dragConnectionList"
+        },
+        {
           "anchor": "EdgeLayerHandlerOnEdgeClicked",
           "kind": "handler",
           "name": "onEdgeClicked"
@@ -7334,6 +7649,16 @@
           "name": "onNodeDeltaPayloadChanged"
         },
         {
+          "anchor": "EdgeLayerHandlerOnSelectedNodeIdsChanged",
+          "kind": "handler",
+          "name": "onSelectedNodeIdsChanged"
+        },
+        {
+          "anchor": "EdgeLayerHandlerOnReplacementPreviewEdgeIdsChanged",
+          "kind": "handler",
+          "name": "onReplacementPreviewEdgeIdsChanged"
+        },
+        {
           "anchor": "EdgeLayerHandlerOnNodesChanged",
           "kind": "handler",
           "name": "onNodesChanged"
@@ -7357,6 +7682,11 @@
           "anchor": "EdgeLayerHandlerOnSelectedEdgeIdsChanged",
           "kind": "handler",
           "name": "onSelectedEdgeIdsChanged"
+        },
+        {
+          "anchor": "EdgeLayerHandlerOnWireSelectionModeHeldChanged",
+          "kind": "handler",
+          "name": "onWireSelectionModeHeldChanged"
         },
         {
           "anchor": "EdgeLayerHandlerOnPreviewEdgeIdChanged",
@@ -7626,6 +7956,12 @@
           "name": "_offsetKey"
         },
         {
+          "name": "_numberArrayKey"
+        },
+        {
+          "name": "_shapeDashPattern"
+        },
+        {
           "name": "_contentKeyForEntry"
         },
         {
@@ -7671,6 +8007,9 @@
         },
         {
           "name": "PathLine"
+        },
+        {
+          "name": "Rectangle"
         }
       ],
       "dynamic_refs": [
@@ -7850,7 +8189,10 @@
         },
         {
           "kind": "binding",
-          "name": "dashPattern"
+          "name": "dashPattern",
+          "targets": [
+            "retainedEdgeDelegate.edgeEntry.dashPattern"
+          ]
         },
         {
           "kind": "binding",
@@ -7947,6 +8289,71 @@
             "Number",
             "modelData.ty"
           ]
+        },
+        {
+          "kind": "binding",
+          "name": "visible",
+          "targets": [
+            "Boolean",
+            "retainedEdgeDelegate.edgeEntry.disabledMarkerVisible"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "opacity",
+          "targets": [
+            "Math.max",
+            "Math.min",
+            "Number",
+            "retainedEdgeDelegate.edgeEntry.disabledMarkerAlpha"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "x",
+          "targets": [
+            "Number",
+            "retainedEdgeDelegate.edgeEntry.markerX"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "y",
+          "targets": [
+            "Number",
+            "retainedEdgeDelegate.edgeEntry.markerY"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "x"
+        },
+        {
+          "kind": "binding",
+          "name": "y"
+        },
+        {
+          "kind": "binding",
+          "name": "width"
+        },
+        {
+          "kind": "binding",
+          "name": "height"
+        },
+        {
+          "kind": "binding",
+          "name": "radius"
+        },
+        {
+          "kind": "binding",
+          "name": "color",
+          "targets": [
+            "retainedEdgeDelegate.edgeEntry.disabledMarkerColor"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "rotation"
         }
       ],
       "local_component_refs": [],
@@ -8182,6 +8589,16 @@
           "anchor": "EdgeRetainedLayerFunctionOffsetKey",
           "kind": "function",
           "name": "_offsetKey"
+        },
+        {
+          "anchor": "EdgeRetainedLayerFunctionNumberArrayKey",
+          "kind": "function",
+          "name": "_numberArrayKey"
+        },
+        {
+          "anchor": "EdgeRetainedLayerFunctionShapeDashPattern",
+          "kind": "function",
+          "name": "_shapeDashPattern"
         },
         {
           "anchor": "EdgeRetainedLayerFunctionContentKeyForEntry",
@@ -13408,6 +13825,14 @@
           "name": "usesCardinalNeutralFlowHandles"
         },
         {
+          "kind": "string",
+          "name": "runtimeBehavior"
+        },
+        {
+          "kind": "bool",
+          "name": "isActiveWireNode"
+        },
+        {
           "kind": "bool",
           "name": "isPassiveNode"
         },
@@ -15992,6 +16417,18 @@
           "anchor": "GraphNodeHostPropertyUsesCardinalNeutralFlowHandles",
           "kind": "property",
           "name": "usesCardinalNeutralFlowHandles",
+          "detail": "bool"
+        },
+        {
+          "anchor": "GraphNodeHostPropertyRuntimeBehavior",
+          "kind": "property",
+          "name": "runtimeBehavior",
+          "detail": "string"
+        },
+        {
+          "anchor": "GraphNodeHostPropertyIsActiveWireNode",
+          "kind": "property",
+          "name": "isActiveWireNode",
           "detail": "bool"
         },
         {
@@ -20358,12 +20795,16 @@
         "\"../common\" as Common",
         "\"../common/TooltipPolicy.js\" as TooltipPolicy",
         "\"../graph_canvas/CanvasBackgroundStyle.js\" as CanvasBackgroundStyle",
+        "\"GraphNodeSurfaceMetrics.js\" as GraphNodeSurfaceMetrics",
         "\"surface_controls\" as SurfaceControls",
         "\"surface_controls/SurfaceControlGeometry.js\" as SurfaceControlGeometry"
       ],
       "ids": [
         {
           "name": "root"
+        },
+        {
+          "name": "settingsGroupAggregate"
         },
         {
           "name": "inputPortsRepeater"
@@ -20441,6 +20882,12 @@
       "object_names": [
         {
           "name": "graphNodePortsLayer"
+        },
+        {
+          "name": "graphNodeSettingsGroupAggregateNotch"
+        },
+        {
+          "name": "graphNodeSettingsGroupAggregateSocket"
         },
         {
           "name": "graphNodeInputPortRow"
@@ -20658,6 +21105,18 @@
         },
         {
           "kind": "var",
+          "name": "settingsGroups"
+        },
+        {
+          "kind": "real",
+          "name": "settingsBandYOffset"
+        },
+        {
+          "kind": "color",
+          "name": "settingsGroupPortColor"
+        },
+        {
+          "kind": "var",
           "name": "_visibleInputPorts"
         },
         {
@@ -20695,6 +21154,38 @@
         {
           "kind": "var",
           "name": "embeddedInteractiveRects"
+        },
+        {
+          "kind": "var",
+          "name": "groupData"
+        },
+        {
+          "kind": "string",
+          "name": "groupId"
+        },
+        {
+          "kind": "var",
+          "name": "anchor"
+        },
+        {
+          "kind": "int",
+          "name": "connectedCount"
+        },
+        {
+          "kind": "bool",
+          "name": "nodeFacingEdgeOnRight"
+        },
+        {
+          "kind": "color",
+          "name": "notchFillColor"
+        },
+        {
+          "kind": "color",
+          "name": "notchStrokeColor"
+        },
+        {
+          "kind": "real",
+          "name": "notchStrokeWidth"
         },
         {
           "kind": "int",
@@ -20743,22 +21234,6 @@
         {
           "kind": "real",
           "name": "metricRowHeight"
-        },
-        {
-          "kind": "bool",
-          "name": "nodeFacingEdgeOnRight"
-        },
-        {
-          "kind": "color",
-          "name": "notchFillColor"
-        },
-        {
-          "kind": "color",
-          "name": "notchStrokeColor"
-        },
-        {
-          "kind": "real",
-          "name": "notchStrokeWidth"
         },
         {
           "kind": "bool",
@@ -20958,10 +21433,6 @@
         },
         {
           "kind": "string",
-          "name": "groupId"
-        },
-        {
-          "kind": "string",
           "name": "direction"
         },
         {
@@ -21017,6 +21488,9 @@
         },
         {
           "name": "_notchSvgSource"
+        },
+        {
+          "name": "_portFlowOutlineColor"
         },
         {
           "name": "_dynamicPortGroupById"
@@ -21229,7 +21703,7 @@
         {
           "kind": "model",
           "targets": [
-            "root._visibleInputPorts"
+            "root.settingsGroups"
           ]
         },
         {
@@ -21242,6 +21716,12 @@
           "kind": "source",
           "targets": [
             "root.notchSvgSource"
+          ]
+        },
+        {
+          "kind": "model",
+          "targets": [
+            "root._visibleInputPorts"
           ]
         },
         {
@@ -21392,6 +21872,142 @@
         },
         {
           "kind": "binding",
+          "name": "visible",
+          "targets": [
+            "Boolean",
+            "anchor",
+            "groupData.expanded"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "width",
+          "targets": [
+            "root.width"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "height",
+          "targets": [
+            "root.height"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "visible",
+          "targets": [
+            "root.notchedPortsEffective"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "width",
+          "targets": [
+            "root.notchDiameter"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "height",
+          "targets": [
+            "root.notchDiameter"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "x",
+          "targets": [
+            "settingsGroupAggregate.anchor",
+            "Number",
+            "settingsGroupAggregate.anchor.x"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "y",
+          "targets": [
+            "settingsGroupAggregate.anchor"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "sourceSize",
+          "targets": [
+            "Qt.size"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "cache"
+        },
+        {
+          "kind": "binding",
+          "name": "asynchronous"
+        },
+        {
+          "kind": "binding",
+          "name": "smooth"
+        },
+        {
+          "kind": "binding",
+          "name": "mipmap"
+        },
+        {
+          "kind": "binding",
+          "name": "fillMode",
+          "targets": [
+            "Image.Stretch"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "x",
+          "targets": [
+            "settingsGroupAggregate.anchor"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "width",
+          "targets": [
+            "root.standardRestPortDiameter"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "height",
+          "targets": [
+            "width"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "radius",
+          "targets": [
+            "width"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "color",
+          "targets": [
+            "connectedCount"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "border.width"
+        },
+        {
+          "kind": "binding",
+          "name": "border.color",
+          "targets": [
+            "root.settingsGroupPortColor"
+          ]
+        },
+        {
+          "kind": "binding",
           "name": "x"
         },
         {
@@ -21428,27 +22044,6 @@
         },
         {
           "kind": "binding",
-          "name": "visible",
-          "targets": [
-            "root.notchedPortsEffective"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "width",
-          "targets": [
-            "root.notchDiameter"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "height",
-          "targets": [
-            "root.notchDiameter"
-          ]
-        },
-        {
-          "kind": "binding",
           "name": "x",
           "targets": [
             "parent.portPoint.x"
@@ -21465,37 +22060,7 @@
         },
         {
           "kind": "binding",
-          "name": "sourceSize",
-          "targets": [
-            "Qt.size"
-          ]
-        },
-        {
-          "kind": "binding",
           "name": "mirror"
-        },
-        {
-          "kind": "binding",
-          "name": "cache"
-        },
-        {
-          "kind": "binding",
-          "name": "asynchronous"
-        },
-        {
-          "kind": "binding",
-          "name": "smooth"
-        },
-        {
-          "kind": "binding",
-          "name": "mipmap"
-        },
-        {
-          "kind": "binding",
-          "name": "fillMode",
-          "targets": [
-            "Image.Stretch"
-          ]
         },
         {
           "kind": "binding",
@@ -21514,13 +22079,6 @@
             "interactiveState",
             "activeDiameter",
             "restDiameter"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "height",
-          "targets": [
-            "width"
           ]
         },
         {
@@ -21590,13 +22148,6 @@
           "name": "height",
           "targets": [
             "inputDot.ringDiameter"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "radius",
-          "targets": [
-            "width"
           ]
         },
         {
@@ -22953,6 +23504,24 @@
           "detail": "url"
         },
         {
+          "anchor": "GraphNodePortsLayerPropertySettingsGroups",
+          "kind": "property",
+          "name": "settingsGroups",
+          "detail": "var"
+        },
+        {
+          "anchor": "GraphNodePortsLayerPropertySettingsBandYOffset",
+          "kind": "property",
+          "name": "settingsBandYOffset",
+          "detail": "real"
+        },
+        {
+          "anchor": "GraphNodePortsLayerPropertySettingsGroupPortColor",
+          "kind": "property",
+          "name": "settingsGroupPortColor",
+          "detail": "color"
+        },
+        {
           "anchor": "GraphNodePortsLayerPropertyVisibleInputPorts",
           "kind": "property",
           "name": "_visibleInputPorts",
@@ -23011,6 +23580,54 @@
           "kind": "property",
           "name": "embeddedInteractiveRects",
           "detail": "var"
+        },
+        {
+          "anchor": "GraphNodePortsLayerPropertyGroupData",
+          "kind": "property",
+          "name": "groupData",
+          "detail": "var"
+        },
+        {
+          "anchor": "GraphNodePortsLayerPropertyGroupId",
+          "kind": "property",
+          "name": "groupId",
+          "detail": "string"
+        },
+        {
+          "anchor": "GraphNodePortsLayerPropertyAnchor",
+          "kind": "property",
+          "name": "anchor",
+          "detail": "var"
+        },
+        {
+          "anchor": "GraphNodePortsLayerPropertyConnectedCount",
+          "kind": "property",
+          "name": "connectedCount",
+          "detail": "int"
+        },
+        {
+          "anchor": "GraphNodePortsLayerPropertyNodeFacingEdgeOnRight",
+          "kind": "property",
+          "name": "nodeFacingEdgeOnRight",
+          "detail": "bool"
+        },
+        {
+          "anchor": "GraphNodePortsLayerPropertyNotchFillColor",
+          "kind": "property",
+          "name": "notchFillColor",
+          "detail": "color"
+        },
+        {
+          "anchor": "GraphNodePortsLayerPropertyNotchStrokeColor",
+          "kind": "property",
+          "name": "notchStrokeColor",
+          "detail": "color"
+        },
+        {
+          "anchor": "GraphNodePortsLayerPropertyNotchStrokeWidth",
+          "kind": "property",
+          "name": "notchStrokeWidth",
+          "detail": "real"
         },
         {
           "anchor": "GraphNodePortsLayerPropertyRowIndex",
@@ -23082,30 +23699,6 @@
           "anchor": "GraphNodePortsLayerPropertyMetricRowHeight",
           "kind": "property",
           "name": "metricRowHeight",
-          "detail": "real"
-        },
-        {
-          "anchor": "GraphNodePortsLayerPropertyNodeFacingEdgeOnRight",
-          "kind": "property",
-          "name": "nodeFacingEdgeOnRight",
-          "detail": "bool"
-        },
-        {
-          "anchor": "GraphNodePortsLayerPropertyNotchFillColor",
-          "kind": "property",
-          "name": "notchFillColor",
-          "detail": "color"
-        },
-        {
-          "anchor": "GraphNodePortsLayerPropertyNotchStrokeColor",
-          "kind": "property",
-          "name": "notchStrokeColor",
-          "detail": "color"
-        },
-        {
-          "anchor": "GraphNodePortsLayerPropertyNotchStrokeWidth",
-          "kind": "property",
-          "name": "notchStrokeWidth",
           "detail": "real"
         },
         {
@@ -23403,12 +23996,6 @@
           "detail": "real"
         },
         {
-          "anchor": "GraphNodePortsLayerPropertyGroupId",
-          "kind": "property",
-          "name": "groupId",
-          "detail": "string"
-        },
-        {
           "anchor": "GraphNodePortsLayerPropertyDirection",
           "kind": "property",
           "name": "direction",
@@ -23495,6 +24082,11 @@
           "anchor": "GraphNodePortsLayerFunctionNotchSvgSource",
           "kind": "function",
           "name": "_notchSvgSource"
+        },
+        {
+          "anchor": "GraphNodePortsLayerFunctionPortFlowOutlineColor",
+          "kind": "function",
+          "name": "_portFlowOutlineColor"
         },
         {
           "anchor": "GraphNodePortsLayerFunctionDynamicPortGroupById",
@@ -24394,9 +24986,6 @@
           "name": "graphNodeSettingsGroupHeader"
         },
         {
-          "name": "graphNodeSettingsGroupAggregateSocket"
-        },
-        {
           "name": "graphNodeSettingsGroupLabel"
         },
         {
@@ -24404,6 +24993,9 @@
         },
         {
           "name": "graphNodeSettingsGroupChevron"
+        },
+        {
+          "name": "graphNodeSettingsGroupChevronGlyph"
         },
         {
           "name": "graphNodeSettingsGroupToggleArea"
@@ -24466,12 +25058,20 @@
           "name": "groupId"
         },
         {
-          "kind": "var",
-          "name": "anchor"
+          "kind": "bool",
+          "name": "expandedState"
         },
         {
-          "kind": "int",
-          "name": "connectedCount"
+          "kind": "string",
+          "name": "direction"
+        },
+        {
+          "kind": "color",
+          "name": "decorationColor"
+        },
+        {
+          "kind": "color",
+          "name": "strokeColor"
         },
         {
           "kind": "var",
@@ -24506,6 +25106,9 @@
           "name": "Text"
         },
         {
+          "name": "Canvas"
+        },
+        {
           "name": "MouseArea"
         },
         {
@@ -24536,6 +25139,22 @@
         }
       ],
       "signal_handlers": [
+        {
+          "kind": "handler",
+          "name": "onPaint"
+        },
+        {
+          "kind": "handler",
+          "name": "onExpandedStateChanged"
+        },
+        {
+          "kind": "handler",
+          "name": "onStrokeColorChanged"
+        },
+        {
+          "kind": "handler",
+          "name": "Component.onCompleted"
+        },
         {
           "kind": "handler",
           "name": "onPressed"
@@ -24659,71 +25278,6 @@
         },
         {
           "kind": "binding",
-          "name": "visible",
-          "targets": [
-            "Boolean",
-            "anchor",
-            "groupItem.expanded"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "x",
-          "targets": [
-            "anchor",
-            "Number",
-            "anchor.x",
-            "headerRow.x",
-            "width"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "y",
-          "targets": [
-            "anchor"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "width"
-        },
-        {
-          "kind": "binding",
-          "name": "height",
-          "targets": [
-            "width"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "radius",
-          "targets": [
-            "width"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "color",
-          "targets": [
-            "root.host",
-            "root.host.surfaceColor"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "border.width"
-        },
-        {
-          "kind": "binding",
-          "name": "border.color",
-          "targets": [
-            "root.host",
-            "root.host.basePortColor"
-          ]
-        },
-        {
-          "kind": "binding",
           "name": "anchors.left",
           "targets": [
             "parent.left"
@@ -24807,8 +25361,12 @@
           "name": "color",
           "targets": [
             "root.host",
-            "root.host.inlineInputBorderColor"
+            "root.host.inlineDrivenTextColor"
           ]
+        },
+        {
+          "kind": "binding",
+          "name": "opacity"
         },
         {
           "kind": "binding",
@@ -24819,19 +25377,54 @@
         },
         {
           "kind": "binding",
-          "name": "text",
+          "name": "width"
+        },
+        {
+          "kind": "binding",
+          "name": "height",
           "targets": [
-            "groupItem.expanded"
+            "width"
           ]
         },
         {
           "kind": "binding",
-          "name": "font.pixelSize",
+          "name": "radius",
           "targets": [
-            "Math.max",
-            "root.host",
-            "root.host.effectiveGraphLabelPixelSize"
+            "width"
           ]
+        },
+        {
+          "kind": "binding",
+          "name": "color",
+          "targets": [
+            "expandedState",
+            "decorationColor"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "border.width",
+          "targets": [
+            "expandedState"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "border.color",
+          "targets": [
+            "decorationColor"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "anchors.centerIn",
+          "targets": [
+            "parent"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "antialiasing"
         },
         {
           "kind": "binding",
@@ -25054,16 +25647,28 @@
           "detail": "string"
         },
         {
-          "anchor": "GraphNodeSettingsGroupsLayerPropertyAnchor",
+          "anchor": "GraphNodeSettingsGroupsLayerPropertyExpandedState",
           "kind": "property",
-          "name": "anchor",
-          "detail": "var"
+          "name": "expandedState",
+          "detail": "bool"
         },
         {
-          "anchor": "GraphNodeSettingsGroupsLayerPropertyConnectedCount",
+          "anchor": "GraphNodeSettingsGroupsLayerPropertyDirection",
           "kind": "property",
-          "name": "connectedCount",
-          "detail": "int"
+          "name": "direction",
+          "detail": "string"
+        },
+        {
+          "anchor": "GraphNodeSettingsGroupsLayerPropertyDecorationColor",
+          "kind": "property",
+          "name": "decorationColor",
+          "detail": "color"
+        },
+        {
+          "anchor": "GraphNodeSettingsGroupsLayerPropertyStrokeColor",
+          "kind": "property",
+          "name": "strokeColor",
+          "detail": "color"
         },
         {
           "anchor": "GraphNodeSettingsGroupsLayerPropertyItemData",
@@ -25091,6 +25696,26 @@
           "anchor": "GraphNodeSettingsGroupsLayerFunctionRequestExpansion",
           "kind": "function",
           "name": "requestExpansion"
+        },
+        {
+          "anchor": "GraphNodeSettingsGroupsLayerHandlerOnPaint",
+          "kind": "handler",
+          "name": "onPaint"
+        },
+        {
+          "anchor": "GraphNodeSettingsGroupsLayerHandlerOnExpandedStateChanged",
+          "kind": "handler",
+          "name": "onExpandedStateChanged"
+        },
+        {
+          "anchor": "GraphNodeSettingsGroupsLayerHandlerOnStrokeColorChanged",
+          "kind": "handler",
+          "name": "onStrokeColorChanged"
+        },
+        {
+          "anchor": "GraphNodeSettingsGroupsLayerHandlerComponentOnCompleted",
+          "kind": "handler",
+          "name": "Component.onCompleted"
         },
         {
           "anchor": "GraphNodeSettingsGroupsLayerHandlerOnPressed",
@@ -27585,6 +28210,12 @@
           "name": "labelEditor"
         },
         {
+          "name": "displayModePopup"
+        },
+        {
+          "name": "displayModeChoiceButton"
+        },
+        {
           "name": "colorPopup"
         },
         {
@@ -27633,6 +28264,12 @@
         },
         {
           "name": "graphEdgeLabelInlineEditor"
+        },
+        {
+          "name": "graphEdgeDisplayModePopup"
+        },
+        {
+          "name": "graphEdgeDisplayModeChoice_"
         },
         {
           "name": "graphEdgeColorPopup"
@@ -27703,8 +28340,16 @@
           "name": "activeEdgeId"
         },
         {
+          "kind": "int",
+          "name": "edgeTopologyRevision"
+        },
+        {
           "kind": "var",
           "name": "activeEdgePayload"
+        },
+        {
+          "kind": "bool",
+          "name": "activeDataWire"
         },
         {
           "kind": "bool",
@@ -27749,6 +28394,10 @@
         {
           "kind": "string",
           "name": "toolbarPathMode"
+        },
+        {
+          "kind": "string",
+          "name": "toolbarDisplayMode"
         },
         {
           "kind": "string",
@@ -27888,6 +28537,10 @@
         },
         {
           "kind": "var",
+          "name": "displayModeChoices"
+        },
+        {
+          "kind": "var",
           "name": "arrowChoices"
         },
         {
@@ -28017,6 +28670,15 @@
           "name": "_currentPathMode"
         },
         {
+          "name": "_normalizedDisplayMode"
+        },
+        {
+          "name": "_currentDisplayMode"
+        },
+        {
+          "name": "_displayModeLabel"
+        },
+        {
           "name": "_strokePatternIconName"
         },
         {
@@ -28111,6 +28773,12 @@
             "root.toolbarArrowIconName",
             "String",
             "actionButton.resolvedForegroundColor"
+          ]
+        },
+        {
+          "kind": "model",
+          "targets": [
+            "root.displayModeChoices"
           ]
         },
         {
@@ -28699,6 +29367,81 @@
           "kind": "binding",
           "name": "contentItem",
           "targets": [
+            "Row"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "text",
+          "targets": [
+            "String",
+            "modelData.label"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "checkable"
+        },
+        {
+          "kind": "binding",
+          "name": "checked",
+          "targets": [
+            "root.toolbarDisplayMode",
+            "String",
+            "modelData.value"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "autoExclusive"
+        },
+        {
+          "kind": "binding",
+          "name": "contentItem",
+          "targets": [
+            "Text"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "horizontalAlignment",
+          "targets": [
+            "Text.AlignHCenter"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "verticalAlignment",
+          "targets": [
+            "Text.AlignVCenter"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "color",
+          "targets": [
+            "root.toolbarDisplayMode",
+            "String",
+            "modelData.value"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "font.pixelSize"
+        },
+        {
+          "kind": "binding",
+          "name": "font.bold",
+          "targets": [
+            "root.toolbarDisplayMode",
+            "String",
+            "modelData.value"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "contentItem",
+          "targets": [
             "Grid"
           ]
         },
@@ -28740,21 +29483,6 @@
         },
         {
           "kind": "binding",
-          "name": "contentItem",
-          "targets": [
-            "Row"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "text",
-          "targets": [
-            "String",
-            "modelData.label"
-          ]
-        },
-        {
-          "kind": "binding",
           "name": "policyBridge",
           "targets": [
             "root.canvasItem",
@@ -28785,37 +29513,12 @@
         },
         {
           "kind": "binding",
-          "name": "contentItem",
-          "targets": [
-            "Text"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "horizontalAlignment",
-          "targets": [
-            "Text.AlignHCenter"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "verticalAlignment",
-          "targets": [
-            "Text.AlignVCenter"
-          ]
-        },
-        {
-          "kind": "binding",
           "name": "color",
           "targets": [
             "root.toolbarPathMode",
             "String",
             "modelData.value"
           ]
-        },
-        {
-          "kind": "binding",
-          "name": "font.pixelSize"
         },
         {
           "kind": "binding",
@@ -28954,10 +29657,22 @@
           "detail": "string"
         },
         {
+          "anchor": "GraphEdgeFloatingToolbarPropertyEdgeTopologyRevision",
+          "kind": "property",
+          "name": "edgeTopologyRevision",
+          "detail": "int"
+        },
+        {
           "anchor": "GraphEdgeFloatingToolbarPropertyActiveEdgePayload",
           "kind": "property",
           "name": "activeEdgePayload",
           "detail": "var"
+        },
+        {
+          "anchor": "GraphEdgeFloatingToolbarPropertyActiveDataWire",
+          "kind": "property",
+          "name": "activeDataWire",
+          "detail": "bool"
         },
         {
           "anchor": "GraphEdgeFloatingToolbarPropertyFlowEdgeActive",
@@ -29023,6 +29738,12 @@
           "anchor": "GraphEdgeFloatingToolbarPropertyToolbarPathMode",
           "kind": "property",
           "name": "toolbarPathMode",
+          "detail": "string"
+        },
+        {
+          "anchor": "GraphEdgeFloatingToolbarPropertyToolbarDisplayMode",
+          "kind": "property",
+          "name": "toolbarDisplayMode",
           "detail": "string"
         },
         {
@@ -29230,6 +29951,12 @@
           "detail": "var"
         },
         {
+          "anchor": "GraphEdgeFloatingToolbarPropertyDisplayModeChoices",
+          "kind": "property",
+          "name": "displayModeChoices",
+          "detail": "var"
+        },
+        {
           "anchor": "GraphEdgeFloatingToolbarPropertyArrowChoices",
           "kind": "property",
           "name": "arrowChoices",
@@ -29433,6 +30160,21 @@
           "anchor": "GraphEdgeFloatingToolbarFunctionCurrentPathMode",
           "kind": "function",
           "name": "_currentPathMode"
+        },
+        {
+          "anchor": "GraphEdgeFloatingToolbarFunctionNormalizedDisplayMode",
+          "kind": "function",
+          "name": "_normalizedDisplayMode"
+        },
+        {
+          "anchor": "GraphEdgeFloatingToolbarFunctionCurrentDisplayMode",
+          "kind": "function",
+          "name": "_currentDisplayMode"
+        },
+        {
+          "anchor": "GraphEdgeFloatingToolbarFunctionDisplayModeLabel",
+          "kind": "function",
+          "name": "_displayModeLabel"
         },
         {
           "anchor": "GraphEdgeFloatingToolbarFunctionStrokePatternIconName",
@@ -52582,9 +53324,6 @@
           "name": "graphPanelVerticalScrollBar"
         },
         {
-          "name": "graphPanelDoubleClickHandler"
-        },
-        {
           "name": "graphPanelStructuredPlaceholder"
         },
         {
@@ -52766,7 +53505,7 @@
           "name": "Rectangle"
         },
         {
-          "name": "TapHandler"
+          "name": "MouseArea"
         },
         {
           "name": "TextArea"
@@ -52812,7 +53551,7 @@
         },
         {
           "kind": "handler",
-          "name": "onDoubleTapped"
+          "name": "onWheel"
         }
       ],
       "connections": [],
@@ -52899,6 +53638,10 @@
         {
           "kind": "binding",
           "name": "clip"
+        },
+        {
+          "kind": "binding",
+          "name": "interactive"
         },
         {
           "kind": "binding",
@@ -53081,17 +53824,28 @@
         },
         {
           "kind": "binding",
-          "name": "acceptedButtons",
+          "name": "anchors.fill",
           "targets": [
-            "Qt.LeftButton"
+            "dataList"
           ]
         },
         {
           "kind": "binding",
-          "name": "gesturePolicy",
+          "name": "visible",
           "targets": [
-            "TapHandler.ReleaseWithinBounds"
+            "dataList.visible"
           ]
+        },
+        {
+          "kind": "binding",
+          "name": "acceptedButtons",
+          "targets": [
+            "Qt.NoButton"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "propagateComposedEvents"
         },
         {
           "kind": "binding",
@@ -53424,9 +54178,9 @@
           "name": "Component.onCompleted"
         },
         {
-          "anchor": "GraphPanelSurfaceHandlerOnDoubleTapped",
+          "anchor": "GraphPanelSurfaceHandlerOnWheel",
           "kind": "handler",
-          "name": "onDoubleTapped"
+          "name": "onWheel"
         }
       ]
     },
@@ -71933,9 +72687,9 @@
         },
         {
           "kind": "binding",
-          "name": "implicitHeight",
+          "name": "height",
           "targets": [
-            "control.implicitHeight"
+            "control.availableHeight"
           ]
         },
         {
@@ -84209,6 +84963,15 @@
           "name": "setEdgePathMode"
         },
         {
+          "name": "setEdgesDisplayMode"
+        },
+        {
+          "name": "jumpToEdgeEndpoint"
+        },
+        {
+          "name": "jumpToSelectedEdgeEndpoint"
+        },
+        {
           "name": "clearFlowEdgeLabel"
         },
         {
@@ -84514,6 +85277,21 @@
           "anchor": "GraphCanvasActionRouterFunctionSetEdgePathMode",
           "kind": "function",
           "name": "setEdgePathMode"
+        },
+        {
+          "anchor": "GraphCanvasActionRouterFunctionSetEdgesDisplayMode",
+          "kind": "function",
+          "name": "setEdgesDisplayMode"
+        },
+        {
+          "anchor": "GraphCanvasActionRouterFunctionJumpToEdgeEndpoint",
+          "kind": "function",
+          "name": "jumpToEdgeEndpoint"
+        },
+        {
+          "anchor": "GraphCanvasActionRouterFunctionJumpToSelectedEdgeEndpoint",
+          "kind": "function",
+          "name": "jumpToSelectedEdgeEndpoint"
         },
         {
           "anchor": "GraphCanvasActionRouterFunctionClearFlowEdgeLabel",
@@ -85470,6 +86248,9 @@
           "name": "edgeContextPopup"
         },
         {
+          "name": "edgeDisplayModeContextPopup"
+        },
+        {
           "name": "nodeContextPopup"
         },
         {
@@ -85488,6 +86269,9 @@
         },
         {
           "name": "graphCanvasEdgeContextPopup"
+        },
+        {
+          "name": "graphCanvasEdgeDisplayModeContextPopup"
         },
         {
           "name": "graphCanvasNodeContextPopup"
@@ -85574,6 +86358,18 @@
         },
         {
           "kind": "bool",
+          "name": "activeDataWire"
+        },
+        {
+          "kind": "bool",
+          "name": "displayModeSubmenuOpen"
+        },
+        {
+          "kind": "bool",
+          "name": "opensLeft"
+        },
+        {
+          "kind": "bool",
           "name": "canEnterScope"
         },
         {
@@ -85643,10 +86439,6 @@
         {
           "kind": "string",
           "name": "viewerBackground"
-        },
-        {
-          "kind": "bool",
-          "name": "opensLeft"
         },
         {
           "kind": "var",
@@ -85740,6 +86532,21 @@
           "name": "_edgePathAction"
         },
         {
+          "name": "_normalizedEdgeDisplayMode"
+        },
+        {
+          "name": "_edgeDisplayMode"
+        },
+        {
+          "name": "_edgeDisplayModeActions"
+        },
+        {
+          "name": "_handleEdgeDisplayModeAction"
+        },
+        {
+          "name": "_handleEdgeNavigationAction"
+        },
+        {
           "name": "_handleEdgePathAction"
         },
         {
@@ -85830,11 +86637,11 @@
       "signal_handlers": [
         {
           "kind": "handler",
-          "name": "onActionTriggered"
+          "name": "onVisibleChanged"
         },
         {
           "kind": "handler",
-          "name": "onVisibleChanged"
+          "name": "onActionTriggered"
         }
       ],
       "connections": [],
@@ -85996,6 +86803,34 @@
         {
           "kind": "binding",
           "name": "actions"
+        },
+        {
+          "kind": "binding",
+          "name": "visible",
+          "targets": [
+            "edgeContextPopup.visible"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "x",
+          "targets": [
+            "edgeDisplayModeContextPopup.opensLeft"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "y",
+          "targets": [
+            "edgeContextPopup.y"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "actions",
+          "targets": [
+            "root._edgeDisplayModeActions"
+          ]
         },
         {
           "kind": "binding",
@@ -86190,6 +87025,24 @@
           "detail": "bool"
         },
         {
+          "anchor": "GraphCanvasContextMenusPropertyActiveDataWire",
+          "kind": "property",
+          "name": "activeDataWire",
+          "detail": "bool"
+        },
+        {
+          "anchor": "GraphCanvasContextMenusPropertyDisplayModeSubmenuOpen",
+          "kind": "property",
+          "name": "displayModeSubmenuOpen",
+          "detail": "bool"
+        },
+        {
+          "anchor": "GraphCanvasContextMenusPropertyOpensLeft",
+          "kind": "property",
+          "name": "opensLeft",
+          "detail": "bool"
+        },
+        {
           "anchor": "GraphCanvasContextMenusPropertyCanEnterScope",
           "kind": "property",
           "name": "canEnterScope",
@@ -86296,12 +87149,6 @@
           "kind": "property",
           "name": "viewerBackground",
           "detail": "string"
-        },
-        {
-          "anchor": "GraphCanvasContextMenusPropertyOpensLeft",
-          "kind": "property",
-          "name": "opensLeft",
-          "detail": "bool"
         },
         {
           "anchor": "GraphCanvasContextMenusPropertySelectedNodeIds",
@@ -86442,6 +87289,31 @@
           "name": "_edgePathAction"
         },
         {
+          "anchor": "GraphCanvasContextMenusFunctionNormalizedEdgeDisplayMode",
+          "kind": "function",
+          "name": "_normalizedEdgeDisplayMode"
+        },
+        {
+          "anchor": "GraphCanvasContextMenusFunctionEdgeDisplayMode",
+          "kind": "function",
+          "name": "_edgeDisplayMode"
+        },
+        {
+          "anchor": "GraphCanvasContextMenusFunctionEdgeDisplayModeActions",
+          "kind": "function",
+          "name": "_edgeDisplayModeActions"
+        },
+        {
+          "anchor": "GraphCanvasContextMenusFunctionHandleEdgeDisplayModeAction",
+          "kind": "function",
+          "name": "_handleEdgeDisplayModeAction"
+        },
+        {
+          "anchor": "GraphCanvasContextMenusFunctionHandleEdgeNavigationAction",
+          "kind": "function",
+          "name": "_handleEdgeNavigationAction"
+        },
+        {
           "anchor": "GraphCanvasContextMenusFunctionHandleEdgePathAction",
           "kind": "function",
           "name": "_handleEdgePathAction"
@@ -86567,14 +87439,14 @@
           "name": "_hasInternalConnection"
         },
         {
-          "anchor": "GraphCanvasContextMenusHandlerOnActionTriggered",
-          "kind": "handler",
-          "name": "onActionTriggered"
-        },
-        {
           "anchor": "GraphCanvasContextMenusHandlerOnVisibleChanged",
           "kind": "handler",
           "name": "onVisibleChanged"
+        },
+        {
+          "anchor": "GraphCanvasContextMenusHandlerOnActionTriggered",
+          "kind": "handler",
+          "name": "onActionTriggered"
         },
         {
           "anchor": "GraphCanvasContextMenusLocalComponentGraphCanvasActionRouter",
@@ -89232,6 +90104,10 @@
         },
         {
           "kind": "bool",
+          "name": "wireSelectionModeHeld"
+        },
+        {
+          "kind": "bool",
           "name": "selecting"
         },
         {
@@ -89257,6 +90133,10 @@
         {
           "kind": "real",
           "name": "currentY"
+        },
+        {
+          "kind": "var",
+          "name": "edgeSelectionBaseline"
         },
         {
           "kind": "bool",
@@ -89310,6 +90190,9 @@
           "name": "resetGestureState"
         },
         {
+          "name": "updateEdgeSelection"
+        },
+        {
           "name": "cancelPanningForChord"
         }
       ],
@@ -89319,6 +90202,9 @@
         },
         {
           "name": "Rectangle"
+        },
+        {
+          "name": "Canvas"
         }
       ],
       "dynamic_refs": [],
@@ -89330,6 +90216,10 @@
         {
           "kind": "handler",
           "name": "Keys.onPressed"
+        },
+        {
+          "kind": "handler",
+          "name": "Keys.onReleased"
         },
         {
           "kind": "handler",
@@ -89358,6 +90248,22 @@
         {
           "kind": "handler",
           "name": "onWheel"
+        },
+        {
+          "kind": "handler",
+          "name": "onVisibleChanged"
+        },
+        {
+          "kind": "handler",
+          "name": "onWidthChanged"
+        },
+        {
+          "kind": "handler",
+          "name": "onHeightChanged"
+        },
+        {
+          "kind": "handler",
+          "name": "onPaint"
         }
       ],
       "connections": [],
@@ -89444,13 +90350,23 @@
         },
         {
           "kind": "binding",
-          "name": "border.width"
+          "name": "border.width",
+          "targets": [
+            "marqueeArea.marqueeMode"
+          ]
         },
         {
           "kind": "binding",
           "name": "border.color",
           "targets": [
             "root.themePalette.accent"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "visible",
+          "targets": [
+            "marqueeArea.marqueeMode"
           ]
         },
         {
@@ -89548,6 +90464,12 @@
           "detail": "real"
         },
         {
+          "anchor": "GraphCanvasInputLayersPropertyWireSelectionModeHeld",
+          "kind": "property",
+          "name": "wireSelectionModeHeld",
+          "detail": "bool"
+        },
+        {
           "anchor": "GraphCanvasInputLayersPropertySelecting",
           "kind": "property",
           "name": "selecting",
@@ -89588,6 +90510,12 @@
           "kind": "property",
           "name": "currentY",
           "detail": "real"
+        },
+        {
+          "anchor": "GraphCanvasInputLayersPropertyEdgeSelectionBaseline",
+          "kind": "property",
+          "name": "edgeSelectionBaseline",
+          "detail": "var"
         },
         {
           "anchor": "GraphCanvasInputLayersPropertyPanning",
@@ -89668,6 +90596,11 @@
           "name": "resetGestureState"
         },
         {
+          "anchor": "GraphCanvasInputLayersFunctionUpdateEdgeSelection",
+          "kind": "function",
+          "name": "updateEdgeSelection"
+        },
+        {
           "anchor": "GraphCanvasInputLayersFunctionCancelPanningForChord",
           "kind": "function",
           "name": "cancelPanningForChord"
@@ -89681,6 +90614,11 @@
           "anchor": "GraphCanvasInputLayersHandlerKeysOnPressed",
           "kind": "handler",
           "name": "Keys.onPressed"
+        },
+        {
+          "anchor": "GraphCanvasInputLayersHandlerKeysOnReleased",
+          "kind": "handler",
+          "name": "Keys.onReleased"
         },
         {
           "anchor": "GraphCanvasInputLayersHandlerKeysOnEscapePressed",
@@ -89716,6 +90654,26 @@
           "anchor": "GraphCanvasInputLayersHandlerOnWheel",
           "kind": "handler",
           "name": "onWheel"
+        },
+        {
+          "anchor": "GraphCanvasInputLayersHandlerOnVisibleChanged",
+          "kind": "handler",
+          "name": "onVisibleChanged"
+        },
+        {
+          "anchor": "GraphCanvasInputLayersHandlerOnWidthChanged",
+          "kind": "handler",
+          "name": "onWidthChanged"
+        },
+        {
+          "anchor": "GraphCanvasInputLayersHandlerOnHeightChanged",
+          "kind": "handler",
+          "name": "onHeightChanged"
+        },
+        {
+          "anchor": "GraphCanvasInputLayersHandlerOnPaint",
+          "kind": "handler",
+          "name": "onPaint"
         }
       ]
     },
@@ -89808,6 +90766,10 @@
         {
           "kind": "var",
           "name": "wireDropCandidate"
+        },
+        {
+          "kind": "var",
+          "name": "wireInvalidDropCandidate"
         },
         {
           "kind": "bool",
@@ -89943,7 +90905,7 @@
           "name": "_scenePortFacts"
         },
         {
-          "name": "_edgeEndpointMoveForPort"
+          "name": "_edgeEndpointDragForPort"
         },
         {
           "name": "_connectionPreviewFacts"
@@ -90028,6 +90990,12 @@
         },
         {
           "name": "wireDragSourcePort"
+        },
+        {
+          "name": "_activeDataWirePreview"
+        },
+        {
+          "name": "_rewirePreviewConnections"
         },
         {
           "name": "wireDragPreviewConnection"
@@ -90224,6 +91192,12 @@
           "anchor": "GraphCanvasInteractionStatePropertyWireDropCandidate",
           "kind": "property",
           "name": "wireDropCandidate",
+          "detail": "var"
+        },
+        {
+          "anchor": "GraphCanvasInteractionStatePropertyWireInvalidDropCandidate",
+          "kind": "property",
+          "name": "wireInvalidDropCandidate",
           "detail": "var"
         },
         {
@@ -90433,9 +91407,9 @@
           "name": "_scenePortFacts"
         },
         {
-          "anchor": "GraphCanvasInteractionStateFunctionEdgeEndpointMoveForPort",
+          "anchor": "GraphCanvasInteractionStateFunctionEdgeEndpointDragForPort",
           "kind": "function",
-          "name": "_edgeEndpointMoveForPort"
+          "name": "_edgeEndpointDragForPort"
         },
         {
           "anchor": "GraphCanvasInteractionStateFunctionConnectionPreviewFacts",
@@ -90576,6 +91550,16 @@
           "anchor": "GraphCanvasInteractionStateFunctionWireDragSourcePort",
           "kind": "function",
           "name": "wireDragSourcePort"
+        },
+        {
+          "anchor": "GraphCanvasInteractionStateFunctionActiveDataWirePreview",
+          "kind": "function",
+          "name": "_activeDataWirePreview"
+        },
+        {
+          "anchor": "GraphCanvasInteractionStateFunctionRewirePreviewConnections",
+          "kind": "function",
+          "name": "_rewirePreviewConnections"
         },
         {
           "anchor": "GraphCanvasInteractionStateFunctionWireDragPreviewConnection",
@@ -92941,6 +93925,9 @@
           "name": "mainColumn"
         },
         {
+          "name": "selectedWireDisplayModeSubmenuLoader"
+        },
+        {
           "name": "canvasSubmenuLoader"
         },
         {
@@ -93099,6 +94086,18 @@
           "name": "canvasExecutionFacts"
         },
         {
+          "kind": "var",
+          "name": "selectedWireEdgeIds"
+        },
+        {
+          "kind": "string",
+          "name": "selectedWireDisplayModeValue"
+        },
+        {
+          "kind": "string",
+          "name": "selectedWireDisplayModeLabel"
+        },
+        {
           "kind": "bool",
           "name": "showGrid"
         },
@@ -93254,6 +94253,18 @@
           "name": "activeSubmenuHeight"
         },
         {
+          "name": "_normalizedEdgeDisplayMode"
+        },
+        {
+          "name": "_selectedActiveWireEdgeIds"
+        },
+        {
+          "name": "_selectedWireDisplayModeValue"
+        },
+        {
+          "name": "setSelectedWiresDisplayMode"
+        },
+        {
           "name": "closeMenu"
         },
         {
@@ -93366,6 +94377,14 @@
       "signal_handlers": [
         {
           "kind": "handler",
+          "name": "onVisibleChanged"
+        },
+        {
+          "kind": "handler",
+          "name": "onSelectedWireEdgeIdsChanged"
+        },
+        {
+          "kind": "handler",
           "name": "onClicked"
         },
         {
@@ -93452,9 +94471,31 @@
         },
         {
           "kind": "binding",
+          "name": "visible",
+          "targets": [
+            "root.selectedWireEdgeIds.length"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "height",
+          "targets": [
+            "visible"
+          ]
+        },
+        {
+          "kind": "binding",
           "name": "value",
           "targets": [
-            "root.canvasColorLabel"
+            "root.selectedWireDisplayModeLabel"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "height",
+          "targets": [
+            "visible",
+            "root.rowH"
           ]
         },
         {
@@ -93462,6 +94503,13 @@
           "name": "isOpen",
           "targets": [
             "root.activeSubmenu"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "value",
+          "targets": [
+            "root.canvasColorLabel"
           ]
         },
         {
@@ -93566,6 +94614,13 @@
         {
           "kind": "binding",
           "name": "options"
+        },
+        {
+          "kind": "binding",
+          "name": "currentValue",
+          "targets": [
+            "root.selectedWireDisplayModeValue"
+          ]
         },
         {
           "kind": "binding",
@@ -94241,6 +95296,24 @@
           "detail": "var"
         },
         {
+          "anchor": "GraphCanvasOptionsMenuPropertySelectedWireEdgeIds",
+          "kind": "property",
+          "name": "selectedWireEdgeIds",
+          "detail": "var"
+        },
+        {
+          "anchor": "GraphCanvasOptionsMenuPropertySelectedWireDisplayModeValue",
+          "kind": "property",
+          "name": "selectedWireDisplayModeValue",
+          "detail": "string"
+        },
+        {
+          "anchor": "GraphCanvasOptionsMenuPropertySelectedWireDisplayModeLabel",
+          "kind": "property",
+          "name": "selectedWireDisplayModeLabel",
+          "detail": "string"
+        },
+        {
           "anchor": "GraphCanvasOptionsMenuPropertyShowGrid",
           "kind": "property",
           "name": "showGrid",
@@ -94470,6 +95543,26 @@
           "name": "activeSubmenuHeight"
         },
         {
+          "anchor": "GraphCanvasOptionsMenuFunctionNormalizedEdgeDisplayMode",
+          "kind": "function",
+          "name": "_normalizedEdgeDisplayMode"
+        },
+        {
+          "anchor": "GraphCanvasOptionsMenuFunctionSelectedActiveWireEdgeIds",
+          "kind": "function",
+          "name": "_selectedActiveWireEdgeIds"
+        },
+        {
+          "anchor": "GraphCanvasOptionsMenuFunctionSelectedWireDisplayModeValue",
+          "kind": "function",
+          "name": "_selectedWireDisplayModeValue"
+        },
+        {
+          "anchor": "GraphCanvasOptionsMenuFunctionSetSelectedWiresDisplayMode",
+          "kind": "function",
+          "name": "setSelectedWiresDisplayMode"
+        },
+        {
           "anchor": "GraphCanvasOptionsMenuFunctionCloseMenu",
           "kind": "function",
           "name": "closeMenu"
@@ -94533,6 +95626,16 @@
           "anchor": "GraphCanvasOptionsMenuFunctionOpenGraphicsSettings",
           "kind": "function",
           "name": "openGraphicsSettings"
+        },
+        {
+          "anchor": "GraphCanvasOptionsMenuHandlerOnVisibleChanged",
+          "kind": "handler",
+          "name": "onVisibleChanged"
+        },
+        {
+          "anchor": "GraphCanvasOptionsMenuHandlerOnSelectedWireEdgeIdsChanged",
+          "kind": "handler",
+          "name": "onSelectedWireEdgeIdsChanged"
         },
         {
           "anchor": "GraphCanvasOptionsMenuHandlerOnClicked",
@@ -96109,6 +97212,23 @@
           "targets": [
             "root.canvasItem",
             "root.canvasItem.wireDragPreviewConnection"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "replacementPreviewEdgeIds",
+          "targets": [
+            "dragConnection",
+            "dragConnection.replacement_edge_ids"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "wireSelectionModeHeld",
+          "targets": [
+            "root.canvasItem",
+            "Boolean",
+            "root.canvasItem.wireSelectionModeHeld"
           ]
         },
         {
@@ -98670,6 +99790,9 @@
           "name": "setExclusiveEdgeSelection"
         },
         {
+          "name": "setEdgeSelection"
+        },
+        {
           "name": "sceneBackdropNodesModel"
         },
         {
@@ -98937,6 +100060,11 @@
           "anchor": "GraphCanvasSceneStateFunctionSetExclusiveEdgeSelection",
           "kind": "function",
           "name": "setExclusiveEdgeSelection"
+        },
+        {
+          "anchor": "GraphCanvasSceneStateFunctionSetEdgeSelection",
+          "kind": "function",
+          "name": "setEdgeSelection"
         },
         {
           "anchor": "GraphCanvasSceneStateFunctionSceneBackdropNodesModel",
@@ -99889,6 +101017,7 @@
       "imports": [
         "QtQuick 2.15",
         "QtQml 2.15",
+        "QtQuick.Window 2.15",
         "\"graph_canvas\" as GraphCanvasComponents",
         "\"graph_canvas/GraphCanvasRootApi.js\" as GraphCanvasRootApi"
       ],
@@ -100217,6 +101346,10 @@
           "name": "nodeExecutionRevision"
         },
         {
+          "kind": "int",
+          "name": "edgeTopologyRevision"
+        },
+        {
           "kind": "var",
           "name": "canvasViewportController"
         },
@@ -100529,6 +101662,10 @@
           "name": "selectedEdgeIds"
         },
         {
+          "kind": "alias",
+          "name": "wireSelectionModeHeld"
+        },
+        {
           "kind": "bool",
           "name": "hovered"
         },
@@ -100578,6 +101715,9 @@
         },
         {
           "name": "_nodeRenderActivationSceneRectPayload"
+        },
+        {
+          "name": "onActiveChanged"
         },
         {
           "name": "toggleMinimapExpanded"
@@ -100661,6 +101801,9 @@
           "name": "setExclusiveEdgeSelection"
         },
         {
+          "name": "setEdgeSelection"
+        },
+        {
           "name": "edgeAtScreen"
         },
         {
@@ -100679,6 +101822,9 @@
           "name": "_sceneEdgePayload"
         },
         {
+          "name": "_liveEdgePayload"
+        },
+        {
           "name": "edgeIdsForEnableToggle"
         },
         {
@@ -100686,6 +101832,18 @@
         },
         {
           "name": "toggleSelectedEdgesEnabled"
+        },
+        {
+          "name": "setEdgesDisplayMode"
+        },
+        {
+          "name": "edgeIdsIntersectingScreenRect"
+        },
+        {
+          "name": "edgeEndpointScenePoint"
+        },
+        {
+          "name": "jumpToEdgeEndpoint"
         },
         {
           "name": "_nodeSupportsPassiveStyle"
@@ -101098,6 +102256,9 @@
           "name": "Timer"
         },
         {
+          "name": "Connections"
+        },
+        {
           "name": "GraphCanvasComponents.GraphCanvasRootLayers"
         },
         {
@@ -101139,6 +102300,10 @@
         {
           "kind": "handler",
           "name": "onLiveDragRevisionChanged"
+        },
+        {
+          "kind": "handler",
+          "name": "onActiveFocusChanged"
         },
         {
           "kind": "handler",
@@ -101201,7 +102366,12 @@
           "name": "Component.onDestruction"
         }
       ],
-      "connections": [],
+      "connections": [
+        {
+          "kind": "target",
+          "name": "root.Window.window"
+        }
+      ],
       "property_bindings": [
         {
           "kind": "binding",
@@ -101407,6 +102577,10 @@
         {
           "kind": "binding",
           "name": "repeat"
+        },
+        {
+          "kind": "binding",
+          "name": "ignoreUnknownSignals"
         },
         {
           "kind": "binding",
@@ -102108,6 +103282,12 @@
           "detail": "int"
         },
         {
+          "anchor": "GraphCanvasPropertyEdgeTopologyRevision",
+          "kind": "property",
+          "name": "edgeTopologyRevision",
+          "detail": "int"
+        },
+        {
           "anchor": "GraphCanvasPropertyCanvasViewportController",
           "kind": "property",
           "name": "canvasViewportController",
@@ -102576,6 +103756,12 @@
           "detail": "alias"
         },
         {
+          "anchor": "GraphCanvasPropertyWireSelectionModeHeld",
+          "kind": "property",
+          "name": "wireSelectionModeHeld",
+          "detail": "alias"
+        },
+        {
           "anchor": "GraphCanvasPropertyHovered",
           "kind": "property",
           "name": "hovered",
@@ -102649,6 +103835,11 @@
           "anchor": "GraphCanvasFunctionNodeRenderActivationSceneRectPayload",
           "kind": "function",
           "name": "_nodeRenderActivationSceneRectPayload"
+        },
+        {
+          "anchor": "GraphCanvasFunctionOnActiveChanged",
+          "kind": "function",
+          "name": "onActiveChanged"
         },
         {
           "anchor": "GraphCanvasFunctionToggleMinimapExpanded",
@@ -102786,6 +103977,11 @@
           "name": "setExclusiveEdgeSelection"
         },
         {
+          "anchor": "GraphCanvasFunctionSetEdgeSelection",
+          "kind": "function",
+          "name": "setEdgeSelection"
+        },
+        {
           "anchor": "GraphCanvasFunctionEdgeAtScreen",
           "kind": "function",
           "name": "edgeAtScreen"
@@ -102816,6 +104012,11 @@
           "name": "_sceneEdgePayload"
         },
         {
+          "anchor": "GraphCanvasFunctionLiveEdgePayload",
+          "kind": "function",
+          "name": "_liveEdgePayload"
+        },
+        {
           "anchor": "GraphCanvasFunctionEdgeIdsForEnableToggle",
           "kind": "function",
           "name": "edgeIdsForEnableToggle"
@@ -102829,6 +104030,26 @@
           "anchor": "GraphCanvasFunctionToggleSelectedEdgesEnabled",
           "kind": "function",
           "name": "toggleSelectedEdgesEnabled"
+        },
+        {
+          "anchor": "GraphCanvasFunctionSetEdgesDisplayMode",
+          "kind": "function",
+          "name": "setEdgesDisplayMode"
+        },
+        {
+          "anchor": "GraphCanvasFunctionEdgeIdsIntersectingScreenRect",
+          "kind": "function",
+          "name": "edgeIdsIntersectingScreenRect"
+        },
+        {
+          "anchor": "GraphCanvasFunctionEdgeEndpointScenePoint",
+          "kind": "function",
+          "name": "edgeEndpointScenePoint"
+        },
+        {
+          "anchor": "GraphCanvasFunctionJumpToEdgeEndpoint",
+          "kind": "function",
+          "name": "jumpToEdgeEndpoint"
         },
         {
           "anchor": "GraphCanvasFunctionNodeSupportsPassiveStyle",
@@ -103461,6 +104682,11 @@
           "name": "onLiveDragRevisionChanged"
         },
         {
+          "anchor": "GraphCanvasHandlerOnActiveFocusChanged",
+          "kind": "handler",
+          "name": "onActiveFocusChanged"
+        },
+        {
           "anchor": "GraphCanvasHandlerOnTriggered",
           "kind": "handler",
           "name": "onTriggered"
@@ -103534,6 +104760,11 @@
           "anchor": "GraphCanvasHandlerComponentOnDestruction",
           "kind": "handler",
           "name": "Component.onDestruction"
+        },
+        {
+          "anchor": "GraphCanvasTargetRootWindowWindow",
+          "kind": "target",
+          "name": "root.Window.window"
         },
         {
           "anchor": "GraphCanvasLocalComponentGraphCanvasComponentsGraphCanvasExecutionFacts",
@@ -124784,6 +126015,10 @@
           "name": "guideButtonSelected"
         },
         {
+          "kind": "bool",
+          "name": "applyFailed"
+        },
+        {
           "kind": "var",
           "name": "themePalette"
         },
@@ -124800,6 +126035,9 @@
       "functions": [
         {
           "name": "updateCursorMetrics"
+        },
+        {
+          "name": "attachSyntaxHighlighter"
         }
       ],
       "instantiated_components": [
@@ -124829,7 +126067,15 @@
       "signal_handlers": [
         {
           "kind": "handler",
+          "name": "onScriptHighlighterBridgeRefChanged"
+        },
+        {
+          "kind": "handler",
           "name": "Component.onCompleted"
+        },
+        {
+          "kind": "handler",
+          "name": "Keys.onTabPressed"
         },
         {
           "kind": "handler",
@@ -125030,8 +126276,14 @@
           "kind": "binding",
           "name": "text",
           "targets": [
-            "root.editorAvailable",
-            "root.scriptEditorBridgeRef.cursor_label"
+            "root.applyFailed"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "color",
+          "targets": [
+            "root.applyFailed"
           ]
         },
         {
@@ -125147,6 +126399,12 @@
           "detail": "bool"
         },
         {
+          "anchor": "ScriptCodeEditorPanePropertyApplyFailed",
+          "kind": "property",
+          "name": "applyFailed",
+          "detail": "bool"
+        },
+        {
           "anchor": "ScriptCodeEditorPanePropertyThemePalette",
           "kind": "property",
           "name": "themePalette",
@@ -125169,9 +126427,24 @@
           "name": "updateCursorMetrics"
         },
         {
+          "anchor": "ScriptCodeEditorPaneFunctionAttachSyntaxHighlighter",
+          "kind": "function",
+          "name": "attachSyntaxHighlighter"
+        },
+        {
+          "anchor": "ScriptCodeEditorPaneHandlerOnScriptHighlighterBridgeRefChanged",
+          "kind": "handler",
+          "name": "onScriptHighlighterBridgeRefChanged"
+        },
+        {
           "anchor": "ScriptCodeEditorPaneHandlerComponentOnCompleted",
           "kind": "handler",
           "name": "Component.onCompleted"
+        },
+        {
+          "anchor": "ScriptCodeEditorPaneHandlerKeysOnTabPressed",
+          "kind": "handler",
+          "name": "Keys.onTabPressed"
         },
         {
           "anchor": "ScriptCodeEditorPaneHandlerOnTextChanged",

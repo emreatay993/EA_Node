@@ -23,6 +23,7 @@ from ea_node_editor.nodes.builtins.reporting import (
     value_type="COREX.DataTypes.String",
     required=True,
     label="Text",
+    description="Text displayed inside the flowchart node.",
 )
 @corex.input(
     "input_nodes",
@@ -30,6 +31,7 @@ from ea_node_editor.nodes.builtins.reporting import (
     structure="list",
     required=False,
     label="Input Nodes",
+    description="Optional upstream flowchart nodes to link from.",
 )
 @corex.number(
     "shape",
@@ -40,6 +42,7 @@ from ea_node_editor.nodes.builtins.reporting import (
     port=True,
     _inline_editor="",
     _port_label="Shape",
+    _port_description="Shape code used to render the flowchart node.",
     _port_required=True,
     _port_value_type="COREX.DataTypes.Int",
 )
@@ -52,6 +55,7 @@ from ea_node_editor.nodes.builtins.reporting import (
     port=True,
     _inline_editor="",
     _port_label="Link Type",
+    _port_description="Link style code for incoming connections.",
     _port_required=True,
     _port_value_type="COREX.DataTypes.Int",
 )
@@ -60,11 +64,13 @@ from ea_node_editor.nodes.builtins.reporting import (
     value_type="COREX.DataTypes.String",
     required=False,
     label="Link Text",
+    description="Optional text displayed on incoming links.",
 )
 @corex.output(
     "node",
     value_type="COREX.Reporting.FlowchartNode",
     label="Node",
+    description="Typed flowchart node with its incoming links.",
 )
 def markdown_flowchart_node(ctx, text, input_nodes, link_text, settings):
     return {
@@ -92,6 +98,7 @@ def markdown_flowchart_node(ctx, text, input_nodes, link_text, settings):
     structure="list",
     required=True,
     label="Nodes",
+    description="Flowchart nodes to render.",
 )
 @corex.number(
     "direction",
@@ -102,6 +109,7 @@ def markdown_flowchart_node(ctx, text, input_nodes, link_text, settings):
     port=True,
     _inline_editor="",
     _port_label="Direction",
+    _port_description="Flow direction code for the rendered chart.",
     _port_required=True,
     _port_value_type="COREX.DataTypes.Int",
 )
@@ -109,6 +117,7 @@ def markdown_flowchart_node(ctx, text, input_nodes, link_text, settings):
     "flowchart",
     value_type="COREX.DataTypes.String",
     label="Flowchart",
+    description="Fenced Mermaid Markdown for the flowchart.",
 )
 def markdown_flowchart(ctx, nodes, settings):
     del ctx

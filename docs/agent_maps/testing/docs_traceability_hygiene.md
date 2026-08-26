@@ -10,7 +10,16 @@ Use this for docs links, traceability matrix checks, markdown hygiene, dead-code
 - `tests/test_agent_route_index.py`
 - `tests/test_traceability_checker.py`
 - `tests/test_dead_code_hygiene.py`
+- `tests/test_novice_plugin_sdk_docs.py`
+- `tests/test_non_dpf_node_documentation.py`
+- `tests/non_dpf_catalog_fixture.py`
+- `tests/fixtures/node_catalog/t17_non_dpf_documentation_overlay.json`
 - `docs/specs/requirements/TRACEABILITY_MATRIX.md`
+- `docs/PLUGIN_AUTHORING_GUIDE.md`
+- `docs/PLUGIN_MIGRATION_GUIDE.md`
+- `docs/examples/signal_plot_function_plugin.py`
+- `docs/examples/strain_conditioner_plugin.py`
+- `docs/specs/perf/COREX_NOVICE_PLUGIN_SDK_QA_MATRIX.md`
 - `scripts/generate_agent_route_index.py`
 - `docs/agent_route_index.md`
 - `docs/agent_route_index.json`
@@ -28,7 +37,15 @@ Use this for docs links, traceability matrix checks, markdown hygiene, dead-code
 - Refresh `docs/agent_route_index.md` and `docs/agent_route_index.json` with their generator when map routing, QML metadata, or source/test inventory changes.
 - Refresh `docs/source_test_file_index.md` with its generator when the stable source/test path inventory changes; use `scripts/nav.py line` for current locations.
 - Refresh `docs/qml_navigation_index.md` and `docs/qml_navigation_index.json` with their generator when QML component routing metadata changes.
-- Keep documentation-only executable examples under `docs/examples/` paired with a focused import/registry validation test. Register retained partial proof from `docs/specs/INDEX.md` when a packet needs durable documentation/contract evidence before its visual closeout; the evidence must state outstanding gates rather than claim release acceptance.
+- Keep public executable plugin examples under `docs/examples/` paired with
+  `tests/test_novice_plugin_sdk_docs.py`, which validates static discovery,
+  package round trip, and process-worker execution. Keep internal visual
+  declaration fixtures under `tests/fixtures/`, not public docs.
+- Keep the frozen 133-node pre-cutover catalog immutable. Documentation-only
+  corrections belong in the generated T17 overlay and are applied only by the
+  shared documentation-test loader.
+- Register the novice SDK QA matrix from `docs/specs/INDEX.md`; its evidence must
+  state outstanding acceptance gates rather than claim release acceptance.
 
 ## Focused Verification
 ```powershell
@@ -39,6 +56,7 @@ Use this for docs links, traceability matrix checks, markdown hygiene, dead-code
 .\venv\Scripts\python.exe -m pytest tests/test_markdown_hygiene.py --ignore=venv -q
 .\venv\Scripts\python.exe -m pytest tests/test_agent_route_index.py --ignore=venv -q
 .\venv\Scripts\python.exe -m pytest tests/test_dead_code_hygiene.py --ignore=venv -q
+.\venv\Scripts\python.exe -m pytest tests/test_novice_plugin_sdk_docs.py tests/test_non_dpf_node_documentation.py --ignore=venv -q
 ```
 
 ## Update Triggers

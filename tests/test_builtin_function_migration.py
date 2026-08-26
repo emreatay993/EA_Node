@@ -29,6 +29,7 @@ from ea_node_editor.nodes.registry import PythonFunctionEntry, TrustedFactoryEnt
 from ea_node_editor.persistence.serializer import JsonProjectSerializer
 from ea_node_editor.runtime_contracts import DataTree, deserialize_runtime_value
 from ea_node_editor.ui.shell.controllers.workspace_io_ops import WorkspaceIOOps
+from tests.non_dpf_catalog_fixture import load_effective_non_dpf_catalog
 
 _T10_CONVERTED_TYPE_IDS = (
     "core.if",
@@ -110,21 +111,13 @@ _CONVERTED_TYPE_IDS = (
     *_T12_CONVERTED_TYPE_IDS,
     *_T15_CONVERTED_TYPE_IDS,
 )
-_PRE_CUTOVER_CATALOG = (
-    Path(__file__).parent
-    / "fixtures"
-    / "node_catalog"
-    / "pre_cutover_non_dpf_catalog.json"
-)
-
-
 def test_exact_t10_entries_match_golden_and_leave_truthful_descriptor_boundary(
     tmp_path: Path,
 ) -> None:
     registry = build_builtin_registry(generation_root=tmp_path / "generations")
     expected = {
         row["spec"]["type_id"]: row["spec"]
-        for row in json.loads(_PRE_CUTOVER_CATALOG.read_text(encoding="utf-8"))
+        for row in load_effective_non_dpf_catalog()
         if row["spec"]["type_id"] in _T10_CONVERTED_TYPE_IDS
     }
 

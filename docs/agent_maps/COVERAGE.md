@@ -36,6 +36,7 @@ implementation studies are intentionally excluded.
 - [Core Integrations: File, Process, Email, Spreadsheet](feature_routes/core_integrations_file_process_email_spreadsheet.md)
 - [SSH/SFTP Nodes](feature_routes/ssh_sftp_nodes.md)
 - [Performance Harness And Graph Stress](feature_routes/performance_harness_graph_stress.md)
+- [Retained Work-Packet QA Evidence And Spec Navigation](feature_routes/work_packet_docs_status_qa.md)
 
 ## Current ownership notes
 
@@ -70,6 +71,15 @@ implementation studies are intentionally excluded.
   `ea_node_editor.nodes` is internal, its former `types.py` barrel is removed,
   and trusted descriptor decorators remain owned by the Nodes map for the exact
   internal/DPF/add-on boundary only.
+- Public plugin guidance is `docs/PLUGIN_AUTHORING_GUIDE.md` plus the Signal
+  Plot and strain examples under `docs/examples/`; migration failures route to
+  `docs/PLUGIN_MIGRATION_GUIDE.md`. The old Signal Plot declaration is retained
+  only as an internal visual fixture under `tests/fixtures/node_controls/`.
+- T17 documentation corrections use
+  `tests/fixtures/node_catalog/t17_non_dpf_documentation_overlay.json` through
+  `tests/non_dpf_catalog_fixture.py`; the 133-node pre-cutover fixture remains
+  frozen. Closeout evidence lives in
+  `docs/specs/perf/COREX_NOVICE_PLUGIN_SDK_QA_MATRIX.md`.
 - Core integrations contribute eight reserved function entries plus the trusted
   Path Pointer and Folder Explorer exceptions. SSH/SFTP contributes six reserved
   function entries, Paramiko-free value contracts, and a worker-lazy Paramiko runtime.

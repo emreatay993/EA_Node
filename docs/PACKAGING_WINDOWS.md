@@ -43,11 +43,12 @@ Base package with the default startup smoke check:
 
 Use this as the default Windows packaging command. A successful run builds the
 `COREX_Node_Editor.exe` folder payload and then performs an offscreen startup
-smoke check against the packaged executable. The smoke launches the app with
-startup profiling autoquit enabled and requires a clean exit before the timeout,
-so modal PyInstaller traceback dialogs, startup hangs, and nonzero exits fail
-the build. Treat a smoke-test failure as a broken packaged app, not as a
-successful build.
+smoke check, a public function-plugin process-worker smoke that must return
+`37`, and a native Signal Plot render smoke that must return a valid PNG. Each
+check launches the packaged executable and must exit cleanly before the timeout,
+so modal PyInstaller traceback dialogs, startup hangs, wrong function results,
+invalid image bytes, and nonzero exits fail the build. Treat any smoke failure
+as a broken packaged app, not as a successful build.
 
 Neutral CAD/FE viewer package without the startup smoke check:
 
@@ -64,7 +65,7 @@ Full developer-style package without the startup smoke check:
 Useful flags:
 
 - `-SkipSmoke`: build only, no startup smoke check.
-- `-SmokeSeconds <int>`: startup smoke timeout in seconds (default `30`).
+- `-SmokeSeconds <int>`: timeout for each packaged smoke check (default `30`).
 - `-DependencyMatrixPath <path>`: override the generated dependency policy CSV.
   The default path is `artifacts\releases\packaging\<profile>\dependency_matrix.csv`.
 - `-MarsSourcePath <path>`: local MARS source used to build the bundled wheel.
@@ -83,9 +84,10 @@ Useful flags:
 - Dependency matrix CSV: `artifacts\releases\packaging\<profile>\dependency_matrix.csv`
 
 The build script sets `EA_NODE_EDITOR_PACKAGE_PROFILE` for the PyInstaller run,
-verifies the expected executable exists, and by default launches it under
-`QT_QPA_PLATFORM=offscreen` plus `EA_PROFILE_AUTOQUIT=1` for a clean-startup
-smoke test. It also builds a COREX runtime wheel, writes
+verifies the expected executable exists, and by default runs three packaged
+acceptance checks: offscreen startup with `EA_PROFILE_AUTOQUIT=1`, isolated
+public function execution with the expected result `37`, and native Signal
+Plot rendering with valid PNG bytes. It also builds a COREX runtime wheel, writes
 `runtime\runtime_manifest.json` schema v2 with keyed `corex` and `mars`
 packages. It copies both wheels into the packaged app so Workflow Settings or
 the MARS Add-On Manager action can prepare the managed runtime later.

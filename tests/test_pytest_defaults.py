@@ -89,25 +89,35 @@ class PytestDefaultsTests(unittest.TestCase):
         self.assertFalse(decision.enable_xdist)
 
     def test_fast_serial_targets_stay_off_the_default_parallel_path(self) -> None:
-        decision = pytest_defaults.decide_default_parallelism(
-            args=("tests/test_execution_client.py::ProcessExecutionClientTests",),
-            rootdir=REPO_ROOT,
-            markexpr="",
-        )
-
-        self.assertFalse(decision.enable_xdist)
-
-        decision = pytest_defaults.decide_default_parallelism(
-            args=(
+        targets = (
+            "tests/test_execution_client.py::ProcessExecutionClientTests",
+            (
+                "tests/test_managed_runtime.py::ManagedRuntimeTests::"
+                "test_run_command_streams_output_before_process_finishes"
+            ),
+            "tests/test_mars_function_migration.py::test_t14_all_three_functions_execute_through_worker_runtime",
+            (
+                "tests/test_process_run_node.py::ProcessRunNodeTests::"
+                "test_stop_run_cancels_active_process_node"
+            ),
+            "tests/test_mcf_dpf_section_resultants_gui.py",
+            "tests/test_jupyter_server_manager.py::JupyterServerManagerIntegrationTests",
+            "tests/test_project_file_issues.py",
+            (
                 "tests/test_workspace_library_controller_unit.py::"
                 "WorkspaceLibraryControllerCoreOpsTests::"
-                "test_paste_nodes_from_clipboard_is_noop_when_clipboard_is_missing",
+                "test_paste_nodes_from_clipboard_is_noop_when_clipboard_is_missing"
             ),
-            rootdir=REPO_ROOT,
-            markexpr="",
         )
 
-        self.assertFalse(decision.enable_xdist)
+        for target in targets:
+            with self.subTest(target=target):
+                decision = pytest_defaults.decide_default_parallelism(
+                    args=(target,),
+                    rootdir=REPO_ROOT,
+                    markexpr="",
+                )
+                self.assertFalse(decision.enable_xdist)
 
     def test_shell_isolation_phase_uses_the_default_parallel_path(self) -> None:
         decision = pytest_defaults.decide_default_parallelism(

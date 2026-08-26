@@ -487,6 +487,8 @@ def test_content_fullscreen_bridge_closes_during_project_reset_lifecycle() -> No
             assert bridge.request_open_node(node_id)
             assert bridge.open
 
+            for workspace in window.model.project.workspaces.values():
+                workspace.dirty = False
             window._new_project()
             _flush_shell_qt_events(app)
 

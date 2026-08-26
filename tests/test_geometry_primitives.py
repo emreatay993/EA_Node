@@ -32,20 +32,13 @@ from ea_node_editor.nodes.function_plugin import (
 )
 from ea_node_editor.nodes.plugin_declaration import discover_plugin_declarations
 from ea_node_editor.runtime_contracts import Interval1D, RuntimeHandleRef, TypedInlineValue
+from tests.non_dpf_catalog_fixture import load_effective_non_dpf_catalog
 
 _CONVERTED_TYPE_IDS = (
     "geometry.cylinder",
     "fea.construct_zone",
     "mesh.deconstruct_mesh_face",
 )
-_PRE_CUTOVER_CATALOG = (
-    Path(__file__).parent
-    / "fixtures"
-    / "node_catalog"
-    / "pre_cutover_non_dpf_catalog.json"
-)
-
-
 def _plane() -> TypedInlineValue:
     return TypedInlineValue(
         PLANE_DATA_TYPE_ID,
@@ -86,7 +79,7 @@ def test_geometry_function_declarations_match_golden() -> None:
     )
     expected = {
         row["spec"]["type_id"]: row["spec"]
-        for row in json.loads(_PRE_CUTOVER_CATALOG.read_text(encoding="utf-8"))
+        for row in load_effective_non_dpf_catalog()
         if row["spec"]["type_id"] in _CONVERTED_TYPE_IDS
     }
     assert tuple(declaration.spec.type_id for declaration in declarations) == (

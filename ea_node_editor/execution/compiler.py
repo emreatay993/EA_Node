@@ -257,6 +257,8 @@ def _registry_validation_context(
     for node_id, node in workspace_nodes.items():
         try:
             registry.resolve_spec(node.type_id, node.properties)
+        except KeyError:
+            continue
         except (TypeError, ValueError):
             if node.type_id != "core.python_script":
                 raise

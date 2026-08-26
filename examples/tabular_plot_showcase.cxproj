@@ -298,6 +298,7 @@
           "comments": [],
           "custom_height": null,
           "custom_width": 310.0,
+          "expanded_settings_group_ids": [],
           "exposed_ports": {
             "payload": true,
             "result": true
@@ -310,11 +311,10 @@
           "port_modifiers": {},
           "principal_input_port_id": null,
           "properties": {
-            "script": "from pathlib import Path\nfrom urllib.parse import unquote, urlparse\n\n\ndef _field(value, key, default=\"\"):\n    if isinstance(value, dict):\n        return value.get(key, default)\n    return getattr(value, key, default)\n\n\ndef _source_path(ref):\n    uri = str(_field(ref, \"source_uri\", \"\") or \"\").strip()\n    if not uri:\n        raise ValueError(\"Tabular ref did not include a source_uri.\")\n    parsed = urlparse(uri)\n    if parsed.scheme == \"file\":\n        raw_path = unquote(parsed.path or parsed.netloc)\n        if raw_path.startswith(\"/\") and len(raw_path) >= 3 and raw_path[2] == \":\":\n            raw_path = raw_path[1:]\n        return Path(raw_path)\n    return Path(uri)\n\n\n_source_path.__globals__.update(\n    {\"_field\": _field, \"Path\": Path, \"unquote\": unquote, \"urlparse\": urlparse}\n)\npath = _source_path(input_data)\nobject_id = str(_field(input_data, \"object_id\", \"\") or \"\")\n\nimport openpyxl\n\nworkbook = openpyxl.load_workbook(path, read_only=True, data_only=True)\ntry:\n    sheet = workbook[object_id or \"Quarterly Channels\"]\n    rows = list(sheet.iter_rows(values_only=True))\nfinally:\n    workbook.close()\n\nheaders = []\nfor value in rows[0]:\n    headers.append(str(value))\nx_values = []\ny_values = []\nfor row in rows[1:]:\n    record = dict(zip(headers, row))\n    x_values.append(str(record[\"channel\"]))\n    y_values.append(float(record[\"units\"]))\n\noutput_data = {\n    \"label\": \"Q4 units\",\n    \"x\": x_values,\n    \"y\": y_values,\n}\n"
+            "script": "import corex\n\n@corex.node\n@corex.input(\"payload\", value_type=corex.Any)\n@corex.output(\"result\", value_type=corex.Any)\ndef run(ctx, payload):\n    from pathlib import Path\n    from urllib.parse import unquote, urlparse\n\n\n    def _field(value, key, default=\"\"):\n        if isinstance(value, dict):\n            return value.get(key, default)\n        return getattr(value, key, default)\n\n\n    def _source_path(ref):\n        uri = str(_field(ref, \"source_uri\", \"\") or \"\").strip()\n        if not uri:\n            raise ValueError(\"Tabular ref did not include a source_uri.\")\n        parsed = urlparse(uri)\n        if parsed.scheme == \"file\":\n            raw_path = unquote(parsed.path or parsed.netloc)\n            if raw_path.startswith(\"/\") and len(raw_path) >= 3 and raw_path[2] == \":\":\n                raw_path = raw_path[1:]\n            return Path(raw_path)\n        return Path(uri)\n\n\n    _source_path.__globals__.update(\n        {\"_field\": _field, \"Path\": Path, \"unquote\": unquote, \"urlparse\": urlparse}\n    )\n    path = _source_path(payload)\n    object_id = str(_field(payload, \"object_id\", \"\") or \"\")\n\n    import openpyxl\n\n    workbook = openpyxl.load_workbook(path, read_only=True, data_only=True)\n    try:\n        sheet = workbook[object_id or \"Quarterly Channels\"]\n        rows = list(sheet.iter_rows(values_only=True))\n    finally:\n        workbook.close()\n\n    headers = []\n    for value in rows[0]:\n        headers.append(str(value))\n    x_values = []\n    y_values = []\n    for row in rows[1:]:\n        record = dict(zip(headers, row))\n        x_values.append(str(record[\"channel\"]))\n        y_values.append(float(record[\"units\"]))\n\n    output_data = {\n        \"label\": \"Q4 units\",\n        \"x\": x_values,\n        \"y\": y_values,\n    }\n    return {\"result\": output_data}\n"
           },
           "title": "XLSX To Bar Series",
           "type_id": "core.python_script",
-          "visual_style": {},
           "x": -390.0,
           "y": 456.0
         },
@@ -323,6 +323,7 @@
           "comments": [],
           "custom_height": 220.0,
           "custom_width": 360.0,
+          "expanded_settings_group_ids": [],
           "exposed_ports": {
             "array_data": true,
             "path": true,
@@ -357,7 +358,6 @@
           },
           "title": "bar_channels.xlsx",
           "type_id": "tabular.input",
-          "visual_style": {},
           "x": -860.0,
           "y": 440.0
         },
@@ -366,6 +366,7 @@
           "comments": [],
           "custom_height": 210.0,
           "custom_width": 380.0,
+          "expanded_settings_group_ids": [],
           "exposed_ports": {
             "data_export": true,
             "exports": true,
@@ -414,7 +415,6 @@
           },
           "title": "Bar Plot",
           "type_id": "plot.bar",
-          "visual_style": {},
           "x": 60.0,
           "y": 440.0
         },
@@ -423,6 +423,7 @@
           "comments": [],
           "custom_height": null,
           "custom_width": 310.0,
+          "expanded_settings_group_ids": [],
           "exposed_ports": {
             "payload": true,
             "result": true
@@ -435,11 +436,10 @@
           "port_modifiers": {},
           "principal_input_port_id": null,
           "properties": {
-            "script": "from pathlib import Path\nfrom urllib.parse import unquote, urlparse\n\n\ndef _field(value, key, default=\"\"):\n    if isinstance(value, dict):\n        return value.get(key, default)\n    return getattr(value, key, default)\n\n\ndef _source_path(ref):\n    uri = str(_field(ref, \"source_uri\", \"\") or \"\").strip()\n    if not uri:\n        raise ValueError(\"Tabular ref did not include a source_uri.\")\n    parsed = urlparse(uri)\n    if parsed.scheme == \"file\":\n        raw_path = unquote(parsed.path or parsed.netloc)\n        if raw_path.startswith(\"/\") and len(raw_path) >= 3 and raw_path[2] == \":\":\n            raw_path = raw_path[1:]\n        return Path(raw_path)\n    return Path(uri)\n\n\n_source_path.__globals__.update(\n    {\"_field\": _field, \"Path\": Path, \"unquote\": unquote, \"urlparse\": urlparse}\n)\npath = _source_path(input_data)\nobject_id = str(_field(input_data, \"object_id\", \"\") or \"\")\n\nimport numpy as np\n\nwith np.load(path, allow_pickle=False) as archive:\n    key = object_id or \"contour\"\n    output_data = {\"label\": key, \"z\": archive[key].tolist()}\n"
+            "script": "import corex\n\n@corex.node\n@corex.input(\"payload\", value_type=corex.Any)\n@corex.output(\"result\", value_type=corex.Any)\ndef run(ctx, payload):\n    from pathlib import Path\n    from urllib.parse import unquote, urlparse\n\n\n    def _field(value, key, default=\"\"):\n        if isinstance(value, dict):\n            return value.get(key, default)\n        return getattr(value, key, default)\n\n\n    def _source_path(ref):\n        uri = str(_field(ref, \"source_uri\", \"\") or \"\").strip()\n        if not uri:\n            raise ValueError(\"Tabular ref did not include a source_uri.\")\n        parsed = urlparse(uri)\n        if parsed.scheme == \"file\":\n            raw_path = unquote(parsed.path or parsed.netloc)\n            if raw_path.startswith(\"/\") and len(raw_path) >= 3 and raw_path[2] == \":\":\n                raw_path = raw_path[1:]\n            return Path(raw_path)\n        return Path(uri)\n\n\n    _source_path.__globals__.update(\n        {\"_field\": _field, \"Path\": Path, \"unquote\": unquote, \"urlparse\": urlparse}\n    )\n    path = _source_path(payload)\n    object_id = str(_field(payload, \"object_id\", \"\") or \"\")\n\n    import numpy as np\n\n    with np.load(path, allow_pickle=False) as archive:\n        key = object_id or \"contour\"\n        output_data = {\"label\": key, \"z\": archive[key].tolist()}\n    return {\"result\": output_data}\n"
           },
           "title": "NPZ To Contour Grid",
           "type_id": "core.python_script",
-          "visual_style": {},
           "x": -390.0,
           "y": 1116.0
         },
@@ -448,6 +448,7 @@
           "comments": [],
           "custom_height": 220.0,
           "custom_width": 360.0,
+          "expanded_settings_group_ids": [],
           "exposed_ports": {
             "array_data": true,
             "path": true,
@@ -482,7 +483,6 @@
           },
           "title": "contour_field.npz",
           "type_id": "tabular.input",
-          "visual_style": {},
           "x": -860.0,
           "y": 1100.0
         },
@@ -491,6 +491,7 @@
           "comments": [],
           "custom_height": 210.0,
           "custom_width": 380.0,
+          "expanded_settings_group_ids": [],
           "exposed_ports": {
             "data_export": true,
             "exports": true,
@@ -540,7 +541,6 @@
           },
           "title": "Contour Plot",
           "type_id": "plot.contour",
-          "visual_style": {},
           "x": 60.0,
           "y": 1100.0
         },
@@ -549,6 +549,7 @@
           "comments": [],
           "custom_height": null,
           "custom_width": 310.0,
+          "expanded_settings_group_ids": [],
           "exposed_ports": {
             "payload": true,
             "result": true
@@ -561,11 +562,10 @@
           "port_modifiers": {},
           "principal_input_port_id": null,
           "properties": {
-            "script": "from pathlib import Path\nfrom urllib.parse import unquote, urlparse\n\n\ndef _field(value, key, default=\"\"):\n    if isinstance(value, dict):\n        return value.get(key, default)\n    return getattr(value, key, default)\n\n\ndef _source_path(ref):\n    uri = str(_field(ref, \"source_uri\", \"\") or \"\").strip()\n    if not uri:\n        raise ValueError(\"Tabular ref did not include a source_uri.\")\n    parsed = urlparse(uri)\n    if parsed.scheme == \"file\":\n        raw_path = unquote(parsed.path or parsed.netloc)\n        if raw_path.startswith(\"/\") and len(raw_path) >= 3 and raw_path[2] == \":\":\n            raw_path = raw_path[1:]\n        return Path(raw_path)\n    return Path(uri)\n\n\n_source_path.__globals__.update(\n    {\"_field\": _field, \"Path\": Path, \"unquote\": unquote, \"urlparse\": urlparse}\n)\npath = _source_path(input_data)\nobject_id = str(_field(input_data, \"object_id\", \"\") or \"\")\n\nimport numpy as np\n\ngrid = np.load(path, allow_pickle=False)\noutput_data = {\"label\": \"Thermal grid\", \"values\": grid.tolist()}\n"
+            "script": "import corex\n\n@corex.node\n@corex.input(\"payload\", value_type=corex.Any)\n@corex.output(\"result\", value_type=corex.Any)\ndef run(ctx, payload):\n    from pathlib import Path\n    from urllib.parse import unquote, urlparse\n\n\n    def _field(value, key, default=\"\"):\n        if isinstance(value, dict):\n            return value.get(key, default)\n        return getattr(value, key, default)\n\n\n    def _source_path(ref):\n        uri = str(_field(ref, \"source_uri\", \"\") or \"\").strip()\n        if not uri:\n            raise ValueError(\"Tabular ref did not include a source_uri.\")\n        parsed = urlparse(uri)\n        if parsed.scheme == \"file\":\n            raw_path = unquote(parsed.path or parsed.netloc)\n            if raw_path.startswith(\"/\") and len(raw_path) >= 3 and raw_path[2] == \":\":\n                raw_path = raw_path[1:]\n            return Path(raw_path)\n        return Path(uri)\n\n\n    _source_path.__globals__.update(\n        {\"_field\": _field, \"Path\": Path, \"unquote\": unquote, \"urlparse\": urlparse}\n    )\n    path = _source_path(payload)\n    object_id = str(_field(payload, \"object_id\", \"\") or \"\")\n\n    import numpy as np\n\n    grid = np.load(path, allow_pickle=False)\n    output_data = {\"label\": \"Thermal grid\", \"values\": grid.tolist()}\n    return {\"result\": output_data}\n"
           },
           "title": "NPY To Heatmap Grid",
           "type_id": "core.python_script",
-          "visual_style": {},
           "x": -390.0,
           "y": 896.0
         },
@@ -574,6 +574,7 @@
           "comments": [],
           "custom_height": 220.0,
           "custom_width": 360.0,
+          "expanded_settings_group_ids": [],
           "exposed_ports": {
             "array_data": true,
             "path": true,
@@ -608,7 +609,6 @@
           },
           "title": "heatmap_grid.npy",
           "type_id": "tabular.input",
-          "visual_style": {},
           "x": -860.0,
           "y": 880.0
         },
@@ -617,6 +617,7 @@
           "comments": [],
           "custom_height": 210.0,
           "custom_width": 380.0,
+          "expanded_settings_group_ids": [],
           "exposed_ports": {
             "data_export": true,
             "exports": true,
@@ -666,7 +667,6 @@
           },
           "title": "Heatmap Plot",
           "type_id": "plot.heatmap",
-          "visual_style": {},
           "x": 60.0,
           "y": 880.0
         },
@@ -675,6 +675,7 @@
           "comments": [],
           "custom_height": null,
           "custom_width": 310.0,
+          "expanded_settings_group_ids": [],
           "exposed_ports": {
             "payload": true,
             "result": true
@@ -687,11 +688,10 @@
           "port_modifiers": {},
           "principal_input_port_id": null,
           "properties": {
-            "script": "from pathlib import Path\nfrom urllib.parse import unquote, urlparse\n\n\ndef _field(value, key, default=\"\"):\n    if isinstance(value, dict):\n        return value.get(key, default)\n    return getattr(value, key, default)\n\n\ndef _source_path(ref):\n    uri = str(_field(ref, \"source_uri\", \"\") or \"\").strip()\n    if not uri:\n        raise ValueError(\"Tabular ref did not include a source_uri.\")\n    parsed = urlparse(uri)\n    if parsed.scheme == \"file\":\n        raw_path = unquote(parsed.path or parsed.netloc)\n        if raw_path.startswith(\"/\") and len(raw_path) >= 3 and raw_path[2] == \":\":\n            raw_path = raw_path[1:]\n        return Path(raw_path)\n    return Path(uri)\n\n\n_source_path.__globals__.update(\n    {\"_field\": _field, \"Path\": Path, \"unquote\": unquote, \"urlparse\": urlparse}\n)\npath = _source_path(input_data)\nobject_id = str(_field(input_data, \"object_id\", \"\") or \"\")\n\nimport csv\n\nwith path.open(\"r\", encoding=\"utf-8\", newline=\"\") as handle:\n    rows = list(csv.DictReader(handle))\n\nvalues = []\nfor row in rows:\n    values.append(float(row[\"latency_ms\"]))\n\noutput_data = {\n    \"label\": \"Latency\",\n    \"values\": values,\n    \"bins\": 12,\n}\n"
+            "script": "import corex\n\n@corex.node\n@corex.input(\"payload\", value_type=corex.Any)\n@corex.output(\"result\", value_type=corex.Any)\ndef run(ctx, payload):\n    from pathlib import Path\n    from urllib.parse import unquote, urlparse\n\n\n    def _field(value, key, default=\"\"):\n        if isinstance(value, dict):\n            return value.get(key, default)\n        return getattr(value, key, default)\n\n\n    def _source_path(ref):\n        uri = str(_field(ref, \"source_uri\", \"\") or \"\").strip()\n        if not uri:\n            raise ValueError(\"Tabular ref did not include a source_uri.\")\n        parsed = urlparse(uri)\n        if parsed.scheme == \"file\":\n            raw_path = unquote(parsed.path or parsed.netloc)\n            if raw_path.startswith(\"/\") and len(raw_path) >= 3 and raw_path[2] == \":\":\n                raw_path = raw_path[1:]\n            return Path(raw_path)\n        return Path(uri)\n\n\n    _source_path.__globals__.update(\n        {\"_field\": _field, \"Path\": Path, \"unquote\": unquote, \"urlparse\": urlparse}\n    )\n    path = _source_path(payload)\n    object_id = str(_field(payload, \"object_id\", \"\") or \"\")\n\n    import csv\n\n    with path.open(\"r\", encoding=\"utf-8\", newline=\"\") as handle:\n        rows = list(csv.DictReader(handle))\n\n    values = []\n    for row in rows:\n        values.append(float(row[\"latency_ms\"]))\n\n    output_data = {\n        \"label\": \"Latency\",\n        \"values\": values,\n        \"bins\": 12,\n    }\n    return {\"result\": output_data}\n"
           },
           "title": "TXT To Histogram Series",
           "type_id": "core.python_script",
-          "visual_style": {},
           "x": -390.0,
           "y": 676.0
         },
@@ -700,6 +700,7 @@
           "comments": [],
           "custom_height": 220.0,
           "custom_width": 360.0,
+          "expanded_settings_group_ids": [],
           "exposed_ports": {
             "array_data": true,
             "path": true,
@@ -734,7 +735,6 @@
           },
           "title": "histogram_latency.txt",
           "type_id": "tabular.input",
-          "visual_style": {},
           "x": -860.0,
           "y": 660.0
         },
@@ -743,6 +743,7 @@
           "comments": [],
           "custom_height": 210.0,
           "custom_width": 380.0,
+          "expanded_settings_group_ids": [],
           "exposed_ports": {
             "data_export": true,
             "exports": true,
@@ -793,7 +794,6 @@
           },
           "title": "Histogram Plot",
           "type_id": "plot.histogram",
-          "visual_style": {},
           "x": 60.0,
           "y": 660.0
         },
@@ -802,6 +802,7 @@
           "comments": [],
           "custom_height": null,
           "custom_width": 310.0,
+          "expanded_settings_group_ids": [],
           "exposed_ports": {
             "payload": true,
             "result": true
@@ -814,11 +815,10 @@
           "port_modifiers": {},
           "principal_input_port_id": null,
           "properties": {
-            "script": "from pathlib import Path\nfrom urllib.parse import unquote, urlparse\n\n\ndef _field(value, key, default=\"\"):\n    if isinstance(value, dict):\n        return value.get(key, default)\n    return getattr(value, key, default)\n\n\ndef _source_path(ref):\n    uri = str(_field(ref, \"source_uri\", \"\") or \"\").strip()\n    if not uri:\n        raise ValueError(\"Tabular ref did not include a source_uri.\")\n    parsed = urlparse(uri)\n    if parsed.scheme == \"file\":\n        raw_path = unquote(parsed.path or parsed.netloc)\n        if raw_path.startswith(\"/\") and len(raw_path) >= 3 and raw_path[2] == \":\":\n            raw_path = raw_path[1:]\n        return Path(raw_path)\n    return Path(uri)\n\n\n_source_path.__globals__.update(\n    {\"_field\": _field, \"Path\": Path, \"unquote\": unquote, \"urlparse\": urlparse}\n)\npath = _source_path(input_data)\nobject_id = str(_field(input_data, \"object_id\", \"\") or \"\")\n\nimport csv\n\nwith path.open(\"r\", encoding=\"utf-8\", newline=\"\") as handle:\n    rows = list(csv.DictReader(handle))\n\nmonths = []\nnorth = []\nsouth = []\nfor row in rows:\n    months.append(float(row[\"month\"]))\n    north.append(float(row[\"north\"]))\n    south.append(float(row[\"south\"]))\n\noutput_data = [\n    {\"label\": \"North\", \"x\": months, \"y\": north},\n    {\"label\": \"South\", \"x\": months, \"y\": south},\n]\n"
+            "script": "import corex\n\n@corex.node\n@corex.input(\"payload\", value_type=corex.Any)\n@corex.output(\"result\", value_type=corex.Any)\ndef run(ctx, payload):\n    from pathlib import Path\n    from urllib.parse import unquote, urlparse\n\n\n    def _field(value, key, default=\"\"):\n        if isinstance(value, dict):\n            return value.get(key, default)\n        return getattr(value, key, default)\n\n\n    def _source_path(ref):\n        uri = str(_field(ref, \"source_uri\", \"\") or \"\").strip()\n        if not uri:\n            raise ValueError(\"Tabular ref did not include a source_uri.\")\n        parsed = urlparse(uri)\n        if parsed.scheme == \"file\":\n            raw_path = unquote(parsed.path or parsed.netloc)\n            if raw_path.startswith(\"/\") and len(raw_path) >= 3 and raw_path[2] == \":\":\n                raw_path = raw_path[1:]\n            return Path(raw_path)\n        return Path(uri)\n\n\n    _source_path.__globals__.update(\n        {\"_field\": _field, \"Path\": Path, \"unquote\": unquote, \"urlparse\": urlparse}\n    )\n    path = _source_path(payload)\n    object_id = str(_field(payload, \"object_id\", \"\") or \"\")\n\n    import csv\n\n    with path.open(\"r\", encoding=\"utf-8\", newline=\"\") as handle:\n        rows = list(csv.DictReader(handle))\n\n    months = []\n    north = []\n    south = []\n    for row in rows:\n        months.append(float(row[\"month\"]))\n        north.append(float(row[\"north\"]))\n        south.append(float(row[\"south\"]))\n\n    output_data = [\n        {\"label\": \"North\", \"x\": months, \"y\": north},\n        {\"label\": \"South\", \"x\": months, \"y\": south},\n    ]\n    return {\"result\": output_data}\n"
           },
           "title": "CSV To Line Series",
           "type_id": "core.python_script",
-          "visual_style": {},
           "x": -390.0,
           "y": 16.0
         },
@@ -827,6 +827,7 @@
           "comments": [],
           "custom_height": 220.0,
           "custom_width": 360.0,
+          "expanded_settings_group_ids": [],
           "exposed_ports": {
             "array_data": true,
             "path": true,
@@ -861,7 +862,6 @@
           },
           "title": "line_series.csv",
           "type_id": "tabular.input",
-          "visual_style": {},
           "x": -860.0,
           "y": 0.0
         },
@@ -870,6 +870,7 @@
           "comments": [],
           "custom_height": 210.0,
           "custom_width": 380.0,
+          "expanded_settings_group_ids": [],
           "exposed_ports": {
             "data_export": true,
             "exports": true,
@@ -917,8 +918,7 @@
             "z_label": ""
           },
           "title": "Line Plot",
-          "type_id": "plot.line",
-          "visual_style": {},
+          "type_id": "plot.scatter",
           "x": 60.0,
           "y": 0.0
         },
@@ -927,6 +927,7 @@
           "comments": [],
           "custom_height": null,
           "custom_width": 310.0,
+          "expanded_settings_group_ids": [],
           "exposed_ports": {
             "payload": true,
             "result": true
@@ -939,11 +940,10 @@
           "port_modifiers": {},
           "principal_input_port_id": null,
           "properties": {
-            "script": "from pathlib import Path\nfrom urllib.parse import unquote, urlparse\n\n\ndef _field(value, key, default=\"\"):\n    if isinstance(value, dict):\n        return value.get(key, default)\n    return getattr(value, key, default)\n\n\ndef _source_path(ref):\n    uri = str(_field(ref, \"source_uri\", \"\") or \"\").strip()\n    if not uri:\n        raise ValueError(\"Tabular ref did not include a source_uri.\")\n    parsed = urlparse(uri)\n    if parsed.scheme == \"file\":\n        raw_path = unquote(parsed.path or parsed.netloc)\n        if raw_path.startswith(\"/\") and len(raw_path) >= 3 and raw_path[2] == \":\":\n            raw_path = raw_path[1:]\n        return Path(raw_path)\n    return Path(uri)\n\n\n_source_path.__globals__.update(\n    {\"_field\": _field, \"Path\": Path, \"unquote\": unquote, \"urlparse\": urlparse}\n)\npath = _source_path(input_data)\nobject_id = str(_field(input_data, \"object_id\", \"\") or \"\")\n\nimport csv\n\nwith path.open(\"r\", encoding=\"utf-8\", newline=\"\") as handle:\n    rows = list(csv.DictReader(handle))\n\nx_values = []\ny_values = []\nz_values = []\nscalars = []\nfor row in rows:\n    x_values.append(float(row[\"x\"]))\n    y_values.append(float(row[\"y\"]))\n    z_values.append(float(row[\"z\"]))\n    scalars.append(float(row[\"intensity\"]))\n\noutput_data = {\n    \"label\": \"Scan points\",\n    \"x\": x_values,\n    \"y\": y_values,\n    \"z\": z_values,\n    \"scalars\": scalars,\n    \"point_size\": 7,\n}\n"
+            "script": "import corex\n\n@corex.node\n@corex.input(\"payload\", value_type=corex.Any)\n@corex.output(\"result\", value_type=corex.Any)\ndef run(ctx, payload):\n    from pathlib import Path\n    from urllib.parse import unquote, urlparse\n\n\n    def _field(value, key, default=\"\"):\n        if isinstance(value, dict):\n            return value.get(key, default)\n        return getattr(value, key, default)\n\n\n    def _source_path(ref):\n        uri = str(_field(ref, \"source_uri\", \"\") or \"\").strip()\n        if not uri:\n            raise ValueError(\"Tabular ref did not include a source_uri.\")\n        parsed = urlparse(uri)\n        if parsed.scheme == \"file\":\n            raw_path = unquote(parsed.path or parsed.netloc)\n            if raw_path.startswith(\"/\") and len(raw_path) >= 3 and raw_path[2] == \":\":\n                raw_path = raw_path[1:]\n            return Path(raw_path)\n        return Path(uri)\n\n\n    _source_path.__globals__.update(\n        {\"_field\": _field, \"Path\": Path, \"unquote\": unquote, \"urlparse\": urlparse}\n    )\n    path = _source_path(payload)\n    object_id = str(_field(payload, \"object_id\", \"\") or \"\")\n\n    import csv\n\n    with path.open(\"r\", encoding=\"utf-8\", newline=\"\") as handle:\n        rows = list(csv.DictReader(handle))\n\n    x_values = []\n    y_values = []\n    z_values = []\n    scalars = []\n    for row in rows:\n        x_values.append(float(row[\"x\"]))\n        y_values.append(float(row[\"y\"]))\n        z_values.append(float(row[\"z\"]))\n        scalars.append(float(row[\"intensity\"]))\n\n    output_data = {\n        \"label\": \"Scan points\",\n        \"x\": x_values,\n        \"y\": y_values,\n        \"z\": z_values,\n        \"scalars\": scalars,\n        \"point_size\": 7,\n    }\n    return {\"result\": output_data}\n"
           },
           "title": "CSV To Point Cloud",
           "type_id": "core.python_script",
-          "visual_style": {},
           "x": -390.0,
           "y": 1556.0
         },
@@ -952,6 +952,7 @@
           "comments": [],
           "custom_height": 220.0,
           "custom_width": 360.0,
+          "expanded_settings_group_ids": [],
           "exposed_ports": {
             "array_data": true,
             "path": true,
@@ -986,7 +987,6 @@
           },
           "title": "point_cloud.csv",
           "type_id": "tabular.input",
-          "visual_style": {},
           "x": -860.0,
           "y": 1540.0
         },
@@ -995,6 +995,7 @@
           "comments": [],
           "custom_height": 210.0,
           "custom_width": 380.0,
+          "expanded_settings_group_ids": [],
           "exposed_ports": {
             "data_export": true,
             "exports": true,
@@ -1046,7 +1047,6 @@
           },
           "title": "Point Cloud Plot",
           "type_id": "plot.point_cloud",
-          "visual_style": {},
           "x": 60.0,
           "y": 1540.0
         },
@@ -1055,6 +1055,7 @@
           "comments": [],
           "custom_height": null,
           "custom_width": 310.0,
+          "expanded_settings_group_ids": [],
           "exposed_ports": {
             "payload": true,
             "result": true
@@ -1067,11 +1068,10 @@
           "port_modifiers": {},
           "principal_input_port_id": null,
           "properties": {
-            "script": "from pathlib import Path\nfrom urllib.parse import unquote, urlparse\n\n\ndef _field(value, key, default=\"\"):\n    if isinstance(value, dict):\n        return value.get(key, default)\n    return getattr(value, key, default)\n\n\ndef _source_path(ref):\n    uri = str(_field(ref, \"source_uri\", \"\") or \"\").strip()\n    if not uri:\n        raise ValueError(\"Tabular ref did not include a source_uri.\")\n    parsed = urlparse(uri)\n    if parsed.scheme == \"file\":\n        raw_path = unquote(parsed.path or parsed.netloc)\n        if raw_path.startswith(\"/\") and len(raw_path) >= 3 and raw_path[2] == \":\":\n            raw_path = raw_path[1:]\n        return Path(raw_path)\n    return Path(uri)\n\n\n_source_path.__globals__.update(\n    {\"_field\": _field, \"Path\": Path, \"unquote\": unquote, \"urlparse\": urlparse}\n)\npath = _source_path(input_data)\nobject_id = str(_field(input_data, \"object_id\", \"\") or \"\")\n\nimport csv\n\nwith path.open(\"r\", encoding=\"utf-8\", newline=\"\") as handle:\n    rows = list(csv.DictReader(handle, delimiter=\"\\t\"))\n\nx_values = []\ny_values = []\nfor row in rows:\n    x_values.append(float(row[\"load\"]))\n    y_values.append(float(row[\"efficiency\"]))\n\noutput_data = {\n    \"label\": \"Sensor lots\",\n    \"x\": x_values,\n    \"y\": y_values,\n}\n"
+            "script": "import corex\n\n@corex.node\n@corex.input(\"payload\", value_type=corex.Any)\n@corex.output(\"result\", value_type=corex.Any)\ndef run(ctx, payload):\n    from pathlib import Path\n    from urllib.parse import unquote, urlparse\n\n\n    def _field(value, key, default=\"\"):\n        if isinstance(value, dict):\n            return value.get(key, default)\n        return getattr(value, key, default)\n\n\n    def _source_path(ref):\n        uri = str(_field(ref, \"source_uri\", \"\") or \"\").strip()\n        if not uri:\n            raise ValueError(\"Tabular ref did not include a source_uri.\")\n        parsed = urlparse(uri)\n        if parsed.scheme == \"file\":\n            raw_path = unquote(parsed.path or parsed.netloc)\n            if raw_path.startswith(\"/\") and len(raw_path) >= 3 and raw_path[2] == \":\":\n                raw_path = raw_path[1:]\n            return Path(raw_path)\n        return Path(uri)\n\n\n    _source_path.__globals__.update(\n        {\"_field\": _field, \"Path\": Path, \"unquote\": unquote, \"urlparse\": urlparse}\n    )\n    path = _source_path(payload)\n    object_id = str(_field(payload, \"object_id\", \"\") or \"\")\n\n    import csv\n\n    with path.open(\"r\", encoding=\"utf-8\", newline=\"\") as handle:\n        rows = list(csv.DictReader(handle, delimiter=\"\\t\"))\n\n    x_values = []\n    y_values = []\n    for row in rows:\n        x_values.append(float(row[\"load\"]))\n        y_values.append(float(row[\"efficiency\"]))\n\n    output_data = {\n        \"label\": \"Sensor lots\",\n        \"x\": x_values,\n        \"y\": y_values,\n    }\n    return {\"result\": output_data}\n"
           },
           "title": "TSV To Scatter Series",
           "type_id": "core.python_script",
-          "visual_style": {},
           "x": -390.0,
           "y": 236.0
         },
@@ -1080,6 +1080,7 @@
           "comments": [],
           "custom_height": 220.0,
           "custom_width": 360.0,
+          "expanded_settings_group_ids": [],
           "exposed_ports": {
             "array_data": true,
             "path": true,
@@ -1114,7 +1115,6 @@
           },
           "title": "scatter_points.tsv",
           "type_id": "tabular.input",
-          "visual_style": {},
           "x": -860.0,
           "y": 220.0
         },
@@ -1123,6 +1123,7 @@
           "comments": [],
           "custom_height": 210.0,
           "custom_width": 380.0,
+          "expanded_settings_group_ids": [],
           "exposed_ports": {
             "data_export": true,
             "exports": true,
@@ -1171,7 +1172,6 @@
           },
           "title": "Scatter Plot",
           "type_id": "plot.scatter",
-          "visual_style": {},
           "x": 60.0,
           "y": 220.0
         },
@@ -1180,6 +1180,7 @@
           "comments": [],
           "custom_height": 2180.0,
           "custom_width": 1480.0,
+          "expanded_settings_group_ids": [],
           "exposed_ports": {
             "bottom": true,
             "left": true,
@@ -1207,6 +1208,7 @@
           "comments": [],
           "custom_height": null,
           "custom_width": 310.0,
+          "expanded_settings_group_ids": [],
           "exposed_ports": {
             "payload": true,
             "result": true
@@ -1219,11 +1221,10 @@
           "port_modifiers": {},
           "principal_input_port_id": null,
           "properties": {
-            "script": "from pathlib import Path\nfrom urllib.parse import unquote, urlparse\n\n\ndef _field(value, key, default=\"\"):\n    if isinstance(value, dict):\n        return value.get(key, default)\n    return getattr(value, key, default)\n\n\ndef _source_path(ref):\n    uri = str(_field(ref, \"source_uri\", \"\") or \"\").strip()\n    if not uri:\n        raise ValueError(\"Tabular ref did not include a source_uri.\")\n    parsed = urlparse(uri)\n    if parsed.scheme == \"file\":\n        raw_path = unquote(parsed.path or parsed.netloc)\n        if raw_path.startswith(\"/\") and len(raw_path) >= 3 and raw_path[2] == \":\":\n            raw_path = raw_path[1:]\n        return Path(raw_path)\n    return Path(uri)\n\n\n_source_path.__globals__.update(\n    {\"_field\": _field, \"Path\": Path, \"unquote\": unquote, \"urlparse\": urlparse}\n)\npath = _source_path(input_data)\nobject_id = str(_field(input_data, \"object_id\", \"\") or \"\")\n\nimport h5py\n\nwith h5py.File(path, \"r\") as handle:\n    points = handle[object_id or \"streamline_path\"][...]\n\noutput_data = {\n    \"label\": \"Flow path\",\n    \"points\": points.tolist(),\n    \"line_width\": 4,\n    \"color\": \"cyan\",\n}\n"
+            "script": "import corex\n\n@corex.node\n@corex.input(\"payload\", value_type=corex.Any)\n@corex.output(\"result\", value_type=corex.Any)\ndef run(ctx, payload):\n    from pathlib import Path\n    from urllib.parse import unquote, urlparse\n\n\n    def _field(value, key, default=\"\"):\n        if isinstance(value, dict):\n            return value.get(key, default)\n        return getattr(value, key, default)\n\n\n    def _source_path(ref):\n        uri = str(_field(ref, \"source_uri\", \"\") or \"\").strip()\n        if not uri:\n            raise ValueError(\"Tabular ref did not include a source_uri.\")\n        parsed = urlparse(uri)\n        if parsed.scheme == \"file\":\n            raw_path = unquote(parsed.path or parsed.netloc)\n            if raw_path.startswith(\"/\") and len(raw_path) >= 3 and raw_path[2] == \":\":\n                raw_path = raw_path[1:]\n            return Path(raw_path)\n        return Path(uri)\n\n\n    _source_path.__globals__.update(\n        {\"_field\": _field, \"Path\": Path, \"unquote\": unquote, \"urlparse\": urlparse}\n    )\n    path = _source_path(payload)\n    object_id = str(_field(payload, \"object_id\", \"\") or \"\")\n\n    import h5py\n\n    with h5py.File(path, \"r\") as handle:\n        points = handle[object_id or \"streamline_path\"][...]\n\n    output_data = {\n        \"label\": \"Flow path\",\n        \"points\": points.tolist(),\n        \"line_width\": 4,\n        \"color\": \"cyan\",\n    }\n    return {\"result\": output_data}\n"
           },
           "title": "HDF5 To Streamline Path",
           "type_id": "core.python_script",
-          "visual_style": {},
           "x": -390.0,
           "y": 1776.0
         },
@@ -1232,6 +1233,7 @@
           "comments": [],
           "custom_height": 220.0,
           "custom_width": 360.0,
+          "expanded_settings_group_ids": [],
           "exposed_ports": {
             "array_data": true,
             "path": true,
@@ -1266,7 +1268,6 @@
           },
           "title": "streamline_path.h5",
           "type_id": "tabular.input",
-          "visual_style": {},
           "x": -860.0,
           "y": 1760.0
         },
@@ -1275,6 +1276,7 @@
           "comments": [],
           "custom_height": 210.0,
           "custom_width": 380.0,
+          "expanded_settings_group_ids": [],
           "exposed_ports": {
             "data_export": true,
             "exports": true,
@@ -1327,7 +1329,6 @@
           },
           "title": "Streamlines Plot",
           "type_id": "plot.streamlines",
-          "visual_style": {},
           "x": 60.0,
           "y": 1760.0
         },
@@ -1336,6 +1337,7 @@
           "comments": [],
           "custom_height": null,
           "custom_width": 310.0,
+          "expanded_settings_group_ids": [],
           "exposed_ports": {
             "payload": true,
             "result": true
@@ -1348,11 +1350,10 @@
           "port_modifiers": {},
           "principal_input_port_id": null,
           "properties": {
-            "script": "from pathlib import Path\nfrom urllib.parse import unquote, urlparse\n\n\ndef _field(value, key, default=\"\"):\n    if isinstance(value, dict):\n        return value.get(key, default)\n    return getattr(value, key, default)\n\n\ndef _source_path(ref):\n    uri = str(_field(ref, \"source_uri\", \"\") or \"\").strip()\n    if not uri:\n        raise ValueError(\"Tabular ref did not include a source_uri.\")\n    parsed = urlparse(uri)\n    if parsed.scheme == \"file\":\n        raw_path = unquote(parsed.path or parsed.netloc)\n        if raw_path.startswith(\"/\") and len(raw_path) >= 3 and raw_path[2] == \":\":\n            raw_path = raw_path[1:]\n        return Path(raw_path)\n    return Path(uri)\n\n\n_source_path.__globals__.update(\n    {\"_field\": _field, \"Path\": Path, \"unquote\": unquote, \"urlparse\": urlparse}\n)\npath = _source_path(input_data)\nobject_id = str(_field(input_data, \"object_id\", \"\") or \"\")\n\nimport pyarrow.parquet as pq\n\ncolumns = pq.read_table(path).to_pydict()\nx_set = set()\ny_set = set()\nfor value in columns[\"x\"]:\n    x_set.add(float(value))\nfor value in columns[\"y\"]:\n    y_set.add(float(value))\nxs = sorted(x_set)\nys = sorted(y_set)\nlookup = {}\nfor x_value, y_value, z_value in zip(columns[\"x\"], columns[\"y\"], columns[\"z\"]):\n    lookup[(float(x_value), float(y_value))] = float(z_value)\n\nz_grid = []\nfor y_value in ys:\n    row_values = []\n    for x_value in xs:\n        row_values.append(lookup[(x_value, y_value)])\n    z_grid.append(row_values)\n\noutput_data = {\n    \"label\": \"Elevation\",\n    \"x\": xs,\n    \"y\": ys,\n    \"z\": z_grid,\n}\n"
+            "script": "import corex\n\n@corex.node\n@corex.input(\"payload\", value_type=corex.Any)\n@corex.output(\"result\", value_type=corex.Any)\ndef run(ctx, payload):\n    from pathlib import Path\n    from urllib.parse import unquote, urlparse\n\n\n    def _field(value, key, default=\"\"):\n        if isinstance(value, dict):\n            return value.get(key, default)\n        return getattr(value, key, default)\n\n\n    def _source_path(ref):\n        uri = str(_field(ref, \"source_uri\", \"\") or \"\").strip()\n        if not uri:\n            raise ValueError(\"Tabular ref did not include a source_uri.\")\n        parsed = urlparse(uri)\n        if parsed.scheme == \"file\":\n            raw_path = unquote(parsed.path or parsed.netloc)\n            if raw_path.startswith(\"/\") and len(raw_path) >= 3 and raw_path[2] == \":\":\n                raw_path = raw_path[1:]\n            return Path(raw_path)\n        return Path(uri)\n\n\n    _source_path.__globals__.update(\n        {\"_field\": _field, \"Path\": Path, \"unquote\": unquote, \"urlparse\": urlparse}\n    )\n    path = _source_path(payload)\n    object_id = str(_field(payload, \"object_id\", \"\") or \"\")\n\n    import pyarrow.parquet as pq\n\n    columns = pq.read_table(path).to_pydict()\n    x_set = set()\n    y_set = set()\n    for value in columns[\"x\"]:\n        x_set.add(float(value))\n    for value in columns[\"y\"]:\n        y_set.add(float(value))\n    xs = sorted(x_set)\n    ys = sorted(y_set)\n    lookup = {}\n    for x_value, y_value, z_value in zip(columns[\"x\"], columns[\"y\"], columns[\"z\"]):\n        lookup[(float(x_value), float(y_value))] = float(z_value)\n\n    z_grid = []\n    for y_value in ys:\n        row_values = []\n        for x_value in xs:\n            row_values.append(lookup[(x_value, y_value)])\n        z_grid.append(row_values)\n\n    output_data = {\n        \"label\": \"Elevation\",\n        \"x\": xs,\n        \"y\": ys,\n        \"z\": z_grid,\n    }\n    return {\"result\": output_data}\n"
           },
           "title": "Parquet To Surface Grid",
           "type_id": "core.python_script",
-          "visual_style": {},
           "x": -390.0,
           "y": 1336.0
         },
@@ -1361,6 +1362,7 @@
           "comments": [],
           "custom_height": 220.0,
           "custom_width": 360.0,
+          "expanded_settings_group_ids": [],
           "exposed_ports": {
             "array_data": true,
             "path": true,
@@ -1395,7 +1397,6 @@
           },
           "title": "surface_elevation.parquet",
           "type_id": "tabular.input",
-          "visual_style": {},
           "x": -860.0,
           "y": 1320.0
         },
@@ -1404,6 +1405,7 @@
           "comments": [],
           "custom_height": 210.0,
           "custom_width": 380.0,
+          "expanded_settings_group_ids": [],
           "exposed_ports": {
             "data_export": true,
             "exports": true,
@@ -1455,14 +1457,13 @@
           },
           "title": "Surface Plot",
           "type_id": "plot.surface",
-          "visual_style": {},
           "x": 60.0,
           "y": 1320.0
         }
       ],
       "views": [
         {
-          "hide_optional_ports": false,
+          "hide_optional_ports": true,
           "name": "Showcase",
           "pan_x": 1020.0,
           "pan_y": 220.0,

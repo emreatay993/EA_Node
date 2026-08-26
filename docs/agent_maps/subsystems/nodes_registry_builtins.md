@@ -24,7 +24,12 @@ Use this for node definitions, registry validation, built-in node families, data
 - `ea_node_editor/nodes/builtins/`
 - `ea_node_editor/runtime_contracts/data_types.py`
 - `docs/PLAN_COREX_NOVICE_PLUGIN_SDK.md`
+- `docs/PLUGIN_AUTHORING_GUIDE.md`
+- `docs/PLUGIN_MIGRATION_GUIDE.md`
+- `docs/examples/signal_plot_function_plugin.py`
+- `docs/examples/strain_conditioner_plugin.py`
 - `docs/specs/requirements/COREX_NOVICE_PLUGIN_SDK_MIGRATION_INVENTORY.md`
+- `docs/specs/perf/COREX_NOVICE_PLUGIN_SDK_QA_MATRIX.md`
 
 ## Built-in Contract Families
 - Core values and media contracts: `core_values.py` and `core_media.py`; ordinary converted execution source lives as inert strings under `builtin_functions/`.
@@ -40,6 +45,9 @@ Use this for node definitions, registry validation, built-in node families, data
   from explicitly configured loose/schema-2 paths through static parsing; it has
   no entry-point, class-probe, executable-manifest, or descriptor-discovery path.
 - The internal owner `corex:builtin:functions` is the only reserved-ID function bundle. GUI bootstrap aggregates 20 inert source members, materializes the normal content-addressed generation, and registers exactly 68 `PythonFunctionEntry` records; workers independently attest and lazily execute it. The remaining 55 built-ins are the migration inventory's exact trusted exceptions, including Python Script, Trigger, Stream Gate, subnodes, three FEM pool/setup nodes, passive/custom surfaces, and generated private families.
+- The complete private boundary is the 55 trusted non-DPF exceptions, 805 DPF
+  exclusions, and three shipped add-on catalogs. Public authors never use those
+  descriptor/backend records.
 - `TrustedFactoryEntry` and `PythonFunctionEntry` are the mutually exclusive private registry implementations. Public function entries store only `PythonFunctionRef`; process workers re-hash the immutable generation and use `PythonFunctionAdapter` without exposing a callable to GUI discovery.
 - Public loose files and installed schema-2 directories are parsed without import, checked for bundled imports, and copied byte-for-byte into `runtime/plugin_generations/<bundle-digest>/`; registry fingerprints exclude author/install paths. Worker registry construction reparses only the verified generation and never the mutable discovery roots.
 - `build_plugin_candidate_registry(...)` builds fail-closed candidates into a caller-owned disposable generation root; one staged schema-2 package may replace only the installed package with the same exact name. Candidate and canonical registries must have the same full `NodeRegistry.contract_fingerprint()` before publication.
@@ -84,10 +92,15 @@ Use this for node definitions, registry validation, built-in node families, data
 - `tests/test_dead_code_hygiene.py`
 - `tests/test_architecture_boundaries.py`
 - `tests/test_packaging_configuration.py`
+- `tests/test_novice_plugin_sdk_docs.py`
+- `tests/non_dpf_catalog_fixture.py`
+- `tests/fixtures/node_catalog/t17_non_dpf_documentation_overlay.json`
+- `tests/test_non_dpf_node_documentation.py`
 
 ## Focused Verification
 ```powershell
 .\venv\Scripts\python.exe -m pytest tests/test_plugin_declaration.py tests/test_function_plugin.py tests/test_registry_validation.py tests/test_plugin_loader.py tests/test_package_manager.py tests/test_corex_contract_catalog.py tests/test_corex_type_conformance.py tests/test_python_script_declaration.py -q
 .\venv\Scripts\python.exe -m pytest tests/test_plugin_authoring.py tests/test_plugin_authoring_controller.py tests/test_plugin_authoring_dialog.py -q
 .\venv\Scripts\python.exe -m pytest tests/test_builtin_function_infrastructure.py tests/test_builtin_function_migration.py tests/test_remaining_builtin_function_migration.py tests/test_corex_contract_catalog.py tests/test_core_unit_nodes.py tests/test_spatial_values.py -q
+.\venv\Scripts\python.exe -m pytest tests/test_novice_plugin_sdk_docs.py tests/test_non_dpf_node_documentation.py -q
 ```

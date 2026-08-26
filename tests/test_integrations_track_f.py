@@ -73,6 +73,7 @@ from ea_node_editor.ui_qml.graph_geometry.standard_metrics import (
     node_surface_metrics,
     resolved_node_surface_size,
 )
+from tests.non_dpf_catalog_fixture import load_effective_non_dpf_catalog
 
 
 def _context(
@@ -129,14 +130,7 @@ class IntegrationNodesTrackFTests(unittest.TestCase):
                 generation_root=Path(temp_dir) / "generations"
             )
 
-        fixture = json.loads(
-            (
-                Path(__file__).parent
-                / "fixtures"
-                / "node_catalog"
-                / "pre_cutover_non_dpf_catalog.json"
-            ).read_text(encoding="utf-8")
-        )
+        fixture = load_effective_non_dpf_catalog()
         expected = {
             row["spec"]["type_id"]: row["spec"]
             for row in fixture

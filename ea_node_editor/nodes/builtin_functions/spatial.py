@@ -68,6 +68,7 @@ def bounding_interval_2d(ctx, coordinates):
     category=("Math", "Container"),
     icon="storage",
     description="Storage space for {0} data. You can use this container to organize your data flow and to store data permanently by internalizing them (Right-click and Internalize). You can also use this container for filtering: All input data that cannot be converted to {0} will be set to null.",
+    keywords=("field", "vector", "container"),
 )
 @corex.input(
     "input",
@@ -212,10 +213,10 @@ def deconstruct_point(ctx, point):
     description="Create a point from global x-, y- and z-coordinates.",
     keywords=("point", "construct", "coordinates"),
 )
-@corex.input("x", value_type="COREX.DataTypes.Double", required=True, label="X-coordinate")
-@corex.input("y", value_type="COREX.DataTypes.Double", required=True, label="Y-coordinate")
-@corex.input("z", value_type="COREX.DataTypes.Double", required=True, label="Z-coordinate")
-@corex.output("point", value_type="COREX.DataTypes.Point3D", label="Point")
+@corex.input("x", value_type="COREX.DataTypes.Double", required=True, label="X-coordinate", description="Global x-coordinate of the point.")
+@corex.input("y", value_type="COREX.DataTypes.Double", required=True, label="Y-coordinate", description="Global y-coordinate of the point.")
+@corex.input("z", value_type="COREX.DataTypes.Double", required=True, label="Z-coordinate", description="Global z-coordinate of the point.")
+@corex.output("point", value_type="COREX.DataTypes.Point3D", label="Point", description="Point at the supplied global coordinates.")
 def construct_point(ctx, x, y, z):
     return {
         "point": make_point3d_value(
@@ -232,10 +233,10 @@ def construct_point(ctx, x, y, z):
     description="Create a vector from x-, y- and z-coordinates.",
     keywords=("vector", "construct", "coordinates"),
 )
-@corex.input("x", value_type="COREX.DataTypes.Double", required=True, label="X-coordinate")
-@corex.input("y", value_type="COREX.DataTypes.Double", required=True, label="Y-coordinate")
-@corex.input("z", value_type="COREX.DataTypes.Double", required=True, label="Z-coordinate")
-@corex.output("vector", value_type="COREX.DataTypes.Vector3D", label="Vector")
+@corex.input("x", value_type="COREX.DataTypes.Double", required=True, label="X-coordinate", description="x-component of the vector.")
+@corex.input("y", value_type="COREX.DataTypes.Double", required=True, label="Y-coordinate", description="y-component of the vector.")
+@corex.input("z", value_type="COREX.DataTypes.Double", required=True, label="Z-coordinate", description="z-component of the vector.")
+@corex.output("vector", value_type="COREX.DataTypes.Vector3D", label="Vector", description="Vector with the supplied components.")
 def construct_vector(ctx, x, y, z):
     return {
         "vector": make_vector3d_value(
@@ -252,8 +253,8 @@ def construct_vector(ctx, x, y, z):
     description="Create an XY plane from an origin point.",
     keywords=("plane", "xy", "construct", "reference"),
 )
-@corex.input("origin", value_type="COREX.DataTypes.Point3D", required=True, label="Origin")
-@corex.output("plane", value_type="COREX.DataTypes.Plane", label="Plane")
+@corex.input("origin", value_type="COREX.DataTypes.Point3D", required=True, label="Origin", description="Origin point of the XY plane.")
+@corex.output("plane", value_type="COREX.DataTypes.Plane", label="Plane", description="XY plane at the supplied origin.")
 def xy_plane(ctx, origin):
     return {
         "plane": _plane_value(
@@ -272,10 +273,10 @@ def xy_plane(ctx, origin):
     description="Create a plane from an origin point and orthogonal x- and y-axes.",
     keywords=("plane", "construct", "reference", "axes"),
 )
-@corex.input("origin", value_type="COREX.DataTypes.Point3D", required=True, label="Origin")
-@corex.input("x_axis", value_type="COREX.DataTypes.Vector3D", required=True, label="X-axis")
-@corex.input("y_axis", value_type="COREX.DataTypes.Vector3D", required=True, label="Y-axis")
-@corex.output("plane", value_type="COREX.DataTypes.Plane", label="Plane")
+@corex.input("origin", value_type="COREX.DataTypes.Point3D", required=True, label="Origin", description="Origin point of the plane.")
+@corex.input("x_axis", value_type="COREX.DataTypes.Vector3D", required=True, label="X-axis", description="Vector defining the plane x-axis.")
+@corex.input("y_axis", value_type="COREX.DataTypes.Vector3D", required=True, label="Y-axis", description="Vector defining the plane y-axis.")
+@corex.output("plane", value_type="COREX.DataTypes.Plane", label="Plane", description="Plane defined by the origin and axes.")
 def construct_plane(ctx, origin, x_axis, y_axis):
     return {
         "plane": _plane_value(
@@ -300,6 +301,7 @@ def construct_plane(ctx, origin, x_axis, y_axis):
     structure="list",
     required=True,
     label="Entries",
+    description="Sixteen matrix entries in the selected order.",
 )
 @corex.number(
     "order",
@@ -311,11 +313,13 @@ def construct_plane(ctx, origin, x_axis, y_axis):
     port=True,
     _port_value_type="COREX.DataTypes.Int",
     _port_required=True,
+    _port_description="Matrix entry order: row-major or column-major.",
 )
 @corex.output(
     "transform",
     value_type="COREX.DataTypes.Transform3D",
     label="Transform",
+    description="Transform built from the supplied matrix entries.",
 )
 def construct_transform(ctx, entries, settings):
     del ctx
@@ -339,6 +343,7 @@ def construct_transform(ctx, entries, settings):
     value_type="COREX.DataTypes.Transform3D",
     required=True,
     label="Transform",
+    description="Transform whose matrix entries will be extracted.",
 )
 @corex.number(
     "order",
@@ -350,12 +355,14 @@ def construct_transform(ctx, entries, settings):
     port=True,
     _port_value_type="COREX.DataTypes.Int",
     _port_required=True,
+    _port_description="Matrix entry order: row-major or column-major.",
 )
 @corex.output(
     "entries",
     value_type="COREX.DataTypes.Double",
     structure="list",
     label="Entries",
+    description="Sixteen matrix entries in the selected order.",
 )
 def deconstruct_transform(ctx, transform, settings):
     del ctx
@@ -372,6 +379,7 @@ def deconstruct_transform(ctx, transform, settings):
     category=("Reference", "Vector"),
     icon="straighten",
     description="Compute length (amplitude) of a vector.",
+    keywords=("vector", "length", "magnitude", "amplitude"),
 )
 @corex.input(
     "vector",
@@ -408,11 +416,13 @@ def vector_length(ctx, vector):
     structure="list",
     required=True,
     label="Transforms",
+    description="Ordered transforms to combine.",
 )
 @corex.output(
     "transform",
     value_type="COREX.DataTypes.ChainedTransform3D",
     label="Transform",
+    description="Chained transform preserving the supplied order.",
 )
 def chain_transforms(ctx, transforms):
     return {"transform": make_chained_transform3d_value(ctx.inputs["transforms"])}
@@ -431,12 +441,14 @@ def chain_transforms(ctx, transforms):
     value_type="COREX.DataTypes.ChainedTransform3D",
     required=True,
     label="Transform",
+    description="Chained transform to separate.",
 )
 @corex.output(
     "transforms",
     value_type="COREX.DataTypes.Transform3D",
     structure="list",
     label="Transforms",
+    description="Ordered transforms stored in the chain.",
 )
 def unchain_transforms(ctx, transform):
     return {

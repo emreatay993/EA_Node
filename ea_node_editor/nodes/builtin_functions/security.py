@@ -21,11 +21,13 @@ from ea_node_editor.nodes.builtins.security_contracts import (
     "authentication",
     value_type="COREX.DataTypes.WindowsIdentity",
     label="Authentication",
+    description="Run-scoped Windows identity reference.",
 )
 @corex.output(
     "current_user",
     value_type="COREX.DataTypes.String",
     label="Current user",
+    description="Current Windows user name.",
 )
 def windows_authentication(ctx):
     return execute_windows_authentication(ctx)

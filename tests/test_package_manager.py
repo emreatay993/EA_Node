@@ -692,7 +692,9 @@ def test_schema1_archive_and_installed_directory_use_migration_message(
     with pytest.raises(ValueError, match="schema 1") as archive_error:
         package_manager.import_package(legacy, target_dir=tmp_path / "plugins")
     assert str(archive_error.value) == SCHEMA_1_UNSUPPORTED_MESSAGE
-    assert "PLAN_COREX_NOVICE_PLUGIN_SDK.md#package-schema-2" in str(archive_error.value)
+    assert "PLUGIN_MIGRATION_GUIDE.md#node-package-schema-1" in str(
+        archive_error.value
+    )
 
     legacy_dir = tmp_path / "installed" / "legacy"
     legacy_dir.mkdir(parents=True)

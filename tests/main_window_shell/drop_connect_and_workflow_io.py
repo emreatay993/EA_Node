@@ -6,6 +6,7 @@ import tempfile
 from pathlib import Path
 from unittest.mock import patch
 
+from ea_node_editor.custom_workflows import import_custom_workflow_file
 from ea_node_editor.nodes.category_paths import category_key
 from tests.main_window_shell.base import *  # noqa: F401,F403
 from tests.main_window_shell.base import _action_shortcuts
@@ -259,7 +260,7 @@ class MainWindowShellDropConnectAndWorkflowIOTests(SharedMainWindowShellTestBase
 
         with patch(
             "PyQt6.QtWidgets.QInputDialog.getItem",
-            return_value=("Constant.as_text -> Python Script.payload", True),
+            return_value=("Constant.as_text -> Python Script.Payload", True),
         ):
             created = self.window.request_drop_node_from_library(
                 "core.constant",

@@ -195,14 +195,26 @@ class RegistryFilterTests(unittest.TestCase):
             direction="in",
             data_type=PATH_DATA_TYPE_ID,
         )
-        self.assertEqual([spec.type_id for spec in results], ["io.excel_write", "io.file_write"])
+        self.assertEqual(
+            [spec.type_id for spec in results],
+            ["io.excel_write", "io.image_export", "io.file_write"],
+        )
 
     def test_filter_results_use_stable_predictable_sorting(self) -> None:
         registry = build_default_registry()
         first = [spec.type_id for spec in registry.filter_nodes(category_path=_INPUT_OUTPUT_CATEGORY_PATH)]
         second = [spec.type_id for spec in registry.filter_nodes(category_path=_INPUT_OUTPUT_CATEGORY_PATH)]
         self.assertEqual(first, second)
-        self.assertEqual(first, sorted(first, key=lambda item: item.lower()))
+        self.assertEqual(
+            first,
+            [
+                spec.type_id
+                for spec in sorted(
+                    registry.filter_nodes(category_path=_INPUT_OUTPUT_CATEGORY_PATH),
+                    key=lambda spec: (spec.display_name.casefold(), spec.type_id.casefold()),
+                )
+            ],
+        )
 
     def test_nested_category_registry_filter_accepts_parent_category_path(self) -> None:
         registry = build_default_registry()

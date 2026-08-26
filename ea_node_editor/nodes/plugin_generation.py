@@ -29,7 +29,7 @@ PLUGIN_REGULAR_FILE_MESSAGE = (
 )
 SCHEMA_1_UNSUPPORTED_MESSAGE = (
     "Node package schema 1 is unsupported. Use schema 2; see "
-    "docs/PLAN_COREX_NOVICE_PLUGIN_SDK.md#package-schema-2."
+    "docs/PLUGIN_MIGRATION_GUIDE.md#node-package-schema-1."
 )
 _SHA256_LENGTH = 64
 _WINDOWS_RESERVED_NAMES = frozenset(

@@ -71,6 +71,20 @@ def qapp():
 
 
 # ---------------------------------------------------------------------------
+# Shared execution runtime cache isolation
+# ---------------------------------------------------------------------------
+
+@pytest.fixture(autouse=True)
+def _isolated_runtime_preparation_cache():
+    """Prevent one test's prepared registry from leaking into the next test."""
+    from ea_node_editor.execution.worker_runtime import DEFAULT_RUNTIME_PREPARATION_CACHE
+
+    DEFAULT_RUNTIME_PREPARATION_CACHE.clear()
+    yield
+    DEFAULT_RUNTIME_PREPARATION_CACHE.clear()
+
+
+# ---------------------------------------------------------------------------
 # Shared tabular loader service isolation
 # ---------------------------------------------------------------------------
 

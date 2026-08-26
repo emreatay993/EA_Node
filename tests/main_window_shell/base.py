@@ -8,6 +8,7 @@ from PyQt6.QtCore import QEvent, QObject, Qt
 from PyQt6.QtGui import QKeySequence
 from PyQt6.QtWidgets import QApplication, QWidget
 
+from ea_node_editor.runtime_contracts import GRAPH_DATA_TYPE_ID
 from ea_node_editor.telemetry.frame_rate import FrameRateSampler
 from ea_node_editor.ui.shell.window import ShellWindow
 from scripts import verification_manifest as manifest
@@ -195,7 +196,7 @@ class MainWindowShellTestBase(unittest.TestCase):
         )
         self.window.scene.set_node_property(output_pin_id, "label", output_label)
         self.window.scene.set_node_property(output_pin_id, "kind", "data")
-        self.window.scene.set_node_property(output_pin_id, "data_type", "any")
+        self.window.scene.set_node_property(output_pin_id, "data_type", GRAPH_DATA_TYPE_ID)
         self.assertTrue(self.window.request_navigate_scope_parent())
         self.window.scene.focus_node(shell_id)
         self.app.processEvents()
@@ -213,14 +214,14 @@ class MainWindowShellTestBase(unittest.TestCase):
         )
         self.window.scene.set_node_property(outer_input_id, "label", "Outer In")
         self.window.scene.set_node_property(outer_input_id, "kind", "data")
-        self.window.scene.set_node_property(outer_input_id, "data_type", "any")
+        self.window.scene.set_node_property(outer_input_id, "data_type", GRAPH_DATA_TYPE_ID)
 
         outer_output_id = self.window.scene.add_node_from_type(
             "core.subnode_output", x=420.0, y=80.0
         )
         self.window.scene.set_node_property(outer_output_id, "label", "Outer Out")
         self.window.scene.set_node_property(outer_output_id, "kind", "data")
-        self.window.scene.set_node_property(outer_output_id, "data_type", "any")
+        self.window.scene.set_node_property(outer_output_id, "data_type", GRAPH_DATA_TYPE_ID)
 
         inner_id = self.window.scene.add_node_from_type(
             "core.subnode", x=220.0, y=160.0
@@ -233,14 +234,14 @@ class MainWindowShellTestBase(unittest.TestCase):
         )
         self.window.scene.set_node_property(inner_input_id, "label", "Inner In")
         self.window.scene.set_node_property(inner_input_id, "kind", "data")
-        self.window.scene.set_node_property(inner_input_id, "data_type", "any")
+        self.window.scene.set_node_property(inner_input_id, "data_type", GRAPH_DATA_TYPE_ID)
 
         inner_output_id = self.window.scene.add_node_from_type(
             "core.subnode_output", x=420.0, y=80.0
         )
         self.window.scene.set_node_property(inner_output_id, "label", "Inner Out")
         self.window.scene.set_node_property(inner_output_id, "kind", "data")
-        self.window.scene.set_node_property(inner_output_id, "data_type", "any")
+        self.window.scene.set_node_property(inner_output_id, "data_type", GRAPH_DATA_TYPE_ID)
 
         script_id = self.window.scene.add_node_from_type(
             "core.python_script", x=220.0, y=160.0
@@ -374,6 +375,8 @@ class SharedMainWindowShellTestBase(MainWindowShellTestBase):
                 pass
 
         window.app_preferences_controller.load_into_host(window, reload_from_store=True)
+        for workspace in window.model.project.workspaces.values():
+            workspace.dirty = False
         window._new_project()
         window._clear_recent_projects()
         window._frame_rate_sampler = FrameRateSampler()

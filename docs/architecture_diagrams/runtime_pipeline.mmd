@@ -2,7 +2,8 @@ flowchart TD
     A[App start via package module] --> B[bootstrap.main chooses preferred venv and imports app.run]
     B --> C[app.run loads startup preferences, creates QApplication, applies icon and stylesheet]
     C --> D[Show OpeningSplash and start RegistryLoader]
-    D --> E[When boot animation and registry are ready, create_shell_window]
+    D --> DA[Statically parse built-ins, add-ons, loose files, and schema-2 packages into a candidate registry and immutable generations]
+    DA --> E[When boot animation and registry are ready, create_shell_window]
     E --> F[ShellWindow builds serializer, session store, graph model, workspace manager, runtime history, controllers, bridges, and execution client]
     F --> G[Load MainShell.qml with focused context properties and GraphCanvas]
     G --> H[Startup sequence restores session, metadata defaults, workspace tabs, active workspace, and script editor state]
@@ -18,6 +19,13 @@ flowchart TD
     N --> O[Scene payloads, workspace ownership, and view state republish through graphCanvasStateBridge and graphCanvasViewBridge]
     O --> J
 
+    J --> PA[New Plugin or Reload Plugins]
+    PA --> PB[Save and parse source without import]
+    PB --> PC[Refuse while run or viewer is active]
+    PC --> PD[Validate all open graphs against a fresh candidate]
+    PD --> PE[Materialize generation and atomically replace registry consumers]
+    PE --> O
+
     J --> GP[Graphics Settings dialog updates app_preferences.json]
     GP --> GQ[ShellWindow reapplies graphics flags plus shell theme bridge and stylesheet and resolves graphThemeBridge]
     GQ --> J
@@ -31,11 +39,11 @@ flowchart TD
 
     J --> V[User clicks Run]
     V --> W[RunController builds workflow settings plus runtime_snapshot]
-    W --> X[Execution client validates trigger and posts StartRunCommand]
-    X --> Y[Worker loads mandatory runtime_snapshot, resolves project artifacts, compiles the selected workspace, and executes nodes]
+    W --> X[Execution client posts StartRunCommand with snapshot, bundle refs, fingerprints, and add-on state]
+    X --> Y[Worker validates the agreement, re-hashes generations, resolves project artifacts, compiles the selected workspace, and executes nodes]
     Y --> Z[Run events and logs stream to RunController]
     Z --> ZA[Status, console, failed-node focus, and actions updated]
 
     J --> ZB[Autosave tick or manual save]
     ZB --> ZC[ProjectSessionController persists view state, script editor state, workspace ownership, and artifact refs]
-    ZC --> ZD[Serializer and session store write project, session, and autosave documents]
+    ZC --> ZD[Serializer writes stable graph metadata and values only; no source refs, bundle refs, roots, or digests]

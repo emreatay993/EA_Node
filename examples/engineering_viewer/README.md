@@ -18,29 +18,29 @@ both inputs use millimetres and are stored as project-managed sources.
 
 ## Guided tour
 
-1. **Orientation and layout:** drag the model, click the bottom-left
+1. **Image #1 — Orientation and layout:** drag the model, click the bottom-left
    view cube, drag the bottom-right triad, and compare them with the RGB world axes.
    Narrow the detached window to see the bottom strip's overflow chevrons.
-2. **Solid render modes:** try Wireframe, Visible Edges, Shaded, and
+2. **Image #2 — Solid render modes:** try Wireframe, Visible Edges, Shaded, and
    Shaded with Body Edges. The STEP layer supplies true CAD topological edges;
    the viewer never substitutes tessellation feature edges for that exact asset.
-3. **Mesh render modes:** toggle Mesh/Facet Edges independently, then
+3. **Image #3 — Mesh render modes:** toggle Mesh/Facet Edges independently, then
    toggle Attribute Colors. The FE layer uses a strict `uint8` RGBA point array;
    `Temperature`, `Displacement`, and `MaterialId` demonstrate that scalar, vector,
    and ID arrays are not mistaken for direct colors.
-4. **View controls:** select a face or mesh entity, then use Fit Selection
+4. **Image #4 — View controls:** select a face or mesh entity, then use Fit Selection
    and Isolate. Shift+Isolate refreshes the isolated set; activating Isolate again
    restores the previous visibility.
-5. **UI controls:** toggle the orientation triad, view cube, and world
+5. **Image #5 — UI controls:** toggle the orientation triad, view cube, and world
    axes independently.
-6. **Saved views:** the project starts with `ISO Perspective` and
+6. **Image #6 — Saved views:** the project starts with `ISO Perspective` and
    `Front Orthographic`. Apply, rename, reorder, or delete them; save another view;
    use PageUp and PageDown to cycle with wrapping.
-7. **Projection and docking:** switch Perspective/Orthographic, detach,
+7. **Image #7 — Projection and docking:** switch Perspective/Orthographic, detach,
    enter fullscreen from detached, close fullscreen to return to detached, and dock
    the same live viewer back into the node. Camera and selection should remain
    unchanged because every presentation reparents one native widget.
-8. **Selection and toolbar layout:** use the top selection strip to switch
+8. **Image #8 — Selection and toolbar layout:** use the top selection strip to switch
    among the capability-supported CAD and FE entity filters. With CAD Edge or CAD
    Face active, the tangent control expands adjacent entities using the app-wide
    angle tolerance (default `5` degrees, editable from `0` through `90`). Then compare

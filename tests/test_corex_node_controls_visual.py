@@ -36,8 +36,9 @@ class COREXNodeControlsVisualTests(PassiveGraphSurfaceHostTestBase):
 
             example_path = (
                 repo_root
-                / "docs"
-                / "examples"
+                / "tests"
+                / "fixtures"
+                / "node_controls"
                 / "signal_plot_style_node_controls.py"
             )
             example_spec = importlib.util.spec_from_file_location(

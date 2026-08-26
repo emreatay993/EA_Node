@@ -3,6 +3,7 @@ from __future__ import annotations
 from collections.abc import Mapping
 from dataclasses import fields, is_dataclass
 from enum import Enum
+import hashlib
 import json
 from pathlib import Path
 import re
@@ -26,14 +27,14 @@ from ea_node_editor.addons.tabular_data.metadata import TABULAR_DATA_ADDON_ID
 from ea_node_editor.nodes.bootstrap import build_builtin_registry
 from ea_node_editor.nodes.plugin_declaration import discover_plugin_declarations
 from ea_node_editor.nodes.registry import resolve_instance_ports, resolve_instance_spec
-
-
-_PRE_CUTOVER_CATALOG = (
-    Path(__file__).resolve().parent
-    / "fixtures"
-    / "node_catalog"
-    / "pre_cutover_non_dpf_catalog.json"
+from tests.non_dpf_catalog_fixture import (
+    FROZEN_CATALOG_PATH,
+    FROZEN_CATALOG_SHA256,
+    load_effective_non_dpf_catalog,
+    load_frozen_non_dpf_catalog,
 )
+
+
 _MIGRATION_INVENTORY = (
     Path(__file__).resolve().parents[1]
     / "docs"
@@ -143,11 +144,13 @@ def test_builtin_registry_contains_retained_corex_contract_families() -> None:
         assert registry.data_types.require(data_type_id).type_id == data_type_id
 
 
-def test_pre_cutover_non_dpf_catalog_is_unchanged() -> None:
-    expected = json.loads(_PRE_CUTOVER_CATALOG.read_text(encoding="utf-8"))
-
-    assert len(expected) == 133
-    assert _current_non_dpf_catalog() == expected
+def test_frozen_non_dpf_catalog_plus_t17_documentation_overlay_matches_current() -> None:
+    assert (
+        hashlib.sha256(FROZEN_CATALOG_PATH.read_bytes()).hexdigest().upper()
+        == FROZEN_CATALOG_SHA256
+    )
+    assert len(load_frozen_non_dpf_catalog()) == 133
+    assert _current_non_dpf_catalog() == load_effective_non_dpf_catalog()
 
 
 def test_novice_plugin_sdk_migration_inventory_is_exhaustive() -> None:

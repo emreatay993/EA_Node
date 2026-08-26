@@ -494,7 +494,7 @@ Path(sys.argv[1]).write_text(json.dumps(payload), encoding="utf-8")
 "@
 
     try {
-        $probeProcess = Start-Process -FilePath $PythonExecutable -ArgumentList @($probeScriptPath, $probeOutputPath) -PassThru -Wait
+        $probeProcess = Start-Process -FilePath $PythonExecutable -ArgumentList @("-E", $probeScriptPath, $probeOutputPath) -PassThru -Wait
         if ($probeProcess.ExitCode -ne 0) {
             return @{
                 duckdb = "unknown"

@@ -38,6 +38,7 @@ from ea_node_editor.addons.mars.runtime import (
     MarsBatchOutcome,
     _artifact_id,
     _build_mars_command,
+    _mars_subprocess_environment,
     managed_mars_batch_executable,
     publish_mars_artifacts,
     run_mars_batch,
@@ -69,6 +70,7 @@ from ea_node_editor.runtime_contracts import (
 from ea_node_editor.ui_qml.node_title_icon_sources import (
     title_icon_presentation_for_node_payload,
 )
+from tests.non_dpf_catalog_fixture import load_effective_non_dpf_catalog
 
 
 _MARS_SPECS = {
@@ -195,14 +197,7 @@ print(json.dumps({"record": "result", "result": result}), flush=True)
 
 class MarsAddOnContractTests(unittest.TestCase):
     def test_static_function_specs_match_pre_cutover_golden(self) -> None:
-        rows = json.loads(
-            (
-                Path(__file__).parent
-                / "fixtures"
-                / "node_catalog"
-                / "pre_cutover_non_dpf_catalog.json"
-            ).read_text(encoding="utf-8")
-        )
+        rows = load_effective_non_dpf_catalog()
         expected = {
             row["spec"]["type_id"]: row["spec"]
             for row in rows
@@ -563,6 +558,16 @@ class MarsAddOnContractTests(unittest.TestCase):
 
 
 class MarsRuntimeTests(unittest.TestCase):
+    def test_subprocess_environment_ignores_foreign_python_configuration(self) -> None:
+        with patch.dict(
+            os.environ,
+            {"PYTHONPATH": "foreign", "PythonHome": "foreign", "MARS_KEEP": "yes"},
+        ):
+            environment = _mars_subprocess_environment()
+
+        self.assertFalse(any(key.upper().startswith("PYTHON") for key in environment))
+        self.assertEqual(environment["MARS_KEEP"], "yes")
+
     def test_every_stdout_line_is_validated(self) -> None:
         script = "print('{not-json', flush=True)"
         with tempfile.TemporaryDirectory() as temp_dir:

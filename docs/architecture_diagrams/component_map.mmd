@@ -92,21 +92,29 @@ flowchart LR
     SESS --> LAST[(last_session.json envelope)]
     SESS --> AUTO[(autosave.cxproj)]
 
-    SW --> REG[NodeRegistry]
-    REG --> BUILTINS[nodes.builtins.*]
-    REG --> ADDONS[addons catalog and hot-apply state]
-    REG --> PLUG[plugin_loader]
-    PLUG --> PLUGDIR[(APPDATA/COREX_Node_Editor/plugins)]
-    PLUG --> PKGDIR[(plugin package directories)]
-    PLUG --> ENTRYPTS[(Python entry points)]
-    PLUG --> BACKENDS[PLUGIN_BACKENDS / PLUGIN_DESCRIPTORS]
+    PLUGDIR[(Loose corex .py files)] --> PARSER[Bounded static declaration parser]
+    PKGDIR[(Installed schema-2 packages)] --> PKGMGR[Package hash/path/limit validation]
+    PKGMGR --> PARSER
+    BUILTINS[nodes/builtin_functions inert sources] --> PARSER
+    PARSER --> CAND[Fresh candidate NodeRegistry]
+    CAND --> GEN[(Immutable content-addressed generation)]
+    CAND --> REPLACE[RegistryReplacementCoordinator]
+    GEN --> REPLACE
+    REPLACE --> PUBGUARD[Registry publication guard]
+    PUBGUARD --> REG[Current NodeRegistry]
+    ADDONS[3 private shipped add-on catalogs] --> CAND
+    TRUSTED[Private trusted factories / generated descriptors] --> CAND
+    SW --> REG
 
-    RUN --> EXEC[ProcessExecutionClient]
+    RUN --> AGREEMENT[RuntimeSnapshot + registry/plugin agreement]
+    AGREEMENT --> EXEC[ProcessExecutionClient]
     EXEC -->|commands| CMDQ[(command_queue)]
     CMDQ --> WORKER[worker_main / load_runtime_snapshot / run_workflow]
     WORKER -->|events| EVTQ[(event_queue)]
     EVTQ --> EXEC
-    WORKER --> REG
-    WORKER --> NODEPLUGINS[NodePlugin.execute / async_execute]
+    WORKER --> WREG[Worker NodeRegistry from attested agreement]
+    WORKER --> VERIFY[Verify generation root and member digests]
+    VERIFY --> FUNC[Lazy import + PythonFunctionAdapter]
+    WREG --> TRUSTEDRUN[Private trusted factory execution]
 
     SW --> METRICS[telemetry.system_metrics]

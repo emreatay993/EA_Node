@@ -388,6 +388,7 @@ def find_owner_routes(
         exact_owner: bool = False,
         exact_qml: bool = False,
         exact_alias: bool = False,
+        qml_structural_affinity: bool = False,
     ) -> None:
         map_path = str(entry.get("map_path", ""))
         normalized_map = map_path.replace("\\", "/").casefold()
@@ -403,6 +404,7 @@ def find_owner_routes(
                 "exact_start": False,
                 "exact_qml": False,
                 "exact_alias": False,
+                "qml_structural_affinity": False,
             },
         )
         candidate["origins"].add(origin)
@@ -411,6 +413,7 @@ def find_owner_routes(
         candidate["exact_owner"] |= exact_owner
         candidate["exact_qml"] |= exact_qml
         candidate["exact_alias"] |= exact_alias
+        candidate["qml_structural_affinity"] |= qml_structural_affinity
         candidate["exact_start"] |= exact_owner and any(
             _same_qml_path(str(value), evidence_path)
             for value in entry.get("start_here", [])
@@ -478,6 +481,10 @@ def find_owner_routes(
 
     for component in best_components:
         exact_qml = component in exact_components
+        component_haystack = _route_haystack(component)
+        qml_structural_affinity = exact_qml or _score_route(
+            component, qml_tokens
+        ) > sum(token in component_haystack for token in qml_tokens)
         qml_paths = [str(path) for path in component.get("qml_candidates", [])]
         if not qml_paths:
             qml_paths = [str(path) for path in component.get("source_candidates", [])]
@@ -501,6 +508,7 @@ def find_owner_routes(
                     evidence_path=qml_path,
                     exact_owner=True,
                     exact_qml=exact_qml,
+                    qml_structural_affinity=qml_structural_affinity,
                 )
         else:
             inferred_owners = [
@@ -514,6 +522,7 @@ def find_owner_routes(
                     "qml_inferred",
                     evidence_path=qml_path,
                     exact_qml=exact_qml,
+                    qml_structural_affinity=qml_structural_affinity,
                 )
 
     if not candidates:
@@ -562,6 +571,10 @@ def find_owner_routes(
                 for candidate in ranked
                 if candidate not in exact_candidates
                 and {"direct", "qml"}.issubset(candidate["origins"])
+                and (
+                    not exact_candidates[0]["exact_alias"]
+                    or candidate["qml_structural_affinity"]
+                )
             ]
             if evidenced_secondaries and (
                 len(evidenced_secondaries) == 1

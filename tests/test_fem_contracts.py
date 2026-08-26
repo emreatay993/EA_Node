@@ -81,6 +81,7 @@ from ea_node_editor.runtime_contracts import (
     RuntimeHandleRef,
     TypedInlineValue,
 )
+from tests.non_dpf_catalog_fixture import load_effective_non_dpf_catalog
 
 _CONVERTED_TYPE_IDS = (
     "fea.force",
@@ -89,14 +90,6 @@ _CONVERTED_TYPE_IDS = (
     "optimization.construct_responses",
     "optimization.construct_design",
 )
-_PRE_CUTOVER_CATALOG = (
-    Path(__file__).parent
-    / "fixtures"
-    / "node_catalog"
-    / "pre_cutover_non_dpf_catalog.json"
-)
-
-
 @lru_cache(maxsize=1)
 def _function_adapters() -> dict[str, PythonFunctionAdapter]:
     adapters: dict[str, PythonFunctionAdapter] = {}
@@ -128,7 +121,7 @@ def test_fem_function_declarations_match_golden() -> None:
     )
     expected = {
         row["spec"]["type_id"]: row["spec"]
-        for row in json.loads(_PRE_CUTOVER_CATALOG.read_text(encoding="utf-8"))
+        for row in load_effective_non_dpf_catalog()
         if row["spec"]["type_id"] in _CONVERTED_TYPE_IDS
     }
     assert tuple(declaration.spec.type_id for declaration in declarations) == (

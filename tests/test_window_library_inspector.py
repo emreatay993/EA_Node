@@ -1136,6 +1136,7 @@ class WindowLibraryInspectorPropertyGroupTests(unittest.TestCase):
             icon="fixture",
             ports=(),
             dynamic_port_groups=(),
+            instance_spec_resolver=None,
             properties=(
                 PropertySpec(
                     key="mode",
@@ -1217,6 +1218,7 @@ class WindowLibraryInspectorPropertyGroupTests(unittest.TestCase):
             description="Grouped Node description",
             ports=(),
             dynamic_port_groups=(),
+            instance_spec_resolver=None,
             properties=(
                 PropertySpec(
                     key="source_path",
@@ -1259,6 +1261,7 @@ class WindowLibraryInspectorPropertyGroupTests(unittest.TestCase):
             description="Dirty Node description",
             ports=(),
             dynamic_port_groups=(),
+            instance_spec_resolver=None,
             properties=(
                 PropertySpec(
                     key="source_path",

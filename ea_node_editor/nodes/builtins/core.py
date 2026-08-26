@@ -41,8 +41,8 @@ PYTHON_SCRIPT_DEFAULT_SOURCE = """# Decorator templates: uncomment a line, then 
 # @corex.list("labels", default=["A"], item_type=str, section="Data", port=True)
 
 @corex.node
-@corex.input("payload", value_type=corex.Any)
-@corex.output("result", value_type=corex.Any)
+@corex.input("payload", value_type=corex.Any, description="Value supplied to the script.")
+@corex.output("result", value_type=corex.Any, description="Value returned by the script.")
 def run(ctx, payload):
     return {"result": payload}
 """

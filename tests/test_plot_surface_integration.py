@@ -31,7 +31,7 @@ def _plot_scene_payload(*, properties: dict[str, object] | None = None) -> dict[
     node = model.add_node(
         workspace_id,
         "plot.scatter",
-        "Line Plot",
+        "Scatter Plot",
         64.0,
         96.0,
         properties=properties,
@@ -50,11 +50,11 @@ def test_plot_nodes_publish_plot_surface_spec_for_live_2d_canvas() -> None:
     payload = _plot_scene_payload(properties={"render_in_canvas": True})
 
     assert payload["surface_family"] == "plot"
-    assert payload["surface_variant"] == "line"
+    assert payload["surface_variant"] == "scatter"
     assert payload["surface_spec"] == surface_spec_payload_for_values(
         type_id="plot.scatter",
         family="plot",
-        variant="line",
+        variant="scatter",
     )
     assert payload["surface_spec"]["component_key"] == "plot"
     assert payload["surface_spec"]["qml_component"] == "plot/GraphPlotSurface.qml"
@@ -72,7 +72,7 @@ def test_plot_surface_payload_preserves_p03_sink_mode_contract() -> None:
     enabled_payload = _plot_scene_payload(properties={"render_in_canvas": True})
 
     assert default_payload["plot_surface"] == {
-        "plot_type": "line",
+        "plot_type": "scatter",
         "live_backend_id": "pyqtgraph",
         "render_in_canvas": True,
         "lightweight_canvas": False,

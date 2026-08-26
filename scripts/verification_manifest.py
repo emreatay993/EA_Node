@@ -159,7 +159,35 @@ COREX_NO_LEGACY_ARCHITECTURE_CLEANUP_TRACEABILITY_COMMAND = (
 COREX_NO_LEGACY_ARCHITECTURE_CLEANUP_MARKDOWN_COMMAND = (
     r".\venv\Scripts\python.exe scripts/check_markdown_links.py"
 )
-CURRENT_CLOSEOUT_QA_MATRIX_DOC = COREX_NO_LEGACY_ARCHITECTURE_CLEANUP_QA_MATRIX_DOC
+COREX_NOVICE_PLUGIN_SDK_QA_MATRIX_DOC = (
+    "docs/specs/perf/COREX_NOVICE_PLUGIN_SDK_QA_MATRIX.md"
+)
+COREX_NOVICE_PLUGIN_SDK_FOCUSED_PYTEST_COMMAND = (
+    r".\venv\Scripts\python.exe -m pytest tests/test_novice_plugin_sdk_docs.py "
+    r"tests/test_non_dpf_node_documentation.py tests/test_corex_contract_catalog.py "
+    r"tests/test_node_title_icon_assets.py tests/test_builtin_function_migration.py "
+    r"tests/test_remaining_builtin_function_migration.py tests/test_architecture_boundaries.py "
+    r"tests/test_dead_code_hygiene.py --ignore=venv -q"
+)
+COREX_NOVICE_PLUGIN_SDK_DPF_PYTEST_COMMAND = (
+    r".\venv\Scripts\python.exe -m pytest tests/test_dpf_operator_catalog_asset.py "
+    r"tests/test_dpf_node_catalog.py tests/test_dpf_generated_operator_catalog.py "
+    r"tests/test_dpf_compute_nodes.py --ignore=venv -q"
+)
+COREX_NOVICE_PLUGIN_SDK_HYGIENE_PYTEST_COMMAND = (
+    r".\venv\Scripts\python.exe -m pytest tests/test_traceability_checker.py "
+    r"tests/test_markdown_hygiene.py tests/test_agent_route_index.py "
+    r"tests/test_source_test_file_index.py tests/test_qml_navigation_index.py "
+    r"--ignore=venv -q"
+)
+COREX_NOVICE_PLUGIN_SDK_FULL_COMMAND = (
+    r".\venv\Scripts\python.exe .\scripts\run_verification.py "
+    r"--mode full --summarize-output"
+)
+COREX_NOVICE_PLUGIN_SDK_PACKAGE_COMMAND = (
+    r".\scripts\build_windows_package.ps1 -PackageProfile base -Clean"
+)
+CURRENT_CLOSEOUT_QA_MATRIX_DOC = COREX_NOVICE_PLUGIN_SDK_QA_MATRIX_DOC
 MARKDOWN_HYGIENE_TEST = "tests/test_markdown_hygiene.py"
 
 ARCHITECTURE_RESIDUAL_REFACTOR_TARGETED_REGRESSION_COMMAND = (
@@ -635,6 +663,18 @@ VERIFICATION_SUITE_SPECS_BY_KEY = {spec.key: spec for spec in VERIFICATION_SUITE
 FAST_SERIAL_PYTEST_TARGETS = (
     "tests/test_execution_client.py::ProcessExecutionClientTests",
     (
+        "tests/test_managed_runtime.py::ManagedRuntimeTests::"
+        "test_run_command_streams_output_before_process_finishes"
+    ),
+    "tests/test_mars_function_migration.py::test_t14_all_three_functions_execute_through_worker_runtime",
+    (
+        "tests/test_process_run_node.py::ProcessRunNodeTests::"
+        "test_stop_run_cancels_active_process_node"
+    ),
+    "tests/test_mcf_dpf_section_resultants_gui.py",
+    "tests/test_jupyter_server_manager.py::JupyterServerManagerIntegrationTests",
+    "tests/test_project_file_issues.py",
+    (
         "tests/test_workspace_library_controller_unit.py::"
         "WorkspaceLibraryControllerCoreOpsTests::"
         "test_paste_nodes_from_clipboard_is_noop_when_clipboard_is_missing"
@@ -955,9 +995,6 @@ SHELL_ISOLATION_OWNERSHIP_SPECS = (
             "MainWindowShellHostProtocolStateTests",
             "_MainWindowShellGraphCanvasHostDirectTests",
         ),
-        excluded_names=(
-            "MainWindowShellStatusStripQuickToggleTests",
-        ),
     ),
     ShellIsolationOwnershipSpec(
         source_path="tests/main_window_shell/view_library_inspector.py",
@@ -972,6 +1009,10 @@ SHELL_ISOLATION_OWNERSHIP_SPECS = (
             "test_script_editor_state_persists_in_metadata",
             "test_script_editor_exposes_cursor_diagnostics_and_dirty_state",
             "test_set_script_editor_panel_visible_focuses_editor_for_script_node",
+            "test_script_apply_failure_keeps_draft_dirty",
+            "test_numeric_overflow_draft_stays_dirty_and_leaves_graph_unchanged",
+            "test_script_apply_failure_draft_survives_panel_reopen",
+            "test_script_draft_survives_same_node_property_refresh",
         ),
         excluded_names=("test_script_editor_panel_width_persists_in_metadata",),
     ),
@@ -1198,11 +1239,10 @@ GENERIC_DOCUMENT_RULES: dict[str, DocumentRule] = {
             CHECK_MARKDOWN_LINKS_SCRIPT,
             CURRENT_CLOSEOUT_QA_MATRIX_DOC,
             "focused bridges",
-            "descriptor-only",
+            "17-name top-level `corex` SDK",
+            "immutable content-addressed generation",
             "snapshot-only",
             "ea_node_editor.ui.perf.performance_harness",
-            PACKAGING_WINDOWS_DOC,
-            PILOT_RUNBOOK_DOC,
             "tests/shell_isolation_runtime.py",
         ),
         forbidden=(
@@ -1221,6 +1261,9 @@ GENERIC_DOCUMENT_RULES: dict[str, DocumentRule] = {
             "ARCHITECTURE_RESIDUAL_REFACTOR_QA_MATRIX.md",
             "PROJECT_MANAGED_FILES_QA_MATRIX.md",
             "PYDPF_VIEWER_V1_QA_MATRIX.md",
+            "COREX_NOVICE_PLUGIN_SDK_QA_MATRIX.md",
+            "PLUGIN_AUTHORING_GUIDE.md",
+            "PLUGIN_MIGRATION_GUIDE.md",
             "closeout evidence only",
             "historical pointer",
         ),
@@ -1394,6 +1437,83 @@ QA_ACCEPTANCE_REQUIREMENT_TOKENS = {
         "tests/test_traceability_checker.py",
         "planned requirement",
     ),
+    "REQ-QA-055": (
+        COREX_NOVICE_PLUGIN_SDK_QA_MATRIX_DOC,
+        "938-type migration inventory",
+        "17-name public export set",
+        "full summarized verification",
+        "Windows package smoke",
+        "NOT RUN",
+    ),
+    "AC-REQ-QA-055-01": (
+        "task-owned parser",
+        "check_traceability.py",
+        "check_markdown_links.py",
+        "check_agent_maps.py",
+        "run_verification.py --mode full --summarize-output",
+        "build_windows_package.ps1 -PackageProfile base -Clean",
+        COREX_NOVICE_PLUGIN_SDK_QA_MATRIX_DOC,
+    ),
+}
+
+NOVICE_PLUGIN_SDK_REQUIREMENT_TOKENS: dict[str, dict[str, tuple[str, ...]]] = {
+    "docs/specs/requirements/20_UI_UX.md": {
+        "REQ-UI-065": (
+            "New Plugin...",
+            "Reload Plugins",
+            "no-clobber",
+            "active run",
+            "Plugin Authoring Guide",
+        ),
+        "AC-REQ-UI-065-01": ("Native-dialog", "static-declaration", "atomic-reload"),
+    },
+    "docs/specs/requirements/40_NODE_SDK.md": {
+        "REQ-NODE-050": (
+            "17 public names",
+            "literal-only AST discovery",
+            "68-function",
+            "55-trusted-exception",
+            "805-DPF-exclusion",
+        ),
+        "AC-REQ-NODE-050-01": ("exact 17-name export set", "hostile-source non-execution"),
+    },
+    "docs/specs/requirements/45_NODE_EXECUTION_MODEL.md": {
+        "REQ-NODE-051": (
+            "isolated process worker",
+            "immutable controls-only",
+            "presence",
+            "future and unimplemented",
+        ),
+        "AC-REQ-NODE-051-01": ("falsey override presence", "sequential ordered warnings"),
+    },
+    "docs/specs/requirements/50_EXECUTION_ENGINE.md": {
+        "REQ-EXEC-028": (
+            "PluginBundleRef",
+            "registry-contract fingerprint",
+            "digest-derived module names",
+            "never import unused plugins",
+        ),
+        "AC-REQ-EXEC-028-01": ("exact-byte verification", "rejection of stale"),
+    },
+    "docs/specs/requirements/60_PERSISTENCE.md": {
+        "REQ-PERSIST-031": (
+            "shall never enter `.cxproj`",
+            "Custom Workflow",
+            "`REQ-PERSIST-030`",
+            "refuse before any package file",
+        ),
+        "AC-REQ-PERSIST-031-01": ("no public-plugin source", "incompatible change"),
+    },
+    "docs/specs/requirements/70_INTEGRATIONS.md": {
+        "REQ-INT-021": (
+            "schema 2",
+            "64 KiB",
+            "16 MiB",
+            "execute no public source",
+            "exact `<module> is not included in this COREX bundle.` message",
+        ),
+        "AC-REQ-INT-021-01": ("deterministic-archive", "legacy-removal"),
+    },
 }
 
 PLANNED_REQUIREMENT_STATUSES = {
@@ -1438,25 +1558,18 @@ PLANNED_REQUIREMENT_OWNERS = {
     "REQ-UI-056": "20_UI_UX",
     "REQ-UI-057": "20_UI_UX",
     "REQ-UI-058": "20_UI_UX",
-    "REQ-UI-065": "20_UI_UX",
     "REQ-NODE-036": "40_NODE_SDK",
     "REQ-NODE-037": "40_NODE_SDK",
-    "REQ-NODE-050": "40_NODE_SDK",
-    "REQ-NODE-051": "45_NODE_EXECUTION_MODEL",
     "REQ-EXEC-017": "50_EXECUTION_ENGINE",
     "REQ-EXEC-018": "50_EXECUTION_ENGINE",
     "REQ-EXEC-019": "50_EXECUTION_ENGINE",
     "REQ-EXEC-020": "50_EXECUTION_ENGINE",
     "REQ-EXEC-021": "50_EXECUTION_ENGINE",
     "REQ-EXEC-022": "50_EXECUTION_ENGINE",
-    "REQ-EXEC-028": "50_EXECUTION_ENGINE",
     "REQ-PERSIST-025": "60_PERSISTENCE",
     "REQ-PERSIST-026": "60_PERSISTENCE",
-    "REQ-PERSIST-031": "60_PERSISTENCE",
     "REQ-INT-018": "70_INTEGRATIONS",
     "REQ-INT-019": "70_INTEGRATIONS",
-    "REQ-INT-021": "70_INTEGRATIONS",
-    "REQ-QA-055": "90_QA_ACCEPTANCE",
 }
 
 PLANNED_CAPABILITY_GROUPS = (
@@ -1791,12 +1904,153 @@ TRACEABILITY_ROW_REQUIRED_TOKENS = {
     ),
 }
 
+TRACEABILITY_ROW_REQUIRED_TOKENS.update(
+    {
+        "REQ-UI-065": (
+            "plugin_authoring.py",
+            "plugin_authoring_dialog.py",
+            "plugin_authoring_controller.py",
+            "window_actions.py",
+        ),
+        "AC-REQ-UI-065-01": (
+            "test_plugin_authoring.py",
+            "test_plugin_authoring_dialog.py",
+            "test_plugin_authoring_controller.py",
+            "test_registry_replacement.py",
+        ),
+        "REQ-NODE-050": (
+            "corex/__init__.py",
+            "plugin_declaration.py",
+            "plugin_loader.py",
+            "PLUGIN_AUTHORING_GUIDE.md",
+        ),
+        "AC-REQ-NODE-050-01": (
+            "test_plugin_declaration.py",
+            "test_architecture_boundaries.py",
+            "test_novice_plugin_sdk_docs.py",
+            "test_corex_contract_catalog.py",
+        ),
+        "REQ-NODE-051": (
+            "function_plugin.py",
+            "execution_context.py",
+            "plugin_worker_runtime.py",
+        ),
+        "AC-REQ-NODE-051-01": (
+            "test_function_plugin.py",
+            "test_execution_worker.py",
+            "test_dataflow_execution_runtime.py",
+        ),
+        "REQ-EXEC-028": (
+            "protocol.py",
+            "plugin_worker_runtime.py",
+            "worker_runtime.py",
+            "plugin_generation.py",
+        ),
+        "AC-REQ-EXEC-028-01": (
+            "test_execution_protocol.py",
+            "test_execution_client.py",
+            "test_execution_worker.py",
+            "test_plugin_generation.py",
+        ),
+        "REQ-PERSIST-031": (
+            "project_codec.py",
+            "serializer.py",
+            "custom_workflows",
+            "registry_replacement.py",
+        ),
+        "AC-REQ-PERSIST-031-01": (
+            "test_serializer.py",
+            "test_dataflow_graph_persistence.py",
+            "test_registry_replacement.py",
+            "test_builtin_function_infrastructure.py",
+        ),
+        "REQ-INT-021": (
+            "package_manager.py",
+            "plugin_loader.py",
+            "plugin_generation.py",
+            "registry_replacement.py",
+        ),
+        "AC-REQ-INT-021-01": (
+            "test_package_manager.py",
+            "test_plugin_loader.py",
+            "test_plugin_generation.py",
+            "test_registry_replacement.py",
+        ),
+        "REQ-QA-055": (
+            "PLAN_COREX_NOVICE_PLUGIN_SDK.md",
+            "COREX_NOVICE_PLUGIN_SDK_MIGRATION_INVENTORY.md",
+            "pre_cutover_non_dpf_catalog.json",
+            "COREX_NOVICE_PLUGIN_SDK_QA_MATRIX.md",
+        ),
+        "AC-REQ-QA-055-01": (
+            COREX_NOVICE_PLUGIN_SDK_FOCUSED_PYTEST_COMMAND,
+            COREX_NOVICE_PLUGIN_SDK_DPF_PYTEST_COMMAND,
+            COREX_NOVICE_PLUGIN_SDK_HYGIENE_PYTEST_COMMAND,
+            COREX_NOVICE_PLUGIN_SDK_FULL_COMMAND,
+            COREX_NOVICE_PLUGIN_SDK_PACKAGE_COMMAND,
+        ),
+        "AC-REQ-NODE-045-01": (
+            "tests/fixtures/node_controls/signal_plot_style_node_controls.py",
+            "tests/test_corex_node_controls_visual.py",
+        ),
+        "REQ-QA-052": (
+            "tests/fixtures/node_controls/signal_plot_style_node_controls.py",
+            "tests/test_corex_node_controls_visual.py",
+        ),
+    }
+)
+
 TRACEABILITY_ROW_FORBIDDEN_TOKENS = {
     "REQ-INT-006": ("compatibility export",),
     "AC-REQ-QA-013-01": ("approved fresh-process shell fallback",),
     "AC-REQ-QA-017-01": ("Recorded serializer baseline caveat",),
     "AC-REQ-QA-018-01": ("ea_node_editor.telemetry.performance_harness",),
+    "AC-REQ-NODE-045-01": ("tests/test_signal_plot_style_node_controls_example.py",),
+    "REQ-QA-052": (
+        "docs/examples/signal_plot_style_node_controls.py",
+        "tests/test_signal_plot_style_node_controls_example.py",
+    ),
 }
+
+COREX_NOVICE_PLUGIN_SDK_PASSED_GATES = (
+    "Full summarized verification",
+    "Clean base Windows package",
+)
+COREX_NOVICE_PLUGIN_SDK_TRANSITIONAL_GATES = (
+    "Independent final diff/evidence review",
+)
+COREX_NOVICE_PLUGIN_SDK_QA_MATRIX_REQUIRED_TOKENS = (
+    "COREX Novice Function Plugin SDK QA Matrix",
+    "## Locked Scope",
+    "## Frozen Inventory",
+    "17 public `corex` exports",
+    "938 classified type IDs",
+    "78 converted type IDs",
+    "55 trusted internal exceptions",
+    "805 DPF exclusions",
+    "133 frozen non-DPF catalog rows",
+    "68 reserved built-in function entries",
+    "## T01-T16 Accepted Commits",
+    "bc58d7c7",
+    "eb7a1097",
+    "## Public Documentation And Examples",
+    "docs/PLUGIN_AUTHORING_GUIDE.md",
+    "docs/PLUGIN_MIGRATION_GUIDE.md",
+    "docs/examples/signal_plot_function_plugin.py",
+    "docs/examples/strain_conditioner_plugin.py",
+    "## Generated Artifacts",
+    "ansys-dpf-core 0.16.1",
+    "767",
+    "enum_codes",
+    "list_item_step",
+    "## Focused Closeout Results",
+    COREX_NOVICE_PLUGIN_SDK_FOCUSED_PYTEST_COMMAND,
+    COREX_NOVICE_PLUGIN_SDK_DPF_PYTEST_COMMAND,
+    COREX_NOVICE_PLUGIN_SDK_HYGIENE_PYTEST_COMMAND,
+    "## Pending Acceptance Gates",
+    COREX_NOVICE_PLUGIN_SDK_FULL_COMMAND,
+    COREX_NOVICE_PLUGIN_SDK_PACKAGE_COMMAND,
+)
 
 ARCHITECTURE_RESIDUAL_REFACTOR_QA_MATRIX_REQUIRED_TOKENS = (
     "Architecture Residual Refactor QA Matrix",

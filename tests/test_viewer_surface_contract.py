@@ -487,10 +487,10 @@ class ViewerSurfaceContractTests(unittest.TestCase):
         node.expanded_settings_group_ids = ("general",)
         expanded_group_payload = payload()
 
-        self.assertEqual(collapsed_group_payload["height"], 254.0)
-        self.assertEqual(expanded_group_payload["height"], 272.0)
-        self.assertEqual(collapsed_group_payload["settings_band"]["height"], 18.0)
-        self.assertEqual(expanded_group_payload["settings_band"]["height"], 36.0)
+        self.assertEqual(collapsed_group_payload["height"], 272.0)
+        self.assertEqual(expanded_group_payload["height"], 290.0)
+        self.assertEqual(collapsed_group_payload["settings_band"]["height"], 36.0)
+        self.assertEqual(expanded_group_payload["settings_band"]["height"], 54.0)
         self.assertEqual(collapsed_group_payload["surface_metrics"]["body_height"], 176.0)
         self.assertEqual(expanded_group_payload["surface_metrics"]["body_height"], 176.0)
         self.assertEqual(

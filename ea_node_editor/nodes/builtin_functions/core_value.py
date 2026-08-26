@@ -151,11 +151,32 @@ def core_if(ctx, condition, true_value, false_value):
     value_type="COREX.DataTypes.Color",
     label="Color",
     required=True,
+    description="Color value to deconstruct.",
 )
-@corex.output("red", value_type="COREX.DataTypes.Double", label="Red")
-@corex.output("green", value_type="COREX.DataTypes.Double", label="Green")
-@corex.output("blue", value_type="COREX.DataTypes.Double", label="Blue")
-@corex.output("alpha", value_type="COREX.DataTypes.Double", label="Alpha")
+@corex.output(
+    "red",
+    value_type="COREX.DataTypes.Double",
+    label="Red",
+    description="Red channel value.",
+)
+@corex.output(
+    "green",
+    value_type="COREX.DataTypes.Double",
+    label="Green",
+    description="Green channel value.",
+)
+@corex.output(
+    "blue",
+    value_type="COREX.DataTypes.Double",
+    label="Blue",
+    description="Blue channel value.",
+)
+@corex.output(
+    "alpha",
+    value_type="COREX.DataTypes.Double",
+    label="Alpha",
+    description="Alpha channel value.",
+)
 def deconstruct_color(ctx, color):
     del ctx
     if (

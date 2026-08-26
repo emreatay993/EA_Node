@@ -28,6 +28,7 @@ from ea_node_editor.runtime_contracts import (
     deserialize_runtime_value,
     serialize_runtime_value,
 )
+from tests.non_dpf_catalog_fixture import load_effective_non_dpf_catalog
 
 
 def _plain_node(
@@ -55,14 +56,7 @@ def test_reporting_function_specs_match_frozen_catalog() -> None:
         owner_id=INTERNAL_BUILTIN_FUNCTION_OWNER_ID,
     )
     ids = {MARKDOWN_FLOWCHART_NODE_TYPE_ID, MARKDOWN_FLOWCHART_TYPE_ID}
-    golden = json.loads(
-        (
-            Path(__file__).parent
-            / "fixtures"
-            / "node_catalog"
-            / "pre_cutover_non_dpf_catalog.json"
-        ).read_text(encoding="utf-8")
-    )
+    golden = load_effective_non_dpf_catalog()
     expected = {
         row["spec"]["type_id"]: row["spec"]
         for row in golden

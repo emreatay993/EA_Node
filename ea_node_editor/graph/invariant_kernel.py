@@ -315,7 +315,7 @@ class GraphInvariantKernel:
 
     def _resolved_port(self, node_id: str, port_key: str) -> tuple[NodeInstance, NodeTypeSpec, EffectivePort]:
         node = self.workspace_nodes[node_id]
-        spec = self.registry.get_spec(node.type_id)
+        spec = self.registry.resolve_spec(node.type_id, node.properties)
         port = find_port(
             node=node,
             spec=spec,

@@ -199,6 +199,7 @@
           "comments": [],
           "custom_height": 220.0,
           "custom_width": 360.0,
+          "expanded_settings_group_ids": [],
           "exposed_ports": {
             "array_data": true,
             "path": true,
@@ -237,7 +238,6 @@
           },
           "title": "bar_channels.xlsx",
           "type_id": "tabular.input",
-          "visual_style": {},
           "x": -820.0,
           "y": 440.0
         },
@@ -246,6 +246,7 @@
           "comments": [],
           "custom_height": 210.0,
           "custom_width": 380.0,
+          "expanded_settings_group_ids": [],
           "exposed_ports": {
             "data_export": true,
             "exports": true,
@@ -298,7 +299,6 @@
           },
           "title": "Bar Plot",
           "type_id": "plot.bar",
-          "visual_style": {},
           "x": -300.0,
           "y": 440.0
         },
@@ -307,6 +307,7 @@
           "comments": [],
           "custom_height": 220.0,
           "custom_width": 360.0,
+          "expanded_settings_group_ids": [],
           "exposed_ports": {
             "array_data": true,
             "path": true,
@@ -342,7 +343,6 @@
           },
           "title": "contour_field.npz",
           "type_id": "tabular.input",
-          "visual_style": {},
           "x": -820.0,
           "y": 1100.0
         },
@@ -351,6 +351,7 @@
           "comments": [],
           "custom_height": 210.0,
           "custom_width": 380.0,
+          "expanded_settings_group_ids": [],
           "exposed_ports": {
             "data_export": true,
             "exports": true,
@@ -400,7 +401,6 @@
           },
           "title": "Contour Plot",
           "type_id": "plot.contour",
-          "visual_style": {},
           "x": -300.0,
           "y": 1100.0
         },
@@ -409,6 +409,7 @@
           "comments": [],
           "custom_height": 220.0,
           "custom_width": 360.0,
+          "expanded_settings_group_ids": [],
           "exposed_ports": {
             "array_data": true,
             "path": true,
@@ -444,7 +445,6 @@
           },
           "title": "heatmap_grid.npy",
           "type_id": "tabular.input",
-          "visual_style": {},
           "x": -820.0,
           "y": 880.0
         },
@@ -453,6 +453,7 @@
           "comments": [],
           "custom_height": 210.0,
           "custom_width": 380.0,
+          "expanded_settings_group_ids": [],
           "exposed_ports": {
             "data_export": true,
             "exports": true,
@@ -502,7 +503,6 @@
           },
           "title": "Heatmap Plot",
           "type_id": "plot.heatmap",
-          "visual_style": {},
           "x": -300.0,
           "y": 880.0
         },
@@ -511,6 +511,7 @@
           "comments": [],
           "custom_height": 220.0,
           "custom_width": 360.0,
+          "expanded_settings_group_ids": [],
           "exposed_ports": {
             "array_data": true,
             "path": true,
@@ -548,7 +549,6 @@
           },
           "title": "histogram_latency.txt",
           "type_id": "tabular.input",
-          "visual_style": {},
           "x": -820.0,
           "y": 660.0
         },
@@ -557,6 +557,7 @@
           "comments": [],
           "custom_height": 210.0,
           "custom_width": 380.0,
+          "expanded_settings_group_ids": [],
           "exposed_ports": {
             "data_export": true,
             "exports": true,
@@ -612,7 +613,6 @@
           },
           "title": "Histogram Plot",
           "type_id": "plot.histogram",
-          "visual_style": {},
           "x": -300.0,
           "y": 660.0
         },
@@ -621,6 +621,7 @@
           "comments": [],
           "custom_height": 220.0,
           "custom_width": 360.0,
+          "expanded_settings_group_ids": [],
           "exposed_ports": {
             "array_data": true,
             "path": true,
@@ -660,7 +661,6 @@
           },
           "title": "line_series.csv",
           "type_id": "tabular.input",
-          "visual_style": {},
           "x": -820.0,
           "y": 0.0
         },
@@ -669,6 +669,7 @@
           "comments": [],
           "custom_height": 210.0,
           "custom_width": 380.0,
+          "expanded_settings_group_ids": [],
           "exposed_ports": {
             "data_export": true,
             "exports": true,
@@ -723,8 +724,7 @@
             "z_label": ""
           },
           "title": "Line Plot",
-          "type_id": "plot.line",
-          "visual_style": {},
+          "type_id": "plot.scatter",
           "x": -300.0,
           "y": 0.0
         },
@@ -733,6 +733,7 @@
           "comments": [],
           "custom_height": 220.0,
           "custom_width": 360.0,
+          "expanded_settings_group_ids": [],
           "exposed_ports": {
             "array_data": true,
             "path": true,
@@ -773,7 +774,6 @@
           },
           "title": "point_cloud.csv",
           "type_id": "tabular.input",
-          "visual_style": {},
           "x": -820.0,
           "y": 1540.0
         },
@@ -782,6 +782,7 @@
           "comments": [],
           "custom_height": 210.0,
           "custom_width": 380.0,
+          "expanded_settings_group_ids": [],
           "exposed_ports": {
             "data_export": true,
             "exports": true,
@@ -838,7 +839,6 @@
           },
           "title": "Point Cloud Plot",
           "type_id": "plot.point_cloud",
-          "visual_style": {},
           "x": -300.0,
           "y": 1540.0
         },
@@ -847,6 +847,7 @@
           "comments": [],
           "custom_height": 220.0,
           "custom_width": 360.0,
+          "expanded_settings_group_ids": [],
           "exposed_ports": {
             "array_data": true,
             "path": true,
@@ -885,7 +886,6 @@
           },
           "title": "scatter_points.tsv",
           "type_id": "tabular.input",
-          "visual_style": {},
           "x": -820.0,
           "y": 220.0
         },
@@ -894,6 +894,7 @@
           "comments": [],
           "custom_height": 210.0,
           "custom_width": 380.0,
+          "expanded_settings_group_ids": [],
           "exposed_ports": {
             "data_export": true,
             "exports": true,
@@ -946,7 +947,6 @@
           },
           "title": "Scatter Plot",
           "type_id": "plot.scatter",
-          "visual_style": {},
           "x": -300.0,
           "y": 220.0
         },
@@ -955,6 +955,7 @@
           "comments": [],
           "custom_height": 2180.0,
           "custom_width": 1480.0,
+          "expanded_settings_group_ids": [],
           "exposed_ports": {
             "bottom": true,
             "left": true,
@@ -982,6 +983,7 @@
           "comments": [],
           "custom_height": 220.0,
           "custom_width": 360.0,
+          "expanded_settings_group_ids": [],
           "exposed_ports": {
             "array_data": true,
             "path": true,
@@ -1017,7 +1019,6 @@
           },
           "title": "streamline_path.h5",
           "type_id": "tabular.input",
-          "visual_style": {},
           "x": -820.0,
           "y": 1760.0
         },
@@ -1026,6 +1027,7 @@
           "comments": [],
           "custom_height": 210.0,
           "custom_width": 380.0,
+          "expanded_settings_group_ids": [],
           "exposed_ports": {
             "data_export": true,
             "exports": true,
@@ -1078,7 +1080,6 @@
           },
           "title": "Streamlines Plot",
           "type_id": "plot.streamlines",
-          "visual_style": {},
           "x": -300.0,
           "y": 1760.0
         },
@@ -1087,6 +1088,7 @@
           "comments": [],
           "custom_height": 220.0,
           "custom_width": 360.0,
+          "expanded_settings_group_ids": [],
           "exposed_ports": {
             "array_data": true,
             "path": true,
@@ -1126,7 +1128,6 @@
           },
           "title": "surface_elevation.parquet",
           "type_id": "tabular.input",
-          "visual_style": {},
           "x": -820.0,
           "y": 1320.0
         },
@@ -1135,6 +1136,7 @@
           "comments": [],
           "custom_height": 210.0,
           "custom_width": 380.0,
+          "expanded_settings_group_ids": [],
           "exposed_ports": {
             "data_export": true,
             "exports": true,
@@ -1193,14 +1195,13 @@
           },
           "title": "Surface Plot",
           "type_id": "plot.surface",
-          "visual_style": {},
           "x": -300.0,
           "y": 1320.0
         }
       ],
       "views": [
         {
-          "hide_optional_ports": false,
+          "hide_optional_ports": true,
           "name": "Showcase",
           "pan_x": 1020.0,
           "pan_y": 220.0,

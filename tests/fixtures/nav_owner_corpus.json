@@ -139,7 +139,7 @@
       "id": "CL-14",
       "query": "signal_plot",
       "primary_owner": "docs/agent_maps/feature_routes/plotter_nodes.md",
-      "primary_path": "ea_node_editor/execution/plot_backend.py",
+      "primary_path": "ea_node_editor/nodes/builtin_functions/plot_signal.py",
       "secondary_owners": [],
       "focused_test": "tests/test_plot_node_contracts.py",
       "not_first_paths": []

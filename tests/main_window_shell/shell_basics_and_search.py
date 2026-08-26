@@ -6,12 +6,12 @@ from contextlib import ExitStack, contextmanager
 from pathlib import Path
 from unittest.mock import patch
 
-from PyQt6.QtCore import QObject, Qt
+from PyQt6.QtCore import Q_ARG, QMetaObject, QObject, Qt
 from PyQt6.QtGui import QColor
 from PyQt6.QtQml import QJSValue
 from PyQt6.QtQuick import QQuickItem
 from PyQt6.QtTest import QTest
-from PyQt6.QtWidgets import QMenu
+from PyQt6.QtWidgets import QMenu, QMessageBox
 
 from ea_node_editor.nodes.builtins.core import PYTHON_SCRIPT_DEFAULT_SOURCE
 from ea_node_editor.ui.dialogs.input_reference_dialog import (
@@ -1694,7 +1694,7 @@ class MainWindowShellBasicsAndSearchTests(SharedMainWindowShellTestBase):
         self.assertGreaterEqual(meta.indexOfMethod("request_remove_edge(QString)"), 0)
         self.assertGreaterEqual(
             meta.indexOfMethod(
-                "request_move_edge_endpoint(QString,QString,QString,QString,bool)"
+                "request_rewire_edges(QVariantList,QString,QString,QString,bool,bool)"
             ),
             0,
         )

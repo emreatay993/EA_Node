@@ -4,6 +4,7 @@ import csv
 import json
 import math
 from pathlib import Path
+import textwrap
 
 import h5py
 import numpy as np
@@ -209,8 +210,8 @@ def _source_path(ref):
 _source_path.__globals__.update(
     {"_field": _field, "Path": Path, "unquote": unquote, "urlparse": urlparse}
 )
-path = _source_path(input_data)
-object_id = str(_field(input_data, "object_id", "") or "")
+path = _source_path(payload)
+object_id = str(_field(payload, "object_id", "") or "")
 '''
 
 
@@ -379,7 +380,16 @@ output_data = {
 
 
 def _adapter_script(name: str) -> str:
-    return (SCRIPT_PREAMBLE + SCRIPT_BODIES[name]).strip() + "\n"
+    body = textwrap.indent((SCRIPT_PREAMBLE + SCRIPT_BODIES[name]).strip(), "    ")
+    return (
+        "import corex\n\n"
+        "@corex.node\n"
+        '@corex.input("payload", value_type=corex.Any)\n'
+        '@corex.output("result", value_type=corex.Any)\n'
+        "def run(ctx, payload):\n"
+        f"{body}\n"
+        '    return {"result": output_data}\n'
+    )
 
 
 def _write_csv(path: Path, rows: list[dict[str, object]], fieldnames: list[str], *, delimiter: str = ",") -> None:

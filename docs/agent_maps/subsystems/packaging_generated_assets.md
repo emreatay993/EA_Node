@@ -18,6 +18,9 @@ Use this for package builds, installer builds, signing checks, generated archite
 - `ea_node_editor.spec`
 - `requirements.txt`
 - `.gitignore`
+- `docs/PLUGIN_AUTHORING_GUIDE.md`
+- `docs/PLUGIN_MIGRATION_GUIDE.md`
+- `docs/specs/perf/COREX_NOVICE_PLUGIN_SDK_QA_MATRIX.md`
 
 ## Do Not Start Here
 - Generated output files when the source script should regenerate them.
@@ -31,6 +34,9 @@ Use this for package builds, installer builds, signing checks, generated archite
   Windows package acceptance runs startup, a static-discovery-to-process-worker
   function-plugin smoke with exact result `37`, and Signal Plot rendering;
   `-SkipSmoke` is explicitly not acceptance evidence.
+- The novice SDK QA matrix is the retained acceptance owner for the generated
+  architecture exports, isolated wheel import, and default Windows package
+  function-worker smoke. Do not record a `-SkipSmoke` build as closeout proof.
 - Keep signing verification separate from packaging unless release work requires both.
 - When optional dependency groups change, update `tests/test_packaging_configuration.py` with the exact expected dependency set.
 - Keep static tooling baselines narrow and check-only unless a packet explicitly expands the gate.
@@ -54,6 +60,7 @@ Use this for package builds, installer builds, signing checks, generated archite
 ## Focused Verification
 ```powershell
 .\venv\Scripts\python.exe -m pytest tests/test_packaging_configuration.py --ignore=venv -q
+.\venv\Scripts\python.exe .\scripts\export_architecture_diagrams.py
 .\scripts\build_office_date_collector_gui.ps1 -DryRun
 .\scripts\build_sector_gui_gpt.ps1 -DryRun
 .\scripts\build_mcf_dpf_section_resultants_gui.ps1 -DryRun

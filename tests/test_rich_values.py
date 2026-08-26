@@ -65,6 +65,7 @@ from ea_node_editor.runtime_contracts import (
     serialize_runtime_value,
 )
 from ea_node_editor.settings import SCHEMA_VERSION
+from tests.non_dpf_catalog_fixture import load_effective_non_dpf_catalog
 
 
 def _plane(
@@ -351,14 +352,7 @@ def test_rich_value_function_specs_match_frozen_catalog() -> None:
         )
     )
     ids = {LARGE_LANGUAGE_MODEL_NODE_TYPE_ID, PLANE_CONTAINER_NODE_TYPE_ID}
-    golden = json.loads(
-        (
-            Path(__file__).parent
-            / "fixtures"
-            / "node_catalog"
-            / "pre_cutover_non_dpf_catalog.json"
-        ).read_text(encoding="utf-8")
-    )
+    golden = load_effective_non_dpf_catalog()
     expected = {
         row["spec"]["type_id"]: row["spec"]
         for row in golden

@@ -74,7 +74,7 @@ def _bridge_with_plot_node(*, render_in_canvas: bool = False) -> tuple[ContentFu
     node = model.add_node(
         workspace_id,
         "plot.scatter",
-        "Line Plot",
+        "Scatter Plot",
         0.0,
         0.0,
         properties={"render_in_canvas": render_in_canvas},
@@ -103,11 +103,11 @@ def test_plot_fullscreen_bridge_opens_plot_payload_even_when_embedded_is_suppres
     plot_payload = bridge.plot_payload
     assert plot_payload["content_kind"] == "plot"
     assert plot_payload["surface_family"] == "plot"
-    assert plot_payload["surface_variant"] == "line"
+    assert plot_payload["surface_variant"] == "scatter"
     assert plot_payload["surface_spec"]["fullscreen"]["content_kind"] == "plot"
     assert plot_payload["surface_spec"]["native_overlay"]["required"] is True
     assert plot_payload["plot_surface"] == {
-        "plot_type": "line",
+        "plot_type": "scatter",
         "live_backend_id": "pyqtgraph",
         "render_in_canvas": False,
         "lightweight_canvas": False,

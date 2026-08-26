@@ -1,0 +1,160 @@
+from __future__ import annotations
+
+from copy import deepcopy
+import hashlib
+import json
+from pathlib import Path
+from typing import Any
+
+
+FIXTURE_DIR = Path(__file__).parent / "fixtures" / "node_catalog"
+FROZEN_CATALOG_PATH = FIXTURE_DIR / "pre_cutover_non_dpf_catalog.json"
+DOCUMENTATION_OVERLAY_PATH = FIXTURE_DIR / "t17_non_dpf_documentation_overlay.json"
+FROZEN_CATALOG_SHA256 = (
+    "3CF91390E9E4C606B571ED3C907D7BF35647165F5358328F8FE9C18BF15C618F"
+)
+
+
+def _unique_object(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+    result: dict[str, Any] = {}
+    for key, value in pairs:
+        if key in result:
+            raise ValueError(f"Duplicate overlay patch or field: {key}")
+        result[key] = value
+    return result
+
+
+def _exact_keys(value: object, expected: set[str], *, label: str) -> dict[str, Any]:
+    if type(value) is not dict or set(value) != expected:
+        raise ValueError(f"{label} must contain only {sorted(expected)}")
+    return value
+
+
+def _catalog_by_type(catalog: object) -> dict[str, dict[str, Any]]:
+    if type(catalog) is not list:
+        raise ValueError("Non-DPF catalog must be a list")
+    by_type: dict[str, dict[str, Any]] = {}
+    for row in catalog:
+        if type(row) is not dict or type(row.get("spec")) is not dict:
+            raise ValueError("Non-DPF catalog row is invalid")
+        type_id = row["spec"].get("type_id")
+        if type(type_id) is not str or type_id in by_type:
+            raise ValueError(f"Invalid or duplicate catalog type ID: {type_id!r}")
+        by_type[type_id] = row
+    return by_type
+
+
+def load_frozen_non_dpf_catalog(
+    *, fixture_path: Path = FROZEN_CATALOG_PATH
+) -> list[dict[str, Any]]:
+    payload = fixture_path.read_bytes()
+    digest = hashlib.sha256(payload).hexdigest().upper()
+    if digest != FROZEN_CATALOG_SHA256:
+        raise ValueError(
+            f"Frozen non-DPF catalog SHA256 changed: {digest}; "
+            f"expected {FROZEN_CATALOG_SHA256}"
+        )
+    catalog = json.loads(payload)
+    _catalog_by_type(catalog)
+    return catalog
+
+
+def load_effective_non_dpf_catalog(
+    *,
+    fixture_path: Path = FROZEN_CATALOG_PATH,
+    overlay_path: Path = DOCUMENTATION_OVERLAY_PATH,
+) -> list[dict[str, Any]]:
+    catalog = deepcopy(load_frozen_non_dpf_catalog(fixture_path=fixture_path))
+    by_type = _catalog_by_type(catalog)
+    overlay = json.loads(
+        overlay_path.read_text(encoding="utf-8"),
+        object_pairs_hook=_unique_object,
+    )
+    overlay = _exact_keys(
+        overlay,
+        {
+            "schema_version",
+            "frozen_sha256",
+            "keyword_patches",
+            "port_description_patches",
+            "python_script_default_source",
+        },
+        label="Documentation overlay",
+    )
+    if overlay["schema_version"] != 1:
+        raise ValueError("Documentation overlay schema_version must be 1")
+    if overlay["frozen_sha256"] != FROZEN_CATALOG_SHA256:
+        raise ValueError("Documentation overlay targets the wrong frozen catalog")
+
+    keyword_patches = overlay["keyword_patches"]
+    if type(keyword_patches) is not dict:
+        raise ValueError("keyword_patches must be an object")
+    for type_id, keywords in keyword_patches.items():
+        if type_id not in by_type:
+            raise ValueError(f"Unknown keyword patch target: {type_id}")
+        if (
+            type(keywords) is not list
+            or not keywords
+            or any(type(keyword) is not str or not keyword for keyword in keywords)
+        ):
+            raise ValueError(f"Invalid keyword patch for {type_id}")
+        spec = by_type[type_id]["spec"]
+        if spec["keywords"] != []:
+            raise ValueError(f"Keyword patch target is not empty: {type_id}")
+        spec["keywords"] = keywords
+
+    port_patches = overlay["port_description_patches"]
+    if type(port_patches) is not dict:
+        raise ValueError("port_description_patches must be an object")
+    for type_id, descriptions in port_patches.items():
+        if type_id not in by_type:
+            raise ValueError(f"Unknown port patch target: {type_id}")
+        if type(descriptions) is not dict:
+            raise ValueError(f"Port patches for {type_id} must be an object")
+        row = by_type[type_id]
+        for port_key, description in descriptions.items():
+            if type(description) is not str or not description.strip():
+                raise ValueError(f"Invalid port description patch: {type_id}.{port_key}")
+            matched = False
+            for ports in (row["spec"]["ports"], row["resolved_default_ports"]):
+                for port in ports:
+                    if port["key"] != port_key:
+                        continue
+                    if port["description"] != "":
+                        raise ValueError(
+                            f"Port description patch target is not empty: "
+                            f"{type_id}.{port_key}"
+                        )
+                    port["description"] = description
+                    matched = True
+            if not matched:
+                raise ValueError(f"Unknown port patch target: {type_id}.{port_key}")
+
+    source_patch = _exact_keys(
+        overlay["python_script_default_source"],
+        {"type_id", "property_key", "value"},
+        label="python_script_default_source",
+    )
+    type_id = source_patch["type_id"]
+    property_key = source_patch["property_key"]
+    if (type_id, property_key) != ("core.python_script", "script"):
+        raise ValueError(
+            "python_script_default_source may only target core.python_script.script"
+        )
+    if type_id not in by_type:
+        raise ValueError(f"Unknown default-source patch target: {type_id}")
+    properties = by_type[type_id]["spec"]["properties"]
+    matching = [item for item in properties if item["key"] == property_key]
+    if len(matching) != 1 or type(source_patch["value"]) is not str:
+        raise ValueError(f"Unknown default-source patch target: {type_id}.{property_key}")
+    matching[0]["default"] = source_patch["value"]
+    return catalog
+
+
+__all__ = [
+    "DOCUMENTATION_OVERLAY_PATH",
+    "FROZEN_CATALOG_PATH",
+    "FROZEN_CATALOG_SHA256",
+    "load_effective_non_dpf_catalog",
+    "load_frozen_non_dpf_catalog",
+]

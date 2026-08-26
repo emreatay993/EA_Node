@@ -100,9 +100,12 @@ all = [
     "vtk>=9.6",
 ]
 dev = [
+    "dash>=3.0",
     "pytest>=7.4",
     "pytest-xdist>=3.5",
     "ruff>=0.8",
+    "scikit-learn>=1.5",
+    "tabulate>=0.9",
     "build>=1.2",
     "pyinstaller>=6.0",
     "ansys-dpf-core>=0.16,<0.17",
@@ -123,6 +126,9 @@ dev = [
     "openpyxl>=3.1",
     "pandas>=2.3",
     "polars>=1.40",
+    "plotly>=6.0,<7",
+    "plotly-resampler>=0.11",
+    "pytz>=2024.1",
     "pyarrow>=24.0",
     "pywin32>=306; platform_system == 'Windows'",
     "pyqtgraph>=0.13",

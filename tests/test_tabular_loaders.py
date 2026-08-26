@@ -32,7 +32,7 @@ def _module_available(module_name: str) -> bool:
 
 def _run_python_probe(code: str, *args: str) -> None:
     completed = subprocess.run(
-        [sys.executable, "-c", textwrap.dedent(code), *args],
+        [sys.executable, "-E", "-c", textwrap.dedent(code), *args],
         cwd=Path.cwd(),
         text=True,
         capture_output=True,

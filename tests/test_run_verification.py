@@ -316,6 +316,34 @@ class RunVerificationTests(unittest.TestCase):
             self.manifest.gui_serial_pytest_deselect_args(),
         )
 
+    def test_fast_serial_target_and_deselection_contract_is_exact(self) -> None:
+        expected_targets = (
+            "tests/test_execution_client.py::ProcessExecutionClientTests",
+            (
+                "tests/test_managed_runtime.py::ManagedRuntimeTests::"
+                "test_run_command_streams_output_before_process_finishes"
+            ),
+            "tests/test_mars_function_migration.py::test_t14_all_three_functions_execute_through_worker_runtime",
+            (
+                "tests/test_process_run_node.py::ProcessRunNodeTests::"
+                "test_stop_run_cancels_active_process_node"
+            ),
+            "tests/test_mcf_dpf_section_resultants_gui.py",
+            "tests/test_jupyter_server_manager.py::JupyterServerManagerIntegrationTests",
+            "tests/test_project_file_issues.py",
+            (
+                "tests/test_workspace_library_controller_unit.py::"
+                "WorkspaceLibraryControllerCoreOpsTests::"
+                "test_paste_nodes_from_clipboard_is_noop_when_clipboard_is_missing"
+            ),
+        )
+        self.assertEqual(expected_targets, self.manifest.FAST_SERIAL_PYTEST_TARGETS)
+        self.assertEqual(expected_targets, self.manifest.fast_serial_pytest_targets())
+        self.assertEqual(
+            tuple(f"--deselect={target}" for target in expected_targets),
+            self.manifest.fast_serial_pytest_deselect_args(),
+        )
+
     def test_fast_and_slow_modes_never_resolve_qml_quick_runner(self) -> None:
         with (
             patch.object(

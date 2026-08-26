@@ -33,6 +33,7 @@ from ea_node_editor.nodes.builtins.viewer_viewport import (
     },
     _persistence_type="COREX.DataTypes.Point3D",
     _port_label="Camera Position",
+    _port_description="Camera position in world coordinates.",
     _port_required=True,
     _port_structure="item",
     _port_value_type="COREX.DataTypes.Point3D",
@@ -52,6 +53,7 @@ from ea_node_editor.nodes.builtins.viewer_viewport import (
     },
     _persistence_type="COREX.DataTypes.Point3D",
     _port_label="Camera Target",
+    _port_description="World-space point viewed by the camera.",
     _port_required=True,
     _port_structure="item",
     _port_value_type="COREX.DataTypes.Point3D",
@@ -71,6 +73,7 @@ from ea_node_editor.nodes.builtins.viewer_viewport import (
     },
     _persistence_type="COREX.DataTypes.Vector3D",
     _port_label="Camera Up Vector",
+    _port_description="Vector defining the camera's upward direction.",
     _port_required=True,
     _port_structure="item",
     _port_value_type="COREX.DataTypes.Vector3D",
@@ -85,6 +88,7 @@ from ea_node_editor.nodes.builtins.viewer_viewport import (
     _inline_editor="",
     _inspector_visible=False,
     _port_label="Display Mode",
+    _port_description="Viewer display mode code.",
     _port_required=True,
     _port_structure="item",
     _port_value_type="COREX.DataTypes.Int",
@@ -99,6 +103,7 @@ from ea_node_editor.nodes.builtins.viewer_viewport import (
     _inline_editor="",
     _inspector_visible=False,
     _port_label="Projection Mode",
+    _port_description="Viewer projection mode code.",
     _port_required=True,
     _port_structure="item",
     _port_value_type="COREX.DataTypes.Int",
@@ -111,6 +116,7 @@ from ea_node_editor.nodes.builtins.viewer_viewport import (
     _inline_editor="",
     _inspector_visible=False,
     _port_label="Show Mesh Edges",
+    _port_description="Whether mesh edges are visible.",
     _port_required=True,
     _port_structure="item",
     _port_value_type="COREX.DataTypes.Bool",
@@ -123,6 +129,7 @@ from ea_node_editor.nodes.builtins.viewer_viewport import (
     _inline_editor="",
     _inspector_visible=False,
     _port_label="Show Attribute Colors",
+    _port_description="Whether attribute colors are visible.",
     _port_required=True,
     _port_structure="item",
     _port_value_type="COREX.DataTypes.Bool",
@@ -135,6 +142,7 @@ from ea_node_editor.nodes.builtins.viewer_viewport import (
     _inline_editor="",
     _inspector_visible=False,
     _port_label="Show Triad",
+    _port_description="Whether the orientation triad is visible.",
     _port_required=True,
     _port_structure="item",
     _port_value_type="COREX.DataTypes.Bool",
@@ -147,6 +155,7 @@ from ea_node_editor.nodes.builtins.viewer_viewport import (
     _inline_editor="",
     _inspector_visible=False,
     _port_label="Show View Cube",
+    _port_description="Whether the view cube is visible.",
     _port_required=True,
     _port_structure="item",
     _port_value_type="COREX.DataTypes.Bool",
@@ -159,6 +168,7 @@ from ea_node_editor.nodes.builtins.viewer_viewport import (
     _inline_editor="",
     _inspector_visible=False,
     _port_label="Show Axes",
+    _port_description="Whether coordinate axes are visible.",
     _port_required=True,
     _port_structure="item",
     _port_value_type="COREX.DataTypes.Bool",
@@ -167,6 +177,7 @@ from ea_node_editor.nodes.builtins.viewer_viewport import (
     "viewport",
     value_type="COREX.DataTypes.ViewerViewport",
     label="Viewport",
+    description="Viewport assembled from the camera and display settings.",
 )
 def construct_view(ctx, settings):
     del settings
@@ -189,17 +200,18 @@ def construct_view(ctx, settings):
     value_type="COREX.DataTypes.ViewerViewport",
     required=True,
     label="Viewport",
+    description="Viewport whose camera and display settings will be extracted.",
 )
-@corex.output("camera_position", value_type="COREX.DataTypes.Point3D", label="Camera Position")
-@corex.output("camera_target", value_type="COREX.DataTypes.Point3D", label="Camera Target")
-@corex.output("camera_up_vector", value_type="COREX.DataTypes.Vector3D", label="Camera Up Vector")
-@corex.output("display_mode", value_type="COREX.DataTypes.Int", label="Display Mode")
-@corex.output("projection_mode", value_type="COREX.DataTypes.Int", label="Projection Mode")
-@corex.output("show_mesh_edges", value_type="COREX.DataTypes.Bool", label="Show Mesh Edges")
-@corex.output("show_attribute_colors", value_type="COREX.DataTypes.Bool", label="Show Attribute Colors")
-@corex.output("show_triad", value_type="COREX.DataTypes.Bool", label="Show Triad")
-@corex.output("show_view_cube", value_type="COREX.DataTypes.Bool", label="Show View Cube")
-@corex.output("show_axes", value_type="COREX.DataTypes.Bool", label="Show Axes")
+@corex.output("camera_position", value_type="COREX.DataTypes.Point3D", label="Camera Position", description="Camera position in world coordinates.")
+@corex.output("camera_target", value_type="COREX.DataTypes.Point3D", label="Camera Target", description="World-space point viewed by the camera.")
+@corex.output("camera_up_vector", value_type="COREX.DataTypes.Vector3D", label="Camera Up Vector", description="Vector defining the camera's upward direction.")
+@corex.output("display_mode", value_type="COREX.DataTypes.Int", label="Display Mode", description="Viewer display mode code.")
+@corex.output("projection_mode", value_type="COREX.DataTypes.Int", label="Projection Mode", description="Viewer projection mode code.")
+@corex.output("show_mesh_edges", value_type="COREX.DataTypes.Bool", label="Show Mesh Edges", description="Whether mesh edges are visible.")
+@corex.output("show_attribute_colors", value_type="COREX.DataTypes.Bool", label="Show Attribute Colors", description="Whether attribute colors are visible.")
+@corex.output("show_triad", value_type="COREX.DataTypes.Bool", label="Show Triad", description="Whether the orientation triad is visible.")
+@corex.output("show_view_cube", value_type="COREX.DataTypes.Bool", label="Show View Cube", description="Whether the view cube is visible.")
+@corex.output("show_axes", value_type="COREX.DataTypes.Bool", label="Show Axes", description="Whether coordinate axes are visible.")
 def deconstruct_view(ctx, viewport):
     result = execute_deconstruct_view(viewport)
     for warning in result.warnings:

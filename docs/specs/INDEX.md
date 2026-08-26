@@ -13,7 +13,7 @@ The locked execution baseline is dependency-driven DataTree flow. Active nodes e
 1. [Architecture](requirements/10_ARCHITECTURE.md)
 2. [UI/UX](requirements/20_UI_UX.md)
 3. [Graph Model](requirements/30_GRAPH_MODEL.md)
-4. [Node SDK](requirements/40_NODE_SDK.md) — public guides: [Creating a Custom Node](../../README.md#creating-a-custom-node), [Python Script Nodes](../PYTHON_SCRIPT_GUIDE.md)
+4. [Node SDK](requirements/40_NODE_SDK.md) — public guides: [Novice Plugin Authoring](../PLUGIN_AUTHORING_GUIDE.md), [Legacy Plugin Migration](../PLUGIN_MIGRATION_GUIDE.md), [Python Script Nodes](../PYTHON_SCRIPT_GUIDE.md); executable examples: [Signal Plot](../examples/signal_plot_function_plugin.py), [Strain Conditioner](../examples/strain_conditioner_plugin.py)
 5. [Node Execution Model](requirements/45_NODE_EXECUTION_MODEL.md)
 6. [Execution Engine](requirements/50_EXECUTION_ENGINE.md)
 7. [Persistence](requirements/60_PERSISTENCE.md)
@@ -39,12 +39,14 @@ These requirements are authoritative design intent, but they are not implemented
 
 ## Active Implementation Plans — No Implementation Proof
 
-- [COREX Novice Function Plugin SDK](../PLAN_COREX_NOVICE_PLUGIN_SDK.md) — `IN PROGRESS — T01–T16 COMPLETE, T17 NEXT`
 
 ### Completed Semantic-Type Architecture and Evidence
 
 T01–T17 are complete, and the locked 176-type snapshot is fully classified.
 
+### Completed Implementation Plans
+
+- [COREX Novice Function Plugin SDK](../PLAN_COREX_NOVICE_PLUGIN_SDK.md) — `COMPLETED — T01–T17; RETAINED QA EVIDENCE BELOW`
 
 Work-packet manifests, status ledgers, and per-phase wrap-up documents formerly stored under `docs/specs/work_packets/` were pruned from the repository (commit `0b426a31`) and are now recorded only in git history. Historical examples include `COREX_EXCALIDRAW_REAL_EDITOR_MANIFEST.md` and `COREX_EXCALIDRAW_REAL_EDITOR_STATUS.md`. The published QA matrices below remain the retained closeout evidence for each tracked packet set; there is no live work-packet document directory in the current tree.
 
@@ -53,6 +55,7 @@ Work-packet manifests, status ledgers, and per-phase wrap-up documents formerly 
 - [Verification Speed QA Matrix](perf/VERIFICATION_SPEED_QA_MATRIX.md)
 - [COREX Change Locality QA Matrix](perf/COREX_CHANGE_LOCALITY_QA_MATRIX.md)
 - [COREX Internal Performance Improvement QA Matrix](perf/COREX_INTERNAL_PERFORMANCE_IMPROVEMENT_QA_MATRIX.md)
+- [COREX Novice Function Plugin SDK QA Matrix](perf/COREX_NOVICE_PLUGIN_SDK_QA_MATRIX.md) - retained T17 closeout evidence; full verification, clean Windows packaging, and final independent review passed.
 - [PROJECT_MANAGED_FILES QA Matrix](perf/PROJECT_MANAGED_FILES_QA_MATRIX.md)
 - [ARCHITECTURE_REFACTOR QA Matrix](perf/ARCHITECTURE_REFACTOR_QA_MATRIX.md) - historical pointer retained for older docs outside the current packet write scope.
 - [ARCHITECTURE_MAINTAINABILITY_REFACTOR QA Matrix](perf/ARCHITECTURE_MAINTAINABILITY_REFACTOR_QA_MATRIX.md)

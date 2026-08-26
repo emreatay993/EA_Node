@@ -31,6 +31,7 @@ from ea_node_editor.runtime_contracts import (
     ImageValue,
     Interval1D,
 )
+from tests.non_dpf_catalog_fixture import load_effective_non_dpf_catalog
 
 
 SIGNAL_PLOT_TYPE_ID = "plot.signal"
@@ -69,14 +70,7 @@ def test_signal_plot_contract_is_exact_and_generic_siblings_remain(
     spec = registry.get_spec(SIGNAL_PLOT_TYPE_ID)
     expected = next(
         row["spec"]
-        for row in json.loads(
-            (
-                Path(__file__).parent
-                / "fixtures"
-                / "node_catalog"
-                / "pre_cutover_non_dpf_catalog.json"
-            ).read_text(encoding="utf-8")
-        )
+        for row in load_effective_non_dpf_catalog()
         if row["spec"]["type_id"] == SIGNAL_PLOT_TYPE_ID
     )
     assert json.loads(json.dumps(asdict(spec))) == expected

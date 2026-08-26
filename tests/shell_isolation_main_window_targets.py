@@ -43,6 +43,7 @@ def _build_targets():
             (
                 "tests.main_window_shell.drop_connect_and_workflow_io.MainWindowShellDropConnectAndWorkflowIOTests.test_qml_connection_quick_insert_filters_results_and_accepts_choice",
                 "tests.main_window_shell.drop_connect_and_workflow_io.MainWindowShellDropConnectAndWorkflowIOTests.test_qml_connection_quick_insert_allows_connected_input_replacement",
+                "tests.main_window_shell.drop_connect_and_workflow_io.MainWindowShellDropConnectAndWorkflowIOTests.test_qml_connection_quick_insert_path_filters_plot_series_but_keeps_exports",
                 "tests.main_window_shell.drop_connect_and_workflow_io.MainWindowShellDropConnectAndWorkflowIOTests.test_qml_nested_category_library_payload_filters_and_quick_insert_use_path_values",
                 "tests.main_window_shell.drop_connect_and_workflow_io.MainWindowShellDropConnectAndWorkflowIOTests.test_qml_custom_workflow_publish_appears_in_library_and_places_independent_snapshots",
                 "tests.main_window_shell.drop_connect_and_workflow_io.MainWindowShellDropConnectAndWorkflowIOTests.test_qml_delete_custom_workflow_removes_item_from_library_and_metadata",

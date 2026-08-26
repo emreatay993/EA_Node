@@ -189,6 +189,12 @@ def test_optional_dependency_groups_wire_ansys_and_viewer_into_all_and_dev() -> 
     assert expected_acceleration.issubset(set(optional_dependencies["dev"]))
     assert expected_tabular.issubset(set(optional_dependencies["dev"]))
     assert "build>=1.2" in set(optional_dependencies["dev"])
+    assert "dash>=3.0" in set(optional_dependencies["dev"])
+    assert "plotly>=6.0,<7" in set(optional_dependencies["dev"])
+    assert "plotly-resampler>=0.11" in set(optional_dependencies["dev"])
+    assert "pytz>=2024.1" in set(optional_dependencies["dev"])
+    assert "scikit-learn>=1.5" in set(optional_dependencies["dev"])
+    assert "tabulate>=0.9" in set(optional_dependencies["dev"])
     assert "ruff>=0.8" in set(optional_dependencies["dev"])
     assert "imageio-ffmpeg>=0.6" in set(pyproject["project"]["dependencies"])
     assert "paramiko>=4,<5" in set(pyproject["project"]["dependencies"])
@@ -567,6 +573,7 @@ def test_spec_declares_tabular_optional_hiddenimports_and_metadata() -> None:
     )
     assert "def _collect_tabular_hiddenimports()" in spec_source
     assert "def _collect_tabular_datas()" in spec_source
+    assert 'hiddenimports += collect_submodules("ea_node_editor.addons.tabular_data")' in spec_source
     assert "hiddenimports += _collect_tabular_hiddenimports()" in spec_source
     assert "collect_submodules(package_name, filter=_include_tabular_hiddenimport)" not in spec_source
     assert "TABULAR_RUNTIME_HIDDENIMPORT_EXCLUDED_SEGMENTS" not in spec_source
@@ -805,7 +812,7 @@ def test_windows_build_scripts_use_profile_specific_packaging_switches() -> None
     assert 'Resolve-PyInstallerProfilePath -Kind "build" -Profile $PackageProfile' in build_package_source
     assert '[System.IO.Path]::GetTempFileName()' in build_package_source
     assert 'Path(sys.argv[1]).write_text' in build_package_source
-    assert 'Start-Process -FilePath $PythonExecutable -ArgumentList @($probeScriptPath, $probeOutputPath) -PassThru -Wait' in build_package_source
+    assert 'Start-Process -FilePath $PythonExecutable -ArgumentList @("-E", $probeScriptPath, $probeOutputPath) -PassThru -Wait' in build_package_source
     assert 'Start-Process -FilePath $pythonExe -ArgumentList $buildArgs -PassThru -Wait -NoNewWindow' in build_package_source
     assert '$SmokeSeconds = 30' in build_package_source
     assert 'EA_PROFILE_AUTOQUIT' in build_package_source

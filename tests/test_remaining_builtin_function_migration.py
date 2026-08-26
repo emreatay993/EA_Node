@@ -20,6 +20,7 @@ from ea_node_editor.nodes.function_plugin import INTERNAL_BUILTIN_FUNCTION_OWNER
 from ea_node_editor.nodes.plugin_contracts import PluginAvailability
 from ea_node_editor.nodes.registry import PythonFunctionEntry, TrustedFactoryEntry
 from ea_node_editor.runtime_contracts import TypedInlineValue
+from tests.non_dpf_catalog_fixture import load_effective_non_dpf_catalog
 
 
 _T15_CONVERTED_TYPE_IDS = (
@@ -54,12 +55,6 @@ _T15_CONVERTED_TYPE_IDS = (
     "utilities.construct_view",
     "utilities.deconstruct_view",
 )
-_PRE_CUTOVER_CATALOG = (
-    Path(__file__).parent
-    / "fixtures"
-    / "node_catalog"
-    / "pre_cutover_non_dpf_catalog.json"
-)
 _MIGRATION_INVENTORY = (
     Path(__file__).parents[1]
     / "docs"
@@ -79,7 +74,7 @@ def test_exact_t15_entries_match_golden_and_leave_exact_exception_set(
     tmp_path: Path,
 ) -> None:
     registry = build_builtin_registry(generation_root=tmp_path / "generations")
-    golden_rows = json.loads(_PRE_CUTOVER_CATALOG.read_text(encoding="utf-8"))
+    golden_rows = load_effective_non_dpf_catalog()
     expected = {
         row["spec"]["type_id"]: row["spec"]
         for row in golden_rows
@@ -193,7 +188,7 @@ print(json.dumps({
 }))
 """
     completed = subprocess.run(
-        [sys.executable, "-c", code, str(tmp_path / "generations")],
+        [sys.executable, "-E", "-c", code, str(tmp_path / "generations")],
         check=True,
         capture_output=True,
         text=True,

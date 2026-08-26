@@ -303,19 +303,19 @@ class MarkdownHygieneTests(unittest.TestCase):
         self.assertEqual([], self.checker.audit_markdown_file(spec_index_path, REPO_ROOT))
         self.assertEqual([], self.checker.audit_markdown_file(matrix_path, REPO_ROOT))
 
-    def test_architecture_registers_plan_template_and_overlay(self) -> None:
+    def test_architecture_registers_current_navigation_authorities(self) -> None:
         architecture_text = (REPO_ROOT / "ARCHITECTURE.md").read_text(encoding="utf-8-sig")
 
         self.assertIn(
-            "[plan template](PLANS_TO_IMPLEMENT/PLAN_TEMPLATE.md)",
+            "[`docs/agent_maps/INDEX.md`](docs/agent_maps/INDEX.md)",
             architecture_text,
         )
         self.assertIn(
-            "[planning overlay](PLANS_TO_IMPLEMENT/PLAN_REPO_OVERLAY.md)",
+            "[`docs/specs/INDEX.md`](docs/specs/INDEX.md)",
             architecture_text,
         )
         self.assertIn(
-            "one primary source owner and one primary regression owner",
+            "Historical work-packet records live in Git history",
             architecture_text,
         )
 

@@ -59,7 +59,7 @@ from ea_node_editor.execution.worker_runtime import (
 )
 from ea_node_editor.execution.worker_services import WorkerServices
 from ea_node_editor.graph.model import GraphModel
-from ea_node_editor.nodes.bootstrap import build_default_registry
+from ea_node_editor.nodes.bootstrap import build_builtin_registry, build_default_registry
 from ea_node_editor.nodes.runtime_refs import (
     RuntimeArtifactRef,
     RuntimeHandleRef,
@@ -120,6 +120,17 @@ def _catalog_contract_fingerprint(catalog: DataTypeCatalog) -> str:
 
 def _default_registry_agreement() -> dict[str, object]:
     registry = build_default_registry()
+    return {
+        "data_types": registry.data_types,
+        "plugin_bundles": registry.plugin_bundle_refs(),
+        "plugin_fingerprint": registry.plugin_fingerprint(),
+        "registry_contract_fingerprint": registry.contract_fingerprint(),
+        "addon_runtime_config": registry.addon_runtime_config(),
+    }
+
+
+def _trusted_registry_agreement() -> dict[str, object]:
+    registry = build_builtin_registry()
     return {
         "data_types": registry.data_types,
         "plugin_bundles": registry.plugin_bundle_refs(),
@@ -3035,7 +3046,7 @@ class ProcessExecutionClientTests(unittest.TestCase):
                 trigger={"kind": "manual", "runtime_snapshot": runtime_snapshot},
                 **_default_registry_agreement(),
             )
-            self.assertTrue(run_id)
+            self.assertTrue(run_id, events)
             completed = _wait_for_event(
                 lambda event: (
                     event.get("type") == "run_completed"
@@ -3112,7 +3123,7 @@ class ProcessExecutionClientTests(unittest.TestCase):
                 workspace_id=workspace_id,
                 trigger={"kind": "manual", "runtime_snapshot": runtime_snapshot},
                 execution_backend={"requested_backend": TRUSTED_IN_PROCESS_BACKEND},
-                **_default_registry_agreement(),
+                **_trusted_registry_agreement(),
             )
             self.assertEqual(rejected_run_id, "")
             rejected = _wait_for_event(
@@ -3122,7 +3133,7 @@ class ProcessExecutionClientTests(unittest.TestCase):
                 ),
                 timeout=3.0,
             )
-            self.assertIsNotNone(rejected)
+            self.assertIsNotNone(rejected, events)
 
             run_id = backend_client.start_run(
                 project_path="",
@@ -3132,9 +3143,9 @@ class ProcessExecutionClientTests(unittest.TestCase):
                     "requested_backend": TRUSTED_IN_PROCESS_BACKEND,
                     "allow_trusted_in_process": True,
                 },
-                **_default_registry_agreement(),
+                **_trusted_registry_agreement(),
             )
-            self.assertTrue(run_id)
+            self.assertTrue(run_id, events)
 
             completed = _wait_for_event(
                 lambda event: (
@@ -3194,7 +3205,7 @@ class ProcessExecutionClientTests(unittest.TestCase):
                     "requested_backend": TRUSTED_IN_PROCESS_BACKEND,
                     "allow_trusted_in_process": True,
                 },
-                **_default_registry_agreement(),
+                **_trusted_registry_agreement(),
             )
             self.assertEqual(run_id, "")
             rejected = _wait_for_event(
@@ -3205,7 +3216,7 @@ class ProcessExecutionClientTests(unittest.TestCase):
                 ),
                 timeout=3.0,
             )
-            self.assertIsNotNone(rejected)
+            self.assertIsNotNone(rejected, events)
         finally:
             backend_client.shutdown()
 

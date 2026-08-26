@@ -32,23 +32,27 @@ def _outputs(ctx, result, code):
     value_type="COREX.DataTypes.Plane",
     required=True,
     label="Plane",
+    description="Plane defining the cylinder origin and axis.",
 )
 @corex.input(
     "radius",
     value_type="COREX.DataTypes.Double",
     required=True,
     label="Radius",
+    description="Cylinder radius.",
 )
 @corex.input(
     "interval",
     value_type="COREX.DataTypes.Interval1D",
     required=True,
     label="Interval",
+    description="Signed interval along the plane normal.",
 )
 @corex.output(
     "body",
     value_type="COREX.Geometry.OCPBody",
     label="Body",
+    description="Constructed cylinder body.",
 )
 def cylinder(ctx, plane, radius, interval):
     return _outputs(ctx, execute_cylinder(ctx), "geometry_cylinder")
@@ -67,6 +71,7 @@ def cylinder(ctx, plane, radius, interval):
     value_type="COREX.DataTypes.String",
     required=True,
     label="Name",
+    description="Name assigned to the zone.",
 )
 @corex.input(
     "geometry",
@@ -74,6 +79,7 @@ def cylinder(ctx, plane, radius, interval):
     structure="list",
     required=True,
     label="Geometry",
+    description="Ordered geometry bodies in the zone.",
 )
 @corex.input(
     "tolerances",
@@ -81,11 +87,13 @@ def cylinder(ctx, plane, radius, interval):
     structure="list",
     required=False,
     label="Tolerances",
+    description="Optional per-body tolerances.",
 )
 @corex.output(
     "zone",
     value_type="COREX.DataTypes.Zone",
     label="Zone",
+    description="Zone containing the supplied geometry and tolerances.",
 )
 def construct_zone(ctx, name, geometry, tolerances):
     return _outputs(ctx, execute_construct_zone(ctx), "fea_construct_zone")

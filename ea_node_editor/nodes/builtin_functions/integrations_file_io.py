@@ -121,11 +121,17 @@ def file_write(ctx, text, data, settings):
     _inline_editor="",
     _port_accepted_data_types=(),
     _port_label="",
+    _port_description="Path of the PNG file to import.",
     _port_required=True,
     _port_structure="item",
     _port_value_type="COREX.DataTypes.Path",
 )
-@corex.output("image", value_type=corex.Image, label="")
+@corex.output(
+    "image",
+    value_type=corex.Image,
+    label="",
+    description="Imported image.",
+)
 def image_import(ctx, settings):
     result = execute_image_import(ctx)
     for warning in result.warnings:
@@ -147,6 +153,7 @@ def image_import(ctx, settings):
     structure="tree",
     required=True,
     label="",
+    description="Image tree to export.",
 )
 @corex.path(
     "path",
@@ -157,6 +164,7 @@ def image_import(ctx, settings):
     _inline_editor="",
     _port_accepted_data_types=(),
     _port_label="",
+    _port_description="Destination path for each exported PNG image.",
     _port_required=True,
     _port_structure="tree",
     _port_value_type="COREX.DataTypes.Path",
@@ -168,11 +176,17 @@ def image_import(ctx, settings):
     port=True,
     _inline_editor="",
     _port_label="",
+    _port_description="Whether existing image files may be overwritten.",
     _port_required=False,
     _port_structure="tree",
     _port_value_type="COREX.DataTypes.Bool",
 )
-@corex.output("written_path", value_type="COREX.DataTypes.Path", label="")
+@corex.output(
+    "written_path",
+    value_type="COREX.DataTypes.Path",
+    label="",
+    description="Path written for the exported image.",
+)
 def image_export(ctx, image, settings):
     result = execute_image_export(ctx)
     for warning in result.warnings:

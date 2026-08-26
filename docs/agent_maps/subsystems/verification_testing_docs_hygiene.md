@@ -13,6 +13,10 @@ Use this for verification mode selection, pytest defaults, shell isolation, docs
 - `tests/test_markdown_hygiene.py`
 - `tests/test_agent_route_index.py`
 - `tests/test_dead_code_hygiene.py`
+- `tests/test_novice_plugin_sdk_docs.py`
+- `tests/test_non_dpf_node_documentation.py`
+- `tests/non_dpf_catalog_fixture.py`
+- `tests/fixtures/node_catalog/t17_non_dpf_documentation_overlay.json`
 - `scripts/nav.py`
 - `tests/test_nav_cli.py`
 - `scripts/check_traceability.py`
@@ -25,6 +29,7 @@ Use this for verification mode selection, pytest defaults, shell isolation, docs
 - `scripts/generate_qml_navigation_index.py`
 - `docs/qml_navigation_index.md`
 - `docs/qml_navigation_index.json`
+- `docs/specs/perf/COREX_NOVICE_PLUGIN_SDK_QA_MATRIX.md`
 
 ## Do Not Start Here
 - Broad `pytest` without checking verification mode ownership.
@@ -45,7 +50,16 @@ Use this for verification mode selection, pytest defaults, shell isolation, docs
 - Keep `scripts/nav.py find` joined to generated QML component metadata so UI terms and QML symbols resolve to the map-owned source path, focused test, and verification command.
 - Keep task-language aliases neutral and exact. Put each alias on the narrowest owning map, cite the exact live file that should open first, and place its smallest route-owned proving test in `Start Here` and `Focused Verification`.
 - When a QML component has a feature owner, cite its exact repository path on that feature map so the explicit owner beats the inferred subsystem. Omit a focused test when no route-owned test is defensible instead of borrowing an unrelated test from another surface.
-- Documentation-only executable declarations belong under `docs/examples/` with one focused test that imports and validates them against the real public SDK. When that documentation provides partial packet proof, register its QA matrix from `docs/specs/INDEX.md` and name outstanding acceptance gates explicitly.
+- Public executable plugin examples live under `docs/examples/` and are parsed,
+  packaged, and run through the real process-worker path by
+  `tests/test_novice_plugin_sdk_docs.py`. The internal visual-control fixture
+  lives under `tests/fixtures/node_controls/` and is not public authoring
+  guidance.
+- The generated T17 documentation overlay augments the frozen pre-cutover
+  catalog only in documentation tests; it is not runtime registry metadata.
+- Register `COREX_NOVICE_PLUGIN_SDK_QA_MATRIX.md` from the spec index and keep
+  any outstanding full-verification or package-smoke gate visible until it
+  passes.
 - Regenerate `docs/agent_route_index.md` and `docs/agent_route_index.json` with their script when agent maps, coverage rows, QML metadata, or source/test inventory change.
 - Regenerate `docs/source_test_file_index.md` with its script when refreshing the stable source/test path inventory; current lines are resolved on demand with `scripts/nav.py line`.
 - Regenerate `docs/qml_navigation_index.md` and `docs/qml_navigation_index.json` with their script when QML component routing metadata changes.
@@ -55,6 +69,7 @@ Use this for verification mode selection, pytest defaults, shell isolation, docs
 .\venv\Scripts\python.exe -m pytest tests/test_run_verification.py tests/test_traceability_checker.py tests/test_markdown_hygiene.py --ignore=venv -q
 .\venv\Scripts\python.exe -m pytest tests/test_agent_route_index.py --ignore=venv -q
 .\venv\Scripts\python.exe -m pytest tests/test_dead_code_hygiene.py --ignore=venv -q
+.\venv\Scripts\python.exe -m pytest tests/test_novice_plugin_sdk_docs.py tests/test_non_dpf_node_documentation.py --ignore=venv -q
 .\venv\Scripts\python.exe .\scripts\generate_agent_route_index.py --check
 .\venv\Scripts\python.exe .\scripts\generate_source_test_file_index.py --check
 .\venv\Scripts\python.exe .\scripts\generate_qml_navigation_index.py --check

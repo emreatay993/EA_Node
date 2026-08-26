@@ -32,12 +32,14 @@ def _outputs(ctx, result, code):
     value_type="COREX.DataTypes.String",
     required=True,
     label="Name",
+    description="Name assigned to the force load.",
 )
 @corex.input(
     "index",
     value_type="COREX.DataTypes.Int",
     required=False,
     label="Index",
+    description="Optional load index.",
 )
 @corex.input(
     "geometry",
@@ -45,6 +47,7 @@ def _outputs(ctx, result, code):
     structure="list",
     required=True,
     label="Geometry",
+    description="Ordered geometry bodies receiving the force.",
 )
 @corex.input(
     "tolerances",
@@ -52,17 +55,20 @@ def _outputs(ctx, result, code):
     structure="list",
     required=False,
     label="Tolerances",
+    description="Optional per-body selection tolerances.",
 )
 @corex.input(
     "vector",
     value_type="COREX.DataTypes.Vector3D",
     required=True,
     label="Vector",
+    description="Force vector applied to the selected geometry.",
 )
 @corex.output(
     "load",
     value_type="COREX.Fem.Loads.ILoad",
     label="Load",
+    description="Constructed force load handle.",
 )
 def force(ctx, name, index, geometry, tolerances, vector):
     return _outputs(ctx, execute_force(ctx), "fea_force")
@@ -81,11 +87,13 @@ def force(ctx, name, index, geometry, tolerances, vector):
     value_type="COREX.Fem.Loads.ILoad",
     required=True,
     label="Load",
+    description="Load handle to validate and pass through.",
 )
 @corex.output(
     "output",
     value_type="COREX.Fem.Loads.ILoad",
     label="Output",
+    description="Validated load handle.",
 )
 def load_container(ctx, load):
     return _outputs(ctx, execute_load_container(ctx), "fea_load_container")
@@ -105,6 +113,7 @@ def load_container(ctx, load):
     structure="list",
     required=True,
     label="Names",
+    description="Names of the optimization parameters.",
 )
 @corex.input(
     "minimum_values",
@@ -112,6 +121,7 @@ def load_container(ctx, load):
     structure="list",
     required=True,
     label="Minimum Values",
+    description="Minimum value for each parameter.",
 )
 @corex.input(
     "maximum_values",
@@ -119,6 +129,7 @@ def load_container(ctx, load):
     structure="list",
     required=True,
     label="Maximum Values",
+    description="Maximum value for each parameter.",
 )
 @corex.input(
     "decimal_places",
@@ -126,12 +137,14 @@ def load_container(ctx, load):
     structure="list",
     required=True,
     label="Decimal Places",
+    description="Decimal precision for each parameter.",
 )
 @corex.output(
     "parameters",
     value_type="COREX.DataTypes.Optimization.OptimizationParameter",
     structure="list",
     label="Parameters",
+    description="Constructed optimization parameter handles.",
 )
 def construct_parameters(
     ctx,
@@ -161,6 +174,7 @@ def construct_parameters(
     structure="list",
     required=True,
     label="Names",
+    description="Names of the optimization responses.",
 )
 @corex.input(
     "objectives",
@@ -168,6 +182,7 @@ def construct_parameters(
     structure="list",
     required=True,
     label="Objectives",
+    description="Objective code for each response.",
 )
 @corex.input(
     "minimum_constraints",
@@ -190,6 +205,7 @@ def construct_parameters(
     value_type="COREX.DataTypes.Optimization.OptimizationResponse",
     structure="list",
     label="Responses",
+    description="Constructed optimization response handles.",
 )
 def construct_responses(
     ctx,
@@ -211,7 +227,7 @@ def construct_responses(
     category=("Control", "Parameter Optimization"),
     icon="design_services",
     description="Create a design for a parameter study.",
-    keywords=(),
+    keywords=("optimization", "design", "parameter", "response"),
 )
 @corex.input(
     "parameters_and_responses",

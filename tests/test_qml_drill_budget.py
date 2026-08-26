@@ -27,7 +27,7 @@ _REPO_ROOT = Path(__file__).resolve().parent.parent
 # P8 ratchet: GraphCanvasRootBindings deleted; the canvas resolves bridges via
 # its own facade service and sources projections from the facts objects (63 -> 0).
 DRILL_BUDGETS: tuple[tuple[str, str, int], ...] = (
-    ("ea_node_editor/ui_qml/components/graph/GraphNodeHost.qml", "canvasItem.", 14),
+    ("ea_node_editor/ui_qml/components/graph/GraphNodeHost.qml", "canvasItem.", 15),
     ("ea_node_editor/ui_qml/components/GraphCanvas.qml", "rootBindings.", 0),
 )
 

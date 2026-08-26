@@ -12,12 +12,12 @@ Use this for inline editors, surface controls, editable passive surfaces, text/p
 - `signal plot inline control height`
 
 ## Start Here
-- `ea_node_editor/nodes/builtin_functions/data_control.py`
-- `ea_node_editor/nodes/builtins/data_control.py`
 - `ea_node_editor/ui_qml/components/graph/surface_controls/GraphSurfaceListEditor.qml`
 - `ea_node_editor/ui_qml/components/graph/GraphNodeSettingsGroupsLayer.qml`
 - `ea_node_editor/ui_qml/graph_geometry/standard_metrics.py`
 - `ea_node_editor/ui_qml/components/graph/GraphInlinePropertiesLayer.qml`
+- `ea_node_editor/nodes/builtin_functions/data_control.py`
+- `ea_node_editor/nodes/builtins/data_control.py`
 - `ea_node_editor/ui_qml/components/graph/GraphNodePortsLayer.qml`
 - `ea_node_editor/ui_qml/components/graph/passive/GraphBooleanToggleSurface.qml`
 - `ea_node_editor/ui_qml/components/graph/passive/GraphNumberSliderSettingsPopover.qml`

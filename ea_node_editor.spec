@@ -446,6 +446,7 @@ if not full_profile_enabled:
 
 hiddenimports = collect_submodules("ea_node_editor.nodes.builtins")
 hiddenimports += collect_submodules("ea_node_editor.addons.mars")
+hiddenimports += collect_submodules("ea_node_editor.addons.tabular_data")
 hiddenimports += [
     "corex",
     "PyQt6.QtPdf",

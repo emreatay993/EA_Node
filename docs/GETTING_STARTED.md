@@ -209,17 +209,28 @@ Manual passive-media fixture:
 
 ## Plugins and Node Packages
 
-- Raw plugin drop-ins live directly under `%APPDATA%\COREX_Node_Editor\plugins\` as public `*.py` files. Files whose names start with `_` are ignored.
-- Plugin modules and installed packages must export `PLUGIN_DESCRIPTORS` so loader registration and package export can use descriptor provenance. Constructor probing and class discovery are not supported compatibility paths.
-- Node authoring now uses `category_path=` rather than `category=` in `@node_type(...)` and direct `NodeTypeSpec(...)` construction. This is a breaking change for external plugins and `.cxpkg` packages; update single-segment categories to tuples such as `category_path=("Math",)` and nested categories to tuples such as `category_path=("Simulation", "Signals")`.
-- `category` is retained only as read-only display text on specs and library payloads. Filtering, grouping, collapse state, and registry discovery use normalized `category_path` values and `category_key` values instead.
-- The library displays nested paths with ` > `, as in `Ansys DPF > Compute`; that separator is display-only and intentionally avoids ambiguity with single labels such as `Input / Output`.
-- Parent category filters are descendant-inclusive. Selecting the `Ansys DPF` path includes the shipped `Ansys DPF > Compute` and `Ansys DPF > Viewer` nodes, while custom workflows remain under the one-segment `Custom Workflows` category.
-- Declare node-owned dynamic ports with `DynamicPortGroupSpec`. Back each group with a hidden ordered JSON property of stable keys; resolver/key callbacks must be pure and deterministic, return ordinary `PortSpec` values or keys, and never mutate graph/properties or construct/run plugins. Insert/remove/rename only through graph-owned commands; runtime code cannot change the snapshot topology.
-- Repo-local add-ons are dependency-gated. `Tabular Data Input` appears under `Data` when `.[tabular]`, `.[all,dev]`, or `.[dev]` has installed the tabular stack; otherwise the add-on remains unavailable metadata rather than a usable node. Header-selected table columns and array slices persist as hints, and generic `plot.*` nodes can auto-materialize `TabularDataRef` / `ArrayDataRef` inputs into existing backend-neutral plot series. Use the tabular surface `Export` action for a direct Save As of the currently visible bounded preview after search/filter/sort; use the writer nodes for graph-level automated export, and `Copy` only for clipboard text.
-- Imported `.cxpkg` packages install as `%APPDATA%\COREX_Node_Editor\plugins\<package_name>\`. Each archive must contain `node_package.json` plus top-level `.py` files only; nested directories and non-Python payload files are rejected.
-- File > Export Node Package only exports sources already loaded from the user plugins directory. The shell can package one public root `.py` drop-in or one installed package directory at a time; it does not build an archive from arbitrary node selections or built-in nodes.
-- File > Import Node Package reloads user plugins after install. If the imported package replaces node types that were already loaded in the current session, restart the app before assuming the replacements took effect.
+- Choose **File > New Plugin...** to create a reusable function node. The
+  editor generates one stable `custom.<slug>.<8-hex>` ID, validates source
+  without executing it, and saves a direct-child `.py` file under
+  `%APPDATA%\COREX_Node_Editor\plugins\`.
+- Public source imports only `corex`. It declares top-level functions with
+  `corex.node`, inputs, outputs, and controls; the full API and copyable Strain
+  Conditioner tutorial are in the
+  [Plugin Authoring Guide](PLUGIN_AUTHORING_GUIDE.md).
+- Click **Validate**, **Save**, then **Reload** in the editor, or choose
+  **File > Reload Plugins** after an external edit. A successful reload pins an
+  immutable source generation for process-worker execution. Incompatible open
+  graphs or active run/viewer work refuse reload without partial mutation.
+- Use **File > Export Node Package...** and **Import Node Package...** for
+  deterministic schema-2 `.cxpkg` files. Multi-file packages may contain
+  root-level Python helpers and declared `.svg`, `.png`, `.jpg`, or `.jpeg`
+  assets. Schema 1 is unsupported; use the
+  [Plugin Migration Guide](PLUGIN_MIGRATION_GUIDE.md#node-package-schema-1).
+- Missing bundled imports keep declared nodes visible but locked. COREX does
+  not install plugin dependencies or mutate an environment.
+- Python Script remains project-local and Apply-driven; Custom Workflows reuse
+  graphs. The [extension chooser](PLUGIN_AUTHORING_GUIDE.md#choose-the-right-extension)
+  compares all three.
 
 ## Repo Orientation
 

@@ -257,7 +257,7 @@ def test_shell_isolation_target_catalogs_follow_manifest_owned_prefixes() -> Non
     registry = load_target_registry()
 
     assert registry
-    assert len(registry) == 47
+    assert len(registry) == 51
     allowed_prefixes = manifest.shell_isolation_target_id_prefixes()
     for target_id in registry:
         assert target_id.startswith(allowed_prefixes)

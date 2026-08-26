@@ -157,13 +157,39 @@ def deconstruct_path(ctx, path):
     required=True,
     description="The date and time to deconstruct.",
 )
-@corex.output("year", value_type="COREX.DataTypes.Int", label="Year")
-@corex.output("month", value_type="COREX.DataTypes.Int", label="Month")
-@corex.output("day", value_type="COREX.DataTypes.Int", label="Day")
-@corex.output("hour", value_type="COREX.DataTypes.Int", label="Hour")
-@corex.output("minute", value_type="COREX.DataTypes.Int", label="Minute")
-@corex.output("second", value_type="COREX.DataTypes.Int", label="Second")
-@corex.output("millisecond", value_type="COREX.DataTypes.Int", label="Millisecond")
+@corex.output(
+    "year", value_type="COREX.DataTypes.Int", label="Year", description="Year component."
+)
+@corex.output(
+    "month",
+    value_type="COREX.DataTypes.Int",
+    label="Month",
+    description="Month component.",
+)
+@corex.output(
+    "day", value_type="COREX.DataTypes.Int", label="Day", description="Day component."
+)
+@corex.output(
+    "hour", value_type="COREX.DataTypes.Int", label="Hour", description="Hour component."
+)
+@corex.output(
+    "minute",
+    value_type="COREX.DataTypes.Int",
+    label="Minute",
+    description="Minute component.",
+)
+@corex.output(
+    "second",
+    value_type="COREX.DataTypes.Int",
+    label="Second",
+    description="Second component.",
+)
+@corex.output(
+    "millisecond",
+    value_type="COREX.DataTypes.Int",
+    label="Millisecond",
+    description="Millisecond component.",
+)
 def deconstruct_date_time(ctx, date_and_time):
     payload = _typed_payload(date_and_time, DATETIME_DATA_TYPE_ID, is_datetime_payload)
     return {
@@ -302,11 +328,13 @@ def deconstruct_interval_2d(ctx, interval):
     value_type="COREX.DataTypes.Units.IQuantity",
     label="Input",
     required=False,
+    description="Optional physical quantity to pass through.",
 )
 @corex.output(
     "output",
     value_type="COREX.DataTypes.Units.IQuantity",
     label="Output",
+    description="Validated physical quantity, when supplied.",
 )
 def physical_quantity_container(ctx, input):
     if "input" not in ctx.inputs:
@@ -327,11 +355,13 @@ def physical_quantity_container(ctx, input):
     value_type="COREX.DataTypes.Units.UnitSystem",
     label="Input",
     required=False,
+    description="Optional unit system to pass through.",
 )
 @corex.output(
     "output",
     value_type="COREX.DataTypes.Units.UnitSystem",
     label="Output",
+    description="Validated unit system, when supplied.",
 )
 def unit_system_container(ctx, input):
     if "input" not in ctx.inputs:

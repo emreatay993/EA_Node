@@ -47,17 +47,10 @@ from ea_node_editor.ui_qml.node_title_icon_sources import (
     resolve_node_title_icon_source,
 )
 from tests.test_mars_nodes import _fake_success_command
+from tests.non_dpf_catalog_fixture import load_effective_non_dpf_catalog
 
 
 _CONVERTED_TYPE_IDS = mars_catalog.MARS_FUNCTION_TYPE_IDS
-_PRE_CUTOVER_CATALOG = (
-    Path(__file__).parent
-    / "fixtures"
-    / "node_catalog"
-    / "pre_cutover_non_dpf_catalog.json"
-)
-
-
 def _preferences(*, enabled: bool) -> dict[str, object]:
     return set_addon_state(
         default_app_preferences_document(),
@@ -127,7 +120,7 @@ def test_exact_t14_entries_match_golden_and_remove_legacy_exports(
         preferences_document=_preferences(enabled=True),
         generation_root=generation_root,
     )
-    golden_rows = json.loads(_PRE_CUTOVER_CATALOG.read_text(encoding="utf-8"))
+    golden_rows = load_effective_non_dpf_catalog()
     expected = {
         row["spec"]["type_id"]: row["spec"]
         for row in golden_rows
@@ -265,7 +258,7 @@ print(json.dumps({
 }))
 '''
     completed = subprocess.run(
-        [sys.executable, "-c", code],
+        [sys.executable, "-E", "-c", code],
         check=True,
         capture_output=True,
         text=True,

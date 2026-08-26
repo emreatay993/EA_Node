@@ -29,6 +29,22 @@ def _build_targets():
             target_id="script_editor__test_set_script_editor_panel_visible_focuses_editor_for_script_node",
         ),
         ShellIsolationTarget.unittest_target(
+            f"{_SCRIPT_EDITOR_TEST_CLASS}.test_script_apply_failure_keeps_draft_dirty",
+            target_id="script_editor__test_script_apply_failure_keeps_draft_dirty",
+        ),
+        ShellIsolationTarget.unittest_target(
+            f"{_SCRIPT_EDITOR_TEST_CLASS}.test_numeric_overflow_draft_stays_dirty_and_leaves_graph_unchanged",
+            target_id="script_editor__test_numeric_overflow_draft_stays_dirty_and_leaves_graph_unchanged",
+        ),
+        ShellIsolationTarget.unittest_target(
+            f"{_SCRIPT_EDITOR_TEST_CLASS}.test_script_apply_failure_draft_survives_panel_reopen",
+            target_id="script_editor__test_script_apply_failure_draft_survives_panel_reopen",
+        ),
+        ShellIsolationTarget.unittest_target(
+            f"{_SCRIPT_EDITOR_TEST_CLASS}.test_script_draft_survives_same_node_property_refresh",
+            target_id="script_editor__test_script_draft_survives_same_node_property_refresh",
+        ),
+        ShellIsolationTarget.unittest_target(
             f"{_RUN_CONTROLLER_TEST_CLASS}.test_stream_log_events_are_scoped_to_active_run",
             target_id="run_controller__test_stream_log_events_are_scoped_to_active_run",
         ),

@@ -6,6 +6,7 @@ from unittest.mock import patch
 
 from PyQt6.QtCore import Q_ARG, QObject, QMetaObject, QPoint, QPointF, Qt
 from PyQt6.QtGui import QColor
+from PyQt6.QtWidgets import QMessageBox
 
 from ea_node_editor.nodes.node_specs import (
     NodeTypeSpec,
@@ -17,7 +18,9 @@ from ea_node_editor.persistence.project_codec import JsonProjectCodec
 from ea_node_editor.runtime_contracts import (
     GRAPH_DATA_TYPE_ID,
     INTERVAL_1D_DATA_TYPE,
+    INTERVAL_1D_GRAPH_DATA_TYPE_ID,
     JSON_DATA_TYPE_ID,
+    PATH_DATA_TYPE_ID,
     STRING_DATA_TYPE_ID,
     Interval1D,
 )
@@ -168,7 +171,7 @@ class MainWindowShellViewLibraryInspectorTests(SharedMainWindowShellTestBase):
                     "result_bound",
                     "in",
                     "data",
-                    INTERVAL_1D_DATA_TYPE,
+                    INTERVAL_1D_GRAPH_DATA_TYPE_ID,
                     required=False,
                     uses_property_default=True,
                 ),
@@ -217,7 +220,7 @@ class MainWindowShellViewLibraryInspectorTests(SharedMainWindowShellTestBase):
                         "result",
                         "out",
                         "data",
-                        INTERVAL_1D_DATA_TYPE,
+                        INTERVAL_1D_GRAPH_DATA_TYPE_ID,
                     ),
                 ),
                 properties=(),
@@ -933,7 +936,7 @@ class MainWindowShellViewLibraryInspectorTests(SharedMainWindowShellTestBase):
         self.window.set_library_query("")
         self.window.set_library_category("Input / Output")
         self.window.set_library_direction("in")
-        self.window.set_library_data_type("path")
+        self.window.set_library_data_type(PATH_DATA_TYPE_ID)
         self.app.processEvents()
 
         type_ids = {item["type_id"] for item in self.window.filtered_node_library_items}

@@ -7,7 +7,7 @@ through the public SDK and validates the declaration with the real registry.
 
 from __future__ import annotations
 
-from ea_node_editor.nodes import (
+from ea_node_editor.nodes.decorators import (
     in_port,
     node_type,
     out_port,
@@ -18,14 +18,13 @@ from ea_node_editor.nodes import (
     prop_interval_1d,
     prop_str,
 )
-from ea_node_editor.nodes.registry import NodeRegistry
-from ea_node_editor.nodes.types import (
-    ExecutionContext,
-    NodeResult,
+from ea_node_editor.nodes.execution_context import ExecutionContext, NodeResult
+from ea_node_editor.nodes.node_specs import (
     PropertyConditionSpec,
     SettingsGroupItemSpec,
     SettingsGroupSpec,
 )
+from ea_node_editor.nodes.registry import NodeRegistry
 from ea_node_editor.runtime_contracts import (
     GRAPH_DICTIONARY_DATA_TYPE_ID,
     INTERVAL_1D_GRAPH_DATA_TYPE_ID,

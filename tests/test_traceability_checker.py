@@ -995,13 +995,14 @@ COREX_NO_LEGACY_ARCHITECTURE_CLEANUP_PUBLIC_DOC_TOKENS: dict[str, tuple[str, ...
         "ea_node_editor.bootstrap",
         "descriptor-first",
         "locked unavailable-add-on projections",
-        "Constructor probing and class scanning are not part",
+        "Public plugins do not import COREX internals.",
     ),
     "ARCHITECTURE.md": (
         "## Current focused contracts",
         "focused bridges",
         "current-schema",
-        "descriptor-only",
+        "17-name top-level `corex` SDK",
+        "immutable content-addressed generation",
         "snapshot-only",
         "typed transport/session",
         "ea_node_editor.ui.perf.performance_harness",
@@ -1137,7 +1138,7 @@ COREX_CLEAN_ARCHITECTURE_RESTRUCTURE_PUBLIC_DOC_TOKENS: dict[str, tuple[str, ...
         "clean-architecture restructure",
         "runtime_contracts",
         "graph-owned domain APIs",
-        "COREX_CLEAN_ARCHITECTURE_RESTRUCTURE_QA_MATRIX.md",
+        "COREX_NOVICE_PLUGIN_SDK_QA_MATRIX.md",
     ),
     "docs/GETTING_STARTED.md": (
         r".\venv\Scripts\python.exe -m ea_node_editor.bootstrap",
@@ -1216,12 +1217,12 @@ COREX_ARCHITECTURE_MODERNIZATION_PUBLIC_DOC_TOKENS: dict[str, tuple[str, ...]] =
     ),
     "ARCHITECTURE.md": (
         "## Current focused contracts",
-        "headless Corex kernel",
+        "dependency-free public function/decorator SDK",
         "corex-runtime",
         "RuntimeBackendSpec",
-        "execution backend policy",
-        "COREX_ARCHITECTURE_MODERNIZATION_QA_MATRIX.md",
-        "P12_closeout_traceability_WRAPUP.md",
+        "immutable content-addressed generation",
+        "COREX_NOVICE_PLUGIN_SDK_QA_MATRIX.md",
+        "process worker",
     ),
 }
 COREX_ARCHITECTURE_MODERNIZATION_REQUIREMENT_TOKENS: dict[str, dict[str, tuple[str, ...]]] = {
@@ -1531,7 +1532,7 @@ NODE_EXECUTION_VISUALIZATION_REQUIREMENT_TOKENS: dict[str, dict[str, tuple[str, 
             "run_verification.py --mode fast --summarize-output",
         ),
         "AC-REQ-QA-028-01": (
-            "focused offscreen",
+            "focused QML",
             "node error treatment",
             "absence of control surfaces",
         ),
@@ -1587,9 +1588,9 @@ NODE_EXECUTION_VISUALIZATION_TRACEABILITY_ROW_TOKENS: dict[str, tuple[str, ...]]
     ),
     "REQ-QA-028": (
         "control-surface absence",
-        "Shift wiring",
+        "replacement/append",
         "Enable/Ctrl+E",
-        "structure wires/tooltips",
+        "active-data structure",
         "status colors",
     ),
     "AC-REQ-QA-027-01": (
@@ -1598,7 +1599,7 @@ NODE_EXECUTION_VISUALIZATION_TRACEABILITY_ROW_TOKENS: dict[str, tuple[str, ...]]
         "run_verification.py --mode fast --summarize-output",
     ),
     "AC-REQ-QA-028-01": (
-        "Focused offscreen UI suites",
+        "Focused QML grip-hover",
         "absence of control surfaces",
     ),
 }
@@ -1677,17 +1678,17 @@ NESTED_NODE_CATEGORIES_INDEX_TOKENS = (
 
 NESTED_NODE_CATEGORIES_PUBLIC_DOC_TOKENS: dict[str, tuple[str, ...]] = {
     "README.md": (
-        "(\"Math\",)",
-        "breaking change for external plugins",
-        "Ansys DPF > Compute",
-        "Input / Output",
+        "category=(\"Custom\", \"Math\")",
+        "Plugin Authoring Guide",
+        "Ansys DPF > Workflow",
+        "Reusable Python function nodes",
         "NESTED_NODE_CATEGORIES_QA_MATRIX.md",
     ),
     "docs/GETTING_STARTED.md": (
-        "category_path=(\"Math\",)",
-        "breaking change for external plugins",
-        "category_key",
-        "Ansys DPF > Viewer",
+        "corex.node",
+        "schema-2",
+        "Plugin Authoring Guide",
+        "category_path",
         "NESTED_NODE_CATEGORIES_QA_MATRIX.md",
     ),
 }
@@ -2130,7 +2131,7 @@ DEFAULT_VALUE_GRIPS_REQUIREMENT_TOKENS: dict[str, dict[str, tuple[str, ...]]] = 
         "REQ-UI-048": (
             "Ctrl-drag",
             "Ctrl+Shift",
-            "blank release",
+            "Blank release",
             "leave the graph unchanged",
         ),
         "AC-REQ-UI-036-01": (
@@ -2153,10 +2154,10 @@ DEFAULT_VALUE_GRIPS_REQUIREMENT_TOKENS: dict[str, dict[str, tuple[str, ...]]] = 
             "`0`, `0.0`, `False`, and `\"\"`",
         ),
         "REQ-GRAPH-020": (
-            "`move_edge_endpoint(...)`",
-            "`request_move_edge_endpoint(...)`",
+            "`rewire_edges(...)`",
+            "`request_rewire_edges(edge_ids, ...)`",
             "one validated mutation and one history snapshot",
-            "preserve edge identity",
+            "preserve every moved edge's identity",
             "append-requested release",
             "leave the original graph unchanged",
             "active-node lock state and `hide_locked_ports` are removed",
@@ -2168,7 +2169,7 @@ DEFAULT_VALUE_GRIPS_REQUIREMENT_TOKENS: dict[str, dict[str, tuple[str, ...]]] = 
             "DEFAULT_VALUE_GRIPS_QA_MATRIX.md",
         ),
         "AC-REQ-GRAPH-020-01": (
-            "atomic endpoint move/disconnect",
+            "atomic batch move/disconnect",
             "one-step undo",
             "absence of active lock state",
             "DEFAULT_VALUE_GRIPS_QA_MATRIX.md",
@@ -2419,14 +2420,13 @@ TITLE_ICONS_FOR_NON_PASSIVE_NODES_REQUIREMENT_TOKENS: dict[str, dict[str, tuple[
     },
     "docs/specs/requirements/40_NODE_SDK.md": {
         "REQ-NODE-028": (
-            "`NodeTypeSpec.icon` remains the authoring field",
+            "Private `NodeTypeSpec.icon` remains the normalized metadata field",
             "local image-path reference only",
             "repo-managed node-title icon asset root",
-            "safe provenance roots",
-            "symbolic icon names",
-            "derived live `icon_source` payload",
-            "derive live `icon_theme_aware=True`",
-            "`active` and `compile_only`",
+            "approved provenance root",
+            "symbolic names",
+            "`icon_theme_aware=True`",
+            "Passive flowchart library visuals",
         ),
         "AC-REQ-NODE-028-01": (
             "node-title icon resolver",
@@ -3559,6 +3559,43 @@ class TraceabilityCheckerTests(unittest.TestCase):
         for token in CHROMIUM_WEBSITE_HTML_VIEWER_NODE_QA_MATRIX_TOKENS:
             self.assertIn(token, text)
 
+    def test_novice_plugin_sdk_traceability_and_pending_acceptance_matrix(self) -> None:
+        traceability_path = REPO_ROOT / self.manifest.TRACEABILITY_MATRIX_DOC
+        for row_id in (
+            "REQ-UI-065",
+            "AC-REQ-UI-065-01",
+            "REQ-NODE-050",
+            "AC-REQ-NODE-050-01",
+            "REQ-NODE-051",
+            "AC-REQ-NODE-051-01",
+            "REQ-EXEC-028",
+            "AC-REQ-EXEC-028-01",
+            "REQ-PERSIST-031",
+            "AC-REQ-PERSIST-031-01",
+            "REQ-INT-021",
+            "AC-REQ-INT-021-01",
+            "REQ-QA-055",
+            "AC-REQ-QA-055-01",
+        ):
+            row_text = traceability_row(traceability_path, row_id)
+            for token in self.manifest.TRACEABILITY_ROW_REQUIRED_TOKENS[row_id]:
+                self.assertIn(token, row_text, msg=f"traceability row {row_id} missing {token!r}")
+
+        matrix_path = REPO_ROOT / self.manifest.COREX_NOVICE_PLUGIN_SDK_QA_MATRIX_DOC
+        text = matrix_path.read_text(encoding="utf-8-sig")
+        for token in self.manifest.COREX_NOVICE_PLUGIN_SDK_QA_MATRIX_REQUIRED_TOKENS:
+            self.assertIn(token, text)
+        for gate in self.manifest.COREX_NOVICE_PLUGIN_SDK_PASSED_GATES:
+            self.assertRegex(
+                text,
+                rf"(?m)^\| {re.escape(gate)} \| .* \| `PASS` \|",
+            )
+        for gate in self.manifest.COREX_NOVICE_PLUGIN_SDK_TRANSITIONAL_GATES:
+            self.assertRegex(
+                text,
+                rf"(?m)^\| {re.escape(gate)} \| .* \| `(?:PENDING / NOT RUN|PASS)` \|",
+            )
+
     def make_repo_fixture(self, root: Path) -> None:
         required_paths = set(self.checker.REQUIRED_ARTIFACTS)
         required_paths.update(self.checker.P08_REQUIRED_ARTIFACTS)
@@ -3575,7 +3612,7 @@ class TraceabilityCheckerTests(unittest.TestCase):
         self.assertEqual([], self.checker.audit_repository(REPO_ROOT))
 
     def test_planned_requirement_registry_matches_current_repo(self) -> None:
-        self.assertEqual(28, len(self.manifest.PLANNED_REQUIREMENT_OWNERS))
+        self.assertEqual(21, len(self.manifest.PLANNED_REQUIREMENT_OWNERS))
         self.assertEqual([], self.checker.audit_repository(REPO_ROOT))
 
     def test_audit_repository_reports_missing_planned_row(self) -> None:

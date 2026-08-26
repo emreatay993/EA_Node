@@ -247,337 +247,102 @@ docs/specs/
 
 ## Creating a Custom Node
 
-### Built-in Python Script node
+Choose the smallest authoring surface that fits:
 
-For a one-off, local workflow transform, insert **Core > Python Script** and
-declare its ports and controls in the script itself. See the
-[Python Script guide](docs/PYTHON_SCRIPT_GUIDE.md) for the copyable
-`@corex.node` / `@corex.input` / `@corex.output` form. This is separate from
-the external-plugin API below.
+| Use | Best for | Update |
+| --- | --- | --- |
+| **Python Script** | One synchronous transform stored in one project | Click **Apply** |
+| **Plugin** | Reusable Python function nodes | Validate, save, then **Reload Plugins** |
+| **Custom Workflow** | Reusing an existing graph as a node | Save/reload the `.cxwf` |
 
-Drop a public Python file into the plugins folder at `%APPDATA%/COREX_Node_Editor/plugins/`
-(or the fallback user-data directory returned by `ea_node_editor.settings.plugins_dir()`).
-The loader reads top-level `*.py` files whose filenames do not start with `_`.
-The file must export `PLUGIN_DESCRIPTORS` for one or more classes that follow the
-`NodePlugin` protocol. COREX does not scan classes or probe constructors as a
-compatibility fallback.
-The example below assumes `numpy` and `scipy` are installed in the same virtual
-environment as the application:
+For a reusable plugin, choose **File > New Plugin...**. COREX generates a
+stable `custom.<slug>.<8-hex>` ID and a one-file template:
 
 ```python
-import numpy as np
-from scipy import signal
+import corex
 
-from ea_node_editor.nodes import (
-    in_port,
-    node_type,
-    out_port,
-    prop_enum,
-    prop_float,
-    prop_int,
+
+@corex.node(
+    id="custom.scale_value.1234abcd",
+    name="Scale Value",
+    category=("Custom", "Math"),
 )
-from ea_node_editor.nodes.types import ExecutionContext, NodeResult, PluginDescriptor
-
-
-def _signal_packet(ctx: ExecutionContext, key: str = "signal") -> tuple[np.ndarray, float]:
-    packet = dict(ctx.inputs.get(key) or {})
-    samples = np.asarray(packet.get("samples", ()), dtype=np.float64)
-    if samples.ndim != 1:
-        raise ValueError("signal packets must provide a 1D 'samples' array.")
-    sample_rate_hz = float(packet.get("sample_rate_hz", 48000.0))
-    return samples, sample_rate_hz
-
-
-@node_type(
-    type_id="custom.bandpass_filter",
-    display_name="Bandpass Filter",
-    category_path=("Signal Processing", "Filters", "Bandpass"),
-    icon="tune",
-    ports=(
-        in_port("signal", data_type="dsp.signal", required=True),
-        out_port("filtered_signal", data_type="dsp.signal"),
-    ),
-    properties=(
-        prop_float("low_cut_hz", 300.0, "Low Cut (Hz)"),
-        prop_float("high_cut_hz", 3400.0, "High Cut (Hz)"),
-        prop_int("filter_order", 4, "Filter Order"),
-    ),
-    description="Applies a zero-phase SciPy bandpass filter to a signal packet.",
-)
-class BandpassFilterNode:
-    def execute(self, ctx: ExecutionContext) -> NodeResult:
-        samples, sample_rate_hz = _signal_packet(ctx)
-        low_cut_hz = float(ctx.properties.get("low_cut_hz", 300.0))
-        high_cut_hz = float(ctx.properties.get("high_cut_hz", 3400.0))
-        filter_order = int(ctx.properties.get("filter_order", 4))
-        nyquist_hz = 0.5 * sample_rate_hz
-        sos = signal.butter(
-            filter_order,
-            [low_cut_hz / nyquist_hz, high_cut_hz / nyquist_hz],
-            btype="bandpass",
-            output="sos",
-        )
-        filtered = signal.sosfiltfilt(sos, samples)
-        return NodeResult(
-            outputs={
-                "filtered_signal": {
-                    "samples": filtered,
-                    "sample_rate_hz": sample_rate_hz,
-                }
-            }
-        )
-
-
-@node_type(
-    type_id="custom.magnitude_spectrum",
-    display_name="Magnitude Spectrum",
-    category_path=("Signal Processing", "Analysis", "FFT"),
-    icon="show_chart",
-    ports=(
-        in_port("signal", data_type="dsp.signal", required=True),
-        out_port("spectrum", data_type="dsp.spectrum"),
-    ),
-    properties=(
-        prop_int("fft_size", 2048, "FFT Size"),
-        prop_enum("window", "hann", "Window", values=("hann", "hamming", "blackman")),
-    ),
-    description="Computes a NumPy/SciPy windowed FFT and emits a spectrum packet.",
-)
-class MagnitudeSpectrumNode:
-    def execute(self, ctx: ExecutionContext) -> NodeResult:
-        samples, sample_rate_hz = _signal_packet(ctx)
-        fft_size = int(ctx.properties.get("fft_size", 2048))
-        window_name = str(ctx.properties.get("window", "hann"))
-        clipped = samples[:fft_size]
-        if clipped.size < fft_size:
-            clipped = np.pad(clipped, (0, fft_size - clipped.size))
-        window = signal.get_window(window_name, fft_size, fftbins=True)
-        spectrum = np.fft.rfft(clipped * window)
-        frequencies_hz = np.fft.rfftfreq(fft_size, d=1.0 / sample_rate_hz)
-        magnitude_db = 20.0 * np.log10(np.maximum(np.abs(spectrum), 1e-12))
-        return NodeResult(
-            outputs={
-                "spectrum": {
-                    "frequencies_hz": frequencies_hz,
-                    "magnitude_db": magnitude_db,
-                    "sample_rate_hz": sample_rate_hz,
-                }
-            }
-        )
-
-
-PLUGIN_DESCRIPTORS = (
-    PluginDescriptor(spec=BandpassFilterNode().spec(), factory=BandpassFilterNode),
-    PluginDescriptor(spec=MagnitudeSpectrumNode().spec(), factory=MagnitudeSpectrumNode),
-)
+@corex.input("value", value_type=float, required=True)
+@corex.number("factor", default=2.0, port=True)
+@corex.output("result", value_type=float)
+def scale_value(ctx, value, settings):
+    return {"result": value * settings.factor}
 ```
 
-Restart the application and the nodes will appear in the Node Library under
-`Signal Processing > Filters > Bandpass` and
-`Signal Processing > Analysis > FFT`. The `dsp.signal` and `dsp.spectrum`
-values are custom `data_type` labels; use the same spelling on downstream ports
-if you want them to connect directly.
+The complete public module contains exactly `node`, `input`, `output`,
+`text`, `text_area`, `number`, `switch`, `dropdown`, `slider`,
+`color`, `path`, `interval`, `list`, `Any`, `Image`, `Color`, and
+`Interval`. Public plugins do not import COREX internals.
 
-### Declarative node controls
+Validation and reload parse source without executing it. A successful reload
+copies validated files into an immutable content-addressed generation; public
+code imports only inside the process worker. Connected `port=True` settings
+override by input presence, so `None`, `False`, `0`, empty strings, and
+empty containers remain real supplied values. `settings` is immutable,
+`settings.to_dict()` returns a defensive mutable copy, functions return an
+output mapping, and `ctx.warn(...)` publishes ordered warnings.
 
-[This documentation-only Signal Plot-style declaration](docs/examples/signal_plot_style_node_controls.py)
-is the complete, import-validated authoring example. It is deliberately not a
-registered production Signal Plot node. It declares two named settings groups,
-text and toggle controls, ordinary and searchable enums, two scalar sliders,
-an `Interval1D` range slider, a node-specific local icon, and two paired
-input/property defaults. The validation test is
-`tests/test_signal_plot_style_node_controls_example.py`.
+See the [Plugin Authoring Guide](docs/PLUGIN_AUTHORING_GUIDE.md) for the novice
+workflow, declaration grammar, controls, reload rules, package schema, security
+limits, and the executable
+[Strain Conditioner](docs/examples/strain_conditioner_plugin.py) and
+[Signal Plot-style](docs/examples/signal_plot_function_plugin.py) examples.
+Python Script keeps its separate project-local, synchronous, Apply-driven
+contract in the [Python Script Guide](docs/PYTHON_SCRIPT_GUIDE.md).
 
-Use the normal declaration path only:
+## Optional Add-ons
 
-```text
-declaration -> validated registry metadata -> presentation payload -> shared QML
-```
-
-Do not add a node-local QML control or a UI factory. `SettingsGroupSpec` keeps
-the authored group order. New groups start collapsed; each user's later
-expansion state is persisted in `expanded_settings_group_ids`.
-
-For a same-key `in_port(..., uses_property_default=True)` and property pair,
-the property is the authored value. In the presentation payload this is
-`value`. An enabled input wire leaves it unchanged and may instead supply
-`display_value`; `display_value_available` says whether that projection is
-safe, `overridden_by_input` identifies the override, and `editor_enabled` is
-false while it is connected. Disconnecting restores the authored `value`
-without an undo entry or persistence rewrite. Presentation code also publishes
-`condition_enabled`; QML and the Inspector use these facts rather than
-reconstructing connection or condition rules.
-
-Use a scalar slider only on an `int` or `float` property with `minimum`,
-`maximum`, and `inline_editor="slider"`. `prop_interval_1d(...)` always creates
-the `interval_slider` editor. The author, not a drag gesture, selects its
-direction. Increasing declarations use `Interval1D(0.0, 100.0)` with
-`direction="increasing"`; decreasing declarations keep their order, for
-example:
-
-```python
-prop_interval_1d(
-    "reverse_result_bound",
-    Interval1D(100.0, 0.0),
-    "Reverse result bound",
-    minimum=0.0,
-    maximum=100.0,
-    step=0.1,
-    direction="decreasing",
-)
-```
-
-An `Interval1D` is not sorted. Both endpoints must be within the declared
-domain, and its local direction must match the declaration; an upstream value
-may use either direction without rewriting the local property.
-
-`searchable=True` is authoring metadata valid only for an enum with
-`inline_editor="enum"`; it selects the reusable searchable combo in both
-canvas and Inspector. It is not an end-user preference and its options remain
-the declared static values. Use `PropertyConditionSpec` for the small
-same-node value-IN rule shown in the example. When false, it disables the local
-editor only: the row, label, grip, wire, saved value, and graph topology remain
-visible. It does not define runtime behavior.
-
-This toolkit intentionally defers Bounding Interval, Divide Interval, Interval
-1D container/internalization/filtering behavior, Interval 2D, bounding boxes,
-generic tuple/list editors, and a production Signal Plot node.
-
-### Dataflow SDK contract
-
-This is a breaking, dataflow-only SDK. `PortKind` accepts only `"data"` and
-`"flow"`: executable active nodes use directed `data` ports, while `flow` is
-reserved for unrelated passive authoring surfaces. Retired control kinds and
-their aliases are rejected at registration; no shim or class-discovery fallback
-is provided for pre-release plugins.
-
-`PortSpec.data_type` names one element type. `PortSpec.data_access` describes
-the outer structure and defaults to `"item"`:
-
-| Access | Input received by one plugin call | Valid published output |
-|---|---|---|
-| Item | One selected value | Exactly one Python value, including explicit `None` |
-| List | The complete selected branch | A non-string sequence |
-| Tree | The complete topology, without creating iterations | An immutable `DataTree` |
-
-`DataPath` is `tuple[int, ...]`; `DataAccess` is `Literal["item", "list",
-"tree"]`; and `DataTreeModifier` is `Literal["graft", "flatten", "simplify",
-"reverse", "clean"]`. A `DataTree` stores lexicographically sorted paths mapped
-to ordered item sequences. Ordinary Python lists and dictionaries remain Item
-values unless a List-access output explicitly returns a sequence. They never
-implicitly create tree topology.
-
-Enabled wires merge in persisted order. Before matching, input modifiers always
-run in this order: Graft splits branch items into child paths, Flatten joins all
-sorted branches at `(0)`, Simplify removes the longest shared prefix while
-retaining one index, Reverse reverses each branch, and Clean removes `None` then
-empty branches. Tree inputs receive the whole tree. Item and List inputs match
-branches by ordinal and repeat the last shorter branch; Item inputs also repeat
-the last shorter item. A checked Principal input is the iteration driver. Without
-one, COREX chooses deterministically from eligible non-Tree inputs. Principal and
-the five modifiers are workflow port state, not alternate `data_access` values.
-
-One scheduled node may therefore receive several sequential `execute()` calls.
-For each call, `ExecutionContext.target_path`, `target_iteration`, and
-`iteration_count` identify the match; `ExecutionContext.trigger` remains
-available. COREX validates each returned value against its declared access,
-aggregates all iterations privately, and publishes outputs atomically only after
-every call succeeds. `NodeResult` has no completion flag. Explicit `None` is Item
-data; runtime EMPTY is a separate settled state. Queue serialization applies the
-recursive `data_tree` marker automatically, including nested artifact, array,
-tabular, worker-handle, and `None` values, so plugins should return `DataTree`
-objects rather than hand-encoding markers.
-
-Use `runtime_behavior="active"` for transforms, consumers, side effects, and
-outputless sinks. A side-effect node that must wait for and consume a complete
-upstream topology should declare a Tree-access data input; ordering comes from
-enabled data dependencies, not hidden signal ports. Raise an exception for a
-failure so the runtime can preserve the root error and block only dependents.
-Passive nodes remain outside execution. A boundary is the active built-in
-Trigger behavior, not a new `runtime_behavior` literal.
-
-#### Dynamic port groups
-
-`NodeTypeSpec.dynamic_port_groups` accepts immutable
-`DynamicPortGroupSpec(group_id, property_key, direction, ports_resolver,
-key_factory, minimum, maximum, rename_mode, key_renamer)` declarations. Each
-group uses a hidden ordered JSON property whose values are the stable port keys.
-Resolver and key callbacks receive an ordinary copy of the current normalized
-properties and must be pure and deterministic: resolvers return ordinary
-`PortSpec` tuples, key factories or renamers return keys, and callbacks must not
-mutate graph/property state or construct or run a plugin instance.
-
-Insert, remove, and structural-key rename are graph-owned operations. They
-preflight the resolver and key callbacks, then update the backing property
-atomically; direct backing-property writes are rejected. There is no standalone
-reorder action. A label rename preserves the stable key and its wires. Removing
-or structurally renaming a key prunes its incident wires and sparse per-port
-state in the same undoable action, while unchanged keys retain their wires and
-state.
-
-Runtime snapshots consume the resolved topology from their normalized node
-properties. That topology is fixed for the run; `execute()` cannot add, remove,
-or rename ports.
-
-`core.stream_gate` adopts one label-renamable output group, starts with two
-stable outputs, and keeps at least one. Python Script ports and controls are
-instead declared by its source decorators and updated only by **Apply**; see the
-[Python Script guide](docs/PYTHON_SCRIPT_GUIDE.md). Do not add or rename Python
-Script ports through this dynamic-group surface.
-
-Compose flow control from the shipped data nodes: `core.trigger` is a runtime-only
-sample-and-hold Tree boundary, `core.if` selects one of two Tree values from a
-Boolean Item condition, and `core.stream_gate` routes one Tree stream to the
-selected dynamic Tree output while inactive outputs settle EMPTY. Use these
-nodes instead of adding execution, completion, or failure ports to plugins.
-
-The authoritative contracts are the [Node SDK requirements](docs/specs/requirements/40_NODE_SDK.md)
-and [Node Execution Model requirements](docs/specs/requirements/45_NODE_EXECUTION_MODEL.md).
-
-Node authoring now uses `category_path=` instead of `category=`. This is a
-breaking change for external plugins and node packages: update decorator calls
-and direct `NodeTypeSpec` construction to pass a tuple of non-empty category
-segments, such as `("Math",)` or `("Simulation", "Signals")`. The rendered
-category label is derived from `category_path` for presentation only; grouping
-and filtering never parse display text.
-
-Nested library categories are path-backed. Parent category filters include all
-descendants, the shipped Ansys DPF family appears under `Ansys DPF > Compute`
-and `Ansys DPF > Viewer`, `Tabular Data Input` appears under `Data` when the
-optional tabular stack is installed, and custom workflows remain under the single
-`Custom Workflows` segment. The rendered ` > ` separator is display-only and is
-chosen so existing single labels such as `Input / Output` are not confused with
-path segments; do not parse display text to recover category paths.
-
-The shipped DPF backend remains optional, and `ansys-dpf-core` is optional at startup, but the built-in surface is now workflow-first rather than compute-only. Foundational helpers and inputs live under `Ansys DPF > Inputs`, `Ansys DPF > Workflow`, and `Ansys DPF > Helpers > ...`, generated operator wrappers live under `Ansys DPF > Operators > <Family>`, and `dpf.viewer` stays under `Ansys DPF > Viewer`. Built-in DPF registration is descriptor-first, add-on-owned, and version-aware, so startup refreshes the shipped descriptor cache when the installed `ansys-dpf-core` version changes. Saved DPF nodes reopen as locked unavailable-add-on projections when the backend is disabled or unavailable, and the earlier preparation contract still records that broad autogenerated operator exposure plus non-operator reflection remain deferred. On the shipped rollout, only the `Ansys DPF > Advanced > Raw API Mirror` / non-operator reflection surface remains deferred. See the
-[DPF operator backend review](docs/DPF_OPERATOR_PLUGIN_BACKEND_REVIEW_2026-04-12.md)
+The shipped DPF backend remains optional, and `ansys-dpf-core` is optional at startup.
+Foundational helpers and inputs live under `Ansys DPF > Inputs`,
+`Ansys DPF > Workflow`, and `Ansys DPF > Helpers > ...`; generated operator
+wrappers live under `Ansys DPF > Operators > <Family>`; and `dpf.viewer` stays
+under `Ansys DPF > Viewer`. Built-in DPF registration is descriptor-first,
+add-on-owned, and version-aware. Saved DPF nodes reopen as locked unavailable-add-on projections
+when the backend is disabled or unavailable. The earlier preparation contract
+records that broad autogenerated operator exposure plus non-operator reflection remain deferred. See the
+[DPF operator backend review](docs/DPF_OPERATOR_PLUGIN_BACKEND_REVIEW_2026-04-12.md),
+the
+[DPF operator backend QA matrix](docs/specs/perf/DPF_OPERATOR_PLUGIN_BACKEND_REFACTOR_QA_MATRIX.md),
 and the
-[DPF operator backend QA matrix](docs/specs/perf/DPF_OPERATOR_PLUGIN_BACKEND_REFACTOR_QA_MATRIX.md)
-for the frozen preparation contract, and the
-[ANSYS DPF Full Plugin Rollout QA Matrix](docs/specs/perf/ANSYS_DPF_FULL_PLUGIN_ROLLOUT_QA_MATRIX.md)
-for the retained rollout proof surface.
+[ANSYS DPF Full Plugin Rollout QA Matrix](docs/specs/perf/ANSYS_DPF_FULL_PLUGIN_ROLLOUT_QA_MATRIX.md).
 
-The shipped add-on backend now exposes `Add-On Manager` as a top-level menubar entry and ships the Variant 4 inspector-style drawer on top of the generic add-on catalog. Add-ons carry stable ids, dependency facts, and exactly one apply policy (`hot_apply` or `restart_required`); unavailable add-on nodes stay visible as locked Mockup B projections instead of disappearing from the canvas; and repo-local `hot_apply` add-ons such as ANSYS DPF and Tabular Data rebuild registry/runtime state when their availability changes. The retained packet evidence, closeout commands, and manual smoke guidance for the archived add-on-manager baseline live in the [Add-On Manager Backend Preparation QA Matrix](docs/specs/perf/ADDON_MANAGER_BACKEND_PREPARATION_QA_MATRIX.md).
+The shipped add-on backend exposes `Add-On Manager` as a top-level menubar
+entry and ships the Variant 4 inspector-style drawer. Add-ons carry dependency
+facts and exactly one apply policy (`hot_apply` or `restart_required`);
+unavailable nodes stay visible as locked projections, and repo-local
+`hot_apply` add-ons rebuild registry/runtime state when availability changes.
+The retained evidence lives in the
+[Add-On Manager Backend Preparation QA Matrix](docs/specs/perf/ADDON_MANAGER_BACKEND_PREPARATION_QA_MATRIX.md).
 
-The Tabular Data add-on is dependency-gated behind the optional `tabular` extra. When `numpy`, `pandas`, `polars`, `pyarrow`, `duckdb`, `openpyxl`, `h5py`, and `tables` are installed, the node library exposes `Data > Tabular Data Input` (`tabular.input`) for CSV, TSV, TXT, XLSX, XLSM, Parquet, HDF5, NPY, and NPZ sources. Runtime outputs use JSON-safe `TabularDataRef` / `ArrayDataRef` payloads instead of inlining DataFrames or arrays; previews stay bounded through the Python preview provider and QML tabular surfaces; selected table columns and array slices persist as downstream hints; generic `plot.*` nodes can consume those refs directly and materialize backend-neutral `x` / `y` / `values` / `points` series without requiring adapter nodes; project-managed source/cache refs use the existing `.data` sidecar; and warning states remain non-fatal in node chrome, console/status logs, and structured warning facts. Python 3.10 installs `tables>=3.10.1,<3.11`, while Python 3.11+ uses `tables>=3.11`.
-
-Plugin modules and installed packages must export `PLUGIN_DESCRIPTORS`,
-`PLUGIN_BACKENDS`, or package/entry-point descriptors that the loader can
-register with provenance. Constructor probing and class scanning are not part
-of the current plugin contract. Runtime backend, toolchain, artifact, and
-surface capability descriptors are public manifest records for compiled or
-foreign-language preparation; native build execution is not part of the current
-runtime.
-
-Installed `.cxpkg` packages use the same plugin root, but each package lives in
-its own public subdirectory named after `node_package.json` `name`. Supported
-package contents are `node_package.json` plus top-level `.py` modules only.
+The dependency-gated Tabular Data add-on supports CSV, TSV, TXT, XLSX, XLSM,
+Parquet, HDF5, NPY, and NPZ sources. It keeps large data behind bounded refs and
+previews; selected columns/slices can feed generic `plot.*` nodes directly.
+Install `.[tabular]` (or `.[all,dev]`) to enable it.
 
 ## Sharing Node Packages
 
-- **Export:** File > Export Node Package -- packages one current user-plugin source candidate into a `.cxpkg` archive. Export candidates come from descriptor provenance in the user plugins directory only: either one top-level `.py` drop-in or one installed package directory's top-level `.py` files.
-- **Import:** File > Import Node Package -- installs a `.cxpkg` archive as `%APPDATA%/COREX_Node_Editor/plugins/<package_name>/` with `node_package.json` plus top-level `.py` files, then reloads user plugins for the current session.
-- **Current limitation:** If an imported package replaces node types that were already loaded earlier in the session, restart the application before relying on the replacement definitions.
+Loose `.py` files live directly in
+`%APPDATA%\COREX_Node_Editor\plugins\`. Use **File > Export Node Package...**
+for a deterministic schema-2 `.cxpkg` when sharing a plugin or adding helper
+sources/assets. Use **File > Import Node Package...** for validated atomic
+installation and registry reload.
+
+Schema 2 declares every root-level Python source and supported image asset with
+a SHA-256 digest. It rejects unknown/undeclared members, unsafe paths, links,
+encrypted entries, nested Python packages, unsupported assets, and bounded-size
+violations. Schema 1 and the removed class/descriptor APIs are unsupported
+without shims; follow the
+[Plugin Migration Guide](docs/PLUGIN_MIGRATION_GUIDE.md#node-package-schema-1).
+
+Reload is refused while run/viewer work is active or when open graphs would
+become incompatible. A refusal leaves files, registry consumers, graphs, and
+workers unchanged. Missing bundled imports leave nodes visible but locked;
+COREX does not install dependencies or mutate environments.
 
 ## Graphics Settings
 
@@ -806,6 +571,9 @@ Regenerate the committed app icon asset set with:
 ## Documentation
 
 - [Getting Started](docs/GETTING_STARTED.md) -- environment setup, first launch, smoke checks, and common paths
+- [Plugin Authoring Guide](docs/PLUGIN_AUTHORING_GUIDE.md) -- novice reusable-node tutorial, public API, schema 2, security rules, and examples
+- [Plugin Migration Guide](docs/PLUGIN_MIGRATION_GUIDE.md) -- clean-break legacy and schema-1 migration
+- [Python Script Guide](docs/PYTHON_SCRIPT_GUIDE.md) -- project-local synchronous script declarations and Apply workflow
 - [Architecture Guide](ARCHITECTURE.md) -- runtime/component architecture and flow maps
 - [Architecture Diagrams](docs/architecture_diagrams/) -- generated Mermaid exports (`.mmd`, `.svg`, `.png`)
 - [Spec Pack Index](docs/specs/INDEX.md) -- requirements, ADRs, traceability

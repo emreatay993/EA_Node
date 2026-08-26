@@ -5,24 +5,34 @@ sequenceDiagram
     participant RC as RunController
     participant EC as ProcessExecutionClient
     participant W as Worker (run_workflow)
-    participant R as NodeRegistry
-    participant P as NodePlugin
+    participant PR as WorkerPluginRuntime
+    participant R as Worker NodeRegistry
+    participant I as Function adapter / trusted factory
     participant WLC as WorkspaceLibraryController
 
     User->>QML: Click Run
     QML->>SW: request_run_workflow()
     SW->>RC: run_workflow()
-    RC->>RC: build_runtime_snapshot(...) + workflow_settings_payload()
-    RC->>EC: start_run(project_path, workspace_id, {trigger, runtime_snapshot})
+    RC->>RC: build runtime snapshot + registry/plugin agreement
+    RC->>EC: start_run(project_path, workspace_id, snapshot, bundle refs, fingerprints)
     EC->>W: StartRunCommand (queue)
     W->>EC: run_started + run_state(running)
     W->>W: load_runtime_snapshot()
+    W->>PR: prepare_registry(command, trusted registry)
+    PR->>PR: validate generation roots, digests, refs, and registry fingerprint
+    PR-->>W: attested worker registry
 
     loop per ready node
-        W->>R: create(node.type_id)
-        R-->>W: plugin instance
-        W->>P: execute(ctx) / async_execute(ctx)
-        P-->>W: NodeResult
+        W->>R: implementation_entry(node.type_id)
+        alt PythonFunctionEntry
+            R-->>W: immutable PythonFunctionRef
+            W->>PR: resolve and lazily import attested function
+            PR-->>W: PythonFunctionAdapter
+        else TrustedFactoryEntry
+            R-->>W: private trusted factory
+        end
+        W->>I: execute(ctx, inputs, settings)
+        I-->>W: validated NodeResult
         W->>EC: node_started / node_completed / log
     end
 

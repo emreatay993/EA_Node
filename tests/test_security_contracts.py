@@ -43,6 +43,7 @@ from ea_node_editor.runtime_contracts import (
     RuntimeHandleRef,
     TypedInlineValue,
 )
+from tests.non_dpf_catalog_fixture import load_effective_non_dpf_catalog
 
 
 class _HandleSubclass(RuntimeHandleRef):
@@ -265,14 +266,7 @@ def test_windows_authentication_function_spec_matches_frozen_catalog() -> None:
         allow_reserved_ids=True,
         owner_id=INTERNAL_BUILTIN_FUNCTION_OWNER_ID,
     )
-    golden = json.loads(
-        (
-            Path(__file__).parent
-            / "fixtures"
-            / "node_catalog"
-            / "pre_cutover_non_dpf_catalog.json"
-        ).read_text(encoding="utf-8")
-    )
+    golden = load_effective_non_dpf_catalog()
     expected = next(
         row["spec"]
         for row in golden

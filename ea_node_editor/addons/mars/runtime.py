@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import queue
 import shutil
 import subprocess
@@ -69,6 +70,14 @@ def _build_mars_command(
         "--output-directory",
         str(output_directory.resolve()),
     ]
+
+
+def _mars_subprocess_environment() -> dict[str, str]:
+    environment = dict(os.environ)
+    for key in tuple(environment):
+        if key.upper().startswith("PYTHON"):
+            environment.pop(key)
+    return environment
 
 
 def _terminate_process(process: subprocess.Popen[str], grace_seconds: float) -> None:
@@ -164,6 +173,7 @@ def run_mars_batch(
     output_directory.mkdir(parents=True, exist_ok=True)
     process = subprocess.Popen(
         _build_mars_command(executable, job_path, output_directory),
+        env=_mars_subprocess_environment(),
         stdin=subprocess.DEVNULL,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,

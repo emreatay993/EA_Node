@@ -30,6 +30,7 @@ from ea_node_editor.nodes.plugin_authoring import summarize_plugin_registry
 from ea_node_editor.nodes.registry import PythonFunctionEntry, TrustedFactoryEntry
 from ea_node_editor.persistence.serializer import JsonProjectSerializer
 from ea_node_editor.ui.shell.controllers.workspace_io_ops import WorkspaceIOOps
+from tests.non_dpf_catalog_fixture import load_effective_non_dpf_catalog
 
 
 _CONVERTED_TYPE_IDS = (
@@ -49,19 +50,11 @@ _CONVERTED_TYPE_IDS = (
     "ssh_sftp.upload",
 )
 _TRUSTED_EXCEPTIONS = ("io.path_pointer", "io.folder_explorer")
-_PRE_CUTOVER_CATALOG = (
-    Path(__file__).parent
-    / "fixtures"
-    / "node_catalog"
-    / "pre_cutover_non_dpf_catalog.json"
-)
-
-
 def test_exact_t12_entries_match_golden_and_remove_legacy_exports(
     tmp_path: Path,
 ) -> None:
     registry = build_builtin_registry(generation_root=tmp_path / "generations")
-    golden_rows = json.loads(_PRE_CUTOVER_CATALOG.read_text(encoding="utf-8"))
+    golden_rows = load_effective_non_dpf_catalog()
     expected = {
         row["spec"]["type_id"]: row["spec"]
         for row in golden_rows
