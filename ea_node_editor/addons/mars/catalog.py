@@ -1,4 +1,4 @@
-# Purpose: Report managed MARS availability and lazily publish MARS node descriptors.
+# Purpose: Report managed MARS availability and lazily publish MARS function nodes.
 # Map: feature_routes/mars_solver_addon.md
 # Tests: tests/test_mars_nodes.py
 
@@ -19,12 +19,16 @@ from ea_node_editor.addons.mars.runtime import managed_mars_batch_executable
 from ea_node_editor.nodes.plugin_contracts import (
     PluginAvailability,
     PluginBackendDescriptor,
-    PluginDescriptor,
     PluginProvenance,
 )
 
 
 _MARS_PACKAGE_ROOT = Path(__file__).resolve().parent
+MARS_FUNCTION_TYPE_IDS = (
+    "mars.batch_solve",
+    "mars.time_history",
+    "mars.run_job",
+)
 
 
 def _distribution_token(value: str) -> str:
@@ -91,19 +95,19 @@ def resolve_mars_plugin_version() -> str:
     return _managed_mars_version()
 
 
-def load_mars_plugin_descriptors() -> tuple[PluginDescriptor, ...]:
-    if not get_mars_addon_availability().is_available:
-        return ()
-    from ea_node_editor.addons.mars.nodes import MARS_NODE_DESCRIPTORS
+def load_mars_function_sources() -> tuple[tuple[str, str], ...]:
+    from ea_node_editor.addons.mars.function_nodes import SOURCE
 
-    return MARS_NODE_DESCRIPTORS
+    return (("mars_nodes.py", SOURCE),)
 
 
 MARS_PLUGIN_BACKEND = PluginBackendDescriptor(
     plugin_id=MARS_ADDON_ID,
     display_name=MARS_ADDON_MANIFEST.display_name,
     get_availability=get_mars_addon_availability,
-    load_descriptors=load_mars_plugin_descriptors,
+    load_descriptors=lambda: (),
+    load_function_sources=load_mars_function_sources,
+    function_type_ids=MARS_FUNCTION_TYPE_IDS,
     addon_manifest=MARS_ADDON_MANIFEST,
     runtime_backends=MARS_RUNTIME_BACKENDS,
     toolchains=MARS_TOOLCHAINS,
@@ -120,9 +124,10 @@ PLUGIN_BACKENDS = (MARS_PLUGIN_BACKEND,)
 __all__ = [
     "MARS_ADDON_ID",
     "MARS_ADDON_MANIFEST",
+    "MARS_FUNCTION_TYPE_IDS",
     "MARS_PLUGIN_BACKEND",
     "PLUGIN_BACKENDS",
     "get_mars_addon_availability",
-    "load_mars_plugin_descriptors",
+    "load_mars_function_sources",
     "resolve_mars_plugin_version",
 ]

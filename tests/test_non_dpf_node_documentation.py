@@ -1,19 +1,31 @@
 from __future__ import annotations
 
-from ea_node_editor.addons.mars.nodes import MARS_NODE_DESCRIPTORS
+from ea_node_editor.addons.mars.function_nodes import SOURCE as MARS_SOURCE
+from ea_node_editor.addons.mars.metadata import MARS_ADDON_ID
 from ea_node_editor.addons.tabular_data.catalog import TABULAR_DATA_FUNCTION_TYPE_IDS
 from ea_node_editor.nodes.bootstrap import BUILTIN_NODE_DESCRIPTORS, build_default_registry
+from ea_node_editor.nodes.plugin_declaration import discover_plugin_declarations
 from ea_node_editor.nodes.registry import resolve_instance_ports
 
 
 _TABULAR_DATA_REGISTRY = build_default_registry(include_public_plugins=False)
+_MARS_SPECS = tuple(
+    declaration.spec
+    for declaration in discover_plugin_declarations(
+        MARS_SOURCE,
+        filename="mars_nodes.py",
+        allow_reserved_ids=True,
+        owner_id=MARS_ADDON_ID,
+        allow_internal_metadata=True,
+    )
+)
 NON_DPF_NODE_SPECS = (
     *(descriptor.spec for descriptor in BUILTIN_NODE_DESCRIPTORS),
     *(
         _TABULAR_DATA_REGISTRY.get_spec(type_id)
         for type_id in TABULAR_DATA_FUNCTION_TYPE_IDS
     ),
-    *(descriptor.spec for descriptor in MARS_NODE_DESCRIPTORS),
+    *_MARS_SPECS,
 )
 
 

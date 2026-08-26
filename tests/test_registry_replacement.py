@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import replace
 from pathlib import Path
 from types import SimpleNamespace
 from contextlib import contextmanager
@@ -9,17 +10,24 @@ import time
 import pytest
 
 from ea_node_editor.addons.ansys_dpf.metadata import ANSYS_DPF_ADDON_ID
-from ea_node_editor.app_preferences import default_app_preferences_document
+from ea_node_editor.addons.mars import catalog as mars_catalog
+from ea_node_editor.addons.mars.metadata import MARS_ADDON_ID
+from ea_node_editor.app_preferences import (
+    default_app_preferences_document,
+    set_addon_state,
+)
 from ea_node_editor.graph.project_state import ProjectData
 from ea_node_editor.graph.records import NodeInstance
 from ea_node_editor.graph.workspace_state import WorkspaceData
 from ea_node_editor.nodes.function_plugin import EMPTY_PLUGIN_FINGERPRINT
+from ea_node_editor.nodes.bootstrap import build_default_registry
 from ea_node_editor.nodes.node_specs import NodeTypeSpec
 from ea_node_editor.nodes.package_manager import (
     PackageInstallState,
     PackageManifest,
 )
-from ea_node_editor.nodes.registry import NodeRegistry
+from ea_node_editor.nodes.plugin_contracts import PluginAvailability
+from ea_node_editor.nodes.registry import NodeRegistry, PythonFunctionEntry
 from ea_node_editor.persistence.serializer import JsonProjectSerializer
 from ea_node_editor.execution.headless_runtime import CorexRuntime, ExecutionRequest
 from ea_node_editor.ui.shell.registry_replacement import (
@@ -951,6 +959,131 @@ def test_addon_apply_uses_transaction_and_persists_preferences_last(
         "persist",
         "apply:notifications",
     ]
+
+
+def test_mars_hot_apply_restores_exact_registry_and_open_graph(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        mars_catalog,
+        "PLUGIN_BACKENDS",
+        (
+            replace(
+                mars_catalog.MARS_PLUGIN_BACKEND,
+                get_availability=lambda: PluginAvailability.available(),
+            ),
+        ),
+    )
+    disabled_preferences = set_addon_state(
+        default_app_preferences_document(),
+        MARS_ADDON_ID,
+        enabled=False,
+        pending_restart=False,
+    )
+    enabled_preferences = set_addon_state(
+        disabled_preferences,
+        MARS_ADDON_ID,
+        enabled=True,
+        pending_restart=False,
+    )
+    canonical_root = tmp_path / "canonical"
+
+    def registry(enabled: bool, root: Path) -> NodeRegistry:
+        return build_default_registry(
+            include_public_plugins=False,
+            preferences_document=(
+                enabled_preferences if enabled else disabled_preferences
+            ),
+            generation_root=root,
+        )
+
+    initial = registry(False, canonical_root)
+    first_enabled = registry(True, canonical_root)
+    first_bundle = next(
+        bundle
+        for bundle in first_enabled.plugin_bundle_refs()
+        if bundle.owner_id == MARS_ADDON_ID
+    )
+    project = _project("plot.signal")
+    original_node = replace(project.workspaces["ws"].nodes["node"])
+    original_revisions = (
+        project.project_document_revision,
+        project.workspaces["ws"].mutation_revision,
+        project.workspaces["ws"].dirty,
+    )
+
+    def apply(
+        current: NodeRegistry,
+        replacement: NodeRegistry,
+        *,
+        enabled: bool,
+        preferences_document: dict[str, object],
+        candidate_root: Path,
+    ) -> NodeRegistry:
+        candidate = registry(enabled, candidate_root)
+        failure = _FailureController()
+        host = _Host(current, replacement, project, failure)
+        result = _coordinator(
+            tmp_path,
+            host,
+            [candidate, replacement],
+        ).apply_addon_enabled_state(
+            MARS_ADDON_ID,
+            enabled=enabled,
+            preferences_document=preferences_document,
+        )
+        assert result.registry is replacement
+        return replacement
+
+    current = apply(
+        initial,
+        first_enabled,
+        enabled=True,
+        preferences_document=disabled_preferences,
+        candidate_root=tmp_path / "enable-candidate",
+    )
+    assert all(
+        isinstance(current.get_entry(type_id), PythonFunctionEntry)
+        for type_id in mars_catalog.MARS_FUNCTION_TYPE_IDS
+    )
+
+    disabled_again = registry(False, canonical_root)
+    current = apply(
+        current,
+        disabled_again,
+        enabled=False,
+        preferences_document=enabled_preferences,
+        candidate_root=tmp_path / "disable-candidate",
+    )
+    assert all(
+        current.spec_or_none(type_id) is None
+        for type_id in mars_catalog.MARS_FUNCTION_TYPE_IDS
+    )
+    assert current.contract_fingerprint() == initial.contract_fingerprint()
+
+    reenabled = registry(True, canonical_root)
+    current = apply(
+        current,
+        reenabled,
+        enabled=True,
+        preferences_document=disabled_preferences,
+        candidate_root=tmp_path / "reenable-candidate",
+    )
+    reenabled_bundle = next(
+        bundle
+        for bundle in current.plugin_bundle_refs()
+        if bundle.owner_id == MARS_ADDON_ID
+    )
+    assert reenabled_bundle == first_bundle
+    assert current.plugin_fingerprint() == first_enabled.plugin_fingerprint()
+    assert current.contract_fingerprint() == first_enabled.contract_fingerprint()
+    assert project.workspaces["ws"].nodes["node"] == original_node
+    assert (
+        project.project_document_revision,
+        project.workspaces["ws"].mutation_revision,
+        project.workspaces["ws"].dirty,
+    ) == original_revisions
 
 
 def test_addon_preference_failure_restores_every_published_consumer(

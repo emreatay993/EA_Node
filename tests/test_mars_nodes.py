@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import asdict, replace
 import json
 import os
 import queue
@@ -18,8 +19,8 @@ from ea_node_editor.addons.catalog import (
 from ea_node_editor.addons.mars.catalog import (
     MARS_PLUGIN_BACKEND,
     get_mars_addon_availability,
-    load_mars_plugin_descriptors,
 )
+from ea_node_editor.addons.mars.function_nodes import SOURCE as MARS_FUNCTION_SOURCE
 from ea_node_editor.addons.mars.metadata import (
     MARS_ADDON_MANIFEST,
     MARS_DISTRIBUTION,
@@ -29,9 +30,9 @@ from ea_node_editor.addons.mars.nodes import (
     MARS_BATCH_SOLVE_NODE_TYPE_ID,
     MARS_RUN_JOB_NODE_TYPE_ID,
     MARS_TIME_HISTORY_NODE_TYPE_ID,
-    MarsBatchSolveNodePlugin,
-    MarsRunJobNodePlugin,
-    MarsTimeHistoryNodePlugin,
+    execute_mars_batch_solve,
+    execute_mars_run_job,
+    execute_mars_time_history,
 )
 from ea_node_editor.addons.mars.runtime import (
     MarsBatchOutcome,
@@ -51,10 +52,13 @@ from ea_node_editor.execution.runtime_snapshot import (
 from ea_node_editor.execution.worker import run_workflow
 from ea_node_editor.graph.model import GraphModel
 from ea_node_editor.nodes.execution_context import ExecutionContext
+from ea_node_editor.nodes.function_plugin import INTERNAL_BUILTIN_FUNCTION_OWNER_ID
 from ea_node_editor.nodes.output_artifacts import register_staged_path_artifact
+from ea_node_editor.nodes.plugin_declaration import discover_plugin_declarations
 from ea_node_editor.nodes.plugin_contracts import PluginAvailability
+from ea_node_editor.nodes.plugin_loader import register_plugin_backends
 from ea_node_editor.nodes.readiness import evaluate_node_readiness
-from ea_node_editor.nodes.registry import NodeRegistry
+from ea_node_editor.nodes.registry import NodeRegistry, PythonFunctionEntry
 from ea_node_editor.persistence.artifact_resolution import ProjectArtifactResolver
 from ea_node_editor.persistence.artifact_store import ProjectArtifactStore
 from ea_node_editor.runtime_contracts import (
@@ -65,6 +69,44 @@ from ea_node_editor.runtime_contracts import (
 from ea_node_editor.ui_qml.node_title_icon_sources import (
     title_icon_presentation_for_node_payload,
 )
+
+
+_MARS_SPECS = {
+    declaration.spec.type_id: declaration.spec
+    for declaration in discover_plugin_declarations(
+        MARS_FUNCTION_SOURCE,
+        filename="ea_node_editor/addons/mars/function_nodes.py",
+        allow_reserved_ids=True,
+        owner_id=INTERNAL_BUILTIN_FUNCTION_OWNER_ID,
+    )
+}
+
+
+def _mars_properties(type_id: str) -> dict[str, object]:
+    return {
+        property_spec.key: property_spec.default
+        for property_spec in _MARS_SPECS[type_id].properties
+    }
+
+
+def _generated_mars_registry(generation_root: Path) -> NodeRegistry:
+    registry = NodeRegistry(
+        addon_runtime_config=((MARS_ADDON_MANIFEST.addon_id, True),)
+    )
+    backend = replace(
+        MARS_PLUGIN_BACKEND,
+        get_availability=lambda: PluginAvailability.available(),
+    )
+    loaded = register_plugin_backends(
+        (backend,),
+        registry,
+        "tests/test_mars_nodes.py",
+        generation_root=generation_root,
+    )
+    if tuple(loaded) != backend.function_type_ids:
+        raise AssertionError("MARS function registry generation failed")
+    registry.freeze()
+    return registry
 
 
 def _context(
@@ -152,19 +194,31 @@ print(json.dumps({"record": "result", "result": result}), flush=True)
 
 
 class MarsAddOnContractTests(unittest.TestCase):
+    def test_static_function_specs_match_pre_cutover_golden(self) -> None:
+        rows = json.loads(
+            (
+                Path(__file__).parent
+                / "fixtures"
+                / "node_catalog"
+                / "pre_cutover_non_dpf_catalog.json"
+            ).read_text(encoding="utf-8")
+        )
+        expected = {
+            row["spec"]["type_id"]: row["spec"]
+            for row in rows
+            if row["spec"]["type_id"] in _MARS_SPECS
+        }
+        actual = {
+            type_id: json.loads(json.dumps(asdict(spec)))
+            for type_id, spec in _MARS_SPECS.items()
+        }
+
+        self.assertEqual(actual, expected)
+
     def test_fresh_batch_solve_settles_empty_without_constructing_plugin(self) -> None:
-        with patch(
-            "ea_node_editor.addons.mars.catalog.get_mars_addon_availability",
-            return_value=PluginAvailability.available(),
-        ):
-            descriptor = next(
-                item
-                for item in load_mars_plugin_descriptors()
-                if item.spec.type_id == MARS_BATCH_SOLVE_NODE_TYPE_ID
-            )
-        registry = NodeRegistry()
-        registry.register_descriptor(descriptor)
-        registry.freeze()
+        generation = tempfile.TemporaryDirectory(prefix="corex-mars-test-")
+        self.addCleanup(generation.cleanup)
+        registry = _generated_mars_registry(Path(generation.name))
         model = GraphModel()
         workspace = model.active_workspace
         node = model.add_node(
@@ -182,9 +236,15 @@ class MarsAddOnContractTests(unittest.TestCase):
         event_queue: queue.Queue = queue.Queue()
 
         with patch.object(registry, "create", wraps=registry.create) as create:
-            with patch(
-                "ea_node_editor.nodes.bootstrap.build_default_registry",
-                return_value=registry,
+            with (
+                patch(
+                    "ea_node_editor.nodes.bootstrap.build_default_registry",
+                    return_value=registry,
+                ),
+                patch(
+                    "ea_node_editor.execution.protocol.plugin_generations_dir",
+                    return_value=Path(generation.name),
+                ),
             ):
                 run_workflow(
                     coerce_start_run_command(
@@ -193,6 +253,8 @@ class MarsAddOnContractTests(unittest.TestCase):
                             "workspace_id": workspace.workspace_id,
                             "runtime_snapshot": snapshot,
                             "trigger": {},
+                            "plugin_bundles": registry.plugin_bundle_refs(),
+                            "plugin_fingerprint": registry.plugin_fingerprint(),
                             "registry_contract_fingerprint": (
                                 registry.contract_fingerprint()
                             ),
@@ -230,8 +292,11 @@ class MarsAddOnContractTests(unittest.TestCase):
         self.assertFalse(any(event.get("type") == "run_failed" for event in events))
 
     def test_guided_nodes_declare_blank_modal_coordinates_as_not_ready(self) -> None:
-        for plugin in (MarsBatchSolveNodePlugin(), MarsTimeHistoryNodePlugin()):
-            spec = plugin.spec()
+        for type_id in (
+            MARS_BATCH_SOLVE_NODE_TYPE_ID,
+            MARS_TIME_HISTORY_NODE_TYPE_ID,
+        ):
+            spec = _MARS_SPECS[type_id]
             properties = {
                 property_spec.key: property_spec.default
                 for property_spec in spec.properties
@@ -260,7 +325,7 @@ class MarsAddOnContractTests(unittest.TestCase):
                 self.assertTrue(all(port.uses_property_default for port in input_ports))
 
     def test_batch_damage_requires_each_fatigue_property(self) -> None:
-        spec = MarsBatchSolveNodePlugin().spec()
+        spec = _MARS_SPECS[MARS_BATCH_SOLVE_NODE_TYPE_ID]
         properties = {
             property_spec.key: property_spec.default
             for property_spec in spec.properties
@@ -283,7 +348,7 @@ class MarsAddOnContractTests(unittest.TestCase):
         )
 
     def test_run_job_uses_property_fallback_until_a_wire_overrides_it(self) -> None:
-        spec = MarsRunJobNodePlugin().spec()
+        spec = _MARS_SPECS[MARS_RUN_JOB_NODE_TYPE_ID]
         properties = {
             property_spec.key: property_spec.default
             for property_spec in spec.properties
@@ -321,7 +386,7 @@ class MarsAddOnContractTests(unittest.TestCase):
             )
         )
 
-    def test_manifest_backend_and_three_descriptors_are_self_contained(self) -> None:
+    def test_manifest_backend_and_three_function_entries_are_self_contained(self) -> None:
         self.assertEqual(MARS_ADDON_MANIFEST.addon_id, "mars.corex")
         self.assertEqual(MARS_PLUGIN_BACKEND.plugin_id, MARS_ADDON_MANIFEST.addon_id)
         self.assertEqual(MARS_ADDON_MANIFEST.dependencies, (MARS_DISTRIBUTION,))
@@ -329,18 +394,45 @@ class MarsAddOnContractTests(unittest.TestCase):
             MARS_ADDON_MANIFEST.runtime_backends[0].backend_id,
             MARS_RUNTIME_BACKEND_ID,
         )
-        with patch(
-            "ea_node_editor.addons.mars.catalog.get_mars_addon_availability",
-            return_value=PluginAvailability.available(),
-        ):
-            descriptors = load_mars_plugin_descriptors()
+        self.assertEqual(MARS_PLUGIN_BACKEND.load_descriptors(), ())
         self.assertEqual(
-            {descriptor.spec.type_id for descriptor in descriptors},
+            MARS_PLUGIN_BACKEND.function_type_ids,
+            (
+                MARS_BATCH_SOLVE_NODE_TYPE_ID,
+                MARS_TIME_HISTORY_NODE_TYPE_ID,
+                MARS_RUN_JOB_NODE_TYPE_ID,
+            ),
+        )
+        load_sources = MARS_PLUGIN_BACKEND.load_function_sources
+        self.assertIsNotNone(load_sources)
+        if load_sources is None:
+            self.fail("missing MARS function-source loader")
+        self.assertEqual(
+            tuple(path for path, _source in load_sources()),
+            ("mars_nodes.py",),
+        )
+
+        generation = tempfile.TemporaryDirectory(prefix="corex-mars-test-")
+        self.addCleanup(generation.cleanup)
+        registry = _generated_mars_registry(Path(generation.name))
+        entries = tuple(
+            registry.get_entry(type_id)
+            for type_id in MARS_PLUGIN_BACKEND.function_type_ids
+        )
+        self.assertEqual(
+            {entry.spec.type_id for entry in entries},
             {
                 MARS_BATCH_SOLVE_NODE_TYPE_ID,
                 MARS_TIME_HISTORY_NODE_TYPE_ID,
                 MARS_RUN_JOB_NODE_TYPE_ID,
             },
+        )
+        self.assertTrue(all(isinstance(entry, PythonFunctionEntry) for entry in entries))
+        self.assertTrue(
+            all(
+                registry.descriptor_or_none(entry.spec.type_id) is None
+                for entry in entries
+            )
         )
         provenance = MARS_PLUGIN_BACKEND.provenance
         self.assertIsNotNone(provenance)
@@ -355,15 +447,15 @@ class MarsAddOnContractTests(unittest.TestCase):
             / "icons"
             / "mars_icon_64.png"
         ).resolve()
-        for descriptor in descriptors:
-            self.assertEqual(descriptor.spec.icon, "icons/mars_icon_64.png")
+        for entry in entries:
+            self.assertEqual(entry.spec.icon, "icons/mars_icon_64.png")
             presentation = title_icon_presentation_for_node_payload(
-                descriptor.spec,
+                entry.spec,
                 provenance=provenance,
             )
             self.assertEqual(presentation.source, expected_icon.as_uri())
             self.assertFalse(presentation.theme_aware)
-            ports = {port.key: port for port in descriptor.spec.ports}
+            ports = {port.key: port for port in entry.spec.ports}
             self.assertEqual(ports["manifest"].data_type, PATH_DATA_TYPE_ID)
             self.assertEqual(ports["files"].data_type, GRAPH_DATA_TYPE_ID)
             self.assertNotIn("exec_out", ports)
@@ -376,8 +468,8 @@ class MarsAddOnContractTests(unittest.TestCase):
                     if port.direction == "in"
                 )
             )
-        batch_spec = MarsBatchSolveNodePlugin().spec()
-        run_job_spec = MarsRunJobNodePlugin().spec()
+        batch_spec = _MARS_SPECS[MARS_BATCH_SOLVE_NODE_TYPE_ID]
+        run_job_spec = _MARS_SPECS[MARS_RUN_JOB_NODE_TYPE_ID]
         primary_ports = {
             "von_mises",
             "max_principal",
@@ -880,11 +972,7 @@ class MarsNodeExecutionTests(unittest.TestCase):
             )
 
     def test_guided_batch_publishes_primary_bundle_manifest_and_files(self) -> None:
-        plugin = MarsBatchSolveNodePlugin()
-        properties = {
-            property_spec.key: property_spec.default
-            for property_spec in plugin.spec().properties
-        }
+        properties = _mars_properties(MARS_BATCH_SOLVE_NODE_TYPE_ID)
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
             modal_coordinates = root / "response.mcf"
@@ -913,7 +1001,7 @@ class MarsNodeExecutionTests(unittest.TestCase):
                     side_effect=_fake_success_command,
                 ),
             ):
-                result = plugin.execute(ctx)
+                result = execute_mars_batch_solve(ctx)
 
             self.assertEqual(result.warnings, ("synthetic warning",))
             for key in ("manifest", "von_mises"):
@@ -981,11 +1069,7 @@ class MarsNodeExecutionTests(unittest.TestCase):
             self.assertEqual(portable_manifest["files"], ["max_von_mises_stress.csv"])
 
     def test_guided_time_history_publishes_history_csv(self) -> None:
-        plugin = MarsTimeHistoryNodePlugin()
-        properties = {
-            property_spec.key: property_spec.default
-            for property_spec in plugin.spec().properties
-        }
+        properties = _mars_properties(MARS_TIME_HISTORY_NODE_TYPE_ID)
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
             modal_coordinates = root / "response.pch"
@@ -1016,7 +1100,7 @@ class MarsNodeExecutionTests(unittest.TestCase):
                     side_effect=_fake_success_command,
                 ),
             ):
-                result = plugin.execute(ctx)
+                result = execute_mars_time_history(ctx)
 
             self.assertIsInstance(result.outputs["history_csv"], RuntimeArtifactRef)
             self.assertNotIn("results_directory", result.outputs)
@@ -1033,11 +1117,7 @@ class MarsNodeExecutionTests(unittest.TestCase):
     def test_run_job_forces_scratch_output_and_leaves_declared_directory_untouched(
         self,
     ) -> None:
-        plugin = MarsRunJobNodePlugin()
-        properties = {
-            property_spec.key: property_spec.default
-            for property_spec in plugin.spec().properties
-        }
+        properties = _mars_properties(MARS_RUN_JOB_NODE_TYPE_ID)
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
             declared_output = root / "must-not-be-used"
@@ -1076,7 +1156,7 @@ class MarsNodeExecutionTests(unittest.TestCase):
                     side_effect=_fake_success_command,
                 ),
             ):
-                result = plugin.execute(ctx)
+                result = execute_mars_run_job(ctx)
 
             self.assertFalse(declared_output.exists())
             self.assertIsInstance(result.outputs["von_mises"], RuntimeArtifactRef)
@@ -1112,21 +1192,21 @@ class MarsRealProcessIntegrationTests(unittest.TestCase):
                 encoding="utf-8",
             )
 
-            for plugin, updates, expected_port in (
+            for execute, type_id, updates, expected_port in (
                 (
-                    MarsBatchSolveNodePlugin(),
+                    execute_mars_batch_solve,
+                    MARS_BATCH_SOLVE_NODE_TYPE_ID,
                     {"output_von_mises": False, "output_deformation": True},
                     "deformation",
                 ),
                 (
-                    MarsTimeHistoryNodePlugin(),
+                    execute_mars_time_history,
+                    MARS_TIME_HISTORY_NODE_TYPE_ID,
                     {"node_id": 7, "output": "deformation"},
                     "history_csv",
                 ),
             ):
-                properties = {
-                    spec.key: spec.default for spec in plugin.spec().properties
-                }
+                properties = _mars_properties(type_id)
                 properties.update(
                     modal_coordinates=str(modal_coordinates),
                     modal_deformation=str(modal_deformation),
@@ -1136,13 +1216,13 @@ class MarsRealProcessIntegrationTests(unittest.TestCase):
                 properties.update(updates)
                 ctx, store = _context(
                     properties=properties,
-                    project_path=root / f"{plugin.spec().type_id}.cxproj",
+                    project_path=root / f"{type_id}.cxproj",
                 )
                 with patch(
                     "ea_node_editor.addons.mars.runtime.managed_mars_batch_executable",
                     return_value=executable,
                 ):
-                    result = plugin.execute(ctx)
+                    result = execute(ctx)
                 self.assertIsInstance(result.outputs[expected_port], RuntimeArtifactRef)
                 self.assertIsNotNone(store)
 

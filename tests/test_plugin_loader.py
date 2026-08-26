@@ -36,6 +36,7 @@ from ea_node_editor.nodes.plugin_contracts import (
     PluginBackendDescriptor,
     PluginContractManifest,
     PluginDescriptor,
+    PluginProvenance,
     RuntimeBackendSpec,
     SurfaceCapabilitySpec,
     ToolchainRequirementSpec,
@@ -46,6 +47,9 @@ from ea_node_editor.nodes.plugin_generation import prune_plugin_generations
 from ea_node_editor.runtime_contracts import (
     DataTypeFamilySpec,
     DataTypeSpec,
+)
+from ea_node_editor.ui_qml.node_title_icon_sources import (
+    resolve_node_title_icon_source,
 )
 
 
@@ -149,6 +153,7 @@ def _function_backend(
     source: str | None = None,
     descriptors: tuple[PluginDescriptor, ...] = (),
     availability=None,
+    provenance: PluginProvenance | None = None,
 ) -> PluginBackendDescriptor:
     return PluginBackendDescriptor(
         plugin_id=owner_id,
@@ -161,6 +166,7 @@ def _function_backend(
         load_descriptors=lambda: descriptors,
         load_function_sources=lambda: (("functions.py", source or _function_source(type_id)),),
         function_type_ids=(type_id,),
+        provenance=provenance,
     )
 
 
@@ -580,12 +586,19 @@ def package_node(ctx, value): return {{"result": helper(value)}}
     assert result.type_ids == ("custom.package_node.1234abcd",)
     bundle = result.bundles[0]
     generation = Path(bundle.approved_generation_root)
+    provenance = registry.provenance_or_none("custom.package_node.1234abcd")
     assert (generation / "nodes.py").read_text(encoding="utf-8") == nodes_source
     assert (generation / "helpers.py").read_text(encoding="utf-8") == (
         package_dir / "helpers.py"
     ).read_text(encoding="utf-8")
     assert not marker.exists()
     assert registry.spec_or_none("custom.package_node.1234abcd") is not None
+    assert provenance == PluginProvenance(
+        kind="package",
+        source_path=generation / "nodes.py",
+        package_root=generation,
+        package_name="static_package",
+    )
     assert "plugin:package:legacy_package" in caplog.text
     assert str(tmp_path) not in caplog.text
 
@@ -975,6 +988,14 @@ def test_plugin_backend_functions_are_static_deterministic_and_worker_compatible
     owner_id = "packet.functions"
     type_id = "packet.function"
     marker = tmp_path / "executed.txt"
+    package_root = tmp_path / "trusted-package"
+    icon_path = _write_text(package_root / "icons" / "node.svg", "<svg/>")
+    provenance = PluginProvenance(
+        kind="package",
+        source_path=package_root / "catalog.py",
+        package_root=package_root,
+        package_name="trusted-package",
+    )
     availability_calls = 0
 
     def availability() -> PluginAvailability:
@@ -986,7 +1007,12 @@ def test_plugin_backend_functions_are_static_deterministic_and_worker_compatible
 from pathlib import Path
 Path({str(marker)!r}).write_text("executed", encoding="utf-8")
 
-@corex.node(id={type_id!r}, name="Static Node", category=("Tests",))
+@corex.node(
+    id={type_id!r},
+    name="Static Node",
+    category=("Tests",),
+    icon="icons/node.svg",
+)
 @corex.text(
     "setting",
     default="",
@@ -1004,6 +1030,7 @@ def static_node(ctx, settings):
         source=source,
         descriptors=(descriptor,),
         availability=availability,
+        provenance=provenance,
     )
 
     first = NodeRegistry()
@@ -1018,10 +1045,20 @@ def static_node(ctx, settings):
     assert loaded == [descriptor.spec.type_id, type_id]
     assert not marker.exists()
     assert first.descriptor_or_none(descriptor.spec.type_id) is not None
-    assert isinstance(first.get_entry(type_id), PythonFunctionEntry)
+    entry = first.get_entry(type_id)
+    assert isinstance(entry, PythonFunctionEntry)
+    assert entry.provenance is provenance
+    assert (
+        resolve_node_title_icon_source(entry.spec.icon, provenance=entry.provenance)
+        == icon_path.resolve().as_uri()
+    )
     bundle = first.plugin_bundle_refs()[0]
     assert bundle.owner_id == owner_id
     assert tuple(ref.bundle_id for ref in bundle.functions) == (owner_id,)
+    assert Path(bundle.approved_generation_root) != package_root
+    assert (
+        Path(bundle.approved_generation_root) / bundle.functions[0].module_relative_path
+    ).is_file()
     generation = plugin_generation.read_verified_plugin_generation(bundle)
     declarations = plugin_loader.validated_generation_declarations(
         generation.manifest,
@@ -1046,6 +1083,19 @@ def static_node(ctx, settings):
         first.plugin_bundle_refs()[0].approved_generation_root
         != second.plugin_bundle_refs()[0].approved_generation_root
     )
+
+
+def test_internal_builtin_function_entries_keep_no_plugin_provenance(
+    tmp_path: Path,
+) -> None:
+    registry = bootstrap.build_builtin_registry(
+        generation_root=tmp_path / "builtin-generations"
+    )
+
+    entry = registry.get_entry("core.if")
+
+    assert isinstance(entry, PythonFunctionEntry)
+    assert entry.provenance is None
 
 
 @pytest.mark.parametrize(
@@ -1330,6 +1380,10 @@ def test_plugin_backend_failure_does_not_leave_partial_type_contribution() -> No
         display_name="Invalid Backend",
         get_availability=lambda: PluginAvailability.available("available"),
         load_descriptors=lambda: (invalid_descriptor,),
+        load_function_sources=lambda: (
+            ("functions.py", _function_source("packet.invalid_function")),
+        ),
+        function_type_ids=("packet.invalid_function",),
         data_type_families=families,
         data_types=data_types,
     )
@@ -1343,6 +1397,8 @@ def test_plugin_backend_failure_does_not_leave_partial_type_contribution() -> No
 
     assert loaded == []
     assert registry.spec_or_none("packet.invalid") is None
+    assert registry.spec_or_none("packet.invalid_function") is None
+    assert registry.plugin_bundle_refs() == ()
     assert registry.data_types.get("Packet.Invalid.Value") is None
     assert registry.plugin_contract_manifest("packet.invalid") is None
 

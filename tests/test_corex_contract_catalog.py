@@ -19,7 +19,8 @@ from ea_node_editor.addons.ansys_dpf.operator_catalog import (
 from ea_node_editor.addons.ansys_dpf.plot_catalog import (
     load_ansys_dpf_plot_plugin_descriptors,
 )
-from ea_node_editor.addons.mars.nodes import MARS_NODE_DESCRIPTORS
+from ea_node_editor.addons.mars.function_nodes import SOURCE as MARS_SOURCE
+from ea_node_editor.addons.mars.metadata import MARS_ADDON_ID
 from ea_node_editor.addons.tabular_data.function_nodes import SOURCE as TABULAR_SOURCE
 from ea_node_editor.addons.tabular_data.metadata import TABULAR_DATA_ADDON_ID
 from ea_node_editor.nodes.bootstrap import build_builtin_registry
@@ -86,10 +87,20 @@ def _current_non_dpf_catalog() -> list[dict[str, object]]:
             allow_internal_metadata=True,
         )
     )
+    mars_specs = tuple(
+        declaration.spec
+        for declaration in discover_plugin_declarations(
+            MARS_SOURCE,
+            filename="mars_nodes.py",
+            allow_reserved_ids=True,
+            owner_id=MARS_ADDON_ID,
+            allow_internal_metadata=True,
+        )
+    )
     specs = (
         *build_builtin_registry().all_specs(),
         *tabular_specs,
-        *(descriptor.spec for descriptor in MARS_NODE_DESCRIPTORS),
+        *mars_specs,
     )
     type_ids = [spec.type_id for spec in specs]
     assert len(type_ids) == len(set(type_ids))
@@ -155,10 +166,20 @@ def test_novice_plugin_sdk_migration_inventory_is_exhaustive() -> None:
             allow_internal_metadata=True,
         )
     )
+    mars_specs = tuple(
+        declaration.spec
+        for declaration in discover_plugin_declarations(
+            MARS_SOURCE,
+            filename="mars_nodes.py",
+            allow_reserved_ids=True,
+            owner_id=MARS_ADDON_ID,
+            allow_internal_metadata=True,
+        )
+    )
     non_dpf = (
         *build_builtin_registry().all_specs(),
         *tabular_specs,
-        *(descriptor.spec for descriptor in MARS_NODE_DESCRIPTORS),
+        *mars_specs,
     )
     dpf = tuple(
         descriptor.spec

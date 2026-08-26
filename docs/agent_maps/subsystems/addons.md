@@ -12,6 +12,7 @@ Use this for repo-local add-ons, dependency-gated add-on availability, add-on ma
 - `ea_node_editor/addons/tabular_data/`
 - `ea_node_editor/addons/tabular_data/function_nodes.py`
 - `ea_node_editor/addons/mars/`
+- `ea_node_editor/addons/mars/function_nodes.py`
 - `ea_node_editor/ui/shell/controllers/addon_manager_controller.py`
 - `ea_node_editor/ui/shell/presenters/addon_manager_presenter.py`
 - `ea_node_editor/ui_qml/shell_addon_manager_bridge.py`
@@ -26,7 +27,8 @@ Use this for repo-local add-ons, dependency-gated add-on availability, add-on ma
 - Add-on backend manifests contribute semantic data-type families/types/conversions before descriptors or function entries. Dependency-unavailable backends contribute nothing; a type, descriptor, static declaration, or declared-ID conflict rejects the complete contribution. The DPF add-on owns the ten `COREX.Ansys.DPF.*` concrete contracts plus the evidence-backed `IMesh`/`IModel` parent relations in `nodes/ansys_dpf_data_types.py`.
 - Add-on node declarations follow the coordinated dataflow SDK: no execution/completed/failed ports, scalar pins use Item, variadic pins use List, and whole-topology or side-effect inputs use Tree. Generated DPF ellipsis pins declare List access in the committed catalog; MARS, Tabular, plot, integration, and SSH/SFTP nodes must preserve their audited access declarations.
 - Tabular's seven executable shells are one same-owner static function bundle declared in `function_nodes.py`; dependency gating, manifest/toolchain facts, property adapters, native preload, refs, previews, and runtime helpers remain add-on-owned. Discovery projects exact declared function IDs without source execution, and hot apply adds or removes the manifest, entries, and bundle atomically.
-- Repo-owned Tabular function declarations and MARS descriptors follow the shared help contract: authored node `keywords` and an authored `description` for every declared port. `tests/test_non_dpf_node_documentation.py` covers these add-ons together with built-ins; generated Ansys DPF descriptors are intentionally excluded.
+- Repo-owned Tabular and MARS function declarations follow the shared help contract: authored node `keywords` and an authored `description` for every declared port. `tests/test_non_dpf_node_documentation.py` covers these add-ons together with built-ins; generated Ansys DPF descriptors are intentionally excluded.
+- MARS publishes exactly three dependency-gated generated functions from `function_nodes.py`; its catalog retains managed-package, backend, toolchain, artifact, availability, version, and package-asset provenance ownership. Runtime helpers and JSONL subprocess handling remain in `nodes.py` and `runtime.py` without importing `mars_solver` into COREX.
 - Update add-on manager payload tests for metadata changes.
 - Tabular data refs should carry reopen metadata, including load options, selected object, selected columns, and array slice hints, because generic plot nodes can materialize refs directly without adapter nodes.
 - The tabular add-on owns one process-wide loader service (`shared_tabular_loader_cache_service()`): parquet-first ingestion with per-key conversion locks, scan caching, ref-record registry, and Arrow-compute preview queries. App startup explicitly preloads PyArrow native submodules before QML; package/catalog discovery stays import-light, and duckdb must never be imported in GUI-process code (`tests/test_tabular_native_runtime_guards.py`).
@@ -40,6 +42,7 @@ Use this for repo-local add-ons, dependency-gated add-on availability, add-on ma
 ## Focused Verification
 ```powershell
 .\venv\Scripts\python.exe -m pytest tests/test_tabular_function_migration.py tests/test_tabular_addon_catalog.py --ignore=venv -q
+.\venv\Scripts\python.exe -m pytest tests/test_mars_function_migration.py tests/test_mars_nodes.py --ignore=venv -q
 .\venv\Scripts\python.exe -m pytest tests/test_tabular_input_node.py tests/test_addon_manager_install.py --ignore=venv -q
 .\venv\Scripts\python.exe -m pytest tests/test_non_dpf_node_documentation.py --ignore=venv -q
 .\venv\Scripts\python.exe -m pytest tests/test_tabular_input_node.py tests/test_tabular_loaders.py tests/test_tabular_runtime_refs.py --ignore=venv -q

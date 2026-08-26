@@ -733,6 +733,8 @@ def _register_prepared_bundle(
 def _materialize_prepared_bundle(
     prepared: _PreparedBundle,
     generation_root: Path,
+    *,
+    provenance_override: PluginProvenance | None = None,
 ) -> tuple[PluginBundleRef, tuple[PythonFunctionEntry, ...]]:
     bundle_digest = canonical_bundle_digest(prepared.manifest, prepared.members)
     function_refs = _function_refs(prepared, bundle_digest)
@@ -755,19 +757,22 @@ def _materialize_prepared_bundle(
     for (_module_path, declaration), function_ref in zip(
         prepared.declarations, function_refs, strict=True
     ):
-        provenance = None if prepared.owner_id == INTERNAL_BUILTIN_FUNCTION_OWNER_ID else (
-            PluginProvenance(
+        if provenance_override is not None:
+            provenance = provenance_override
+        elif prepared.owner_id == INTERNAL_BUILTIN_FUNCTION_OWNER_ID:
+            provenance = None
+        elif prepared.package_name:
+            provenance = PluginProvenance(
                 kind="package",
                 source_path=generation / function_ref.module_relative_path,
                 package_root=generation,
                 package_name=prepared.package_name,
             )
-            if prepared.package_name
-            else PluginProvenance(
+        else:
+            provenance = PluginProvenance(
                 kind="file",
                 source_path=prepared.source_root / function_ref.module_relative_path,
             )
-        )
         entries.append(
             PythonFunctionEntry(
                 spec=declaration.spec,
@@ -1184,11 +1189,12 @@ def _register_plugin_backend(
     descriptors = backend.load_descriptors()
     if backend.load_function_sources is not None:
         prepared = _prepare_backend_function_bundle(backend)
+        effective_provenance = backend.provenance or provenance
         bundle, function_entries = _materialize_prepared_bundle(
             prepared,
             generation_root,
+            provenance_override=effective_provenance,
         )
-        effective_provenance = backend.provenance or provenance
         normalized_descriptors = tuple(
             descriptor
             if effective_provenance is None

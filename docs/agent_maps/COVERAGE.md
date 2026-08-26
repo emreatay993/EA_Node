@@ -27,6 +27,7 @@ implementation studies are intentionally excluded.
 - [Port Availability And Default Values](feature_routes/port_availability_and_default_values.md)
 - [Plotter Nodes](feature_routes/plotter_nodes.md)
 - [Tabular Data Add-on And Preview](feature_routes/tabular_data_addon_preview.md)
+- [MARS Solver Add-on](feature_routes/mars_solver_addon.md)
 - [Neutral CAD/FE Engineering Viewer](feature_routes/neutral_cad_fe_engineering_viewer.md)
 - [Ansys DPF Operator Viewer Transport](feature_routes/ansys_dpf_operator_viewer_transport.md)
 - [Managed Artifacts And Project Data](feature_routes/managed_artifacts_project_data.md)
@@ -39,6 +40,7 @@ implementation studies are intentionally excluded.
 ## Current ownership notes
 
 - Tabular's seven executable declarations are owned by `addons/tabular_data/function_nodes.py`; dependency gating and bundle publication stay under the add-on catalog, while refs, preview, property editing, native preload, and execution helpers remain in their existing Tabular owners.
+- MARS's three executable declarations are owned by `addons/mars/function_nodes.py`; its catalog owns dependency gating, package provenance, and bundle publication while `nodes.py` and `runtime.py` retain job construction, JSONL execution, cancellation, and artifact publication.
 - Signal Plot declaration/execution is owned by `nodes/builtin_functions/plot_signal.py`,
   rendering by `execution/signal_plot_renderer.py`, and navigation by the plotter route.
 - Declarative node controls are shared metadata-to-QML behavior owned by the
