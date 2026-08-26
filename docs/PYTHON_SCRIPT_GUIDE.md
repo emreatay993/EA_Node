@@ -15,6 +15,42 @@ the project, its function is synchronous, and its declaration changes only on
 **Apply**. Use the [Plugin Authoring Guide](PLUGIN_AUTHORING_GUIDE.md) when a
 node should be reusable across projects.
 
+## Choose the workflow Python runtime
+
+Open **Workflow Settings > Environment** to choose where the whole workflow
+runs. **Application Default Python Executable** is saved for COREX on this PC;
+**Workflow Override** is saved in the current project and wins when non-empty.
+Use either native **Browse** button to select an executable.
+
+| Setting | Effective runtime |
+| --- | --- |
+| Workflow Override set | That project executable |
+| Workflow Override blank, Application Default set | The application default |
+| Both blank | The built-in process-isolated runtime |
+
+**Create / Repair Managed Runtime** prepares COREX's managed environment and
+fills the application default. **Clear Application Default** clears only that
+default; **Inherit Application Default** clears only the workflow override.
+There is no PATH search, per-node interpreter, or project force-built-in option
+while an application default is set.
+
+External Python is trusted local execution, not a sandbox, and it runs every
+node in the workflow—not just Python Script nodes. A user-managed interpreter
+must import `ea_node_editor.execution.stdio_worker`; it can still be rejected by
+the normal startup handshake when its runtime contracts do not agree with the
+desktop app. Changes apply to the next run and do not alter an active run.
+
+On **OK**, COREX saves the application default first, then updates the live
+project workflow settings and requests its existing best-effort session save.
+Cancel or an app-preference write failure leaves the project unchanged. The
+later session save is not a cross-store transaction, so a session-store failure
+may leave the app preference and live project update in place.
+
+API and headless callers can supply an explicit execution policy. Explicit
+process, trusted, or auto policy ignores both stored Python paths. Explicit
+external policy uses its own path; when it omits one, only the project Workflow
+Override may fill it—the application default is shell-only.
+
 ## Start with a pass-through
 
 Insert **Core > Python Script**, open its script editor, replace the draft with

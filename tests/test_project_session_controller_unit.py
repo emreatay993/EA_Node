@@ -225,6 +225,11 @@ class _ProjectHostStub:
         self.node_library_changed = _SignalStub()
         self.node_execution_state_changed = _SignalStub()
         self.project_meta_changed = _SignalStub()
+        self.app_preferences_controller = mock.Mock()
+        self.app_preferences_controller.default_python_executable.return_value = ""
+        self.app_preferences_controller.set_default_python_executable.side_effect = (
+            lambda value: value
+        )
         self.refresh_calls = 0
         self.browse_calls: list[tuple[str, str, str]] = []
         self.browse_result = ""
@@ -268,6 +273,140 @@ class ProjectSessionControllerUnitTests(unittest.TestCase):
         self.assertTrue(metadata["ui"]["script_editor"]["visible"])
         self.assertIn("floating", metadata["ui"]["script_editor"])
         self.assertIn("passive_style_presets", metadata["ui"])
+
+    def test_workflow_settings_cancel_leaves_both_stores_and_project_unchanged(self) -> None:
+        host = _ProjectHostStub()
+        host.model.project.metadata = {
+            "custom": "preserve-me",
+            "workflow_settings": {"solver_config": {"thread_count": 16}},
+        }
+        host.app_preferences_controller.default_python_executable.return_value = (
+            r"C:\application\python.exe"
+        )
+        controller = ProjectSessionController(host)  # type: ignore[arg-type]
+        before_metadata = copy.deepcopy(host.model.project.metadata)
+        before_epoch = host.model.project.document_epoch()
+        before_revision = host.model.project.project_document_revision
+        dialog = mock.Mock()
+        dialog.DialogCode.Accepted = 1
+        dialog.exec.return_value = 0
+
+        with (
+            mock.patch(
+                "ea_node_editor.ui.dialogs.workflow_settings_dialog.WorkflowSettingsDialog",
+                return_value=dialog,
+            ) as dialog_class,
+            mock.patch.object(controller._session_service, "persist_session") as persist_session,
+        ):
+            controller.show_workflow_settings_dialog()
+
+        dialog_class.assert_called_once_with(
+            initial_settings=mock.ANY,
+            application_default_python_executable=r"C:\application\python.exe",
+            parent=None,
+        )
+        self.assertEqual(host.model.project.metadata, before_metadata)
+        self.assertEqual(host.model.project.project_document_revision, before_revision)
+        self.assertEqual(host.model.project.document_epoch(), before_epoch)
+        host.app_preferences_controller.set_default_python_executable.assert_not_called()
+        persist_session.assert_not_called()
+
+    def test_workflow_settings_app_write_failure_leaves_project_and_session_unchanged(self) -> None:
+        host = _ProjectHostStub()
+        host.model.project.metadata = {
+            "custom": "preserve-me",
+            "workflow_settings": {"environment": {"python_path": "workflow-old"}},
+        }
+        host.app_preferences_controller.set_default_python_executable.side_effect = OSError(
+            "write failed"
+        )
+        controller = ProjectSessionController(host)  # type: ignore[arg-type]
+        before_metadata = copy.deepcopy(host.model.project.metadata)
+        before_epoch = host.model.project.document_epoch()
+        before_revision = host.model.project.project_document_revision
+        dialog = mock.Mock()
+        dialog.DialogCode.Accepted = 1
+        dialog.exec.return_value = 1
+        dialog.application_default_python_executable.return_value = "application-new"
+        dialog.values.return_value = {
+            "environment": {"python_path": "workflow-new"}
+        }
+
+        with (
+            mock.patch(
+                "ea_node_editor.ui.dialogs.workflow_settings_dialog.WorkflowSettingsDialog",
+                return_value=dialog,
+            ),
+            mock.patch.object(controller._session_service, "persist_session") as persist_session,
+            mock.patch("PyQt6.QtWidgets.QMessageBox.warning") as warning,
+        ):
+            controller.show_workflow_settings_dialog()
+
+        host.app_preferences_controller.set_default_python_executable.assert_called_once_with(
+            "application-new"
+        )
+        self.assertEqual(host.model.project.metadata, before_metadata)
+        self.assertEqual(host.model.project.project_document_revision, before_revision)
+        self.assertEqual(host.model.project.document_epoch(), before_epoch)
+        persist_session.assert_not_called()
+        warning.assert_called_once()
+        self.assertIn("Could not save", warning.call_args.args[2])
+
+    def test_workflow_settings_persist_app_first_then_project_once(self) -> None:
+        host = _ProjectHostStub()
+        host.model.project.metadata = {
+            "custom": "preserve-me",
+            "workflow_settings": {"environment": {"python_path": "workflow-old"}},
+        }
+        controller = ProjectSessionController(host)  # type: ignore[arg-type]
+        before_metadata = copy.deepcopy(host.model.project.metadata)
+        events: list[tuple[str, dict]] = []
+
+        def persist_app(value: str) -> str:
+            events.append(("app", copy.deepcopy(host.model.project.metadata)))
+            return value
+
+        def persist_session() -> None:
+            events.append(("session", copy.deepcopy(host.model.project.metadata)))
+
+        host.app_preferences_controller.set_default_python_executable.side_effect = persist_app
+        dialog = mock.Mock()
+        dialog.DialogCode.Accepted = 1
+        dialog.exec.return_value = 1
+        dialog.application_default_python_executable.return_value = "application-new"
+        dialog.values.return_value = {
+            "environment": {
+                "python_path": "workflow-new",
+                "working_directory": "",
+            }
+        }
+
+        with (
+            mock.patch(
+                "ea_node_editor.ui.dialogs.workflow_settings_dialog.WorkflowSettingsDialog",
+                return_value=dialog,
+            ),
+            mock.patch.object(
+                controller._session_service,
+                "persist_session",
+                side_effect=persist_session,
+            ) as session_persist,
+        ):
+            controller.show_workflow_settings_dialog()
+
+        self.assertEqual([event[0] for event in events], ["app", "session"])
+        self.assertEqual(events[0][1], before_metadata)
+        self.assertEqual(
+            events[1][1]["workflow_settings"]["environment"]["python_path"],
+            "workflow-new",
+        )
+        self.assertEqual(host.model.project.metadata["custom"], "preserve-me")
+        self.assertEqual(
+            host.model.project.metadata["workflow_settings"]["environment"]["python_path"],
+            "workflow-new",
+        )
+        session_persist.assert_called_once_with()
+        self.assertEqual(host.run_controller.reset_runtime_solution_state_calls, 0)
 
     def test_recent_project_paths_are_normalized_deduplicated_and_capped(self) -> None:
         host = _ProjectHostStub()

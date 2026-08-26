@@ -39,6 +39,8 @@ Use this for shell-backed workflows, controllers, presenters, context bridges, a
 - Shell-side post-mutation aftermath such as selected-node notifications, workspace-tab refreshes, script-editor sync, runtime-history invalidation, full scene refresh after history replay, and layout graph hints routes through `MutationUiEffects`; graph-scene payload deltas remain owned by `ui_qml/graph_scene*`.
 - Paste routes through `WorkspaceEditOps`: graph-fragment MIME stays first, while shell-side clipboard fallback classification lives in `clipboard_paste_nodes.py` and raw clipboard byte staging lives on `ShellHostPresenter.stage_clipboard_paste_bytes(...)`.
 - App preference controller changes that affect graph-scene payloads should emit/refresh through the shell host path when existing presenters do not own that preference directly.
+- `ProjectDocumentIOService.show_workflow_settings_dialog()` keeps application and project Python settings separate: it opens without normalizing the live project, persists the app default first, then updates project workflow metadata and invokes existing best-effort `persist_session()`. Cancel and app-store failure leave project/session state untouched; the best-effort later session write has no new transaction, rollback, or warning path.
+- `RunController._execution_backend_policy_for_runtime_snapshot(...)` injects the app-default external policy for Run, manual/automatic Run Selected, and Trigger only when the project Workflow Override is blank. It never mutates the trigger payload or runtime snapshot.
 - Shell pane collapse preferences flow through `ShellWorkspacePresenter` and app preferences; keep the presenter, `ShellWorkspaceBridge`, and QML pane owners aligned.
 - `ScriptEditorModel` owns interactive script-editor panel width. `ProjectDocumentIOService` snapshots the model state before manual Save/Save As conversion and restores it on project open; autosave, session, and close synchronization remain lifecycle-owned.
 - File > Import COREX Project routes through `window_actions.py` and `window_state/project_session_actions.py` to `ProjectSessionController` and `ProjectDocumentIOService`. It reuses the New/Open dirty-project Discard/default-Cancel guard, installs only a validated complete/partial candidate as a pathless dirty project, and uses fixed bounded report dialogs. Save As remains the existing destination-prompting path and performs the prepared source/report copy before promotion; do not add a parallel import dialog/controller or claim general post-install rollback.
@@ -84,6 +86,8 @@ Exact touch-point lists for the most common shell additions. One domain = one
 ## Focused Verification
 ```powershell
 .\venv\Scripts\python.exe -m pytest tests/test_run_controller_unit.py --ignore=venv -q
+.\venv\Scripts\python.exe -m pytest tests/test_project_session_controller_unit.py -k "workflow_settings" --ignore=venv -q
+.\venv\Scripts\python.exe -m pytest tests/test_run_controller_unit.py -k "application_default_python" --ignore=venv -q
 .\venv\Scripts\python.exe -m pytest tests/test_registry_replacement.py tests/test_node_package_io_ops.py tests/test_main_window_shell.py -k "registry or package or addon" --ignore=venv -q
 .\venv\Scripts\python.exe -m pytest tests/test_plugin_authoring_controller.py -q
 ```

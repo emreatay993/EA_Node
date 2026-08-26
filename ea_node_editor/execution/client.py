@@ -21,6 +21,7 @@ from dataclasses import dataclass, replace
 from functools import wraps
 from typing import Any
 
+from ea_node_editor.common.coercions import normalize_path_text
 from ea_node_editor.execution.backends import (
     EXTERNAL_SUBPROCESS_BACKEND,
     TRUSTED_IN_PROCESS_BACKEND,
@@ -57,7 +58,8 @@ from ea_node_editor.execution.protocol import (
     runtime_registry_fingerprint,
 )
 from ea_node_editor.execution.python_environment import (
-    resolve_workflow_python_environment,
+    resolve_python_environment,
+    workflow_python_path_from_snapshot,
 )
 from ea_node_editor.execution.worker import run_workflow, worker_main
 from ea_node_editor.execution.worker_protocol import dispatch_viewer_command
@@ -509,6 +511,7 @@ class _ExecutionClientCommon:
 
     def _release_start_run(self, run_id: str) -> None:
         with self._state_lock:
+            self._run_generation_tokens.pop(run_id, None)
             if self._active_run_id == run_id:
                 self._clear_active_run_state_locked()
 
@@ -1597,7 +1600,6 @@ class ExternalPythonExecutionClient(_ExecutionClientCommon):
         self._viewer_session_ids: set[tuple[str, str]] = set()
         self._viewer_session_generations: dict[tuple[str, str], int] = {}
         self._stderr_tail: deque[str] = deque(maxlen=40)
-        self._verified_python_executables: set[str] = set()
         self._running = True
         self._stdout_thread: threading.Thread | None = None
         self._stderr_thread: threading.Thread | None = None
@@ -1621,9 +1623,6 @@ class ExternalPythonExecutionClient(_ExecutionClientCommon):
         )
 
     def _verify_runtime_available(self, python_executable: str) -> None:
-        with self._state_lock:
-            if python_executable in self._verified_python_executables:
-                return
         try:
             result = subprocess.run(
                 [python_executable, "-c", self._RUNTIME_IMPORT_CHECK],
@@ -1634,25 +1633,55 @@ class ExternalPythonExecutionClient(_ExecutionClientCommon):
             )
         except subprocess.TimeoutExpired as exc:
             raise RuntimeError(
-                "Configured Workflow Python executable timed out while checking "
+                "Configured Python executable timed out while checking "
                 "for the COREX runtime package."
             ) from exc
         except OSError as exc:
             raise RuntimeError(
-                f"Failed to launch configured Workflow Python executable: {exc}"
+                "Failed to launch configured Python executable: "
+                f"{str(exc)[:1200]}"
             ) from exc
         if result.returncode != 0:
             stderr_tail = (result.stderr or result.stdout or "").strip()[-1200:]
             detail = f" Details: {stderr_tail}" if stderr_tail else ""
             raise RuntimeError(
-                "Configured Workflow Python executable cannot import "
+                "Configured Python executable cannot import "
                 "ea_node_editor.execution.stdio_worker. Install a compatible "
                 "COREX runtime package in that environment, or use Workflow "
-                "Settings > Environment > Prepare COREX Runtime to create a "
+                "Settings > Environment > Create / Repair Managed Runtime to create a "
                 f"managed environment.{detail}"
             )
+
+    def _process_start_required(
+        self,
+        python_executable: str,
+        registry_contract_fingerprint: str,
+    ) -> bool:
         with self._state_lock:
-            self._verified_python_executables.add(python_executable)
+            process = self._process
+            current_python = self._python_executable
+            pinned_contract = self._registry_contract_generation_fingerprint
+        return bool(
+            process is None
+            or process.poll() is not None
+            or current_python != python_executable
+            or (
+                pinned_contract
+                and pinned_contract != str(registry_contract_fingerprint)
+            )
+        )
+
+    def _assert_process_transition_allowed(self) -> None:
+        with self._state_lock:
+            process = self._process
+        if process is None or process.poll() is not None:
+            return
+        with self._viewer_request_lock:
+            if self._pending_viewer_requests or self._viewer_session_ids:
+                raise RuntimeError(
+                    "Cannot replace the external Python worker while viewer "
+                    "requests or sessions remain active."
+                )
 
     def _ensure_process(self, python_executable: str) -> None:
         normalized_python = str(python_executable or "").strip()
@@ -1685,7 +1714,6 @@ class ExternalPythonExecutionClient(_ExecutionClientCommon):
                         )
                         self._accepted_physical_generation_token = -1
                 try:
-                    self._verify_runtime_available(normalized_python)
                     self._stop_external_process(process, graceful=True)
                 except Exception:
                     self._restore_physical_generation(retiring_generation)
@@ -1695,7 +1723,6 @@ class ExternalPythonExecutionClient(_ExecutionClientCommon):
                     self._check_worker_health_locked()
                 retiring_generation = self._invalidate_physical_generation()
                 try:
-                    self._verify_runtime_available(normalized_python)
                     if physical_generation > 0:
                         self._drop_stale_viewer_generation(
                             "The external Python worker generation ended before "
@@ -1734,7 +1761,8 @@ class ExternalPythonExecutionClient(_ExecutionClientCommon):
                 )
             except OSError as exc:
                 raise RuntimeError(
-                    f"Failed to start external Python workflow worker: {exc}"
+                    "Failed to start external Python workflow worker: "
+                    f"{str(exc)[:1200]}"
                 ) from exc
             generation_token = self._install_physical_generation()
             stdout_thread = threading.Thread(
@@ -1853,63 +1881,77 @@ class ExternalPythonExecutionClient(_ExecutionClientCommon):
                 command="start_run",
             )
             return ""
-        try:
-            prepared_start = self._prepare_start_run(
-                run_id,
-                workspace_id,
-                data_types,
-                plugin_bundles,
-                plugin_fingerprint,
-                registry_contract_fingerprint,
-                addon_runtime_config,
-            )
-        except (TypeError, ValueError) as exc:
-            self._emit_protocol_error(str(exc), run_id=run_id, command="start_run")
-            return ""
-        if not prepared_start:
-            self._emit_protocol_error(
-                "External Python worker already has an active run.",
-                run_id=run_id,
-                command="start_run",
-            )
-            return ""
-        try:
-            catalog_fingerprint, catalog_revisions = self._catalog_agreement()
-            command_plugin_bundles, command_plugin_fingerprint, runtime_fingerprint = (
-                self._plugin_agreement()
-            )
-            contract_fingerprint, command_addon_runtime_config = (
-                self._registry_contract_agreement()
-            )
-            command = coerce_start_run_command(
-                {
-                    "run_id": run_id,
-                    "project_path": project_path,
-                    "workspace_id": workspace_id,
-                    "trigger": trigger_payload,
-                    "runtime_snapshot": runtime_snapshot,
-                    "execution_backend": selection.to_payload(),
-                    "target_node_ids": command_target_node_ids,
-                    "trigger_publications": command_trigger_publications,
-                    "trigger_captures": command_trigger_captures,
-                    "clicked_trigger_node_id": command_clicked_trigger_node_id,
-                    "developer_mode": command_developer_mode,
-                    "catalog_fingerprint": catalog_fingerprint,
-                    "catalog_revisions": catalog_revisions,
-                    "plugin_bundles": command_plugin_bundles,
-                    "plugin_fingerprint": command_plugin_fingerprint,
-                    "runtime_registry_fingerprint": runtime_fingerprint,
-                    "registry_contract_fingerprint": contract_fingerprint,
-                    "addon_runtime_config": command_addon_runtime_config,
-                },
-                catalog=self._data_types,
-            )
-        except (TypeError, ValueError) as exc:
-            self._release_start_run(run_id)
-            self._emit_protocol_error(str(exc), run_id=run_id, command="start_run")
-            return ""
-
         with self._start_lock:
+            with self._state_lock:
+                active_run = bool(self._active_run_id)
+            if active_run:
+                self._emit_protocol_error(
+                    "External Python worker already has an active run.",
+                    run_id=run_id,
+                    command="start_run",
+                )
+                return ""
+            try:
+                if self._process_start_required(
+                    python_executable,
+                    registry_contract_fingerprint,
+                ):
+                    self._assert_process_transition_allowed()
+                    self._verify_runtime_available(python_executable)
+                prepared_start = self._prepare_start_run(
+                    run_id,
+                    workspace_id,
+                    data_types,
+                    plugin_bundles,
+                    plugin_fingerprint,
+                    registry_contract_fingerprint,
+                    addon_runtime_config,
+                )
+            except (RuntimeError, TypeError, ValueError) as exc:
+                self._emit_protocol_error(str(exc), run_id=run_id, command="start_run")
+                return ""
+            if not prepared_start:
+                self._emit_protocol_error(
+                    "External Python worker already has an active run.",
+                    run_id=run_id,
+                    command="start_run",
+                )
+                return ""
+            try:
+                catalog_fingerprint, catalog_revisions = self._catalog_agreement()
+                command_plugin_bundles, command_plugin_fingerprint, runtime_fingerprint = (
+                    self._plugin_agreement()
+                )
+                contract_fingerprint, command_addon_runtime_config = (
+                    self._registry_contract_agreement()
+                )
+                command = coerce_start_run_command(
+                    {
+                        "run_id": run_id,
+                        "project_path": project_path,
+                        "workspace_id": workspace_id,
+                        "trigger": trigger_payload,
+                        "runtime_snapshot": runtime_snapshot,
+                        "execution_backend": selection.to_payload(),
+                        "target_node_ids": command_target_node_ids,
+                        "trigger_publications": command_trigger_publications,
+                        "trigger_captures": command_trigger_captures,
+                        "clicked_trigger_node_id": command_clicked_trigger_node_id,
+                        "developer_mode": command_developer_mode,
+                        "catalog_fingerprint": catalog_fingerprint,
+                        "catalog_revisions": catalog_revisions,
+                        "plugin_bundles": command_plugin_bundles,
+                        "plugin_fingerprint": command_plugin_fingerprint,
+                        "runtime_registry_fingerprint": runtime_fingerprint,
+                        "registry_contract_fingerprint": contract_fingerprint,
+                        "addon_runtime_config": command_addon_runtime_config,
+                    },
+                    catalog=self._data_types,
+                )
+            except (TypeError, ValueError) as exc:
+                self._release_start_run(run_id)
+                self._emit_protocol_error(str(exc), run_id=run_id, command="start_run")
+                return ""
             try:
                 self._ensure_process(python_executable)
             except RuntimeError as exc:
@@ -3592,16 +3634,13 @@ class ExecutionBackendClient:
             trigger_payload.pop("execution_backend", None)
 
         runtime_snapshot = trigger_payload.get("runtime_snapshot")
+        workflow_python_path = workflow_python_path_from_snapshot(runtime_snapshot)
         if not explicit_backend:
-            workflow_python = resolve_workflow_python_environment(runtime_snapshot)
-            if workflow_python.configured:
-                if not workflow_python.valid:
-                    self._emit_protocol_error(workflow_python.error)
-                    return ""
+            if workflow_python_path:
                 raw_backend_policy = {
                     "requested_backend": EXTERNAL_SUBPROCESS_BACKEND,
                     "allow_external_subprocess": True,
-                    "python_executable": workflow_python.python_executable,
+                    "python_executable": workflow_python_path,
                     "reason": "workflow_python_path",
                 }
         try:
@@ -3611,25 +3650,30 @@ class ExecutionBackendClient:
             return ""
 
         if selection.backend_id == EXTERNAL_SUBPROCESS_BACKEND:
-            if not selection.python_executable:
-                workflow_python = resolve_workflow_python_environment(runtime_snapshot)
-                if workflow_python.configured and not workflow_python.valid:
-                    self._emit_protocol_error(workflow_python.error)
-                    return ""
-                if workflow_python.configured:
-                    selection = replace(
-                        selection,
-                        python_executable=workflow_python.python_executable,
-                        reason=selection.reason or "workflow_python_path",
-                    )
+            python_executable = normalize_path_text(selection.python_executable)
+            if not python_executable:
+                if workflow_python_path:
+                    python_executable = workflow_python_path
                 else:
                     self._emit_protocol_error(
                         "External Python workflow execution requires python_executable "
-                        "or Workflow Settings > Environment > Python Executable. "
-                        "Use Prepare COREX Runtime to create a managed Python "
-                        "environment."
+                        "or Workflow Settings > Environment > Workflow Override. "
+                        "Use Create / Repair Managed Runtime to create a managed "
+                        "Python environment."
                     )
                     return ""
+            python_environment = resolve_python_environment(python_executable)
+            if not python_environment.valid:
+                self._emit_protocol_error(python_environment.error)
+                return ""
+            selection = replace(
+                selection,
+                python_executable=python_environment.python_executable,
+                reason=(
+                    selection.reason
+                    or ("workflow_python_path" if workflow_python_path else "")
+                ),
+            )
 
         if selection.backend_id == EXTERNAL_SUBPROCESS_BACKEND:
             client = self._external_python_client

@@ -15,6 +15,7 @@ from ea_node_editor.app_preferences import (
     normalize_passive_node_library_display_mode,
     normalize_plot_default_backend_per_type,
     normalize_plot_settings,
+    normalize_python_runtime_settings,
     normalize_source_import_mode,
     normalize_source_import_settings,
     normalize_selected_run_settings,
@@ -111,6 +112,20 @@ class AppPreferencesController:
     def solution_default_mode(self) -> str:
         settings = normalize_solution_settings(self._ensure_document().get("solution"))
         return settings["default_mode"]
+
+    def python_runtime_settings(self) -> dict[str, str]:
+        return normalize_python_runtime_settings(self._ensure_document().get("python_runtime"))
+
+    def default_python_executable(self) -> str:
+        return self.python_runtime_settings()["default_executable"]
+
+    def set_default_python_executable(self, value: Any) -> str:
+        document = copy.deepcopy(self._ensure_document())
+        document["python_runtime"] = normalize_python_runtime_settings(
+            {"default_executable": value}
+        )
+        persisted = self.persist_document(document)
+        return persisted["python_runtime"]["default_executable"]
 
     def graph_theme_choices(self) -> tuple[tuple[str, str], ...]:
         settings = self.graph_theme_settings()

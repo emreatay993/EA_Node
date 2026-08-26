@@ -31,16 +31,32 @@
     "text": "Set this theme as the active graph theme",
     "category": "general"
   },
-  "settings.workflow.environment.python_executable": {
-    "text": "Leave empty to use the built-in packaged runtime. Use a python.exe path only when the whole workflow should run in that environment.",
+  "settings.workflow.environment.application_default_python_executable": {
+    "text": "Sets the app-wide Python executable used when the current workflow has no override.",
+    "category": "tutorial"
+  },
+  "settings.workflow.environment.browse_application_python": {
+    "text": "Choose the app-wide default Python executable from this PC.",
     "category": "tutorial"
   },
   "settings.workflow.environment.prepare_managed_runtime": {
-    "text": "Creates or repairs COREX's app-managed venv, installs the packaged COREX runtime with [all] dependencies through pip, verifies it, and fills Python Executable.",
+    "text": "Creates or repairs COREX's app-managed venv, installs the packaged COREX runtime with [all] dependencies through pip, verifies it, and fills the application default executable.",
     "category": "tutorial"
   },
-  "settings.workflow.environment.use_builtin_runtime": {
-    "text": "Clears Python Executable so runs use the built-in packaged COREX runtime again.",
+  "settings.workflow.environment.clear_application_default": {
+    "text": "Clears only the app-wide default. A workflow override remains active when set.",
+    "category": "tutorial"
+  },
+  "settings.workflow.environment.workflow_python_override": {
+    "text": "Sets the project-owned Python executable that overrides the application default for the whole workflow.",
+    "category": "tutorial"
+  },
+  "settings.workflow.environment.browse_workflow_python": {
+    "text": "Choose this workflow's overriding Python executable from this PC.",
+    "category": "tutorial"
+  },
+  "settings.workflow.environment.inherit_application_default": {
+    "text": "Clears only the workflow override so the next run inherits the application default, or uses built-in execution when both are blank.",
     "category": "tutorial"
   },
   "settings.workflow.environment.managed_runtime_status": {

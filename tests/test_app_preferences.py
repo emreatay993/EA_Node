@@ -10,6 +10,7 @@ from ea_node_editor.app_preferences import (
     ansys_dpf_plugin_state,
     default_app_preferences_document,
     engineering_viewer_tangent_selection_angle,
+    normalize_app_preferences_document,
     normalize_folder_explorer_column_widths,
     normalize_floating_toolbar_style,
     normalize_graphics_settings,
@@ -19,6 +20,7 @@ from ea_node_editor.app_preferences import (
     normalize_image_node_appearance_settings,
     normalize_node_library_usage,
     normalize_property_pane_variant,
+    normalize_python_runtime_settings,
     normalize_selection_toolbar_minimal_menu_trigger,
     normalize_selection_toolbar_mode,
     normalize_shell_panel_collapsed,
@@ -32,9 +34,11 @@ from ea_node_editor.settings import (
     DEFAULT_GRAPHICS_SETTINGS,
     DEFAULT_IMAGE_NODE_APPEARANCE_SETTINGS,
     DEFAULT_PROPERTY_PANE_VARIANT,
+    DEFAULT_PYTHON_RUNTIME_SETTINGS,
     DEFAULT_SELECTION_TOOLBAR_MINIMAL_MENU_TRIGGER,
     DEFAULT_SELECTION_TOOLBAR_MODE,
     DEFAULT_SHELL_PANEL_COLLAPSED,
+    SCHEMA_VERSION,
 )
 
 
@@ -68,7 +72,9 @@ class AppPreferencesTests(unittest.TestCase):
         document = self._store.load_document()
 
         self.assertEqual(document["kind"], APP_PREFERENCES_KIND)
+        self.assertEqual(APP_PREFERENCES_VERSION, 7)
         self.assertEqual(document["version"], APP_PREFERENCES_VERSION)
+        self.assertEqual(document["python_runtime"], DEFAULT_PYTHON_RUNTIME_SETTINGS)
         self.assertEqual(
             ansys_dpf_plugin_state(document),
             {
@@ -127,53 +133,121 @@ class AppPreferencesTests(unittest.TestCase):
 
                 self.assertEqual(document, default_app_preferences_document())
 
-    def test_v5_migration_drops_control_policy_and_preserves_unrelated_preferences(self) -> None:
-        legacy = default_app_preferences_document()
-        legacy["version"] = 5
-        legacy["graphics"]["canvas"]["show_canvas_options_button"] = False
-        legacy["source_import"]["default_mode"] = "managed_copy"
-        legacy["authoring"] = {
-            "canvas_mode": "advanced",
-            "guided_connected_control_policy": "auto_expand",
-        }
-        legacy["selected_run"]["preview_before_run"] = False
-        legacy["plugins"]["ansys_dpf"]["version"] = "0.2.0"
-        legacy["addons"]["states"] = {
-            "example": {"enabled": False, "pending_restart": True}
-        }
-
-        self._preferences_path.write_text(json.dumps(legacy), encoding="utf-8")
-
-        document = self._store.load_document()
-
-        self.assertEqual(document["version"], APP_PREFERENCES_VERSION)
-        self.assertNotIn("authoring", document)
-        self.assertEqual(document["solution"], {"default_mode": "auto"})
-        self.assertFalse(document["graphics"]["canvas"]["show_canvas_options_button"])
-        self.assertEqual(document["source_import"]["default_mode"], "managed_copy")
-        self.assertFalse(document["selected_run"]["preview_before_run"])
-        self.assertEqual(document["plugins"]["ansys_dpf"]["version"], "0.2.0")
+    def test_python_runtime_normalizes_only_path_strings(self) -> None:
+        for payload in (None, [], "python.exe"):
+            with self.subTest(payload=payload):
+                self.assertEqual(
+                    normalize_python_runtime_settings(payload),
+                    DEFAULT_PYTHON_RUNTIME_SETTINGS,
+                )
         self.assertEqual(
-            document["addons"]["states"]["example"],
-            {"enabled": False, "pending_restart": True},
+            normalize_python_runtime_settings(
+                {"default_executable": '  " C:\\Python\\python.exe "  '}
+            ),
+            {"default_executable": "C:\\Python\\python.exe"},
+        )
+        self.assertEqual(
+            normalize_python_runtime_settings(
+                {"default_executable": "  'python.exe'  "}
+            ),
+            {"default_executable": "python.exe"},
+        )
+        self.assertEqual(
+            normalize_python_runtime_settings(
+                {"default_executable": " 'python.exe\" "}
+            ),
+            {"default_executable": "'python.exe\""},
+        )
+        for value in (None, True, 1, 1.5, [], {}, object()):
+            with self.subTest(value=value):
+                self.assertEqual(
+                    normalize_python_runtime_settings({"default_executable": value}),
+                    DEFAULT_PYTHON_RUNTIME_SETTINGS,
+                )
+
+    def test_v5_and_v6_migration_discard_python_runtime_and_preserve_siblings(self) -> None:
+        for old_version in (5, 6):
+            with self.subTest(version=old_version):
+                legacy = default_app_preferences_document()
+                legacy["version"] = old_version
+                legacy["graphics"]["canvas"]["show_canvas_options_button"] = False
+                legacy["source_import"]["default_mode"] = "managed_copy"
+                legacy["authoring"] = {
+                    "canvas_mode": "advanced",
+                    "guided_connected_control_policy": "auto_expand",
+                }
+                legacy["selected_run"]["preview_before_run"] = False
+                legacy["plugins"]["ansys_dpf"]["version"] = "0.2.0"
+                legacy["addons"]["states"] = {
+                    "example": {"enabled": False, "pending_restart": True}
+                }
+                legacy["python_runtime"] = {
+                    "default_executable": "C:\\forged\\python.exe"
+                }
+                self._preferences_path.write_text(json.dumps(legacy), encoding="utf-8")
+
+                document = self._store.load_document()
+
+                self.assertEqual(document["version"], APP_PREFERENCES_VERSION)
+                self.assertNotIn("authoring", document)
+                self.assertEqual(document["solution"], {"default_mode": "auto"})
+                self.assertFalse(document["graphics"]["canvas"]["show_canvas_options_button"])
+                self.assertEqual(document["source_import"]["default_mode"], "managed_copy")
+                self.assertFalse(document["selected_run"]["preview_before_run"])
+                self.assertEqual(document["plugins"]["ansys_dpf"]["version"], "0.2.0")
+                self.assertEqual(
+                    document["addons"]["states"]["example"],
+                    {"enabled": False, "pending_restart": True},
+                )
+                self.assertEqual(document["python_runtime"], DEFAULT_PYTHON_RUNTIME_SETTINGS)
+
+    def test_v5_and_v6_migration_persist_v7_document_on_load(self) -> None:
+        for old_version in (5, 6):
+            with self.subTest(version=old_version):
+                legacy = default_app_preferences_document()
+                legacy["version"] = old_version
+                legacy["graphics"]["canvas"]["show_canvas_options_button"] = False
+                legacy["authoring"] = {"canvas_mode": "advanced"}
+                legacy["selected_run"]["preview_before_run"] = False
+                legacy["python_runtime"] = {"default_executable": "forged-python"}
+                self._preferences_path.write_text(json.dumps(legacy), encoding="utf-8")
+
+                self._store.load_document()
+
+                persisted = json.loads(self._preferences_path.read_text(encoding="utf-8"))
+                self.assertEqual(persisted["version"], APP_PREFERENCES_VERSION)
+                self.assertNotIn("authoring", persisted)
+                self.assertEqual(persisted["solution"], {"default_mode": "auto"})
+                self.assertFalse(persisted["graphics"]["canvas"]["show_canvas_options_button"])
+                self.assertFalse(persisted["selected_run"]["preview_before_run"])
+                self.assertEqual(persisted["python_runtime"], DEFAULT_PYTHON_RUNTIME_SETTINGS)
+
+    def test_invalid_or_future_documents_still_load_current_defaults(self) -> None:
+        for payload in (
+            {"kind": "wrong-kind", "version": APP_PREFERENCES_VERSION},
+            {"kind": APP_PREFERENCES_KIND, "version": "not-a-version"},
+            {"kind": APP_PREFERENCES_KIND, "version": APP_PREFERENCES_VERSION + 1},
+        ):
+            with self.subTest(payload=payload):
+                self.assertEqual(
+                    normalize_app_preferences_document(payload),
+                    default_app_preferences_document(),
+                )
+
+    def test_python_runtime_preferences_remain_app_only(self) -> None:
+        document = default_app_preferences_document()
+        document["python_runtime"] = normalize_python_runtime_settings(
+            {"default_executable": "C:\\Python\\python.exe"}
         )
 
-    def test_v5_migration_persists_v6_document_on_load(self) -> None:
-        legacy = default_app_preferences_document()
-        legacy["version"] = 5
-        legacy["graphics"]["canvas"]["show_canvas_options_button"] = False
-        legacy["authoring"] = {"canvas_mode": "advanced"}
-        legacy["selected_run"]["preview_before_run"] = False
-        self._preferences_path.write_text(json.dumps(legacy), encoding="utf-8")
+        persisted = self._store.persist_document(document)
 
-        self._store.load_document()
-
-        persisted = json.loads(self._preferences_path.read_text(encoding="utf-8"))
-        self.assertEqual(persisted["version"], APP_PREFERENCES_VERSION)
-        self.assertNotIn("authoring", persisted)
-        self.assertEqual(persisted["solution"], {"default_mode": "auto"})
-        self.assertFalse(persisted["graphics"]["canvas"]["show_canvas_options_button"])
-        self.assertFalse(persisted["selected_run"]["preview_before_run"])
+        self.assertEqual(SCHEMA_VERSION, 5)
+        self.assertNotIn("workflow_settings", persisted)
+        self.assertEqual(
+            persisted["python_runtime"]["default_executable"],
+            "C:\\Python\\python.exe",
+        )
 
     def test_set_ansys_dpf_plugin_state_round_trips_exact_version_string(self) -> None:
         exact_version = "0.15.0.dev1+build.42"

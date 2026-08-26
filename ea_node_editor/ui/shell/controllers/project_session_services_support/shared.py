@@ -117,6 +117,7 @@ class _ProjectSessionLifecycleHostProtocol(Protocol):
 
 
 class _ProjectDocumentIOHostProtocol(Protocol):
+    app_preferences_controller: Any
     registry: Any
     model: GraphModel
     scene: Any

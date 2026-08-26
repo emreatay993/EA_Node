@@ -11,12 +11,16 @@ from typing import Any, Iterable, Literal, Protocol
 
 from ea_node_editor.addons.ansys_dpf.ui_summary import project_dpf_workflow_summary
 from ea_node_editor.developer_mode import developer_mode_capability_enabled
+from ea_node_editor.execution.backends import EXTERNAL_SUBPROCESS_BACKEND
 from ea_node_editor.execution.protocol import (
     RootExecutionError,
     SettledPortResult,
     normalize_root_execution_errors,
     normalize_settled_output_mapping,
     normalize_settled_port_result,
+)
+from ea_node_editor.execution.python_environment import (
+    workflow_python_path_from_snapshot,
 )
 from ea_node_editor.execution.runtime_snapshot import build_runtime_snapshot
 from ea_node_editor.graph.effective_ports import effective_ports
@@ -306,6 +310,9 @@ class RunController:
             project_path=self._host.project_path,
             workspace_id=workspace_id,
             trigger=trigger,
+            execution_backend=self._execution_backend_policy_for_runtime_snapshot(
+                runtime_snapshot
+            ),
             target_node_ids=(),
             trigger_publications=dict(
                 self._state.trigger_publications_by_workspace_id.get(workspace_id, {})
@@ -403,6 +410,9 @@ class RunController:
             project_path=self._host.project_path,
             workspace_id=workspace_id,
             trigger=trigger,
+            execution_backend=self._execution_backend_policy_for_runtime_snapshot(
+                runtime_snapshot
+            ),
             target_node_ids=target_node_ids,
             trigger_publications=dict(
                 self._state.trigger_publications_by_workspace_id.get(workspace_id, {})
@@ -475,6 +485,9 @@ class RunController:
             project_path=self._host.project_path,
             workspace_id=workspace_id,
             trigger=trigger,
+            execution_backend=self._execution_backend_policy_for_runtime_snapshot(
+                runtime_snapshot
+            ),
             target_node_ids=(normalized_node_id,),
             trigger_publications=dict(
                 self._state.trigger_publications_by_workspace_id.get(workspace_id, {})
@@ -494,6 +507,24 @@ class RunController:
         )
         self.set_run_ui_state("running", "Starting", 1, 0, 0, 0)
         return True
+
+    def _execution_backend_policy_for_runtime_snapshot(
+        self,
+        runtime_snapshot: Any,
+    ) -> dict[str, Any] | None:
+        if workflow_python_path_from_snapshot(runtime_snapshot):
+            return None
+        python_executable = (
+            self._host.app_preferences_controller.default_python_executable()
+        )
+        if not python_executable:
+            return None
+        return {
+            "requested_backend": EXTERNAL_SUBPROCESS_BACKEND,
+            "allow_external_subprocess": True,
+            "python_executable": python_executable,
+            "reason": "application_default_python_executable",
+        }
 
     def preview_selected_run(
         self,

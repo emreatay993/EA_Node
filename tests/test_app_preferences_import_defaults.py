@@ -97,6 +97,41 @@ class SourceImportPreferencesTests(unittest.TestCase):
         self.assertEqual(reloaded_controller.solution_default_mode(), "manual")
         self.assertFalse(reloaded_controller.selected_run_preview_before_run())
 
+    def test_default_python_executable_round_trips_normalized_text(self) -> None:
+        self.assertEqual(self._controller.python_runtime_settings(), {"default_executable": ""})
+        self.assertEqual(self._controller.default_python_executable(), "")
+
+        stored = self._controller.set_default_python_executable(
+            '  " C:\\Python\\python.exe "  '
+        )
+
+        self.assertEqual(stored, "C:\\Python\\python.exe")
+        self.assertEqual(
+            AppPreferencesController(store=self._store).default_python_executable(),
+            "C:\\Python\\python.exe",
+        )
+        persisted = json.loads(self._preferences_path.read_text(encoding="utf-8"))
+        self.assertEqual(
+            persisted["python_runtime"],
+            {"default_executable": "C:\\Python\\python.exe"},
+        )
+
+    def test_failed_default_python_write_leaves_cached_document_unchanged(self) -> None:
+        before = self._controller.load()
+
+        with (
+            mock.patch.object(
+                self._store,
+                "persist_document",
+                side_effect=OSError("write failed"),
+            ),
+            self.assertRaisesRegex(OSError, "write failed"),
+        ):
+            self._controller.set_default_python_executable("C:\\Python\\python.exe")
+
+        self.assertEqual(self._controller.document(), before)
+        self.assertEqual(self._controller.default_python_executable(), "")
+
     def test_node_library_usage_keeps_the_last_64_choices_and_round_trips(self) -> None:
         for index in range(66):
             self._controller.record_node_library_usage(f"core.node_{index}")

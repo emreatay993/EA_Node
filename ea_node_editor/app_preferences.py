@@ -7,8 +7,9 @@ from collections.abc import Callable, Mapping
 from pathlib import Path
 from typing import Any
 
-from ea_node_editor.graph_theme_defaults import DEFAULT_GRAPH_THEME_ID
+from ea_node_editor.common.coercions import normalize_path_text
 from ea_node_editor.common.payload_tools import write_json_atomic
+from ea_node_editor.graph_theme_defaults import DEFAULT_GRAPH_THEME_ID
 from ea_node_editor.settings import (
     APP_PREFERENCES_KIND,
     APP_PREFERENCES_VERSION,
@@ -38,6 +39,7 @@ from ea_node_editor.settings import (
     DEFAULT_PASSIVE_NODE_LIBRARY_DISPLAY_MODE,
     DEFAULT_PLOT_SETTINGS,
     DEFAULT_PLUGIN_SETTINGS,
+    DEFAULT_PYTHON_RUNTIME_SETTINGS,
     DEFAULT_PROPERTY_PANE_VARIANT,
     DEFAULT_SELECTION_TOOLBAR_MINIMAL_MENU_TRIGGER,
     DEFAULT_SELECTION_TOOLBAR_MODE,
@@ -673,6 +675,15 @@ def normalize_plugin_settings(payload: Any) -> dict[str, Any]:
     return normalized
 
 
+def normalize_python_runtime_settings(payload: Any) -> dict[str, str]:
+    normalized = copy.deepcopy(DEFAULT_PYTHON_RUNTIME_SETTINGS)
+    if isinstance(payload, Mapping):
+        normalized["default_executable"] = normalize_path_text(
+            payload.get("default_executable")
+        )
+    return normalized
+
+
 def normalize_app_preferences_document(payload: Any) -> dict[str, Any]:
     normalized = default_app_preferences_document()
     if not isinstance(payload, Mapping):
@@ -686,9 +697,10 @@ def normalize_app_preferences_document(payload: Any) -> dict[str, Any]:
 
     if kind != APP_PREFERENCES_KIND:
         return normalized
-    if version == 5:
+    if version in {5, 6}:
         payload = copy.deepcopy(dict(payload))
         payload["version"] = APP_PREFERENCES_VERSION
+        payload["python_runtime"] = copy.deepcopy(DEFAULT_PYTHON_RUNTIME_SETTINGS)
         version = APP_PREFERENCES_VERSION
     if version != APP_PREFERENCES_VERSION:
         return normalized
@@ -699,6 +711,9 @@ def normalize_app_preferences_document(payload: Any) -> dict[str, Any]:
     normalized["source_import"] = normalize_source_import_settings(payload.get("source_import"))
     normalized["selected_run"] = normalize_selected_run_settings(payload.get("selected_run"))
     normalized["solution"] = normalize_solution_settings(payload.get("solution"))
+    normalized["python_runtime"] = normalize_python_runtime_settings(
+        payload.get("python_runtime")
+    )
     return normalized
 
 
@@ -723,7 +738,7 @@ class AppPreferencesStore:
             needs_migration = (
                 isinstance(payload, Mapping)
                 and str(payload.get("kind", "")).strip() == APP_PREFERENCES_KIND
-                and int(payload.get("version", 0) or 0) == 5
+                and int(payload.get("version", 0) or 0) in {5, 6}
             )
         except (TypeError, ValueError):
             needs_migration = False
@@ -1111,6 +1126,7 @@ __all__ = [
     "normalize_passive_node_library_display_mode",
     "normalize_plugin_settings",
     "normalize_property_pane_variant",
+    "normalize_python_runtime_settings",
     "normalize_source_import_mode",
     "normalize_source_import_settings",
     "normalize_selected_run_settings",

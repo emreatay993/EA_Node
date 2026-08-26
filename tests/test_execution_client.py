@@ -36,7 +36,8 @@ from ea_node_editor.execution.headless_runtime import (
     select_workspace,
 )
 from ea_node_editor.execution.python_environment import (
-    resolve_workflow_python_environment,
+    resolve_python_environment,
+    workflow_python_path_from_snapshot,
 )
 from ea_node_editor.execution.managed_runtime import (
     ADDON_RUNTIME_PYTHON_ENV,
@@ -138,6 +139,61 @@ def _trusted_registry_agreement() -> dict[str, object]:
         "registry_contract_fingerprint": registry.contract_fingerprint(),
         "addon_runtime_config": registry.addon_runtime_config(),
     }
+
+
+def _external_process_mock() -> Mock:
+    process = Mock()
+    process.returncode = None
+    process.poll.side_effect = lambda: process.returncode
+    process.stdout.readline.return_value = ""
+    process.stderr.readline.return_value = ""
+
+    def wait(*, timeout=None):  # noqa: ANN001, ARG001
+        process.returncode = 0
+        return 0
+
+    process.wait.side_effect = wait
+    process.terminate.side_effect = lambda: setattr(process, "returncode", -15)
+    process.kill.side_effect = lambda: setattr(process, "returncode", -9)
+    return process
+
+
+def _simple_runtime_snapshot():  # noqa: ANN201
+    registry = build_default_registry()
+    model = GraphModel()
+    workspace = model.active_workspace
+    model.add_node(workspace.workspace_id, "core.logger", "Logger", 0, 0)
+    return (
+        registry,
+        workspace.workspace_id,
+        build_runtime_snapshot(
+            model.project,
+            workspace_id=workspace.workspace_id,
+            registry=registry,
+        ),
+    )
+
+
+def _external_selection(python_executable: str) -> ExecutionBackendSelection:
+    return ExecutionBackendSelection(
+        backend_id=EXTERNAL_SUBPROCESS_BACKEND,
+        isolation="external_subprocess",
+        external_subprocess=True,
+        python_executable=python_executable,
+    )
+
+
+def _seed_external_generation(
+    client: ExternalPythonExecutionClient,
+    process: Mock,
+    *,
+    python_executable: str,
+) -> None:
+    client._process = process  # noqa: SLF001
+    client._python_executable = python_executable  # noqa: SLF001
+    client._catalog_generation_token = 1  # noqa: SLF001
+    client._physical_generation_token = 1  # noqa: SLF001
+    client._accepted_physical_generation_token = 1  # noqa: SLF001
 
 
 class _RoutingClient:
@@ -868,32 +924,8 @@ class ExecutionClientCommonTests(unittest.TestCase):
     def test_external_respawn_settles_dead_run_and_ignores_old_stdout(
         self,
     ) -> None:
-        def external_process() -> Mock:
-            process = Mock()
-            process.returncode = None
-            process.poll.side_effect = lambda: process.returncode
-            process.stdout.readline.return_value = ""
-            process.stderr.readline.return_value = ""
-
-            def wait(*, timeout=None):  # noqa: ANN001, ARG001
-                process.returncode = 0
-                return 0
-
-            process.wait.side_effect = wait
-            process.terminate.side_effect = lambda: setattr(
-                process,
-                "returncode",
-                -15,
-            )
-            process.kill.side_effect = lambda: setattr(
-                process,
-                "returncode",
-                -9,
-            )
-            return process
-
-        first_process = external_process()
-        second_process = external_process()
+        first_process = _external_process_mock()
+        second_process = _external_process_mock()
         client = ExternalPythonExecutionClient()
         client._data_types = _revision_catalog("external-respawn")  # noqa: SLF001
         client._catalog_generation_token = 1  # noqa: SLF001
@@ -953,6 +985,385 @@ class ExecutionClientCommonTests(unittest.TestCase):
             self.assertNotIn(  # noqa: SLF001
                 ("ws_old", "session_old"),
                 client._viewer_session_ids,
+            )
+        finally:
+            client.shutdown()
+
+    def test_external_python_same_live_worker_skips_preflight_and_generation_change(
+        self,
+    ) -> None:
+        registry, workspace_id, runtime_snapshot = _simple_runtime_snapshot()
+        process = _external_process_mock()
+        client = ExternalPythonExecutionClient()
+        _seed_external_generation(
+            client,
+            process,
+            python_executable=sys.executable,
+        )
+
+        try:
+            with (
+                patch.object(client, "_verify_runtime_available") as verify,
+                patch(
+                    "ea_node_editor.execution.client.subprocess.Popen"
+                ) as popen,
+                patch.object(client, "_post_command", return_value=True),
+            ):
+                run_id = client.start_run(
+                    "",
+                    workspace_id,
+                    {"runtime_snapshot": runtime_snapshot},
+                    execution_backend=_external_selection(sys.executable),
+                    data_types=registry.data_types,
+                    plugin_bundles=registry.plugin_bundle_refs(),
+                    plugin_fingerprint=registry.plugin_fingerprint(),
+                    registry_contract_fingerprint=registry.contract_fingerprint(),
+                    addon_runtime_config=registry.addon_runtime_config(),
+                )
+
+            self.assertTrue(run_id)
+            verify.assert_not_called()
+            popen.assert_not_called()
+            self.assertIs(client._process, process)  # noqa: SLF001
+            self.assertEqual(client._physical_generation_token, 1)  # noqa: SLF001
+            self.assertEqual(client._accepted_physical_generation_token, 1)  # noqa: SLF001
+            client._release_start_run(run_id)  # noqa: SLF001
+        finally:
+            client.shutdown()
+
+    def test_external_python_dead_same_path_preflights_before_run_reservation(
+        self,
+    ) -> None:
+        registry, workspace_id, runtime_snapshot = _simple_runtime_snapshot()
+        process = _external_process_mock()
+        process.returncode = 1
+        client = ExternalPythonExecutionClient()
+        _seed_external_generation(
+            client,
+            process,
+            python_executable=sys.executable,
+        )
+        order: list[str] = []
+        prepare_start_run = client._prepare_start_run  # noqa: SLF001
+
+        def prepare(*args, **kwargs):  # noqa: ANN002, ANN003, ANN202
+            order.append("prepare")
+            return prepare_start_run(*args, **kwargs)
+
+        try:
+            with (
+                patch.object(
+                    client,
+                    "_verify_runtime_available",
+                    side_effect=lambda _python: order.append("preflight"),
+                ) as verify,
+                patch.object(client, "_prepare_start_run", side_effect=prepare),
+                patch.object(client, "_ensure_process"),
+                patch.object(client, "_post_command", return_value=True),
+            ):
+                run_id = client.start_run(
+                    "",
+                    workspace_id,
+                    {"runtime_snapshot": runtime_snapshot},
+                    execution_backend=_external_selection(sys.executable),
+                    data_types=registry.data_types,
+                    plugin_bundles=registry.plugin_bundle_refs(),
+                    plugin_fingerprint=registry.plugin_fingerprint(),
+                    registry_contract_fingerprint=registry.contract_fingerprint(),
+                    addon_runtime_config=registry.addon_runtime_config(),
+                )
+
+            self.assertTrue(run_id)
+            self.assertEqual(order[:2], ["preflight", "prepare"])
+            verify.assert_called_once_with(sys.executable)
+            client._release_start_run(run_id)  # noqa: SLF001
+        finally:
+            client.shutdown()
+
+    def test_external_python_viewer_guard_precedes_switched_path_preflight(
+        self,
+    ) -> None:
+        registry, workspace_id, runtime_snapshot = _simple_runtime_snapshot()
+        process = _external_process_mock()
+        client = ExternalPythonExecutionClient()
+        _seed_external_generation(
+            client,
+            process,
+            python_executable="python-a",
+        )
+        client._viewer_session_ids.add((workspace_id, "session"))  # noqa: SLF001
+        events: list[dict] = []
+        client.subscribe(events.append)
+
+        try:
+            with (
+                patch.object(client, "_verify_runtime_available") as verify,
+                patch.object(client, "_prepare_start_run") as prepare,
+                patch.object(client, "_ensure_process") as ensure,
+            ):
+                run_id = client.start_run(
+                    "",
+                    workspace_id,
+                    {"runtime_snapshot": runtime_snapshot},
+                    execution_backend=_external_selection("python-b"),
+                    data_types=registry.data_types,
+                    registry_contract_fingerprint=registry.contract_fingerprint(),
+                )
+
+            self.assertEqual(run_id, "")
+            verify.assert_not_called()
+            prepare.assert_not_called()
+            ensure.assert_not_called()
+            self.assertIs(client._process, process)  # noqa: SLF001
+            self.assertEqual(client._accepted_physical_generation_token, 1)  # noqa: SLF001
+            self.assertTrue(
+                any(
+                    "viewer requests or sessions" in str(event.get("error", ""))
+                    for event in events
+                )
+            )
+        finally:
+            client.shutdown()
+
+    def test_external_python_import_incompatible_switch_preserves_live_worker(
+        self,
+    ) -> None:
+        registry, workspace_id, runtime_snapshot = _simple_runtime_snapshot()
+        process = _external_process_mock()
+        client = ExternalPythonExecutionClient()
+        _seed_external_generation(
+            client,
+            process,
+            python_executable="python-a",
+        )
+        events: list[dict] = []
+        client.subscribe(events.append)
+
+        try:
+            with (
+                patch.object(
+                    client,
+                    "_verify_runtime_available",
+                    side_effect=RuntimeError(
+                        "Configured Python executable cannot import "
+                        "ea_node_editor.execution.stdio_worker."
+                    ),
+                ),
+                patch.object(client, "_prepare_start_run") as prepare,
+                patch.object(client, "_ensure_process") as ensure,
+            ):
+                run_id = client.start_run(
+                    "",
+                    workspace_id,
+                    {"runtime_snapshot": runtime_snapshot},
+                    execution_backend=_external_selection("python-b"),
+                    data_types=registry.data_types,
+                    registry_contract_fingerprint=registry.contract_fingerprint(),
+                )
+
+            self.assertEqual(run_id, "")
+            prepare.assert_not_called()
+            ensure.assert_not_called()
+            self.assertIs(client._process, process)  # noqa: SLF001
+            self.assertEqual(client._physical_generation_token, 1)  # noqa: SLF001
+            self.assertEqual(client._accepted_physical_generation_token, 1)  # noqa: SLF001
+            self.assertEqual(client._active_run_id, "")  # noqa: SLF001
+            self.assertTrue(
+                any("cannot import" in str(event.get("error", "")) for event in events)
+            )
+        finally:
+            client.shutdown()
+
+    def test_external_python_valid_switch_advances_generation_after_preflight(
+        self,
+    ) -> None:
+        registry, workspace_id, runtime_snapshot = _simple_runtime_snapshot()
+        old_process = _external_process_mock()
+        new_process = _external_process_mock()
+        client = ExternalPythonExecutionClient()
+        _seed_external_generation(
+            client,
+            old_process,
+            python_executable="python-a",
+        )
+
+        try:
+            with (
+                patch.object(client, "_verify_runtime_available") as verify,
+                patch(
+                    "ea_node_editor.execution.client.subprocess.Popen",
+                    return_value=new_process,
+                ),
+                patch.object(client, "_post_command", return_value=True),
+            ):
+                run_id = client.start_run(
+                    "",
+                    workspace_id,
+                    {"runtime_snapshot": runtime_snapshot},
+                    execution_backend=_external_selection("python-b"),
+                    data_types=registry.data_types,
+                    plugin_bundles=registry.plugin_bundle_refs(),
+                    plugin_fingerprint=registry.plugin_fingerprint(),
+                    registry_contract_fingerprint=registry.contract_fingerprint(),
+                    addon_runtime_config=registry.addon_runtime_config(),
+                )
+
+            self.assertTrue(run_id)
+            verify.assert_called_once_with("python-b")
+            self.assertIs(client._process, new_process)  # noqa: SLF001
+            self.assertEqual(client._python_executable, "python-b")  # noqa: SLF001
+            self.assertEqual(client._physical_generation_token, 2)  # noqa: SLF001
+            self.assertEqual(client._accepted_physical_generation_token, 2)  # noqa: SLF001
+            client._release_start_run(run_id)  # noqa: SLF001
+        finally:
+            client.shutdown()
+
+    def test_external_python_cold_popen_failure_releases_and_recovers(
+        self,
+    ) -> None:
+        registry, workspace_id, runtime_snapshot = _simple_runtime_snapshot()
+        recovered_process = _external_process_mock()
+        client = ExternalPythonExecutionClient()
+        events: list[dict] = []
+        client.subscribe(events.append)
+
+        try:
+            with (
+                patch.object(client, "_verify_runtime_available") as verify,
+                patch(
+                    "ea_node_editor.execution.client.subprocess.Popen",
+                    side_effect=(OSError("launch failed"), recovered_process),
+                ),
+                patch.object(client, "_post_command", return_value=True),
+            ):
+                failed_run = client.start_run(
+                    "",
+                    workspace_id,
+                    {"runtime_snapshot": runtime_snapshot},
+                    execution_backend=_external_selection("python-a"),
+                    data_types=registry.data_types,
+                    plugin_bundles=registry.plugin_bundle_refs(),
+                    plugin_fingerprint=registry.plugin_fingerprint(),
+                    registry_contract_fingerprint=registry.contract_fingerprint(),
+                    addon_runtime_config=registry.addon_runtime_config(),
+                )
+                self.assertEqual(failed_run, "")
+                self.assertIsNone(client._process)  # noqa: SLF001
+                self.assertEqual(client._physical_generation_token, 0)  # noqa: SLF001
+                self.assertEqual(client._accepted_physical_generation_token, -1)  # noqa: SLF001
+                self.assertEqual(client._active_run_id, "")  # noqa: SLF001
+                self.assertEqual(client._start_run_pending_id, "")  # noqa: SLF001
+                self.assertEqual(client._run_generation_tokens, {})  # noqa: SLF001
+
+                recovered_run = client.start_run(
+                    "",
+                    workspace_id,
+                    {"runtime_snapshot": runtime_snapshot},
+                    execution_backend=_external_selection("python-a"),
+                    data_types=registry.data_types,
+                    plugin_bundles=registry.plugin_bundle_refs(),
+                    plugin_fingerprint=registry.plugin_fingerprint(),
+                    registry_contract_fingerprint=registry.contract_fingerprint(),
+                    addon_runtime_config=registry.addon_runtime_config(),
+                )
+
+            self.assertTrue(recovered_run)
+            self.assertEqual(verify.call_count, 2)
+            self.assertIs(client._process, recovered_process)  # noqa: SLF001
+            self.assertEqual(client._physical_generation_token, 1)  # noqa: SLF001
+            self.assertEqual(client._accepted_physical_generation_token, 1)  # noqa: SLF001
+            self.assertTrue(
+                any("launch failed" in str(event.get("error", "")) for event in events)
+            )
+            client._release_start_run(recovered_run)  # noqa: SLF001
+        finally:
+            client.shutdown()
+
+    def test_external_python_switched_popen_failure_releases_and_recovers(
+        self,
+    ) -> None:
+        registry, workspace_id, runtime_snapshot = _simple_runtime_snapshot()
+        old_process = _external_process_mock()
+        recovered_process = _external_process_mock()
+        client = ExternalPythonExecutionClient()
+        _seed_external_generation(
+            client,
+            old_process,
+            python_executable="python-a",
+        )
+
+        try:
+            with (
+                patch.object(client, "_verify_runtime_available") as verify,
+                patch(
+                    "ea_node_editor.execution.client.subprocess.Popen",
+                    side_effect=(OSError("switch launch failed"), recovered_process),
+                ),
+                patch.object(client, "_post_command", return_value=True),
+            ):
+                failed_run = client.start_run(
+                    "",
+                    workspace_id,
+                    {"runtime_snapshot": runtime_snapshot},
+                    execution_backend=_external_selection("python-b"),
+                    data_types=registry.data_types,
+                    plugin_bundles=registry.plugin_bundle_refs(),
+                    plugin_fingerprint=registry.plugin_fingerprint(),
+                    registry_contract_fingerprint=registry.contract_fingerprint(),
+                    addon_runtime_config=registry.addon_runtime_config(),
+                )
+                self.assertEqual(failed_run, "")
+                self.assertIsNone(client._process)  # noqa: SLF001
+                self.assertEqual(client._physical_generation_token, 1)  # noqa: SLF001
+                self.assertEqual(client._accepted_physical_generation_token, -1)  # noqa: SLF001
+                self.assertEqual(client._active_run_id, "")  # noqa: SLF001
+                self.assertEqual(client._start_run_pending_id, "")  # noqa: SLF001
+                self.assertEqual(client._run_generation_tokens, {})  # noqa: SLF001
+
+                recovered_run = client.start_run(
+                    "",
+                    workspace_id,
+                    {"runtime_snapshot": runtime_snapshot},
+                    execution_backend=_external_selection("python-b"),
+                    data_types=registry.data_types,
+                    plugin_bundles=registry.plugin_bundle_refs(),
+                    plugin_fingerprint=registry.plugin_fingerprint(),
+                    registry_contract_fingerprint=registry.contract_fingerprint(),
+                    addon_runtime_config=registry.addon_runtime_config(),
+                )
+
+            self.assertTrue(recovered_run)
+            self.assertEqual(verify.call_count, 2)
+            self.assertIs(client._process, recovered_process)  # noqa: SLF001
+            self.assertEqual(client._physical_generation_token, 2)  # noqa: SLF001
+            self.assertEqual(client._accepted_physical_generation_token, 2)  # noqa: SLF001
+            client._release_start_run(recovered_run)  # noqa: SLF001
+        finally:
+            client.shutdown()
+
+    def test_external_python_preflight_only_checks_stdio_worker_import(self) -> None:
+        client = ExternalPythonExecutionClient()
+        try:
+            with patch(
+                "ea_node_editor.execution.client.subprocess.run",
+                return_value=subprocess.CompletedProcess(
+                    args=[], returncode=0, stdout="", stderr=""
+                ),
+            ) as run:
+                client._verify_runtime_available("python-a")  # noqa: SLF001
+                client._verify_runtime_available("python-a")  # noqa: SLF001
+
+            self.assertEqual(run.call_count, 2)
+            run.assert_called_with(
+                [
+                    "python-a",
+                    "-c",
+                    "import ea_node_editor.execution.stdio_worker",
+                ],
+                capture_output=True,
+                check=False,
+                text=True,
+                timeout=10.0,
             )
         finally:
             client.shutdown()
@@ -2849,7 +3260,9 @@ class ProcessExecutionClientTests(unittest.TestCase):
     ) -> None:
         _workspace_id, default_snapshot = self._build_runtime_snapshot()
 
-        default_environment = resolve_workflow_python_environment(default_snapshot)
+        default_environment = resolve_python_environment(
+            workflow_python_path_from_snapshot(default_snapshot)
+        )
 
         self.assertFalse(default_environment.configured)
         self.assertTrue(default_environment.valid)
@@ -2857,8 +3270,10 @@ class ProcessExecutionClientTests(unittest.TestCase):
         _workspace_id, current_snapshot = self._build_runtime_snapshot(
             workflow_python_path=f'"{sys.executable}"'
         )
-        current_environment = resolve_workflow_python_environment(current_snapshot)
+        current_path = workflow_python_path_from_snapshot(current_snapshot)
+        current_environment = resolve_python_environment(current_path)
 
+        self.assertEqual(current_path, sys.executable)
         self.assertTrue(current_environment.configured)
         self.assertTrue(current_environment.valid)
         self.assertTrue(current_environment.is_current_python)
@@ -2873,11 +3288,43 @@ class ProcessExecutionClientTests(unittest.TestCase):
                 workflow_python_path=str(missing_python)
             )
 
-            invalid_environment = resolve_workflow_python_environment(invalid_snapshot)
+            invalid_environment = resolve_python_environment(
+                workflow_python_path_from_snapshot(invalid_snapshot)
+            )
 
         self.assertTrue(invalid_environment.configured)
         self.assertFalse(invalid_environment.valid)
         self.assertIn("does not exist", invalid_environment.error)
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            directory_environment = resolve_python_environment(tmp_dir)
+            candidate_file = Path(tmp_dir) / "python.exe"
+            candidate_file.write_text("", encoding="utf-8")
+            resolved_candidate = candidate_file.resolve()
+            with patch(
+                "ea_node_editor.execution.python_environment.os.access",
+                side_effect=lambda path, _mode: path != resolved_candidate,
+            ):
+                non_executable_environment = resolve_python_environment(
+                    str(candidate_file)
+                )
+
+        self.assertFalse(directory_environment.valid)
+        self.assertIn("not a file", directory_environment.error)
+        self.assertFalse(non_executable_environment.valid)
+        self.assertIn("not executable", non_executable_environment.error)
+
+        for malformed_path in (
+            "bad\x00python.exe",
+            f"C:\\{'nested-' * 2000}python.exe",
+        ):
+            with self.subTest(malformed=malformed_path[:20]):
+                malformed_environment = resolve_python_environment(malformed_path)
+                self.assertTrue(malformed_environment.configured)
+                self.assertFalse(malformed_environment.valid)
+                self.assertLessEqual(len(malformed_environment.python_executable), 600)
+                self.assertLessEqual(len(malformed_environment.error), 1100)
+                self.assertIn("Configured Python executable", malformed_environment.error)
 
         with tempfile.TemporaryDirectory() as tmp_dir:
             managed_paths = resolve_managed_runtime_paths(data_dir=tmp_dir)
@@ -2888,8 +3335,8 @@ class ProcessExecutionClientTests(unittest.TestCase):
                 workflow_python_path=str(managed_paths.python_executable)
             )
 
-            managed_environment = resolve_workflow_python_environment(
-                managed_snapshot,
+            managed_environment = resolve_python_environment(
+                workflow_python_path_from_snapshot(managed_snapshot),
                 current_executable=Path(tmp_dir) / "other_python.exe",
             )
 
@@ -2900,6 +3347,245 @@ class ProcessExecutionClientTests(unittest.TestCase):
             Path(managed_environment.python_executable),
             managed_paths.python_executable.resolve(),
         )
+
+    def test_execution_backend_client_workflow_python_selection_truth_table(
+        self,
+    ) -> None:
+        backend_client = ExecutionBackendClient()
+        events: list[dict] = []
+        backend_client.subscribe(events.append)
+        workspace_id, blank_snapshot = self._build_runtime_snapshot()
+        _workspace_id, project_snapshot = self._build_runtime_snapshot(
+            workflow_python_path=f' "{sys.executable}" '
+        )
+        _workspace_id, invalid_project_snapshot = self._build_runtime_snapshot(
+            workflow_python_path="missing-project-python"
+        )
+        process_start = patch.object(
+            backend_client._process_client,  # noqa: SLF001
+            "start_run",
+            return_value="run_process",
+        )
+        trusted_start = patch.object(
+            backend_client._trusted_client,  # noqa: SLF001
+            "start_run",
+            return_value="run_trusted",
+        )
+        external_start = patch.object(
+            backend_client._external_python_client,  # noqa: SLF001
+            "start_run",
+            return_value="run_external",
+        )
+
+        cases = (
+            (
+                "explicit process",
+                invalid_project_snapshot,
+                {"requested_backend": PROCESS_ISOLATED_BACKEND},
+                "process",
+                0,
+            ),
+            (
+                "explicit auto",
+                invalid_project_snapshot,
+                {"requested_backend": "auto"},
+                "process",
+                0,
+            ),
+            (
+                "explicit trusted",
+                invalid_project_snapshot,
+                {
+                    "requested_backend": TRUSTED_IN_PROCESS_BACKEND,
+                    "allow_trusted_in_process": True,
+                },
+                "trusted",
+                0,
+            ),
+            (
+                "explicit external path",
+                invalid_project_snapshot,
+                {
+                    "requested_backend": EXTERNAL_SUBPROCESS_BACKEND,
+                    "allow_external_subprocess": True,
+                    "python_executable": f' "{sys.executable}" ',
+                },
+                "external",
+                1,
+            ),
+            (
+                "explicit external project fallback",
+                project_snapshot,
+                {
+                    "requested_backend": EXTERNAL_SUBPROCESS_BACKEND,
+                    "allow_external_subprocess": True,
+                },
+                "external",
+                1,
+            ),
+            (
+                "quoted-empty double external project fallback",
+                project_snapshot,
+                {
+                    "requested_backend": EXTERNAL_SUBPROCESS_BACKEND,
+                    "allow_external_subprocess": True,
+                    "python_executable": '""',
+                },
+                "external",
+                1,
+            ),
+            (
+                "quoted-empty single external project fallback",
+                project_snapshot,
+                {
+                    "requested_backend": EXTERNAL_SUBPROCESS_BACKEND,
+                    "allow_external_subprocess": True,
+                    "python_executable": "''",
+                },
+                "external",
+                1,
+            ),
+            (
+                "implicit project",
+                project_snapshot,
+                None,
+                "external",
+                1,
+            ),
+            ("implicit built-in", blank_snapshot, None, "process", 0),
+        )
+
+        try:
+            with (
+                process_start as process,
+                trusted_start as trusted,
+                external_start as external,
+                patch(
+                    "ea_node_editor.execution.client.resolve_python_environment",
+                    wraps=resolve_python_environment,
+                ) as resolve_python,
+            ):
+                clients = {
+                    "process": process,
+                    "trusted": trusted,
+                    "external": external,
+                }
+                for label, snapshot, policy, expected_client, validations in cases:
+                    with self.subTest(case=label):
+                        for client_start in clients.values():
+                            client_start.reset_mock()
+                        resolve_python.reset_mock()
+
+                        run_id = backend_client.start_run(
+                            project_path="",
+                            workspace_id=workspace_id,
+                            trigger={"runtime_snapshot": snapshot},
+                            execution_backend=policy,
+                            **_default_registry_agreement(),
+                        )
+
+                        self.assertTrue(run_id)
+                        clients[expected_client].assert_called_once()
+                        self.assertEqual(resolve_python.call_count, validations)
+                        if expected_client == "external":
+                            selection = external.call_args.kwargs[
+                                "execution_backend"
+                            ]
+                            self.assertEqual(
+                                Path(selection.python_executable),
+                                Path(sys.executable).resolve(),
+                            )
+                            self.assertNotIn(
+                                "python_executable",
+                                repr(snapshot.to_document()),
+                            )
+
+                for client_start in clients.values():
+                    client_start.reset_mock()
+                resolve_python.reset_mock()
+                for pathless_value in (None, '""', "''"):
+                    with self.subTest(pathless=pathless_value):
+                        events.clear()
+                        policy = {
+                            "requested_backend": EXTERNAL_SUBPROCESS_BACKEND,
+                            "allow_external_subprocess": True,
+                        }
+                        if pathless_value is not None:
+                            policy["python_executable"] = pathless_value
+                        self.assertEqual(
+                            backend_client.start_run(
+                                project_path="",
+                                workspace_id=workspace_id,
+                                trigger={"runtime_snapshot": blank_snapshot},
+                                execution_backend=policy,
+                                **_default_registry_agreement(),
+                            ),
+                            "",
+                        )
+                        self.assertEqual(resolve_python.call_count, 0)
+                        self.assertEqual(
+                            len(
+                                [
+                                    event
+                                    for event in events
+                                    if event.get("type") == "protocol_error"
+                                ]
+                            ),
+                            1,
+                        )
+                        error = str(events[-1].get("error", ""))
+                        self.assertIn("requires python_executable", error)
+                        self.assertIn("Workflow Override", error)
+                        self.assertIn("Create / Repair Managed Runtime", error)
+                        for client_start in clients.values():
+                            client_start.assert_not_called()
+        finally:
+            backend_client.shutdown()
+
+    def test_external_python_malformed_paths_fail_closed_before_worker(self) -> None:
+        backend_client = ExecutionBackendClient()
+        events: list[dict] = []
+        backend_client.subscribe(events.append)
+        workspace_id, runtime_snapshot = self._build_runtime_snapshot()
+
+        try:
+            with patch.object(
+                backend_client._external_python_client,  # noqa: SLF001
+                "start_run",
+            ) as external_start:
+                for malformed_path in (
+                    "bad\x00python.exe",
+                    f"C:\\{'nested-' * 2000}python.exe",
+                ):
+                    with self.subTest(malformed=malformed_path[:20]):
+                        events.clear()
+                        external_start.reset_mock()
+                        run_id = backend_client.start_run(
+                            project_path="",
+                            workspace_id=workspace_id,
+                            trigger={"runtime_snapshot": runtime_snapshot},
+                            execution_backend={
+                                "requested_backend": EXTERNAL_SUBPROCESS_BACKEND,
+                                "allow_external_subprocess": True,
+                                "python_executable": malformed_path,
+                            },
+                            **_default_registry_agreement(),
+                        )
+
+                        self.assertEqual(run_id, "")
+                        external_start.assert_not_called()
+                        protocol_errors = [
+                            event
+                            for event in events
+                            if event.get("type") == "protocol_error"
+                        ]
+                        self.assertEqual(len(protocol_errors), 1)
+                        self.assertLessEqual(
+                            len(str(protocol_errors[0].get("error", ""))),
+                            1100,
+                        )
+        finally:
+            backend_client.shutdown()
 
     def test_backend_orchestrator_defaults_to_process_and_requires_trusted_opt_in(
         self,
@@ -3007,8 +3693,58 @@ class ProcessExecutionClientTests(unittest.TestCase):
             finally:
                 backend_client.shutdown()
 
-    def test_execution_backend_client_uses_workflow_python_executable_for_external_worker(
+    def test_external_python_invalid_replacement_preserves_worker_generation(
         self,
+    ) -> None:
+        backend_client = ExecutionBackendClient()
+        process = _external_process_mock()
+        _seed_external_generation(
+            backend_client._external_python_client,  # noqa: SLF001
+            process,
+            python_executable=sys.executable,
+        )
+        workspace_id, runtime_snapshot = self._build_runtime_snapshot()
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            missing_python = Path(tmp_dir) / "missing-python.exe"
+            try:
+                with (
+                    patch.object(
+                        backend_client._external_python_client,  # noqa: SLF001
+                        "start_run",
+                    ) as external_start,
+                    patch(
+                        "ea_node_editor.execution.client.subprocess.Popen"
+                    ) as popen,
+                ):
+                    run_id = backend_client.start_run(
+                        project_path="",
+                        workspace_id=workspace_id,
+                        trigger={"runtime_snapshot": runtime_snapshot},
+                        execution_backend={
+                            "requested_backend": EXTERNAL_SUBPROCESS_BACKEND,
+                            "allow_external_subprocess": True,
+                            "python_executable": str(missing_python),
+                            "reason": "application_default_python_executable",
+                        },
+                        **_default_registry_agreement(),
+                    )
+
+                self.assertEqual(run_id, "")
+                external_start.assert_not_called()
+                popen.assert_not_called()
+                external_client = backend_client._external_python_client  # noqa: SLF001
+                self.assertIs(external_client._process, process)  # noqa: SLF001
+                self.assertEqual(external_client._physical_generation_token, 1)  # noqa: SLF001
+                self.assertEqual(external_client._accepted_physical_generation_token, 1)  # noqa: SLF001
+            finally:
+                backend_client.shutdown()
+
+    def _assert_external_python_executable(
+        self,
+        *,
+        workflow_python_path: str = "",
+        execution_backend: dict | None = None,
     ) -> None:
         backend_client = ExecutionBackendClient()
         events: list[dict] = []
@@ -3037,13 +3773,14 @@ class ProcessExecutionClientTests(unittest.TestCase):
                 f"'addon_python': os.environ.get('{ADDON_RUNTIME_PYTHON_ENV}', '')"
                 "}"
             ),
-            workflow_python_path=sys.executable,
+            workflow_python_path=workflow_python_path,
         )
         try:
             run_id = backend_client.start_run(
                 project_path="",
                 workspace_id=workspace_id,
                 trigger={"kind": "manual", "runtime_snapshot": runtime_snapshot},
+                execution_backend=execution_backend,
                 **_default_registry_agreement(),
             )
             self.assertTrue(run_id, events)
@@ -3091,6 +3828,25 @@ class ProcessExecutionClientTests(unittest.TestCase):
             self.assertIsNotNone(backend_client._external_python_client._process)  # noqa: SLF001
         finally:
             backend_client.shutdown()
+
+    def test_execution_backend_client_uses_workflow_python_executable_for_external_worker(
+        self,
+    ) -> None:
+        self._assert_external_python_executable(
+            workflow_python_path=sys.executable,
+        )
+
+    def test_execution_backend_client_uses_application_default_python_policy_for_external_worker(
+        self,
+    ) -> None:
+        self._assert_external_python_executable(
+            execution_backend={
+                "requested_backend": EXTERNAL_SUBPROCESS_BACKEND,
+                "allow_external_subprocess": True,
+                "python_executable": sys.executable,
+                "reason": "application_default_python_executable",
+            },
+        )
 
     def test_execution_backend_client_runs_trusted_in_process_only_with_explicit_opt_in(
         self,

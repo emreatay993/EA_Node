@@ -7,7 +7,16 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from ea_node_editor.common.coercions import normalize_path_text
 from ea_node_editor.execution.runtime_snapshot import RuntimeSnapshot, coerce_runtime_snapshot
+
+_PATH_DISPLAY_LIMIT = 600
+_ERROR_DETAIL_LIMIT = 400
+
+
+def _bounded_fragment(value: object, limit: int) -> str:
+    text = str(value)
+    return text if len(text) <= limit else f"...{text[-(limit - 3):]}"
 
 
 @dataclass(frozen=True, slots=True)
@@ -27,13 +36,6 @@ def _path_key(path: Path) -> str:
     return os.path.normcase(str(resolved))
 
 
-def _strip_wrapping_quotes(value: str) -> str:
-    text = value.strip()
-    if len(text) >= 2 and text[0] == text[-1] and text[0] in {"'", '"'}:
-        return text[1:-1].strip()
-    return text
-
-
 def workflow_python_path_from_snapshot(value: RuntimeSnapshot | Mapping[str, Any] | None) -> str:
     runtime_snapshot = coerce_runtime_snapshot(value)
     metadata = runtime_snapshot.metadata if runtime_snapshot is not None else {}
@@ -45,57 +47,57 @@ def workflow_python_path_from_snapshot(value: RuntimeSnapshot | Mapping[str, Any
     environment = workflow_settings.get("environment")
     if not isinstance(environment, Mapping):
         return ""
-    return _strip_wrapping_quotes(str(environment.get("python_path", "") or ""))
+    return normalize_path_text(environment.get("python_path"))
 
 
-def resolve_workflow_python_environment(
-    value: RuntimeSnapshot | Mapping[str, Any] | None,
+def resolve_python_environment(
+    python_executable: Any,
     *,
     current_executable: str | Path | None = None,
 ) -> WorkflowPythonEnvironment:
-    raw_python_path = workflow_python_path_from_snapshot(value)
+    raw_python_path = normalize_path_text(python_executable)
     if not raw_python_path:
         return WorkflowPythonEnvironment()
 
-    candidate = Path(raw_python_path).expanduser()
     try:
-        normalized_candidate = candidate.resolve()
-    except OSError:
-        normalized_candidate = candidate
+        normalized_candidate = Path(raw_python_path).expanduser().resolve()
+        if not normalized_candidate.exists():
+            error = "does not exist"
+        elif not normalized_candidate.is_file():
+            error = "is not a file"
+        elif not os.access(normalized_candidate, os.X_OK):
+            error = "is not executable"
+        else:
+            current = Path(current_executable or sys.executable)
+            return WorkflowPythonEnvironment(
+                configured=True,
+                python_executable=str(normalized_candidate),
+                valid=True,
+                is_current_python=_path_key(normalized_candidate) == _path_key(current),
+            )
+    except (ValueError, RuntimeError, OSError) as exc:
+        display_path = _bounded_fragment(raw_python_path, _PATH_DISPLAY_LIMIT)
+        return WorkflowPythonEnvironment(
+            configured=True,
+            python_executable=display_path,
+            valid=False,
+            error=(
+                f"Configured Python executable path is invalid: {display_path}. "
+                f"{_bounded_fragment(exc, _ERROR_DETAIL_LIMIT)}"
+            ),
+        )
 
-    if not normalized_candidate.exists():
-        return WorkflowPythonEnvironment(
-            configured=True,
-            python_executable=str(normalized_candidate),
-            valid=False,
-            error=f"Workflow Python executable does not exist: {normalized_candidate}",
-        )
-    if not normalized_candidate.is_file():
-        return WorkflowPythonEnvironment(
-            configured=True,
-            python_executable=str(normalized_candidate),
-            valid=False,
-            error=f"Workflow Python executable is not a file: {normalized_candidate}",
-        )
-    if not os.access(normalized_candidate, os.X_OK):
-        return WorkflowPythonEnvironment(
-            configured=True,
-            python_executable=str(normalized_candidate),
-            valid=False,
-            error=f"Workflow Python executable is not executable: {normalized_candidate}",
-        )
-
-    current = Path(current_executable or sys.executable)
+    display_path = _bounded_fragment(normalized_candidate, _PATH_DISPLAY_LIMIT)
     return WorkflowPythonEnvironment(
         configured=True,
-        python_executable=str(normalized_candidate),
-        valid=True,
-        is_current_python=_path_key(normalized_candidate) == _path_key(current),
+        python_executable=display_path,
+        valid=False,
+        error=f"Configured Python executable {error}: {display_path}",
     )
 
 
 __all__ = [
     "WorkflowPythonEnvironment",
-    "resolve_workflow_python_environment",
+    "resolve_python_environment",
     "workflow_python_path_from_snapshot",
 ]

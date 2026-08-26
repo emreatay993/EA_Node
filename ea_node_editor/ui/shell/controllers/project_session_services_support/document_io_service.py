@@ -213,20 +213,36 @@ class ProjectDocumentIOService:
             WorkflowSettingsDialog,
         )
 
+        project = self._host.model.project
         session_metadata = ProjectSessionMetadata.from_mapping(
-            self._host.model.project.metadata
+            copy.deepcopy(project.metadata)
         )
-        self._host.model.project.replace_metadata(session_metadata.to_mapping())
         dialog = WorkflowSettingsDialog(
             initial_settings=copy.deepcopy(session_metadata.workflow_settings),
+            application_default_python_executable=(
+                self._host.app_preferences_controller.default_python_executable()
+            ),
             parent=self._dialog_parent(),
         )
         if dialog.exec() != dialog.DialogCode.Accepted:
             return
+        try:
+            self._host.app_preferences_controller.set_default_python_executable(
+                dialog.application_default_python_executable()
+            )
+        except Exception as exc:  # noqa: BLE001
+            from PyQt6.QtWidgets import QMessageBox
+
+            QMessageBox.warning(
+                self._dialog_parent(),
+                "Workflow Settings",
+                f"Could not save the application Python runtime.\n{str(exc)[:500]}",
+            )
+            return
         updated_metadata = session_metadata.with_workflow_settings(
             dialog.values()
         ).to_mapping()
-        self._host.model.project.replace_metadata(updated_metadata)
+        project.replace_metadata(updated_metadata)
         self._session.persist_session()
 
     def set_script_editor_panel_visible(self, checked: bool | None = None) -> None:

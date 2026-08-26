@@ -55,3 +55,13 @@ def coerce_str(value: Any, *, default: str = "") -> str:
     if value is None:
         return default
     return str(value)
+
+
+def normalize_path_text(value: Any) -> str:
+    """Normalize stored path text without touching the filesystem."""
+    if not isinstance(value, str):
+        return ""
+    text = value.strip()
+    if len(text) >= 2 and text[0] == text[-1] and text[0] in {"'", '"'}:
+        return text[1:-1].strip()
+    return text

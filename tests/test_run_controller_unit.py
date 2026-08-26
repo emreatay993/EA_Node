@@ -4,6 +4,7 @@ import base64
 import unittest
 from unittest import mock
 
+from ea_node_editor.execution.backends import EXTERNAL_SUBPROCESS_BACKEND
 from ea_node_editor.execution.protocol import (
     NodeSettledEvent,
     RootExecutionError,
@@ -11,6 +12,7 @@ from ea_node_editor.execution.protocol import (
     TriggerCaptureSettledEvent,
     event_to_dict,
 )
+from ea_node_editor.execution.runtime_snapshot import build_runtime_snapshot
 from ea_node_editor.graph.model import GraphModel
 from ea_node_editor.nodes.bootstrap import build_default_registry
 from ea_node_editor.nodes.execution_context import ExecutionContext, NodeResult
@@ -172,16 +174,23 @@ class _WorkspaceLibraryControllerStub:
 
 class _AppPreferencesControllerStub:
     def __init__(
-        self, preview_before_run: bool = True, default_mode: str = "auto"
+        self,
+        preview_before_run: bool = True,
+        default_mode: str = "auto",
+        default_python_executable: str = "",
     ) -> None:
         self.preview_before_run = bool(preview_before_run)
         self.default_mode = default_mode
+        self.python_executable = default_python_executable
 
     def selected_run_preview_before_run(self) -> bool:
         return bool(self.preview_before_run)
 
     def solution_default_mode(self) -> str:
         return self.default_mode
+
+    def default_python_executable(self) -> str:
+        return self.python_executable
 
 
 class _ScriptEditorStub:
@@ -385,6 +394,109 @@ class RunControllerUnitTests(unittest.TestCase):
             ],
             host.model.active_workspace.workspace_id,
         )
+
+    def test_application_default_python_policy_obeys_project_and_blank_precedence(
+        self,
+    ) -> None:
+        host = _RunHostStub()
+        host.app_preferences_controller.python_executable = "application-python"
+        controller = RunController(host)  # type: ignore[arg-type]
+        workspace_id = host.model.active_workspace.workspace_id
+
+        blank_snapshot = build_runtime_snapshot(
+            host.model.project,
+            workspace_id=workspace_id,
+            registry=host.registry,
+        )
+        self.assertEqual(
+            controller._execution_backend_policy_for_runtime_snapshot(  # noqa: SLF001
+                blank_snapshot
+            ),
+            {
+                "requested_backend": EXTERNAL_SUBPROCESS_BACKEND,
+                "allow_external_subprocess": True,
+                "python_executable": "application-python",
+                "reason": "application_default_python_executable",
+            },
+        )
+
+        host.model.project.metadata["workflow_settings"] = {
+            "environment": {"python_path": "project-python"}
+        }
+        project_snapshot = build_runtime_snapshot(
+            host.model.project,
+            workspace_id=workspace_id,
+            registry=host.registry,
+        )
+        self.assertIsNone(
+            controller._execution_backend_policy_for_runtime_snapshot(  # noqa: SLF001
+                project_snapshot
+            )
+        )
+
+        host.app_preferences_controller.python_executable = ""
+        self.assertIsNone(
+            controller._execution_backend_policy_for_runtime_snapshot(  # noqa: SLF001
+                blank_snapshot
+            )
+        )
+
+    def test_application_default_python_policy_reaches_every_shell_dispatch(self) -> None:
+        expected_policy = {
+            "requested_backend": EXTERNAL_SUBPROCESS_BACKEND,
+            "allow_external_subprocess": True,
+            "python_executable": "application-python-sentinel",
+            "reason": "application_default_python_executable",
+        }
+        calls: list[dict] = []
+
+        host = _RunHostStub()
+        host.app_preferences_controller.python_executable = expected_policy[
+            "python_executable"
+        ]
+        RunController(host).run_workflow()  # type: ignore[arg-type]
+        calls.append(host.execution_client.start_calls[-1])
+
+        for trigger_kind in ("manual", "auto"):
+            host = _RunHostStub()
+            host.app_preferences_controller.preview_before_run = False
+            host.app_preferences_controller.python_executable = expected_policy[
+                "python_executable"
+            ]
+            workspace_id = host.model.active_workspace.workspace_id
+            logger = host.model.add_node(
+                workspace_id, "core.logger", "Logger", 0, 0
+            )
+            RunController(host).run_selected_nodes(  # type: ignore[arg-type]
+                [logger.node_id],
+                trigger_kind=trigger_kind,
+            )
+            calls.append(host.execution_client.start_calls[-1])
+
+        host = _RunHostStub()
+        host.app_preferences_controller.python_executable = expected_policy[
+            "python_executable"
+        ]
+        workspace_id = host.model.active_workspace.workspace_id
+        trigger = host.model.add_node(
+            workspace_id, "core.trigger", "Trigger", 0, 0
+        )
+        self.assertTrue(
+            RunController(host).trigger_node(trigger.node_id)  # type: ignore[arg-type]
+        )
+        calls.append(host.execution_client.start_calls[-1])
+
+        self.assertEqual(
+            [call["trigger"]["kind"] for call in calls],
+            ["manual", "manual", "auto", "trigger"],
+        )
+        for call in calls:
+            self.assertEqual(call["execution_backend"], expected_policy)
+            self.assertNotIn("python_executable", repr(call["trigger"]))
+            self.assertNotIn(
+                "application-python-sentinel",
+                repr(call["trigger"]["runtime_snapshot"].to_document()),
+            )
 
     def test_run_workflow_applies_dirty_script_before_snapshot_without_duplicate_auto_run(
         self,

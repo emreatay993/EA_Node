@@ -29,6 +29,7 @@ Use this for Run, Run Selected, workspace solution mode, Auto evaluation, Trigge
 - `Run Selected` expands selected groups, sends the selected active node IDs as explicit targets, and lets the worker pull their enabled upstream dependencies. An explicitly selected isolated active node runs. Run Upstream Chain and selected-run cache seeding are removed.
 - Before explicit Run or a confirmed manual Run Selected builds its snapshot, the controller applies a valid dirty selected Python Script draft. A failed Apply cancels dispatch and leaves the draft dirty; preview-only or unconfirmed Run Selected does not apply it.
 - Every Run, Run Selected, Auto, and Trigger dispatch supplies `host.registry.data_types` explicitly to the execution client together with the snapshot. The resulting `StartRunCommand` carries the catalog fingerprint plus compact deterministic revision records, not catalog definitions; a client must not reuse a catalog cached by an earlier run.
+- Every Run, Run Selected, Auto, and Trigger dispatch also calls `RunController._execution_backend_policy_for_runtime_snapshot(...)`. A non-empty project Workflow Override leaves selection to the execution client; otherwise a non-empty app default becomes the existing external policy. Blank app/project values keep built-in execution. The app path never enters the trigger or runtime snapshot.
 - Node and Trigger settlement payloads are normalized with that same active catalogue before shell caching or execution-state transitions; semantic runtime carriers such as images and handles cannot be decoded without it.
 - Preview and settings actions route through graph actions; preview state is shell-owned and projects a compact QML list plus canvas node highlights with confirm and cancel actions. The `GraphCanvasRootLayers.qml` preview overlay sizes to measured row/header/action content, its `+N more` control expands the full row list inside a bounded scroll area, and wheel input over the overlay is consumed so preview scrolling does not also zoom the canvas.
 - `Run Settings...` opens `SelectedRunSettingsDialog`, which edits the same `selected_run.preview_before_run` app preference exposed by the canvas options menu.
@@ -51,6 +52,7 @@ Use this for Run, Run Selected, workspace solution mode, Auto evaluation, Trigge
 .\venv\Scripts\python.exe -m pytest tests/test_run_controller_unit.py tests/test_selected_run_settings_dialog.py tests/test_execution_worker.py tests/test_execution_client.py --ignore=venv -q
 .\venv\Scripts\python.exe -m unittest tests.test_graph_canvas_viewport_virtualization.GraphCanvasViewportVirtualizationTests.test_selected_run_preview_overlay_shrinks_and_expands_overflow_rows -v
 .\venv\Scripts\python.exe -m pytest tests/test_run_controller_unit.py tests/test_dataflow_execution_runtime.py -k "run_selected or solution_mode or auto or trigger" --ignore=venv -q
+.\venv\Scripts\python.exe -m pytest tests/test_run_controller_unit.py -k "application_default_python" --ignore=venv -q
 ```
 
 ## Breadcrumbs
@@ -60,4 +62,4 @@ Use this for Run, Run Selected, workspace solution mode, Auto evaluation, Trigge
 - [Clipboard, Undo/Redo, And Mutation History](clipboard_undo_redo_mutation_history.md)
 
 ## Update Triggers
-Update when Run/Run Selected targeting, catalog-aware dispatch, script Apply synchronization, workspace solution mode, Auto-on-open/invalidation/coalescing, dynamic-port Auto invalidation, Trigger capture/publication, cached output freshness, active run scoping, graph-action run dispatch, or run-controller tests change.
+Update when Run/Run Selected targeting, catalog-aware dispatch, app-default external-policy injection, script Apply synchronization, workspace solution mode, Auto-on-open/invalidation/coalescing, dynamic-port Auto invalidation, Trigger capture/publication, cached output freshness, active run scoping, graph-action run dispatch, or run-controller tests change.

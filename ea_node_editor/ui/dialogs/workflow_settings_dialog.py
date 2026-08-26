@@ -8,6 +8,7 @@ from PyQt6.QtCore import QObject, Qt, QThread, pyqtSignal
 from PyQt6.QtWidgets import (
     QCheckBox,
     QComboBox,
+    QFileDialog,
     QFormLayout,
     QHBoxLayout,
     QLabel,
@@ -19,6 +20,7 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
+from ea_node_editor.common.coercions import normalize_path_text
 from ea_node_editor.execution.managed_runtime import (
     ManagedRuntimeInstallResult,
     prepare_managed_runtime,
@@ -62,6 +64,7 @@ class WorkflowSettingsDialog(SectionedSettingsDialog):
         initial_settings: dict[str, Any] | None = None,
         parent=None,
         *,
+        application_default_python_executable: str = "",
         managed_runtime_prepare: Callable[[], ManagedRuntimeInstallResult] | None = None,
     ) -> None:
         self._managed_runtime_prepare = managed_runtime_prepare or prepare_managed_runtime
@@ -75,6 +78,9 @@ class WorkflowSettingsDialog(SectionedSettingsDialog):
             section_list_object_name="workflowSettingsSectionList",
             header_object_name="workflowSettingsHeader",
             parent=parent,
+        )
+        self.application_python_path_edit.setText(
+            normalize_path_text(application_default_python_executable)
         )
         self.set_values(initial_settings or {})
 
@@ -114,27 +120,89 @@ class WorkflowSettingsDialog(SectionedSettingsDialog):
     def _build_environment_page(self) -> QWidget:
         page = QWidget(self)
         form = QFormLayout(page)
-        self.python_path_edit = QLineEdit(page)
-        self.python_path_edit.setPlaceholderText(r"C:\path\to\venv\Scripts\python.exe")
+        self.application_python_path_edit = QLineEdit(page)
+        self.application_python_path_edit.setObjectName("applicationPythonExecutableEdit")
+        self.application_python_path_edit.setPlaceholderText(
+            r"C:\path\to\venv\Scripts\python.exe"
+        )
+        self.application_python_browse_button = QPushButton("Browse", page)
+        self.application_python_browse_button.setObjectName("browseApplicationPythonButton")
+        self.application_python_browse_button.clicked.connect(
+            self._browse_application_python_executable
+        )
+        application_python_field = QWidget(page)
+        application_python_layout = QHBoxLayout(application_python_field)
+        application_python_layout.setContentsMargins(0, 0, 0, 0)
+        application_python_layout.addWidget(self.application_python_path_edit, stretch=1)
+        application_python_layout.addWidget(self.application_python_browse_button)
+
+        self.workflow_python_path_edit = QLineEdit(page)
+        self.workflow_python_path_edit.setObjectName("workflowPythonOverrideEdit")
+        self.workflow_python_path_edit.setPlaceholderText(
+            r"C:\path\to\venv\Scripts\python.exe"
+        )
+        self.workflow_python_browse_button = QPushButton("Browse", page)
+        self.workflow_python_browse_button.setObjectName("browseWorkflowPythonButton")
+        self.workflow_python_browse_button.clicked.connect(
+            self._browse_workflow_python_executable
+        )
+        workflow_python_field = QWidget(page)
+        workflow_python_layout = QHBoxLayout(workflow_python_field)
+        workflow_python_layout.setContentsMargins(0, 0, 0, 0)
+        workflow_python_layout.addWidget(self.workflow_python_path_edit, stretch=1)
+        workflow_python_layout.addWidget(self.workflow_python_browse_button)
+
         self.workdir_edit = QLineEdit(page)
         self.prepare_runtime_button = QPushButton("Create / Repair Managed Runtime", page)
         self.prepare_runtime_button.setObjectName("prepareCorexRuntimeButton")
         self.prepare_runtime_button.clicked.connect(self._prepare_managed_runtime)
-        self.use_builtin_runtime_button = QPushButton("Use Built-In Runtime", page)
-        self.use_builtin_runtime_button.setObjectName("useBuiltInRuntimeButton")
-        self.use_builtin_runtime_button.clicked.connect(self._use_builtin_runtime)
-        runtime_actions = QWidget(page)
-        runtime_actions_layout = QHBoxLayout(runtime_actions)
-        runtime_actions_layout.setContentsMargins(0, 0, 0, 0)
-        runtime_actions_layout.addWidget(self.prepare_runtime_button)
-        runtime_actions_layout.addWidget(self.use_builtin_runtime_button)
-        runtime_actions_layout.addStretch(1)
+        self.clear_application_runtime_button = QPushButton(
+            "Clear Application Default", page
+        )
+        self.clear_application_runtime_button.setObjectName("clearApplicationPythonButton")
+        self.clear_application_runtime_button.clicked.connect(
+            self._clear_application_default
+        )
+        application_actions = QWidget(page)
+        application_actions_layout = QHBoxLayout(application_actions)
+        application_actions_layout.setContentsMargins(0, 0, 0, 0)
+        application_actions_layout.addWidget(self.prepare_runtime_button)
+        application_actions_layout.addWidget(self.clear_application_runtime_button)
+        application_actions_layout.addStretch(1)
+
+        self.inherit_application_runtime_button = QPushButton(
+            "Inherit Application Default", page
+        )
+        self.inherit_application_runtime_button.setObjectName(
+            "inheritApplicationPythonButton"
+        )
+        self.inherit_application_runtime_button.clicked.connect(
+            self._inherit_application_default
+        )
+        self.runtime_help_label = QLabel(
+            "External Python runs the entire workflow as trusted local execution, not a "
+            "sandbox. User-managed environments must import "
+            "ea_node_editor.execution.stdio_worker and may still be rejected by the "
+            "startup handshake. Changes apply to the next run. The workflow override "
+            "wins over the application default; built-in execution is used only when "
+            "both are blank.",
+            page,
+        )
+        self.runtime_help_label.setObjectName("pythonRuntimeHelpLabel")
+        self.runtime_help_label.setWordWrap(True)
         self.managed_runtime_status_label = QLabel(page)
         self.managed_runtime_status_label.setObjectName("managedRuntimeStatusLabel")
         self.managed_runtime_status_label.setWordWrap(True)
+        self.application_python_path_edit.textChanged.connect(
+            self._runtime_path_text_changed
+        )
+        self.workflow_python_path_edit.textChanged.connect(self._runtime_path_text_changed)
         self._apply_environment_tooltips()
-        form.addRow("Python Executable", self.python_path_edit)
-        form.addRow("Managed Runtime", runtime_actions)
+        form.addRow("Application Default Python Executable", application_python_field)
+        form.addRow("Application Actions", application_actions)
+        form.addRow("Workflow Override", workflow_python_field)
+        form.addRow("Workflow Action", self.inherit_application_runtime_button)
+        form.addRow("", self.runtime_help_label)
         form.addRow("", self.managed_runtime_status_label)
         form.addRow("Working Directory", self.workdir_edit)
         self._refresh_managed_runtime_status()
@@ -180,7 +248,9 @@ class WorkflowSettingsDialog(SectionedSettingsDialog):
         self.parallel_check.setChecked(bool(settings["solver_config"].get("enable_parallel", True)))
         self.thread_count_spin.setValue(int(settings["solver_config"].get("thread_count", 8)))
         self.memory_limit_spin.setValue(int(settings["solver_config"].get("memory_limit_gb", 12)))
-        self.python_path_edit.setText(str(settings["environment"].get("python_path", "")))
+        self.workflow_python_path_edit.setText(
+            normalize_path_text(settings["environment"].get("python_path"))
+        )
         self.workdir_edit.setText(str(settings["environment"].get("working_directory", "")))
         plugins = settings["plugins"].get("enabled", [])
         if isinstance(plugins, list):
@@ -212,7 +282,7 @@ class WorkflowSettingsDialog(SectionedSettingsDialog):
                 "memory_limit_gb": int(self.memory_limit_spin.value()),
             },
             "environment": {
-                "python_path": self.python_path_edit.text().strip(),
+                "python_path": normalize_path_text(self.workflow_python_path_edit.text()),
                 "working_directory": self.workdir_edit.text().strip(),
             },
             "plugins": {
@@ -224,23 +294,32 @@ class WorkflowSettingsDialog(SectionedSettingsDialog):
             },
         }
 
+    def application_default_python_executable(self) -> str:
+        return normalize_path_text(self.application_python_path_edit.text())
+
+    def _effective_runtime_summary(self) -> str:
+        workflow_path = normalize_path_text(self.workflow_python_path_edit.text())
+        if workflow_path:
+            return f"Effective next run: workflow override ({workflow_path})."
+        application_path = self.application_default_python_executable()
+        if application_path:
+            return f"Effective next run: application default ({application_path})."
+        return "Effective next run: built-in process-isolated runtime."
+
     def _refresh_managed_runtime_status(self, message: str | None = None) -> None:
-        if message is not None:
-            self.managed_runtime_status_label.setText(message)
-            return
-        try:
-            paths = resolve_managed_runtime_paths()
-        except Exception as exc:  # noqa: BLE001
-            self.managed_runtime_status_label.setText(f"Managed runtime status unavailable: {exc}")
-            return
-        if paths.python_executable.exists():
-            self.managed_runtime_status_label.setText(
-                f"Managed runtime ready: {paths.python_executable}"
-            )
-        else:
-            self.managed_runtime_status_label.setText(
-                f"Managed runtime not prepared: {paths.python_executable}"
-            )
+        if message is None:
+            try:
+                paths = resolve_managed_runtime_paths()
+                message = (
+                    f"Managed runtime ready: {paths.python_executable}"
+                    if paths.python_executable.exists()
+                    else f"Managed runtime not prepared: {paths.python_executable}"
+                )
+            except Exception as exc:  # noqa: BLE001
+                message = f"Managed runtime status unavailable: {exc}"
+        self.managed_runtime_status_label.setText(
+            f"{self._effective_runtime_summary()}\n{message}"
+        )
 
     def _tooltip_category_enabled(self, category: str) -> bool:
         parent = self._tooltip_parent
@@ -261,16 +340,32 @@ class WorkflowSettingsDialog(SectionedSettingsDialog):
 
     def _apply_environment_tooltips(self) -> None:
         self._set_category_tooltip(
-            self.python_path_edit,
-            "settings.workflow.environment.python_executable",
+            self.application_python_path_edit,
+            "settings.workflow.environment.application_default_python_executable",
+        )
+        self._set_category_tooltip(
+            self.application_python_browse_button,
+            "settings.workflow.environment.browse_application_python",
         )
         self._set_category_tooltip(
             self.prepare_runtime_button,
             "settings.workflow.environment.prepare_managed_runtime",
         )
         self._set_category_tooltip(
-            self.use_builtin_runtime_button,
-            "settings.workflow.environment.use_builtin_runtime",
+            self.clear_application_runtime_button,
+            "settings.workflow.environment.clear_application_default",
+        )
+        self._set_category_tooltip(
+            self.workflow_python_path_edit,
+            "settings.workflow.environment.workflow_python_override",
+        )
+        self._set_category_tooltip(
+            self.workflow_python_browse_button,
+            "settings.workflow.environment.browse_workflow_python",
+        )
+        self._set_category_tooltip(
+            self.inherit_application_runtime_button,
+            "settings.workflow.environment.inherit_application_default",
         )
         self._set_category_tooltip(
             self.managed_runtime_status_label,
@@ -282,8 +377,14 @@ class WorkflowSettingsDialog(SectionedSettingsDialog):
         )
 
     def _set_runtime_controls_enabled(self, enabled: bool) -> None:
-        self.prepare_runtime_button.setEnabled(enabled)
-        self.use_builtin_runtime_button.setEnabled(enabled)
+        for control in (
+            self.prepare_runtime_button,
+            self.application_python_browse_button,
+            self.clear_application_runtime_button,
+            self.workflow_python_browse_button,
+            self.inherit_application_runtime_button,
+        ):
+            control.setEnabled(enabled)
         if hasattr(self, "ok_button"):
             self.ok_button.setEnabled(enabled)
         if hasattr(self, "cancel_button"):
@@ -310,7 +411,7 @@ class WorkflowSettingsDialog(SectionedSettingsDialog):
     def _managed_runtime_finished(self, result: ManagedRuntimeInstallResult) -> None:
         self._set_runtime_controls_enabled(True)
         if result.success:
-            self.python_path_edit.setText(result.python_executable)
+            self.application_python_path_edit.setText(result.python_executable)
             self._refresh_managed_runtime_status(
                 f"Managed runtime ready: {result.python_executable}"
             )
@@ -322,9 +423,40 @@ class WorkflowSettingsDialog(SectionedSettingsDialog):
         self._managed_runtime_thread = None
         self._managed_runtime_worker = None
 
-    def _use_builtin_runtime(self) -> None:
-        self.python_path_edit.clear()
-        self._refresh_managed_runtime_status("Built-in packaged runtime selected.")
+    def _browse_application_python_executable(self) -> None:
+        self._browse_python_executable(
+            self.application_python_path_edit,
+            "Select Application Default Python Executable",
+        )
+
+    def _browse_workflow_python_executable(self) -> None:
+        self._browse_python_executable(
+            self.workflow_python_path_edit,
+            "Select Workflow Override Python Executable",
+        )
+
+    def _browse_python_executable(self, target: QLineEdit, title: str) -> None:
+        path, _ = QFileDialog.getOpenFileName(
+            self,
+            title,
+            target.text(),
+            "Python Executable (*.exe);;All Files (*)",
+        )
+        if path:
+            target.setText(path)
+
+    def _clear_application_default(self) -> None:
+        self.application_python_path_edit.clear()
+        self._refresh_managed_runtime_status("Application default cleared.")
+
+    def _inherit_application_default(self) -> None:
+        self.workflow_python_path_edit.clear()
+        self._refresh_managed_runtime_status(
+            "Workflow override cleared; inheriting application default."
+        )
+
+    def _runtime_path_text_changed(self, _text: str) -> None:
+        self._refresh_managed_runtime_status()
 
     def closeEvent(self, event) -> None:  # noqa: ANN001, N802
         if self._managed_runtime_thread is not None:

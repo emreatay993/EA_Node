@@ -38,6 +38,7 @@ Use this for graph themes, graphics settings, app preferences, theme editor dial
 - Graph-theme node tokens are `Passive Node Defaults` only. They keep passive body gradients, title/icon foreground, and `card_selected_border` outline/glow; authored passive `visual_style.border_color` remains idle-only. Active and `compile_only` bodies, outlines, title/port/inline-control foregrounds, and selected fill use the fixed shell-brightness palette in `GraphNodeHostTheme.qml` and ignore custom graph-theme node tokens. Keep `ui/graph_theme` normalization, `GraphThemeEditorDialog` wording/controls, `GraphThemePreviewWidget`, `GraphThemeBridge.node_palette`, and passive QML rendering in sync. Add-on Manager category marks use the shell accent rather than a graph-theme category palette.
 - `GraphPortStateTokens` (`port_state_tokens` on `GraphThemeDefinition`, `GraphThemeBridge.port_state_palette`, "Port State Tokens" section in the theme editor) owns valid-green, waiting, idle, and invalid grip colors. These state colors are shared per brightness (`GRAPH_STITCH_DARK/LIGHT_PORT_STATE_TOKENS_V1`); rest-state grips no longer use per-kind colors.
 - Keep these visual defaults out of project `.cxproj` persistence.
+- App preference `python_runtime.default_executable` is non-visual and is edited in Workflow Settings, not Graphics Settings or Canvas Options. Its normalization/controller ownership belongs to the App Preferences map; execution selection belongs to the Execution and Run Controller maps.
 
 ## Focused Verification
 ```powershell
@@ -54,7 +55,7 @@ Use this for graph themes, graphics settings, app preferences, theme editor dial
 - [Assets, Icons, Title Icons, And Theme Assets](../subsystems/assets_icons_theme.md)
 
 ## Update Triggers
-Update when preferences storage/migration, passive-default graph theme tokens, the fixed active-node palette boundary, theme bridges, graphics dialogs, node-library display or learned-usage preferences, shell pane collapse preferences, node elapsed-time units, notched ports, node comment editor defaults, node floating-toolbar reveal behavior, text toolbar recents, plot/lightweight canvas preferences, or theme tests change.
+Update when preferences storage/migration, routing of non-visual app preferences away from Graphics Settings, passive-default graph theme tokens, the fixed active-node palette boundary, theme bridges, graphics dialogs, node-library display or learned-usage preferences, shell pane collapse preferences, node elapsed-time units, notched ports, node comment editor defaults, node floating-toolbar reveal behavior, text toolbar recents, plot/lightweight canvas preferences, or theme tests change.
 
 ## 2026-07-11 Performance Ownership
 
