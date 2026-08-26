@@ -121,7 +121,7 @@ from ea_node_editor.nodes.plugin_contracts import PluginContractManifest
 from ea_node_editor.settings import plugin_generations_dir, plugins_dir
 
 
-BUILTIN_NODE_DESCRIPTORS = (
+_TRUSTED_BUILTIN_DESCRIPTORS = (
     *CORE_NODE_DESCRIPTORS,
     *FILE_IO_NODE_DESCRIPTORS,
     *PLOT_NODE_DESCRIPTORS,
@@ -135,8 +135,81 @@ BUILTIN_NODE_DESCRIPTORS = (
     *EXCALIDRAW_NODE_DESCRIPTORS,
 )
 
+_TRUSTED_BUILTIN_TYPE_IDS = frozenset(
+    {
+        "code.jupyter_notebook",
+        "core.python_script",
+        "core.stream_gate",
+        "core.subnode",
+        "core.subnode_input",
+        "core.subnode_output",
+        "core.trigger",
+        "excalidraw.board",
+        "io.folder_explorer",
+        "io.path_pointer",
+        "optimization.parameter_pool",
+        "optimization.parameter_setup",
+        "optimization.response_pool",
+        "passive.annotation.callout",
+        "passive.annotation.group_backdrop",
+        "passive.annotation.section_header",
+        "passive.annotation.sticky_note",
+        "passive.annotation.text",
+        "passive.flowchart.actor",
+        "passive.flowchart.callout",
+        "passive.flowchart.card",
+        "passive.flowchart.connector",
+        "passive.flowchart.cube",
+        "passive.flowchart.database",
+        "passive.flowchart.decision",
+        "passive.flowchart.document",
+        "passive.flowchart.end",
+        "passive.flowchart.input_output",
+        "passive.flowchart.isometric_cube",
+        "passive.flowchart.message",
+        "passive.flowchart.multi_document",
+        "passive.flowchart.predefined_process",
+        "passive.flowchart.process",
+        "passive.flowchart.star",
+        "passive.flowchart.start",
+        "passive.flowchart.tick",
+        "passive.flowchart.timestamp",
+        "passive.flowchart.x",
+        "passive.media.image_panel",
+        "passive.media.mail_panel",
+        "passive.media.pdf_panel",
+        "passive.media.video_panel",
+        "passive.planning.decision_card",
+        "passive.planning.milestone_card",
+        "passive.planning.risk_card",
+        "passive.planning.task_card",
+        "plot.bar",
+        "plot.contour",
+        "plot.heatmap",
+        "plot.histogram",
+        "plot.point_cloud",
+        "plot.scatter",
+        "plot.streamlines",
+        "plot.surface",
+        "web.page_viewer",
+    }
+)
+
 
 def build_builtin_registry(*, generation_root: Path | None = None) -> NodeRegistry:
+    trusted_descriptors = (
+        *_TRUSTED_BUILTIN_DESCRIPTORS,
+        *COREX_FEM_NODE_DESCRIPTORS,
+    )
+    trusted_type_ids = frozenset(
+        descriptor.spec.type_id for descriptor in trusted_descriptors
+    )
+    if (
+        len(trusted_descriptors) != len(_TRUSTED_BUILTIN_TYPE_IDS)
+        or trusted_type_ids != _TRUSTED_BUILTIN_TYPE_IDS
+    ):
+        raise RuntimeError("Trusted built-in descriptor allowlist mismatch")
+
     registry = NodeRegistry()
     registry.register_plugin_bundle(
         PluginContractManifest(
@@ -275,7 +348,7 @@ def build_builtin_registry(*, generation_root: Path | None = None) -> NodeRegist
         registry,
         generation_root=generation_root or plugin_generations_dir(),
     )
-    registry.register_descriptors(BUILTIN_NODE_DESCRIPTORS)
+    registry.register_descriptors(_TRUSTED_BUILTIN_DESCRIPTORS)
     registry.freeze()
     return registry
 
@@ -395,9 +468,11 @@ def build_default_registry(
         generation_root=generation_root,
     )
     if include_public_plugins:
-        from ea_node_editor.nodes.plugin_loader import discover_and_load_plugins
+        from ea_node_editor.nodes.plugin_loader import (
+            _discover_configured_static_plugins,
+        )
 
-        discover_and_load_plugins(
+        _discover_configured_static_plugins(
             registry,
             extra_dirs=extra_plugin_dirs,
             generation_root=generation_root,

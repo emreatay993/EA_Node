@@ -38,7 +38,7 @@ from ea_node_editor.nodes.dpf_runtime_contracts import (
     DPF_MESH_HANDLE_KIND,
     DPF_MESH_SCOPING_HANDLE_KIND,
 )
-from ea_node_editor.nodes.types import ExecutionContext
+from ea_node_editor.nodes.execution_context import ExecutionContext
 from ea_node_editor.persistence.artifact_resolution import ProjectArtifactResolver
 from ea_node_editor.persistence.artifact_store import ProjectArtifactStore
 from ea_node_editor.ui_qml.graph_scene_payload import GraphScenePayloadBuilder

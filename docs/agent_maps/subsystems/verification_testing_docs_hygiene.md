@@ -38,6 +38,10 @@ Use this for verification mode selection, pytest defaults, shell isolation, docs
 - Keep shell-isolation coverage in the dedicated full-mode phase.
 - For docs-only changes, prefer markdown/link checks and targeted hygiene tests.
 - Keep generated-metadata tracking and dead-code guardrails in focused hygiene tests, not broad lint phases.
+- The no-legacy guardrail inventory owns the T16 clean break: the former nodes
+  public barrels, entry-point/class/descriptor discovery, executable manifests,
+  and project entry point must stay absent. `test_architecture_boundaries.py`
+  separately pins the exact dependency-free 17-name `corex` export surface.
 - Keep `scripts/nav.py find` joined to generated QML component metadata so UI terms and QML symbols resolve to the map-owned source path, focused test, and verification command.
 - Keep task-language aliases neutral and exact. Put each alias on the narrowest owning map, cite the exact live file that should open first, and place its smallest route-owned proving test in `Start Here` and `Focused Verification`.
 - When a QML component has a feature owner, cite its exact repository path on that feature map so the explicit owner beats the inferred subsystem. Omit a focused test when no route-owned test is defensible instead of borrowing an unrelated test from another surface.

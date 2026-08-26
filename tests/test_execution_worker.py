@@ -74,10 +74,9 @@ from ea_node_editor.nodes.decorators import node_type
 from ea_node_editor.nodes.output_artifacts import register_staged_artifact
 from ea_node_editor.nodes.plugin_contracts import PluginContractManifest
 from ea_node_editor.nodes.registry import NodeRegistry
-from ea_node_editor.nodes.types import (
-    ExecutionContext,
-    NodeResult,
-    PortSpec,
+from ea_node_editor.nodes.execution_context import ExecutionContext, NodeResult
+from ea_node_editor.nodes.node_specs import PortSpec
+from ea_node_editor.nodes.runtime_refs import (
     deserialize_runtime_value,
 )
 from ea_node_editor.persistence.artifact_store import ProjectArtifactStore
@@ -137,6 +136,8 @@ def _catalog_start_run_command(  # noqa: ANN001
     if active_registry is not None and isinstance(command, dict):
         command = {
             **command,
+            "plugin_bundles": active_registry.plugin_bundle_refs(),
+            "plugin_fingerprint": active_registry.plugin_fingerprint(),
             "registry_contract_fingerprint": (
                 active_registry.contract_fingerprint()
             ),
@@ -1084,12 +1085,14 @@ class ExecutionWorkerTests(unittest.TestCase):
         logger = model.add_node(ws.workspace_id, "core.logger", "Logger", 100, 0)
         registry = build_default_registry()
         runtime_snapshot = self._runtime_snapshot(model, registry=registry)
-        command = StartRunCommand(
-            run_id="run_cache",
-            workspace_id=ws.workspace_id,
-            runtime_snapshot=runtime_snapshot,
-            registry_contract_fingerprint=registry.contract_fingerprint(),
-            addon_runtime_config=registry.addon_runtime_config(),
+        command = _catalog_start_run_command(
+            {
+                "run_id": "run_cache",
+                "workspace_id": ws.workspace_id,
+                "runtime_snapshot": runtime_snapshot,
+            },
+            catalog=registry.data_types,
+            registry=registry,
         )
         cache = RuntimePreparationCache()
 
@@ -1116,12 +1119,14 @@ class ExecutionWorkerTests(unittest.TestCase):
         logger = model.add_node(ws.workspace_id, "core.logger", "Logger", 100, 0)
         registry = build_default_registry()
         runtime_snapshot = self._runtime_snapshot(model, registry=registry)
-        command = StartRunCommand(
-            run_id="run_builtin_registry",
-            workspace_id=ws.workspace_id,
-            runtime_snapshot=runtime_snapshot,
-            registry_contract_fingerprint=registry.contract_fingerprint(),
-            addon_runtime_config=registry.addon_runtime_config(),
+        command = _catalog_start_run_command(
+            {
+                "run_id": "run_builtin_registry",
+                "workspace_id": ws.workspace_id,
+                "runtime_snapshot": runtime_snapshot,
+            },
+            catalog=registry.data_types,
+            registry=registry,
         )
 
         cache = RuntimePreparationCache()
@@ -1144,24 +1149,24 @@ class ExecutionWorkerTests(unittest.TestCase):
                 catalog=addon_registry.data_types,
             )
             addon_prepared = prepare_runtime(
-                StartRunCommand(
-                    run_id="run_addon_registry",
-                    workspace_id=ws.workspace_id,
-                    runtime_snapshot=addon_snapshot,
-                    registry_contract_fingerprint=(
-                        addon_registry.contract_fingerprint()
-                    ),
-                    addon_runtime_config=addon_registry.addon_runtime_config(),
+                _catalog_start_run_command(
+                    {
+                        "run_id": "run_addon_registry",
+                        "workspace_id": ws.workspace_id,
+                        "runtime_snapshot": addon_snapshot,
+                    },
+                    catalog=addon_registry.data_types,
+                    registry=addon_registry,
                 ),
                 cache=cache,
             )
 
         self.assertEqual(build_default_registry_mock.call_count, 1)
-        self.assertIs(prepared.registry, builtin_registry)
+        self.assertIsNot(prepared.registry, builtin_registry)
         self.assertIs(builtin_registry, addon_registry)
-        self.assertIs(addon_prepared.registry, addon_registry)
+        self.assertIs(addon_prepared.registry, prepared.registry)
         self.assertIsNotNone(
-            addon_registry.spec_or_none("dpf.workflow.result_fields")
+            addon_prepared.registry.spec_or_none("dpf.workflow.result_fields")
         )
         self.assertEqual(
             builtin_registry.data_types.fingerprint(),
@@ -1703,7 +1708,7 @@ def run(ctx):
         )
         unrelated = model.add_node(
             workspace.workspace_id,
-            "core.constant",
+            "core.python_script",
             "Unrelated",
             200,
             20,
@@ -1841,7 +1846,7 @@ def run(ctx):
             dict(setup_context.workspace_node_types),
             {
                 pool.node_id: OPTIMIZATION_PARAMETER_POOL_TYPE_ID,
-                unrelated.node_id: "core.constant",
+                unrelated.node_id: "core.python_script",
                 setup.node_id: OPTIMIZATION_PARAMETER_SETUP_TYPE_ID,
             },
         )
@@ -1955,7 +1960,7 @@ def run(ctx):
                 model = GraphModel()
                 workspace = model.active_workspace
                 target_type_id = (
-                    "core.constant"
+                    "core.python_script"
                     if variant == "wrong_type"
                     else OPTIMIZATION_PARAMETER_POOL_TYPE_ID
                 )
@@ -2413,6 +2418,8 @@ def run(ctx):
                     run_id="run_crash",
                     workspace_id=model.active_workspace.workspace_id,
                     runtime_snapshot=runtime_snapshot,
+                    plugin_bundles=registry.plugin_bundle_refs(),
+                    plugin_fingerprint=registry.plugin_fingerprint(),
                     registry_contract_fingerprint=registry.contract_fingerprint(),
                     addon_runtime_config=registry.addon_runtime_config(),
                 ),
@@ -2542,6 +2549,8 @@ def run(ctx):
                                 run_id="run_viewer_worker",
                                 workspace_id=ws.workspace_id,
                                 runtime_snapshot=runtime_snapshot,
+                                plugin_bundles=registry.plugin_bundle_refs(),
+                                plugin_fingerprint=registry.plugin_fingerprint(),
                                 registry_contract_fingerprint=(
                                     registry.contract_fingerprint()
                                 ),
@@ -2903,6 +2912,8 @@ def run(ctx):
                             run_id="run_viewer_cache_a",
                             workspace_id=ws.workspace_id,
                             runtime_snapshot=runtime_snapshot,
+                            plugin_bundles=registry.plugin_bundle_refs(),
+                            plugin_fingerprint=registry.plugin_fingerprint(),
                             registry_contract_fingerprint=(
                                 registry.contract_fingerprint()
                             ),
@@ -2951,6 +2962,8 @@ def run(ctx):
                             run_id="run_viewer_cache_b",
                             workspace_id=ws.workspace_id,
                             runtime_snapshot=runtime_snapshot,
+                            plugin_bundles=registry.plugin_bundle_refs(),
+                            plugin_fingerprint=registry.plugin_fingerprint(),
                             registry_contract_fingerprint=(
                                 registry.contract_fingerprint()
                             ),

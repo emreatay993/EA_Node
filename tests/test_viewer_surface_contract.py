@@ -5,15 +5,15 @@ from pathlib import Path
 
 from ea_node_editor.graph.model import GraphModel
 from ea_node_editor.graph.records import NodeInstance
-from ea_node_editor.nodes.registry import NodeRegistry
-from ea_node_editor.nodes.types import (
+from ea_node_editor.nodes.execution_context import NodeResult
+from ea_node_editor.nodes.node_specs import (
     NodeRenderQualitySpec,
-    NodeResult,
     NodeTypeSpec,
     PortSpec,
     SettingsGroupItemSpec,
     SettingsGroupSpec,
 )
+from ea_node_editor.nodes.registry import NodeRegistry
 from ea_node_editor.runtime_contracts import (
     GRAPH_DATA_TYPE_ID,
     VIEWER_SESSION_DATA_TYPE_ID,

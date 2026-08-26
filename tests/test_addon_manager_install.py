@@ -5,6 +5,7 @@ from threading import Event
 
 from PyQt6.QtCore import QCoreApplication, QEventLoop, QTimer
 
+from ea_node_editor.addons.catalog import registered_addon_registrations
 from ea_node_editor.execution.managed_runtime import ManagedRuntimeInstallResult
 from ea_node_editor.ui_qml.shell_addon_manager_bridge import ShellAddOnManagerBridge
 
@@ -37,6 +38,17 @@ class _Presenter:
         assert addon_id == "mars.corex"
         self.enabled = bool(enabled)
         return True
+
+
+def test_registered_addon_ids_are_exact() -> None:
+    assert tuple(
+        registration.manifest.addon_id
+        for registration in registered_addon_registrations()
+    ) == (
+        "ea_node_editor.builtins.ansys_dpf",
+        "ea_node_editor.builtins.tabular_data",
+        "mars.corex",
+    )
 
 
 def test_install_runs_off_thread_then_auto_enables():

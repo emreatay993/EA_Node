@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from ea_node_editor.nodes.types import NodeResult, NodeTypeSpec, PropertySpec
+from ea_node_editor.nodes.execution_context import NodeResult
+from ea_node_editor.nodes.node_specs import NodeTypeSpec, PropertySpec
 
 PASSIVE_EDITOR_FIXTURE_TYPE_ID = "tests.passive_editor_fixture"
 

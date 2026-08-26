@@ -18,7 +18,7 @@ from ea_node_editor.runtime_contracts import (
     DataTypeSpec,
 )
 
-PluginProvenanceKind = Literal["runtime", "file", "package", "entry_point"]
+PluginProvenanceKind = Literal["runtime", "file", "package"]
 PluginAvailabilityState = Literal["available", "missing_dependency"]
 AddOnApplyPolicy = Literal["hot_apply", "restart_required"]
 AddOnRecordState = Literal["installed", "disabled", "unavailable", "pending_restart"]
@@ -155,21 +155,12 @@ class NodePlugin(Protocol):
         ...
 
 
-class AsyncNodePlugin(NodePlugin, Protocol):
-    """Extended protocol for nodes that support non-blocking execution."""
-
-    async def async_execute(self, ctx: ExecutionContext) -> NodeResult:
-        ...
-
-
 @dataclass(slots=True, frozen=True)
 class PluginProvenance:
     kind: PluginProvenanceKind
     source_path: Path | None = None
     package_root: Path | None = None
     package_name: str = ""
-    entry_point_name: str = ""
-    distribution_name: str = ""
 
 
 @dataclass(slots=True, frozen=True)
@@ -879,30 +870,3 @@ class PluginBackendDescriptor:
             data_types=self.data_types,
             data_conversions=self.data_conversions,
         )
-
-
-__all__ = [
-    "AddOnApplyPolicy",
-    "AddOnManifest",
-    "AddOnRecord",
-    "AddOnRecordState",
-    "AddOnState",
-    "ArtifactDescriptor",
-    "ArtifactKind",
-    "PluginAvailability",
-    "PluginAvailabilityState",
-    "PluginBackendDescriptor",
-    "PluginContractManifest",
-    "AsyncNodePlugin",
-    "NodePlugin",
-    "PluginDescriptor",
-    "PluginProvenance",
-    "PluginProvenanceKind",
-    "RuntimeBackendKind",
-    "RuntimeBackendSpec",
-    "SurfaceCapabilitySpec",
-    "ToolchainKind",
-    "ToolchainRequirementKind",
-    "ToolchainRequirementSpec",
-    "ToolchainSpec",
-]

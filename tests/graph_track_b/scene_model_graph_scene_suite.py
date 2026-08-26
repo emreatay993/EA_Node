@@ -15,9 +15,8 @@ from ea_node_editor.graph.record_payloads import node_instance_from_mapping, nod
 from ea_node_editor.graph.model import GraphModel
 from ea_node_editor.nodes.bootstrap import build_default_registry
 from ea_node_editor.nodes.decorators import node_type
-from ea_node_editor.nodes.types import (
-    ExecutionContext,
-    NodeResult,
+from ea_node_editor.nodes.execution_context import ExecutionContext, NodeResult
+from ea_node_editor.nodes.node_specs import (
     PortSpec,
     SettingsGroupItemSpec,
     SettingsGroupSpec,

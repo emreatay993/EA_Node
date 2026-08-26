@@ -36,7 +36,7 @@ from ea_node_editor.nodes.builtins.ansys_dpf_common import (
     DPF_RESULT_FIELD_NODE_TYPE_ID,
 )
 from ea_node_editor.nodes.dpf_runtime_contracts import DPF_OBJECT_HANDLE_KIND
-from ea_node_editor.nodes.types import ExecutionContext
+from ea_node_editor.nodes.execution_context import ExecutionContext
 from ea_node_editor.persistence.artifact_resolution import ProjectArtifactResolver
 
 

@@ -67,6 +67,12 @@ def _package(
 
 
 class ManagedRuntimeTests(unittest.TestCase):
+    def test_runtime_import_check_includes_public_sdk_and_worker_entrypoint(self) -> None:
+        self.assertEqual(
+            RUNTIME_IMPORT_CHECK,
+            "import corex\nimport ea_node_editor.execution.stdio_worker",
+        )
+
     def test_resolve_managed_runtime_paths_uses_app_data_runtime_default(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             paths = resolve_managed_runtime_paths(data_dir=temp_dir)

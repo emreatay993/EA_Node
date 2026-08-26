@@ -1,4 +1,4 @@
-# Purpose: Discover public function plugins statically and register trusted add-on backends.
+# Purpose: Discover function plugins statically and register trusted add-on backends.
 # Map: subsystems/nodes_registry_builtins.md
 # Tests: tests/test_plugin_loader.py
 
@@ -1050,28 +1050,7 @@ def discover_static_plugin_candidate(
     )
 
 
-def discover_package_plugins(
-    package_dir: Path,
-    registry: NodeRegistry,
-    *,
-    generation_root: Path | None = None,
-    descriptor_overrides: Mapping[str, tuple[PluginDescriptor, ...]] | None = None,
-) -> list[str]:
-    if descriptor_overrides is not None:
-        raise TypeError("Descriptor overrides are not supported by schema-2 discovery")
-    prepared = _prepare_package(Path(package_dir))
-    bundle, type_ids = _register_prepared_bundle(
-        prepared,
-        registry,
-        generation_root or plugin_generations_dir(),
-    )
-    bundles = (*registry.plugin_bundle_refs(), bundle)
-    fingerprint = plugin_fingerprint(registry, bundles)
-    registry.set_python_plugin_catalog(tuple(bundles), plugin_fingerprint=fingerprint)
-    return list(type_ids)
-
-
-def discover_and_load_plugins(
+def _discover_configured_static_plugins(
     registry: NodeRegistry,
     extra_dirs: list[Path] | None = None,
     *,
@@ -1267,16 +1246,3 @@ def addon_record_by_id(addon_id: str, *, preferences_document: Any = None):
     from ea_node_editor.addons.catalog import addon_record_by_id as find_record
 
     return find_record(addon_id, preferences_document=preferences_document)
-
-
-__all__ = [
-    "PluginDiscoveryResult",
-    "addon_record_by_id",
-    "discover_addon_records",
-    "discover_and_load_plugins",
-    "discover_package_plugins",
-    "discover_static_plugins",
-    "plugin_fingerprint",
-    "register_plugin_backends",
-    "validated_generation_declarations",
-]

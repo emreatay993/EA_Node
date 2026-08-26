@@ -9,7 +9,7 @@ from ea_node_editor.graph.model import GraphModel
 from ea_node_editor.graph.record_mutation_ops import GraphRecordMutation
 from ea_node_editor.graph.records import NodeInstance
 from ea_node_editor.graph.record_payloads import node_instance_from_mapping, node_instance_to_mapping
-from ea_node_editor.nodes.types import (
+from ea_node_editor.nodes.node_specs import (
     DynamicPortGroupSpec,
     NodeTypeSpec,
     PortSpec,

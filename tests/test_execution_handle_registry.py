@@ -14,7 +14,8 @@ from ea_node_editor.nodes.dpf_runtime_contracts import (
     DPF_MODEL_HANDLE_KIND,
     DPF_OBJECT_HANDLE_KIND,
 )
-from ea_node_editor.nodes.types import ExecutionContext, RuntimeHandleRef
+from ea_node_editor.nodes.execution_context import ExecutionContext
+from ea_node_editor.nodes.runtime_refs import RuntimeHandleRef
 from ea_node_editor.runtime_contracts import (
     DataTypeCatalog,
     DataTypeCatalogError,

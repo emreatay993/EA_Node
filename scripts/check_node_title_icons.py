@@ -10,7 +10,7 @@ BUILTINS_ROOT = PROJECT_ROOT / "ea_node_editor" / "nodes" / "builtins"
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-from ea_node_editor.nodes.bootstrap import BUILTIN_NODE_DESCRIPTORS  # noqa: E402
+from ea_node_editor.nodes.bootstrap import build_builtin_registry  # noqa: E402
 from ea_node_editor.nodes.builtins.icon_catalog import BUILTIN_NODE_ICONS  # noqa: E402
 from ea_node_editor.ui_qml.node_title_icon_sources import (  # noqa: E402
     NODE_TITLE_ICON_ASSET_ROOT,
@@ -31,6 +31,12 @@ def _is_file_backed_icon(icon: str) -> bool:
     return Path(icon).suffix.casefold() in SUPPORTED_NODE_TITLE_ICON_SUFFIXES
 
 
+def _uses_iconless_visual_contract(spec) -> bool:  # noqa: ANN001 - registry spec
+    return spec.type_id == "core.trigger" or (
+        spec.runtime_behavior == "passive" and spec.surface_family == "flowchart"
+    )
+
+
 def _inline_icon_offenders() -> list[str]:
     offenders: list[str] = []
     for path in sorted(BUILTINS_ROOT.glob("*.py")):
@@ -44,6 +50,12 @@ def _inline_icon_offenders() -> list[str]:
                 continue
             for keyword in node.keywords:
                 if keyword.arg == "icon":
+                    if (
+                        path.name in {"core.py", "passive_flowchart.py"}
+                        and isinstance(keyword.value, ast.Constant)
+                        and keyword.value.value == ""
+                    ):
+                        continue
                     offenders.append(f"{path.relative_to(PROJECT_ROOT)}:{keyword.lineno}")
     return offenders
 
@@ -55,8 +67,13 @@ def main() -> int:
     if offenders:
         errors.append("built-in node modules define inline node icons:\n" + "\n".join(f"  {item}" for item in offenders))
 
-    for descriptor in BUILTIN_NODE_DESCRIPTORS:
-        spec = descriptor.spec
+    for spec in build_builtin_registry().all_specs():
+        if _uses_iconless_visual_contract(spec):
+            if spec.type_id in BUILTIN_NODE_ICONS or spec.icon:
+                errors.append(
+                    f"{spec.type_id!r} must use the iconless visual contract"
+                )
+            continue
         expected_icon = BUILTIN_NODE_ICONS.get(spec.type_id)
         if expected_icon is None:
             errors.append(f"missing BUILTIN_NODE_ICONS entry for registered built-in {spec.type_id!r}")

@@ -11,7 +11,8 @@ from ea_node_editor.graph.project_state import ProjectData
 from ea_node_editor.graph.workspace_state import WorkspaceData
 from ea_node_editor.nodes.builtins.web_viewer import WEB_PAGE_VIEWER_TYPE_ID
 from ea_node_editor.nodes.registry import NodeRegistry
-from ea_node_editor.nodes.types import NodePlugin, NodeTypeSpec
+from ea_node_editor.nodes.node_specs import NodeTypeSpec
+from ea_node_editor.nodes.plugin_contracts import NodePlugin
 from ea_node_editor.ui_qml import content_fullscreen_bridge as bridge_module
 from ea_node_editor.ui_qml.content_fullscreen_bridge import ContentFullscreenBridge
 

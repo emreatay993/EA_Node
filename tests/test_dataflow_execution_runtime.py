@@ -19,14 +19,18 @@ from ea_node_editor.graph.validated_mutation import ValidatedGraphMutation
 from ea_node_editor.nodes.bootstrap import build_default_registry
 from ea_node_editor.nodes.builtins.integrations_file_io import execute_file_write
 from ea_node_editor.nodes.decorators import node_type
-from ea_node_editor.nodes.types import (
-    DynamicPortGroupSpec,
+from ea_node_editor.nodes.execution_context import (
     ExecutionContext,
     NodeResult,
+)
+from ea_node_editor.nodes.node_specs import (
+    DynamicPortGroupSpec,
     PortSpec,
     PropertySpec,
     PropertyConditionSpec,
     ReadinessRequirementSpec,
+)
+from ea_node_editor.nodes.runtime_refs import (
     deserialize_runtime_value,
 )
 from ea_node_editor.runtime_contracts import DataTree

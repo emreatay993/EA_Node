@@ -12,8 +12,9 @@ if str(_REPO_ROOT) not in sys.path:
 from PyQt6.QtCore import QRectF, QTimer
 from PyQt6.QtWidgets import QApplication
 
+from ea_node_editor.nodes.execution_context import NodeResult
+from ea_node_editor.nodes.node_specs import NodeTypeSpec, PortSpec
 from ea_node_editor.nodes.registry import NodeRegistry
-from ea_node_editor.nodes.types import NodeResult, NodeTypeSpec, PortSpec
 from ea_node_editor.ui.shell.controllers.app_preferences_controller import AppPreferencesController
 from ea_node_editor.ui.shell.window import ShellWindow
 from ea_node_editor.ui.theme import DEFAULT_THEME_ID, build_theme_stylesheet, resolve_theme_id

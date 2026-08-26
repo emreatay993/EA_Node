@@ -4,7 +4,6 @@ import unittest
 from collections.abc import Mapping
 from dataclasses import replace
 from pathlib import Path
-from typing import get_args
 from unittest.mock import patch
 
 from ea_node_editor.runtime_contracts import (
@@ -16,6 +15,7 @@ from ea_node_editor.runtime_contracts import (
     DataConversionSpec,
     DataTypeFamilySpec,
     DataTypeSpec,
+    DataTree,
     Interval1D,
     TypedInlineValue,
     serialize_runtime_value,
@@ -60,6 +60,8 @@ from ea_node_editor.nodes.ansys_dpf_data_types import (
     DPF_MESH_DATA_TYPE,
     DPF_MODEL_DATA_TYPE,
     DPF_OBJECT_HANDLE_DATA_TYPE,
+    DPF_RESULT_FILE_DATA_TYPE,
+    DPF_SCOPING_DATA_TYPE,
     COREX_MESH_INTERFACE_DATA_TYPE,
     COREX_MODEL_INTERFACE_DATA_TYPE,
 )
@@ -78,17 +80,8 @@ from ea_node_editor.nodes.builtins.integrations_ssh_sftp import (
 from ea_node_editor.nodes.builtins.plot import PLOT_NODE_DESCRIPTORS, PLOT_NODE_TYPE_IDS
 from ea_node_editor.nodes.builtins.fem_contracts import LOAD_STEP_DATA_TYPE_ID
 from ea_node_editor.nodes.builtins.web_viewer import WEB_PAGE_VIEWER_TYPE_ID
-from ea_node_editor.nodes import (
-    dpf_runtime_contracts,
-    execution_context as node_execution_context,
-)
-from ea_node_editor.nodes import (
-    node_specs,
-    plugin_contracts,
-    runtime_refs,
-    types as node_types,
-)
-from ea_node_editor.nodes import viewer_runtime_contracts
+import ea_node_editor.nodes.node_specs as node_specs
+import ea_node_editor.nodes.plugin_contracts as plugin_contracts
 from ea_node_editor.nodes.decorators import (
     in_port,
     node_type,
@@ -101,18 +94,14 @@ from ea_node_editor.nodes.readiness import (
     readiness_value_is_present,
 )
 from ea_node_editor.nodes.registry import NodeRegistry, resolve_instance_ports
-from ea_node_editor.nodes.types import (
-    DPF_RESULT_FILE_DATA_TYPE,
-    DPF_SCOPING_DATA_TYPE,
+from ea_node_editor.nodes.execution_context import NodeResult
+from ea_node_editor.nodes.node_specs import (
     DpfOperatorSourceSpec,
     DpfOperatorVariantSpec,
     DpfPinSourceSpec,
     DynamicPortGroupSpec,
-    NodeResult,
     NodeRenderQualitySpec,
     NodeTypeSpec,
-    PluginDescriptor,
-    PluginProvenance,
     PortSpec,
     PropertySpec,
     PropertyConditionSpec,
@@ -120,6 +109,7 @@ from ea_node_editor.nodes.types import (
     SettingsGroupItemSpec,
     SettingsGroupSpec,
 )
+from ea_node_editor.nodes.plugin_contracts import PluginDescriptor, PluginProvenance
 
 
 class _Plugin:
@@ -482,9 +472,7 @@ class RegistryValidationTests(unittest.TestCase):
             ).uses_property_default
         )
 
-        tree_default = node_types.serialize_runtime_value(
-            node_types.DataTree.from_item("fallback")
-        )
+        tree_default = serialize_runtime_value(DataTree.from_item("fallback"))
         tree_spec = replace(
             valid_spec,
             type_id="tests.property_default_tree",
@@ -1760,152 +1748,27 @@ class RegistryValidationTests(unittest.TestCase):
         self.assertEqual(descriptor.spec.icon, "icons/title.svg")
         self.assertEqual(descriptor.provenance, provenance)
 
-    def test_nodes_types_is_curated_sdk_surface_and_nodes_package_uses_focused_modules(
-        self,
-    ) -> None:
-        self.assertEqual(len(node_types.__all__), 100)
-        self.assertEqual(len(set(node_types.__all__)), 100)
+    def test_internal_registry_contracts_keep_focused_ownership(self) -> None:
         self.assertEqual(
-            node_types.DataTree.__module__, "ea_node_editor.runtime_contracts.data_tree"
-        )
-        self.assertEqual(
-            node_types.Interval1D.__module__,
-            "ea_node_editor.runtime_contracts.interval_1d",
-        )
-        self.assertEqual(node_types.INTERVAL_1D_DATA_TYPE, "interval_1d")
-        self.assertIn("interval_1d", get_args(node_types.PropertyType))
-        self.assertIn("interval_slider", get_args(node_types.InlineEditorType))
-        self.assertIn("interval_fields", get_args(node_types.InlineEditorType))
-        self.assertIn("list", get_args(node_types.InlineEditorType))
-        interval = Interval1D(1, 0)
-        self.assertIs(node_types.coerce_interval_1d(interval), interval)
-        self.assertIn("DataAccess", node_types.__all__)
-        self.assertIn("DataTreeModifier", node_types.__all__)
-        self.assertEqual(
-            node_types.NodeTypeSpec.__module__, "ea_node_editor.nodes.node_specs"
-        )
-        self.assertEqual(
-            node_types.SettingsGroupItemSpec.__module__,
+            NodeTypeSpec.__module__,
             "ea_node_editor.nodes.node_specs",
         )
         self.assertEqual(
-            node_types.SettingsGroupSpec.__module__, "ea_node_editor.nodes.node_specs"
-        )
-        self.assertEqual(
-            node_types.PropertyConditionSpec.__module__,
+            DynamicPortGroupSpec.__module__,
             "ea_node_editor.nodes.node_specs",
         )
         self.assertEqual(
-            node_types.PortSpec.__module__, "ea_node_editor.nodes.node_specs"
-        )
-        self.assertEqual(
-            node_types.ReadinessRequirementSpec.__module__,
-            "ea_node_editor.nodes.node_specs",
-        )
-        self.assertEqual(
-            node_types.ReadinessIssue.__module__, "ea_node_editor.nodes.readiness"
-        )
-        self.assertEqual(
-            node_types.DynamicPortGroupSpec.__module__,
-            "ea_node_editor.nodes.node_specs",
-        )
-        self.assertIn("label", get_args(node_types.DynamicPortRenameMode))
-        self.assertEqual(
-            node_types.DpfOperatorSourceSpec.__module__,
-            "ea_node_editor.nodes.node_specs",
-        )
-        self.assertEqual(
-            node_types.DpfPinSourceSpec.__module__, "ea_node_editor.nodes.node_specs"
-        )
-        self.assertEqual(
-            node_types.ExecutionContext.__module__,
+            NodeResult.__module__,
             "ea_node_editor.nodes.execution_context",
         )
         self.assertEqual(
-            node_types.NodeResult.__module__, "ea_node_editor.nodes.execution_context"
-        )
-        self.assertEqual(
-            node_types.RuntimeArtifactRef.__module__,
-            "ea_node_editor.nodes.runtime_refs",
-        )
-        self.assertEqual(
-            node_types.RuntimeHandleRef.__module__, "ea_node_editor.nodes.runtime_refs"
-        )
-        self.assertEqual(
-            node_types.PluginDescriptor.__module__,
+            PluginDescriptor.__module__,
             "ea_node_editor.nodes.plugin_contracts",
         )
         self.assertEqual(
-            node_types.PluginProvenance.__module__,
+            PluginProvenance.__module__,
             "ea_node_editor.nodes.plugin_contracts",
         )
-        self.assertEqual(
-            node_types.RuntimeBackendSpec.__module__,
-            "ea_node_editor.nodes.plugin_contracts",
-        )
-        self.assertEqual(
-            node_types.ToolchainSpec.__module__, "ea_node_editor.nodes.plugin_contracts"
-        )
-        self.assertEqual(
-            node_types.ArtifactDescriptor.__module__,
-            "ea_node_editor.nodes.plugin_contracts",
-        )
-        self.assertEqual(
-            node_types.SurfaceCapabilitySpec.__module__,
-            "ea_node_editor.nodes.plugin_contracts",
-        )
-        self.assertEqual(
-            node_types.DpfRuntimeServicePort.__module__,
-            "ea_node_editor.nodes.dpf_runtime_contracts",
-        )
-        self.assertEqual(
-            node_types.OpenViewerSessionCommand.__module__,
-            "ea_node_editor.nodes.viewer_runtime_contracts",
-        )
-        self.assertIs(node_types.NodeTypeSpec, node_specs.NodeTypeSpec)
-        self.assertIs(node_types.DynamicPortGroupSpec, node_specs.DynamicPortGroupSpec)
-        self.assertIs(
-            node_types.DpfOperatorSourceSpec, node_specs.DpfOperatorSourceSpec
-        )
-        self.assertIs(node_types.DpfPinSourceSpec, node_specs.DpfPinSourceSpec)
-        self.assertIs(
-            node_types.ExecutionContext, node_execution_context.ExecutionContext
-        )
-        self.assertIs(node_types.RuntimeArtifactRef, runtime_refs.RuntimeArtifactRef)
-        self.assertIs(node_types.PluginDescriptor, plugin_contracts.PluginDescriptor)
-        self.assertIs(
-            node_types.RuntimeBackendSpec, plugin_contracts.RuntimeBackendSpec
-        )
-        self.assertIs(node_types.ToolchainSpec, plugin_contracts.ToolchainSpec)
-        self.assertIs(
-            node_types.ArtifactDescriptor, plugin_contracts.ArtifactDescriptor
-        )
-        self.assertIs(
-            node_types.SurfaceCapabilitySpec, plugin_contracts.SurfaceCapabilitySpec
-        )
-        self.assertIs(
-            node_types.DpfRuntimeServicePort,
-            dpf_runtime_contracts.DpfRuntimeServicePort,
-        )
-        self.assertIs(
-            node_types.OpenViewerSessionCommand,
-            viewer_runtime_contracts.OpenViewerSessionCommand,
-        )
-        self.assertEqual(
-            node_types.DPF_MODEL_HANDLE_KIND,
-            dpf_runtime_contracts.DPF_MODEL_HANDLE_KIND,
-        )
-        self.assertEqual(
-            node_types.DPF_EXECUTION_VIEWER_BACKEND_ID,
-            viewer_runtime_contracts.DPF_EXECUTION_VIEWER_BACKEND_ID,
-        )
-        self.assertNotIn("category_key", node_types.__all__)
-        self.assertNotIn("category_path_matches_prefix", node_types.__all__)
-        self.assertNotIn("inline_property_specs", node_types.__all__)
-        self.assertNotIn("property_has_inline_editor", node_types.__all__)
-        self.assertNotIn("property_inspector_editor", node_types.__all__)
-        self.assertNotIn("property_visible_in_inspector", node_types.__all__)
-        self.assertNotIn("ReadinessPropertyConditionSpec", node_types.__all__)
         for removed_name in (
             "CreationGeneratedFileSpec",
             "CreationPostCreateAction",
@@ -1921,12 +1784,9 @@ class RegistryValidationTests(unittest.TestCase):
             "WizardSpec",
             "WizardValidationRule",
             "WizardValidationSpec",
+            "ReadinessPropertyConditionSpec",
         ):
-            self.assertNotIn(removed_name, node_types.__all__)
-            self.assertFalse(hasattr(node_types, removed_name))
             self.assertFalse(hasattr(node_specs, removed_name))
-        self.assertFalse(hasattr(node_types, "ReadinessPropertyConditionSpec"))
-        self.assertFalse(hasattr(node_specs, "ReadinessPropertyConditionSpec"))
         self.assertFalse(hasattr(NodeRegistry, "get_creation_profile"))
         self.assertFalse(hasattr(NodeRegistry, "creation_profile_or_none"))
         self.assertNotIn("creation_profile", PluginDescriptor.__dataclass_fields__)

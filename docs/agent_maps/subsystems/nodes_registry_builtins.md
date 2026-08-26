@@ -33,6 +33,12 @@ Use this for node definitions, registry validation, built-in node families, data
 - Support contracts/helpers: `tree_path.py`, `units.py`, `viewer_viewport.py`, `security_contracts.py`, `reporting.py`, `rich_value_nodes.py`, and `ai_ml_contracts.py`; their converted declarations live in the matching `builtin_functions/` modules.
 - Signal Plot declaration/execution is owned by inert `builtin_functions/plot_signal.py`; rendering remains in `execution/signal_plot_renderer.py` and emits `COREX.DataTypes.Image`.
 - Public function plugins use the dependency-free top-level `corex` decorators and static `plugin_declaration.py` discovery. Python Script keeps its one-`run` signature while sharing only the bounded literal/control engine.
+- `corex.__all__` is the exact 17-name public SDK. `ea_node_editor.nodes` exports
+  no authoring helpers, `nodes/types.py` is deleted, and `nodes/decorators.py`,
+  `NodePlugin`, `PluginDescriptor`, `node_type`, and `PLUGIN_BACKENDS` remain
+  trusted implementation details only. The loader discovers public code only
+  from explicitly configured loose/schema-2 paths through static parsing; it has
+  no entry-point, class-probe, executable-manifest, or descriptor-discovery path.
 - The internal owner `corex:builtin:functions` is the only reserved-ID function bundle. GUI bootstrap aggregates 20 inert source members, materializes the normal content-addressed generation, and registers exactly 68 `PythonFunctionEntry` records; workers independently attest and lazily execute it. The remaining 55 built-ins are the migration inventory's exact trusted exceptions, including Python Script, Trigger, Stream Gate, subnodes, three FEM pool/setup nodes, passive/custom surfaces, and generated private families.
 - `TrustedFactoryEntry` and `PythonFunctionEntry` are the mutually exclusive private registry implementations. Public function entries store only `PythonFunctionRef`; process workers re-hash the immutable generation and use `PythonFunctionAdapter` without exposing a callable to GUI discovery.
 - Public loose files and installed schema-2 directories are parsed without import, checked for bundled imports, and copied byte-for-byte into `runtime/plugin_generations/<bundle-digest>/`; registry fingerprints exclude author/install paths. Worker registry construction reparses only the verified generation and never the mutable discovery roots.
@@ -75,6 +81,9 @@ Use this for node definitions, registry validation, built-in node families, data
 - `tests/test_fem_contracts.py`
 - `tests/test_signal_plot_renderer.py`
 - `tests/test_python_script_declaration.py`
+- `tests/test_dead_code_hygiene.py`
+- `tests/test_architecture_boundaries.py`
+- `tests/test_packaging_configuration.py`
 
 ## Focused Verification
 ```powershell

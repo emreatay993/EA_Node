@@ -46,7 +46,8 @@ from ea_node_editor.nodes.builtins.web_viewer import (
     WEB_PAGE_VIEWER_NODE_PLUGINS,
     WEB_PAGE_VIEWER_TYPE_ID,
 )
-from ea_node_editor.nodes.types import ExecutionContext, NodeTypeSpec
+from ea_node_editor.nodes.execution_context import ExecutionContext
+from ea_node_editor.nodes.node_specs import NodeTypeSpec
 from ea_node_editor.ui_qml.node_title_icon_sources import title_icon_source_for_node_payload
 from ea_node_editor.text_style import RICH_TEXT_SLOT_STYLE_KEYS, rich_text_format_property_key, rich_text_style_property_key
 

@@ -26,7 +26,7 @@ from ea_node_editor.nodes.node_specs import (
     PropertySpec,
 )
 from ea_node_editor.nodes.registry import NodeRegistry
-from ea_node_editor.nodes.types import NodeResult
+from ea_node_editor.nodes.execution_context import NodeResult
 from ea_node_editor.runtime_contracts import (
     BOOLEAN_DATA_TYPE_ID,
     DataConversionSpec,

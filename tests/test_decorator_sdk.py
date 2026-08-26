@@ -3,7 +3,6 @@ from __future__ import annotations
 import unittest
 from collections.abc import Mapping
 
-import ea_node_editor.nodes as node_sdk
 from ea_node_editor.runtime_contracts import Interval1D
 from ea_node_editor.nodes.category_paths import (
     category_display,
@@ -24,10 +23,9 @@ from ea_node_editor.nodes.decorators import (
     prop_str,
 )
 from ea_node_editor.nodes.registry import NodeRegistry, resolve_instance_ports
-from ea_node_editor.nodes.types import (
+from ea_node_editor.nodes.execution_context import ExecutionContext, NodeResult
+from ea_node_editor.nodes.node_specs import (
     DynamicPortGroupSpec,
-    ExecutionContext,
-    NodeResult,
     PortSpec,
     PropertySpec,
     PropertyConditionSpec,
@@ -119,7 +117,6 @@ class DecoratorSdkTests(unittest.TestCase):
             ["value", "first", "second"],
         )
         self.assertEqual(DynamicPortGroupSpec.__module__, "ea_node_editor.nodes.node_specs")
-        self.assertFalse(hasattr(node_sdk, "DynamicPortGroupSpec"))
         self.assertEqual(factory_calls, 0)
 
     def test_node_type_forwards_settings_groups(self) -> None:
@@ -211,7 +208,6 @@ class DecoratorSdkTests(unittest.TestCase):
         )
 
     def test_property_helpers_build_expected_specs(self) -> None:
-        self.assertIs(node_sdk.prop_interval_1d, prop_interval_1d)
         enabled = prop_bool("enabled", True, "Enabled", inspector_editor="toggle")
         threshold = prop_float("threshold", 1.5, "Threshold")
         mode = prop_enum(

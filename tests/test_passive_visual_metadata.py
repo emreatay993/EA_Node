@@ -8,8 +8,9 @@ from ea_node_editor.graph.model import GraphModel
 from ea_node_editor.graph.transforms import build_subnode_custom_workflow_snapshot_data
 from ea_node_editor.nodes.bootstrap import build_default_registry
 from ea_node_editor.nodes.decorators import in_port, node_type, out_port
+from ea_node_editor.nodes.execution_context import ExecutionContext, NodeResult
+from ea_node_editor.nodes.node_specs import NodeTypeSpec, PortSpec
 from ea_node_editor.nodes.registry import NodeRegistry
-from ea_node_editor.nodes.types import ExecutionContext, NodeResult, NodeTypeSpec, PortSpec
 from ea_node_editor.ui.shell.runtime_history import RuntimeGraphHistory
 from ea_node_editor.ui_qml.graph_scene_bridge import GraphSceneBridge
 

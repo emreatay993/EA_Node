@@ -217,14 +217,15 @@ def test_installed_package_discovery_uses_generation_asset_provenance(tmp_path: 
     package_manager.import_package(archive, target_dir=installed_root)
     registry = NodeRegistry()
 
-    loaded = plugin_loader.discover_package_plugins(
-        installed_root / "asset_package",
+    result = plugin_loader.discover_static_plugin_candidate(
         registry,
+        roots=(),
         generation_root=tmp_path / "generations",
+        staged_package_root=installed_root / "asset_package",
     )
     provenance = registry.provenance_or_none(TYPE_ID)
 
-    assert loaded == [TYPE_ID]
+    assert result.type_ids == (TYPE_ID,)
     assert provenance is not None
     assert provenance.kind == "package"
     assert provenance.package_root is not None
@@ -521,10 +522,11 @@ def test_installed_directory_rejects_129_total_members(tmp_path: Path) -> None:
     )
 
     with pytest.raises(ValueError, match="too many members"):
-        plugin_loader.discover_package_plugins(
-            package_dir,
+        plugin_loader.discover_static_plugin_candidate(
             NodeRegistry(),
+            roots=(),
             generation_root=tmp_path / "generations",
+            staged_package_root=package_dir,
         )
 
 
@@ -645,10 +647,11 @@ def test_installed_package_rejects_hard_linked_members(
     assert member.stat().st_nlink == 2
 
     with pytest.raises(ValueError) as error:
-        plugin_loader.discover_package_plugins(
-            plugin_root / "example_package",
+        plugin_loader.discover_static_plugin_candidate(
             NodeRegistry(),
+            roots=(),
             generation_root=tmp_path / "generations",
+            staged_package_root=plugin_root / "example_package",
         )
     assert str(error.value) == PLUGIN_REGULAR_FILE_MESSAGE
 
@@ -701,10 +704,11 @@ def test_schema1_archive_and_installed_directory_use_migration_message(
         package_manager.list_installed_packages(target_dir=tmp_path / "installed")
     assert str(installed_error.value) == SCHEMA_1_UNSUPPORTED_MESSAGE
     with pytest.raises(ValueError) as loader_error:
-        plugin_loader.discover_package_plugins(
-            legacy_dir,
+        plugin_loader.discover_static_plugin_candidate(
             NodeRegistry(),
+            roots=(),
             generation_root=tmp_path / "generations",
+            staged_package_root=legacy_dir,
         )
     assert str(loader_error.value) == SCHEMA_1_UNSUPPORTED_MESSAGE
     plugin_loader.discover_static_plugins(

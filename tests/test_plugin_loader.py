@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import importlib.util
 import json
 import logging
 import os
@@ -8,9 +9,11 @@ import re
 import stat
 from pathlib import Path
 from types import SimpleNamespace
+from typing import get_args
 
 import pytest
 
+import ea_node_editor.nodes as nodes_package
 from ea_node_editor.addons import catalog as addon_catalog
 from ea_node_editor.addons.catalog import (
     ANSYS_DPF_ADDON_ID,
@@ -28,7 +31,9 @@ from ea_node_editor.app_preferences import (
 from ea_node_editor.nodes import bootstrap, plugin_loader
 from ea_node_editor.nodes import plugin_generation
 from ea_node_editor.nodes.core_data_types import GRAPH_DATA_TYPE_ID
+from ea_node_editor.nodes.execution_context import NodeResult
 from ea_node_editor.nodes.node_specs import NodeTypeSpec, PortSpec
+from ea_node_editor.nodes import plugin_contracts
 from ea_node_editor.nodes.plugin_contracts import (
     AddOnManifest,
     ArtifactDescriptor,
@@ -72,8 +77,6 @@ def _packet_descriptor(type_id: str, display_name: str) -> PluginDescriptor:
             )
 
         def execute(self, ctx):
-            from ea_node_editor.nodes.types import NodeResult
-
             return NodeResult()
 
     return PluginDescriptor(spec=PacketBackendPlugin().spec(), factory=PacketBackendPlugin)
@@ -97,8 +100,6 @@ def _typed_packet_descriptor(
             return spec
 
         def execute(self, ctx):
-            from ea_node_editor.nodes.types import NodeResult
-
             return NodeResult()
 
     return PluginDescriptor(spec=spec, factory=TypedPacketPlugin)
@@ -602,20 +603,14 @@ def package_node(ctx, value): return {{"result": helper(value)}}
     assert "plugin:package:legacy_package" in caplog.text
     assert str(tmp_path) not in caplog.text
 
-    direct_registry = NodeRegistry()
-    assert plugin_loader.discover_package_plugins(
-        package_dir,
-        direct_registry,
+    candidate_registry = NodeRegistry()
+    candidate = plugin_loader.discover_static_plugin_candidate(
+        candidate_registry,
+        roots=(),
         generation_root=tmp_path / "direct-generations",
-        descriptor_overrides=None,
-    ) == ["custom.package_node.1234abcd"]
-    with pytest.raises(TypeError, match="Descriptor overrides"):
-        plugin_loader.discover_package_plugins(
-            package_dir,
-            NodeRegistry(),
-            generation_root=tmp_path / "rejected-generations",
-            descriptor_overrides={},
-        )
+        staged_package_root=package_dir,
+    )
+    assert candidate.type_ids == ("custom.package_node.1234abcd",)
 
 
 def test_dotted_bundled_source_and_dev_only_imports_are_locked(tmp_path: Path) -> None:
@@ -931,15 +926,47 @@ def test_generation_pruning_preserves_active_referenced_and_unknown_directories(
     assert (generation_root / "manual-not-a-generation").is_dir()
 
 
-def test_public_loader_has_no_entry_point_or_import_execution_surface() -> None:
+def test_legacy_public_sdk_and_class_loading_surfaces_are_absent() -> None:
     source = Path(plugin_loader.__file__).read_text(encoding="utf-8")
     pyproject = (Path(__file__).resolve().parents[1] / "pyproject.toml").read_text(
         encoding="utf-8"
     )
 
-    assert "ENTRY_POINT_GROUP" not in source
-    assert ".load()" not in source
-    assert "exec_module" not in source
+    assert {
+        "in_port",
+        "node_type",
+        "out_port",
+        "prop_bool",
+        "prop_enum",
+        "prop_float",
+        "prop_int",
+        "prop_interval_1d",
+        "prop_json",
+        "prop_str",
+    }.isdisjoint(vars(nodes_package))
+    assert importlib.util.find_spec("ea_node_editor.nodes.types") is None
+    assert not hasattr(plugin_contracts, "AsyncNodePlugin")
+    assert not hasattr(plugin_contracts, "__all__")
+    assert set(get_args(plugin_contracts.PluginProvenanceKind)) == {
+        "file",
+        "package",
+        "runtime",
+    }
+    assert {"distribution_name", "entry_point_name"}.isdisjoint(
+        PluginProvenance.__dataclass_fields__
+    )
+    assert not hasattr(plugin_loader, "discover_and_load_plugins")
+    assert not hasattr(plugin_loader, "discover_package_plugins")
+    assert not hasattr(plugin_loader, "__all__")
+    for legacy_surface in (
+        "ENTRY_POINT_GROUP",
+        "PLUGIN_BACKENDS",
+        "PLUGIN_DESCRIPTORS",
+        ".load()",
+        "exec_module",
+        "getmembers",
+    ):
+        assert legacy_surface not in source
     assert "ea_node_editor.plugins" not in pyproject
 
 

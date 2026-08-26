@@ -76,7 +76,7 @@ def _fake_reopen_plugin_descriptor() -> PluginDescriptor:
             )
 
         def execute(self, ctx):  # noqa: ANN001
-            from ea_node_editor.nodes.types import NodeResult
+            from ea_node_editor.nodes.execution_context import NodeResult
 
             return NodeResult()
 

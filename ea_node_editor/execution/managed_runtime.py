@@ -27,7 +27,7 @@ ADDON_RUNTIME_PYTHON_ENV = "COREX_ADDON_RUNTIME_PYTHON"
 RUNTIME_PACKAGE_NAME = "corex-node-editor"
 RUNTIME_WHEEL_GLOB = "corex_node_editor-*.whl"
 RUNTIME_INSTALL_EXTRAS = ("all",)
-RUNTIME_IMPORT_CHECK = "import ea_node_editor.execution.stdio_worker"
+RUNTIME_IMPORT_CHECK = "import corex\nimport ea_node_editor.execution.stdio_worker"
 RUNTIME_VERSION_CHECK = (
     "from importlib.metadata import PackageNotFoundError, version\n"
     "import sys\n"

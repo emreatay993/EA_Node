@@ -35,8 +35,8 @@ from ea_node_editor.nodes.output_artifacts import (
     allocate_managed_output,
     register_staged_path_artifact,
 )
-from ea_node_editor.nodes.types import (
-    ExecutionContext,
+from ea_node_editor.nodes.execution_context import ExecutionContext
+from ea_node_editor.nodes.runtime_refs import (
     RuntimeArtifactRef,
     deserialize_runtime_value,
 )

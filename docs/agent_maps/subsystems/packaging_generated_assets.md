@@ -27,7 +27,10 @@ Use this for package builds, installer builds, signing checks, generated archite
 ## Common Changes
 - Every package profile preflights exact Python 3.11 and `importlib.metadata.version("xy") == "0.0.6"` before PyInstaller, collects only XY's declarative `components` entrypoint, metadata, and `_native_lib/xy_core.dll`, and ships the Apache-2.0 notice. `-DependencyProbeOnly` executes this release gate without building. Do not collect all XY submodules because its optional pyplot/Reflex surfaces pull unrelated stacks into base packages. Packaged Signal Plot rendering is native and does not require Chromium or .NET.
 - Regenerate generated architecture diagrams and icons from documented scripts.
-- Use package smoke defaults unless intentionally skipped.
+- Every source/wheel/frozen build includes the top-level `corex` SDK. Default
+  Windows package acceptance runs startup, a static-discovery-to-process-worker
+  function-plugin smoke with exact result `37`, and Signal Plot rendering;
+  `-SkipSmoke` is explicitly not acceptance evidence.
 - Keep signing verification separate from packaging unless release work requires both.
 - When optional dependency groups change, update `tests/test_packaging_configuration.py` with the exact expected dependency set.
 - Keep static tooling baselines narrow and check-only unless a packet explicitly expands the gate.

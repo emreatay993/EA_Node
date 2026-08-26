@@ -5,15 +5,11 @@ from pathlib import Path
 import pytest
 
 from ea_node_editor.graph.model import GraphModel
+from ea_node_editor.nodes.execution_context import NodeResult
 from ea_node_editor.nodes.function_plugin import PythonFunctionRef
+from ea_node_editor.nodes.node_specs import NodeTypeSpec, PortSpec
+from ea_node_editor.nodes.plugin_contracts import PluginDescriptor, PluginProvenance
 from ea_node_editor.nodes.registry import NodeRegistry
-from ea_node_editor.nodes.types import (
-    NodeResult,
-    NodeTypeSpec,
-    PluginDescriptor,
-    PluginProvenance,
-    PortSpec,
-)
 from ea_node_editor.ui_qml.graph_scene_payload import GraphScenePayloadBuilder
 from ea_node_editor.ui_qml.node_title_icon_sources import (
     resolve_node_title_icon_source,
@@ -179,24 +175,6 @@ def test_title_icon_resolver_does_not_fallback_to_base_assets_for_plugin_paths(t
             "core/play_arrow.svg",
             provenance=provenance,
             asset_root=base_asset_root,
-        )
-        == ""
-    )
-
-
-def test_title_icon_resolver_does_not_use_cwd_for_entry_point_relative_paths(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    cwd_icon_path = tmp_path / "icons" / "entry.svg"
-    cwd_icon_path.parent.mkdir(parents=True)
-    cwd_icon_path.write_bytes(b"icon")
-    monkeypatch.chdir(tmp_path)
-
-    assert (
-        resolve_node_title_icon_source(
-            "icons/entry.svg",
-            provenance=PluginProvenance(kind="entry_point", entry_point_name="entry"),
         )
         == ""
     )

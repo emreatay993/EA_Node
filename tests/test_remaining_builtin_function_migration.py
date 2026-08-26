@@ -1,4 +1,4 @@
-# Purpose: Prove the exact T15 built-in function cutover and retained exception boundary.
+# Purpose: Prove the exact T15 function cutover and T16 trusted exception boundary.
 # Map: subsystems/nodes_registry_builtins.md
 # Tests: tests/test_remaining_builtin_function_migration.py
 
@@ -11,8 +11,13 @@ import re
 import subprocess
 import sys
 
+import pytest
+
+from ea_node_editor.addons.ansys_dpf import catalog as ansys_dpf_catalog
+from ea_node_editor.nodes import bootstrap as node_bootstrap
 from ea_node_editor.nodes.bootstrap import build_builtin_registry
 from ea_node_editor.nodes.function_plugin import INTERNAL_BUILTIN_FUNCTION_OWNER_ID
+from ea_node_editor.nodes.plugin_contracts import PluginAvailability
 from ea_node_editor.nodes.registry import PythonFunctionEntry, TrustedFactoryEntry
 from ea_node_editor.runtime_contracts import TypedInlineValue
 
@@ -65,6 +70,9 @@ _MIGRATION_INVENTORY = (
 _INTERNAL_EXCEPTION_ROW = re.compile(
     r"^\| `(?P<type_id>[^`]+)` \| internal exception \|"
 )
+_DPF_EXCLUDED_ROW = re.compile(
+    r"^\| `(?P<type_id>[^`]+)` \| DPF excluded \|"
+)
 
 
 def test_exact_t15_entries_match_golden_and_leave_exact_exception_set(
@@ -100,12 +108,62 @@ def test_exact_t15_entries_match_golden_and_leave_exact_exception_set(
         if (match := _INTERNAL_EXCEPTION_ROW.match(line)) is not None
     }
     assert len(expected_exceptions) == 55
-    assert {
+    actual_exceptions = {
         spec.type_id
         for spec in registry.all_specs()
         if isinstance(registry.get_entry(spec.type_id), TrustedFactoryEntry)
-    } == expected_exceptions
+    }
+    assert node_bootstrap._TRUSTED_BUILTIN_TYPE_IDS == expected_exceptions
+    assert actual_exceptions == expected_exceptions
     assert registry.plugin_contract_manifest("corex.windows_authentication") is None
+
+
+def test_t16_trusted_descriptor_allowlist_fails_closed(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    monkeypatch.setattr(
+        node_bootstrap,
+        "_TRUSTED_BUILTIN_DESCRIPTORS",
+        node_bootstrap._TRUSTED_BUILTIN_DESCRIPTORS[:-1],
+    )
+
+    with pytest.raises(
+        RuntimeError,
+        match="Trusted built-in descriptor allowlist mismatch",
+    ):
+        build_builtin_registry(generation_root=tmp_path / "generations")
+
+
+def test_t16_dpf_backend_catalog_matches_exact_excluded_inventory(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    expected_type_ids = {
+        match["type_id"]
+        for line in _MIGRATION_INVENTORY.read_text(encoding="utf-8").splitlines()
+        if (match := _DPF_EXCLUDED_ROW.match(line)) is not None
+    }
+    monkeypatch.setattr(
+        ansys_dpf_catalog,
+        "get_ansys_dpf_plugin_availability",
+        lambda: PluginAvailability.available(),
+    )
+    monkeypatch.setattr(
+        ansys_dpf_catalog,
+        "resolve_ansys_dpf_plugin_version",
+        lambda: "t16-inventory",
+    )
+    ansys_dpf_catalog.invalidate_ansys_dpf_descriptor_cache()
+
+    try:
+        descriptors = ansys_dpf_catalog.ANSYS_DPF_PLUGIN_BACKEND.load_descriptors()
+    finally:
+        ansys_dpf_catalog.invalidate_ansys_dpf_descriptor_cache()
+    actual_type_ids = tuple(descriptor.spec.type_id for descriptor in descriptors)
+
+    assert len(expected_type_ids) == 805
+    assert len(actual_type_ids) == len(set(actual_type_ids)) == 805
+    assert set(actual_type_ids) == expected_type_ids
 
 
 def test_t15_discovery_does_not_load_heavy_or_identity_dependencies(

@@ -13,14 +13,9 @@ from ea_node_editor.execution.protocol import (
 )
 from ea_node_editor.graph.model import GraphModel
 from ea_node_editor.nodes.bootstrap import build_default_registry
-from ea_node_editor.nodes.types import (
-    ExecutionContext,
-    NodeResult,
-    NodeTypeSpec,
-    PortSpec,
-    PropertySpec,
-    RuntimeHandleRef,
-)
+from ea_node_editor.nodes.execution_context import ExecutionContext, NodeResult
+from ea_node_editor.nodes.node_specs import NodeTypeSpec, PortSpec, PropertySpec
+from ea_node_editor.nodes.runtime_refs import RuntimeHandleRef
 from ea_node_editor.ui.shell.controllers.run_controller import RunController
 from ea_node_editor.ui.shell.state import ShellRunState
 from ea_node_editor.ui.support.port_flow_state import resolve_runtime_port_flow_states

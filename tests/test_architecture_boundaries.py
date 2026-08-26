@@ -5,6 +5,7 @@ import importlib.util
 import unittest
 from pathlib import Path
 
+import corex
 from ea_node_editor.graph import transforms
 from ea_node_editor.graph.record_mutation_ops import GraphRecordMutation
 from scripts import verification_manifest as manifest
@@ -17,10 +18,6 @@ _RETIRED_GUARDRAIL_PRESENT_NAMES = {
     ): {"_legacyCanvasViewBridgeRef"},
     ("old_preference_schema_compatibility", "ea_node_editor/app_preferences.py"): {
         "_APP_PREFERENCES_MIGRATION_VERSION",
-    },
-    ("legacy_plugin_class_probing", "ea_node_editor/nodes/plugin_loader.py"): {
-        "_legacy_plugin_spec",
-        "_register_plugin_classes",
     },
     ("runtime_project_doc_trigger_compatibility", "ea_node_editor/execution/runtime_snapshot.py"): {
         "sanitize_execution_trigger",
@@ -149,6 +146,9 @@ class GraphArchitectureBoundaryTests(unittest.TestCase):
         for surface in manifest.COREX_NO_LEGACY_GUARDRAIL_INVENTORY:
             source_path = REPO_ROOT / surface.path
             with self.subTest(category=surface.category, path=surface.path):
+                if surface.expectation == manifest.COREX_NO_LEGACY_GUARDRAIL_PATH_ABSENT:
+                    self.assertFalse(source_path.exists())
+                    continue
                 if (
                     surface.expectation == manifest.COREX_NO_LEGACY_GUARDRAIL_ABSENT
                     and not source_path.exists()
@@ -395,6 +395,28 @@ class GraphArchitectureBoundaryTests(unittest.TestCase):
         self.assertEqual(offenders, {})
 
     def test_public_corex_sdk_is_dependency_free(self) -> None:
+        self.assertEqual(
+            corex.__all__,
+            [
+                "node",
+                "input",
+                "output",
+                "text",
+                "text_area",
+                "number",
+                "switch",
+                "dropdown",
+                "slider",
+                "color",
+                "path",
+                "interval",
+                "list",
+                "Any",
+                "Image",
+                "Color",
+                "Interval",
+            ],
+        )
         offenders: dict[str, list[str]] = {}
         for source_path in (REPO_ROOT / "corex").rglob("*.py"):
             relative_path = source_path.relative_to(REPO_ROOT).as_posix()

@@ -18,7 +18,7 @@ from ea_node_editor.nodes.node_specs import (
     SettingsGroupItemSpec,
     SettingsGroupSpec,
 )
-from ea_node_editor.nodes.types import NodeResult
+from ea_node_editor.nodes.execution_context import NodeResult
 from ea_node_editor.runtime_contracts import (
     GRAPH_DATA_TYPE_ID,
     STRING_DATA_TYPE_ID,

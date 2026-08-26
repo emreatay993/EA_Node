@@ -41,7 +41,8 @@ from ea_node_editor.nodes.output_artifacts import (
     write_managed_output,
 )
 from ea_node_editor.nodes.registry import NodeRegistry
-from ea_node_editor.nodes.types import ExecutionContext, RuntimeArtifactRef
+from ea_node_editor.nodes.execution_context import ExecutionContext
+from ea_node_editor.nodes.runtime_refs import RuntimeArtifactRef
 from ea_node_editor.persistence.artifact_resolution import ProjectArtifactResolver
 from ea_node_editor.persistence.artifact_store import ProjectArtifactStore
 from ea_node_editor.runtime_contracts import DataTree, PATH_DATA_TYPE_ID

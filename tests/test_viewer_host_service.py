@@ -16,7 +16,8 @@ from ea_node_editor.nodes.builtins.ansys_dpf_common import (
     DPF_VIEWER_NODE_TYPE_ID,
     DPF_VIEWER_SHOW_MESH_EDGES_PROPERTY,
 )
-from ea_node_editor.nodes.types import NodeRenderQualitySpec, NodeResult, NodeTypeSpec, PortSpec
+from ea_node_editor.nodes.execution_context import NodeResult
+from ea_node_editor.nodes.node_specs import NodeRenderQualitySpec, NodeTypeSpec, PortSpec
 from ea_node_editor.ui_qml.embedded_viewer_overlay_manager import VIEWER_SESSION_OVERLAY_OWNER
 from ea_node_editor.ui_qml.dpf_viewer_widget_binder import DpfViewerWidgetBinder
 from ea_node_editor.ui_qml import viewer_host_service as viewer_host_module

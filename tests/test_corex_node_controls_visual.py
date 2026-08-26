@@ -22,7 +22,7 @@ class COREXNodeControlsVisualTests(PassiveGraphSurfaceHostTestBase):
                 PortSpec,
                 SettingsGroupItemSpec,
             )
-            from ea_node_editor.nodes.types import NodeResult
+            from ea_node_editor.nodes.execution_context import NodeResult
             from ea_node_editor.runtime_contracts import (
                 INTEGER_DATA_TYPE_ID,
                 Interval1D,

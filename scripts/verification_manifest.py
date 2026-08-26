@@ -391,6 +391,7 @@ class NoLegacyGuardrailSurface:
 
 COREX_NO_LEGACY_GUARDRAIL_PRESENT = "present"
 COREX_NO_LEGACY_GUARDRAIL_ABSENT = "absent"
+COREX_NO_LEGACY_GUARDRAIL_PATH_ABSENT = "path_absent"
 COREX_NO_LEGACY_ARCHITECTURE_CLEANUP_WRAPUP_DOC = (
     "docs/specs/work_packets/corex_no_legacy_architecture_cleanup/"
     "P01_no_legacy_guardrails_WRAPUP.md"
@@ -399,7 +400,12 @@ COREX_NO_LEGACY_REQUIRED_GUARDRAIL_CATEGORIES = (
     "graph_canvas_bridge_edge_adapter",
     "graph_canvas_qml_compat_aliases",
     "graph_canvas_qml_legacy_view_alias",
-    "legacy_plugin_class_probing",
+    "legacy_nodes_public_decorator_barrel",
+    "legacy_nodes_types_barrel",
+    "legacy_plugin_entry_point_provenance_discovery",
+    "legacy_plugin_executable_module_class_probing",
+    "legacy_plugin_descriptor_discovery",
+    "legacy_plugin_project_entry_point",
     "current_project_schema_validation",
     "current_preference_schema_validation",
     "telemetry_import_shim",
@@ -411,7 +417,12 @@ COREX_NO_LEGACY_GUARDRAIL_OWNER_PACKETS = {
     "graph_canvas_bridge_edge_adapter": "P02",
     "graph_canvas_qml_compat_aliases": "P02",
     "graph_canvas_qml_legacy_view_alias": "P02",
-    "legacy_plugin_class_probing": "P10",
+    "legacy_nodes_public_decorator_barrel": "P16",
+    "legacy_nodes_types_barrel": "P16",
+    "legacy_plugin_entry_point_provenance_discovery": "P16",
+    "legacy_plugin_executable_module_class_probing": "P16",
+    "legacy_plugin_descriptor_discovery": "P16",
+    "legacy_plugin_project_entry_point": "P16",
     "current_project_schema_validation": "P06",
     "current_preference_schema_validation": "P06",
     "telemetry_import_shim": "P13",
@@ -447,10 +458,69 @@ COREX_NO_LEGACY_GUARDRAIL_INVENTORY = (
         expectation=COREX_NO_LEGACY_GUARDRAIL_ABSENT,
     ),
     NoLegacyGuardrailSurface(
-        category="legacy_plugin_class_probing",
-        owner_packet="P10",
+        category="legacy_nodes_public_decorator_barrel",
+        owner_packet="P16",
+        path="ea_node_editor/nodes/__init__.py",
+        names=(
+            "node_type",
+            "in_port",
+            "out_port",
+            "prop_str",
+            "prop_int",
+            "prop_float",
+            "prop_interval_1d",
+            "prop_bool",
+            "prop_enum",
+            "prop_json",
+        ),
+        expectation=COREX_NO_LEGACY_GUARDRAIL_ABSENT,
+    ),
+    NoLegacyGuardrailSurface(
+        category="legacy_nodes_types_barrel",
+        owner_packet="P16",
+        path="ea_node_editor/nodes/types.py",
+        names=(),
+        expectation=COREX_NO_LEGACY_GUARDRAIL_PATH_ABSENT,
+    ),
+    NoLegacyGuardrailSurface(
+        category="legacy_plugin_entry_point_provenance_discovery",
+        owner_packet="P16",
+        path="ea_node_editor/nodes/plugin_contracts.py",
+        names=("entry_point", "entry_point_name", "distribution_name"),
+        expectation=COREX_NO_LEGACY_GUARDRAIL_ABSENT,
+    ),
+    NoLegacyGuardrailSurface(
+        category="legacy_plugin_entry_point_provenance_discovery",
+        owner_packet="P16",
         path="ea_node_editor/nodes/plugin_loader.py",
-        names=("_legacy_plugin_spec", "_register_plugin_classes"),
+        names=("EntryPoint", "entry_points", "ea_node_editor.plugins"),
+        expectation=COREX_NO_LEGACY_GUARDRAIL_ABSENT,
+    ),
+    NoLegacyGuardrailSurface(
+        category="legacy_plugin_executable_module_class_probing",
+        owner_packet="P16",
+        path="ea_node_editor/nodes/plugin_loader.py",
+        names=(
+            "module_from_spec",
+            "exec_module",
+            "_legacy_plugin_spec",
+            "_register_plugin_classes",
+            "__node_type_spec__",
+        ),
+        expectation=COREX_NO_LEGACY_GUARDRAIL_ABSENT,
+    ),
+    NoLegacyGuardrailSurface(
+        category="legacy_plugin_descriptor_discovery",
+        owner_packet="P16",
+        path="ea_node_editor/nodes/plugin_loader.py",
+        names=("PLUGIN_DESCRIPTORS", "discover_package_plugins", "descriptor_overrides"),
+        expectation=COREX_NO_LEGACY_GUARDRAIL_ABSENT,
+    ),
+    NoLegacyGuardrailSurface(
+        category="legacy_plugin_project_entry_point",
+        owner_packet="P16",
+        path="pyproject.toml",
+        names=("ea_node_editor.plugins",),
         expectation=COREX_NO_LEGACY_GUARDRAIL_ABSENT,
     ),
     NoLegacyGuardrailSurface(

@@ -7,7 +7,8 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
 
-from ea_node_editor.nodes.types import NodeTypeSpec, PluginProvenance
+from ea_node_editor.nodes.node_specs import NodeTypeSpec
+from ea_node_editor.nodes.plugin_contracts import PluginProvenance
 from ea_node_editor.ui.shell.controllers.workspace_io_ops import WorkspaceIOOps
 
 

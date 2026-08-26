@@ -28,7 +28,7 @@ from ea_node_editor.nodes.builtins.jupyter_notebook import (
     normalize_jupyter_notebook_properties,
     sanitize_jupyter_notebook_server_state,
 )
-from ea_node_editor.nodes.types import ExecutionContext
+from ea_node_editor.nodes.execution_context import ExecutionContext
 from ea_node_editor.ui_qml.graph_scene_payload import GraphScenePayloadBuilder
 from ea_node_editor.ui_qml.surface_contracts import surface_spec_payload_for_node_type
 

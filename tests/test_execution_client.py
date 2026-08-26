@@ -60,7 +60,7 @@ from ea_node_editor.execution.worker_runtime import (
 from ea_node_editor.execution.worker_services import WorkerServices
 from ea_node_editor.graph.model import GraphModel
 from ea_node_editor.nodes.bootstrap import build_default_registry
-from ea_node_editor.nodes.types import (
+from ea_node_editor.nodes.runtime_refs import (
     RuntimeArtifactRef,
     RuntimeHandleRef,
     deserialize_runtime_value,

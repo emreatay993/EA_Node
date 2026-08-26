@@ -47,7 +47,8 @@ from ea_node_editor.nodes.builtins.ansys_dpf_common import (
 from ea_node_editor.nodes.builtins.ansys_dpf_viewer_adapter import (
     open_dpf_viewer_session_payload,
 )
-from ea_node_editor.nodes.types import ExecutionContext, RuntimeHandleRef
+from ea_node_editor.nodes.execution_context import ExecutionContext
+from ea_node_editor.nodes.runtime_refs import RuntimeHandleRef
 from ea_node_editor.persistence.artifact_resolution import ProjectArtifactResolver
 from ea_node_editor.persistence.serializer import JsonProjectSerializer
 from ea_node_editor.runtime_contracts import (

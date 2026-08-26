@@ -21,8 +21,8 @@ from ea_node_editor.nodes.builtins.excalidraw import (
     EXCALIDRAW_STATE_PROPERTY,
 )
 from ea_node_editor.nodes.decorators import in_port, node_type, out_port
+from ea_node_editor.nodes.execution_context import ExecutionContext, NodeResult
 from ea_node_editor.nodes.registry import NodeRegistry
-from ea_node_editor.nodes.types import ExecutionContext, NodeResult
 from ea_node_editor.persistence.serializer import JsonProjectSerializer
 from ea_node_editor.ui.shell.runtime_clipboard import build_graph_fragment_payload
 from ea_node_editor.ui_qml.graph_scene_bridge import GraphSceneBridge

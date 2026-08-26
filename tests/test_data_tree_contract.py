@@ -9,7 +9,6 @@ from ea_node_editor.nodes.node_specs import (
     PortSpec,
 )
 from ea_node_editor.nodes.registry import NodeRegistry
-from ea_node_editor.nodes import types as node_types
 from ea_node_editor.runtime_contracts import (
     COREX_VIEWER_SESSION_HANDLE_KIND,
     ArrayDataRef,
@@ -153,7 +152,6 @@ class DataTreeNodeSdkContractTests(unittest.TestCase):
         self.assertEqual(item_port.data_access, "item")
         self.assertEqual(list_port.data_access, "list")
         self.assertEqual(tree_port.data_access, "tree")
-        self.assertIs(node_types.DataTree, DataTree)
 
     def test_registry_rejects_old_control_kinds_and_invalid_access(self) -> None:
         registry = NodeRegistry()

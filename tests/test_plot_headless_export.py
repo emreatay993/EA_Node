@@ -162,7 +162,7 @@ def test_generic_plot_node_archives_headless_line_export_without_qapplication(tm
         )
         from ea_node_editor.execution.runtime_snapshot import RuntimeSnapshot, RuntimeSnapshotContext
         from ea_node_editor.nodes.bootstrap import build_default_registry
-        from ea_node_editor.nodes.types import ExecutionContext
+        from ea_node_editor.nodes.execution_context import ExecutionContext
         from ea_node_editor.persistence.artifact_resolution import ProjectArtifactResolver
         from ea_node_editor.persistence.artifact_store import ProjectArtifactStore
 

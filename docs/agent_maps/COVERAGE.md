@@ -66,6 +66,10 @@ implementation studies are intentionally excluded.
   `nodes/builtin_functions/`; trusted helpers and data contracts remain under
   `nodes/builtins/`, and the migration inventory plus 133-row golden catalog pin
   the exact 55 trusted exceptions.
+- Public node authoring is now only the 17-name top-level `corex` function SDK.
+  `ea_node_editor.nodes` is internal, its former `types.py` barrel is removed,
+  and trusted descriptor decorators remain owned by the Nodes map for the exact
+  internal/DPF/add-on boundary only.
 - Core integrations contribute eight reserved function entries plus the trusted
   Path Pointer and Folder Explorer exceptions. SSH/SFTP contributes six reserved
   function entries, Paramiko-free value contracts, and a worker-lazy Paramiko runtime.

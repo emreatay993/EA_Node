@@ -103,9 +103,118 @@ def build_and_show_shell_window() -> ShellWindow:
     return window
 
 
+def _run_function_plugin_package_smoke() -> None:
+    import tempfile
+    import threading
+
+    from ea_node_editor.execution.client import ProcessExecutionClient
+    from ea_node_editor.execution.runtime_snapshot import build_runtime_snapshot
+    from ea_node_editor.graph.model import GraphModel
+    from ea_node_editor.nodes.bootstrap import build_plugin_candidate_registry
+    from ea_node_editor.runtime_contracts import DataTree, deserialize_runtime_value
+    from ea_node_editor.settings import plugin_generations_dir, plugins_dir
+
+    type_id = "custom.package_smoke.1234abcd"
+    expected_value = 37
+    previous_appdata = os.environ.get("APPDATA")
+    try:
+        with tempfile.TemporaryDirectory(prefix="corex-function-plugin-smoke-") as temp_dir:
+            root = Path(temp_dir)
+            os.environ["APPDATA"] = str(root / "appdata")
+            project_dir = root / "project"
+            project_dir.mkdir()
+            (plugins_dir() / "package_smoke.py").write_text(
+                f'''import corex
+
+
+@corex.node(id={type_id!r}, name="Package Smoke", category=("Tests",))
+@corex.output("result", value_type=int)
+def package_smoke(ctx):
+    return {{"result": {expected_value}}}
+''',
+                encoding="utf-8",
+            )
+            registry = build_plugin_candidate_registry(
+                generation_root=plugin_generations_dir(),
+            )
+            if registry.python_function_ref_or_none(type_id) is None:
+                raise RuntimeError("Packaged function-plugin smoke was not discovered.")
+
+            model = GraphModel()
+            workspace = model.active_workspace
+            node = model.add_node(
+                workspace.workspace_id,
+                type_id,
+                "Package Smoke",
+                0,
+                0,
+            )
+            snapshot = build_runtime_snapshot(
+                model.project,
+                workspace_id=workspace.workspace_id,
+                registry=registry,
+            )
+            events: list[dict[str, object]] = []
+            terminal = threading.Event()
+
+            def collect(event: dict[str, object]) -> None:
+                events.append(event)
+                if event.get("type") in {"run_completed", "run_failed", "run_stopped"}:
+                    terminal.set()
+
+            client = ProcessExecutionClient()
+            client.subscribe(collect)
+            try:
+                client.start_run(
+                    str(project_dir / "package_smoke.cxproj"),
+                    workspace.workspace_id,
+                    {"runtime_snapshot": snapshot},
+                    data_types=registry.data_types,
+                    plugin_bundles=registry.plugin_bundle_refs(),
+                    plugin_fingerprint=registry.plugin_fingerprint(),
+                    registry_contract_fingerprint=registry.contract_fingerprint(),
+                    addon_runtime_config=registry.addon_runtime_config(),
+                )
+                if not terminal.wait(timeout=30.0):
+                    raise RuntimeError("Packaged function-plugin smoke timed out.")
+            finally:
+                client.shutdown()
+
+            if not any(event.get("type") == "run_completed" for event in events):
+                raise RuntimeError(f"Packaged function-plugin smoke failed: {events!r}")
+            settled = next(
+                (
+                    event
+                    for event in events
+                    if event.get("type") == "node_settled"
+                    and event.get("node_id") == node.node_id
+                ),
+                None,
+            )
+            if settled is None:
+                raise RuntimeError("Packaged function-plugin smoke did not settle its node.")
+            tree = deserialize_runtime_value(
+                settled["outputs"]["result"]["value"],
+                catalog=registry.data_types,
+            )
+            if not isinstance(tree, DataTree) or tree.branches != (
+                ((0,), (expected_value,)),
+            ):
+                raise RuntimeError("Packaged function-plugin smoke returned the wrong value.")
+    finally:
+        if previous_appdata is None:
+            os.environ.pop("APPDATA", None)
+        else:
+            os.environ["APPDATA"] = previous_appdata
+
+
 def run() -> int:
     with phase("run.mp.freeze_support"):
         mp.freeze_support()
+    if os.environ.get("EA_FUNCTION_PLUGIN_PACKAGE_SMOKE") == "1":
+        _run_function_plugin_package_smoke()
+        print("Function plugin process-worker smoke passed: 37", flush=True)
+        return 0
     if os.environ.get("EA_SIGNAL_PLOT_PACKAGE_SMOKE") == "1":
         from ea_node_editor.execution.signal_plot_renderer import render_signal_plot
         from ea_node_editor.runtime_contracts import DataTree

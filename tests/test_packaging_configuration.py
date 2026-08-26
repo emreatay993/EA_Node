@@ -18,6 +18,7 @@ PYPROJECT_PATH = REPO_ROOT / "pyproject.toml"
 GITIGNORE_PATH = REPO_ROOT / ".gitignore"
 SPEC_PATH = REPO_ROOT / "ea_node_editor.spec"
 BUILD_PACKAGE_PATH = REPO_ROOT / "scripts" / "build_windows_package.ps1"
+APP_PATH = REPO_ROOT / "ea_node_editor" / "app.py"
 BUILD_INSTALLER_PATH = REPO_ROOT / "scripts" / "build_windows_installer.ps1"
 BUILD_MCF_DPF_GUI_PATH = REPO_ROOT / "scripts" / "build_mcf_dpf_section_resultants_gui.ps1"
 RUNTIME_MANIFEST_PATH = REPO_ROOT / "runtime" / "runtime_manifest.json"
@@ -124,6 +125,7 @@ def test_public_corex_sdk_is_packaged_for_setuptools_and_pyinstaller() -> None:
     ]
     assert '    "corex",' in spec_source
     assert (REPO_ROOT / "corex" / "__init__.py").is_file()
+    assert "ea_node_editor.plugins" not in pyproject["project"].get("entry-points", {})
 
 
 def test_optional_dependency_groups_wire_ansys_and_viewer_into_all_and_dev() -> None:
@@ -700,6 +702,7 @@ def test_mcf_dpf_standalone_build_bundles_animation_icons() -> None:
 
 def test_windows_build_scripts_use_profile_specific_packaging_switches() -> None:
     build_package_source = BUILD_PACKAGE_PATH.read_text(encoding="utf-8")
+    app_source = APP_PATH.read_text(encoding="utf-8")
     build_installer_source = BUILD_INSTALLER_PATH.read_text(encoding="utf-8")
     build_excalidraw_host_source = BUILD_EXCALIDRAW_HOST_PATH.read_text(encoding="utf-8")
     sign_release_source = SIGN_RELEASE_PATH.read_text(encoding="utf-8")
@@ -808,7 +811,11 @@ def test_windows_build_scripts_use_profile_specific_packaging_switches() -> None
     assert 'EA_PROFILE_AUTOQUIT' in build_package_source
     assert 'EA_PROFILE_STARTUP' in build_package_source
     assert 'EA_SIGNAL_PLOT_PACKAGE_SMOKE' in build_package_source
+    assert 'EA_FUNCTION_PLUGIN_PACKAGE_SMOKE' in build_package_source
     assert '-SignalPlotRender' in build_package_source
+    assert '-FunctionPlugin' in build_package_source
+    assert 'Function plugin execution smoke test' in build_package_source
+    assert 'Smoke tests skipped; this build is not acceptance evidence.' in build_package_source
     assert 'Signal Plot render smoke test' in build_package_source
     assert '$process.WaitForExit($TimeoutSeconds * 1000)' in build_package_source
     assert 'executable did not complete autoquit startup' in build_package_source
@@ -816,6 +823,22 @@ def test_windows_build_scripts_use_profile_specific_packaging_switches() -> None
     assert '$processStartInfo.UseShellExecute = $false' in build_package_source
     assert '$processStartInfo.RedirectStandardError = $true' in build_package_source
     assert 'process stayed alive' not in build_package_source
+    ordinary_smoke = (
+        'Invoke-PackagedStartupSmoke -ExecutablePath $exePath '
+        '-TimeoutSeconds $SmokeSeconds | Out-Null'
+    )
+    function_smoke = (
+        'Invoke-PackagedStartupSmoke -ExecutablePath $exePath '
+        '-TimeoutSeconds $SmokeSeconds -Label "Function plugin execution smoke test" '
+        '-FunctionPlugin | Out-Null'
+    )
+    assert build_package_source.index(ordinary_smoke) < build_package_source.index(function_smoke)
+    assert 'os.environ.get("EA_FUNCTION_PLUGIN_PACKAGE_SMOKE") == "1"' in app_source
+    assert "build_plugin_candidate_registry" in app_source
+    assert "ProcessExecutionClient" in app_source
+    assert app_source.index("EA_FUNCTION_PLUGIN_PACKAGE_SMOKE") < app_source.index(
+        "run.preload_native_tabular_runtime"
+    )
 
     assert '[ValidateSet("base", "viewer", "web", "full")]' in build_installer_source
     assert '$runtimeBundleDirName = "runtime"' in build_installer_source

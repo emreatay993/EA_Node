@@ -101,18 +101,20 @@ from ea_node_editor.nodes.builtins.plot.dpf import (
     DPF_PLOT_NODE_TYPE_IDS,
 )
 from ea_node_editor.nodes.ansys_dpf_data_types import DPF_FIELDS_CONTAINER_DATA_TYPE
-from ea_node_editor.nodes.category_paths import category_display
-from ea_node_editor.nodes.readiness import evaluate_node_readiness
-from ea_node_editor.nodes.types import (
+from ea_node_editor.nodes.ansys_dpf_data_types import (
     DPF_FIELD_DATA_TYPE,
     DPF_MESH_DATA_TYPE,
     DPF_MODEL_DATA_TYPE,
     DPF_PUBLIC_DATA_TYPES,
     DPF_RESULT_FILE_DATA_TYPE,
     DPF_SCOPING_DATA_TYPE,
-    VIEWER_SESSION_DATA_TYPE,
-    ExecutionContext,
 )
+from ea_node_editor.nodes.category_paths import category_display
+from ea_node_editor.nodes.core_data_types import (
+    VIEWER_SESSION_DATA_TYPE_ID as VIEWER_SESSION_DATA_TYPE,
+)
+from ea_node_editor.nodes.execution_context import ExecutionContext
+from ea_node_editor.nodes.readiness import evaluate_node_readiness
 from ea_node_editor.ui_qml.node_title_icon_sources import NODE_TITLE_ICON_ASSET_ROOT, title_icon_source_for_node_payload
 from ea_node_editor.persistence.artifact_resolution import ProjectArtifactResolver
 
@@ -681,7 +683,10 @@ class DpfNodeCatalogTests(unittest.TestCase):
                 return_value=(),
             ) as build_descriptors,
             patch("ea_node_editor.nodes.plugin_loader.register_plugin_backends", return_value=[]),
-            patch("ea_node_editor.nodes.plugin_loader.discover_and_load_plugins", return_value=[]),
+            patch(
+                "ea_node_editor.nodes.plugin_loader._discover_configured_static_plugins",
+                return_value=[],
+            ),
         ):
             build_default_registry(app_preferences_store=self._store)
 
@@ -714,7 +719,10 @@ class DpfNodeCatalogTests(unittest.TestCase):
                 return_value=(),
             ) as build_descriptors,
             patch("ea_node_editor.nodes.plugin_loader.register_plugin_backends", return_value=[]),
-            patch("ea_node_editor.nodes.plugin_loader.discover_and_load_plugins", return_value=[]),
+            patch(
+                "ea_node_editor.nodes.plugin_loader._discover_configured_static_plugins",
+                return_value=[],
+            ),
         ):
             build_default_registry(app_preferences_store=self._store)
 

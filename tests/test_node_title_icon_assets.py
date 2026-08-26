@@ -9,7 +9,7 @@ try:
 except ModuleNotFoundError:  # Python 3.10 project venv
     import tomli as tomllib
 
-from ea_node_editor.nodes.bootstrap import BUILTIN_NODE_DESCRIPTORS
+from ea_node_editor.nodes.bootstrap import build_builtin_registry
 from ea_node_editor.nodes.builtins.icon_catalog import BUILTIN_NODE_ICONS
 from ea_node_editor.ui_qml.node_title_icon_sources import (
     NODE_TITLE_ICON_ASSET_ROOT,
@@ -73,8 +73,7 @@ class NodeTitleIconAssetTests(unittest.TestCase):
         self.assertTrue(BUILTIN_NODE_ICONS)
         observed_type_ids = set()
 
-        for descriptor in BUILTIN_NODE_DESCRIPTORS:
-            spec = descriptor.spec
+        for spec in build_builtin_registry().all_specs():
             if _uses_iconless_visual_contract(spec):
                 self.assertNotIn(spec.type_id, BUILTIN_NODE_ICONS)
                 self.assertEqual(spec.icon, "")

@@ -18,7 +18,7 @@ from ea_node_editor.graph.model import GraphModel
 from ea_node_editor.nodes.bootstrap import build_default_registry
 from ea_node_editor.nodes.decorators import in_port, node_type, out_port
 from ea_node_editor.nodes.registry import NodeRegistry
-from ea_node_editor.nodes.types import ExecutionContext, NodeResult
+from ea_node_editor.nodes.execution_context import ExecutionContext, NodeResult
 from ea_node_editor.ui_qml.graph_canvas_command import GraphCanvasCommandBridge
 from ea_node_editor.ui_qml.graph_canvas_state import GraphCanvasStateBridge
 from ea_node_editor.ui_qml.graph_scene_bridge import GraphSceneBridge

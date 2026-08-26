@@ -11,7 +11,7 @@ from ea_node_editor.graph.transform_fragment_ops import insert_graph_fragment
 from ea_node_editor.graph.validated_mutation import ValidatedGraphMutation
 from ea_node_editor.graph.workspace_view_ops import WorkspaceViewMutation
 from ea_node_editor.nodes.bootstrap import build_default_registry
-from ea_node_editor.nodes.types import SettingsGroupItemSpec, SettingsGroupSpec
+from ea_node_editor.nodes.node_specs import SettingsGroupItemSpec, SettingsGroupSpec
 from ea_node_editor.ui_qml.graph_scene_payload import GraphScenePayloadBuilder
 from ea_node_editor.ui_qml.graph_surface_metrics import resolved_node_surface_size
 

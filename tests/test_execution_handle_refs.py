@@ -16,7 +16,7 @@ from ea_node_editor.execution.runtime_value_codec import (
     deserialize_runtime_value,
     serialize_runtime_value,
 )
-from ea_node_editor.nodes.types import RuntimeHandleRef
+from ea_node_editor.nodes.runtime_refs import RuntimeHandleRef
 from ea_node_editor.runtime_contracts import DataTree
 from tests.typed_handle_support import dpf_data_type_catalog
 

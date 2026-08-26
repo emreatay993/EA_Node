@@ -7,7 +7,12 @@ from pathlib import Path
 
 from ea_node_editor.graph.model import GraphModel
 from ea_node_editor.nodes.bootstrap import build_default_registry
-from ea_node_editor.nodes.types import NodeTypeSpec, PortSpec, SettingsGroupItemSpec, SettingsGroupSpec
+from ea_node_editor.nodes.node_specs import (
+    NodeTypeSpec,
+    PortSpec,
+    SettingsGroupItemSpec,
+    SettingsGroupSpec,
+)
 from ea_node_editor.nodes.builtins.excalidraw import (
     EXCALIDRAW_BOARD_TYPE_ID,
     EXCALIDRAW_PREVIEW_REF_PROPERTY,

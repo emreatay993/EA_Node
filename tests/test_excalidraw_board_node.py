@@ -14,7 +14,7 @@ from ea_node_editor.nodes.builtins.excalidraw import (
 )
 from ea_node_editor.nodes.node_specs import property_visible_in_inspector
 from ea_node_editor.nodes.registry import NodeRegistry
-from ea_node_editor.nodes.types import ExecutionContext
+from ea_node_editor.nodes.execution_context import ExecutionContext
 
 
 class ExcalidrawBoardNodeTests(unittest.TestCase):

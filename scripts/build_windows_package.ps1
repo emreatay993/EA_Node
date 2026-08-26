@@ -303,7 +303,8 @@ function Invoke-PackagedStartupSmoke {
         [Parameter(Mandatory = $true)]
         [int]$TimeoutSeconds,
         [string]$Label = "Startup smoke test",
-        [switch]$SignalPlotRender
+        [switch]$SignalPlotRender,
+        [switch]$FunctionPlugin
     )
 
     $stdoutPath = Join-Path $env:TEMP ("corex_startup_smoke_stdout_" + [guid]::NewGuid().ToString("N") + ".log")
@@ -312,6 +313,7 @@ function Invoke-PackagedStartupSmoke {
     $previousProfileStartup = $env:EA_PROFILE_STARTUP
     $previousProfileAutoquit = $env:EA_PROFILE_AUTOQUIT
     $previousSignalPlotSmoke = $env:EA_SIGNAL_PLOT_PACKAGE_SMOKE
+    $previousFunctionPluginSmoke = $env:EA_FUNCTION_PLUGIN_PACKAGE_SMOKE
     $process = $null
 
     try {
@@ -323,6 +325,12 @@ function Invoke-PackagedStartupSmoke {
         }
         else {
             Remove-Item Env:EA_SIGNAL_PLOT_PACKAGE_SMOKE -ErrorAction SilentlyContinue
+        }
+        if ($FunctionPlugin) {
+            $env:EA_FUNCTION_PLUGIN_PACKAGE_SMOKE = "1"
+        }
+        else {
+            Remove-Item Env:EA_FUNCTION_PLUGIN_PACKAGE_SMOKE -ErrorAction SilentlyContinue
         }
         $processStartInfo = [System.Diagnostics.ProcessStartInfo]::new()
         $processStartInfo.FileName = $ExecutablePath
@@ -386,6 +394,7 @@ function Invoke-PackagedStartupSmoke {
         Restore-SmokeEnvironmentValue -Name "EA_PROFILE_STARTUP" -PreviousValue $previousProfileStartup
         Restore-SmokeEnvironmentValue -Name "EA_PROFILE_AUTOQUIT" -PreviousValue $previousProfileAutoquit
         Restore-SmokeEnvironmentValue -Name "EA_SIGNAL_PLOT_PACKAGE_SMOKE" -PreviousValue $previousSignalPlotSmoke
+        Restore-SmokeEnvironmentValue -Name "EA_FUNCTION_PLUGIN_PACKAGE_SMOKE" -PreviousValue $previousFunctionPluginSmoke
         Remove-Item -Path $stdoutPath, $stderrPath -Force -ErrorAction SilentlyContinue
     }
 }
@@ -1169,11 +1178,13 @@ New-CorexRuntimeBundle -DistPath $distDir -Profile $PackageProfile
 Write-Host "Build complete: $exePath"
 
 if ($SkipSmoke) {
-    Write-Host "Smoke test skipped."
+    Write-Host "Smoke tests skipped; this build is not acceptance evidence."
     exit 0
 }
 
 Write-Host "Running startup smoke test (timeout: $SmokeSeconds s)..."
 Invoke-PackagedStartupSmoke -ExecutablePath $exePath -TimeoutSeconds $SmokeSeconds | Out-Null
+Write-Host "Running function plugin process-worker smoke test (timeout: $SmokeSeconds s)..."
+Invoke-PackagedStartupSmoke -ExecutablePath $exePath -TimeoutSeconds $SmokeSeconds -Label "Function plugin execution smoke test" -FunctionPlugin | Out-Null
 Write-Host "Running native Signal Plot PNG smoke test (timeout: $SmokeSeconds s)..."
 Invoke-PackagedStartupSmoke -ExecutablePath $exePath -TimeoutSeconds $SmokeSeconds -Label "Signal Plot render smoke test" -SignalPlotRender | Out-Null

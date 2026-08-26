@@ -1,4 +1,4 @@
-# Purpose: Provide the concise public node-definition decorator SDK.
+# Purpose: Define trusted-internal descriptor decorators for legacy exceptions.
 # Map: subsystems/nodes_registry_builtins.md
 # Tests: tests/test_decorator_sdk.py
 

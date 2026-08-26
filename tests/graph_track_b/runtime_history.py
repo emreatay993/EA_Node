@@ -5,7 +5,8 @@ import unittest
 from ea_node_editor.graph.records import NodeInstance
 from ea_node_editor.graph.registry_normalization import normalize_project_for_registry
 from ea_node_editor.nodes.registry import NodeRegistry
-from ea_node_editor.nodes.types import NodeResult, NodeTypeSpec, PortSpec, PropertySpec
+from ea_node_editor.nodes.execution_context import NodeResult
+from ea_node_editor.nodes.node_specs import NodeTypeSpec, PortSpec, PropertySpec
 from ea_node_editor.ui.shell.runtime_history import (
     ACTION_EDIT_EDGE_LABEL,
     ACTION_GROUP_SELECTED_NODES,

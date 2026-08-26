@@ -11,7 +11,12 @@ from PyQt6.QtQuick import QQuickItem
 from PyQt6.QtWidgets import QWidget
 
 from ea_node_editor.nodes.builtins.ansys_dpf_common import DPF_VIEWER_NODE_TYPE_ID
-from ea_node_editor.nodes.types import NodeRenderQualitySpec, NodeResult, NodeTypeSpec, PortSpec
+from ea_node_editor.nodes.execution_context import NodeResult
+from ea_node_editor.nodes.node_specs import (
+    NodeRenderQualitySpec,
+    NodeTypeSpec,
+    PortSpec,
+)
 from ea_node_editor.ui_qml.embedded_viewer_overlay_manager import (
     EmbeddedViewerOverlayManager,
     EmbeddedViewerOverlaySpec,

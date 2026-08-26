@@ -122,11 +122,15 @@ class DeadCodeHygienePythonHelperBoundaryTests(unittest.TestCase):
             {
                 manifest.COREX_NO_LEGACY_GUARDRAIL_PRESENT,
                 manifest.COREX_NO_LEGACY_GUARDRAIL_ABSENT,
+                manifest.COREX_NO_LEGACY_GUARDRAIL_PATH_ABSENT,
             },
         )
         for surface in inventory:
             with self.subTest(category=surface.category):
                 path = _REPO_ROOT / surface.path
+                if surface.expectation == manifest.COREX_NO_LEGACY_GUARDRAIL_PATH_ABSENT:
+                    self.assertFalse(path.exists(), msg=f"Guardrail target still exists: {surface.path}")
+                    continue
                 if surface.expectation == manifest.COREX_NO_LEGACY_GUARDRAIL_ABSENT and not path.exists():
                     continue
                 self.assertTrue(path.exists(), msg=f"Guardrail target missing: {surface.path}")
@@ -235,15 +239,20 @@ class DeadCodeHygienePythonHelperBoundaryTests(unittest.TestCase):
                 module_text = (_REPO_ROOT / relative_path).read_text(encoding="utf-8")
                 self.assertNotIn("def __getattr__", module_text)
 
-    def test_plugin_loader_does_not_publish_class_probe_fallbacks(self) -> None:
+    def test_plugin_loader_does_not_publish_executable_legacy_discovery(self) -> None:
         plugin_loader_text = (_REPO_ROOT / "ea_node_editor/nodes/plugin_loader.py").read_text(
             encoding="utf-8"
         )
 
-        self.assertNotIn("_legacy_plugin_spec", plugin_loader_text)
-        self.assertNotIn("_register_plugin_classes", plugin_loader_text)
-        self.assertIn("PLUGIN_DESCRIPTORS", plugin_loader_text)
-        self.assertIn("PLUGIN_BACKENDS", plugin_loader_text)
+        for legacy_name in (
+            "module_from_spec",
+            "exec_module",
+            "_legacy_plugin_spec",
+            "_register_plugin_classes",
+            "__node_type_spec__",
+            "PLUGIN_DESCRIPTORS",
+        ):
+            self.assertNotIn(legacy_name, plugin_loader_text)
 
     def test_runtime_worker_requires_snapshot_payloads(self) -> None:
         runtime_snapshot_text = (

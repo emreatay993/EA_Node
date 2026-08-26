@@ -7,9 +7,9 @@ import pytest
 from PyQt6.QtCore import QObject, pyqtSignal
 
 from ea_node_editor.graph.model import GraphModel
+from ea_node_editor.nodes.execution_context import NodeResult
 from ea_node_editor.nodes.node_specs import NodeTypeSpec, PortSpec, PropertySpec
 from ea_node_editor.nodes.registry import NodeRegistry
-from ea_node_editor.nodes.types import NodeResult
 from ea_node_editor.ui.shell.runtime_history import RuntimeGraphHistory
 from ea_node_editor.ui.shell.window_library_inspector import (
     build_selected_node_property_items,
