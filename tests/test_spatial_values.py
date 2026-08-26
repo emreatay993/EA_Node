@@ -178,7 +178,7 @@ def _d024_registry() -> NodeRegistry:
     )
     registry.register_plugin_bundle(
         spatial.COREX_SPATIAL_VALUES_BOUNDING_INTERVAL_2D_CANDIDATE_CONTRACT_MANIFEST,
-        spatial.COREX_SPATIAL_VALUES_TRANSFORM_NODE_DESCRIPTORS,
+        (),
         owner_id=spatial.COREX_SPATIAL_VALUES_OWNER_ID,
         owner_version=spatial.COREX_SPATIAL_VALUES_OWNER_VERSION,
     )
@@ -282,6 +282,8 @@ _CONVERTED_SPATIAL_TYPE_IDS = (
     spatial.VECTOR_LENGTH_TYPE_ID,
     spatial.CHAIN_TRANSFORMS_TYPE_ID,
     spatial.UNCHAIN_TRANSFORMS_TYPE_ID,
+    "geometry.construct_transform",
+    "geometry.deconstruct_transform",
 )
 
 
@@ -312,15 +314,11 @@ def test_converted_spatial_specs_match_golden_and_use_function_entries(
         assert _catalog_value(entry.spec) == expected[type_id]
 
 
-def test_only_deferred_transform_nodes_retain_trusted_descriptors() -> None:
-    deferred = (
-        spatial.CONSTRUCT_TRANSFORM_TYPE_ID,
-        spatial.DECONSTRUCT_TRANSFORM_TYPE_ID,
-    )
-    assert tuple(
-        item.spec.type_id
-        for item in spatial.COREX_SPATIAL_VALUES_TRANSFORM_NODE_DESCRIPTORS
-    ) == deferred
+def test_transform_nodes_use_static_function_adapters() -> None:
+    assert {
+        "geometry.construct_transform",
+        "geometry.deconstruct_transform",
+    } <= _spatial_function_adapters().keys()
     for class_name in (
         "BoundingInterval2DNodePlugin",
         "FieldVectorContainerNodePlugin",
@@ -334,6 +332,8 @@ def test_only_deferred_transform_nodes_retain_trusted_descriptors() -> None:
         "VectorLengthNodePlugin",
         "ChainTransformsNodePlugin",
         "UnchainTransformsNodePlugin",
+        "ConstructTransformNodePlugin",
+        "DeconstructTransformNodePlugin",
     ):
         assert not hasattr(spatial, class_name)
 
@@ -498,7 +498,7 @@ def test_type_facts_and_parent_relations_are_exact() -> None:
     )
     candidate_registry.register_plugin_bundle(
         spatial.COREX_SPATIAL_VALUES_VECTOR_2D_CANDIDATE_CONTRACT_MANIFEST,
-        spatial.COREX_SPATIAL_VALUES_TRANSFORM_NODE_DESCRIPTORS,
+        (),
         owner_id=COREX_SPATIAL_VALUES_OWNER_ID,
         owner_version=COREX_SPATIAL_VALUES_OWNER_VERSION,
         replace_owner=True,
@@ -589,7 +589,7 @@ def test_type_facts_and_parent_relations_are_exact() -> None:
 
     candidate_registry.register_plugin_bundle(
         spatial.COREX_SPATIAL_VALUES_FIELD_VECTOR_CANDIDATE_CONTRACT_MANIFEST,
-        spatial.COREX_SPATIAL_VALUES_TRANSFORM_NODE_DESCRIPTORS,
+        (),
         owner_id=COREX_SPATIAL_VALUES_OWNER_ID,
         owner_version=COREX_SPATIAL_VALUES_OWNER_VERSION,
         replace_owner=True,
@@ -887,7 +887,7 @@ def test_direct_datatree_and_stdio_json_round_trip_through_catalog() -> None:
     )
     registry.register_plugin_bundle(
         spatial.COREX_SPATIAL_VALUES_FIELD_VECTOR_CANDIDATE_CONTRACT_MANIFEST,
-        spatial.COREX_SPATIAL_VALUES_TRANSFORM_NODE_DESCRIPTORS,
+        (),
         owner_id=COREX_SPATIAL_VALUES_OWNER_ID,
         owner_version=COREX_SPATIAL_VALUES_OWNER_VERSION,
         replace_owner=True,
@@ -1347,7 +1347,7 @@ def test_planar_tree_pattern_spec_is_abstract_handle_and_graph_root_only() -> No
     registry = bootstrap.build_builtin_registry()
     registry.register_plugin_bundle(
         spatial.COREX_SPATIAL_VALUES_PLANAR_TREE_PATTERN_CANDIDATE_CONTRACT_MANIFEST,
-        spatial.COREX_SPATIAL_VALUES_TRANSFORM_NODE_DESCRIPTORS,
+        (),
         owner_id=spatial.COREX_SPATIAL_VALUES_OWNER_ID,
         owner_version=spatial.COREX_SPATIAL_VALUES_OWNER_VERSION,
         source_label=spatial.__name__,
@@ -1391,7 +1391,7 @@ def test_planar_tree_pattern_abstract_validator_and_exact_handle_reject() -> Non
     registry = bootstrap.build_builtin_registry()
     registry.register_plugin_bundle(
         spatial.COREX_SPATIAL_VALUES_PLANAR_TREE_PATTERN_CANDIDATE_CONTRACT_MANIFEST,
-        spatial.COREX_SPATIAL_VALUES_TRANSFORM_NODE_DESCRIPTORS,
+        (),
         owner_id=spatial.COREX_SPATIAL_VALUES_OWNER_ID,
         owner_version=spatial.COREX_SPATIAL_VALUES_OWNER_VERSION,
         source_label=spatial.__name__,
@@ -1585,7 +1585,7 @@ def test_coordinate_system_runtime_json_round_trip_is_catalog_checked() -> None:
     )
     registry.register_plugin_bundle(
         spatial.COREX_SPATIAL_VALUES_COORDINATE_SYSTEM_CANDIDATE_CONTRACT_MANIFEST,
-        spatial.COREX_SPATIAL_VALUES_TRANSFORM_NODE_DESCRIPTORS,
+        (),
         owner_id=spatial.COREX_SPATIAL_VALUES_OWNER_ID,
         owner_version=spatial.COREX_SPATIAL_VALUES_OWNER_VERSION,
         source_label=spatial.__name__,

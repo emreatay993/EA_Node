@@ -20,12 +20,8 @@ from ea_node_editor.nodes.core_data_types import (
     CORE_DATA_TYPES,
     GRAPH_DATA_TYPE_ID,
     GRAPH_DICTIONARY_DATA_TYPE_ID,
-    INTEGER_DATA_TYPE_ID,
-    STRING_DATA_TYPE_ID,
 )
-from ea_node_editor.nodes.decorators import node_type, plugin_descriptor
 from ea_node_editor.nodes.execution_context import ExecutionContext, NodeResult
-from ea_node_editor.nodes.node_specs import PortSpec, PropertySpec
 from ea_node_editor.nodes.plugin_contracts import PluginContractManifest
 from ea_node_editor.runtime_contracts import DataTypeSpec, TypedInlineValue
 
@@ -700,417 +696,221 @@ COREX_AI_ML_VECTOR_DATABASE_CANDIDATE_CONTRACT_MANIFEST = PluginContractManifest
 )
 
 
-@node_type(
-    type_id=SQLITE_VECTOR_DATABASE_NODE_TYPE_ID,
-    display_name="SQLite Vector Database",
-    category_path=("AI", "Vector Database"),
-    icon="database",
-    description="Initializes or reopens a local COREX SQLite vector database.",
-    keywords=("sqlite", "vector", "database"),
-    ports=(
-        PortSpec(
-            "file_path",
-            "in",
-            "data",
-            STRING_DATA_TYPE_ID,
-            label="File Path",
-            required=True,
-            uses_property_default=True,
-            description="Absolute local path for the SQLite database.",
-        ),
-        PortSpec(
-            "vector_database",
-            "out",
-            "data",
-            VECTOR_DB_CONNECTION_DATA_TYPE_ID,
-            label="Vector Database",
-            description="Validated SQLite vector database locator.",
-        ),
-    ),
-    properties=(
-        PropertySpec(
-            "file_path",
-            "path",
-            "",
-            "File Path",
-            file_filter="SQLite database (*.db *.sqlite *.sqlite3)",
-        ),
-    ),
-)
-class SQLiteVectorDatabaseNodePlugin:
-    def execute(self, ctx: ExecutionContext) -> NodeResult:
-        file_path = _validate_sqlite_file_path(
-            ctx.inputs.get("file_path", ctx.properties.get("file_path", ""))
-        )
-        connection: sqlite3.Connection | None = None
-        transaction_started = False
-        try:
-            os.makedirs(os.path.dirname(file_path), exist_ok=True)
-            connection = sqlite3.connect(file_path, timeout=5.0, uri=False)
-            try:
-                connection.execute("BEGIN IMMEDIATE")
-                transaction_started = True
-                state = _schema_state(connection)
-                if state == "fresh":
-                    connection.execute(_COLLECTION_TABLE_SQL)
-                    connection.execute(f"PRAGMA application_id = {_APPLICATION_ID}")
-                    connection.execute(f"PRAGMA user_version = {_USER_VERSION}")
-                    if _schema_state(connection) != "approved":
-                        raise ValueError(_SQLITE_SCHEMA_ERROR)
-                elif state != "approved":
-                    raise ValueError(_SQLITE_SCHEMA_ERROR)
-                connection.commit()
-                transaction_started = False
-            finally:
-                try:
-                    if transaction_started:
-                        _rollback(connection)
-                finally:
-                    _close(connection)
-        except (sqlite3.Error, OSError):
-            raise RuntimeError(_SQLITE_OPERATION_ERROR) from None
-        return NodeResult(
-            outputs={
-                "vector_database": TypedInlineValue(
-                    VECTOR_DB_CONNECTION_DATA_TYPE_ID,
-                    1,
-                    {"provider": "sqlite", "file_path": file_path},
-                )
-            }
-        )
-
-
-@node_type(
-    type_id=CREATE_VECTOR_COLLECTION_NODE_TYPE_ID,
-    display_name="Create Vector Collection",
-    category_path=("AI", "Vector Database"),
-    icon="database",
-    description="Creates an idempotent collection entry in a COREX vector database.",
-    keywords=("vector", "collection", "create", "sqlite"),
-    ports=(
-        PortSpec(
-            "vector_database",
-            "in",
-            "data",
-            VECTOR_DB_CONNECTION_DATA_TYPE_ID,
-            label="Vector Database",
-            required=True,
-            description="SQLite vector database locator.",
-        ),
-        PortSpec(
-            "collection_name",
-            "in",
-            "data",
-            STRING_DATA_TYPE_ID,
-            label="Collection Name",
-            required=True,
-            uses_property_default=True,
-            description="Unique ASCII collection name.",
-        ),
-        PortSpec(
-            "vector_dimension",
-            "in",
-            "data",
-            INTEGER_DATA_TYPE_ID,
-            label="Vector Dimension",
-            required=True,
-            uses_property_default=True,
-            description="Number of scalar components in each vector.",
-        ),
-        PortSpec(
-            "distance_metric",
-            "in",
-            "data",
-            STRING_DATA_TYPE_ID,
-            label="Distance Metric",
-            required=True,
-            uses_property_default=True,
-            description="Cosine or Euclidean distance metric.",
-        ),
-        PortSpec(
-            "additional_metadata",
-            "in",
-            "data",
-            GRAPH_DICTIONARY_DATA_TYPE_ID,
-            label="Additional Metadata",
-            required=False,
-            uses_property_default=True,
-            description="Bounded non-sensitive JSON metadata.",
-        ),
-        PortSpec(
-            "vector_collection",
-            "out",
-            "data",
-            VECTOR_COLLECTION_DATA_TYPE_ID,
-            label="Vector Collection",
-            description="Locator for the created vector collection.",
-        ),
-    ),
-    properties=(
-        PropertySpec("collection_name", "str", "", "Collection Name"),
-        PropertySpec(
-            "vector_dimension",
-            "int",
-            1,
-            "Vector Dimension",
-            minimum=1,
-            maximum=65_536,
-        ),
-        PropertySpec(
-            "distance_metric",
-            "enum",
-            "Cosine",
-            "Distance Metric",
-            enum_values=("Cosine", "Euclidean"),
-            inline_editor="enum",
-        ),
-        PropertySpec("additional_metadata", "json", {}, "Additional Metadata"),
-    ),
-)
-class CreateVectorCollectionNodePlugin:
-    def execute(self, ctx: ExecutionContext) -> NodeResult:
-        connection_payload = _connection_payload(ctx.inputs.get("vector_database"))
-        file_path = connection_payload["file_path"]
-        collection_name = _validate_collection_name(
-            ctx.inputs.get(
-                "collection_name",
-                ctx.properties.get("collection_name", ""),
-            )
-        )
-        vector_dimension = _validate_vector_dimension(
-            ctx.inputs.get(
-                "vector_dimension",
-                ctx.properties.get("vector_dimension", 1),
-            )
-        )
-        distance_metric = _validate_distance_metric(
-            ctx.inputs.get(
-                "distance_metric",
-                ctx.properties.get("distance_metric", "Cosine"),
-            )
-        )
-        metadata = _copy_additional_metadata(
-            ctx.inputs.get(
-                "additional_metadata",
-                ctx.properties.get("additional_metadata", {}),
-            )
-        )
-        metadata_json = json.dumps(
-            metadata,
-            sort_keys=True,
-            ensure_ascii=False,
-            allow_nan=False,
-            separators=(",", ":"),
-        )
-        metric_code = _DISTANCE_METRIC_CODES[distance_metric]
-
-        connection: sqlite3.Connection | None = None
-        transaction_started = False
-        try:
-            connection = sqlite3.connect(file_path, timeout=5.0, uri=False)
-            try:
-                connection.execute("BEGIN IMMEDIATE")
-                transaction_started = True
-                if _schema_state(connection) != "approved":
-                    raise ValueError(_SQLITE_SCHEMA_ERROR)
-                row = connection.execute(
-                    "SELECT vector_dimension, distance_metric, metadata_json "
-                    "FROM corex_vector_collections WHERE collection_name = ?",
-                    (collection_name,),
-                ).fetchone()
-                if row is None:
-                    connection.execute(
-                        "INSERT INTO corex_vector_collections "
-                        "(collection_name, vector_dimension, distance_metric, metadata_json) "
-                        "VALUES (?, ?, ?, ?)",
-                        (
-                            collection_name,
-                            vector_dimension,
-                            metric_code,
-                            metadata_json,
-                        ),
-                    )
-                elif (
-                    type(row) is not tuple
-                    or len(row) != 3
-                    or type(row[0]) is not int
-                    or type(row[1]) is not int
-                    or type(row[2]) is not str
-                ):
-                    raise RuntimeError(_SQLITE_OPERATION_ERROR)
-                elif row != (vector_dimension, metric_code, metadata_json):
-                    raise ValueError(
-                        "vector collection already exists with different metadata"
-                    )
-                connection.commit()
-                transaction_started = False
-            finally:
-                try:
-                    if transaction_started:
-                        _rollback(connection)
-                finally:
-                    _close(connection)
-        except (sqlite3.Error, OSError):
-            raise RuntimeError(_SQLITE_OPERATION_ERROR) from None
-
-        return NodeResult(
-            outputs={
-                "vector_collection": TypedInlineValue(
-                    VECTOR_COLLECTION_DATA_TYPE_ID,
-                    1,
-                    {
-                        "connection": {
-                            "provider": "sqlite",
-                            "file_path": file_path,
-                        },
-                        "collection_name": collection_name,
-                    },
-                )
-            }
-        )
-
-
-@node_type(
-    type_id=INSPECT_VECTOR_COLLECTION_NODE_TYPE_ID,
-    display_name="Inspect Vector Collection",
-    category_path=("AI", "Vector Database"),
-    icon="database",
-    description="Reads validated metadata for a COREX vector collection.",
-    keywords=("vector", "collection", "inspect", "sqlite"),
-    ports=(
-        PortSpec(
-            "vector_collection",
-            "in",
-            "data",
-            VECTOR_COLLECTION_DATA_TYPE_ID,
-            label="Vector Collection",
-            required=True,
-            description="Vector collection locator to inspect.",
-        ),
-        PortSpec(
-            "name",
-            "out",
-            "data",
-            STRING_DATA_TYPE_ID,
-            label="Name",
-            description="Collection name.",
-        ),
-        PortSpec(
-            "record_count",
-            "out",
-            "data",
-            INTEGER_DATA_TYPE_ID,
-            label="Record Count",
-            description="Record count, fixed at zero until record storage exists.",
-        ),
-        PortSpec(
-            "vector_dimension",
-            "out",
-            "data",
-            INTEGER_DATA_TYPE_ID,
-            label="Vector Dimension",
-            description="Number of scalar components in each vector.",
-        ),
-        PortSpec(
-            "distance_metric",
-            "out",
-            "data",
-            STRING_DATA_TYPE_ID,
-            label="Distance Metric",
-            description="Configured distance metric.",
-        ),
-        PortSpec(
-            "metadata",
-            "out",
-            "data",
-            GRAPH_DICTIONARY_DATA_TYPE_ID,
-            label="Metadata",
-            description="Detached collection metadata.",
-        ),
-    ),
-    properties=(),
-)
-class InspectVectorCollectionNodePlugin:
-    def execute(self, ctx: ExecutionContext) -> NodeResult:
-        collection_payload = _collection_payload(ctx.inputs.get("vector_collection"))
-        raw_connection = collection_payload["connection"]
-        file_path = raw_connection["file_path"]
-        collection_name = collection_payload["collection_name"]
-
-        connection: sqlite3.Connection | None = None
-        transaction_started = False
-        try:
-            connection = sqlite3.connect(file_path, timeout=5.0, uri=False)
-            try:
-                connection.execute("BEGIN")
-                transaction_started = True
-                if _schema_state(connection) != "approved":
-                    raise ValueError(_SQLITE_SCHEMA_ERROR)
-                row = connection.execute(
-                    "SELECT collection_name, vector_dimension, distance_metric, "
-                    "metadata_json FROM corex_vector_collections "
-                    "WHERE collection_name = ?",
-                    (collection_name,),
-                ).fetchone()
-                if row is None:
-                    raise ValueError("vector collection was not found")
-                try:
-                    if (
-                        type(row) is not tuple
-                        or len(row) != 4
-                        or type(row[0]) is not str
-                        or row[0] != collection_name
-                        or type(row[1]) is not int
-                        or not 1 <= row[1] <= 65_536
-                        or type(row[2]) is not int
-                        or row[2] not in _DISTANCE_METRIC_LABELS
-                        or type(row[3]) is not str
-                    ):
-                        raise ValueError
-                    metadata = _copy_additional_metadata(json.loads(row[3]))
-                    if (
-                        json.dumps(
-                            metadata,
-                            sort_keys=True,
-                            ensure_ascii=False,
-                            allow_nan=False,
-                            separators=(",", ":"),
-                        )
-                        != row[3]
-                    ):
-                        raise ValueError
-                except (TypeError, ValueError, OverflowError, UnicodeError):
-                    raise RuntimeError(_SQLITE_OPERATION_ERROR) from None
-                connection.commit()
-                transaction_started = False
-            finally:
-                try:
-                    if transaction_started:
-                        _rollback(connection)
-                finally:
-                    _close(connection)
-        except (sqlite3.Error, OSError):
-            raise RuntimeError(_SQLITE_OPERATION_ERROR) from None
-
-        return NodeResult(
-            outputs={
-                "name": row[0],
-                "record_count": 0,
-                "vector_dimension": row[1],
-                "distance_metric": _DISTANCE_METRIC_LABELS[row[2]],
-                "metadata": metadata,
-            }
-        )
-
-
-COREX_AI_ML_VECTOR_DATABASE_NODE_DESCRIPTORS = tuple(
-    plugin_descriptor(node)
-    for node in (
-        SQLiteVectorDatabaseNodePlugin,
-        CreateVectorCollectionNodePlugin,
-        InspectVectorCollectionNodePlugin,
+def execute_sqlite_vector_database(ctx: ExecutionContext) -> NodeResult:
+    file_path = _validate_sqlite_file_path(
+        ctx.inputs.get("file_path", ctx.properties.get("file_path", ""))
     )
-)
+    connection: sqlite3.Connection | None = None
+    transaction_started = False
+    try:
+        os.makedirs(os.path.dirname(file_path), exist_ok=True)
+        connection = sqlite3.connect(file_path, timeout=5.0, uri=False)
+        try:
+            connection.execute("BEGIN IMMEDIATE")
+            transaction_started = True
+            state = _schema_state(connection)
+            if state == "fresh":
+                connection.execute(_COLLECTION_TABLE_SQL)
+                connection.execute(f"PRAGMA application_id = {_APPLICATION_ID}")
+                connection.execute(f"PRAGMA user_version = {_USER_VERSION}")
+                if _schema_state(connection) != "approved":
+                    raise ValueError(_SQLITE_SCHEMA_ERROR)
+            elif state != "approved":
+                raise ValueError(_SQLITE_SCHEMA_ERROR)
+            connection.commit()
+            transaction_started = False
+        finally:
+            try:
+                if transaction_started:
+                    _rollback(connection)
+            finally:
+                _close(connection)
+    except (sqlite3.Error, OSError):
+        raise RuntimeError(_SQLITE_OPERATION_ERROR) from None
+    return NodeResult(
+        outputs={
+            "vector_database": TypedInlineValue(
+                VECTOR_DB_CONNECTION_DATA_TYPE_ID,
+                1,
+                {"provider": "sqlite", "file_path": file_path},
+            )
+        }
+    )
+
+
+def execute_create_vector_collection(ctx: ExecutionContext) -> NodeResult:
+    connection_payload = _connection_payload(ctx.inputs.get("vector_database"))
+    file_path = connection_payload["file_path"]
+    collection_name = _validate_collection_name(
+        ctx.inputs.get(
+            "collection_name",
+            ctx.properties.get("collection_name", ""),
+        )
+    )
+    vector_dimension = _validate_vector_dimension(
+        ctx.inputs.get(
+            "vector_dimension",
+            ctx.properties.get("vector_dimension", 1),
+        )
+    )
+    distance_metric = _validate_distance_metric(
+        ctx.inputs.get(
+            "distance_metric",
+            ctx.properties.get("distance_metric", "Cosine"),
+        )
+    )
+    metadata = _copy_additional_metadata(
+        ctx.inputs.get(
+            "additional_metadata",
+            ctx.properties.get("additional_metadata", {}),
+        )
+    )
+    metadata_json = json.dumps(
+        metadata,
+        sort_keys=True,
+        ensure_ascii=False,
+        allow_nan=False,
+        separators=(",", ":"),
+    )
+    metric_code = _DISTANCE_METRIC_CODES[distance_metric]
+
+    connection: sqlite3.Connection | None = None
+    transaction_started = False
+    try:
+        connection = sqlite3.connect(file_path, timeout=5.0, uri=False)
+        try:
+            connection.execute("BEGIN IMMEDIATE")
+            transaction_started = True
+            if _schema_state(connection) != "approved":
+                raise ValueError(_SQLITE_SCHEMA_ERROR)
+            row = connection.execute(
+                "SELECT vector_dimension, distance_metric, metadata_json "
+                "FROM corex_vector_collections WHERE collection_name = ?",
+                (collection_name,),
+            ).fetchone()
+            if row is None:
+                connection.execute(
+                    "INSERT INTO corex_vector_collections "
+                    "(collection_name, vector_dimension, distance_metric, metadata_json) "
+                    "VALUES (?, ?, ?, ?)",
+                    (
+                        collection_name,
+                        vector_dimension,
+                        metric_code,
+                        metadata_json,
+                    ),
+                )
+            elif (
+                type(row) is not tuple
+                or len(row) != 3
+                or type(row[0]) is not int
+                or type(row[1]) is not int
+                or type(row[2]) is not str
+            ):
+                raise RuntimeError(_SQLITE_OPERATION_ERROR)
+            elif row != (vector_dimension, metric_code, metadata_json):
+                raise ValueError(
+                    "vector collection already exists with different metadata"
+                )
+            connection.commit()
+            transaction_started = False
+        finally:
+            try:
+                if transaction_started:
+                    _rollback(connection)
+            finally:
+                _close(connection)
+    except (sqlite3.Error, OSError):
+        raise RuntimeError(_SQLITE_OPERATION_ERROR) from None
+
+    return NodeResult(
+        outputs={
+            "vector_collection": TypedInlineValue(
+                VECTOR_COLLECTION_DATA_TYPE_ID,
+                1,
+                {
+                    "connection": {
+                        "provider": "sqlite",
+                        "file_path": file_path,
+                    },
+                    "collection_name": collection_name,
+                },
+            )
+        }
+    )
+
+
+def execute_inspect_vector_collection(ctx: ExecutionContext) -> NodeResult:
+    collection_payload = _collection_payload(ctx.inputs.get("vector_collection"))
+    raw_connection = collection_payload["connection"]
+    file_path = raw_connection["file_path"]
+    collection_name = collection_payload["collection_name"]
+
+    connection: sqlite3.Connection | None = None
+    transaction_started = False
+    try:
+        connection = sqlite3.connect(file_path, timeout=5.0, uri=False)
+        try:
+            connection.execute("BEGIN")
+            transaction_started = True
+            if _schema_state(connection) != "approved":
+                raise ValueError(_SQLITE_SCHEMA_ERROR)
+            row = connection.execute(
+                "SELECT collection_name, vector_dimension, distance_metric, "
+                "metadata_json FROM corex_vector_collections "
+                "WHERE collection_name = ?",
+                (collection_name,),
+            ).fetchone()
+            if row is None:
+                raise ValueError("vector collection was not found")
+            try:
+                if (
+                    type(row) is not tuple
+                    or len(row) != 4
+                    or type(row[0]) is not str
+                    or row[0] != collection_name
+                    or type(row[1]) is not int
+                    or not 1 <= row[1] <= 65_536
+                    or type(row[2]) is not int
+                    or row[2] not in _DISTANCE_METRIC_LABELS
+                    or type(row[3]) is not str
+                ):
+                    raise ValueError
+                metadata = _copy_additional_metadata(json.loads(row[3]))
+                if (
+                    json.dumps(
+                        metadata,
+                        sort_keys=True,
+                        ensure_ascii=False,
+                        allow_nan=False,
+                        separators=(",", ":"),
+                    )
+                    != row[3]
+                ):
+                    raise ValueError
+            except (TypeError, ValueError, OverflowError, UnicodeError):
+                raise RuntimeError(_SQLITE_OPERATION_ERROR) from None
+            connection.commit()
+            transaction_started = False
+        finally:
+            try:
+                if transaction_started:
+                    _rollback(connection)
+            finally:
+                _close(connection)
+    except (sqlite3.Error, OSError):
+        raise RuntimeError(_SQLITE_OPERATION_ERROR) from None
+
+    return NodeResult(
+        outputs={
+            "name": row[0],
+            "record_count": 0,
+            "vector_dimension": row[1],
+            "distance_metric": _DISTANCE_METRIC_LABELS[row[2]],
+            "metadata": metadata,
+        }
+    )
+
 
 __all__ = [
     "BASE_PROBABILITY_DATA_TYPE_ID",
@@ -1132,7 +932,6 @@ __all__ = [
     "COREX_AI_ML_VECTOR_RECORD_CANDIDATE_DATA_TYPES",
     "COREX_AI_ML_VECTOR_DATABASE_CANDIDATE_CONTRACT_MANIFEST",
     "COREX_AI_ML_VECTOR_DATABASE_CANDIDATE_DATA_TYPES",
-    "COREX_AI_ML_VECTOR_DATABASE_NODE_DESCRIPTORS",
     "COREX_AI_ML_WEB_CLIENT_SETTINGS_CANDIDATE_CONTRACT_MANIFEST",
     "COREX_AI_ML_WEB_CLIENT_SETTINGS_CANDIDATE_DATA_TYPES",
     "CREATE_VECTOR_COLLECTION_NODE_TYPE_ID",
@@ -1143,4 +942,7 @@ __all__ = [
     "VECTOR_RECORD_DATA_TYPE_ID",
     "WEB_CLIENT_SETTINGS_DATA_TYPE_ID",
     "WEB_CONTENT_DATA_TYPE_ID",
+    "execute_create_vector_collection",
+    "execute_inspect_vector_collection",
+    "execute_sqlite_vector_database",
 ]

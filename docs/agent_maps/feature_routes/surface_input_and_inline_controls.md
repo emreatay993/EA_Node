@@ -12,6 +12,8 @@ Use this for inline editors, surface controls, editable passive surfaces, text/p
 - `signal plot inline control height`
 
 ## Start Here
+- `ea_node_editor/nodes/builtin_functions/data_control.py`
+- `ea_node_editor/nodes/builtins/data_control.py`
 - `ea_node_editor/ui_qml/components/graph/surface_controls/GraphSurfaceListEditor.qml`
 - `ea_node_editor/ui_qml/components/graph/GraphNodeSettingsGroupsLayer.qml`
 - `ea_node_editor/ui_qml/graph_geometry/standard_metrics.py`
@@ -74,6 +76,10 @@ Use this for inline editors, surface controls, editable passive surfaces, text/p
 - Standard one-line text, number, path, enum, and color controls publish `textFitWidth`; `GraphInlinePropertiesLayer.qml` combines the widest eligible row with stable label and row chrome for right-handle fit-to-displayed-text. Path measurement follows the current filename/full-path display mode without changing it. Toggle, textarea, rich, and custom surfaces do not participate.
 - Source-storage dropdowns use `SourceStorageModeUtils.js` for the shared `temp://` / `saved://` equals Internal rule. Keep that helper aligned with inspector `path_current_source_mode` projection and floating-toolbar `source_storage` popovers.
 - The boolean inline editor (`GraphSurfaceCheckBox.qml`) renders as a pill toggle switch but keeps its `CheckBox` base, `controlStarted`, and the `resolvedIndicatorFillColor`/`resolvedIndicatorBorderColor` checked→accent semantics pinned by `tests/qml_quick/tst_graph_surface_controls.qml`. `data.boolean_toggle` reuses it inside `GraphBooleanToggleSurface.qml`; its real-host geometry and commit path are pinned by `tests/test_boolean_toggle_surface.py`.
+- Boolean Toggle, Number Slider, Panel, and Select declarations live in the inert
+  reserved function source. Keep normalization, warnings, and size-resolver side
+  effects in `nodes/builtins/data_control.py`; bootstrap must import that helper
+  module even though it no longer contributes descriptors.
 - The four compact-pill surfaces—Boolean Toggle, Number Slider, Select, and Trigger—derive their node width from the full title instead of eliding the label. A rename may grow or shrink the pill, shifts `x` left or right to preserve the node's right edge, and reaches history/persistence as one atomic title-plus-geometry mutation rather than a follow-up resize entry.
 - `data.select` reuses `GraphSurfaceComboBox.qml` and `GraphSurfaceButton.qml` in `GraphSelectSurface.qml`. Both controls publish embedded interactive rectangles, while the compact title reuses the shared node-help tooltip text and policy. The gear action opens the root-layer `GraphSelectSettingsPopover.qml`; row/header checks support protected multi-delete, a single checked row can move up/down without losing its checked state, Cancel/close stay draft-only, and OK commits ordered Name/Value options plus `selected_index` in one undoable property-map mutation. `tests/test_select_surface.py` owns the real-host dropdown, tooltip, elapsed suppression, and real-canvas dialog paths.
 - `data.panel` renders through `GraphPanelSurface.qml` and opens the root-layer `GraphPanelEditorPopover.qml` through `GraphNodeHost.dispatchSurfaceAction("panel_edit")`; setting only the surface-local editor flag does not open the canvas overlay. Display mode publishes no embedded interactive rectangle, preserving node select/drag gestures. Populated Data mode adds a local double-tap handler inside its `ListView`, because the flickable otherwise consumes the host gesture. The compact editor keeps Text/Data, multiline value, and Auto-resize changes in a draft; Cancel or Escape discards them and OK or Enter commits the complete property map once. Shift+Enter inserts a line break.

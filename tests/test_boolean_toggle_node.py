@@ -5,7 +5,7 @@ from ea_node_editor.graph.records import NodeInstance
 from ea_node_editor.nodes.bootstrap import build_builtin_registry
 from ea_node_editor.nodes.builtins.data_control import (
     BOOLEAN_TOGGLE_TYPE_ID,
-    BooleanToggleNodePlugin,
+    execute_boolean_toggle,
 )
 from ea_node_editor.nodes.execution_context import ExecutionContext
 from ea_node_editor.persistence.serializer import JsonProjectSerializer
@@ -55,10 +55,10 @@ def test_boolean_toggle_contract_and_runtime() -> None:
         "toggle",
         "toggle",
     )
-    assert BooleanToggleNodePlugin().execute(_context(False)).outputs == {
+    assert execute_boolean_toggle(_context(False)).outputs == {
         "boolean": DataTree.from_item(False)
     }
-    assert BooleanToggleNodePlugin().execute(_context(True)).outputs == {
+    assert execute_boolean_toggle(_context(True)).outputs == {
         "boolean": DataTree.from_item(True)
     }
 

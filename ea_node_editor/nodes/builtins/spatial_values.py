@@ -1,21 +1,14 @@
 # Purpose: Declare strict COREX spatial inline-value contracts and staged transforms.
 # Map: subsystems/nodes_registry_builtins.md
 # Tests: tests/test_spatial_values.py, tests/test_transform3d.py
-# Landmarks: make_point2d_value; make_transform3d_value; ConstructTransformNodePlugin; DeconstructTransformNodePlugin; COREX_SPATIAL_VALUES_DECONSTRUCT_POINT_CANDIDATE_CONTRACT_MANIFEST; COREX_SPATIAL_VALUES_FIELD_VECTOR_CANDIDATE_CONTRACT_MANIFEST; COREX_SPATIAL_VALUES_FIELD_VECTOR_CONTAINER_CANDIDATE_CONTRACT_MANIFEST; COREX_SPATIAL_VALUES_PLANAR_TREE_PATTERN_CANDIDATE_CONTRACT_MANIFEST; COREX_SPATIAL_VALUES_COORDINATE_SYSTEM_CANDIDATE_CONTRACT_MANIFEST
+# Landmarks: make_point2d_value; make_transform3d_value; COREX_SPATIAL_VALUES_DECONSTRUCT_POINT_CANDIDATE_CONTRACT_MANIFEST; COREX_SPATIAL_VALUES_FIELD_VECTOR_CANDIDATE_CONTRACT_MANIFEST; COREX_SPATIAL_VALUES_FIELD_VECTOR_CONTAINER_CANDIDATE_CONTRACT_MANIFEST; COREX_SPATIAL_VALUES_PLANAR_TREE_PATTERN_CANDIDATE_CONTRACT_MANIFEST; COREX_SPATIAL_VALUES_COORDINATE_SYSTEM_CANDIDATE_CONTRACT_MANIFEST
 
 from __future__ import annotations
 
 import math
 from types import MappingProxyType
 
-from ea_node_editor.nodes.core_data_types import (
-    DOUBLE_DATA_TYPE_ID,
-    GRAPH_DATA_TYPE_ID,
-    INTEGER_DATA_TYPE_ID,
-)
-from ea_node_editor.nodes.decorators import node_type, plugin_descriptor
-from ea_node_editor.nodes.execution_context import ExecutionContext, NodeResult
-from ea_node_editor.nodes.node_specs import PortSpec, PropertySpec
+from ea_node_editor.nodes.core_data_types import GRAPH_DATA_TYPE_ID
 from ea_node_editor.nodes.builtins.geometry_contracts import (
     COORDINATE_SYSTEM_DATA_TYPE_ID as _COORDINATE_SYSTEM_DATA_TYPE_ID,
     SPATIAL_OBJECT_DATA_TYPE_ID as _SPATIAL_OBJECT_DATA_TYPE_ID,
@@ -59,8 +52,6 @@ XY_PLANE_TYPE_ID = "reference.xy_plane"
 CONSTRUCT_PLANE_TYPE_ID = "reference.construct_plane"
 FIELD_VECTOR_CONTAINER_TYPE_ID = "math.field_vector_container"
 VECTOR_LENGTH_TYPE_ID = "reference.vector_length"
-CONSTRUCT_TRANSFORM_TYPE_ID = "geometry.construct_transform"
-DECONSTRUCT_TRANSFORM_TYPE_ID = "geometry.deconstruct_transform"
 CHAIN_TRANSFORMS_TYPE_ID = "geometry.chain_transforms"
 UNCHAIN_TRANSFORMS_TYPE_ID = "geometry.unchain_transforms"
 
@@ -517,134 +508,6 @@ POINT_2D_DATA_TYPE = DataTypeSpec(
 )
 
 
-def _order_value(ctx: ExecutionContext) -> int:
-    return _transform_order(ctx.inputs.get("order", ctx.properties.get("order", 0)))
-
-
-@node_type(
-    type_id=CONSTRUCT_TRANSFORM_TYPE_ID,
-    display_name="Construct Transform",
-    category_path=("Geometry", "Transform"),
-    icon="matrix",
-    description="Construct a 4x4 transformation matrix from 16 entries.",
-    keywords=("transform", "matrix", "construct"),
-    ports=(
-        PortSpec(
-            "entries",
-            "in",
-            "data",
-            DOUBLE_DATA_TYPE_ID,
-            label="Entries",
-            required=True,
-            data_access="list",
-        ),
-        PortSpec(
-            "order",
-            "in",
-            "data",
-            INTEGER_DATA_TYPE_ID,
-            label="Order",
-            required=True,
-            uses_property_default=True,
-        ),
-        PortSpec(
-            "transform",
-            "out",
-            "data",
-            TRANSFORM_3D_DATA_TYPE_ID,
-            label="Transform",
-        ),
-    ),
-    properties=(
-        PropertySpec(
-            "order",
-            "int",
-            0,
-            "Order",
-            minimum=0,
-            maximum=1,
-            step=1,
-            inline_editor="number",
-        ),
-    ),
-)
-class ConstructTransformNodePlugin:
-    def execute(self, ctx: ExecutionContext) -> NodeResult:
-        entries = _transform_entries_input(ctx.inputs["entries"])
-        return NodeResult(
-            outputs={
-                "transform": make_transform3d_value(
-                    _ordered_entries(entries, _order_value(ctx))
-                )
-            }
-        )
-
-
-@node_type(
-    type_id=DECONSTRUCT_TRANSFORM_TYPE_ID,
-    display_name="Deconstruct Transform",
-    category_path=("Geometry", "Transform"),
-    icon="matrix",
-    description="Deconstruct a 4x4 transformation matrix into its 16 entries.",
-    keywords=("transform", "matrix", "deconstruct"),
-    ports=(
-        PortSpec(
-            "transform",
-            "in",
-            "data",
-            TRANSFORM_3D_DATA_TYPE_ID,
-            label="Transform",
-            required=True,
-        ),
-        PortSpec(
-            "order",
-            "in",
-            "data",
-            INTEGER_DATA_TYPE_ID,
-            label="Order",
-            required=True,
-            uses_property_default=True,
-        ),
-        PortSpec(
-            "entries",
-            "out",
-            "data",
-            DOUBLE_DATA_TYPE_ID,
-            label="Entries",
-            data_access="list",
-        ),
-    ),
-    properties=(
-        PropertySpec(
-            "order",
-            "int",
-            0,
-            "Order",
-            minimum=0,
-            maximum=1,
-            step=1,
-            inline_editor="number",
-        ),
-    ),
-)
-class DeconstructTransformNodePlugin:
-    def execute(self, ctx: ExecutionContext) -> NodeResult:
-        canonical_entries = transform3d_entries(ctx.inputs["transform"])
-        return NodeResult(
-            outputs={
-                "entries": list(_ordered_entries(canonical_entries, _order_value(ctx)))
-            }
-        )
-
-
-COREX_SPATIAL_VALUES_TRANSFORM_NODE_DESCRIPTORS = (
-    plugin_descriptor(ConstructTransformNodePlugin),
-    plugin_descriptor(DeconstructTransformNodePlugin),
-)
-
-
-
-
 COREX_SPATIAL_VALUES_STAGE_3_CANDIDATE_DATA_TYPES = (
     *COREX_SPATIAL_VALUE_DATA_TYPES,
     TRANSFORM_3D_DATA_TYPE,
@@ -810,12 +673,8 @@ __all__ = [
     "CHAINED_TRANSFORM_3D_DATA_TYPE_ID",
     "CHAIN_TRANSFORMS_TYPE_ID",
     "CONCRETE_COORDINATE_SYSTEM_DATA_TYPE_ID",
-    "CONSTRUCT_TRANSFORM_TYPE_ID",
-    "ConstructTransformNodePlugin",
     "DECONSTRUCT_POINT_TYPE_ID",
     "DECONSTRUCT_VECTOR_TYPE_ID",
-    "DECONSTRUCT_TRANSFORM_TYPE_ID",
-    "DeconstructTransformNodePlugin",
     "FIELD_VECTOR_CONTAINER_TYPE_ID",
     "FIELD_VECTOR_DATA_TYPE_ID",
     "IVECTOR_DATA_TYPE_ID",
@@ -846,7 +705,6 @@ __all__ = [
     "COREX_SPATIAL_VALUES_STAGE_3_CANDIDATE_CONTRACT_MANIFEST",
     "COREX_SPATIAL_VALUES_STAGE_3_CANDIDATE_DATA_TYPES",
     "COREX_SPATIAL_VALUES_REVERSE_VECTOR_CANDIDATE_CONTRACT_MANIFEST",
-    "COREX_SPATIAL_VALUES_TRANSFORM_NODE_DESCRIPTORS",
     "COREX_SPATIAL_VALUES_VECTOR_2D_CANDIDATE_CONTRACT_MANIFEST",
     "COREX_SPATIAL_VALUES_VECTOR_2D_CANDIDATE_DATA_TYPES",
     "TRANSFORM_3D_DATA_TYPE",

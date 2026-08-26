@@ -15,6 +15,7 @@ from corex import _unknown_setting_message
 from ea_node_editor.nodes import declaration_engine as _engine
 from ea_node_editor.nodes.function_plugin import INTERNAL_BUILTIN_FUNCTION_OWNER_ID
 from ea_node_editor.nodes.node_specs import (
+    NodeRenderQualitySpec,
     NodeTypeSpec,
     PortSpec,
     PropertyConditionSpec,
@@ -31,7 +32,15 @@ _CUSTOM_TYPE_ID = re.compile(
 _NODE_FIELDS = frozenset(
     {"id", "name", "category", "description", "keywords", "icon"}
 )
-_INTERNAL_NODE_FIELDS = _NODE_FIELDS | {"_readiness_requirements"}
+_INTERNAL_NODE_FIELDS = _NODE_FIELDS | {
+    "_collapsible",
+    "_property_output_collisions",
+    "_readiness_requirements",
+    "_render_quality_tiers",
+    "_surface_family",
+    "_surface_variant",
+}
+_RENDER_QUALITY_TIERS = frozenset({"full", "reduced", "proxy"})
 _REQUIRED_NODE_FIELDS = frozenset({"id", "name", "category"})
 _RESERVED_DECLARATION_NAMES = frozenset(
     {"ctx", "settings", "to_dict", "corex", "__builtins__"}
@@ -302,6 +311,40 @@ def _node_metadata(
         or len(set(keywords)) != len(keywords)
     ):
         raise fail(decorator, "@corex.node keywords must be unique non-empty strings")
+    collapsible = values.get("_collapsible", True)
+    if not isinstance(collapsible, bool):
+        raise fail(decorator, "_collapsible must be true or false")
+    surface_family = values.get("_surface_family", "standard")
+    if (
+        not isinstance(surface_family, str)
+        or not surface_family
+        or surface_family != surface_family.strip()
+    ):
+        raise fail(decorator, "_surface_family must be a non-empty trimmed string")
+    surface_variant = values.get("_surface_variant", "")
+    if not isinstance(surface_variant, str) or surface_variant != surface_variant.strip():
+        raise fail(decorator, "_surface_variant must be a trimmed string")
+    render_quality_tiers = values.get("_render_quality_tiers", ("full",))
+    if not isinstance(render_quality_tiers, (list, tuple)):
+        raise fail(decorator, "_render_quality_tiers must be a tuple or list literal")
+    if not 1 <= len(render_quality_tiers) <= len(_RENDER_QUALITY_TIERS):
+        raise fail(decorator, "_render_quality_tiers must contain one to three tiers")
+    if any(
+        not isinstance(tier, str) or tier not in _RENDER_QUALITY_TIERS
+        for tier in render_quality_tiers
+    ):
+        raise fail(
+            decorator,
+            "_render_quality_tiers values must be 'full', 'reduced', or 'proxy'",
+        )
+    if len(set(render_quality_tiers)) != len(render_quality_tiers):
+        raise fail(decorator, "_render_quality_tiers must not contain duplicates")
+    property_output_collisions = _key_tuple(
+        values.get("_property_output_collisions", ()),
+        field="_property_output_collisions",
+        fail=fail,
+        node=decorator,
+    )
     return {
         "type_id": type_id,
         "display_name": display_name,
@@ -309,7 +352,12 @@ def _node_metadata(
         "description": description,
         "keywords": tuple(keywords),
         "icon": icon,
+        "collapsible": collapsible,
+        "property_output_collisions": property_output_collisions,
         "readiness_requirements": values.get("_readiness_requirements", ()),
+        "render_quality_tiers": tuple(render_quality_tiers),
+        "surface_family": surface_family,
+        "surface_variant": surface_variant,
     }
 
 
@@ -684,6 +732,7 @@ def _parse_function(
                 "_port_label",
                 "_port_required",
                 "_port_structure",
+                "_port_uses_property_default",
                 "_port_value_type",
             }
             if private_port_fields & values.keys() and not _engine.bool_value(
@@ -704,17 +753,42 @@ def _parse_function(
                     ).strip(),
                     required=values.get("_port_required", False),
                     data_access=data_access,
-                    uses_property_default=True,
+                    uses_property_default=values.get(
+                        "_port_uses_property_default", True
+                    ),
                     accepted_data_types=accepted,
                 )
                 if _engine.bool_value(values, "port")
                 else None
             )
+            if port is not None and not port.uses_property_default:
+                input_keys.append(key)
             control_keys.append(key)
         else:
             raise fail(decorator, f"Unsupported decorator @corex.{name}")
 
-        if key in used_keys:
+        allowed_property_output_collision = (
+            allow_internal_metadata
+            and key in metadata["property_output_collisions"]
+            and (
+                (
+                    name in _engine.CONTROL_DECORATORS
+                    and port is None
+                    and key in output_keys
+                    and control_keys.count(key) == 1
+                )
+                or (
+                    name == "output"
+                    and key in control_keys
+                    and output_keys.count(key) == 1
+                    and not any(
+                        existing.key == key and existing.direction == "in"
+                        for existing in ports
+                    )
+                )
+            )
+        )
+        if key in used_keys and not allowed_property_output_collision:
             raise fail(decorator, f"Duplicate or cross-direction key {key!r}")
         used_keys.add(key)
         if port is not None:
@@ -740,6 +814,15 @@ def _parse_function(
                     ),
                 )
             )
+
+    actual_property_output_collisions = {
+        prop.key for prop in properties
+    } & set(output_keys)
+    if set(metadata["property_output_collisions"]) != actual_property_output_collisions:
+        raise fail(
+            decorators[0],
+            "_property_output_collisions must name every actual property/output collision",
+        )
 
     args = function.args
     if (
@@ -798,8 +881,14 @@ def _parse_function(
             icon=metadata["icon"],
             ports=tuple(ports),
             properties=tuple(properties),
+            collapsible=metadata["collapsible"],
             description=metadata["description"],
             is_async=is_async,
+            surface_family=metadata["surface_family"],
+            surface_variant=metadata["surface_variant"],
+            render_quality=NodeRenderQualitySpec(
+                supported_quality_tiers=metadata["render_quality_tiers"]
+            ),
             keywords=metadata["keywords"],
             settings_groups=settings_groups,
             readiness_requirements=readiness_requirements,

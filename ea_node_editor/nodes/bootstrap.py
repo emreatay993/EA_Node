@@ -8,14 +8,8 @@ from pathlib import Path
 from collections.abc import Iterable
 from typing import Any
 
+from ea_node_editor.nodes.builtins import data_control as _data_control  # noqa: F401
 from ea_node_editor.nodes.builtins.core import CORE_NODE_DESCRIPTORS
-from ea_node_editor.nodes.builtins.data_control import DATA_CONTROL_NODE_DESCRIPTORS
-from ea_node_editor.nodes.builtins.engineering_imports import (
-    ENGINEERING_IMPORT_NODE_DESCRIPTORS,
-)
-from ea_node_editor.nodes.builtins.engineering_viewer import (
-    ENGINEERING_VIEWER_NODE_DESCRIPTORS,
-)
 from ea_node_editor.nodes.builtins.excalidraw import EXCALIDRAW_NODE_DESCRIPTORS
 from ea_node_editor.nodes.builtins.integrations_file_io import FILE_IO_NODE_DESCRIPTORS
 from ea_node_editor.nodes.builtins.integrations_ssh_sftp import (
@@ -26,7 +20,6 @@ from ea_node_editor.nodes.builtins.integrations_ssh_sftp import (
 from ea_node_editor.nodes.builtins.jupyter_notebook import (
     JUPYTER_NOTEBOOK_NODE_DESCRIPTORS,
 )
-from ea_node_editor.nodes.builtins.math_interval import MATH_INTERVAL_NODE_DESCRIPTORS
 from ea_node_editor.nodes.builtins.passive_annotation import (
     PASSIVE_ANNOTATION_NODE_DESCRIPTORS,
 )
@@ -43,7 +36,6 @@ from ea_node_editor.nodes.builtins.ai_ml_contracts import (
     COREX_AI_ML_CONTRACTS_OWNER_ID,
     COREX_AI_ML_CONTRACTS_OWNER_VERSION,
     COREX_AI_ML_VECTOR_DATABASE_CANDIDATE_CONTRACT_MANIFEST,
-    COREX_AI_ML_VECTOR_DATABASE_NODE_DESCRIPTORS,
 )
 from ea_node_editor.nodes.builtins.core_values import (
     COREX_CORE_VALUE_CONTRACT_MANIFEST,
@@ -70,10 +62,8 @@ from ea_node_editor.nodes.builtins.geometry_primitives import (
     COREX_GEOMETRY_PRIMITIVES_CONTRACT_MANIFEST,
     COREX_GEOMETRY_PRIMITIVES_OWNER_ID,
     COREX_GEOMETRY_PRIMITIVES_OWNER_VERSION,
-    COREX_GEOMETRY_PRIMITIVE_NODE_DESCRIPTORS,
 )
 from ea_node_editor.nodes.builtins.mesh_contracts import (
-    COREX_DECONSTRUCT_MESH_FACE_CANDIDATE_NODE_DESCRIPTORS,
     COREX_MESH_CONTRACTS_OWNER_ID,
     COREX_MESH_CONTRACTS_OWNER_VERSION,
     COREX_MESH_PARAMETER_CANDIDATE_CONTRACT_MANIFEST,
@@ -85,13 +75,11 @@ from ea_node_editor.nodes.builtins.voxel_contracts import (
 )
 from ea_node_editor.nodes.builtins.rich_value_nodes import (
     COREX_RICH_VALUE_LLM_CANDIDATE_CONTRACT_MANIFEST,
-    COREX_RICH_VALUE_NODE_DESCRIPTORS,
     COREX_RICH_VALUE_OWNER_ID,
     COREX_RICH_VALUE_OWNER_VERSION,
 )
 from ea_node_editor.nodes.builtins.reporting import (
     COREX_REPORTING_CONTRACT_MANIFEST,
-    COREX_REPORTING_NODE_DESCRIPTORS,
     COREX_REPORTING_OWNER_ID,
     COREX_REPORTING_OWNER_VERSION,
 )
@@ -99,16 +87,11 @@ from ea_node_editor.nodes.builtins.security_contracts import (
     COREX_SECURITY_CONTRACT_MANIFEST,
     COREX_SECURITY_OWNER_ID,
     COREX_SECURITY_OWNER_VERSION,
-    COREX_WINDOWS_AUTHENTICATION_NODE_CONTRACT_MANIFEST,
-    COREX_WINDOWS_AUTHENTICATION_NODE_DESCRIPTORS,
-    COREX_WINDOWS_AUTHENTICATION_NODE_OWNER_ID,
-    COREX_WINDOWS_AUTHENTICATION_NODE_OWNER_VERSION,
 )
 from ea_node_editor.nodes.builtins.spatial_values import (
     COREX_SPATIAL_VALUES_OWNER_ID,
     COREX_SPATIAL_VALUES_OWNER_VERSION,
     COREX_SPATIAL_VALUES_COORDINATE_SYSTEM_CANDIDATE_CONTRACT_MANIFEST,
-    COREX_SPATIAL_VALUES_TRANSFORM_NODE_DESCRIPTORS,
 )
 from ea_node_editor.nodes.builtins.tree_path import (
     COREX_TREE_PATH_CONTRACT_MANIFEST,
@@ -122,7 +105,6 @@ from ea_node_editor.nodes.builtins.units import (
 )
 from ea_node_editor.nodes.builtins.viewer_viewport import (
     COREX_VIEWER_VIEWPORT_CONTRACT_MANIFEST,
-    COREX_VIEWER_VIEWPORT_NODE_DESCRIPTORS,
     COREX_VIEWER_VIEWPORT_OWNER_ID,
     COREX_VIEWER_VIEWPORT_OWNER_VERSION,
 )
@@ -141,19 +123,7 @@ from ea_node_editor.settings import plugin_generations_dir, plugins_dir
 
 BUILTIN_NODE_DESCRIPTORS = (
     *CORE_NODE_DESCRIPTORS,
-    *DATA_CONTROL_NODE_DESCRIPTORS,
     *FILE_IO_NODE_DESCRIPTORS,
-    *ENGINEERING_IMPORT_NODE_DESCRIPTORS,
-    *ENGINEERING_VIEWER_NODE_DESCRIPTORS,
-    *COREX_AI_ML_VECTOR_DATABASE_NODE_DESCRIPTORS,
-    *COREX_RICH_VALUE_NODE_DESCRIPTORS,
-    *COREX_GEOMETRY_PRIMITIVE_NODE_DESCRIPTORS,
-    *MATH_INTERVAL_NODE_DESCRIPTORS,
-    *COREX_SPATIAL_VALUES_TRANSFORM_NODE_DESCRIPTORS,
-    *COREX_DECONSTRUCT_MESH_FACE_CANDIDATE_NODE_DESCRIPTORS,
-    *COREX_VIEWER_VIEWPORT_NODE_DESCRIPTORS,
-    *COREX_REPORTING_NODE_DESCRIPTORS,
-    *COREX_WINDOWS_AUTHENTICATION_NODE_DESCRIPTORS,
     *PLOT_NODE_DESCRIPTORS,
     *SUBNODE_NODE_DESCRIPTORS,
     *PASSIVE_FLOWCHART_NODE_DESCRIPTORS,
@@ -196,7 +166,7 @@ def build_builtin_registry(*, generation_root: Path | None = None) -> NodeRegist
     )
     registry.register_plugin_bundle(
         COREX_MESH_PARAMETER_CANDIDATE_CONTRACT_MANIFEST,
-        COREX_DECONSTRUCT_MESH_FACE_CANDIDATE_NODE_DESCRIPTORS,
+        (),
         owner_id=COREX_MESH_CONTRACTS_OWNER_ID,
         owner_version=COREX_MESH_CONTRACTS_OWNER_VERSION,
         source_label="ea_node_editor.nodes.builtins.mesh_contracts",
@@ -210,21 +180,21 @@ def build_builtin_registry(*, generation_root: Path | None = None) -> NodeRegist
     )
     registry.register_plugin_bundle(
         COREX_AI_ML_VECTOR_DATABASE_CANDIDATE_CONTRACT_MANIFEST,
-        COREX_AI_ML_VECTOR_DATABASE_NODE_DESCRIPTORS,
+        (),
         owner_id=COREX_AI_ML_CONTRACTS_OWNER_ID,
         owner_version=COREX_AI_ML_CONTRACTS_OWNER_VERSION,
         source_label="ea_node_editor.nodes.builtins.ai_ml_contracts",
     )
     registry.register_plugin_bundle(
         COREX_RICH_VALUE_LLM_CANDIDATE_CONTRACT_MANIFEST,
-        COREX_RICH_VALUE_NODE_DESCRIPTORS,
+        (),
         owner_id=COREX_RICH_VALUE_OWNER_ID,
         owner_version=COREX_RICH_VALUE_OWNER_VERSION,
         source_label="ea_node_editor.nodes.builtins.rich_value_nodes",
     )
     registry.register_plugin_bundle(
         COREX_GEOMETRY_PRIMITIVES_CONTRACT_MANIFEST,
-        COREX_GEOMETRY_PRIMITIVE_NODE_DESCRIPTORS,
+        (),
         owner_id=COREX_GEOMETRY_PRIMITIVES_OWNER_ID,
         owner_version=COREX_GEOMETRY_PRIMITIVES_OWNER_VERSION,
         source_label="ea_node_editor.nodes.builtins.geometry_primitives",
@@ -260,7 +230,7 @@ def build_builtin_registry(*, generation_root: Path | None = None) -> NodeRegist
     )
     registry.register_plugin_bundle(
         COREX_SPATIAL_VALUES_COORDINATE_SYSTEM_CANDIDATE_CONTRACT_MANIFEST,
-        COREX_SPATIAL_VALUES_TRANSFORM_NODE_DESCRIPTORS,
+        (),
         owner_id=COREX_SPATIAL_VALUES_OWNER_ID,
         owner_version=COREX_SPATIAL_VALUES_OWNER_VERSION,
         source_label="ea_node_editor.nodes.builtins.spatial_values",
@@ -271,14 +241,14 @@ def build_builtin_registry(*, generation_root: Path | None = None) -> NodeRegist
     )
     registry.register_plugin_bundle(
         COREX_VIEWER_VIEWPORT_CONTRACT_MANIFEST,
-        COREX_VIEWER_VIEWPORT_NODE_DESCRIPTORS,
+        (),
         owner_id=COREX_VIEWER_VIEWPORT_OWNER_ID,
         owner_version=COREX_VIEWER_VIEWPORT_OWNER_VERSION,
         source_label="ea_node_editor.nodes.builtins.viewer_viewport",
     )
     registry.register_plugin_bundle(
         COREX_REPORTING_CONTRACT_MANIFEST,
-        COREX_REPORTING_NODE_DESCRIPTORS,
+        (),
         owner_id=COREX_REPORTING_OWNER_ID,
         owner_version=COREX_REPORTING_OWNER_VERSION,
         source_label="ea_node_editor.nodes.builtins.reporting",
@@ -288,13 +258,6 @@ def build_builtin_registry(*, generation_root: Path | None = None) -> NodeRegist
         (),
         owner_id=COREX_SECURITY_OWNER_ID,
         owner_version=COREX_SECURITY_OWNER_VERSION,
-        source_label="ea_node_editor.nodes.builtins.security_contracts",
-    )
-    registry.register_plugin_bundle(
-        COREX_WINDOWS_AUTHENTICATION_NODE_CONTRACT_MANIFEST,
-        COREX_WINDOWS_AUTHENTICATION_NODE_DESCRIPTORS,
-        owner_id=COREX_WINDOWS_AUTHENTICATION_NODE_OWNER_ID,
-        owner_version=COREX_WINDOWS_AUTHENTICATION_NODE_OWNER_VERSION,
         source_label="ea_node_editor.nodes.builtins.security_contracts",
     )
     registry.register_plugin_bundle(
@@ -312,21 +275,7 @@ def build_builtin_registry(*, generation_root: Path | None = None) -> NodeRegist
         registry,
         generation_root=generation_root or plugin_generations_dir(),
     )
-    registry.register_descriptors(
-        descriptor
-        for descriptor in BUILTIN_NODE_DESCRIPTORS
-        if descriptor
-        not in (
-            *COREX_AI_ML_VECTOR_DATABASE_NODE_DESCRIPTORS,
-            *COREX_RICH_VALUE_NODE_DESCRIPTORS,
-            *COREX_GEOMETRY_PRIMITIVE_NODE_DESCRIPTORS,
-            *COREX_SPATIAL_VALUES_TRANSFORM_NODE_DESCRIPTORS,
-            *COREX_DECONSTRUCT_MESH_FACE_CANDIDATE_NODE_DESCRIPTORS,
-            *COREX_VIEWER_VIEWPORT_NODE_DESCRIPTORS,
-            *COREX_REPORTING_NODE_DESCRIPTORS,
-            *COREX_WINDOWS_AUTHENTICATION_NODE_DESCRIPTORS,
-        )
-    )
+    registry.register_descriptors(BUILTIN_NODE_DESCRIPTORS)
     registry.freeze()
     return registry
 

@@ -34,7 +34,7 @@ from ea_node_editor.execution.worker_services import WorkerServices
 from tests.typed_handle_support import core_worker_services
 from ea_node_editor.graph.effective_ports import ports_compatible
 from ea_node_editor.nodes.bootstrap import build_builtin_registry
-from ea_node_editor.nodes.builtins.engineering_imports import FeImportNodePlugin
+from ea_node_editor.nodes.builtins.engineering_imports import execute_engineering_import
 from ea_node_editor.nodes.execution_context import ExecutionContext
 
 
@@ -1773,8 +1773,8 @@ class EngineeringImportNodeTests(unittest.TestCase):
             services = _services(Path(temp_dir) / "cache")
 
             context = _context(path=source_path, services=services)
-            result = FeImportNodePlugin().execute(context)
-            repeated = FeImportNodePlugin().execute(context)
+            result = execute_engineering_import(context, source_kind="fe")
+            repeated = execute_engineering_import(context, source_kind="fe")
 
             self.assertNotIn("exec_out", result.outputs)
             scene_ref = result.outputs["scene"]
@@ -1819,7 +1819,7 @@ class EngineeringImportNodeTests(unittest.TestCase):
             context = _context(path=root / "missing.vtu", services=services)
             context.inputs["path"] = str(source_path)
 
-            result = FeImportNodePlugin().execute(context)
+            result = execute_engineering_import(context, source_kind="fe")
 
             prepared = services.resolve_handle(
                 result.outputs["scene"],

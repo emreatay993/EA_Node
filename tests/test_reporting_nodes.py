@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+from dataclasses import asdict
+import json
+from pathlib import Path
 
 import pytest
 
@@ -7,39 +10,24 @@ from ea_node_editor.common.payload_tools import INLINE_PAYLOAD_MAX_BYTES
 from ea_node_editor.nodes.bootstrap import (
     build_builtin_registry,
 )
+from ea_node_editor.nodes.builtin_functions.reporting import (
+    SOURCE as REPORTING_SOURCE,
+)
 from ea_node_editor.nodes.builtins.reporting import (
     FLOWCHART_NODE_DATA_TYPE_ID,
     MARKDOWN_FLOWCHART_NODE_TYPE_ID,
     MARKDOWN_FLOWCHART_TYPE_ID,
-    COREX_REPORTING_NODE_DESCRIPTORS,
     is_flowchart_node_payload,
     make_flowchart_node_value,
+    render_flowchart,
 )
-from ea_node_editor.nodes.execution_context import ExecutionContext
+from ea_node_editor.nodes.function_plugin import INTERNAL_BUILTIN_FUNCTION_OWNER_ID
+from ea_node_editor.nodes.plugin_declaration import discover_plugin_declarations
 from ea_node_editor.runtime_contracts import (
     TypedInlineValue,
     deserialize_runtime_value,
     serialize_runtime_value,
 )
-
-
-def _context(inputs: dict[str, object]) -> ExecutionContext:
-    return ExecutionContext(
-        run_id="run",
-        node_id="node",
-        workspace_id="workspace",
-        inputs=inputs,
-        properties={},
-        emit_log=lambda _level, _message: None,
-    )
-
-
-def _plugin(type_id: str):
-    return next(
-        descriptor.factory()
-        for descriptor in COREX_REPORTING_NODE_DESCRIPTORS
-        if descriptor.spec.type_id == type_id
-    )
 
 
 def _plain_node(
@@ -59,8 +47,32 @@ def _plain_node(
     }
 
 
+def test_reporting_function_specs_match_frozen_catalog() -> None:
+    declarations = discover_plugin_declarations(
+        REPORTING_SOURCE,
+        filename="builtin_functions/reporting.py",
+        allow_reserved_ids=True,
+        owner_id=INTERNAL_BUILTIN_FUNCTION_OWNER_ID,
+    )
+    ids = {MARKDOWN_FLOWCHART_NODE_TYPE_ID, MARKDOWN_FLOWCHART_TYPE_ID}
+    golden = json.loads(
+        (
+            Path(__file__).parent
+            / "fixtures"
+            / "node_catalog"
+            / "pre_cutover_non_dpf_catalog.json"
+        ).read_text(encoding="utf-8")
+    )
+    expected = {
+        row["spec"]["type_id"]: row["spec"]
+        for row in golden
+        if row["spec"]["type_id"] in ids
+    }
 
-
+    assert {
+        declaration.spec.type_id: json.loads(json.dumps(asdict(declaration.spec)))
+        for declaration in declarations
+    } == expected
 
 
 @pytest.mark.parametrize(
@@ -70,14 +82,21 @@ def _plain_node(
         {**_plain_node(), "extra": 1},
         {**_plain_node(), "text": 1},
         {**_plain_node(), "input_nodes": ()},
-        {**_plain_node(), "input_nodes": [TypedInlineValue(FLOWCHART_NODE_DATA_TYPE_ID, 1, _plain_node())]},
+        {
+            **_plain_node(),
+            "input_nodes": [
+                TypedInlineValue(FLOWCHART_NODE_DATA_TYPE_ID, 1, _plain_node())
+            ],
+        },
         {**_plain_node(), "shape": True},
         {**_plain_node(), "shape": 9},
         {**_plain_node(), "link_type": False},
         {**_plain_node(), "link_type": 4},
     ),
 )
-def test_payload_schema_rejects_missing_extra_and_nonexact_values(payload: object) -> None:
+def test_payload_schema_rejects_missing_extra_and_nonexact_values(
+    payload: object,
+) -> None:
     assert not is_flowchart_node_payload(payload)
 
 
@@ -124,23 +143,15 @@ def test_recursive_payload_round_trip_and_shared_depth_size_guards() -> None:
 
 
 def test_execution_covers_all_shapes_links_directions_escaping_and_dedup() -> None:
-    node_plugin = _plugin(MARKDOWN_FLOWCHART_NODE_TYPE_ID)
-    flowchart_plugin = _plugin(MARKDOWN_FLOWCHART_TYPE_ID)
     shaped = [
-        node_plugin.execute(
-            _context(
-                {
-                    "text": f"Node{shape}",
-                    "shape": shape,
-                    "link_type": 0,
-                }
-            )
-        ).outputs["node"]
+        make_flowchart_node_value(
+            text=f"Node{shape}",
+            shape=shape,
+            link_type=0,
+        )
         for shape in range(9)
     ]
-    td = flowchart_plugin.execute(
-        _context({"nodes": shaped, "direction": 0})
-    ).outputs["flowchart"]
+    td = render_flowchart(shaped, 0)
     assert td.startswith("```mermaid\ngraph TD\n")
     assert td.endswith("\n```\n")
     for expected in (
@@ -165,9 +176,7 @@ def test_execution_covers_all_shapes_links_directions_escaping_and_dedup() -> No
         )
         for link_type in range(4)
     ]
-    lr = flowchart_plugin.execute(
-        _context({"nodes": linked, "direction": 1})
-    ).outputs["flowchart"]
+    lr = render_flowchart(linked, 1)
     assert lr.startswith("```mermaid\ngraph LR\n")
     for token, target in zip(("-->", "---", "-.->", "==>"), range(4), strict=True):
         assert f"Input {token} Output{target}" in lr
@@ -178,22 +187,15 @@ def test_execution_covers_all_shapes_links_directions_escaping_and_dedup() -> No
         link_text='x|"<&\ny',
     )
     collision = make_flowchart_node_value(text="A B")
-    escaped = flowchart_plugin.execute(
-        _context(
-            {
-                "nodes": [escaped_parent, collision, escaped_parent],
-                "direction": 0,
-            }
-        )
-    ).outputs["flowchart"]
-    assert 'A____B___C____D_E["A &#124; &quot;B&quot; &lt;C&gt; &amp; D<br/>E"]' in escaped
+    escaped = render_flowchart([escaped_parent, collision, escaped_parent], 0)
+    assert (
+        'A____B___C____D_E["A &#124; &quot;B&quot; &lt;C&gt; &amp; D<br/>E"]' in escaped
+    )
     assert 'A_B_2["A B"]' in escaped
     assert "x&#124;&quot;&lt;&amp;<br/>y" in escaped
     assert escaped.count(" -->|") == 1
 
     with pytest.raises(ValueError, match="direction"):
-        flowchart_plugin.execute(_context({"nodes": [], "direction": True}))
+        render_flowchart([], True)
     with pytest.raises(ValueError, match="shape"):
-        node_plugin.execute(
-            _context({"text": "bad", "shape": True, "link_type": 0})
-        )
+        make_flowchart_node_value(text="bad", shape=True, link_type=0)

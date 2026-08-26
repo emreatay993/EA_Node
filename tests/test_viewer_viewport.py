@@ -21,9 +21,10 @@ from ea_node_editor.nodes.builtins.viewer_viewport import (
     DEFAULT_CAMERA_TARGET,
     DEFAULT_CAMERA_UP_VECTOR,
     COREX_VIEWER_VIEWPORT_DATA_TYPES,
-    COREX_VIEWER_VIEWPORT_NODE_DESCRIPTORS,
     COREX_VIEWER_VIEWPORT_OWNER_ID,
     VIEWER_VIEWPORT_DATA_TYPE_ID,
+    execute_construct_view,
+    execute_deconstruct_view,
     is_viewer_viewport_payload,
     make_viewer_viewport_value,
 )
@@ -171,18 +172,6 @@ def _context(inputs: dict[str, object]) -> ExecutionContext:
     )
 
 
-def _plugin(type_id: str):
-    return next(
-        descriptor.factory()
-        for descriptor in COREX_VIEWER_VIEWPORT_NODE_DESCRIPTORS
-        if descriptor.spec.type_id == type_id
-    )
-
-
-
-
-
-
 def test_viewport_type_facts_and_owner_are_exact() -> None:
     (viewport,) = COREX_VIEWER_VIEWPORT_DATA_TYPES
     assert (
@@ -296,11 +285,7 @@ def test_payload_rejects_hostile_subclasses_without_running_them() -> None:
 
 
 def test_construct_defaults_are_hidden_same_key_item_properties() -> None:
-    construct = next(
-        descriptor.spec
-        for descriptor in COREX_VIEWER_VIEWPORT_NODE_DESCRIPTORS
-        if descriptor.spec.type_id == CONSTRUCT_VIEW_TYPE_ID
-    )
+    construct = _registry().get_spec(CONSTRUCT_VIEW_TYPE_ID)
     inputs = tuple(port for port in construct.ports if port.direction == "in")
     assert len(inputs) == len(construct.properties) == 10
     assert tuple(port.key for port in inputs) == tuple(
@@ -370,7 +355,7 @@ def _single(value: float) -> float:
 
 
 def test_construct_uses_two_stage_single_rounding_and_preserves_up_vector() -> None:
-    result = _plugin(CONSTRUCT_VIEW_TYPE_ID).execute(_context(_construct_inputs()))
+    result = execute_construct_view(_context(_construct_inputs()))
     viewport = result.outputs["viewport"]
     assert type(viewport) is TypedInlineValue
     payload = viewport.payload
@@ -384,7 +369,7 @@ def test_construct_uses_two_stage_single_rounding_and_preserves_up_vector() -> N
 def test_construct_forces_mesh_edges_only_for_edge_display_modes(
     display_mode: int,
 ) -> None:
-    result = _plugin(CONSTRUCT_VIEW_TYPE_ID).execute(
+    result = execute_construct_view(
         _context(
             _construct_inputs(
                 display_mode=display_mode,
@@ -397,12 +382,12 @@ def test_construct_forces_mesh_edges_only_for_edge_display_modes(
 
 def test_degenerate_camera_is_zero_and_overflow_fails_safely() -> None:
     same = make_point3d_value(1.0, 2.0, 3.0)
-    result = _plugin(CONSTRUCT_VIEW_TYPE_ID).execute(
+    result = execute_construct_view(
         _context(_construct_inputs(camera_position=same, camera_target=same))
     )
     assert result.outputs["viewport"].payload["field_width"] == 0.0
     with pytest.raises(ValueError, match="Single range"):
-        _plugin(CONSTRUCT_VIEW_TYPE_ID).execute(
+        execute_construct_view(
             _context(
                 _construct_inputs(
                     camera_position=make_point3d_value(1e308, 0.0, 0.0),
@@ -423,36 +408,26 @@ def test_degenerate_camera_is_zero_and_overflow_fails_safely() -> None:
 )
 def test_construct_runtime_inputs_fail_closed(key: str, value: object) -> None:
     with pytest.raises(ValueError):
-        _plugin(CONSTRUCT_VIEW_TYPE_ID).execute(
+        execute_construct_view(
             _context(_construct_inputs(**{key: value}))
         )
 
 
 def test_construct_deconstruct_runtime_round_trip_omits_field_dimensions() -> None:
-    constructed = (
-        _plugin(CONSTRUCT_VIEW_TYPE_ID)
-        .execute(_context(_construct_inputs()))
-        .outputs["viewport"]
-    )
-    outputs = (
-        _plugin(DECONSTRUCT_VIEW_TYPE_ID)
-        .execute(_context({"viewport": constructed}))
-        .outputs
-    )
+    constructed = execute_construct_view(_context(_construct_inputs())).outputs[
+        "viewport"
+    ]
+    outputs = execute_deconstruct_view(constructed).outputs
     assert set(outputs) == set(_construct_inputs())
     assert outputs == _construct_inputs()
     assert "field_width" not in outputs
     assert "field_height" not in outputs
     with pytest.raises(ValueError, match="ViewerViewport input is invalid"):
-        _plugin(DECONSTRUCT_VIEW_TYPE_ID).execute(
-            _context(
-                {
-                    "viewport": TypedInlineValue(
-                        VIEWER_VIEWPORT_DATA_TYPE_ID,
-                        2,
-                        constructed.payload,
-                    )
-                }
+        execute_deconstruct_view(
+            TypedInlineValue(
+                VIEWER_VIEWPORT_DATA_TYPE_ID,
+                2,
+                constructed.payload,
             )
         )
 

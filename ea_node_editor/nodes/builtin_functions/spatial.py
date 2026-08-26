@@ -7,14 +7,19 @@ import math
 
 from ea_node_editor.nodes.builtins.core_media import is_interval_2d_payload
 from ea_node_editor.nodes.builtins.spatial_values import (
+    _ordered_entries,
+    _transform_entries_input,
+    _transform_order,
     _is_field_vector_payload,
     _plane_value,
     chained_transform3d_transforms,
     make_chained_transform3d_value,
     make_point3d_value,
+    make_transform3d_value,
     make_vector3d_value,
     point2d_coordinates,
     point3d_coordinates,
+    transform3d_entries,
     vector3d_coordinates,
 )
 from ea_node_editor.runtime_contracts import TypedInlineValue
@@ -277,6 +282,86 @@ def construct_plane(ctx, origin, x_axis, y_axis):
             ctx.inputs["origin"],
             ctx.inputs["x_axis"],
             ctx.inputs["y_axis"],
+        )
+    }
+
+
+@corex.node(
+    id="geometry.construct_transform",
+    name="Construct Transform",
+    category=("Geometry", "Transform"),
+    icon="matrix",
+    description="Construct a 4x4 transformation matrix from 16 entries.",
+    keywords=("transform", "matrix", "construct"),
+)
+@corex.input(
+    "entries",
+    value_type="COREX.DataTypes.Double",
+    structure="list",
+    required=True,
+    label="Entries",
+)
+@corex.number(
+    "order",
+    default=0,
+    label="Order",
+    minimum=0,
+    maximum=1,
+    step=1,
+    port=True,
+    _port_value_type="COREX.DataTypes.Int",
+    _port_required=True,
+)
+@corex.output(
+    "transform",
+    value_type="COREX.DataTypes.Transform3D",
+    label="Transform",
+)
+def construct_transform(ctx, entries, settings):
+    del ctx
+    return {
+        "transform": make_transform3d_value(
+            _ordered_entries(_transform_entries_input(entries), _transform_order(settings.order))
+        )
+    }
+
+
+@corex.node(
+    id="geometry.deconstruct_transform",
+    name="Deconstruct Transform",
+    category=("Geometry", "Transform"),
+    icon="matrix",
+    description="Deconstruct a 4x4 transformation matrix into its 16 entries.",
+    keywords=("transform", "matrix", "deconstruct"),
+)
+@corex.input(
+    "transform",
+    value_type="COREX.DataTypes.Transform3D",
+    required=True,
+    label="Transform",
+)
+@corex.number(
+    "order",
+    default=0,
+    label="Order",
+    minimum=0,
+    maximum=1,
+    step=1,
+    port=True,
+    _port_value_type="COREX.DataTypes.Int",
+    _port_required=True,
+)
+@corex.output(
+    "entries",
+    value_type="COREX.DataTypes.Double",
+    structure="list",
+    label="Entries",
+)
+def deconstruct_transform(ctx, transform, settings):
+    del ctx
+    return {
+        "entries": list(
+            _ordered_entries(transform3d_entries(transform), _transform_order(settings.order))
         )
     }
 

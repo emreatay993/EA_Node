@@ -1,13 +1,15 @@
 from __future__ import annotations
 
 from collections.abc import Iterator, Mapping
-from dataclasses import replace
+from dataclasses import asdict, replace
 import json
+from pathlib import Path
 
 import pytest
 
 from ea_node_editor.execution.handle_registry import StaleHandleError
 from ea_node_editor.execution.worker_services import WorkerServices
+from ea_node_editor.nodes.builtin_functions.security import SOURCE as SECURITY_SOURCE
 from ea_node_editor.nodes.builtins import security_contracts as security_module
 from ea_node_editor.execution.protocol import (
     NodeSettledEvent,
@@ -21,19 +23,19 @@ from ea_node_editor.nodes.builtins.security_contracts import (
     COREX_SECURITY_DATA_TYPES,
     COREX_SECURITY_OWNER_ID,
     COREX_SECURITY_OWNER_VERSION,
-    COREX_WINDOWS_AUTHENTICATION_NODE_CONTRACT_MANIFEST,
-    COREX_WINDOWS_AUTHENTICATION_NODE_DESCRIPTORS,
-    COREX_WINDOWS_AUTHENTICATION_NODE_OWNER_ID,
-    COREX_WINDOWS_AUTHENTICATION_NODE_OWNER_VERSION,
     WINDOWS_AUTHENTICATION_UNAVAILABLE_ERROR,
+    WINDOWS_AUTHENTICATION_TYPE_ID,
     WINDOWS_IDENTITY_DATA_TYPE_ID,
     WINDOWS_IDENTITY_HANDLE_KIND,
+    execute_windows_authentication,
     is_windows_identity_handle,
 )
 from ea_node_editor.nodes.core_data_types import (
     GRAPH_DATA_TYPE_ID,
 )
 from ea_node_editor.nodes.execution_context import ExecutionContext
+from ea_node_editor.nodes.function_plugin import INTERNAL_BUILTIN_FUNCTION_OWNER_ID
+from ea_node_editor.nodes.plugin_declaration import discover_plugin_declarations
 from ea_node_editor.nodes.registry import NodeRegistry
 from ea_node_editor.runtime_contracts import (
     DataTree,
@@ -79,19 +81,8 @@ def _registry() -> NodeRegistry:
     return registry
 
 
-def _node_registry() -> NodeRegistry:
-    registry = _registry()
-    registry.register_plugin_bundle(
-        COREX_WINDOWS_AUTHENTICATION_NODE_CONTRACT_MANIFEST,
-        COREX_WINDOWS_AUTHENTICATION_NODE_DESCRIPTORS,
-        owner_id=COREX_WINDOWS_AUTHENTICATION_NODE_OWNER_ID,
-        owner_version=COREX_WINDOWS_AUTHENTICATION_NODE_OWNER_VERSION,
-    )
-    return registry
-
-
 def _services() -> WorkerServices:
-    registry = _node_registry()
+    registry = _registry()
     registry.freeze()
     services = WorkerServices()
     services.bind_data_types(registry.data_types)
@@ -140,8 +131,6 @@ def _identity_ref(
         worker_generation=3,
         metadata={} if metadata is None else metadata,
     )
-
-
 
 
 def test_exact_identity_ref_validates_and_round_trips_without_metadata() -> None:
@@ -269,6 +258,28 @@ def test_rejection_errors_are_generic_and_do_not_leak_values(
     assert "credential-" not in message
 
 
+def test_windows_authentication_function_spec_matches_frozen_catalog() -> None:
+    (declaration,) = discover_plugin_declarations(
+        SECURITY_SOURCE,
+        filename="builtin_functions/security.py",
+        allow_reserved_ids=True,
+        owner_id=INTERNAL_BUILTIN_FUNCTION_OWNER_ID,
+    )
+    golden = json.loads(
+        (
+            Path(__file__).parent
+            / "fixtures"
+            / "node_catalog"
+            / "pre_cutover_non_dpf_catalog.json"
+        ).read_text(encoding="utf-8")
+    )
+    expected = next(
+        row["spec"]
+        for row in golden
+        if row["spec"]["type_id"] == WINDOWS_AUTHENTICATION_TYPE_ID
+    )
+
+    assert json.loads(json.dumps(asdict(declaration.spec))) == expected
 
 
 def test_windows_authentication_returns_fresh_run_scoped_opaque_handles(
@@ -278,17 +289,15 @@ def test_windows_authentication_returns_fresh_run_scoped_opaque_handles(
     services = _services()
     logs: list[tuple[str, str]] = []
     ctx = _context(services, logs=logs)
-    (descriptor,) = COREX_WINDOWS_AUTHENTICATION_NODE_DESCRIPTORS
-    node = descriptor.factory()
 
-    first = node.execute(ctx)
-    second = node.execute(ctx)
+    first = execute_windows_authentication(ctx)
+    second = execute_windows_authentication(ctx)
 
-    assert set(first.outputs) == {"authentication", "current_user"}
-    assert first.outputs["current_user"] == "DOMAIN\\alice"
-    assert second.outputs["current_user"] == "DOMAIN\\alice"
-    first_ref = first.outputs["authentication"]
-    second_ref = second.outputs["authentication"]
+    assert set(first) == {"authentication", "current_user"}
+    assert first["current_user"] == "DOMAIN\\alice"
+    assert second["current_user"] == "DOMAIN\\alice"
+    first_ref = first["authentication"]
+    second_ref = second["authentication"]
     assert type(first_ref) is RuntimeHandleRef
     assert type(second_ref) is RuntimeHandleRef
     assert first_ref != second_ref
@@ -372,10 +381,9 @@ def test_windows_authentication_failures_are_redacted_and_register_nothing(
     monkeypatch.setattr(security_module.getpass, "getuser", getuser)
     services = _services()
     ctx = _context(services)
-    node = COREX_WINDOWS_AUTHENTICATION_NODE_DESCRIPTORS[0].factory()
 
     with pytest.raises(RuntimeError) as exc_info:
-        node.execute(ctx)
+        execute_windows_authentication(ctx)
 
     message = str(exc_info.value)
     assert message == WINDOWS_AUTHENTICATION_UNAVAILABLE_ERROR
@@ -392,12 +400,7 @@ def test_windows_identity_resolution_rejects_forged_and_stale_refs(
     _patch_windows_user(monkeypatch, "alice")
     services = _services()
     ctx = _context(services, run_id="run-a")
-    ref = (
-        COREX_WINDOWS_AUTHENTICATION_NODE_DESCRIPTORS[0]
-        .factory()
-        .execute(ctx)
-        .outputs["authentication"]
-    )
+    ref = execute_windows_authentication(ctx)["authentication"]
     identity = ctx.resolve_handle(
         ref,
         expected_data_type=WINDOWS_IDENTITY_DATA_TYPE_ID,
@@ -429,12 +432,7 @@ def test_windows_identity_run_cleanup_prevents_cross_run_resolution(
     _patch_windows_user(monkeypatch, "alice")
     services = _services()
     first_context = _context(services, run_id="run-a")
-    ref = (
-        COREX_WINDOWS_AUTHENTICATION_NODE_DESCRIPTORS[0]
-        .factory()
-        .execute(first_context)
-        .outputs["authentication"]
-    )
+    ref = execute_windows_authentication(first_context)["authentication"]
     assert services.handle_registry.active_handle_count == 1
 
     assert services.cleanup_run("run-a") == 1

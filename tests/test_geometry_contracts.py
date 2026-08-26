@@ -64,14 +64,12 @@ from ea_node_editor.nodes.builtins.geometry_contracts import (
 )
 from ea_node_editor.nodes.builtins.mesh_contracts import (
     COREX_DECONSTRUCT_MESH_FACE_CANDIDATE_CONTRACT_MANIFEST,
-    COREX_DECONSTRUCT_MESH_FACE_CANDIDATE_NODE_DESCRIPTORS,
     COREX_MESH_CONTRACTS_OWNER_ID,
     COREX_MESH_CONTRACTS_OWNER_VERSION,
 )
 from ea_node_editor.nodes.builtins.spatial_values import (
     COREX_SPATIAL_VALUES_OWNER_ID,
     COREX_SPATIAL_VALUES_OWNER_VERSION,
-    COREX_SPATIAL_VALUES_TRANSFORM_NODE_DESCRIPTORS,
     COREX_SPATIAL_VALUES_VECTOR_LENGTH_CANDIDATE_CONTRACT_MANIFEST,
 )
 from ea_node_editor.nodes.core_data_types import (
@@ -877,31 +875,8 @@ def test_d023_to_d030_geometry_boundaries_stay_exact_under_d032_bootstrap() -> N
 
 
 def test_d030_icoordinate_system_owner_replacement_is_atomic_and_reversible() -> None:
-    registry = build_builtin_registry()
-    registry.register_plugin_bundle(
-        COREX_DECONSTRUCT_MESH_FACE_CANDIDATE_CONTRACT_MANIFEST,
-        COREX_DECONSTRUCT_MESH_FACE_CANDIDATE_NODE_DESCRIPTORS,
-        owner_id=COREX_MESH_CONTRACTS_OWNER_ID,
-        owner_version=COREX_MESH_CONTRACTS_OWNER_VERSION,
-        source_label="ea_node_editor.nodes.builtins.mesh_contracts",
-        replace_owner=True,
-    )
-    registry.register_plugin_bundle(
-        COREX_AI_ML_CONTRACT_MANIFEST,
-        (),
-        owner_id=COREX_AI_ML_CONTRACTS_OWNER_ID,
-        owner_version=COREX_AI_ML_CONTRACTS_OWNER_VERSION,
-        source_label="ea_node_editor.nodes.builtins.ai_ml_contracts",
-        replace_owner=True,
-    )
-    registry.register_plugin_bundle(
-        COREX_SPATIAL_VALUES_VECTOR_LENGTH_CANDIDATE_CONTRACT_MANIFEST,
-        COREX_SPATIAL_VALUES_TRANSFORM_NODE_DESCRIPTORS,
-        owner_id=COREX_SPATIAL_VALUES_OWNER_ID,
-        owner_version=COREX_SPATIAL_VALUES_OWNER_VERSION,
-        source_label="ea_node_editor.nodes.builtins.spatial_values",
-        replace_owner=True,
-    )
+    registry = NodeRegistry()
+    registry.freeze()
     source_label = "ea_node_editor.nodes.builtins.geometry_contracts"
     registry.register_plugin_bundle(
         COREX_GEOMETRY_CLOSURE_CANDIDATE_CONTRACT_MANIFEST,

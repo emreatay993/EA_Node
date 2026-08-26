@@ -23,9 +23,7 @@ from ea_node_editor.nodes.core_data_types import (
     INTERVAL_1D_GRAPH_DATA_TYPE_ID,
     STRING_DATA_TYPE_ID,
 )
-from ea_node_editor.nodes.decorators import node_type, plugin_descriptor
 from ea_node_editor.nodes.execution_context import ExecutionContext, NodeResult
-from ea_node_editor.nodes.node_specs import PortSpec
 from ea_node_editor.nodes.plugin_contracts import PluginContractManifest
 from ea_node_editor.runtime_contracts import (
     DataTypeSpec,
@@ -273,176 +271,79 @@ def _make_cylinder_shape(
     return shape
 
 
-@node_type(
-    type_id=CYLINDER_NODE_TYPE_ID,
-    display_name="Cylinder",
-    category_path=("Geometry", "Primitive"),
-    icon="cylinder",
-    description="Creates an OCP cylinder along a Plane normal over an interval.",
-    keywords=("geometry", "primitive", "cylinder", "body", "OCP"),
-    ports=(
-        PortSpec(
-            "plane",
-            "in",
-            "data",
-            PLANE_DATA_TYPE_ID,
-            label="Plane",
-            required=True,
-        ),
-        PortSpec(
-            "radius",
-            "in",
-            "data",
-            DOUBLE_DATA_TYPE_ID,
-            label="Radius",
-            required=True,
-        ),
-        PortSpec(
-            "interval",
-            "in",
-            "data",
-            INTERVAL_1D_GRAPH_DATA_TYPE_ID,
-            label="Interval",
-            required=True,
-        ),
-        PortSpec(
-            "body",
-            "out",
-            "data",
-            OCP_BODY_DATA_TYPE_ID,
-            label="Body",
-        ),
-    ),
-    properties=(),
-)
-class CylinderNodePlugin:
-    def execute(self, ctx: ExecutionContext) -> NodeResult:
-        plane = _plane_payload(ctx.inputs["plane"])
-        radius = _positive_radius(ctx.inputs["radius"])
-        interval = _increasing_interval(ctx.inputs["interval"])
-        record = _OcpBodyRecord(
-            _make_cylinder_shape(plane, radius=radius, interval=interval)
+def execute_cylinder(ctx: ExecutionContext) -> NodeResult:
+    plane = _plane_payload(ctx.inputs["plane"])
+    radius = _positive_radius(ctx.inputs["radius"])
+    interval = _increasing_interval(ctx.inputs["interval"])
+    record = _OcpBodyRecord(
+        _make_cylinder_shape(plane, radius=radius, interval=interval)
+    )
+    body_ref: RuntimeHandleRef | None = None
+    try:
+        body_ref = ctx.register_handle(
+            record,
+            data_type_id=OCP_BODY_DATA_TYPE_ID,
+            kind=OCP_BODY_HANDLE_KIND,
+            metadata={},
+            dispose=record.close,
         )
-        body_ref: RuntimeHandleRef | None = None
-        try:
-            body_ref = ctx.register_handle(
-                record,
-                data_type_id=OCP_BODY_DATA_TYPE_ID,
-                kind=OCP_BODY_HANDLE_KIND,
-                metadata={},
-                dispose=record.close,
-            )
-            return NodeResult(outputs={"body": body_ref})
-        except Exception:
-            if body_ref is not None:
-                with suppress(Exception):
-                    ctx.release_handle(body_ref)
-            record.close()
-            raise
+        return NodeResult(outputs={"body": body_ref})
+    except Exception:
+        if body_ref is not None:
+            with suppress(Exception):
+                ctx.release_handle(body_ref)
+        record.close()
+        raise
 
 
-@node_type(
-    type_id=CONSTRUCT_ZONE_NODE_TYPE_ID,
-    display_name="Construct Zone",
-    category_path=("FEA", "Model"),
-    icon="select_all",
-    description="Groups ordered OCP bodies and per-body tolerances into a Zone.",
-    keywords=("FEA", "zone", "geometry", "tolerance"),
-    ports=(
-        PortSpec(
-            "name",
-            "in",
-            "data",
-            STRING_DATA_TYPE_ID,
-            label="Name",
-            required=True,
-        ),
-        PortSpec(
-            "geometry",
-            "in",
-            "data",
-            OCP_BODY_DATA_TYPE_ID,
-            label="Geometry",
-            required=True,
-            data_access="list",
-        ),
-        PortSpec(
-            "tolerances",
-            "in",
-            "data",
-            DOUBLE_DATA_TYPE_ID,
-            label="Tolerances",
-            required=False,
-            data_access="list",
-        ),
-        PortSpec(
-            "zone",
-            "out",
-            "data",
-            ZONE_DATA_TYPE_ID,
-            label="Zone",
-        ),
-    ),
-    properties=(),
-)
-class ConstructZoneNodePlugin:
-    def execute(self, ctx: ExecutionContext) -> NodeResult:
-        name = ctx.inputs.get("name")
-        if not isinstance(name, str):
-            raise TypeError("Construct Zone name must be a COREXString value")
-        geometry = ctx.inputs.get("geometry")
-        if type(geometry) is not list or not geometry:
-            raise ValueError("Construct Zone requires a nonempty OCPBody list")
-        tolerances = _zone_tolerances(ctx, geometry_count=len(geometry))
-        aggregate_scope = f"cache:zone:{uuid4().hex}"
-        record = _ZoneRecord(
-            name=name,
-            child_leases=(),
-            tolerances=tolerances,
-            _release_handle=ctx.worker_services.release_handle,
+def execute_construct_zone(ctx: ExecutionContext) -> NodeResult:
+    name = ctx.inputs.get("name")
+    if not isinstance(name, str):
+        raise TypeError("Construct Zone name must be a COREXString value")
+    geometry = ctx.inputs.get("geometry")
+    if type(geometry) is not list or not geometry:
+        raise ValueError("Construct Zone requires a nonempty OCPBody list")
+    tolerances = _zone_tolerances(ctx, geometry_count=len(geometry))
+    aggregate_scope = f"cache:zone:{uuid4().hex}"
+    record = _ZoneRecord(
+        name=name,
+        child_leases=(),
+        tolerances=tolerances,
+        _release_handle=ctx.worker_services.release_handle,
+    )
+    acquired: list[RuntimeHandleRef] = []
+    try:
+        for value in geometry:
+            child_ref, _shape = _resolve_ocp_body(ctx, value)
+            acquired.append(ctx.lease_handle(child_ref, owner_scope=aggregate_scope))
+        record.child_leases = tuple(acquired)
+        zone_ref = ctx.register_handle(
+            record,
+            data_type_id=ZONE_DATA_TYPE_ID,
+            kind=ZONE_HANDLE_KIND,
+            metadata={},
+            dispose=record.close,
         )
-        acquired: list[RuntimeHandleRef] = []
-        try:
-            for value in geometry:
-                child_ref, _shape = _resolve_ocp_body(ctx, value)
-                acquired.append(
-                    ctx.lease_handle(child_ref, owner_scope=aggregate_scope)
-                )
-            record.child_leases = tuple(acquired)
-            zone_ref = ctx.register_handle(
-                record,
-                data_type_id=ZONE_DATA_TYPE_ID,
-                kind=ZONE_HANDLE_KIND,
-                metadata={},
-                dispose=record.close,
-            )
-            return NodeResult(outputs={"zone": zone_ref})
-        except Exception:
-            record.child_leases = tuple(acquired)
-            record.close()
-            raise
-
-
-COREX_GEOMETRY_PRIMITIVE_NODE_DESCRIPTORS = (
-    plugin_descriptor(CylinderNodePlugin),
-    plugin_descriptor(ConstructZoneNodePlugin),
-)
+        return NodeResult(outputs={"zone": zone_ref})
+    except Exception:
+        record.child_leases = tuple(acquired)
+        record.close()
+        raise
 
 __all__ = [
     "CONSTRUCT_ZONE_NODE_TYPE_ID",
     "CYLINDER_NODE_TYPE_ID",
-    "ConstructZoneNodePlugin",
-    "CylinderNodePlugin",
     "OCP_BODY_DATA_TYPE",
     "OCP_BODY_DATA_TYPE_ID",
     "OCP_BODY_HANDLE_KIND",
     "COREX_GEOMETRY_PRIMITIVES_CONTRACT_MANIFEST",
     "COREX_GEOMETRY_PRIMITIVES_OWNER_ID",
     "COREX_GEOMETRY_PRIMITIVES_OWNER_VERSION",
-    "COREX_GEOMETRY_PRIMITIVE_NODE_DESCRIPTORS",
     "ZONE_DATA_TYPE",
     "ZONE_DATA_TYPE_ID",
     "ZONE_HANDLE_KIND",
+    "execute_construct_zone",
+    "execute_cylinder",
     "is_ocp_body_handle",
     "is_zone_handle",
 ]

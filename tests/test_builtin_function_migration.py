@@ -72,10 +72,43 @@ _T12_CONVERTED_TYPE_IDS = (
     "ssh_sftp.secret",
     "ssh_sftp.upload",
 )
+_T15_CONVERTED_TYPE_IDS = (
+    "ai.create_vector_collection",
+    "ai.inspect_vector_collection",
+    "ai.large_language_model",
+    "ai.sqlite_vector_database",
+    "core.constant",
+    "core.logger",
+    "data.boolean_toggle",
+    "data.number_slider",
+    "data.panel",
+    "data.select",
+    "engineering.cad_import",
+    "engineering.fe_import",
+    "fea.construct_zone",
+    "fea.force",
+    "fea.load_container",
+    "geometry.construct_transform",
+    "geometry.cylinder",
+    "geometry.deconstruct_transform",
+    "math.construct_interval",
+    "mesh.deconstruct_mesh_face",
+    "model.viewer",
+    "optimization.construct_design",
+    "optimization.construct_parameters",
+    "optimization.construct_responses",
+    "reference.plane_container",
+    "reporting.markdown_flowchart",
+    "reporting.markdown_flowchart_node",
+    "security.windows_authentication",
+    "utilities.construct_view",
+    "utilities.deconstruct_view",
+)
 _CONVERTED_TYPE_IDS = (
     *_T10_CONVERTED_TYPE_IDS,
     *_T11_CONVERTED_TYPE_IDS,
     *_T12_CONVERTED_TYPE_IDS,
+    *_T15_CONVERTED_TYPE_IDS,
 )
 _PRE_CUTOVER_CATALOG = (
     Path(__file__).parent
@@ -118,9 +151,12 @@ def test_exact_t10_entries_match_golden_and_leave_truthful_descriptor_boundary(
         spec.type_id for spec in registry.all_specs()
     } - set(_CONVERTED_TYPE_IDS)
     assert {
-        "math.construct_interval",
-        "geometry.construct_transform",
-        "geometry.deconstruct_transform",
+        "core.python_script",
+        "core.stream_gate",
+        "core.trigger",
+        "optimization.parameter_pool",
+        "optimization.parameter_setup",
+        "optimization.response_pool",
     } <= trusted_type_ids
 
     bundle = registry.plugin_bundle_refs()[0]

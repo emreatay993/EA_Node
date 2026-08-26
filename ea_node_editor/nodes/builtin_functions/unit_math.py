@@ -371,6 +371,43 @@ def unit_system_container(ctx, input):
 def deconstruct_interval(ctx, interval):
     value = coerce_interval_1d(interval)
     return {"start": value.start, "end": value.end}
+
+
+@corex.node(
+    id="math.construct_interval",
+    name="Construct Interval",
+    category=("Math", "Interval"),
+    icon="core/data_object.svg",
+    description="Constructs an ordered Interval 1D from Start and End values.",
+    keywords=("interval", "construct", "range", "start", "end"),
+)
+@corex.number(
+    "start",
+    default=0.0,
+    label="Start",
+    port=True,
+    _port_value_type="COREX.DataTypes.Double",
+    _port_accepted_data_types=("COREX.DataTypes.Double", "COREX.DataTypes.Int"),
+    _port_description="Interval start value; overrides the configured Start property when connected.",
+)
+@corex.number(
+    "end",
+    default=1.0,
+    label="End",
+    port=True,
+    _port_value_type="COREX.DataTypes.Double",
+    _port_accepted_data_types=("COREX.DataTypes.Double", "COREX.DataTypes.Int"),
+    _port_description="Interval end value; overrides the configured End property when connected.",
+)
+@corex.output(
+    "interval",
+    value_type="COREX.DataTypes.Interval1D",
+    label="",
+    description="Ordered Interval 1D containing the original Start and End endpoints.",
+)
+def construct_interval(ctx, settings):
+    del ctx
+    return {"interval": Interval1D(settings.start, settings.end)}
 '''
 
 __all__ = ["SOURCE"]

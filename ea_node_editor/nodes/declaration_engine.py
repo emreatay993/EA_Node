@@ -26,6 +26,7 @@ from ea_node_editor.runtime_contracts import (
     PATH_DATA_TYPE_ID,
     STRING_DATA_TYPE_ID,
     Interval1D,
+    TypedInlineValue,
 )
 
 MAX_SOURCE_BYTES = 256 * 1024
@@ -87,6 +88,7 @@ _INTERNAL_CONTROL_FIELDS = frozenset(
         "_port_label",
         "_port_required",
         "_port_structure",
+        "_port_uses_property_default",
         "_port_value_type",
         "_property_default",
         "_property_group",
@@ -355,6 +357,7 @@ def call_values(
             "port",
             "searchable",
             "_port_required",
+            "_port_uses_property_default",
             "_inspector_visible",
             "_sensitive",
         } and not isinstance(
@@ -442,6 +445,42 @@ def _validate_property_default(prop: PropertySpec) -> None:
         )
 
 
+def _materialize_typed_inline_default(
+    value: Any,
+    persistence_type: str,
+) -> Any:
+    if not persistence_type or not isinstance(value, Mapping):
+        return value
+    fields = set(value)
+    expected = {"data_type_id", "schema_version", "payload"}
+    looks_like_carrier = bool(fields & expected)
+    if not looks_like_carrier:
+        return value
+    if fields != expected:
+        raise DeclarationValueError(
+            "_property_default typed carrier must contain only data_type_id, schema_version, and payload"
+        )
+    if value["data_type_id"] != persistence_type:
+        raise DeclarationValueError(
+            "_property_default typed carrier data_type_id must match _persistence_type"
+        )
+    schema_version = value["schema_version"]
+    if (
+        isinstance(schema_version, bool)
+        or not isinstance(schema_version, int)
+        or schema_version < 1
+    ):
+        raise DeclarationValueError(
+            "_property_default typed carrier schema_version must be a positive integer"
+        )
+    payload = value["payload"]
+    if not isinstance(payload, Mapping):
+        raise DeclarationValueError(
+            "_property_default typed carrier payload must be a mapping"
+        )
+    return TypedInlineValue(persistence_type, schema_version, payload)
+
+
 def apply_internal_control_overrides(
     prop: PropertySpec,
     data_type: str,
@@ -490,10 +529,13 @@ def apply_internal_control_overrides(
         raise DeclarationValueError(
             "sensitive properties require type json and a secret editor"
         )
+    default = values.get("_property_default", prop.default)
+    if "_property_default" in values and persistence_type:
+        default = _materialize_typed_inline_default(default, persistence_type)
     prop = replace(
         prop,
         type=property_type,
-        default=values.get("_property_default", prop.default),
+        default=default,
         inline_editor=inline_editor,
         inspector_editor=inspector_editor,
         inspector_visible=inspector_visible,

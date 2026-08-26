@@ -23,18 +23,18 @@ from ea_node_editor.execution.worker_services import WorkerServices
 from tests.typed_handle_support import core_worker_services
 from ea_node_editor.nodes.bootstrap import build_builtin_registry
 from ea_node_editor.nodes.builtins.engineering_viewer import (
-    EngineeringViewerNodePlugin,
     _require_scene,
     _selection_output_for_scene,
+    execute_engineering_viewer,
 )
 from ea_node_editor.nodes.builtins import geometry_primitives
 from ea_node_editor.nodes.builtins.geometry_primitives import (
-    CONSTRUCT_ZONE_NODE_TYPE_ID,
-    CYLINDER_NODE_TYPE_ID,
     OCP_BODY_DATA_TYPE_ID,
     OCP_BODY_HANDLE_KIND,
     ZONE_DATA_TYPE_ID,
     ZONE_HANDLE_KIND,
+    execute_construct_zone,
+    execute_cylinder,
 )
 from ea_node_editor.nodes.builtins.rich_value_nodes import PLANE_DATA_TYPE_ID
 from ea_node_editor.nodes.execution_context import ExecutionContext
@@ -155,7 +155,7 @@ class EngineeringViewerNodeTests(unittest.TestCase):
                 worker_services=services,
             )
 
-            result = EngineeringViewerNodePlugin().execute(context)
+            result = execute_engineering_viewer(context)
 
         session_ref = result.outputs["session"]
         self.assertIsInstance(session_ref, RuntimeHandleRef)
@@ -245,10 +245,7 @@ class EngineeringViewerNodeTests(unittest.TestCase):
                 emit_log=lambda _level, _message: None,
                 worker_services=services,
             )
-            cylinder = build_builtin_registry().get_descriptor(
-                CYLINDER_NODE_TYPE_ID
-            ).factory()
-            body_ref = cylinder.execute(cylinder_context).outputs["body"]
+            body_ref = execute_cylinder(cylinder_context).outputs["body"]
             body_record = services.resolve_handle(
                 body_ref,
                 expected_data_type=OCP_BODY_DATA_TYPE_ID,
@@ -264,7 +261,7 @@ class EngineeringViewerNodeTests(unittest.TestCase):
                 worker_services=services,
             )
 
-            result = EngineeringViewerNodePlugin().execute(viewer_context)
+            result = execute_engineering_viewer(viewer_context)
             session_ref = result.outputs["session"]
             session = services.resolve_handle(
                 session_ref,
@@ -358,7 +355,6 @@ class EngineeringViewerNodeTests(unittest.TestCase):
                 counted_zone_close,
             ),
         ):
-            cylinder = registry.get_descriptor(CYLINDER_NODE_TYPE_ID).factory()
             body_refs = []
             body_records = []
             for index, origin_x in enumerate((0.0, 10.0)):
@@ -386,7 +382,7 @@ class EngineeringViewerNodeTests(unittest.TestCase):
                     emit_log=lambda _level, _message: None,
                     worker_services=services,
                 )
-                body_ref = cylinder.execute(context).outputs["body"]
+                body_ref = execute_cylinder(context).outputs["body"]
                 body_refs.append(body_ref)
                 body_records.append(
                     services.resolve_handle(
@@ -409,9 +405,7 @@ class EngineeringViewerNodeTests(unittest.TestCase):
                 emit_log=lambda _level, _message: None,
                 worker_services=services,
             )
-            zone_ref = registry.get_descriptor(
-                CONSTRUCT_ZONE_NODE_TYPE_ID
-            ).factory().execute(zone_context).outputs["zone"]
+            zone_ref = execute_construct_zone(zone_context).outputs["zone"]
             zone_record = services.resolve_handle(
                 zone_ref,
                 expected_data_type=ZONE_DATA_TYPE_ID,
@@ -433,7 +427,7 @@ class EngineeringViewerNodeTests(unittest.TestCase):
                 emit_log=lambda _level, _message: None,
                 worker_services=services,
             )
-            result = EngineeringViewerNodePlugin().execute(viewer_context)
+            result = execute_engineering_viewer(viewer_context)
             session_ref = result.outputs["session"]
             session = services.resolve_handle(
                 session_ref,

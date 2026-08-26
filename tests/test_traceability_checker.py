@@ -1047,9 +1047,16 @@ COREX_NO_LEGACY_ARCHITECTURE_CLEANUP_REQUIREMENT_TOKENS: dict[str, dict[str, tup
 }
 COREX_NO_LEGACY_ARCHITECTURE_CLEANUP_TRACEABILITY_ROW_TOKENS: dict[str, tuple[str, ...]] = {
     "REQ-NODE-002": (
+        "Exactly 68 function-backed built-ins",
         "nodes/builtin_functions/",
         "nodes/function_plugin.py",
         "retained trusted descriptors/helpers",
+        "test_remaining_builtin_function_migration.py",
+    ),
+    "REQ-NODE-035": (
+        "builtin_functions/{engineering_imports.py,engineering_viewer.py}",
+        "builtins/{engineering_imports.py,engineering_viewer.py}",
+        "test_remaining_builtin_function_migration.py",
     ),
     "REQ-INT-002": (
         "builtin_functions/integrations_*.py",

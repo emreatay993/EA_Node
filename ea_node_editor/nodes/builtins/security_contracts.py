@@ -9,18 +9,13 @@ import platform
 
 from ea_node_editor.nodes.core_data_types import (
     GRAPH_DATA_TYPE_ID,
-    STRING_DATA_TYPE_ID,
 )
-from ea_node_editor.nodes.decorators import node_type, plugin_descriptor
-from ea_node_editor.nodes.execution_context import ExecutionContext, NodeResult
-from ea_node_editor.nodes.node_specs import PortSpec
+from ea_node_editor.nodes.execution_context import ExecutionContext
 from ea_node_editor.nodes.plugin_contracts import PluginContractManifest
 from ea_node_editor.runtime_contracts import DataTypeSpec, RuntimeHandleRef
 
 COREX_SECURITY_OWNER_ID = "corex.security_contracts"
 COREX_SECURITY_OWNER_VERSION = "1"
-COREX_WINDOWS_AUTHENTICATION_NODE_OWNER_ID = "corex.windows_authentication"
-COREX_WINDOWS_AUTHENTICATION_NODE_OWNER_VERSION = "1"
 
 AUTHENTICATION_DATA_TYPE_ID = "COREX.DataTypes.Web.IAuthentication"
 WINDOWS_IDENTITY_DATA_TYPE_ID = "COREX.DataTypes.WindowsIdentity"
@@ -98,54 +93,16 @@ def _current_windows_user() -> str:
     return normalized
 
 
-@node_type(
-    type_id=WINDOWS_AUTHENTICATION_TYPE_ID,
-    display_name="Windows Authentication",
-    category_path=("Security",),
-    icon="badge",
-    description="Creates a run-scoped Windows identity reference.",
-    keywords=("windows", "authentication", "identity", "user"),
-    ports=(
-        PortSpec(
-            "authentication",
-            "out",
-            "data",
-            WINDOWS_IDENTITY_DATA_TYPE_ID,
-            data_access="item",
-            label="Authentication",
-        ),
-        PortSpec(
-            "current_user",
-            "out",
-            "data",
-            STRING_DATA_TYPE_ID,
-            data_access="item",
-            label="Current user",
-        ),
-    ),
-    properties=(),
-)
-class WindowsAuthenticationNodePlugin:
-    def execute(self, ctx: ExecutionContext) -> NodeResult:
-        current_user = _current_windows_user()
-        authentication = ctx.register_handle(
-            object(),
-            data_type_id=WINDOWS_IDENTITY_DATA_TYPE_ID,
-            kind=WINDOWS_IDENTITY_HANDLE_KIND,
-            metadata={},
-        )
-        return NodeResult(
-            outputs={
-                "authentication": authentication,
-                "current_user": current_user,
-            }
-        )
+def execute_windows_authentication(ctx: ExecutionContext) -> dict[str, object]:
+    current_user = _current_windows_user()
+    authentication = ctx.register_handle(
+        object(),
+        data_type_id=WINDOWS_IDENTITY_DATA_TYPE_ID,
+        kind=WINDOWS_IDENTITY_HANDLE_KIND,
+        metadata={},
+    )
+    return {"authentication": authentication, "current_user": current_user}
 
-
-COREX_WINDOWS_AUTHENTICATION_NODE_DESCRIPTORS = (
-    plugin_descriptor(WindowsAuthenticationNodePlugin),
-)
-COREX_WINDOWS_AUTHENTICATION_NODE_CONTRACT_MANIFEST = PluginContractManifest()
 
 __all__ = [
     "AUTHENTICATION_DATA_TYPE_ID",
@@ -153,14 +110,10 @@ __all__ = [
     "COREX_SECURITY_DATA_TYPES",
     "COREX_SECURITY_OWNER_ID",
     "COREX_SECURITY_OWNER_VERSION",
-    "COREX_WINDOWS_AUTHENTICATION_NODE_CONTRACT_MANIFEST",
-    "COREX_WINDOWS_AUTHENTICATION_NODE_DESCRIPTORS",
-    "COREX_WINDOWS_AUTHENTICATION_NODE_OWNER_ID",
-    "COREX_WINDOWS_AUTHENTICATION_NODE_OWNER_VERSION",
     "WINDOWS_AUTHENTICATION_TYPE_ID",
     "WINDOWS_AUTHENTICATION_UNAVAILABLE_ERROR",
     "WINDOWS_IDENTITY_DATA_TYPE_ID",
     "WINDOWS_IDENTITY_HANDLE_KIND",
-    "WindowsAuthenticationNodePlugin",
+    "execute_windows_authentication",
     "is_windows_identity_handle",
 ]

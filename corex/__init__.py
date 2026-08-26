@@ -35,7 +35,17 @@ def _identity_decorator(*_args: object, **_kwargs: object):
 
 
 def node(function=None, **_metadata: object):
-    _reject_unknown_private(_metadata, {"_readiness_requirements"})
+    _reject_unknown_private(
+        _metadata,
+        {
+            "_collapsible",
+            "_property_output_collisions",
+            "_readiness_requirements",
+            "_render_quality_tiers",
+            "_surface_family",
+            "_surface_variant",
+        },
+    )
     if callable(function) and not _metadata:
         return function
     return _identity_decorator()
@@ -61,6 +71,7 @@ _CONTROL_PRIVATE_FIELDS = {
     "_port_label",
     "_port_required",
     "_port_structure",
+    "_port_uses_property_default",
     "_port_value_type",
     "_property_default",
     "_property_group",

@@ -28,12 +28,12 @@ Use this for node definitions, registry validation, built-in node families, data
 
 ## Built-in Contract Families
 - Core values and media contracts: `core_values.py` and `core_media.py`; ordinary converted execution source lives as inert strings under `builtin_functions/`.
-- Geometry and spatial values: `geometry_contracts.py`, `geometry_primitives.py`, and `spatial_values.py`.
-- Engineering contracts: `mesh_contracts.py`, `fem_contracts.py`, and `voxel_contracts.py`.
-- Support values and nodes: `tree_path.py`, `units.py`, `viewer_viewport.py`, `security_contracts.py`, `reporting.py`, and `ai_ml_contracts.py`.
+- Geometry and spatial contracts/helpers: `geometry_contracts.py`, `geometry_primitives.py`, and `spatial_values.py`; ordinary execution declarations live in `builtin_functions/{spatial.py,engineering_geometry.py}`.
+- Engineering contracts/helpers: `mesh_contracts.py`, `fem_contracts.py`, `engineering_imports.py`, `engineering_viewer.py`, and `voxel_contracts.py`; ordinary declarations live in `builtin_functions/{engineering_fem.py,engineering_imports.py,engineering_viewer.py}`.
+- Support contracts/helpers: `tree_path.py`, `units.py`, `viewer_viewport.py`, `security_contracts.py`, `reporting.py`, `rich_value_nodes.py`, and `ai_ml_contracts.py`; their converted declarations live in the matching `builtin_functions/` modules.
 - Signal Plot declaration/execution is owned by inert `builtin_functions/plot_signal.py`; rendering remains in `execution/signal_plot_renderer.py` and emits `COREX.DataTypes.Image`.
 - Public function plugins use the dependency-free top-level `corex` decorators and static `plugin_declaration.py` discovery. Python Script keeps its one-`run` signature while sharing only the bounded literal/control engine.
-- The internal owner `corex:builtin:functions` is the only reserved-ID function bundle. GUI bootstrap imports inert source strings, materializes the normal content-addressed generation, and registers `PythonFunctionEntry` records; workers independently attest and lazily execute it. T10 converts exactly 23 simple core/value/unit/math/spatial IDs while retaining deferred construct-interval/transform descriptors.
+- The internal owner `corex:builtin:functions` is the only reserved-ID function bundle. GUI bootstrap aggregates 20 inert source members, materializes the normal content-addressed generation, and registers exactly 68 `PythonFunctionEntry` records; workers independently attest and lazily execute it. The remaining 55 built-ins are the migration inventory's exact trusted exceptions, including Python Script, Trigger, Stream Gate, subnodes, three FEM pool/setup nodes, passive/custom surfaces, and generated private families.
 - `TrustedFactoryEntry` and `PythonFunctionEntry` are the mutually exclusive private registry implementations. Public function entries store only `PythonFunctionRef`; process workers re-hash the immutable generation and use `PythonFunctionAdapter` without exposing a callable to GUI discovery.
 - Public loose files and installed schema-2 directories are parsed without import, checked for bundled imports, and copied byte-for-byte into `runtime/plugin_generations/<bundle-digest>/`; registry fingerprints exclude author/install paths. Worker registry construction reparses only the verified generation and never the mutable discovery roots.
 - `build_plugin_candidate_registry(...)` builds fail-closed candidates into a caller-owned disposable generation root; one staged schema-2 package may replace only the installed package with the same exact name. Candidate and canonical registries must have the same full `NodeRegistry.contract_fingerprint()` before publication.
@@ -65,6 +65,7 @@ Use this for node definitions, registry validation, built-in node families, data
 - `tests/test_plugin_authoring.py`
 - `tests/test_builtin_function_infrastructure.py`
 - `tests/test_builtin_function_migration.py`
+- `tests/test_remaining_builtin_function_migration.py`
 - `tests/test_corex_contract_catalog.py`
 - `tests/test_corex_type_conformance.py`
 - `tests/test_core_value_types.py`
@@ -79,5 +80,5 @@ Use this for node definitions, registry validation, built-in node families, data
 ```powershell
 .\venv\Scripts\python.exe -m pytest tests/test_plugin_declaration.py tests/test_function_plugin.py tests/test_registry_validation.py tests/test_plugin_loader.py tests/test_package_manager.py tests/test_corex_contract_catalog.py tests/test_corex_type_conformance.py tests/test_python_script_declaration.py -q
 .\venv\Scripts\python.exe -m pytest tests/test_plugin_authoring.py tests/test_plugin_authoring_controller.py tests/test_plugin_authoring_dialog.py -q
-.\venv\Scripts\python.exe -m pytest tests/test_builtin_function_infrastructure.py tests/test_builtin_function_migration.py tests/test_corex_contract_catalog.py tests/test_core_unit_nodes.py tests/test_spatial_values.py -q
+.\venv\Scripts\python.exe -m pytest tests/test_builtin_function_infrastructure.py tests/test_builtin_function_migration.py tests/test_remaining_builtin_function_migration.py tests/test_corex_contract_catalog.py tests/test_core_unit_nodes.py tests/test_spatial_values.py -q
 ```

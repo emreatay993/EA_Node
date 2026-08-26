@@ -9,13 +9,8 @@ import math
 from ea_node_editor.nodes.builtins.geometry_contracts import (
     MEASURABLE_DATA_TYPE_ID,
 )
-from ea_node_editor.nodes.core_data_types import (
-    GRAPH_DATA_TYPE_ID,
-    INTEGER_DATA_TYPE_ID,
-)
-from ea_node_editor.nodes.decorators import node_type, plugin_descriptor
+from ea_node_editor.nodes.core_data_types import GRAPH_DATA_TYPE_ID
 from ea_node_editor.nodes.execution_context import ExecutionContext, NodeResult
-from ea_node_editor.nodes.node_specs import PortSpec
 from ea_node_editor.nodes.plugin_contracts import (
     PluginContractManifest,
 )
@@ -154,85 +149,24 @@ COREX_MESH_PARAMETER_CANDIDATE_DATA_TYPES = (
 )
 
 
-@node_type(
-    type_id=DECONSTRUCT_MESH_FACE_TYPE_ID,
-    display_name="Deconstruct Mesh Face",
-    category_path=("Mesh", "Analyse"),
-    icon="grid_on",
-    description="Deconstruct a mesh face into its vertex indices.",
-    keywords=("mesh", "face", "indices"),
-    ports=(
-        PortSpec(
-            "face",
-            "in",
-            "data",
-            MESH_FACE_DATA_TYPE_ID,
-            label="Face",
-            description="Face of a mesh containing its vertex indices.",
-            required=True,
-        ),
-        PortSpec(
-            "index_a",
-            "out",
-            "data",
-            INTEGER_DATA_TYPE_ID,
-            label="Index A",
-            description="Index of the first vertex.",
-        ),
-        PortSpec(
-            "index_b",
-            "out",
-            "data",
-            INTEGER_DATA_TYPE_ID,
-            label="Index B",
-            description="Index of the second vertex.",
-        ),
-        PortSpec(
-            "index_c",
-            "out",
-            "data",
-            INTEGER_DATA_TYPE_ID,
-            label="Index C",
-            description="Index of the third vertex.",
-        ),
-        PortSpec(
-            "index_d",
-            "out",
-            "data",
-            INTEGER_DATA_TYPE_ID,
-            label="Index D",
-            description=(
-                "Index of the fourth vertex. For a triangle this can be -1 or equal "
-                "to the third index."
-            ),
-        ),
-    ),
-    properties=(),
-)
-class DeconstructMeshFaceNodePlugin:
-    def execute(self, ctx: ExecutionContext) -> NodeResult:
-        value = ctx.inputs["face"]
-        if (
-            not isinstance(value, TypedInlineValue)
-            or value.data_type_id != MESH_FACE_DATA_TYPE_ID
-            or value.schema_version != 1
-            or not _is_mesh_face_payload(value.payload)
-        ):
-            raise ValueError("Mesh Face input is invalid")
-        payload = value.payload
-        return NodeResult(
-            outputs={
-                "index_a": payload["a"],
-                "index_b": payload["b"],
-                "index_c": payload["c"],
-                "index_d": payload["d"],
-            }
-        )
-
-
-COREX_DECONSTRUCT_MESH_FACE_CANDIDATE_NODE_DESCRIPTORS = (
-    plugin_descriptor(DeconstructMeshFaceNodePlugin),
-)
+def execute_deconstruct_mesh_face(ctx: ExecutionContext) -> NodeResult:
+    value = ctx.inputs["face"]
+    if (
+        not isinstance(value, TypedInlineValue)
+        or value.data_type_id != MESH_FACE_DATA_TYPE_ID
+        or value.schema_version != 1
+        or not _is_mesh_face_payload(value.payload)
+    ):
+        raise ValueError("Mesh Face input is invalid")
+    payload = value.payload
+    return NodeResult(
+        outputs={
+            "index_a": payload["a"],
+            "index_b": payload["b"],
+            "index_c": payload["c"],
+            "index_d": payload["d"],
+        }
+    )
 
 
 COREX_DECONSTRUCT_MESH_FACE_CANDIDATE_CONTRACT_MANIFEST = PluginContractManifest(
@@ -245,11 +179,9 @@ COREX_MESH_PARAMETER_CANDIDATE_CONTRACT_MANIFEST = PluginContractManifest(
 
 __all__ = [
     "DECONSTRUCT_MESH_FACE_TYPE_ID",
-    "DeconstructMeshFaceNodePlugin",
     "MESH_FACE_DATA_TYPE_ID",
     "MESH_PARAMETER_DATA_TYPE_ID",
     "COREX_DECONSTRUCT_MESH_FACE_CANDIDATE_CONTRACT_MANIFEST",
-    "COREX_DECONSTRUCT_MESH_FACE_CANDIDATE_NODE_DESCRIPTORS",
     "COREX_MESH_CONTRACT_MANIFEST",
     "COREX_MESH_CONTRACTS_OWNER_ID",
     "COREX_MESH_CONTRACTS_OWNER_VERSION",
@@ -260,4 +192,5 @@ __all__ = [
     "COREX_MESH_PARAMETER_CANDIDATE_CONTRACT_MANIFEST",
     "ISO_MESH_DATA_TYPE_ID",
     "THICK_MESH_DATA_TYPE_ID",
+    "execute_deconstruct_mesh_face",
 ]

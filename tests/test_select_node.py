@@ -6,7 +6,7 @@ from ea_node_editor.nodes.bootstrap import build_builtin_registry
 from ea_node_editor.nodes.builtins.data_control import (
     NUMBER_SLIDER_PILL_HEIGHT,
     SELECT_TYPE_ID,
-    SelectNodePlugin,
+    execute_select,
 )
 from ea_node_editor.persistence.serializer import JsonProjectSerializer
 from ea_node_editor.runtime_contracts import STRING_DATA_TYPE_ID, DataTree
@@ -39,7 +39,7 @@ def test_select_contract_defaults_and_compact_surface() -> None:
     registry = build_builtin_registry()
     spec = registry.get_spec(SELECT_TYPE_ID)
 
-    assert registry.create(SELECT_TYPE_ID).__class__ is SelectNodePlugin
+    assert registry.python_function_ref_or_none(SELECT_TYPE_ID) is not None
     assert spec.display_name == "Select"
     assert spec.category_path == ("Data", "Control")
     assert spec.description == "A dropdown that allows to select a value from the list."
@@ -127,11 +127,10 @@ def test_select_normalization_and_runtime_keep_values_as_text() -> None:
         "selected_index": 0,
     }
 
-    plugin = registry.create(SELECT_TYPE_ID)
-    assert plugin.execute(_Ctx({})).outputs == {
+    assert execute_select(_Ctx({})).outputs == {
         "selected_value": DataTree.from_item("0")
     }
-    result = plugin.execute(_Ctx(normalized))
+    result = execute_select(_Ctx(normalized))
     assert result.outputs == {"selected_value": DataTree.from_item("7")}
     assert isinstance(result.outputs["selected_value"][(0,)][0], str)
 

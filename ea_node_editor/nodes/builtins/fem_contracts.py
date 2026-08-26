@@ -1097,427 +1097,212 @@ def _response_design_status(
     return _DESIGN_STATUS_FEASIBLE if constrained else _DESIGN_STATUS_COMPUTED
 
 
-@node_type(
-    type_id=FORCE_NODE_TYPE_ID,
-    display_name="Force",
-    category_path=("FEA", "Loads"),
-    icon="arrow_forward",
-    description=(
-        "Creates a bounded Force from ordered OCP bodies, tolerances, "
-        "and a Vector3D."
-    ),
-    keywords=("FEA", "force", "load", "geometry", "vector"),
-    ports=(
-        PortSpec("name", "in", "data", STRING_DATA_TYPE_ID, label="Name", required=True),
-        PortSpec(
-            "index",
-            "in",
-            "data",
-            INTEGER_DATA_TYPE_ID,
-            label="Index",
-            required=False,
-        ),
-        PortSpec(
-            "geometry",
-            "in",
-            "data",
-            OCP_BODY_DATA_TYPE_ID,
-            label="Geometry",
-            required=True,
-            data_access="list",
-        ),
-        PortSpec(
-            "tolerances",
-            "in",
-            "data",
-            DOUBLE_DATA_TYPE_ID,
-            label="Tolerances",
-            required=False,
-            data_access="list",
-        ),
-        PortSpec(
-            "vector",
-            "in",
-            "data",
-            VECTOR_3D_DATA_TYPE_ID,
-            label="Vector",
-            required=True,
-        ),
-        PortSpec("load", "out", "data", LOAD_DATA_TYPE_ID, label="Load"),
-    ),
-    properties=(),
-)
-class ForceNodePlugin:
-    def execute(self, ctx: ExecutionContext) -> NodeResult:
-        name = ctx.inputs.get("name")
-        if type(name) is not str:
-            raise TypeError("Force name must be an exact string")
-        if not name:
-            raise ValueError("Force name must not be empty")
-        index = _force_index(ctx.inputs.get("index"))
-        geometry = ctx.inputs.get("geometry")
-        if type(geometry) is not list or not geometry:
-            raise ValueError("Force requires a nonempty OCPBody list")
-        tolerances = _force_tolerances(ctx, geometry_count=len(geometry))
-        vector = tuple(vector3d_coordinates(ctx.inputs.get("vector")))
-        aggregate_scope = f"cache:force:{uuid4().hex}"
-        record = _ForceRecord(
-            name=name,
-            index=index,
-            child_leases=(),
-            tolerances=tolerances,
-            vector_components=vector,
-            _release_handle=ctx.worker_services.release_handle,
+def execute_force(ctx: ExecutionContext) -> NodeResult:
+    name = ctx.inputs.get("name")
+    if type(name) is not str:
+        raise TypeError("Force name must be an exact string")
+    if not name:
+        raise ValueError("Force name must not be empty")
+    index = _force_index(ctx.inputs.get("index"))
+    geometry = ctx.inputs.get("geometry")
+    if type(geometry) is not list or not geometry:
+        raise ValueError("Force requires a nonempty OCPBody list")
+    tolerances = _force_tolerances(ctx, geometry_count=len(geometry))
+    vector = tuple(vector3d_coordinates(ctx.inputs.get("vector")))
+    aggregate_scope = f"cache:force:{uuid4().hex}"
+    record = _ForceRecord(
+        name=name,
+        index=index,
+        child_leases=(),
+        tolerances=tolerances,
+        vector_components=vector,
+        _release_handle=ctx.worker_services.release_handle,
+    )
+    acquired: list[RuntimeHandleRef] = []
+    try:
+        for value in geometry:
+            child_ref, _shape = _resolve_ocp_body(ctx, value)
+            acquired.append(ctx.lease_handle(child_ref, owner_scope=aggregate_scope))
+        record.child_leases = tuple(acquired)
+        force_ref = ctx.register_handle(
+            record,
+            data_type_id=FORCE_DATA_TYPE_ID,
+            kind=FORCE_HANDLE_KIND,
+            metadata={},
+            dispose=record.close,
         )
-        acquired: list[RuntimeHandleRef] = []
-        try:
-            for value in geometry:
-                child_ref, _shape = _resolve_ocp_body(ctx, value)
-                acquired.append(
-                    ctx.lease_handle(child_ref, owner_scope=aggregate_scope)
-                )
-            record.child_leases = tuple(acquired)
-            force_ref = ctx.register_handle(
-                record,
-                data_type_id=FORCE_DATA_TYPE_ID,
-                kind=FORCE_HANDLE_KIND,
-                metadata={},
-                dispose=record.close,
+        return NodeResult(outputs={"load": force_ref})
+    except Exception:
+        record.child_leases = tuple(acquired)
+        record.close()
+        raise
+
+
+def execute_load_container(ctx: ExecutionContext) -> NodeResult:
+    value = ctx.inputs.get("load")
+    if type(value) is not RuntimeHandleRef:
+        raise TypeError("Load Container requires an authenticated ILoad handle")
+    ctx.worker_services.data_types.validate_carrier(LOAD_DATA_TYPE_ID, value)
+    ctx.resolve_handle(
+        value,
+        expected_data_type=value.data_type_id,
+        expected_kind=value.kind,
+    )
+    return NodeResult(outputs={"output": value})
+
+
+def execute_construct_parameters(ctx: ExecutionContext) -> NodeResult:
+    node_label = "Construct Parameters"
+    names = _required_list_input(ctx, "names", node_label=node_label)
+    minimum_values = _required_list_input(
+        ctx,
+        "minimum_values",
+        node_label=node_label,
+    )
+    maximum_values = _required_list_input(
+        ctx,
+        "maximum_values",
+        node_label=node_label,
+    )
+    decimal_places = _required_list_input(
+        ctx,
+        "decimal_places",
+        node_label=node_label,
+    )
+    _validate_list_items(ctx, names, data_type_id=STRING_DATA_TYPE_ID, label="Names")
+    _validate_list_items(
+        ctx,
+        minimum_values,
+        data_type_id=DOUBLE_DATA_TYPE_ID,
+        label="Minimum Values",
+    )
+    _validate_list_items(
+        ctx,
+        maximum_values,
+        data_type_id=DOUBLE_DATA_TYPE_ID,
+        label="Maximum Values",
+    )
+    _validate_list_items(
+        ctx,
+        decimal_places,
+        data_type_id=INTEGER_DATA_TYPE_ID,
+        label="Decimal Places",
+    )
+    if any(not 0 <= value <= 15 for value in decimal_places):
+        raise ValueError("Decimal Places items must be between 0 and 15")
+
+    lengths = tuple(
+        len(values)
+        for values in (names, minimum_values, maximum_values, decimal_places)
+    )
+    records: list[_OptimizationParameterRecord] = []
+    for index in range(min(lengths)):
+        places = decimal_places[index]
+        rounded_minimum = round(float(minimum_values[index]), places)
+        rounded_maximum = round(float(maximum_values[index]), places)
+        if rounded_minimum >= rounded_maximum:
+            raise ValueError(
+                "Optimization Parameter rounded minimum must be less than maximum"
             )
-            return NodeResult(outputs={"load": force_ref})
-        except Exception:
-            record.child_leases = tuple(acquired)
-            record.close()
-            raise
-
-
-@node_type(
-    type_id=LOAD_CONTAINER_NODE_TYPE_ID,
-    display_name="Load Container",
-    category_path=("FEA", "Loads"),
-    icon="inventory_2",
-    description="Validates and passes through one live ILoad handle.",
-    keywords=("FEA", "load", "container", "pass through"),
-    ports=(
-        PortSpec(
-            "load",
-            "in",
-            "data",
-            LOAD_DATA_TYPE_ID,
-            label="Load",
-            required=True,
-        ),
-        PortSpec("output", "out", "data", LOAD_DATA_TYPE_ID, label="Output"),
-    ),
-    properties=(),
-)
-class LoadContainerNodePlugin:
-    def execute(self, ctx: ExecutionContext) -> NodeResult:
-        value = ctx.inputs.get("load")
-        if type(value) is not RuntimeHandleRef:
-            raise TypeError("Load Container requires an authenticated ILoad handle")
-        ctx.worker_services.data_types.validate_carrier(LOAD_DATA_TYPE_ID, value)
-        ctx.resolve_handle(
-            value,
-            expected_data_type=value.data_type_id,
-            expected_kind=value.kind,
-        )
-        return NodeResult(outputs={"output": value})
-
-
-@node_type(
-    type_id=CONSTRUCT_PARAMETERS_NODE_TYPE_ID,
-    display_name="Construct Parameters",
-    category_path=("Optimization",),
-    icon="tune",
-    description="Constructs optimization parameter handles from parallel lists.",
-    keywords=("optimization", "parameter", "variable"),
-    ports=(
-        PortSpec(
-            "names",
-            "in",
-            "data",
-            STRING_DATA_TYPE_ID,
-            label="Names",
-            required=True,
-            data_access="list",
-        ),
-        PortSpec(
-            "minimum_values",
-            "in",
-            "data",
-            DOUBLE_DATA_TYPE_ID,
-            label="Minimum Values",
-            required=True,
-            data_access="list",
-        ),
-        PortSpec(
-            "maximum_values",
-            "in",
-            "data",
-            DOUBLE_DATA_TYPE_ID,
-            label="Maximum Values",
-            required=True,
-            data_access="list",
-        ),
-        PortSpec(
-            "decimal_places",
-            "in",
-            "data",
-            INTEGER_DATA_TYPE_ID,
-            label="Decimal Places",
-            required=True,
-            data_access="list",
-        ),
-        PortSpec(
-            "parameters",
-            "out",
-            "data",
-            OPTIMIZATION_PARAMETER_DATA_TYPE_ID,
-            label="Parameters",
-            data_access="list",
-        ),
-    ),
-    properties=(),
-)
-class ConstructParametersNodePlugin:
-
-    def execute(self, ctx: ExecutionContext) -> NodeResult:
-        node_label = "Construct Parameters"
-        names = _required_list_input(ctx, "names", node_label=node_label)
-        minimum_values = _required_list_input(
-            ctx,
-            "minimum_values",
-            node_label=node_label,
-        )
-        maximum_values = _required_list_input(
-            ctx,
-            "maximum_values",
-            node_label=node_label,
-        )
-        decimal_places = _required_list_input(
-            ctx,
-            "decimal_places",
-            node_label=node_label,
-        )
-        _validate_list_items(
-            ctx,
-            names,
-            data_type_id=STRING_DATA_TYPE_ID,
-            label="Names",
-        )
-        _validate_list_items(
-            ctx,
-            minimum_values,
-            data_type_id=DOUBLE_DATA_TYPE_ID,
-            label="Minimum Values",
-        )
-        _validate_list_items(
-            ctx,
-            maximum_values,
-            data_type_id=DOUBLE_DATA_TYPE_ID,
-            label="Maximum Values",
-        )
-        _validate_list_items(
-            ctx,
-            decimal_places,
-            data_type_id=INTEGER_DATA_TYPE_ID,
-            label="Decimal Places",
-        )
-        if any(not 0 <= value <= 15 for value in decimal_places):
-            raise ValueError("Decimal Places items must be between 0 and 15")
-
-        lengths = tuple(
-            len(values)
-            for values in (
-                names,
-                minimum_values,
-                maximum_values,
-                decimal_places,
+        records.append(
+            _OptimizationParameterRecord(
+                id=uuid4(),
+                node_id=UUID(int=0),
+                name=str(names[index]),
+                minimum_value=rounded_minimum,
+                maximum_value=rounded_maximum,
+                decimal_places=places,
             )
         )
-        count = min(lengths)
-        records: list[_OptimizationParameterRecord] = []
-        for index in range(count):
-            places = decimal_places[index]
-            rounded_minimum = round(float(minimum_values[index]), places)
-            rounded_maximum = round(float(maximum_values[index]), places)
-            if rounded_minimum >= rounded_maximum:
-                raise ValueError(
-                    "Optimization Parameter rounded minimum must be less than maximum"
-                )
-            records.append(
-                _OptimizationParameterRecord(
-                    id=uuid4(),
-                    node_id=UUID(int=0),
-                    name=str(names[index]),
-                    minimum_value=rounded_minimum,
-                    maximum_value=rounded_maximum,
-                    decimal_places=places,
-                )
+    refs = _register_optimization_records(
+        ctx,
+        tuple(records),
+        data_type_id=OPTIMIZATION_PARAMETER_DATA_TYPE_ID,
+    )
+    warnings = () if len(set(lengths)) == 1 else (_SHORTEST_LIST_WARNING,)
+    return NodeResult(outputs={"parameters": refs}, warnings=warnings)
+
+
+def execute_construct_responses(ctx: ExecutionContext) -> NodeResult:
+    node_label = "Construct Responses"
+    names = _required_list_input(ctx, "names", node_label=node_label)
+    objectives = _required_list_input(ctx, "objectives", node_label=node_label)
+
+    optional_constraints: dict[str, list[object] | None] = {}
+    for key in ("minimum_constraints", "maximum_constraints"):
+        value = ctx.inputs.get(key)
+        if value is None:
+            optional_constraints[key] = None
+        elif type(value) is not list:
+            raise TypeError(f"{node_label} {key} must be a list")
+        else:
+            optional_constraints[key] = value or None
+    minimum_constraints = optional_constraints["minimum_constraints"]
+    maximum_constraints = optional_constraints["maximum_constraints"]
+
+    _validate_list_items(ctx, names, data_type_id=STRING_DATA_TYPE_ID, label="Names")
+    _validate_list_items(
+        ctx,
+        objectives,
+        data_type_id=INTEGER_DATA_TYPE_ID,
+        label="Objectives",
+    )
+    if any(value not in {0, 1, 2} for value in objectives):
+        raise ValueError("Objectives items must be 0, 1, or 2")
+    for label, values in (
+        ("Minimum Constraints", minimum_constraints),
+        ("Maximum Constraints", maximum_constraints),
+    ):
+        if values is not None:
+            _validate_list_items(
+                ctx,
+                values,
+                data_type_id=DOUBLE_DATA_TYPE_ID,
+                label=label,
+                allow_none=True,
             )
-        refs = _register_optimization_records(
-            ctx,
-            tuple(records),
-            data_type_id=OPTIMIZATION_PARAMETER_DATA_TYPE_ID,
+
+    participating_lists = [names, objectives]
+    if minimum_constraints is not None:
+        participating_lists.append(minimum_constraints)
+    if maximum_constraints is not None:
+        participating_lists.append(maximum_constraints)
+    lengths = tuple(len(values) for values in participating_lists)
+    records: list[_OptimizationResponseRecord] = []
+    for index in range(min(lengths)):
+        minimum_item = (
+            None if minimum_constraints is None else minimum_constraints[index]
         )
-        warnings = () if len(set(lengths)) == 1 else (_SHORTEST_LIST_WARNING,)
-        return NodeResult(outputs={"parameters": refs}, warnings=warnings)
-
-
-@node_type(
-    type_id=CONSTRUCT_RESPONSES_NODE_TYPE_ID,
-    display_name="Construct Responses",
-    category_path=("Optimization",),
-    icon="analytics",
-    description="Constructs optimization response handles from parallel lists.",
-    keywords=("optimization", "response", "objective", "constraint"),
-    ports=(
-        PortSpec(
-            "names",
-            "in",
-            "data",
-            STRING_DATA_TYPE_ID,
-            label="Names",
-            required=True,
-            data_access="list",
-        ),
-        PortSpec(
-            "objectives",
-            "in",
-            "data",
-            INTEGER_DATA_TYPE_ID,
-            label="Objectives",
-            required=True,
-            data_access="list",
-        ),
-        PortSpec(
-            "minimum_constraints",
-            "in",
-            "data",
-            DOUBLE_DATA_TYPE_ID,
-            label="Minimum Constraints",
-            required=False,
-            description="Optional list; null items are preserved as no constraint.",
-            data_access="list",
-        ),
-        PortSpec(
-            "maximum_constraints",
-            "in",
-            "data",
-            DOUBLE_DATA_TYPE_ID,
-            label="Maximum Constraints",
-            required=False,
-            description="Optional list; null items are preserved as no constraint.",
-            data_access="list",
-        ),
-        PortSpec(
-            "responses",
-            "out",
-            "data",
-            OPTIMIZATION_RESPONSE_DATA_TYPE_ID,
-            label="Responses",
-            data_access="list",
-        ),
-    ),
-    properties=(),
-)
-class ConstructResponsesNodePlugin:
-
-    def execute(self, ctx: ExecutionContext) -> NodeResult:
-        node_label = "Construct Responses"
-        names = _required_list_input(ctx, "names", node_label=node_label)
-        objectives = _required_list_input(ctx, "objectives", node_label=node_label)
-
-        optional_constraints: dict[str, list[object] | None] = {}
-        for key in ("minimum_constraints", "maximum_constraints"):
-            value = ctx.inputs.get(key)
-            if value is None:
-                optional_constraints[key] = None
-            elif type(value) is not list:
-                raise TypeError(f"{node_label} {key} must be a list")
-            else:
-                optional_constraints[key] = value or None
-        minimum_constraints = optional_constraints["minimum_constraints"]
-        maximum_constraints = optional_constraints["maximum_constraints"]
-
-        _validate_list_items(
-            ctx,
-            names,
-            data_type_id=STRING_DATA_TYPE_ID,
-            label="Names",
+        maximum_item = (
+            None if maximum_constraints is None else maximum_constraints[index]
         )
-        _validate_list_items(
-            ctx,
-            objectives,
-            data_type_id=INTEGER_DATA_TYPE_ID,
-            label="Objectives",
-        )
-        if any(value not in {0, 1, 2} for value in objectives):
-            raise ValueError("Objectives items must be 0, 1, or 2")
-        for label, values in (
-            ("Minimum Constraints", minimum_constraints),
-            ("Maximum Constraints", maximum_constraints),
+        minimum_constraint = None if minimum_item is None else float(minimum_item)
+        maximum_constraint = None if maximum_item is None else float(maximum_item)
+        if (
+            minimum_constraint is not None
+            and maximum_constraint is not None
+            and minimum_constraint >= maximum_constraint
         ):
-            if values is not None:
-                _validate_list_items(
-                    ctx,
-                    values,
-                    data_type_id=DOUBLE_DATA_TYPE_ID,
-                    label=label,
-                    allow_none=True,
-                )
-
-        participating_lists = [names, objectives]
-        if minimum_constraints is not None:
-            participating_lists.append(minimum_constraints)
-        if maximum_constraints is not None:
-            participating_lists.append(maximum_constraints)
-        lengths = tuple(len(values) for values in participating_lists)
-        count = min(lengths)
-        records: list[_OptimizationResponseRecord] = []
-        for index in range(count):
-            minimum_item = (
-                None
-                if minimum_constraints is None
-                else minimum_constraints[index]
+            raise ValueError(
+                "Optimization Response minimum constraint must be less than maximum"
             )
-            maximum_item = (
-                None
-                if maximum_constraints is None
-                else maximum_constraints[index]
+        records.append(
+            _OptimizationResponseRecord(
+                id=uuid4(),
+                node_id=UUID(int=0),
+                name=str(names[index]),
+                objective=objectives[index],
+                minimum_constraint=minimum_constraint,
+                maximum_constraint=maximum_constraint,
             )
-            minimum_constraint = (
-                None if minimum_item is None else float(minimum_item)
-            )
-            maximum_constraint = (
-                None if maximum_item is None else float(maximum_item)
-            )
-            if (
-                minimum_constraint is not None
-                and maximum_constraint is not None
-                and minimum_constraint >= maximum_constraint
-            ):
-                raise ValueError(
-                    "Optimization Response minimum constraint must be less than maximum"
-                )
-            records.append(
-                _OptimizationResponseRecord(
-                    id=uuid4(),
-                    node_id=UUID(int=0),
-                    name=str(names[index]),
-                    objective=objectives[index],
-                    minimum_constraint=minimum_constraint,
-                    maximum_constraint=maximum_constraint,
-                )
-            )
-        refs = _register_optimization_records(
-            ctx,
-            tuple(records),
-            data_type_id=OPTIMIZATION_RESPONSE_DATA_TYPE_ID,
         )
-        warnings = () if len(set(lengths)) == 1 else (_SHORTEST_LIST_WARNING,)
-        return NodeResult(outputs={"responses": refs}, warnings=warnings)
+    refs = _register_optimization_records(
+        ctx,
+        tuple(records),
+        data_type_id=OPTIMIZATION_RESPONSE_DATA_TYPE_ID,
+    )
+    warnings = () if len(set(lengths)) == 1 else (_SHORTEST_LIST_WARNING,)
+    return NodeResult(outputs={"responses": refs}, warnings=warnings)
 
 
 @node_type(
@@ -1788,190 +1573,109 @@ class ResponsePoolNodePlugin:
         return NodeResult(warnings=warnings)
 
 
-@node_type(
-    type_id=CONSTRUCT_DESIGN_NODE_TYPE_ID,
-    display_name="Construct Design",
-    category_path=("Control", "Parameter Optimization"),
-    icon="design_services",
-    description="Create a design for a parameter study.",
-    keywords=(),
-    ports=(
-        PortSpec(
-            "parameters_and_responses",
-            "in",
-            "data",
-            OPTIMIZATION_VARIABLE_DATA_TYPE_ID,
-            label="Parameters & Responses",
-            required=True,
-            description="Parameters and responses of the design.",
-            data_access="list",
-        ),
-        PortSpec(
-            "name",
-            "in",
-            "data",
-            STRING_DATA_TYPE_ID,
-            label="Name",
-            required=True,
-            uses_property_default=True,
-            description="The name of the design.",
-        ),
-        PortSpec(
-            "parameter_values",
-            "in",
-            "data",
-            DOUBLE_DATA_TYPE_ID,
-            label="Parameter values",
-            required=False,
-            description=(
-                "Optional values of the parameters. If no values are given, the "
-                "minimum values of the parameters are used."
-            ),
-            data_access="list",
-        ),
-        PortSpec(
-            "response_values",
-            "in",
-            "data",
-            DOUBLE_DATA_TYPE_ID,
-            label="Response values",
-            required=False,
-            description="Optional values of the responses.",
-            data_access="list",
-        ),
-        PortSpec(
-            "design",
-            "out",
-            "data",
-            OPTIMIZATION_DESIGN_DATA_TYPE_ID,
-            label="Design",
-            description="The created design.",
-        ),
-    ),
-    properties=(
-        PropertySpec(
-            "name",
-            "str",
-            "Design",
-            "Name",
-            description="The name of the design.",
-        ),
-    ),
-)
-class ConstructDesignNodePlugin:
+def execute_construct_design(ctx: ExecutionContext) -> NodeResult:
+    raw_variables = _required_list_input(
+        ctx,
+        "parameters_and_responses",
+        node_label="Construct Design",
+    )
+    variables = tuple(
+        _resolve_optimization_record(ctx, value) for value in raw_variables
+    )
+    _require_unique_optimization_records(variables)
+    if any(record.node_id.int == 0 for record in variables):
+        raise ValueError("Construct Design requires Parameter Setup-bound variables")
+    parameters = tuple(
+        record
+        for record in variables
+        if type(record) is _OptimizationParameterRecord
+    )
+    responses = tuple(
+        record
+        for record in variables
+        if type(record) is _OptimizationResponseRecord
+    )
 
-    def execute(self, ctx: ExecutionContext) -> NodeResult:
-        raw_variables = _required_list_input(
-            ctx,
-            "parameters_and_responses",
-            node_label="Construct Design",
-        )
-        variables = tuple(
-            _resolve_optimization_record(ctx, value) for value in raw_variables
-        )
-        _require_unique_optimization_records(variables)
-        if any(record.node_id.int == 0 for record in variables):
-            raise ValueError(
-                "Construct Design requires Parameter Setup-bound variables"
-            )
-        parameters = tuple(
-            record
-            for record in variables
-            if type(record) is _OptimizationParameterRecord
-        )
-        responses = tuple(
-            record
-            for record in variables
-            if type(record) is _OptimizationResponseRecord
-        )
-
-        raw_parameter_values = _optional_list_input(
-            ctx,
-            "parameter_values",
-            node_label="Construct Design",
-        )
-        parameter_values = (
-            tuple(record.minimum_value for record in parameters)
-            if raw_parameter_values is None
-            else tuple(
-                value
-                for value in _exact_finite_values(
-                    ctx,
-                    raw_parameter_values,
-                    label="Construct Design Parameter values",
-                )
-                if value is not None
-            )
-        )
-        if len(parameter_values) != len(parameters):
-            raise ValueError(
-                "Construct Design Parameter values must match the parameter count"
-            )
-        if any(
-            value < record.minimum_value or value > record.maximum_value
-            for record, value in zip(parameters, parameter_values, strict=True)
-        ):
-            raise ValueError("Construct Design Parameter values must be within bounds")
-
-        raw_response_values = _optional_list_input(
-            ctx,
-            "response_values",
-            node_label="Construct Design",
-        )
-        response_values = (
-            (None,) * len(responses)
-            if raw_response_values is None
-            else _exact_finite_values(
+    raw_parameter_values = _optional_list_input(
+        ctx,
+        "parameter_values",
+        node_label="Construct Design",
+    )
+    parameter_values = (
+        tuple(record.minimum_value for record in parameters)
+        if raw_parameter_values is None
+        else tuple(
+            value
+            for value in _exact_finite_values(
                 ctx,
-                raw_response_values,
-                label="Construct Design Response values",
+                raw_parameter_values,
+                label="Construct Design Parameter values",
             )
+            if value is not None
         )
-        if len(response_values) != len(responses):
-            raise ValueError(
-                "Construct Design Response values must match the response count"
-            )
+    )
+    if len(parameter_values) != len(parameters):
+        raise ValueError(
+            "Construct Design Parameter values must match the parameter count"
+        )
+    if any(
+        value < record.minimum_value or value > record.maximum_value
+        for record, value in zip(parameters, parameter_values, strict=True)
+    ):
+        raise ValueError("Construct Design Parameter values must be within bounds")
 
-        parameter_iterator = iter(parameter_values)
-        response_iterator = iter(response_values)
-        ordered_values = tuple(
-            next(parameter_iterator)
-            if type(record) is _OptimizationParameterRecord
-            else next(response_iterator)
-            for record in variables
+    raw_response_values = _optional_list_input(
+        ctx,
+        "response_values",
+        node_label="Construct Design",
+    )
+    response_values = (
+        (None,) * len(responses)
+        if raw_response_values is None
+        else _exact_finite_values(
+            ctx,
+            raw_response_values,
+            label="Construct Design Response values",
         )
-        raw_name = ctx.inputs.get("name")
-        if raw_name is None:
-            raw_name = ctx.properties.get("name", "Design")
-        string_spec = ctx.worker_services.data_types.require(STRING_DATA_TYPE_ID)
-        if not string_spec.validate_item(raw_name):
-            raise TypeError("Construct Design Name must be a string")
+    )
+    if len(response_values) != len(responses):
+        raise ValueError("Construct Design Response values must match the response count")
 
-        design = _OptimizationDesignRecord(
-            id=uuid4(),
-            name=str(raw_name),
-            status=_response_design_status(responses, response_values),
-            variables=variables,
-            values=ordered_values,
-            solution=None,
-            screenshot=None,
-        )
-        design_ref = ctx.register_handle(
-            design,
-            data_type_id=OPTIMIZATION_DESIGN_DATA_TYPE_ID,
-            kind=OPTIMIZATION_DESIGN_HANDLE_KIND,
-            metadata={},
-        )
-        return NodeResult(outputs={"design": design_ref})
+    parameter_iterator = iter(parameter_values)
+    response_iterator = iter(response_values)
+    ordered_values = tuple(
+        next(parameter_iterator)
+        if type(record) is _OptimizationParameterRecord
+        else next(response_iterator)
+        for record in variables
+    )
+    raw_name = ctx.inputs.get("name")
+    if raw_name is None:
+        raw_name = ctx.properties.get("name", "Design")
+    string_spec = ctx.worker_services.data_types.require(STRING_DATA_TYPE_ID)
+    if not string_spec.validate_item(raw_name):
+        raise TypeError("Construct Design Name must be a string")
+
+    design = _OptimizationDesignRecord(
+        id=uuid4(),
+        name=str(raw_name),
+        status=_response_design_status(responses, response_values),
+        variables=variables,
+        values=ordered_values,
+        solution=None,
+        screenshot=None,
+    )
+    design_ref = ctx.register_handle(
+        design,
+        data_type_id=OPTIMIZATION_DESIGN_DATA_TYPE_ID,
+        kind=OPTIMIZATION_DESIGN_HANDLE_KIND,
+        metadata={},
+    )
+    return NodeResult(outputs={"design": design_ref})
 
 
 COREX_FEM_NODE_DESCRIPTORS = (
-    plugin_descriptor(ForceNodePlugin),
-    plugin_descriptor(LoadContainerNodePlugin),
-    plugin_descriptor(ConstructParametersNodePlugin),
-    plugin_descriptor(ConstructResponsesNodePlugin),
     plugin_descriptor(ParameterSetupNodePlugin),
     plugin_descriptor(ParameterPoolNodePlugin),
     plugin_descriptor(ResponsePoolNodePlugin),
-    plugin_descriptor(ConstructDesignNodePlugin),
 )

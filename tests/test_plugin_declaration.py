@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections import UserList
+from dataclasses import asdict
 from pathlib import Path
 
 import pytest
@@ -13,7 +14,8 @@ from ea_node_editor.nodes.plugin_declaration import (
 )
 from ea_node_editor.nodes.function_plugin import INTERNAL_BUILTIN_FUNCTION_OWNER_ID
 from ea_node_editor.nodes.node_specs import PropertyConditionSpec
-from ea_node_editor.runtime_contracts import Interval1D
+from ea_node_editor.nodes.registry import NodeRegistry
+from ea_node_editor.runtime_contracts import DataTypeSpec, Interval1D, TypedInlineValue
 
 
 PUBLIC_EXPORTS = [
@@ -575,6 +577,10 @@ def private_defaults(ctx, settings):
         item.property_key for item in declaration.spec.settings_groups[0].items
     ] == ["first", "second"]
     assert declaration.spec.ports[0].description == "Shared."
+    assert declaration.spec.collapsible is True
+    assert declaration.spec.surface_family == "standard"
+    assert declaration.spec.surface_variant == ""
+    assert declaration.spec.render_quality.supported_quality_tiers == ("full",)
     assert (
         declaration.spec.properties[0].persistence_data_type_id
         == "COREX.DataTypes.Interval1D"
@@ -603,6 +609,138 @@ def private_persistence(ctx, settings): return {{}}
         declaration.spec.properties[0].persistence_data_type_id
         == "COREX.DataTypes.Interval1D"
     )
+
+
+def test_internal_typed_carrier_defaults_materialize_and_normalize() -> None:
+    source = '''
+PLANE_DEFAULT = {
+    "data_type_id": "COREX.DataTypes.Plane",
+    "schema_version": 1,
+    "payload": {"origin": [0.0, 0.0, 0.0]},
+}
+POINT_DEFAULT = {
+    "data_type_id": "COREX.DataTypes.Point3D",
+    "schema_version": 2,
+    "payload": {"x": 1.0, "y": 2.0, "z": 3.0},
+}
+
+@corex.node(id="reference.plane", name="Plane", category=("Reference",))
+@corex.text(
+    "value", _property_type="json", _property_default=PLANE_DEFAULT,
+    _persistence_type="COREX.DataTypes.Plane",
+)
+def plane(ctx, settings): return {}
+
+@corex.node(id="reference.point", name="Point", category=("Reference",))
+@corex.text(
+    "value", _property_type="json", _property_default=POINT_DEFAULT,
+    _persistence_type="COREX.DataTypes.Point3D",
+)
+def point(ctx, settings): return {}
+
+@corex.node(id="reference.json", name="JSON", category=("Reference",))
+@corex.text(
+    "value", _property_type="json", _property_default=PLANE_DEFAULT,
+    _persistence_type=None,
+)
+def json_value(ctx, settings): return {}
+'''
+
+    plane, point, json_value = discover_internal(source)
+    expected = (
+        {
+            "data_type_id": "COREX.DataTypes.Plane",
+            "schema_version": 1,
+            "payload": {"origin": [0.0, 0.0, 0.0]},
+        },
+        {
+            "data_type_id": "COREX.DataTypes.Point3D",
+            "schema_version": 2,
+            "payload": {"x": 1.0, "y": 2.0, "z": 3.0},
+        },
+    )
+    for declaration, carrier in zip((plane, point), expected, strict=True):
+        default = declaration.spec.properties[0].default
+        assert type(default) is TypedInlineValue
+        assert asdict(default) == carrier
+
+    assert json_value.spec.properties[0].default == expected[0]
+    assert type(json_value.spec.properties[0].default) is dict
+
+    registry = NodeRegistry()
+    registry.data_types.register_many(
+        types=tuple(
+            DataTypeSpec(
+                carrier["data_type_id"],
+                carrier["data_type_id"],
+                "graph",
+                lambda payload: isinstance(payload, dict),
+                carriers=frozenset({"inline"}),
+                persistence="inline",
+                payload_schema_version=carrier["schema_version"],
+            )
+            for carrier in expected
+        ),
+        owner_id="tests.typed_defaults",
+    )
+    for declaration in (plane, point):
+        registry.register_descriptor(declaration.spec, lambda: None)  # type: ignore[arg-type]
+        normalized = registry.default_properties(declaration.spec.type_id)["value"]
+        assert type(normalized) is TypedInlineValue
+        assert normalized == declaration.spec.properties[0].default
+        assert normalized is not declaration.spec.properties[0].default
+
+
+@pytest.mark.parametrize(
+    ("carrier", "message"),
+    (
+        (
+            {"data_type_id": "COREX.DataTypes.Other", "schema_version": 1, "payload": {}},
+            "must match _persistence_type",
+        ),
+        (
+            {"data_type_id": "COREX.DataTypes.Plane", "schema_version": 1},
+            "must contain only",
+        ),
+        ({"schema_version": 1}, "must contain only"),
+        (
+            {
+                "data_type_id": "COREX.DataTypes.Plane",
+                "schema_version": 1,
+                "payload": {},
+                "extra": True,
+            },
+            "must contain only",
+        ),
+        (
+            {"data_type_id": "COREX.DataTypes.Plane", "schema_version": 0, "payload": {}},
+            "positive integer",
+        ),
+        (
+            {"data_type_id": "COREX.DataTypes.Plane", "schema_version": True, "payload": {}},
+            "positive integer",
+        ),
+        (
+            {"data_type_id": "COREX.DataTypes.Plane", "schema_version": 1, "payload": []},
+            "payload must be a mapping",
+        ),
+    ),
+)
+def test_internal_typed_carrier_defaults_reject_malformed_values(
+    carrier: object,
+    message: str,
+) -> None:
+    source = f'''
+@corex.node(id="reference.bad", name="Bad", category=("Reference",))
+@corex.text(
+    "value", _property_type="json", _property_default={carrier!r},
+    _persistence_type="COREX.DataTypes.Plane",
+)
+def bad(ctx, settings): return {{}}
+'''
+
+    with pytest.raises(PluginDeclarationError, match=message):
+        discover_internal(source)
 
 
 @pytest.mark.parametrize(
@@ -836,6 +974,7 @@ def host(ctx, private_key_path): return {"host": {}}
         ("_port_required", "True"),
         ("_port_label", '""'),
         ("_port_structure", '"tree"'),
+        ("_port_uses_property_default", "False"),
         ("_port_value_type", '"COREX.DataTypes.Any"'),
         ("_port_accepted_data_types", '("COREX.DataTypes.Any",)'),
         ("_property_type", '"json"'),
@@ -879,6 +1018,29 @@ def test_external_plugins_reject_t12_private_input_and_node_fields(
 {decorator}
 def private_input(ctx, value): return {{}}
 '''
+    with pytest.raises(PluginDeclarationError, match="reserved for internal built-ins"):
+        discover_plugin_declarations(source)
+
+
+@pytest.mark.parametrize(
+    "field",
+    (
+        "_collapsible=False",
+        '_property_output_collisions=("value",)',
+        '_surface_family="viewer"',
+        '_surface_variant="embedded"',
+        '_render_quality_tiers=("full", "proxy")',
+    ),
+)
+def test_external_plugins_reject_internal_node_surface_fields(field: str) -> None:
+    source = f'''
+@corex.node(
+    id="custom.private_surface.1234abcd", name="Private", category=("Tests",),
+    {field},
+)
+def private_surface(ctx): return {{}}
+'''
+
     with pytest.raises(PluginDeclarationError, match="reserved for internal built-ins"):
         discover_plugin_declarations(source)
 
@@ -955,7 +1117,12 @@ def test_runtime_private_metadata_accepts_known_fields_and_rejects_unknown() -> 
         id="io.runtime_private",
         name="Runtime",
         category=("Tests",),
+        _collapsible=False,
+        _property_output_collisions=(),
         _readiness_requirements=(),
+        _render_quality_tiers=("full", "proxy"),
+        _surface_family="viewer",
+        _surface_variant="embedded",
     )
     @corex.input("path", _accepted_data_types=("COREX.DataTypes.Path",))
     @corex.text(
@@ -972,6 +1139,7 @@ def test_runtime_private_metadata_accepts_known_fields_and_rejects_unknown() -> 
         _port_required=True,
         _port_label="",
         _port_structure="tree",
+        _port_uses_property_default=False,
         _port_value_type="COREX.DataTypes.Any",
         _port_accepted_data_types=("COREX.DataTypes.String",),
     )
@@ -981,6 +1149,203 @@ def test_runtime_private_metadata_accepts_known_fields_and_rejects_unknown() -> 
     assert runtime_private(1, 2, 3) == (1, 2, 3)
     with pytest.raises(TypeError, match="Unsupported private decorator field"):
         corex.text("value", _unknown_private=True)
+    with pytest.raises(TypeError, match="Unsupported private decorator field"):
+        corex.node(_unknown_private=True)
+
+
+def test_internal_node_surface_metadata_maps_to_node_type_spec() -> None:
+    source = '''
+@corex.node(
+    id="engineering.viewer", name="Viewer", category=("Engineering",),
+    _collapsible=False, _surface_family="viewer", _surface_variant="embedded",
+    _render_quality_tiers=("full", "proxy"),
+)
+@corex.output("session")
+def viewer(ctx): return {"session": None}
+'''
+
+    (declaration,) = discover_internal(source)
+
+    assert declaration.spec.collapsible is False
+    assert declaration.spec.surface_family == "viewer"
+    assert declaration.spec.surface_variant == "embedded"
+    assert declaration.spec.render_quality.supported_quality_tiers == (
+        "full",
+        "proxy",
+    )
+
+
+@pytest.mark.parametrize(
+    ("value", "message"),
+    (
+        ('"full"', "tuple or list"),
+        ("()", "one to three"),
+        ('("full", "reduced", "proxy", "full")', "one to three"),
+        ('("draft",)', "values must be"),
+        ('("full", "full")', "duplicates"),
+    ),
+)
+def test_internal_render_quality_tiers_validate_bounds_and_values(
+    value: str,
+    message: str,
+) -> None:
+    source = f'''
+@corex.node(
+    id="engineering.viewer", name="Viewer", category=("Engineering",),
+    _render_quality_tiers={value},
+)
+def viewer(ctx): return {{}}
+'''
+
+    with pytest.raises(PluginDeclarationError, match=message):
+        discover_internal(source)
+
+
+@pytest.mark.parametrize(
+    ("field", "message"),
+    (
+        ("_collapsible=0", "true or false"),
+        ("_surface_family=1", "non-empty trimmed string"),
+        ('_surface_family=" viewer"', "non-empty trimmed string"),
+        ("_surface_variant=1", "trimmed string"),
+        ('_surface_variant=" embedded"', "trimmed string"),
+    ),
+)
+def test_internal_node_surface_fields_validate_types(
+    field: str,
+    message: str,
+) -> None:
+    source = f'''
+@corex.node(id="engineering.viewer", name="Viewer", category=("Engineering",), {field})
+def viewer(ctx): return {{}}
+'''
+
+    with pytest.raises(PluginDeclarationError, match=message):
+        discover_internal(source)
+
+
+def test_internal_control_port_can_remain_a_normal_function_argument() -> None:
+    source = '''
+@corex.node(id="reference.plane_container", name="Plane", category=("Reference",))
+@corex.text(
+    "input", port=True, _property_type="json", _property_default={},
+    _port_value_type="COREX.DataTypes.Plane", _port_uses_property_default=False,
+)
+@corex.output("output", value_type="COREX.DataTypes.Plane")
+def plane_container(ctx, input, settings):
+    return {"output": input if input is not None else settings.input}
+'''
+
+    (declaration,) = discover_internal(source)
+
+    assert declaration.input_keys == ("input",)
+    assert declaration.control_keys == ("input",)
+    assert declaration.spec.ports[0].uses_property_default is False
+    assert declaration.spec.properties[0].key == "input"
+
+
+@pytest.mark.parametrize(
+    ("decorator", "signature", "message"),
+    (
+        (
+            '@corex.text("value", _port_uses_property_default=False)',
+            "ctx, settings",
+            "port=True",
+        ),
+        (
+            '@corex.text("value", port=True, _port_uses_property_default="no")',
+            "ctx, value, settings",
+            "true or false",
+        ),
+    ),
+)
+def test_internal_port_default_flag_requires_a_boolean_port(
+    decorator: str,
+    signature: str,
+    message: str,
+) -> None:
+    source = f'''
+@corex.node(id="reference.flag", name="Flag", category=("Reference",))
+{decorator}
+def flag({signature}): return {{}}
+'''
+
+    with pytest.raises(PluginDeclarationError, match=message):
+        discover_internal(source)
+
+
+def test_internal_property_output_collision_requires_exact_node_allowlist() -> None:
+    source = '''
+@corex.node(
+    id="core.constant", name="Constant", category=("Core",),
+    _property_output_collisions=("value",),
+)
+@corex.output("value")
+@corex.text("value", default="")
+def constant(ctx, settings): return {"value": settings.value}
+'''
+
+    (declaration,) = discover_internal(source)
+    assert [prop.key for prop in declaration.spec.properties] == ["value"]
+    assert [port.key for port in declaration.spec.ports] == ["value"]
+
+
+@pytest.mark.parametrize(
+    ("metadata", "control", "message"),
+    (
+        (
+            '_property_output_collisions=("missing",)',
+            '@corex.text("value")',
+            "cross-direction",
+        ),
+        ('_property_output_collisions=("value", "value")', '@corex.text("value")', "duplicates"),
+        ('_property_output_collisions="value"', '@corex.text("value")', "tuple or list"),
+        ('_property_output_collisions=("value",)', '@corex.text("value", port=True)', "cross-direction"),
+    ),
+)
+def test_internal_property_output_collision_allowlist_is_narrow(
+    metadata: str,
+    control: str,
+    message: str,
+) -> None:
+    source = f'''
+@corex.node(id="core.constant", name="Constant", category=("Core",), {metadata})
+@corex.output("value")
+{control}
+def constant(ctx, settings): return {{"value": settings.value}}
+'''
+
+    with pytest.raises(PluginDeclarationError, match=message):
+        discover_internal(source)
+
+
+def test_internal_property_output_collision_allowlist_rejects_unused_keys() -> None:
+    source = '''
+@corex.node(
+    id="core.constant", name="Constant", category=("Core",),
+    _property_output_collisions=("missing",),
+)
+@corex.output("result")
+@corex.text("value")
+def constant(ctx, settings): return {"result": settings.value}
+'''
+
+    with pytest.raises(PluginDeclarationError, match="actual property/output"):
+        discover_internal(source)
+
+
+def test_internal_property_output_collision_allowlist_is_bounded() -> None:
+    keys = ", ".join(repr(f"key_{index}") for index in range(33))
+    source = f'''
+@corex.node(
+    id="core.constant", name="Constant", category=("Core",),
+    _property_output_collisions=({keys},),
+)
+def constant(ctx): return {{}}
+'''
+
+    with pytest.raises(PluginDeclarationError, match="too many keys"):
+        discover_internal(source)
 
 
 def test_source_and_decorator_counts_are_bounded() -> None:

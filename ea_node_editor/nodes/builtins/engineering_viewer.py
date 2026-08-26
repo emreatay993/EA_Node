@@ -15,7 +15,6 @@ from ea_node_editor.common.scene_protocol import (
     normalize_viewer_opacity,
     normalize_viewer_representation,
 )
-from ea_node_editor.nodes.builtins.icon_catalog import builtin_node_type_spec
 from ea_node_editor.nodes.builtins.geometry_primitives import (
     OCP_BODY_DATA_TYPE_ID,
     ZONE_DATA_TYPE_ID,
@@ -24,14 +23,7 @@ from ea_node_editor.nodes.builtins.geometry_primitives import (
     _zone_compound,
 )
 from ea_node_editor.nodes.core_data_types import VIEWER_SESSION_DATA_TYPE_ID
-from ea_node_editor.nodes.decorators import plugin_descriptor
 from ea_node_editor.nodes.execution_context import NodeResult
-from ea_node_editor.nodes.node_specs import (
-    NodeRenderQualitySpec,
-    NodeTypeSpec,
-    PortSpec,
-    PropertySpec,
-)
 from ea_node_editor.nodes.viewer_runtime_contracts import (
     MaterializeViewerDataCommand,
     OpenViewerSessionCommand,
@@ -51,7 +43,9 @@ def _require_scene(value: object, *, label: str):  # noqa: ANN202
         or runtime_ref.data_type_id != COREX_SCENE_DATA_TYPE
         or runtime_ref.kind != COREX_SCENE_HANDLE_KIND
     ):
-        raise TypeError(f"Model Viewer requires {label} to be an engineering_scene input.")
+        raise TypeError(
+            f"Model Viewer requires {label} to be an engineering_scene input."
+        )
     return runtime_ref
 
 
@@ -211,7 +205,9 @@ def _viewer_summary(primary_ref: Any, overlay_ref: Any | None) -> dict[str, Any]
     scene_layers = [
         {
             "role": "primary",
-            "name": str(source.get("source_path", "")).rsplit("\\", 1)[-1].rsplit("/", 1)[-1]
+            "name": str(source.get("source_path", ""))
+            .rsplit("\\", 1)[-1]
+            .rsplit("/", 1)[-1]
             or "Primary",
             "length_unit": str(primary_ref.metadata.get("length_unit", "")),
         }
@@ -222,7 +218,9 @@ def _viewer_summary(primary_ref: Any, overlay_ref: Any | None) -> dict[str, Any]
         scene_layers.append(
             {
                 "role": "overlay",
-                "name": str(overlay_source.get("source_path", "")).rsplit("\\", 1)[-1].rsplit("/", 1)[-1]
+                "name": str(overlay_source.get("source_path", ""))
+                .rsplit("\\", 1)[-1]
+                .rsplit("/", 1)[-1]
                 or "Overlay",
                 "length_unit": str(overlay_ref.metadata.get("length_unit", "")),
             }
@@ -255,7 +253,9 @@ def _viewer_summary(primary_ref: Any, overlay_ref: Any | None) -> dict[str, Any]
         "capabilities": capabilities,
         "scene_layers": scene_layers,
         "model_tree": hierarchy,
-        "result_name": (point_arrays + cell_arrays)[0] if point_arrays or cell_arrays else "Geometry",
+        "result_name": (point_arrays + cell_arrays)[0]
+        if point_arrays or cell_arrays
+        else "Geometry",
         "location": (
             "Point/Cell"
             if point_array_count and cell_array_count
@@ -288,12 +288,20 @@ def _open_engineering_viewer_session(
         "playback_state": "paused",
         "step_index": 0,
         "show_mesh_edges": bool(ctx.properties.get("show_mesh_edges", False)),
-        "show_attribute_colors": bool(ctx.properties.get("show_attribute_colors", False)),
-        "show_orientation_triad": bool(ctx.properties.get("show_orientation_triad", True)),
+        "show_attribute_colors": bool(
+            ctx.properties.get("show_attribute_colors", False)
+        ),
+        "show_orientation_triad": bool(
+            ctx.properties.get("show_orientation_triad", True)
+        ),
         "show_view_cube": bool(ctx.properties.get("show_view_cube", True)),
         "show_world_axes": bool(ctx.properties.get("show_world_axes", False)),
-        "viewer_background": str(ctx.properties.get("viewer_background", "theme") or "theme"),
-        "representation": normalize_viewer_representation(ctx.properties.get("representation")),
+        "viewer_background": str(
+            ctx.properties.get("viewer_background", "theme") or "theme"
+        ),
+        "representation": normalize_viewer_representation(
+            ctx.properties.get("representation")
+        ),
         "primary_opacity": normalize_viewer_opacity(
             ctx.properties.get("primary_opacity"), default=1.0
         ),
@@ -301,7 +309,9 @@ def _open_engineering_viewer_session(
             ctx.properties.get("overlay_opacity"), default=0.35
         ),
         "parallel_projection": bool(ctx.properties.get("parallel_projection", False)),
-        "overlay_color": str(ctx.properties.get("overlay_color", "#ff9f43") or "#ff9f43"),
+        "overlay_color": str(
+            ctx.properties.get("overlay_color", "#ff9f43") or "#ff9f43"
+        ),
         "clip_enabled": bool(ctx.properties.get("clip_enabled", False)),
         "clip_axis": str(ctx.properties.get("clip_axis", "x") or "x"),
         "clip_offset": float(ctx.properties.get("clip_offset", 0.0) or 0.0),
@@ -339,199 +349,39 @@ def _open_engineering_viewer_session(
     return service.session_handle(ctx.workspace_id, session_id)
 
 
-class EngineeringViewerNodePlugin:
-    def spec(self) -> NodeTypeSpec:
-        return builtin_node_type_spec(
-            type_id=ENGINEERING_VIEWER_NODE_TYPE_ID,
-            display_name="Model Viewer",
-            category_path=("Engineering", "Viewer"),
-            description=(
-                "Displays a neutral CAD/FE scene, OCP Body, or Zone with one optional "
-                "overlay."
-            ),
-            keywords=("viewer", "cad", "finite element"),
-            ports=(
-                PortSpec(
-                    "scene",
-                    "in",
-                    "data",
-                    COREX_SCENE_DATA_TYPE,
-                    required=True,
-                    accepted_data_types=(OCP_BODY_DATA_TYPE_ID, ZONE_DATA_TYPE_ID),
-                    description=(
-                        "Primary prepared CAD/FE scene, worker-owned OCP Body, or Zone "
-                        "to display."
-                    ),
-                ),
-                PortSpec(
-                    "overlay",
-                    "in",
-                    "data",
-                    COREX_SCENE_DATA_TYPE,
-                    required=False,
-                    description="Optional second scene displayed over the primary scene.",
-                ),
-                PortSpec(
-                    "session",
-                    "out",
-                    "data",
-                    VIEWER_SESSION_DATA_TYPE_ID,
-                    exposed=True,
-                    description="Viewer session payload for embedded and fullscreen presentation.",
-                ),
-                PortSpec(
-                    "selections",
-                    "out",
-                    "data",
-                    ENGINEERING_SELECTION_DATA_TYPE,
-                    exposed=True,
-                    description="Saved entity selections for the displayed scene layers.",
-                ),
-            ),
-            properties=(
-                PropertySpec("show_mesh_edges", "bool", False, "Show Mesh Edges", group="View"),
-                PropertySpec(
-                    "representation",
-                    "enum",
-                    "surface",
-                    "Representation",
-                    enum_values=(
-                        "surface",
-                        "surface_with_edges",
-                        "wireframe",
-                        "wireframe_visible_edges",
-                        "points",
-                    ),
-                    group="View",
-                ),
-                PropertySpec(
-                    "show_attribute_colors",
-                    "bool",
-                    False,
-                    "Show Attribute Colors",
-                    group="View",
-                ),
-                PropertySpec(
-                    "show_orientation_triad",
-                    "bool",
-                    True,
-                    "Show Orientation Triad",
-                    group="View",
-                ),
-                PropertySpec(
-                    "show_view_cube",
-                    "bool",
-                    True,
-                    "Show View Cube",
-                    group="View",
-                ),
-                PropertySpec(
-                    "show_world_axes",
-                    "bool",
-                    False,
-                    "Show World Axes",
-                    group="View",
-                ),
-                PropertySpec("primary_opacity", "float", 1.0, "Primary Opacity", group="View"),
-                PropertySpec("overlay_opacity", "float", 0.35, "Overlay Opacity", group="View"),
-                PropertySpec(
-                    "clip_enabled",
-                    "bool",
-                    False,
-                    "Enable Clipping",
-                    inspector_visible=False,
-                ),
-                PropertySpec(
-                    "clip_axis",
-                    "enum",
-                    "x",
-                    "Clipping Axis",
-                    enum_values=("x", "y", "z"),
-                    inspector_visible=False,
-                ),
-                PropertySpec(
-                    "clip_offset",
-                    "float",
-                    0.0,
-                    "Clipping Offset",
-                    inspector_visible=False,
-                ),
-                PropertySpec(
-                    "parallel_projection",
-                    "bool",
-                    False,
-                    "Parallel Projection",
-                    group="View",
-                ),
-                PropertySpec("overlay_color", "str", "#ff9f43", "Overlay Color", group="View"),
-                PropertySpec(
-                    "viewer_background",
-                    "enum",
-                    "theme",
-                    "Background",
-                    enum_values=("theme", "white", "black", "gray"),
-                    group="View",
-                ),
-                PropertySpec(
-                    "saved_selections",
-                    "json",
-                    empty_engineering_selection_set(),
-                    "Saved Selections",
-                    inspector_visible=False,
-                ),
-                PropertySpec(
-                    "camera_bookmarks",
-                    "json",
-                    [],
-                    "Camera Bookmarks",
-                    inspector_visible=False,
-                ),
-            ),
-            surface_family="viewer",
-            render_quality=NodeRenderQualitySpec(
-                supported_quality_tiers=("full", "proxy"),
-            ),
-        )
-
-    def execute(self, ctx) -> NodeResult:  # noqa: ANN001
-        scene_ref, native_source_ref = _prepare_primary_scene(
-            ctx,
-            ctx.inputs.get("scene"),
-        )
-        overlay_value = ctx.inputs.get("overlay")
-        overlay_ref = (
-            _require_scene(overlay_value, label="overlay")
-            if overlay_value is not None
-            else None
-        )
-        layer_fingerprints = {"primary": _scene_fingerprint(scene_ref)}
-        if overlay_ref is not None:
-            layer_fingerprints["overlay"] = _scene_fingerprint(overlay_ref)
-        selections = _selection_output_for_scene(
-            ctx.properties.get("saved_selections"),
-            layer_fingerprints=layer_fingerprints,
-        )
-        session_payload = _open_engineering_viewer_session(
-            ctx,
-            scene_ref=scene_ref,
-            overlay_ref=overlay_ref,
-            native_source_ref=native_source_ref,
-        )
-        return NodeResult(
-            outputs={
-                "session": session_payload,
-                "selections": selections,
-            }
-        )
-
-
-ENGINEERING_VIEWER_NODE_DESCRIPTORS = (
-    plugin_descriptor(EngineeringViewerNodePlugin),
-)
+def execute_engineering_viewer(ctx) -> NodeResult:  # noqa: ANN001
+    scene_ref, native_source_ref = _prepare_primary_scene(
+        ctx,
+        ctx.inputs.get("scene"),
+    )
+    overlay_value = ctx.inputs.get("overlay")
+    overlay_ref = (
+        _require_scene(overlay_value, label="overlay")
+        if overlay_value is not None
+        else None
+    )
+    layer_fingerprints = {"primary": _scene_fingerprint(scene_ref)}
+    if overlay_ref is not None:
+        layer_fingerprints["overlay"] = _scene_fingerprint(overlay_ref)
+    selections = _selection_output_for_scene(
+        ctx.properties.get("saved_selections"),
+        layer_fingerprints=layer_fingerprints,
+    )
+    session_payload = _open_engineering_viewer_session(
+        ctx,
+        scene_ref=scene_ref,
+        overlay_ref=overlay_ref,
+        native_source_ref=native_source_ref,
+    )
+    return NodeResult(
+        outputs={
+            "session": session_payload,
+            "selections": selections,
+        }
+    )
 
 
 __all__ = [
-    "ENGINEERING_VIEWER_NODE_DESCRIPTORS",
     "ENGINEERING_VIEWER_NODE_TYPE_ID",
-    "EngineeringViewerNodePlugin",
+    "execute_engineering_viewer",
 ]

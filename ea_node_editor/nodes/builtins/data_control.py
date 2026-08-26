@@ -1,3 +1,6 @@
+# Purpose: Keep trusted control-node execution helpers, normalization, and size resolvers.
+# Map: feature_routes/surface_input_and_inline_controls.md
+# Tests: tests/test_boolean_toggle_node.py
 from __future__ import annotations
 
 import math
@@ -5,18 +8,7 @@ from collections.abc import Mapping
 from typing import Any
 
 from ea_node_editor.graph.boundary_adapters import register_node_type_size_resolver
-from ea_node_editor.nodes.builtins.icon_catalog import builtin_node_type
-from ea_node_editor.nodes.decorators import (
-    out_port,
-    plugin_descriptor,
-    prop_bool,
-    prop_enum,
-    prop_float,
-    prop_int,
-    prop_str,
-)
 from ea_node_editor.nodes.execution_context import ExecutionContext, NodeResult
-from ea_node_editor.nodes.node_specs import PortSpec, PropertySpec
 from ea_node_editor.runtime_contracts import DataTree
 
 BOOLEAN_TOGGLE_TYPE_ID = "data.boolean_toggle"
@@ -66,39 +58,10 @@ def _default_select_options() -> list[dict[str, str]]:
     ]
 
 
-@builtin_node_type(
-    type_id=BOOLEAN_TOGGLE_TYPE_ID,
-    display_name="Boolean Toggle",
-    category_path=("Data", "Control"),
-    description="Boolean (true/false) toggle.",
-    keywords=("switch",),
-    collapsible=False,
-    surface_variant=BOOLEAN_TOGGLE_SURFACE_VARIANT,
-    ports=(
-        out_port(
-            "boolean",
-            kind="data",
-            data_type='COREX.DataTypes.Bool',
-            data_access="tree",
-            exposed=True,
-            description="Current Boolean value as a single-item tree.",
-        ),
-    ),
-    properties=(
-        prop_bool(
-            "value",
-            False,
-            "Value",
-            inline_editor="toggle",
-            inspector_editor="toggle",
-        ),
-    ),
-)
-class BooleanToggleNodePlugin:
-    def execute(self, ctx: ExecutionContext) -> NodeResult:
-        return NodeResult(
-            outputs={"boolean": DataTree.from_item(bool(ctx.properties.get("value", False)))}
-        )
+def execute_boolean_toggle(ctx: ExecutionContext) -> NodeResult:
+    return NodeResult(
+        outputs={"boolean": DataTree.from_item(bool(ctx.properties.get("value", False)))}
+    )
 
 
 def normalize_select_options(value: Any) -> list[dict[str, str]]:
@@ -143,48 +106,10 @@ def select_settings(properties: Mapping[str, Any] | None) -> dict[str, Any]:
     )
 
 
-@builtin_node_type(
-    type_id=SELECT_TYPE_ID,
-    display_name="Select",
-    category_path=("Data", "Control"),
-    description="A dropdown that allows to select a value from the list.",
-    keywords=("dropdown", "combobox", "option"),
-    collapsible=False,
-    surface_variant=SELECT_SURFACE_VARIANT,
-    ports=(
-        PortSpec(
-            "selected_value",
-            "out",
-            "data",
-            'COREX.DataTypes.String',
-            label="Selected value",
-            exposed=True,
-            data_access="tree",
-            description="The value selected by the user.",
-        ),
-    ),
-    properties=(
-        PropertySpec(
-            "options",
-            "json",
-            _default_select_options(),
-            "Options",
-            inspector_visible=False,
-        ),
-        PropertySpec(
-            "selected_index",
-            "int",
-            0,
-            "Selected Option",
-            inspector_visible=False,
-        ),
-    ),
-)
-class SelectNodePlugin:
-    def execute(self, ctx: ExecutionContext) -> NodeResult:
-        settings = select_settings(ctx.properties)
-        selected_value = settings["options"][settings["selected_index"]]["value"]
-        return NodeResult(outputs={"selected_value": DataTree.from_item(selected_value)})
+def execute_select(ctx: ExecutionContext) -> NodeResult:
+    settings = select_settings(ctx.properties)
+    selected_value = settings["options"][settings["selected_index"]]["value"]
+    return NodeResult(outputs={"selected_value": DataTree.from_item(selected_value)})
 
 
 def _panel_item(value: str, *, parse_numbers: bool) -> Any:
@@ -232,60 +157,18 @@ def parse_panel_data(value: str, *, parse_numbers: bool = False) -> DataTree:
     return DataTree(branches)
 
 
-@builtin_node_type(
-    type_id=PANEL_TYPE_ID,
-    display_name="Panel",
-    category_path=("Data", "Control"),
-    description=(
-        "Panel for the input of text that can be converted into other types "
-        "automatically, such as integers, numbers and boolean values."
-    ),
-    keywords=('"', "text", "watch"),
-    collapsible=False,
-    surface_variant=PANEL_SURFACE_VARIANT,
-    ports=(
-        PortSpec(
-            "input",
-            "in",
-            "data",
-            'COREX.DataTypes.Any',
-            label="Input",
-            required=False,
-            data_access="tree",
-            description="The input value.",
-        ),
-        PortSpec(
-            "output",
-            "out",
-            "data",
-            'COREX.DataTypes.Any',
-            label="Output",
-            data_access="tree",
-            description="The output value.",
-        ),
-    ),
-    properties=(
-        prop_str("value", "", "Value", inspector_editor="textarea"),
-        prop_int("mode", PANEL_MODE_TEXT, "Mode"),
-        prop_int("font_size", 12, "Font Size"),
-        prop_int("alignment", 2, "Alignment"),
-        prop_bool("auto_resize", True, "Auto Resize"),
-        prop_bool("parse_numbers", False, "Parse Numbers"),
-    ),
-)
-class PanelNodePlugin:
-    def execute(self, ctx: ExecutionContext) -> NodeResult:
-        if "input" in ctx.inputs:
-            return NodeResult(outputs={"output": ctx.inputs["input"]})
-        value = str(ctx.properties.get("value", "") or "")
-        if ctx.properties.get("mode", PANEL_MODE_TEXT) == PANEL_MODE_DATA:
-            output = parse_panel_data(
-                value,
-                parse_numbers=bool(ctx.properties.get("parse_numbers", False)),
-            )
-        else:
-            output = DataTree.from_item(value)
-        return NodeResult(outputs={"output": output})
+def execute_panel(ctx: ExecutionContext) -> NodeResult:
+    if "input" in ctx.inputs:
+        return NodeResult(outputs={"output": ctx.inputs["input"]})
+    value = str(ctx.properties.get("value", "") or "")
+    if ctx.properties.get("mode", PANEL_MODE_TEXT) == PANEL_MODE_DATA:
+        output = parse_panel_data(
+            value,
+            parse_numbers=bool(ctx.properties.get("parse_numbers", False)),
+        )
+    else:
+        output = DataTree.from_item(value)
+    return NodeResult(outputs={"output": output})
 
 
 def normalize_number_slider_rounding(value: Any) -> str:
@@ -393,46 +276,11 @@ def number_slider_settings(properties: Mapping[str, Any] | None) -> dict[str, An
     )
 
 
-@builtin_node_type(
-    type_id=NUMBER_SLIDER_TYPE_ID,
-    display_name="Number Slider",
-    category_path=("Data", "Control"),
-    description=(
-        "Publishes a numeric value chosen with an on-canvas slider between a "
-        "configurable minimum and maximum. Double-click the value to edit the "
-        "range, rounding mode, and decimal places."
-    ),
-    keywords=("number", "slider", "value", "range", "constant", "control"),
-    collapsible=False,
-    surface_variant=NUMBER_SLIDER_SURFACE_VARIANT,
-    ports=(
-        out_port(
-            "value",
-            kind="data",
-            data_type='COREX.DataTypes.Double',
-            exposed=True,
-            description="The current slider value; whole numbers in integer rounding mode.",
-        ),
-    ),
-    properties=(
-        prop_float("value", NUMBER_SLIDER_DEFAULT_VALUE, "Value"),
-        prop_float("minimum", NUMBER_SLIDER_DEFAULT_MINIMUM, "Minimum"),
-        prop_float("maximum", NUMBER_SLIDER_DEFAULT_MAXIMUM, "Maximum"),
-        prop_enum(
-            "rounding",
-            NUMBER_SLIDER_ROUNDING_DECIMAL,
-            "Rounding",
-            values=NUMBER_SLIDER_ROUNDINGS,
-        ),
-        prop_int("decimals", NUMBER_SLIDER_DEFAULT_DECIMALS, "Decimal Places"),
-    ),
-)
-class NumberSliderNodePlugin:
-    def execute(self, ctx: ExecutionContext) -> NodeResult:
-        settings = number_slider_settings(ctx.properties)
-        if settings["rounding"] == NUMBER_SLIDER_ROUNDING_INTEGER:
-            return NodeResult(outputs={"value": int(round(settings["value"]))})
-        return NodeResult(outputs={"value": float(settings["value"])})
+def execute_number_slider(ctx: ExecutionContext) -> NodeResult:
+    settings = number_slider_settings(ctx.properties)
+    if settings["rounding"] == NUMBER_SLIDER_ROUNDING_INTEGER:
+        return NodeResult(outputs={"value": int(round(settings["value"]))})
+    return NodeResult(outputs={"value": float(settings["value"])})
 
 
 def _number_slider_node_size(node, _spec, *, base_width: float, base_height: float) -> tuple[float, float]:
@@ -457,11 +305,3 @@ register_node_type_size_resolver(NUMBER_SLIDER_TYPE_ID, _number_slider_node_size
 register_node_type_size_resolver(BOOLEAN_TOGGLE_TYPE_ID, _number_slider_node_size)
 register_node_type_size_resolver(PANEL_TYPE_ID, _panel_node_size)
 register_node_type_size_resolver(SELECT_TYPE_ID, _number_slider_node_size)
-
-
-DATA_CONTROL_NODE_DESCRIPTORS = (
-    plugin_descriptor(BooleanToggleNodePlugin),
-    plugin_descriptor(NumberSliderNodePlugin),
-    plugin_descriptor(PanelNodePlugin),
-    plugin_descriptor(SelectNodePlugin),
-)

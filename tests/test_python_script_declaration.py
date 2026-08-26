@@ -202,6 +202,7 @@ def run(ctx):
         '@corex.text("value", _port_required=True)',
         '@corex.text("value", _port_label="")',
         '@corex.text("value", _port_structure="tree")',
+        '@corex.text("value", _port_uses_property_default=False)',
         '@corex.text("value", _port_value_type="COREX.DataTypes.Any")',
         '@corex.text("value", _port_accepted_data_types=("COREX.DataTypes.Any",))',
         '@corex.text("value", _property_type="json")',
@@ -235,6 +236,30 @@ def test_python_script_rejects_internal_node_readiness_metadata() -> None:
 @corex.output("result")
 def run(ctx):
     return {}
+'''
+    registry = build_builtin_registry()
+    with pytest.raises(
+        PythonScriptDeclarationError,
+        match="@corex.node does not accept arguments",
+    ):
+        registry.normalize_properties("core.python_script", {"script": source})
+
+
+@pytest.mark.parametrize(
+    "field",
+    (
+        "_collapsible=False",
+        '_property_output_collisions=("value",)',
+        '_surface_family="viewer"',
+        '_surface_variant="embedded"',
+        '_render_quality_tiers=("full", "proxy")',
+    ),
+)
+def test_python_script_rejects_internal_node_surface_metadata(field: str) -> None:
+    source = f'''@corex.node({field})
+@corex.output("result")
+def run(ctx):
+    return {{}}
 '''
     registry = build_builtin_registry()
     with pytest.raises(

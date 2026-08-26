@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 import json
+from functools import lru_cache
 
 import pytest
 
 from ea_node_editor.nodes.builtins import mesh_contracts as mesh_module
+from ea_node_editor.nodes.builtin_functions import engineering_geometry
 from ea_node_editor.nodes.builtins.geometry_contracts import (
     MEASURABLE_DATA_TYPE_ID,
     COREX_GEOMETRY_CLOSURE_CANDIDATE_CONTRACT_MANIFEST,
@@ -14,7 +16,6 @@ from ea_node_editor.nodes.builtins.geometry_contracts import (
 from ea_node_editor.nodes.builtins.mesh_contracts import (
     MESH_FACE_DATA_TYPE_ID,
     MESH_PARAMETER_DATA_TYPE_ID,
-    COREX_DECONSTRUCT_MESH_FACE_CANDIDATE_NODE_DESCRIPTORS,
     COREX_MESH_CONTRACT_MANIFEST,
     COREX_MESH_CONTRACTS_OWNER_ID,
     COREX_MESH_CONTRACTS_OWNER_VERSION,
@@ -34,7 +35,12 @@ from ea_node_editor.nodes.core_data_types import (
     GRAPH_DATA_TYPE_ID,
 )
 from ea_node_editor.nodes.execution_context import ExecutionContext
+from ea_node_editor.nodes.function_plugin import (
+    INTERNAL_BUILTIN_FUNCTION_OWNER_ID,
+    PythonFunctionAdapter,
+)
 from ea_node_editor.nodes.node_specs import NodeTypeSpec, PortSpec, PropertySpec
+from ea_node_editor.nodes.plugin_declaration import discover_plugin_declarations
 from ea_node_editor.nodes.registry import NodeRegistry
 from ea_node_editor.runtime_contracts import (
     DataTree,
@@ -119,6 +125,44 @@ def _context(face: object) -> ExecutionContext:
         properties={},
         emit_log=lambda _level, _message: None,
     )
+
+
+@lru_cache(maxsize=1)
+def _deconstruct_adapter() -> PythonFunctionAdapter:
+    namespace: dict[str, object] = {}
+    exec(compile(engineering_geometry.SOURCE, "engineering_geometry.py", "exec"), namespace)
+    declaration = next(
+        declaration
+        for declaration in discover_plugin_declarations(
+            engineering_geometry.SOURCE,
+            filename="engineering_geometry.py",
+            allow_reserved_ids=True,
+            owner_id=INTERNAL_BUILTIN_FUNCTION_OWNER_ID,
+        )
+        if declaration.spec.type_id == "mesh.deconstruct_mesh_face"
+    )
+    return PythonFunctionAdapter(
+        declaration.spec,
+        namespace[declaration.function_name],  # type: ignore[arg-type]
+    )
+
+
+def test_deconstruct_mesh_face_function_validates_carrier_and_preserves_indices() -> None:
+    value = TypedInlineValue(
+        MESH_FACE_DATA_TYPE_ID,
+        1,
+        {"a": 4, "b": 5, "c": 6, "d": -1},
+    )
+    assert _deconstruct_adapter().execute(_context(value)).outputs == {
+        "index_a": 4,
+        "index_b": 5,
+        "index_c": 6,
+        "index_d": -1,
+    }
+    with pytest.raises(ValueError, match="Mesh Face input is invalid"):
+        _deconstruct_adapter().execute(
+            _context(TypedInlineValue(MESH_FACE_DATA_TYPE_ID, 1, {"a": 1}))
+        )
 
 
 
@@ -386,7 +430,7 @@ def test_mesh_parameter_payload_validation_is_strict() -> None:
     registry = _composed_registry()
     registry.register_plugin_bundle(
         COREX_MESH_PARAMETER_CANDIDATE_CONTRACT_MANIFEST,
-        COREX_DECONSTRUCT_MESH_FACE_CANDIDATE_NODE_DESCRIPTORS,
+        (),
         owner_id=COREX_MESH_CONTRACTS_OWNER_ID,
         owner_version=COREX_MESH_CONTRACTS_OWNER_VERSION,
         source_label=mesh_module.__name__,
@@ -446,7 +490,7 @@ def test_mesh_parameter_runtime_json_round_trip_is_catalog_checked() -> None:
     registry = _composed_registry()
     registry.register_plugin_bundle(
         COREX_MESH_PARAMETER_CANDIDATE_CONTRACT_MANIFEST,
-        COREX_DECONSTRUCT_MESH_FACE_CANDIDATE_NODE_DESCRIPTORS,
+        (),
         owner_id=COREX_MESH_CONTRACTS_OWNER_ID,
         owner_version=COREX_MESH_CONTRACTS_OWNER_VERSION,
         source_label=mesh_module.__name__,

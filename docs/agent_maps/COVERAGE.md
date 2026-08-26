@@ -62,14 +62,18 @@ implementation studies are intentionally excluded.
 - Novice plugin authoring is shared by the nodes-owned static/save backend, native
   PyQt dialog/editor, and shell controller/File actions; reload still routes only
   through the guarded registry replacement coordinator.
-- Simple built-in function migration is owned by `nodes/builtin_functions/` plus
-  the exact retained helper/contract modules; the migration inventory and golden
-  catalog distinguish these function entries from deferred trusted exceptions.
+- The reserved built-in bundle owns exactly 68 inert function declarations under
+  `nodes/builtin_functions/`; trusted helpers and data contracts remain under
+  `nodes/builtins/`, and the migration inventory plus 133-row golden catalog pin
+  the exact 55 trusted exceptions.
 - Core integrations contribute eight reserved function entries plus the trusted
   Path Pointer and Folder Explorer exceptions. SSH/SFTP contributes six reserved
   function entries, Paramiko-free value contracts, and a worker-lazy Paramiko runtime.
-- Geometry, spatial, mesh, FEM, voxel, security, reporting, media, and unit
-  contracts use neutral COREX identifiers and functional module names.
+- Data-control, engineering import/viewer, geometry, spatial, mesh, FEM, AI,
+  security, reporting, rich-value, and viewport execution declarations are in the
+  reserved function bundle; their trusted contracts, services, size resolvers,
+  session/handle ownership, and neutral COREX identifiers remain with the existing
+  helper modules.
 - Retired import and placeholder surfaces are absent from current ownership.
 
 ## Hygiene

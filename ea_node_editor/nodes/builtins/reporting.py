@@ -14,12 +14,7 @@ from ea_node_editor.common.payload_tools import (
 )
 from ea_node_editor.nodes.core_data_types import (
     GRAPH_DATA_TYPE_ID,
-    INTEGER_DATA_TYPE_ID,
-    STRING_DATA_TYPE_ID,
 )
-from ea_node_editor.nodes.decorators import node_type, plugin_descriptor
-from ea_node_editor.nodes.execution_context import ExecutionContext, NodeResult
-from ea_node_editor.nodes.node_specs import PortSpec, PropertySpec
 from ea_node_editor.nodes.plugin_contracts import (
     PluginContractManifest,
 )
@@ -35,9 +30,7 @@ MARKDOWN_FLOWCHART_TYPE_ID = "reporting.markdown_flowchart"
 
 
 _MAPPING_PROXY_TYPE = type(MappingProxyType({}))
-_PAYLOAD_KEYS = frozenset(
-    {"text", "input_nodes", "shape", "link_type", "link_text"}
-)
+_PAYLOAD_KEYS = frozenset({"text", "input_nodes", "shape", "link_type", "link_text"})
 _SAFE_MERMAID_LABEL = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 _UNSAFE_MERMAID_ID = re.compile(r"[^A-Za-z0-9_]")
 
@@ -67,10 +60,7 @@ def is_flowchart_node_payload(value: object) -> bool:
             return False
         if type(item["shape"]) is not int or not 0 <= item["shape"] <= 8:
             return False
-        if (
-            type(item["link_type"]) is not int
-            or not 0 <= item["link_type"] <= 3
-        ):
+        if type(item["link_type"]) is not int or not 0 <= item["link_type"] <= 3:
             return False
         children = item["input_nodes"]
         if type(children) is not list:
@@ -142,7 +132,7 @@ def _mermaid_id_base(text: str) -> str:
     return f"node_{result}" if result[0].isdigit() else result
 
 
-def _render_flowchart(nodes: list[TypedInlineValue], direction: int) -> str:
+def render_flowchart(nodes: list[TypedInlineValue], direction: int) -> str:
     if type(direction) is not int or direction not in {0, 1}:
         raise ValueError("flowchart direction must be 0 or 1")
     payloads = [_require_flowchart_node(node) for node in nodes]
@@ -173,15 +163,15 @@ def _render_flowchart(nodes: list[TypedInlineValue], direction: int) -> str:
         if shape == 0 and label == text and identifier == text:
             return identifier
         wrappers = (
-            ('[', ']'),
-            ('(', ')'),
-            ('([', '])'),
-            ('[[', ']]'),
-            ('[(', ')]'),
-            ('((', '))'),
-            ('>', ']'),
-            ('{', '}'),
-            ('{{', '}}'),
+            ("[", "]"),
+            ("(", ")"),
+            ("([", "])"),
+            ("[[", "]]"),
+            ("[(", ")]"),
+            ("((", "))"),
+            (">", "]"),
+            ("{", "}"),
+            ("{{", "}}"),
         )
         opening, closing = wrappers[shape]
         return f"{identifier}{opening}{label}{closing}"
@@ -211,120 +201,6 @@ def _render_flowchart(nodes: list[TypedInlineValue], direction: int) -> str:
     return f"```mermaid\ngraph {orientation}{separator}{body}\n```\n"
 
 
-@node_type(
-    type_id=MARKDOWN_FLOWCHART_NODE_TYPE_ID,
-    display_name="Markdown Flowchart Node",
-    category_path=("Utilities", "Reporting"),
-    icon="git-branch",
-    description="Builds one typed node for a Markdown Mermaid flowchart.",
-    keywords=("markdown", "mermaid", "flowchart", "reporting"),
-    ports=(
-        PortSpec("text", "in", "data", STRING_DATA_TYPE_ID, label="Text", required=True),
-        PortSpec(
-            "input_nodes",
-            "in",
-            "data",
-            FLOWCHART_NODE_DATA_TYPE_ID,
-            label="Input Nodes",
-            required=False,
-            data_access="list",
-        ),
-        PortSpec(
-            "shape",
-            "in",
-            "data",
-            INTEGER_DATA_TYPE_ID,
-            label="Shape",
-            required=True,
-            uses_property_default=True,
-        ),
-        PortSpec(
-            "link_type",
-            "in",
-            "data",
-            INTEGER_DATA_TYPE_ID,
-            label="Link Type",
-            required=True,
-            uses_property_default=True,
-        ),
-        PortSpec(
-            "link_text",
-            "in",
-            "data",
-            STRING_DATA_TYPE_ID,
-            label="Link Text",
-            required=False,
-        ),
-        PortSpec(
-            "node",
-            "out",
-            "data",
-            FLOWCHART_NODE_DATA_TYPE_ID,
-            label="Node",
-        ),
-    ),
-    properties=(
-        PropertySpec("shape", "int", 0, "Shape", minimum=0, maximum=8),
-        PropertySpec("link_type", "int", 0, "Link Type", minimum=0, maximum=3),
-    ),
-)
-class MarkdownFlowchartNodePlugin:
-    def execute(self, ctx: ExecutionContext) -> NodeResult:
-        return NodeResult(
-            outputs={
-                "node": make_flowchart_node_value(
-                    text=ctx.inputs["text"],
-                    input_nodes=ctx.inputs.get("input_nodes"),
-                    shape=ctx.inputs["shape"],
-                    link_type=ctx.inputs["link_type"],
-                    link_text=ctx.inputs.get("link_text", ""),
-                )
-            }
-        )
-
-
-@node_type(
-    type_id=MARKDOWN_FLOWCHART_TYPE_ID,
-    display_name="Markdown Flowchart",
-    category_path=("Utilities", "Reporting"),
-    icon="git-branch",
-    description="Renders typed flowchart nodes as fenced Mermaid Markdown.",
-    keywords=("markdown", "mermaid", "flowchart", "reporting"),
-    ports=(
-        PortSpec(
-            "nodes",
-            "in",
-            "data",
-            FLOWCHART_NODE_DATA_TYPE_ID,
-            label="Nodes",
-            required=True,
-            data_access="list",
-        ),
-        PortSpec(
-            "direction",
-            "in",
-            "data",
-            INTEGER_DATA_TYPE_ID,
-            label="Direction",
-            required=True,
-            uses_property_default=True,
-        ),
-        PortSpec("flowchart", "out", "data", STRING_DATA_TYPE_ID, label="Flowchart"),
-    ),
-    properties=(
-        PropertySpec("direction", "int", 0, "Direction", minimum=0, maximum=1),
-    ),
-)
-class MarkdownFlowchartPlugin:
-    def execute(self, ctx: ExecutionContext) -> NodeResult:
-        nodes = ctx.inputs["nodes"]
-        if type(nodes) is not list:
-            raise ValueError("flowchart nodes must be a list")
-        return NodeResult(
-            outputs={"flowchart": _render_flowchart(nodes, ctx.inputs["direction"])}
-        )
-
-
 COREX_REPORTING_DATA_TYPES = (
     DataTypeSpec(
         FLOWCHART_NODE_DATA_TYPE_ID,
@@ -340,29 +216,6 @@ COREX_REPORTING_DATA_TYPES = (
     ),
 )
 
-COREX_REPORTING_NODE_DESCRIPTORS = (
-    plugin_descriptor(MarkdownFlowchartNodePlugin),
-    plugin_descriptor(MarkdownFlowchartPlugin),
-)
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 COREX_REPORTING_CONTRACT_MANIFEST = PluginContractManifest(
     data_types=COREX_REPORTING_DATA_TYPES,
@@ -373,13 +226,11 @@ __all__ = [
     "FLOWCHART_NODE_DATA_TYPE_ID",
     "MARKDOWN_FLOWCHART_NODE_TYPE_ID",
     "MARKDOWN_FLOWCHART_TYPE_ID",
-    "MarkdownFlowchartNodePlugin",
-    "MarkdownFlowchartPlugin",
     "COREX_REPORTING_CONTRACT_MANIFEST",
     "COREX_REPORTING_DATA_TYPES",
-    "COREX_REPORTING_NODE_DESCRIPTORS",
     "COREX_REPORTING_OWNER_ID",
     "COREX_REPORTING_OWNER_VERSION",
     "is_flowchart_node_payload",
     "make_flowchart_node_value",
+    "render_flowchart",
 ]

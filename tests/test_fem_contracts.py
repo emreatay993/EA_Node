@@ -1,7 +1,10 @@
 from __future__ import annotations
 
-from dataclasses import replace
+from dataclasses import asdict, replace
+from functools import lru_cache
+import json
 import math
+from pathlib import Path
 from types import MappingProxyType
 from uuid import UUID
 
@@ -16,6 +19,7 @@ from ea_node_editor.common.optimization_links import (
 from ea_node_editor.execution.handle_registry import StaleHandleError
 from ea_node_editor.execution.worker_services import WorkerServices
 from ea_node_editor.nodes.bootstrap import build_builtin_registry
+from ea_node_editor.nodes.builtin_functions import engineering_fem, engineering_geometry
 from ea_node_editor.nodes.builtins import fem_contracts as fem_module
 from ea_node_editor.nodes.builtins.fem_contracts import (
     CONSTRAINT_DATA_TYPE_ID,
@@ -65,6 +69,11 @@ from ea_node_editor.nodes.core_data_types import (
     GRAPH_DATA_TYPE_ID,
 )
 from ea_node_editor.nodes.execution_context import ExecutionContext
+from ea_node_editor.nodes.function_plugin import (
+    INTERNAL_BUILTIN_FUNCTION_OWNER_ID,
+    PythonFunctionAdapter,
+)
+from ea_node_editor.nodes.plugin_declaration import discover_plugin_declarations
 from ea_node_editor.nodes.registry import NodeRegistry
 from ea_node_editor.runtime_contracts import (
     DataTypeCatalogError,
@@ -72,6 +81,63 @@ from ea_node_editor.runtime_contracts import (
     RuntimeHandleRef,
     TypedInlineValue,
 )
+
+_CONVERTED_TYPE_IDS = (
+    "fea.force",
+    "fea.load_container",
+    "optimization.construct_parameters",
+    "optimization.construct_responses",
+    "optimization.construct_design",
+)
+_PRE_CUTOVER_CATALOG = (
+    Path(__file__).parent
+    / "fixtures"
+    / "node_catalog"
+    / "pre_cutover_non_dpf_catalog.json"
+)
+
+
+@lru_cache(maxsize=1)
+def _function_adapters() -> dict[str, PythonFunctionAdapter]:
+    adapters: dict[str, PythonFunctionAdapter] = {}
+    for filename, source in (
+        ("engineering_geometry.py", engineering_geometry.SOURCE),
+        ("engineering_fem.py", engineering_fem.SOURCE),
+    ):
+        namespace: dict[str, object] = {}
+        exec(compile(source, filename, "exec"), namespace)
+        for declaration in discover_plugin_declarations(
+            source,
+            filename=filename,
+            allow_reserved_ids=True,
+            owner_id=INTERNAL_BUILTIN_FUNCTION_OWNER_ID,
+        ):
+            adapters[declaration.spec.type_id] = PythonFunctionAdapter(
+                declaration.spec,
+                namespace[declaration.function_name],  # type: ignore[arg-type]
+            )
+    return adapters
+
+
+def test_fem_function_declarations_match_golden() -> None:
+    declarations = discover_plugin_declarations(
+        engineering_fem.SOURCE,
+        filename="engineering_fem.py",
+        allow_reserved_ids=True,
+        owner_id=INTERNAL_BUILTIN_FUNCTION_OWNER_ID,
+    )
+    expected = {
+        row["spec"]["type_id"]: row["spec"]
+        for row in json.loads(_PRE_CUTOVER_CATALOG.read_text(encoding="utf-8"))
+        if row["spec"]["type_id"] in _CONVERTED_TYPE_IDS
+    }
+    assert tuple(declaration.spec.type_id for declaration in declarations) == (
+        _CONVERTED_TYPE_IDS
+    )
+    assert {
+        declaration.spec.type_id: json.loads(json.dumps(asdict(declaration.spec)))
+        for declaration in declarations
+    } == expected
 
 _EXPECTED_CONTACT_PAIR_TYPE_ROWS = (
     (
@@ -1091,9 +1157,7 @@ def test_construct_optimization_variables_match_workflow_and_cleanup(
             worker_services=services,
         )
 
-    construct_parameters = registry.get_descriptor(
-        CONSTRUCT_PARAMETERS_NODE_TYPE_ID
-    ).factory()
+    construct_parameters = _function_adapters()[CONSTRUCT_PARAMETERS_NODE_TYPE_ID]
     parameter_result = construct_parameters.execute(
         context(
             "construct-parameters",
@@ -1146,9 +1210,7 @@ def test_construct_optimization_variables_match_workflow_and_cleanup(
         for ref in parameter_refs
     )
 
-    construct_responses = registry.get_descriptor(
-        CONSTRUCT_RESPONSES_NODE_TYPE_ID
-    ).factory()
+    construct_responses = _function_adapters()[CONSTRUCT_RESPONSES_NODE_TYPE_ID]
     response_result = construct_responses.execute(
         context(
             "construct-responses",
@@ -1372,9 +1434,7 @@ def test_parameter_setup_pools_and_construct_design_form_a_worker_local_chain() 
             _read_node_state=run_state.get,
         )
 
-    construct_parameters = registry.get_descriptor(
-        CONSTRUCT_PARAMETERS_NODE_TYPE_ID
-    ).factory()
+    construct_parameters = _function_adapters()[CONSTRUCT_PARAMETERS_NODE_TYPE_ID]
     direct_parameter_refs = construct_parameters.execute(
         context(
             "construct-parameters",
@@ -1386,9 +1446,7 @@ def test_parameter_setup_pools_and_construct_design_form_a_worker_local_chain() 
             },
         )
     ).outputs["parameters"]
-    construct_responses = registry.get_descriptor(
-        CONSTRUCT_RESPONSES_NODE_TYPE_ID
-    ).factory()
+    construct_responses = _function_adapters()[CONSTRUCT_RESPONSES_NODE_TYPE_ID]
     direct_response_refs = construct_responses.execute(
         context(
             "construct-responses",
@@ -1408,9 +1466,7 @@ def test_parameter_setup_pools_and_construct_design_form_a_worker_local_chain() 
     ]
     assert all(record.node_id.int == 0 for record in direct_records)
 
-    construct_design = registry.get_descriptor(
-        CONSTRUCT_DESIGN_NODE_TYPE_ID
-    ).factory()
+    construct_design = _function_adapters()[CONSTRUCT_DESIGN_NODE_TYPE_ID]
     active_count = services.handle_registry.active_handle_count
     with pytest.raises(ValueError, match="Parameter Setup-bound"):
         construct_design.execute(
@@ -1710,7 +1766,7 @@ def test_force_load_container_lifecycle_rolls_back_and_releases_in_reverse() -> 
             worker_services=services,
         )
 
-    cylinder = registry.get_descriptor(CYLINDER_NODE_TYPE_ID).factory()
+    cylinder = _function_adapters()[CYLINDER_NODE_TYPE_ID]
     cylinder_inputs = {
         "plane": _plane(),
         "radius": 1.0,
@@ -1731,7 +1787,7 @@ def test_force_load_container_lifecycle_rolls_back_and_releases_in_reverse() -> 
         for body in (first_body, second_body)
     ]
 
-    force = registry.get_descriptor(FORCE_NODE_TYPE_ID).factory()
+    force = _function_adapters()[FORCE_NODE_TYPE_ID]
 
     def force_context(
         geometry: list[object], tolerances: list[object]
@@ -1785,7 +1841,7 @@ def test_force_load_container_lifecycle_rolls_back_and_releases_in_reverse() -> 
     assert len({lease.owner_scope for lease in force_record.child_leases}) == 1
     assert force_record.child_leases[0].owner_scope.startswith("cache:force:")
 
-    load_container = registry.get_descriptor(LOAD_CONTAINER_NODE_TYPE_ID).factory()
+    load_container = _function_adapters()[LOAD_CONTAINER_NODE_TYPE_ID]
     passed = load_container.execute(
         context("load-container-node", {"load": force_ref})
     ).outputs["output"]

@@ -13,7 +13,7 @@ from ea_node_editor.nodes.builtins.data_control import (
     PANEL_MODE_DATA,
     PANEL_MODE_TEXT,
     PANEL_TYPE_ID,
-    PanelNodePlugin,
+    execute_panel,
 )
 from ea_node_editor.nodes.execution_context import ExecutionContext
 from ea_node_editor.runtime_contracts import GRAPH_DATA_TYPE_ID, DataTree
@@ -105,17 +105,17 @@ def test_panel_spec_defaults_and_two_dimension_size() -> None:
 
 
 def test_panel_text_mode_publishes_one_item_without_splitting_lines() -> None:
-    result = PanelNodePlugin().execute(
+    result = execute_panel(
         _context(properties={"value": "first\nsecond", "mode": PANEL_MODE_TEXT})
     )
     assert result.outputs == {"output": DataTree.from_item("first\nsecond")}
-    assert PanelNodePlugin().execute(_context()).outputs == {
+    assert execute_panel(_context()).outputs == {
         "output": DataTree.from_item("")
     }
 
 
 def test_panel_data_mode_builds_lists_and_tree_paths() -> None:
-    result = PanelNodePlugin().execute(
+    result = execute_panel(
         _context(
             properties={
                 "value": " root \n* 0;1\n child-a \nchild-b\n* 2\n leaf ",
@@ -136,7 +136,7 @@ def test_panel_data_mode_builds_lists_and_tree_paths() -> None:
 
 
 def test_panel_data_mode_keeps_an_authored_trailing_blank_item() -> None:
-    result = PanelNodePlugin().execute(
+    result = execute_panel(
         _context(properties={"value": "first\n", "mode": PANEL_MODE_DATA})
     )
     assert result.outputs == {"output": DataTree.from_list(("first", ""))}
@@ -144,7 +144,7 @@ def test_panel_data_mode_keeps_an_authored_trailing_blank_item() -> None:
 
 def test_panel_parse_numbers_is_opt_in_and_finite() -> None:
     value = "1\n-2\n3.5\n1e2\nnan\ninf\n2+3\ntrue"
-    as_text = PanelNodePlugin().execute(
+    as_text = execute_panel(
         _context(
             properties={
                 "value": value,
@@ -153,7 +153,7 @@ def test_panel_parse_numbers_is_opt_in_and_finite() -> None:
             }
         )
     )
-    parsed = PanelNodePlugin().execute(
+    parsed = execute_panel(
         _context(
             properties={
                 "value": value,
@@ -172,14 +172,14 @@ def test_panel_parse_numbers_is_opt_in_and_finite() -> None:
 @pytest.mark.parametrize("value", ("*", "* nope", "* 0;;1"))
 def test_panel_rejects_invalid_branch_syntax(value: str) -> None:
     with pytest.raises(ValueError, match="Invalid Panel branch header"):
-        PanelNodePlugin().execute(
+        execute_panel(
             _context(properties={"value": value, "mode": PANEL_MODE_DATA})
         )
 
 
 def test_panel_passes_the_exact_incoming_tree_through() -> None:
     incoming = DataTree({(2, 1): (None, {"items": [1, 2]})})
-    output = PanelNodePlugin().execute(
+    output = execute_panel(
         _context(
             inputs={"input": incoming},
             properties={"value": "ignored", "mode": PANEL_MODE_DATA},

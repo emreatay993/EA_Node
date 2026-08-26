@@ -8,6 +8,9 @@ sessions, selection, clipping, export, and the shared fullscreen/detached host.
 - `viewer settings expansion`
 
 ## Start Here
+- `ea_node_editor/nodes/builtin_functions/engineering_imports.py`
+- `ea_node_editor/nodes/builtin_functions/engineering_viewer.py`
+- `ea_node_editor/nodes/builtin_functions/engineering_geometry.py`
 - `ea_node_editor/nodes/builtins/engineering_viewer.py`
 - `ea_node_editor/nodes/builtins/geometry_primitives.py`
 - `ea_node_editor/execution/prepared_scene_runtime.py`
@@ -19,6 +22,9 @@ sessions, selection, clipping, export, and the shared fullscreen/detached host.
 ## Behavior
 - Model Viewer accepts supported engineering carriers and produces an owned
   prepared scene without exposing live worker objects to QML.
+- CAD/FE Import, Model Viewer, Cylinder, Construct Zone, and Deconstruct Mesh
+  Face are inert reserved-bundle declarations; the existing trusted helpers
+  retain file validation, prepared-scene work, native geometry, and session ownership.
 - Viewer sessions own camera, selection, clipping, display options, and export
   state through validated handles.
 - Fullscreen and detached views retarget the same session rather than creating
@@ -42,6 +48,7 @@ sessions, selection, clipping, export, and the shared fullscreen/detached host.
 - `tests/test_viewer_session_bridge.py`
 - `tests/test_viewer_control_bridge.py`
 - `tests/test_content_fullscreen_bridge.py`
+- `tests/test_remaining_builtin_function_migration.py`
 
 ## Focused Verification
 ```powershell

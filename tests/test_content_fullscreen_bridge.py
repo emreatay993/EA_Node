@@ -16,7 +16,6 @@ from ea_node_editor.nodes.builtins.core import PYTHON_SCRIPT_DEFAULT_SOURCE
 from ea_node_editor.nodes.builtins.ansys_dpf_viewer import DpfViewerNodePlugin
 from ea_node_editor.nodes.builtins.engineering_viewer import (
     ENGINEERING_VIEWER_NODE_TYPE_ID,
-    EngineeringViewerNodePlugin,
 )
 from ea_node_editor.nodes.builtins.excalidraw import (
     EXCALIDRAW_BOARD_TYPE_ID,
@@ -162,8 +161,6 @@ class ContentFullscreenBridgeTests(MainWindowShellTestBase):
         return self.window.scene.add_node_from_type(DPF_VIEWER_NODE_TYPE_ID, x=120.0, y=80.0)
 
     def _add_engineering_viewer_node(self) -> str:
-        if self.window.registry.spec_or_none(ENGINEERING_VIEWER_NODE_TYPE_ID) is None:
-            self.window.registry.register(EngineeringViewerNodePlugin)
         return self.window.scene.add_node_from_type(
             ENGINEERING_VIEWER_NODE_TYPE_ID,
             x=120.0,

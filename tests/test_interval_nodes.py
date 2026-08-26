@@ -18,19 +18,13 @@ from ea_node_editor.execution.worker import run_workflow
 from ea_node_editor.graph.model import GraphModel
 from ea_node_editor.nodes.bootstrap import build_builtin_registry
 from ea_node_editor.nodes.builtin_functions.unit_math import SOURCE
-from ea_node_editor.nodes.builtins.math_interval import (
-    CONSTRUCT_INTERVAL_TYPE_ID,
-    DECONSTRUCT_INTERVAL_TYPE_ID,
-    ConstructIntervalNodePlugin,
-    MATH_INTERVAL_NODE_DESCRIPTORS,
-)
 from ea_node_editor.nodes.execution_context import ExecutionContext
 from ea_node_editor.nodes.function_plugin import (
     INTERNAL_BUILTIN_FUNCTION_OWNER_ID,
     PythonFunctionAdapter,
 )
 from ea_node_editor.nodes.plugin_declaration import discover_plugin_declarations
-from ea_node_editor.nodes.registry import PythonFunctionEntry, TrustedFactoryEntry
+from ea_node_editor.nodes.registry import PythonFunctionEntry
 from ea_node_editor.runtime_contracts import (
     DOUBLE_DATA_TYPE_ID,
     GRAPH_DATA_TYPE_ID,
@@ -41,25 +35,28 @@ from ea_node_editor.runtime_contracts import (
     deserialize_runtime_value,
 )
 
-
-_DECONSTRUCT_DECLARATION = next(
-    declaration
+CONSTRUCT_INTERVAL_TYPE_ID = "math.construct_interval"
+DECONSTRUCT_INTERVAL_TYPE_ID = "math.deconstruct_interval"
+_INTERVAL_DECLARATIONS = {
+    declaration.spec.type_id: declaration
     for declaration in discover_plugin_declarations(
         SOURCE,
         filename="unit_math.py",
         allow_reserved_ids=True,
         owner_id=INTERNAL_BUILTIN_FUNCTION_OWNER_ID,
     )
-    if declaration.spec.type_id == DECONSTRUCT_INTERVAL_TYPE_ID
-)
+    if declaration.spec.type_id
+    in {CONSTRUCT_INTERVAL_TYPE_ID, DECONSTRUCT_INTERVAL_TYPE_ID}
+}
 _FUNCTIONS: dict[str, object] = {"__name__": "tests.unit_math_interval_function"}
 exec(compile(SOURCE, "unit_math.py", "exec"), _FUNCTIONS)  # noqa: S102
 
 
-def _deconstruct_plugin() -> PythonFunctionAdapter:
+def _interval_plugin(type_id: str) -> PythonFunctionAdapter:
+    declaration = _INTERVAL_DECLARATIONS[type_id]
     return PythonFunctionAdapter(
-        _DECONSTRUCT_DECLARATION.spec,
-        _FUNCTIONS[_DECONSTRUCT_DECLARATION.function_name],  # type: ignore[arg-type]
+        declaration.spec,
+        _FUNCTIONS[declaration.function_name],  # type: ignore[arg-type]
     )
 
 
@@ -167,11 +164,9 @@ def test_interval_node_specs_register_with_numeric_defaults_and_icon(
         DOUBLE_DATA_TYPE_ID,
         DOUBLE_DATA_TYPE_ID,
     )
-    assert [item.spec.type_id for item in MATH_INTERVAL_NODE_DESCRIPTORS] == [
-        CONSTRUCT_INTERVAL_TYPE_ID
-    ]
-    assert isinstance(registry.get_entry(CONSTRUCT_INTERVAL_TYPE_ID), TrustedFactoryEntry)
+    assert isinstance(registry.get_entry(CONSTRUCT_INTERVAL_TYPE_ID), PythonFunctionEntry)
     assert isinstance(registry.get_entry(DECONSTRUCT_INTERVAL_TYPE_ID), PythonFunctionEntry)
+    assert registry.descriptor_or_none(CONSTRUCT_INTERVAL_TYPE_ID) is None
     assert registry.descriptor_or_none(DECONSTRUCT_INTERVAL_TYPE_ID) is None
 
 
@@ -200,7 +195,7 @@ def test_interval_specs_match_golden(tmp_path: Path) -> None:
 def test_construct_interval_preserves_order_from_property_defaults(
     start: float, end: float
 ) -> None:
-    result = ConstructIntervalNodePlugin().execute(
+    result = _interval_plugin(CONSTRUCT_INTERVAL_TYPE_ID).execute(
         _context(properties={"start": start, "end": end})
     )
     assert result.outputs == {"interval": Interval1D(start, end)}
@@ -211,7 +206,7 @@ def test_construct_interval_preserves_order_from_property_defaults(
     (Interval1D(0.0, 10.0), Interval1D(10.0, 0.0), Interval1D(5.0, 5.0)),
 )
 def test_deconstruct_interval_recovers_original_order(interval: Interval1D) -> None:
-    result = _deconstruct_plugin().execute(
+    result = _interval_plugin(DECONSTRUCT_INTERVAL_TYPE_ID).execute(
         _context(inputs={"interval": interval})
     )
     assert result.outputs == {"start": interval.start, "end": interval.end}
@@ -220,7 +215,9 @@ def test_deconstruct_interval_recovers_original_order(interval: Interval1D) -> N
 @pytest.mark.parametrize("invalid", ({"start": 10.0, "end": 0.0}, [10.0, 0.0]))
 def test_deconstruct_interval_rejects_untyped_pairs(invalid: object) -> None:
     with pytest.raises(TypeError, match="Interval1D instances"):
-        _deconstruct_plugin().execute(_context(inputs={"interval": invalid}))
+        _interval_plugin(DECONSTRUCT_INTERVAL_TYPE_ID).execute(
+            _context(inputs={"interval": invalid})
+        )
 
 
 def test_construct_to_deconstruct_graph_converts_integer_inputs_and_preserves_decreasing_order() -> (

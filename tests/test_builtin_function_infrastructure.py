@@ -24,16 +24,27 @@ from ea_node_editor.execution.runtime_snapshot import build_runtime_snapshot
 from ea_node_editor.graph.model import GraphModel
 from ea_node_editor.nodes.bootstrap import build_builtin_registry, build_default_registry
 from ea_node_editor.nodes.builtin_functions import (
+    ai_agent,
+    ai_vector_database,
     core_value,
+    data_control,
+    engineering_fem,
+    engineering_geometry,
+    engineering_imports,
+    engineering_viewer,
     integrations_email,
     integrations_file_io,
     integrations_process,
     integrations_spreadsheet,
     integrations_ssh_sftp,
     plot_signal,
+    reporting,
+    rich_values,
+    security,
     source_modules,
     spatial,
     unit_math,
+    viewer_viewport,
 )
 from ea_node_editor.nodes.execution_context import ExecutionContext
 from ea_node_editor.nodes.function_plugin import (
@@ -105,9 +116,20 @@ def test_placeholder_sources_form_one_noop_internal_bundle(
         plot_signal,
         integrations_file_io,
         integrations_process,
-        integrations_email,
-        integrations_spreadsheet,
-        integrations_ssh_sftp,
+            integrations_email,
+            integrations_spreadsheet,
+            integrations_ssh_sftp,
+            data_control,
+            engineering_imports,
+            engineering_viewer,
+            viewer_viewport,
+            engineering_geometry,
+            engineering_fem,
+            ai_vector_database,
+            ai_agent,
+            reporting,
+            security,
+            rich_values,
     ):
         monkeypatch.setattr(module, "SOURCE", "import corex\n")
 
@@ -123,6 +145,17 @@ def test_placeholder_sources_form_one_noop_internal_bundle(
         "integrations_email.py",
         "integrations_spreadsheet.py",
         "integrations_ssh_sftp.py",
+        "data_control.py",
+        "engineering_imports.py",
+        "engineering_viewer.py",
+        "viewer_viewport.py",
+        "engineering_geometry.py",
+        "engineering_fem.py",
+        "ai_vector_database.py",
+        "ai_agent.py",
+        "reporting.py",
+        "security.py",
+        "rich_values.py",
     ]
     assert registry.all_python_function_refs() == ()
     assert len(registry.plugin_bundle_refs()) == 1

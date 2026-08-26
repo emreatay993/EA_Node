@@ -1,12 +1,13 @@
 from __future__ import annotations
 
 import json
+from functools import lru_cache
 
 import pytest
 
 from ea_node_editor.nodes.bootstrap import build_builtin_registry
+from ea_node_editor.nodes.builtin_functions.spatial import SOURCE
 from ea_node_editor.nodes.builtins.spatial_values import (
-    COREX_SPATIAL_VALUES_TRANSFORM_NODE_DESCRIPTORS,
     TRANSFORM_3D_DATA_TYPE,
     TRANSFORM_3D_DATA_TYPE_FAMILY,
     TRANSFORM_3D_DATA_TYPE_ID,
@@ -18,6 +19,11 @@ from ea_node_editor.nodes.core_data_types import (
     GRAPH_DATA_TYPE_ID,
 )
 from ea_node_editor.nodes.execution_context import ExecutionContext
+from ea_node_editor.nodes.function_plugin import (
+    INTERNAL_BUILTIN_FUNCTION_OWNER_ID,
+    PythonFunctionAdapter,
+)
+from ea_node_editor.nodes.plugin_declaration import discover_plugin_declarations
 from ea_node_editor.runtime_contracts import (
     DataTree,
     DataTypeCatalogError,
@@ -68,10 +74,32 @@ def _context(
 
 
 def _plugins() -> tuple[object, object]:
-    return tuple(
-        descriptor.factory()
-        for descriptor in COREX_SPATIAL_VALUES_TRANSFORM_NODE_DESCRIPTORS
-    )  # type: ignore[return-value]
+    adapters = _transform_function_adapters()
+    return (
+        adapters["geometry.construct_transform"],
+        adapters["geometry.deconstruct_transform"],
+    )
+
+
+@lru_cache(maxsize=1)
+def _transform_function_adapters() -> dict[str, PythonFunctionAdapter]:
+    namespace: dict[str, object] = {}
+    exec(compile(SOURCE, "spatial.py", "exec"), namespace)  # noqa: S102
+    declarations = discover_plugin_declarations(
+        SOURCE,
+        filename="spatial.py",
+        allow_reserved_ids=True,
+        owner_id=INTERNAL_BUILTIN_FUNCTION_OWNER_ID,
+    )
+    return {
+        declaration.spec.type_id: PythonFunctionAdapter(
+            declaration.spec,
+            namespace[declaration.function_name],  # type: ignore[arg-type]
+        )
+        for declaration in declarations
+        if declaration.spec.type_id
+        in {"geometry.construct_transform", "geometry.deconstruct_transform"}
+    }
 
 
 

@@ -9,9 +9,7 @@ import re
 from types import MappingProxyType
 
 from ea_node_editor.nodes.core_data_types import GRAPH_DATA_TYPE_ID
-from ea_node_editor.nodes.decorators import node_type, plugin_descriptor
-from ea_node_editor.nodes.execution_context import ExecutionContext, NodeResult
-from ea_node_editor.nodes.node_specs import PortSpec, PropertySpec
+from ea_node_editor.nodes.execution_context import ExecutionContext
 from ea_node_editor.nodes.plugin_contracts import (
     PluginContractManifest,
 )
@@ -221,11 +219,8 @@ IDENTITY_PLANE = TypedInlineValue(
 )
 
 
-def _plane_input(ctx: ExecutionContext) -> object:
-    value = ctx.inputs.get("input")
-    if value is None:
-        value = ctx.properties.get("input")
-    if not isinstance(value, TypedInlineValue):
+def _typed_plane(value: object) -> TypedInlineValue:
+    if type(value) is not TypedInlineValue:
         raise ValueError("Plane input must be a typed Plane value")
     if (
         value.data_type_id != PLANE_DATA_TYPE_ID
@@ -236,135 +231,22 @@ def _plane_input(ctx: ExecutionContext) -> object:
     return value
 
 
-@node_type(
-    type_id=PLANE_CONTAINER_NODE_TYPE_ID,
-    display_name="Plane",
-    category_path=("Reference", "Container"),
-    icon="3d_rotation",
-    description="Stores or passes through one typed Plane value.",
-    keywords=("Plane", "Reference", "Container", "Coordinate System"),
-    ports=(
-        PortSpec(
-            "input",
-            "in",
-            "data",
-            PLANE_DATA_TYPE_ID,
-            label="Plane",
-            required=False,
-            description="Optional Plane value to store or pass through.",
-        ),
-        PortSpec(
-            "output",
-            "out",
-            "data",
-            PLANE_DATA_TYPE_ID,
-            label="Plane",
-            description="The stored or incoming Plane value.",
-        ),
-    ),
-    properties=(
-        PropertySpec(
-            "input",
-            "json",
-            IDENTITY_PLANE,
-            "Plane",
-            description="Typed inline Plane stored by this container.",
-            persistence_data_type_id=PLANE_DATA_TYPE_ID,
-        ),
-    ),
-)
-class PlaneContainerNodePlugin:
-    def execute(self, ctx: ExecutionContext) -> NodeResult:
-        return NodeResult(outputs={"output": _plane_input(ctx)})
+def plane_container_value(
+    ctx: ExecutionContext,
+    input_value: object,
+    stored_value: object,
+) -> TypedInlineValue:
+    return _typed_plane(input_value if "input" in ctx.inputs else stored_value)
 
 
-@node_type(
-    type_id=LARGE_LANGUAGE_MODEL_NODE_TYPE_ID,
-    display_name="Large Language Model",
-    category_path=("AI", "Agent"),
-    icon="smart_toy",
-    description="Builds offline provider and model configuration for an agent.",
-    keywords=("AI", "Agent", "LLM", "Model", "Provider", "Configuration"),
-    ports=(
-        PortSpec(
-            "model",
-            "out",
-            "data",
-            AGENT_MODEL_DATA_TYPE_ID,
-            label="Agent Model",
-            description="Validated provider and model configuration.",
-        ),
-    ),
-    properties=(
-        PropertySpec(
-            "provider_id",
-            "str",
-            "corex-server",
-            "Provider ID",
-            description="Offline provider identifier; no credentials or client are stored.",
-        ),
-        PropertySpec(
-            "model_id",
-            "str",
-            "",
-            "Model ID",
-            description="Model identifier emitted as configuration only.",
-        ),
-    ),
-)
-class LargeLanguageModelNodePlugin:
-    def execute(self, ctx: ExecutionContext) -> NodeResult:
-        payload = {
-            "provider_id": ctx.properties.get("provider_id"),
-            "model_id": ctx.properties.get("model_id"),
-        }
-        if not is_agent_model_payload(payload):
-            raise ValueError(
-                "provider_id and model_id must be valid non-empty identifiers"
-            )
-        return NodeResult(
-            outputs={
-                "model": TypedInlineValue(
-                    AGENT_MODEL_DATA_TYPE_ID,
-                    1,
-                    payload,
-                )
-            }
-        )
-
-
-COREX_RICH_VALUE_NODE_DESCRIPTORS = (
-    plugin_descriptor(PlaneContainerNodePlugin),
-    plugin_descriptor(LargeLanguageModelNodePlugin),
-)
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-def _exact_proof_value(value: object, expected: object) -> bool:
-    if type(value) is not type(expected):
-        return False
-    if type(expected) is tuple:
-        return len(value) == len(expected) and all(
-            _exact_proof_value(observed, wanted)
-            for observed, wanted in zip(value, expected, strict=True)
-        )
-    return value == expected
-
-
-
-
-
+def make_agent_model_value(
+    provider_id: object,
+    model_id: object,
+) -> TypedInlineValue:
+    payload = {"provider_id": provider_id, "model_id": model_id}
+    if not is_agent_model_payload(payload):
+        raise ValueError("provider_id and model_id must be valid non-empty identifiers")
+    return TypedInlineValue(AGENT_MODEL_DATA_TYPE_ID, 1, payload)
 
 
 COREX_RICH_VALUE_CONTRACT_MANIFEST = PluginContractManifest(
@@ -387,13 +269,12 @@ __all__ = [
     "COREX_RICH_VALUE_CONTRACT_MANIFEST",
     "COREX_RICH_VALUE_DATA_TYPES",
     "COREX_RICH_VALUE_LLM_CANDIDATE_CONTRACT_MANIFEST",
-    "COREX_RICH_VALUE_NODE_DESCRIPTORS",
     "COREX_RICH_VALUE_OWNER_ID",
     "COREX_RICH_VALUE_OWNER_VERSION",
-    "LargeLanguageModelNodePlugin",
-    "PlaneContainerNodePlugin",
     "is_agent_model_payload",
     "is_color_map_payload",
     "is_node_visual_payload",
     "is_plane_payload",
+    "make_agent_model_value",
+    "plane_container_value",
 ]

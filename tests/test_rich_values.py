@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import copy
+from dataclasses import asdict
 import json
+from pathlib import Path
 
 import pytest
 
@@ -22,23 +24,27 @@ from ea_node_editor.nodes.bootstrap import (
     build_builtin_registry,
     build_default_registry,
 )
+from ea_node_editor.nodes.builtin_functions.ai_agent import SOURCE as AI_AGENT_SOURCE
+from ea_node_editor.nodes.builtin_functions.rich_values import (
+    SOURCE as RICH_VALUES_SOURCE,
+)
 from ea_node_editor.nodes.builtins.rich_value_nodes import (
     AGENT_MODEL_DATA_TYPE_ID,
     COLOR_MAP_DATA_TYPE_ID,
     IDENTITY_PLANE,
+    LARGE_LANGUAGE_MODEL_NODE_TYPE_ID,
     NODE_VISUAL_DATA_TYPE_ID,
     PLANE_CONTAINER_NODE_TYPE_ID,
     PLANE_DATA_TYPE_ID,
     COREX_RICH_VALUE_CONTRACT_MANIFEST,
-    COREX_RICH_VALUE_NODE_DESCRIPTORS,
     COREX_RICH_VALUE_OWNER_ID,
     COREX_RICH_VALUE_OWNER_VERSION,
-    LargeLanguageModelNodePlugin,
-    PlaneContainerNodePlugin,
     is_agent_model_payload,
     is_color_map_payload,
     is_node_visual_payload,
     is_plane_payload,
+    make_agent_model_value,
+    plane_container_value,
 )
 from ea_node_editor.nodes.core_data_types import (
     CLIPPABLE_GRAPH_DATA_TYPE_ID,
@@ -47,7 +53,9 @@ from ea_node_editor.nodes.core_data_types import (
     GRAPH_DATA_TYPE_ID,
 )
 from ea_node_editor.nodes.execution_context import ExecutionContext
+from ea_node_editor.nodes.function_plugin import INTERNAL_BUILTIN_FUNCTION_OWNER_ID
 from ea_node_editor.nodes.node_specs import NodeTypeSpec, PortSpec, PropertySpec
+from ea_node_editor.nodes.plugin_declaration import discover_plugin_declarations
 from ea_node_editor.nodes.registry import NodeRegistry
 from ea_node_editor.persistence.serializer import JsonProjectSerializer
 from ea_node_editor.runtime_contracts import (
@@ -57,7 +65,6 @@ from ea_node_editor.runtime_contracts import (
     serialize_runtime_value,
 )
 from ea_node_editor.settings import SCHEMA_VERSION
-
 
 
 def _plane(
@@ -114,10 +121,6 @@ def _context(
         properties=dict(properties or {}),
         emit_log=lambda _level, _message: None,
     )
-
-
-
-
 
 
 def test_rich_value_catalog_and_clippable_assignability_are_exact() -> None:
@@ -333,11 +336,46 @@ def test_mixed_rich_value_tree_survives_runtime_and_protocol_json_round_trips() 
     assert restored.outputs["result"].value == tree
 
 
+def test_rich_value_function_specs_match_frozen_catalog() -> None:
+    declarations = tuple(
+        declaration
+        for source, filename in (
+            (AI_AGENT_SOURCE, "builtin_functions/ai_agent.py"),
+            (RICH_VALUES_SOURCE, "builtin_functions/rich_values.py"),
+        )
+        for declaration in discover_plugin_declarations(
+            source,
+            filename=filename,
+            allow_reserved_ids=True,
+            owner_id=INTERNAL_BUILTIN_FUNCTION_OWNER_ID,
+        )
+    )
+    ids = {LARGE_LANGUAGE_MODEL_NODE_TYPE_ID, PLANE_CONTAINER_NODE_TYPE_ID}
+    golden = json.loads(
+        (
+            Path(__file__).parent
+            / "fixtures"
+            / "node_catalog"
+            / "pre_cutover_non_dpf_catalog.json"
+        ).read_text(encoding="utf-8")
+    )
+    expected = {
+        row["spec"]["type_id"]: row["spec"]
+        for row in golden
+        if row["spec"]["type_id"] in ids
+    }
+
+    assert {
+        declaration.spec.type_id: json.loads(json.dumps(asdict(declaration.spec)))
+        for declaration in declarations
+    } == expected
+
+
 def _persistence_registry() -> tuple[NodeRegistry, NodeTypeSpec]:
     registry = NodeRegistry()
     registry.register_plugin_bundle(
         COREX_RICH_VALUE_CONTRACT_MANIFEST,
-        COREX_RICH_VALUE_NODE_DESCRIPTORS,
+        (),
         owner_id=COREX_RICH_VALUE_OWNER_ID,
         owner_version=COREX_RICH_VALUE_OWNER_VERSION,
     )
@@ -417,8 +455,10 @@ def test_production_plane_container_default_is_independent_and_round_trips(
     registry = build_builtin_registry()
     spec = registry.get_spec(PLANE_CONTAINER_NODE_TYPE_ID)
     prop = next(item for item in spec.properties if item.key == "input")
-    assert prop.default is IDENTITY_PLANE
-    assert isinstance(prop.default, TypedInlineValue)
+    assert type(prop.default) is TypedInlineValue
+    assert prop.default == IDENTITY_PLANE
+    assert prop.default is not IDENTITY_PLANE
+    assert prop.default.payload is not IDENTITY_PLANE.payload
     assert prop.persistence_data_type_id == PLANE_DATA_TYPE_ID
     registry.data_types.validate_carrier(PLANE_DATA_TYPE_ID, prop.default)
 
@@ -469,43 +509,47 @@ def test_production_plane_container_default_is_independent_and_round_trips(
 
 def test_plane_container_and_agent_model_nodes_are_offline_value_nodes() -> None:
     incoming = _plane(origin=[9.0, 8.0, 7.0])
-    plane_result = PlaneContainerNodePlugin().execute(
-        _context(inputs={"input": incoming}, properties={"input": IDENTITY_PLANE})
+    assert (
+        plane_container_value(
+            _context(inputs={"input": incoming}, properties={"input": IDENTITY_PLANE}),
+            incoming,
+            IDENTITY_PLANE,
+        )
+        is incoming
     )
-    assert plane_result.outputs == {"output": incoming}
-    assert PlaneContainerNodePlugin().execute(
-        _context(properties={"input": IDENTITY_PLANE})
-    ).outputs == {"output": IDENTITY_PLANE}
-    assert PlaneContainerNodePlugin().execute(
-        _context(inputs={"input": None}, properties={"input": IDENTITY_PLANE})
-    ).outputs == {"output": IDENTITY_PLANE}
+    assert (
+        plane_container_value(
+            _context(properties={"input": IDENTITY_PLANE}),
+            None,
+            IDENTITY_PLANE,
+        )
+        == IDENTITY_PLANE
+    )
+    with pytest.raises(ValueError, match="typed Plane"):
+        plane_container_value(
+            _context(inputs={"input": None}, properties={"input": IDENTITY_PLANE}),
+            None,
+            IDENTITY_PLANE,
+        )
 
-    model_result = LargeLanguageModelNodePlugin().execute(
-        _context(
-            properties={
-                "provider_id": "corex-server",
-                "model_id": "engineering-model",
-            }
-        )
+    model = make_agent_model_value(
+        "corex-server",
+        "engineering-model",
     )
-    assert model_result.outputs == {
-        "model": TypedInlineValue(
-            AGENT_MODEL_DATA_TYPE_ID,
-            1,
-            {
-                "provider_id": "corex-server",
-                "model_id": "engineering-model",
-            },
-        )
-    }
-    assert set(model_result.outputs["model"].payload) == {
+    assert model == TypedInlineValue(
+        AGENT_MODEL_DATA_TYPE_ID,
+        1,
+        {
+            "provider_id": "corex-server",
+            "model_id": "engineering-model",
+        },
+    )
+    assert set(model.payload) == {
         "provider_id",
         "model_id",
     }
     with pytest.raises(ValueError, match="non-empty identifiers"):
-        LargeLanguageModelNodePlugin().execute(
-            _context(properties={"provider_id": "corex-server", "model_id": ""})
-        )
+        make_agent_model_value("corex-server", "")
 
 
 @pytest.mark.parametrize(
@@ -529,6 +573,8 @@ def test_plane_container_rejects_untyped_or_catalog_invalid_values(
     value: object,
 ) -> None:
     with pytest.raises(ValueError, match="Plane input"):
-        PlaneContainerNodePlugin().execute(
-            _context(inputs={"input": value}, properties={"input": IDENTITY_PLANE})
+        plane_container_value(
+            _context(inputs={"input": value}, properties={"input": IDENTITY_PLANE}),
+            value,
+            IDENTITY_PLANE,
         )

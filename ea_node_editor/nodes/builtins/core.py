@@ -1,18 +1,14 @@
 from __future__ import annotations
 
-import json
 import math
 import traceback
 from collections.abc import Mapping
 
 from ea_node_editor.graph.boundary_adapters import register_node_type_size_resolver
 from ea_node_editor.nodes.builtins.data_control import NUMBER_SLIDER_PILL_HEIGHT
-from ea_node_editor.nodes.builtins.icon_catalog import builtin_node_type, builtin_node_type_spec
+from ea_node_editor.nodes.builtins.icon_catalog import builtin_node_type_spec
 from ea_node_editor.nodes.decorators import (
-    in_port,
-    out_port,
     plugin_descriptor,
-    prop_json,
 )
 from ea_node_editor.nodes.execution_context import ExecutionContext, NodeResult
 from ea_node_editor.nodes.node_specs import (
@@ -28,7 +24,6 @@ from ea_node_editor.nodes.python_script_declaration import (
     resolve_python_script_spec,
 )
 from ea_node_editor.runtime_contracts import DataTree
-from ea_node_editor.runtime_contracts.data_tree import resolve_single_run_inputs
 
 
 PYTHON_SCRIPT_DEFAULT_SOURCE = """# Decorator templates: uncomment a line, then add its name to run(ctx, ...).
@@ -51,91 +46,6 @@ PYTHON_SCRIPT_DEFAULT_SOURCE = """# Decorator templates: uncomment a line, then 
 def run(ctx, payload):
     return {"result": payload}
 """
-
-
-@builtin_node_type(
-    type_id="core.constant",
-    display_name="Constant",
-    category_path=("Core",),
-    description="Publishes a reusable JSON-compatible value and its text representation.",
-    keywords=("constant", "value", "json"),
-    ports=(
-        out_port(
-            "value",
-            kind="data",
-            data_type='COREX.DataTypes.Any',
-            exposed=True,
-            description="The configured JSON-compatible value.",
-        ),
-        out_port(
-            "as_text",
-            kind="data",
-            data_type='COREX.DataTypes.String',
-            exposed=True,
-            description="The configured value serialized as JSON text.",
-        ),
-    ),
-    properties=(
-        prop_json("value", {"value": 0}, "Value"),
-    ),
-)
-class ConstantNodePlugin:
-    def execute(self, ctx: ExecutionContext) -> NodeResult:
-        value = ctx.properties.get("value", {"value": 0})
-        try:
-            as_text = json.dumps(value, sort_keys=True, ensure_ascii=True)
-        except TypeError as exc:
-            raise ValueError("Constant node value must be JSON serializable.") from exc
-        return NodeResult(outputs={"value": value, "as_text": as_text})
-
-
-class LoggerNodePlugin:
-    def spec(self) -> NodeTypeSpec:
-        return builtin_node_type_spec(
-            type_id="core.logger",
-            display_name="Logger",
-            category_path=("Core",),
-            description="Writes an informational, warning, or error message to the workflow run log.",
-            keywords=("log", "message", "diagnostics"),
-            ports=(
-                PortSpec(
-                    "message",
-                    "in",
-                    "data",
-                    'COREX.DataTypes.String',
-                    required=False,
-                    uses_property_default=True,
-                    data_access="tree",
-                    description="Message to log; overrides the configured Message property when connected.",
-                ),
-            ),
-            properties=(
-                PropertySpec("message", "str", "log message", "Message", inline_editor="text"),
-                PropertySpec(
-                    "level",
-                    "enum",
-                    "info",
-                    "Level",
-                    enum_values=("info", "warning", "error"),
-                    inline_editor="enum",
-                ),
-            ),
-        )
-
-    def execute(self, ctx: ExecutionContext) -> NodeResult:
-        inputs = resolve_single_run_inputs(ctx.inputs, node_name="Logger")
-        message = str(inputs.get("message", ctx.properties.get("message", "")))
-        level = str(ctx.properties.get("level", "info")).strip().lower()
-        if level not in {"info", "warning", "error"}:
-            ctx.log_warning(f"Logger level '{level}' is invalid; using 'info'.")
-            level = "info"
-        if level == "warning":
-            ctx.log_warning(message)
-        elif level == "error":
-            ctx.log_error(message)
-        else:
-            ctx.log_info(message)
-        return NodeResult()
 
 
 _PYTHON_SCRIPT_FRAME_FILENAME = "<string>"
@@ -452,8 +362,6 @@ class StreamGateNodePlugin:
 
 
 CORE_NODE_DESCRIPTORS = (
-    plugin_descriptor(ConstantNodePlugin),
-    plugin_descriptor(LoggerNodePlugin),
     plugin_descriptor(PythonScriptNodePlugin),
     plugin_descriptor(TriggerNodePlugin),
     plugin_descriptor(StreamGateNodePlugin),

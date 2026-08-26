@@ -4,13 +4,17 @@
 
 from __future__ import annotations
 
-from dataclasses import replace
+from dataclasses import asdict, replace
+from functools import lru_cache
+import json
 import math
+from pathlib import Path
 
 import pytest
 
 from ea_node_editor.execution.worker_services import WorkerServices
 from ea_node_editor.nodes.bootstrap import build_builtin_registry
+from ea_node_editor.nodes.builtin_functions import engineering_geometry
 from ea_node_editor.nodes.builtins.geometry_contracts import BODY_DATA_TYPE_ID
 from ea_node_editor.nodes.builtins.geometry_primitives import (
     CONSTRUCT_ZONE_NODE_TYPE_ID,
@@ -22,7 +26,24 @@ from ea_node_editor.nodes.builtins.geometry_primitives import (
 )
 from ea_node_editor.nodes.builtins.rich_value_nodes import PLANE_DATA_TYPE_ID
 from ea_node_editor.nodes.execution_context import ExecutionContext
+from ea_node_editor.nodes.function_plugin import (
+    INTERNAL_BUILTIN_FUNCTION_OWNER_ID,
+    PythonFunctionAdapter,
+)
+from ea_node_editor.nodes.plugin_declaration import discover_plugin_declarations
 from ea_node_editor.runtime_contracts import Interval1D, RuntimeHandleRef, TypedInlineValue
+
+_CONVERTED_TYPE_IDS = (
+    "geometry.cylinder",
+    "fea.construct_zone",
+    "mesh.deconstruct_mesh_face",
+)
+_PRE_CUTOVER_CATALOG = (
+    Path(__file__).parent
+    / "fixtures"
+    / "node_catalog"
+    / "pre_cutover_non_dpf_catalog.json"
+)
 
 
 def _plane() -> TypedInlineValue:
@@ -35,6 +56,46 @@ def _plane() -> TypedInlineValue:
             "normal": [0.0, 1.0, 0.0],
         },
     )
+
+
+@lru_cache(maxsize=1)
+def _function_adapters() -> dict[str, PythonFunctionAdapter]:
+    namespace: dict[str, object] = {}
+    exec(compile(engineering_geometry.SOURCE, "engineering_geometry.py", "exec"), namespace)
+    declarations = discover_plugin_declarations(
+        engineering_geometry.SOURCE,
+        filename="engineering_geometry.py",
+        allow_reserved_ids=True,
+        owner_id=INTERNAL_BUILTIN_FUNCTION_OWNER_ID,
+    )
+    return {
+        declaration.spec.type_id: PythonFunctionAdapter(
+            declaration.spec,
+            namespace[declaration.function_name],  # type: ignore[arg-type]
+        )
+        for declaration in declarations
+    }
+
+
+def test_geometry_function_declarations_match_golden() -> None:
+    declarations = discover_plugin_declarations(
+        engineering_geometry.SOURCE,
+        filename="engineering_geometry.py",
+        allow_reserved_ids=True,
+        owner_id=INTERNAL_BUILTIN_FUNCTION_OWNER_ID,
+    )
+    expected = {
+        row["spec"]["type_id"]: row["spec"]
+        for row in json.loads(_PRE_CUTOVER_CATALOG.read_text(encoding="utf-8"))
+        if row["spec"]["type_id"] in _CONVERTED_TYPE_IDS
+    }
+    assert tuple(declaration.spec.type_id for declaration in declarations) == (
+        _CONVERTED_TYPE_IDS
+    )
+    assert {
+        declaration.spec.type_id: json.loads(json.dumps(asdict(declaration.spec)))
+        for declaration in declarations
+    } == expected
 
 
 def _runtime() -> tuple[object, WorkerServices, ExecutionContext]:
@@ -54,7 +115,7 @@ def _runtime() -> tuple[object, WorkerServices, ExecutionContext]:
         emit_log=lambda _level, _message: None,
         worker_services=services,
     )
-    return registry.get_descriptor(CYLINDER_NODE_TYPE_ID).factory(), services, context
+    return _function_adapters()[CYLINDER_NODE_TYPE_ID], services, context
 
 
 
@@ -63,9 +124,7 @@ def test_construct_zone_broadcasts_tolerance_and_releases_partial_leases() -> No
     cylinder, services, cylinder_context = _runtime()
     first_body = cylinder.execute(cylinder_context).outputs["body"]
     second_body = cylinder.execute(cylinder_context).outputs["body"]
-    zone_node = build_builtin_registry().get_descriptor(
-        CONSTRUCT_ZONE_NODE_TYPE_ID
-    ).factory()
+    zone_node = _function_adapters()[CONSTRUCT_ZONE_NODE_TYPE_ID]
 
     def zone_context(geometry: list[object], tolerances: list[object]):
         return ExecutionContext(

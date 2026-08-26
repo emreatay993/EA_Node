@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import asdict
 import json
 import socket
 import sqlite3
@@ -10,6 +11,9 @@ import pytest
 
 from ea_node_editor.nodes.bootstrap import build_builtin_registry
 from ea_node_editor.nodes.builtins import ai_ml_contracts as ai_ml_module
+from ea_node_editor.nodes.builtin_functions.ai_vector_database import (
+    SOURCE as AI_VECTOR_DATABASE_SOURCE,
+)
 from ea_node_editor.nodes.builtins.ai_ml_contracts import (
     BASE_PROBABILITY_DATA_TYPE_ID,
     CREATE_VECTOR_COLLECTION_NODE_TYPE_ID,
@@ -32,7 +36,6 @@ from ea_node_editor.nodes.builtins.ai_ml_contracts import (
     COREX_AI_ML_VECTOR_RECORD_CANDIDATE_DATA_TYPES,
     COREX_AI_ML_VECTOR_DATABASE_CANDIDATE_CONTRACT_MANIFEST,
     COREX_AI_ML_VECTOR_DATABASE_CANDIDATE_DATA_TYPES,
-    COREX_AI_ML_VECTOR_DATABASE_NODE_DESCRIPTORS,
     COREX_AI_ML_WEB_CLIENT_SETTINGS_CANDIDATE_CONTRACT_MANIFEST,
     COREX_AI_ML_WEB_CLIENT_SETTINGS_CANDIDATE_DATA_TYPES,
     SQLITE_VECTOR_DATABASE_NODE_TYPE_ID,
@@ -41,6 +44,9 @@ from ea_node_editor.nodes.builtins.ai_ml_contracts import (
     VECTOR_RECORD_DATA_TYPE_ID,
     WEB_CLIENT_SETTINGS_DATA_TYPE_ID,
     WEB_CONTENT_DATA_TYPE_ID,
+    execute_create_vector_collection,
+    execute_inspect_vector_collection,
+    execute_sqlite_vector_database,
 )
 from ea_node_editor.nodes.builtins.spatial_values import (
     FIELD_VECTOR_DATA_TYPE_ID,
@@ -54,6 +60,9 @@ from ea_node_editor.nodes.core_data_types import (
     STRING_DATA_TYPE_ID,
 )
 from ea_node_editor.nodes.execution_context import ExecutionContext
+from ea_node_editor.nodes.function_plugin import INTERNAL_BUILTIN_FUNCTION_OWNER_ID
+from ea_node_editor.nodes.node_specs import PropertySpec
+from ea_node_editor.nodes.plugin_declaration import discover_plugin_declarations
 from ea_node_editor.nodes.plugin_contracts import PluginContractManifest
 from ea_node_editor.nodes.registry import NodeRegistry
 from ea_node_editor.runtime_contracts import (
@@ -114,8 +123,6 @@ def _handle(type_id: str) -> RuntimeHandleRef:
         worker_generation=1,
         metadata={},
     )
-
-
 
 
 def test_failed_standalone_registration_rolls_back_all_six_types() -> None:
@@ -204,8 +211,6 @@ def test_all_abstract_validators_and_catalog_carriers_reject() -> None:
         assert spec.validate_item(handle) is False
         with pytest.raises(DataTypeCatalogError, match="must be concrete"):
             catalog.validate_carrier(spec.type_id, handle)
-
-
 
 
 def test_vector_record_payload_validation_is_strict_and_reuses_member_contracts() -> (
@@ -350,8 +355,6 @@ def test_vector_record_runtime_json_round_trip_is_catalog_checked() -> None:
                 catalog=catalog,
                 declared_type_id=VECTOR_RECORD_DATA_TYPE_ID,
             )
-
-
 
 
 def test_remote_mcp_server_payload_validation_is_strict() -> None:
@@ -672,8 +675,6 @@ def test_remote_mcp_server_runtime_json_round_trip_is_catalog_checked() -> None:
             declared_type_id=REMOTE_MCP_SERVER_DATA_TYPE_ID,
         )
     assert sentinel not in str(error.value)
-
-
 
 
 def test_openai_mcp_connector_payload_validation_is_strict() -> None:
@@ -1007,8 +1008,6 @@ def test_openai_mcp_connector_runtime_json_round_trip_is_catalog_checked() -> No
             declared_type_id=OPENAI_MCP_CONNECTOR_DATA_TYPE_ID,
         )
     assert sentinel not in str(error.value)
-
-
 
 
 def test_web_client_settings_payload_validation_is_strict() -> None:
@@ -1443,14 +1442,12 @@ def _execute_node(
     inputs: dict[str, object] | None = None,
     properties: dict[str, object] | None = None,
 ) -> object:
-    descriptor = next(
-        descriptor
-        for descriptor in COREX_AI_ML_VECTOR_DATABASE_NODE_DESCRIPTORS
-        if descriptor.spec.type_id == node_type_id
-    )
-    return descriptor.factory().execute(
-        _execution_context(inputs=inputs, properties=properties)
-    )
+    operation = {
+        SQLITE_VECTOR_DATABASE_NODE_TYPE_ID: execute_sqlite_vector_database,
+        CREATE_VECTOR_COLLECTION_NODE_TYPE_ID: execute_create_vector_collection,
+        INSPECT_VECTOR_COLLECTION_NODE_TYPE_ID: execute_inspect_vector_collection,
+    }[node_type_id]
+    return operation(_execution_context(inputs=inputs, properties=properties))
 
 
 def _connection_value(file_path: str) -> TypedInlineValue:
@@ -1569,9 +1566,7 @@ def test_vector_collection_contract_facts_and_owner_inventory_are_exact(
         )
     )
     assert (
-        tuple(
-            spec.type_id for spec in COREX_AI_ML_VECTOR_DATABASE_CANDIDATE_DATA_TYPES
-        )
+        tuple(spec.type_id for spec in COREX_AI_ML_VECTOR_DATABASE_CANDIDATE_DATA_TYPES)
         == _EXPECTED_VECTOR_DATABASE_TYPE_IDS
     )
     spec = COREX_AI_ML_VECTOR_DATABASE_CANDIDATE_DATA_TYPES[-1]
@@ -1629,14 +1624,15 @@ def test_vector_collection_contract_facts_and_owner_inventory_are_exact(
         if record["kind"] == "type"
         and record["owner_id"] == COREX_AI_ML_CONTRACTS_OWNER_ID
     } == set(_EXPECTED_VECTOR_DATABASE_TYPE_IDS)
-    assert {
-        entry.spec.type_id
-        for entry in registry._entries.values()
-        if entry.owner_id == COREX_AI_ML_CONTRACTS_OWNER_ID
-    } == {
+    converted_ids = {
         SQLITE_VECTOR_DATABASE_NODE_TYPE_ID,
         CREATE_VECTOR_COLLECTION_NODE_TYPE_ID,
         INSPECT_VECTOR_COLLECTION_NODE_TYPE_ID,
+    }
+    assert {
+        type_id: registry.get_entry(type_id).owner_id for type_id in converted_ids
+    } == {
+        type_id: INTERNAL_BUILTIN_FUNCTION_OWNER_ID for type_id in converted_ids
     }
 
 
@@ -1867,8 +1863,8 @@ def test_vector_db_connection_runtime_json_round_trip_is_catalog_checked(
             )
 
 
-def test_sqlite_vector_node_descriptors_and_successor_inventory_are_exact() -> None:
-    assert len(ai_ml_module.__all__) == len(set(ai_ml_module.__all__)) == 30
+def test_sqlite_vector_function_specs_and_successor_inventory_are_exact() -> None:
+    assert len(ai_ml_module.__all__) == len(set(ai_ml_module.__all__))
     assert {
         "VECTOR_DB_CONNECTION_DATA_TYPE_ID",
         "VECTOR_COLLECTION_DATA_TYPE_ID",
@@ -1877,18 +1873,45 @@ def test_sqlite_vector_node_descriptors_and_successor_inventory_are_exact() -> N
         "INSPECT_VECTOR_COLLECTION_NODE_TYPE_ID",
         "COREX_AI_ML_VECTOR_DATABASE_CANDIDATE_DATA_TYPES",
         "COREX_AI_ML_VECTOR_DATABASE_CANDIDATE_CONTRACT_MANIFEST",
-        "COREX_AI_ML_VECTOR_DATABASE_NODE_DESCRIPTORS",
+        "execute_create_vector_collection",
+        "execute_inspect_vector_collection",
+        "execute_sqlite_vector_database",
     }.issubset(ai_ml_module.__all__)
-    assert tuple(
-        descriptor.spec.type_id
-        for descriptor in COREX_AI_ML_VECTOR_DATABASE_NODE_DESCRIPTORS
-    ) == (
+    declarations = discover_plugin_declarations(
+        AI_VECTOR_DATABASE_SOURCE,
+        filename="builtin_functions/ai_vector_database.py",
+        allow_reserved_ids=True,
+        owner_id=INTERNAL_BUILTIN_FUNCTION_OWNER_ID,
+    )
+    ids = {
+        SQLITE_VECTOR_DATABASE_NODE_TYPE_ID,
+        CREATE_VECTOR_COLLECTION_NODE_TYPE_ID,
+        INSPECT_VECTOR_COLLECTION_NODE_TYPE_ID,
+    }
+    golden = json.loads(
+        (
+            Path(__file__).parent
+            / "fixtures"
+            / "node_catalog"
+            / "pre_cutover_non_dpf_catalog.json"
+        ).read_text(encoding="utf-8")
+    )
+    expected = {
+        row["spec"]["type_id"]: row["spec"]
+        for row in golden
+        if row["spec"]["type_id"] in ids
+    }
+    assert {
+        declaration.spec.type_id: json.loads(json.dumps(asdict(declaration.spec)))
+        for declaration in declarations
+    } == expected
+    assert tuple(declaration.spec.type_id for declaration in declarations) == (
         SQLITE_VECTOR_DATABASE_NODE_TYPE_ID,
         CREATE_VECTOR_COLLECTION_NODE_TYPE_ID,
         INSPECT_VECTOR_COLLECTION_NODE_TYPE_ID,
     )
     sqlite_spec, create_spec, inspect_spec = (
-        descriptor.spec for descriptor in COREX_AI_ML_VECTOR_DATABASE_NODE_DESCRIPTORS
+        declaration.spec for declaration in declarations
     )
     assert all(
         (
@@ -1914,7 +1937,7 @@ def test_sqlite_vector_node_descriptors_and_successor_inventory_are_exact() -> N
     assert sqlite_spec.ports[0].required is True
     assert sqlite_spec.ports[0].uses_property_default is True
     assert sqlite_spec.properties == (
-        ai_ml_module.PropertySpec(
+        PropertySpec(
             "file_path",
             "path",
             "",
@@ -2000,15 +2023,7 @@ def test_sqlite_vector_node_descriptors_and_successor_inventory_are_exact() -> N
         6,
         6,
     ]
-    registry = build_builtin_registry()
-    assert all(
-        sum(
-            descriptor is candidate
-            for candidate in ai_ml_module.COREX_AI_ML_VECTOR_DATABASE_NODE_DESCRIPTORS
-        )
-        == 1
-        for descriptor in COREX_AI_ML_VECTOR_DATABASE_NODE_DESCRIPTORS
-    )
+    assert not hasattr(ai_ml_module, "COREX_AI_ML_VECTOR_DATABASE_NODE_DESCRIPTORS")
 
 
 def test_sqlite_vector_database_initialization_and_path_policy_are_strict(

@@ -13,7 +13,7 @@ from ea_node_editor.nodes.bootstrap import build_builtin_registry
 from ea_node_editor.nodes.builtins.data_control import (
     NUMBER_SLIDER_PILL_HEIGHT,
     NUMBER_SLIDER_TYPE_ID,
-    NumberSliderNodePlugin,
+    execute_number_slider,
     normalize_number_slider_properties,
     number_slider_settings,
     number_slider_step,
@@ -147,21 +147,21 @@ class TestNumberSliderNormalization:
 
 class TestNumberSliderExecute:
     def test_decimal_mode_outputs_rounded_float(self) -> None:
-        result = NumberSliderNodePlugin().execute(
+        result = execute_number_slider(
             _Ctx({"value": 5.678, "minimum": 0.0, "maximum": 10.0, "rounding": "decimal", "decimals": 2})
         )
         assert result.outputs == {"value": 5.68}
         assert isinstance(result.outputs["value"], float)
 
     def test_integer_mode_outputs_whole_number(self) -> None:
-        result = NumberSliderNodePlugin().execute(
+        result = execute_number_slider(
             _Ctx({"value": 5.678, "minimum": 0.0, "maximum": 10.0, "rounding": "integer", "decimals": 2})
         )
         assert result.outputs == {"value": 6}
         assert isinstance(result.outputs["value"], int)
 
     def test_missing_properties_fall_back_to_defaults(self) -> None:
-        result = NumberSliderNodePlugin().execute(_Ctx({}))
+        result = execute_number_slider(_Ctx({}))
         assert result.outputs == {"value": 5.0}
 
     def test_settings_resolution_repairs_hostile_input(self) -> None:
