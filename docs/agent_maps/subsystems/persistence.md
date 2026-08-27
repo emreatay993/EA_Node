@@ -22,6 +22,7 @@ Use this for `.cxproj` documents, serializers, migrations, workspace-scoped proj
 - Keep protected properties encrypted and reject unresolved add-ons before final writes.
 - Persist Python Script source and authored decorator settings as ordinary node
   properties; resolve the declaration from source instead of storing a second manifest.
+- Persist `media.panel` authored properties and exact per-instance Source exposure through the normal node document path. The removed pre-cutover media identities are unknown types with no alias or migration; current project/fragment/history paths preserve serialized exposure without consulting app preferences.
 
 ## Focused Tests
 - `tests/test_serializer.py`
@@ -29,6 +30,8 @@ Use this for `.cxproj` documents, serializers, migrations, workspace-scoped proj
 - `tests/test_project_save_as_flow.py`
 - `tests/test_project_artifact_store.py`
 - `tests/test_project_session_controller_unit.py`
+- `tests/test_media_panel_creation_preferences.py`
+- `tests/serializer/round_trip_cases.py`
 
 ## Focused Verification
 ```powershell

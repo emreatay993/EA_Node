@@ -676,7 +676,7 @@ class _GraphCanvasShellHostStub(QObject):
             "request_save_image_crop_replace": {
                 "success": True,
                 "created_node_id": "image-node-1",
-                "created_type_id": "passive.media.image_panel",
+                "created_type_id": "media.panel",
                 "source_ref": "project-staged://image_crop_1",
                 "link_id": "",
                 "error": {},
@@ -684,7 +684,7 @@ class _GraphCanvasShellHostStub(QObject):
             "request_create_video_frame_image_node": {
                 "success": True,
                 "created_node_id": "image-node-1",
-                "created_type_id": "passive.media.image_panel",
+                "created_type_id": "media.panel",
                 "source_ref": "project-staged://video_frame_1",
                 "link_id": "",
                 "error": {},
@@ -692,7 +692,7 @@ class _GraphCanvasShellHostStub(QObject):
             "request_trim_video_clip_replace": {
                 "success": True,
                 "created_node_id": "",
-                "created_type_id": "passive.media.video_panel",
+                "created_type_id": "media.panel",
                 "source_ref": "project-staged://video_clip_1",
                 "link_id": "",
                 "error": {},
@@ -701,7 +701,7 @@ class _GraphCanvasShellHostStub(QObject):
             "request_trim_video_clip_copy": {
                 "success": True,
                 "created_node_id": "video-copy-1",
-                "created_type_id": "passive.media.video_panel",
+                "created_type_id": "media.panel",
                 "source_ref": "project-staged://video_clip_2",
                 "link_id": "",
                 "error": {},

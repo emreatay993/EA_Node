@@ -84,9 +84,9 @@ Item {
             )
 
         function _lockAspectRatioEnabled() {
-            if (!root.host || !root.host.isImagePanelSurface || !root.host.loadedSurfaceItem)
+            if (!root.host || !root.host.loadedSurfaceItem)
                 return false;
-            return Boolean(root.host.loadedSurfaceItem.imageAspectRatioLocked);
+            return Boolean(root.host.loadedSurfaceItem.aspectRatioLocked);
         }
 
         function _applyAspectRatioLock(rect, minWidth, minHeight) {

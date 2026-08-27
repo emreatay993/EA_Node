@@ -24,6 +24,7 @@ from ea_node_editor.nodes.node_specs import property_inspector_editor
 from ea_node_editor.platform_open import open_path_with_default_handler
 from ea_node_editor.settings import DEFAULT_PROPERTY_PANE_VARIANT
 from ea_node_editor.ui.support.node_presentation import build_user_facing_node_instance_number
+from ea_node_editor.ui.media_panel_source import media_panel_source_input_exposed
 from ea_node_editor.ui_qml.dpf_metadata_options_service import (
     reset_shared_dpf_metadata_options_service,
     shared_dpf_metadata_options_service,
@@ -383,6 +384,13 @@ class ShellInspectorPresenter(QObject):
         return self._node_property_spec(node.node_id, key)
 
     @staticmethod
+    def _property_edit_allowed(node: Any, key: str) -> bool:
+        return not (
+            str(key or "").strip() == "source"
+            and media_panel_source_input_exposed(node)
+        )
+
+    @staticmethod
     def _path_dialog_mode(node: Any, property_spec: Any) -> str:
         if str(getattr(node, "type_id", "")).strip() != "io.path_pointer":
             return "file"
@@ -429,6 +437,9 @@ class ShellInspectorPresenter(QObject):
         return str(Path.cwd())
 
     def set_selected_node_property(self, key: str, value: Any) -> None:
+        selected = self._selected_node_context()
+        if selected is None or not self._property_edit_allowed(selected[0], key):
+            return
         self._host.workspace_library_controller.set_selected_node_property(key, value)
 
     def upsert_selected_node_link(
@@ -606,7 +617,11 @@ class ShellInspectorPresenter(QObject):
             return ""
         node, _spec = selected
         property_spec = self._selected_node_property_spec(key)
-        if property_spec is None or property_inspector_editor(property_spec) != "path":
+        if (
+            property_spec is None
+            or property_inspector_editor(property_spec) != "path"
+            or not self._property_edit_allowed(node, key)
+        ):
             return ""
         dialog_mode = self._path_dialog_mode(node, property_spec)
         explicit_source_mode = self._source_import_mode_for_path_property(node, property_spec, source_mode)
@@ -655,7 +670,11 @@ class ShellInspectorPresenter(QObject):
             return ""
         node, spec = node_context
         property_spec = self._node_property_spec(node_id, key)
-        if property_spec is None or property_inspector_editor(property_spec) != "path":
+        if (
+            property_spec is None
+            or property_inspector_editor(property_spec) != "path"
+            or not self._property_edit_allowed(node, key)
+        ):
             return ""
         dialog_mode = self._path_dialog_mode(node, property_spec)
         explicit_source_mode = self._source_import_mode_for_path_property(node, property_spec, source_mode)
@@ -704,7 +723,11 @@ class ShellInspectorPresenter(QObject):
             return ""
         node, spec = node_context
         property_spec = self._node_property_spec(node_id, key)
-        if property_spec is None or property_inspector_editor(property_spec) != "path":
+        if (
+            property_spec is None
+            or property_inspector_editor(property_spec) != "path"
+            or not self._property_edit_allowed(node, key)
+        ):
             return ""
         explicit_source_mode = self._source_import_mode_for_path_property(
             node,

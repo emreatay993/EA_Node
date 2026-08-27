@@ -19,7 +19,7 @@ or explicit requests.
 | Mode | Command | Coverage | Notes |
 |---|---|---|---|
 | `fast` | `./venv/Scripts/python.exe scripts/run_verification.py --mode fast` | Broad non-GUI integration lane for tests that are not marked `gui` or `slow` | Runs `fast.pytest` first with `pytest -o faulthandler_timeout=120 -m "not gui and not slow"` and ignores the shell-backed modules plus `tests/test_shell_isolation_phase.py`; when `pytest-xdist` is importable in the project venv, resolves workers as `psutil.cpu_count(logical=True)` else `os.cpu_count()` else `1`, then passes `-n <resolved_count> --dist load` while deselecting known xdist-sensitive fast targets. Then runs `fast.serial.pytest` for those targets without xdist |
-| `gui` | `./venv/Scripts/python.exe scripts/run_verification.py --mode gui` | Authoritative pure-QML QuickTest directory, parallel QML-heavy pytest slice marked `gui and not slow`, then its proven-contention serial targets | Runs `gui.qml_quick` before pytest with offscreen/Basic controls and zero input delays. `gui.pytest` uses `-o faulthandler_timeout=300`; resolves workers as `psutil.cpu_count(logical=True)` else `os.cpu_count()` else `1`, caps that value at `6`, and passes `-n <gui_resolved_count> --dist load` when `pytest-xdist` is available. `gui.serial.pytest` then runs one graph-surface selector, one DOCX selector, and `tests/test_viewer_surface_contract.py` outside xdist. Otherwise it prints the serial fallback notice. Both slices ignore the shell-backed modules plus `tests/test_shell_isolation_phase.py` |
+| `gui` | `./venv/Scripts/python.exe scripts/run_verification.py --mode gui` | Authoritative pure-QML QuickTest directory, parallel QML-heavy pytest slice marked `gui and not slow`, then its proven-contention serial targets | Runs `gui.qml_quick` before pytest with offscreen/Basic controls and zero input delays. `gui.pytest` uses `-o faulthandler_timeout=300`; resolves workers as `psutil.cpu_count(logical=True)` else `os.cpu_count()` else `1`, caps that value at `6`, and passes `-n <gui_resolved_count> --dist load` when `pytest-xdist` is available. `gui.serial.pytest` then runs one DOCX selector and `tests/test_viewer_surface_contract.py` outside xdist. Otherwise it prints the serial fallback notice. Both slices ignore the shell-backed modules plus `tests/test_shell_isolation_phase.py` |
 | `slow` | `./venv/Scripts/python.exe scripts/run_verification.py --mode slow` | Slow pytest slice marked `slow` | Serial by design, uses `pytest -o faulthandler_timeout=600 -m slow`, and still ignores the shell-backed modules plus `tests/test_shell_isolation_phase.py` |
 | `full` | `./venv/Scripts/python.exe scripts/run_verification.py --mode full` | Runs `fast.pytest`, `fast.serial.pytest`, `gui.qml_quick`, `gui.pytest`, `gui.serial.pytest`, and `slow` first, then the dedicated fresh-process shell-isolation phase | Use `--dry-run` to inspect the exact subprocess commands before execution; with `pytest-xdist`, the 47-target shell catalog runs through `./venv/Scripts/python.exe -m pytest -o faulthandler_timeout=330 --ignore=venv tests/test_shell_isolation_phase.py -q -n 4 --dist load`, with a 360-second hard limit on each child; without xdist, the same phase runs serially |
 
@@ -199,9 +199,9 @@ improvement; no shell speedup percentage is accepted or published.
   contracts, and QML-worker lifecycle/crash recovery.
 - The accepted directory is now the required `gui.qml_quick` phase before
   `gui.pytest`, which is followed by `gui.serial.pytest`, in both `gui` and
-  `full`. The serial phase owns exactly one graph-surface selector, one DOCX
-  selector, and `tests/test_viewer_surface_contract.py`; all other GUI tests
-  remain parallel. No Python wrapper, CMake target, custom C++ harness,
+  `full`. The serial phase owns exactly one DOCX selector and
+  `tests/test_viewer_surface_contract.py`; graph-surface coverage remains in the
+  parallel GUI/QML lanes. No Python wrapper, CMake target, custom C++ harness,
   dependency, or separate verification mode was added.
 - Final real GUI closeout passed on `2026-07-23` in
   `artifacts/verification_logs/20260723_015608`: native `gui.qml_quick` exited

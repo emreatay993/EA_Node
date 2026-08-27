@@ -824,17 +824,5 @@ class GraphScenePayloadBuilder:
         self._last_mutation_phase_timings_ms = self._backdrop_partitioner.mutation_phase_timings_ms()
         return payloads
 
-    def normalize_pdf_panel_pages(
-        self,
-        *,
-        model: GraphModel,
-        registry: NodeRegistry,
-        workspace: WorkspaceData,
-    ) -> None:
-        # Payload normalization is read-only; PDF page clamping happens on ephemeral payload copies.
-        del model
-        del registry
-        del workspace
-
     def active_graph_theme(self, graph_theme_bridge: GraphThemeBridge | None) -> GraphThemeDefinition:
         return self._theme_resolver.active_graph_theme(graph_theme_bridge)

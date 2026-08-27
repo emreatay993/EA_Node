@@ -17,7 +17,7 @@ from ea_node_editor.app_preferences import (
     normalize_engineering_viewer_settings,
     normalize_node_comment_editor_default,
     normalize_status_bar_layout,
-    normalize_image_node_appearance_settings,
+    normalize_media_panel_settings,
     normalize_node_library_usage,
     normalize_property_pane_variant,
     normalize_python_runtime_settings,
@@ -32,7 +32,7 @@ from ea_node_editor.settings import (
     DEFAULT_FLOATING_TOOLBAR_STYLE,
     DEFAULT_FOLDER_EXPLORER_COLUMN_WIDTHS,
     DEFAULT_GRAPHICS_SETTINGS,
-    DEFAULT_IMAGE_NODE_APPEARANCE_SETTINGS,
+    DEFAULT_MEDIA_PANEL_SETTINGS,
     DEFAULT_PROPERTY_PANE_VARIANT,
     DEFAULT_PYTHON_RUNTIME_SETTINGS,
     DEFAULT_SELECTION_TOOLBAR_MINIMAL_MENU_TRIGGER,
@@ -72,7 +72,7 @@ class AppPreferencesTests(unittest.TestCase):
         document = self._store.load_document()
 
         self.assertEqual(document["kind"], APP_PREFERENCES_KIND)
-        self.assertEqual(APP_PREFERENCES_VERSION, 7)
+        self.assertEqual(APP_PREFERENCES_VERSION, 8)
         self.assertEqual(document["version"], APP_PREFERENCES_VERSION)
         self.assertEqual(document["python_runtime"], DEFAULT_PYTHON_RUNTIME_SETTINGS)
         self.assertEqual(
@@ -201,7 +201,7 @@ class AppPreferencesTests(unittest.TestCase):
                 )
                 self.assertEqual(document["python_runtime"], DEFAULT_PYTHON_RUNTIME_SETTINGS)
 
-    def test_v5_and_v6_migration_persist_v7_document_on_load(self) -> None:
+    def test_v5_and_v6_migration_persist_v8_document_on_load(self) -> None:
         for old_version in (5, 6):
             with self.subTest(version=old_version):
                 legacy = default_app_preferences_document()
@@ -221,6 +221,33 @@ class AppPreferencesTests(unittest.TestCase):
                 self.assertFalse(persisted["graphics"]["canvas"]["show_canvas_options_button"])
                 self.assertFalse(persisted["selected_run"]["preview_before_run"])
                 self.assertEqual(persisted["python_runtime"], DEFAULT_PYTHON_RUNTIME_SETTINGS)
+
+    def test_v7_migration_renames_image_node_settings_without_legacy_key(self) -> None:
+        legacy = default_app_preferences_document()
+        legacy["version"] = 7
+        legacy["graphics"].pop("media_panel")
+        legacy["graphics"]["image_nodes"] = {
+            "show_title": False,
+            "show_frame": False,
+            "autoplay_animations": False,
+        }
+        self._preferences_path.write_text(json.dumps(legacy), encoding="utf-8")
+
+        document = self._store.load_document()
+        persisted = json.loads(self._preferences_path.read_text(encoding="utf-8"))
+
+        self.assertEqual(document["version"], 8)
+        self.assertNotIn("image_nodes", document["graphics"])
+        self.assertEqual(
+            document["graphics"]["media_panel"],
+            {
+                "show_title": False,
+                "show_frame": False,
+                "autoplay_animations": False,
+                "source_input_exposed": True,
+            },
+        )
+        self.assertEqual(persisted, document)
 
     def test_invalid_or_future_documents_still_load_current_defaults(self) -> None:
         for payload in (
@@ -664,30 +691,43 @@ class PropertyPaneVariantNormalizationTests(unittest.TestCase):
         )
 
 
-class ImageNodeAppearanceNormalizationTests(unittest.TestCase):
+class MediaPanelSettingsNormalizationTests(unittest.TestCase):
     def test_defaults_when_missing_or_invalid(self) -> None:
         self.assertEqual(
-            normalize_image_node_appearance_settings(None),
-            DEFAULT_IMAGE_NODE_APPEARANCE_SETTINGS,
+            normalize_media_panel_settings(None),
+            DEFAULT_MEDIA_PANEL_SETTINGS,
         )
         normalized = normalize_graphics_settings(
-            {"image_nodes": {"show_title": "false", "show_frame": None}}
+            {
+                "media_panel": {
+                    "show_title": "false",
+                    "show_frame": None,
+                    "source_input_exposed": "false",
+                }
+            }
         )
-        self.assertEqual(normalized["image_nodes"], DEFAULT_IMAGE_NODE_APPEARANCE_SETTINGS)
+        self.assertEqual(normalized["media_panel"], DEFAULT_MEDIA_PANEL_SETTINGS)
+        self.assertNotIn("image_nodes", normalized)
 
     def test_bool_values_roundtrip(self) -> None:
         normalized = normalize_graphics_settings(
             {
-                "image_nodes": {
+                "media_panel": {
                     "show_title": False,
                     "show_frame": False,
                     "autoplay_animations": False,
+                    "source_input_exposed": False,
                 }
             }
         )
         self.assertEqual(
-            normalized["image_nodes"],
-            {"show_title": False, "show_frame": False, "autoplay_animations": False},
+            normalized["media_panel"],
+            {
+                "show_title": False,
+                "show_frame": False,
+                "autoplay_animations": False,
+                "source_input_exposed": False,
+            },
         )
 
 

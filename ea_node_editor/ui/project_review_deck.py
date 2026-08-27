@@ -5,15 +5,18 @@ from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any
 
-from PyQt6.QtCore import QSize
+from PyQt6.QtCore import QSize, QUrl
 from PyQt6.QtGui import QImage
 
 from ea_node_editor.graph.project_state import ProjectData
 from ea_node_editor.graph.records import NodeInstance
-from ea_node_editor.nodes.builtins.passive_media import PASSIVE_MEDIA_PDF_PANEL_TYPE_ID
+from ea_node_editor.nodes.builtins.media_panel import MEDIA_PANEL_TYPE_ID
+from ea_node_editor.nodes.file_dialog_filters import IMAGE_FILE_SUFFIXES
 from ea_node_editor.persistence.artifact_refs import ManagedArtifactRef, StagedArtifactRef, parse_artifact_ref
 from ea_node_editor.persistence.artifact_store import ProjectArtifactStore
+from ea_node_editor.runtime_contracts import ImageValue
 from ea_node_editor.ui.canvas_view_export import collision_safe_path, safe_filename_component
+from ea_node_editor.ui.media_panel_source import resolve_media_panel_source
 from ea_node_editor.ui.pdf_preview_provider import describe_pdf_preview, render_pdf_page_image
 from ea_node_editor.ui.pptx_export import ProjectReviewPptxSlide
 
@@ -25,7 +28,7 @@ PROJECT_REVIEW_SLIDE_ISSUE = "issue"
 PROJECT_REVIEW_CANVAS_CAPTURE_SNAPSHOT = "snapshot"
 PROJECT_REVIEW_CANVAS_CAPTURE_VIEW = "view"
 
-_IMAGE_SUFFIXES = frozenset({".png", ".jpg", ".jpeg", ".bmp", ".gif", ".tif", ".tiff", ".webp"})
+_IMAGE_SUFFIXES = frozenset(IMAGE_FILE_SUFFIXES)
 _PDF_RENDER_SIZE = QSize(1600, 1200)
 _EXTERNAL_FILE_PROPERTY_NAMES = frozenset({"source_path", "path", "file_path", "input_path", "output_path"})
 
@@ -34,6 +37,7 @@ _EXTERNAL_FILE_PROPERTY_NAMES = frozenset({"source_path", "path", "file_path", "
 class ProjectReviewDeckOptions:
     project_path: str | Path | None = None
     registry: Any | None = None
+    run_state: Any | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -64,6 +68,7 @@ class ProjectReviewDeckSlide:
     artifact_ref: str = ""
     source_path: Path | None = None
     source_value: str = ""
+    image_value: ImageValue | None = None
     page_number: int | None = None
     page_count: int = 0
     detail_lines: tuple[str, ...] = ()
@@ -130,6 +135,7 @@ def build_project_review_deck_plan(
     project: ProjectData,
     project_path: str | Path | None = None,
     registry: Any | None = None,
+    run_state: Any | None = None,
     options: ProjectReviewDeckOptions | None = None,
 ) -> ProjectReviewDeckPlan:
     if options is not None:
@@ -137,6 +143,8 @@ def build_project_review_deck_plan(
             project_path = options.project_path
         if registry is None:
             registry = options.registry
+        if run_state is None:
+            run_state = options.run_state
     project_label = _project_label(project=project, project_path=project_path)
     metadata = project.metadata if isinstance(project.metadata, dict) else {}
     artifact_store = ProjectArtifactStore.from_project_metadata(
@@ -187,6 +195,8 @@ def build_project_review_deck_plan(
         project=project,
         artifact_store=artifact_store,
         registry=registry,
+        project_path=project_path,
+        run_state=run_state,
     )
     warnings.extend(evidence_warnings)
     if evidence_slides:
@@ -253,7 +263,11 @@ def materialize_project_review_pptx_slides(
                 materialized.append(_issue_pptx_slide(slide, "Canvas snapshot was not available."))
             continue
         if slide.kind == PROJECT_REVIEW_SLIDE_IMAGE:
-            image_path = slide.source_path
+            image_path = (
+                _materialize_image_value(slide.image_value, slide.title, temp_root)
+                if slide.image_value is not None
+                else slide.source_path
+            )
             if image_path is not None and _image_loads(image_path):
                 materialized.append(_pptx_slide_from_plan(slide, image_path=image_path))
             else:
@@ -335,6 +349,8 @@ def _artifact_evidence_slides(
     project: ProjectData,
     artifact_store: ProjectArtifactStore,
     registry: Any | None,
+    project_path: str | Path | None,
+    run_state: Any | None,
 ) -> tuple[list[ProjectReviewDeckSlide], list[str]]:
     slides: list[ProjectReviewDeckSlide] = []
     warnings: list[str] = []
@@ -344,6 +360,20 @@ def _artifact_evidence_slides(
         workspace_name = str(workspace.name or workspace.workspace_id)
         for node in workspace.nodes.values():
             node_type_label = _node_type_label(registry, node)
+            if str(node.type_id) == MEDIA_PANEL_TYPE_ID:
+                _append_media_panel_evidence(
+                    slides=slides,
+                    warnings=warnings,
+                    seen_artifact_refs=seen_artifact_refs,
+                    workspace=workspace,
+                    node=node,
+                    node_type_label=node_type_label,
+                    artifact_store=artifact_store,
+                    project=project,
+                    project_path=project_path,
+                    run_state=run_state,
+                )
+                continue
             for artifact_ref in _node_artifact_refs(node):
                 artifact_id = artifact_ref.artifact_id
                 artifact_ref_key = artifact_ref.as_string()
@@ -451,6 +481,157 @@ def _artifact_evidence_slides(
     return slides, warnings
 
 
+def _append_media_panel_evidence(
+    *,
+    slides: list[ProjectReviewDeckSlide],
+    warnings: list[str],
+    seen_artifact_refs: set[str],
+    workspace: Any,
+    node: NodeInstance,
+    node_type_label: str,
+    artifact_store: ProjectArtifactStore,
+    project: ProjectData,
+    project_path: str | Path | None,
+    run_state: Any | None,
+) -> None:
+    workspace_name = str(workspace.name or workspace.workspace_id)
+    node_label = _artifact_title(
+        workspace_name=workspace_name,
+        node=node,
+        node_type=node_type_label,
+        path=None,
+    )
+    try:
+        resolution = resolve_media_panel_source(
+            node=node,
+            workspace=workspace,
+            run_state=run_state,
+            project_path=project_path,
+            project_metadata=(
+                dict(project.metadata)
+                if isinstance(project.metadata, Mapping)
+                else None
+            ),
+        )
+    except (OSError, TypeError, ValueError):
+        warnings.append(f"{node_label}: Media Panel source could not be resolved.")
+        return
+    if resolution.state != "ready":
+        detail = str(resolution.message or "").strip()
+        warnings.append(
+            f"{node_label}: Media Panel source is {resolution.state}."
+            + (f" {detail}" if detail else "")
+        )
+        return
+    if type(resolution.raw_value) is ImageValue:
+        slides.append(
+            ProjectReviewDeckSlide(
+                slide_id=f"media:{workspace.workspace_id}:{node.node_id}:image-value",
+                kind=PROJECT_REVIEW_SLIDE_IMAGE,
+                title=str(node.title or node_type_label),
+                subtitle="Image evidence",
+                workspace_id=str(workspace.workspace_id),
+                workspace_name=workspace_name,
+                node_id=str(node.node_id),
+                node_title=str(node.title),
+                node_type=node_type_label,
+                image_value=resolution.raw_value,
+                detail_lines=(
+                    f"Runtime Image: {resolution.raw_value.width} x {resolution.raw_value.height}",
+                ),
+            )
+        )
+        return
+    if resolution.media_kind not in {"image", "pdf"}:
+        warnings.append(
+            f"{node_label}: effective {resolution.media_kind or 'media'} source is not supported as deck evidence."
+        )
+        return
+
+    source_url = QUrl(str(resolution.resolved_source_url or ""))
+    source_path = Path(source_url.toLocalFile()) if source_url.isLocalFile() else None
+    if source_path is None or not source_path.exists() or not source_path.is_file():
+        warnings.append(
+            f"{node_label}: effective source is not a ready local file and cannot be embedded."
+        )
+        return
+
+    artifact_ref = parse_artifact_ref(resolution.source_ref)
+    artifact_key = artifact_ref.as_string() if artifact_ref is not None else ""
+    if artifact_key and artifact_key in seen_artifact_refs:
+        return
+    if artifact_key:
+        seen_artifact_refs.add(artifact_key)
+    artifact_id = artifact_ref.artifact_id if artifact_ref is not None else ""
+    entry = None
+    if isinstance(artifact_ref, ManagedArtifactRef):
+        entry = artifact_store.state.artifacts.get(artifact_id)
+    elif isinstance(artifact_ref, StagedArtifactRef):
+        entry = artifact_store.state.staged.get(artifact_id)
+    artifact_label = _artifact_title(
+        workspace_name=workspace_name,
+        node=node,
+        node_type=node_type_label,
+        path=source_path,
+    )
+    slide_id = (
+        _artifact_slide_id(artifact_ref)
+        if artifact_ref is not None
+        else f"media:{workspace.workspace_id}:{node.node_id}:{resolution.media_kind}"
+    )
+    detail_lines = _artifact_details(
+        resolved_path=source_path,
+        entry_extra=getattr(entry, "extra", {}),
+    )
+    if resolution.media_kind == "image":
+        slides.append(
+            ProjectReviewDeckSlide(
+                slide_id=slide_id,
+                kind=PROJECT_REVIEW_SLIDE_IMAGE,
+                title=artifact_label,
+                subtitle="Image evidence",
+                workspace_id=str(workspace.workspace_id),
+                workspace_name=workspace_name,
+                node_id=str(node.node_id),
+                node_title=str(node.title),
+                node_type=node_type_label,
+                artifact_id=artifact_id,
+                artifact_ref=artifact_key,
+                source_path=source_path,
+                source_value=resolution.source_ref,
+                detail_lines=detail_lines,
+            )
+        )
+    else:
+        page_number = _pdf_panel_page_number(node)
+        info = describe_pdf_preview(str(source_path), page_number)
+        resolved_page = _int_value(info.get("resolved_page_number"), page_number)
+        slides.append(
+            ProjectReviewDeckSlide(
+                slide_id=slide_id,
+                kind=PROJECT_REVIEW_SLIDE_PDF,
+                title=artifact_label,
+                subtitle="PDF evidence",
+                workspace_id=str(workspace.workspace_id),
+                workspace_name=workspace_name,
+                node_id=str(node.node_id),
+                node_title=str(node.title),
+                node_type=node_type_label,
+                artifact_id=artifact_id,
+                artifact_ref=artifact_key,
+                source_path=source_path,
+                source_value=resolution.source_ref,
+                page_number=max(1, resolved_page),
+                page_count=max(0, _int_value(info.get("page_count"), 0)),
+                detail_lines=detail_lines,
+            )
+        )
+    if isinstance(artifact_ref, StagedArtifactRef):
+        warnings.append(
+            f"{artifact_label}: uses a temporary project file; save the project to promote it."
+        )
+
+
 def _artifact_slide_id(artifact_ref: ManagedArtifactRef | StagedArtifactRef) -> str:
     scheme = "saved" if isinstance(artifact_ref, ManagedArtifactRef) else "temp"
     return f"artifact:{scheme}:{artifact_ref.artifact_id}"
@@ -547,7 +728,7 @@ def _artifact_details(*, resolved_path: Path, entry_extra: Mapping[str, Any]) ->
 
 
 def _pdf_panel_page_number(node: NodeInstance) -> int:
-    if node.type_id != PASSIVE_MEDIA_PDF_PANEL_TYPE_ID:
+    if node.type_id != MEDIA_PANEL_TYPE_ID:
         return 1
     return _int_value(node.properties.get("page_number"), 1)
 
@@ -564,6 +745,22 @@ def _int_value(value: Any, default: int) -> int:
 def _image_loads(path: Path) -> bool:
     image = QImage(str(path))
     return not image.isNull() and image.width() > 0 and image.height() > 0
+
+
+def _materialize_image_value(
+    value: ImageValue,
+    title: str,
+    temp_root: Path,
+) -> Path | None:
+    image = QImage.fromData(value.encoded_bytes, "PNG")
+    if image.isNull() or image.width() != value.width or image.height() != value.height:
+        return None
+    output_path = collision_safe_path(
+        temp_root,
+        safe_filename_component(title, fallback="runtime-image"),
+        ".png",
+    )
+    return output_path if image.save(str(output_path), "PNG") else None
 
 
 def _render_pdf_slide_image(slide: ProjectReviewDeckSlide, temp_root: Path) -> Path | None:

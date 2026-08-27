@@ -831,7 +831,7 @@ class WorkspaceDropConnectOpsValidationTests(unittest.TestCase):
             workspace_id, "passive.planning.task_card", "Existing", 120.0, 120.0
         )
         new_node = model.add_node(
-            workspace_id, "passive.media.image_panel", "Inserted", 420.0, 120.0
+            workspace_id, "passive.media.mail_panel", "Inserted", 420.0, 120.0
         )
 
         scene = _DropConnectSceneStub(model, workspace_id, registry)
@@ -853,7 +853,7 @@ class WorkspaceDropConnectOpsValidationTests(unittest.TestCase):
                     "source_port_key": "right",
                     "target_node_id": new_node.node_id,
                     "target_port_key": "left",
-                    "label": "Task Card.right -> Image Panel.left",
+                    "label": "Task Card.right -> Mail Panel.left",
                 }
             ],
         )
@@ -933,7 +933,7 @@ class WorkspaceDropConnectOpsValidationTests(unittest.TestCase):
             workspace_id, "passive.annotation.sticky_note", "Source", 40.0, 100.0
         )
         target = model.add_node(
-            workspace_id, "passive.media.pdf_panel", "Target", 640.0, 100.0
+            workspace_id, "passive.media.mail_panel", "Target", 640.0, 100.0
         )
         new_node = model.add_node(
             workspace_id, "passive.planning.task_card", "Inserted", 340.0, 100.0
@@ -959,7 +959,7 @@ class WorkspaceDropConnectOpsValidationTests(unittest.TestCase):
                 {
                     "new_input_port": "left",
                     "new_output_port": "right",
-                    "label": "Sticky Note.right -> Task Card.left, Task Card.right -> PDF Panel.left",
+                    "label": "Sticky Note.right -> Task Card.left, Task Card.right -> Mail Panel.left",
                 }
             ],
         )

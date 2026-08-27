@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import copy
 import gc
 import os
 from pathlib import Path
@@ -11,6 +12,8 @@ from PyQt6.QtQml import QJSValue
 from PyQt6.QtQuick import QQuickItem
 from PyQt6.QtTest import QTest
 
+from ea_node_editor.ui.shell.presenters import graph_canvas_presenter as graph_canvas_presenter_module
+from ea_node_editor.ui.video_trim import VideoTrimResult
 from tests.main_window_shell.base import *  # noqa: F401,F403
 from tests.qt_wait import wait_for_condition_or_raise
 
@@ -23,6 +26,22 @@ class MainWindowShellPassiveImageNodesTests(SharedMainWindowShellTestBase):
     def setUp(self) -> None:
         super().setUp()
         self._held_qml_refs: list[QQuickItem] = []
+
+    def _create_browse_media_panel(self) -> str:
+        node_id = self.window.scene.create_node_from_type(
+            type_id="media.panel",
+            x=120.0,
+            y=80.0,
+            parent_node_id=None,
+            select_node=False,
+            exposed_port_overrides={"source": False},
+        )
+        self.assertFalse(
+            self.window.model.project.workspaces[
+                self.window.workspace_manager.active_workspace_id()
+            ].nodes[node_id].exposed_ports["source"]
+        )
+        return node_id
 
     def tearDown(self) -> None:
         try:
@@ -51,11 +70,29 @@ class MainWindowShellPassiveImageNodesTests(SharedMainWindowShellTestBase):
         self.fail(f"Could not find graphNodeCard for node {node_id!r}.")
 
     def _graph_node_child(self, node_id: str, object_name: str) -> QQuickItem:
-        card = self._graph_node_card(node_id)
-        for item in self._walk_items(card):
-            if item.objectName() == object_name:
-                return self._hold_qml_ref(item)
-        self.fail(f"Could not find {object_name!r} for node {node_id!r}.")
+        match: QQuickItem | None = None
+
+        def _find() -> bool:
+            nonlocal match
+            card = self._graph_node_card(node_id)
+            match = next(
+                (
+                    item
+                    for item in self._walk_items(card)
+                    if item.objectName() == object_name
+                ),
+                None,
+            )
+            return match is not None
+
+        wait_for_condition_or_raise(
+            _find,
+            timeout_ms=5000,
+            app=self.app,
+            timeout_message=f"Could not find {object_name!r} for node {node_id!r}.",
+        )
+        assert match is not None
+        return self._hold_qml_ref(match)
 
     def _graph_node_child_with_property(
         self,
@@ -89,13 +126,17 @@ class MainWindowShellPassiveImageNodesTests(SharedMainWindowShellTestBase):
 
     def _wait_for_media_preview(self, surface: QQuickItem, timeout_ms: int = 5000) -> None:
         wait_for_condition_or_raise(
-            lambda: str(surface.property("previewState")) in {"ready", "error"},
+            lambda: str(surface.property("sourceState")) in {"ready", "invalid"},
             timeout_ms=timeout_ms,
             poll_interval_ms=25,
             app=self.app,
-            timeout_message="Timed out waiting for media preview to settle.",
+            timeout_message=lambda: (
+                "Timed out waiting for media preview to settle: "
+                f"sourceState={surface.property('sourceState')!r}, "
+                f"sourceResolution={surface.property('sourceResolution')!r}."
+            ),
         )
-        self.assertEqual(str(surface.property("previewState")), "ready")
+        self.assertEqual(str(surface.property("sourceState")), "ready")
 
     def _find_qml_item(self, object_name: str) -> QQuickItem | None:
         root_object = self.window.quick_widget.rootObject()
@@ -136,20 +177,19 @@ class MainWindowShellPassiveImageNodesTests(SharedMainWindowShellTestBase):
         self.fail(f"Could not find {object_name!r} for property {property_key!r}.")
 
     def test_image_panel_inspector_exposes_locked_editor_modes(self) -> None:
-        node_id = self.window.scene.add_node_from_type("passive.media.image_panel", x=120.0, y=80.0)
+        node_id = self._create_browse_media_panel()
         self.window.scene.focus_node(node_id)
         self.app.processEvents()
 
         items = {item["key"]: item for item in self.window.selected_node_property_items}
-        self.assertEqual(set(items), {"source_path", "fit_mode"})
-        self.assertEqual(items["source_path"]["editor_mode"], "path")
-        self.assertEqual(items["fit_mode"]["editor_mode"], "enum")
+        self.assertEqual(set(items), {"source"})
+        self.assertEqual(items["source"]["editor_mode"], "path")
 
-        self._inspector_property_object("inspectorPathEditor", "source_path")
+        self._inspector_property_object("inspectorPathEditor", "source")
 
     def test_image_panel_path_editor_browse_commits_external_path_by_default(self) -> None:
         workspace_id = self.window.workspace_manager.active_workspace_id()
-        node_id = self.window.scene.add_node_from_type("passive.media.image_panel", x=120.0, y=80.0)
+        node_id = self._create_browse_media_panel()
         self.window.scene.focus_node(node_id)
         self.app.processEvents()
         initial_card = self._graph_node_card(node_id)
@@ -160,8 +200,8 @@ class MainWindowShellPassiveImageNodesTests(SharedMainWindowShellTestBase):
         image.fill(QColor("#2c85bf"))
         self.assertTrue(image.save(str(picked_path)))
 
-        path_editor = self._inspector_property_object("inspectorPathEditor", "source_path")
-        browse_button = self._inspector_property_object("inspectorPathBrowseButton", "source_path")
+        path_editor = self._inspector_property_object("inspectorPathEditor", "source")
+        browse_button = self._inspector_property_object("inspectorPathBrowseButton", "source")
 
         with patch("ea_node_editor.ui.shell.window.QFileDialog.getOpenFileName", return_value=(str(picked_path), "")):
             QMetaObject.invokeMethod(browse_button, "click")
@@ -170,16 +210,86 @@ class MainWindowShellPassiveImageNodesTests(SharedMainWindowShellTestBase):
         node = self.window.model.project.workspaces[workspace_id].nodes[node_id]
         node_payload = next(item for item in self.window.scene.nodes_model if item["node_id"] == node_id)
         updated_card = self._graph_node_card(node_id)
-        self.assertEqual(node.properties["source_path"], str(picked_path))
-        self.assertEqual(str(path_editor.property("text")), node.properties["source_path"])
+        self.assertEqual(node.properties["source"], str(picked_path))
+        self.assertEqual(str(path_editor.property("text")), node.properties["source"])
         self.assertIsNone(node.custom_width)
         self.assertIsNone(node.custom_height)
-        self.assertGreater(float(node_payload["height"]), initial_height)
-        self.assertAlmostEqual(float(updated_card.height()), float(node_payload["height"]), places=3)
+        self.assertEqual(float(node_payload["height"]), initial_height)
+        self.assertAlmostEqual(float(updated_card.height()), initial_height, places=3)
+
+    def test_media_panel_browse_result_cannot_commit_after_source_input_is_exposed(self) -> None:
+        workspace_id = self.window.workspace_manager.active_workspace_id()
+        node_id = self._create_browse_media_panel()
+        old_path = str(Path(self._env.temp_path) / "old-media-source.png")
+        picked_path = str(Path(self._env.temp_path) / "picked-media-source.png")
+        self.window.scene.set_node_property(node_id, "source", old_path)
+        self.window.runtime_history.clear_workspace(workspace_id)
+        workspace = self.window.model.project.workspaces[workspace_id]
+        before_edges = dict(workspace.edges)
+        before_selection = tuple(self.window.scene.selected_node_ids)
+
+        def _pick_and_expose(*_args, **_kwargs):  # noqa: ANN002, ANN003
+            self.window.scene.set_exposed_port(node_id, "source", True)
+            return picked_path, ""
+
+        with patch(
+            "ea_node_editor.ui.shell.window.QFileDialog.getOpenFileName",
+            side_effect=_pick_and_expose,
+        ):
+            selected = self.window.graph_canvas_presenter.browse_node_property_path(
+                node_id,
+                "source",
+                old_path,
+            )
+        self.assertEqual(selected, picked_path)
+        depth_after_exposure = self.window.runtime_history.undo_depth(workspace_id)
+
+        self.window.scene.set_node_property(node_id, "source", selected)
+
+        self.assertTrue(workspace.nodes[node_id].exposed_ports["source"])
+        self.assertEqual(workspace.nodes[node_id].properties["source"], old_path)
+        self.assertEqual(self.window.runtime_history.undo_depth(workspace_id), depth_after_exposure)
+        self.assertEqual(workspace.edges, before_edges)
+        self.assertEqual(tuple(self.window.scene.selected_node_ids), before_selection)
+
+    def test_media_panel_internalize_result_cannot_commit_after_source_input_is_exposed(self) -> None:
+        workspace_id = self.window.workspace_manager.active_workspace_id()
+        node_id = self._create_browse_media_panel()
+        old_path = str(Path(self._env.temp_path) / "external-media-source.png")
+        self.window.scene.set_node_property(node_id, "source", old_path)
+        self.window.runtime_history.clear_workspace(workspace_id)
+        workspace = self.window.model.project.workspaces[workspace_id]
+        before_edges = dict(workspace.edges)
+        before_selection = tuple(self.window.scene.selected_node_ids)
+
+        def _internalize_and_expose(*_args, **_kwargs):  # noqa: ANN002, ANN003
+            self.window.scene.set_exposed_port(node_id, "source", True)
+            return "temp://internalized-media"
+
+        with patch.object(
+            self.window.shell_host_presenter,
+            "internalize_property_path",
+            side_effect=_internalize_and_expose,
+        ):
+            managed = self.window.graph_canvas_presenter.internalize_node_property_path(
+                node_id,
+                "source",
+                old_path,
+            )
+        self.assertEqual(managed, "temp://internalized-media")
+        depth_after_exposure = self.window.runtime_history.undo_depth(workspace_id)
+
+        self.window.scene.set_node_property(node_id, "source", managed)
+
+        self.assertTrue(workspace.nodes[node_id].exposed_ports["source"])
+        self.assertEqual(workspace.nodes[node_id].properties["source"], old_path)
+        self.assertEqual(self.window.runtime_history.undo_depth(workspace_id), depth_after_exposure)
+        self.assertEqual(workspace.edges, before_edges)
+        self.assertEqual(tuple(self.window.scene.selected_node_ids), before_selection)
 
     def test_image_panel_path_editor_storage_combo_can_choose_internal_copy(self) -> None:
         workspace_id = self.window.workspace_manager.active_workspace_id()
-        node_id = self.window.scene.add_node_from_type("passive.media.image_panel", x=120.0, y=80.0)
+        node_id = self._create_browse_media_panel()
         self.window.scene.focus_node(node_id)
         self.app.processEvents()
 
@@ -189,12 +299,12 @@ class MainWindowShellPassiveImageNodesTests(SharedMainWindowShellTestBase):
         self.assertTrue(image.save(str(picked_path)))
 
         items = {item["key"]: item for item in self.window.selected_node_property_items}
-        self.assertTrue(items["source_path"]["path_supports_managed_copy"])
-        self.assertTrue(items["source_path"]["path_supports_external_link"])
+        self.assertTrue(items["source"]["path_supports_managed_copy"])
+        self.assertTrue(items["source"]["path_supports_external_link"])
 
-        path_editor = self._inspector_property_object("inspectorPathEditor", "source_path")
-        storage_combo = self._inspector_property_object("inspectorPathSourceStorageComboBox", "source_path")
-        browse_button = self._inspector_property_object("inspectorPathBrowseButton", "source_path")
+        path_editor = self._inspector_property_object("inspectorPathEditor", "source")
+        storage_combo = self._inspector_property_object("inspectorPathSourceStorageComboBox", "source")
+        browse_button = self._inspector_property_object("inspectorPathBrowseButton", "source")
         self.assertEqual(str(storage_combo.property("currentText")), "External")
         storage_combo.setProperty("currentIndex", 1)
         self.app.processEvents()
@@ -204,17 +314,17 @@ class MainWindowShellPassiveImageNodesTests(SharedMainWindowShellTestBase):
             self.app.processEvents()
 
         node = self.window.model.project.workspaces[workspace_id].nodes[node_id]
-        self.assertTrue(str(node.properties["source_path"]).startswith("temp://"))
-        self.assertEqual(str(path_editor.property("text")), node.properties["source_path"])
+        self.assertTrue(str(node.properties["source"]).startswith("temp://"))
+        self.assertEqual(str(path_editor.property("text")), node.properties["source"])
         wait_for_condition_or_raise(
             lambda: str(storage_combo.property("currentText")) == "Internal",
             app=self.app,
             timeout_message=lambda: f"Expected Internal source storage, got {storage_combo.property('currentText')!r}.",
         )
         items = {item["key"]: item for item in self.window.selected_node_property_items}
-        self.assertEqual(items["source_path"]["path_current_source_mode"], "managed_copy")
+        self.assertEqual(items["source"]["path_current_source_mode"], "managed_copy")
         staged_path = self.window.project_session_controller.project_artifact_store().resolve_staged_path(
-            node.properties["source_path"]
+            node.properties["source"]
         )
         self.assertIsNotNone(staged_path)
         assert staged_path is not None
@@ -222,7 +332,7 @@ class MainWindowShellPassiveImageNodesTests(SharedMainWindowShellTestBase):
 
     def test_video_panel_path_editor_storage_combo_can_choose_internal_copy(self) -> None:
         workspace_id = self.window.workspace_manager.active_workspace_id()
-        node_id = self.window.scene.add_node_from_type("passive.media.video_panel", x=120.0, y=80.0)
+        node_id = self._create_browse_media_panel()
         self.window.scene.focus_node(node_id)
         self.app.processEvents()
 
@@ -230,12 +340,12 @@ class MainWindowShellPassiveImageNodesTests(SharedMainWindowShellTestBase):
         picked_path.write_bytes(b"video fixture")
 
         items = {item["key"]: item for item in self.window.selected_node_property_items}
-        self.assertTrue(items["source_path"]["path_supports_managed_copy"])
-        self.assertTrue(items["source_path"]["path_supports_external_link"])
+        self.assertTrue(items["source"]["path_supports_managed_copy"])
+        self.assertTrue(items["source"]["path_supports_external_link"])
 
-        path_editor = self._inspector_property_object("inspectorPathEditor", "source_path")
-        storage_combo = self._inspector_property_object("inspectorPathSourceStorageComboBox", "source_path")
-        browse_button = self._inspector_property_object("inspectorPathBrowseButton", "source_path")
+        path_editor = self._inspector_property_object("inspectorPathEditor", "source")
+        storage_combo = self._inspector_property_object("inspectorPathSourceStorageComboBox", "source")
+        browse_button = self._inspector_property_object("inspectorPathBrowseButton", "source")
         self.assertEqual(str(storage_combo.property("currentText")), "External")
         storage_combo.setProperty("currentIndex", 1)
         self.app.processEvents()
@@ -245,17 +355,17 @@ class MainWindowShellPassiveImageNodesTests(SharedMainWindowShellTestBase):
             self.app.processEvents()
 
         node = self.window.model.project.workspaces[workspace_id].nodes[node_id]
-        self.assertTrue(str(node.properties["source_path"]).startswith("temp://"))
-        self.assertEqual(str(path_editor.property("text")), node.properties["source_path"])
+        self.assertTrue(str(node.properties["source"]).startswith("temp://"))
+        self.assertEqual(str(path_editor.property("text")), node.properties["source"])
         wait_for_condition_or_raise(
             lambda: str(storage_combo.property("currentText")) == "Internal",
             app=self.app,
             timeout_message=lambda: f"Expected Internal source storage, got {storage_combo.property('currentText')!r}.",
         )
         items = {item["key"]: item for item in self.window.selected_node_property_items}
-        self.assertEqual(items["source_path"]["path_current_source_mode"], "managed_copy")
+        self.assertEqual(items["source"]["path_current_source_mode"], "managed_copy")
         staged_path = self.window.project_session_controller.project_artifact_store().resolve_staged_path(
-            node.properties["source_path"]
+            node.properties["source"]
         )
         self.assertIsNotNone(staged_path)
         assert staged_path is not None
@@ -263,7 +373,7 @@ class MainWindowShellPassiveImageNodesTests(SharedMainWindowShellTestBase):
 
     def test_image_panel_toolbar_browse_action_commits_without_node_drag(self) -> None:
         workspace_id = self.window.workspace_manager.active_workspace_id()
-        node_id = self.window.scene.add_node_from_type("passive.media.image_panel", x=120.0, y=80.0)
+        node_id = self._create_browse_media_panel()
         self.window.scene.focus_node(node_id)
         self.app.processEvents()
 
@@ -298,13 +408,13 @@ class MainWindowShellPassiveImageNodesTests(SharedMainWindowShellTestBase):
 
         node = workspace.nodes[node_id]
         self.assertEqual(self.window.scene.selected_node_id(), node_id)
-        self.assertEqual(node.properties["source_path"], str(picked_path))
+        self.assertEqual(node.properties["source"], str(picked_path))
         self.assertAlmostEqual(float(node.x), initial_x, places=6)
         self.assertAlmostEqual(float(node.y), initial_y, places=6)
 
     def test_image_panel_toolbar_internalize_action_copies_file_and_flips_storage_mode(self) -> None:
         workspace_id = self.window.workspace_manager.active_workspace_id()
-        node_id = self.window.scene.add_node_from_type("passive.media.image_panel", x=120.0, y=80.0)
+        node_id = self._create_browse_media_panel()
         self.window.scene.focus_node(node_id)
         self.app.processEvents()
 
@@ -312,11 +422,11 @@ class MainWindowShellPassiveImageNodesTests(SharedMainWindowShellTestBase):
         image = QImage(18, 12, QImage.Format.Format_ARGB32)
         image.fill(QColor("#2c85bf"))
         self.assertTrue(image.save(str(external_path)))
-        self.window.scene.set_node_property(node_id, "source_path", str(external_path))
+        self.window.scene.set_node_property(node_id, "source", str(external_path))
         self.app.processEvents()
 
         surface = self._graph_node_child(node_id, "graphNodeMediaSurface")
-        storage_combo = self._inspector_property_object("inspectorPathSourceStorageComboBox", "source_path")
+        storage_combo = self._inspector_property_object("inspectorPathSourceStorageComboBox", "source")
         self.assertEqual(str(storage_combo.property("currentText")), "External")
 
         actions_value = surface.property("surfaceActions")
@@ -340,19 +450,19 @@ class MainWindowShellPassiveImageNodesTests(SharedMainWindowShellTestBase):
             dialog_mock.assert_not_called()
 
         node = workspace.nodes[node_id]
-        self.assertTrue(str(node.properties["source_path"]).startswith("temp://"))
+        self.assertTrue(str(node.properties["source"]).startswith("temp://"))
         wait_for_condition_or_raise(
             lambda: str(
-                self._inspector_property_object("inspectorPathEditor", "source_path").property("text")
-            ) == node.properties["source_path"],
+                self._inspector_property_object("inspectorPathEditor", "source").property("text")
+            ) == node.properties["source"],
             app=self.app,
             timeout_message=lambda: (
                 "Expected path editor to show the staged source ref, got "
-                f"{self._inspector_property_object('inspectorPathEditor', 'source_path').property('text')!r}."
+                f"{self._inspector_property_object('inspectorPathEditor', 'source').property('text')!r}."
             ),
         )
         staged_path = self.window.project_session_controller.project_artifact_store().resolve_staged_path(
-            node.properties["source_path"]
+            node.properties["source"]
         )
         self.assertIsNotNone(staged_path)
         assert staged_path is not None
@@ -360,18 +470,18 @@ class MainWindowShellPassiveImageNodesTests(SharedMainWindowShellTestBase):
         self.assertEqual(staged_path.read_bytes(), external_path.read_bytes())
         wait_for_condition_or_raise(
             lambda: str(
-                self._inspector_property_object("inspectorPathSourceStorageComboBox", "source_path").property(
+                self._inspector_property_object("inspectorPathSourceStorageComboBox", "source").property(
                     "currentText"
                 )
             ) == "Internal",
             app=self.app,
             timeout_message=lambda: (
                 "Expected Internal source storage, got "
-                f"{self._inspector_property_object('inspectorPathSourceStorageComboBox', 'source_path').property('currentText')!r}."
+                f"{self._inspector_property_object('inspectorPathSourceStorageComboBox', 'source').property('currentText')!r}."
             ),
         )
         items = {item["key"]: item for item in self.window.selected_node_property_items}
-        self.assertEqual(items["source_path"]["path_current_source_mode"], "managed_copy")
+        self.assertEqual(items["source"]["path_current_source_mode"], "managed_copy")
 
         surface = self._graph_node_child(node_id, "graphNodeMediaSurface")
         actions_value = surface.property("surfaceActions")
@@ -384,58 +494,46 @@ class MainWindowShellPassiveImageNodesTests(SharedMainWindowShellTestBase):
         self.assertFalse(bool(storage_actions[0].get("checked", False)))
         self.assertTrue(bool(storage_actions[1].get("checked", False)))
 
-    def test_image_panel_save_crop_action_replaces_source_with_internal_png(self) -> None:
+    def test_media_panel_save_crop_action_replaces_browse_source_with_internal_png(self) -> None:
         workspace_id = self.window.workspace_manager.active_workspace_id()
-        node_id = self.window.scene.add_node_from_type("passive.media.image_panel", x=120.0, y=80.0)
-        self.window.scene.focus_node(node_id)
-
         image_path = Path(self._env.temp_path) / "image-crop-source.png"
         image = QImage(40, 20, QImage.Format.Format_ARGB32)
         image.fill(QColor("#2c85bf"))
         self.assertTrue(image.save(str(image_path)))
-
-        self.window.scene.set_node_properties(
-            node_id,
-            {
-                "source_path": str(image_path),
+        node_id = self.window.scene.create_node_from_type(
+            type_id="media.panel",
+            x=120.0,
+            y=80.0,
+            parent_node_id=None,
+            select_node=True,
+            property_overrides={
+                "source": str(image_path),
                 "crop_x": 0.25,
                 "crop_y": 0.25,
                 "crop_w": 0.5,
                 "crop_h": 0.5,
             },
+            exposed_port_overrides={"source": False},
         )
+        self.window.scene.focus_node(node_id)
         self.app.processEvents()
 
-        surface = self._graph_node_child(node_id, "graphNodeMediaSurface")
-        self._wait_for_media_preview(surface)
-
-        actions_value = surface.property("surfaceActions")
-        if isinstance(actions_value, QJSValue):
-            actions_value = actions_value.toVariant()
-        actions = [dict(action) for action in list(actions_value or [])]
-        save_crop_action = next(action for action in actions if action.get("id") == "save_crop_image")
-        self.assertTrue(bool(save_crop_action.get("enabled")))
-
         workspace = self.window.model.project.workspaces[workspace_id]
-        with patch("ea_node_editor.ui.shell.window.QFileDialog.getOpenFileName") as dialog_mock:
-            QMetaObject.invokeMethod(
-                surface,
-                "dispatchSurfaceAction",
-                Qt.ConnectionType.DirectConnection,
-                Q_ARG("QVariant", "save_crop_image"),
-            )
-            self.app.processEvents()
-            dialog_mock.assert_not_called()
+        result = self.window.graph_canvas_presenter.request_save_image_crop_replace(
+            node_id,
+            {"x": 0.25, "y": 0.25, "width": 0.5, "height": 0.5},
+        )
+        self.assertTrue(result["success"])
 
         node = workspace.nodes[node_id]
-        self.assertTrue(str(node.properties["source_path"]).startswith("temp://"))
+        self.assertTrue(str(node.properties["source"]).startswith("temp://"))
         self.assertAlmostEqual(float(node.properties["crop_x"]), 0.0)
         self.assertAlmostEqual(float(node.properties["crop_y"]), 0.0)
         self.assertAlmostEqual(float(node.properties["crop_w"]), 1.0)
         self.assertAlmostEqual(float(node.properties["crop_h"]), 1.0)
 
         staged_path = self.window.project_session_controller.project_artifact_store().resolve_staged_path(
-            node.properties["source_path"]
+            node.properties["source"]
         )
         self.assertIsNotNone(staged_path)
         assert staged_path is not None
@@ -444,22 +542,205 @@ class MainWindowShellPassiveImageNodesTests(SharedMainWindowShellTestBase):
         self.assertFalse(cropped.isNull())
         self.assertEqual(cropped.width(), 20)
         self.assertEqual(cropped.height(), 10)
-        wait_for_condition_or_raise(
-            lambda: str(
-                self._inspector_property_object("inspectorPathSourceStorageComboBox", "source_path").property(
-                    "currentText"
-                )
-            ) == "Internal",
-            app=self.app,
-            timeout_message=lambda: (
-                "Expected Internal source storage, got "
-                f"{self._inspector_property_object('inspectorPathSourceStorageComboBox', 'source_path').property('currentText')!r}."
-            ),
+
+    def test_media_panel_video_frame_and_timestamp_actions_use_current_video_mode(self) -> None:
+        workspace_id = self.window.workspace_manager.active_workspace_id()
+        video_path = Path(self._env.temp_path) / "media-action-source.mp4"
+        video_path.write_bytes(b"video")
+        video_node_id = self.window.scene.create_node_from_type(
+            type_id="media.panel",
+            x=120.0,
+            y=80.0,
+            parent_node_id=None,
+            select_node=True,
+            property_overrides={"source": str(video_path)},
+            exposed_port_overrides={"source": False},
         )
+        frame_path = Path(self._env.temp_path) / "captured-frame.png"
+        frame = QImage(24, 12, QImage.Format.Format_ARGB32)
+        frame.fill(QColor("#ba4d68"))
+        self.assertTrue(frame.save(str(frame_path), "PNG"))
+
+        frame_result = self.window.graph_canvas_presenter.request_create_video_frame_image_node(
+            video_node_id,
+            str(frame_path),
+            1200,
+            360.0,
+            80.0,
+            240.0,
+            120.0,
+        )
+        timestamp_result = self.window.graph_canvas_presenter.request_create_video_timestamp_annotation(
+            video_node_id,
+            1200,
+            360.0,
+            240.0,
+        )
+
+        workspace = self.window.model.project.workspaces[workspace_id]
+        frame_node = workspace.nodes[str(frame_result["created_node_id"])]
+        self.assertTrue(frame_result["success"])
+        self.assertEqual(frame_node.type_id, "media.panel")
+        self.assertFalse(frame_node.exposed_ports["source"])
+        self.assertTrue(str(frame_node.properties["source"]).startswith("temp://"))
+        self.assertTrue(timestamp_result["success"])
+        note = workspace.nodes[str(timestamp_result["created_node_id"])]
+        self.assertEqual(note.type_id, "passive.annotation.text")
+        self.assertEqual(note.links[0].target_node_id, video_node_id)
+        self.assertEqual(note.links[0].subtitle, "video_position_ms=1200")
+
+    def test_media_panel_frame_staging_failure_rolls_back_created_node_and_history(self) -> None:
+        workspace_id = self.window.workspace_manager.active_workspace_id()
+        video_path = Path(self._env.temp_path) / "frame-failure-source.mp4"
+        video_path.write_bytes(b"video")
+        video_node_id = self.window.scene.create_node_from_type(
+            type_id="media.panel",
+            x=120.0,
+            y=80.0,
+            parent_node_id=None,
+            select_node=True,
+            property_overrides={"source": str(video_path)},
+            exposed_port_overrides={"source": False},
+        )
+        frame_path = Path(self._env.temp_path) / "failed-frame.png"
+        frame = QImage(24, 12, QImage.Format.Format_ARGB32)
+        frame.fill(QColor("#ba4d68"))
+        workspace = self.window.model.project.workspaces[workspace_id]
+
+        for pre_dirty, expected_revision in ((False, 419), (True, 503)):
+            with self.subTest(pre_dirty=pre_dirty):
+                self.assertTrue(frame.save(str(frame_path), "PNG"))
+                workspace.dirty = pre_dirty
+                workspace.mutation_revision = expected_revision
+                self.window.runtime_history.clear_workspace(workspace_id)
+                before_node_ids = set(workspace.nodes)
+                before_edges = dict(workspace.edges)
+                before_selection = tuple(self.window.scene.selected_node_ids)
+                before_metadata = copy.deepcopy(self.window.model.project.metadata)
+
+                with patch.object(
+                    self.window.graph_canvas_presenter,
+                    "_stage_video_frame_capture",
+                    return_value="",
+                ):
+                    result = self.window.graph_canvas_presenter.request_create_video_frame_image_node(
+                        video_node_id,
+                        str(frame_path),
+                        1200,
+                        360.0,
+                        80.0,
+                        240.0,
+                        120.0,
+                    )
+
+                self.assertFalse(result["success"])
+                self.assertEqual(result["error"]["code"], "stage_failed")
+                self.assertEqual(result["created_node_id"], "")
+                self.assertEqual(set(workspace.nodes), before_node_ids)
+                self.assertEqual(workspace.edges, before_edges)
+                self.assertEqual(tuple(self.window.scene.selected_node_ids), before_selection)
+                self.assertEqual(self.window.model.project.metadata, before_metadata)
+                self.assertEqual(workspace.dirty, pre_dirty)
+                self.assertEqual(workspace.mutation_revision, expected_revision)
+                self.assertEqual(self.window.runtime_history.undo_depth(workspace_id), 0)
+                self.assertEqual(self.window.runtime_history.redo_depth(workspace_id), 0)
+
+    def test_media_panel_trim_copy_staging_failure_rolls_back_created_node_and_history(self) -> None:
+        workspace_id = self.window.workspace_manager.active_workspace_id()
+        video_path = Path(self._env.temp_path) / "trim-failure-source.mp4"
+        video_path.write_bytes(b"video")
+        video_node_id = self.window.scene.create_node_from_type(
+            type_id="media.panel",
+            x=120.0,
+            y=80.0,
+            parent_node_id=None,
+            select_node=True,
+            property_overrides={"source": str(video_path)},
+            exposed_port_overrides={"source": False},
+        )
+        source_node, source_resolution = (
+            self.window.graph_canvas_presenter._active_media_source(
+                video_node_id,
+                expected_kind="video",
+            )
+        )
+        self.assertIsNotNone(source_node)
+        self.assertIsNotNone(source_resolution)
+        assert source_resolution is not None
+        context = graph_canvas_presenter_module._VideoTrimContext(
+            action="copy",
+            node_id=video_node_id,
+            start_ms=1000,
+            end_ms=2000,
+            scene_x=360.0,
+            scene_y=80.0,
+            properties=dict(source_node.properties),
+            resolved_source_url=source_resolution.resolved_source_url,
+        )
+        workspace = self.window.model.project.workspaces[workspace_id]
+        self.window.runtime_history.clear_workspace(workspace_id)
+        before_node_ids = set(workspace.nodes)
+        before_edges = dict(workspace.edges)
+        before_selection = tuple(self.window.scene.selected_node_ids)
+        before_metadata = dict(self.window.model.project.metadata)
+
+        with patch.object(
+            self.window.graph_canvas_presenter,
+            "_stage_video_clip",
+            return_value="",
+        ):
+            result = self.window.graph_canvas_presenter._complete_video_trim_copy(
+                context,
+                VideoTrimResult(success=True, data=b"trimmed", mode_used="fast_copy"),
+            )
+
+        self.assertFalse(result["success"])
+        self.assertEqual(result["error"]["code"], "stage_failed")
+        self.assertEqual(result["created_node_id"], "")
+        self.assertEqual(set(workspace.nodes), before_node_ids)
+        self.assertEqual(workspace.edges, before_edges)
+        self.assertEqual(tuple(self.window.scene.selected_node_ids), before_selection)
+        self.assertEqual(self.window.model.project.metadata, before_metadata)
+        self.assertEqual(self.window.runtime_history.undo_depth(workspace_id), 0)
+        self.assertEqual(self.window.runtime_history.redo_depth(workspace_id), 0)
+
+        success = self.window.graph_canvas_presenter._complete_video_trim_copy(
+            context,
+            VideoTrimResult(success=True, data=b"trimmed", mode_used="fast_copy"),
+        )
+        copied = workspace.nodes[str(success["created_node_id"])]
+        self.assertTrue(success["success"])
+        self.assertEqual(copied.type_id, "media.panel")
+        self.assertFalse(copied.exposed_ports["source"])
+        self.assertTrue(str(copied.properties["source"]).startswith("temp://"))
+        self.assertEqual(self.window.runtime_history.undo_depth(workspace_id), 1)
+
+    def test_media_panel_video_trim_copy_rejects_remote_effective_source(self) -> None:
+        node_id = self.window.scene.create_node_from_type(
+            type_id="media.panel",
+            x=120.0,
+            y=80.0,
+            parent_node_id=None,
+            select_node=True,
+            property_overrides={"source": "https://example.test/clip.mp4"},
+            exposed_port_overrides={"source": False},
+        )
+
+        result = self.window.graph_canvas_presenter.request_trim_video_clip_copy(
+            node_id,
+            1000,
+            2000,
+            360.0,
+            80.0,
+        )
+
+        self.assertFalse(result["success"])
+        self.assertEqual(result["error"]["code"], "source_unavailable")
+        self.assertIn("ready local", result["error"]["message"])
 
     def test_image_panel_crop_apply_persists_hidden_normalized_rect(self) -> None:
         workspace_id = self.window.workspace_manager.active_workspace_id()
-        node_id = self.window.scene.add_node_from_type("passive.media.image_panel", x=120.0, y=80.0)
+        node_id = self._create_browse_media_panel()
         self.window.scene.focus_node(node_id)
 
         image_path = Path(self._env.temp_path) / "croppable-image-node.png"
@@ -467,22 +748,25 @@ class MainWindowShellPassiveImageNodesTests(SharedMainWindowShellTestBase):
         image.fill(QColor("#2c85bf"))
         self.assertTrue(image.save(str(image_path)))
 
-        self.window.scene.set_node_property(node_id, "source_path", str(image_path))
+        self.window.scene.set_node_property(node_id, "source", str(image_path))
         self.app.processEvents()
 
         surface = self._graph_node_child(node_id, "graphNodeMediaSurface")
         self._wait_for_media_preview(surface)
+        image_renderer = self._graph_node_child(
+            node_id, "graphNodeMediaImageRenderer"
+        )
         apply_button = self._graph_node_child(node_id, "graphNodeMediaCropApplyButton")
         applied_viewport = self._graph_node_child(node_id, "graphNodeMediaAppliedImageViewport")
         applied_image = self._graph_node_child(node_id, "graphNodeMediaAppliedImage")
         initial_applied_width = float(applied_image.width())
         initial_applied_x = float(applied_image.x())
 
-        surface.setProperty("cropModeActive", True)
-        surface.setProperty("draftCropX", 0.1)
-        surface.setProperty("draftCropY", 0.2)
-        surface.setProperty("draftCropW", 0.5)
-        surface.setProperty("draftCropH", 0.6)
+        image_renderer.setProperty("cropModeActive", True)
+        image_renderer.setProperty("draftCropX", 0.1)
+        image_renderer.setProperty("draftCropY", 0.2)
+        image_renderer.setProperty("draftCropW", 0.5)
+        image_renderer.setProperty("draftCropH", 0.6)
         self.app.processEvents()
 
         QMetaObject.invokeMethod(apply_button, "click")
@@ -493,21 +777,23 @@ class MainWindowShellPassiveImageNodesTests(SharedMainWindowShellTestBase):
         self.assertAlmostEqual(float(node.properties["crop_y"]), 0.2)
         self.assertAlmostEqual(float(node.properties["crop_w"]), 0.5)
         self.assertAlmostEqual(float(node.properties["crop_h"]), 0.6)
-        surface = self._graph_node_child(node_id, "graphNodeMediaSurface")
+        image_renderer = self._graph_node_child(
+            node_id, "graphNodeMediaImageRenderer"
+        )
         applied_viewport = self._graph_node_child(node_id, "graphNodeMediaAppliedImageViewport")
         applied_image = self._graph_node_child(node_id, "graphNodeMediaAppliedImage")
-        self.assertTrue(bool(surface.property("hasEffectiveCrop")))
+        self.assertTrue(bool(image_renderer.property("hasEffectiveCrop")))
         self.assertGreater(float(applied_image.width()), initial_applied_width)
         self.assertLess(float(applied_image.x()), initial_applied_x)
         self.assertGreater(float(applied_viewport.width()), 0.0)
         self.assertEqual(
             {item["key"] for item in self.window.selected_node_property_items},
-            {"source_path", "fit_mode"},
+            {"source"},
         )
 
     def test_image_panel_crop_action_does_not_start_host_drag(self) -> None:
         workspace_id = self.window.workspace_manager.active_workspace_id()
-        node_id = self.window.scene.add_node_from_type("passive.media.image_panel", x=120.0, y=80.0)
+        node_id = self._create_browse_media_panel()
         other_node_id = self.window.scene.add_node_from_type("core.constant", x=420.0, y=80.0)
 
         image_path = Path(self._env.temp_path) / "clickable-crop-button.png"
@@ -515,13 +801,16 @@ class MainWindowShellPassiveImageNodesTests(SharedMainWindowShellTestBase):
         image.fill(QColor("#2c85bf"))
         self.assertTrue(image.save(str(image_path)))
 
-        self.window.scene.set_node_property(node_id, "source_path", str(image_path))
+        self.window.scene.set_node_property(node_id, "source", str(image_path))
         self.window.scene.focus_node(other_node_id)
         self.app.processEvents()
 
         card = self._graph_node_card(node_id)
         surface = self._graph_node_child(node_id, "graphNodeMediaSurface")
         self._wait_for_media_preview(surface)
+        image_renderer = self._graph_node_child(
+            node_id, "graphNodeMediaImageRenderer"
+        )
         workspace = self.window.model.project.workspaces[workspace_id]
         initial_x = float(workspace.nodes[node_id].x)
         initial_y = float(workspace.nodes[node_id].y)
@@ -533,7 +822,7 @@ class MainWindowShellPassiveImageNodesTests(SharedMainWindowShellTestBase):
         self.window.scene.nodes_changed.connect(_record_nodes_changed)
         self.addCleanup(self.window.scene.nodes_changed.disconnect, _record_nodes_changed)
 
-        self.assertFalse(bool(surface.property("cropModeActive")))
+        self.assertFalse(bool(image_renderer.property("cropModeActive")))
         card = self._graph_node_card(node_id)
         crop_button_candidates = [
             item
@@ -563,16 +852,18 @@ class MainWindowShellPassiveImageNodesTests(SharedMainWindowShellTestBase):
         )
         self.app.processEvents()
 
-        surface = self._graph_node_child(node_id, "graphNodeMediaSurface")
+        image_renderer = self._graph_node_child(
+            node_id, "graphNodeMediaImageRenderer"
+        )
         node = workspace.nodes[node_id]
         self.assertEqual(len(nodes_changed), nodes_count_before)
-        self.assertTrue(bool(surface.property("cropModeActive")))
+        self.assertTrue(bool(image_renderer.property("cropModeActive")))
         self.assertAlmostEqual(float(node.x), initial_x, places=6)
         self.assertAlmostEqual(float(node.y), initial_y, places=6)
 
     def test_image_panel_crop_apply_closes_when_crop_is_unchanged(self) -> None:
         workspace_id = self.window.workspace_manager.active_workspace_id()
-        node_id = self.window.scene.add_node_from_type("passive.media.image_panel", x=120.0, y=80.0)
+        node_id = self._create_browse_media_panel()
         self.window.scene.focus_node(node_id)
 
         image_path = Path(self._env.temp_path) / "unchanged-crop-image-node.png"
@@ -580,7 +871,7 @@ class MainWindowShellPassiveImageNodesTests(SharedMainWindowShellTestBase):
         image.fill(QColor("#2c85bf"))
         self.assertTrue(image.save(str(image_path)))
 
-        self.window.scene.set_node_property(node_id, "source_path", str(image_path))
+        self.window.scene.set_node_property(node_id, "source", str(image_path))
         self.window.scene.set_node_property(node_id, "crop_x", 0.1)
         self.window.scene.set_node_property(node_id, "crop_y", 0.2)
         self.window.scene.set_node_property(node_id, "crop_w", 0.5)
@@ -589,20 +880,23 @@ class MainWindowShellPassiveImageNodesTests(SharedMainWindowShellTestBase):
 
         surface = self._graph_node_child(node_id, "graphNodeMediaSurface")
         self._wait_for_media_preview(surface)
+        image_renderer = self._graph_node_child(
+            node_id, "graphNodeMediaImageRenderer"
+        )
         apply_button = self._graph_node_child(node_id, "graphNodeMediaCropApplyButton")
 
-        surface.setProperty("cropModeActive", True)
-        surface.setProperty("draftCropX", 0.1)
-        surface.setProperty("draftCropY", 0.2)
-        surface.setProperty("draftCropW", 0.5)
-        surface.setProperty("draftCropH", 0.6)
+        image_renderer.setProperty("cropModeActive", True)
+        image_renderer.setProperty("draftCropX", 0.1)
+        image_renderer.setProperty("draftCropY", 0.2)
+        image_renderer.setProperty("draftCropW", 0.5)
+        image_renderer.setProperty("draftCropH", 0.6)
         self.app.processEvents()
-        self.assertTrue(bool(surface.property("cropModeActive")))
+        self.assertTrue(bool(image_renderer.property("cropModeActive")))
 
         QMetaObject.invokeMethod(apply_button, "click")
         self.app.processEvents()
 
-        self.assertFalse(bool(surface.property("cropModeActive")))
+        self.assertFalse(bool(image_renderer.property("cropModeActive")))
         node = self.window.model.project.workspaces[workspace_id].nodes[node_id]
         self.assertAlmostEqual(float(node.properties["crop_x"]), 0.1)
         self.assertAlmostEqual(float(node.properties["crop_y"]), 0.2)
@@ -611,7 +905,7 @@ class MainWindowShellPassiveImageNodesTests(SharedMainWindowShellTestBase):
 
     def test_image_panel_crop_apply_and_cancel_clicks_bypass_host_drag(self) -> None:
         workspace_id = self.window.workspace_manager.active_workspace_id()
-        node_id = self.window.scene.add_node_from_type("passive.media.image_panel", x=120.0, y=80.0)
+        node_id = self._create_browse_media_panel()
         self.window.scene.focus_node(node_id)
 
         image_path = Path(self._env.temp_path) / "apply-cancel-crop-button.png"
@@ -619,20 +913,23 @@ class MainWindowShellPassiveImageNodesTests(SharedMainWindowShellTestBase):
         image.fill(QColor("#2c85bf"))
         self.assertTrue(image.save(str(image_path)))
 
-        self.window.scene.set_node_property(node_id, "source_path", str(image_path))
+        self.window.scene.set_node_property(node_id, "source", str(image_path))
         self.app.processEvents()
 
         surface = self._graph_node_child(node_id, "graphNodeMediaSurface")
         self._wait_for_media_preview(surface)
+        image_renderer = self._graph_node_child(
+            node_id, "graphNodeMediaImageRenderer"
+        )
         workspace = self.window.model.project.workspaces[workspace_id]
         initial_x = float(workspace.nodes[node_id].x)
         initial_y = float(workspace.nodes[node_id].y)
 
-        surface.setProperty("cropModeActive", True)
-        surface.setProperty("draftCropX", 0.1)
-        surface.setProperty("draftCropY", 0.2)
-        surface.setProperty("draftCropW", 0.5)
-        surface.setProperty("draftCropH", 0.6)
+        image_renderer.setProperty("cropModeActive", True)
+        image_renderer.setProperty("draftCropX", 0.1)
+        image_renderer.setProperty("draftCropY", 0.2)
+        image_renderer.setProperty("draftCropW", 0.5)
+        image_renderer.setProperty("draftCropH", 0.6)
         self.app.processEvents()
 
         apply_button = self._graph_node_child(node_id, "graphNodeMediaCropApplyButton")
@@ -642,8 +939,10 @@ class MainWindowShellPassiveImageNodesTests(SharedMainWindowShellTestBase):
         self.app.processEvents()
 
         node = workspace.nodes[node_id]
-        surface = self._graph_node_child(node_id, "graphNodeMediaSurface")
-        self.assertFalse(bool(surface.property("cropModeActive")))
+        image_renderer = self._graph_node_child(
+            node_id, "graphNodeMediaImageRenderer"
+        )
+        self.assertFalse(bool(image_renderer.property("cropModeActive")))
         self.assertAlmostEqual(float(node.properties["crop_x"]), 0.1)
         self.assertAlmostEqual(float(node.properties["crop_y"]), 0.2)
         self.assertAlmostEqual(float(node.properties["crop_w"]), 0.5)
@@ -651,11 +950,11 @@ class MainWindowShellPassiveImageNodesTests(SharedMainWindowShellTestBase):
         self.assertAlmostEqual(float(node.x), initial_x, places=6)
         self.assertAlmostEqual(float(node.y), initial_y, places=6)
 
-        surface.setProperty("cropModeActive", True)
-        surface.setProperty("draftCropX", 0.2)
-        surface.setProperty("draftCropY", 0.1)
-        surface.setProperty("draftCropW", 0.4)
-        surface.setProperty("draftCropH", 0.7)
+        image_renderer.setProperty("cropModeActive", True)
+        image_renderer.setProperty("draftCropX", 0.2)
+        image_renderer.setProperty("draftCropY", 0.1)
+        image_renderer.setProperty("draftCropW", 0.4)
+        image_renderer.setProperty("draftCropH", 0.7)
         self.app.processEvents()
 
         cancel_button = self._graph_node_child(node_id, "graphNodeMediaCropCancelButton")
@@ -664,9 +963,11 @@ class MainWindowShellPassiveImageNodesTests(SharedMainWindowShellTestBase):
         QMetaObject.invokeMethod(cancel_button, "click")
         self.app.processEvents()
 
-        surface = self._graph_node_child(node_id, "graphNodeMediaSurface")
+        image_renderer = self._graph_node_child(
+            node_id, "graphNodeMediaImageRenderer"
+        )
         node = workspace.nodes[node_id]
-        self.assertFalse(bool(surface.property("cropModeActive")))
+        self.assertFalse(bool(image_renderer.property("cropModeActive")))
         self.assertAlmostEqual(float(node.properties["crop_x"]), 0.1)
         self.assertAlmostEqual(float(node.properties["crop_y"]), 0.2)
         self.assertAlmostEqual(float(node.properties["crop_w"]), 0.5)
@@ -675,7 +976,7 @@ class MainWindowShellPassiveImageNodesTests(SharedMainWindowShellTestBase):
         self.assertAlmostEqual(float(node.y), initial_y, places=6)
 
     def test_image_panel_crop_handles_expose_expected_cursor_and_hit_slop(self) -> None:
-        node_id = self.window.scene.add_node_from_type("passive.media.image_panel", x=120.0, y=80.0)
+        node_id = self._create_browse_media_panel()
         self.window.scene.focus_node(node_id)
 
         image_path = Path(self._env.temp_path) / "draggable-crop-handles.png"
@@ -683,11 +984,14 @@ class MainWindowShellPassiveImageNodesTests(SharedMainWindowShellTestBase):
         image.fill(QColor("#2c85bf"))
         self.assertTrue(image.save(str(image_path)))
 
-        self.window.scene.set_node_property(node_id, "source_path", str(image_path))
+        self.window.scene.set_node_property(node_id, "source", str(image_path))
         surface = self._graph_node_child(node_id, "graphNodeMediaSurface")
         self._wait_for_media_preview(surface)
+        image_renderer = self._graph_node_child(
+            node_id, "graphNodeMediaImageRenderer"
+        )
 
-        surface.setProperty("cropModeActive", True)
+        image_renderer.setProperty("cropModeActive", True)
         self.app.processEvents()
 
         top_left_handle = self._graph_node_child_with_property(

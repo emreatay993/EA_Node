@@ -160,11 +160,12 @@ class SerializerRoundTripMixin:
         workspace = model.active_workspace
         node = model.add_node(
             workspace.workspace_id,
-            "passive.media.image_panel",
+            "media.panel",
             "Animated Image",
             25.0,
             45.0,
-            properties={"source_path": "", "animation_playback_mode": "pause"},
+            properties={"source": "", "animation_playback_mode": "pause"},
+            exposed_ports={"source": False},
         )
         serializer = JsonProjectSerializer(build_default_registry())
 
@@ -192,12 +193,12 @@ class SerializerRoundTripMixin:
         workspace = model.active_workspace
         node = model.add_node(
             workspace.workspace_id,
-            "passive.media.image_panel",
-            "Image Panel",
+            "media.panel",
+            "Media Panel",
             25.0,
             45.0,
             properties={
-                "source_path": format_staged_artifact_ref("pending_output"),
+                "source": format_staged_artifact_ref("pending_output"),
                 "fallback": format_managed_artifact_ref("existing_asset"),
                 "gallery": [format_staged_artifact_ref("pending_gallery")],
             },
@@ -224,7 +225,7 @@ class SerializerRoundTripMixin:
         self.assertEqual(
             resolved_node["properties"],
             {
-                "source_path": format_managed_artifact_ref("pending_output"),
+                "source": format_managed_artifact_ref("pending_output"),
                 "fallback": format_managed_artifact_ref("existing_asset"),
                 "gallery": [format_staged_artifact_ref("pending_gallery")],
             },
@@ -384,17 +385,17 @@ class SerializerRoundTripMixin:
         saved_doc = serializer.to_document(loaded)
         self.assertEqual(saved_doc["metadata"]["ui"]["passive_style_presets"], presets)
 
-    def test_round_trip_preserves_passive_image_panel_properties_and_size(self) -> None:
+    def test_round_trip_preserves_media_panel_image_properties_and_size(self) -> None:
         model = GraphModel()
         workspace = model.active_workspace
         node = model.add_node(
             workspace.workspace_id,
-            "passive.media.image_panel",
-            "Image Panel",
+            "media.panel",
+            "Media Panel",
             25.0,
             45.0,
             properties={
-                "source_path": r"C:\fixtures\diagram.png",
+                "source": r"C:\fixtures\diagram.png",
                 "fit_mode": "cover",
             },
         )
@@ -407,11 +408,11 @@ class SerializerRoundTripMixin:
             loaded = serializer.load(str(path))
 
         loaded_node = loaded.workspaces[workspace.workspace_id].nodes[node.node_id]
-        self.assertEqual(loaded_node.type_id, "passive.media.image_panel")
+        self.assertEqual(loaded_node.type_id, "media.panel")
         self.assertEqual(
             loaded_node.properties,
             {
-                "source_path": r"C:\fixtures\diagram.png",
+                "source": r"C:\fixtures\diagram.png",
                 "fit_mode": "cover",
             },
         )
@@ -648,7 +649,7 @@ class SerializerRoundTripMixin:
         self.assertEqual(loaded_node.properties["frontend"], "lab")
         self.assertEqual(loaded_node.properties["server_state"], server_state)
 
-    def test_load_preserves_sparse_passive_image_panel_properties_while_coercing_present_values(self) -> None:
+    def test_load_preserves_sparse_media_panel_properties_while_coercing_present_values(self) -> None:
         model = GraphModel()
         workspace = model.active_workspace
         serializer = JsonProjectSerializer(build_default_registry())
@@ -656,14 +657,14 @@ class SerializerRoundTripMixin:
         workspace_doc = next(ws for ws in doc["workspaces"] if ws["workspace_id"] == workspace.workspace_id)
         workspace_doc["nodes"].append(
             {
-                "node_id": "node_image_panel_sparse",
-                "type_id": "passive.media.image_panel",
-                "title": "Image Panel",
+                "node_id": "node_media_panel_sparse",
+                "type_id": "media.panel",
+                "title": "Media Panel",
                 "x": 25.0,
                 "y": 45.0,
                 "collapsed": False,
                 "properties": {
-                    "source_path": r"C:\fixtures\diagram.png",
+                    "source": r"C:\fixtures\diagram.png",
                     "fit_mode": "cover",
                     "crop_w": "0.5",
                     "crop_h": None,
@@ -678,28 +679,28 @@ class SerializerRoundTripMixin:
 
         loaded = serializer.from_document(doc)
 
-        loaded_node = loaded.workspaces[workspace.workspace_id].nodes["node_image_panel_sparse"]
+        loaded_node = loaded.workspaces[workspace.workspace_id].nodes["node_media_panel_sparse"]
         self.assertEqual(
             loaded_node.properties,
             {
-                "source_path": r"C:\fixtures\diagram.png",
+                "source": r"C:\fixtures\diagram.png",
                 "fit_mode": "cover",
                 "crop_w": 0.5,
                 "crop_h": 1.0,
             },
         )
 
-    def test_round_trip_preserves_passive_pdf_panel_properties_and_size(self) -> None:
+    def test_round_trip_preserves_media_panel_pdf_properties_and_size(self) -> None:
         model = GraphModel()
         workspace = model.active_workspace
         node = model.add_node(
             workspace.workspace_id,
-            "passive.media.pdf_panel",
-            "PDF Panel",
+            "media.panel",
+            "Media Panel",
             40.0,
             60.0,
             properties={
-                "source_path": r"C:\fixtures\manual.pdf",
+                "source": r"C:\fixtures\manual.pdf",
                 "page_number": 4,
             },
         )
@@ -712,28 +713,28 @@ class SerializerRoundTripMixin:
             loaded = serializer.load(str(path))
 
         loaded_node = loaded.workspaces[workspace.workspace_id].nodes[node.node_id]
-        self.assertEqual(loaded_node.type_id, "passive.media.pdf_panel")
+        self.assertEqual(loaded_node.type_id, "media.panel")
         self.assertEqual(
             loaded_node.properties,
             {
-                "source_path": r"C:\fixtures\manual.pdf",
+                "source": r"C:\fixtures\manual.pdf",
                 "page_number": 4,
             },
         )
         self.assertEqual(loaded_node.custom_width, 312.0)
         self.assertEqual(loaded_node.custom_height, 428.0)
 
-    def test_round_trip_preserves_passive_video_panel_properties_and_position(self) -> None:
+    def test_round_trip_preserves_media_panel_video_properties_and_position(self) -> None:
         model = GraphModel()
         workspace = model.active_workspace
         node = model.add_node(
             workspace.workspace_id,
-            "passive.media.video_panel",
-            "Video Panel",
+            "media.panel",
+            "Media Panel",
             40.0,
             60.0,
             properties={
-                "source_path": r"C:\fixtures\clip.mp4",
+                "source": r"C:\fixtures\clip.mp4",
                 "fit_mode": "cover",
                 "auto_play": True,
                 "loop": True,
@@ -745,7 +746,6 @@ class SerializerRoundTripMixin:
                 "clip_enabled": True,
                 "clip_start_ms": 40000,
                 "clip_end_ms": 50000,
-                "unfocused_behavior": "keep_playing",
             },
         )
         model.set_node_size(workspace.workspace_id, node.node_id, 380.0, 300.0)
@@ -757,11 +757,11 @@ class SerializerRoundTripMixin:
             loaded = serializer.load(str(path))
 
         loaded_node = loaded.workspaces[workspace.workspace_id].nodes[node.node_id]
-        self.assertEqual(loaded_node.type_id, "passive.media.video_panel")
+        self.assertEqual(loaded_node.type_id, "media.panel")
         self.assertEqual(
             loaded_node.properties,
             {
-                "source_path": r"C:\fixtures\clip.mp4",
+                "source": r"C:\fixtures\clip.mp4",
                 "fit_mode": "cover",
                 "auto_play": True,
                 "loop": True,
@@ -773,7 +773,6 @@ class SerializerRoundTripMixin:
                 "clip_enabled": True,
                 "clip_start_ms": 40000,
                 "clip_end_ms": 50000,
-                "unfocused_behavior": "keep_playing",
             },
         )
         self.assertEqual(loaded_node.custom_width, 380.0)
@@ -841,19 +840,19 @@ class SerializerArtifactRoundTripPacketTests(unittest.TestCase):
         managed_ref = format_managed_artifact_ref(artifact_id)
         node = model.add_node(
             workspace.workspace_id,
-            "passive.media.image_panel",
-            "Image Panel",
+            "media.panel",
+            "Media Panel",
             25.0,
             45.0,
             properties={
-                "source_path": managed_ref,
+                "source": managed_ref,
                 "fit_mode": "contain",
             },
         )
         model.project.metadata["artifact_store"] = {
             "artifacts": {
                 artifact_id: {
-                    "relative_path": "nodes/Image Panel [11111111]/in/passive_media/node_image_panel/source.png",
+                    "relative_path": "nodes/Media Panel [11111111]/in/media/node_media_panel/source.png",
                 }
             }
         }
@@ -864,13 +863,13 @@ class SerializerArtifactRoundTripPacketTests(unittest.TestCase):
         node_doc = next(item for item in workspace_doc["nodes"] if item["node_id"] == node.node_id)
 
         self.assertEqual(document["schema_version"], SCHEMA_VERSION)
-        self.assertEqual(node_doc["properties"]["source_path"], managed_ref)
+        self.assertEqual(node_doc["properties"]["source"], managed_ref)
         self.assertEqual(
             document["metadata"]["artifact_store"],
             {
                 "artifacts": {
                     artifact_id: {
-                        "relative_path": "nodes/Image Panel [11111111]/in/passive_media/node_image_panel/source.png",
+                        "relative_path": "nodes/Media Panel [11111111]/in/media/node_media_panel/source.png",
                     }
                 },
                 "staged": {},
@@ -879,13 +878,13 @@ class SerializerArtifactRoundTripPacketTests(unittest.TestCase):
 
         loaded = serializer.from_document(document)
         loaded_node = loaded.workspaces[workspace.workspace_id].nodes[node.node_id]
-        self.assertEqual(loaded_node.properties["source_path"], managed_ref)
+        self.assertEqual(loaded_node.properties["source"], managed_ref)
         self.assertEqual(
             loaded.metadata["artifact_store"],
             {
                 "artifacts": {
                     artifact_id: {
-                        "relative_path": "nodes/Image Panel [11111111]/in/passive_media/node_image_panel/source.png",
+                        "relative_path": "nodes/Media Panel [11111111]/in/media/node_media_panel/source.png",
                     }
                 },
                 "staged": {},
@@ -897,12 +896,12 @@ class SerializerArtifactRoundTripPacketTests(unittest.TestCase):
         workspace = model.active_workspace
         node = model.add_node(
             workspace.workspace_id,
-            "passive.media.image_panel",
-            "Image Panel",
+            "media.panel",
+            "Media Panel",
             25.0,
             45.0,
             properties={
-                "source_path": format_staged_artifact_ref("pending_output"),
+                "source": format_staged_artifact_ref("pending_output"),
                 "fallback": format_managed_artifact_ref("existing_asset"),
                 "gallery": [format_staged_artifact_ref("pending_gallery")],
             },
@@ -929,7 +928,7 @@ class SerializerArtifactRoundTripPacketTests(unittest.TestCase):
         self.assertEqual(
             resolved_node["properties"],
             {
-                "source_path": format_managed_artifact_ref("pending_output"),
+                "source": format_managed_artifact_ref("pending_output"),
                 "fallback": format_managed_artifact_ref("existing_asset"),
                 "gallery": [format_staged_artifact_ref("pending_gallery")],
             },

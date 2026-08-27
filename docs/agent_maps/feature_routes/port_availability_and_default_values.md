@@ -32,12 +32,15 @@ Use this for static and resolved instance-port availability, dynamic-port groups
 - `tests/test_graph_type_enforcement.py`
 - `tests/test_execution_type_enforcement.py`
 - `tests/test_viewer_viewport.py`
+- `tests/test_media_panel.py`
+- `tests/test_media_panel_creation_preferences.py`
 
 ## Dataflow Port Notes
 - Active ports are `data`; unrelated passive connectors remain `flow`. Unavailable add-on placeholders and passive-object locks are separate contracts and remain locked where declared.
 - `ea_node_editor.nodes.registry.resolve_instance_ports` is the shared resolver for graph invariants, scene projection, readiness, and worker execution. It combines static ports with each dynamic group's ordered ordinary `PortSpec` values from the same normalized current properties; dynamic ports are data-only and cannot use property defaults or static readiness declarations.
 - Stable dynamic keys carry presentation, readiness/flow-state, endpoint, modifier, and Principal identity. Label-mode rename changes only the sparse display label and preserves wires; key-mode rename and removal prune the old key's wires and sparse state through graph-owned mutation.
 - `PortSpec.uses_property_default` and the public `in_port(..., uses_property_default=...)` helper are explicit opt-ins. Registry validation requires a compatible same-key `PropertySpec`; matching names alone do not create defaults. Keep the audited built-in/add-on pairs aligned with their actual same-key properties rather than maintaining a parallel allowlist.
+- Media Panel deliberately has a same-key authored `source` property and optional Source input with `uses_property_default=False`. Per-instance exposure selects source authority; hiding the port prunes its wire in the same undoable mutation, while creation-time `exposed_port_overrides` selects blank/connect/seeded behavior without inferring from property values.
 - `PortSpec.required` has no optional-by-omission default for active data inputs. Use `required=True` for one unconditional input, `required=False` for an optional input or a port governed by `ReadinessRequirementSpec`, and declare any-of/conditional property or port groups on `NodeTypeSpec.readiness_requirements`.
 - With no enabled incoming wire, runtime assembly converts the authored property to the declared Item/List/Tree `DataTree` and applies normal input modifiers. Enabled incoming settlement overrides it; disabled-only wires do not. Falsey authored values remain valid.
 - An exact built-in `TypedInlineValue` property default takes the bounded typed

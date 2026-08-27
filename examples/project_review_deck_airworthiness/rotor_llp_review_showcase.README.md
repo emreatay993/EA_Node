@@ -15,7 +15,7 @@ The scenario is a rotor life-limited part review framed around EASA CS-E 515/840
 
 - Workspace snapshot slides for Markdown-rich review notes, DPF evidence canvases, image panels, PDF panels, and web viewer nodes.
 - Managed PNG evidence, including PyAnsys Rotor 67 result images, a generated margin summary, regulatory visual extracts, and web-source previews.
-- Managed PDF evidence with persisted PDF Panel pages: EASA CM-PIFS-007 page 3 and FAA AC 33.70-1 page 2.
+- Managed PDF evidence with authored Media Panel pages: EASA CM-PIFS-007 page 3 and FAA AC 33.70-1 page 2.
 - A local managed HTML guide opened through a web viewer node, paired with a managed preview PNG.
 - Unsupported CSV, Markdown, HTML, and external-path evidence warnings that appear on the exported issues slide.
 - Optional `.pptx` template inheritance through the existing Project Review Deck writer.

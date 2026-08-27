@@ -44,8 +44,8 @@ Use this for node definitions, registry validation, built-in node families, data
   trusted implementation details only. The loader discovers public code only
   from explicitly configured loose/schema-2 paths through static parsing; it has
   no entry-point, class-probe, executable-manifest, or descriptor-discovery path.
-- The internal owner `corex:builtin:functions` is the only reserved-ID function bundle. GUI bootstrap aggregates 20 inert source members, materializes the normal content-addressed generation, and registers exactly 68 `PythonFunctionEntry` records; workers independently attest and lazily execute it. The remaining 55 built-ins are the migration inventory's exact trusted exceptions, including Python Script, Trigger, Stream Gate, subnodes, three FEM pool/setup nodes, passive/custom surfaces, and generated private families.
-- The complete private boundary is the 55 trusted non-DPF exceptions, 805 DPF
+- The internal owner `corex:builtin:functions` is the only reserved-ID function bundle. GUI bootstrap aggregates 20 inert source members, materializes the normal content-addressed generation, and registers exactly 68 `PythonFunctionEntry` records; workers independently attest and lazily execute it. The remaining 53 built-ins are the migration inventory's exact trusted exceptions, including Python Script, Trigger, Stream Gate, subnodes, three FEM pool/setup nodes, passive/custom surfaces, active Media Panel, and generated private families.
+- The complete private boundary is the 53 trusted non-DPF exceptions, 805 DPF
   exclusions, and three shipped add-on catalogs. Public authors never use those
   descriptor/backend records.
 - `TrustedFactoryEntry` and `PythonFunctionEntry` are the mutually exclusive private registry implementations. Public function entries store only `PythonFunctionRef`; process workers re-hash the immutable generation and use `PythonFunctionAdapter` without exposing a callable to GUI discovery.
@@ -63,7 +63,7 @@ Use this for node definitions, registry validation, built-in node families, data
 - Keep public function entries non-constructible through `NodeRegistry.create()` so trusted in-process execution cannot acquire their callable.
 - Keep generation pruning explicit and protect both active and externally referenced digests; never overwrite a mismatched existing digest directory.
 - Keep package archives free of compatibility fields, dependency installers, descriptor overrides, nested Python packages, and executable validation hooks. Schema-1 rejection uses the migration pointer in `SCHEMA_1_UNSUPPORTED_MESSAGE`.
-- During the novice function-SDK cutover, preserve the normalized 133-node non-DPF baseline in `tests/fixtures/node_catalog/pre_cutover_non_dpf_catalog.json` and follow the migration inventory's exact convert/internal-exception/DPF-exclusion classification.
+- Preserve the normalized 133-node pre-cutover non-DPF baseline byte-for-byte in `tests/fixtures/node_catalog/pre_cutover_non_dpf_catalog.json`; apply the documentation overlay and then `unified_media_panel_structural_overlay.json` to obtain the 131-row current catalog, and keep the 78/53/805 migration classification aligned.
 - Keep canonical data-type IDs under the `COREX.*` namespace.
 - Keep source-product provenance, import adapters, comparison studies, and installed-product evidence outside the tracked repository.
 - Add no compatibility alias for removed internal contracts unless an active public format requires it.

@@ -2,14 +2,14 @@
 
 - Updated: `2026-04-17`
 - Packet set: `MEDIA_VIEWER_CONTENT_FULLSCREEN` (`P01` through `P05`)
-- Scope: final closeout matrix for the shipped shell-owned content fullscreen overlay covering passive image media, passive PDF media, DPF viewer retargeting, `F11` routing, close paths, transient state, and traceability evidence.
+- Scope: retained closeout matrix for the shell-owned content fullscreen overlay, updated for the active unified Media Panel's image/PDF/video dispatch, plus DPF viewer retargeting, `F11` routing, close paths, transient state, and traceability evidence.
 
 ## Locked Scope
 
 - Content fullscreen is an in-app shell overlay, not OS or top-level application fullscreen.
-- Only eligible passive image media, passive PDF media, and DPF viewer nodes may open through `contentFullscreenBridge`.
+- Only a ready `media.panel`, supported viewer surface, or separate supported Mail/web content may open through `contentFullscreenBridge`; Media Panel mode comes from `media_payload.media_kind` under top-level `content_kind="media"`.
 - Fullscreen state is transient UI state and is not serialized into `.cxproj` project files.
-- Media fullscreen reuses preview source, crop, page, and fit semantics for viewing only; fullscreen display-mode controls must not mutate node properties.
+- Media fullscreen uses the same effective-source resolution as the inline dispatcher, clears/releases the prior renderer on non-ready or mode changes, and reuses crop, page, video, and fit semantics; display-only controls must not replace the authored source.
 - Surface buttons, `F11`, `Esc`, and the close button are the shipped entry and exit paths; double-click fullscreen and context-menu fullscreen remain out of scope.
 - Live viewer fullscreen retargets the existing native viewer widget into `contentFullscreenViewerViewport` and restores it to the node viewport without creating a second widget for the same `(workspace_id, node_id)`.
 
@@ -17,7 +17,7 @@
 
 | Coverage Area | Packet | Primary Requirement Anchors | Command | Recorded Source |
 |---|---|---|---|---|
-| `contentFullscreenBridge` eligibility, normalized image/PDF/viewer payloads, transient state, workspace switch, and deletion cleanup | `P01`, `P05` | `REQ-UI-040`, `AC-REQ-UI-040-01` | `$env:QT_QPA_PLATFORM='offscreen'; .\venv\Scripts\python.exe -m pytest tests/test_content_fullscreen_bridge.py --ignore=venv -q` | P01 PASS in `docs/specs/work_packets/media_viewer_content_fullscreen/P01_fullscreen_state_contract_WRAPUP.md`; P05 aggregate command below |
+| `contentFullscreenBridge` eligibility, normalized dynamic Media Panel/viewer payloads, transient state, workspace/execution/source refresh, and deletion cleanup | `P01`, `P05` | `REQ-UI-040`, `AC-REQ-UI-040-01` | `$env:QT_QPA_PLATFORM='offscreen'; .\venv\Scripts\python.exe -m pytest tests/test_content_fullscreen_bridge.py tests/test_media_panel_qml_surface.py --ignore=venv -q` | Historical P01/P05 proof retained; unified Media Panel proof is owned by the current tests. |
 | Shell overlay rendering, image and PDF media display, background interaction blocking, close button, `Esc`, and `F11` close paths | `P02`, `P05` | `REQ-UI-040`, `AC-REQ-UI-040-01` | `$env:QT_QPA_PLATFORM='offscreen'; .\venv\Scripts\python.exe -m pytest tests/test_shell_window_lifecycle.py --ignore=venv -q` | P02 PASS in `docs/specs/work_packets/media_viewer_content_fullscreen/P02_shell_overlay_and_media_renderer_WRAPUP.md`; P05 aggregate command below |
 | Media and viewer surface buttons, crop-mode suppression, `embeddedInteractiveRects`, and selected-node `F11` routing or hint behavior | `P03`, `P05` | `REQ-UI-040`, `AC-REQ-UI-040-01` | `$env:QT_QPA_PLATFORM='offscreen'; .\venv\Scripts\python.exe -m pytest tests/test_graph_surface_input_controls.py tests/test_graph_surface_input_contract.py tests/test_viewer_surface_contract.py --ignore=venv -q` | P03 PASS in `docs/specs/work_packets/media_viewer_content_fullscreen/P03_surface_buttons_and_shortcut_WRAPUP.md`; P05 aggregate command below |
 | Live DPF viewer fullscreen retargeting, blocked viewer fallback, restore on close, workspace cleanup, and no orphaned native viewer overlay state | `P04`, `P05` | `REQ-INT-010`, `AC-REQ-INT-010-01` | `$env:QT_QPA_PLATFORM='offscreen'; .\venv\Scripts\python.exe -m pytest tests/test_viewer_host_service.py tests/test_embedded_viewer_overlay_manager.py --ignore=venv -q` | P04 PASS in `docs/specs/work_packets/media_viewer_content_fullscreen/P04_interactive_live_viewer_retargeting_WRAPUP.md`; P05 aggregate command below |
@@ -41,9 +41,9 @@
 
 ## Manual Smoke Checklist
 
-1. Image fullscreen desktop check: in a native Windows Qt session, add a passive image media node with a local image, confirm the fullscreen button opens the shell overlay, switch between Fit, Fill, and 100%, close with the close button, `Esc`, and `F11`, and confirm node crop/source/fit properties do not change.
+1. Image fullscreen desktop check: in a native Windows Qt session, add an input-hidden Media Panel with a local image, confirm the fullscreen button opens the shell overlay, switch between Fit, Fill, and 100%, close with the close button, `Esc`, and `F11`, and confirm node crop/source/fit properties do not change.
 2. Crop-mode suppression check: activate image crop editing on the media node and confirm the fullscreen button is hidden while crop mode is active, then exit crop mode and confirm the button returns when the node is hovered or selected.
-3. PDF fullscreen desktop check: add a passive PDF media node using a local PDF, open fullscreen, confirm the correct page preview renders, and confirm graph background clicks or wheel input do not interact with the canvas while the overlay is open.
+3. PDF/video fullscreen desktop check: switch the same Media Panel to a local PDF and then video, confirm the fullscreen renderer changes without closing, the previous PDF/video resource is released, the correct PDF page/video position renders, and graph input stays blocked while the overlay is open.
 4. `F11` selection check: select exactly one eligible media or viewer node and confirm `F11` opens fullscreen, select zero or multiple nodes and confirm the graph hint appears, then select an ineligible node and confirm the bridge reports the unsupported-node hint without graph data changes.
 5. Live viewer retargeting check: run a DPF viewer node with live data available, open content fullscreen, confirm the existing native viewer widget moves into `contentFullscreenViewerViewport`, close fullscreen, and confirm the same widget restores to the node viewport without a duplicate viewer.
 6. Viewer cleanup and blocked-state check: with a live viewer open, switch workspaces and delete the viewer node to confirm cleanup; reopen a saved project without rerunning viewer data and confirm the blocked/rerun-required state stays explicit and does not create a stale native widget.

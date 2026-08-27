@@ -15,6 +15,7 @@ from ea_node_editor.graph.effective_ports import (
 )
 from ea_node_editor.graph.hierarchy import scope_parent_id
 from ea_node_editor.graph.records import NodeInstance
+from ea_node_editor.nodes.builtins.media_panel import MEDIA_PANEL_TYPE_ID
 from ea_node_editor.nodes.builtins.subnode import (
     SUBNODE_INPUT_TYPE_ID,
     SUBNODE_OUTPUT_TYPE_ID,
@@ -798,13 +799,14 @@ class WorkspaceEditOps:
         after_create = None
         if item.artifact is not None:
 
-            def _after_create(node: NodeInstance, mutations) -> None:  # noqa: ANN001
+            def _after_create(node: NodeInstance, mutations) -> bool:  # noqa: ANN001
                 staged_ref = self._stage_clipboard_artifact(item, node)
                 if not staged_ref:
-                    return
+                    return False
                 updates = dict(properties)
                 updates[item.artifact.property_key] = staged_ref
                 mutations.set_node_properties(node.node_id, updates)
+                return True
 
             after_create = _after_create
             properties = {}
@@ -818,6 +820,11 @@ class WorkspaceEditOps:
                     parent_node_id=parent_node_id,
                     select_node=False,
                     property_overrides=properties,
+                    exposed_port_overrides=(
+                        {"source": False}
+                        if item.type_id == MEDIA_PANEL_TYPE_ID
+                        else None
+                    ),
                     after_create=after_create,
                 )
                 or ""

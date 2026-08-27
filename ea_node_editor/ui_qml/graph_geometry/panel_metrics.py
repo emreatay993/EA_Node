@@ -3,9 +3,6 @@ from __future__ import annotations
 from ea_node_editor.graph.records import NodeInstance
 from ea_node_editor.nodes.node_specs import NodeTypeSpec
 from ea_node_editor.settings import DEFAULT_GRAPH_LABEL_PIXEL_SIZE
-from ea_node_editor.ui.media_preview_provider import local_image_dimensions
-from ea_node_editor.ui.pdf_preview_provider import local_pdf_page_dimensions
-
 from .standard_metrics import collapsed_node_title_width
 from .surface_contract import (
     ANNOTATION_VARIANT_LAYOUTS,
@@ -18,7 +15,6 @@ from .surface_contract import (
     STANDARD_COLLAPSED_HEIGHT,
     STANDARD_COLLAPSED_WIDTH,
     GraphNodeSurfaceMetrics,
-    _MediaPanelLayout,
     _PassivePanelLayout,
     _resolved_dimensions,
 )
@@ -41,57 +37,7 @@ def normalize_group_backdrop_variant(variant: str) -> str:
 
 def normalize_media_variant(variant: str) -> str:
     normalized = str(variant or "").strip().lower()
-    return normalized if normalized in MEDIA_VARIANT_LAYOUTS else "image_panel"
-
-
-def _normalized_image_rotation_degrees(value: object) -> int:
-    if isinstance(value, bool):
-        return 0
-    try:
-        degrees = int(value) % 360
-    except (TypeError, ValueError):
-        return 0
-    return degrees if degrees % 90 == 0 else 0
-
-
-def _media_default_dimensions(
-    node: NodeInstance,
-    layout: _MediaPanelLayout,
-    *,
-    variant: str,
-) -> tuple[float, float]:
-    default_width = float(layout.default_width)
-    default_height = float(layout.default_height)
-    source_path = str(node.properties.get("source_path", "") or "")
-    if variant == "pdf_panel":
-        media_dimensions = local_pdf_page_dimensions(source_path, node.properties.get("page_number"))
-    elif variant == "video_panel":
-        return default_width, max(layout.min_height, default_height)
-    else:
-        media_dimensions = local_image_dimensions(source_path)
-    if media_dimensions is None:
-        return default_width, default_height
-    media_width, media_height = media_dimensions
-    if media_width <= 0 or media_height <= 0:
-        return default_width, default_height
-
-    preview_width = max(1.0, default_width - layout.body_left_margin - layout.body_right_margin)
-    preview_height = preview_width * (float(media_height) / float(media_width))
-    if variant == "image_panel" and _normalized_image_rotation_degrees(
-        node.properties.get("rotation_degrees")
-    ) in (90, 270):
-        body_width = max(layout.min_width - layout.body_left_margin - layout.body_right_margin, preview_height)
-        body_height = max(layout.min_body_height, preview_width)
-        return (
-            layout.body_left_margin + body_width + layout.body_right_margin,
-            max(layout.min_height, layout.body_top + layout.body_bottom_margin + body_height),
-        )
-
-    body_height = max(layout.min_body_height, preview_height)
-    return (
-        default_width,
-        max(layout.min_height, layout.body_top + layout.body_bottom_margin + body_height),
-    )
+    return normalized if normalized in MEDIA_VARIANT_LAYOUTS else "media_panel"
 
 
 def _build_panel_surface_metrics(
@@ -231,7 +177,8 @@ def _group_backdrop_surface_metrics(
 def _media_surface_metrics(node: NodeInstance, spec: NodeTypeSpec) -> GraphNodeSurfaceMetrics:
     variant = normalize_media_variant(spec.surface_variant)
     layout = MEDIA_VARIANT_LAYOUTS[variant]
-    default_width, default_height = _media_default_dimensions(node, layout, variant=variant)
+    default_width = float(layout.default_width)
+    default_height = float(layout.default_height)
     _active_width, active_height = _resolved_dimensions(
         node,
         default_width=default_width,

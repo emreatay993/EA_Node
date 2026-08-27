@@ -131,47 +131,56 @@ class MainWindowShellPassivePdfNodesTests(MainWindowShellTestBase):
             return self._hold_qml_ref(item)
         self.fail(f"Could not find {object_name!r} for property {property_key!r}.")
 
+    def _create_browse_media_panel(self) -> str:
+        return self.window.scene.create_node_from_type(
+            type_id="media.panel",
+            x=120.0,
+            y=80.0,
+            parent_node_id=None,
+            select_node=False,
+            exposed_port_overrides={"source": False},
+        )
+
     def _selected_property_items(self) -> dict[str, dict]:
         return {item["key"]: item for item in self.window.selected_node_property_items}
 
     def test_pdf_panel_inspector_exposes_locked_editor_modes(self) -> None:
-        node_id = self.window.scene.add_node_from_type("passive.media.pdf_panel", x=120.0, y=80.0)
+        node_id = self._create_browse_media_panel()
         self.window.scene.focus_node(node_id)
         self.app.processEvents()
 
         items = self._selected_property_items()
-        self.assertEqual(set(items), {"source_path", "page_number"})
-        self.assertEqual(items["source_path"]["editor_mode"], "path")
-        self.assertEqual(items["page_number"]["editor_mode"], "text")
+        self.assertEqual(set(items), {"source"})
+        self.assertEqual(items["source"]["editor_mode"], "path")
 
-        self._inspector_property_object("inspectorPathEditor", "source_path")
+        self._inspector_property_object("inspectorPathEditor", "source")
 
     def test_pdf_panel_path_editor_browse_commits_external_path_by_default(self) -> None:
         workspace_id = self.window.workspace_manager.active_workspace_id()
-        node_id = self.window.scene.add_node_from_type("passive.media.pdf_panel", x=120.0, y=80.0)
+        node_id = self._create_browse_media_panel()
         self.window.scene.focus_node(node_id)
         self.app.processEvents()
 
         picked_path = Path(self._env.temp_path) / "picked-preview.pdf"
         _write_pdf(picked_path, page_count=2)
 
-        path_editor = self._inspector_property_object("inspectorPathEditor", "source_path")
-        browse_button = self._inspector_property_object("inspectorPathBrowseButton", "source_path")
+        path_editor = self._inspector_property_object("inspectorPathEditor", "source")
+        browse_button = self._inspector_property_object("inspectorPathBrowseButton", "source")
 
         with patch("ea_node_editor.ui.shell.window.QFileDialog.getOpenFileName", return_value=(str(picked_path), "")):
             QMetaObject.invokeMethod(browse_button, "click")
             self.app.processEvents()
 
         node = self.window.model.project.workspaces[workspace_id].nodes[node_id]
-        preview_info = self.window.describe_pdf_preview(node.properties["source_path"], node.properties["page_number"])
-        self.assertEqual(node.properties["source_path"], str(picked_path))
-        self.assertEqual(str(path_editor.property("text")), node.properties["source_path"])
+        preview_info = self.window.describe_pdf_preview(node.properties["source"], node.properties["page_number"])
+        self.assertEqual(node.properties["source"], str(picked_path))
+        self.assertEqual(str(path_editor.property("text")), node.properties["source"])
         self.assertEqual(preview_info["state"], "ready")
         self.assertEqual(preview_info["page_count"], 2)
 
     def test_pdf_panel_path_editor_storage_combo_can_choose_internal_copy(self) -> None:
         workspace_id = self.window.workspace_manager.active_workspace_id()
-        node_id = self.window.scene.add_node_from_type("passive.media.pdf_panel", x=120.0, y=80.0)
+        node_id = self._create_browse_media_panel()
         self.window.scene.focus_node(node_id)
         self.app.processEvents()
 
@@ -179,12 +188,12 @@ class MainWindowShellPassivePdfNodesTests(MainWindowShellTestBase):
         _write_pdf(picked_path, page_count=2)
 
         items = self._selected_property_items()
-        self.assertTrue(items["source_path"]["path_supports_managed_copy"])
-        self.assertTrue(items["source_path"]["path_supports_external_link"])
+        self.assertTrue(items["source"]["path_supports_managed_copy"])
+        self.assertTrue(items["source"]["path_supports_external_link"])
 
-        path_editor = self._inspector_property_object("inspectorPathEditor", "source_path")
-        storage_combo = self._inspector_property_object("inspectorPathSourceStorageComboBox", "source_path")
-        browse_button = self._inspector_property_object("inspectorPathBrowseButton", "source_path")
+        path_editor = self._inspector_property_object("inspectorPathEditor", "source")
+        storage_combo = self._inspector_property_object("inspectorPathSourceStorageComboBox", "source")
+        browse_button = self._inspector_property_object("inspectorPathBrowseButton", "source")
         self.assertEqual(str(storage_combo.property("currentText")), "External")
         storage_combo.setProperty("currentIndex", 1)
         self.app.processEvents()
@@ -194,18 +203,18 @@ class MainWindowShellPassivePdfNodesTests(MainWindowShellTestBase):
             self.app.processEvents()
 
         node = self.window.model.project.workspaces[workspace_id].nodes[node_id]
-        preview_info = self.window.describe_pdf_preview(node.properties["source_path"], node.properties["page_number"])
-        self.assertTrue(str(node.properties["source_path"]).startswith("temp://"))
-        self.assertEqual(str(path_editor.property("text")), node.properties["source_path"])
+        preview_info = self.window.describe_pdf_preview(node.properties["source"], node.properties["page_number"])
+        self.assertTrue(str(node.properties["source"]).startswith("temp://"))
+        self.assertEqual(str(path_editor.property("text")), node.properties["source"])
         wait_for_condition_or_raise(
             lambda: str(storage_combo.property("currentText")) == "Internal",
             app=self.app,
             timeout_message=lambda: f"Expected Internal source storage, got {storage_combo.property('currentText')!r}.",
         )
         items = self._selected_property_items()
-        self.assertEqual(items["source_path"]["path_current_source_mode"], "managed_copy")
+        self.assertEqual(items["source"]["path_current_source_mode"], "managed_copy")
         staged_path = self.window.project_session_controller.project_artifact_store().resolve_staged_path(
-            node.properties["source_path"]
+            node.properties["source"]
         )
         self.assertIsNotNone(staged_path)
         assert staged_path is not None
@@ -215,7 +224,7 @@ class MainWindowShellPassivePdfNodesTests(MainWindowShellTestBase):
 
     def test_pdf_panel_toolbar_browse_action_commits_without_node_drag(self) -> None:
         workspace_id = self.window.workspace_manager.active_workspace_id()
-        node_id = self.window.scene.add_node_from_type("passive.media.pdf_panel", x=120.0, y=80.0)
+        node_id = self._create_browse_media_panel()
         self.window.scene.focus_node(node_id)
         self.app.processEvents()
 
@@ -247,34 +256,34 @@ class MainWindowShellPassivePdfNodesTests(MainWindowShellTestBase):
             self.app.processEvents()
 
         node = workspace.nodes[node_id]
-        preview_info = self.window.describe_pdf_preview(node.properties["source_path"], node.properties["page_number"])
+        preview_info = self.window.describe_pdf_preview(node.properties["source"], node.properties["page_number"])
         self.assertEqual(self.window.scene.selected_node_id(), node_id)
-        self.assertEqual(node.properties["source_path"], str(picked_path))
+        self.assertEqual(node.properties["source"], str(picked_path))
         self.assertEqual(preview_info["state"], "ready")
         self.assertEqual(preview_info["page_count"], 2)
         self.assertAlmostEqual(float(node.x), initial_x, places=6)
         self.assertAlmostEqual(float(node.y), initial_y, places=6)
 
-    def test_pdf_panel_out_of_range_page_is_rewritten_after_pdf_resolves(self) -> None:
+    def test_media_panel_pdf_preview_clamps_without_rewriting_authored_page(self) -> None:
         workspace_id = self.window.workspace_manager.active_workspace_id()
-        node_id = self.window.scene.add_node_from_type("passive.media.pdf_panel", x=120.0, y=80.0)
+        node_id = self._create_browse_media_panel()
         self.window.scene.focus_node(node_id)
         self.app.processEvents()
 
         pdf_path = Path(self._env.temp_path) / "clamped-preview.pdf"
         _write_pdf(pdf_path, page_count=2)
 
-        self.window.set_selected_node_property("source_path", str(pdf_path))
+        self.window.set_selected_node_property("source", str(pdf_path))
         self.app.processEvents()
         self.window.set_selected_node_property("page_number", "99")
         self.app.processEvents()
 
         node = self.window.model.project.workspaces[workspace_id].nodes[node_id]
         items = self._selected_property_items()
-        preview_info = self.window.describe_pdf_preview(node.properties["source_path"], node.properties["page_number"])
+        preview_info = self.window.describe_pdf_preview(node.properties["source"], node.properties["page_number"])
 
-        self.assertEqual(node.properties["page_number"], 2)
-        self.assertEqual(items["page_number"]["value"], 2)
-        self.assertEqual(preview_info["requested_page_number"], 2)
+        self.assertEqual(node.properties["page_number"], 99)
+        self.assertEqual(set(items), {"source"})
+        self.assertEqual(preview_info["requested_page_number"], 99)
         self.assertEqual(preview_info["resolved_page_number"], 2)
         self.assertEqual(preview_info["page_count"], 2)

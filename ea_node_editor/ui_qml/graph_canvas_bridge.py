@@ -41,6 +41,7 @@ class GraphCanvasBridge(QObject):
         self._state_bridge = state_bridge or GraphCanvasStateBridge(
             self,
             shell_window=shell_window,
+            project_source=shell_window,
             scene_bridge=scene_bridge,
             view_bridge=view_bridge,
         )

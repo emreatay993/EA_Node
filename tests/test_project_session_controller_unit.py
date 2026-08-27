@@ -652,11 +652,11 @@ class ProjectSessionControllerUnitTests(unittest.TestCase):
         host.workspace_manager.set_active_workspace(current_workspace_id)
         repaired_node = host.model.add_node(
             alternate_workspace_id,
-            "passive.media.image_panel",
+            "media.panel",
             "Broken Image",
             40.0,
             60.0,
-            properties={"source_path": "missing.png"},
+            properties={"source": "missing.png"},
         )
         host.workspace_library_controller.switch_workspace = mock.Mock(  # type: ignore[method-assign]
             side_effect=AssertionError(
@@ -670,7 +670,7 @@ class ProjectSessionControllerUnitTests(unittest.TestCase):
             workspace_name="Other",
             node_id=repaired_node.node_id,
             node_title="Broken Image",
-            property_key="source_path",
+            property_key="source",
             property_label="Source Path",
             current_value="missing.png",
             issue_kind="missing_file",
@@ -691,11 +691,11 @@ class ProjectSessionControllerUnitTests(unittest.TestCase):
         )
         self.assertEqual(
             host.browse_calls,
-            [(repaired_node.node_id, "source_path", issue.repair_request)],
+            [(repaired_node.node_id, "source", issue.repair_request)],
         )
         self.assertEqual(
             host.scene.property_changes,
-            [(repaired_node.node_id, "source_path", "repaired.png")],
+            [(repaired_node.node_id, "source", "repaired.png")],
         )
 
     def test_document_service_seeds_viewer_projection_when_installing_project(

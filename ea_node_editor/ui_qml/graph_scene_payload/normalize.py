@@ -44,7 +44,6 @@ _WINDOWS_DRIVE_PATH_RE = re.compile(r"^[A-Za-z]:[\\/]")
 _UNC_PATH_RE = re.compile(r"^[/\\]{2}[^/\\]")
 _IMAGE_FIT_MODES = frozenset({"contain", "cover", "original"})
 _VIDEO_FIT_MODES = frozenset({"contain", "cover"})
-_VIDEO_UNFOCUSED_BEHAVIORS = frozenset({"pause_keep_loaded", "keep_playing"})
 WEB_PAGE_CONTENT_KIND = "web_page"
 WEB_PAGE_SURFACE_FAMILY = WEB_PAGE_VIEWER_SURFACE_FAMILY
 WEB_PAGE_SURFACE_VARIANT = WEB_PAGE_VIEWER_SURFACE_VARIANT
@@ -166,13 +165,6 @@ def _normalized_image_rotation_degrees(value: object) -> int:
 def _normalized_video_fit_mode(value: object) -> str:
     normalized = str(value or "contain").strip().lower()
     return normalized if normalized in _VIDEO_FIT_MODES else "contain"
-
-
-def _normalized_unfocused_behavior(value: object) -> str:
-    normalized = str(value or "pause_keep_loaded").strip().lower()
-    return (
-        normalized if normalized in _VIDEO_UNFOCUSED_BEHAVIORS else "pause_keep_loaded"
-    )
 
 
 def _bounded_float_property(

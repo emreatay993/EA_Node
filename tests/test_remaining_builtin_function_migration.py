@@ -81,7 +81,7 @@ def test_exact_t15_entries_match_golden_and_leave_exact_exception_set(
         if row["spec"]["type_id"] in _T15_CONVERTED_TYPE_IDS
     }
 
-    assert len(golden_rows) == 133
+    assert len(golden_rows) == 131
     assert len(_T15_CONVERTED_TYPE_IDS) == 30
     assert set(expected) == set(_T15_CONVERTED_TYPE_IDS)
     for type_id in _T15_CONVERTED_TYPE_IDS:
@@ -102,7 +102,7 @@ def test_exact_t15_entries_match_golden_and_leave_exact_exception_set(
         for line in _MIGRATION_INVENTORY.read_text(encoding="utf-8").splitlines()
         if (match := _INTERNAL_EXCEPTION_ROW.match(line)) is not None
     }
-    assert len(expected_exceptions) == 55
+    assert len(expected_exceptions) == 53
     actual_exceptions = {
         spec.type_id
         for spec in registry.all_specs()

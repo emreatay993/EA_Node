@@ -1,10 +1,13 @@
+// Purpose: Show image renderer loading and decode feedback.
+// Map: feature_routes/media_image_video_pdf_refocus.md
+// Tests: tests/test_media_panel_qml_surface.py
 import QtQuick 2.15
 
 Column {
     id: root
     property var surface: null
     anchors.centerIn: parent
-    width: Math.min(parent.width - 24, root.surface && root.surface.isPdfPanel ? 208 : 180)
+    width: Math.min(parent.width - 24, 180)
     spacing: 8
     visible: root.surface ? root.surface.previewState !== "ready" : true
 
@@ -14,7 +17,6 @@ Column {
         anchors.horizontalCenter: parent.horizontalCenter
 
         Rectangle {
-            visible: !(root.surface && root.surface.isPdfPanel)
             width: 42
             height: 42
             radius: 8
@@ -33,42 +35,6 @@ Column {
             }
         }
 
-        Item {
-            visible: root.surface && root.surface.isPdfPanel
-            anchors.fill: parent
-
-            Rectangle {
-                x: 8
-                y: 2
-                width: 26
-                height: 34
-                radius: 4
-                color: "#F5F7FA"
-                border.width: 1
-                border.color: Qt.alpha(root.surface ? root.surface.hintTextColor : "#bdc5d3", 0.75)
-            }
-
-            Rectangle {
-                x: 13
-                y: 8
-                width: 16
-                height: 8
-                radius: 2
-                color: root.surface && root.surface.previewState === "error"
-                    ? Qt.alpha("#B55454", 0.92)
-                    : Qt.alpha("#3A7CA5", 0.92)
-            }
-
-            Rectangle {
-                x: 28
-                y: 2
-                width: 6
-                height: 6
-                color: "#E8EDF3"
-                rotation: 45
-                transformOrigin: Item.TopLeft
-            }
-        }
     }
 
     Text {

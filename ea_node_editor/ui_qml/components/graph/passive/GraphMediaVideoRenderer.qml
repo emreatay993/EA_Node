@@ -1,3 +1,7 @@
+// Purpose: Render inline video playback and controls for Media Panel.
+// Map: feature_routes/media_image_video_pdf_refocus.md
+// Tests: tests/test_media_panel_qml_surface.py
+// Landmarks: media lifecycle; inline controls; bookmark and clip helpers; action dispatch.
 import QtQuick 2.15
 import ".." as GraphShared
 import QtQuick.Controls 2.15
@@ -5,13 +9,14 @@ import QtQuick.Layouts 1.15
 import QtMultimedia
 import "../surface_controls" as GraphSurfaceControls
 import "../surface_controls/SurfaceControlGeometry.js" as SurfaceControlGeometry
-import "../surface_controls/SourceStorageModeUtils.js" as SourceStorageModeUtils
 import "GraphMediaPanelSourceUtils.js" as GraphMediaPanelSourceUtils
 
 GraphShared.GraphSurfaceBase {
     id: surface
-    chromeToggleAvailable: true
-    objectName: "graphNodeVideoSurface"
+    chromeToggleAvailable: false
+    objectName: "graphNodeMediaVideoRenderer"
+    property var sourceResolution: ({})
+    property bool rendererReleased: false
     property bool resumeAfterSeek: false
     property bool initialPositionApplied: false
     property bool clipEnforcing: false
@@ -21,8 +26,8 @@ GraphShared.GraphSurfaceBase {
     property bool artifactRenameReleaseActive: false
     property var artifactRenameReleaseState: ({})
     property int artifactRenameResolveGeneration: 0
-    readonly property string sourcePath: propValue("source_path")
-    readonly property string sourceStorageMode: SourceStorageModeUtils.sourceModeForPath(sourcePath)
+    readonly property string sourcePath: String(sourceResolution.source_ref || "")
+    readonly property bool sourceInputExposed: Boolean(sourceResolution.input_exposed)
     readonly property string normalizedFitMode: _normalizedFitMode(propValue("fit_mode"))
     readonly property bool autoPlayEnabled: propBool("auto_play", false)
     readonly property bool loopEnabled: propBool("loop", false)
@@ -36,25 +41,25 @@ GraphShared.GraphSurfaceBase {
     readonly property int clipEndMs: Math.max(0, Math.round(propNumber("clip_end_ms", 0)))
     readonly property bool clipRangeActive: clipEnabled && clipEndMs > clipStartMs
     readonly property bool validSourceActive: resolvedSourceUrl.length > 0
-        && !sourceRejected
-    readonly property string resolvedSourceUrl: _resolvedVideoSourceUrl()
+    readonly property string resolvedSourceUrl: rendererReleased
+        ? ""
+        : String(sourceResolution.resolved_source_url || "")
     readonly property string effectiveResolvedSourceUrl: artifactRenameReleaseActive ? "" : resolvedSourceUrl
-    readonly property bool canInternalizeSource: sourceStorageMode === "external_link"
-        && GraphMediaPanelSourceUtils.resolvedLocalFileSourceUrl(sourcePath).length > 0
-    readonly property bool sourceRejected: sourcePath.trim().length > 0 && resolvedSourceUrl.length === 0
-    readonly property bool fullscreenAvailable: host ? Boolean(host.surfaceFullscreenAvailable) : false
+    readonly property bool localSourceActive: GraphMediaPanelSourceUtils.resolvedLocalFileSourceUrl(
+        effectiveResolvedSourceUrl
+    ).length > 0
     readonly property var fullscreenBridgeRef: typeof contentFullscreenBridge !== "undefined" && contentFullscreenBridge
         ? contentFullscreenBridge
         : null
     readonly property bool fullscreenOwnsPlayback: fullscreenBridgeRef
         && Boolean(fullscreenBridgeRef.open)
-        && String(fullscreenBridgeRef.content_kind || "") === "video"
+        && String(fullscreenBridgeRef.content_kind || "") === "media"
+        && fullscreenBridgeRef.media_payload
+        && String(fullscreenBridgeRef.media_payload.media_kind || "") === "video"
         && host
         && host.nodeData
         && String(fullscreenBridgeRef.node_id || "") === String(host.nodeData.node_id || "")
     readonly property bool hostPlaybackAllowed: !fullscreenOwnsPlayback
-    readonly property bool fileIssueActive: sourcePath.trim().length > 0
-        && (sourceRejected || previewState === "error")
     readonly property real contentInset: host ? Number(host.surfaceMetrics.body_bottom_margin || 12) : 12
     readonly property real contentLeftMargin: surfaceShowFrame ? (host ? Number(host.surfaceMetrics.body_left_margin || 14) : 14) : 0
     readonly property real contentRightMargin: surfaceShowFrame ? (host ? Number(host.surfaceMetrics.body_right_margin || 14) : 14) : 0
@@ -68,9 +73,7 @@ GraphShared.GraphSurfaceBase {
     readonly property real contentBottomMargin: surfaceShowFrame ? (host ? Number(host.surfaceMetrics.body_bottom_margin || 12) : 12) : 0
     readonly property string statusText: _statusText()
     readonly property string previewState: {
-        if (sourcePath.trim().length === 0)
-            return "placeholder";
-        if (sourceRejected)
+        if (String(sourceResolution.state || "") !== "ready" || resolvedSourceUrl.length === 0)
             return "error";
         if (player.error !== MediaPlayer.NoError || player.mediaStatus === MediaPlayer.InvalidMedia)
             return "error";
@@ -87,80 +90,14 @@ GraphShared.GraphSurfaceBase {
         return "placeholder";
     }
     readonly property bool blocksHostInteraction: seekSlider.pressed
+    readonly property bool aspectRatioLocked: false
     readonly property var embeddedInteractiveRects: SurfaceControlGeometry.combineRectLists(
         [
             seekRegion.embeddedInteractiveRects
         ]
     )
     readonly property var surfaceActions: {
-        var actions = [
-            {
-                "id": "editSource",
-                "label": "Source",
-                "icon": "search",
-                "kind": "media",
-                "enabled": true,
-                "primary": sourcePath.trim().length === 0,
-                "popover_layout": "source_storage",
-                "popoverActions": [
-                    {
-                        "id": "editSourceExternalLink",
-                        "label": "External link",
-                        "icon": "external-link",
-                        "kind": "media",
-                        "toolbar_text": "External",
-                        "source_mode": "external_link",
-                        "checked": sourceStorageMode === "external_link",
-                        "enabled": true,
-                        "close_popover": true
-                    },
-                    {
-                        "id": "editSourceManagedCopy",
-                        "label": "Internal copy",
-                        "icon": "open-session",
-                        "kind": "media",
-                        "toolbar_text": "Internal",
-                        "source_mode": "managed_copy",
-                        "checked": sourceStorageMode === "managed_copy",
-                        "enabled": true,
-                        "close_popover": true
-                    }
-                ]
-            }
-        ];
-        if (canInternalizeSource) {
-            actions.push({
-                "id": "internalizeSource",
-                "label": "Copy into project",
-                "icon": "internalize-source",
-                "kind": "media",
-                "enabled": true
-            });
-        }
-        actions.push({
-            "id": "toggle_content_only",
-            "label": surfaceContentOnly ? "Show chrome" : "Content only",
-            "icon": surfaceContentOnly ? "node-chrome" : "content-only",
-            "kind": "media",
-            "enabled": true,
-            "primary": surfaceContentOnly
-        });
-        actions.push({
-            "id": "toggle_title",
-            "label": surfaceShowTitle ? "Hide title" : "Show title",
-            "icon": "title-heading",
-            "kind": "media",
-            "enabled": true,
-            "primary": false
-        });
-        actions.push({
-            "id": "toggle_frame",
-            "label": surfaceShowFrame ? "Hide frame" : "Show frame",
-            "icon": "frame-corners",
-            "kind": "media",
-            "enabled": true,
-            "primary": false
-        });
+        var actions = [];
         if (validSourceActive) {
             actions.push({
                 "id": "playPause",
@@ -258,21 +195,6 @@ GraphShared.GraphSurfaceBase {
                 "primary": normalizedFitMode === "cover",
                 "checked": normalizedFitMode === "cover"
             });
-            var fullscreenAction = host && host.surfaceFullscreenAction
-                ? host.surfaceFullscreenAction(fullscreenAvailable, false)
-                : null;
-            if (fullscreenAction)
-                actions.push(fullscreenAction);
-        }
-        if (fileIssueActive) {
-            actions.push({
-                "id": "repair",
-                "label": "Repair",
-                "icon": "plug",
-                "kind": "media",
-                "enabled": true,
-                "primary": true
-            });
         }
         return actions;
     }
@@ -297,7 +219,7 @@ GraphShared.GraphSurfaceBase {
         thumbnailPrimerTimer.stop();
         thumbnailPrimerPauseGuardTimer.stop();
         seekSlider.value = 0;
-        if (artifactRenameReleaseActive)
+        if (rendererReleased || artifactRenameReleaseActive)
             return;
         var expectedSourceUrl = resolvedSourceUrl;
         Qt.callLater(function() {
@@ -320,8 +242,28 @@ GraphShared.GraphSurfaceBase {
     }
 
     Component.onCompleted: {
-        _tryConsumePendingSurfaceAction();
         _syncSeekSlider();
+    }
+    Component.onDestruction: release()
+
+    function release() {
+        if (rendererReleased)
+            return;
+        rendererReleased = true;
+        thumbnailPrimerTimer.stop();
+        thumbnailPrimerPauseGuardTimer.stop();
+        thumbnailPrimerActive = false;
+        if (player.playbackState === MediaPlayer.PlayingState)
+            player.pause();
+    }
+
+    function fullscreenRuntimeState() {
+        return _runtimeState();
+    }
+
+    function onFullscreenOpened() {
+        if (player.playbackState === MediaPlayer.PlayingState)
+            player.pause();
     }
 
     Connections {
@@ -329,17 +271,8 @@ GraphShared.GraphSurfaceBase {
 
         function onIsSelectedChanged() {
             if (host && host.isSelected) {
-                surface._tryConsumePendingSurfaceAction();
                 surface._maybeAutoPlay();
             }
-        }
-
-        function onNodeOpenRequested(nodeId) {
-            if (!host || !host.nodeData)
-                return;
-            if (String(nodeId || "") !== String(host.nodeData.node_id || ""))
-                return;
-            surface._editSource();
         }
     }
 
@@ -393,7 +326,7 @@ GraphShared.GraphSurfaceBase {
             surface._enforceClipRange();
         }
         onPlaybackStateChanged: {
-            if (surface.artifactRenameReleaseActive)
+            if (surface.rendererReleased || surface.artifactRenameReleaseActive)
                 return;
             if (playbackState !== MediaPlayer.PlayingState) {
                 if (surface.thumbnailPrimerActive || surface.thumbnailPrimerPauseCommitGuard) {
@@ -670,13 +603,6 @@ GraphShared.GraphSurfaceBase {
         return changed;
     }
 
-    function _commitChromeAppearance(showTitle, showFrame) {
-        return _commitSurfaceProperties({
-            "show_title": Boolean(showTitle),
-            "show_frame": Boolean(showFrame)
-        });
-    }
-
     // Position saves can be triggered by blur-pausing playback; avoid the inline
     // property path because it reselects the node as a control interaction.
     function _persistPlaybackPosition(position) {
@@ -747,60 +673,6 @@ GraphShared.GraphSurfaceBase {
             "width": isFinite(width) && width > 0 ? width : 0,
             "height": isFinite(height) && height > 0 ? height : 0
         };
-    }
-
-    function _browseInlinePropertyPath(key, currentPath, sourceMode) {
-        if (!host || !host.browseNodePropertyPath)
-            return "";
-        var normalizedSourceMode = String(sourceMode || "").trim();
-        if (normalizedSourceMode.length > 0)
-            return String(host.browseNodePropertyPath(key, currentPath, normalizedSourceMode) || "");
-        return String(host.browseNodePropertyPath(key, currentPath) || "");
-    }
-
-    function _resolvedVideoSourceUrl() {
-        artifactRenameResolveGeneration;
-        var fileSourceUrl = GraphMediaPanelSourceUtils.resolvedLocalFileSourceUrl(sourcePath);
-        if (fileSourceUrl.length > 0)
-            return fileSourceUrl;
-        if (!GraphMediaPanelSourceUtils.isProjectArtifactRef(sourcePath))
-            return "";
-        if (!host || !host.resolveLocalFileSourceUrl)
-            return "";
-        return String(host.resolveLocalFileSourceUrl(sourcePath) || "");
-    }
-
-    function _internalizeSource() {
-        if (!canInternalizeSource || !host || !host.internalizeNodePropertyPath)
-            return false;
-        var managedPath = String(host.internalizeNodePropertyPath("source_path", sourcePath) || "");
-        if (!managedPath.length || managedPath === sourcePath)
-            return false;
-        _commitInlineProperty("source_path", managedPath);
-        return true;
-    }
-
-    function _repairRequestValue(currentPath) {
-        return "ea-file-repair:" + encodeURIComponent(String(currentPath || ""));
-    }
-
-    function repairFile() {
-        var repairedPath = _browseInlinePropertyPath("source_path", _repairRequestValue(sourcePath));
-        if (!repairedPath.length)
-            return;
-        _commitInlineProperty("source_path", repairedPath);
-    }
-
-    function _editSource(sourceMode) {
-        var selectedPath = _browseInlinePropertyPath(
-            "source_path",
-            sourcePath,
-            SourceStorageModeUtils.normalizedSourceMode(sourceMode, sourceStorageMode)
-        );
-        if (!selectedPath.length || selectedPath === sourcePath)
-            return false;
-        _commitInlineProperty("source_path", selectedPath);
-        return true;
     }
 
     function _commitTimelineBookmarks(bookmarks) {
@@ -878,7 +750,7 @@ GraphShared.GraphSurfaceBase {
                 "icon": "video-trim-save",
                 "kind": "media",
                 "toolbar_text": "Replace",
-                "enabled": validSourceActive && clipRangeActive,
+                "enabled": !sourceInputExposed && localSourceActive && clipRangeActive,
                 "close_popover": true
             },
             {
@@ -887,7 +759,7 @@ GraphShared.GraphSurfaceBase {
                 "icon": "video-trim-save",
                 "kind": "media",
                 "toolbar_text": "Copy",
-                "enabled": validSourceActive && clipRangeActive,
+                "enabled": localSourceActive && clipRangeActive,
                 "close_popover": true
             },
             {
@@ -1007,7 +879,7 @@ GraphShared.GraphSurfaceBase {
 
     function _trimStatePayload() {
         return {
-            "source_path": sourcePath,
+            "source": sourcePath,
             "fit_mode": normalizedFitMode,
             "muted": muted,
             "loop": loopEnabled,
@@ -1021,7 +893,7 @@ GraphShared.GraphSurfaceBase {
     }
 
     function _replaceWithTrimmedClip() {
-        if (!validSourceActive || !clipRangeActive || !host || !host.nodeData)
+        if (sourceInputExposed || !localSourceActive || !clipRangeActive || !host || !host.nodeData)
             return false;
         var bridge = _canvasCommandBridge();
         if (!bridge || !bridge.request_trim_video_clip_replace)
@@ -1039,7 +911,7 @@ GraphShared.GraphSurfaceBase {
     }
 
     function _saveTrimmedClipCopy() {
-        if (!validSourceActive || !clipRangeActive || !host || !host.nodeData)
+        if (!localSourceActive || !clipRangeActive || !host || !host.nodeData)
             return false;
         var bridge = _canvasCommandBridge();
         if (!bridge || !bridge.request_trim_video_clip_copy)
@@ -1108,24 +980,9 @@ GraphShared.GraphSurfaceBase {
         return Boolean(result && result.success);
     }
 
-    function _tryConsumePendingSurfaceAction() {
-        if (!host || !host.nodeData)
-            return;
-        var canvasItem = _canvasItem();
-        var nodeId = String(host.nodeData.node_id || "");
-        if (nodeId.length > 0
-                && canvasItem
-                && canvasItem.consumePendingNodeSurfaceAction
-                && canvasItem.consumePendingNodeSurfaceAction(nodeId)) {
-            _editSource();
-        }
-    }
-
     function _statusText() {
         if (sourcePath.trim().length === 0)
             return "Choose a local video file to preview it here.";
-        if (sourceRejected)
-            return "Video source must be an absolute local path or file URL.";
         if (player.error !== MediaPlayer.NoError)
             return player.errorString && player.errorString.length > 0
                 ? player.errorString
@@ -1161,11 +1018,11 @@ GraphShared.GraphSurfaceBase {
     }
 
     function _primeThumbnailFrame() {
-        if (artifactRenameReleaseActive)
+        if (rendererReleased || artifactRenameReleaseActive)
             return;
         if (thumbnailPrimerComplete || thumbnailPrimerActive)
             return;
-        if (!validSourceActive || sourceRejected || autoPlayEnabled || fullscreenOwnsPlayback)
+        if (!validSourceActive || autoPlayEnabled || fullscreenOwnsPlayback)
             return;
         if (player.playbackState === MediaPlayer.PlayingState)
             return;
@@ -1186,11 +1043,11 @@ GraphShared.GraphSurfaceBase {
     }
 
     function _maybeAutoPlay() {
-        if (artifactRenameReleaseActive)
+        if (rendererReleased || artifactRenameReleaseActive)
             return;
         if (!autoPlayEnabled || !hostPlaybackAllowed)
             return;
-        if (resolvedSourceUrl.length === 0 || sourceRejected)
+        if (resolvedSourceUrl.length === 0)
             return;
         if (player.playbackState === MediaPlayer.PlayingState)
             return;
@@ -1374,16 +1231,6 @@ GraphShared.GraphSurfaceBase {
         });
     }
 
-    function _requestContentFullscreen() {
-        if (!fullscreenAvailable || !validSourceActive || !host || !host.requestSurfaceContentFullscreen)
-            return false;
-        var state = _runtimeState();
-        var opened = Boolean(host.requestSurfaceContentFullscreen(state));
-        if (opened)
-            player.pause();
-        return opened;
-    }
-
     function _applyFullscreenReturnState(state) {
         var payload = state || ({});
         if (artifactRenameReleaseActive) {
@@ -1435,23 +1282,6 @@ GraphShared.GraphSurfaceBase {
     function dispatchSurfaceAction(actionId) {
         var normalized = String(actionId || "");
         _beginInlineInteraction();
-        if (normalized === "editSource")
-            return _editSource();
-        if (normalized === "editSourceManagedCopy")
-            return _editSource("managed_copy");
-        if (normalized === "editSourceExternalLink")
-            return _editSource("external_link");
-        if (normalized === "internalizeSource")
-            return _internalizeSource();
-        if (normalized === "toggle_content_only") {
-            return surfaceContentOnly
-                ? _commitChromeAppearance(true, true)
-                : _commitChromeAppearance(false, false);
-        }
-        if (normalized === "toggle_title")
-            return _commitChromeAppearance(!surfaceShowTitle, surfaceShowFrame);
-        if (normalized === "toggle_frame")
-            return _commitChromeAppearance(surfaceShowTitle, !surfaceShowFrame);
         if (normalized === "playPause")
             return togglePlayback();
         if (normalized === "rewindToStart")
@@ -1511,14 +1341,6 @@ GraphShared.GraphSurfaceBase {
                 "fit_mode",
                 normalizedFitMode === "cover" ? "contain" : "cover"
             );
-            return true;
-        }
-        if (normalized === "fullscreen")
-            return _requestContentFullscreen();
-        if (normalized === "repair") {
-            if (!fileIssueActive)
-                return false;
-            repairFile();
             return true;
         }
         return false;

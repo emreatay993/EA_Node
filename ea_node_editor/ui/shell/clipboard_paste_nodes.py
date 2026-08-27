@@ -16,28 +16,27 @@ from PyQt6.QtCore import QBuffer, QByteArray, QIODevice, QMimeData, QUrl
 from PyQt6.QtGui import QImage
 
 from ea_node_editor.nodes.builtins.passive_annotation import PASSIVE_ANNOTATION_TEXT_TYPE_ID
-from ea_node_editor.nodes.builtins.passive_media import (
-    PASSIVE_MEDIA_IMAGE_PANEL_TYPE_ID,
+from ea_node_editor.nodes.builtins.media_panel import MEDIA_PANEL_TYPE_ID
+from ea_node_editor.nodes.builtins.passive_mail import (
     PASSIVE_MEDIA_MAIL_PANEL_TYPE_ID,
-    PASSIVE_MEDIA_PDF_PANEL_TYPE_ID,
-    PASSIVE_MEDIA_VIDEO_PANEL_TYPE_ID,
 )
-from ea_node_editor.nodes.file_dialog_filters import MAIL_FILE_SUFFIXES
+from ea_node_editor.nodes.file_dialog_filters import (
+    MAIL_FILE_SUFFIXES,
+    media_kind_from_source,
+)
 from ea_node_editor.nodes.builtins.web_viewer import (
     WEB_PAGE_VIEWER_START_LOCATION_PROPERTY,
     WEB_PAGE_VIEWER_TYPE_ID,
 )
 from ea_node_editor.ui.shell.runtime_clipboard import parse_graph_fragment_payload
 
+_MEDIA_SOURCE_PROPERTY = "source"
 _SOURCE_PATH_PROPERTY = "source_path"
 _TEXT_PROPERTY = "text"
 _TEXT_FORMAT_PROPERTY = "format"
 _TABULAR_INPUT_NODE_TYPE_ID = "tabular.input"
 _TABULAR_INPUT_PATH_PROPERTY = "path"
 
-_IMAGE_SUFFIXES = frozenset({".png", ".jpg", ".jpeg", ".bmp", ".gif", ".webp", ".svg", ".tif", ".tiff"})
-_PDF_SUFFIXES = frozenset({".pdf"})
-_VIDEO_SUFFIXES = frozenset({".mp4", ".m4v", ".mov", ".avi", ".mkv", ".webm", ".wmv"})
 _MAIL_SUFFIXES = frozenset(MAIL_FILE_SUFFIXES)
 _HTML_SUFFIXES = frozenset({".html", ".htm", ".xhtml"})
 
@@ -359,12 +358,8 @@ def _is_remote_url(value: str) -> bool:
 
 
 def _target_for_suffix(suffix: str) -> tuple[str, str] | None:
-    if suffix in _IMAGE_SUFFIXES:
-        return PASSIVE_MEDIA_IMAGE_PANEL_TYPE_ID, _SOURCE_PATH_PROPERTY
-    if suffix in _PDF_SUFFIXES:
-        return PASSIVE_MEDIA_PDF_PANEL_TYPE_ID, _SOURCE_PATH_PROPERTY
-    if suffix in _VIDEO_SUFFIXES:
-        return PASSIVE_MEDIA_VIDEO_PANEL_TYPE_ID, _SOURCE_PATH_PROPERTY
+    if media_kind_from_source(f"source{suffix}"):
+        return MEDIA_PANEL_TYPE_ID, _MEDIA_SOURCE_PROPERTY
     if suffix in _MAIL_SUFFIXES:
         return PASSIVE_MEDIA_MAIL_PANEL_TYPE_ID, _SOURCE_PATH_PROPERTY
     if suffix in _HTML_SUFFIXES:
@@ -389,10 +384,10 @@ def _image_item_from_qimage(mime_data: QMimeData) -> ClipboardPasteItem | None:
     if not data:
         return None
     return ClipboardPasteItem(
-        type_id=PASSIVE_MEDIA_IMAGE_PANEL_TYPE_ID,
+        type_id=MEDIA_PANEL_TYPE_ID,
         properties={},
         artifact=ClipboardBytePayload(
-            property_key=_SOURCE_PATH_PROPERTY,
+            property_key=_MEDIA_SOURCE_PROPERTY,
             data=data,
             filename="clipboard-image.png",
             mime_type="image/png",
@@ -445,28 +440,28 @@ def _byte_item_from_mime_data(mime_data: QMimeData) -> ClipboardPasteItem | None
 def _target_for_mime_type(mime_type: str) -> tuple[str, str, str, str, str, str] | None:
     if mime_type == "application/pdf":
         return (
-            PASSIVE_MEDIA_PDF_PANEL_TYPE_ID,
-            _SOURCE_PATH_PROPERTY,
+            MEDIA_PANEL_TYPE_ID,
+            _MEDIA_SOURCE_PROPERTY,
             "clipboard-document.pdf",
             "clipboard_pdf",
             "media",
             "clipboard_pdf_source",
         )
-    if mime_type in _IMAGE_MIME_SUFFIXES or mime_type.startswith("image/"):
-        suffix = _IMAGE_MIME_SUFFIXES.get(mime_type, ".img")
+    if mime_type in _IMAGE_MIME_SUFFIXES:
+        suffix = _IMAGE_MIME_SUFFIXES[mime_type]
         return (
-            PASSIVE_MEDIA_IMAGE_PANEL_TYPE_ID,
-            _SOURCE_PATH_PROPERTY,
+            MEDIA_PANEL_TYPE_ID,
+            _MEDIA_SOURCE_PROPERTY,
             f"clipboard-image{suffix}",
             "clipboard_image",
             "media",
             "clipboard_image_source",
         )
-    if mime_type in _VIDEO_MIME_SUFFIXES or mime_type.startswith("video/"):
-        suffix = _VIDEO_MIME_SUFFIXES.get(mime_type, ".video")
+    if mime_type in _VIDEO_MIME_SUFFIXES:
+        suffix = _VIDEO_MIME_SUFFIXES[mime_type]
         return (
-            PASSIVE_MEDIA_VIDEO_PANEL_TYPE_ID,
-            _SOURCE_PATH_PROPERTY,
+            MEDIA_PANEL_TYPE_ID,
+            _MEDIA_SOURCE_PROPERTY,
             f"clipboard-video{suffix}",
             "clipboard_video",
             "media",

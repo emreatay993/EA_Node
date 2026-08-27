@@ -14,10 +14,9 @@ Use this for graph data structures, invariants, mutation services, transforms, h
 - `ea_node_editor/graph/registry_normalization.py` for project/workspace normalization against the active node registry.
 - `ea_node_editor/graph/registry_compatibility.py` for read-only open-session registry replacement checks.
 - `ea_node_editor/graph/property_validation.py` for saved/default property validation shared by reload safety and Python Script Apply.
-- `ea_node_editor/graph/validated_mutation.py` for registry-backed node, edge, endpoint reassignment, Python Script Apply, dynamic-port insert/remove/rename, property, parent, exposed-port, view-filter, and PDF page-policy mutations.
+- `ea_node_editor/graph/validated_mutation.py` for registry-backed node, edge, endpoint reassignment, Python Script Apply, dynamic-port insert/remove/rename, property, parent, exposed-port, and view-filter mutations.
 - `ea_node_editor/graph/record_mutation_ops.py` for record-level graph edits that intentionally use private `GraphModel` record writers.
 - `ea_node_editor/graph/workspace_view_ops.py` for workspace view lifecycle and camera-state mutations.
-- `ea_node_editor/graph/pdf_panel_page_policy.py` for graph-owned PDF Panel page clamping during mutation.
 - `ea_node_editor/graph/group_backdrop_mutation_ops.py` for group-backdrop wrapping transactions.
 - `ea_node_editor/graph/ids.py` for generated graph/project/workspace/view IDs.
 - `ea_node_editor/graph/effective_ports.py`

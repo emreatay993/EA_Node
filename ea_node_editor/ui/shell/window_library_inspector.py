@@ -41,6 +41,7 @@ from ea_node_editor.ui.support.node_presentation import (
     project_port_data_type_presentation,
     qml_safe_spec_property_value,
 )
+from ea_node_editor.ui.media_panel_source import media_panel_source_input_exposed
 from ea_node_editor.nodes.node_specs import (
     PortSpec,
     property_inspector_editor,
@@ -1092,6 +1093,7 @@ def build_selected_node_property_items(
         if bool(getattr(candidate, "sensitive", False))
         and str(getattr(candidate, "sensitive_scope_key", "") or "")
     }
+    media_source_input_exposed = media_panel_source_input_exposed(node)
     for prop in ordered_properties:
         current_value = node.properties.get(prop.key, prop.default)
         safe_current_value = qml_safe_spec_property_value(prop, current_value)
@@ -1148,7 +1150,16 @@ def build_selected_node_property_items(
                     port_connection_counts=port_connection_counts,
                 )
             )
-        item.update(build_file_issue_payload(issue_lookup.get(prop.key)))
+        if media_source_input_exposed and prop.key == "source":
+            item["editor_enabled"] = False
+            item["editor_disabled_reason"] = "Hide the Source input to edit Browse source."
+        item.update(
+            build_file_issue_payload(
+                None
+                if media_source_input_exposed and prop.key == "source"
+                else issue_lookup.get(prop.key)
+            )
+        )
         items.append(item)
     return build_property_items_with_adapters(adapters, adapter_context, items)
 

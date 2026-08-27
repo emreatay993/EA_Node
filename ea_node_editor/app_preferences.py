@@ -32,7 +32,7 @@ from ea_node_editor.settings import (
     DEFAULT_STATUS_BAR_LAYOUT,
     DEFAULT_GRID_OVERLAY_STYLE,
     DEFAULT_GRAPHICS_SETTINGS,
-    DEFAULT_IMAGE_NODE_APPEARANCE_SETTINGS,
+    DEFAULT_MEDIA_PANEL_SETTINGS,
     DEFAULT_NODE_COMMENT_EDITOR_DEFAULT,
     DEFAULT_NODE_ELAPSED_TIME_UNIT,
     DEFAULT_NODE_ELAPSED_TIME_VISIBILITY,
@@ -261,8 +261,8 @@ def normalize_expand_collision_avoidance_settings(payload: Any) -> dict[str, Any
     return normalized
 
 
-def normalize_image_node_appearance_settings(payload: Any) -> dict[str, bool]:
-    defaults = DEFAULT_IMAGE_NODE_APPEARANCE_SETTINGS
+def normalize_media_panel_settings(payload: Any) -> dict[str, bool]:
+    defaults = DEFAULT_MEDIA_PANEL_SETTINGS
     if not isinstance(payload, Mapping):
         return copy.deepcopy(defaults)
 
@@ -272,6 +272,10 @@ def normalize_image_node_appearance_settings(payload: Any) -> dict[str, bool]:
     normalized["autoplay_animations"] = _normalize_bool(
         payload.get("autoplay_animations"),
         defaults["autoplay_animations"],
+    )
+    normalized["source_input_exposed"] = _normalize_bool(
+        payload.get("source_input_exposed"),
+        defaults["source_input_exposed"],
     )
     return normalized
 
@@ -404,7 +408,7 @@ def normalize_graphics_settings(payload: Any) -> dict[str, Any]:
     shell_payload = payload.get("shell")
     theme_payload = payload.get("theme")
     typography_payload = payload.get("typography")
-    image_nodes_payload = payload.get("image_nodes")
+    media_panel_payload = payload.get("media_panel")
     plot_payload = payload.get("plot")
     engineering_viewer_payload = payload.get("engineering_viewer")
     folder_explorer_payload = payload.get("folder_explorer")
@@ -566,7 +570,7 @@ def normalize_graphics_settings(payload: Any) -> dict[str, Any]:
         normalized["typography"]["recent_text_colors"] = normalize_recent_text_colors(
             typography_payload.get("recent_text_colors")
         )
-    normalized["image_nodes"] = normalize_image_node_appearance_settings(image_nodes_payload)
+    normalized["media_panel"] = normalize_media_panel_settings(media_panel_payload)
     normalized["plot"] = normalize_plot_settings(plot_payload)
     normalized["engineering_viewer"] = normalize_engineering_viewer_settings(
         engineering_viewer_payload
@@ -697,10 +701,18 @@ def normalize_app_preferences_document(payload: Any) -> dict[str, Any]:
 
     if kind != APP_PREFERENCES_KIND:
         return normalized
-    if version in {5, 6}:
+    if version in {5, 6, 7}:
         payload = copy.deepcopy(dict(payload))
+        graphics = payload.get("graphics")
+        if isinstance(graphics, Mapping):
+            graphics = copy.deepcopy(dict(graphics))
+            if "media_panel" not in graphics and "image_nodes" in graphics:
+                graphics["media_panel"] = graphics.get("image_nodes")
+            graphics.pop("image_nodes", None)
+            payload["graphics"] = graphics
         payload["version"] = APP_PREFERENCES_VERSION
-        payload["python_runtime"] = copy.deepcopy(DEFAULT_PYTHON_RUNTIME_SETTINGS)
+        if version in {5, 6}:
+            payload["python_runtime"] = copy.deepcopy(DEFAULT_PYTHON_RUNTIME_SETTINGS)
         version = APP_PREFERENCES_VERSION
     if version != APP_PREFERENCES_VERSION:
         return normalized
@@ -738,7 +750,7 @@ class AppPreferencesStore:
             needs_migration = (
                 isinstance(payload, Mapping)
                 and str(payload.get("kind", "")).strip() == APP_PREFERENCES_KIND
-                and int(payload.get("version", 0) or 0) in {5, 6}
+                and int(payload.get("version", 0) or 0) in {5, 6, 7}
             )
         except (TypeError, ValueError):
             needs_migration = False
@@ -1120,7 +1132,7 @@ __all__ = [
     "normalize_selection_toolbar_minimal_menu_trigger",
     "normalize_selection_toolbar_mode",
     "normalize_graphics_settings",
-    "normalize_image_node_appearance_settings",
+    "normalize_media_panel_settings",
     "normalize_plot_default_backend_per_type",
     "normalize_plot_settings",
     "normalize_passive_node_library_display_mode",

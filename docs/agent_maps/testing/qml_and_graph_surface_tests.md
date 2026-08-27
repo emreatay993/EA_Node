@@ -17,6 +17,8 @@ Use this for graph surface, QML bridge, passive host, inline input, pointer, mod
 - `tests/test_select_surface.py`
 - `tests/test_trigger_surface.py`
 - `tests/test_passive_graph_surface_host.py`
+- `tests/test_media_panel_qml_surface.py`
+- `tests/test_media_panel_source_resolution.py`
 - `tests/test_data_type_ui_projection.py`
 - `tests/test_flow_edge_labels.py`
 - `tests/test_shell_theme.py`
@@ -61,7 +63,7 @@ Use this for graph surface, QML bridge, passive host, inline input, pointer, mod
   bookmarks/selections/query/export, and projection synchronization. Use
   `tests/test_viewer_host_service.py` for same-widget inline/detached/fullscreen
   ownership, fit/isolate routing, shortcuts, and cleanup.
-- Animated image coverage lives in `tests/test_passive_image_nodes.py` for decoder metadata, viewport/selection/preference/mode gating, first-frame reset, toolbar state, and stable animator identity; use `tests/test_shell_window_lifecycle.py::test_content_fullscreen_overlay_owns_animated_image_playback` for real-shell fullscreen ownership.
+- Media Panel QML dispatch, renderer teardown, input-authority action gating, stable metrics, and fullscreen mode changes live in `tests/test_media_panel_qml_surface.py`. `tests/test_passive_image_nodes.py` retains provider and renderer-source lifecycle checks; use `tests/test_shell_window_lifecycle.py::test_content_fullscreen_overlay_owns_animated_image_playback` for real-shell fullscreen ownership.
 - Exact `GraphNodeHost.inVisibleViewport` geometry, fail-open/edge-contact behavior, live drag/resize, axis-aware retention margins, continuous pan look-ahead, stable host identity, far-behind teardown, per-frame burst coalescing, direction reversal, and strict-viewport emergency refresh belong in `tests/test_graph_canvas_viewport_virtualization.py` and `tests/graph_surface/passive_host_interaction_suite.py`. Keep exact work suspension assertions separate from buffered loader/delegate retention assertions.
 - Use `tests/graph_track_b/qml_preference_bindings.py` for graph-canvas preference bridge projections, including plot lightweight-canvas state.
 - Keep notched-port render coverage in the graph-surface suites: default-on/explicit-off state, no-clip cached 9 x 18 px SVG half-discs for regular data ports, shared-source and input/output mirror behavior, node-contained bounds for retained-edge visibility, Theme/Dark/Light/White canvas-fill matching, curved-edge color/width matching the live chrome outline (including selected state), horizontal-only glow suppression with top/bottom spill retained, default/inactive endpoints, collapsed/chrome-free/flowchart exclusions, inset/full-width shadow geometry, and cache invalidation when the setting or canvas background changes. Preference projection remains in `tests/graph_track_b/qml_preference_bindings.py`; `tests/test_track_h_perf_harness.py` owns the benchmark parity fact.
@@ -74,7 +76,7 @@ Use this for graph surface, QML bridge, passive host, inline input, pointer, mod
 $env:QT_QPA_PLATFORM = "offscreen"
 $env:QT_QUICK_CONTROLS_STYLE = "Basic"
 & (Join-Path $env:QT_ROOT "bin\qmltestrunner.exe") -input tests/qml_quick/tst_graph_surface_controls.qml -eventdelay 0 -keydelay 0 -mousedelay 0 -o -,txt
-.\venv\Scripts\python.exe -m unittest tests.test_graph_surface_input_contract tests.test_graph_surface_input_inline tests.test_passive_graph_surface_host tests.test_passive_image_nodes -v
+.\venv\Scripts\python.exe -m pytest tests/test_graph_surface_input_contract.py tests/test_graph_surface_input_inline.py tests/test_passive_graph_surface_host.py tests/test_media_panel_qml_surface.py tests/test_passive_image_nodes.py --ignore=venv -q
 .\venv\Scripts\python.exe -m pytest tests/test_graph_canvas_viewport_virtualization.py --ignore=venv -q
 Remove-Item Env:QT_QPA_PLATFORM, Env:QT_QUICK_CONTROLS_STYLE -ErrorAction SilentlyContinue
 $env:QT_QPA_PLATFORM = "offscreen"

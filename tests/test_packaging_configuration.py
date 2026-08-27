@@ -646,7 +646,7 @@ def test_spec_declares_web_profile_assets_and_guarded_webengine_hiddenimports() 
     assert "datas += collect_data_files(\n    \"ea_node_editor\",\n    includes=list(WEB_ASSET_DATA_INCLUDES)," in spec_source
 
 
-def test_spec_declares_qt_multimedia_hiddenimports_for_video_panel() -> None:
+def test_spec_declares_qt_multimedia_hiddenimports_for_media_panel_video_mode() -> None:
     spec_source = SPEC_PATH.read_text(encoding="utf-8")
     assignments = _literal_assignments(SPEC_PATH)
 
@@ -664,7 +664,10 @@ def test_spec_declares_imageio_ffmpeg_payload_for_video_trim() -> None:
     assert assignments["IMAGEIO_FFMPEG_METADATA_DISTRIBUTIONS"] == ("imageio-ffmpeg",)
     assert assignments["IMAGEIO_FFMPEG_DATA_INCLUDES"] == ("binaries/*",)
     assert "def _collect_imageio_ffmpeg_payload" in spec_source
-    assert "Packaging requires imageio-ffmpeg for bundled Video Panel trimming." in spec_source
+    assert (
+        "Packaging requires imageio-ffmpeg for bundled Media Panel video trimming."
+        in spec_source
+    )
     assert 'collect_data_files("imageio_ffmpeg", includes=list(IMAGEIO_FFMPEG_DATA_INCLUDES))' in spec_source
     assert "data_files += copy_metadata(distribution_name)" in spec_source
     assert "imageio_ffmpeg_hiddenimports, imageio_ffmpeg_datas = _collect_imageio_ffmpeg_payload(require=True)" in spec_source
@@ -774,8 +777,12 @@ def test_windows_build_scripts_use_profile_specific_packaging_switches() -> None
     assert 'dependency_group = "hpc"' not in build_package_source
     assert 'dependency_group = "plot"' in build_package_source
     assert 'dependency_group = "acceleration"' in build_package_source
-    assert 'Video Panel playback uses Qt Multimedia MediaPlayer, VideoOutput, and AudioOutput.' in build_package_source
-    assert 'Video Panel trim-save uses imageio-ffmpeg' in build_package_source
+    assert (
+        "Media Panel video mode uses Qt Multimedia MediaPlayer, VideoOutput, "
+        "and AudioOutput."
+        in build_package_source
+    )
+    assert "Media Panel video-mode trim-save uses imageio-ffmpeg" in build_package_source
     assert 'dependency_group = "tabular"' in build_package_source
     assert 'Tabular Data stays optional' in build_package_source
     assert 'Full profile bundles every current runtime extra' in build_package_source

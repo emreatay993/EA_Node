@@ -187,12 +187,22 @@ QtObject {
         return isFinite(numeric) ? Math.floor(numeric) : Number(defaultValue || 0);
     }
 
-    function _isPdfPanelPayload(payload) {
+    function _mediaPanelSource(nodeId) {
+        var facts = root.canvasItem && root.canvasItem.executionFacts
+            ? root.canvasItem.executionFacts
+            : null;
+        var lookup = facts && facts.mediaPanelSourceLookup
+            ? facts.mediaPanelSourceLookup
+            : ({});
+        return lookup[String(nodeId || "").trim()] || ({});
+    }
+
+    function _isReadyPdfMediaPayload(payload, nodeId) {
+        var source = root._mediaPanelSource(nodeId);
         return !!payload
-            && (
-                String(payload.type_id || "") === "passive.media.pdf_panel"
-                || String(payload.surface_variant || "") === "pdf_panel"
-            );
+            && String(payload.type_id || "") === "media.panel"
+            && String(source.state || "") === "ready"
+            && String(source.media_kind || "") === "pdf";
     }
 
     function nodeReadOnly(nodeId) {
@@ -593,10 +603,15 @@ QtObject {
         if (!nodeId.length || root.nodeReadOnly(nodeId))
             return false;
         var payload = root._nodePayload(nodeId);
-        if (!root._isPdfPanelPayload(payload))
+        if (!root._isReadyPdfMediaPayload(payload, nodeId))
             return false;
         var properties = payload.properties || ({});
-        var sourcePath = String(properties.source_path || "");
+        var sourceResolution = root._mediaPanelSource(nodeId);
+        var sourcePath = String(
+            sourceResolution.resolved_source_url
+            || sourceResolution.source_ref
+            || ""
+        );
         if (!sourcePath.length || !root.canvasItem || !root.canvasItem.describeNodeSurfacePdfPreview)
             return false;
         var currentPropertyPage = root._intValue(properties.page_number, 1);

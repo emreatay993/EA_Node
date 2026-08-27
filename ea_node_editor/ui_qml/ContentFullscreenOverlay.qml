@@ -53,17 +53,35 @@ FocusScope {
         ? surfaceSpec.input_capabilities
         : ({})
     readonly property var webSurfaceBridge: root.bridgeRef && root.bridgeRef.web_surface_bridge ? root.bridgeRef.web_surface_bridge : null
-    readonly property string mediaKind: String(root.mediaPayload.media_kind || root.contentKind || "")
+    readonly property bool mediaContentActive: root.contentKind === "media"
+    readonly property string mediaState: root.mediaContentActive
+        ? String(root.mediaPayload.source_state || "invalid")
+        : ""
+    readonly property bool mediaReady: root.bridgeOpen
+        && root.mediaContentActive
+        && root.mediaState === "ready"
+    readonly property string mediaKind: root.mediaContentActive
+        ? String(root.mediaPayload.media_kind || "")
+        : ""
+    readonly property bool mediaImageActive: root.mediaReady && root.mediaKind === "image"
+    readonly property bool mediaPdfActive: root.mediaReady && root.mediaKind === "pdf"
+    readonly property bool mediaVideoActive: root.mediaReady && root.mediaKind === "video"
+    readonly property string mediaStateMessage: String(
+        root.mediaPayload.source_message
+        || root.mediaPayload.preview_message
+        || "Media preview is unavailable."
+    )
     readonly property string previewSourceUrl: String(root.mediaPayload.preview_url || "")
-    readonly property string pdfSourceUrl: String(root.mediaPayload.resolved_source_url || "")
-    readonly property string imageResolvedSourceUrl: root.mediaKind === "image"
+    readonly property string pdfSourceUrl: root.mediaPdfActive
         ? String(root.mediaPayload.resolved_source_url || "")
         : ""
-    readonly property bool mediaImageAnimationSupported: root.mediaKind === "image"
+    readonly property string imageResolvedSourceUrl: root.mediaImageActive
+        ? String(root.mediaPayload.resolved_source_url || "")
+        : ""
+    readonly property bool mediaImageAnimationSupported: root.mediaImageActive
         && Boolean(root.mediaPayload.is_animated)
         && Boolean(root.mediaPayload.animation_supported)
     readonly property var mediaAnimatedImageItem: mediaAnimatedImageLoader.item
-    readonly property string sourcePath: String(root.mediaPayload.source_path || "")
     readonly property string mailPreviewMessage: String(root.mediaPayload.preview_message
         || (root.mediaPayload.mail_preview ? root.mediaPayload.mail_preview.message : "")
         || "Mail preview is unavailable.")
@@ -227,7 +245,7 @@ FocusScope {
 
     Keys.priority: Keys.BeforeItem
     Keys.onPressed: function(event) {
-        if (root.contentKind === "pdf") {
+        if (root.mediaPdfActive) {
             if (event.key === Qt.Key_Escape
                     && root.pdfSearchOpen
                     && pdfSearchField
@@ -344,7 +362,16 @@ FocusScope {
         }
     }
 
-    onMediaKindChanged: root._syncPdfDocumentSource()
+    onMediaKindChanged: {
+        root.pdfViewerReleased = false;
+        root._resetPdfReaderControls();
+        root._syncPdfDocumentSource();
+    }
+    onMediaStateChanged: {
+        root.pdfViewerReleased = !root.mediaReady;
+        root._resetPdfReaderControls();
+        root._syncPdfDocumentSource();
+    }
     onPdfSourceUrlChanged: {
         _resetPdfReaderControls();
         _syncPdfDocumentSource();
@@ -373,11 +400,13 @@ FocusScope {
                 activeWebPageHost.flushBrowserState();
             root._releaseBorrowedWebPageHost();
         }
-        if (root.contentKind === "video" && videoFullscreenSurface.requestCloseWithState) {
-            videoFullscreenSurface.requestCloseWithState();
+        if (root.mediaVideoActive
+                && videoFullscreenLoader.item
+                && videoFullscreenLoader.item.requestCloseWithState) {
+            videoFullscreenLoader.item.requestCloseWithState();
             return;
         }
-        if (root.contentKind === "pdf")
+        if (root.mediaPdfActive)
             root._releasePdfViewer();
         if (root.bridgeRef.request_close)
             root.bridgeRef.request_close();
@@ -608,7 +637,7 @@ FocusScope {
     }
 
     function _pdfReaderReady() {
-        return root.contentKind === "pdf"
+        return root.mediaPdfActive
             && root.pdfDocumentReady
             && !!root.pdfMultiPageViewHandle;
     }
@@ -704,7 +733,7 @@ FocusScope {
     }
 
     function _openPdfSearch() {
-        if (root.contentKind !== "pdf")
+        if (!root.mediaPdfActive)
             return false;
         root.pdfSearchOpen = true;
         Qt.callLater(function() {
@@ -755,7 +784,7 @@ FocusScope {
     }
 
     function _pdfSearchStatusText() {
-        if (root.contentKind !== "pdf" || root.pdfSearchText.trim().length === 0)
+        if (!root.mediaPdfActive || root.pdfSearchText.trim().length === 0)
             return "";
         var count = root.pdfSearchResultCount;
         if (count < 0)
@@ -770,7 +799,7 @@ FocusScope {
     }
 
     function _requestPdfPageDelta(delta) {
-        if (root.contentKind !== "pdf")
+        if (!root.mediaPdfActive)
             return false;
         if (root.pdfPageCount > 0 && root.pdfDocumentReady) {
             var normalizedDelta = root._intValue(delta, 0);
@@ -796,7 +825,7 @@ FocusScope {
     }
 
     function _requestPdfPageDeltaFromWheel(wheel) {
-        if (root.contentKind !== "pdf" || (pdfPageField && pdfPageField.activeFocus))
+        if (!root.mediaPdfActive || (pdfPageField && pdfPageField.activeFocus))
             return false;
         var deltaY = root._wheelDeltaY(wheel);
         if (Math.abs(deltaY) < 0.001)
@@ -805,7 +834,7 @@ FocusScope {
     }
 
     function _requestPdfPageNumber(pageNumber) {
-        if (root.contentKind !== "pdf")
+        if (!root.mediaPdfActive)
             return false;
         if (root.pdfPageCount > 0 && root.pdfDocumentReady)
             return root._goToPdfViewerPage(pageNumber);
@@ -891,7 +920,7 @@ FocusScope {
     }
 
     function _activeSurfaceSpec() {
-        if ((root.contentKind === "image" || root.contentKind === "pdf" || root.contentKind === "video" || root.contentKind === "mail")
+        if ((root.contentKind === "media" || root.contentKind === "mail")
                 && root.mediaPayload.surface_spec)
             return root.mediaPayload.surface_spec;
         if (root.contentKind === "viewer" && root.viewerPayload.surface_spec)
@@ -1158,7 +1187,7 @@ FocusScope {
         target: root.graphCanvasCommandBridgeRef
 
         function onManagedArtifactRenameReleaseRequested(nodeId) {
-            if (root.contentKind !== "video")
+            if (!root.mediaVideoActive)
                 return;
             if (String(nodeId || "") !== root.activeNodeId)
                 return;
@@ -1232,7 +1261,7 @@ FocusScope {
                 Text {
                     id: shortcutHint
                     objectName: "contentFullscreenShortcutHint"
-                    text: root.contentKind === "pdf"
+                    text: root.mediaPdfActive
                         ? "Ctrl+F  Ctrl+Plus/Minus  Esc"
                         : (root.contentKind === "mail"
                             ? "Ctrl+Plus/Minus  Esc"
@@ -1268,7 +1297,8 @@ FocusScope {
                 anchors.fill: parent
                 anchors.margins: 12
                 spacing: 10
-                visible: root.contentKind === "image" || root.contentKind === "pdf"
+                visible: root.mediaReady
+                    && (root.mediaKind === "image" || root.mediaKind === "pdf")
 
                 ColumnLayout {
                     id: mediaToolbar
@@ -1597,7 +1627,7 @@ FocusScope {
                         anchors.fill: parent
                         anchors.margins: 8
                         active: root.bridgeOpen
-                            && root.mediaKind === "pdf"
+                            && root.mediaPdfActive
                             && root.pdfSourceUrl.length > 0
                             && !root.pdfViewerReleased
                         sourceComponent: Component {
@@ -1646,7 +1676,7 @@ FocusScope {
                         y: Number(root.mediaImageDisplayRect.y || 0)
                         width: Math.max(0, Number(root.mediaImageDisplayRect.width || 0))
                         height: Math.max(0, Number(root.mediaImageDisplayRect.height || 0))
-                        visible: root.mediaKind === "image"
+                        visible: root.mediaImageActive
                             && (root.mediaImageAnimationSupported
                                 ? root.imageResolvedSourceUrl.length > 0
                                 : root.previewSourceUrl.length > 0)
@@ -1684,7 +1714,7 @@ FocusScope {
                                     cache: true
                                     mipmap: true
                                     smooth: true
-                                    source: root.mediaKind === "image" && !root.mediaImageAnimationSupported
+                                    source: root.mediaImageActive && !root.mediaImageAnimationSupported
                                         ? root.previewSourceUrl
                                         : ""
                                     sourceSize.width: 0
@@ -1867,15 +1897,29 @@ FocusScope {
                 }
             }
 
-            PassiveComponents.GraphVideoPanelFullscreenSurface {
-                id: videoFullscreenSurface
-                objectName: "contentFullscreenVideoSurface"
+            Loader {
+                id: videoFullscreenLoader
+                objectName: "contentFullscreenVideoSurfaceLoader"
                 anchors.fill: parent
                 anchors.margins: 12
-                visible: root.contentKind === "video"
-                payload: root.mediaPayload
-                bridgeRef: root.bridgeRef
-                themePalette: root.themePalette
+                active: root.mediaVideoActive
+                sourceComponent: PassiveComponents.GraphMediaVideoFullscreenRenderer {
+                    payload: root.mediaPayload
+                    bridgeRef: root.bridgeRef
+                    themePalette: root.themePalette
+                }
+            }
+
+            Text {
+                objectName: "contentFullscreenMediaStatePlaceholder"
+                anchors.centerIn: parent
+                width: Math.min(parent.width - 64, 520)
+                visible: root.mediaContentActive && !root.mediaReady
+                text: root.mediaStateMessage
+                color: root.themePalette.muted_fg
+                font.pixelSize: 13
+                horizontalAlignment: Text.AlignHCenter
+                wrapMode: Text.WordWrap
             }
 
             ColumnLayout {

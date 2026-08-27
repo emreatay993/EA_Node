@@ -1289,6 +1289,22 @@ class GraphSurfaceCanvasInteractionTests(GraphSurfaceInputContractTestBase):
                     property var selectedIds: []
                     property var payloads: ({})
                     property string lastCommit: ""
+                    property var executionFacts: ({
+                        "mediaPanelSourceLookup": {
+                            "pdf_node": {
+                                "state": "ready",
+                                "media_kind": "pdf",
+                                "source_ref": "manual.pdf",
+                                "resolved_source_url": "file:///manual.pdf"
+                            },
+                            "image_node": {
+                                "state": "ready",
+                                "media_kind": "image",
+                                "source_ref": "image.png",
+                                "resolved_source_url": "file:///image.png"
+                            }
+                        }
+                    })
 
                     function selectedNodeIds() {
                         return selectedIds;
@@ -1337,12 +1353,12 @@ class GraphSurfaceCanvasInteractionTests(GraphSurfaceInputContractTestBase):
 
             probe.setProperty("payloads", {
                 "pdf_node": {
-                    "type_id": "passive.media.pdf_panel",
-                    "properties": {"source_path": "manual.pdf", "page_number": 1},
+                    "type_id": "media.panel",
+                    "properties": {"source": "manual.pdf", "page_number": 1},
                 },
                 "image_node": {
-                    "type_id": "passive.media.image_panel",
-                    "properties": {"source_path": "image.png"},
+                    "type_id": "media.panel",
+                    "properties": {"source": "image.png"},
                 },
             })
             probe.setProperty("selectedIds", ["pdf_node"])
@@ -1352,12 +1368,12 @@ class GraphSurfaceCanvasInteractionTests(GraphSurfaceInputContractTestBase):
             probe.setProperty("lastCommit", "")
             probe.setProperty("payloads", {
                 "pdf_node": {
-                    "type_id": "passive.media.pdf_panel",
-                    "properties": {"source_path": "manual.pdf", "page_number": 3},
+                    "type_id": "media.panel",
+                    "properties": {"source": "manual.pdf", "page_number": 3},
                 },
                 "image_node": {
-                    "type_id": "passive.media.image_panel",
-                    "properties": {"source_path": "image.png"},
+                    "type_id": "media.panel",
+                    "properties": {"source": "image.png"},
                 },
             })
             assert probe.navigate(1) is True

@@ -98,6 +98,7 @@ def create_context_bridge_dependencies(
         canvas_source=presenters.graph_canvas_presenter,
         graphics_source=presenters.shell_workspace_presenter,
         execution_source=host,
+        project_source=host,
         scene_bridge=primitives.scene,
         view_bridge=primitives.view,
     )

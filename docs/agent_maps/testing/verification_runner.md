@@ -22,8 +22,9 @@ Use this for verification modes, pytest defaults, xdist behavior, summarized out
 - Keep `gui.qml_quick` first in both `gui` and `full`; it runs the authoritative
   pure-QML `tests/qml_quick` directory before parallel Python GUI pytest and
   `gui.serial.pytest`. Keep only the proven Windows Qt/xdist-contention targets
-  in that serial phase: one graph-surface selector, one DOCX selector, and
-  `tests/test_viewer_surface_contract.py`; all other GUI tests remain parallel.
+  in that serial phase: one DOCX selector and `tests/test_viewer_surface_contract.py`;
+  graph-surface and Media Panel lock coverage remains in the parallel GUI/QML
+  lanes. All other GUI tests remain parallel.
   `fast` and `slow` must not resolve or require the external Qt SDK.
 - Discover `qmltestrunner` from explicit `QT_ROOT/bin` first, otherwise from
   `PATH`. Validate the sibling `qtpaths6`/`qtpaths` Qt major/minor against the

@@ -2184,7 +2184,9 @@ class GraphSceneBridgeTrackBTests(unittest.TestCase):
 
     def test_non_flowchart_passive_edge_payloads_publish_cardinal_side_metadata(self) -> None:
         source_id = self.scene.add_node_from_type("passive.planning.task_card", 20.0, 30.0)
-        target_id = self.scene.add_node_from_type("passive.media.image_panel", 360.0, 90.0)
+        target_id = self.scene.add_node_from_type(
+            "passive.media.mail_panel", 360.0, 90.0
+        )
         edge_id = self.scene.add_edge(source_id, "right", target_id, "left")
 
         node_payload = {item["node_id"]: item for item in self.scene.nodes_model}

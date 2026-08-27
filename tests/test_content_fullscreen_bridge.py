@@ -11,6 +11,8 @@ from PyQt6.QtCore import QObject, QPointF, QMarginsF, QRectF, Qt, QUrl
 from PyQt6.QtGui import QImage, QPainter, QPageLayout, QPageSize, QPdfWriter
 from PyQt6.QtTest import QTest
 
+from ea_node_editor.execution.protocol import SettledPortResult
+from ea_node_editor.runtime_contracts import DataTree
 from ea_node_editor.nodes.builtins.ansys_dpf_common import DPF_VIEWER_NODE_TYPE_ID
 from ea_node_editor.nodes.builtins.core import PYTHON_SCRIPT_DEFAULT_SOURCE
 from ea_node_editor.nodes.builtins.ansys_dpf_viewer import DpfViewerNodePlugin
@@ -23,12 +25,10 @@ from ea_node_editor.nodes.builtins.excalidraw import (
     EXCALIDRAW_STATE_PROPERTY,
 )
 from ea_node_editor.nodes.builtins.jupyter_notebook import JUPYTER_NOTEBOOK_TYPE_ID
-from ea_node_editor.nodes.builtins.passive_media import (
-    PASSIVE_MEDIA_IMAGE_PANEL_TYPE_ID,
+from ea_node_editor.nodes.builtins.passive_mail import (
     PASSIVE_MEDIA_MAIL_PANEL_TYPE_ID,
-    PASSIVE_MEDIA_PDF_PANEL_TYPE_ID,
-    PASSIVE_MEDIA_VIDEO_PANEL_TYPE_ID,
 )
+from ea_node_editor.nodes.builtins.media_panel import MEDIA_PANEL_TYPE_ID
 from ea_node_editor.nodes.bootstrap import build_default_registry
 from ea_node_editor.graph.records import NodeInstance
 from ea_node_editor.nodes.builtins.web_viewer import WEB_PAGE_VIEWER_TYPE_ID
@@ -115,7 +115,7 @@ class _VideoTrimPresenterRecorder:
         return {
             "success": True,
             "created_node_id": "",
-            "created_type_id": PASSIVE_MEDIA_VIDEO_PANEL_TYPE_ID,
+            "created_type_id": MEDIA_PANEL_TYPE_ID,
             "source_ref": "project-staged://fullscreen_replace",
             "error": {},
             "request_id": "fullscreen-replace",
@@ -134,7 +134,7 @@ class _VideoTrimPresenterRecorder:
         return {
             "success": True,
             "created_node_id": "fullscreen-copy",
-            "created_type_id": PASSIVE_MEDIA_VIDEO_PANEL_TYPE_ID,
+            "created_type_id": MEDIA_PANEL_TYPE_ID,
             "source_ref": "project-staged://fullscreen_copy",
             "error": {},
             "request_id": "fullscreen-copy",
@@ -192,11 +192,12 @@ class ContentFullscreenBridgeTests(MainWindowShellTestBase):
 
     def _add_image_node(self, *, name: str = "content-fullscreen-image.png") -> str:
         image_path = self._write_test_image(name)
-        node_id = self.window.scene.add_node_from_type(PASSIVE_MEDIA_IMAGE_PANEL_TYPE_ID, x=120.0, y=80.0)
+        node_id = self.window.scene.add_node_from_type(MEDIA_PANEL_TYPE_ID, x=120.0, y=80.0)
+        self.window.scene.set_exposed_port(node_id, "source", False)
         self.window.scene.set_node_properties(
             node_id,
             {
-                "source_path": str(image_path),
+                "source": str(image_path),
                 "fit_mode": "cover",
                 "crop_x": 0.1,
                 "crop_y": 0.2,
@@ -213,11 +214,12 @@ class ContentFullscreenBridgeTests(MainWindowShellTestBase):
     def _add_video_node(self, *, name: str = "content-fullscreen-video.mp4") -> str:
         video_path = Path(self._env.temp_path) / name
         video_path.write_bytes(b"not a decoded fixture")
-        node_id = self.window.scene.add_node_from_type(PASSIVE_MEDIA_VIDEO_PANEL_TYPE_ID, x=120.0, y=80.0)
+        node_id = self.window.scene.add_node_from_type(MEDIA_PANEL_TYPE_ID, x=120.0, y=80.0)
+        self.window.scene.set_exposed_port(node_id, "source", False)
         self.window.scene.set_node_properties(
             node_id,
             {
-                "source_path": str(video_path),
+                "source": str(video_path),
                 "fit_mode": "cover",
                 "auto_play": True,
                 "loop": True,
@@ -229,7 +231,6 @@ class ContentFullscreenBridgeTests(MainWindowShellTestBase):
                 "clip_enabled": True,
                 "clip_start_ms": 2000,
                 "clip_end_ms": 6000,
-                "unfocused_behavior": "keep_playing",
             },
         )
         self.app.processEvents()
@@ -243,11 +244,12 @@ class ContentFullscreenBridgeTests(MainWindowShellTestBase):
         page_number: int = 1,
     ) -> str:
         pdf_path = self._write_test_pdf(name, page_count=page_count)
-        node_id = self.window.scene.add_node_from_type(PASSIVE_MEDIA_PDF_PANEL_TYPE_ID, x=120.0, y=80.0)
+        node_id = self.window.scene.add_node_from_type(MEDIA_PANEL_TYPE_ID, x=120.0, y=80.0)
+        self.window.scene.set_exposed_port(node_id, "source", False)
         self.window.scene.set_node_properties(
             node_id,
             {
-                "source_path": str(pdf_path),
+                "source": str(pdf_path),
                 "page_number": page_number,
             },
         )
@@ -343,8 +345,8 @@ class ContentFullscreenBridgeTests(MainWindowShellTestBase):
         self.assertTrue(bridge.open)
         self.assertEqual(bridge.node_id, node_id)
         self.assertEqual(bridge.workspace_id, workspace_id)
-        self.assertEqual(bridge.content_kind, "image")
-        self.assertEqual(bridge.title, "Image Panel")
+        self.assertEqual(bridge.content_kind, "media")
+        self.assertEqual(bridge.title, "Media Panel")
         self.assertEqual(bridge.last_error, "")
         self.assertEqual(bridge.viewer_payload, {})
 
@@ -390,20 +392,76 @@ class ContentFullscreenBridgeTests(MainWindowShellTestBase):
 
         node_payload = next(item for item in self.window.scene.nodes_model if item["node_id"] == node_id)
         self.assertEqual(node_payload["surface_spec"]["component_key"], "media")
-        self.assertEqual(node_payload["surface_spec"]["fullscreen"]["content_kind"], "image")
+        self.assertEqual(media_payload["surface_spec"]["fullscreen"]["content_kind"], "media")
         self.assertIn("stylus", node_payload["surface_spec"]["input_capabilities"]["devices"])
         self.assertNotIn("content_fullscreen", json.dumps(_payload_keys(node_payload)).lower())
         document = self.window.serializer.to_document(self.window.model.project)
         self.assertNotIn("surface_spec", json.dumps(_payload_keys(document)).lower())
         self.assertNotIn("fullscreen", json.dumps(_payload_keys(document)).lower())
 
+    def test_content_fullscreen_media_refreshes_on_exposure_edge_and_execution(self) -> None:
+        node_id = self._add_image_node(name="content-fullscreen-refresh.png")
+        workspace_id = self.window.workspace_manager.active_workspace_id()
+        image_path = Path(self._env.temp_path) / "content-fullscreen-refresh.png"
+        bridge = self._bridge()
+
+        self.assertTrue(bridge.request_open_node(node_id))
+        self.assertEqual(bridge.media_payload["source_state"], "ready")
+
+        self.window.scene.set_exposed_port(node_id, "source", True)
+        self.app.processEvents()
+        self.assertEqual(bridge.media_payload["source_state"], "waiting")
+        self.assertEqual(bridge.media_payload["resolved_source_url"], "")
+        self.assertEqual(bridge.media_payload["source_ref"], "")
+
+        source_id = self.window.scene.add_node_from_type(
+            "io.path_pointer", x=20.0, y=80.0
+        )
+        self.window.scene.add_edge(source_id, "path", node_id, "source")
+        self.app.processEvents()
+        self.assertTrue(bridge.media_payload["input_connected"])
+        self.assertEqual(bridge.media_payload["source_state"], "waiting")
+
+        self.window.run_state.cached_node_output_records_by_workspace_id = {
+            workspace_id: {
+                node_id: {
+                    "run-1": {
+                        "observed_at_epoch_ms": 1.0,
+                        "outputs": {
+                            "_surface_source": SettledPortResult(
+                                status="value",
+                                value=DataTree.from_item(str(image_path)),
+                            )
+                        },
+                        "stale": False,
+                    }
+                }
+            }
+        }
+        self.window.run_state.node_execution_workspace_id = workspace_id
+        self.window.run_state.completed_node_ids.add(node_id)
+        self.window.node_execution_state_changed.emit()
+        self.app.processEvents()
+
+        self.assertEqual(bridge.media_payload["source_state"], "ready")
+        self.assertEqual(bridge.media_payload["authority"], "input")
+        self.assertEqual(bridge.media_payload["source_ref"], str(image_path))
+
+        self.window.run_state.completed_node_ids.discard(node_id)
+        self.window.run_state.running_node_ids.add(node_id)
+        self.window.node_execution_state_changed.emit()
+        self.app.processEvents()
+        self.assertEqual(bridge.media_payload["source_state"], "running")
+        self.assertEqual(bridge.media_payload["resolved_source_url"], "")
+
     def test_content_fullscreen_bridge_exposes_animated_image_runtime_metadata(self) -> None:
         image_path = Path(__file__).resolve().parent / "fixtures" / "media" / "animated-small.gif"
-        node_id = self.window.scene.add_node_from_type(PASSIVE_MEDIA_IMAGE_PANEL_TYPE_ID, x=120.0, y=80.0)
+        node_id = self.window.scene.add_node_from_type(MEDIA_PANEL_TYPE_ID, x=120.0, y=80.0)
+        self.window.scene.set_exposed_port(node_id, "source", False)
         self.window.scene.set_node_properties(
             node_id,
             {
-                "source_path": str(image_path),
+                "source": str(image_path),
                 "fit_mode": "contain",
                 "animation_playback_mode": "pause",
             },
@@ -427,11 +485,12 @@ class ContentFullscreenBridgeTests(MainWindowShellTestBase):
 
     def test_content_fullscreen_bridge_opens_pdf_media_with_page_preview_contract(self) -> None:
         pdf_path = Path(__file__).resolve().parent / "fixtures" / "passive_nodes" / "reference_preview.pdf"
-        node_id = self.window.scene.add_node_from_type(PASSIVE_MEDIA_PDF_PANEL_TYPE_ID, x=120.0, y=80.0)
+        node_id = self.window.scene.add_node_from_type(MEDIA_PANEL_TYPE_ID, x=120.0, y=80.0)
+        self.window.scene.set_exposed_port(node_id, "source", False)
         self.window.scene.set_node_properties(
             node_id,
             {
-                "source_path": str(pdf_path),
+                "source": str(pdf_path),
                 "page_number": 1,
             },
         )
@@ -441,10 +500,10 @@ class ContentFullscreenBridgeTests(MainWindowShellTestBase):
         self.assertTrue(bridge.request_open_node(node_id))
 
         self.assertTrue(bridge.open)
-        self.assertEqual(bridge.content_kind, "pdf")
+        self.assertEqual(bridge.content_kind, "media")
         media_payload = bridge.media_payload
         self.assertEqual(media_payload["media_kind"], "pdf")
-        self.assertEqual(media_payload["surface_spec"]["fullscreen"]["content_kind"], "pdf")
+        self.assertEqual(media_payload["surface_spec"]["fullscreen"]["content_kind"], "media")
         self.assertEqual(media_payload["fit_mode"], "contain")
         self.assertEqual(media_payload["page_number"], 1)
         self.assertEqual(media_payload["pdf_preview"]["state"], "ready")
@@ -456,7 +515,7 @@ class ContentFullscreenBridgeTests(MainWindowShellTestBase):
         bridge = self._bridge()
         self.assertTrue(bridge.request_open_node(node_id))
 
-        self.assertEqual(bridge.content_kind, "pdf")
+        self.assertEqual(bridge.content_kind, "media")
         self.assertEqual(bridge.media_payload["pdf_preview"]["page_count"], 3)
         self.assertEqual(bridge.media_payload["resolved_page_number"], 1)
 
@@ -489,10 +548,10 @@ class ContentFullscreenBridgeTests(MainWindowShellTestBase):
         self.assertTrue(bridge.open)
         self.assertEqual(bridge.node_id, node_id)
         self.assertEqual(bridge.workspace_id, workspace_id)
-        self.assertEqual(bridge.content_kind, "video")
+        self.assertEqual(bridge.content_kind, "media")
         media_payload = bridge.media_payload
         self.assertEqual(media_payload["media_kind"], "video")
-        self.assertEqual(media_payload["surface_spec"]["fullscreen"]["content_kind"], "video")
+        self.assertEqual(media_payload["surface_spec"]["fullscreen"]["content_kind"], "media")
         self.assertEqual(media_payload["fit_mode"], "cover")
         self.assertTrue(media_payload["auto_play"])
         self.assertTrue(media_payload["loop"])
@@ -507,7 +566,6 @@ class ContentFullscreenBridgeTests(MainWindowShellTestBase):
         self.assertTrue(media_payload["clip_enabled"])
         self.assertEqual(media_payload["clip_start_ms"], 2000)
         self.assertEqual(media_payload["clip_end_ms"], 6000)
-        self.assertEqual(media_payload["unfocused_behavior"], "keep_playing")
         self.assertTrue(str(media_payload["resolved_source_url"]).startswith("file:"))
         self.assertEqual(media_payload["preview_url"], "")
 
@@ -562,11 +620,29 @@ class ContentFullscreenBridgeTests(MainWindowShellTestBase):
         copy_state = recorder.calls[1][1][5]
         self.assertEqual(copy_state["timeline_bookmarks"], [{"id": "out", "label": "Out", "position_ms": 5000}])
 
+        self.window.graph_canvas_presenter = object()
+        try:
+            missing_presenter = bridge.request_trim_video_clip_replace({})
+        finally:
+            self.window.graph_canvas_presenter = original_presenter
+        self.assertEqual(
+            missing_presenter["error"]["message"],
+            "Graph canvas presenter cannot trim Media Panel video clips.",
+        )
+
+        bridge.request_close()
+        unavailable = bridge.request_trim_video_clip_copy({})
+        self.assertEqual(
+            unavailable["error"]["message"],
+            "No fullscreen Media Panel in video mode is active.",
+        )
+
     def test_content_fullscreen_bridge_opens_managed_video_media_source(self) -> None:
         project_path = Path(self._env.temp_path) / "fullscreen-managed-video.cxproj"
         self.window.project_path = str(project_path)
         workspace_id = self.window.workspace_manager.active_workspace_id()
-        node_id = self.window.scene.add_node_from_type(PASSIVE_MEDIA_VIDEO_PANEL_TYPE_ID, x=120.0, y=80.0)
+        node_id = self.window.scene.add_node_from_type(MEDIA_PANEL_TYPE_ID, x=120.0, y=80.0)
+        self.window.scene.set_exposed_port(node_id, "source", False)
 
         staging_root = self.window.project_session_controller.ensure_project_staging_root()
         store = self.window.project_session_controller.project_artifact_store()
@@ -591,7 +667,7 @@ class ContentFullscreenBridgeTests(MainWindowShellTestBase):
         self.window.scene.set_node_properties(
             node_id,
             {
-                "source_path": store.staged_ref("managed_video"),
+                "source": store.staged_ref("managed_video"),
                 "fit_mode": "contain",
             },
         )
@@ -602,25 +678,30 @@ class ContentFullscreenBridgeTests(MainWindowShellTestBase):
         media_payload = bridge.media_payload
         self.assertEqual(media_payload["media_kind"], "video")
         self.assertEqual(Path(QUrl(media_payload["resolved_source_url"]).toLocalFile()), staged_path)
-        self.assertEqual(media_payload["source_path"], store.staged_ref("managed_video"))
+        self.assertEqual(media_payload["source_ref"], store.staged_ref("managed_video"))
 
-    def test_content_fullscreen_bridge_rejects_video_remote_source(self) -> None:
-        node_id = self.window.scene.add_node_from_type(PASSIVE_MEDIA_VIDEO_PANEL_TYPE_ID, x=120.0, y=80.0)
+    def test_content_fullscreen_bridge_accepts_video_remote_source(self) -> None:
+        node_id = self.window.scene.add_node_from_type(MEDIA_PANEL_TYPE_ID, x=120.0, y=80.0)
+        self.window.scene.set_exposed_port(node_id, "source", False)
         self.window.scene.set_node_properties(
             node_id,
             {
-                "source_path": "https://example.com/video.mp4",
+                "source": "https://example.com/video.mp4",
                 "fit_mode": "contain",
             },
         )
         self.app.processEvents()
         bridge = self._bridge()
 
-        self.assertFalse(bridge.can_open_node(node_id))
-        self.assertFalse(bridge.request_open_node(node_id))
-        self.assertFalse(bridge.open)
-        self.assertEqual(bridge.media_payload, {})
-        self.assertIn("absolute local path or file URL", bridge.last_error)
+        self.assertTrue(bridge.can_open_node(node_id))
+        self.assertTrue(bridge.request_open_node(node_id))
+        self.assertTrue(bridge.open)
+        self.assertEqual(bridge.content_kind, "media")
+        self.assertEqual(bridge.media_payload["media_kind"], "video")
+        self.assertEqual(
+            bridge.media_payload["resolved_source_url"],
+            "https://example.com/video.mp4",
+        )
 
     def test_content_fullscreen_bridge_hands_off_video_state_and_persists_close_state(self) -> None:
         node_id = self._add_video_node()
@@ -2189,7 +2270,7 @@ class ContentFullscreenBridgeTests(MainWindowShellTestBase):
     def test_content_fullscreen_bridge_rejects_ineligible_nodes_and_clears_active_state(self) -> None:
         node_id = self._add_image_node()
         unsupported_node_id = self.window.scene.add_node_from_type("core.constant", x=420.0, y=80.0)
-        missing_source_node_id = self.window.scene.add_node_from_type(PASSIVE_MEDIA_IMAGE_PANEL_TYPE_ID, x=620.0, y=80.0)
+        missing_source_node_id = self.window.scene.add_node_from_type(MEDIA_PANEL_TYPE_ID, x=620.0, y=80.0)
         self.app.processEvents()
 
         bridge = self._bridge()
@@ -2199,9 +2280,10 @@ class ContentFullscreenBridgeTests(MainWindowShellTestBase):
         self.assertFalse(bridge.open)
         self.assertIn("does not support", bridge.last_error)
 
-        self.assertFalse(bridge.request_open_node(missing_source_node_id))
-        self.assertFalse(bridge.open)
-        self.assertIn("source path", bridge.last_error)
+        self.assertTrue(bridge.request_open_node(missing_source_node_id))
+        self.assertTrue(bridge.open)
+        self.assertEqual(bridge.media_payload["source_state"], "waiting")
+        self.assertEqual(bridge.media_payload["resolved_source_url"], "")
 
     def test_content_fullscreen_bridge_closes_on_node_deletion_shell_wiring(self) -> None:
         node_id = self._add_image_node()

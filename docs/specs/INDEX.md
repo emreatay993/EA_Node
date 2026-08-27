@@ -48,6 +48,7 @@ T01–T17 are complete, and the locked 176-type snapshot is fully classified.
 
 - [COREX Novice Function Plugin SDK](../PLAN_COREX_NOVICE_PLUGIN_SDK.md) — `COMPLETED — T01–T17; RETAINED QA EVIDENCE BELOW`
 - [COREX Application-Default External Python Runtime](../PLAN_COREX_EXTERNAL_PYTHON_RUNTIME.md) — `COMPLETED — T01–T05 ACCEPTED`
+- [COREX Unified Media Panel](../PLAN_COREX_UNIFIED_MEDIA_PANEL.md) — `COMPLETED — T01–T10 ACCEPTED`
 
 Work-packet manifests, status ledgers, and per-phase wrap-up documents formerly stored under `docs/specs/work_packets/` were pruned from the repository (commit `0b426a31`) and are now recorded only in git history. Historical examples include `COREX_EXCALIDRAW_REAL_EDITOR_MANIFEST.md` and `COREX_EXCALIDRAW_REAL_EDITOR_STATUS.md`. The published QA matrices below remain the retained closeout evidence for each tracked packet set; there is no live work-packet document directory in the current tree.
 

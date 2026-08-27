@@ -10,6 +10,7 @@ from typing import Any
 FIXTURE_DIR = Path(__file__).parent / "fixtures" / "node_catalog"
 FROZEN_CATALOG_PATH = FIXTURE_DIR / "pre_cutover_non_dpf_catalog.json"
 DOCUMENTATION_OVERLAY_PATH = FIXTURE_DIR / "t17_non_dpf_documentation_overlay.json"
+STRUCTURAL_OVERLAY_PATH = FIXTURE_DIR / "unified_media_panel_structural_overlay.json"
 FROZEN_CATALOG_SHA256 = (
     "3CF91390E9E4C606B571ED3C907D7BF35647165F5358328F8FE9C18BF15C618F"
 )
@@ -63,6 +64,7 @@ def load_effective_non_dpf_catalog(
     *,
     fixture_path: Path = FROZEN_CATALOG_PATH,
     overlay_path: Path = DOCUMENTATION_OVERLAY_PATH,
+    structural_overlay_path: Path = STRUCTURAL_OVERLAY_PATH,
 ) -> list[dict[str, Any]]:
     catalog = deepcopy(load_frozen_non_dpf_catalog(fixture_path=fixture_path))
     by_type = _catalog_by_type(catalog)
@@ -148,13 +150,51 @@ def load_effective_non_dpf_catalog(
     if len(matching) != 1 or type(source_patch["value"]) is not str:
         raise ValueError(f"Unknown default-source patch target: {type_id}.{property_key}")
     matching[0]["default"] = source_patch["value"]
-    return catalog
+
+    structural = json.loads(
+        structural_overlay_path.read_text(encoding="utf-8"),
+        object_pairs_hook=_unique_object,
+    )
+    structural = _exact_keys(
+        structural,
+        {"schema_version", "frozen_sha256", "remove_type_ids", "add_rows"},
+        label="Structural overlay",
+    )
+    if structural["schema_version"] != 1:
+        raise ValueError("Structural overlay schema_version must be 1")
+    if structural["frozen_sha256"] != FROZEN_CATALOG_SHA256:
+        raise ValueError("Structural overlay targets the wrong frozen catalog")
+    remove_type_ids = structural["remove_type_ids"]
+    if (
+        type(remove_type_ids) is not list
+        or any(type(item) is not str or not item for item in remove_type_ids)
+        or len(remove_type_ids) != len(set(remove_type_ids))
+    ):
+        raise ValueError("remove_type_ids must be a unique string list")
+    unknown_removals = set(remove_type_ids) - set(by_type)
+    if unknown_removals:
+        raise ValueError(f"Unknown structural removal: {sorted(unknown_removals)}")
+    catalog = [
+        row for row in catalog if row["spec"]["type_id"] not in set(remove_type_ids)
+    ]
+
+    add_rows = structural["add_rows"]
+    additions = _catalog_by_type(add_rows)
+    retained = _catalog_by_type(catalog)
+    duplicate_additions = set(additions) & set(retained)
+    if duplicate_additions:
+        raise ValueError(
+            f"Duplicate structural addition: {sorted(duplicate_additions)}"
+        )
+    catalog.extend(deepcopy(add_rows))
+    return sorted(catalog, key=lambda row: row["spec"]["type_id"])
 
 
 __all__ = [
     "DOCUMENTATION_OVERLAY_PATH",
     "FROZEN_CATALOG_PATH",
     "FROZEN_CATALOG_SHA256",
+    "STRUCTURAL_OVERLAY_PATH",
     "load_effective_non_dpf_catalog",
     "load_frozen_non_dpf_catalog",
 ]

@@ -24,11 +24,7 @@ from PyQt6.QtWidgets import QApplication
 import pytest
 
 from ea_node_editor.graph.model import GraphModel
-from ea_node_editor.nodes.builtins.passive_media import (
-    PASSIVE_MEDIA_IMAGE_PANEL_TYPE_ID,
-    PASSIVE_MEDIA_PDF_PANEL_TYPE_ID,
-    PASSIVE_MEDIA_VIDEO_PANEL_TYPE_ID,
-)
+from ea_node_editor.nodes.builtins.media_panel import MEDIA_PANEL_TYPE_ID
 from ea_node_editor.ui.shell import composition as shell_composition
 from ea_node_editor.ui.shell.controllers.graph_action_controller import (
     GraphActionController,
@@ -152,6 +148,17 @@ def _write_test_image(path: Path, color: int = 0xFF4C7BC0) -> None:
     image = QImage(48, 30, QImage.Format.Format_ARGB32)
     image.fill(color)
     assert image.save(str(path))
+
+
+def _add_browse_media_panel(window: ShellWindow) -> str:
+    return window.scene.create_node_from_type(
+        type_id=MEDIA_PANEL_TYPE_ID,
+        x=120.0,
+        y=80.0,
+        parent_node_id=None,
+        select_node=False,
+        exposed_port_overrides={"source": False},
+    )
 
 
 def _write_test_pdf(path: Path, *, page_count: int = 1) -> None:
@@ -477,10 +484,8 @@ def test_content_fullscreen_bridge_closes_during_project_reset_lifecycle() -> No
             image.fill(0xFF4C7BC0)
             assert image.save(str(image_path))
 
-            node_id = window.scene.add_node_from_type(
-                PASSIVE_MEDIA_IMAGE_PANEL_TYPE_ID, x=120.0, y=80.0
-            )
-            window.scene.set_node_property(node_id, "source_path", str(image_path))
+            node_id = _add_browse_media_panel(window)
+            window.scene.set_node_property(node_id, "source", str(image_path))
             _flush_shell_qt_events(app)
 
             bridge = _shell_runtime(window).content_fullscreen_bridge
@@ -510,13 +515,11 @@ def test_content_fullscreen_overlay_renders_image_media_and_keeps_node_state_rea
             image_path = Path(temp_dir) / "content-fullscreen-overlay.png"
             _write_test_image(image_path)
 
-            node_id = window.scene.add_node_from_type(
-                PASSIVE_MEDIA_IMAGE_PANEL_TYPE_ID, x=120.0, y=80.0
-            )
+            node_id = _add_browse_media_panel(window)
             window.scene.set_node_properties(
                 node_id,
                 {
-                    "source_path": str(image_path),
+                    "source": str(image_path),
                     "fit_mode": "cover",
                     "crop_x": 0.2,
                     "crop_y": 0.1,
@@ -545,7 +548,8 @@ def test_content_fullscreen_overlay_renders_image_media_and_keeps_node_state_rea
             )
 
             assert bool(overlay.property("visible"))
-            assert str(overlay.property("contentKind")) == "image"
+            assert str(overlay.property("contentKind")) == "media"
+            assert bridge.media_payload["media_kind"] == "image"
             assert str(overlay.property("effectiveDisplayMode")) == "fill"
             assert "local-media-preview" in _qurl_text(media_image.property("source"))
             assert bool(fill_button.property("selectedStyle"))
@@ -573,13 +577,11 @@ def test_content_fullscreen_overlay_owns_animated_image_playback() -> None:
             / "media"
             / "animated-small.gif"
         )
-        node_id = window.scene.add_node_from_type(
-            PASSIVE_MEDIA_IMAGE_PANEL_TYPE_ID, x=120.0, y=80.0
-        )
+        node_id = _add_browse_media_panel(window)
         window.scene.set_node_properties(
             node_id,
             {
-                "source_path": str(image_path),
+                "source": str(image_path),
                 "fit_mode": "contain",
                 "animation_playback_mode": "play",
             },
@@ -601,12 +603,12 @@ def test_content_fullscreen_overlay_owns_animated_image_playback() -> None:
             return None
 
         wait_for_condition_or_raise(
-            lambda: find_quick_item(root, "graphNodeMediaSurface") is not None,
+            lambda: find_quick_item(root, "graphNodeMediaImageRenderer") is not None,
             app=app,
             timeout_ms=2500,
             timeout_message="Timed out waiting for the inline image surface.",
         )
-        inline_surface = find_quick_item(root, "graphNodeMediaSurface")
+        inline_surface = find_quick_item(root, "graphNodeMediaImageRenderer")
         assert inline_surface is not None
         bridge = _shell_runtime(window).content_fullscreen_bridge
         wait_for_condition_or_raise(
@@ -669,13 +671,11 @@ def test_content_fullscreen_overlay_preserves_cropped_image_source_aspect() -> N
             image_path = Path(temp_dir) / "content-fullscreen-crop-aspect.png"
             _write_test_image(image_path)
 
-            node_id = window.scene.add_node_from_type(
-                PASSIVE_MEDIA_IMAGE_PANEL_TYPE_ID, x=120.0, y=80.0
-            )
+            node_id = _add_browse_media_panel(window)
             window.scene.set_node_properties(
                 node_id,
                 {
-                    "source_path": str(image_path),
+                    "source": str(image_path),
                     "fit_mode": "contain",
                     "crop_x": 0.0,
                     "crop_y": 0.25,
@@ -699,7 +699,8 @@ def test_content_fullscreen_overlay_preserves_cropped_image_source_aspect() -> N
             media_image = _find_child(root, "contentFullscreenMediaImage")
 
             assert bool(overlay.property("visible"))
-            assert str(overlay.property("contentKind")) == "image"
+            assert str(overlay.property("contentKind")) == "media"
+            assert bridge.media_payload["media_kind"] == "image"
             assert float(viewport.property("width")) > 0.0
             assert float(viewport.property("height")) > 0.0
 
@@ -732,13 +733,11 @@ def test_content_fullscreen_overlay_renders_pdf_media_blocks_background_and_clos
             pdf_path = Path(temp_dir) / "content-fullscreen-pages.pdf"
             _write_test_pdf(pdf_path, page_count=3)
 
-            node_id = window.scene.add_node_from_type(
-                PASSIVE_MEDIA_PDF_PANEL_TYPE_ID, x=120.0, y=80.0
-            )
+            node_id = _add_browse_media_panel(window)
             window.scene.set_node_properties(
                 node_id,
                 {
-                    "source_path": str(pdf_path),
+                    "source": str(pdf_path),
                     "page_number": 1,
                 },
             )
@@ -771,7 +770,8 @@ def test_content_fullscreen_overlay_renders_pdf_media_blocks_background_and_clos
             close_button = _find_child(root, "contentFullscreenCloseButton")
 
             assert bool(overlay.property("visible"))
-            assert str(overlay.property("contentKind")) == "pdf"
+            assert str(overlay.property("contentKind")) == "media"
+            assert bridge.media_payload["media_kind"] == "pdf"
             assert bool(blocker.property("visible"))
             assert bool(blocker.property("preventStealing"))
             assert _qurl_text(pdf_document.property("source")).startswith("file:")
@@ -973,13 +973,11 @@ def test_content_fullscreen_overlay_renders_video_media_and_persists_close_state
             video_path = Path(temp_dir) / "content-fullscreen-overlay.mp4"
             video_path.write_bytes(b"not a decoded fixture")
 
-            node_id = window.scene.add_node_from_type(
-                PASSIVE_MEDIA_VIDEO_PANEL_TYPE_ID, x=120.0, y=80.0
-            )
+            node_id = _add_browse_media_panel(window)
             window.scene.set_node_properties(
                 node_id,
                 {
-                    "source_path": str(video_path),
+                    "source": str(video_path),
                     "fit_mode": "cover",
                     "auto_play": False,
                     "loop": False,
@@ -987,7 +985,6 @@ def test_content_fullscreen_overlay_renders_video_media_and_persists_close_state
                     "volume": 1.0,
                     "playback_rate": 1.0,
                     "position_ms": 0,
-                    "unfocused_behavior": "pause_keep_loaded",
                 },
             )
             _flush_shell_qt_events(app)
@@ -1014,7 +1011,8 @@ def test_content_fullscreen_overlay_renders_video_media_and_persists_close_state
             video_output = _find_child(root, "contentFullscreenVideoOutput")
 
             assert bool(overlay.property("visible"))
-            assert str(overlay.property("contentKind")) == "video"
+            assert str(overlay.property("contentKind")) == "media"
+            assert bridge.media_payload["media_kind"] == "video"
             assert video_surface is not None
             assert video_output is not None
 
@@ -1044,10 +1042,8 @@ def test_content_fullscreen_overlay_closes_open_state_with_escape_and_f11() -> N
             image_path = Path(temp_dir) / "content-fullscreen-shortcuts.png"
             _write_test_image(image_path, color=0xFF669933)
 
-            node_id = window.scene.add_node_from_type(
-                PASSIVE_MEDIA_IMAGE_PANEL_TYPE_ID, x=120.0, y=80.0
-            )
-            window.scene.set_node_property(node_id, "source_path", str(image_path))
+            node_id = _add_browse_media_panel(window)
+            window.scene.set_node_property(node_id, "source", str(image_path))
             _flush_shell_qt_events(app)
 
             bridge = _shell_runtime(window).content_fullscreen_bridge

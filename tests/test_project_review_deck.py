@@ -8,14 +8,20 @@ from PyQt6.QtCore import QMarginsF, QRectF, Qt
 from PyQt6.QtGui import QColor, QImage, QPainter, QPageLayout, QPageSize, QPdfWriter
 from PyQt6.QtWidgets import QApplication
 
+from ea_node_editor.execution.protocol import SettledPortResult
 from ea_node_editor.graph.model import GraphModel
 from ea_node_editor.graph.workspace_state import ViewState
 from ea_node_editor.nodes.bootstrap import build_default_registry
 from ea_node_editor.persistence.artifact_refs import format_managed_artifact_ref, format_staged_artifact_ref
 from ea_node_editor.persistence.artifact_store import format_node_artifact_folder, format_workspace_artifact_folder
+from ea_node_editor.runtime_contracts import DataTree, ImageValue
 from ea_node_editor.ui.dialogs.project_review_deck_dialog import ProjectReviewDeckDialog
+from ea_node_editor.ui.image_value_preview_provider import (
+    set_active_image_value_preview_provider,
+)
 from ea_node_editor.ui.pdf_preview_provider import render_pdf_page_image
 from ea_node_editor.ui.pptx_export import ProjectReviewPptxSlide, create_project_review_pptx
+from ea_node_editor.ui.plot_preview_cache_provider import ViewerPreviewCacheImageProvider
 from ea_node_editor.ui.project_review_deck import (
     PROJECT_REVIEW_CANVAS_CAPTURE_SNAPSHOT,
     PROJECT_REVIEW_CANVAS_CAPTURE_VIEW,
@@ -65,62 +71,69 @@ def _project_with_artifacts(tmp_path: Path) -> tuple[GraphModel, Path, Path, Pat
     registry = build_default_registry()
     image_node = model.add_node(
         workspace.workspace_id,
-        "passive.media.image_panel",
+        "media.panel",
         "Image Evidence",
         100.0,
         120.0,
-        properties={"source_path": format_managed_artifact_ref("image_artifact")},
+        properties={"source": format_managed_artifact_ref("image_artifact")},
+        exposed_ports={"source": False},
     )
     pdf_node = model.add_node(
         workspace.workspace_id,
-        "passive.media.pdf_panel",
+        "media.panel",
         "PDF Evidence",
         280.0,
         120.0,
         properties={
-            "source_path": format_managed_artifact_ref("pdf_artifact"),
+            "source": format_managed_artifact_ref("pdf_artifact"),
             "page_number": 3,
         },
+        exposed_ports={"source": False},
     )
     staged_node = model.add_node(
         workspace.workspace_id,
-        "passive.media.image_panel",
+        "media.panel",
         "Staged Evidence",
         460.0,
         120.0,
-        properties={"source_path": format_staged_artifact_ref("staged_artifact")},
+        properties={"source": format_staged_artifact_ref("staged_artifact")},
+        exposed_ports={"source": False},
     )
     staged_same_id_node = model.add_node(
         workspace.workspace_id,
-        "passive.media.image_panel",
+        "media.panel",
         "Staged Same ID Evidence",
         640.0,
         120.0,
-        properties={"source_path": format_staged_artifact_ref("image_artifact")},
+        properties={"source": format_staged_artifact_ref("image_artifact")},
+        exposed_ports={"source": False},
     )
     unsupported_node = model.add_node(
         workspace.workspace_id,
-        "passive.media.image_panel",
+        "media.panel",
         "Unsupported Evidence",
         820.0,
         120.0,
-        properties={"source_path": format_managed_artifact_ref("text_artifact")},
+        properties={"source": format_managed_artifact_ref("text_artifact")},
+        exposed_ports={"source": False},
     )
     model.add_node(
         workspace.workspace_id,
-        "passive.media.image_panel",
+        "media.panel",
         "External Evidence",
         1000.0,
         120.0,
-        properties={"source_path": str(tmp_path / "external.png")},
+        properties={"source": str(tmp_path / "external.png")},
+        exposed_ports={"source": False},
     )
     missing_node = model.add_node(
         workspace.workspace_id,
-        "passive.media.image_panel",
+        "media.panel",
         "Missing Evidence",
         1180.0,
         120.0,
-        properties={"source_path": format_managed_artifact_ref("missing_artifact")},
+        properties={"source": format_managed_artifact_ref("missing_artifact")},
+        exposed_ports={"source": False},
     )
     project_path = tmp_path / "review_demo.cxproj"
     workspace_folder = format_workspace_artifact_folder(
@@ -138,17 +151,17 @@ def _project_with_artifacts(tmp_path: Path) -> tuple[GraphModel, Path, Path, Pat
         relative = f"workspaces/{workspace_folder}/nodes/{node_folder}/out/evidence/{filename}"
         return project_path.with_name("review_demo.data") / relative, relative
 
-    image_path, image_relative = artifact_path(image_node, "Image Panel", "plot.png")
-    pdf_path, pdf_relative = artifact_path(pdf_node, "PDF Panel", "report.pdf")
-    staged_path, staged_relative = artifact_path(staged_node, "Image Panel", "staged.png")
+    image_path, image_relative = artifact_path(image_node, "Media Panel", "plot.png")
+    pdf_path, pdf_relative = artifact_path(pdf_node, "Media Panel", "report.pdf")
+    staged_path, staged_relative = artifact_path(staged_node, "Media Panel", "staged.png")
     staged_same_id_path, staged_same_id_relative = artifact_path(
         staged_same_id_node,
-        "Image Panel",
+        "Media Panel",
         "same-id-staged.png",
     )
-    text_path, text_relative = artifact_path(unsupported_node, "Image Panel", "notes.txt")
-    _missing_path, missing_relative = artifact_path(missing_node, "Image Panel", "missing.png")
-    orphan_path, orphan_relative = artifact_path(image_node, "Image Panel", "orphan.png")
+    text_path, text_relative = artifact_path(unsupported_node, "Media Panel", "notes.txt")
+    _missing_path, missing_relative = artifact_path(missing_node, "Media Panel", "missing.png")
+    orphan_path, orphan_relative = artifact_path(image_node, "Media Panel", "orphan.png")
     image_path.parent.mkdir(parents=True, exist_ok=True)
     _solid_png(image_path)
     pdf_path.parent.mkdir(parents=True, exist_ok=True)
@@ -177,7 +190,7 @@ def _project_with_artifacts(tmp_path: Path) -> tuple[GraphModel, Path, Path, Pat
             }
         }
     }
-    assert registry.get_spec("passive.media.pdf_panel").display_name == "PDF Panel"
+    assert registry.get_spec("media.panel").display_name == "Media Panel"
     return model, project_path, image_path, pdf_path
 
 
@@ -203,13 +216,15 @@ def test_project_review_plan_uses_referenced_artifacts_and_pdf_panel_page(tmp_pa
         PROJECT_REVIEW_SLIDE_PDF,
         PROJECT_REVIEW_SLIDE_IMAGE,
         PROJECT_REVIEW_SLIDE_IMAGE,
+        PROJECT_REVIEW_SLIDE_IMAGE,
     ]
-    assert [slide.slide_id for slide in evidence] == [
+    assert [slide.slide_id for slide in evidence[:4]] == [
         "artifact:saved:image_artifact",
         "artifact:saved:pdf_artifact",
         "artifact:temp:staged_artifact",
         "artifact:temp:image_artifact",
     ]
+    assert evidence[4].slide_id.startswith("media:")
     assert evidence[0].source_path == image_path
     assert evidence[1].source_path == pdf_path
     assert evidence[1].page_number == 3
@@ -220,10 +235,114 @@ def test_project_review_plan_uses_referenced_artifacts_and_pdf_panel_page(tmp_pa
     assert len({slide.slide_id for slide in evidence}) == len(evidence)
     assert not any(slide.artifact_id == "orphan_artifact" for slide in evidence)
     assert not any(slide.artifact_id == "missing_artifact" for slide in evidence)
-    assert any("unsupported evidence file type" in warning for warning in plan.warnings)
-    assert any("external file paths are listed but not embedded" in warning for warning in plan.warnings)
+    assert any("source is invalid" in warning for warning in plan.warnings)
     assert any("uses a temporary project file" in warning for warning in plan.warnings)
-    assert any("referenced file is missing" in warning for warning in plan.warnings)
+    assert any("source is stale" in warning for warning in plan.warnings)
+
+
+def test_project_review_media_input_never_falls_back_to_dormant_source(tmp_path, qapp) -> None:  # noqa: ANN001, ARG001
+    model = GraphModel()
+    workspace = model.active_workspace
+    dormant_path = tmp_path / "dormant.png"
+    _solid_png(dormant_path)
+    model.add_node(
+        workspace.workspace_id,
+        "media.panel",
+        "Waiting Media",
+        20.0,
+        30.0,
+        properties={"source": str(dormant_path)},
+        exposed_ports={"source": True},
+    )
+
+    plan = build_project_review_deck_plan(project=model.project)
+    evidence = [
+        slide
+        for section in plan.sections
+        for slide in section.slides
+        if slide.kind in {PROJECT_REVIEW_SLIDE_IMAGE, PROJECT_REVIEW_SLIDE_PDF}
+    ]
+
+    assert evidence == []
+    assert any("source is waiting" in warning for warning in plan.warnings)
+    assert not any("dormant.png" in warning for warning in plan.warnings)
+
+
+def test_project_review_materializes_runtime_image_value_only_in_temp_area(
+    tmp_path: Path,
+    qapp: QApplication,
+) -> None:
+    model = GraphModel()
+    workspace = model.active_workspace
+    node = model.add_node(
+        workspace.workspace_id,
+        "media.panel",
+        "Runtime Image",
+        20.0,
+        30.0,
+        properties={"source": ""},
+        exposed_ports={"source": True},
+    )
+    workspace.edges["edge-1"] = SimpleNamespace(
+        enabled=True,
+        target_node_id=node.node_id,
+        target_port_key="source",
+    )
+    image_path = tmp_path / "runtime.png"
+    _solid_png(image_path)
+    image_value = ImageValue.from_png(image_path.read_bytes())
+    run_state = SimpleNamespace(
+        node_execution_workspace_id=workspace.workspace_id,
+        running_node_ids=set(),
+        completed_node_ids={node.node_id},
+        empty_node_ids=set(),
+        failed_node_ids=set(),
+        blocked_node_ids=set(),
+        root_errors_by_node_id={},
+        cached_node_output_records_by_workspace_id={
+            workspace.workspace_id: {
+                node.node_id: {
+                    "run-1": {
+                        "observed_at_epoch_ms": 1.0,
+                        "outputs": {
+                            "_surface_source": SettledPortResult(
+                                status="value",
+                                value=DataTree.from_item(image_value),
+                            )
+                        },
+                    }
+                }
+            }
+        },
+    )
+    provider = ViewerPreviewCacheImageProvider()
+    set_active_image_value_preview_provider(provider)
+    try:
+        plan = build_project_review_deck_plan(
+            project=model.project,
+            run_state=run_state,
+        )
+    finally:
+        set_active_image_value_preview_provider(None)
+    slide = next(
+        slide
+        for section in plan.sections
+        for slide in section.slides
+        if slide.kind == PROJECT_REVIEW_SLIDE_IMAGE
+    )
+    assert slide.source_path is None
+    assert slide.image_value is image_value
+
+    temp_root = tmp_path / "deck-temp"
+    materialized = materialize_project_review_pptx_slides(
+        slides=(slide,),
+        canvas_images_by_slide_id={},
+        temp_dir=temp_root,
+    )
+
+    assert materialized.slides[0].image_path is not None
+    assert materialized.slides[0].image_path.parent == temp_root
+    assert materialized.slides[0].image_path.read_bytes() == image_value.encoded_bytes
 
 
 def test_project_review_plan_splits_workspace_snapshots_and_saved_views(tmp_path, qapp) -> None:  # noqa: ANN001, ARG001

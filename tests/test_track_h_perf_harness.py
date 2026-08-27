@@ -942,17 +942,16 @@ class TrackHPerformanceHarnessTests(unittest.TestCase):
         self.assertEqual(
             scenario_details["fixture_strategy"], "generated_local_media_reuse"
         )
-        self.assertGreater(node_mix["image_panel_nodes"], 0)
-        self.assertGreater(node_mix["pdf_panel_nodes"], 0)
+        self.assertGreater(node_mix["image_source_nodes"], 0)
+        self.assertGreater(node_mix["pdf_source_nodes"], 0)
         self.assertEqual(
             node_mix["execution_nodes"]
-            + node_mix["image_panel_nodes"]
-            + node_mix["pdf_panel_nodes"],
+            + node_mix["media_panel_nodes"],
             18,
         )
         self.assertEqual(
             scenario_details["expected_media_surface_count"],
-            node_mix["image_panel_nodes"] + node_mix["pdf_panel_nodes"],
+            node_mix["media_panel_nodes"],
         )
         self.assertEqual(interaction_benchmark["scenario"], "heavy_media")
         self.assertEqual(
@@ -1387,10 +1386,10 @@ class TrackHPerformanceHarnessTests(unittest.TestCase):
         )
         self.assertEqual(report["config"]["scenario"], "synthetic_exec")
         self.assertEqual(
-            report["config"]["scenario_details"]["node_mix"]["image_panel_nodes"], 0
+            report["config"]["scenario_details"]["node_mix"]["media_panel_nodes"], 0
         )
         self.assertEqual(
-            report["config"]["scenario_details"]["node_mix"]["pdf_panel_nodes"], 0
+            report["config"]["scenario_details"]["node_mix"]["pdf_source_nodes"], 0
         )
         self.assertEqual(interaction_benchmark["kind"], "graph_canvas_qml")
         self.assertEqual(

@@ -205,6 +205,7 @@ class _FolderExplorerSceneCommandProbe:
         self.added_nodes: list[tuple[str, float, float, str]] = []
         self.properties: list[tuple[str, str, object]] = []
         self.bulk_properties: list[tuple[str, dict[str, object]]] = []
+        self.create_kwargs: list[dict[str, object]] = []
         self.bulk_result = bool(bulk_result)
         self._serial = 0
 
@@ -220,6 +221,14 @@ class _FolderExplorerSceneCommandProbe:
     def set_node_properties(self, node_id: str, values: dict[str, object]) -> bool:
         self.bulk_properties.append((node_id, dict(values)))
         return self.bulk_result
+
+    def create_node_from_type(self, **kwargs) -> str:  # noqa: ANN003
+        self.create_kwargs.append(dict(kwargs))
+        return self.add_node_from_type(
+            str(kwargs["type_id"]),
+            float(kwargs.get("x", 0.0)),
+            float(kwargs.get("y", 0.0)),
+        )
 
 
 def _pyqt_graph_actions_from_contract() -> dict[str, GraphActionId]:
@@ -1131,7 +1140,32 @@ def test_graph_canvas_command_bridge_creates_mail_panel_from_mail_file_drop_url(
         assert result["created_type_id"] == "passive.media.mail_panel"
         assert result["mode"] == "file"
         assert scene.added_nodes == [("passive.media.mail_panel", 64.0, 128.0, "node-1")]
-        assert scene.bulk_properties == [("node-1", {"source_path": str(target_file.resolve())})]
+        assert scene.create_kwargs[0]["property_overrides"] == {
+            "source_path": str(target_file.resolve())
+        }
+        assert scene.create_kwargs[0]["exposed_port_overrides"] is None
+
+
+def test_graph_canvas_command_bridge_creates_input_hidden_media_panel_from_media_file_drop_url() -> None:
+    with TemporaryDirectory() as temporary_directory:
+        target_file = Path(temporary_directory) / "image.png"
+        target_file.write_bytes(b"not-decoded-by-file-drop")
+        scene = _FolderExplorerSceneCommandProbe()
+        bridge = GraphCanvasCommandBridge(scene_bridge=scene)
+
+        result = bridge.request_create_file_drop_node(
+            target_file.resolve().as_uri(),
+            False,
+            64,
+            128,
+        )
+
+        assert result["success"] is True
+        assert result["created_type_id"] == "media.panel"
+        assert scene.create_kwargs[0]["property_overrides"] == {
+            "source": str(target_file.resolve())
+        }
+        assert scene.create_kwargs[0]["exposed_port_overrides"] == {"source": False}
 
 
 def test_graph_canvas_qml_routes_mail_file_drops_to_file_drop_command() -> None:

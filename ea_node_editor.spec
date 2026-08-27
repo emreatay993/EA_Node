@@ -352,7 +352,7 @@ def _collect_imageio_ffmpeg_payload(*, require: bool) -> tuple[list[str], list[t
     missing = [module_name for module_name in IMAGEIO_FFMPEG_RUNTIME_MODULES if not _module_available(module_name)]
     if missing and require:
         raise RuntimeError(
-            "Packaging requires imageio-ffmpeg for bundled Video Panel trimming. "
+            "Packaging requires imageio-ffmpeg for bundled Media Panel video trimming. "
             f"Missing modules: {', '.join(missing)}."
         )
     hidden = [module_name for module_name in IMAGEIO_FFMPEG_RUNTIME_MODULES if module_name not in missing]

@@ -682,11 +682,6 @@ FAST_SERIAL_PYTEST_TARGETS = (
 )
 GUI_SERIAL_PYTEST_TARGETS = (
     (
-        "tests/test_graph_surface_input_contract.py::"
-        "GraphSurfaceMediaAndScopeContractTests::"
-        "test_media_whole_surface_lock_remains_independent_from_local_interactive_rects"
-    ),
-    (
         "tests/test_docx_rendering_comparison.py::"
         "test_docx_rendering_comparison_single_renderer_smoke"
     ),
@@ -1439,7 +1434,7 @@ QA_ACCEPTANCE_REQUIREMENT_TOKENS = {
     ),
     "REQ-QA-055": (
         COREX_NOVICE_PLUGIN_SDK_QA_MATRIX_DOC,
-        "938-type migration inventory",
+        "936-type migration inventory",
         "17-name public export set",
         "full summarized verification",
         "Windows package smoke",
@@ -1472,7 +1467,7 @@ NOVICE_PLUGIN_SDK_REQUIREMENT_TOKENS: dict[str, dict[str, tuple[str, ...]]] = {
             "17 public names",
             "literal-only AST discovery",
             "68-function",
-            "55-trusted-exception",
+            "53-trusted-exception",
             "805-DPF-exclusion",
         ),
         "AC-REQ-NODE-050-01": ("exact 17-name export set", "hostile-source non-execution"),
@@ -2024,9 +2019,9 @@ COREX_NOVICE_PLUGIN_SDK_QA_MATRIX_REQUIRED_TOKENS = (
     "## Locked Scope",
     "## Frozen Inventory",
     "17 public `corex` exports",
-    "938 classified type IDs",
+    "936 classified type IDs",
     "78 converted type IDs",
-    "55 trusted internal exceptions",
+    "53 trusted internal exceptions",
     "805 DPF exclusions",
     "133 frozen non-DPF catalog rows",
     "68 reserved built-in function entries",

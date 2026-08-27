@@ -16,7 +16,7 @@ Contracts:
   reorder.
 - ``normalize_properties(properties, *, node, spec, boundary_adapters)``
   returns the (possibly replaced) properties dict used for the payload node;
-  normalizers run in registration order (web page, then media pdf clamp).
+  normalizers run in registration order.
 
 Adding a payload field for a node kind = edit that kind's module here plus
 the consuming surface QML. Nothing else in the pipeline should need edits.
@@ -30,7 +30,6 @@ from ea_node_editor.ui_qml.graph_scene_payload.kinds import (
     group_backdrop,  # noqa: F401  (registered insertion point, no hooks yet)
     excalidraw,
     jupyter,
-    media_panel,
     plot,
     viewer,
     web_page,
@@ -79,9 +78,6 @@ def kind_dispatch_for_spec(*, type_id: object, spec: "NodeTypeSpec") -> KindDisp
         property_normalizers.append(jupyter.normalize_properties)
     if plot.plot_type_for_values(type_id=normalized_type_id, surface_variant=variant):
         contributors.append(plot.contribute)
-    if family == "media" and variant == "pdf_panel":
-        property_normalizers.append(media_panel.normalize_pdf_panel_properties)
-
     dispatch = KindDispatch(tuple(contributors), tuple(property_normalizers))
     _DISPATCH_CACHE[key] = dispatch
     return dispatch

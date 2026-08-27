@@ -4,6 +4,7 @@ from typing import TYPE_CHECKING, Any
 
 from PyQt6.QtCore import pyqtSlot
 
+from ea_node_editor.nodes.builtins.media_panel import MEDIA_PANEL_TYPE_ID
 from ea_node_editor.ui_qml.bridge_runtime import (
     invoke as _invoke,
 )
@@ -52,11 +53,11 @@ class MediaVideoOps:
                 default={
                     "success": False,
                     "created_node_id": "",
-                    "created_type_id": "passive.media.image_panel",
+                    "created_type_id": MEDIA_PANEL_TYPE_ID,
                     "source_ref": "",
                     "error": {
                         "code": "mutation_unavailable",
-                        "message": "Graph canvas presenter cannot create video frame Image Panel nodes.",
+                        "message": "Graph canvas presenter cannot create video frame Media Panel nodes.",
                     },
                 },
             )
@@ -112,12 +113,12 @@ class MediaVideoOps:
                 default={
                     "success": False,
                     "created_node_id": "",
-                    "created_type_id": "passive.media.video_panel",
+                    "created_type_id": MEDIA_PANEL_TYPE_ID,
                     "source_ref": "",
                     "request_id": "",
                     "error": {
                         "code": "mutation_unavailable",
-                        "message": "Graph canvas presenter cannot trim Video Panel clips.",
+                        "message": "Graph canvas presenter cannot trim Media Panel clips.",
                     },
                 },
             )
@@ -147,15 +148,14 @@ class MediaVideoOps:
                 default={
                     "success": False,
                     "created_node_id": "",
-                    "created_type_id": "passive.media.video_panel",
+                    "created_type_id": MEDIA_PANEL_TYPE_ID,
                     "source_ref": "",
                     "request_id": "",
                     "error": {
                         "code": "mutation_unavailable",
-                        "message": "Graph canvas presenter cannot trim Video Panel clips.",
+                        "message": "Graph canvas presenter cannot trim Media Panel clips.",
                     },
                 },
             )
             or {}
         )
-

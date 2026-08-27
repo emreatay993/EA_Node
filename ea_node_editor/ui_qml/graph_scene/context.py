@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING, Any, Callable
 
 from ea_node_editor.app_preferences import (
     normalize_expand_collision_avoidance_settings,
-    normalize_image_node_appearance_settings,
+    normalize_media_panel_settings,
 )
 from ea_node_editor.graph.hierarchy import ScopePath, is_node_in_scope
 from ea_node_editor.graph.model import GraphModel
@@ -126,10 +126,14 @@ class _GraphSceneContext:
         return normalize_expand_collision_avoidance_settings(value)
 
     @property
-    def graphics_image_node_default_appearance(self) -> dict[str, bool]:
+    def graphics_media_panel_defaults(self) -> dict[str, bool]:
         source = self._bridge._graphics_preference_source()
-        value = None if source is None else getattr(source, "graphics_image_node_default_appearance", None)
-        return normalize_image_node_appearance_settings(value)
+        value = (
+            None
+            if source is None
+            else getattr(source, "graphics_media_panel_defaults", None)
+        )
+        return normalize_media_panel_settings(value)
 
     @property
     def backdrop_nodes_payload(self) -> list[dict[str, Any]]:
@@ -1302,15 +1306,6 @@ class _GraphSceneContext:
             dirty_node_ids=dirty_node_ids,
             removed_node_ids=removed_node_ids,
             publication_path="history_edge_topology_delta",
-        )
-
-    def normalize_pdf_panel_pages(self, workspace: WorkspaceData) -> None:
-        if self.model is None or self.registry is None:
-            return
-        self._payload_builder.normalize_pdf_panel_pages(
-            model=self.model,
-            registry=self.registry,
-            workspace=workspace,
         )
 
     def active_graph_theme(self) -> GraphThemeDefinition:

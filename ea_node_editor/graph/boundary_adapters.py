@@ -2,8 +2,6 @@ from __future__ import annotations
 
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
-from typing import Any
-
 from ea_node_editor.graph.records import NodeInstance
 from ea_node_editor.nodes.node_specs import NodeTypeSpec
 
@@ -11,12 +9,10 @@ NodeSizeResolver = Callable[
     [NodeInstance, NodeTypeSpec, Mapping[str, NodeInstance] | None],
     tuple[float, float],
 ]
-PdfPageNumberResolver = Callable[[str, Any], int | None]
 NodeTypeSizeOverride = Callable[..., tuple[float, float]]
 
 _DEFAULT_FALLBACK_NODE_WIDTH = 240.0
 _DEFAULT_FALLBACK_NODE_HEIGHT = 160.0
-_DEFAULT_FALLBACK_PAGE_NUMBER = 1
 
 # Per-type size overrides. Populated by plugin modules at import time via
 # ``register_node_type_size_resolver``. Each override receives the
@@ -75,22 +71,9 @@ def _fallback_node_size(
     )
 
 
-def _fallback_clamp_pdf_page_number(source: str, page_number: Any) -> int | None:
-    if not str(source or "").strip():
-        return None
-    if isinstance(page_number, bool):
-        return _DEFAULT_FALLBACK_PAGE_NUMBER
-    try:
-        normalized = int(page_number)
-    except (TypeError, ValueError):
-        return None
-    return max(_DEFAULT_FALLBACK_PAGE_NUMBER, normalized)
-
-
 @dataclass(slots=True)
 class GraphBoundaryAdapters:
     node_size_resolver: NodeSizeResolver
-    clamp_pdf_page_number_resolver: PdfPageNumberResolver
 
     def node_size(
         self,
@@ -107,18 +90,12 @@ class GraphBoundaryAdapters:
             show_port_labels=show_port_labels,
         )
 
-    def clamp_pdf_page_number(self, source: str, page_number: Any) -> int | None:
-        return self.clamp_pdf_page_number_resolver(source, page_number)
-
-
 def build_graph_boundary_adapters(
     *,
     node_size_resolver: NodeSizeResolver | None = None,
-    clamp_pdf_page_number_resolver: PdfPageNumberResolver | None = None,
 ) -> GraphBoundaryAdapters:
     return GraphBoundaryAdapters(
         node_size_resolver=node_size_resolver or _fallback_node_size,
-        clamp_pdf_page_number_resolver=clamp_pdf_page_number_resolver or _fallback_clamp_pdf_page_number,
     )
 
 
@@ -130,7 +107,6 @@ __all__ = [
     "GraphBoundaryAdapters",
     "NodeSizeResolver",
     "NodeTypeSizeOverride",
-    "PdfPageNumberResolver",
     "build_graph_boundary_adapters",
     "fallback_graph_boundary_adapters",
     "register_node_type_size_resolver",

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from pathlib import Path
+from tempfile import TemporaryDirectory
 from types import SimpleNamespace
 import unittest
 from unittest import mock
@@ -11,7 +13,7 @@ from PyQt6.QtWidgets import QApplication
 from ea_node_editor.graph.model import GraphModel
 from ea_node_editor.graph.records import NodeLinkRecord
 from ea_node_editor.nodes.builtins.passive_annotation import PASSIVE_ANNOTATION_TEXT_TYPE_ID
-from ea_node_editor.nodes.builtins.passive_media import PASSIVE_MEDIA_VIDEO_PANEL_TYPE_ID
+from ea_node_editor.nodes.builtins.media_panel import MEDIA_PANEL_TYPE_ID
 from ea_node_editor.ui.shell.controllers.graph_action_controller import GraphActionController
 from ea_node_editor.ui.shell.graph_action_contracts import GraphActionId
 from ea_node_editor.ui.shell.presenters import workspace_presenter as workspace_presenter_module
@@ -380,15 +382,60 @@ class GraphCanvasBridgeTests(unittest.TestCase):
         self.assertEqual(authoring.focus_calls, [])
 
     def test_scene_command_bridge_opens_video_timestamp_node_link_and_updates_position(self) -> None:
+        with TemporaryDirectory() as temporary_directory:
+            video_path = Path(temporary_directory) / "clip.mp4"
+            video_path.write_bytes(b"video")
+            model = GraphModel()
+            workspace = model.active_workspace
+            video = model.add_node(
+                workspace.workspace_id,
+                MEDIA_PANEL_TYPE_ID,
+                "Media Panel",
+                40.0,
+                60.0,
+                properties={"source": str(video_path), "position_ms": 0},
+                exposed_ports={"source": False},
+            )
+            note = model.add_node(
+                workspace.workspace_id,
+                PASSIVE_ANNOTATION_TEXT_TYPE_ID,
+                "Video note",
+                240.0,
+                60.0,
+            )
+            workspace.nodes[note.node_id].links.append(
+                NodeLinkRecord(
+                    link_id="link-video-time",
+                    kind="node",
+                    title="Video 0:07",
+                    target=video.node_id,
+                    subtitle="video_position_ms=7777",
+                )
+            )
+            authoring = _AuthoringBoundaryForNodeLinkTests(model, workspace.workspace_id)
+            bridge = GraphSceneCommandBridge(
+                _SceneBridgeForNodeLinkTests(model, workspace.workspace_id),
+                scope_selection=SimpleNamespace(),
+                authoring_boundary=authoring,
+                pending_surface_action=SimpleNamespace(node_id=""),
+            )
+
+            self.assertTrue(bridge.open_node_link(note.node_id, "link-video-time"))
+            self.assertEqual(authoring.property_calls, [(video.node_id, "position_ms", 7777)])
+            self.assertEqual(authoring.focus_calls, [video.node_id])
+            self.assertEqual(workspace.nodes[video.node_id].properties["position_ms"], 7777)
+
+    def test_scene_command_bridge_focuses_nonready_media_timestamp_target_without_seeking(self) -> None:
         model = GraphModel()
         workspace = model.active_workspace
-        video = model.add_node(
+        media = model.add_node(
             workspace.workspace_id,
-            PASSIVE_MEDIA_VIDEO_PANEL_TYPE_ID,
-            "Video Panel",
+            MEDIA_PANEL_TYPE_ID,
+            "Media Panel",
             40.0,
             60.0,
-            properties={"position_ms": 0},
+            properties={"source": "C:/dormant/clip.mp4", "position_ms": 0},
+            exposed_ports={"source": True},
         )
         note = model.add_node(
             workspace.workspace_id,
@@ -402,7 +449,7 @@ class GraphCanvasBridgeTests(unittest.TestCase):
                 link_id="link-video-time",
                 kind="node",
                 title="Video 0:07",
-                target=video.node_id,
+                target=media.node_id,
                 subtitle="video_position_ms=7777",
             )
         )
@@ -415,9 +462,9 @@ class GraphCanvasBridgeTests(unittest.TestCase):
         )
 
         self.assertTrue(bridge.open_node_link(note.node_id, "link-video-time"))
-        self.assertEqual(authoring.property_calls, [(video.node_id, "position_ms", 7777)])
-        self.assertEqual(authoring.focus_calls, [video.node_id])
-        self.assertEqual(workspace.nodes[video.node_id].properties["position_ms"], 7777)
+        self.assertEqual(authoring.property_calls, [])
+        self.assertEqual(authoring.focus_calls, [media.node_id])
+        self.assertEqual(workspace.nodes[media.node_id].properties["position_ms"], 0)
 
     def test_scene_command_bridge_forwards_batch_rewire_and_display_mode_results(self) -> None:
         scene = _SceneBridgeForNodeLinkTests(GraphModel(), "workspace-1")

@@ -14,6 +14,7 @@ Use this for docs links, traceability matrix checks, markdown hygiene, dead-code
 - `tests/test_non_dpf_node_documentation.py`
 - `tests/non_dpf_catalog_fixture.py`
 - `tests/fixtures/node_catalog/t17_non_dpf_documentation_overlay.json`
+- `tests/fixtures/node_catalog/unified_media_panel_structural_overlay.json`
 - `docs/specs/requirements/TRACEABILITY_MATRIX.md`
 - `docs/PLUGIN_AUTHORING_GUIDE.md`
 - `docs/PLUGIN_MIGRATION_GUIDE.md`
@@ -42,8 +43,9 @@ Use this for docs links, traceability matrix checks, markdown hygiene, dead-code
   package round trip, and process-worker execution. Keep internal visual
   declaration fixtures under `tests/fixtures/`, not public docs.
 - Keep the frozen 133-node pre-cutover catalog immutable. Documentation-only
-  corrections belong in the generated T17 overlay and are applied only by the
-  shared documentation-test loader.
+  corrections belong in the T17 overlay; structural current-catalog changes
+  belong in the unified Media Panel overlay applied afterward by the shared
+  loader. The current effective catalog has 131 rows.
 - Register the novice SDK QA matrix from `docs/specs/INDEX.md`; its evidence must
   state outstanding acceptance gates rather than claim release acceptance.
 

@@ -256,9 +256,10 @@ class GraphicsSettingsPreferencesTests(unittest.TestCase):
                         "theme": {
                             "theme_id": "invalid-theme",
                         },
-                        "image_nodes": {
+                        "media_panel": {
                             "show_title": "no",
                             "show_frame": None,
+                            "source_input_exposed": "no",
                         },
                         "graph_theme": {
                             "follow_shell_theme": False,
@@ -328,7 +329,7 @@ class GraphicsSettingsPreferencesTests(unittest.TestCase):
             DEFAULT_GRAPHICS_SETTINGS["shell"]["passive_node_library_display_mode"],
         )
         self.assertEqual(graphics["theme"]["theme_id"], DEFAULT_GRAPHICS_SETTINGS["theme"]["theme_id"])
-        self.assertEqual(graphics["image_nodes"], DEFAULT_GRAPHICS_SETTINGS["image_nodes"])
+        self.assertEqual(graphics["media_panel"], DEFAULT_GRAPHICS_SETTINGS["media_panel"])
         self.assertEqual(graphics["plot"], DEFAULT_GRAPHICS_SETTINGS["plot"])
         self.assertEqual(graphics["folder_explorer"]["column_widths"], {})
         self.assertFalse(graphics["graph_theme"]["follow_shell_theme"])
@@ -387,10 +388,11 @@ class GraphicsSettingsPreferencesTests(unittest.TestCase):
                 "theme": {
                     "theme_id": "stitch_light",
                 },
-                "image_nodes": {
+                "media_panel": {
                     "show_title": False,
                     "show_frame": False,
                     "autoplay_animations": False,
+                    "source_input_exposed": False,
                 },
                 "graph_theme": {
                     "follow_shell_theme": False,
@@ -419,8 +421,13 @@ class GraphicsSettingsPreferencesTests(unittest.TestCase):
         self.assertFalse(graphics["canvas"]["show_port_labels"])
         self.assertFalse(graphics["canvas"]["notched_ports"])
         self.assertEqual(
-            graphics["image_nodes"],
-            {"show_title": False, "show_frame": False, "autoplay_animations": False},
+            graphics["media_panel"],
+            {
+                "show_title": False,
+                "show_frame": False,
+                "autoplay_animations": False,
+                "source_input_exposed": False,
+            },
         )
         self.assertNotIn("performance", graphics)
         self.assertEqual(graphics["shell"]["passive_node_library_display_mode"], "text_icon")
@@ -443,6 +450,42 @@ class GraphicsSettingsPreferencesTests(unittest.TestCase):
         self.assertEqual(persisted["graphics"], graphics)
         reloaded = AppPreferencesController(store=self._store).load()
         self.assertEqual(reloaded, persisted)
+
+    def test_media_panel_preferences_reach_shell_and_graph_canvas_presenters(self) -> None:
+        host = _RuntimeTooltipHost(self._controller)
+        graph_canvas_presenter = GraphCanvasPresenter(
+            host,
+            workspace_presenter=host.shell_workspace_presenter,
+            library_presenter=SimpleNamespace(),
+            inspector_presenter=SimpleNamespace(),
+        )
+        host.graph_canvas_presenter = graph_canvas_presenter
+
+        self._controller.set_graphics_settings(
+            {
+                "media_panel": {
+                    "show_title": False,
+                    "show_frame": False,
+                    "autoplay_animations": False,
+                    "source_input_exposed": False,
+                }
+            },
+            host=host,
+        )
+
+        self.assertEqual(
+            host.shell_workspace_presenter.graphics_media_panel_defaults,
+            {
+                "show_title": False,
+                "show_frame": False,
+                "autoplay_animations": False,
+                "source_input_exposed": False,
+            },
+        )
+        self.assertEqual(
+            graph_canvas_presenter.graphics_media_panel_defaults,
+            host.shell_workspace_presenter.graphics_media_panel_defaults,
+        )
 
     def test_folder_explorer_column_widths_persist_through_graph_canvas_presenter(self) -> None:
         host = _RuntimeTooltipHost(self._controller)

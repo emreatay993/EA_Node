@@ -22,7 +22,7 @@ Use this for app-wide settings, graphics preferences, solution-mode defaults, se
 - Route preference dialogs through shell controllers and PyQt dialog code.
 - Keep path resolution centralized in `platform_paths.py`.
 - Keep OS launch of files/folders centralized in `platform_open.py` (`open_path_with_default_handler` for "Open", `open_path_with_app_chooser` for "Open with..."); the folder-explorer open actions and the Path Pointer toolbar open actions route through it instead of inlining `os.startfile`/`QDesktopServices`/`rundll32` shell logic.
-- App preferences v7 owns normalized string-only `python_runtime.default_executable`; v5/v6 migration always initializes it blank and discards predecessor values. `AppPreferencesController.set_default_python_executable(...)` is copy-on-write, so a failed store write leaves its cached document unchanged.
+- App preferences v8 owns normalized string-only `python_runtime.default_executable` and `graphics.media_panel` creation defaults. Migration preserves the three prior media appearance values, adds default-on `source_input_exposed`, and leaves the external Python value rules unchanged. `AppPreferencesController.set_default_python_executable(...)` remains copy-on-write.
 - The workflow override remains project metadata at `workflow_settings.environment.python_path`. An empty override inherits the app default; built-in execution is used only when both paths are blank. The app default never enters `.cxproj`, runtime snapshots, graph/node records, or protocol fields.
 - Managed workflow runtimes live under `user_data_dir() / "runtimes"`; explicit preparation fills the app default, while project overrides remain separately authored in Workflow Settings.
 - Validated public plugin bytes live under `user_data_dir() / "runtime" / "plugin_generations"`; this content-addressed runtime cache is app-local and never enters `.cxproj` persistence.
@@ -35,11 +35,12 @@ Use this for app-wide settings, graphics preferences, solution-mode defaults, se
 - Keep `selected_run.preview_before_run` in app preferences; both the graph canvas options menu and `SelectedRunSettingsDialog` project it. Runtime output caches remain session-only shell state and must not be serialized into app preferences or project `.cxproj` files.
 - Keep `graphics.canvas.node_comment_editor_default` in app preferences; the graph canvas options menu and Graphics Settings dialog choose whether node comment badge clicks open the canvas popover or Inspector editor, and this must not be serialized into project `.cxproj` files.
 - Keep default-off `graphics.canvas.node_floating_toolbar_opens_on_hover` in app preferences; Graphics Settings exposes the legacy hover reveal while singleton selection remains the default QML behavior, and this must not enter project `.cxproj` files.
+- Keep Media Panel blank-creation defaults under `graphics.media_panel`; only future blank library/radial/direct insertions read `source_input_exposed`. Seeded media and explicit-connect creation supply explicit exposure overrides, while serialized project/fragment/history paths preserve node state.
 
 ## Focused Verification
 ```powershell
 .\venv\Scripts\python.exe -m pytest tests/test_graphics_settings_dialog.py tests/test_graph_theme_editor_dialog.py --ignore=venv -q
-.\venv\Scripts\python.exe -m pytest tests/test_app_preferences.py tests/test_graphics_settings_preferences.py tests/test_selected_run_settings_dialog.py --ignore=venv -q
+.\venv\Scripts\python.exe -m pytest tests/test_app_preferences.py tests/test_graphics_settings_preferences.py tests/test_media_panel_creation_preferences.py tests/test_selected_run_settings_dialog.py --ignore=venv -q
 .\venv\Scripts\python.exe -m pytest tests/test_app_preferences_import_defaults.py tests/test_workspace_library_controller_unit.py --ignore=venv -q
 .\venv\Scripts\python.exe -m pytest tests/test_app_preferences.py tests/test_app_preferences_import_defaults.py tests/test_workflow_settings_dialog.py tests/test_project_session_controller_unit.py -k "python_runtime or python_executable or workflow_settings" --ignore=venv -q
 .\venv\Scripts\python.exe -m pytest tests/test_app_preferences.py tests/test_run_controller_unit.py -k "solution_default_mode or solution_mode" --ignore=venv -q

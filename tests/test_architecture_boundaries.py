@@ -182,9 +182,8 @@ class GraphArchitectureBoundaryTests(unittest.TestCase):
     def test_graph_mutation_operations_use_graph_owned_boundary_adapters(self) -> None:
         self.assertFalse((REPO_ROOT / "ea_node_editor/graph/mutation_service.py").exists())
         validated_tree = parse_module("ea_node_editor/graph/validated_mutation.py")
-        pdf_policy_tree = parse_module("ea_node_editor/graph/pdf_panel_page_policy.py")
         comment_tree = parse_module("ea_node_editor/graph/group_backdrop_mutation_ops.py")
-        imports = imported_modules(validated_tree) | imported_modules(pdf_policy_tree) | imported_modules(comment_tree)
+        imports = imported_modules(validated_tree) | imported_modules(comment_tree)
 
         self.assertNotIn("ea_node_editor.ui.pdf_preview_provider", imports)
         self.assertNotIn("ea_node_editor.ui_qml.edge_routing", imports)
@@ -203,15 +202,12 @@ class GraphArchitectureBoundaryTests(unittest.TestCase):
             if keyword.arg == "default_factory"
         )
         self.assertEqual("fallback_graph_boundary_adapters", qualified_name(default_factory))
-        self.assertIn("boundary_adapters.clamp_pdf_page_number", call_names(pdf_policy_tree))
         self.assertIn("adapters.node_size", call_names(comment_tree))
 
     def test_scene_bridge_injects_ui_boundary_implementations_without_global_installation(self) -> None:
         tree = parse_module("ea_node_editor/ui_qml/graph_scene_bridge.py")
-        imports = imported_modules(tree)
 
         self.assertIn("build_graph_boundary_adapters", imported_names_from(tree, "ea_node_editor.graph.boundary_adapters"))
-        self.assertIn("clamp_pdf_page_number", imported_names_from(tree, "ea_node_editor.ui.pdf_preview_provider"))
         self.assertIn("node_size", imported_names_from(tree, "ea_node_editor.ui_qml.edge_routing"))
         self.assertNotIn("set_graph_boundary_adapters", call_names(tree))
 

@@ -84,7 +84,11 @@ INPUT_REFERENCE_SECTIONS: tuple[InputReferenceSection, ...] = (
                 "Ctrl+Left or Ctrl+Right",
                 "Center the view on the edge start or end.",
             ),
-            InputReferenceEntry("PDF panel", "Left or Right", "Move the selected PDF Panel to the previous or next page."),
+            InputReferenceEntry(
+                "Media Panel (PDF mode)",
+                "Left or Right",
+                "Move the selected PDF-mode Media Panel to the previous or next page.",
+            ),
             InputReferenceEntry("Help", "F1", "Show help for the selected node."),
             InputReferenceEntry("Fullscreen", "F11", "Open eligible selected content in fullscreen."),
             InputReferenceEntry("Graph", "Esc", "Cancel active wire drags, menus, overlays, or comment peek."),

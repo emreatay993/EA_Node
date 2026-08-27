@@ -41,6 +41,7 @@ from ea_node_editor.nodes.builtins.excalidraw import (
     EXCALIDRAW_PREVIEW_REF_PROPERTY,
     EXCALIDRAW_STATE_PROPERTY,
 )
+from ea_node_editor.nodes.builtins.media_panel import MEDIA_PANEL_TYPE_ID
 from ea_node_editor.nodes.builtins.web_viewer import (
     normalize_web_page_viewer_browser_state,
     web_page_viewer_browser_state_persistence_enabled,
@@ -68,6 +69,8 @@ from ea_node_editor.ui.tabular_preview_provider import (
     TABULAR_PREVIEW_FULLSCREEN_ROW_LIMIT,
     TabularPreviewProvider,
 )
+from ea_node_editor.ui.media_panel_source import resolve_media_panel_source
+from ea_node_editor.ui_qml.bridge_runtime import connect_signal as _connect_signal
 from ea_node_editor.ui_qml.graph_scene_payload import (
     PLOT_CONTENT_KIND,
     WEB_PAGE_CONTENT_KIND,
@@ -596,11 +599,22 @@ class _ContentFullscreenPolicyService:
         content_kind = self.content_kind_for_node(node, spec)
         if not content_kind:
             return _FullscreenResolution(None, "The selected node does not support content fullscreen.")
-        if content_kind in {"image", "pdf", "video", "mail"} and not str(node.properties.get("source_path", "") or "").strip():
-            return _FullscreenResolution(None, "Media nodes need a source path before they can open fullscreen.")
+        if content_kind == "mail" and not str(node.properties.get("source_path", "") or "").strip():
+            return _FullscreenResolution(None, "Mail Panel needs a source path before it can open fullscreen.")
         if content_kind == TABULAR_PREVIEW_CONTENT_KIND and not str(node.properties.get("path", "") or "").strip():
             return _FullscreenResolution(None, "Tabular data nodes need a source path before they can open fullscreen.")
         project_path, project_metadata = self.project_context()
+        source_resolution = (
+            resolve_media_panel_source(
+                node=node,
+                workspace=workspace,
+                run_state=getattr(self._shell_window_provider(), "run_state", None),
+                project_path=project_path,
+                project_metadata=project_metadata,
+            )
+            if content_kind == "media"
+            else None
+        )
         media_payload = (
             build_content_fullscreen_media_payload(
                 workspace_id=workspace_id,
@@ -608,15 +622,11 @@ class _ContentFullscreenPolicyService:
                 spec=spec,
                 project_path=project_path,
                 project_metadata=project_metadata,
+                source_resolution=source_resolution,
             )
-            if content_kind in {"image", "pdf", "video", "mail"}
+            if content_kind in {"media", "mail"}
             else {}
         )
-        if content_kind == "video" and not str(media_payload.get("resolved_source_url", "") or "").strip():
-            return _FullscreenResolution(
-                None,
-                "Video panels need an absolute local path or file URL before they can open fullscreen.",
-            )
         return _FullscreenResolution(
             _FullscreenCandidate(
                 workspace_id=workspace_id,
@@ -724,6 +734,8 @@ class _ContentFullscreenPolicyService:
     def content_kind_for_node(node: "NodeInstance", spec: "NodeTypeSpec") -> str:
         if str(node.type_id) == TABULAR_DATA_INPUT_NODE_TYPE_ID:
             return TABULAR_PREVIEW_CONTENT_KIND
+        if str(node.type_id) == MEDIA_PANEL_TYPE_ID:
+            return "media"
         content_kind = fullscreen_content_kind_for_node_type(type_id=node.type_id, spec=spec)
         if content_kind:
             return content_kind
@@ -923,10 +935,15 @@ class ContentFullscreenBridge(QObject):
         return self._viewer_session_bridge
 
     def _connect_scene_lifecycle(self) -> None:
-        if self._scene_bridge is None:
-            return
-        self._scene_bridge.workspace_changed.connect(self._on_workspace_changed)
-        self._scene_bridge.nodes_changed.connect(self._on_nodes_changed)
+        if self._scene_bridge is not None:
+            self._scene_bridge.workspace_changed.connect(self._on_workspace_changed)
+            self._scene_bridge.nodes_changed.connect(self._on_nodes_changed)
+            _connect_signal(self._scene_bridge, "edges_changed", self._on_nodes_changed)
+        execution_changed = getattr(
+            self._shell_window, "node_execution_state_changed", None
+        )
+        if execution_changed is not None:
+            execution_changed.connect(self._on_nodes_changed)
 
     def shutdown(self) -> None:
         self._clear_tabular_preview_jobs()
@@ -1021,7 +1038,7 @@ class ContentFullscreenBridge(QObject):
     def request_toggle_for_node_with_state(self, node_id: str, state: dict[str, Any]) -> bool:
         normalized = str(node_id or "").strip()
         if self._open and normalized and normalized == self._node_id:
-            if self._content_kind == "video":
+            if self._active_media_kind() == "video":
                 return self.request_close_with_state(state)
             self.request_close()
             return True
@@ -1053,7 +1070,7 @@ class ContentFullscreenBridge(QObject):
         if not self._open:
             self.request_close()
             return False
-        if self._content_kind != "video" or not self._node_id:
+        if self._active_media_kind() != "video" or not self._node_id:
             self.request_close()
             return False
         node_id = self._node_id
@@ -1089,15 +1106,18 @@ class ContentFullscreenBridge(QObject):
 
     @pyqtSlot("QVariantMap", result="QVariantMap")
     def request_trim_video_clip_replace(self, state: dict[str, Any]) -> dict[str, Any]:
-        if not self._open or self._content_kind != "video" or not self._node_id:
-            return self._video_trim_bridge_error("fullscreen_unavailable", "No fullscreen Video Panel is active.")
+        if not self._open or self._active_media_kind() != "video" or not self._node_id:
+            return self._video_trim_bridge_error(
+                "fullscreen_unavailable",
+                "No fullscreen Media Panel in video mode is active.",
+            )
         normalized_state = _normalized_video_fullscreen_state(state)
         presenter = getattr(self._shell_window, "graph_canvas_presenter", None)
         trim = getattr(presenter, "request_trim_video_clip_replace", None)
         if not callable(trim):
             return self._video_trim_bridge_error(
                 "mutation_unavailable",
-                "Graph canvas presenter cannot trim Video Panel clips.",
+                "Graph canvas presenter cannot trim Media Panel video clips.",
             )
         return dict(
             trim(
@@ -1111,15 +1131,18 @@ class ContentFullscreenBridge(QObject):
 
     @pyqtSlot("QVariantMap", result="QVariantMap")
     def request_trim_video_clip_copy(self, state: dict[str, Any]) -> dict[str, Any]:
-        if not self._open or self._content_kind != "video" or not self._node_id:
-            return self._video_trim_bridge_error("fullscreen_unavailable", "No fullscreen Video Panel is active.")
+        if not self._open or self._active_media_kind() != "video" or not self._node_id:
+            return self._video_trim_bridge_error(
+                "fullscreen_unavailable",
+                "No fullscreen Media Panel in video mode is active.",
+            )
         normalized_state = _normalized_video_fullscreen_state(state)
         presenter = getattr(self._shell_window, "graph_canvas_presenter", None)
         trim = getattr(presenter, "request_trim_video_clip_copy", None)
         if not callable(trim):
             return self._video_trim_bridge_error(
                 "mutation_unavailable",
-                "Graph canvas presenter cannot trim Video Panel clips.",
+                "Graph canvas presenter cannot trim Media Panel video clips.",
             )
         return dict(
             trim(
@@ -1430,7 +1453,7 @@ class ContentFullscreenBridge(QObject):
         return True
 
     def _current_pdf_page_state(self) -> tuple[int, int] | None:
-        if not self._open or self._content_kind != "pdf" or not self._node_id:
+        if not self._open or self._active_media_kind() != "pdf" or not self._node_id:
             return None
         media_payload = self._media_payload if isinstance(self._media_payload, Mapping) else {}
         pdf_preview = media_payload.get("pdf_preview")
@@ -1452,7 +1475,7 @@ class ContentFullscreenBridge(QObject):
         if self._open:
             self.request_close()
 
-    def _on_nodes_changed(self) -> None:
+    def _on_nodes_changed(self, *_args: object) -> None:
         if not self._open:
             return
         resolution = self._resolve_candidate(self._node_id)
@@ -1477,7 +1500,10 @@ class ContentFullscreenBridge(QObject):
         if candidate.content_kind == "script_editor":
             self._retarget_script_editor(candidate.node)
         media_payload = copy.deepcopy(candidate.media_payload)
-        if candidate.content_kind == "video" and runtime_state is not None:
+        if (
+            str(media_payload.get("media_kind", "") or "") == "video"
+            and runtime_state is not None
+        ):
             media_payload["transient_state"] = _normalized_video_fullscreen_state(runtime_state)
         self._set_state(
             open_=True,
@@ -1583,6 +1609,9 @@ class ContentFullscreenBridge(QObject):
         self._tabular_payload = next_tabular_payload
         self._last_error = str(last_error or "")
         self.content_fullscreen_changed.emit()
+
+    def _active_media_kind(self) -> str:
+        return str(self._media_payload.get("media_kind", "") or "").strip()
 
     def _ensure_web_surface_bridge(self, node_id: str, workspace_id: str, scene_state: object) -> bool:
         normalized_node_id = str(node_id or "").strip()
@@ -1853,7 +1882,7 @@ class ContentFullscreenBridge(QObject):
         return {
             "success": False,
             "created_node_id": "",
-            "created_type_id": "passive.media.video_panel",
+            "created_type_id": MEDIA_PANEL_TYPE_ID,
             "source_ref": "",
             "request_id": "",
             "error": {

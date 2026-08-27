@@ -219,7 +219,7 @@ function _groupBackdropVariantLayout(variant) {
 function _mediaVariantLayout(variant) {
     var contract = _mediaContract();
     var layouts = _variantLayouts(contract);
-    var normalized = _normalizedVariant(variant, layouts, "image_panel");
+    var normalized = _normalizedVariant(variant, layouts, "media_panel");
     var layout = layouts[normalized];
     return layout && typeof layout === "object" ? layout : {};
 }

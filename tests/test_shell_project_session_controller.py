@@ -300,6 +300,11 @@ class _ShellProjectSessionControllerScenarios(MainWindowShellTestBase):
             ).parts
         )
 
+    def _add_browse_media_panel(self, *, x: float, y: float) -> str:
+        node_id = self.window.scene.add_node_from_type("media.panel", x=x, y=y)
+        self.window.scene.set_exposed_port(node_id, "source", False)
+        return node_id
+
     def _attach_unsaved_staged_output(self) -> tuple[str, str, Path]:
         artifact_id = "pending_output"
         staged_ref = format_staged_artifact_ref(artifact_id)
@@ -317,10 +322,8 @@ class _ShellProjectSessionControllerScenarios(MainWindowShellTestBase):
         )
         staged_path.parent.mkdir(parents=True, exist_ok=True)
         staged_path.write_text("staged output", encoding="utf-8")
-        node_id = self.window.scene.add_node_from_type(
-            "passive.media.image_panel", x=40.0, y=60.0
-        )
-        self.window.scene.set_node_property(node_id, "source_path", staged_ref)
+        node_id = self._add_browse_media_panel(x=40.0, y=60.0)
+        self.window.scene.set_node_property(node_id, "source", staged_ref)
         self.window.model.project.metadata["artifact_store"] = {
             "staging_root": {
                 "kind": "session_temp",
@@ -639,7 +642,7 @@ class _ShellProjectSessionControllerScenarios(MainWindowShellTestBase):
         try:
             restored_workspace = restored.model.project.workspaces[workspace_id]
             self.assertEqual(
-                restored_workspace.nodes[node_id].properties["source_path"], staged_ref
+                restored_workspace.nodes[node_id].properties["source"], staged_ref
             )
             store = ProjectArtifactStore.from_project_metadata(
                 project_path=restored.project_path,
@@ -648,8 +651,8 @@ class _ShellProjectSessionControllerScenarios(MainWindowShellTestBase):
             self.assertEqual(store.resolve_staged_path(staged_ref), staged_path)
             self.assertEqual(len(execution_client.start_calls), 1)
             self.assertEqual(
-                execution_client.start_calls[0]["target_node_ids"],
-                (active_node_id,),
+                set(execution_client.start_calls[0]["target_node_ids"]),
+                {active_node_id, node_id},
             )
         finally:
             self._dispose_secondary_window(restored)
@@ -721,7 +724,7 @@ class _ShellProjectSessionControllerScenarios(MainWindowShellTestBase):
             try:
                 restored_workspace = restored.model.project.workspaces[workspace_id]
                 self.assertEqual(
-                    restored_workspace.nodes[node_id].properties["source_path"],
+                    restored_workspace.nodes[node_id].properties["source"],
                     staged_ref,
                 )
                 store = ProjectArtifactStore.from_project_metadata(
@@ -948,11 +951,11 @@ class _ShellProjectSessionControllerScenarios(MainWindowShellTestBase):
 
         self.assertEqual(self.window.project_path, str(saved_path))
         self.assertEqual(
-            workspace.nodes[node_id].properties["source_path"],
+            workspace.nodes[node_id].properties["source"],
             format_managed_artifact_ref("pending_output"),
         )
         self.assertEqual(
-            saved_node["properties"]["source_path"],
+            saved_node["properties"]["source"],
             format_managed_artifact_ref("pending_output"),
         )
         self.assertEqual(managed_path.read_text(encoding="utf-8"), "staged output")
@@ -1011,11 +1014,11 @@ class _ShellProjectSessionControllerScenarios(MainWindowShellTestBase):
         )
 
         self.assertEqual(
-            workspace.nodes[node_id].properties["source_path"],
+            workspace.nodes[node_id].properties["source"],
             format_managed_artifact_ref("pending_output"),
         )
         self.assertEqual(
-            saved_node["properties"]["source_path"],
+            saved_node["properties"]["source"],
             format_managed_artifact_ref("pending_output"),
         )
         self.assertEqual(managed_path.read_text(encoding="utf-8"), "staged output")
@@ -1063,15 +1066,11 @@ class _ShellProjectSessionControllerScenarios(MainWindowShellTestBase):
         staged_path.write_text("staged output", encoding="utf-8")
 
         self.window.project_path = str(source_project)
-        managed_node_id = self.window.scene.add_node_from_type(
-            "passive.media.image_panel", x=40.0, y=60.0
-        )
-        self.window.scene.set_node_property(managed_node_id, "source_path", managed_ref)
-        staged_node_id = self.window.scene.add_node_from_type(
-            "passive.media.image_panel", x=220.0, y=60.0
-        )
+        managed_node_id = self._add_browse_media_panel(x=40.0, y=60.0)
+        self.window.scene.set_node_property(managed_node_id, "source", managed_ref)
+        staged_node_id = self._add_browse_media_panel(x=220.0, y=60.0)
         self.window.scene.set_node_property(
-            staged_node_id, "source_path", format_staged_artifact_ref("pending_output")
+            staged_node_id, "source", format_staged_artifact_ref("pending_output")
         )
         self.window.model.project.metadata["artifact_store"] = {
             "artifacts": {
@@ -1192,10 +1191,10 @@ class _ShellProjectSessionControllerScenarios(MainWindowShellTestBase):
         )
         saved_nodes = {node["node_id"]: node for node in workspace_doc["nodes"]}
         self.assertEqual(
-            saved_nodes[managed_node_id]["properties"]["source_path"], managed_ref
+            saved_nodes[managed_node_id]["properties"]["source"], managed_ref
         )
         self.assertEqual(
-            saved_nodes[staged_node_id]["properties"]["source_path"],
+            saved_nodes[staged_node_id]["properties"]["source"],
             format_managed_artifact_ref("pending_output"),
         )
 
@@ -1314,10 +1313,8 @@ class _ShellProjectSessionControllerScenarios(MainWindowShellTestBase):
     def test_save_prompt_receives_project_file_summary_before_saving(self) -> None:
         self._attach_unsaved_staged_output()
         missing_path = str(Path(self._temp_dir.name) / "missing-image.png")
-        broken_node_id = self.window.scene.add_node_from_type(
-            "passive.media.image_panel", x=220.0, y=160.0
-        )
-        self.window.scene.set_node_property(broken_node_id, "source_path", missing_path)
+        broken_node_id = self._add_browse_media_panel(x=220.0, y=160.0)
+        self.window.scene.set_node_property(broken_node_id, "source", missing_path)
         save_target = Path(self._temp_dir.name) / "projects" / "prompted_save"
 
         with (
@@ -1356,13 +1353,14 @@ class _ShellProjectSessionControllerScenarios(MainWindowShellTestBase):
         workspace = model.active_workspace
         model.add_node(
             workspace.workspace_id,
-            "passive.media.image_panel",
+            "media.panel",
             "Broken",
             220.0,
             60.0,
             properties={
-                "source_path": str(Path(self._temp_dir.name) / "missing-open-image.png")
+                "source": str(Path(self._temp_dir.name) / "missing-open-image.png")
             },
+            exposed_ports={"source": False},
         )
         self.window.serializer.save_document(
             str(project_path), self.window.serializer.to_document(model.project)
@@ -1416,23 +1414,25 @@ class _ShellProjectSessionControllerScenarios(MainWindowShellTestBase):
         workspace = recovered_model.active_workspace
         recovered_model.add_node(
             workspace.workspace_id,
-            "passive.media.image_panel",
+            "media.panel",
             "Recovered Staged",
             80.0,
             60.0,
-            properties={"source_path": format_staged_artifact_ref("pending_output")},
+            properties={"source": format_staged_artifact_ref("pending_output")},
+            exposed_ports={"source": False},
         )
         recovered_model.add_node(
             workspace.workspace_id,
-            "passive.media.image_panel",
+            "media.panel",
             "Recovered Broken",
             220.0,
             60.0,
             properties={
-                "source_path": str(
+                "source": str(
                     Path(self._temp_dir.name) / "missing-recovered-image.png"
                 )
             },
+            exposed_ports={"source": False},
         )
         recovered_model.project.metadata = {
             "artifact_store": {

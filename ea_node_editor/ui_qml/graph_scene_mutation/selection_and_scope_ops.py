@@ -36,9 +36,7 @@ from ea_node_editor.graph.effective_ports import (
 from ea_node_editor.graph.hierarchy import is_node_in_scope, scope_parent_id
 from ea_node_editor.graph.invariant_kernel import GraphInvariantKernel
 from ea_node_editor.graph.records import NodeInstance
-from ea_node_editor.nodes.builtins.passive_media import (
-    PASSIVE_MEDIA_IMAGE_PANEL_TYPE_ID,
-)
+from ea_node_editor.nodes.builtins.media_panel import MEDIA_PANEL_TYPE_ID
 from ea_node_editor.nodes.builtins.subnode import (
     SUBNODE_PIN_LABEL_PROPERTY,
     SUBNODE_PIN_PORT_KEY,
@@ -47,6 +45,7 @@ from ea_node_editor.nodes.builtins.subnode import (
 )
 from ea_node_editor.nodes.builtins.data_control import NUMBER_SLIDER_TYPE_ID, SELECT_TYPE_ID
 from ea_node_editor.nodes.builtins.web_viewer import WEB_PAGE_VIEWER_TYPE_ID
+from ea_node_editor.nodes.registry import resolve_instance_ports
 from ea_node_editor.ui_qml.graph_scene_mutation.collision_avoidance_ops import (
     expand_collision_avoidance_updates,
 )
@@ -292,29 +291,32 @@ def create_node_from_type(
     parent_node_id: str | None,
     select_node: bool,
     property_overrides: dict[str, Any] | None = None,
+    exposed_port_overrides: dict[str, bool] | None = None,
     initial_title: str | None = None,
     custom_width: float | None = None,
     custom_height: float | None = None,
-    after_create: Callable[[NodeInstance, ValidatedGraphMutation], None] | None = None,
+    after_create: Callable[[NodeInstance, ValidatedGraphMutation], bool | None]
+    | None = None,
 ) -> str:
     model, registry = self._scene_context.require_bound()
     workspace = model.project.workspaces.get(self._scene_context.workspace_id)
     if workspace is None:
         return ""
+    dirty_before = bool(workspace.dirty)
+    mutation_revision_before = int(workspace.mutation_revision)
     history_before = self._capture_history_snapshot()
     spec = registry.get_spec(type_id)
     mutations = self._validated_mutations()
     properties = registry.default_properties(type_id)
-    if spec.type_id == PASSIVE_MEDIA_IMAGE_PANEL_TYPE_ID:
-        image_node_appearance = (
-            self._scene_context.graphics_image_node_default_appearance
-        )
+    media_panel_defaults = None
+    if spec.type_id == MEDIA_PANEL_TYPE_ID:
+        media_panel_defaults = self._scene_context.graphics_media_panel_defaults
         for key in ("show_title", "show_frame"):
             if key in properties:
                 properties[key] = registry.normalize_property_value(
                     type_id,
                     key,
-                    image_node_appearance.get(key),
+                    media_panel_defaults.get(key),
                 )
     if property_overrides:
         properties.update(
@@ -323,6 +325,21 @@ def create_node_from_type(
                 for key, value in property_overrides.items()
             }
         )
+    resolved_ports = resolve_instance_ports(spec, properties)
+    exposed_ports = {port.key: port.exposed for port in resolved_ports}
+    if media_panel_defaults is not None:
+        exposed_ports["source"] = bool(media_panel_defaults["source_input_exposed"])
+    if exposed_port_overrides:
+        overrides = {
+            str(key).strip(): bool(value)
+            for key, value in exposed_port_overrides.items()
+        }
+        unknown_keys = sorted(set(overrides) - set(exposed_ports))
+        if unknown_keys:
+            raise KeyError(
+                f"Unknown exposed port override for {type_id}: {', '.join(unknown_keys)}"
+            )
+        exposed_ports.update(overrides)
     node = mutations.add_node(
         type_id=type_id,
         title=properties.get("title", spec.display_name)
@@ -331,13 +348,25 @@ def create_node_from_type(
         x=float(x),
         y=float(y),
         properties=properties,
-        exposed_ports={port.key: port.exposed for port in spec.ports},
+        exposed_ports=exposed_ports,
         parent_node_id=parent_node_id,
         custom_width=custom_width,
         custom_height=custom_height,
     )
     if after_create is not None:
-        after_create(node, mutations)
+        def _rollback_created_node() -> None:
+            self._record_mutations().remove_node(node.node_id)
+            workspace.dirty = dirty_before
+            workspace.mutation_revision = mutation_revision_before
+
+        try:
+            keep_node = after_create(node, mutations)
+        except Exception:
+            _rollback_created_node()
+            raise
+        if keep_node is False:
+            _rollback_created_node()
+            return ""
     self._scene_context.sync_surface_title(node, spec)
     selection_changed = False
     if select_node:
@@ -992,7 +1021,10 @@ def set_node_property(self, node_id: str, key: str, value: Any) -> None:
     history_before = self._capture_history_snapshot()
     before_node = node.clone()
     before_edge_ids = set(workspace.edges)
-    self._validated_mutations().set_node_properties(node_id, normalized_updates)
+    try:
+        self._validated_mutations().set_node_properties(node_id, normalized_updates)
+    except PermissionError:
+        return
     _publish_property_change(
         self,
         node_id,
@@ -1094,7 +1126,10 @@ def set_node_properties(self, node_id: str, values: dict[str, Any]) -> bool:
         return True
     before_node = node.clone()
     before_edge_ids = set(workspace.edges)
-    self._validated_mutations().set_node_properties(node_id, normalized_updates)
+    try:
+        self._validated_mutations().set_node_properties(node_id, normalized_updates)
+    except PermissionError:
+        return False
     if normalized_title is not None:
         self._apply_title_update(node_id, node, spec, normalized_title)
     changed_keys = set(normalized_updates)

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import copy
 from pathlib import Path, PurePosixPath
 from unittest.mock import patch
 
@@ -7,7 +8,7 @@ from PyQt6.QtCore import QMimeData, QUrl
 from PyQt6.QtGui import QColor, QImage
 
 from ea_node_editor.graph.records import NodeInstance
-from ea_node_editor.nodes.builtins.passive_media import PASSIVE_MEDIA_VIDEO_PANEL_TYPE_ID
+from ea_node_editor.nodes.builtins.media_panel import MEDIA_PANEL_TYPE_ID
 from ea_node_editor.persistence.artifact_store import ProjectArtifactStore
 from ea_node_editor.ui.shell.clipboard_paste_nodes import classify_clipboard_paste_items
 from ea_node_editor.ui.shell.controllers.workspace_edit_ops import WorkspaceEditOps
@@ -113,7 +114,7 @@ class MainWindowShellEditClipboardHistoryTests(SharedMainWindowShellTestBase):
         project_path = self._env.temp_path / "managed-video.cxproj"
         self.window.project_path = str(project_path)
         workspace_id = self.window.workspace_manager.active_workspace_id()
-        node_id = self.window.scene.add_node_from_type(PASSIVE_MEDIA_VIDEO_PANEL_TYPE_ID, x=40.0, y=40.0)
+        node_id = self.window.scene.add_node_from_type(MEDIA_PANEL_TYPE_ID, x=40.0, y=40.0)
         workspace = self.window.model.project.workspaces[workspace_id]
         node = workspace.nodes[node_id]
         store = ProjectArtifactStore(project_path=project_path, metadata=None)
@@ -123,7 +124,7 @@ class MainWindowShellEditClipboardHistoryTests(SharedMainWindowShellTestBase):
             workspace_id=workspace_id,
             node_id=node_id,
             node_title=node.title,
-            node_type="Video Panel",
+            node_type="Media Panel",
             io_dir="in",
             subdirectory="media",
             filename="clip.mp4",
@@ -143,7 +144,7 @@ class MainWindowShellEditClipboardHistoryTests(SharedMainWindowShellTestBase):
             },
         )
         self.window.project_session_controller._set_project_artifact_store(store)
-        node.properties["source_path"] = store.managed_ref("video")
+        node.properties["source"] = store.managed_ref("video")
         release_events: list[tuple[str, str]] = []
         meta_events: list[object] = []
         self.window.graph_canvas_command_bridge.managedArtifactRenameReleaseRequested.connect(
@@ -164,7 +165,7 @@ class MainWindowShellEditClipboardHistoryTests(SharedMainWindowShellTestBase):
             workspace_id=workspace_id,
             node_id=node_id,
             node_title="Renamed Video",
-            node_type="Video Panel",
+            node_type="Media Panel",
             io_dir="in",
             subdirectory="media",
             filename="clip.mp4",
@@ -628,14 +629,22 @@ class MainWindowShellEditClipboardHistoryTests(SharedMainWindowShellTestBase):
 
         new_nodes = _new_workspace_nodes(self.window, before_node_ids)
         self.assertEqual(len(new_nodes), 3)
-        by_type = {node.type_id: node for node in new_nodes}
+        media_by_suffix = {
+            Path(str(node.properties["source"])).suffix.lower(): node
+            for node in new_nodes
+            if node.type_id == MEDIA_PANEL_TYPE_ID
+        }
+        by_type = {node.type_id: node for node in new_nodes if node.type_id != MEDIA_PANEL_TYPE_ID}
         self.assertEqual(
-            Path(by_type["passive.media.image_panel"].properties["source_path"]).resolve(),
+            Path(media_by_suffix[".png"].properties["source"]).resolve(),
             image_path.resolve(),
         )
         self.assertEqual(
-            Path(by_type["passive.media.pdf_panel"].properties["source_path"]).resolve(),
+            Path(media_by_suffix[".pdf"].properties["source"]).resolve(),
             pdf_path.resolve(),
+        )
+        self.assertTrue(
+            all(not node.exposed_ports["source"] for node in media_by_suffix.values())
         )
         self.assertEqual(
             Path(by_type["web.page_viewer"].properties["start_location"]).resolve(),
@@ -667,8 +676,9 @@ class MainWindowShellEditClipboardHistoryTests(SharedMainWindowShellTestBase):
         self.assertTrue(self.window.request_paste_selected_nodes())
         self.app.processEvents()
         pdf_node = _new_workspace_nodes(self.window, before_node_ids)[0]
-        self.assertEqual(pdf_node.type_id, "passive.media.pdf_panel")
-        self.assertEqual(pdf_node.properties["source_path"], "https://example.test/specs/guide.pdf")
+        self.assertEqual(pdf_node.type_id, MEDIA_PANEL_TYPE_ID)
+        self.assertEqual(pdf_node.properties["source"], "https://example.test/specs/guide.pdf")
+        self.assertFalse(pdf_node.exposed_ports["source"])
 
         self.app.clipboard().setText("https://example.test/docs/")
         before_node_ids = set(workspace.nodes)
@@ -704,8 +714,9 @@ class MainWindowShellEditClipboardHistoryTests(SharedMainWindowShellTestBase):
         self.app.processEvents()
 
         image_node = _new_workspace_nodes(self.window, before_node_ids)[0]
-        self.assertEqual(image_node.type_id, "passive.media.image_panel")
-        source_ref = str(image_node.properties["source_path"])
+        self.assertEqual(image_node.type_id, MEDIA_PANEL_TYPE_ID)
+        self.assertFalse(image_node.exposed_ports["source"])
+        source_ref = str(image_node.properties["source"])
         self.assertTrue(source_ref.startswith("temp://"))
         staged_path = self.window.project_session_controller.project_artifact_store().resolve_staged_path(source_ref)
         self.assertIsNotNone(staged_path)
@@ -724,8 +735,9 @@ class MainWindowShellEditClipboardHistoryTests(SharedMainWindowShellTestBase):
         self.assertTrue(self.window.request_paste_selected_nodes())
         self.app.processEvents()
         pdf_node = _new_workspace_nodes(self.window, before_node_ids)[0]
-        self.assertEqual(pdf_node.type_id, "passive.media.pdf_panel")
-        pdf_ref = str(pdf_node.properties["source_path"])
+        self.assertEqual(pdf_node.type_id, MEDIA_PANEL_TYPE_ID)
+        self.assertFalse(pdf_node.exposed_ports["source"])
+        pdf_ref = str(pdf_node.properties["source"])
         self.assertTrue(pdf_ref.startswith("temp://"))
         pdf_path = self.window.project_session_controller.project_artifact_store().resolve_staged_path(pdf_ref)
         self.assertIsNotNone(pdf_path)
@@ -739,13 +751,51 @@ class MainWindowShellEditClipboardHistoryTests(SharedMainWindowShellTestBase):
         self.assertTrue(self.window.request_paste_selected_nodes())
         self.app.processEvents()
         video_node = _new_workspace_nodes(self.window, before_node_ids)[0]
-        self.assertEqual(video_node.type_id, "passive.media.video_panel")
-        video_ref = str(video_node.properties["source_path"])
+        self.assertEqual(video_node.type_id, MEDIA_PANEL_TYPE_ID)
+        self.assertFalse(video_node.exposed_ports["source"])
+        video_ref = str(video_node.properties["source"])
         self.assertTrue(video_ref.startswith("temp://"))
         video_path = self.window.project_session_controller.project_artifact_store().resolve_staged_path(video_ref)
         self.assertIsNotNone(video_path)
         assert video_path is not None
         self.assertEqual(video_path.suffix.lower(), ".mp4")
+
+    def test_raw_media_clipboard_staging_failure_rolls_back_created_node_and_history(self) -> None:
+        workspace_id = self.window.workspace_manager.active_workspace_id()
+        workspace = self.window.model.project.workspaces[workspace_id]
+        image = QImage(10, 10, QImage.Format.Format_ARGB32)
+        image.fill(QColor("#D24B3A"))
+        mime_data = QMimeData()
+        mime_data.setImageData(image)
+        self.app.clipboard().setMimeData(mime_data)
+
+        for pre_dirty, expected_revision in ((False, 211), (True, 307)):
+            with self.subTest(pre_dirty=pre_dirty):
+                workspace.dirty = pre_dirty
+                workspace.mutation_revision = expected_revision
+                self.window.runtime_history.clear_workspace(workspace_id)
+                before_node_ids = set(workspace.nodes)
+                before_edges = dict(workspace.edges)
+                before_selection = _selected_node_ids(self.window)
+                before_metadata = copy.deepcopy(self.window.model.project.metadata)
+
+                with patch.object(
+                    self.window.shell_host_presenter,
+                    "stage_clipboard_paste_bytes",
+                    return_value="",
+                ):
+                    pasted = self.window.request_paste_selected_nodes()
+                self.app.processEvents()
+
+                self.assertFalse(pasted)
+                self.assertEqual(set(workspace.nodes), before_node_ids)
+                self.assertEqual(workspace.edges, before_edges)
+                self.assertEqual(_selected_node_ids(self.window), before_selection)
+                self.assertEqual(self.window.model.project.metadata, before_metadata)
+                self.assertEqual(workspace.dirty, pre_dirty)
+                self.assertEqual(workspace.mutation_revision, expected_revision)
+                self.assertEqual(self.window.runtime_history.undo_depth(workspace_id), 0)
+                self.assertEqual(self.window.runtime_history.redo_depth(workspace_id), 0)
 
     def test_qml_request_paste_selected_nodes_creates_text_annotations_for_html_and_plain_text(self) -> None:
         workspace_id = self.window.workspace_manager.active_workspace_id()

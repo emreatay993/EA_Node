@@ -64,27 +64,30 @@ class ProjectFilesSnapshotTests(unittest.TestCase):
             workspace = model.active_workspace
             managed_node = model.add_node(
                 workspace.workspace_id,
-                "passive.media.image_panel",
+                "media.panel",
                 "Managed Panel",
                 80.0,
                 40.0,
-                properties={"source_path": format_managed_artifact_ref("managed_image")},
+                properties={"source": format_managed_artifact_ref("managed_image")},
+                exposed_ports={"source": False},
             )
             staged_node = model.add_node(
                 workspace.workspace_id,
-                "passive.media.image_panel",
+                "media.panel",
                 "Staged Panel",
                 220.0,
                 40.0,
-                properties={"source_path": format_staged_artifact_ref("pending_output")},
+                properties={"source": format_staged_artifact_ref("pending_output")},
+                exposed_ports={"source": False},
             )
             broken_node = model.add_node(
                 workspace.workspace_id,
-                "passive.media.image_panel",
+                "media.panel",
                 "Broken Panel",
                 360.0,
                 40.0,
-                properties={"source_path": str(root / "missing-image.png")},
+                properties={"source": str(root / "missing-image.png")},
+                exposed_ports={"source": False},
             )
             managed_folder = format_node_artifact_folder(
                 workspace_id=workspace.workspace_id,
@@ -162,7 +165,7 @@ class ProjectFilesSnapshotTests(unittest.TestCase):
         self.assertEqual(snapshot.staged_entries[0].slot, "process_run.stdout")
         self.assertTrue(snapshot.staged_entries[0].exists)
         self.assertEqual(snapshot.broken_entries[0].node_id, broken_node.node_id)
-        self.assertEqual(snapshot.broken_entries[0].property_label, "Image Source")
+        self.assertEqual(snapshot.broken_entries[0].property_label, "Source")
         self.assertIn("no longer exists", snapshot.broken_entries[0].message)
 
 
@@ -181,7 +184,7 @@ class ProjectFilesDialogTests(unittest.TestCase):
                     workspace_name="Main",
                     node_id="node_broken",
                     node_title="Broken Image",
-                    property_key="source_path",
+                    property_key="source",
                     property_label="Image Source",
                     current_value="/tmp/missing.png",
                     issue_kind="external_missing",

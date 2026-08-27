@@ -124,7 +124,7 @@ def _current_non_dpf_catalog() -> list[dict[str, object]]:
 def test_builtin_registry_contains_retained_corex_contract_families() -> None:
     registry = build_builtin_registry()
 
-    assert len(registry.all_specs()) == 123
+    assert len(registry.all_specs()) == 121
     for type_id in (
         "plot.signal",
         "geometry.cylinder",
@@ -144,13 +144,17 @@ def test_builtin_registry_contains_retained_corex_contract_families() -> None:
         assert registry.data_types.require(data_type_id).type_id == data_type_id
 
 
-def test_frozen_non_dpf_catalog_plus_t17_documentation_overlay_matches_current() -> None:
+def test_frozen_non_dpf_catalog_plus_documentation_and_structural_overlays_matches_current() -> (
+    None
+):
     assert (
         hashlib.sha256(FROZEN_CATALOG_PATH.read_bytes()).hexdigest().upper()
         == FROZEN_CATALOG_SHA256
     )
     assert len(load_frozen_non_dpf_catalog()) == 133
-    assert _current_non_dpf_catalog() == load_effective_non_dpf_catalog()
+    effective = load_effective_non_dpf_catalog()
+    assert len(effective) == 131
+    assert _current_non_dpf_catalog() == effective
 
 
 def test_novice_plugin_sdk_migration_inventory_is_exhaustive() -> None:
@@ -195,13 +199,17 @@ def test_novice_plugin_sdk_migration_inventory_is_exhaustive() -> None:
     )
     specs = (*non_dpf, *dpf)
 
-    assert len(rows) == len(specs) == 938
-    assert set(rows) == {spec.type_id for spec in specs}
-    assert {type_id for type_id, row in rows.items() if row["disposition"] == "DPF excluded"} == {
-        spec.type_id for spec in dpf
-    }
+    assert len(rows) == 936
+    assert len(specs) == 936
+    current_type_ids = {spec.type_id for spec in specs}
+    assert current_type_ids == set(rows)
+    assert {
+        type_id for type_id, row in rows.items() if row["disposition"] == "DPF excluded"
+    } == {spec.type_id for spec in dpf}
     assert [row["disposition"] for row in rows.values()].count("convert") == 78
-    assert [row["disposition"] for row in rows.values()].count("internal exception") == 55
+    assert [row["disposition"] for row in rows.values()].count(
+        "internal exception"
+    ) == 53
 
     for spec in specs:
         row = rows[spec.type_id]

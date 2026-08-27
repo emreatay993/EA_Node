@@ -992,7 +992,7 @@ function Write-DependencyMatrix {
             dependency_group = "media"
             dependency = "PyQt6.QtMultimedia"
             build_env_installed = $Availability.pyqt6_qtmultimedia
-            source_runtime_behavior = "Video Panel playback uses Qt Multimedia MediaPlayer, VideoOutput, and AudioOutput."
+            source_runtime_behavior = "Media Panel video mode uses Qt Multimedia MediaPlayer, VideoOutput, and AudioOutput."
             packaged_runtime_behavior = "All package profiles bundle the Qt Multimedia runtime and fail the build when missing from the build environment."
             packaging_policy = "Required dependency for every package profile."
             operator_action = "Install project requirements before packaging."
@@ -1002,8 +1002,8 @@ function Write-DependencyMatrix {
             dependency_group = "media"
             dependency = "imageio-ffmpeg"
             build_env_installed = ($Availability.imageio_ffmpeg -eq $true -and $Availability.imageio_ffmpeg_binary -eq $true)
-            source_runtime_behavior = "Video Panel trim-save uses imageio-ffmpeg to locate a bundled ffmpeg executable for internal MP4 clip creation."
-            packaged_runtime_behavior = "All package profiles bundle imageio-ffmpeg and its ffmpeg executable for Video Panel trim-save."
+            source_runtime_behavior = "Media Panel video-mode trim-save uses imageio-ffmpeg to locate a bundled ffmpeg executable for internal MP4 clip creation."
+            packaged_runtime_behavior = "All package profiles bundle imageio-ffmpeg and its ffmpeg executable for Media Panel video-mode trim-save."
             packaging_policy = "Required dependency for every package profile."
             operator_action = "Install project requirements before packaging."
         },

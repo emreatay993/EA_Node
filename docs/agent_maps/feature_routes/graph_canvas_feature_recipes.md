@@ -16,14 +16,14 @@ These feature classes require **zero edits** to: `GraphCanvas.qml`, `GraphNodeHo
 
 Files (2; +1 one-time registration if the kind has no contributor yet):
 1. `ea_node_editor/ui_qml/graph_scene_payload/kinds/<kind>.py` — add/extend `contribute(payload, ctx)` (or `normalize_properties` for property normalization). New build inputs go on `factory.PayloadBuildContext` once, never threaded through signatures.
-2. The consuming surface QML (e.g. `components/graph/passive/GraphVideoPanelSurface.qml`) — read `host.nodeData.<field>`.
+2. The consuming surface QML (e.g. `components/graph/passive/GraphMediaVideoRenderer.qml`) — read `host.nodeData.<field>`.
 3. *(one-time)* `kinds/__init__.py` — register the kind's contributor in `kind_dispatch_for_spec` if this is the kind's first contribution. Registration order is frozen; append within the existing dispatch checks.
 
 Measured (P10 dogfood, media-panel demo field, `git diff --name-only`):
 ```
-ea_node_editor/ui_qml/graph_scene_payload/kinds/media_panel.py
-ea_node_editor/ui_qml/graph_scene_payload/kinds/__init__.py   (one-time registration)
-ea_node_editor/ui_qml/components/graph/passive/GraphVideoPanelSurface.qml
+ea_node_editor/ui/media_panel_source.py
+ea_node_editor/ui_qml/graph_canvas_state/execution_state_props.py
+ea_node_editor/ui_qml/components/graph/passive/GraphMediaVideoRenderer.qml
 ```
 
 ## Recipe B — New canvas preference (canvas + options menu)

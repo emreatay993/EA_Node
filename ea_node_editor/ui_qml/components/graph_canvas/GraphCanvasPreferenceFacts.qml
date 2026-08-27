@@ -97,9 +97,9 @@ QtObject {
         && facts.stateBridge.graphics_node_floating_toolbar_opens_on_hover !== undefined
         ? Boolean(facts.stateBridge.graphics_node_floating_toolbar_opens_on_hover)
         : false
-    readonly property bool imageNodeAutoplayAnimations: facts.stateBridge
-        && facts.stateBridge.graphics_image_node_autoplay_animations !== undefined
-        ? Boolean(facts.stateBridge.graphics_image_node_autoplay_animations)
+    readonly property bool mediaPanelAutoplayAnimations: facts.stateBridge
+        && facts.stateBridge.graphics_media_panel_autoplay_animations !== undefined
+        ? Boolean(facts.stateBridge.graphics_media_panel_autoplay_animations)
         : true
 
     function tooltipCategoryEnabled(category) {

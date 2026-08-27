@@ -19,6 +19,7 @@ Use this for node execution state projection, declarative readiness diagnostics,
 - `ea_node_editor/ui_qml/components/graph_canvas/GraphCanvasExecutionFacts.qml` - shared-by-reference QML facts object.
 - `tests/test_port_flow_state.py` - focused port-flow semantic and projection proof.
 - `tests/test_data_type_ui_projection.py` - bounded type projection, warning separation, and rich-preview security proof.
+- `ea_node_editor/ui/media_panel_source.py` and `tests/test_media_panel_source_resolution.py` - effective Media Panel runtime/source-state projection.
 
 ## Do Not Start Here
 - `ea_node_editor/execution/protocol.py` - inspect the worker event contract only when the retained event lacks a required fact; do not scan the execution package by default.
@@ -47,6 +48,7 @@ Stale records are ignored for current grip flow. Typed EMPTY remains distinct fr
 
 ## Common Changes
 - Exact catalog-validated ImageValue outputs project a bounded `thumbnail` rich-preview DTO. SHA-keyed entries reuse the existing `viewer-preview-cache` image provider under the reserved `image-value` workspace key; runtime solution reset clears those entries and bytes never enter QML payloads.
+- `ExecutionStateProps.media_panel_source_lookup` uses the injected read-only project source plus existing run-state/output caches. It publishes only the bounded source-resolution DTO; raw Path/String/Image values stay Python-only. Node, edge, execution, workspace, and exposure changes reuse the existing `port_flow_state_changed` notification path.
 
 - Data-port grip state, bounded preview, and per-node retained run count are projected from typed settled results in the existing output cache. Keep these lookups on the shared `GraphCanvasExecutionFacts.qml` object; `GraphNodeHost.qml` consumes them but does not own the projection route. Do not drill them through each host or add a second runtime-value cache.
 - Rich previews never call custom `repr`/`str`, iterators, mappings, or file/network/model providers. Typed carriers require the exact production `DataTypeCatalog`, exact `DataTypeSpec` records read without overridable catalog callbacks, and valid type/schema/carrier/payload facts. Engineering/DPF/FEM/geometry/mesh handles may expose only allowlisted integer counts; artifacts expose only the catalog label plus `artifact`, never IDs, refs, scopes, hashes, paths, provenance, or transport identity.
@@ -68,7 +70,7 @@ Stale records are ignored for current grip flow. Typed EMPTY remains distinct fr
 .\venv\Scripts\python.exe -m pytest tests/test_port_flow_state.py tests/test_execution_client.py tests/test_execution_worker.py tests/test_shell_run_controller.py tests/test_passive_runtime_wiring.py --ignore=venv -q
 .\venv\Scripts\python.exe -m pytest tests/test_run_controller_unit.py -k "runtime_warning_messages" --ignore=venv -q
 .\venv\Scripts\python.exe -m unittest tests.test_passive_graph_surface_host.PassiveGraphSurfaceHostTests.test_graph_node_host_persistent_diagnostic_uses_warning_badge_and_execution_precedence -v
-.\venv\Scripts\python.exe -m pytest tests/test_port_flow_state.py tests/test_data_tree_ui.py tests/test_run_controller_unit.py -k "settled or preview or empty or failure" --ignore=venv -q
+.\venv\Scripts\python.exe -m pytest tests/test_port_flow_state.py tests/test_data_tree_ui.py tests/test_run_controller_unit.py tests/test_media_panel_source_resolution.py -k "settled or preview or empty or failure or media_panel" --ignore=venv -q
 .\venv\Scripts\python.exe -m pytest tests/test_data_type_ui_projection.py --ignore=venv -q
 .\venv\Scripts\python.exe -m pytest tests/graph_surface/passive_host_interaction_suite.py tests/graph_track_b/qml_preference_bindings.py tests/graph_track_b/qml_preference_rendering_suite.py tests/test_node_restyle_mockup.py --ignore=venv -q
 ```

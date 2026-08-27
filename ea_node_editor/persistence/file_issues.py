@@ -2,8 +2,9 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from typing import Any, Mapping
-from urllib.parse import quote, unquote
+from urllib.parse import quote, unquote, urlsplit
 
+from ea_node_editor.nodes.file_dialog_filters import is_supported_media_source_reference
 from ea_node_editor.persistence.artifact_resolution import ArtifactResolution, ProjectArtifactResolver
 
 FILE_REPAIR_REQUEST_PREFIX = "ea-file-repair:"
@@ -11,9 +12,7 @@ MANAGED_COPY_MODE = "managed_copy"
 EXTERNAL_LINK_MODE = "external_link"
 
 _TRACKED_REPAIR_MODES: dict[tuple[str, str], tuple[str, ...]] = {
-    ("passive.media.image_panel", "source_path"): (MANAGED_COPY_MODE, EXTERNAL_LINK_MODE),
-    ("passive.media.pdf_panel", "source_path"): (MANAGED_COPY_MODE, EXTERNAL_LINK_MODE),
-    ("passive.media.video_panel", "source_path"): (MANAGED_COPY_MODE, EXTERNAL_LINK_MODE),
+    ("media.panel", "source"): (MANAGED_COPY_MODE, EXTERNAL_LINK_MODE),
     ("passive.media.mail_panel", "source_path"): (MANAGED_COPY_MODE, EXTERNAL_LINK_MODE),
     ("io.file_read", "path"): (EXTERNAL_LINK_MODE,),
     ("io.excel_read", "path"): (EXTERNAL_LINK_MODE,),
@@ -139,11 +138,26 @@ def collect_node_file_issues(
     node_properties = getattr(node, "properties", {})
     for prop in getattr(spec, "properties", ()):
         property_key = str(getattr(prop, "key", "")).strip()
+        if (
+            node_type_id == "media.panel"
+            and property_key == "source"
+            and bool(getattr(node, "exposed_ports", {}).get("source", True))
+        ):
+            continue
         repair_modes = repair_modes_for_node_property(node_type_id, property_key)
         if not repair_modes:
             continue
         property_label = str(getattr(prop, "label", property_key)).strip() or property_key
         property_value = str(getattr(node_properties, "get", lambda *_args: "")(property_key, getattr(prop, "default", "")) or "").strip()
+        if node_type_id == "media.panel" and property_key == "source":
+            try:
+                remote_scheme = urlsplit(property_value).scheme.casefold()
+            except ValueError:
+                remote_scheme = ""
+            if remote_scheme in {"http", "https"} and is_supported_media_source_reference(
+                property_value
+            ):
+                continue
         issue = resolve_node_file_issue(
             node_id=node_id,
             property_key=property_key,

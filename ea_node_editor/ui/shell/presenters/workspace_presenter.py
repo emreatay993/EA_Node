@@ -18,7 +18,7 @@ from ea_node_editor.app_preferences import (
     normalize_status_bar_layout,
     normalize_canvas_background_variant,
     normalize_grid_overlay_style,
-    normalize_image_node_appearance_settings,
+    normalize_media_panel_settings,
     normalize_node_comment_editor_default,
     normalize_node_elapsed_time_unit,
     normalize_node_elapsed_time_visibility,
@@ -211,22 +211,29 @@ class ShellWorkspacePresenter(QObject):
         return int(self._ui_state.node_title_icon_pixel_size)
 
     @property
-    def graphics_image_node_default_appearance(self) -> dict[str, bool]:
+    def graphics_media_panel_defaults(self) -> dict[str, bool]:
         return {
-            "show_title": self.graphics_image_node_default_show_title,
-            "show_frame": self.graphics_image_node_default_show_frame,
-            "autoplay_animations": self.graphics_image_node_autoplay_animations,
+            "show_title": self.graphics_media_panel_default_show_title,
+            "show_frame": self.graphics_media_panel_default_show_frame,
+            "autoplay_animations": self.graphics_media_panel_autoplay_animations,
+            "source_input_exposed": self.graphics_media_panel_source_input_exposed,
         }
 
     @property
-    def graphics_image_node_default_show_title(self) -> bool: return bool(self._ui_state.image_node_default_show_title)
+    def graphics_media_panel_default_show_title(self) -> bool:
+        return bool(self._ui_state.media_panel_default_show_title)
 
     @property
-    def graphics_image_node_default_show_frame(self) -> bool: return bool(self._ui_state.image_node_default_show_frame)
+    def graphics_media_panel_default_show_frame(self) -> bool:
+        return bool(self._ui_state.media_panel_default_show_frame)
 
     @property
-    def graphics_image_node_autoplay_animations(self) -> bool:
-        return bool(self._ui_state.image_node_autoplay_animations)
+    def graphics_media_panel_autoplay_animations(self) -> bool:
+        return bool(self._ui_state.media_panel_autoplay_animations)
+
+    @property
+    def graphics_media_panel_source_input_exposed(self) -> bool:
+        return bool(self._ui_state.media_panel_source_input_exposed)
 
     @property
     def graphics_folder_explorer_column_widths(self) -> dict[str, int]:
@@ -389,7 +396,7 @@ class ShellWorkspacePresenter(QObject):
         shell = graphics.get("shell", {}) if isinstance(graphics, dict) else {}
         theme = graphics.get("theme", {}) if isinstance(graphics, dict) else {}
         typography = graphics.get("typography", {}) if isinstance(graphics, dict) else {}
-        image_nodes = graphics.get("image_nodes") if isinstance(graphics, dict) else None
+        media_panel = graphics.get("media_panel") if isinstance(graphics, dict) else None
         folder_explorer = graphics.get("folder_explorer", {}) if isinstance(graphics, dict) else {}
         graph_theme = graphics.get("graph_theme", {}) if isinstance(graphics, dict) else {}
 
@@ -446,10 +453,10 @@ class ShellWorkspacePresenter(QObject):
             graph_label_pixel_size,
             graph_node_icon_pixel_size_override,
         )
-        image_node_appearance = (
-            normalize_image_node_appearance_settings(image_nodes)
-            if isinstance(graphics, dict) and "image_nodes" in graphics
-            else self.graphics_image_node_default_appearance
+        media_panel_settings = (
+            normalize_media_panel_settings(media_panel)
+            if isinstance(graphics, dict) and "media_panel" in graphics
+            else self.graphics_media_panel_defaults
         )
         folder_explorer_column_widths = (
             normalize_folder_explorer_column_widths(folder_explorer.get("column_widths"))
@@ -592,15 +599,36 @@ class ShellWorkspacePresenter(QObject):
         if self._ui_state.recent_text_colors != recent_text_colors:
             self._ui_state.recent_text_colors = list(recent_text_colors)
             changed = True
-        if self._ui_state.image_node_default_show_title != image_node_appearance["show_title"]:
-            self._ui_state.image_node_default_show_title = bool(image_node_appearance["show_title"])
+        if (
+            self._ui_state.media_panel_default_show_title
+            != media_panel_settings["show_title"]
+        ):
+            self._ui_state.media_panel_default_show_title = bool(
+                media_panel_settings["show_title"]
+            )
             changed = True
-        if self._ui_state.image_node_default_show_frame != image_node_appearance["show_frame"]:
-            self._ui_state.image_node_default_show_frame = bool(image_node_appearance["show_frame"])
+        if (
+            self._ui_state.media_panel_default_show_frame
+            != media_panel_settings["show_frame"]
+        ):
+            self._ui_state.media_panel_default_show_frame = bool(
+                media_panel_settings["show_frame"]
+            )
             changed = True
-        if self._ui_state.image_node_autoplay_animations != image_node_appearance["autoplay_animations"]:
-            self._ui_state.image_node_autoplay_animations = bool(
-                image_node_appearance["autoplay_animations"]
+        if (
+            self._ui_state.media_panel_autoplay_animations
+            != media_panel_settings["autoplay_animations"]
+        ):
+            self._ui_state.media_panel_autoplay_animations = bool(
+                media_panel_settings["autoplay_animations"]
+            )
+            changed = True
+        if (
+            self._ui_state.media_panel_source_input_exposed
+            != media_panel_settings["source_input_exposed"]
+        ):
+            self._ui_state.media_panel_source_input_exposed = bool(
+                media_panel_settings["source_input_exposed"]
             )
             changed = True
         if self._ui_state.folder_explorer_column_widths != folder_explorer_column_widths:
@@ -736,7 +764,7 @@ class ShellWorkspacePresenter(QObject):
                 "graph_node_icon_pixel_size_override": self._ui_state.graph_node_icon_pixel_size_override,
                 "recent_text_colors": list(self._ui_state.recent_text_colors),
             },
-            "image_nodes": self.graphics_image_node_default_appearance,
+            "media_panel": self.graphics_media_panel_defaults,
             "folder_explorer": {
                 "column_widths": self.graphics_folder_explorer_column_widths,
             },

@@ -13,16 +13,12 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 from uuid import uuid4
 
-from PyQt6.QtCore import Q_ARG, QEventLoop, QMetaObject, QObject, QThread, Qt, QTimer, pyqtSignal
+from PyQt6.QtCore import Q_ARG, QEventLoop, QMetaObject, QObject, QThread, Qt, QTimer, QUrl, pyqtSignal
 from PyQt6.QtGui import QImage
 from PyQt6.QtWidgets import QApplication, QMessageBox, QWidget
 
 from ea_node_editor.nodes.builtins.passive_annotation import PASSIVE_ANNOTATION_TEXT_TYPE_ID
-from ea_node_editor.nodes.builtins.passive_media import (
-    PASSIVE_MEDIA_IMAGE_PANEL_TYPE_ID,
-    PASSIVE_MEDIA_VIDEO_PANEL_TYPE_ID,
-)
-from ea_node_editor.persistence.artifact_resolution import ProjectArtifactResolver
+from ea_node_editor.nodes.builtins.media_panel import MEDIA_PANEL_TYPE_ID
 from ea_node_editor.ui.canvas_view_export import (
     DEFAULT_CANVAS_EXPORT_CROP_PADDING_PX,
     CanvasExportCropRect,
@@ -40,6 +36,10 @@ from ea_node_editor.ui.canvas_view_export_compositor import (
 )
 from ea_node_editor.ui.dialogs.canvas_view_export_dialog import CanvasViewExportDialog
 from ea_node_editor.ui.image_crop import ImageCropError, crop_image_file_to_png_bytes, crop_rect_is_effective
+from ea_node_editor.ui.media_panel_source import (
+    MediaPanelSourceResolution,
+    resolve_media_panel_source,
+)
 from ea_node_editor.ui.pptx_export import (
     CanvasViewPptxExportError,
     CanvasViewPptxSlide,
@@ -69,6 +69,7 @@ class _VideoTrimContext:
     scene_x: float
     scene_y: float
     properties: dict[str, Any]
+    resolved_source_url: str
 
 
 @dataclass(frozen=True, slots=True)
@@ -240,26 +241,33 @@ class GraphCanvasPresenter(QObject):
         return int(self._host.workspace_ui_state.node_title_icon_pixel_size)
 
     @property
-    def graphics_image_node_default_appearance(self) -> dict[str, bool]:
+    def graphics_media_panel_defaults(self) -> dict[str, bool]:
         return {
-            "show_title": bool(self._host.workspace_ui_state.image_node_default_show_title),
-            "show_frame": bool(self._host.workspace_ui_state.image_node_default_show_frame),
+            "show_title": bool(self._host.workspace_ui_state.media_panel_default_show_title),
+            "show_frame": bool(self._host.workspace_ui_state.media_panel_default_show_frame),
             "autoplay_animations": bool(
-                self._host.workspace_ui_state.image_node_autoplay_animations
+                self._host.workspace_ui_state.media_panel_autoplay_animations
+            ),
+            "source_input_exposed": bool(
+                self._host.workspace_ui_state.media_panel_source_input_exposed
             ),
         }
 
     @property
-    def graphics_image_node_default_show_title(self) -> bool:
-        return bool(self._host.workspace_ui_state.image_node_default_show_title)
+    def graphics_media_panel_default_show_title(self) -> bool:
+        return bool(self._host.workspace_ui_state.media_panel_default_show_title)
 
     @property
-    def graphics_image_node_default_show_frame(self) -> bool:
-        return bool(self._host.workspace_ui_state.image_node_default_show_frame)
+    def graphics_media_panel_default_show_frame(self) -> bool:
+        return bool(self._host.workspace_ui_state.media_panel_default_show_frame)
 
     @property
-    def graphics_image_node_autoplay_animations(self) -> bool:
-        return bool(self._host.workspace_ui_state.image_node_autoplay_animations)
+    def graphics_media_panel_autoplay_animations(self) -> bool:
+        return bool(self._host.workspace_ui_state.media_panel_autoplay_animations)
+
+    @property
+    def graphics_media_panel_source_input_exposed(self) -> bool:
+        return bool(self._host.workspace_ui_state.media_panel_source_input_exposed)
 
     @property
     def graphics_folder_explorer_column_widths(self) -> dict[str, int]:
@@ -474,37 +482,46 @@ class GraphCanvasPresenter(QObject):
         crop_rect: dict[str, Any] | None = None,
     ) -> dict[str, object]:
         normalized_image_node_id = str(image_node_id or "").strip()
-        node = self._active_image_node(normalized_image_node_id)
-        if node is None:
+        node, source_resolution = self._active_media_source(
+            normalized_image_node_id,
+            expected_kind="image",
+        )
+        if node is None or source_resolution is None:
             return self._image_command_result(
                 success=False,
-                created_type_id=PASSIVE_MEDIA_IMAGE_PANEL_TYPE_ID,
+                created_type_id=MEDIA_PANEL_TYPE_ID,
                 code="missing_image_node",
-                message="The source Image Panel could not be found.",
+                message="The source Media Panel is not showing a ready image.",
+            )
+        if source_resolution.input_exposed:
+            return self._image_command_result(
+                success=False,
+                created_type_id=MEDIA_PANEL_TYPE_ID,
+                code="input_authority",
+                message="Hide the Source input before replacing the Media Panel source.",
             )
         normalized_crop = dict(crop_rect or {})
         try:
             if not crop_rect_is_effective(normalized_crop):
                 return self._image_command_result(
                     success=False,
-                    created_type_id=PASSIVE_MEDIA_IMAGE_PANEL_TYPE_ID,
+                    created_type_id=MEDIA_PANEL_TYPE_ID,
                     code="no_effective_crop",
                     message="Set a crop before saving the cropped image.",
                 )
         except ImageCropError as exc:
             return self._image_command_result(
                 success=False,
-                created_type_id=PASSIVE_MEDIA_IMAGE_PANEL_TYPE_ID,
+                created_type_id=MEDIA_PANEL_TYPE_ID,
                 code="invalid_crop",
                 message=str(exc) or "The selected crop is invalid.",
             )
 
-        source_value = str(getattr(node, "properties", {}).get("source_path", "") or "").strip()
-        source_path = self._resolve_image_source_path(source_value)
+        source_path = self._local_media_source_path(source_resolution)
         if source_path is None or not source_path.exists() or not source_path.is_file():
             return self._image_command_result(
                 success=False,
-                created_type_id=PASSIVE_MEDIA_IMAGE_PANEL_TYPE_ID,
+                created_type_id=MEDIA_PANEL_TYPE_ID,
                 code="source_unavailable",
                 message="The source image file could not be found.",
             )
@@ -513,7 +530,7 @@ class GraphCanvasPresenter(QObject):
         except ImageCropError as exc:
             return self._image_command_result(
                 success=False,
-                created_type_id=PASSIVE_MEDIA_IMAGE_PANEL_TYPE_ID,
+                created_type_id=MEDIA_PANEL_TYPE_ID,
                 code="crop_failed",
                 message=str(exc) or "The cropped image could not be saved.",
             )
@@ -522,27 +539,43 @@ class GraphCanvasPresenter(QObject):
         if not staged_ref:
             return self._image_command_result(
                 success=False,
-                created_type_id=PASSIVE_MEDIA_IMAGE_PANEL_TYPE_ID,
+                created_type_id=MEDIA_PANEL_TYPE_ID,
                 code="stage_failed",
                 message="The cropped image could not be staged into the project.",
             )
 
+        _current_node, current_resolution = self._active_media_source(
+            normalized_image_node_id,
+            expected_kind="image",
+        )
+        if (
+            current_resolution is None
+            or current_resolution.input_exposed
+            or current_resolution.resolved_source_url
+            != source_resolution.resolved_source_url
+        ):
+            return self._image_command_result(
+                success=False,
+                created_type_id=MEDIA_PANEL_TYPE_ID,
+                code="source_changed",
+                message="The Media Panel source changed before the crop could be saved.",
+            )
         self._host.scene.set_node_properties(
             normalized_image_node_id,
             {
-                "source_path": staged_ref,
+                "source": staged_ref,
                 "crop_x": 0.0,
                 "crop_y": 0.0,
                 "crop_w": 1.0,
                 "crop_h": 1.0,
             },
         )
-        self._append_console_log("info", "Cropped Image Panel source saved internally.")
+        self._append_console_log("info", "Cropped Media Panel source saved internally.")
         self.show_graph_hint("Cropped image saved internally.", 2800)
         return self._image_command_result(
             success=True,
             created_node_id=normalized_image_node_id,
-            created_type_id=PASSIVE_MEDIA_IMAGE_PANEL_TYPE_ID,
+            created_type_id=MEDIA_PANEL_TYPE_ID,
             source_ref=staged_ref,
         )
 
@@ -607,12 +640,16 @@ class GraphCanvasPresenter(QObject):
         capture_height: float,
     ) -> dict[str, object]:
         normalized_video_node_id = str(video_node_id or "").strip()
-        if not self._is_active_video_node(normalized_video_node_id):
+        _source_node, source_resolution = self._active_media_source(
+            normalized_video_node_id,
+            expected_kind="video",
+        )
+        if source_resolution is None:
             return self._video_command_result(
                 success=False,
-                created_type_id=PASSIVE_MEDIA_IMAGE_PANEL_TYPE_ID,
+                created_type_id=MEDIA_PANEL_TYPE_ID,
                 code="missing_video_node",
-                message="The source Video Panel could not be found.",
+                message="The source Media Panel is not showing a ready video.",
             )
 
         path = Path(str(frame_path or "").strip())
@@ -621,7 +658,7 @@ class GraphCanvasPresenter(QObject):
         except OSError:
             return self._video_command_result(
                 success=False,
-                created_type_id=PASSIVE_MEDIA_IMAGE_PANEL_TYPE_ID,
+                created_type_id=MEDIA_PANEL_TYPE_ID,
                 code="missing_frame",
                 message="The captured video frame could not be read.",
             )
@@ -634,7 +671,7 @@ class GraphCanvasPresenter(QObject):
         if not frame_data:
             return self._video_command_result(
                 success=False,
-                created_type_id=PASSIVE_MEDIA_IMAGE_PANEL_TYPE_ID,
+                created_type_id=MEDIA_PANEL_TYPE_ID,
                 code="empty_frame",
                 message="The captured video frame was empty.",
             )
@@ -643,22 +680,40 @@ class GraphCanvasPresenter(QObject):
         initial_width = self._positive_capture_dimension(capture_width)
         initial_height = self._positive_capture_dimension(capture_height)
 
-        def _after_create(node, mutations) -> None:  # noqa: ANN001
+        def _after_create(node, mutations) -> bool:  # noqa: ANN001
             staged_ref = self._stage_video_frame_capture(frame_data, node, max(0, int(position_ms or 0)))
             if not staged_ref:
-                return
+                return False
             source_ref["value"] = staged_ref
-            mutations.set_node_properties(node.node_id, {"source_path": staged_ref})
+            mutations.set_node_properties(node.node_id, {"source": staged_ref})
+            return True
+
+        _current_node, current_resolution = self._active_media_source(
+            normalized_video_node_id,
+            expected_kind="video",
+        )
+        if (
+            current_resolution is None
+            or current_resolution.resolved_source_url
+            != source_resolution.resolved_source_url
+        ):
+            return self._video_command_result(
+                success=False,
+                created_type_id=MEDIA_PANEL_TYPE_ID,
+                code="source_changed",
+                message="The Media Panel source changed before the frame could be saved.",
+            )
 
         try:
             node_id = str(
                 self._host.scene.create_node_from_type(
-                    type_id=PASSIVE_MEDIA_IMAGE_PANEL_TYPE_ID,
+                    type_id=MEDIA_PANEL_TYPE_ID,
                     x=float(scene_x),
                     y=float(scene_y),
                     parent_node_id=None,
                     select_node=True,
                     property_overrides={},
+                    exposed_port_overrides={"source": False},
                     custom_width=initial_width,
                     custom_height=initial_height,
                     after_create=_after_create,
@@ -668,23 +723,23 @@ class GraphCanvasPresenter(QObject):
         except (KeyError, RuntimeError, TypeError, ValueError) as exc:
             return self._video_command_result(
                 success=False,
-                created_type_id=PASSIVE_MEDIA_IMAGE_PANEL_TYPE_ID,
+                created_type_id=MEDIA_PANEL_TYPE_ID,
                 code="create_failed",
-                message=str(exc) or "Image Panel creation failed.",
+                message=str(exc) or "Media Panel creation failed.",
             )
 
         if not node_id or not source_ref["value"]:
             return self._video_command_result(
                 success=False,
                 created_node_id=node_id,
-                created_type_id=PASSIVE_MEDIA_IMAGE_PANEL_TYPE_ID,
+                created_type_id=MEDIA_PANEL_TYPE_ID,
                 code="stage_failed",
                 message="The captured frame could not be staged into the project.",
             )
         return self._video_command_result(
             success=True,
             created_node_id=node_id,
-            created_type_id=PASSIVE_MEDIA_IMAGE_PANEL_TYPE_ID,
+            created_type_id=MEDIA_PANEL_TYPE_ID,
             source_ref=source_ref["value"],
         )
 
@@ -696,12 +751,16 @@ class GraphCanvasPresenter(QObject):
         scene_y: float,
     ) -> dict[str, object]:
         normalized_video_node_id = str(video_node_id or "").strip()
-        if not self._is_active_video_node(normalized_video_node_id):
+        _source_node, source_resolution = self._active_media_source(
+            normalized_video_node_id,
+            expected_kind="video",
+        )
+        if source_resolution is None:
             return self._video_command_result(
                 success=False,
                 created_type_id=PASSIVE_ANNOTATION_TEXT_TYPE_ID,
                 code="missing_video_node",
-                message="The source Video Panel could not be found.",
+                message="The source Media Panel is not showing a ready video.",
             )
 
         position = max(0, int(position_ms or 0))
@@ -893,28 +952,50 @@ class GraphCanvasPresenter(QObject):
     ) -> None:
         self._library_presenter.request_open_canvas_quick_insert(scene_x, scene_y, overlay_x, overlay_y)
 
-    def _is_active_video_node(self, node_id: str) -> bool:
-        return self._active_video_node(node_id) is not None
-
-    def _active_image_node(self, node_id: str):  # noqa: ANN201
+    def _active_media_source(
+        self,
+        node_id: str,
+        *,
+        expected_kind: str,
+    ) -> tuple[object | None, MediaPanelSourceResolution | None]:
         workspace_id = str(self._host.workspace_manager.active_workspace_id() or "").strip()
         workspace = self._host.model.project.workspaces.get(workspace_id)
         if workspace is None:
-            return None
+            return None, None
         node = workspace.nodes.get(str(node_id or "").strip())
-        if node is None or str(node.type_id) != PASSIVE_MEDIA_IMAGE_PANEL_TYPE_ID:
-            return None
-        return node
+        if node is None or str(node.type_id) != MEDIA_PANEL_TYPE_ID:
+            return None, None
+        project = self._host.model.project
+        try:
+            resolution = resolve_media_panel_source(
+                node=node,
+                workspace=workspace,
+                run_state=getattr(self._host, "run_state", None),
+                project_path=(
+                    str(getattr(self._host, "project_path", "") or "").strip()
+                    or None
+                ),
+                project_metadata=(
+                    dict(project.metadata)
+                    if isinstance(project.metadata, Mapping)
+                    else None
+                ),
+            )
+        except (OSError, TypeError, ValueError):
+            return node, None
+        if resolution.state != "ready" or resolution.media_kind != expected_kind:
+            return node, None
+        return node, resolution
 
-    def _active_video_node(self, node_id: str):  # noqa: ANN201
-        workspace_id = str(self._host.workspace_manager.active_workspace_id() or "").strip()
-        workspace = self._host.model.project.workspaces.get(workspace_id)
-        if workspace is None:
+    @staticmethod
+    def _local_media_source_path(
+        resolution: MediaPanelSourceResolution,
+    ) -> Path | None:
+        url = QUrl(str(resolution.resolved_source_url or "").strip())
+        if not url.isLocalFile():
             return None
-        node = workspace.nodes.get(str(node_id or "").strip())
-        if node is None or str(node.type_id) != PASSIVE_MEDIA_VIDEO_PANEL_TYPE_ID:
-            return None
-        return node
+        path = str(url.toLocalFile() or "").strip()
+        return Path(path) if path else None
 
     def _request_trim_video_clip(
         self,
@@ -928,31 +1009,40 @@ class GraphCanvasPresenter(QObject):
         state: dict[str, Any] | None,
     ) -> dict[str, object]:
         normalized_node_id = str(video_node_id or "").strip()
-        node = self._active_video_node(normalized_node_id)
-        if node is None:
+        node, source_resolution = self._active_media_source(
+            normalized_node_id,
+            expected_kind="video",
+        )
+        if node is None or source_resolution is None:
             return self._video_command_result(
                 success=False,
-                created_type_id=PASSIVE_MEDIA_VIDEO_PANEL_TYPE_ID,
+                created_type_id=MEDIA_PANEL_TYPE_ID,
                 code="missing_video_node",
-                message="The source Video Panel could not be found.",
+                message="The source Media Panel is not showing a ready video.",
+            )
+        if action == "replace" and source_resolution.input_exposed:
+            return self._video_command_result(
+                success=False,
+                created_type_id=MEDIA_PANEL_TYPE_ID,
+                code="input_authority",
+                message="Hide the Source input before replacing the Media Panel source.",
             )
         start = max(0, int(start_ms or 0))
         end = max(0, int(end_ms or 0))
         if end <= start:
             return self._video_command_result(
                 success=False,
-                created_type_id=PASSIVE_MEDIA_VIDEO_PANEL_TYPE_ID,
+                created_type_id=MEDIA_PANEL_TYPE_ID,
                 code="invalid_clip_range",
                 message="Set a clip out point after the clip in point.",
             )
-        source_value = str(getattr(node, "properties", {}).get("source_path", "") or "").strip()
-        source_path = self._resolve_video_source_path(source_value)
+        source_path = self._local_media_source_path(source_resolution)
         if source_path is None or not source_path.exists() or not source_path.is_file():
             return self._video_command_result(
                 success=False,
-                created_type_id=PASSIVE_MEDIA_VIDEO_PANEL_TYPE_ID,
+                created_type_id=MEDIA_PANEL_TYPE_ID,
                 code="source_unavailable",
-                message="The source video file could not be found.",
+                message="Video trim is available only for ready local Media Panel sources.",
             )
 
         request_id = f"video_trim_{uuid4().hex}"
@@ -966,6 +1056,7 @@ class GraphCanvasPresenter(QObject):
             scene_x=float(scene_x),
             scene_y=float(scene_y),
             properties=properties,
+            resolved_source_url=source_resolution.resolved_source_url,
         )
         thread = QThread(self)
         worker = VideoTrimWorker(
@@ -984,13 +1075,13 @@ class GraphCanvasPresenter(QObject):
         self._video_trim_jobs[request_id] = (thread, worker, context)
         self._append_console_log(
             "info",
-            f"Trimming Video Panel clip ({_format_video_timestamp(start)}-{_format_video_timestamp(end)}).",
+            f"Trimming Media Panel clip ({_format_video_timestamp(start)}-{_format_video_timestamp(end)}).",
         )
         self.show_graph_hint("Trimming video clip...", 2400)
         thread.start()
         return self._video_command_result(
             success=True,
-            created_type_id=PASSIVE_MEDIA_VIDEO_PANEL_TYPE_ID,
+            created_type_id=MEDIA_PANEL_TYPE_ID,
             request_id=request_id,
         )
 
@@ -1031,13 +1122,21 @@ class GraphCanvasPresenter(QObject):
         context: _VideoTrimContext,
         result: VideoTrimResult,
     ) -> dict[str, object]:
-        node = self._active_video_node(context.node_id)
-        if node is None:
+        node, source_resolution = self._active_media_source(
+            context.node_id,
+            expected_kind="video",
+        )
+        if (
+            node is None
+            or source_resolution is None
+            or source_resolution.input_exposed
+            or source_resolution.resolved_source_url != context.resolved_source_url
+        ):
             return self._video_command_result(
                 success=False,
-                created_type_id=PASSIVE_MEDIA_VIDEO_PANEL_TYPE_ID,
-                code="missing_video_node",
-                message="The source Video Panel could not be found.",
+                created_type_id=MEDIA_PANEL_TYPE_ID,
+                code="source_changed",
+                message="The Media Panel source or authority changed before trim replacement completed.",
             )
         staged_ref = self._stage_video_clip(
             result.data,
@@ -1048,7 +1147,7 @@ class GraphCanvasPresenter(QObject):
         if not staged_ref:
             return self._video_command_result(
                 success=False,
-                created_type_id=PASSIVE_MEDIA_VIDEO_PANEL_TYPE_ID,
+                created_type_id=MEDIA_PANEL_TYPE_ID,
                 code="stage_failed",
                 message="The trimmed video could not be staged into the project.",
             )
@@ -1059,7 +1158,7 @@ class GraphCanvasPresenter(QObject):
         return self._video_command_result(
             success=True,
             created_node_id=context.node_id,
-            created_type_id=PASSIVE_MEDIA_VIDEO_PANEL_TYPE_ID,
+            created_type_id=MEDIA_PANEL_TYPE_ID,
             source_ref=staged_ref,
         )
 
@@ -1068,13 +1167,20 @@ class GraphCanvasPresenter(QObject):
         context: _VideoTrimContext,
         result: VideoTrimResult,
     ) -> dict[str, object]:
-        source_node = self._active_video_node(context.node_id)
-        if source_node is None:
+        source_node, source_resolution = self._active_media_source(
+            context.node_id,
+            expected_kind="video",
+        )
+        if (
+            source_node is None
+            or source_resolution is None
+            or source_resolution.resolved_source_url != context.resolved_source_url
+        ):
             return self._video_command_result(
                 success=False,
-                created_type_id=PASSIVE_MEDIA_VIDEO_PANEL_TYPE_ID,
-                code="missing_video_node",
-                message="The source Video Panel could not be found.",
+                created_type_id=MEDIA_PANEL_TYPE_ID,
+                code="source_changed",
+                message="The Media Panel source changed before trim copy completed.",
             )
         source_ref: dict[str, str] = {"value": ""}
         copy_properties = self._trimmed_video_properties(context, "")
@@ -1084,7 +1190,7 @@ class GraphCanvasPresenter(QObject):
         x = context.scene_x if isfinite(context.scene_x) and context.scene_x else float(getattr(source_node, "x", 0.0)) + 48.0
         y = context.scene_y if isfinite(context.scene_y) and context.scene_y else float(getattr(source_node, "y", 0.0)) + 48.0
 
-        def _after_create(node, mutations) -> None:  # noqa: ANN001
+        def _after_create(node, mutations) -> bool:  # noqa: ANN001
             staged_ref = self._stage_video_clip(
                 result.data,
                 node,
@@ -1092,21 +1198,23 @@ class GraphCanvasPresenter(QObject):
                 context.end_ms,
             )
             if not staged_ref:
-                return
+                return False
             source_ref["value"] = staged_ref
             properties = dict(copy_properties)
-            properties["source_path"] = staged_ref
+            properties["source"] = staged_ref
             mutations.set_node_properties(node.node_id, properties)
+            return True
 
         try:
             node_id = str(
                 self._host.scene.create_node_from_type(
-                    type_id=PASSIVE_MEDIA_VIDEO_PANEL_TYPE_ID,
+                    type_id=MEDIA_PANEL_TYPE_ID,
                     x=x,
                     y=y,
                     parent_node_id=None,
                     select_node=True,
                     property_overrides={},
+                    exposed_port_overrides={"source": False},
                     after_create=_after_create,
                 )
                 or ""
@@ -1114,55 +1222,27 @@ class GraphCanvasPresenter(QObject):
         except (KeyError, RuntimeError, TypeError, ValueError) as exc:
             return self._video_command_result(
                 success=False,
-                created_type_id=PASSIVE_MEDIA_VIDEO_PANEL_TYPE_ID,
+                created_type_id=MEDIA_PANEL_TYPE_ID,
                 code="create_failed",
-                message=str(exc) or "Video Panel creation failed.",
+                message=str(exc) or "Media Panel creation failed.",
             )
         if not node_id or not source_ref["value"]:
             return self._video_command_result(
                 success=False,
                 created_node_id=node_id,
-                created_type_id=PASSIVE_MEDIA_VIDEO_PANEL_TYPE_ID,
+                created_type_id=MEDIA_PANEL_TYPE_ID,
                 code="stage_failed",
                 message="The trimmed video could not be staged into the project.",
             )
         return self._video_command_result(
             success=True,
             created_node_id=node_id,
-            created_type_id=PASSIVE_MEDIA_VIDEO_PANEL_TYPE_ID,
+            created_type_id=MEDIA_PANEL_TYPE_ID,
             source_ref=source_ref["value"],
         )
 
     def _video_trim_thread_finished(self, request_id: str) -> None:
         self._video_trim_jobs.pop(str(request_id or ""), None)
-
-    def _resolve_image_source_path(self, source_value: str) -> Path | None:
-        return self._resolve_media_source_path(source_value)
-
-    def _resolve_video_source_path(self, source_value: str) -> Path | None:
-        return self._resolve_media_source_path(source_value)
-
-    def _resolve_media_source_path(self, source_value: str) -> Path | None:
-        normalized = str(source_value or "").strip()
-        if not normalized:
-            return None
-        project = getattr(getattr(self._host, "model", None), "project", None)
-        project_metadata = getattr(project, "metadata", None)
-        store = None
-        controller = getattr(self._host, "project_session_controller", None)
-        store_provider = getattr(controller, "project_artifact_store", None)
-        if callable(store_provider):
-            try:
-                store = store_provider()
-            except (RuntimeError, ValueError):
-                store = None
-        resolver = ProjectArtifactResolver(
-            project_path=str(getattr(self._host, "project_path", "") or "").strip() or None,
-            project_metadata=dict(project_metadata) if isinstance(project_metadata, dict) else None,
-            artifact_store=store,
-        )
-        resolution = resolver.resolve(normalized)
-        return resolution.absolute_path
 
     def _trimmed_video_properties(self, context: _VideoTrimContext, staged_ref: str) -> dict[str, Any]:
         properties: dict[str, Any] = {
@@ -1177,7 +1257,7 @@ class GraphCanvasPresenter(QObject):
             ),
         }
         if staged_ref:
-            properties["source_path"] = staged_ref
+            properties["source"] = staged_ref
         return properties
 
     def _stage_image_crop(self, image_data: bytes, node) -> str:  # noqa: ANN001

@@ -410,43 +410,43 @@ class ProjectSaveAsFlowTests(unittest.TestCase):
                     "nodes": [
                         {
                             "node_id": "node_managed",
-                            "type_id": "passive.media.image_panel",
+                            "type_id": "media.panel",
                             "title": "Managed",
                             "x": 0.0,
                             "y": 0.0,
                             "collapsed": False,
                             "properties": {
-                                "source_path": format_managed_artifact_ref(
+                                "source": format_managed_artifact_ref(
                                     "managed_image"
                                 ),
                             },
-                            "exposed_ports": {},
+                            "exposed_ports": {"source": False},
                         },
                         {
                             "node_id": "node_staged",
-                            "type_id": "passive.media.image_panel",
+                            "type_id": "media.panel",
                             "title": "Staged",
                             "x": 120.0,
                             "y": 0.0,
                             "collapsed": False,
                             "properties": {
-                                "source_path": format_staged_artifact_ref(
+                                "source": format_staged_artifact_ref(
                                     "pending_output"
                                 ),
                             },
-                            "exposed_ports": {},
+                            "exposed_ports": {"source": False},
                         },
                         {
                             "node_id": "node_external",
-                            "type_id": "passive.media.image_panel",
+                            "type_id": "media.panel",
                             "title": "External",
                             "x": 240.0,
                             "y": 0.0,
                             "collapsed": False,
                             "properties": {
-                                "source_path": external_path,
+                                "source": external_path,
                             },
-                            "exposed_ports": {},
+                            "exposed_ports": {"source": False},
                         },
                     ],
                     "edges": [],
@@ -1187,15 +1187,15 @@ class ProjectSaveAsFlowTests(unittest.TestCase):
             workspace_doc = saved_doc["workspaces"][0]
             saved_nodes = {node["node_id"]: node for node in workspace_doc["nodes"]}
             self.assertEqual(
-                saved_nodes["node_managed"]["properties"]["source_path"],
+                saved_nodes["node_managed"]["properties"]["source"],
                 format_managed_artifact_ref("managed_image"),
             )
             self.assertEqual(
-                saved_nodes["node_staged"]["properties"]["source_path"],
+                saved_nodes["node_staged"]["properties"]["source"],
                 format_managed_artifact_ref("pending_output"),
             )
             self.assertEqual(
-                saved_nodes["node_external"]["properties"]["source_path"], external_path
+                saved_nodes["node_external"]["properties"]["source"], external_path
             )
 
     def test_save_as_self_contained_copy_preserves_excalidraw_managed_assets_and_excludes_scratch(

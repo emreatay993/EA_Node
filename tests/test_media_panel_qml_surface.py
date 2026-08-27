@@ -1,0 +1,700 @@
+from __future__ import annotations
+
+from pathlib import Path
+
+from ea_node_editor.graph.records import NodeInstance
+from ea_node_editor.nodes.bootstrap import build_default_registry
+from ea_node_editor.ui_qml.graph_surface_metrics import node_surface_metrics
+from ea_node_editor.ui_qml.graph_scene.command_bridge import GraphSceneCommandBridge
+from ea_node_editor.ui_qml.surface_contracts import surface_spec_for_values
+from tests.graph_surface.environment import PassiveGraphSurfaceHostTestBase
+
+
+class MediaPanelQmlSurfaceTests(PassiveGraphSurfaceHostTestBase):
+    def test_media_panel_uses_stable_panel_contract(self) -> None:
+        registry = build_default_registry()
+        spec = registry.get_spec("media.panel")
+        node = NodeInstance(
+            node_id="media",
+            type_id="media.panel",
+            title="Media Panel",
+            x=0.0,
+            y=0.0,
+        )
+        metrics = node_surface_metrics(node, spec)
+        surface = surface_spec_for_values(
+            type_id="media.panel",
+            family="media",
+            variant="media_panel",
+        )
+
+        assert (metrics.default_width, metrics.default_height) == (340.0, 288.0)
+        assert (metrics.min_width, metrics.min_height) == (260.0, 216.0)
+        assert surface.fullscreen.content_kind == "media"
+        assert surface.metadata == {"panel_like": True, "suppress_run_action": True}
+
+        repo_root = Path(__file__).resolve().parents[1]
+        resize_source = (
+            repo_root
+            / "ea_node_editor"
+            / "ui_qml"
+            / "components"
+            / "graph"
+            / "GraphNodeResizeHandle.qml"
+        ).read_text(encoding="utf-8")
+        assert "loadedSurfaceItem.aspectRatioLocked" in resize_source
+        assert "isImagePanelSurface" not in resize_source
+        host_source = (
+            repo_root
+            / "ea_node_editor"
+            / "ui_qml"
+            / "components"
+            / "graph"
+            / "GraphNodeHost.qml"
+        ).read_text(encoding="utf-8")
+        preference_source = (
+            repo_root
+            / "ea_node_editor"
+            / "ui_qml"
+            / "components"
+            / "graph_canvas"
+            / "GraphCanvasPreferenceFacts.qml"
+        ).read_text(encoding="utf-8")
+        normalize_source = (
+            repo_root
+            / "ea_node_editor"
+            / "ui_qml"
+            / "graph_scene_payload"
+            / "normalize.py"
+        ).read_text(encoding="utf-8")
+        assert "isMediaPanelSurface" not in host_source
+        assert "mediaPanelSourceInputExposed" not in preference_source
+        assert "mediaPanelAutoplayAnimations" in preference_source
+        assert "_normalized_unfocused_behavior" not in normalize_source
+        assert "_VIDEO_UNFOCUSED_BEHAVIORS" not in normalize_source
+        action_router_source = (
+            repo_root
+            / "ea_node_editor"
+            / "ui_qml"
+            / "components"
+            / "graph_canvas"
+            / "GraphCanvasActionRouter.qml"
+        ).read_text(encoding="utf-8")
+        assert "_isReadyPdfMediaPayload" in action_router_source
+        assert 'String(payload.type_id || "") === "media.panel"' in action_router_source
+        assert "sourceResolution.resolved_source_url" in action_router_source
+        assert (
+            GraphSceneCommandBridge.staticMetaObject.indexOfMethod(
+                b"set_exposed_port(QString,QString,bool)"
+            )
+            >= 0
+        )
+
+    def test_fullscreen_qml_dispatches_only_from_media_payload_kind(self) -> None:
+        source = (
+            Path(__file__).resolve().parents[1]
+            / "ea_node_editor"
+            / "ui_qml"
+            / "ContentFullscreenOverlay.qml"
+        ).read_text(encoding="utf-8")
+
+        assert 'readonly property bool mediaContentActive: root.contentKind === "media"' in source
+        assert 'String(root.mediaPayload.media_kind || "")' in source
+        assert "PassiveComponents.GraphMediaVideoFullscreenRenderer" in source
+        assert 'root.contentKind === "image"' not in source
+        assert 'root.contentKind === "pdf"' not in source
+        assert 'root.contentKind === "video"' not in source
+
+        passive_root = (
+            Path(__file__).resolve().parents[1]
+            / "ea_node_editor"
+            / "ui_qml"
+            / "components"
+            / "graph"
+            / "passive"
+        )
+        image_source = (passive_root / "GraphMediaImageRenderer.qml").read_text(
+            encoding="utf-8"
+        )
+        video_source = (passive_root / "GraphMediaVideoRenderer.qml").read_text(
+            encoding="utf-8"
+        )
+        fullscreen_video_source = (
+            passive_root / "GraphMediaVideoFullscreenRenderer.qml"
+        ).read_text(encoding="utf-8")
+        assert "if (sourceInputExposed || !cropToolAvailable" in image_source
+        assert "if (sourceInputExposed || !localSourceActive" in video_source
+        assert "if (sourceInputExposed\n" in fullscreen_video_source
+        assert "function _saveTrimmedClipCopy()" in video_source
+        assert "function _saveTrimmedClipCopy()" in fullscreen_video_source
+
+    def test_dispatcher_switches_renderers_and_routes_source_exposure(self) -> None:
+        self._run_qml_probe(
+            "unified-media-panel-dispatch",
+            """
+            from PyQt6.QtCore import Q_ARG, pyqtProperty, pyqtSignal, pyqtSlot, qInstallMessageHandler
+            from PyQt6.QtGui import QColor, QImage
+
+            messages = []
+            previous_handler = qInstallMessageHandler(
+                lambda _kind, _context, message: messages.append(str(message))
+            )
+
+            class ExposureBridge(QObject):
+                def __init__(self):
+                    super().__init__()
+                    self.calls = []
+
+                @pyqtSlot(str, str, bool, result=bool)
+                def set_exposed_port(self, node_id, key, exposed):
+                    self.calls.append((str(node_id), str(key), bool(exposed)))
+                    return True
+
+            class MediaCanvas(PassiveSurfaceCanvasItem):
+                executionFactsChanged = pyqtSignal()
+
+                def __init__(self, resolution):
+                    super().__init__()
+                    self._resolution = dict(resolution)
+                    self.exposure_bridge = ExposureBridge()
+                    self.browse_calls = []
+                    self.open_calls = []
+                    self.browse_result = "C:/tmp/replacement-media.png"
+
+                @pyqtProperty("QVariantMap", notify=executionFactsChanged)
+                def executionFacts(self):
+                    return {
+                        "failedNodeLookup": {},
+                        "runningNodeLookup": {},
+                        "completedNodeLookup": {},
+                        "warningNodeLookup": {},
+                        "runningNodeStartedAtMsLookup": {},
+                        "nodeElapsedMsLookup": {},
+                        "nodeRunCountLookup": {},
+                        "freshRunNodeLookup": {},
+                        "propertyPresentationLookup": {},
+                        "portFlowStateLookup": {},
+                        "portValuePreviewLookup": {},
+                        "nodeDiagnosticLookup": {},
+                        "dpfWorkflowSummaryLookup": {},
+                        "mediaPanelSourceLookup": {"node_surface_host_test": self._resolution},
+                        "nodeExecutionRevision": 0,
+                        "selectedRunPreviewVisible": False,
+                        "selectedRunPreviewRows": [],
+                        "selectedRunPreviewNodeLookup": {},
+                    }
+
+                @pyqtProperty(QObject, constant=True)
+                def sceneCommandBridge(self):
+                    return self.exposure_bridge
+
+                def set_resolution(self, resolution):
+                    self._resolution = dict(resolution)
+                    self.executionFactsChanged.emit()
+
+                @pyqtSlot(str, str, str, result=str)
+                @pyqtSlot(str, str, str, str, result=str)
+                def browseNodePropertyPath(self, node_id, key, current_path, source_mode=""):
+                    self.browse_calls.append((
+                        str(node_id),
+                        str(key),
+                        str(current_path),
+                        str(source_mode),
+                    ))
+                    return self.browse_result
+
+                @pyqtSlot(str, bool, result="QVariantMap")
+                def openNodeSurfaceLocalFileSource(self, source, chooser):
+                    self.open_calls.append((str(source), bool(chooser)))
+                    return {"success": True}
+
+            def resolution(
+                kind,
+                source_url,
+                *,
+                exposed=False,
+                state="ready",
+                message="",
+                source_ref=None,
+            ):
+                return {
+                    "authority": "input" if exposed else "property",
+                    "input_exposed": exposed,
+                    "input_connected": exposed,
+                    "state": state,
+                    "media_kind": kind if state == "ready" else "",
+                    "source_ref": (
+                        source_url if source_ref is None else source_ref
+                    ) if state == "ready" else "",
+                    "resolved_source_url": source_url if state == "ready" else "",
+                    "preview_source_url": source_url if state == "ready" else "",
+                    "message": message,
+                }
+
+            def wait_for_named(root, name, present=True, attempts=200):
+                for _attempt in range(attempts):
+                    settle_events(2)
+                    candidate = root.findChild(QObject, name)
+                    if (candidate is not None) == present:
+                        return candidate
+                raise AssertionError(
+                    f"{name!r} present={present} did not settle; messages={messages}"
+                )
+
+            image_path = Path.cwd() / "artifacts" / "media-panel-qml-test.png"
+            image_path.parent.mkdir(parents=True, exist_ok=True)
+            image = QImage(8, 6, QImage.Format.Format_ARGB32)
+            image.fill(QColor("#5da9ff"))
+            assert image.save(str(image_path))
+            image_url = QUrl.fromLocalFile(str(image_path)).toString()
+
+            payload = node_payload(surface_family="media", surface_variant="media_panel")
+            payload.update({
+                "type_id": "media.panel",
+                "title": "Media Panel",
+                "display_name": "Media Panel",
+                "runtime_behavior": "active",
+                "selected": True,
+                "width": 340.0,
+                "height": 288.0,
+                "surface_spec": surface_spec_payload_for_values(
+                    type_id="media.panel",
+                    family="media",
+                    variant="media_panel",
+                ),
+                "surface_metrics": {
+                    "default_width": 340.0,
+                    "default_height": 288.0,
+                    "min_width": 260.0,
+                    "min_height": 216.0,
+                    "collapsed_width": 130.0,
+                    "collapsed_height": 36.0,
+                    "header_height": 24.0,
+                    "header_top_margin": 4.0,
+                    "body_top": 44.0,
+                    "body_height": 232.0,
+                    "port_top": 0.0,
+                    "port_height": 18.0,
+                    "port_center_offset": 6.0,
+                    "port_side_margin": 8.0,
+                    "port_dot_radius": 5.0,
+                    "resize_handle_size": 16.0,
+                    "title_top": 12.0,
+                    "title_height": 24.0,
+                    "title_left_margin": 14.0,
+                    "title_right_margin": 46.0,
+                    "body_left_margin": 14.0,
+                    "body_right_margin": 14.0,
+                    "body_bottom_margin": 12.0,
+                    "use_host_chrome": True,
+                    "use_host_shadow": True,
+                },
+                "properties": {
+                    "source": str(image_path),
+                    "show_title": True,
+                    "show_frame": True,
+                    "fit_mode": "contain",
+                    "animation_playback_mode": "pause",
+                    "lock_aspect_ratio": True,
+                    "page_number": 1,
+                    "auto_play": False,
+                    "loop": False,
+                    "muted": True,
+                    "volume": 1.0,
+                    "playback_rate": 1.0,
+                    "position_ms": 0,
+                    "timeline_bookmarks": [],
+                    "clip_enabled": False,
+                    "clip_start_ms": 0,
+                    "clip_end_ms": 0,
+                },
+                "ports": [],
+                "inline_properties": [],
+            })
+
+            canvas = MediaCanvas(resolution("image", image_url))
+            host = create_component(graph_node_host_qml_path, {"nodeData": payload, "canvasItem": canvas})
+            surface = wait_for_named(host, "graphNodeMediaSurface")
+            image_renderer = wait_for_named(host, "graphNodeMediaImageRenderer")
+            commits = []
+            host.inlinePropertyCommitted.connect(
+                lambda node_id, key, value: commits.append(
+                    (str(node_id), str(key), str(value))
+                )
+            )
+            assert bool(surface.property("aspectRatioLocked"))
+            assert bool(host.property("panelLikeSurface"))
+            assert bool(host.property("suppressRunAction"))
+            assert not bool(host.property("runnableNode"))
+            assert abs(float(host.width()) - 340.0) < 0.01
+            assert abs(float(host.height()) - 288.0) < 0.01
+            image_renderer.setProperty("cropModeActive", True)
+            settle_events(3)
+            assert bool(surface.property("blocksHostInteraction"))
+            assert bool(host.property("surfaceInteractionLocked"))
+            image_renderer.setProperty("cropModeActive", False)
+            settle_events(3)
+            assert not bool(surface.property("blocksHostInteraction"))
+
+            QMetaObject.invokeMethod(
+                host,
+                "nodeOpenRequested",
+                Q_ARG("QString", "node_surface_host_test"),
+            )
+            settle_events(3)
+            assert len(canvas.browse_calls) == 1
+            assert canvas.browse_calls[0][1] == "source"
+            assert commits[-1] == (
+                "node_surface_host_test",
+                "source",
+                canvas.browse_result,
+            )
+
+            canvas.set_resolution(resolution("image", image_url, exposed=True))
+            QMetaObject.invokeMethod(
+                host,
+                "nodeOpenRequested",
+                Q_ARG("QString", "node_surface_host_test"),
+            )
+            settle_events(3)
+            assert len(canvas.browse_calls) == 1
+            assert len(commits) == 1
+            actions = variant_list(surface.property("surfaceActions"))
+            open_action = next(action for action in actions if action["id"] == "openSourceMenu")
+            assert bool(open_action["enabled"])
+
+            canvas.set_resolution(resolution("image", image_url))
+            actions = variant_list(surface.property("surfaceActions"))
+            open_action = next(action for action in actions if action["id"] == "openSourceMenu")
+            assert bool(open_action["enabled"])
+            QMetaObject.invokeMethod(
+                surface,
+                "dispatchSurfaceAction",
+                Q_ARG("QVariant", "openSource"),
+            )
+            settle_events(3)
+            assert canvas.open_calls[-1] == (image_url, False)
+
+            canvas.set_resolution(
+                resolution("image", image_url, source_ref="temp://managed-media")
+            )
+            actions = variant_list(surface.property("surfaceActions"))
+            open_action = next(action for action in actions if action["id"] == "openSourceMenu")
+            assert bool(open_action["enabled"])
+            QMetaObject.invokeMethod(
+                surface,
+                "dispatchSurfaceAction",
+                Q_ARG("QVariant", "openSourceWith"),
+            )
+            settle_events(3)
+            assert canvas.open_calls[-1] == (image_url, True)
+
+            remote_url = "https://example.invalid/media.png"
+            canvas.set_resolution(resolution("image", remote_url))
+            actions = variant_list(surface.property("surfaceActions"))
+            open_action = next(action for action in actions if action["id"] == "openSourceMenu")
+            assert not bool(open_action["enabled"])
+            open_call_count = len(canvas.open_calls)
+            QMetaObject.invokeMethod(
+                surface,
+                "dispatchSurfaceAction",
+                Q_ARG("QVariant", "openSource"),
+            )
+            settle_events(3)
+            assert len(canvas.open_calls) == open_call_count
+
+            canvas.set_resolution(resolution("image", image_url))
+
+            actions = variant_list(surface.property("surfaceActions"))
+            source_action = next(action for action in actions if action["id"] == "editSource")
+            exposure_action = next(action for action in actions if action["id"] == "toggle_source_input")
+            assert bool(source_action["enabled"])
+            assert not bool(exposure_action["checked"])
+            QMetaObject.invokeMethod(
+                surface,
+                "dispatchSurfaceAction",
+                Q_ARG("QVariant", "toggle_source_input"),
+            )
+            settle_events(3)
+            assert canvas.exposure_bridge.calls == [("node_surface_host_test", "source", True)]
+
+            canvas.set_resolution(resolution("pdf", image_url, exposed=True))
+            pdf_renderer = wait_for_named(host, "graphNodeMediaPdfRenderer")
+            assert bool(image_renderer.property("rendererReleased"))
+            actions = variant_list(surface.property("surfaceActions"))
+            source_action = next(action for action in actions if action["id"] == "editSource")
+            exposure_action = next(action for action in actions if action["id"] == "toggle_source_input")
+            assert not bool(source_action["enabled"])
+            assert bool(exposure_action["checked"])
+            assert abs(float(host.width()) - 340.0) < 0.01
+            assert abs(float(host.height()) - 288.0) < 0.01
+
+            canvas.set_resolution(resolution("video", image_url, exposed=True))
+            video_renderer = wait_for_named(host, "graphNodeMediaVideoRenderer")
+            assert bool(pdf_renderer.property("rendererReleased"))
+
+            waiting_message = "Connected source is waiting for a run."
+            canvas.set_resolution(
+                resolution("", "", exposed=True, state="waiting", message=waiting_message)
+            )
+            assert bool(video_renderer.property("rendererReleased"))
+            placeholder = wait_for_named(host, "graphNodeMediaStatePlaceholder")
+            message = wait_for_named(host, "graphNodeMediaStateMessage")
+            assert bool(placeholder.property("visible"))
+            assert str(message.property("text")) == waiting_message
+            assert not bool(surface.property("aspectRatioLocked"))
+
+            binding_failures = [
+                message for message in messages
+                if ("GraphMedia" in message or "ContentFullscreen" in message)
+                and (
+                    "Binding loop" in message
+                    or "ReferenceError" in message
+                    or "Unable to assign" in message
+                )
+            ]
+            assert not binding_failures, binding_failures
+
+            host.deleteLater()
+            canvas.deleteLater()
+            qInstallMessageHandler(previous_handler)
+            engine.deleteLater()
+            app.processEvents()
+            """,
+        )
+
+    def test_fullscreen_media_switch_releases_video_and_keeps_waiting_open(self) -> None:
+        self._run_qml_probe(
+            "unified-media-fullscreen-dispatch",
+            """
+            from PyQt6.QtCore import pyqtProperty, pyqtSignal, pyqtSlot
+            from PyQt6.QtGui import QColor, QImage
+
+            class FullThemeBridge(QObject):
+                @pyqtProperty("QVariantMap", constant=True)
+                def palette(self):
+                    return {
+                        "accent": "#5da9ff",
+                        "border": "#3a4355",
+                        "hover": "#33405c",
+                        "input_bg": "#18202d",
+                        "input_border": "#465066",
+                        "input_fg": "#eef3ff",
+                        "muted_fg": "#95a0b8",
+                        "panel_bg": "#1b1f2a",
+                        "panel_fg": "#eef3ff",
+                        "panel_title_fg": "#eef3ff",
+                        "pressed": "#22304a",
+                        "toolbar_bg": "#202635",
+                    }
+
+            class FullscreenBridge(QObject):
+                changed = pyqtSignal()
+
+                def __init__(self, payload):
+                    super().__init__()
+                    self._payload = dict(payload)
+                    self.closed = False
+
+                @pyqtProperty(bool, notify=changed)
+                def open(self):
+                    return not self.closed
+
+                @pyqtProperty(str, notify=changed)
+                def node_id(self):
+                    return "node_surface_host_test"
+
+                @pyqtProperty(str, notify=changed)
+                def content_kind(self):
+                    return "media"
+
+                @pyqtProperty(str, notify=changed)
+                def title(self):
+                    return "Media Panel"
+
+                @pyqtProperty("QVariantMap", notify=changed)
+                def media_payload(self):
+                    return self._payload
+
+                @pyqtSlot()
+                def request_close(self):
+                    self.closed = True
+                    self.changed.emit()
+
+                @pyqtSlot("QVariantMap", result=bool)
+                def request_close_with_state(self, _state):
+                    self.request_close()
+                    return True
+
+                def set_payload(self, payload):
+                    self._payload = dict(payload)
+                    self.changed.emit()
+
+            class RenameBridge(QObject):
+                managedArtifactRenameReleaseRequested = pyqtSignal(str)
+
+            def payload(kind, source_url, *, state="ready", message="", controls=None):
+                value = {
+                    "media_kind": kind if state == "ready" else "",
+                    "source_state": state,
+                    "source_message": message,
+                    "resolved_source_url": source_url if state == "ready" else "",
+                    "preview_url": source_url if state == "ready" else "",
+                    "source_pixel_width": 8,
+                    "source_pixel_height": 6,
+                    "fit_mode": "contain",
+                    "crop": {"x": 0.0, "y": 0.0, "width": 1.0, "height": 1.0},
+                    "rotation_degrees": 0,
+                    "mirror_horizontal": False,
+                    "mirror_vertical": False,
+                    "auto_play": False,
+                    "loop": False,
+                    "muted": True,
+                    "volume": 1.0,
+                    "playback_rate": 1.0,
+                    "position_ms": 0,
+                    "timeline_bookmarks": [],
+                    "clip_enabled": False,
+                    "clip_start_ms": 0,
+                    "clip_end_ms": 0,
+                }
+                value.update(dict(controls or {}))
+                return value
+
+            def wait_for_named(root, name, attempts=200):
+                for _attempt in range(attempts):
+                    settle_events(2)
+                    candidate = root.findChild(QObject, name)
+                    if candidate is not None:
+                        return candidate
+                raise AssertionError(f"{name!r} did not load")
+
+            image_path = Path.cwd() / "artifacts" / "media-panel-fullscreen-test.png"
+            image_path.parent.mkdir(parents=True, exist_ok=True)
+            image = QImage(8, 6, QImage.Format.Format_ARGB32)
+            image.fill(QColor("#5da9ff"))
+            assert image.save(str(image_path))
+            image_url = QUrl.fromLocalFile(str(image_path)).toString()
+            second_image_path = Path.cwd() / "artifacts" / "media-panel-fullscreen-test-2.png"
+            second_image = QImage(8, 6, QImage.Format.Format_ARGB32)
+            second_image.fill(QColor("#ff995d"))
+            assert second_image.save(str(second_image_path))
+            second_image_url = QUrl.fromLocalFile(str(second_image_path)).toString()
+
+            full_theme = FullThemeBridge()
+            rename_bridge = RenameBridge()
+            engine.rootContext().setContextProperty("themeBridge", full_theme)
+            engine.rootContext().setContextProperty("tooltipCopyBridge", None)
+            engine.rootContext().setContextProperty("graphCanvasCommandBridge", rename_bridge)
+            bridge = FullscreenBridge(payload("image", image_url))
+            overlay_path = Path.cwd() / "ea_node_editor" / "ui_qml" / "ContentFullscreenOverlay.qml"
+            overlay = create_component(overlay_path, {"bridgeRef": bridge})
+            wait_for_named(overlay, "contentFullscreenMediaImage")
+
+            bridge.set_payload(payload("video", image_url))
+            video_loader = wait_for_named(overlay, "contentFullscreenVideoSurfaceLoader")
+            for _attempt in range(200):
+                settle_events(2)
+                if video_loader.property("item") is not None:
+                    break
+            assert video_loader.property("item") is not None
+            video_surface = video_loader.property("item")
+            video_player = wait_for_named(video_surface, "contentFullscreenVideoMediaPlayer")
+
+            local_bookmarks = [{"id": "local", "label": "Local", "position_ms": 1200}]
+            video_surface.setProperty("mutedValue", False)
+            video_surface.setProperty("volumeValue", 0.35)
+            video_surface.setProperty("playbackRateValue", 1.5)
+            video_surface.setProperty("loopValue", True)
+            video_surface.setProperty("fitModeValue", "cover")
+            video_surface.setProperty("timelineBookmarksValue", local_bookmarks)
+            video_surface.setProperty("clipEnabledValue", True)
+            video_surface.setProperty("clipStartValue", 1000)
+            video_surface.setProperty("clipEndValue", 4000)
+
+            bridge.set_payload(payload("video", image_url, controls={
+                "muted": True,
+                "volume": 0.9,
+                "playback_rate": 0.5,
+                "loop": False,
+                "fit_mode": "contain",
+                "timeline_bookmarks": [],
+                "clip_enabled": False,
+                "clip_start_ms": 0,
+                "clip_end_ms": 0,
+            }))
+            settle_events(6)
+            assert video_loader.property("item") is video_surface
+            assert not bool(video_surface.property("mutedValue"))
+            assert abs(float(video_surface.property("volumeValue")) - 0.35) < 0.001
+            assert abs(float(video_surface.property("playbackRateValue")) - 1.5) < 0.001
+            assert bool(video_surface.property("loopValue"))
+            assert str(video_surface.property("fitModeValue")) == "cover"
+            assert variant_list(video_surface.property("timelineBookmarksValue"))[0]["id"] == "local"
+            assert bool(video_surface.property("clipEnabledValue"))
+            assert int(video_surface.property("clipStartValue")) == 1000
+            assert int(video_surface.property("clipEndValue")) == 4000
+
+            replacement_bookmarks = [{"id": "new", "label": "New", "position_ms": 2500}]
+            bridge.set_payload(payload("video", second_image_url, controls={
+                "muted": True,
+                "volume": 0.8,
+                "playback_rate": 1.25,
+                "loop": False,
+                "fit_mode": "contain",
+                "timeline_bookmarks": replacement_bookmarks,
+                "clip_enabled": True,
+                "clip_start_ms": 2000,
+                "clip_end_ms": 6000,
+            }))
+            settle_events(6)
+            assert bool(video_surface.property("mutedValue"))
+            assert abs(float(video_surface.property("volumeValue")) - 0.8) < 0.001
+            assert abs(float(video_surface.property("playbackRateValue")) - 1.25) < 0.001
+            assert not bool(video_surface.property("loopValue"))
+            assert str(video_surface.property("fitModeValue")) == "contain"
+            assert variant_list(video_surface.property("timelineBookmarksValue"))[0]["id"] == "new"
+            assert bool(video_surface.property("clipEnabledValue"))
+            assert int(video_surface.property("clipStartValue")) == 2000
+            assert int(video_surface.property("clipEndValue")) == 6000
+
+            waiting_message = "The connected media input is running."
+            bridge.set_payload(payload("", "", state="running", message=waiting_message))
+            placeholder = wait_for_named(overlay, "contentFullscreenMediaStatePlaceholder")
+            settle_events(6)
+            assert bool(placeholder.property("visible"))
+            assert str(placeholder.property("text")) == waiting_message
+            assert video_loader.property("item") is None
+            assert bool(video_surface.property("rendererReleased"))
+            assert str(video_player.property("source").toString()) == ""
+            assert bool(overlay.property("visible"))
+
+            bridge.set_payload(payload("video", second_image_url))
+            for _attempt in range(200):
+                settle_events(2)
+                if video_loader.property("item") is not None:
+                    break
+            renamed_video_surface = video_loader.property("item")
+            assert renamed_video_surface is not None
+            renamed_video_player = wait_for_named(
+                renamed_video_surface,
+                "contentFullscreenVideoMediaPlayer",
+            )
+            rename_bridge.managedArtifactRenameReleaseRequested.emit(
+                "node_surface_host_test"
+            )
+            settle_events(8)
+            assert bridge.closed
+            assert video_loader.property("item") is None
+            assert bool(renamed_video_surface.property("rendererReleased"))
+            assert str(renamed_video_player.property("source").toString()) == ""
+            assert not bool(overlay.property("visible"))
+
+            overlay.deleteLater()
+            bridge.deleteLater()
+            rename_bridge.deleteLater()
+            full_theme.deleteLater()
+            engine.deleteLater()
+            app.processEvents()
+            """,
+        )

@@ -1,3 +1,6 @@
+// Purpose: Render static and animated image frames for Media Panel.
+// Map: feature_routes/media_image_video_pdf_refocus.md
+// Tests: tests/test_media_panel_qml_surface.py
 import QtQuick 2.15
 import "../surface_controls/SurfaceControlGeometry.js" as SurfaceControlGeometry
 import "GraphMediaPanelGeometry.js" as GraphMediaPanelGeometry
@@ -6,40 +9,21 @@ Rectangle {
     id: root
     property var surface: null
     property var overlayInteractiveRects: []
-    property string displayedPdfPreviewSource: ""
-    property string displayedPdfResolvedSourceUrl: ""
-    property string pendingPdfPreviewSource: ""
-    property string pendingPdfResolvedSourceUrl: ""
-    property string retainedPdfPreviewSource: ""
-    property string retainedPdfResolvedSourceUrl: ""
     default property alias overlayData: overlayLayer.data
-    readonly property bool retainedPdfPreviewActive: !!root.surface
-        && root.surface.isPdfPanel
-        && root.retainedPdfPreviewSource.length > 0
-        && previewImage.status !== Image.Ready
-        && previewImage.status !== Image.Error
-    readonly property int previewImageStatus: root.retainedPdfPreviewActive
-        ? Image.Ready
-        : (root.surface && root.surface.isPdfPanel
-            ? previewImage.status
-            : (root.surface && root.surface.imageAnimationSupported
-                ? (root.animatedImageItem ? root.animatedImageItem.status : Image.Loading)
-                : sourceImageProbe.status))
+    readonly property int previewImageStatus: root.surface && root.surface.imageAnimationSupported
+        ? (root.animatedImageItem ? root.animatedImageItem.status : Image.Loading)
+        : sourceImageProbe.status
     readonly property real sourcePixelWidth: !!root.surface
-        && !root.surface.isPdfPanel
         && root.surface.imageAnimationSupported
         ? Number(root.surface.imagePreviewInfo.source_pixel_width || 0)
         : (!!root.surface
-            && !root.surface.isPdfPanel
             && sourceImageProbe.status === Image.Ready
             ? Number(sourceImageProbe.implicitWidth || 0)
             : 0)
     readonly property real sourcePixelHeight: !!root.surface
-        && !root.surface.isPdfPanel
         && root.surface.imageAnimationSupported
         ? Number(root.surface.imagePreviewInfo.source_pixel_height || 0)
         : (!!root.surface
-            && !root.surface.isPdfPanel
             && sourceImageProbe.status === Image.Ready
             ? Number(sourceImageProbe.implicitHeight || 0)
             : 0)
@@ -73,7 +57,6 @@ Rectangle {
         ? root.sourcePixelHeight * Number(root.surface ? root.surface.normalizedStoredCropRect.height || 0 : 0)
         : 0
     readonly property bool appliedRotationSwapsAxes: !!root.surface
-        && root.surface.isImagePanel
         && (Number(root.surface.appliedImageRotationQuarterTurns || 0) % 2) !== 0
     readonly property real transformedPreviewSourceWidth: root.appliedRotationSwapsAxes
         ? root.effectivePreviewSourceHeight
@@ -120,19 +103,20 @@ Rectangle {
     )
     readonly property bool proxyPreviewVisible: !!root.surface && Boolean(root.surface.proxySurfaceActive)
     readonly property var overlayViewportRect: Qt.rect(0, 0, root.width, root.height)
-    readonly property var overlayContentRect: root.surface && root.surface.isPdfPanel
-        ? Qt.rect(previewImage.x, previewImage.y, previewImage.width, previewImage.height)
-        : Qt.rect(appliedImageViewport.x, appliedImageViewport.y, appliedImageViewport.width, appliedImageViewport.height)
+    readonly property var overlayContentRect: Qt.rect(
+        appliedImageViewport.x,
+        appliedImageViewport.y,
+        appliedImageViewport.width,
+        appliedImageViewport.height
+    )
     readonly property var overlaySourceClipRect: root.surface
         ? root.surface.appliedSourceClipRect
         : Qt.rect(0, 0, 0, 0)
-    readonly property string overlayPreviewKind: root.surface && root.surface.isPdfPanel ? "pdf" : "image"
+    readonly property string overlayPreviewKind: "image"
     readonly property bool overlayPreviewVisible: !!root.surface
         && root.surface.previewState === "ready"
         && !root.surface.cropModeActive
-    readonly property bool viewportFrameVisible: !root.surface
-        || !root.surface.isImagePanel
-        || Boolean(root.surface.imageFrameVisible)
+    readonly property bool viewportFrameVisible: !root.surface || Boolean(root.surface.imageFrameVisible)
 
     objectName: "graphNodeMediaPreviewViewport"
     radius: root.viewportFrameVisible ? 8 : 0
@@ -145,117 +129,6 @@ Rectangle {
         : "transparent"
     clip: true
 
-    onSurfaceChanged: _syncPdfPreviewSources()
-
-    Component.onCompleted: _syncPdfPreviewSources()
-
-    Connections {
-        target: root.surface
-        ignoreUnknownSignals: true
-
-        function onPreviewSourceUrlChanged() {
-            root._syncPdfPreviewSources();
-        }
-
-        function onResolvedSourceUrlChanged() {
-            root._syncPdfPreviewSources();
-        }
-    }
-
-    function _normalizedPdfPreviewSource(value) {
-        var text = String(value || "");
-        if (!text.length)
-            return "";
-        return String(Qt.resolvedUrl(text));
-    }
-
-    function _syncPdfPreviewSources() {
-        if (!root.surface || !root.surface.isPdfPanel) {
-            root.displayedPdfPreviewSource = "";
-            root.displayedPdfResolvedSourceUrl = "";
-            root.pendingPdfPreviewSource = "";
-            root.pendingPdfResolvedSourceUrl = "";
-            root.retainedPdfPreviewSource = "";
-            root.retainedPdfResolvedSourceUrl = "";
-            return;
-        }
-        var targetSource = String(root.surface.previewSourceUrl || "");
-        var targetResolvedSource = String(root.surface.resolvedSourceUrl || "");
-        var state = String(root.surface.pdfPreviewInfo && root.surface.pdfPreviewInfo.state || "");
-        if (!targetSource.length || state !== "ready") {
-            root.displayedPdfPreviewSource = targetSource;
-            root.displayedPdfResolvedSourceUrl = targetResolvedSource;
-            root.pendingPdfPreviewSource = "";
-            root.pendingPdfResolvedSourceUrl = "";
-            root.retainedPdfPreviewSource = "";
-            root.retainedPdfResolvedSourceUrl = "";
-            return;
-        }
-        if (!root.displayedPdfPreviewSource.length) {
-            root.displayedPdfPreviewSource = targetSource;
-            root.displayedPdfResolvedSourceUrl = targetResolvedSource;
-            root.pendingPdfPreviewSource = "";
-            root.pendingPdfResolvedSourceUrl = "";
-            root.retainedPdfPreviewSource = "";
-            root.retainedPdfResolvedSourceUrl = "";
-            return;
-        }
-        if (targetSource === root.displayedPdfPreviewSource) {
-            root.pendingPdfPreviewSource = "";
-            root.pendingPdfResolvedSourceUrl = "";
-            root._clearRetainedPdfPreviewIfSettled();
-            return;
-        }
-        if (targetResolvedSource.length > 0
-                && root.displayedPdfResolvedSourceUrl.length > 0
-                && targetResolvedSource !== root.displayedPdfResolvedSourceUrl) {
-            root.displayedPdfPreviewSource = targetSource;
-            root.displayedPdfResolvedSourceUrl = targetResolvedSource;
-            root.pendingPdfPreviewSource = "";
-            root.pendingPdfResolvedSourceUrl = "";
-            root.retainedPdfPreviewSource = "";
-            root.retainedPdfResolvedSourceUrl = "";
-            return;
-        }
-        root.pendingPdfPreviewSource = targetSource;
-        root.pendingPdfResolvedSourceUrl = targetResolvedSource;
-    }
-
-    function _maybePromotePendingPdfPreview() {
-        if (!root.pendingPdfPreviewSource.length)
-            return;
-        if (root._normalizedPdfPreviewSource(pendingPdfPreviewImage.source)
-                !== root._normalizedPdfPreviewSource(root.pendingPdfPreviewSource))
-            return;
-        if (pendingPdfPreviewImage.status !== Image.Ready && pendingPdfPreviewImage.status !== Image.Error)
-            return;
-        if (pendingPdfPreviewImage.status === Image.Ready
-                && root.displayedPdfPreviewSource.length > 0
-                && root.displayedPdfPreviewSource !== root.pendingPdfPreviewSource) {
-            root.retainedPdfPreviewSource = root.displayedPdfPreviewSource;
-            root.retainedPdfResolvedSourceUrl = root.displayedPdfResolvedSourceUrl;
-        } else {
-            root.retainedPdfPreviewSource = "";
-            root.retainedPdfResolvedSourceUrl = "";
-        }
-        root.displayedPdfPreviewSource = root.pendingPdfPreviewSource;
-        root.displayedPdfResolvedSourceUrl = root.pendingPdfResolvedSourceUrl;
-        root.pendingPdfPreviewSource = "";
-        root.pendingPdfResolvedSourceUrl = "";
-    }
-
-    function _clearRetainedPdfPreviewIfSettled() {
-        if (!root.retainedPdfPreviewSource.length)
-            return;
-        if (root._normalizedPdfPreviewSource(previewImage.source)
-                !== root._normalizedPdfPreviewSource(root.displayedPdfPreviewSource))
-            return;
-        if (previewImage.status !== Image.Ready && previewImage.status !== Image.Error)
-            return;
-        root.retainedPdfPreviewSource = "";
-        root.retainedPdfResolvedSourceUrl = "";
-    }
-
     Item {
         anchors.fill: parent
 
@@ -264,81 +137,9 @@ Rectangle {
             visible: false
             asynchronous: true
             cache: true
-            source: root.surface && (root.surface.isPdfPanel || root.surface.imageAnimationSupported)
+            source: root.surface && root.surface.imageAnimationSupported
                 ? ""
                 : (root.surface ? root.surface.previewSourceUrl : "")
-        }
-
-        Image {
-            id: retainedPdfPreviewImage
-            objectName: "graphNodeMediaRetainedPdfPreviewImage"
-            anchors.centerIn: parent
-            asynchronous: false
-            cache: true
-            mipmap: true
-            fillMode: Image.PreserveAspectFit
-            source: root.retainedPdfPreviewSource
-            sourceClipRect: Qt.rect(0, 0, sourceSize.width, sourceSize.height)
-            sourceSize.width: root.surface && root.surface.isPdfPanel ? Math.max(1, Math.round(root.width)) : 0
-            sourceSize.height: root.surface && root.surface.isPdfPanel ? Math.max(1, Math.round(root.height)) : 0
-            width: parent.width
-            height: parent.height
-            visible: root.retainedPdfPreviewActive
-                && !root.proxyPreviewVisible
-                && root.surface
-                && !root.surface.cropModeActive
-            smooth: true
-        }
-
-        Image {
-            id: previewImage
-            objectName: "graphNodeMediaPreviewImage"
-            anchors.centerIn: parent
-            asynchronous: root.surface ? root.surface.isPdfPanel : false
-            cache: root.surface ? root.surface.isPdfPanel : false
-            mipmap: true
-            fillMode: root.surface && root.surface.isPdfPanel
-                ? Image.PreserveAspectFit
-                : (root.surface && root.surface.normalizedFitMode === "cover"
-                    ? Image.PreserveAspectCrop
-                    : Image.PreserveAspectFit)
-            source: root.surface && root.surface.isPdfPanel
-                ? root.displayedPdfPreviewSource
-                : ""
-            sourceClipRect: root.surface && root.surface.isPdfPanel
-                ? Qt.rect(0, 0, sourceSize.width, sourceSize.height)
-                : (root.surface ? root.surface.appliedSourceClipRect : Qt.rect(0, 0, 0, 0))
-            sourceSize.width: root.surface && root.surface.isPdfPanel ? Math.max(1, Math.round(root.width)) : 0
-            sourceSize.height: root.surface && root.surface.isPdfPanel ? Math.max(1, Math.round(root.height)) : 0
-            width: root.surface && root.surface.originalModeActive
-                ? Math.max(1, implicitWidth)
-                : parent.width
-            height: root.surface && root.surface.originalModeActive
-                ? Math.max(1, implicitHeight)
-                : parent.height
-            visible: root.surface
-                && root.surface.isPdfPanel
-                && root.surface.previewState === "ready"
-                && !root.proxyPreviewVisible
-                && !root.surface.cropModeActive
-            smooth: true
-
-            onStatusChanged: root._clearRetainedPdfPreviewIfSettled()
-        }
-
-        Image {
-            id: pendingPdfPreviewImage
-            objectName: "graphNodeMediaPendingPdfPreviewImage"
-            visible: false
-            asynchronous: true
-            cache: true
-            mipmap: true
-            fillMode: Image.PreserveAspectFit
-            source: root.pendingPdfPreviewSource
-            sourceSize.width: root.surface && root.surface.isPdfPanel ? Math.max(1, Math.round(root.width)) : 0
-            sourceSize.height: root.surface && root.surface.isPdfPanel ? Math.max(1, Math.round(root.height)) : 0
-
-            onStatusChanged: root._maybePromotePendingPdfPreview()
         }
 
         Item {
@@ -349,7 +150,6 @@ Rectangle {
             width: Math.max(0, Number(root.appliedPreviewRect.width || 0))
             height: Math.max(0, Number(root.appliedPreviewRect.height || 0))
             visible: root.surface
-                && !root.surface.isPdfPanel
                 && root.surface.previewState === "ready"
                 && !root.proxyPreviewVisible
                 && !root.surface.cropModeActive
@@ -446,7 +246,7 @@ Rectangle {
 
             Column {
                 anchors.centerIn: parent
-                width: Math.min(parent.width - 24, root.surface && root.surface.isPdfPanel ? 224 : 208)
+                width: Math.min(parent.width - 24, 208)
                 spacing: 8
 
                 Item {
@@ -464,8 +264,8 @@ Rectangle {
 
                     Rectangle {
                         anchors.centerIn: parent
-                        width: root.surface && root.surface.isPdfPanel ? 18 : 20
-                        height: root.surface && root.surface.isPdfPanel ? 24 : 16
+                        width: 20
+                        height: 16
                         radius: 3
                         color: "transparent"
                         border.width: 1
@@ -473,7 +273,6 @@ Rectangle {
                     }
 
                     Rectangle {
-                        visible: !(root.surface && root.surface.isPdfPanel)
                         anchors.centerIn: parent
                         width: 10
                         height: 6
@@ -481,16 +280,6 @@ Rectangle {
                         color: Qt.alpha(root.surface ? root.surface.hintTextColor : "#bdc5d3", 0.65)
                     }
 
-                    Rectangle {
-                        visible: root.surface && root.surface.isPdfPanel
-                        anchors.horizontalCenter: parent.horizontalCenter
-                        anchors.top: parent.top
-                        anchors.topMargin: 12
-                        width: 12
-                        height: 6
-                        radius: 2
-                        color: Qt.alpha(root.surface ? root.surface.pdfBadgeFillColor : "#2C85BF", 0.92)
-                    }
                 }
 
                 Text {
@@ -501,7 +290,7 @@ Rectangle {
                     color: root.surface ? root.surface.captionTextColor : "#f0f2f5"
                     font.pixelSize: 12
                     font.bold: true
-                    text: root.surface && root.surface.isPdfPanel ? "PDF proxy preview" : "Image proxy preview"
+                    text: "Image proxy preview"
                     renderType: root.surface && root.surface.host
                         ? root.surface.host.nodeTextRenderType
                         : Text.CurveRendering
@@ -514,10 +303,7 @@ Rectangle {
                     wrapMode: Text.WordWrap
                     color: root.surface ? root.surface.hintTextColor : "#bdc5d3"
                     font.pixelSize: 11
-                    text: root.surface && root.surface.isPdfPanel && root.surface.pdfPageCount > 0
-                        ? "Page " + root.surface.pdfResolvedPageNumber + " of " + root.surface.pdfPageCount
-                            + " paused during max performance interaction."
-                        : "Full preview returns automatically after the interaction settles."
+                    text: "Full preview returns automatically after the interaction settles."
                     renderType: root.surface && root.surface.host
                         ? root.surface.host.nodeTextRenderType
                         : Text.CurveRendering
@@ -525,7 +311,7 @@ Rectangle {
             }
         }
 
-        GraphMediaPanelPreviewPlaceholder {
+        GraphMediaImagePlaceholder {
             surface: root.surface
         }
 

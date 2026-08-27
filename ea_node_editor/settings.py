@@ -22,7 +22,7 @@ PROJECT_ARTIFACT_SESSION_STAGING_DIRNAME = "project_artifact_staging"
 SCHEMA_VERSION = 5
 AUTOSAVE_INTERVAL_MS = 30_000
 APP_PREFERENCES_KIND = "ea-node-editor/app-preferences"
-APP_PREFERENCES_VERSION = 7
+APP_PREFERENCES_VERSION = 8
 
 DEFAULT_WORKFLOW_SETTINGS = {
     "general": {
@@ -214,10 +214,11 @@ DEFAULT_EXPAND_COLLISION_AVOIDANCE_SETTINGS = {
     "animate": True,
 }
 
-DEFAULT_IMAGE_NODE_APPEARANCE_SETTINGS = {
+DEFAULT_MEDIA_PANEL_SETTINGS = {
     "show_title": True,
     "show_frame": True,
     "autoplay_animations": True,
+    "source_input_exposed": True,
 }
 
 DEFAULT_PLOT_SETTINGS = {
@@ -285,7 +286,7 @@ DEFAULT_GRAPHICS_SETTINGS = {
         "graph_node_icon_pixel_size_override": None,
         "recent_text_colors": [],
     },
-    "image_nodes": DEFAULT_IMAGE_NODE_APPEARANCE_SETTINGS,
+    "media_panel": DEFAULT_MEDIA_PANEL_SETTINGS,
     "plot": DEFAULT_PLOT_SETTINGS,
     "engineering_viewer": DEFAULT_ENGINEERING_VIEWER_SETTINGS,
     "folder_explorer": DEFAULT_FOLDER_EXPLORER_SETTINGS,

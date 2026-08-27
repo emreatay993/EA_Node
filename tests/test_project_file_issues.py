@@ -24,18 +24,20 @@ class ProjectFileIssueTests(unittest.TestCase):
 
         image_node = model.add_node(
             workspace.workspace_id,
-            "passive.media.image_panel",
-            "Image Panel",
+            "media.panel",
+            "Media Panel",
             80.0,
             80.0,
         )
         video_node = model.add_node(
             workspace.workspace_id,
-            "passive.media.video_panel",
-            "Video Panel",
+            "media.panel",
+            "Media Panel",
             200.0,
             80.0,
         )
+        image_node.exposed_ports["source"] = False
+        video_node.exposed_ports["source"] = False
         file_read_node = model.add_node(
             workspace.workspace_id,
             "io.file_read",
@@ -57,13 +59,13 @@ class ProjectFileIssueTests(unittest.TestCase):
             model.set_node_property(
                 workspace.workspace_id,
                 image_node.node_id,
-                "source_path",
+                "source",
                 str(temp_root / "missing-image.png"),
             )
             model.set_node_property(
                 workspace.workspace_id,
                 video_node.node_id,
-                "source_path",
+                "source",
                 str(temp_root / "missing-video.mp4"),
             )
             model.set_node_property(
@@ -94,8 +96,8 @@ class ProjectFileIssueTests(unittest.TestCase):
                 },
             )
 
-        self.assertEqual(issue_map[(image_node.node_id, "source_path")].issue_kind, "external_missing")
-        video_issue = issue_map[(video_node.node_id, "source_path")]
+        self.assertEqual(issue_map[(image_node.node_id, "source")].issue_kind, "external_missing")
+        video_issue = issue_map[(video_node.node_id, "source")]
         self.assertEqual(video_issue.issue_kind, "external_missing")
         self.assertTrue(video_issue.supports_managed_repair)
         self.assertTrue(video_issue.supports_external_repair)
@@ -152,6 +154,53 @@ class ProjectFileIssueTests(unittest.TestCase):
             app.processEvents()
             test_env.stop()
 
+    def test_exposed_media_source_suppresses_edit_browse_and_repair(self) -> None:
+        from PyQt6.QtWidgets import QApplication
+
+        from ea_node_editor.ui.shell.window import ShellWindow
+
+        app = QApplication.instance() or QApplication([])
+        test_env = ShellTestEnvironment()
+        temp_root = test_env.start()
+        window = ShellWindow()
+        try:
+            missing_path = str(temp_root / "dormant-missing.png")
+            node_id = window.scene.create_node_from_type(
+                type_id="media.panel",
+                x=120.0,
+                y=80.0,
+                parent_node_id=None,
+                select_node=False,
+                property_overrides={"source": missing_path},
+                exposed_port_overrides={"source": True},
+            )
+            window.scene.select_node(node_id, False)
+            app.processEvents()
+
+            source_item = _selected_property_item(window, "source")
+            self.assertFalse(source_item["editor_enabled"])
+            self.assertFalse(source_item["file_issue_active"])
+
+            with patch(
+                "ea_node_editor.ui.shell.host_presenter.QFileDialog.getOpenFileName"
+            ) as dialog_mock:
+                self.assertEqual(
+                    window.browse_node_property_path(node_id, "source", missing_path),
+                    "",
+                )
+            dialog_mock.assert_not_called()
+
+            window.set_selected_node_property("source", "C:/blocked.png")
+            self.assertEqual(
+                window.model.active_workspace.nodes[node_id].properties["source"],
+                missing_path,
+            )
+        finally:
+            window.close()
+            window.deleteLater()
+            app.processEvents()
+            test_env.stop()
+
     def test_shell_window_repairs_missing_managed_media_source_with_staged_copy(self) -> None:
         from PyQt6.QtWidgets import QApplication
 
@@ -176,13 +225,14 @@ class ProjectFileIssueTests(unittest.TestCase):
                 }
             }
 
-            node_id = window.scene.add_node_from_type("passive.media.image_panel", x=120.0, y=80.0)
+            node_id = window.scene.add_node_from_type("media.panel", x=120.0, y=80.0)
             self.assertTrue(node_id)
-            window.scene.set_node_property(node_id, "source_path", managed_ref)
+            window.scene.set_exposed_port(node_id, "source", False)
+            window.scene.set_node_property(node_id, "source", managed_ref)
             window.scene.select_node(node_id, False)
             app.processEvents()
 
-            path_item = _selected_property_item(window, "source_path")
+            path_item = _selected_property_item(window, "source")
             self.assertTrue(path_item["file_issue_active"])
 
             with patch(
@@ -194,7 +244,7 @@ class ProjectFileIssueTests(unittest.TestCase):
             ) as dialog_mock:
                 repaired_ref = window.browse_node_property_path(
                     node_id,
-                    "source_path",
+                    "source",
                     encode_file_repair_request(managed_ref),
                 )
 
@@ -202,10 +252,10 @@ class ProjectFileIssueTests(unittest.TestCase):
             self.assertEqual(mode_mock.call_count, 1)
             self.assertEqual(dialog_mock.call_count, 1)
 
-            window.scene.set_node_property(node_id, "source_path", repaired_ref)
+            window.scene.set_node_property(node_id, "source", repaired_ref)
             app.processEvents()
 
-            path_item = _selected_property_item(window, "source_path")
+            path_item = _selected_property_item(window, "source")
             self.assertFalse(path_item["file_issue_active"])
             repaired_entry = window.model.project.metadata["artifact_store"]["staged"]["managed_image"]
             self.assertIn("/tmp/in/", repaired_entry["relative_path"])
@@ -240,13 +290,14 @@ class ProjectFileIssueTests(unittest.TestCase):
                 }
             }
 
-            node_id = window.scene.add_node_from_type("passive.media.image_panel", x=120.0, y=80.0)
+            node_id = window.scene.add_node_from_type("media.panel", x=120.0, y=80.0)
             self.assertTrue(node_id)
-            window.scene.set_node_property(node_id, "source_path", staged_ref)
+            window.scene.set_exposed_port(node_id, "source", False)
+            window.scene.set_node_property(node_id, "source", staged_ref)
             window.scene.select_node(node_id, False)
             app.processEvents()
 
-            path_item = _selected_property_item(window, "source_path")
+            path_item = _selected_property_item(window, "source")
             self.assertTrue(path_item["file_issue_active"])
 
             with patch(
@@ -258,7 +309,7 @@ class ProjectFileIssueTests(unittest.TestCase):
             ) as dialog_mock:
                 repaired_ref = window.browse_node_property_path(
                     node_id,
-                    "source_path",
+                    "source",
                     encode_file_repair_request(staged_ref),
                 )
 

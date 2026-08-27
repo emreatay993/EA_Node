@@ -356,30 +356,38 @@ class GraphicsSettingsDialog(SectionedSettingsDialog):
         nodes_lay.addLayout(nodes_form)
         outer.addWidget(nodes_card)
 
-        outer.addWidget(self._make_section_title("Image Nodes", page))
-        image_nodes_card, image_nodes_lay = self._make_section_card(page)
-        self.image_node_show_title_check = QCheckBox("Show title by default", image_nodes_card)
-        self.image_node_show_title_check.setObjectName("graphicsSettingsImageNodeShowTitleCheck")
-        self.image_node_show_frame_check = QCheckBox("Show frame by default", image_nodes_card)
-        self.image_node_show_frame_check.setObjectName("graphicsSettingsImageNodeShowFrameCheck")
-        self.image_node_autoplay_animations_check = QCheckBox(
+        outer.addWidget(self._make_section_title("Media Panel", page))
+        media_panel_card, media_panel_lay = self._make_section_card(page)
+        self.media_panel_show_title_check = QCheckBox("Show title by default", media_panel_card)
+        self.media_panel_show_title_check.setObjectName("graphicsSettingsMediaPanelShowTitleCheck")
+        self.media_panel_show_frame_check = QCheckBox("Show frame by default", media_panel_card)
+        self.media_panel_show_frame_check.setObjectName("graphicsSettingsMediaPanelShowFrameCheck")
+        self.media_panel_autoplay_animations_check = QCheckBox(
             "Automatically play animations when selected or hovered",
-            image_nodes_card,
+            media_panel_card,
         )
-        self.image_node_autoplay_animations_check.setObjectName(
-            "graphicsSettingsImageNodeAutoplayAnimationsCheck"
+        self.media_panel_autoplay_animations_check.setObjectName(
+            "graphicsSettingsMediaPanelAutoplayAnimationsCheck"
         )
-        image_nodes_lay.addWidget(self.image_node_show_title_check)
-        image_nodes_lay.addWidget(self.image_node_show_frame_check)
-        image_nodes_lay.addWidget(self.image_node_autoplay_animations_check)
-        image_nodes_helper = QLabel(
-            "Title and frame apply to newly created panels. Autoplay applies to animated panels in Auto mode.",
-            image_nodes_card,
+        self.media_panel_source_input_exposed_check = QCheckBox(
+            "Expose Source input on blank Media Panels",
+            media_panel_card,
         )
-        image_nodes_helper.setObjectName("graphicsSettingsImageNodeDefaultsHelper")
-        image_nodes_helper.setWordWrap(True)
-        image_nodes_lay.addWidget(image_nodes_helper)
-        outer.addWidget(image_nodes_card)
+        self.media_panel_source_input_exposed_check.setObjectName(
+            "graphicsSettingsMediaPanelSourceInputExposedCheck"
+        )
+        media_panel_lay.addWidget(self.media_panel_show_title_check)
+        media_panel_lay.addWidget(self.media_panel_show_frame_check)
+        media_panel_lay.addWidget(self.media_panel_autoplay_animations_check)
+        media_panel_lay.addWidget(self.media_panel_source_input_exposed_check)
+        media_panel_helper = QLabel(
+            "These defaults affect future blank Media Panels only. Autoplay applies to animated panels in Auto mode.",
+            media_panel_card,
+        )
+        media_panel_helper.setObjectName("graphicsSettingsMediaPanelDefaultsHelper")
+        media_panel_helper.setWordWrap(True)
+        media_panel_lay.addWidget(media_panel_helper)
+        outer.addWidget(media_panel_card)
 
         # ── Node Shadow section ──
         outer.addWidget(self._make_section_title("Node Shadow", page))
@@ -946,10 +954,13 @@ class GraphicsSettingsDialog(SectionedSettingsDialog):
         self.shadow_strength_slider.setValue(settings["canvas"]["shadow_strength"])
         self.shadow_softness_slider.setValue(settings["canvas"]["shadow_softness"])
         self.shadow_offset_slider.setValue(settings["canvas"]["shadow_offset"])
-        self.image_node_show_title_check.setChecked(settings["image_nodes"]["show_title"])
-        self.image_node_show_frame_check.setChecked(settings["image_nodes"]["show_frame"])
-        self.image_node_autoplay_animations_check.setChecked(
-            settings["image_nodes"]["autoplay_animations"]
+        self.media_panel_show_title_check.setChecked(settings["media_panel"]["show_title"])
+        self.media_panel_show_frame_check.setChecked(settings["media_panel"]["show_frame"])
+        self.media_panel_autoplay_animations_check.setChecked(
+            settings["media_panel"]["autoplay_animations"]
+        )
+        self.media_panel_source_input_exposed_check.setChecked(
+            settings["media_panel"]["source_input_exposed"]
         )
         self._sync_shadow_settings_visibility()
         self.plot_lightweight_canvas_check.setChecked(settings["plot"]["lightweight_canvas"])
@@ -1150,10 +1161,11 @@ class GraphicsSettingsDialog(SectionedSettingsDialog):
                         else None
                     ),
                 },
-                "image_nodes": {
-                    "show_title": self.image_node_show_title_check.isChecked(),
-                    "show_frame": self.image_node_show_frame_check.isChecked(),
-                    "autoplay_animations": self.image_node_autoplay_animations_check.isChecked(),
+                "media_panel": {
+                    "show_title": self.media_panel_show_title_check.isChecked(),
+                    "show_frame": self.media_panel_show_frame_check.isChecked(),
+                    "autoplay_animations": self.media_panel_autoplay_animations_check.isChecked(),
+                    "source_input_exposed": self.media_panel_source_input_exposed_check.isChecked(),
                 },
                 "graph_theme": self._current_graph_theme_settings(),
             }

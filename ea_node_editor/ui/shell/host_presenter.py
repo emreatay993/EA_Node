@@ -60,6 +60,8 @@ _FLOW_EDGE_STYLE_CLIPBOARD_KIND = "flow-edge-style"
 _STYLE_CLIPBOARD_APP_PROPERTY = "eaNodeEditorStyleClipboard"
 _TABULAR_INPUT_NODE_TYPE_ID = "tabular.input"
 _TABULAR_INPUT_PATH_PROPERTY = "path"
+_MEDIA_PANEL_NODE_TYPE_ID = "media.panel"
+_MEDIA_PANEL_SOURCE_PROPERTY = "source"
 _WEB_PAGE_VIEWER_NODE_TYPE_ID = "web.page_viewer"
 _WEB_PAGE_VIEWER_START_LOCATION_PROPERTY = "start_location"
 _JUPYTER_NOTEBOOK_NODE_TYPE_ID = "code.jupyter_notebook"
@@ -106,6 +108,11 @@ _TABULAR_SOURCE_IMPORT_TARGET = _ProjectManagedImportTarget(
     "tabular/source",
     "tabular_source",
     {"artifact_kind": "tabular_source"},
+)
+_MEDIA_SOURCE_IMPORT_TARGET = _ProjectManagedImportTarget(
+    PROJECT_NODE_INPUTS_DIRNAME,
+    "media",
+    "media_source",
 )
 _WEB_HTML_IMPORT_TARGET = _ProjectManagedImportTarget(
     PROJECT_NODE_INPUTS_DIRNAME,
@@ -550,6 +557,11 @@ class ShellHostPresenter(QObject):
         node_type_id: str = "",
         property_key: str = "",
     ) -> _ProjectManagedImportTarget | None:
+        if (
+            str(node_type_id or "").strip() == _MEDIA_PANEL_NODE_TYPE_ID
+            and str(property_key or "").strip() == _MEDIA_PANEL_SOURCE_PROPERTY
+        ):
+            return _MEDIA_SOURCE_IMPORT_TARGET
         if (
             str(node_type_id or "").strip() == _TABULAR_INPUT_NODE_TYPE_ID
             and str(property_key or "").strip() == _TABULAR_INPUT_PATH_PROPERTY

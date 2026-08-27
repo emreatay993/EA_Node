@@ -41,8 +41,8 @@ def test_all_repo_owned_non_dpf_nodes_have_authored_documentation() -> None:
     specs = NON_DPF_NODE_SPECS
     resolved_ports = tuple((spec, resolve_instance_ports(spec, {})) for spec in specs)
 
-    assert len(specs) == 133
-    assert sum(len(ports) for _, ports in resolved_ports) == 519
+    assert len(specs) == 131
+    assert sum(len(ports) for _, ports in resolved_ports) == 509
     assert len({spec.type_id for spec in specs}) == len(specs)
 
     missing_node_descriptions = [spec.type_id for spec in specs if not spec.description.strip()]
@@ -69,7 +69,7 @@ def test_t17_documentation_overlay_has_exact_scope() -> None:
     ) == 105
     assert overlay["python_script_default_source"]["type_id"] == "core.python_script"
     assert overlay["python_script_default_source"]["property_key"] == "script"
-    assert len(load_effective_non_dpf_catalog()) == 133
+    assert len(load_effective_non_dpf_catalog()) == 131
 
 
 def test_t17_documentation_overlay_rejects_unknown_duplicate_and_non_doc_patches(

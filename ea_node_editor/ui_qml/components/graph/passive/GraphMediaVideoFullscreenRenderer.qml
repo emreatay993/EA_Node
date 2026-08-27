@@ -1,9 +1,13 @@
+// Purpose: Render fullscreen video playback and controls for Media Panel.
+// Map: feature_routes/media_image_video_pdf_refocus.md
+// Tests: tests/test_media_panel_qml_surface.py
 import QtQuick 2.15
 import QtQuick.Controls 2.15
 import QtQuick.Layouts 1.15
 import QtMultimedia
 import "../../shell" as ShellComponents
 import "../../common/TooltipCopy.js" as TooltipCopy
+import "GraphMediaPanelSourceUtils.js" as GraphMediaPanelSourceUtils
 
 FocusScope {
     id: root
@@ -25,9 +29,17 @@ FocusScope {
     property bool clipEnabledValue: false
     property int clipStartValue: 0
     property int clipEndValue: 0
+    property string activeSourceIdentity: ""
+    property bool rendererReleased: false
     readonly property var transientState: payload && payload.transient_state ? payload.transient_state : ({})
     readonly property bool videoPayloadActive: String(payload && payload.media_kind || "") === "video"
-    readonly property string sourceUrl: videoPayloadActive ? String(payload && payload.resolved_source_url || "") : ""
+    readonly property bool sourceInputExposed: Boolean(payload && payload.input_exposed)
+    readonly property string sourceUrl: videoPayloadActive && !rendererReleased
+        ? String(payload && payload.resolved_source_url || "")
+        : ""
+    readonly property bool localSourceActive: GraphMediaPanelSourceUtils.resolvedLocalFileSourceUrl(
+        sourceUrl
+    ).length > 0
     readonly property int initialPositionMs: Math.max(
         0,
         Math.round(Number(transientState.position_ms !== undefined
@@ -68,6 +80,15 @@ FocusScope {
         thumbnailPrimerComplete = false;
         thumbnailPrimerTimer.stop();
         seekSlider.value = 0;
+    }
+
+    Component.onDestruction: release()
+
+    function release() {
+        rendererReleased = true;
+        thumbnailPrimerTimer.stop();
+        thumbnailPrimerActive = false;
+        player.stop();
     }
 
     Keys.priority: Keys.BeforeItem
@@ -371,7 +392,7 @@ FocusScope {
                     objectName: "contentFullscreenVideoTrimReplaceButton"
                     iconName: "video-trim-save"
                     tooltipText: TooltipCopy.text(tooltipCopyBridge, "fullscreen.video.replace_trimmed_video")
-                    enabled: playButton.enabled && root.clipRangeActive
+                    enabled: playButton.enabled && !root.sourceInputExposed && root.localSourceActive && root.clipRangeActive
                     selectedStyle: false
                     onClicked: root._replaceWithTrimmedClip()
                 }
@@ -380,7 +401,7 @@ FocusScope {
                     objectName: "contentFullscreenVideoTrimCopyButton"
                     iconName: "video-trim-save"
                     tooltipText: TooltipCopy.text(tooltipCopyBridge, "fullscreen.video.save_trimmed_copy")
-                    enabled: playButton.enabled && root.clipRangeActive
+                    enabled: playButton.enabled && root.localSourceActive && root.clipRangeActive
                     selectedStyle: false
                     onClicked: root._saveTrimmedClipCopy()
                 }
@@ -400,6 +421,10 @@ FocusScope {
 
     function _syncFromPayload() {
         var source = payload || ({});
+        var nextSourceIdentity = String(source.resolved_source_url || "").trim();
+        if (activeSourceIdentity.length > 0 && nextSourceIdentity === activeSourceIdentity)
+            return;
+        activeSourceIdentity = nextSourceIdentity;
         var state = source.transient_state || ({});
         mutedValue = _boolValue(state.muted !== undefined ? state.muted : source.muted, false);
         volumeValue = _boundedNumber(state.volume !== undefined ? state.volume : source.volume, 1.0, 0.0, 1.0);
@@ -687,14 +712,18 @@ FocusScope {
     }
 
     function _replaceWithTrimmedClip() {
-        if (!bridgeRef || !bridgeRef.request_trim_video_clip_replace || !clipRangeActive)
+        if (sourceInputExposed
+                || !localSourceActive
+                || !bridgeRef
+                || !bridgeRef.request_trim_video_clip_replace
+                || !clipRangeActive)
             return false;
         var result = bridgeRef.request_trim_video_clip_replace(currentState());
         return Boolean(result && result.success);
     }
 
     function _saveTrimmedClipCopy() {
-        if (!bridgeRef || !bridgeRef.request_trim_video_clip_copy || !clipRangeActive)
+        if (!localSourceActive || !bridgeRef || !bridgeRef.request_trim_video_clip_copy || !clipRangeActive)
             return false;
         var result = bridgeRef.request_trim_video_clip_copy(currentState());
         return Boolean(result && result.success);

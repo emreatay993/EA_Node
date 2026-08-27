@@ -24,6 +24,7 @@ from ea_node_editor.ui_qml.graph_canvas_state.graphics_preferences_props import 
 from ea_node_editor.ui_qml.graph_canvas_state.protocols import (
     _GraphCanvasExecutionSource,
     _GraphCanvasGraphicsSource,
+    _GraphCanvasProjectSource,
     _GraphCanvasSceneStateSource,
     _GraphCanvasScenePolicySource,
     _GraphCanvasStateSource,
@@ -82,6 +83,7 @@ class GraphCanvasStateBridge(
         canvas_source: _GraphCanvasStateSource | None = None,
         graphics_source: _GraphCanvasGraphicsSource | None = None,
         execution_source: _GraphCanvasExecutionSource | None = None,
+        project_source: _GraphCanvasProjectSource | None = None,
         scene_bridge: "GraphSceneBridge | None" = None,
         view_bridge: "ViewportBridge | None" = None,
     ) -> None:
@@ -91,6 +93,7 @@ class GraphCanvasStateBridge(
         self._canvas_source = canvas_source if canvas_source is not None else cast(_GraphCanvasStateSource | None, shell_window)
         self._graphics_source = graphics_source if graphics_source is not None else cast(_GraphCanvasGraphicsSource | None, shell_window)
         self._execution_source = execution_source if execution_source is not None else cast(_GraphCanvasExecutionSource | None, shell_window)
+        self._project_source = project_source
         self._scene_state_source = _resolve_scene_state_source(scene_bridge)
         self._scene_policy_source = _resolve_scene_policy_source(scene_bridge)
         self._tooltip_categories_cache: dict[str, bool] | None = None
@@ -175,6 +178,10 @@ class GraphCanvasStateBridge(
     @property
     def graphics_source(self) -> _GraphCanvasGraphicsSource | None:
         return self._graphics_source
+
+    @property
+    def project_source(self) -> _GraphCanvasProjectSource | None:
+        return self._project_source
 
     @property
     def scene_bridge(self) -> "GraphSceneBridge | None":

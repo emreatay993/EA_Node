@@ -6,7 +6,7 @@ from PyQt6.QtCore import pyqtProperty, pyqtSignal, pyqtSlot
 from ea_node_editor.app_preferences import (
     effective_graph_node_icon_pixel_size,
     normalize_folder_explorer_column_widths,
-    normalize_image_node_appearance_settings,
+    normalize_media_panel_settings,
     normalize_graph_node_icon_pixel_size_override,
     normalize_node_comment_editor_default,
     normalize_node_elapsed_time_unit,
@@ -151,47 +151,69 @@ class GraphicsPreferencesProps:
         return normalize_recent_text_colors(value)
 
     @pyqtProperty("QVariantMap", notify=graphics_preferences_changed)
-    def graphics_image_node_default_appearance(self) -> dict[str, bool]:
+    def graphics_media_panel_defaults(self) -> dict[str, bool]:
         value = _source_attr_chain(
-            "graphics_image_node_default_appearance",
-            DEFAULT_GRAPHICS_SETTINGS["image_nodes"],
+            "graphics_media_panel_defaults",
+            DEFAULT_GRAPHICS_SETTINGS["media_panel"],
             self._canvas_source,
             self._graphics_source,
         )
-        return normalize_image_node_appearance_settings(value)
+        return normalize_media_panel_settings(value)
 
     @pyqtProperty(bool, notify=graphics_preferences_changed)
-    def graphics_image_node_default_show_title(self) -> bool:
+    def graphics_media_panel_default_show_title(self) -> bool:
         value = _source_attr_chain(
-            "graphics_image_node_default_show_title",
-            self.graphics_image_node_default_appearance["show_title"],
-            self._canvas_source,
-            self._graphics_source,
-        )
-        return bool(value) if isinstance(value, bool) else self.graphics_image_node_default_appearance["show_title"]
-
-    @pyqtProperty(bool, notify=graphics_preferences_changed)
-    def graphics_image_node_default_show_frame(self) -> bool:
-        value = _source_attr_chain(
-            "graphics_image_node_default_show_frame",
-            self.graphics_image_node_default_appearance["show_frame"],
-            self._canvas_source,
-            self._graphics_source,
-        )
-        return bool(value) if isinstance(value, bool) else self.graphics_image_node_default_appearance["show_frame"]
-
-    @pyqtProperty(bool, notify=graphics_preferences_changed)
-    def graphics_image_node_autoplay_animations(self) -> bool:
-        value = _source_attr_chain(
-            "graphics_image_node_autoplay_animations",
-            self.graphics_image_node_default_appearance["autoplay_animations"],
+            "graphics_media_panel_default_show_title",
+            self.graphics_media_panel_defaults["show_title"],
             self._canvas_source,
             self._graphics_source,
         )
         return (
             bool(value)
             if isinstance(value, bool)
-            else self.graphics_image_node_default_appearance["autoplay_animations"]
+            else self.graphics_media_panel_defaults["show_title"]
+        )
+
+    @pyqtProperty(bool, notify=graphics_preferences_changed)
+    def graphics_media_panel_default_show_frame(self) -> bool:
+        value = _source_attr_chain(
+            "graphics_media_panel_default_show_frame",
+            self.graphics_media_panel_defaults["show_frame"],
+            self._canvas_source,
+            self._graphics_source,
+        )
+        return (
+            bool(value)
+            if isinstance(value, bool)
+            else self.graphics_media_panel_defaults["show_frame"]
+        )
+
+    @pyqtProperty(bool, notify=graphics_preferences_changed)
+    def graphics_media_panel_autoplay_animations(self) -> bool:
+        value = _source_attr_chain(
+            "graphics_media_panel_autoplay_animations",
+            self.graphics_media_panel_defaults["autoplay_animations"],
+            self._canvas_source,
+            self._graphics_source,
+        )
+        return (
+            bool(value)
+            if isinstance(value, bool)
+            else self.graphics_media_panel_defaults["autoplay_animations"]
+        )
+
+    @pyqtProperty(bool, notify=graphics_preferences_changed)
+    def graphics_media_panel_source_input_exposed(self) -> bool:
+        value = _source_attr_chain(
+            "graphics_media_panel_source_input_exposed",
+            self.graphics_media_panel_defaults["source_input_exposed"],
+            self._canvas_source,
+            self._graphics_source,
+        )
+        return (
+            bool(value)
+            if isinstance(value, bool)
+            else self.graphics_media_panel_defaults["source_input_exposed"]
         )
 
     @pyqtProperty("QVariantMap", notify=graphics_preferences_changed)

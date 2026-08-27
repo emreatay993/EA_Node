@@ -141,17 +141,28 @@ class GraphicsSettingsDialogTests(unittest.TestCase):
                 "graphicsSettingsShowCanvasOptionsButtonCheck",
             )
             self.assertEqual(
-                dialog.image_node_show_title_check.objectName(),
-                "graphicsSettingsImageNodeShowTitleCheck",
+                dialog.media_panel_show_title_check.objectName(),
+                "graphicsSettingsMediaPanelShowTitleCheck",
             )
             self.assertEqual(
-                dialog.image_node_show_frame_check.objectName(),
-                "graphicsSettingsImageNodeShowFrameCheck",
+                dialog.media_panel_show_frame_check.objectName(),
+                "graphicsSettingsMediaPanelShowFrameCheck",
             )
             self.assertEqual(
-                dialog.image_node_autoplay_animations_check.objectName(),
-                "graphicsSettingsImageNodeAutoplayAnimationsCheck",
+                dialog.media_panel_autoplay_animations_check.objectName(),
+                "graphicsSettingsMediaPanelAutoplayAnimationsCheck",
             )
+            self.assertEqual(
+                dialog.media_panel_source_input_exposed_check.objectName(),
+                "graphicsSettingsMediaPanelSourceInputExposedCheck",
+            )
+            self.assertEqual(
+                dialog.media_panel_source_input_exposed_check.text(),
+                "Expose Source input on blank Media Panels",
+            )
+            helper = dialog.findChild(QLabel, "graphicsSettingsMediaPanelDefaultsHelper")
+            self.assertIsNotNone(helper)
+            self.assertIn("future blank Media Panels only", helper.text())
             self.assertEqual(
                 dialog.edge_crossing_style_combo.objectName(),
                 "graphicsSettingsEdgeCrossingStyleCombo",
@@ -180,9 +191,10 @@ class GraphicsSettingsDialogTests(unittest.TestCase):
             self.assertTrue(dialog.show_port_labels_check.isChecked())
             self.assertTrue(dialog.notched_ports_check.isChecked())
             self.assertFalse(dialog.node_toolbar_opens_on_hover_check.isChecked())
-            self.assertTrue(dialog.image_node_show_title_check.isChecked())
-            self.assertTrue(dialog.image_node_show_frame_check.isChecked())
-            self.assertTrue(dialog.image_node_autoplay_animations_check.isChecked())
+            self.assertTrue(dialog.media_panel_show_title_check.isChecked())
+            self.assertTrue(dialog.media_panel_show_frame_check.isChecked())
+            self.assertTrue(dialog.media_panel_autoplay_animations_check.isChecked())
+            self.assertTrue(dialog.media_panel_source_input_exposed_check.isChecked())
             self.assertFalse(dialog.plot_lightweight_canvas_check.isChecked())
             self.assertEqual(
                 {
@@ -251,9 +263,10 @@ class GraphicsSettingsDialogTests(unittest.TestCase):
             )
             dialog.node_toolbar_opens_on_hover_check.setChecked(True)
             dialog.minimap_expanded_check.setChecked(False)
-            dialog.image_node_show_title_check.setChecked(False)
-            dialog.image_node_show_frame_check.setChecked(False)
-            dialog.image_node_autoplay_animations_check.setChecked(False)
+            dialog.media_panel_show_title_check.setChecked(False)
+            dialog.media_panel_show_frame_check.setChecked(False)
+            dialog.media_panel_autoplay_animations_check.setChecked(False)
+            dialog.media_panel_source_input_exposed_check.setChecked(False)
             dialog.snap_to_grid_check.setChecked(True)
             dialog.expand_collision_enabled_check.setChecked(False)
             dialog.expand_collision_radius_mode_combo.setCurrentIndex(
@@ -290,9 +303,10 @@ class GraphicsSettingsDialogTests(unittest.TestCase):
             expected["canvas"]["node_comment_editor_default"] = "inspector"
             expected["canvas"]["node_floating_toolbar_opens_on_hover"] = True
             expected["canvas"]["minimap_expanded"] = False
-            expected["image_nodes"]["show_title"] = False
-            expected["image_nodes"]["show_frame"] = False
-            expected["image_nodes"]["autoplay_animations"] = False
+            expected["media_panel"]["show_title"] = False
+            expected["media_panel"]["show_frame"] = False
+            expected["media_panel"]["autoplay_animations"] = False
+            expected["media_panel"]["source_input_exposed"] = False
             expected["interaction"]["snap_to_grid"] = True
             expected["interaction"]["expand_collision_avoidance"] = {
                 "enabled": False,
@@ -380,10 +394,11 @@ class GraphicsSettingsDialogTests(unittest.TestCase):
                 "theme": {
                     "theme_id": "unknown_theme",
                 },
-                "image_nodes": {
+                "media_panel": {
                     "show_title": "false",
                     "show_frame": None,
                     "autoplay_animations": "yes",
+                    "source_input_exposed": "no",
                 },
                 "graph_theme": {
                     "follow_shell_theme": "no",
@@ -408,9 +423,10 @@ class GraphicsSettingsDialogTests(unittest.TestCase):
             self.assertTrue(dialog.show_canvas_options_button_check.isChecked())
             self.assertFalse(dialog.show_port_labels_check.isChecked())
             self.assertTrue(dialog.notched_ports_check.isChecked())
-            self.assertTrue(dialog.image_node_show_title_check.isChecked())
-            self.assertTrue(dialog.image_node_show_frame_check.isChecked())
-            self.assertTrue(dialog.image_node_autoplay_animations_check.isChecked())
+            self.assertTrue(dialog.media_panel_show_title_check.isChecked())
+            self.assertTrue(dialog.media_panel_show_frame_check.isChecked())
+            self.assertTrue(dialog.media_panel_autoplay_animations_check.isChecked())
+            self.assertTrue(dialog.media_panel_source_input_exposed_check.isChecked())
             self.assertEqual(dialog.grid_style_combo.currentData(), "lines")
             self.assertEqual(dialog.edge_crossing_style_combo.currentData(), "none")
             self.assertEqual(dialog.node_elapsed_time_unit_combo.currentData(), "seconds")

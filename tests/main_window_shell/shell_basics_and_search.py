@@ -304,8 +304,8 @@ class MainWindowShellBasicsAndSearchTests(SharedMainWindowShellTestBase):
                 "Open Parse numbers automatically, Copy, and Copy as tree actions.",
             )
             self.assertEqual(
-                entries[("PDF panel", "Left or Right")],
-                "Move the selected PDF Panel to the previous or next page.",
+                entries[("Media Panel (PDF mode)", "Left or Right")],
+                "Move the selected PDF-mode Media Panel to the previous or next page.",
             )
             self.assertEqual(
                 entries[("PDF fullscreen", "Left or Right")],

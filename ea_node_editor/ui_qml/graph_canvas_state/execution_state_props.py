@@ -15,6 +15,7 @@ import unicodedata
 from PyQt6.QtCore import pyqtProperty, pyqtSignal, pyqtSlot
 
 from ea_node_editor.execution.protocol import SettledPortResult
+from ea_node_editor.nodes.builtins.media_panel import MEDIA_PANEL_TYPE_ID
 from ea_node_editor.nodes.readiness import (
     evaluate_node_readiness,
     readiness_value_is_present,
@@ -32,6 +33,7 @@ from ea_node_editor.ui.support.node_presentation import (
 )
 from ea_node_editor.ui.support.port_flow_state import resolve_runtime_port_flow_states
 from ea_node_editor.ui.image_value_preview_provider import image_value_preview_source
+from ea_node_editor.ui.media_panel_source import resolve_media_panel_source
 from ea_node_editor.ui_qml.bridge_runtime import (
     copy_dict as _copy_dict,
     source_attr as _source_attr,
@@ -1359,6 +1361,42 @@ class ExecutionStateProps:
             edge_payloads=_source_attr(self._scene_state_source, "edges_model", []),
             output_records_by_node=records_by_node,
         )
+
+    @pyqtProperty("QVariantMap", notify=port_flow_state_changed)
+    def media_panel_source_lookup(self) -> dict[str, dict[str, Any]]:
+        project_source = self._project_source
+        model = getattr(project_source, "model", None)
+        project = getattr(model, "project", None)
+        workspaces = getattr(project, "workspaces", {})
+        workspace = (
+            workspaces.get(self._active_workspace_id())
+            if isinstance(workspaces, Mapping)
+            else None
+        )
+        if workspace is None:
+            return {}
+        execution_source = self._execution_source
+        run_state = (
+            getattr(execution_source, "run_state", None)
+            if execution_source is not None
+            else None
+        )
+        metadata = getattr(project, "metadata", None)
+        project_path = str(getattr(project_source, "project_path", "") or "").strip()
+        lookup: dict[str, dict[str, Any]] = {}
+        for node in getattr(workspace, "nodes", {}).values():
+            if str(getattr(node, "type_id", "") or "").strip() != MEDIA_PANEL_TYPE_ID:
+                continue
+            node_id = normalize_node_id(getattr(node, "node_id", ""))
+            if node_id:
+                lookup[node_id] = resolve_media_panel_source(
+                    node=node,
+                    workspace=workspace,
+                    run_state=run_state,
+                    project_path=project_path or None,
+                    project_metadata=metadata if isinstance(metadata, Mapping) else None,
+                ).to_qml_payload()
+        return lookup
 
     @pyqtProperty("QVariantMap", notify=port_flow_state_changed)
     def port_flow_state_lookup(self) -> dict[str, dict[str, str]]:

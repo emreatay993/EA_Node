@@ -119,13 +119,12 @@ class PlanningAnnotationCatalogTests(unittest.TestCase):
             enum_spec = next(prop for prop in spec.properties if prop.key == enum_key)
             self.assertEqual(enum_spec.enum_values, enum_values)
 
-    def test_planning_annotation_and_media_use_rectangular_cardinal_anchor_points(self) -> None:
+    def test_planning_and_annotation_use_rectangular_cardinal_anchor_points(self) -> None:
         registry = build_default_registry()
 
         for type_id in (
             "passive.planning.task_card",
             "passive.annotation.sticky_note",
-            "passive.media.image_panel",
         ):
             spec = registry.get_spec(type_id)
             node = NodeInstance(

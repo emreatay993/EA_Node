@@ -86,6 +86,8 @@ from ea_node_editor.graph.record_payloads import (
 from ea_node_editor.graph.records import EdgeInstance, NodeInstance
 from ea_node_editor.graph.workspace_state import ViewState, WorkspaceData
 from ea_node_editor.nodes.bootstrap import build_default_registry
+from ea_node_editor.nodes.builtins.media_panel import MEDIA_PANEL_TYPE_ID
+from ea_node_editor.nodes.file_dialog_filters import media_kind_from_source
 from ea_node_editor.persistence.serializer import JsonProjectSerializer
 from ea_node_editor.ui.media_preview_provider import (
     LOCAL_MEDIA_PREVIEW_PROVIDER_ID,
@@ -3040,24 +3042,26 @@ def _build_node_blueprints(
         fit_mode = ("contain", "cover", "original")[index % 3]
         media_blueprints.append(
             {
-                "type_id": "passive.media.image_panel",
-                "title": f"Image Panel {index + 1}",
+                "type_id": "media.panel",
+                "title": f"Media Panel Image {index + 1}",
                 "properties": {
-                    "source_path": str(image_path),
+                    "source": str(image_path),
                     "fit_mode": fit_mode,
                 },
+                "exposed_ports": {"source": False},
                 "active_data": False,
             }
         )
     for index in range(pdf_nodes):
         media_blueprints.append(
             {
-                "type_id": "passive.media.pdf_panel",
-                "title": f"PDF Panel {index + 1}",
+                "type_id": "media.panel",
+                "title": f"Media Panel PDF {index + 1}",
                 "properties": {
-                    "source_path": str(pdf_path),
+                    "source": str(pdf_path),
                     "page_number": (index % pdf_page_count) + 1,
                 },
+                "exposed_ports": {"source": False},
                 "active_data": False,
             }
         )
@@ -3146,7 +3150,7 @@ def _project_from_blueprints(
             x=col * spacing_x,
             y=row * spacing_y,
             properties=dict(blueprint.get("properties", {})),
-            exposed_ports={},
+            exposed_ports=dict(blueprint.get("exposed_ports", {})),
         )
         if bool(blueprint.get("active_data", False)):
             active_data_node_ids.append(node_id)
@@ -3225,8 +3229,9 @@ def _build_heavy_media_project(config: SyntheticGraphConfig) -> _ScenarioProject
             "fixture_strategy": "generated_local_media_reuse",
             "node_mix": {
                 "execution_nodes": len(active_data_node_ids),
-                "image_panel_nodes": image_nodes,
-                "pdf_panel_nodes": pdf_nodes,
+                "media_panel_nodes": image_nodes + pdf_nodes,
+                "image_source_nodes": image_nodes,
+                "pdf_source_nodes": pdf_nodes,
             },
             "generated_fixture_count": {
                 "images": len(fixtures["image_paths"]),
@@ -3256,13 +3261,14 @@ def _build_animated_media_project(config: SyntheticGraphConfig) -> _ScenarioProj
             role_counts[role] += 1
             node_blueprints.append(
                 {
-                    "type_id": "passive.media.image_panel",
+                    "type_id": "media.panel",
                     "title": f"Animated Media {index + 1} ({role})",
                     "properties": {
-                        "source_path": str(fixtures[role]),
+                        "source": str(fixtures[role]),
                         "fit_mode": ("contain", "cover", "original")[index % 3],
                         "animation_playback_mode": "auto",
                     },
+                    "exposed_ports": {"source": False},
                     "active_data": False,
                 }
             )
@@ -3293,15 +3299,16 @@ def _build_animated_media_project(config: SyntheticGraphConfig) -> _ScenarioProj
         scenario_details={
             "description": (
                 "Committed animated, single-frame, and corrupt media fixtures plus a generated static "
-                "control distributed across Image Panels in the real GraphCanvas.qml benchmark path."
+                "control distributed across Media Panels in the real GraphCanvas.qml benchmark path."
             ),
             "fixture_strategy": "committed_animation_fixtures_plus_generated_static",
             "required_fixture_paths": committed_fixture_paths,
             "fixture_role_counts": dict(sorted(role_counts.items())),
             "node_mix": {
                 "execution_nodes": len(active_data_node_ids),
-                "image_panel_nodes": config.node_count,
-                "pdf_panel_nodes": 0,
+                "media_panel_nodes": config.node_count,
+                "image_source_nodes": config.node_count,
+                "pdf_source_nodes": 0,
             },
             "generated_fixture_count": {
                 "images": 1,
@@ -3365,18 +3372,20 @@ def _build_fixture_project(config: BenchmarkConfig) -> _ScenarioProject:
     project.active_workspace_id = workspace_id
     workspace = project.workspaces[workspace_id]
 
-    histogram = _node_type_histogram(workspace)
+    media_panel_nodes = [
+        node
+        for node in workspace.nodes.values()
+        if str(node.type_id) == MEDIA_PANEL_TYPE_ID
+    ]
     image_nodes = sum(
-        count
-        for type_id, count in histogram.items()
-        if type_id.startswith("passive.media.image")
+        media_kind_from_source(node.properties.get("source")) == "image"
+        for node in media_panel_nodes
     )
     pdf_nodes = sum(
-        count
-        for type_id, count in histogram.items()
-        if type_id.startswith("passive.media.pdf")
+        media_kind_from_source(node.properties.get("source")) == "pdf"
+        for node in media_panel_nodes
     )
-    media_nodes = image_nodes + pdf_nodes
+    media_nodes = len(media_panel_nodes)
     fixture_metadata = _workspace_fixture_metadata(
         project_path=project_path,
         effective_project_path=effective_project_path,
@@ -3403,8 +3412,9 @@ def _build_fixture_project(config: BenchmarkConfig) -> _ScenarioProject:
             ),
             "node_mix": {
                 "execution_nodes": max(0, len(workspace.nodes) - media_nodes),
-                "image_panel_nodes": image_nodes,
-                "pdf_panel_nodes": pdf_nodes,
+                "media_panel_nodes": media_nodes,
+                "image_source_nodes": image_nodes,
+                "pdf_source_nodes": pdf_nodes,
             },
             "generated_fixture_count": {
                 "images": 0,
@@ -3434,8 +3444,9 @@ def _build_scenario_project(config: BenchmarkConfig) -> _ScenarioProject:
             "fixture_strategy": "none",
             "node_mix": {
                 "execution_nodes": config.synthetic_graph.node_count,
-                "image_panel_nodes": 0,
-                "pdf_panel_nodes": 0,
+                "media_panel_nodes": 0,
+                "image_source_nodes": 0,
+                "pdf_source_nodes": 0,
             },
             "generated_fixture_count": {
                 "images": 0,
@@ -6982,8 +6993,9 @@ def _write_markdown_report(report: dict[str, Any], path: Path) -> None:
         lines.append(
             "- Node mix: "
             f"`{node_mix.get('execution_nodes', 0)}` active data / "
-            f"`{node_mix.get('image_panel_nodes', 0)}` image panels / "
-            f"`{node_mix.get('pdf_panel_nodes', 0)}` PDF panels"
+            f"`{node_mix.get('media_panel_nodes', 0)}` media panels "
+            f"(`{node_mix.get('image_source_nodes', 0)}` image / "
+            f"`{node_mix.get('pdf_source_nodes', 0)}` PDF sources)"
         )
     fixture_counts = scenario_details.get("generated_fixture_count", {})
     if fixture_counts:

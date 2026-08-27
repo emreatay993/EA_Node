@@ -251,6 +251,7 @@ Item {
         && (!surfaceFullscreenRequiresBridge || surfaceFullscreenBridgeRef)
     readonly property string surfaceFamily: String(surfaceSpec.family || "standard")
     readonly property string surfaceVariant: String(surfaceVariantOverride || surfaceSpec.variant || (nodeData ? nodeData.surface_variant || "" : ""))
+    readonly property var surfaceMetadata: _surfaceContractObject(surfaceSpec.metadata)
     readonly property string surfaceIdentityKey: [
         nodeData ? String(nodeData.node_id || "") : "",
         surfaceFamily,
@@ -263,22 +264,17 @@ Item {
         && surfaceFamily === "annotation"
         && surfaceVariant === "text"
         && String(surfaceSpec && surfaceSpec.component_key ? surfaceSpec.component_key : "") === "annotation_text"
-    readonly property bool isImagePanelSurface: surfaceFamily === "media" && surfaceVariant === "image_panel"
+    readonly property bool panelLikeSurface: Boolean(surfaceMetadata.panel_like)
+    readonly property bool suppressRunAction: Boolean(surfaceMetadata.suppress_run_action)
     readonly property bool chromeToggleCapableSurface: (surfaceFamily === "media"
-            && (surfaceVariant === "image_panel"
-                || surfaceVariant === "pdf_panel"
-                || surfaceVariant === "video_panel"
-                || surfaceVariant === "mail_panel"))
+            && (surfaceVariant === "media_panel" || surfaceVariant === "mail_panel"))
         || (surfaceFamily === "web" && surfaceVariant === "page_viewer")
-    readonly property var imagePanelNodeProperties: nodeData && nodeData.properties ? nodeData.properties : ({})
+    readonly property var nodeProperties: nodeData && nodeData.properties ? nodeData.properties : ({})
     readonly property bool nodeChromeTitleVisible: !chromeToggleCapableSurface || card._nodePropertyBool("show_title", true)
     readonly property bool nodeChromeFrameVisible: !chromeToggleCapableSurface || card._nodePropertyBool("show_frame", true)
     readonly property bool nodeChromeContentOnlyActive: chromeToggleCapableSurface
         && !nodeChromeTitleVisible
         && !nodeChromeFrameVisible
-    readonly property bool imageNodeTitleVisible: nodeChromeTitleVisible
-    readonly property bool imageNodeFrameVisible: nodeChromeFrameVisible
-    readonly property bool imageNodeContentOnlyActive: nodeChromeContentOnlyActive
     readonly property var renderQuality: renderQualityState.renderQuality
     // Most nodes only negotiate reduced/proxy quality during snapshot reuse.
     // Heavy proxy-capable media/viewer surfaces also demote during transient
@@ -1047,7 +1043,7 @@ Item {
     }
 
     function _nodePropertyBool(key, fallback) {
-        var properties = card.imagePanelNodeProperties || {};
+        var properties = card.nodeProperties || {};
         var value = properties[String(key || "")];
         if (value === undefined || value === null)
             return Boolean(fallback);
@@ -1273,6 +1269,7 @@ Item {
         || card._resizeInteractionActive
     readonly property bool runnableNode: !!card.nodeData
         && !card.graphReadOnly
+        && !card.suppressRunAction
         && String(card.nodeData.runtime_behavior || "action").toLowerCase() !== "passive"
 
     // --- Floating toolbar contract (T01) -------------------------------------
@@ -1571,7 +1568,7 @@ Item {
     readonly property bool renderActive: card._forceRenderActive
         || card._sceneRectsIntersect(card._nodeSceneRect(), card.renderActivationSceneRectPayload)
     readonly property bool _resizeHandlesVisible: !!card.nodeData
-        && card.isPassiveNode
+        && (card.isPassiveNode || card.panelLikeSurface)
         && !card.isCollapsed
         && !card.surfaceInteractionLocked
         && (card._hostHoverActive || card._resizeInteractionActive)

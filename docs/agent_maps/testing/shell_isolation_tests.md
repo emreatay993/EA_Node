@@ -11,9 +11,9 @@ Use this for shell-backed workflows that need process isolation, shell target ca
 
 ## Common Changes
 - Add shell-backed targets to manifest-owned shell isolation catalogs.
-- Keep the final 47-target catalog's split edit/clipboard (18/9/8), seven drop/connect (4/3/7/7/2/1/4), split passive image/PDF (6/6 and 3/2), seven shell-basics, two bridge-local, and split view/library/inspector (7/7/13/14/13) shards disjoint, ordered, and serial inside each child process; pytest nodeid lists pass `-n 0`.
+- Keep the final 47-target catalog's split edit/clipboard (18/10/8), seven drop/connect (4/3/7/7/2/1/4), split Media Panel shell coverage (8/10 and 3/2), seven shell-basics, two bridge-local, and split view/library/inspector (7/7/13/14/13) shards disjoint, ordered, and serial inside each child process; pytest nodeid lists pass `-n 0`.
 - Keep the outer full shell-isolation phase at its manifest-owned four-worker cap; each child stays serial.
-- Keep catalog-owned image, PDF, and graph-host targets free of nested subprocess proxy classes and `load_tests` wrappers.
+- Keep catalog-owned Media Panel and graph-host targets free of nested subprocess proxy classes and `load_tests` wrappers.
 - Keep shell-isolated direct `unittest` commands as focused manual reruns only.
 - Prefer `run_verification.py --mode full` for release confidence when shell-backed behavior changes.
 - For shell composition changes, keep `tests/test_main_bootstrap.py`, `tests/test_main_window_shell.py`, and `tests/test_shell_window_lifecycle.py` aligned with the direct `ShellWindow()` and `create_shell_window()` paths.

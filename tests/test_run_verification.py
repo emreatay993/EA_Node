@@ -5,7 +5,7 @@ import sys
 import unittest
 from io import BytesIO, TextIOWrapper
 from pathlib import Path
-from subprocess import CompletedProcess
+from subprocess import CompletedProcess, run
 from tempfile import TemporaryDirectory
 from unittest.mock import call
 from unittest.mock import patch
@@ -299,11 +299,6 @@ class RunVerificationTests(unittest.TestCase):
     def test_gui_serial_target_and_deselection_contract_is_exact(self) -> None:
         expected_targets = (
             (
-                "tests/test_graph_surface_input_contract.py::"
-                "GraphSurfaceMediaAndScopeContractTests::"
-                "test_media_whole_surface_lock_remains_independent_from_local_interactive_rects"
-            ),
-            (
                 "tests/test_docx_rendering_comparison.py::"
                 "test_docx_rendering_comparison_single_renderer_smoke"
             ),
@@ -314,6 +309,30 @@ class RunVerificationTests(unittest.TestCase):
         self.assertEqual(
             tuple(f"--deselect={target}" for target in expected_targets),
             self.manifest.gui_serial_pytest_deselect_args(),
+        )
+
+    def test_gui_serial_manifest_targets_collect(self) -> None:
+        completed = run(
+            (
+                sys.executable,
+                "-m",
+                "pytest",
+                "--collect-only",
+                "-q",
+                "-n",
+                "0",
+                *self.manifest.GUI_SERIAL_PYTEST_TARGETS,
+            ),
+            cwd=REPO_ROOT,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+
+        self.assertEqual(
+            0,
+            completed.returncode,
+            completed.stdout + completed.stderr,
         )
 
     def test_fast_serial_target_and_deselection_contract_is_exact(self) -> None:

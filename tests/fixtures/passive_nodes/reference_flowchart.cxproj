@@ -14,7 +14,7 @@
               "label_text_color": "#51310E",
               "stroke_color": "#A6722C",
               "stroke_pattern": "dashed",
-              "stroke_width": 2.0
+              "stroke_width": 2
             }
           }
         ],
@@ -25,8 +25,8 @@
             "style": {
               "accent_color": "#E2A35D",
               "border_color": "#C97A2B",
-              "border_width": 2.0,
-              "corner_radius": 18.0,
+              "border_width": 2,
+              "corner_radius": 18,
               "fill_color": "#FFF4E7",
               "header_color": "#FFE8CF",
               "text_color": "#4D2D12"
@@ -128,7 +128,7 @@
             "label_text_color": "#51310E",
             "stroke_color": "#A6722C",
             "stroke_pattern": "dashed",
-            "stroke_width": 2.0
+            "stroke_width": 2
           }
         },
         {
@@ -182,7 +182,7 @@
             "label_text_color": "#51310E",
             "stroke_color": "#A6722C",
             "stroke_pattern": "dashed",
-            "stroke_width": 2.0
+            "stroke_width": 2
           }
         },
         {
@@ -226,8 +226,8 @@
       "nodes": [
         {
           "collapsed": false,
-          "custom_height": 208.0,
-          "custom_width": 320.0,
+          "custom_height": 208,
+          "custom_width": 320,
           "exposed_ports": {},
           "node_id": "node_37e3aaef46",
           "parent_node_id": null,
@@ -243,14 +243,14 @@
           "visual_style": {
             "accent_color": "#E2A35D",
             "border_color": "#C97A2B",
-            "border_width": 2.0,
-            "corner_radius": 18.0,
+            "border_width": 2,
+            "corner_radius": 18,
             "fill_color": "#FFF4E7",
             "header_color": "#FFE8CF",
             "text_color": "#4D2D12"
           },
-          "x": 520.0,
-          "y": 420.0
+          "x": 520,
+          "y": 420
         },
         {
           "collapsed": false,
@@ -268,13 +268,13 @@
           "title": "Complete",
           "type_id": "passive.flowchart.end",
           "visual_style": {},
-          "x": 1780.0,
-          "y": 150.0
+          "x": 1780,
+          "y": 150
         },
         {
           "collapsed": false,
-          "custom_height": 122.0,
-          "custom_width": 222.0,
+          "custom_height": 122,
+          "custom_width": 222,
           "exposed_ports": {
             "top": true,
             "right": true,
@@ -288,41 +288,36 @@
           "type_id": "passive.flowchart.database",
           "visual_style": {
             "border_color": "#4F6478",
-            "border_width": 2.0,
+            "border_width": 2,
             "fill_color": "#EEF2F7",
             "text_color": "#1E2A35"
           },
-          "x": 1540.0,
-          "y": 132.0
+          "x": 1540,
+          "y": 132
         },
         {
           "collapsed": false,
-          "custom_height": 250.0,
-          "custom_width": 340.0,
-          "exposed_ports": {},
+          "custom_height": 250,
+          "custom_width": 340,
+          "exposed_ports": {
+            "source": false
+          },
           "node_id": "node_58d1d2cdb4",
           "parent_node_id": null,
           "properties": {
             "caption": "Reference image preview asset",
             "fit_mode": "contain",
-            "source_path": "C:\\Users\\emre_\\PycharmProjects\\EA_Node_Editor\\tests\\fixtures\\passive_nodes\\reference_preview.png"
+            "source": "C:\\Users\\emre_\\PycharmProjects\\EA_Node_Editor\\tests\\fixtures\\passive_nodes\\reference_preview.png"
           },
           "title": "Image Panel",
-          "type_id": "passive.media.image_panel",
-          "visual_style": {
-            "border_color": "#4A7BA7",
-            "border_width": 2.0,
-            "corner_radius": 18.0,
-            "fill_color": "#F9FBFD",
-            "text_color": "#153149"
-          },
-          "x": 1380.0,
-          "y": 390.0
+          "type_id": "media.panel",
+          "x": 1380,
+          "y": 390
         },
         {
           "collapsed": false,
-          "custom_height": 190.0,
-          "custom_width": 280.0,
+          "custom_height": 190,
+          "custom_width": 280,
           "exposed_ports": {},
           "node_id": "node_6283662ece",
           "parent_node_id": null,
@@ -334,18 +329,18 @@
           "type_id": "passive.annotation.sticky_note",
           "visual_style": {
             "border_color": "#8C7A00",
-            "border_width": 2.0,
-            "corner_radius": 18.0,
+            "border_width": 2,
+            "corner_radius": 18,
             "fill_color": "#FFF7A8",
             "text_color": "#4B4300"
           },
-          "x": 960.0,
-          "y": 420.0
+          "x": 960,
+          "y": 420
         },
         {
           "collapsed": false,
-          "custom_height": 116.0,
-          "custom_width": 238.0,
+          "custom_height": 116,
+          "custom_width": 238,
           "exposed_ports": {
             "top": true,
             "right": true,
@@ -359,12 +354,12 @@
           "type_id": "passive.flowchart.document",
           "visual_style": {
             "border_color": "#4A7BA7",
-            "border_width": 2.0,
+            "border_width": 2,
             "fill_color": "#EEF6FF",
             "text_color": "#153149"
           },
-          "x": 810.0,
-          "y": 24.0
+          "x": 810,
+          "y": 24
         },
         {
           "collapsed": false,
@@ -382,13 +377,13 @@
           "title": "Start",
           "type_id": "passive.flowchart.start",
           "visual_style": {},
-          "x": 80.0,
-          "y": 150.0
+          "x": 80,
+          "y": 150
         },
         {
           "collapsed": false,
-          "custom_height": 110.0,
-          "custom_width": 258.0,
+          "custom_height": 110,
+          "custom_width": 258,
           "exposed_ports": {
             "top": true,
             "right": true,
@@ -402,17 +397,17 @@
           "type_id": "passive.flowchart.predefined_process",
           "visual_style": {
             "border_color": "#2D6C96",
-            "border_width": 2.0,
+            "border_width": 2,
             "fill_color": "#EAF4FB",
             "text_color": "#173247"
           },
-          "x": 1300.0,
-          "y": 132.0
+          "x": 1300,
+          "y": 132
         },
         {
           "collapsed": false,
-          "custom_height": 96.0,
-          "custom_width": 220.0,
+          "custom_height": 96,
+          "custom_width": 220,
           "exposed_ports": {
             "top": true,
             "right": true,
@@ -426,18 +421,18 @@
           "type_id": "passive.flowchart.process",
           "visual_style": {
             "border_color": "#61798B",
-            "border_width": 2.0,
+            "border_width": 2,
             "fill_color": "#F5FAFD",
             "font_weight": "bold",
             "text_color": "#173247"
           },
-          "x": 280.0,
-          "y": 132.0
+          "x": 280,
+          "y": 132
         },
         {
           "collapsed": false,
-          "custom_height": 132.0,
-          "custom_width": 132.0,
+          "custom_height": 132,
+          "custom_width": 132,
           "exposed_ports": {
             "top": true,
             "right": true,
@@ -451,41 +446,36 @@
           "type_id": "passive.flowchart.connector",
           "visual_style": {
             "border_color": "#968200",
-            "border_width": 2.0,
+            "border_width": 2,
             "fill_color": "#FFF9CC",
             "text_color": "#5D5100"
           },
-          "x": 1100.0,
-          "y": 150.0
+          "x": 1100,
+          "y": 150
         },
         {
           "collapsed": false,
-          "custom_height": 430.0,
-          "custom_width": 330.0,
-          "exposed_ports": {},
+          "custom_height": 430,
+          "custom_width": 330,
+          "exposed_ports": {
+            "source": false
+          },
           "node_id": "node_a47d0511e4",
           "parent_node_id": null,
           "properties": {
             "caption": "Reference review packet",
             "page_number": 1,
-            "source_path": "C:\\Users\\emre_\\PycharmProjects\\EA_Node_Editor\\tests\\fixtures\\passive_nodes\\reference_preview.pdf"
+            "source": "C:\\Users\\emre_\\PycharmProjects\\EA_Node_Editor\\tests\\fixtures\\passive_nodes\\reference_preview.pdf"
           },
           "title": "PDF Panel",
-          "type_id": "passive.media.pdf_panel",
-          "visual_style": {
-            "border_color": "#61798B",
-            "border_width": 2.0,
-            "corner_radius": 18.0,
-            "fill_color": "#F9FBFD",
-            "text_color": "#173247"
-          },
-          "x": 1750.0,
-          "y": 360.0
+          "type_id": "media.panel",
+          "x": 1750,
+          "y": 360
         },
         {
           "collapsed": false,
-          "custom_height": 104.0,
-          "custom_width": 238.0,
+          "custom_height": 104,
+          "custom_width": 238,
           "exposed_ports": {
             "top": true,
             "right": true,
@@ -499,17 +489,17 @@
           "type_id": "passive.flowchart.input_output",
           "visual_style": {
             "border_color": "#A6722C",
-            "border_width": 2.0,
+            "border_width": 2,
             "fill_color": "#FDF3E8",
             "text_color": "#51310E"
           },
-          "x": 810.0,
-          "y": 254.0
+          "x": 810,
+          "y": 254
         },
         {
           "collapsed": false,
-          "custom_height": 136.0,
-          "custom_width": 232.0,
+          "custom_height": 136,
+          "custom_width": 232,
           "exposed_ports": {
             "top": true,
             "right": true,
@@ -523,23 +513,23 @@
           "type_id": "passive.flowchart.decision",
           "visual_style": {
             "border_color": "#C97A2B",
-            "border_width": 2.0,
+            "border_width": 2,
             "fill_color": "#FFF4E7",
             "font_weight": "bold",
             "text_color": "#4D2D12"
           },
-          "x": 530.0,
-          "y": 118.0
+          "x": 530,
+          "y": 118
         }
       ],
       "views": [
         {
           "name": "V1",
-          "pan_x": 0.0,
-          "pan_y": 0.0,
+          "pan_x": 0,
+          "pan_y": 0,
           "scope_path": [],
           "view_id": "view_e947f1b659",
-          "zoom": 1.0
+          "zoom": 1
         }
       ],
       "workspace_id": "ws_7a49f1d01a"

@@ -30,10 +30,10 @@ from ea_node_editor.nodes.builtins.passive_flowchart import (
     PASSIVE_FLOWCHART_TICK_TYPE_ID,
     PASSIVE_FLOWCHART_TIMESTAMP_TYPE_ID,
 )
-from ea_node_editor.nodes.builtins.passive_media import (
-    PASSIVE_MEDIA_IMAGE_PANEL_TYPE_ID,
-    PASSIVE_MEDIA_NODE_PLUGINS,
-    PASSIVE_MEDIA_PDF_PANEL_TYPE_ID,
+from ea_node_editor.nodes.builtins.media_panel import MEDIA_PANEL_TYPE_ID
+from ea_node_editor.nodes.builtins.passive_mail import (
+    PASSIVE_MAIL_NODE_PLUGINS,
+    PASSIVE_MEDIA_MAIL_PANEL_TYPE_ID,
 )
 from ea_node_editor.nodes.builtins.passive_planning import (
     PASSIVE_PLANNING_DECISION_CARD_TYPE_ID,
@@ -82,7 +82,7 @@ class PassiveNodeContractsTests(unittest.TestCase):
             *PASSIVE_FLOWCHART_NODE_PLUGINS,
             *PASSIVE_PLANNING_NODE_PLUGINS,
             *PASSIVE_ANNOTATION_NODE_PLUGINS,
-            *PASSIVE_MEDIA_NODE_PLUGINS,
+            *PASSIVE_MAIL_NODE_PLUGINS,
             *WEB_PAGE_VIEWER_NODE_PLUGINS,
         ):
             plugin = plugin_cls()
@@ -101,7 +101,7 @@ class PassiveNodeContractsTests(unittest.TestCase):
             *PASSIVE_FLOWCHART_NODE_PLUGINS,
             *PASSIVE_PLANNING_NODE_PLUGINS,
             *PASSIVE_ANNOTATION_NODE_PLUGINS,
-            *PASSIVE_MEDIA_NODE_PLUGINS,
+            *PASSIVE_MAIL_NODE_PLUGINS,
             *WEB_PAGE_VIEWER_NODE_PLUGINS,
         ):
             spec = plugin_cls().spec()
@@ -187,8 +187,7 @@ class PassiveNodeContractsTests(unittest.TestCase):
             PASSIVE_ANNOTATION_SECTION_HEADER_TYPE_ID,
             PASSIVE_ANNOTATION_TEXT_TYPE_ID,
             PASSIVE_ANNOTATION_GROUP_BACKDROP_TYPE_ID,
-            PASSIVE_MEDIA_IMAGE_PANEL_TYPE_ID,
-            PASSIVE_MEDIA_PDF_PANEL_TYPE_ID,
+            PASSIVE_MEDIA_MAIL_PANEL_TYPE_ID,
             WEB_PAGE_VIEWER_TYPE_ID,
         )
 
@@ -205,8 +204,7 @@ class PassiveNodeContractsTests(unittest.TestCase):
 
         task_defaults = registry.default_properties(PASSIVE_PLANNING_TASK_CARD_TYPE_ID)
         risk_defaults = registry.default_properties(PASSIVE_PLANNING_RISK_CARD_TYPE_ID)
-        image_defaults = registry.default_properties(PASSIVE_MEDIA_IMAGE_PANEL_TYPE_ID)
-        pdf_defaults = registry.default_properties(PASSIVE_MEDIA_PDF_PANEL_TYPE_ID)
+        media_defaults = registry.default_properties(MEDIA_PANEL_TYPE_ID)
         web_defaults = registry.default_properties(WEB_PAGE_VIEWER_TYPE_ID)
         decision_defaults = registry.default_properties(PASSIVE_FLOWCHART_DECISION_TYPE_ID)
         timestamp_defaults = registry.default_properties(PASSIVE_FLOWCHART_TIMESTAMP_TYPE_ID)
@@ -221,13 +219,13 @@ class PassiveNodeContractsTests(unittest.TestCase):
         self.assertEqual(decision_defaults["body"], "Decision")
         self.assertEqual(decision_defaults["body_format"], "plain")
         self.assertFalse(timestamp_defaults["live"])
-        self.assertEqual(image_defaults["fit_mode"], "contain")
-        self.assertFalse(image_defaults["lock_aspect_ratio"])
-        self.assertEqual(image_defaults["crop_w"], 1.0)
-        self.assertEqual(image_defaults["rotation_degrees"], 0)
-        self.assertFalse(image_defaults["mirror_horizontal"])
-        self.assertFalse(image_defaults["mirror_vertical"])
-        self.assertEqual(pdf_defaults["page_number"], 1)
+        self.assertEqual(media_defaults["fit_mode"], "contain")
+        self.assertFalse(media_defaults["lock_aspect_ratio"])
+        self.assertEqual(media_defaults["crop_w"], 1.0)
+        self.assertEqual(media_defaults["rotation_degrees"], 0)
+        self.assertFalse(media_defaults["mirror_horizontal"])
+        self.assertFalse(media_defaults["mirror_vertical"])
+        self.assertEqual(media_defaults["page_number"], 1)
         self.assertEqual(web_defaults["start_location"], "")
         self.assertTrue(web_defaults["persist_browser_state"])
         self.assertEqual(web_defaults["browser_state"], {})
@@ -285,7 +283,7 @@ class PassiveNodeContractsTests(unittest.TestCase):
             *PASSIVE_FLOWCHART_NODE_PLUGINS,
             *PASSIVE_PLANNING_NODE_PLUGINS,
             *PASSIVE_ANNOTATION_NODE_PLUGINS,
-            *PASSIVE_MEDIA_NODE_PLUGINS,
+            *PASSIVE_MAIL_NODE_PLUGINS,
             *WEB_PAGE_VIEWER_NODE_PLUGINS,
         ):
             spec = plugin_cls().spec()

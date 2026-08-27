@@ -14,7 +14,7 @@ from ea_node_editor.app_preferences import (
     normalize_status_bar_layout,
     normalize_canvas_background_variant,
     normalize_grid_overlay_style,
-    normalize_image_node_appearance_settings,
+    normalize_media_panel_settings,
     normalize_node_comment_editor_default,
     normalize_node_elapsed_time_unit,
     normalize_node_elapsed_time_visibility,
@@ -70,9 +70,10 @@ class ShellWorkspaceUiState:
     shell_panel_collapsed: dict[str, bool]
     graphics_tooltip_categories: dict[str, bool]
     active_theme_id: str
-    image_node_default_show_title: bool
-    image_node_default_show_frame: bool
-    image_node_autoplay_animations: bool
+    media_panel_default_show_title: bool
+    media_panel_default_show_frame: bool
+    media_panel_autoplay_animations: bool
+    media_panel_source_input_exposed: bool
     folder_explorer_column_widths: dict[str, int]
 
 
@@ -83,9 +84,13 @@ def build_default_shell_workspace_ui_state(
     shell = graphics_settings.get("shell", {}) if isinstance(graphics_settings, dict) else {}
     theme = graphics_settings.get("theme", {}) if isinstance(graphics_settings, dict) else {}
     typography = graphics_settings.get("typography", {}) if isinstance(graphics_settings, dict) else {}
-    image_nodes = graphics_settings.get("image_nodes", {}) if isinstance(graphics_settings, dict) else {}
+    media_panel = (
+        graphics_settings.get("media_panel", {})
+        if isinstance(graphics_settings, dict)
+        else {}
+    )
     folder_explorer = graphics_settings.get("folder_explorer", {}) if isinstance(graphics_settings, dict) else {}
-    image_node_appearance = normalize_image_node_appearance_settings(image_nodes)
+    media_panel_settings = normalize_media_panel_settings(media_panel)
     tooltip_categories = normalize_tooltip_category_preferences(shell.get("tooltip_categories"))
     graph_label_pixel_size = normalize_graph_label_pixel_size(
         typography.get("graph_label_pixel_size", DEFAULT_GRAPHICS_SETTINGS["typography"]["graph_label_pixel_size"])
@@ -207,9 +212,12 @@ def build_default_shell_workspace_ui_state(
         ),
         graphics_tooltip_categories=tooltip_categories,
         active_theme_id=str(theme.get("theme_id", DEFAULT_GRAPHICS_SETTINGS["theme"]["theme_id"])),
-        image_node_default_show_title=bool(image_node_appearance["show_title"]),
-        image_node_default_show_frame=bool(image_node_appearance["show_frame"]),
-        image_node_autoplay_animations=bool(image_node_appearance["autoplay_animations"]),
+        media_panel_default_show_title=bool(media_panel_settings["show_title"]),
+        media_panel_default_show_frame=bool(media_panel_settings["show_frame"]),
+        media_panel_autoplay_animations=bool(media_panel_settings["autoplay_animations"]),
+        media_panel_source_input_exposed=bool(
+            media_panel_settings["source_input_exposed"]
+        ),
         folder_explorer_column_widths=normalize_folder_explorer_column_widths(
             folder_explorer.get("column_widths") if isinstance(folder_explorer, dict) else None
         ),

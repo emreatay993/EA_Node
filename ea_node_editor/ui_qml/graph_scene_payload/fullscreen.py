@@ -5,14 +5,13 @@ from __future__ import annotations
 
 import copy
 from collections.abc import Mapping
+from types import SimpleNamespace
 from typing import TYPE_CHECKING, Any
+from urllib.parse import urlsplit
 
 
-from ea_node_editor.nodes.builtins.passive_media import (
-    PASSIVE_MEDIA_MAIL_PANEL_TYPE_ID,
-    PASSIVE_MEDIA_PDF_PANEL_TYPE_ID,
-    PASSIVE_MEDIA_VIDEO_PANEL_TYPE_ID,
-)
+from ea_node_editor.nodes.builtins.passive_mail import PASSIVE_MEDIA_MAIL_PANEL_TYPE_ID
+from ea_node_editor.nodes.builtins.media_panel import MEDIA_PANEL_TYPE_ID
 from ea_node_editor.nodes.builtins.excalidraw import (
     EXCALIDRAW_PREVIEW_REF_PROPERTY,
     EXCALIDRAW_STATE_PROPERTY,
@@ -36,8 +35,13 @@ from ea_node_editor.nodes.builtins.web_viewer import (
 from ea_node_editor.jupyter_host import check_jupyter_available
 from ea_node_editor.nodes.node_specs import NodeTypeSpec
 from ea_node_editor.ui.media_preview_provider import describe_local_image
+from ea_node_editor.ui.media_panel_source import (
+    MediaPanelSourceResolution,
+    resolve_media_panel_source,
+)
 from ea_node_editor.ui.mail_preview_provider import describe_mail_preview
 from ea_node_editor.ui.pdf_preview_provider import describe_pdf_preview
+from ea_node_editor.runtime_contracts import ImageValue
 from ea_node_editor.ui_qml.surface_contracts import (
     surface_spec_payload_for_node_type,
     surface_spec_payload_for_values,
@@ -58,7 +62,6 @@ from ea_node_editor.ui_qml.graph_scene_payload.normalize import (
     WEB_PAGE_CONTENT_KIND,
     _bool_property,
     _bounded_float_property,
-    _image_preview_source_url,
     _int_property,
     _mapping_value,
     _non_negative_int_property,
@@ -67,7 +70,6 @@ from ea_node_editor.ui_qml.graph_scene_payload.normalize import (
     _normalized_image_rotation_degrees,
     _normalized_json_object,
     _normalized_preview_ref,
-    _normalized_unfocused_behavior,
     _normalized_video_fit_mode,
     _normalized_video_timeline_bookmarks,
     _resolved_local_file_source_url,
@@ -88,6 +90,7 @@ def build_content_fullscreen_media_payload(
     spec: NodeTypeSpec,
     project_path: str | None = None,
     project_metadata: dict[str, Any] | None = None,
+    source_resolution: MediaPanelSourceResolution | None = None,
 ) -> dict[str, Any]:
     properties = copy.deepcopy(node.properties)
     source_path = str(properties.get("source_path", "") or "").strip()
@@ -104,18 +107,158 @@ def build_content_fullscreen_media_payload(
         "source_path": source_path,
         "properties": properties,
     }
-    if node.type_id == PASSIVE_MEDIA_PDF_PANEL_TYPE_ID:
-        page_number = _int_property(properties.get("page_number"), 1)
-        pdf_preview = describe_pdf_preview(source_path, page_number)
+    if node.type_id == MEDIA_PANEL_TYPE_ID:
+        resolution = source_resolution or resolve_media_panel_source(
+            node=node,
+            workspace=SimpleNamespace(workspace_id=workspace_id, edges={}),
+            project_path=project_path,
+            project_metadata=project_metadata,
+        )
+        payload.pop("source_path", None)
+        payload["source"] = str(properties.get("source", "") or "").strip()
+        payload["content_kind"] = "media"
+        payload["source_ref"] = resolution.source_ref
+        payload["source_state"] = resolution.state
+        payload["source_message"] = resolution.message
+        payload["authority"] = resolution.authority
+        payload["input_exposed"] = resolution.input_exposed
+        payload["input_connected"] = resolution.input_connected
+        payload["media_kind"] = resolution.media_kind
+        payload["resolved_source_url"] = resolution.resolved_source_url
+        payload["preview_url"] = resolution.preview_source_url
+        payload["preview_state"] = resolution.state
+        payload["preview_message"] = resolution.message
+        fullscreen_policy = payload.get("surface_spec", {}).get("fullscreen")
+        if isinstance(fullscreen_policy, dict):
+            fullscreen_policy["content_kind"] = "media"
+        if resolution.state != "ready":
+            return payload
+
+        if resolution.media_kind == "pdf":
+            page_number = _int_property(properties.get("page_number"), 1)
+            is_remote = urlsplit(resolution.resolved_source_url).scheme.casefold() in {
+                "http",
+                "https",
+            }
+            pdf_preview = (
+                {
+                    "state": "ready",
+                    "message": "",
+                    "resolved_source_url": resolution.resolved_source_url,
+                    "preview_url": "",
+                    "page_count": 0,
+                    "requested_page_number": page_number,
+                    "resolved_page_number": page_number,
+                }
+                if is_remote
+                else describe_pdf_preview(
+                    resolution.resolved_source_url or resolution.source_ref,
+                    page_number,
+                )
+            )
+            payload.update(
+                {
+                    "fit_mode": "contain",
+                    "page_number": page_number,
+                    "pdf_preview": pdf_preview,
+                    "resolved_page_number": int(
+                        pdf_preview.get("resolved_page_number", page_number)
+                        or page_number
+                    ),
+                    "preview_url": str(pdf_preview.get("preview_url", "") or ""),
+                    "resolved_source_url": str(
+                        pdf_preview.get("resolved_source_url", "")
+                        or resolution.resolved_source_url
+                    ),
+                }
+            )
+            return payload
+
+        if resolution.media_kind == "video":
+            payload.update(
+                {
+                    "fit_mode": _normalized_video_fit_mode(properties.get("fit_mode")),
+                    "auto_play": _bool_property(properties.get("auto_play"), False),
+                    "loop": _bool_property(properties.get("loop"), False),
+                    "muted": _bool_property(properties.get("muted"), False),
+                    "volume": _bounded_float_property(
+                        properties.get("volume"),
+                        1.0,
+                        minimum=0.0,
+                        maximum=1.0,
+                    ),
+                    "playback_rate": _bounded_float_property(
+                        properties.get("playback_rate"),
+                        1.0,
+                        minimum=0.25,
+                        maximum=4.0,
+                    ),
+                    "position_ms": _non_negative_int_property(
+                        properties.get("position_ms"), 0
+                    ),
+                    "timeline_bookmarks": _normalized_video_timeline_bookmarks(
+                        properties.get("timeline_bookmarks")
+                    ),
+                    "clip_enabled": _bool_property(
+                        properties.get("clip_enabled"), False
+                    ),
+                    "clip_start_ms": _non_negative_int_property(
+                        properties.get("clip_start_ms"), 0
+                    ),
+                    "clip_end_ms": _non_negative_int_property(
+                        properties.get("clip_end_ms"), 0
+                    ),
+                    "transient_state": {},
+                }
+            )
+            return payload
+
+        image_preview = (
+            {
+                "state": "ready",
+                "message": "",
+                "resolved_source_url": resolution.resolved_source_url,
+                "format": resolution.raw_value.format,
+                "source_pixel_width": resolution.raw_value.width,
+                "source_pixel_height": resolution.raw_value.height,
+                "frame_count": 1,
+                "animation_supported": False,
+                "is_animated": False,
+            }
+            if type(resolution.raw_value) is ImageValue
+            else describe_local_image(resolution.resolved_source_url)
+            if urlsplit(resolution.resolved_source_url).scheme.casefold() == "file"
+            else {
+                "state": "ready",
+                "message": "",
+                "resolved_source_url": resolution.resolved_source_url,
+            }
+        )
         payload.update(
             {
-                "media_kind": "pdf",
-                "fit_mode": "contain",
-                "page_number": page_number,
-                "pdf_preview": pdf_preview,
-                "resolved_page_number": int(pdf_preview.get("resolved_page_number", page_number) or page_number),
-                "preview_url": str(pdf_preview.get("preview_url", "") or ""),
-                "resolved_source_url": str(pdf_preview.get("resolved_source_url", "") or ""),
+                "fit_mode": _normalized_fit_mode(properties.get("fit_mode")),
+                "crop": _normalized_crop_rect(properties),
+                "rotation_degrees": _normalized_image_rotation_degrees(
+                    properties.get("rotation_degrees")
+                ),
+                "mirror_horizontal": _bool_property(
+                    properties.get("mirror_horizontal"), False
+                ),
+                "mirror_vertical": _bool_property(
+                    properties.get("mirror_vertical"), False
+                ),
+                "format": str(image_preview.get("format", "") or ""),
+                "source_pixel_width": int(
+                    image_preview.get("source_pixel_width", 0) or 0
+                ),
+                "source_pixel_height": int(
+                    image_preview.get("source_pixel_height", 0) or 0
+                ),
+                "frame_count": int(image_preview.get("frame_count", 0) or 0),
+                "animation_supported": bool(
+                    image_preview.get("animation_supported", False)
+                ),
+                "is_animated": bool(image_preview.get("is_animated", False)),
             }
         )
         return payload
@@ -139,68 +282,6 @@ def build_content_fullscreen_media_payload(
             }
         )
         return payload
-
-    if node.type_id == PASSIVE_MEDIA_VIDEO_PANEL_TYPE_ID:
-        payload.update(
-            {
-                "media_kind": "video",
-                "fit_mode": _normalized_video_fit_mode(properties.get("fit_mode")),
-                "resolved_source_url": _resolved_local_file_source_url(
-                    source_path,
-                    project_path=project_path,
-                    project_metadata=project_metadata,
-                ),
-                "preview_url": "",
-                "auto_play": _bool_property(properties.get("auto_play"), False),
-                "loop": _bool_property(properties.get("loop"), False),
-                "muted": _bool_property(properties.get("muted"), False),
-                "volume": _bounded_float_property(properties.get("volume"), 1.0, minimum=0.0, maximum=1.0),
-                "playback_rate": _bounded_float_property(
-                    properties.get("playback_rate"),
-                    1.0,
-                    minimum=0.25,
-                    maximum=4.0,
-                ),
-                "position_ms": _non_negative_int_property(properties.get("position_ms"), 0),
-                "timeline_bookmarks": _normalized_video_timeline_bookmarks(
-                    properties.get("timeline_bookmarks")
-                ),
-                "clip_enabled": _bool_property(properties.get("clip_enabled"), False),
-                "clip_start_ms": _non_negative_int_property(properties.get("clip_start_ms"), 0),
-                "clip_end_ms": _non_negative_int_property(properties.get("clip_end_ms"), 0),
-                "unfocused_behavior": _normalized_unfocused_behavior(properties.get("unfocused_behavior")),
-                "transient_state": {},
-            }
-        )
-        return payload
-
-    resolved_source_url = _resolved_local_file_source_url(
-        source_path,
-        project_path=project_path,
-        project_metadata=project_metadata,
-    )
-    image_preview = describe_local_image(resolved_source_url or source_path)
-    resolved_source_url = str(image_preview.get("resolved_source_url", "") or resolved_source_url)
-    payload.update(
-        {
-            "media_kind": "image",
-            "fit_mode": _normalized_fit_mode(properties.get("fit_mode")),
-            "crop": _normalized_crop_rect(properties),
-            "rotation_degrees": _normalized_image_rotation_degrees(properties.get("rotation_degrees")),
-            "mirror_horizontal": _bool_property(properties.get("mirror_horizontal"), False),
-            "mirror_vertical": _bool_property(properties.get("mirror_vertical"), False),
-            "preview_url": _image_preview_source_url(resolved_source_url),
-            "resolved_source_url": resolved_source_url,
-            "preview_state": str(image_preview.get("state", "") or ""),
-            "preview_message": str(image_preview.get("message", "") or ""),
-            "format": str(image_preview.get("format", "") or ""),
-            "source_pixel_width": int(image_preview.get("source_pixel_width", 0) or 0),
-            "source_pixel_height": int(image_preview.get("source_pixel_height", 0) or 0),
-            "frame_count": int(image_preview.get("frame_count", 0) or 0),
-            "animation_supported": bool(image_preview.get("animation_supported", False)),
-            "is_animated": bool(image_preview.get("is_animated", False)),
-        }
-    )
     return payload
 
 

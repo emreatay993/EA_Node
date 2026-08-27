@@ -12,12 +12,8 @@ from ea_node_editor.nodes.builtins.excalidraw import (
     EXCALIDRAW_BOARD_SURFACE_VARIANT,
     EXCALIDRAW_BOARD_TYPE_ID,
 )
-from ea_node_editor.nodes.builtins.passive_media import (
-    PASSIVE_MEDIA_IMAGE_PANEL_TYPE_ID,
-    PASSIVE_MEDIA_MAIL_PANEL_TYPE_ID,
-    PASSIVE_MEDIA_PDF_PANEL_TYPE_ID,
-    PASSIVE_MEDIA_VIDEO_PANEL_TYPE_ID,
-)
+from ea_node_editor.nodes.builtins.media_panel import MEDIA_PANEL_TYPE_ID
+from ea_node_editor.nodes.builtins.passive_mail import PASSIVE_MEDIA_MAIL_PANEL_TYPE_ID
 from ea_node_editor.nodes.builtins.jupyter_notebook import (
     JUPYTER_NOTEBOOK_SURFACE_FAMILY,
     JUPYTER_NOTEBOOK_SURFACE_VARIANT,
@@ -241,6 +237,19 @@ _STANDARD_SURFACE = SurfaceSpec(
     qml_component="GraphStandardNodeSurface.qml",
     input_capabilities=_BASIC_CANVAS_INPUT,
 )
+_MEDIA_PANEL_SURFACE = SurfaceSpec(
+    family="media",
+    variant="media_panel",
+    component_key="media",
+    qml_component="passive/GraphMediaPanelSurface.qml",
+    fullscreen=SurfaceFullscreenPolicy(
+        supported=True,
+        content_kind="media",
+        action_kind="media",
+    ),
+    input_capabilities=_RICH_CANVAS_INPUT,
+    metadata={"panel_like": True, "suppress_run_action": True},
+)
 _SURFACE_SPECS_BY_FAMILY: dict[str, SurfaceSpec] = {
     "standard": _STANDARD_SURFACE,
     "flowchart": SurfaceSpec(
@@ -268,17 +277,7 @@ _SURFACE_SPECS_BY_FAMILY: dict[str, SurfaceSpec] = {
         qml_component="passive/GraphGroupBackdropSurface.qml",
         input_capabilities=_BASIC_CANVAS_INPUT,
     ),
-    "media": SurfaceSpec(
-        family="media",
-        component_key="media",
-        qml_component="passive/GraphMediaPanelSurface.qml",
-        fullscreen=SurfaceFullscreenPolicy(
-            supported=True,
-            content_kind="image",
-            action_kind="media",
-        ),
-        input_capabilities=_RICH_CANVAS_INPUT,
-    ),
+    "media": _MEDIA_PANEL_SURFACE,
     "viewer": SurfaceSpec(
         family="viewer",
         component_key="viewer",
@@ -315,43 +314,7 @@ _SURFACE_SPECS_BY_FAMILY_VARIANT: dict[tuple[str, str], SurfaceSpec] = {
         input_capabilities=_BASIC_CANVAS_INPUT,
         metadata={"bare_text": True},
     ),
-    ("media", "image_panel"): SurfaceSpec(
-        family="media",
-        variant="image_panel",
-        component_key="media",
-        qml_component="passive/GraphMediaPanelSurface.qml",
-        fullscreen=SurfaceFullscreenPolicy(
-            supported=True,
-            content_kind="image",
-            action_kind="media",
-        ),
-        input_capabilities=_RICH_CANVAS_INPUT,
-    ),
-    ("media", "pdf_panel"): SurfaceSpec(
-        family="media",
-        variant="pdf_panel",
-        component_key="media",
-        qml_component="passive/GraphMediaPanelSurface.qml",
-        fullscreen=SurfaceFullscreenPolicy(
-            supported=True,
-            content_kind="pdf",
-            action_kind="media",
-        ),
-        input_capabilities=_RICH_CANVAS_INPUT,
-    ),
-    ("media", "video_panel"): SurfaceSpec(
-        family="media",
-        variant="video_panel",
-        component_key="media",
-        qml_component="passive/GraphVideoPanelSurface.qml",
-        fullscreen=SurfaceFullscreenPolicy(
-            supported=True,
-            content_kind="video",
-            action_kind="media",
-        ),
-        input_capabilities=_RICH_CANVAS_INPUT,
-        metadata={"media_kind": "video"},
-    ),
+    ("media", "media_panel"): _MEDIA_PANEL_SURFACE,
     ("media", "mail_panel"): SurfaceSpec(
         family="media",
         variant="mail_panel",
@@ -419,9 +382,7 @@ _SURFACE_SPECS_BY_TYPE_ID: dict[str, SurfaceSpec] = {
         for (_family, plot_type), spec in _PLOT_SURFACE_SPECS_BY_VARIANT.items()
     },
     DPF_VIEWER_NODE_TYPE_ID: _SURFACE_SPECS_BY_FAMILY["viewer"],
-    PASSIVE_MEDIA_IMAGE_PANEL_TYPE_ID: _SURFACE_SPECS_BY_FAMILY_VARIANT[("media", "image_panel")],
-    PASSIVE_MEDIA_PDF_PANEL_TYPE_ID: _SURFACE_SPECS_BY_FAMILY_VARIANT[("media", "pdf_panel")],
-    PASSIVE_MEDIA_VIDEO_PANEL_TYPE_ID: _SURFACE_SPECS_BY_FAMILY_VARIANT[("media", "video_panel")],
+    MEDIA_PANEL_TYPE_ID: _SURFACE_SPECS_BY_FAMILY_VARIANT[("media", "media_panel")],
     PASSIVE_MEDIA_MAIL_PANEL_TYPE_ID: _SURFACE_SPECS_BY_FAMILY_VARIANT[("media", "mail_panel")],
     EXCALIDRAW_BOARD_TYPE_ID: _SURFACE_SPECS_BY_FAMILY_VARIANT[
         (EXCALIDRAW_BOARD_SURFACE_FAMILY, EXCALIDRAW_BOARD_SURFACE_VARIANT)

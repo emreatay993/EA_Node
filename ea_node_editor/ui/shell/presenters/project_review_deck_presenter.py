@@ -47,6 +47,7 @@ class ProjectReviewDeckPresenter(QObject):
                 options=ProjectReviewDeckOptions(
                     project_path=self._host.project_path,
                     registry=getattr(self._host, "registry", None),
+                    run_state=getattr(self._host, "run_state", None),
                 ),
             )
             dialog = ProjectReviewDeckDialog(

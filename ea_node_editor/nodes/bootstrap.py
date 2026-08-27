@@ -26,7 +26,8 @@ from ea_node_editor.nodes.builtins.passive_annotation import (
 from ea_node_editor.nodes.builtins.passive_flowchart import (
     PASSIVE_FLOWCHART_NODE_DESCRIPTORS,
 )
-from ea_node_editor.nodes.builtins.passive_media import PASSIVE_MEDIA_NODE_DESCRIPTORS
+from ea_node_editor.nodes.builtins.media_panel import MEDIA_PANEL_NODE_DESCRIPTORS
+from ea_node_editor.nodes.builtins.passive_mail import PASSIVE_MAIL_NODE_DESCRIPTORS
 from ea_node_editor.nodes.builtins.passive_planning import (
     PASSIVE_PLANNING_NODE_DESCRIPTORS,
 )
@@ -129,7 +130,8 @@ _TRUSTED_BUILTIN_DESCRIPTORS = (
     *PASSIVE_FLOWCHART_NODE_DESCRIPTORS,
     *PASSIVE_PLANNING_NODE_DESCRIPTORS,
     *PASSIVE_ANNOTATION_NODE_DESCRIPTORS,
-    *PASSIVE_MEDIA_NODE_DESCRIPTORS,
+    *MEDIA_PANEL_NODE_DESCRIPTORS,
+    *PASSIVE_MAIL_NODE_DESCRIPTORS,
     *WEB_PAGE_VIEWER_NODE_DESCRIPTORS,
     *JUPYTER_NOTEBOOK_NODE_DESCRIPTORS,
     *EXCALIDRAW_NODE_DESCRIPTORS,
@@ -175,10 +177,8 @@ _TRUSTED_BUILTIN_TYPE_IDS = frozenset(
         "passive.flowchart.tick",
         "passive.flowchart.timestamp",
         "passive.flowchart.x",
-        "passive.media.image_panel",
+        "media.panel",
         "passive.media.mail_panel",
-        "passive.media.pdf_panel",
-        "passive.media.video_panel",
         "passive.planning.decision_card",
         "passive.planning.milestone_card",
         "passive.planning.risk_card",

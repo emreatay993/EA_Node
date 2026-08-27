@@ -21,10 +21,11 @@ class _GraphCanvasStateSource(Protocol):
     graphics_graph_node_icon_pixel_size_override: int | None
     graphics_node_title_icon_pixel_size: int
     graphics_recent_text_colors: list[str]
-    graphics_image_node_default_appearance: dict[str, bool]
-    graphics_image_node_default_show_title: bool
-    graphics_image_node_default_show_frame: bool
-    graphics_image_node_autoplay_animations: bool
+    graphics_media_panel_defaults: dict[str, bool]
+    graphics_media_panel_default_show_title: bool
+    graphics_media_panel_default_show_frame: bool
+    graphics_media_panel_autoplay_animations: bool
+    graphics_media_panel_source_input_exposed: bool
     graphics_folder_explorer_column_widths: dict[str, int]
     graphics_show_minimap: bool
     graphics_show_canvas_options_button: bool
@@ -55,6 +56,11 @@ class _GraphCanvasStateSource(Protocol):
     snap_grid_size: float
 
 
+class _GraphCanvasProjectSource(Protocol):
+    model: object
+    project_path: str
+
+
 class _GraphCanvasGraphicsSource(Protocol):
     graphics_tooltip_categories: dict[str, bool]
     graphics_tooltip_category_visibility: dict[str, bool]
@@ -64,10 +70,11 @@ class _GraphCanvasGraphicsSource(Protocol):
     graphics_graph_node_icon_pixel_size_override: int | None
     graphics_node_title_icon_pixel_size: int
     graphics_recent_text_colors: list[str]
-    graphics_image_node_default_appearance: dict[str, bool]
-    graphics_image_node_default_show_title: bool
-    graphics_image_node_default_show_frame: bool
-    graphics_image_node_autoplay_animations: bool
+    graphics_media_panel_defaults: dict[str, bool]
+    graphics_media_panel_default_show_title: bool
+    graphics_media_panel_default_show_frame: bool
+    graphics_media_panel_autoplay_animations: bool
+    graphics_media_panel_source_input_exposed: bool
     graphics_folder_explorer_column_widths: dict[str, int]
     active_theme_id: str
     graphics_graph_follow_shell_theme: bool

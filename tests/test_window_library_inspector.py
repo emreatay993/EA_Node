@@ -356,7 +356,7 @@ class WindowLibraryInspectorQuickInsertTests(unittest.TestCase):
         self.assertIn("passive.flowchart.process", results_by_type)
         self.assertIn("passive.planning.task_card", results_by_type)
         self.assertIn("passive.annotation.sticky_note", results_by_type)
-        self.assertIn("passive.media.image_panel", results_by_type)
+        self.assertIn("passive.media.mail_panel", results_by_type)
         self.assertNotIn("core.start", results_by_type)
         self.assertEqual(
             results_by_type["passive.flowchart.process"]["compatible_port_labels"],
@@ -561,7 +561,7 @@ class WindowLibraryInspectorNodeLinkTests(unittest.TestCase):
                 name="Reports",
                 nodes={
                     "node-pdf2": SimpleNamespace(
-                        title="PDF2", type_id="passive.media.video_panel"
+                        title="PDF2", type_id="media.panel"
                     ),
                 },
             ),

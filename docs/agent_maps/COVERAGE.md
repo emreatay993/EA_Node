@@ -65,8 +65,8 @@ implementation studies are intentionally excluded.
   through the guarded registry replacement coordinator.
 - The reserved built-in bundle owns exactly 68 inert function declarations under
   `nodes/builtin_functions/`; trusted helpers and data contracts remain under
-  `nodes/builtins/`, and the migration inventory plus 133-row golden catalog pin
-  the exact 55 trusted exceptions.
+  `nodes/builtins/`, and the current migration inventory pins 53 trusted
+  exceptions while the 133-row pre-cutover catalog remains immutable.
 - Public node authoring is now only the 17-name top-level `corex` function SDK.
   `ea_node_editor.nodes` is internal, its former `types.py` barrel is removed,
   and trusted descriptor decorators remain owned by the Nodes map for the exact
@@ -77,8 +77,9 @@ implementation studies are intentionally excluded.
   only as an internal visual fixture under `tests/fixtures/node_controls/`.
 - T17 documentation corrections use
   `tests/fixtures/node_catalog/t17_non_dpf_documentation_overlay.json` through
-  `tests/non_dpf_catalog_fixture.py`; the 133-node pre-cutover fixture remains
-  frozen. Closeout evidence lives in
+  `tests/non_dpf_catalog_fixture.py`; the unified Media Panel structural overlay
+  is applied afterward to form the 131-row current catalog, while the 133-node
+  pre-cutover fixture remains frozen. Closeout evidence lives in
   `docs/specs/perf/COREX_NOVICE_PLUGIN_SDK_QA_MATRIX.md`.
 - Core integrations contribute eight reserved function entries plus the trusted
   Path Pointer and Folder Explorer exceptions. SSH/SFTP contributes six reserved

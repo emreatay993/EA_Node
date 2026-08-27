@@ -101,6 +101,7 @@ def _build_targets():
             (
                 "tests.main_window_shell.edit_clipboard_history.MainWindowShellEditClipboardHistoryTests.test_qml_request_paste_selected_nodes_stages_screenshot_as_internal_png",
                 "tests.main_window_shell.edit_clipboard_history.MainWindowShellEditClipboardHistoryTests.test_qml_request_paste_selected_nodes_stages_raw_pdf_and_video_bytes",
+                "tests.main_window_shell.edit_clipboard_history.MainWindowShellEditClipboardHistoryTests.test_raw_media_clipboard_staging_failure_rolls_back_created_node_and_history",
                 "tests.main_window_shell.edit_clipboard_history.MainWindowShellEditClipboardHistoryTests.test_qml_request_paste_selected_nodes_creates_text_annotations_for_html_and_plain_text",
                 "tests.main_window_shell.edit_clipboard_history.MainWindowShellEditClipboardHistoryTests.test_qml_request_paste_selected_nodes_creates_tabular_input_for_tsv_table_choice",
                 "tests.main_window_shell.edit_clipboard_history.MainWindowShellEditClipboardHistoryTests.test_qml_request_paste_selected_nodes_creates_markdown_annotation_for_table_choice",
@@ -310,6 +311,8 @@ def _build_targets():
             (
                 "tests/main_window_shell/passive_image_nodes.py::MainWindowShellPassiveImageNodesTests::test_image_panel_inspector_exposes_locked_editor_modes",
                 "tests/main_window_shell/passive_image_nodes.py::MainWindowShellPassiveImageNodesTests::test_image_panel_path_editor_browse_commits_external_path_by_default",
+                "tests/main_window_shell/passive_image_nodes.py::MainWindowShellPassiveImageNodesTests::test_media_panel_browse_result_cannot_commit_after_source_input_is_exposed",
+                "tests/main_window_shell/passive_image_nodes.py::MainWindowShellPassiveImageNodesTests::test_media_panel_internalize_result_cannot_commit_after_source_input_is_exposed",
                 "tests/main_window_shell/passive_image_nodes.py::MainWindowShellPassiveImageNodesTests::test_image_panel_path_editor_storage_combo_can_choose_internal_copy",
                 "tests/main_window_shell/passive_image_nodes.py::MainWindowShellPassiveImageNodesTests::test_video_panel_path_editor_storage_combo_can_choose_internal_copy",
                 "tests/main_window_shell/passive_image_nodes.py::MainWindowShellPassiveImageNodesTests::test_image_panel_toolbar_browse_action_commits_without_node_drag",
@@ -320,7 +323,11 @@ def _build_targets():
         ShellIsolationTarget.pytest_nodeid_list(
             "main_window__passive_image_nodes__crop_interactions",
             (
-                "tests/main_window_shell/passive_image_nodes.py::MainWindowShellPassiveImageNodesTests::test_image_panel_save_crop_action_replaces_source_with_internal_png",
+                "tests/main_window_shell/passive_image_nodes.py::MainWindowShellPassiveImageNodesTests::test_media_panel_save_crop_action_replaces_browse_source_with_internal_png",
+                "tests/main_window_shell/passive_image_nodes.py::MainWindowShellPassiveImageNodesTests::test_media_panel_video_frame_and_timestamp_actions_use_current_video_mode",
+                "tests/main_window_shell/passive_image_nodes.py::MainWindowShellPassiveImageNodesTests::test_media_panel_frame_staging_failure_rolls_back_created_node_and_history",
+                "tests/main_window_shell/passive_image_nodes.py::MainWindowShellPassiveImageNodesTests::test_media_panel_trim_copy_staging_failure_rolls_back_created_node_and_history",
+                "tests/main_window_shell/passive_image_nodes.py::MainWindowShellPassiveImageNodesTests::test_media_panel_video_trim_copy_rejects_remote_effective_source",
                 "tests/main_window_shell/passive_image_nodes.py::MainWindowShellPassiveImageNodesTests::test_image_panel_crop_apply_persists_hidden_normalized_rect",
                 "tests/main_window_shell/passive_image_nodes.py::MainWindowShellPassiveImageNodesTests::test_image_panel_crop_action_does_not_start_host_drag",
                 "tests/main_window_shell/passive_image_nodes.py::MainWindowShellPassiveImageNodesTests::test_image_panel_crop_apply_closes_when_crop_is_unchanged",
@@ -342,7 +349,7 @@ def _build_targets():
             "main_window__passive_pdf_nodes__toolbar_and_page_resolution",
             (
                 "tests/main_window_shell/passive_pdf_nodes.py::MainWindowShellPassivePdfNodesTests::test_pdf_panel_toolbar_browse_action_commits_without_node_drag",
-                "tests/main_window_shell/passive_pdf_nodes.py::MainWindowShellPassivePdfNodesTests::test_pdf_panel_out_of_range_page_is_rewritten_after_pdf_resolves",
+                "tests/main_window_shell/passive_pdf_nodes.py::MainWindowShellPassivePdfNodesTests::test_media_panel_pdf_preview_clamps_without_rewriting_authored_page",
             ),
             extra_env={"EA_NODE_EDITOR_PASSIVE_PDF_NODES_DIRECT": "1"},
         ),

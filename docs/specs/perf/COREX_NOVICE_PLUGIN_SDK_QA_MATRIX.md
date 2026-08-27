@@ -11,16 +11,19 @@ This matrix retains the evidence for the clean break from public class/descripto
 
 Ansys DPF remains an unchanged private trusted family. Custom Workflows remain copied graph snapshots, and Python Script keeps its existing persisted source property. No public plugin source path, bytes, digest, package manifest, bundle/generation record, or callable identity enters project persistence.
 
-## Frozen Inventory
+## Frozen Inventory And Current Boundary
 
 | Claim | Exact value | Proof owner |
 | --- | ---: | --- |
 | Public API | 17 public `corex` exports | `corex.__all__`, `tests/test_architecture_boundaries.py` |
-| Migration inventory | 938 classified type IDs | `docs/specs/requirements/COREX_NOVICE_PLUGIN_SDK_MIGRATION_INVENTORY.md`, `tests/test_corex_contract_catalog.py` |
+| Migration inventory | 936 classified type IDs | `docs/specs/requirements/COREX_NOVICE_PLUGIN_SDK_MIGRATION_INVENTORY.md`, `tests/test_corex_contract_catalog.py` |
 | Function conversion | 78 converted type IDs | 68 reserved built-in function entries plus 7 Tabular and 3 MARS entries |
-| Private non-DPF boundary | 55 trusted internal exceptions | migration inventory and `tests/test_remaining_builtin_function_migration.py` |
+| Private non-DPF boundary | 53 trusted internal exceptions | migration inventory and `tests/test_remaining_builtin_function_migration.py` |
 | DPF boundary | 805 DPF exclusions | migration inventory and `tests/test_remaining_builtin_function_migration.py` |
 | Non-DPF baseline | 133 frozen non-DPF catalog rows | `tests/fixtures/node_catalog/pre_cutover_non_dpf_catalog.json`, SHA-256 `3CF91390E9E4C606B571ED3C907D7BF35647165F5358328F8FE9C18BF15C618F` |
+| Current non-DPF catalog | 131 effective rows | frozen fixture plus `tests/fixtures/node_catalog/unified_media_panel_structural_overlay.json` |
+
+The task evidence below is historical and intentionally retains the counts observed at each accepted commit; the table above is the current clean-break boundary.
 
 The exact public export order is `node`, `input`, `output`, `text`, `text_area`, `number`, `switch`, `dropdown`, `slider`, `color`, `path`, `interval`, `list`, `Any`, `Image`, `Color`, `Interval`.
 

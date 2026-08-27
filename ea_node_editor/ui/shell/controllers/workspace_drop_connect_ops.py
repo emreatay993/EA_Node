@@ -16,6 +16,7 @@ from ea_node_editor.graph.hierarchy import scope_parent_id
 from ea_node_editor.graph.workspace_state import WorkspaceData
 from ea_node_editor.graph.records import NodeInstance
 from ea_node_editor.graph.transforms import encode_fragment_external_parent_id
+from ea_node_editor.nodes.builtins.media_panel import MEDIA_PANEL_TYPE_ID
 from ea_node_editor.nodes.builtins.subnode import SUBNODE_TYPE_ID
 from ea_node_editor.ui.shell.controllers.mutation_ui_effects import MutationUiEffects
 from ea_node_editor.ui.shell.controllers.result import ControllerResult
@@ -125,7 +126,14 @@ class WorkspaceDropConnectOps:
             refresh_workspace_tabs=lambda: getattr(controller, "refresh_workspace_tabs", lambda: None)(),
         )
 
-    def insert_library_node(self, type_id: str, x: float, y: float) -> str:
+    def insert_library_node(
+        self,
+        type_id: str,
+        x: float,
+        y: float,
+        *,
+        exposed_port_overrides: dict[str, bool] | None = None,
+    ) -> str:
         normalized_type = str(type_id).strip()
         if not normalized_type:
             return ""
@@ -133,12 +141,17 @@ class WorkspaceDropConnectOps:
         if custom_workflow_id:
             return self._insert_custom_workflow_snapshot(custom_workflow_id, float(x), float(y))
         try:
+            create_kwargs: dict[str, Any] = {
+                "type_id": normalized_type,
+                "x": float(x),
+                "y": float(y),
+                "parent_node_id": scope_parent_id(self._host.scene.active_scope_path),
+                "select_node": False,
+            }
+            if exposed_port_overrides is not None:
+                create_kwargs["exposed_port_overrides"] = dict(exposed_port_overrides)
             node_id = self._host.scene.create_node_from_type(
-                type_id=normalized_type,
-                x=float(x),
-                y=float(y),
-                parent_node_id=scope_parent_id(self._host.scene.active_scope_path),
-                select_node=False,
+                **create_kwargs,
             )
         except (KeyError, RuntimeError, TypeError, ValueError):
             return ""
@@ -815,6 +828,7 @@ class WorkspaceDropConnectOps:
             ACTION_ADD_NODE,
             workspace,
         ):
+            mode = str(target_mode).strip().lower()
             custom_workflow_id = parse_custom_workflow_type_id(type_id)
             workflow_endpoints: list[dict[str, str]] = []
             if custom_workflow_id:
@@ -824,11 +838,20 @@ class WorkspaceDropConnectOps:
                     scene_y,
                 )
             else:
-                created_node_id = self.insert_library_node(type_id, scene_x, scene_y)
+                created_node_id = self.insert_library_node(
+                    type_id,
+                    scene_x,
+                    scene_y,
+                    exposed_port_overrides=(
+                        {"source": True}
+                        if str(type_id).strip() == MEDIA_PANEL_TYPE_ID
+                        and mode in {"port", "edge"}
+                        else None
+                    ),
+                )
             if not created_node_id:
                 return ControllerResult(False, "Node could not be created.", payload=False)
 
-            mode = str(target_mode).strip().lower()
             if mode == "port":
                 if workflow_endpoints:
                     self._connect_workflow_endpoint_to_port(

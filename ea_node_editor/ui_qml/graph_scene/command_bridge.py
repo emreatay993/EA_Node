@@ -6,10 +6,9 @@ from typing import TYPE_CHECKING, Any
 from PyQt6.QtCore import QObject, QPointF, QUrl, pyqtProperty, pyqtSignal, pyqtSlot
 from PyQt6.QtGui import QDesktopServices
 
-from ea_node_editor.nodes.builtins.passive_media import (
-    PASSIVE_MEDIA_VIDEO_PANEL_TYPE_ID,
-)
+from ea_node_editor.nodes.builtins.media_panel import MEDIA_PANEL_TYPE_ID
 from ea_node_editor.platform_open import open_path_with_default_handler
+from ea_node_editor.ui.media_panel_source import resolve_media_panel_source
 from ea_node_editor.ui_qml.graph_scene_mutation_history import GraphSceneMutationHistory
 
 if TYPE_CHECKING:
@@ -119,6 +118,7 @@ class GraphSceneCommandBridge(QObject):
         parent_node_id: str | None,
         select_node: bool,
         property_overrides: dict[str, Any] | None = None,
+        exposed_port_overrides: dict[str, bool] | None = None,
         initial_title: str | None = None,
         custom_width: float | None = None,
         custom_height: float | None = None,
@@ -132,6 +132,7 @@ class GraphSceneCommandBridge(QObject):
             parent_node_id=parent_node_id,
             select_node=select_node,
             property_overrides=property_overrides,
+            exposed_port_overrides=exposed_port_overrides,
             initial_title=initial_title,
             custom_width=custom_width,
             custom_height=custom_height,
@@ -488,10 +489,33 @@ class GraphSceneCommandBridge(QObject):
             target_node_id = str(getattr(link, "target_node_id", "") or link.target)
             position_ms = _video_link_position_ms(link.subtitle)
             target_node = workspace.nodes.get(target_node_id)
+            source_resolution = None
+            if target_node is not None and str(target_node.type_id) == MEDIA_PANEL_TYPE_ID:
+                shell_window = self._scene_bridge.parent()
+                project = getattr(model, "project", None)
+                project_metadata = getattr(project, "metadata", None)
+                try:
+                    source_resolution = resolve_media_panel_source(
+                        node=target_node,
+                        workspace=workspace,
+                        run_state=getattr(shell_window, "run_state", None),
+                        project_path=(
+                            str(getattr(shell_window, "project_path", "") or "").strip()
+                            or None
+                        ),
+                        project_metadata=(
+                            dict(project_metadata)
+                            if isinstance(project_metadata, dict)
+                            else None
+                        ),
+                    )
+                except (OSError, TypeError, ValueError):
+                    source_resolution = None
             if (
                 position_ms is not None
-                and target_node is not None
-                and str(target_node.type_id) == PASSIVE_MEDIA_VIDEO_PANEL_TYPE_ID
+                and source_resolution is not None
+                and source_resolution.state == "ready"
+                and source_resolution.media_kind == "video"
             ):
                 self._timed_authoring_call(
                     self._authoring_boundary.set_node_property,
@@ -667,10 +691,12 @@ class GraphSceneCommandBridge(QObject):
     def set_hide_optional_ports(self, hide_optional_ports: bool) -> bool:
         return self._authoring_boundary.set_hide_optional_ports(hide_optional_ports)
 
-    def set_exposed_port(self, node_id: str, key: str, exposed: bool) -> None:
+    @pyqtSlot(str, str, bool, result=bool)
+    def set_exposed_port(self, node_id: str, key: str, exposed: bool) -> bool:
         self._timed_authoring_call(
             self._authoring_boundary.set_exposed_port, node_id, key, exposed
         )
+        return True
 
     @pyqtSlot(str, float, float)
     def move_node(self, node_id: str, x: float, y: float) -> None:

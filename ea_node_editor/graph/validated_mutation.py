@@ -15,7 +15,6 @@ from ea_node_editor.graph.invariant_kernel import (
     RegistryValidationPassMemo,
 )
 from ea_node_editor.graph.model import GraphModel
-from ea_node_editor.graph.pdf_panel_page_policy import PDF_PANEL_PROPERTY_KEYS, normalize_pdf_panel_page_number
 from ea_node_editor.graph.property_validation import is_saved_property_value_valid
 from ea_node_editor.graph.records import EdgeInstance, NodeInstance
 from ea_node_editor.graph.subnode_contract import (
@@ -27,6 +26,7 @@ from ea_node_editor.graph.subnode_contract import (
 )
 from ea_node_editor.graph.workspace_state import ViewState, WorkspaceData
 from ea_node_editor.nodes.registry import NodeRegistry, resolve_instance_ports
+from ea_node_editor.nodes.builtins.media_panel import MEDIA_PANEL_TYPE_ID
 from ea_node_editor.nodes.node_specs import DynamicPortGroupSpec, NodeTypeSpec, PortSpec
 
 _MISSING = object()
@@ -103,7 +103,6 @@ class ValidatedGraphMutation:
         )
         node.parent_node_id = self._validated_parent_node_id(node.node_id, parent_node_id)
         node.exposed_ports = self._normalized_exposed_ports(node.node_id)
-        self._normalize_pdf_panel_page_number(node.node_id)
         return node
 
     def set_node_parent(self, node_id: str, parent_node_id: str | None) -> bool:
@@ -704,6 +703,10 @@ class ValidatedGraphMutation:
             properties=node.properties,
         )
         normalized_updates = self._contextual_property_updates(node, {key: normalized})
+        normalized_updates = self._guard_exposed_media_source_updates(
+            node,
+            normalized_updates,
+        )
         if not normalized_updates:
             return normalized
         affected_node_ids = self._preflight_port_semantic_updates(
@@ -714,9 +717,6 @@ class ValidatedGraphMutation:
             self.model._set_node_property_record(self.workspace_id, node_id, update_key, update_value)
         if affected_node_ids:
             self._prune_edges_for_nodes(affected_node_ids)
-        if key in PDF_PANEL_PROPERTY_KEYS and self._normalize_pdf_panel_page_number(node_id):
-            if key == "page_number":
-                return self.workspace.nodes[node_id].properties.get("page_number")
         return normalized
 
     def apply_python_script(
@@ -904,6 +904,10 @@ class ValidatedGraphMutation:
                 continue
             normalized_updates[key] = normalized
         normalized_updates = self._contextual_property_updates(node, normalized_updates)
+        normalized_updates = self._guard_exposed_media_source_updates(
+            node,
+            normalized_updates,
+        )
         if not normalized_updates:
             return {}
         affected_node_ids = self._preflight_port_semantic_updates(
@@ -914,10 +918,26 @@ class ValidatedGraphMutation:
             self.model._set_node_property_record(self.workspace_id, node_id, key, normalized)
         if affected_node_ids:
             self._prune_edges_for_nodes(affected_node_ids)
-        if PDF_PANEL_PROPERTY_KEYS & normalized_updates.keys():
-            if self._normalize_pdf_panel_page_number(node_id):
-                normalized_updates["page_number"] = self.workspace.nodes[node_id].properties.get("page_number")
         return normalized_updates
+
+    @staticmethod
+    def _guard_exposed_media_source_updates(
+        node: NodeInstance,
+        updates: dict[str, object],
+    ) -> dict[str, object]:
+        if (
+            node.type_id != MEDIA_PANEL_TYPE_ID
+            or not bool(node.exposed_ports.get("source", True))
+            or "source" not in updates
+        ):
+            return updates
+        if updates["source"] != node.properties.get("source"):
+            raise PermissionError(
+                "Media Panel source cannot be changed while the Source input is exposed."
+            )
+        filtered = dict(updates)
+        filtered.pop("source")
+        return filtered
 
     def _contextual_property_updates(
         self,
@@ -1113,15 +1133,6 @@ class ValidatedGraphMutation:
         view_state.hide_optional_ports = normalized
         self.workspace.mark_dirty()
         return True
-
-    def _normalize_pdf_panel_page_number(self, node_id: str) -> bool:
-        return normalize_pdf_panel_page_number(
-            model=self.model,
-            workspace_id=self.workspace_id,
-            registry=self.registry,
-            boundary_adapters=self.boundary_adapters,
-            node_id=node_id,
-        )
 
     def _resolved_port(self, node_id: str, port_key: str) -> tuple[NodeInstance, NodeTypeSpec, EffectivePort]:
         return self.kernel._resolved_port(node_id, port_key)

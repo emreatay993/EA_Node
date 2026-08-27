@@ -9,7 +9,6 @@ from PyQt6.QtCore import QObject
 from ea_node_editor.graph.boundary_adapters import build_graph_boundary_adapters
 from ea_node_editor.graph.registry_normalization import normalize_project_for_registry
 from ea_node_editor.nodes.registry import NodeRegistry
-from ea_node_editor.ui.pdf_preview_provider import clamp_pdf_page_number
 from ea_node_editor.ui_qml.edge_routing import node_size
 from ea_node_editor.ui_qml.graph_scene import (
     GraphSceneBridgeBase,
@@ -33,7 +32,6 @@ class GraphSceneBridge(GraphSceneBridgeBase):
         super().__init__(parent)
         self._boundary_adapters = build_graph_boundary_adapters(
             node_size_resolver=node_size,
-            clamp_pdf_page_number_resolver=clamp_pdf_page_number,
         )
         self._model = None
         self._registry = None

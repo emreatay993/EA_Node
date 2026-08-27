@@ -68,8 +68,7 @@ def test_showcase_project_contains_expected_node_families() -> None:
         float(node.properties.get("time_values"))
         for node in nodes_by_type["dpf.workflow.result_viewer"]
     } == {2.0}
-    assert nodes_by_type["passive.media.image_panel"]
-    assert nodes_by_type["passive.media.pdf_panel"]
+    assert len(nodes_by_type["media.panel"]) >= 2
     assert nodes_by_type["web.page_viewer"]
 
 
@@ -130,8 +129,8 @@ def test_showcase_project_review_plan_discovers_evidence_and_warnings(qapp) -> N
     assert evidence["fea_appendix_pdf"].page_count == 25
 
     warnings = "\n".join(plan.warnings)
-    assert "unsupported evidence file type '.csv'" in warnings
-    assert "unsupported evidence file type '.md'" in warnings
+    assert "Unsupported CSV Evidence Register / artifact: Media Panel source is invalid" in warnings
+    assert "Unsupported Markdown Review Notes / artifact: Media Panel source is invalid" in warnings
     assert "unsupported evidence file type '.html'" in warnings
     assert "external file paths are listed but not embedded" in warnings
     assert "file.rst" in warnings
