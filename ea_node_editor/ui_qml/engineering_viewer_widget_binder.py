@@ -1119,6 +1119,9 @@ class EngineeringViewerWidgetBinder(QObject):
             self._sync_hidden_line_removal(interactor, previous_state, enabled=False)
 
         clear()
+        enable_lightkit = getattr(interactor, "enable_lightkit", None)
+        if callable(enable_lightkit):
+            enable_lightkit()
         self._apply_canvas_background(
             interactor,
             _string(request.options.get(_VIEWER_BACKGROUND_OPTION)),

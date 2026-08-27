@@ -266,6 +266,7 @@ class _FakeInteractor(QWidget):
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self.clear_calls = 0
+        self.enable_lightkit_calls = 0
         self.add_mesh_calls: list[dict[str, object]] = []
         self.background_calls: list[dict[str, object]] = []
         self.render_calls = 0
@@ -296,6 +297,9 @@ class _FakeInteractor(QWidget):
     def clear(self) -> None:
         self.clear_calls += 1
         self.add_mesh_calls.clear()
+
+    def enable_lightkit(self) -> None:
+        self.enable_lightkit_calls += 1
 
     def add_mesh(self, dataset, **kwargs):  # noqa: ANN001
         actor = _FakeActor(dataset)
@@ -685,6 +689,7 @@ class EngineeringViewerWidgetBinderTests(unittest.TestCase):
                 if not str(call.get("name", "")).startswith("__engineering_pick_source__")
             ]
             self.assertEqual(len(display_calls), 2)
+            self.assertEqual(created[0].enable_lightkit_calls, 1)
             self.assertEqual(created[0].reset_camera_calls, 1)
             primary_call, overlay_call = display_calls
             self.assertEqual(primary_call["dataset"], "dataset:mesh.vtu")
