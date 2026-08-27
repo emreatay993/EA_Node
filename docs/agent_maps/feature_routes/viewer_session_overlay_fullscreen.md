@@ -108,6 +108,7 @@ Use this for execution viewer sessions, native overlay lifecycle, fullscreen con
   one temporary native warm-up, lets the host capture the first frame, and then
   demotes back to the cached proxy. Do not replace this with a permanently live
   inline renderer to hide first-frame lifecycle bugs.
+- Transient canvas pan/zoom, node drag/resize, and wire drag project `live_mode=proxy` but retain the GUI binding: QML hides the full viewer body behind one lightweight solid Proxy pane, empties native interactive rectangles, and does not draw the cached CAD raster until interaction settles. `ViewerHostService` keeps the same attached-but-hidden widget and fast-reactivates an unchanged session/transport without a binder call. One automatic focus-only inline binding may remain retained across unrelated selection; it is replaced by the next ready inline viewer and released on close/delete/reset/invalidation/backend or transport identity change/workspace loss/shutdown. Reparent only for the existing fullscreen/detached paths; do not add a viewer pool or parking-container handoff.
 - `GraphViewerSurfaceBody.qml` defers embedded-interaction sync
   (`_queueEmbeddedInteractionSync` → `Qt.callLater`) because
   `ViewerHostService.set_embedded_interaction_active` re-emits

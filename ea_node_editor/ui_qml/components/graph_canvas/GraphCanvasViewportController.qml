@@ -134,17 +134,31 @@ QtObject {
         return !root._boolPayloadFlag(plotSurface.embedded_rendering_suppressed);
     }
 
-    function _plotViewportInteractionCacheSurfacePresent() {
+    function _nodeUsesViewerViewportInteractionCache(nodePayload) {
+        if (root._surfaceFamily(nodePayload) !== "viewer")
+            return false;
+        if (!nodePayload || nodePayload.viewer_surface === undefined || nodePayload.viewer_surface === null)
+            return false;
+        var viewerSurface = nodePayload.viewer_surface || {};
+        return viewerSurface.live_surface_supported === undefined
+            ? true
+            : root._boolPayloadFlag(viewerSurface.live_surface_supported);
+    }
+
+    function _viewportInteractionCacheSurfacePresent() {
         var nodes = root._sceneNodePayloads();
         for (var index = 0; index < nodes.length; index++) {
-            if (root._nodeUsesPlotViewportInteractionCache(nodes[index]))
+            if (
+                root._nodeUsesPlotViewportInteractionCache(nodes[index])
+                || root._nodeUsesViewerViewportInteractionCache(nodes[index])
+            )
                 return true;
         }
         return false;
     }
 
     function shouldUseViewportInteractionQualityForWheelZoom() {
-        return Boolean(root.canvasItem) && root._plotViewportInteractionCacheSurfacePresent();
+        return Boolean(root.canvasItem) && root._viewportInteractionCacheSurfacePresent();
     }
 
     function applyWheelZoom(eventObj) {

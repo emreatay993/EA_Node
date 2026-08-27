@@ -150,6 +150,10 @@ Item {
     readonly property int shadowSoftness: preferenceFactsObject.shadowSoftness
     readonly property int shadowOffset: preferenceFactsObject.shadowOffset
     readonly property bool viewportInteractionWorldCacheActive: interactionState.interactionActive
+    readonly property bool nativeOverlaySuppressionActive: interactionState.interactionActive
+        || (sceneState.liveDragNodeIds && sceneState.liveDragNodeIds.length > 0)
+        || (sceneState.liveNodeGeometry && Object.keys(sceneState.liveNodeGeometry).length > 0)
+        || Boolean(interactionState.wireDragState && interactionState.wireDragState.active)
     property real profileOverlaySyncMs: 0.0
     readonly property int interactionIdleDelayMs: 2000
     readonly property int transientRecoveryDelayMs: 150
@@ -305,6 +309,7 @@ Item {
     property alias selectionContextSceneAnchorX: interactionState.selectionContextSceneAnchorX
     property alias selectionContextSceneAnchorY: interactionState.selectionContextSceneAnchorY
     property alias interactionActive: interactionState.interactionActive
+    property alias viewportInteractionHeld: interactionState.viewportInteractionHeld
     property alias liveDragAnchorNodeId: sceneState.liveDragAnchorNodeId
     property alias liveDragNodeIds: sceneState.liveDragNodeIds
     property alias liveDragNodeLookup: sceneState.liveDragNodeLookup
@@ -331,7 +336,10 @@ Item {
         id: interactionIdleTimer
         interval: root.transientRecoveryDelayMs
         repeat: false
-        onTriggered: interactionState.endViewportInteraction()
+        onTriggered: {
+            if (!interactionState.viewportInteractionHeld)
+                interactionState.endViewportInteraction();
+        }
     }
 
     Connections {

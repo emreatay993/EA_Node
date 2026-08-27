@@ -131,8 +131,6 @@ Item {
                 mouse.accepted = true;
                 return;
             }
-            if (typeof viewerSessionBridge !== "undefined" && viewerSessionBridge && viewerSessionBridge.clear_viewer_focus)
-                viewerSessionBridge.clear_viewer_focus();
             if (mouse.button === Qt.RightButton) {
                 root.host.nodeContextRequested(root.host.nodeData.node_id, mouse.x, mouse.y);
                 mouse.accepted = true;

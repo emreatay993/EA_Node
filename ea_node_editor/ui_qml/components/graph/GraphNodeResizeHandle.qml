@@ -200,8 +200,6 @@ Item {
                 mouse.accepted = false;
                 return;
             }
-            if (typeof viewerSessionBridge !== "undefined" && viewerSessionBridge && viewerSessionBridge.clear_viewer_focus)
-                viewerSessionBridge.clear_viewer_focus();
             var gp = mapToGlobal(mouse.x, mouse.y);
             pressGlobalX = gp.x;
             pressGlobalY = gp.y;

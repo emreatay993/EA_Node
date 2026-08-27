@@ -695,7 +695,7 @@ class ViewerSurfaceHostTests(unittest.TestCase):
             """,
         )
 
-    def test_viewer_surface_blurs_live_session_on_drag_and_resize_press(self) -> None:
+    def test_viewer_surface_drag_and_resize_press_do_not_clear_viewer_focus(self) -> None:
         self._run_qml_probe(
             "viewer-surface-host-blur-on-drag-start",
             """
@@ -716,14 +716,14 @@ class ViewerSurfaceHostTests(unittest.TestCase):
                 header_point = host_scene_point(host, 18.0, 12.0)
                 QTest.mousePress(window, Qt.MouseButton.LeftButton, Qt.KeyboardModifier.NoModifier, header_point)
                 settle_events(3)
-                assert bridge.clear_focus_calls == 1
+                assert bridge.clear_focus_calls == 0
                 QTest.mouseRelease(window, Qt.MouseButton.LeftButton, Qt.KeyboardModifier.NoModifier, header_point)
                 settle_events(3)
 
                 resize_point = item_scene_point(resize_areas[0])
                 QTest.mousePress(window, Qt.MouseButton.LeftButton, Qt.KeyboardModifier.NoModifier, resize_point)
                 settle_events(3)
-                assert bridge.clear_focus_calls == 2
+                assert bridge.clear_focus_calls == 0
                 QTest.mouseRelease(window, Qt.MouseButton.LeftButton, Qt.KeyboardModifier.NoModifier, resize_point)
                 settle_events(3)
             finally:
@@ -733,7 +733,7 @@ class ViewerSurfaceHostTests(unittest.TestCase):
             """,
         )
 
-    def test_viewer_surface_keeps_cached_proxy_image_through_drag_demotion(self) -> None:
+    def test_viewer_surface_keeps_cached_proxy_source_without_drawing_raster_during_drag(self) -> None:
         self._run_qml_probe(
             "viewer-surface-host-drag-keeps-proxy-image",
             """
@@ -752,9 +752,11 @@ class ViewerSurfaceHostTests(unittest.TestCase):
             surface = host.findChild(QObject, "graphNodeViewerSurface")
             viewport = host.findChild(QObject, "graphNodeViewerViewport")
             cached_image = host.findChild(QObject, "graphNodeViewerCachedPreviewImage")
+            transient_proxy = host.findChild(QObject, "graphNodeViewerTransientProxyPane")
             assert surface is not None
             assert viewport is not None
             assert cached_image is not None
+            assert transient_proxy is not None
 
             def source_text():
                 source = cached_image.property("source")
@@ -785,9 +787,15 @@ class ViewerSurfaceHostTests(unittest.TestCase):
                 QTest.mousePress(window, Qt.MouseButton.LeftButton, Qt.KeyboardModifier.NoModifier, header_point)
                 QTest.mouseMove(window, drag_point)
                 assert bool(host.property("hostDragActive"))
+                assert not bool(surface.property("embeddedInteractionActive"))
+                assert not bool(surface.property("liveSurfaceActive"))
                 assert bool(surface.property("proxySurfaceActive"))
                 assert bool(surface.property("cachedPreviewVisible"))
-                assert bool(cached_image.property("visible"))
+                assert not bool(cached_image.property("visible"))
+                assert bool(cached_image.property("cache"))
+                assert bool(transient_proxy.property("visible"))
+                assert variant_list(surface.property("viewerInteractiveRects")) == []
+                assert viewerHostServiceStub.active_calls[-1] == ("node_viewer_surface_host", False)
                 assert source_text() == cached_source_text
                 QTest.mouseRelease(window, Qt.MouseButton.LeftButton, Qt.KeyboardModifier.NoModifier, drag_point)
                 settle_events(3)

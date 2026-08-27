@@ -563,6 +563,120 @@ class ViewerHostServiceTests(MainWindowShellTestBase):
         self.assertEqual(self.host_service.active_overlay_count, 0)
         self.assertEqual(binder.widgets[0].close_calls, 1)
 
+    def test_one_retained_inline_viewer_is_replaced_only_when_next_viewer_is_ready(self) -> None:
+        binder = _RecordingBinder()
+        self.host_service.register_binder("tests.viewer_backend", binder)
+        first_node_id = self._add_viewer_node(x=80.0, y=60.0)
+
+        self._emit_viewer_event(event_type="viewer_data_materialized", node_id=first_node_id)
+        first_widget = self.overlay_manager.overlay_widget(
+            first_node_id,
+            workspace_id=self.workspace_id,
+        )
+        self.assertIsNotNone(first_widget)
+
+        self.assertTrue(self.bridge.clear_viewer_focus())
+        self.app.processEvents()
+        self.assertEqual(self.host_service.retained_inline_viewer_node_id, first_node_id)
+        self.assertEqual(len(binder.release_calls), 0)
+
+        second_node_id = self._add_viewer_node(x=520.0, y=60.0)
+        self._emit_viewer_event(event_type="viewer_data_materialized", node_id=second_node_id)
+        self.assertTrue(self.bridge.focus_session(second_node_id))
+        self.app.processEvents()
+
+        self.assertEqual(self.host_service.retained_inline_viewer_node_id, "")
+        self.assertEqual(len(binder.release_calls), 1)
+        self.assertEqual(binder.release_calls[-1]["node_id"], first_node_id)
+        self.assertEqual(binder.release_calls[-1]["reason"], "viewer_replaced")
+        self.assertIsNotNone(
+            self.overlay_manager.overlay_widget(second_node_id, workspace_id=self.workspace_id)
+        )
+
+    def test_failed_replacement_keeps_previous_retained_inline_viewer(self) -> None:
+        blocked_node_id = [""]
+        binder = _RecordingBinder(
+            no_bind_predicate=lambda request: request.node_id == blocked_node_id[0]
+        )
+        self.host_service.register_binder("tests.viewer_backend", binder)
+        first_node_id = self._add_viewer_node(x=80.0, y=60.0)
+        self._emit_viewer_event(event_type="viewer_data_materialized", node_id=first_node_id)
+        first_widget = self.overlay_manager.overlay_widget(
+            first_node_id,
+            workspace_id=self.workspace_id,
+        )
+        self.assertTrue(self.bridge.clear_viewer_focus())
+        self.app.processEvents()
+
+        blocked_node_id[0] = self._add_viewer_node(x=520.0, y=60.0)
+        self._emit_viewer_event(
+            event_type="viewer_data_materialized",
+            node_id=blocked_node_id[0],
+        )
+        self.assertTrue(self.bridge.focus_session(blocked_node_id[0]))
+        self.app.processEvents()
+
+        self.assertEqual(self.host_service.retained_inline_viewer_node_id, first_node_id)
+        self.assertEqual(len(binder.release_calls), 0)
+        self.assertIs(
+            self.overlay_manager.overlay_widget(first_node_id, workspace_id=self.workspace_id),
+            first_widget,
+        )
+
+    def test_retained_inline_viewer_retargets_to_detached_without_recreation(self) -> None:
+        binder = _RecordingBinder()
+        self.host_service.register_binder("tests.viewer_backend", binder)
+        node_id = self._add_viewer_node()
+        self._emit_viewer_event(event_type="viewer_data_materialized", node_id=node_id)
+        widget = self.overlay_manager.overlay_widget(node_id, workspace_id=self.workspace_id)
+        self.assertTrue(self.bridge.clear_viewer_focus())
+        self.app.processEvents()
+        self.assertEqual(self.host_service.retained_inline_viewer_node_id, node_id)
+
+        self.assertTrue(self.host_service.open_detached_viewer(node_id))
+        self.app.processEvents()
+
+        detached = self.host_service._detached_windows[(self.workspace_id, node_id)]
+        self.assertIs(detached.widget, widget)
+        self.assertEqual(len(binder.release_calls), 0)
+        self.assertEqual(self.host_service.retained_inline_viewer_node_id, "")
+
+    def test_collapsing_retained_inline_viewer_does_not_destroy_widget(self) -> None:
+        binder = _RecordingBinder()
+        self.host_service.register_binder("tests.viewer_backend", binder)
+        node_id = self._add_viewer_node()
+        self._emit_viewer_event(event_type="viewer_data_materialized", node_id=node_id)
+        widget = self.overlay_manager.overlay_widget(node_id, workspace_id=self.workspace_id)
+        self.assertTrue(self.bridge.clear_viewer_focus())
+        self.app.processEvents()
+
+        self.window.scene.set_node_collapsed(node_id, True)
+        self.app.processEvents()
+
+        self.assertEqual(self.host_service.retained_inline_viewer_node_id, node_id)
+        self.assertEqual(len(binder.release_calls), 0)
+        self.assertIs(
+            self.overlay_manager.overlay_widget(node_id, workspace_id=self.workspace_id),
+            widget,
+        )
+
+    def test_closing_retained_inline_viewer_releases_it_exactly_once(self) -> None:
+        binder = _RecordingBinder()
+        self.host_service.register_binder("tests.viewer_backend", binder)
+        node_id = self._add_viewer_node()
+        self._emit_viewer_event(event_type="viewer_data_materialized", node_id=node_id)
+
+        self.assertTrue(self.bridge.clear_viewer_focus())
+        self.app.processEvents()
+        self.assertEqual(self.host_service.retained_inline_viewer_node_id, node_id)
+        self.assertEqual(len(binder.release_calls), 0)
+
+        self._close_viewer_session(node_id=node_id)
+
+        self.assertEqual(self.host_service.retained_inline_viewer_node_id, "")
+        self.assertEqual(len(binder.release_calls), 1)
+        self.assertEqual(binder.release_calls[-1]["node_id"], node_id)
+
     def test_refresh_failure_does_not_publish_embedded_overlay_ready(self) -> None:
         binder = _RecordingBinder(fail_refresh=True)
         self.host_service.register_binder("tests.viewer_backend", binder)
@@ -1037,6 +1151,28 @@ class ViewerHostServiceTests(MainWindowShellTestBase):
             self.overlay_manager.overlay_widget(node_id, workspace_id=self.workspace_id),
         )
 
+    def test_cached_inline_viewer_preview_is_bounded_for_large_nodes(self) -> None:
+        binder = _RecordingBinder()
+        self.host_service.register_binder("tests.viewer_backend", binder)
+        node_id = self._add_viewer_node()
+        self._emit_viewer_event(event_type="viewer_data_materialized", node_id=node_id)
+        container = self.overlay_manager.overlay_container(
+            node_id,
+            workspace_id=self.workspace_id,
+        )
+        self.assertIsNotNone(container)
+        container.resize(1200, 900)
+        source = QImage(2400, 1800, QImage.Format.Format_ARGB32)
+        source.fill(0xFF5DA9FF)
+
+        normalized = self.host_service._normalized_overlay_preview_image(
+            (self.workspace_id, node_id),
+            source,
+        )
+
+        self.assertEqual(max(normalized.width(), normalized.height()), 640)
+        self.assertAlmostEqual(normalized.width() / normalized.height(), 4.0 / 3.0, places=2)
+
     def test_embedded_live_exit_captures_in_memory_viewer_preview_cache(self) -> None:
         preview_image = QImage(20, 12, QImage.Format.Format_ARGB32)
         preview_image.fill(QColor("#67D487"))
@@ -1264,15 +1400,24 @@ class ViewerHostServiceTests(MainWindowShellTestBase):
             camera_state=stale_camera,
         )
         self.assertEqual(binder.bind_calls[-1]["camera_state"], stale_camera)
-        self.assertIsNotNone(self.overlay_manager.overlay_widget(node_id, workspace_id=self.workspace_id))
+        live_widget = self.overlay_manager.overlay_widget(node_id, workspace_id=self.workspace_id)
+        self.assertIsNotNone(live_widget)
+        bind_count_before_park = len(binder.bind_calls)
 
         self.assertTrue(self.bridge.clear_viewer_focus())
         self.app.processEvents()
         proxy_update = self.window.execution_client.update_calls[-1]
         self.assertEqual(proxy_update["options"]["live_mode"], "proxy")
         self.assertEqual(proxy_update["camera_state"], binder.captured_camera_state)
-        self.assertEqual(len(binder.release_calls), 1)
-        self.assertIsNone(self.overlay_manager.overlay_widget(node_id, workspace_id=self.workspace_id))
+        self.assertEqual(len(binder.bind_calls), bind_count_before_park)
+        self.assertEqual(len(binder.release_calls), 0)
+        self.assertIs(
+            self.overlay_manager.overlay_widget(node_id, workspace_id=self.workspace_id),
+            live_widget,
+        )
+        self.assertFalse(live_widget.isVisible())
+        self.assertEqual(self.host_service.retained_inline_viewer_node_id, node_id)
+        self.assertIs(self.host_service._bound_overlays[(self.workspace_id, node_id)].widget, live_widget)
 
         emit_event(
             event_type="viewer_session_updated",
@@ -1288,9 +1433,13 @@ class ViewerHostServiceTests(MainWindowShellTestBase):
         self.assertEqual(refocus_update["options"]["live_mode"], "full")
         self.assertEqual(refocus_update["camera_state"], binder.captured_camera_state)
 
-        self.assertIsNotNone(self.overlay_manager.overlay_widget(node_id, workspace_id=self.workspace_id))
+        self.assertIs(
+            self.overlay_manager.overlay_widget(node_id, workspace_id=self.workspace_id),
+            live_widget,
+        )
+        self.assertEqual(self.host_service.retained_inline_viewer_node_id, "")
+        self.assertEqual(len(binder.bind_calls), bind_count_before_park)
         self.assertEqual(binder.bind_calls[-1]["live_mode"], "full")
-        self.assertEqual(binder.bind_calls[-1]["camera_state"], binder.captured_camera_state)
 
     def test_content_fullscreen_bridge_retargets_existing_live_widget_to_shell_viewport_and_restores(self) -> None:
         binder = _RecordingBinder()
@@ -1834,8 +1983,14 @@ class ViewerHostServiceTests(MainWindowShellTestBase):
         self.assertEqual(blur_update["node_id"], node_id)
         self.assertEqual(blur_update["options"]["live_mode"], "proxy")
         self.assertEqual(blur_update["camera_state"], binder.captured_camera_state)
-        self.assertEqual(len(binder.release_calls), 1)
-        self.assertTrue(binder.release_calls[-1]["visible"])
+        self.assertEqual(len(binder.release_calls), 0)
+        self.assertEqual(self.host_service.retained_inline_viewer_node_id, node_id)
+        retained_widget = self.overlay_manager.overlay_widget(
+            node_id,
+            workspace_id=self.workspace_id,
+        )
+        self.assertIsNotNone(retained_widget)
+        self.assertFalse(retained_widget.isVisible())
 
     def test_window_deactivate_leaves_keep_live_session_in_full_mode(self) -> None:
         binder = _RecordingBinder(
@@ -1858,6 +2013,36 @@ class ViewerHostServiceTests(MainWindowShellTestBase):
         )
 
         self.assertIsNotNone(self.overlay_manager.overlay_widget(node_id, workspace_id=self.workspace_id))
+        self.assertEqual(self.bridge.session_state(node_id)["options"]["live_mode"], "full")
+
+    def test_keep_live_interaction_exit_reuses_cached_preview_without_capture(self) -> None:
+        binder = _RecordingBinder()
+        self.host_service.register_binder("tests.viewer_backend", binder)
+        node_id = self._add_viewer_node()
+        self._emit_viewer_event(
+            event_type="viewer_data_materialized",
+            node_id=node_id,
+            keep_live=True,
+        )
+        key = (self.workspace_id, node_id)
+        bound = self.host_service._bound_overlays[key]
+        preview = QImage(24, 16, QImage.Format.Format_ARGB32)
+        preview.fill(0xFF5DA9FF)
+        self.host_service._set_cached_preview(
+            key,
+            preview,
+            self.host_service._preview_cache_signature(bound.snapshot),
+        )
+        self.host_service.set_embedded_interaction_active(node_id, True)
+        self.app.processEvents()
+        capture_count = len(binder.capture_calls)
+        preview_capture_count = len(binder.capture_preview_calls)
+
+        self.host_service.set_embedded_interaction_active(node_id, False)
+        self.app.processEvents()
+
+        self.assertEqual(len(binder.capture_calls), capture_count)
+        self.assertEqual(len(binder.capture_preview_calls), preview_capture_count)
         self.assertEqual(self.bridge.session_state(node_id)["options"]["live_mode"], "full")
 
         self.app.sendEvent(self.window, QEvent(QEvent.Type.WindowDeactivate))

@@ -249,8 +249,14 @@ class EmbeddedViewerOverlayManagerTests(MainWindowShellTestBase):
             "height": max(0.0, float(node_card.height())),
         }
 
-    def _activate_overlay(self, node_id: str, *, session_id: str = "") -> _FakeOverlayWidget:
-        widget = _FakeOverlayWidget()
+    def _activate_overlay(
+        self,
+        node_id: str,
+        *,
+        session_id: str = "",
+        widget: QWidget | None = None,
+    ) -> QWidget:
+        widget = widget or _FakeOverlayWidget()
         self.manager.set_active_overlays(
             (
                 EmbeddedViewerOverlaySpec(
@@ -418,62 +424,41 @@ class EmbeddedViewerOverlayManagerTests(MainWindowShellTestBase):
         self.assertAlmostEqual(float(moved_geometry.height()), float(initial_geometry.height()), delta=1.1)
         self.assertEqual(widget.geometry(), container.rect())
 
-    def test_live_overlay_geometry_tracks_graph_canvas_drag_preview_offsets(self) -> None:
-        node_id = self._add_viewer_node()
-        widget = self._activate_overlay(node_id)
-        container = self.manager.overlay_container(node_id, workspace_id=self.workspace_id)
-        self.assertIsNotNone(container)
-        canvas = self._graph_canvas_quick_item()
-        initial_geometry = container.geometry()
-
-        canvas.setLiveDragOffset(node_id, 48.0, 26.0)
-        wait_for_condition_or_raise(
-            lambda: abs(float(container.geometry().x()) - float(initial_geometry.x()) - 48.0) <= 1.1,
-            timeout_ms=500,
-            app=self.app,
-            timeout_message="Timed out waiting for native viewer drag preview geometry.",
-        )
-
-        moved_geometry = container.geometry()
-        self.assertAlmostEqual(float(moved_geometry.x()), float(initial_geometry.x()) + 48.0, delta=1.1)
-        self.assertAlmostEqual(float(moved_geometry.y()), float(initial_geometry.y()) + 26.0, delta=1.1)
-        self.assertAlmostEqual(float(moved_geometry.width()), float(initial_geometry.width()), delta=1.1)
-        self.assertAlmostEqual(float(moved_geometry.height()), float(initial_geometry.height()), delta=1.1)
-        self.assertEqual(widget.geometry(), container.rect())
-        self.assertTrue(widget.isVisible())
-
-        canvas.clearLiveDragOffset()
-        self.app.processEvents()
-        self._assert_rect_close(container, node_id)
-        self.assertTrue(widget.isVisible())
-
     def test_native_window_overlay_hides_during_canvas_live_drag_preview_and_restores(self) -> None:
         node_id = self._add_viewer_node()
-        widget = self._activate_overlay(node_id)
+        widget = _CountingWidget()
+        self._activate_overlay(node_id, widget=widget)
         widget.setProperty("ea.nativeWindowOverlay", True)
         container = self.manager.overlay_container(node_id, workspace_id=self.workspace_id)
         self.assertIsNotNone(container)
         canvas = self._graph_canvas_quick_item()
         self.assertTrue(container.isVisible())
         self.assertTrue(widget.isVisible())
+        widget.reset_counts()
 
-        canvas.setLiveDragOffset(node_id, 48.0, 26.0)
-        wait_for_condition_or_raise(
-            lambda: not container.isVisible(),
-            timeout_ms=500,
-            app=self.app,
-            timeout_message="Timed out waiting for native viewer overlay to hide during drag.",
-        )
+        with patch.object(self.manager, "_node_payloads_by_id", wraps=self.manager._node_payloads_by_id) as payload_lookup:
+            canvas.setLiveDragOffset(node_id, 48.0, 26.0)
+            wait_for_condition_or_raise(
+                lambda: not container.isVisible(),
+                timeout_ms=500,
+                app=self.app,
+                timeout_message="Timed out waiting for native viewer overlay to hide during drag.",
+            )
+            payload_lookup.assert_not_called()
 
         self.assertFalse(container.isVisible())
         self.assertFalse(widget.isVisible())
-        self.assertTrue(widget.updatesEnabled())
+        self.assertFalse(widget.updatesEnabled())
+        self.assertEqual(widget.move_calls, 0)
+        self.assertEqual(widget.resize_calls, 0)
+        self.assertEqual(widget.set_geometry_calls, 0)
 
         canvas.clearLiveDragOffset()
         self.app.processEvents()
 
         self.assertTrue(container.isVisible())
         self.assertTrue(widget.isVisible())
+        self.assertTrue(widget.updatesEnabled())
         self._assert_rect_close(container, node_id)
 
     def test_native_window_overlay_hides_during_viewport_interaction_and_restores(self) -> None:
@@ -498,6 +483,52 @@ class EmbeddedViewerOverlayManagerTests(MainWindowShellTestBase):
         self.assertTrue(container.isVisible())
         self.assertTrue(widget.isVisible())
         self._assert_rect_close(container, node_id)
+
+    def test_node_delta_sync_skips_unrelated_nodes_and_routes_viewer_geometry(self) -> None:
+        node_id = self._add_viewer_node()
+        self._activate_overlay(node_id)
+        state_bridge = self.window.scene.state_bridge
+
+        with (
+            patch.object(self.manager, "_schedule_sync") as full_sync,
+            patch.object(self.manager, "_schedule_transform_sync") as transform_sync,
+        ):
+            state_bridge.node_delta_payload = {
+                "kind": "node_delta",
+                "reason": "node_property_payload_delta",
+                "nodes": [{"node_id": "unrelated"}],
+                "backdrop_nodes": [],
+                "added_node_ids": [],
+                "removed_node_ids": [],
+                "visibility_may_change": True,
+            }
+            self.manager._on_scene_nodes_changed()
+            full_sync.assert_not_called()
+            transform_sync.assert_not_called()
+
+            state_bridge.node_delta_payload = {
+                "kind": "node_delta",
+                "reason": "node_position_delta",
+                "nodes": [{"node_id": node_id}],
+                "backdrop_nodes": [],
+                "added_node_ids": [],
+                "removed_node_ids": [],
+                "visibility_may_change": True,
+            }
+            self.manager._on_scene_nodes_changed()
+            transform_sync.assert_called_once_with()
+
+            state_bridge.node_delta_payload = {
+                "kind": "node_delta",
+                "reason": "node_property_payload_delta",
+                "nodes": [{"node_id": node_id}],
+                "backdrop_nodes": [],
+                "added_node_ids": [],
+                "removed_node_ids": [],
+                "visibility_may_change": False,
+            }
+            self.manager._on_scene_nodes_changed()
+            full_sync.assert_called_once_with()
 
     def test_live_overlay_geometry_tracks_rendered_resize_preview_state(self) -> None:
         node_id = self._add_viewer_node()
@@ -813,6 +844,31 @@ class EmbeddedViewerOverlayManagerTests(MainWindowShellTestBase):
         self.assertFalse(container.isVisible())
         self.assertFalse(self.manager.overlay_geometry_ready(node_id, workspace_id=self.workspace_id))
 
+    def test_hidden_retained_overlay_survives_missing_scene_payload(self) -> None:
+        node_id = self._add_viewer_node()
+        widget = self._activate_overlay(node_id)
+        self.manager.set_active_overlays(
+            (
+                EmbeddedViewerOverlaySpec(
+                    workspace_id=self.workspace_id,
+                    node_id=node_id,
+                    session_id=f"session::{node_id}",
+                    visible=False,
+                ),
+            )
+        )
+        self.app.processEvents()
+
+        with patch.object(self.manager, "_node_payloads_by_id", return_value={}):
+            self.manager.sync()
+
+        self.assertEqual(widget.close_calls, 0)
+        self.assertIs(
+            self.manager.overlay_widget(node_id, workspace_id=self.workspace_id),
+            widget,
+        )
+        self.assertFalse(widget.isVisible())
+
     def test_paint_and_update_request_events_do_not_queue_overlay_sync(self) -> None:
         self.app.processEvents()
         self.manager._sync_queued = False
@@ -820,6 +876,26 @@ class EmbeddedViewerOverlayManagerTests(MainWindowShellTestBase):
         self.assertFalse(self.manager._sync_queued)
         self.manager.eventFilter(self.window.quick_widget, QEvent(QEvent.Type.UpdateRequest))
         self.assertFalse(self.manager._sync_queued)
+
+    def test_layout_request_during_native_overlay_suppression_does_not_queue_full_sync(self) -> None:
+        node_id = self._add_viewer_node()
+        widget = self._activate_overlay(node_id)
+        widget.setProperty("ea.nativeWindowOverlay", True)
+        canvas = self._graph_canvas_quick_item()
+        canvas.setLiveDragOffset(node_id, 12.0, 8.0)
+        self.app.processEvents()
+        self.manager._sync_queued = False
+
+        self.manager.eventFilter(
+            self.window.quick_widget,
+            QEvent(QEvent.Type.LayoutRequest),
+        )
+
+        self.assertFalse(self.manager._sync_queued)
+        with patch.object(self.manager, "_queue_sync") as queue_sync:
+            self.manager._schedule_sync()
+            queue_sync.assert_called_once_with("transform")
+        canvas.clearLiveDragOffset()
 
     def test_quick_widget_mouse_event_inside_native_overlay_is_consumed(self) -> None:
         node_id = self._add_viewer_node()

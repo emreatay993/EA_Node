@@ -22,6 +22,13 @@ _OverlayKey = tuple[str, str]
 _DEFAULT_OVERLAY_OWNER = "default"
 _SYNC_MODE_FULL = "full"
 _SYNC_MODE_TRANSFORM = "transform"
+_TRANSFORM_ONLY_NODE_DELTA_REASONS = frozenset(
+    {
+        "history_node_position_delta",
+        "node_position_delta",
+        "node_resize_geometry_delta",
+    }
+)
 _OVERLAY_VIEWPORT_PREFETCH_SCENE_PX = 256.0
 _NATIVE_OVERLAY_INPUT_EVENTS = {
     QEvent.Type.MouseButtonPress,
@@ -100,6 +107,7 @@ class EmbeddedViewerOverlaySpec:
     workspace_id: str
     node_id: str
     session_id: str = ""
+    visible: bool = True
 
 
 @dataclass(slots=True, frozen=True)
@@ -137,6 +145,7 @@ def _empty_overlay_metrics() -> dict[str, int | float | str | bool]:
         "sync_ms": 0.0,
         "geometry_only_updates": 0,
         "content_updates": 0,
+        "skipped_delta_sync_count": 0,
     }
 
 
@@ -518,6 +527,7 @@ class EmbeddedViewerOverlayManager(QObject):
         self._sync_queued = False
         self._queued_sync_mode: str | None = None
         self._syncing = False
+        self._skipped_node_delta_sync_count = 0
         self._overlay_metrics = _empty_overlay_metrics()
 
         install_event_filter = getattr(self._event_filter_widget, "installEventFilter", None)
@@ -568,6 +578,7 @@ class EmbeddedViewerOverlayManager(QObject):
                 workspace_id=workspace_id,
                 node_id=node_id,
                 session_id=_string(getattr(overlay, "session_id", "")),
+                visible=bool(getattr(overlay, "visible", True)),
             )
 
         if desired_overlays:
@@ -758,7 +769,12 @@ class EmbeddedViewerOverlayManager(QObject):
                 QEvent.Type.LayoutRequest,
                 QEvent.Type.WindowStateChange,
             }:
-                self._schedule_sync()
+                graph_canvas_item = self._graph_canvas_item(self._root_item())
+                if (
+                    graph_canvas_item is None
+                    or not self._native_overlay_suppression_active(graph_canvas_item)
+                ):
+                    self._schedule_sync()
             elif event_type == QEvent.Type.Hide:
                 self._hide_all_records()
             elif event_type == QEvent.Type.Close:
@@ -793,9 +809,42 @@ class EmbeddedViewerOverlayManager(QObject):
 
     def _connect_signals(self) -> None:
         self._connect_signal(self._quick_widget, "statusChanged", self._on_quick_widget_status_changed)
-        self._connect_signal(self._scene_bridge, "nodes_changed", self._schedule_sync)
+        self._connect_signal(self._scene_bridge, "nodes_changed", self._on_scene_nodes_changed)
         self._connect_signal(self._scene_bridge, "workspace_changed", self._schedule_sync)
         self._connect_signal(self._view_bridge, "view_state_changed", self._schedule_transform_sync)
+
+    def _on_scene_nodes_changed(self) -> None:
+        source = getattr(self._scene_bridge, "state_bridge", self._scene_bridge)
+        delta = _mapping(getattr(source, "node_delta_payload", {}))
+        if _string(delta.get("kind")) != "node_delta":
+            self._schedule_sync()
+            return
+
+        affected_node_ids = {
+            _string(payload.get("node_id"))
+            for collection_name in ("nodes", "backdrop_nodes")
+            for payload in (_mapping(item) for item in (delta.get(collection_name) or ()))
+            if _string(payload.get("node_id"))
+        }
+        affected_node_ids.update(
+            _string(node_id)
+            for collection_name in ("added_node_ids", "removed_node_ids")
+            for node_id in (delta.get(collection_name) or ())
+            if _string(node_id)
+        )
+        if not affected_node_ids:
+            self._schedule_sync()
+            return
+        desired_node_ids = {node_id for _workspace_id, node_id in self._desired_overlays}
+        if affected_node_ids.isdisjoint(desired_node_ids):
+            self._skipped_node_delta_sync_count += 1
+            self._overlay_metrics["skipped_delta_sync_count"] = self._skipped_node_delta_sync_count
+            return
+
+        if _string(delta.get("reason")) in _TRANSFORM_ONLY_NODE_DELTA_REASONS:
+            self._schedule_transform_sync()
+            return
+        self._schedule_sync()
 
     @staticmethod
     def _connect_signal(source: object | None, name: str, slot) -> None:  # noqa: ANN001
@@ -807,6 +856,20 @@ class EmbeddedViewerOverlayManager(QObject):
         self._schedule_sync()
 
     def _schedule_sync(self) -> None:
+        graph_canvas_item = self._graph_canvas_item(self._root_item())
+        native_only = bool(self._desired_overlays) and all(
+            (record := self._overlay_records.get(key)) is not None
+            and self._record_uses_native_window_overlay(record)
+            for key in self._desired_overlays
+        )
+        if (
+            self._content_fullscreen_target is None
+            and native_only
+            and graph_canvas_item is not None
+            and self._native_overlay_suppression_active(graph_canvas_item)
+        ):
+            self._queue_sync(_SYNC_MODE_TRANSFORM)
+            return
         self._queue_sync(_SYNC_MODE_FULL)
 
     def _schedule_transform_sync(self) -> None:
@@ -877,6 +940,7 @@ class EmbeddedViewerOverlayManager(QObject):
         metrics = _empty_overlay_metrics()
         metrics["sync_mode"] = _SYNC_MODE_TRANSFORM if transform_only else _SYNC_MODE_FULL
         metrics["total_count"] = len(self._desired_overlays)
+        metrics["skipped_delta_sync_count"] = self._skipped_node_delta_sync_count
         try:
             root_item = self._root_item()
             graph_canvas_item = self._ensure_graph_canvas_observed(root_item)
@@ -889,6 +953,23 @@ class EmbeddedViewerOverlayManager(QObject):
                 self._clear_records()
                 return
 
+            if self._native_overlay_suppression_active(graph_canvas_item):
+                suppressed_keys = {
+                    key
+                    for key in self._desired_overlays
+                    if key != self._content_fullscreen_target
+                    and (record := self._overlay_records.get(key)) is not None
+                    and self._record_uses_native_window_overlay(record)
+                }
+                for key in suppressed_keys:
+                    record = self._overlay_records[key]
+                    record.fullscreen_target_active = False
+                    self._set_widget_updates_suspended(record, True)
+                    self._hide_record(key)
+                if suppressed_keys == set(self._desired_overlays):
+                    metrics["hidden_count"] = len(suppressed_keys)
+                    return
+
             node_payloads = self._node_payloads_by_id(
                 {node_id for _workspace_id, node_id in self._desired_overlays}
             )
@@ -896,16 +977,32 @@ class EmbeddedViewerOverlayManager(QObject):
             fullscreen_target = self._content_fullscreen_target if self._content_fullscreen_target in managed_keys else None
             viewport_scene_rect = self._expanded_viewport_scene_rect(graph_canvas_item)
             for key, overlay in self._desired_overlays.items():
-                node_payload = node_payloads.get(key[1])
-                if node_payload is None or _bool(node_payload.get("collapsed")):
-                    self._teardown_record(key)
-                    metrics["hidden_count"] = int(metrics["hidden_count"]) + 1
-                    continue
                 record = self._ensure_record(
                     key=key,
                     session_id=overlay.session_id,
                 )
                 if record is None:
+                    continue
+                if not overlay.visible:
+                    record.fullscreen_target_active = False
+                    self._set_widget_updates_suspended(record, True)
+                    self._hide_record(key)
+                    metrics["hidden_count"] = int(metrics["hidden_count"]) + 1
+                    continue
+                node_payload = node_payloads.get(key[1])
+                if node_payload is None or _bool(node_payload.get("collapsed")):
+                    self._teardown_record(key)
+                    metrics["hidden_count"] = int(metrics["hidden_count"]) + 1
+                    continue
+                if (
+                    key != fullscreen_target
+                    and self._record_uses_native_window_overlay(record)
+                    and self._native_overlay_suppression_active(graph_canvas_item)
+                ):
+                    record.fullscreen_target_active = False
+                    self._set_widget_updates_suspended(record, True)
+                    self._hide_record(key)
+                    metrics["hidden_count"] = int(metrics["hidden_count"]) + 1
                     continue
 
                 cached_node_card_item = record.node_card_item if self._is_alive_item(record.node_card_item) else None
@@ -1060,6 +1157,8 @@ class EmbeddedViewerOverlayManager(QObject):
     def _graph_canvas_item(root_item: QQuickItem | None) -> QQuickItem | None:
         if root_item is None:
             return None
+        if root_item.objectName() == "graphCanvas":
+            return root_item
         graph_canvas = root_item.findChild(QObject, "graphCanvas")
         return graph_canvas if isinstance(graph_canvas, QQuickItem) else None
 
@@ -1278,6 +1377,13 @@ class EmbeddedViewerOverlayManager(QObject):
         )
 
     @staticmethod
+    def _native_overlay_suppression_active(graph_canvas_item: QQuickItem) -> bool:
+        value = graph_canvas_item.property("nativeOverlaySuppressionActive")
+        if value is not None:
+            return _bool(value)
+        return EmbeddedViewerOverlayManager._canvas_interaction_active(graph_canvas_item)
+
+    @staticmethod
     def _record_uses_native_window_overlay(record: _OverlayRecord) -> bool:
         widget = record.overlay_widget
         return widget is not None and _bool(widget.property("ea.nativeWindowOverlay"))
@@ -1286,12 +1392,6 @@ class EmbeddedViewerOverlayManager(QObject):
     def _set_widget_updates_suspended(record: _OverlayRecord, suspended: bool) -> None:
         widget = record.overlay_widget
         if widget is None:
-            return
-        if _bool(widget.property("ea.nativeWindowOverlay")):
-            if record.updates_suspended:
-                widget.setUpdatesEnabled(True)
-                record.updates_suspended = False
-                widget.update()
             return
         if record.updates_suspended == suspended:
             return
@@ -1507,6 +1607,7 @@ class EmbeddedViewerOverlayManager(QObject):
         self._connect_signal(graph_canvas_item, "liveDragRevisionChanged", self._schedule_transform_sync)
         self._connect_signal(graph_canvas_item, "interactionActiveChanged", self._schedule_transform_sync)
         self._connect_signal(graph_canvas_item, "viewportInteractionWorldCacheActiveChanged", self._schedule_transform_sync)
+        self._connect_signal(graph_canvas_item, "nativeOverlaySuppressionActiveChanged", self._schedule_transform_sync)
         return graph_canvas_item
 
     def _clear_records(self) -> None:

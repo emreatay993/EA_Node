@@ -89,7 +89,11 @@ Item {
         : false
     readonly property bool viewportHoverActive: viewerViewportHover.hovered
     readonly property bool transientInteractionPreviewActive: host
-        ? Boolean(host.viewportInteractionCacheActive || host.hostDragActive)
+        ? Boolean(
+            host.canvasItem && host.canvasItem.nativeOverlaySuppressionActive !== undefined
+                ? host.canvasItem.nativeOverlaySuppressionActive
+                : (host.viewportInteractionCacheActive || host.hostDragActive)
+        )
         : false
     readonly property bool contentFullscreenOpen: typeof contentFullscreenBridge !== "undefined"
         && contentFullscreenBridge
@@ -281,6 +285,8 @@ Item {
             return "Closing";
         if (surface.viewerRunRequired)
             return "Blocked";
+        if (surface.proxySurfaceActive)
+            return "Proxy";
         if (
             surface.viewerSessionOpen
             && surface.viewerLiveMode === "full"
@@ -288,8 +294,6 @@ Item {
         ) {
             return "Live";
         }
-        if (surface.proxySurfaceActive)
-            return "Proxy";
         return "Overlay";
     }
     readonly property color viewerAccentColor: {
@@ -312,7 +316,11 @@ Item {
         && !viewerRunRequired
         && !contentFullscreenOpen
         && !transientInteractionPreviewActive
-        && (_initialProxyPreviewWarmupActive || hostSurfaceActive || viewportHoverActive)
+        && (
+            _initialProxyPreviewWarmupActive
+            || hostSurfaceActive
+            || viewportHoverActive
+        )
         && viewerLiveOpenStatus === "ready"
     readonly property int hostOverlayRevision: viewerHostServiceRef !== null
         && viewerHostServiceRef.viewer_overlay_revision !== undefined
@@ -353,6 +361,7 @@ Item {
         if (!surface.liveSurfaceSupported)
             return false;
         return surface.embeddedInteractionActive
+            && !surface.transientInteractionPreviewActive
             && surface.viewerLiveMode === "full"
             && surface.viewerLiveOpenStatus === "ready";
     }
@@ -388,7 +397,7 @@ Item {
         )
         : Qt.alpha(surface.viewerAccentColor, 0.4)
     readonly property bool blocksHostInteraction: false
-    readonly property var viewerInteractiveRects: embeddedInteractionActive
+    readonly property var viewerInteractiveRects: liveSurfaceActive
         ? [liveSurfaceRect]
         : []
     readonly property var embeddedInteractiveRects: viewerInteractiveRects
@@ -1040,6 +1049,7 @@ Item {
         Column {
             anchors.fill: parent
             spacing: 0
+            visible: !surface.transientInteractionPreviewActive
 
             Rectangle {
                 id: statusStrip
@@ -1175,13 +1185,15 @@ Item {
                     Image {
                         id: cachedPreviewImage
                         objectName: "graphNodeViewerCachedPreviewImage"
-                        visible: surface.cachedPreviewVisible && String(source).length > 0
+                        visible: surface.cachedPreviewVisible
+                            && !surface.transientInteractionPreviewActive
+                            && String(source).length > 0
                         anchors.fill: parent
                         anchors.margins: 1
                         source: surface._cachedPreviewImageSource
                         fillMode: Image.Stretch
                         asynchronous: false
-                        cache: false
+                        cache: true
                         smooth: true
                         mipmap: true
                     }
@@ -1340,6 +1352,25 @@ Item {
                         }
                     }
                 }
+            }
+        }
+
+        Rectangle {
+            objectName: "graphNodeViewerTransientProxyPane"
+            visible: surface.transientInteractionPreviewActive
+            anchors.fill: parent
+            radius: host ? Math.max(8, Number(host.resolvedCornerRadius || 6) - 1) : 8
+            color: host ? Qt.darker(host.inlineInputBackgroundColor, 1.05) : "#1a202b"
+            border.width: 1
+            border.color: host ? Qt.alpha(host.outlineColor, 0.72) : "#4c7bc0"
+
+            Text {
+                anchors.centerIn: parent
+                text: "Proxy"
+                color: host ? host.inlineDrivenTextColor : "#b5c0d4"
+                font.pixelSize: 10
+                font.bold: true
+                renderType: host ? host.nodeTextRenderType : Text.CurveRendering
             }
         }
     }

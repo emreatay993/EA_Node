@@ -10,6 +10,7 @@ QtObject {
     property var edgeLayerItem: null
     property var interactionIdleTimer: null
     property int interactionIdleDelayMs: 150
+    property bool viewportInteractionHeld: false
     property real wireDragThreshold: 2
 
     property var hoveredPort: null
@@ -1649,6 +1650,7 @@ QtObject {
     }
 
     function beginViewportInteraction() {
+        root.viewportInteractionHeld = true;
         if (!root.interactionActive)
             root.interactionActive = true;
         if (root.interactionIdleTimer)
@@ -1656,6 +1658,7 @@ QtObject {
     }
 
     function finishViewportInteractionSoon() {
+        root.viewportInteractionHeld = false;
         if (!root.interactionActive) {
             if (root.interactionIdleTimer)
                 root.interactionIdleTimer.stop();
@@ -1666,18 +1669,28 @@ QtObject {
     }
 
     function noteViewportInteraction() {
-        root.beginViewportInteraction();
-        if (root.interactionIdleTimer)
-            root.interactionIdleTimer.restart();
+        if (!root.interactionActive)
+            root.interactionActive = true;
+        if (root.interactionIdleTimer) {
+            if (root.viewportInteractionHeld)
+                root.interactionIdleTimer.stop();
+            else
+                root.interactionIdleTimer.restart();
+        }
     }
 
     function endViewportInteraction() {
+        root.viewportInteractionHeld = false;
         if (root.interactionIdleTimer)
             root.interactionIdleTimer.stop();
         root.interactionActive = false;
     }
 
     function resetSceneBridgeState() {
+        root.viewportInteractionHeld = false;
+        root.interactionActive = false;
+        if (root.interactionIdleTimer)
+            root.interactionIdleTimer.stop();
         root.pendingConnectionPort = null;
         root.hoveredPort = null;
         root.wireDragState = null;

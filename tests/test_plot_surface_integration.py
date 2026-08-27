@@ -929,7 +929,7 @@ class PlotSurfaceInteractionQmlTests(unittest.TestCase):
             """,
         )
 
-    def test_wheel_zoom_controller_enters_cache_window_for_live_plots(self) -> None:
+    def test_wheel_zoom_controller_enters_cache_window_for_live_plots_and_viewers(self) -> None:
         self._run_qml_probe(
             "plot-wheel-zoom-viewport-cache-eligibility",
             """
@@ -985,6 +985,23 @@ class PlotSurfaceInteractionQmlTests(unittest.TestCase):
                 property bool suppressedPlotCache: suppressedPlotController.shouldUseViewportInteractionQualityForWheelZoom()
 
                 QtObject {
+                    id: activeViewerBridge
+                    property var nodes_model: [{
+                        "surface_family": "viewer",
+                        "viewer_surface": {"live_surface_supported": true}
+                    }]
+                }
+                Item {
+                    id: activeViewerCanvas
+                    property var sceneStateBridge: activeViewerBridge
+                }
+                GraphCanvasViewportController {
+                    id: activeViewerController
+                    canvasItem: activeViewerCanvas
+                }
+                property bool activeViewerCache: activeViewerController.shouldUseViewportInteractionQualityForWheelZoom()
+
+                QtObject {
                     id: nonPlotBridge
                     property var nodes_model: [{
                         "surface_family": "media",
@@ -1015,6 +1032,7 @@ class PlotSurfaceInteractionQmlTests(unittest.TestCase):
 
             assert bool(probe.property("activePlotCache"))
             assert not bool(probe.property("suppressedPlotCache"))
+            assert bool(probe.property("activeViewerCache"))
             assert not bool(probe.property("nonPlotCache"))
 
             probe.deleteLater()

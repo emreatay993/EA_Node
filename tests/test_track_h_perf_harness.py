@@ -1932,6 +1932,8 @@ class TrackHPerformanceHarnessTests(unittest.TestCase):
         )
 
     def test_canvas_lag_profiler_exposes_project_fixture_mode(self) -> None:
+        from scripts import profile_canvas_lag
+
         profiler_text = Path("scripts/profile_canvas_lag.py").read_text(
             encoding="utf-8"
         )
@@ -1955,6 +1957,96 @@ class TrackHPerformanceHarnessTests(unittest.TestCase):
         self.assertIn("--qsg-rhi-backend", profiler_text)
         self.assertIn("EA_NODE_EDITOR_QML_HOST", profiler_text)
         self.assertIn("EA_NODE_EDITOR_QSG_RHI_BACKEND", profiler_text)
+        self.assertIn("--engineering-step", profiler_text)
+        self.assertIn("--engineering-condition", profiler_text)
+        self.assertIn("root_context_setup=_setup_viewer_context", profiler_text)
+        self.assertIn("root_context_setup(self, root_context)", harness_text)
+        for operation_name in (
+            "viewport_pan",
+            "viewport_zoom",
+            "viewer_node_drag",
+            "viewer_node_resize",
+            "unrelated_node_drag",
+            "unrelated_node_resize",
+            "active_wire_drag",
+            "unrelated_property_edit",
+            "unrelated_node_add",
+            "unrelated_node_delete",
+            "viewer_node_delete",
+        ):
+            self.assertIn(f'"{operation_name}"', profiler_text)
+        for report_field in (
+            "widget_identity",
+            "native_overlay_visible",
+            "binder_bind",
+            "binder_release",
+            "binder_render",
+            "dataset_load",
+            "widget_create",
+            "overlay_full_sync",
+            "overlay_transform_sync",
+            "overlay_move",
+            "overlay_resize",
+            "cached_preview_available",
+            "transport_revision",
+            "operation_gaps",
+            "driver_limitations",
+            "warmup_samples_applied",
+        ):
+            self.assertIn(f'"{report_field}"', profiler_text)
+        self.assertEqual(
+            profile_canvas_lag._parse_args(
+                ["--engineering-step", "part.stp"]
+            ).engineering_condition,
+            "selected-viewer",
+        )
+        self.assertEqual(
+            profile_canvas_lag._parse_args(
+                [
+                    "--engineering-step",
+                    "part.stp",
+                    "--engineering-condition",
+                    "control",
+                ]
+            ).engineering_condition,
+            "control",
+        )
+        registry = build_default_registry()
+        engineering_project = profile_canvas_lag._build_engineering_project(
+            Path("part.stp"), registry
+        )
+        engineering_workspace = engineering_project.workspaces[
+            engineering_project.active_workspace_id
+        ]
+        self.assertEqual(
+            [node.type_id for node in engineering_workspace.nodes.values()],
+            [
+                "data.panel",
+                "engineering.cad_import",
+                "model.viewer",
+                "data.boolean_toggle",
+            ],
+        )
+        self.assertEqual(
+            {
+                (
+                    edge.source_node_id,
+                    edge.source_port_key,
+                    edge.target_node_id,
+                    edge.target_port_key,
+                )
+                for edge in engineering_workspace.edges.values()
+            },
+            {
+                ("node_canvas_panel", "output", "node_canvas_cad_import", "path"),
+                (
+                    "node_canvas_cad_import",
+                    "scene",
+                    "node_canvas_model_viewer",
+                    "scene",
+                ),
+            },
+        )
         self.assertIn("--capture-qsg-info", harness_text)
         self.assertIn("QSG_INFO", harness_text)
 

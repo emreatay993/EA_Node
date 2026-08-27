@@ -46,6 +46,20 @@ class GraphCanvasFrameCoalescingTests(GraphCanvasQmlPreferenceTestBase):
 
         self.assertEqual(int(scheduler.property("frameBudgetMs")), 16)
 
+    def test_explicit_viewport_interaction_hold_is_distinct_from_wheel_idle_recovery(self) -> None:
+        self.canvas.beginViewportInteraction()
+        self.app.processEvents()
+        self.assertTrue(bool(self.canvas.property("interactionActive")))
+        self.assertTrue(bool(self.canvas.property("viewportInteractionHeld")))
+
+        self.canvas.noteViewportInteraction()
+        self.app.processEvents()
+        self.assertTrue(bool(self.canvas.property("viewportInteractionHeld")))
+
+        self.canvas.finishViewportInteractionSoon()
+        self.app.processEvents()
+        self.assertFalse(bool(self.canvas.property("viewportInteractionHeld")))
+
     def test_scheduler_coalesces_bursty_pan_deltas_into_one_view_commit(self) -> None:
         scheduler = self._scheduler()
         start_x = float(self.view.center_x)
@@ -157,6 +171,25 @@ class GraphCanvasFrameCoalescingTests(GraphCanvasQmlPreferenceTestBase):
         self.app.processEvents()
         self.assertEqual(_variant(self.canvas.property("liveDragNodeIds")), [])
         self.assertEqual(_variant(self.canvas.property("liveDragNodeLookup")), {})
+
+    def test_native_overlay_suppression_tracks_live_drag_and_active_wire_drag(self) -> None:
+        self.assertFalse(bool(self.canvas.property("nativeOverlaySuppressionActive")))
+
+        self.canvas.setLiveDragOffset("node_a", 8.0, 2.0)
+        self.app.processEvents()
+        self.assertTrue(bool(self.canvas.property("nativeOverlaySuppressionActive")))
+
+        self.canvas.clearLiveDragOffset()
+        self.app.processEvents()
+        self.assertFalse(bool(self.canvas.property("nativeOverlaySuppressionActive")))
+
+        self.assertTrue(self.canvas.setProperty("wireDragState", {"active": True}))
+        self.app.processEvents()
+        self.assertTrue(bool(self.canvas.property("nativeOverlaySuppressionActive")))
+
+        self.assertTrue(self.canvas.setProperty("wireDragState", None))
+        self.app.processEvents()
+        self.assertFalse(bool(self.canvas.property("nativeOverlaySuppressionActive")))
 
     def test_node_drag_fast_path_keeps_anchor_motion_on_live_offset_scheduler(self) -> None:
         qml_root = _REPO_ROOT / "ea_node_editor" / "ui_qml" / "components"

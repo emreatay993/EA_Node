@@ -19,7 +19,7 @@ import sys
 import tempfile
 import time
 from collections import Counter, deque
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
 from pathlib import Path
@@ -3490,6 +3490,7 @@ class _GraphCanvasBenchmarkHost:
         app: QApplication,
         doc: dict[str, Any],
         workspace_id: str,
+        root_context_setup: Callable[["_GraphCanvasBenchmarkHost", Any], None] | None = None,
     ) -> None:
         self.app = app
         self._setup_phase_timings_ms = {
@@ -3560,6 +3561,8 @@ class _GraphCanvasBenchmarkHost:
         root_context.setContextProperty(
             "canvasCommandBridge", self.canvas_command_bridge
         )
+        if root_context_setup is not None:
+            root_context_setup(self, root_context)
 
         qml_path = _graph_canvas_qml_path()
         initial_properties = {
