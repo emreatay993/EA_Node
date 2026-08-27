@@ -232,7 +232,7 @@ Item {
             && surface.viewerLiveMode === "full"
             && surface.viewerLiveOpenStatus === "ready"
         ) {
-            return "Live mode - click outside the node to return to proxy";
+            return "Live mode - click outside the node to return to preview";
         }
         if (surface.viewerSessionOpen)
             return "Double-click the viewer for live mode";
@@ -264,15 +264,15 @@ Item {
         if (surface.viewerPhase === "error") {
             if (surface.viewerLastError.length > 0)
                 return surface.viewerLastError;
-            return "The last viewer action failed and the proxy surface remains active.";
+            return "The last viewer action failed and the preview remains active.";
         }
         if (surface.viewerCloseReason.length > 0 && surface.viewerPhase === "closed")
             return "Closed: " + surface.viewerCloseReason;
         if (surface.viewerSessionOpen && surface.viewerLiveMode === "full")
             return "The node body stays reserved for a native viewer overlay handoff.";
         if (surface.viewerSessionOpen)
-            return "QML owns the proxy pane while the bridge tracks the active session.";
-        return "Use the quick actions to open the viewer session or inspect the proxy surface.";
+            return "The viewer is ready in preview mode.";
+        return "Use the quick actions to open the viewer session or inspect the preview.";
     }
     readonly property string viewerModeBadgeText: {
         if (surface.viewerPhase === "opening")
@@ -282,7 +282,7 @@ Item {
         if (surface.viewerRunRequired)
             return "Blocked";
         if (surface.proxySurfaceActive)
-            return "Proxy";
+            return "Preview";
         if (
             surface.viewerSessionOpen
             && surface.viewerLiveMode === "full"
@@ -1344,7 +1344,7 @@ Item {
 
             Text {
                 anchors.centerIn: parent
-                text: "Proxy"
+                text: "Preview"
                 color: host ? host.inlineDrivenTextColor : "#b5c0d4"
                 font.pixelSize: 10
                 font.bold: true

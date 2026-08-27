@@ -582,7 +582,7 @@ class ViewerSurfaceHostTests(unittest.TestCase):
                 assert not bool(surface.property("liveSurfaceActive"))
                 assert not bool(surface.property("viewerShowsPlaceholder"))
                 assert status_text.property("text") == "Double-click the viewer for live mode"
-                assert mode_label.property("text") == "Proxy"
+                assert mode_label.property("text") == "Preview"
                 assert variant_list(surface.property("viewerInteractiveRects")) == []
 
                 actions = variant_list(surface.property("surfaceActions"))
@@ -714,7 +714,7 @@ class ViewerSurfaceHostTests(unittest.TestCase):
                 settle_events(4)
                 assert bool(surface.property("inlineLiveRequested"))
                 assert bool(surface.property("liveSurfaceActive"))
-                assert status_text.property("text") == "Live mode - click outside the node to return to proxy"
+                assert status_text.property("text") == "Live mode - click outside the node to return to preview"
                 baseline_active_calls = list(viewerHostServiceStub.active_calls)
                 baseline_session_calls = list(bridge.embedded_interaction_calls)
 
@@ -1389,7 +1389,7 @@ class ViewerSurfaceHostTests(unittest.TestCase):
                 settle_events(5)
                 assert bool(surface.property("viewerShowsPlaceholder"))
                 assert status_text.property("text") == "launch failed"
-                assert mode_label.property("text") == "Proxy"
+                assert mode_label.property("text") == "Preview"
                 assert headline.property("text") == "launch failed"
                 assert hint.property("text") == "launch failed"
 
