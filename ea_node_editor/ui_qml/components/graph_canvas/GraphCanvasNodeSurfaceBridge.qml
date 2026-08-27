@@ -110,8 +110,6 @@ Item {
         if (!normalized)
             return false;
         hostInteraction.resetSurfaceInteractionState();
-        if (root.canvasItem.clearViewerFocus)
-            root.canvasItem.clearViewerFocus();
         return true;
     }
 

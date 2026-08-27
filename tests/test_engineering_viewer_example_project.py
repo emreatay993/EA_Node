@@ -421,8 +421,6 @@ def test_example_runs_solution_and_materializes_exact_viewer_capabilities(
     assert session["backend_id"] == ENGINEERING_VIEWER_BACKEND_ID
     assert session["live_open_status"] == "ready"
     assert session["options"]["live_mode"] == "proxy"
-    assert session["options"]["live_policy"] == "focus_only"
-    assert session["options"]["keep_live"] is False
     assert summary["supported_render_modes"] == [
         "surface",
         "surface_with_edges",

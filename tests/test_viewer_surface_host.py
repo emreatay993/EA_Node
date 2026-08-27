@@ -104,8 +104,7 @@ class ViewerSurfaceHostTests(unittest.TestCase):
                     self.open_calls = []
                     self.update_calls = []
                     self.close_calls = []
-                    self.focus_calls = []
-                    self.clear_focus_calls = 0
+                    self.embedded_interaction_calls = []
                     self.session_state_calls = []
                     self._last_error = ""
                     self._state = self._build_state()
@@ -116,8 +115,6 @@ class ViewerSurfaceHostTests(unittest.TestCase):
                     phase="open",
                     playback_state="paused",
                     step_index=3,
-                    live_policy="focus_only",
-                    keep_live=False,
                     cache_state="proxy_ready",
                     live_mode="proxy",
                     session_id="session::node_viewer_surface_host",
@@ -159,8 +156,6 @@ class ViewerSurfaceHostTests(unittest.TestCase):
                         "last_error": self._last_error,
                         "playback_state": playback_state,
                         "step_index": step_index,
-                        "live_policy": live_policy,
-                        "keep_live": keep_live,
                         "cache_state": cache_state,
                         "live_mode": live_mode,
                         "backend_id": backend_id,
@@ -184,8 +179,6 @@ class ViewerSurfaceHostTests(unittest.TestCase):
                             "live_mode": live_mode,
                             "playback_state": playback_state,
                             "step_index": step_index,
-                            "live_policy": live_policy,
-                            "keep_live": keep_live,
                             "backend_id": backend_id,
                             "transport_revision": transport_revision,
                             "live_open_status": live_open_status,
@@ -292,48 +285,14 @@ class ViewerSurfaceHostTests(unittest.TestCase):
                     )
                     return True
 
-                @pyqtSlot(str, str, result=bool)
-                def set_live_policy(self, node_id, live_policy):
-                    normalized = str(live_policy or "").strip() or "focus_only"
-                    self.update_calls.append(
-                        {"command": "set_live_policy", "node_id": str(node_id), "value": normalized}
-                    )
-                    self._set_state(
-                        live_policy=normalized,
-                        last_command="set_live_policy",
-                        options={"live_policy": normalized},
-                    )
-                    return True
-
-                @pyqtSlot(str, bool, result=bool)
-                def set_keep_live(self, node_id, keep_live):
-                    normalized = bool(keep_live)
-                    self.update_calls.append(
-                        {"command": "set_keep_live", "node_id": str(node_id), "value": normalized}
-                    )
-                    self._set_state(
-                        keep_live=normalized,
-                        last_command="set_keep_live",
-                        options={"keep_live": normalized},
-                    )
-                    return True
-
-                @pyqtSlot(str, result=bool)
-                def focus_session(self, node_id):
-                    self.focus_calls.append(str(node_id))
-                    return True
-
-                @pyqtSlot(result=bool)
-                def clear_viewer_focus(self):
-                    self.clear_focus_calls += 1
-                    return True
-
                 @pyqtSlot(str, bool, result=bool)
                 def set_embedded_interaction_active(self, node_id, active):
-                    if bool(active):
-                        self.focus_session(node_id)
-                    else:
-                        self.clear_focus_calls += 1
+                    normalized = bool(active)
+                    self.embedded_interaction_calls.append((str(node_id), normalized))
+                    self._set_state(
+                        live_mode="full" if normalized else "proxy",
+                        options={"live_mode": "full" if normalized else "proxy"},
+                    )
                     return True
 
             class ViewerHostServiceStub(QObject):
@@ -351,6 +310,10 @@ class ViewerSurfaceHostTests(unittest.TestCase):
                     self._last_error = ""
                     self.session_bridge = None
                     self.detached_calls = []
+                    self.standard_view_calls = []
+                    self.reset_calls = []
+                    self.screenshot_calls = []
+                    self.copy_calls = []
                     self._cached_preview_source = "image://viewer-preview-cache/preview?workspace=ws_main&node=node_viewer_surface_host&revision=1"
 
                 @pyqtProperty(int, notify=state_changed)
@@ -373,7 +336,7 @@ class ViewerSurfaceHostTests(unittest.TestCase):
                 def set_embedded_interaction_active(self, node_id, active):
                     self.active_calls.append((str(node_id), bool(active)))
                     if self.session_bridge is not None:
-                        self.session_bridge.sessions_changed.emit()
+                        self.session_bridge.set_embedded_interaction_active(node_id, active)
 
                 @pyqtSlot(str, result=str)
                 def cached_preview_source(self, node_id):
@@ -392,6 +355,26 @@ class ViewerSurfaceHostTests(unittest.TestCase):
                 @pyqtSlot(str, result=bool)
                 def open_detached_viewer(self, node_id):
                     self.detached_calls.append(str(node_id))
+                    return True
+
+                @pyqtSlot(str, str, result=bool)
+                def apply_standard_view(self, node_id, view_id):
+                    self.standard_view_calls.append((str(node_id), str(view_id)))
+                    return True
+
+                @pyqtSlot(str, result=bool)
+                def reset_overlay_camera(self, node_id):
+                    self.reset_calls.append(str(node_id))
+                    return True
+
+                @pyqtSlot(str, result="QVariantMap")
+                def export_viewer_screenshot(self, node_id):
+                    self.screenshot_calls.append(str(node_id))
+                    return {"ok": True}
+
+                @pyqtSlot(str, result=bool)
+                def copy_viewer_screenshot_to_clipboard(self, node_id):
+                    self.copy_calls.append(str(node_id))
                     return True
 
             app = QApplication.instance() or QApplication([])
@@ -424,6 +407,46 @@ class ViewerSurfaceHostTests(unittest.TestCase):
                     raise AssertionError(f"Failed to instantiate {path.name}:\\n{errors}")
                 app.processEvents()
                 return obj
+
+            def create_viewer_canvas(*, selected=True, zoom=1.0):
+                component = QQmlComponent(engine)
+                component.setData(
+                    b'''
+                    import QtQuick 2.15
+
+                    Item {
+                        QtObject {
+                            id: viewBridgeObject
+                            objectName: "viewerTestViewBridge"
+                            property real zoom_value: 1.0
+                        }
+                        QtObject {
+                            id: sceneBridgeObject
+                            objectName: "viewerTestSceneBridge"
+                            property var selected_node_lookup: ({})
+                        }
+                        property var viewBridge: viewBridgeObject
+                        property var sceneBridge: sceneBridgeObject
+                        property bool nativeOverlaySuppressionActive: false
+                    }
+                    ''',
+                    QUrl("viewer-test-canvas.qml"),
+                )
+                if component.status() != QQmlComponent.Status.Ready:
+                    errors = "\\n".join(error.toString() for error in component.errors())
+                    raise AssertionError("Failed to load viewer canvas probe:\\n" + errors)
+                canvas = component.create()
+                if canvas is None:
+                    errors = "\\n".join(error.toString() for error in component.errors())
+                    raise AssertionError("Failed to instantiate viewer canvas probe:\\n" + errors)
+                view = canvas.findChild(QObject, "viewerTestViewBridge")
+                scene = canvas.findChild(QObject, "viewerTestSceneBridge")
+                view.setProperty("zoom_value", float(zoom))
+                scene.setProperty(
+                    "selected_node_lookup",
+                    {"node_viewer_surface_host": True} if selected else {},
+                )
+                return canvas, scene
 
             def viewer_payload():
                 return {
@@ -534,9 +557,6 @@ class ViewerSurfaceHostTests(unittest.TestCase):
             assert host.findChild(QObject, "graphNodeViewerSessionButton") is None
             assert host.findChild(QObject, "graphNodeViewerPlayPauseButton") is None
             assert host.findChild(QObject, "graphNodeViewerStepButton") is None
-            assert host.findChild(QObject, "graphNodeViewerKeepLiveButton") is None
-            assert host.findChild(QObject, "graphNodeViewerFocusPolicyChip") is None
-            assert host.findChild(QObject, "graphNodeViewerKeepPolicyChip") is None
             assert host.findChild(QObject, "graphNodeViewerMoreButton") is None
             assert host.findChild(QObject, "graphNodeViewerQuickActions") is None
             assert cached_image is not None
@@ -557,8 +577,6 @@ class ViewerSurfaceHostTests(unittest.TestCase):
                 assert surface.property("viewerBridgeAvailable")
                 assert surface.property("viewerPhase") == "open"
                 assert surface.property("viewerPlaybackState") == "paused"
-                assert surface.property("viewerLivePolicy") == "focus_only"
-                assert not bool(surface.property("viewerKeepLive"))
                 assert surface.property("viewerLiveMode") == "proxy"
                 assert bool(surface.property("proxySurfaceActive"))
                 assert not bool(surface.property("liveSurfaceActive"))
@@ -568,10 +586,9 @@ class ViewerSurfaceHostTests(unittest.TestCase):
                 assert variant_list(surface.property("viewerInteractiveRects")) == []
 
                 actions = variant_list(surface.property("surfaceActions"))
-                assert [action["id"] for action in actions] == ["openSession", "playPause", "step", "keepLive", "camera", "screenshot", "copyImage", "detach", "fullscreen"]
+                assert [action["id"] for action in actions] == ["openSession", "playPause", "step", "camera", "screenshot", "copyImage", "detach", "fullscreen"]
                 assert action_by_id(actions, "openSession")["icon"] == "stop"
                 assert action_by_id(actions, "playPause")["icon"] == "run"
-                assert not bool(action_by_id(actions, "keepLive")["primary"])
 
                 settle_events(2)
                 assert bool(cached_image.property("visible"))
@@ -586,7 +603,6 @@ class ViewerSurfaceHostTests(unittest.TestCase):
                 dispatch("playPause")
                 settle_events(5)
                 assert bridge.update_calls[-1]["command"] == "play"
-                assert bridge.focus_calls[-1] == "node_viewer_surface_host"
                 assert surface.property("viewerPlaybackState") == "playing"
                 playing_actions = variant_list(surface.property("surfaceActions"))
                 assert action_by_id(playing_actions, "playPause")["icon"] == "pause"
@@ -595,18 +611,8 @@ class ViewerSurfaceHostTests(unittest.TestCase):
                 settle_events(5)
                 assert bridge.update_calls[-1]["command"] == "step"
                 assert int(surface.property("viewerStepIndex")) == 4
-
-                dispatch("keepLive")
-                settle_events(5)
-                assert bridge.update_calls[-1] == {
-                    "command": "set_keep_live",
-                    "node_id": "node_viewer_surface_host",
-                    "value": True,
-                }
-                assert surface.property("viewerLivePolicy") == "focus_only"
-                assert bool(surface.property("viewerKeepLive"))
-                keep_live_actions = variant_list(surface.property("surfaceActions"))
-                assert bool(action_by_id(keep_live_actions, "keepLive")["primary"])
+                assert viewerHostServiceStub.active_calls == []
+                assert not bool(surface.property("inlineLiveRequested"))
 
                 dispatch("openSession")
                 settle_events(5)
@@ -633,6 +639,7 @@ class ViewerSurfaceHostTests(unittest.TestCase):
                 assert pointer_events["clicked"] == []
                 assert pointer_events["opened"] == []
                 assert pointer_events["contexts"] == []
+                assert viewerHostServiceStub.active_calls == []
             finally:
                 dispose_host_window(host, window)
                 engine.deleteLater()
@@ -640,53 +647,101 @@ class ViewerSurfaceHostTests(unittest.TestCase):
             """,
         )
 
-    def test_viewer_surface_live_activation_ignores_plot_size_gate_at_low_zoom(self) -> None:
+    def test_viewer_surface_controls_and_presentations_preserve_inline_request(self) -> None:
         self._run_qml_probe(
-            "viewer-surface-host-live-low-zoom",
+            "viewer-surface-host-control-preserves-inline-live",
             """
+            from PyQt6.QtCore import QMetaObject, Q_ARG, Qt, pyqtProperty, pyqtSignal, pyqtSlot
+            from PyQt6.QtTest import QTest
+
+            class ContentFullscreenBridgeStub(QObject):
+                state_changed = pyqtSignal()
+
+                def __init__(self):
+                    super().__init__()
+                    self._open = False
+                    self._node_id = ""
+
+                @pyqtProperty(bool, notify=state_changed)
+                def open(self):
+                    return self._open
+
+                @pyqtProperty(str, notify=state_changed)
+                def node_id(self):
+                    return self._node_id
+
+                @pyqtSlot(str, result=bool)
+                def request_toggle_for_node(self, node_id):
+                    self._open = True
+                    self._node_id = str(node_id)
+                    self.state_changed.emit()
+                    return True
+
+                def close(self):
+                    self._open = False
+                    self.state_changed.emit()
+
             bridge = ViewerSessionBridgeStub()
-            bridge._set_state(live_mode="full", options={"live_mode": "full"})
+            fullscreen_bridge = ContentFullscreenBridgeStub()
             engine.rootContext().setContextProperty("viewerSessionBridge", bridge)
-
-            canvas_component = QQmlComponent(engine)
-            canvas_component.setData(
-                b'''
-                import QtQuick 2.15
-
-                Item {
-                    QtObject {
-                        id: viewBridgeObject
-                        property real zoom_value: 0.25
-                    }
-                    QtObject {
-                        id: sceneBridgeObject
-                        property var selected_node_lookup: ({ "node_viewer_surface_host": true })
-                    }
-                    property var viewBridge: viewBridgeObject
-                    property var sceneBridge: sceneBridgeObject
-                }
-                ''',
-                QUrl("viewer-low-zoom-canvas.qml"),
-            )
-            if canvas_component.status() != QQmlComponent.Status.Ready:
-                errors = "\\n".join(error.toString() for error in canvas_component.errors())
-                raise AssertionError("Failed to load low-zoom canvas probe:\\n" + errors)
-            canvas_item = canvas_component.create()
-            if canvas_item is None:
-                errors = "\\n".join(error.toString() for error in canvas_component.errors())
-                raise AssertionError("Failed to instantiate low-zoom canvas probe:\\n" + errors)
-
+            engine.rootContext().setContextProperty("contentFullscreenBridge", fullscreen_bridge)
+            viewerHostServiceStub.session_bridge = bridge
+            canvas_item, _scene_bridge = create_viewer_canvas(selected=True)
             host = create_component(graph_node_host_qml_path, {"nodeData": viewer_payload()})
             host.setProperty("canvasItem", canvas_item)
             surface = host.findChild(QObject, "graphNodeViewerSurface")
+            viewport = host.findChild(QObject, "graphNodeViewerViewport")
             assert surface is not None
+            assert viewport is not None
+
+            def dispatch(action_id):
+                QMetaObject.invokeMethod(surface, "dispatchSurfaceAction", Q_ARG("QVariant", action_id))
 
             window = attach_host_to_window(host, width=640, height=480)
             try:
+                QTest.mouseDClick(
+                    window,
+                    Qt.MouseButton.LeftButton,
+                    Qt.KeyboardModifier.NoModifier,
+                    item_scene_point(viewport),
+                )
                 settle_events(8)
+                viewerHostServiceStub._overlay_ready = True
+                viewerHostServiceStub._viewer_overlay_revision += 1
+                viewerHostServiceStub.state_changed.emit()
+                settle_events(4)
+                assert bool(surface.property("inlineLiveRequested"))
+                assert bool(surface.property("liveSurfaceActive"))
+                baseline_active_calls = list(viewerHostServiceStub.active_calls)
+                baseline_session_calls = list(bridge.embedded_interaction_calls)
+
+                for action_id in ("playPause", "step", "cameraIso", "cameraFit", "screenshot", "copyImage", "detach"):
+                    dispatch(action_id)
+                    settle_events(4)
+                    assert bool(surface.property("inlineLiveRequested")), action_id
+                    assert bool(surface.property("embeddedInteractionActive")), action_id
+                    assert viewerHostServiceStub.active_calls == baseline_active_calls, action_id
+                    assert bridge.embedded_interaction_calls == baseline_session_calls, action_id
+
+                assert viewerHostServiceStub.detached_calls == ["node_viewer_surface_host"]
+                assert bool(surface.property("liveSurfaceActive"))
+
+                dispatch("fullscreen")
+                settle_events(5)
+                assert bool(fullscreen_bridge.open)
+                assert bool(surface.property("inlineLiveRequested"))
+                assert bool(surface.property("embeddedInteractionActive"))
+                assert not bool(surface.property("liveSurfaceActive"))
+                assert viewerHostServiceStub.active_calls == baseline_active_calls
+                assert bridge.embedded_interaction_calls == baseline_session_calls
+
+                fullscreen_bridge.close()
+                settle_events(5)
+                assert bool(surface.property("inlineLiveRequested"))
                 assert bool(surface.property("embeddedInteractionActive"))
                 assert bool(surface.property("liveSurfaceActive"))
-                assert ("node_viewer_surface_host", True) in viewerHostServiceStub.active_calls
+                assert viewerHostServiceStub.active_calls == baseline_active_calls
+                assert bridge.embedded_interaction_calls == baseline_session_calls
             finally:
                 dispose_host_window(host, window)
                 canvas_item.deleteLater()
@@ -695,39 +750,160 @@ class ViewerSurfaceHostTests(unittest.TestCase):
             """,
         )
 
-    def test_viewer_surface_drag_and_resize_press_do_not_clear_viewer_focus(self) -> None:
+    def test_viewer_surface_requires_proxy_viewport_double_click_for_inline_live(self) -> None:
         self._run_qml_probe(
-            "viewer-surface-host-blur-on-drag-start",
+            "viewer-surface-host-explicit-inline-live",
             """
             from PyQt6.QtCore import Qt
             from PyQt6.QtTest import QTest
 
             bridge = ViewerSessionBridgeStub()
             engine.rootContext().setContextProperty("viewerSessionBridge", bridge)
+            viewerHostServiceStub.session_bridge = bridge
+            viewerHostServiceStub._cached_preview_source = ""
+            viewerHostServiceStub._preview_cache_revision = 0
 
+            canvas_item, scene_bridge = create_viewer_canvas(selected=True, zoom=0.25)
             host = create_component(graph_node_host_qml_path, {"nodeData": viewer_payload()})
-            drag_area = host.findChild(QObject, "graphNodeDragArea")
-            resize_areas = named_child_items(host, "graphNodeResizeDragArea")
-            assert drag_area is not None
-            assert len(resize_areas) >= 1
+            host.setProperty("canvasItem", canvas_item)
+            surface = host.findChild(QObject, "graphNodeViewerSurface")
+            viewport = host.findChild(QObject, "graphNodeViewerViewport")
+            headline = host.findChild(QObject, "graphNodeViewerSurfaceHeadline")
+            assert surface is not None
+            assert viewport is not None
+            assert headline is not None
+
+            interactions = []
+            host.nodeClicked.connect(lambda node_id, additive: interactions.append((str(node_id), bool(additive))))
 
             window = attach_host_to_window(host, width=640, height=480)
             try:
-                header_point = host_scene_point(host, 18.0, 12.0)
-                QTest.mousePress(window, Qt.MouseButton.LeftButton, Qt.KeyboardModifier.NoModifier, header_point)
-                settle_events(3)
-                assert bridge.clear_focus_calls == 0
-                QTest.mouseRelease(window, Qt.MouseButton.LeftButton, Qt.KeyboardModifier.NoModifier, header_point)
-                settle_events(3)
+                settle_events(8)
+                assert bool(host.property("isSelected"))
+                assert bool(surface.property("proxySurfaceActive"))
+                assert bool(surface.property("viewerShowsPlaceholder"))
+                assert headline.property("text") == "Double-click to activate 3D view"
+                assert not bool(surface.property("inlineLiveRequested"))
+                assert not bool(surface.property("embeddedInteractionActive"))
+                assert viewerHostServiceStub.active_calls == []
 
-                resize_point = item_scene_point(resize_areas[0])
-                QTest.mousePress(window, Qt.MouseButton.LeftButton, Qt.KeyboardModifier.NoModifier, resize_point)
-                settle_events(3)
-                assert bridge.clear_focus_calls == 0
-                QTest.mouseRelease(window, Qt.MouseButton.LeftButton, Qt.KeyboardModifier.NoModifier, resize_point)
-                settle_events(3)
+                QTest.mouseMove(window, item_scene_point(viewport))
+                settle_events(4)
+                assert viewerHostServiceStub.active_calls == []
+
+                QTest.mouseClick(
+                    window,
+                    Qt.MouseButton.LeftButton,
+                    Qt.KeyboardModifier.NoModifier,
+                    item_scene_point(viewport),
+                )
+                settle_events(4)
+                assert interactions == [("node_viewer_surface_host", False)]
+                assert not bool(surface.property("inlineLiveRequested"))
+                assert viewerHostServiceStub.active_calls == []
+
+                QTest.mouseDClick(
+                    window,
+                    Qt.MouseButton.LeftButton,
+                    Qt.KeyboardModifier.NoModifier,
+                    host_scene_point(host, 24.0, 12.0),
+                )
+                settle_events(4)
+                assert not bool(surface.property("inlineLiveRequested"))
+                assert viewerHostServiceStub.active_calls == []
+
+                QTest.mouseDClick(
+                    window,
+                    Qt.MouseButton.LeftButton,
+                    Qt.KeyboardModifier.NoModifier,
+                    item_scene_point(viewport),
+                )
+                settle_events(8)
+                assert bool(surface.property("inlineLiveRequested"))
+                assert bool(surface.property("embeddedInteractionActive"))
+                assert viewerHostServiceStub.active_calls == [("node_viewer_surface_host", True)]
+                assert bridge.embedded_interaction_calls == [("node_viewer_surface_host", True)]
+
+                viewerHostServiceStub._overlay_ready = True
+                viewerHostServiceStub._viewer_overlay_revision += 1
+                viewerHostServiceStub.state_changed.emit()
+                settle_events(4)
+                assert bool(surface.property("liveSurfaceActive"))
+
+                bridge._set_state(live_mode="proxy", options={"live_mode": "proxy"})
+                settle_events(8)
+                assert not bool(surface.property("inlineLiveRequested"))
+                assert viewerHostServiceStub.active_calls[-1] == ("node_viewer_surface_host", False)
+
+                QTest.mouseDClick(
+                    window,
+                    Qt.MouseButton.LeftButton,
+                    Qt.KeyboardModifier.NoModifier,
+                    item_scene_point(viewport),
+                )
+                settle_events(8)
+                assert bool(surface.property("inlineLiveRequested"))
+
+                scene_bridge.setProperty("selected_node_lookup", {})
+                settle_events(8)
+                assert not bool(surface.property("inlineLiveRequested"))
+                assert not bool(surface.property("embeddedInteractionActive"))
+                assert viewerHostServiceStub.active_calls[-1] == ("node_viewer_surface_host", False)
+
+                QTest.mouseDClick(
+                    window,
+                    Qt.MouseButton.LeftButton,
+                    Qt.KeyboardModifier.NoModifier,
+                    item_scene_point(viewport),
+                )
+                settle_events(8)
+                assert not bool(host.property("isSelected"))
+                assert not bool(surface.property("inlineLiveRequested"))
+                assert viewerHostServiceStub.active_calls.count(("node_viewer_surface_host", True)) == 2
+
+                scene_bridge.setProperty(
+                    "selected_node_lookup",
+                    {"node_viewer_surface_host": True},
+                )
+                QTest.mouseMove(window, item_scene_point(viewport))
+                settle_events(8)
+                assert bool(host.property("isSelected"))
+                assert not bool(surface.property("inlineLiveRequested"))
+                assert viewerHostServiceStub.active_calls.count(("node_viewer_surface_host", True)) == 2
+
+                QTest.mouseDClick(
+                    window,
+                    Qt.MouseButton.LeftButton,
+                    Qt.KeyboardModifier.NoModifier,
+                    item_scene_point(viewport),
+                )
+                settle_events(8)
+                assert bool(surface.property("inlineLiveRequested"))
+                bridge._set_state(session_id="session::replacement")
+                settle_events(8)
+                assert not bool(surface.property("inlineLiveRequested"))
+                assert viewerHostServiceStub.active_calls[-1] == ("node_viewer_surface_host", False)
+
+                QTest.mouseDClick(
+                    window,
+                    Qt.MouseButton.LeftButton,
+                    Qt.KeyboardModifier.NoModifier,
+                    item_scene_point(viewport),
+                )
+                settle_events(8)
+                assert bool(surface.property("inlineLiveRequested"))
+                bridge._set_state(
+                    phase="blocked",
+                    live_open_status="blocked",
+                    live_open_blocker={"rerun_required": True},
+                )
+                settle_events(8)
+                assert bool(surface.property("viewerRunRequired"))
+                assert not bool(surface.property("inlineLiveRequested"))
+                assert viewerHostServiceStub.active_calls[-1] == ("node_viewer_surface_host", False)
             finally:
                 dispose_host_window(host, window)
+                canvas_item.deleteLater()
                 engine.deleteLater()
                 app.processEvents()
             """,
@@ -743,12 +919,15 @@ class ViewerSurfaceHostTests(unittest.TestCase):
             bridge = ViewerSessionBridgeStub()
             bridge._set_state(
                 cache_state="live_ready",
-                options={"live_mode": "full"},
+                options={"live_mode": "proxy"},
                 summary={"camera": {"zoom": 1.2}},
             )
             engine.rootContext().setContextProperty("viewerSessionBridge", bridge)
+            viewerHostServiceStub.session_bridge = bridge
 
+            canvas_item, _scene_bridge = create_viewer_canvas(selected=True)
             host = create_component(graph_node_host_qml_path, {"nodeData": viewer_payload()})
+            host.setProperty("canvasItem", canvas_item)
             surface = host.findChild(QObject, "graphNodeViewerSurface")
             viewport = host.findChild(QObject, "graphNodeViewerViewport")
             cached_image = host.findChild(QObject, "graphNodeViewerCachedPreviewImage")
@@ -771,23 +950,35 @@ class ViewerSurfaceHostTests(unittest.TestCase):
                 assert cached_source_text.startswith("image://viewer-preview-cache/preview?")
                 assert bool(cached_image.property("visible"))
 
+                QTest.mouseDClick(
+                    window,
+                    Qt.MouseButton.LeftButton,
+                    Qt.KeyboardModifier.NoModifier,
+                    item_scene_point(viewport),
+                )
+                settle_events(8)
+                assert bool(surface.property("inlineLiveRequested"))
+
                 viewerHostServiceStub._overlay_ready = True
                 viewerHostServiceStub._viewer_overlay_revision += 1
                 viewerHostServiceStub.state_changed.emit()
-                QTest.mouseMove(window, item_scene_point(viewport))
-                settle_events(10)
+                settle_events(6)
                 assert bool(surface.property("liveSurfaceActive"))
                 assert not bool(surface.property("proxySurfaceActive"))
                 assert not bool(surface.property("cachedPreviewVisible"))
                 assert not bool(cached_image.property("visible"))
                 assert source_text() == cached_source_text
+                baseline_active_calls = list(viewerHostServiceStub.active_calls)
+                baseline_session_calls = list(bridge.embedded_interaction_calls)
 
                 header_point = host_scene_point(host, 18.0, 12.0)
                 drag_point = header_point + QPoint(18, 0)
                 QTest.mousePress(window, Qt.MouseButton.LeftButton, Qt.KeyboardModifier.NoModifier, header_point)
                 QTest.mouseMove(window, drag_point)
                 assert bool(host.property("hostDragActive"))
-                assert not bool(surface.property("embeddedInteractionActive"))
+                canvas_item.setProperty("nativeOverlaySuppressionActive", True)
+                settle_events(3)
+                assert bool(surface.property("embeddedInteractionActive"))
                 assert not bool(surface.property("liveSurfaceActive"))
                 assert bool(surface.property("proxySurfaceActive"))
                 assert bool(surface.property("cachedPreviewVisible"))
@@ -795,12 +986,93 @@ class ViewerSurfaceHostTests(unittest.TestCase):
                 assert bool(cached_image.property("cache"))
                 assert bool(transient_proxy.property("visible"))
                 assert variant_list(surface.property("viewerInteractiveRects")) == []
-                assert viewerHostServiceStub.active_calls[-1] == ("node_viewer_surface_host", False)
+                assert viewerHostServiceStub.active_calls == baseline_active_calls
+                assert bridge.embedded_interaction_calls == baseline_session_calls
                 assert source_text() == cached_source_text
                 QTest.mouseRelease(window, Qt.MouseButton.LeftButton, Qt.KeyboardModifier.NoModifier, drag_point)
-                settle_events(3)
+                canvas_item.setProperty("nativeOverlaySuppressionActive", False)
+                settle_events(8)
+                assert bool(surface.property("inlineLiveRequested"))
+                assert bool(surface.property("embeddedInteractionActive"))
+                assert bool(surface.property("liveSurfaceActive"))
+                assert viewerHostServiceStub.active_calls == baseline_active_calls
+                assert bridge.embedded_interaction_calls == baseline_session_calls
             finally:
                 dispose_host_window(host, window)
+                canvas_item.deleteLater()
+                engine.deleteLater()
+                app.processEvents()
+            """,
+        )
+
+    def test_viewer_surface_transient_suppression_never_changes_explicit_session_state(self) -> None:
+        self._run_qml_probe(
+            "viewer-surface-host-local-transient-suppression",
+            """
+            from PyQt6.QtCore import Qt
+            from PyQt6.QtTest import QTest
+
+            bridge = ViewerSessionBridgeStub()
+            engine.rootContext().setContextProperty("viewerSessionBridge", bridge)
+            viewerHostServiceStub.session_bridge = bridge
+            canvas_item, _scene_bridge = create_viewer_canvas(selected=True)
+            host = create_component(graph_node_host_qml_path, {"nodeData": viewer_payload()})
+            host.setProperty("canvasItem", canvas_item)
+            surface = host.findChild(QObject, "graphNodeViewerSurface")
+            viewport = host.findChild(QObject, "graphNodeViewerViewport")
+            assert surface is not None
+            assert viewport is not None
+
+            window = attach_host_to_window(host, width=640, height=480)
+            try:
+                QTest.mouseDClick(
+                    window,
+                    Qt.MouseButton.LeftButton,
+                    Qt.KeyboardModifier.NoModifier,
+                    item_scene_point(viewport),
+                )
+                settle_events(8)
+                viewerHostServiceStub._overlay_ready = True
+                viewerHostServiceStub._viewer_overlay_revision += 1
+                viewerHostServiceStub.state_changed.emit()
+                settle_events(4)
+                assert bool(surface.property("inlineLiveRequested"))
+                assert bool(surface.property("embeddedInteractionActive"))
+                assert bool(surface.property("liveSurfaceActive"))
+
+                baseline_active_calls = list(viewerHostServiceStub.active_calls)
+                baseline_session_calls = list(bridge.embedded_interaction_calls)
+                baseline_updates = list(bridge.update_calls)
+                for category in ("pan", "wheel", "box_zoom", "node_drag", "resize", "wire_drag"):
+                    canvas_item.setProperty("nativeOverlaySuppressionActive", True)
+                    settle_events(3)
+                    assert bool(surface.property("inlineLiveRequested")), category
+                    assert bool(surface.property("embeddedInteractionActive")), category
+                    assert not bool(surface.property("liveSurfaceActive")), category
+                    assert viewerHostServiceStub.active_calls == baseline_active_calls, category
+                    assert bridge.embedded_interaction_calls == baseline_session_calls, category
+                    assert bridge.update_calls == baseline_updates, category
+
+                    if category == "wheel":
+                        # A response from the superseded pre-fix proxy request may
+                        # arrive during the canvas recovery window. It must not
+                        # erase the explicit request or trigger another command.
+                        bridge._set_state(live_mode="proxy", options={"live_mode": "proxy"})
+                        settle_events(3)
+                        assert bool(surface.property("inlineLiveRequested"))
+                        bridge._set_state(live_mode="full", options={"live_mode": "full"})
+
+                    canvas_item.setProperty("nativeOverlaySuppressionActive", False)
+                    settle_events(5)
+                    assert bool(surface.property("inlineLiveRequested")), category
+                    assert bool(surface.property("embeddedInteractionActive")), category
+                    assert bool(surface.property("liveSurfaceActive")), category
+                    assert viewerHostServiceStub.active_calls == baseline_active_calls, category
+                    assert bridge.embedded_interaction_calls == baseline_session_calls, category
+                    assert bridge.update_calls == baseline_updates, category
+            finally:
+                dispose_host_window(host, window)
+                canvas_item.deleteLater()
                 engine.deleteLater()
                 app.processEvents()
             """,
@@ -909,71 +1181,6 @@ class ViewerSurfaceHostTests(unittest.TestCase):
             """,
         )
 
-    def test_viewer_surface_reflects_proxy_demotion_and_live_restoration(self) -> None:
-        self._run_qml_probe(
-            "viewer-surface-host-proxy-restore",
-            """
-            bridge = ViewerSessionBridgeStub()
-            bridge._set_state(
-                cache_state="live_ready",
-                options={"live_mode": "full"},
-                summary={"camera": {"zoom": 1.2}},
-            )
-            engine.rootContext().setContextProperty("viewerSessionBridge", bridge)
-
-            host = create_component(graph_node_host_qml_path, {"nodeData": viewer_payload()})
-            surface = host.findChild(QObject, "graphNodeViewerSurface")
-            viewport = host.findChild(QObject, "graphNodeViewerViewport")
-            status_text = host.findChild(QObject, "graphNodeViewerStatusText")
-            mode_label = host.findChild(QObject, "graphNodeViewerSurfaceModeLabel")
-            assert surface is not None
-            assert viewport is not None
-            assert status_text is not None
-            assert mode_label is not None
-
-            window = attach_host_to_window(host, width=640, height=480)
-            try:
-                viewerHostServiceStub._overlay_ready = True
-                viewerHostServiceStub._viewer_overlay_revision += 1
-                viewerHostServiceStub.state_changed.emit()
-                QTest.mouseMove(window, item_scene_point(viewport))
-                settle_events(10)
-                assert bool(surface.property("liveSurfaceActive"))
-                assert not bool(surface.property("proxySurfaceActive"))
-                assert viewerHostServiceStub.active_calls[-1] == ("node_viewer_surface_host", True)
-                assert status_text.property("text") == "Live overlay active"
-                assert mode_label.property("text") == "Live"
-
-                bridge._set_state(
-                    cache_state="proxy_ready",
-                    options={"live_mode": "proxy"},
-                    summary={"demoted_reason": "focus_only"},
-                )
-                settle_events(5)
-                assert not bool(surface.property("liveSurfaceActive"))
-                assert bool(surface.property("proxySurfaceActive"))
-                assert "proxy pane" in str(surface.property("viewerHintText"))
-                assert status_text.property("text") == "Proxy viewer ready"
-                assert mode_label.property("text") == "Proxy"
-
-                bridge._set_state(
-                    cache_state="live_ready",
-                    options={"live_mode": "full"},
-                    summary={"demoted_reason": ""},
-                )
-                settle_events(5)
-                assert bool(surface.property("liveSurfaceActive"))
-                assert not bool(surface.property("proxySurfaceActive"))
-                assert "Demoted to proxy" not in str(surface.property("viewerHintText"))
-                assert status_text.property("text") == "Live overlay active"
-                assert mode_label.property("text") == "Live"
-            finally:
-                dispose_host_window(host, window)
-                engine.deleteLater()
-                app.processEvents()
-            """,
-        )
-
     def test_viewer_surface_uses_viewer_preview_cache_when_png_ref_is_absent(self) -> None:
         self._run_qml_probe(
             "viewer-surface-host-preview-ref-fallback",
@@ -996,8 +1203,6 @@ class ViewerSurfaceHostTests(unittest.TestCase):
             try:
                 settle_events(5)
                 assert surface.property("viewerLiveMode") == "proxy"
-                assert surface.property("viewerLivePolicy") == "focus_only"
-                assert not bool(surface.property("viewerKeepLive"))
                 assert not bool(surface.property("embeddedInteractionActive"))
                 assert bool(surface.property("proxySurfaceActive"))
                 assert bool(surface.property("viewerPreviewAvailable"))
@@ -1064,109 +1269,12 @@ class ViewerSurfaceHostTests(unittest.TestCase):
             """,
         )
 
-    def test_engineering_proxy_warms_once_then_returns_to_cached_preview(self) -> None:
-        self._run_qml_probe(
-            "viewer-surface-host-engineering-proxy-warmup",
-            """
-            from PyQt6.QtCore import qInstallMessageHandler
-
-            qt_messages = []
-            def capture_qt_message(_message_type, _context, message):
-                qt_messages.append(str(message))
-
-            previous_message_handler = qInstallMessageHandler(capture_qt_message)
-            bridge = ViewerSessionBridgeStub()
-            bridge._set_state(
-                backend_id="corex_scene",
-                cache_state="proxy_ready",
-                live_mode="proxy",
-                live_policy="focus_only",
-                keep_live=False,
-                data_refs={},
-                options={
-                    "live_mode": "proxy",
-                    "live_policy": "focus_only",
-                    "keep_live": False,
-                },
-            )
-            engine.rootContext().setContextProperty("viewerSessionBridge", bridge)
-            viewerHostServiceStub._cached_preview_source = ""
-            viewerHostServiceStub._preview_cache_revision = 0
-            viewerHostServiceStub.session_bridge = bridge
-
-            payload = viewer_payload()
-            payload["selected"] = False
-            host = create_component(graph_node_host_qml_path, {"nodeData": payload})
-            surface = host.findChild(QObject, "graphNodeViewerSurface")
-            assert surface is not None
-
-            window = attach_host_to_window(host, width=640, height=480)
-            try:
-                settle_events(8)
-                assert surface.property("viewerLiveMode") == "proxy"
-                assert surface.property("viewerLivePolicy") == "focus_only"
-                assert not bool(surface.property("viewerKeepLive"))
-                assert not bool(surface.property("hostSurfaceActive"))
-                assert not bool(surface.property("viewportHoverActive"))
-                assert bool(surface.property("embeddedInteractionActive")), (
-                    "warmup did not activate",
-                    surface.property("viewerBackendId"),
-                    surface.property("viewerSessionId"),
-                    viewerHostServiceStub.active_calls,
-                )
-                assert viewerHostServiceStub.active_calls[-1] == ("node_viewer_surface_host", True), viewerHostServiceStub.active_calls
-
-                bridge._set_state(live_mode="full", options={"live_mode": "full"})
-                viewerHostServiceStub._overlay_ready = True
-                viewerHostServiceStub._viewer_overlay_revision += 1
-                viewerHostServiceStub.state_changed.emit()
-                settle_events(8)
-
-                assert not bool(surface.property("embeddedInteractionActive")), (
-                    "warmup did not stop",
-                    surface.property("liveOverlayReady"),
-                    viewerHostServiceStub.active_calls,
-                )
-                assert viewerHostServiceStub.active_calls[-1] == ("node_viewer_surface_host", False), viewerHostServiceStub.active_calls
-
-                viewerHostServiceStub._overlay_ready = False
-                viewerHostServiceStub._viewer_overlay_revision += 1
-                viewerHostServiceStub.state_changed.emit()
-                viewerHostServiceStub._cached_preview_source = (
-                    "image://viewer-preview-cache/preview?workspace=ws_main"
-                    "&node=node_viewer_surface_host&revision=1"
-                )
-                viewerHostServiceStub._preview_cache_revision += 1
-                viewerHostServiceStub.preview_cache_changed.emit()
-                bridge._set_state(live_mode="proxy", options={"live_mode": "proxy"})
-                settle_events(8)
-
-                assert bool(surface.property("viewerPreviewAvailable")), surface.property("cachedPreviewSource")
-                assert bool(surface.property("cachedPreviewVisible")), (
-                    surface.property("viewerLiveMode"),
-                    surface.property("cachedPreviewSource"),
-                )
-                assert not bool(surface.property("embeddedInteractionActive"))
-                assert viewerHostServiceStub.active_calls.count(
-                    ("node_viewer_surface_host", True)
-                ) == 1
-            finally:
-                dispose_host_window(host, window)
-                engine.deleteLater()
-                app.processEvents()
-                qInstallMessageHandler(previous_message_handler)
-            assert not any(
-                'Binding loop detected for property "bridgeSessionProjectionSeed"' in message
-                for message in qt_messages
-            ), qt_messages
-            """,
-        )
-
     def test_session_projection_seed_survives_synchronous_state_flip_without_binding_loop(self) -> None:
         self._run_qml_probe(
             "viewer-surface-host-projection-seed-no-binding-loop",
             """
-            from PyQt6.QtCore import qInstallMessageHandler
+            from PyQt6.QtCore import Qt, qInstallMessageHandler
+            from PyQt6.QtTest import QTest
 
             qt_messages = []
             def capture_qt_message(_message_type, _context, message):
@@ -1178,14 +1286,8 @@ class ViewerSurfaceHostTests(unittest.TestCase):
                 backend_id="corex_scene",
                 cache_state="proxy_ready",
                 live_mode="proxy",
-                live_policy="focus_only",
-                keep_live=False,
                 data_refs={},
-                options={
-                    "live_mode": "proxy",
-                    "live_policy": "focus_only",
-                    "keep_live": False,
-                },
+                options={"live_mode": "proxy"},
             )
             engine.rootContext().setContextProperty("viewerSessionBridge", bridge)
             viewerHostServiceStub._cached_preview_source = ""
@@ -1195,17 +1297,27 @@ class ViewerSurfaceHostTests(unittest.TestCase):
             # synchronously.
             viewerHostServiceStub.session_bridge = bridge
 
-            payload = viewer_payload()
-            payload["selected"] = False
-            host = create_component(graph_node_host_qml_path, {"nodeData": payload})
+            canvas_item, _scene_bridge = create_viewer_canvas(selected=True)
+            host = create_component(graph_node_host_qml_path, {"nodeData": viewer_payload()})
+            host.setProperty("canvasItem", canvas_item)
             surface = host.findChild(QObject, "graphNodeViewerSurface")
+            viewport = host.findChild(QObject, "graphNodeViewerViewport")
             assert surface is not None
+            assert viewport is not None
 
             window = attach_host_to_window(host, width=640, height=480)
             try:
                 settle_events(8)
+                assert viewerHostServiceStub.active_calls == []
+                QTest.mouseDClick(
+                    window,
+                    Qt.MouseButton.LeftButton,
+                    Qt.KeyboardModifier.NoModifier,
+                    item_scene_point(viewport),
+                )
+                settle_events(8)
                 assert bool(surface.property("embeddedInteractionActive")), (
-                    "warmup did not activate",
+                    "explicit request did not activate",
                     viewerHostServiceStub.active_calls,
                 )
                 qt_messages.clear()
@@ -1222,6 +1334,7 @@ class ViewerSurfaceHostTests(unittest.TestCase):
                 assert viewerHostServiceStub.active_calls[-1] == ("node_viewer_surface_host", False), viewerHostServiceStub.active_calls
             finally:
                 dispose_host_window(host, window)
+                canvas_item.deleteLater()
                 engine.deleteLater()
                 app.processEvents()
                 qInstallMessageHandler(previous_message_handler)

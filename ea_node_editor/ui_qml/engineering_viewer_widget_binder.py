@@ -2880,12 +2880,12 @@ class EngineeringViewerWidgetBinder(QObject):
         return image.copy() if not image.isNull() else QImage()
 
     @staticmethod
-    def _create_interactor(container: QWidget | None) -> QWidget:
+    def _create_interactor(_container: QWidget | None) -> QWidget:
         from pyvistaqt import QtInteractor
 
         platform = os.environ.get("QT_QPA_PLATFORM", "").strip().casefold()
         return QtInteractor(
-            parent=container,
+            parent=None,
             auto_update=False,
             off_screen=platform in {"minimal", "offscreen"},
         )

@@ -60,7 +60,7 @@ Use this for execution viewer sessions, native overlay lifecycle, fullscreen con
   never QML ownership.
 - Backend viewer routing prefers explicit `run_id`, then `(workspace_id, session_id)`, then workspace ownership. Only an unowned open may use a unique active backend or default-process fallback; update, close, materialize, and query fail closed when ownership is absent or stale. Opens are provisional and request-ordered so the newest pending request wins, a late older success cannot replace it, and a failed open removes only its own request before restoring the next pending request or baseline owner. Process/external/trusted generation retirement clears viewer requests and ownership before successor events are accepted; trusted events carry their source generation, worker resets release session scopes and transports, close/shutdown clear owners, and completed-run ownership is capped at 64.
 - Registry publication refuses active/pending viewer sessions and shares the execution admission guard with new viewer opens. Once idle, `ViewerSessionBridge.replace_data_types(...)` moves the bridge to the accepted frozen catalog in the same reversible shell transaction.
-- Viewer overlay camera and preview capture are callables injected from `ui/shell/composition/runtime_services.py` through a cycle-safe late-bound `ViewerHostService` reference. Do not restore raw `ShellWindow.viewer_host_service` discovery inside the session bridge.
+- Viewer overlay camera capture is injected from `ui/shell/composition/runtime_services.py` through a cycle-safe late-bound `ViewerHostService` reference. Preview capture/cache remains host-owned; do not route it through the session bridge or restore raw `ShellWindow.viewer_host_service` discovery there.
 - Fullscreen and detached viewer content share
   `components/graph/viewer/ViewerQuickControls.qml` below the native viewport
   and `ViewerSidePanel.qml` on its right. The quick strip groups Render Mode,
@@ -96,19 +96,28 @@ Use this for execution viewer sessions, native overlay lifecycle, fullscreen con
 - Detached windows hold their session live through viewer presentation holds:
   `ViewerHostService.open_detached_viewer` acquires
   `ViewerSessionBridge.add_viewer_presentation_hold(node_id)` (pending and
-  window paths) and every close/dock/reset path releases it. Held `focus_only`
+  window paths) and every close/dock/reset path releases it. Held presentation
   keys stay `live_mode=full` in `_desired_live_mode_map` even when canvas
   gestures call `clear_viewer_focus()` or the inline surface deactivates
   embedded interaction — without the hold the session demotes to proxy and the
   host sync closes the detached window as `node_unavailable`.
   `detached_viewer_active` also reports pending detach requests so the
   Detach/Dock toolbar button toggles correctly before the window materializes.
-- Inline engineering viewers retain `proxy` + `focus_only` + `keep_live=False`.
-  When a ready proxy has no cached image, `GraphViewerSurfaceBody.qml` performs
-  one temporary native warm-up, lets the host capture the first frame, and then
-  demotes back to the cached proxy. Do not replace this with a permanently live
-  inline renderer to hide first-frame lifecycle bugs.
-- Transient canvas pan/zoom, node drag/resize, and wire drag project `live_mode=proxy` but retain the GUI binding: QML hides the full viewer body behind one lightweight solid Proxy pane, empties native interactive rectangles, and does not draw the cached CAD raster until interaction settles. `ViewerHostService` keeps the same attached-but-hidden widget and fast-reactivates an unchanged session/transport without a binder call. One automatic focus-only inline binding may remain retained across unrelated selection; it is replaced by the next ready inline viewer and released on close/delete/reset/invalidation/backend or transport identity change/workspace loss/shutdown. Reparent only for the existing fullscreen/detached paths; do not add a viewer pool or parking-container handoff.
+- Inline viewers start in proxy with no native widget or warm-up. Selection,
+  hover, and single-click remain proxy; only a left-button double-click inside
+  the proxy viewport requests inline live mode. Selection/background loss
+  clears that explicit activation, and reselecting does not reactivate it.
+- Transient canvas pan/wheel/box zoom, node drag/resize, and wire drag keep the
+  explicitly activated session at `live_mode=full` and send zero worker
+  live-mode updates. QML and the host locally suppress the native overlay by
+  hiding it, marking its geometry unready, and disabling widget updates, then
+  restore the same widget after the gesture. After true demotion, at most one
+  widget previously created by explicit inline activation may remain hidden
+  and non-updating for unchanged
+  session/transport reactivation. Fullscreen- or detached-only widgets are not
+  eligible; close/delete/reset/invalidation/backend or transport identity
+  change/workspace loss/shutdown releases retained state. Do not add a viewer
+  pool or parking-container handoff.
 - `GraphViewerSurfaceBody.qml` defers embedded-interaction sync
   (`_queueEmbeddedInteractionSync` → `Qt.callLater`) because
   `ViewerHostService.set_embedded_interaction_active` re-emits
@@ -116,8 +125,8 @@ Use this for execution viewer sessions, native overlay lifecycle, fullscreen con
   `embeddedInteractionActive` change handler re-enters the still-updating
   `bridgeSessionProjectionSeed` binding and logs
   `Binding loop detected for property "bridgeSessionProjectionSeed"`. Overlay
-  focus handoff therefore settles one event-loop pass after a selection/session
-  flip (tap and hover paths stay synchronous).
+  activation handoff therefore settles one event-loop pass after a
+  selection/session flip.
 - Fullscreen viewer shortcuts (Space, Left/Right, Home, R) are handled twice on purpose: a viewer branch in the overlay's `Keys.onPressed` for QML focus, and a `_FullscreenShortcutFilter` installed by `ViewerHostService` on the fullscreen-target native widget because the overlay manager focuses the QtInteractor, which consumes key events before QML. `ViewerSessionBridge` provides `step_back`/`set_step_index`; camera/stat slots (`viewer_render_stats`, `apply_standard_view`, `reset_overlay_camera`, `camera_state_snapshot`, `apply_overlay_camera_state`, `export_viewer_screenshot`) live on `ViewerHostService`. Update `input_reference_dialog.py` when these keys change.
 - Project install/open/new flows reset `ViewerHostService` before `ViewerSessionBridge.project_loaded(...)` reseeds project viewer projections, so fixed `(workspace_id, node_id)` viewer keys cannot reuse stale native overlays, preview-cache entries, or cached view state from a previous project instance.
 - `EmbeddedViewerOverlayManager._sync_impl` computes overlay rects from `mapToItem` state, so before computing it forces `ensurePolished()` up the viewport's ancestor chain and geometry-observes every chain link from `graphNodeViewerViewport` up to the node card — not just the two endpoints. Positioners apply repositions in the polish pass (frame boundary), which can land after the queued zero-delay sync, and a reposition of an intermediate container (e.g. the viewer body Column shifting the viewport row when the status strip re-wraps on width change) fires no geometry signal on the card or the viewport itself. Keep both mechanisms when touching overlay sync or viewer body layout; `test_live_overlay_geometry_tracks_rendered_resize_preview_state` is the regression gate.

@@ -34,7 +34,7 @@
 - Execution tests for generic backend contract, DPF temp-transport creation/reuse/release, protocol serialization of transport descriptors, and cleanup on invalidation or worker reset.
 - Shell tests for host-service/binder lifecycle, overlay-manager separation, transport revision rebinding, and “run required” projection after project load.
 - DPF binder tests with a fake interactor proving the binder loads a temp bundle into the widget instead of only creating the widget.
-- Manual/integration checks using `dene3.cxproj`: run and open viewer shows populated geometry; save/reopen shows “run required” before rerun; rerun restores live open; `focus_only`/`keep_live`, close, worker reset, and project switch clean up transport and widgets correctly.
+- Manual/integration checks using `dene3.cxproj`: run leaves the viewer in proxy with no native warm-up; proxy-viewport double-click opens populated geometry; selection/background loss demotes it; fullscreen/detached holds stay live until close; save/reopen shows “run required” before rerun; and close, worker reset, and project switch clean up transport and widgets correctly.
 
 ## Assumptions
 - The spawned worker-process model stays in place.

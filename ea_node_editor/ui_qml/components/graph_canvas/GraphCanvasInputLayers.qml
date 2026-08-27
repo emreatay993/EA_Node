@@ -25,22 +25,10 @@ Item {
     property real boxZoomPaddingPx: 24
     property bool wireSelectionModeHeld: false
 
-    function _findFrameScheduler(item) {
-        if (!item)
-            return null;
-        if (item.objectName === "graphCanvasFrameScheduler")
-            return item;
-        var children = item.children || [];
-        for (var i = 0; i < children.length; i++) {
-            var match = root._findFrameScheduler(children[i]);
-            if (match)
-                return match;
-        }
-        return null;
-    }
-
     function _frameScheduler() {
-        return root.canvasItem ? root._findFrameScheduler(root.canvasItem) : null;
+        return root.canvasItem && root.canvasItem.frameSchedulerRef
+            ? root.canvasItem.frameSchedulerRef
+            : null;
     }
 
     function _wheelDeltaY(eventObj) {
@@ -299,8 +287,6 @@ Item {
             if (!root.canvasItem)
                 return;
             root.canvasItem.forceActiveFocus();
-            if (root.canvasActionRouter && root.canvasActionRouter.clearViewerFocus)
-                root.canvasActionRouter.clearViewerFocus();
             if (
                 (mouse.button === Qt.LeftButton || mouse.button === Qt.RightButton)
                 && root._closeCommentPeekIfActive()
@@ -358,7 +344,7 @@ Item {
                 && root.canvasItem
                 && (Math.abs(currentX - startX) >= 2 || Math.abs(currentY - startY) >= 2)
             ) {
-                if (!root.canvasItem.interactionActive)
+                if (!root.canvasItem.viewportInteractionHeld)
                     root.canvasItem.beginViewportInteraction();
                 root.canvasItem.noteViewportInteraction();
             }

@@ -99,8 +99,12 @@ QtObject {
         var bridge = canvas.sceneStateBridge || null;
         if (!bridge)
             return [];
-        if (bridge.visible_nodes_model !== undefined && bridge.visible_nodes_model !== null)
-            return bridge.visible_nodes_model || [];
+        var visiblePayloads = bridge.visible_nodes_payloads;
+        if (visiblePayloads !== undefined && visiblePayloads !== null)
+            return visiblePayloads || [];
+        var visibleModel = bridge.visible_nodes_model;
+        if (Array.isArray(visibleModel))
+            return visibleModel;
         if (bridge.nodes_model !== undefined && bridge.nodes_model !== null)
             return bridge.nodes_model || [];
         return [];

@@ -8,7 +8,7 @@
 
 - `RuntimeHandleRef` transport and worker-local handle/viewer registries remain the approved boundary for DPF-backed runtime values.
 - The shipped DPF node family covers `dpf.result_file`, `dpf.model`, `dpf.scoping.mesh`, `dpf.scoping.time`, `dpf.result_field`, `dpf.field_ops`, `dpf.mesh_extract`, `dpf.export`, and `dpf.viewer`; live viewer state stays session-owned instead of flowing as ordinary graph payloads.
-- `viewerSessionBridge` plus `EmbeddedViewerOverlayManager` remain the shell-owned orchestration seam for proxy/live viewer behavior, including default `focus_only` one-live behavior and explicit `keep_live` opt-in.
+- `viewerSessionBridge`, `ViewerHostService`, and `EmbeddedViewerOverlayManager` remain the shell-owned orchestration seam for proxy/live viewer behavior: initial proxy has no native warm-up, a proxy-viewport double-click explicitly activates one inline viewer, selection/background loss demotes it, and fullscreen/detached presentations use explicit holds.
 - Optional PyDPF viewer dependencies stay isolated behind the `ansys` and `viewer` extras plus the Windows `base` versus `viewer` packaging profile.
 - Packet-owned smoke inputs remain the repo-local DPF fixtures addressed by `tests/ansys_dpf_core/fixture_paths.py`: `static_analysis_1_bolted_joint/file.rst`, `modal_analysis_1_bolted_joint/file.rst`, and `steady_state_thermal_analysis_1_bolted_joint/file.rth`.
 
@@ -23,7 +23,7 @@
 
 | Coverage Area | Command | When To Use It |
 |---|---|---|
-| DPF viewer live policy | `./venv/Scripts/python.exe -m pytest tests/test_dpf_viewer_node.py tests/test_dpf_node_catalog.py tests/test_viewer_session_bridge.py tests/test_viewer_surface_host.py --ignore=venv -q` | Use for `dpf.viewer`, bridge, or viewer-surface behavior changes |
+| DPF viewer activation and retention | `./venv/Scripts/python.exe -m pytest tests/test_dpf_viewer_node.py tests/test_dpf_node_catalog.py tests/test_viewer_session_bridge.py tests/test_viewer_surface_host.py --ignore=venv -q` | Use for `dpf.viewer`, bridge, or viewer-surface behavior changes |
 | Overlay manager + handle boundary | `./venv/Scripts/python.exe -m pytest tests/test_embedded_viewer_overlay_manager.py tests/test_execution_handle_refs.py --ignore=venv -q` | Use for `EmbeddedViewerOverlayManager` geometry/visibility changes or runtime-handle boundary changes claimed by `REQ-ARCH-016` |
 | Optional packaging profile | `./venv/Scripts/python.exe -m pytest tests/test_packaging_configuration.py --ignore=venv -q` | Use for `ansys` / `viewer` extras, `ea_node_editor.spec`, or Windows packaging-script updates |
 | Docs and traceability | `./venv/Scripts/python.exe scripts/check_traceability.py` | Use after editing the public requirements, traceability matrix, or this QA matrix |
@@ -41,7 +41,7 @@
 
 ## Remaining Manual Smoke Checks
 
-1. Repo-local DPF fixture smoke: run a workspace against `tests/ansys_dpf_core/example_outputs/static_analysis_1_bolted_joint/file.rst`, `tests/ansys_dpf_core/example_outputs/modal_analysis_1_bolted_joint/file.rst`, and `tests/ansys_dpf_core/example_outputs/steady_state_thermal_analysis_1_bolted_joint/file.rth` and confirm `dpf.viewer` can reopen proxy/live state against those authoritative smoke inputs.
+1. Repo-local DPF fixture smoke: run a workspace against `tests/ansys_dpf_core/example_outputs/static_analysis_1_bolted_joint/file.rst`, `tests/ansys_dpf_core/example_outputs/modal_analysis_1_bolted_joint/file.rst`, and `tests/ansys_dpf_core/example_outputs/steady_state_thermal_analysis_1_bolted_joint/file.rth`; confirm the viewer starts as proxy, activates only by proxy-viewport double-click, demotes on background selection loss, and reuses the eligible retained widget.
 2. Windows packaged viewer build: from a venv with `.[ansys,viewer]` or `.[dev]`, run `.\scripts\build_windows_package.ps1 -PackageProfile viewer -Clean -SkipSmoke` and verify the emitted package includes DPF gate DLLs, `vtk.libs`, and PyVistaQt runtime data.
 3. Windows packaged installer follow-up: run `.\scripts\build_windows_installer.ps1 -PackageProfile viewer` against the viewer dist output and verify the installer manifest records `package_profile: viewer`.
 4. Large-model manual viewer check: exercise a representative larger DPF result outside the repo fixtures and confirm that proxy/live transitions, reopen state, and overlay attachment remain usable without claiming that coverage in the automated fast lane.

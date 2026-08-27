@@ -9,6 +9,7 @@ import weakref
 import gc
 from multiprocessing.shared_memory import SharedMemory
 from pathlib import Path
+from unittest.mock import patch
 
 from PyQt6.QtGui import QImage
 from PyQt6.QtWidgets import QApplication, QWidget
@@ -293,6 +294,11 @@ class _FakeInteractor(QWidget):
         self.control_key = False
         self.device_pixel_ratio = 1.0
         self.native_ready = True
+        self.close_calls = 0
+
+    def closeEvent(self, event) -> None:  # noqa: ANN001, N802
+        self.close_calls += 1
+        super().closeEvent(event)
 
     def clear(self) -> None:
         self.clear_calls += 1
@@ -401,6 +407,7 @@ def _request(
     topology_attribute_colors: dict[str, object] | None = None,
     source_kind: str = "fe",
     selection_topology_path: Path | None = None,
+    container: QWidget | None = None,
 ) -> ViewerWidgetBindRequest:
     overlays = []
     if overlay is not None:
@@ -497,6 +504,7 @@ def _request(
             "scene_fingerprint": "b" * 64,
             "default_selection_filter": "cad_body" if source_kind == "cad" else "fe_element",
         },
+        container=container,
         current_widget=current_widget,
     )
 
@@ -1442,6 +1450,39 @@ class EngineeringViewerWidgetBinderTests(unittest.TestCase):
                 ),
                 counts,
             )
+            binder.shutdown()
+
+    def test_default_interactor_is_constructed_parentless_then_assigned_requested_parent(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            surface_path = Path(temporary_directory) / "mesh.vtu"
+            surface_path.write_text("mesh", encoding="utf-8")
+            container = QWidget()
+            widget = _FakeInteractor()
+            binder = EngineeringViewerWidgetBinder(
+                dataset_loader=lambda _path: _FakeDataset("mesh", [10]),
+                background_loading=False,
+            )
+
+            with patch("pyvistaqt.QtInteractor", return_value=widget) as constructor:
+                bound = binder.bind_widget(_request(surface_path, container=container))
+
+            self.assertIs(bound, widget)
+            self.assertIsNone(constructor.call_args.kwargs["parent"])
+            self.assertIs(widget.parent(), container)
+
+            binder.release_widget(
+                ViewerWidgetReleaseRequest(
+                    workspace_id="workspace-engineering",
+                    node_id="node-engineering",
+                    session_id="session-engineering",
+                    backend_id=ENGINEERING_VIEWER_BACKEND_ID,
+                    transport_revision=4,
+                    container=container,
+                    widget=widget,
+                    reason="test_release",
+                )
+            )
+            widget.close()
             binder.shutdown()
 
     def test_reparent_refresh_defers_once_and_reports_readiness(self) -> None:

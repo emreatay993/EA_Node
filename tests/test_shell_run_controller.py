@@ -219,8 +219,6 @@ def _viewer_opened_event(
         "options": {
             "session_state": "open",
             "cache_state": "proxy_ready",
-            "live_policy": "focus_only",
-            "keep_live": False,
             "playback_state": "paused",
             "live_mode": "proxy",
         },
@@ -1050,6 +1048,12 @@ class ShellRunControllerTests(MainWindowShellTestBase):
             )
         )
         self.app.processEvents()
+        self.assertTrue(
+            bridge.set_embedded_interaction_active(
+                node_id, True, {"workspace_id": workspace_id}
+            )
+        )
+        self.app.processEvents()
 
         self.window._run_workflow()
         self.app.processEvents()
@@ -1095,6 +1099,12 @@ class ShellRunControllerTests(MainWindowShellTestBase):
                 transport={"kind": "bundle", "backend_id": "dpf_embedded"},
                 summary={"cache_state": "live_ready"},
                 options={"live_mode": "full"},
+            )
+        )
+        self.app.processEvents()
+        self.assertTrue(
+            bridge.set_embedded_interaction_active(
+                node_id, True, {"workspace_id": workspace_id}
             )
         )
         self.app.processEvents()

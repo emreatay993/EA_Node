@@ -69,6 +69,47 @@ _ENGINEERING_PANEL_NODE_ID = "node_canvas_panel"
 _ENGINEERING_CAD_NODE_ID = "node_canvas_cad_import"
 _ENGINEERING_VIEWER_NODE_ID = "node_canvas_model_viewer"
 _ENGINEERING_UNRELATED_NODE_ID = "node_canvas_unrelated"
+_ENGINEERING_WIRE_SOURCE_NODE_ID = "node_canvas_wire_source"
+_ENGINEERING_WIRE_TARGET_A_NODE_ID = "node_canvas_wire_target_a"
+_ENGINEERING_WIRE_TARGET_B_NODE_ID = "node_canvas_wire_target_b"
+
+_ENGINEERING_OPERATION_ORDER = (
+    "startup_proxy",
+    "proxy_pan_control",
+    "proxy_zoom_control",
+    "selection_without_activation",
+    "hover_without_activation",
+    "single_click_without_activation",
+    "proxy_double_click_activation",
+    "live_wheel_zoom",
+    "live_box_zoom",
+    "active_viewer_drag",
+    "active_viewer_resize",
+    "canvas_click_demotion",
+    "retained_proxy_pan",
+    "retained_proxy_zoom",
+    "double_click_reactivation",
+    "active_wire_drag",
+    "unrelated_property_edit",
+    "unrelated_node_add",
+    "unrelated_node_delete",
+    "unrelated_wire_create",
+    "unrelated_wire_reroute",
+    "unrelated_wire_delete",
+    "viewer_deletion",
+)
+
+_ENGINEERING_CONTINUOUS_OPERATION_NAMES = (
+    "proxy_pan_control",
+    "proxy_zoom_control",
+    "live_wheel_zoom",
+    "live_box_zoom",
+    "active_viewer_drag",
+    "active_viewer_resize",
+    "retained_proxy_pan",
+    "retained_proxy_zoom",
+    "active_wire_drag",
+)
 
 
 def _build_engineering_project(step_path: Path, registry: Any) -> Any:
@@ -156,6 +197,27 @@ def _build_engineering_project(step_path: Path, registry: Any) -> Any:
             -260.0,
             420.0,
         ),
+        _ENGINEERING_WIRE_SOURCE_NODE_ID: node(
+            _ENGINEERING_WIRE_SOURCE_NODE_ID,
+            "core.constant",
+            "Wire Source",
+            980.0,
+            40.0,
+        ),
+        _ENGINEERING_WIRE_TARGET_A_NODE_ID: node(
+            _ENGINEERING_WIRE_TARGET_A_NODE_ID,
+            "core.python_script",
+            "Wire Target A",
+            1220.0,
+            40.0,
+        ),
+        _ENGINEERING_WIRE_TARGET_B_NODE_ID: node(
+            _ENGINEERING_WIRE_TARGET_B_NODE_ID,
+            "core.python_script",
+            "Wire Target B",
+            1220.0,
+            300.0,
+        ),
     }
     workspace.edges = {
         "edge_panel_to_cad": EdgeInstance(
@@ -188,7 +250,6 @@ def _run_engineering_workflow(
     project: Any,
 ) -> tuple[
     Any,
-    dict[str, Any],
     dict[str, Any],
     dict[str, Any],
     list[dict[str, Any]],
@@ -275,20 +336,9 @@ def _run_engineering_workflow(
         )
     )
     proxy_payload = event_to_dict(proxy_event, catalog=registry.data_types)
-    full_event = worker_services.viewer_session_service.update_session(
-        UpdateViewerSessionCommand(
-            request_id="canvas_engineering_selected",
-            workspace_id=_ENGINEERING_WORKSPACE_ID,
-            node_id=_ENGINEERING_VIEWER_NODE_ID,
-            session_id=session_id,
-            backend_id=str(session_model.get("backend_id", "")),
-            options={**dict(session_model.get("options", {})), "live_mode": "full"},
-        )
-    )
-    full_payload = event_to_dict(full_event, catalog=registry.data_types)
-    if full_payload.get("type") == "viewer_session_failed":
-        raise RuntimeError(str(full_payload.get("error", "Viewer materialization failed")))
-    return worker_services, dict(session_model), proxy_payload, full_payload, events
+    if proxy_payload.get("type") == "viewer_session_failed":
+        raise RuntimeError(str(proxy_payload.get("error", "Viewer proxy setup failed")))
+    return worker_services, dict(session_model), proxy_payload, events
 
 
 def _apply_host_backend_environment(args: argparse.Namespace) -> None:
@@ -587,8 +637,9 @@ def _run_subprocess_scenario(args: argparse.Namespace) -> int:
 def _run_engineering_canvas_scenario(args: argparse.Namespace, app: Any) -> int:
     from dataclasses import fields
 
-    from PyQt6.QtCore import QObject, QRectF, QTimer, pyqtSignal
-    from PyQt6.QtGui import QGuiApplication
+    from PyQt6.QtCore import QObject, QPoint, QPointF, QRectF, QTimer, Qt, pyqtSignal
+    from PyQt6.QtGui import QGuiApplication, QWheelEvent
+    from PyQt6.QtTest import QTest
 
     from ea_node_editor.execution.protocol import (
         CloseViewerSessionCommand,
@@ -629,7 +680,6 @@ def _run_engineering_canvas_scenario(args: argparse.Namespace, app: Any) -> int:
         worker_services,
         initial_session,
         proxy_event,
-        full_event,
         worker_events,
     ) = _run_engineering_workflow(
         step_path=step_path,
@@ -651,13 +701,23 @@ def _run_engineering_canvas_scenario(args: argparse.Namespace, app: Any) -> int:
     viewer_host_ref: list[ViewerHostService | None] = [None]
     lifecycle = _Instrumentation()
     render_key = ""
-    geometry_counts = {"move": 0, "resize": 0}
+    geometry_counts = {
+        "native_move_calls": 0,
+        "native_resize_calls": 0,
+        "native_set_geometry_calls": 0,
+    }
     original_apply_geometry = _OverlayWidgetPresentationService.apply_widget_geometry
 
     def _counted_apply_geometry(widget, geometry):  # noqa: ANN001, ANN202
         current = widget.geometry()
-        geometry_counts["move"] += int(current.topLeft() != geometry.topLeft())
-        geometry_counts["resize"] += int(current.size() != geometry.size())
+        moved = current.topLeft() != geometry.topLeft()
+        resized = current.size() != geometry.size()
+        if moved and resized:
+            geometry_counts["native_set_geometry_calls"] += 1
+        elif moved:
+            geometry_counts["native_move_calls"] += 1
+        elif resized:
+            geometry_counts["native_resize_calls"] += 1
         return original_apply_geometry(widget, geometry)
 
     _OverlayWidgetPresentationService.apply_widget_geometry = staticmethod(
@@ -675,9 +735,11 @@ def _run_engineering_canvas_scenario(args: argparse.Namespace, app: Any) -> int:
     class _ExecutionClient:
         def __init__(self) -> None:
             self._serial = 0
+            self.command_counts = {name: 0 for name in command_types}
 
         def _send(self, command_name: str, values: dict[str, Any]) -> str:
             self._serial += 1
+            self.command_counts[command_name] += 1
             request_id = f"canvas_engineering_{self._serial}"
             command_type = command_types[command_name]
             accepted = {item.name for item in fields(command_type)}
@@ -710,7 +772,12 @@ def _run_engineering_canvas_scenario(args: argparse.Namespace, app: Any) -> int:
         def query_viewer_session(self, **values: Any) -> str:
             return self._send("query_viewer_session", values)
 
-    shell.execution_client = _ExecutionClient()
+        def reset_counts(self) -> None:
+            for name in self.command_counts:
+                self.command_counts[name] = 0
+
+    execution_client = _ExecutionClient()
+    shell.execution_client = execution_client
 
     def _capture_camera(node_id: str, *, workspace_id: str = "") -> dict[str, Any]:
         service = viewer_host_ref[0]
@@ -718,14 +785,6 @@ def _run_engineering_canvas_scenario(args: argparse.Namespace, app: Any) -> int:
             service.capture_overlay_camera_state(node_id, workspace_id=workspace_id)
             if service is not None
             else {}
-        )
-
-    def _capture_preview(node_id: str, *, workspace_id: str = "") -> Any:
-        service = viewer_host_ref[0]
-        return (
-            service.capture_overlay_preview_image(node_id, workspace_id=workspace_id)
-            if service is not None
-            else None
         )
 
     def _setup_viewer_context(benchmark_host: Any, root_context: Any) -> None:
@@ -749,7 +808,6 @@ def _run_engineering_canvas_scenario(args: argparse.Namespace, app: Any) -> int:
             scene_bridge=benchmark_host.scene,
             data_types=registry.data_types,
             capture_overlay_camera_state=_capture_camera,
-            capture_overlay_preview_image=_capture_preview,
         )
         viewer_host = ViewerHostService(
             shell,
@@ -820,6 +878,16 @@ def _run_engineering_canvas_scenario(args: argparse.Namespace, app: Any) -> int:
             classmethod_like=False,
         )
         lifecycle.install(
+            ViewerHostService,
+            "capture_overlay_camera_state",
+            classmethod_like=False,
+        )
+        lifecycle.install(
+            ViewerHostService,
+            "capture_overlay_preview_image",
+            classmethod_like=False,
+        )
+        lifecycle.install(
             ViewerSessionBridge,
             "set_embedded_interaction_active",
             classmethod_like=False,
@@ -836,17 +904,6 @@ def _run_engineering_canvas_scenario(args: argparse.Namespace, app: Any) -> int:
         assert viewer_host is not None
         assert overlay_manager is not None
         host.frame_scene_rect(QRectF(-760.0, -80.0, 1780.0, 760.0))
-
-        if args.engineering_condition == "selected-viewer":
-            host.scene.select_node(_ENGINEERING_VIEWER_NODE_ID, False)
-            shell.execution_event.emit(full_event)
-            viewer_host.set_embedded_interaction_active(
-                _ENGINEERING_VIEWER_NODE_ID,
-                True,
-            )
-        elif args.engineering_condition == "settled-proxy":
-            host.scene.clear_selection()
-            shell.execution_event.emit(proxy_event)
 
         def _drain(*, timeout_s: float = 0.0) -> None:
             deadline = time.perf_counter() + max(0.0, timeout_s)
@@ -868,65 +925,28 @@ def _run_engineering_canvas_scenario(args: argparse.Namespace, app: Any) -> int:
                 if time.perf_counter() >= deadline:
                     raise RuntimeError("Timed out waiting for a no-readback rendered frame")
 
-        if args.engineering_condition != "control":
-            deadline = time.perf_counter() + 15.0
-            while True:
-                _drain()
-                viewer_host.sync()
-                overlay_manager.sync()
-                widget = overlay_manager.overlay_widget(
-                    _ENGINEERING_VIEWER_NODE_ID,
-                    workspace_id=_ENGINEERING_WORKSPACE_ID,
+        host.scene.clear_selection()
+        shell.execution_event.emit(proxy_event)
+        deadline = time.perf_counter() + 3.0
+        while True:
+            _drain()
+            projected = viewer_bridge.session_state(
+                _ENGINEERING_VIEWER_NODE_ID,
+                {"workspace_id": _ENGINEERING_WORKSPACE_ID},
+            )
+            widget = overlay_manager.overlay_widget(
+                _ENGINEERING_VIEWER_NODE_ID,
+                workspace_id=_ENGINEERING_WORKSPACE_ID,
+            )
+            if str(projected.get("live_mode", "")) == "proxy" and widget is None:
+                break
+            if time.perf_counter() >= deadline:
+                raise RuntimeError(
+                    "Timed out waiting for initial proxy-only Model Viewer state"
                 )
-                geometry_ready = overlay_manager.overlay_geometry_ready(
-                    _ENGINEERING_VIEWER_NODE_ID,
-                    workspace_id=_ENGINEERING_WORKSPACE_ID,
-                )
-                projected = viewer_bridge.session_state(
-                    _ENGINEERING_VIEWER_NODE_ID,
-                    {"workspace_id": _ENGINEERING_WORKSPACE_ID},
-                )
-                cached_preview = viewer_host.cached_preview_source(
-                    _ENGINEERING_VIEWER_NODE_ID
-                )
-                settled_proxy_ready = (
-                    args.engineering_condition == "settled-proxy"
-                    and bool(cached_preview)
-                    and str(projected.get("live_mode", "")) == "proxy"
-                    and not geometry_ready
-                )
-                if settled_proxy_ready or (
-                    args.engineering_condition == "selected-viewer"
-                    and widget is not None
-                    and geometry_ready
-                ):
-                    break
-                if time.perf_counter() >= deadline:
-                    raise RuntimeError(
-                        "Timed out waiting for the native Model Viewer widget: "
-                        f"widget={widget is not None}, geometry_ready={geometry_ready}, "
-                        f"suppression={bool(host.canvas.property('nativeOverlaySuppressionActive'))}, "
-                        f"overlay_metrics={overlay_manager.overlay_metrics_snapshot()!r}, "
-                        f"session={viewer_bridge.session_state(_ENGINEERING_VIEWER_NODE_ID, {'workspace_id': _ENGINEERING_WORKSPACE_ID})!r}"
-                    )
-                time.sleep(0.01)
-            _drain(timeout_s=0.5)
-            overlay_manager.sync()
+            time.sleep(0.01)
         host.render_frame()
         setup_ms = (time.perf_counter() - setup_started) * 1000.0
-
-        initial_widget = overlay_manager.overlay_widget(
-            _ENGINEERING_VIEWER_NODE_ID,
-            workspace_id=_ENGINEERING_WORKSPACE_ID,
-        )
-        if initial_widget is not None and callable(getattr(initial_widget, "render", None)):
-            try:
-                lifecycle.install(type(initial_widget), "render", classmethod_like=False)
-                render_key = f"{type(initial_widget).__name__}.render"
-            except (AttributeError, TypeError):
-                render_key = ""
-        lifecycle.reset()
-        geometry_counts.update(move=0, resize=0)
         host.reset_frame_interval_capture()
 
         def _node_card(node_id: str) -> Any:
@@ -975,8 +995,39 @@ def _run_engineering_canvas_scenario(args: argparse.Namespace, app: Any) -> int:
                 "embedded_interaction_sync": _method_calls(
                     stats, "ViewerSessionBridge.set_embedded_interaction_active"
                 ),
-                "overlay_move": int(geometry_counts["move"]),
-                "overlay_resize": int(geometry_counts["resize"]),
+                "camera_capture": _method_calls(
+                    stats, "ViewerHostService.capture_overlay_camera_state"
+                ),
+                "preview_capture": _method_calls(
+                    stats, "ViewerHostService.capture_overlay_preview_image"
+                ),
+                "native_move_calls": int(geometry_counts["native_move_calls"]),
+                "native_resize_calls": int(
+                    geometry_counts["native_resize_calls"]
+                ),
+                "native_set_geometry_calls": int(
+                    geometry_counts["native_set_geometry_calls"]
+                ),
+                "overlay_skipped_delta": int(
+                    overlay_manager.overlay_metrics_snapshot().get(
+                        "skipped_delta_sync_count", 0
+                    )
+                ),
+                "execution_open": int(
+                    execution_client.command_counts["open_viewer_session"]
+                ),
+                "execution_update": int(
+                    execution_client.command_counts["update_viewer_session"]
+                ),
+                "execution_close": int(
+                    execution_client.command_counts["close_viewer_session"]
+                ),
+                "execution_materialize": int(
+                    execution_client.command_counts["materialize_viewer_data"]
+                ),
+                "execution_query": int(
+                    execution_client.command_counts["query_viewer_session"]
+                ),
             }
 
         def _viewer_state() -> dict[str, Any]:
@@ -1020,8 +1071,17 @@ def _run_engineering_canvas_scenario(args: argparse.Namespace, app: Any) -> int:
                 else ""
             )
             data_refs = dict(state.get("data_refs", {}))
+            surface = (
+                _node_card(_ENGINEERING_VIEWER_NODE_ID).findChild(
+                    QObject, "graphNodeViewerSurface"
+                )
+                if _ENGINEERING_VIEWER_NODE_ID in workspace.nodes
+                else None
+            )
             return {
                 "phase": str(state.get("phase", "")),
+                "session_id": str(state.get("session_id", "")),
+                "backend_id": str(state.get("backend_id", "")),
                 "live_mode": str(
                     state.get("live_mode")
                     or dict(state.get("options", {})).get("live_mode", "")
@@ -1031,6 +1091,8 @@ def _run_engineering_canvas_scenario(args: argparse.Namespace, app: Any) -> int:
                 "cached_preview_available": bool(
                     cached_source or data_refs.get("png") or data_refs.get("preview")
                 ),
+                "cached_preview_source": str(cached_source or ""),
+                "preview_cache_revision": int(viewer_host.preview_cache_revision),
                 "native_overlay_visible": bool(
                     widget is not None
                     and widget.isVisible()
@@ -1044,78 +1106,155 @@ def _run_engineering_canvas_scenario(args: argparse.Namespace, app: Any) -> int:
                         workspace_id=_ENGINEERING_WORKSPACE_ID,
                     )
                 ),
+                "native_updates_enabled": bool(
+                    identity_widget is not None and identity_widget.updatesEnabled()
+                ),
+                "retained_inline_node_id": str(
+                    viewer_host.retained_inline_viewer_node_id or ""
+                ),
+                "presentation_hold_count": len(
+                    viewer_bridge._viewer_presentation_holds
+                ),
+                "explicit_inline_active": bool(
+                    surface is not None and surface.property("inlineLiveRequested")
+                ),
+                "active_overlay_count": int(viewer_host.active_overlay_count),
                 "widget_identity": (
                     hex(id(identity_widget)) if identity_widget is not None else ""
                 ),
             }
 
-        def _focus_viewer() -> None:
-            if (
-                args.engineering_condition != "selected-viewer"
-                or _ENGINEERING_VIEWER_NODE_ID
-                not in host.model.project.workspaces[_ENGINEERING_WORKSPACE_ID].nodes
-            ):
+        def _install_render_counter() -> None:
+            nonlocal render_key
+            if render_key:
                 return
-            host.scene.select_node(_ENGINEERING_VIEWER_NODE_ID, False)
-            viewer_bridge.focus_session(
-                _ENGINEERING_VIEWER_NODE_ID,
-                {"workspace_id": _ENGINEERING_WORKSPACE_ID},
+            _bound, widget = viewer_host._bound_overlay_widget_for_node(
+                _ENGINEERING_VIEWER_NODE_ID
             )
-            viewer_host.set_embedded_interaction_active(
-                _ENGINEERING_VIEWER_NODE_ID,
-                True,
-            )
-            deadline = time.perf_counter() + 3.0
+            if widget is None or not callable(getattr(widget, "render", None)):
+                return
+            lifecycle.install(type(widget), "render", classmethod_like=False)
+            render_key = f"{type(widget).__name__}.render"
+
+        def _wait_for_state(predicate, message: str, *, timeout_s: float = 4.0) -> None:  # noqa: ANN001
+            deadline = time.perf_counter() + timeout_s
             while True:
                 _drain()
                 viewer_host.sync()
                 overlay_manager.sync()
-                state = _viewer_state()
-                if (
-                    state["live_mode"] == "full"
-                    and state["widget_identity"]
-                    and state["native_overlay_geometry_ready"]
-                ):
+                if predicate(_viewer_state()):
                     return
                 if time.perf_counter() >= deadline:
-                    raise RuntimeError("Timed out restoring the selected Model Viewer")
+                    raise RuntimeError(f"{message}: {_viewer_state()!r}")
                 time.sleep(0.01)
 
-        def _park_viewer() -> None:
-            if (
-                args.engineering_condition != "selected-viewer"
-                or _ENGINEERING_VIEWER_NODE_ID
-                not in host.model.project.workspaces[_ENGINEERING_WORKSPACE_ID].nodes
+        def _wait_for_live() -> None:
+            _wait_for_state(
+                lambda current: bool(current["widget_identity"])
+                and current["live_mode"] == "full"
+                and current["explicit_inline_active"]
+                and current["native_overlay_visible"]
+                and current["native_overlay_geometry_ready"]
+                and current["native_updates_enabled"],
+                "Timed out waiting for explicitly activated inline viewer",
+            )
+            _install_render_counter()
+
+        def _wait_for_retained_proxy() -> None:
+            _wait_for_state(
+                lambda current: bool(current["widget_identity"])
+                and current["live_mode"] == "proxy"
+                and not current["explicit_inline_active"]
+                and current["retained_inline_node_id"]
+                == _ENGINEERING_VIEWER_NODE_ID
+                and not current["native_overlay_visible"]
+                and not current["native_overlay_geometry_ready"],
+                "Timed out waiting for retained proxy viewer",
+            )
+
+        def _viewer_viewport_point() -> QPoint:
+            card = _node_card(_ENGINEERING_VIEWER_NODE_ID)
+            viewport = card.findChild(QObject, "graphNodeViewerViewport")
+            if viewport is None:
+                raise RuntimeError("Model Viewer proxy viewport is unavailable")
+            center = viewport.mapToItem(
+                host.canvas,
+                QPointF(float(viewport.width()) * 0.5, float(viewport.height()) * 0.5),
+            )
+            return QPoint(round(center.x()), round(center.y()))
+
+        def _prepare_retained_reactivation_point() -> QPoint:
+            workspace = host.model.project.workspaces[_ENGINEERING_WORKSPACE_ID]
+            node = workspace.nodes[_ENGINEERING_VIEWER_NODE_ID]
+            card = _node_card(_ENGINEERING_VIEWER_NODE_ID)
+            node_rect = QRectF(
+                float(node.x),
+                float(node.y),
+                max(1.0, float(node.custom_width or card.width())),
+                max(1.0, float(node.custom_height or card.height())),
+            ).adjusted(-40.0, -40.0, 40.0, 40.0)
+            if not host.frame_scene_rect(node_rect):
+                raise RuntimeError("Could not frame retained Model Viewer for reactivation")
+            _drain(timeout_s=0.1)
+            _render_without_readback()
+            point = _viewer_viewport_point()
+            if not (
+                0 <= point.x() < host.window.width()
+                and 0 <= point.y() < host.window.height()
             ):
-                return
-            viewer_bridge.clear_viewer_focus()
-            viewer_host.set_embedded_interaction_active(
-                _ENGINEERING_VIEWER_NODE_ID,
+                raise RuntimeError(
+                    f"Retained Model Viewer viewport is outside the visible window: {point!r}"
+                )
+            card = _node_card(_ENGINEERING_VIEWER_NODE_ID)
+            viewport = card.findChild(QObject, "graphNodeViewerViewport")
+            if viewport is None:
+                raise RuntimeError("Retained Model Viewer viewport disappeared after framing")
+            local = viewport.mapFromItem(host.canvas, QPointF(point))
+            if not viewport.contains(local):
+                raise RuntimeError(
+                    "Reactivation point does not resolve inside the retained viewer viewport"
+                )
+            return point
+
+        def _empty_canvas_point() -> QPoint:
+            candidates = (
+                QPoint(24, round(host.widget.height()) - 24),
+                QPoint(round(host.widget.width()) - 24, round(host.widget.height()) - 24),
+                QPoint(24, 24),
+                QPoint(round(host.widget.width()) - 24, 24),
+            )
+            card_rects: list[QRectF] = []
+            for card in host.node_cards():
+                origin = card.mapToItem(host.canvas, QPointF(0.0, 0.0))
+                card_rects.append(
+                    QRectF(origin.x(), origin.y(), card.width(), card.height())
+                )
+            for candidate in candidates:
+                if not any(rect.contains(QPointF(candidate)) for rect in card_rects):
+                    return candidate
+            raise RuntimeError("No empty canvas point is available for input sampling")
+
+        def _send_wheel(point: QPoint, delta: int) -> None:
+            global_point = host.widget.mapToGlobal(point)
+            event = QWheelEvent(
+                QPointF(point),
+                QPointF(global_point),
+                QPoint(),
+                QPoint(0, int(delta)),
+                Qt.MouseButton.NoButton,
+                Qt.KeyboardModifier.NoModifier,
+                Qt.ScrollPhase.ScrollUpdate,
                 False,
             )
-            deadline = time.perf_counter() + 3.0
-            while True:
-                _drain()
-                viewer_host.sync()
-                state = _viewer_state()
-                if (
-                    state["live_mode"] == "proxy"
-                    and state["widget_identity"]
-                    and viewer_host.retained_inline_viewer_node_id
-                    == _ENGINEERING_VIEWER_NODE_ID
-                ):
-                    return
-                if time.perf_counter() >= deadline:
-                    raise RuntimeError("Timed out parking the selected Model Viewer")
-                time.sleep(0.01)
+            app.sendEvent(host.window, event)
+            if not event.isAccepted():
+                raise RuntimeError("Graph canvas did not accept wheel input")
 
         operations: list[dict[str, Any]] = []
 
         def _record_operation(
             name: str,
             action,
-            *,
-            viewer_live: bool = True,
         ) -> None:  # noqa: ANN001
             sys.stdout.write(f"[profile] Engineering operation {name} ...\n")
             sys.stdout.flush()
@@ -1126,15 +1265,7 @@ def _run_engineering_canvas_scenario(args: argparse.Namespace, app: Any) -> int:
             reason = ""
             details: dict[str, Any] = {}
             try:
-                if viewer_live:
-                    _focus_viewer()
-                else:
-                    _park_viewer()
-                before = _viewer_state()
-                before_counts = _lifecycle_snapshot()
-                frame_start = host.frame_render_timestamp_index()
                 details = dict(action() or {})
-                _drain(timeout_s=0.25)
                 _drain(timeout_s=0.05)
             except SystemExit as exc:
                 status = "unsupported"
@@ -1158,6 +1289,19 @@ def _run_engineering_canvas_scenario(args: argparse.Namespace, app: Any) -> int:
                 for previous, next_value in zip(timestamps, timestamps[1:])
             ]
             timings = [float(value) for value in details.pop("timings_ms", [])]
+            boundaries = details.pop("counter_boundaries", {})
+
+            def boundary_delta(start_key: str, end_key: str) -> dict[str, int]:
+                start = boundaries.get(start_key)
+                end = boundaries.get(end_key)
+                if not isinstance(start, dict) or not isinstance(end, dict):
+                    return {key: 0 for key in before_counts}
+                keys = set(start) | set(end)
+                return {
+                    key: int(end.get(key, 0)) - int(start.get(key, 0))
+                    for key in keys
+                }
+
             operations.append(
                 {
                     "operation": name,
@@ -1170,18 +1314,99 @@ def _run_engineering_canvas_scenario(args: argparse.Namespace, app: Any) -> int:
                     "frame_interval_p50_ms": _percentile(frame_intervals, 50.0),
                     "frame_interval_p95_ms": _percentile(frame_intervals, 95.0),
                     "viewer_before": before,
+                    "viewer_during": details.pop("viewer_during", {}),
                     "viewer_after": after,
                     "lifecycle_deltas": {
                         key: int(after_counts[key] - before_counts[key])
                         for key in before_counts
                     },
+                    "transition_lifecycle_deltas": boundary_delta(
+                        "transition_before", "transition_after"
+                    ),
+                    "continuous_lifecycle_deltas": boundary_delta(
+                        "continuous_before", "continuous_after"
+                    ),
+                    "restoration_lifecycle_deltas": boundary_delta(
+                        "continuous_after", "restoration_after"
+                    ),
                     **details,
                 }
             )
             sys.stdout.write(f"[profile]   {name}: {status}\n")
             sys.stdout.flush()
 
-        def _viewport_steps(*, zoom: bool) -> dict[str, Any]:
+        def _operation_record(name: str) -> dict[str, Any]:
+            return next(
+                item for item in reversed(operations) if item["operation"] == name
+            )
+
+        def _set_operation_status(
+            name: str,
+            status: str,
+            reason: str,
+            *,
+            derived_from: str = "",
+        ) -> None:
+            item = _operation_record(name)
+            item["status"] = status
+            item["unavailable_reason"] = reason
+            if derived_from:
+                item["derived_from"] = derived_from
+
+        def _record_blocked(name: str, prerequisite: str) -> None:
+            _record_operation(name, lambda: {})
+            _set_operation_status(
+                name,
+                "blocked",
+                f"Blocked by prerequisite phase {prerequisite}",
+                derived_from=prerequisite,
+            )
+
+        def _record_derived(name: str, action, prerequisite: str) -> None:  # noqa: ANN001
+            _record_operation(name, action)
+            if _operation_record(name)["status"] == "measured":
+                _set_operation_status(
+                    name,
+                    "derived",
+                    f"Metrics derived after prerequisite failure {prerequisite}",
+                    derived_from=prerequisite,
+                )
+
+        startup_viewer_state = _viewer_state()
+        startup_lifecycle = _lifecycle_snapshot()
+        operations.append(
+            {
+                "operation": "startup_proxy",
+                "status": "measured",
+                "unavailable_reason": "",
+                "timings_ms": [setup_ms],
+                "timing_p50_ms": setup_ms,
+                "timing_p95_ms": setup_ms,
+                "frame_intervals_ms": [],
+                "frame_interval_p50_ms": 0.0,
+                "frame_interval_p95_ms": 0.0,
+                "viewer_before": startup_viewer_state,
+                "viewer_during": {},
+                "viewer_after": startup_viewer_state,
+                "lifecycle_deltas": startup_lifecycle,
+                "transition_lifecycle_deltas": startup_lifecycle,
+                "continuous_lifecycle_deltas": {
+                    key: 0 for key in startup_lifecycle
+                },
+                "restoration_lifecycle_deltas": {
+                    key: 0 for key in startup_lifecycle
+                },
+            }
+        )
+        lifecycle.reset()
+        geometry_counts.update(
+            native_move_calls=0,
+            native_resize_calls=0,
+            native_set_geometry_calls=0,
+        )
+        execution_client.reset_counts()
+
+        def _viewport_steps(*, mode: str) -> dict[str, Any]:
             timings: list[float] = []
             warmup_count = max(0, int(args.warmup))
             measured_count = max(1, int(args.samples))
@@ -1189,39 +1414,125 @@ def _run_engineering_canvas_scenario(args: argparse.Namespace, app: Any) -> int:
             scheduler = host.canvas.findChild(QObject, "graphCanvasFrameScheduler")
             if scheduler is None:
                 raise RuntimeError("Graph canvas frame scheduler is unavailable")
-            host.begin_viewport_interaction()
-            _drain(timeout_s=0.05)
+            transition_before = _lifecycle_snapshot()
+            if mode == "wheel":
+                _send_wheel(_empty_canvas_point(), 120)
+                app.processEvents()
+            else:
+                host.begin_viewport_interaction()
+                _drain(timeout_s=0.05)
             _render_without_readback()
+            viewer_during = _viewer_state()
+            transition_after = _lifecycle_snapshot()
+            continuous_before = _lifecycle_snapshot()
             measured_frame_start = host.frame_render_timestamp_index()
             for index in range(total_count):
                 if index == warmup_count:
                     measured_frame_start = host.frame_render_timestamp_index()
                 started = time.perf_counter()
-                if zoom:
-                    scheduler.queueWheelZoom(
-                        host.canvas,
-                        host.view,
-                        120.0 if index % 2 == 0 else -120.0,
-                        float(host.canvas.width()) * 0.5,
-                        float(host.canvas.height()) * 0.5,
+                if mode == "wheel":
+                    _send_wheel(
+                        _empty_canvas_point(),
+                        120 if index % 2 == 0 else -120,
                     )
                 else:
                     dx, dy = ((18.0, 10.0), (-14.0, 8.0), (12.0, -9.0))[index % 3]
                     scheduler.queuePanBy(host.view, dx, dy)
-                host.begin_viewport_interaction()
                 _render_without_readback()
                 if index >= warmup_count:
                     timings.append((time.perf_counter() - started) * 1000.0)
             measured_frame_end = host.frame_render_timestamp_index()
-            host.finish_viewport_interaction()
+            continuous_after = _lifecycle_snapshot()
+            if mode != "wheel":
+                host.finish_viewport_interaction()
             host.wait_for_viewport_interaction_idle(timeout_ms=3500)
+            _drain(timeout_s=0.05)
+            restoration_after = _lifecycle_snapshot()
             return {
                 "timings_ms": timings,
+                "viewer_during": viewer_during,
                 "frame_timestamp_range": [
                     measured_frame_start,
                     measured_frame_end,
                 ],
                 "warmup_samples_applied": warmup_count,
+                "counter_boundaries": {
+                    "transition_before": transition_before,
+                    "transition_after": transition_after,
+                    "continuous_before": continuous_before,
+                    "continuous_after": continuous_after,
+                    "restoration_after": restoration_after,
+                },
+            }
+
+        def _box_zoom_steps() -> dict[str, Any]:
+            warmup_count = max(0, int(args.warmup))
+            measured_count = max(1, int(args.samples))
+            total_count = warmup_count + measured_count
+            start = _empty_canvas_point()
+            direction = -1 if start.x() > host.widget.width() * 0.5 else 1
+            end = QPoint(
+                max(8, min(host.widget.width() - 8, start.x() + direction * 180)),
+                max(8, min(host.widget.height() - 8, start.y() - 120)),
+            )
+            center_x = float(host.view.center_x)
+            center_y = float(host.view.center_y)
+            zoom = float(host.view.zoom)
+            transition_before = _lifecycle_snapshot()
+            QTest.mousePress(
+                host.window,
+                Qt.MouseButton.RightButton,
+                Qt.KeyboardModifier.NoModifier,
+                start,
+            )
+            QTest.mouseMove(host.window, end)
+            _drain(timeout_s=0.05)
+            _render_without_readback()
+            if not bool(host.canvas.property("nativeOverlaySuppressionActive")):
+                raise RuntimeError("Box zoom did not activate native overlay suppression")
+            viewer_during = _viewer_state()
+            transition_after = _lifecycle_snapshot()
+            continuous_before = _lifecycle_snapshot()
+            timings: list[float] = []
+            measured_frame_start = host.frame_render_timestamp_index()
+            current = end
+            for index in range(total_count):
+                if index == warmup_count:
+                    measured_frame_start = host.frame_render_timestamp_index()
+                current = QPoint(
+                    end.x() + direction * (index % 3),
+                    end.y() - (index % 2),
+                )
+                started = time.perf_counter()
+                QTest.mouseMove(host.window, current)
+                _render_without_readback()
+                if index >= warmup_count:
+                    timings.append((time.perf_counter() - started) * 1000.0)
+            measured_frame_end = host.frame_render_timestamp_index()
+            continuous_after = _lifecycle_snapshot()
+            QTest.mouseRelease(
+                host.window,
+                Qt.MouseButton.RightButton,
+                Qt.KeyboardModifier.NoModifier,
+                current,
+            )
+            host.view.set_zoom(zoom)
+            host.view.centerOn(center_x, center_y)
+            host.wait_for_viewport_interaction_idle(timeout_ms=3500)
+            _drain(timeout_s=0.05)
+            restoration_after = _lifecycle_snapshot()
+            return {
+                "timings_ms": timings,
+                "viewer_during": viewer_during,
+                "frame_timestamp_range": [measured_frame_start, measured_frame_end],
+                "warmup_samples_applied": warmup_count,
+                "counter_boundaries": {
+                    "transition_before": transition_before,
+                    "transition_after": transition_after,
+                    "continuous_before": continuous_before,
+                    "continuous_after": continuous_after,
+                    "restoration_after": restoration_after,
+                },
             }
 
         def _drag(node_id: str) -> dict[str, Any]:
@@ -1234,13 +1545,17 @@ def _run_engineering_canvas_scenario(args: argparse.Namespace, app: Any) -> int:
             measured_count = max(1, int(args.samples))
             total_count = warmup_count + measured_count
             final_dx = final_dy = 0.0
+            transition_before = _lifecycle_snapshot()
             transition_started = time.perf_counter()
             card.dragOffsetChanged.emit(node_id, 0.1, 0.1)
             _drain(timeout_s=0.05)
             _render_without_readback()
             transition_ms = (time.perf_counter() - transition_started) * 1000.0
+            viewer_during = _viewer_state()
+            transition_after = _lifecycle_snapshot()
             _drain(timeout_s=0.05)
             _render_without_readback()
+            continuous_before = _lifecycle_snapshot()
             measured_frame_start = host.frame_render_timestamp_index()
             for index in range(total_count):
                 if index == warmup_count:
@@ -1249,22 +1564,32 @@ def _run_engineering_canvas_scenario(args: argparse.Namespace, app: Any) -> int:
                 final_dy = 8.0 * float(index + 1) / float(total_count)
                 started = time.perf_counter()
                 card.dragOffsetChanged.emit(node_id, final_dx, final_dy)
-                app.processEvents()
                 _render_without_readback()
                 if index >= warmup_count:
                     timings.append((time.perf_counter() - started) * 1000.0)
             measured_frame_end = host.frame_render_timestamp_index()
+            continuous_after = _lifecycle_snapshot()
             card.dragFinished.emit(node_id, x + final_dx, y + final_dy, True)
-            app.processEvents()
+            _drain(timeout_s=0.05)
+            _render_without_readback()
+            restoration_after = _lifecycle_snapshot()
             return {
                 "timings_ms": timings,
                 "transition_ms": transition_ms,
+                "viewer_during": viewer_during,
                 "warmup_samples_applied": warmup_count,
                 "frame_timestamp_range": [
                     measured_frame_start,
                     measured_frame_end,
                 ],
                 "committed": True,
+                "counter_boundaries": {
+                    "transition_before": transition_before,
+                    "transition_after": transition_after,
+                    "continuous_before": continuous_before,
+                    "continuous_after": continuous_after,
+                    "restoration_after": restoration_after,
+                },
             }
 
         def _resize(node_id: str) -> dict[str, Any]:
@@ -1280,6 +1605,7 @@ def _run_engineering_canvas_scenario(args: argparse.Namespace, app: Any) -> int:
             total_count = warmup_count + measured_count
             final_width = width
             final_height = height
+            transition_before = _lifecycle_snapshot()
             transition_started = time.perf_counter()
             card.resizePreviewChanged.emit(
                 node_id,
@@ -1292,8 +1618,11 @@ def _run_engineering_canvas_scenario(args: argparse.Namespace, app: Any) -> int:
             _drain(timeout_s=0.05)
             _render_without_readback()
             transition_ms = (time.perf_counter() - transition_started) * 1000.0
+            viewer_during = _viewer_state()
+            transition_after = _lifecycle_snapshot()
             _drain(timeout_s=0.05)
             _render_without_readback()
+            continuous_before = _lifecycle_snapshot()
             measured_frame_start = host.frame_render_timestamp_index()
             for index in range(total_count):
                 if index == warmup_count:
@@ -1310,26 +1639,37 @@ def _run_engineering_canvas_scenario(args: argparse.Namespace, app: Any) -> int:
                     final_height,
                     True,
                 )
-                app.processEvents()
                 _render_without_readback()
                 if index >= warmup_count:
                     timings.append((time.perf_counter() - started) * 1000.0)
             measured_frame_end = host.frame_render_timestamp_index()
+            continuous_after = _lifecycle_snapshot()
             card.resizeFinished.emit(node_id, x, y, final_width, final_height)
-            app.processEvents()
+            _drain(timeout_s=0.05)
+            _render_without_readback()
+            restoration_after = _lifecycle_snapshot()
             return {
                 "timings_ms": timings,
                 "transition_ms": transition_ms,
+                "viewer_during": viewer_during,
                 "warmup_samples_applied": warmup_count,
                 "frame_timestamp_range": [
                     measured_frame_start,
                     measured_frame_end,
                 ],
                 "committed": True,
+                "counter_boundaries": {
+                    "transition_before": transition_before,
+                    "transition_after": transition_after,
+                    "continuous_before": continuous_before,
+                    "continuous_after": continuous_after,
+                    "restoration_after": restoration_after,
+                },
             }
 
         def _wire_drag() -> dict[str, Any]:
             card = _node_card(_ENGINEERING_CAD_NODE_ID)
+            transition_before = _lifecycle_snapshot()
             card.portDragStarted.emit(
                 _ENGINEERING_CAD_NODE_ID,
                 "scene",
@@ -1340,10 +1680,28 @@ def _run_engineering_canvas_scenario(args: argparse.Namespace, app: Any) -> int:
                 220.0,
                 0,
             )
+            card.portDragMoved.emit(
+                _ENGINEERING_CAD_NODE_ID,
+                "scene",
+                "output",
+                0.0,
+                0.0,
+                450.0,
+                250.0,
+                True,
+                0,
+            )
+            _drain(timeout_s=0.05)
+            _render_without_readback()
+            viewer_during = _viewer_state()
+            _drain(timeout_s=0.05)
+            _render_without_readback()
+            transition_after = _lifecycle_snapshot()
             timings: list[float] = []
             warmup_count = max(0, int(args.warmup))
             measured_count = max(1, int(args.samples))
             total_count = warmup_count + measured_count
+            continuous_before = _lifecycle_snapshot()
             measured_frame_start = host.frame_render_timestamp_index()
             for index in range(total_count):
                 if index == warmup_count:
@@ -1360,25 +1718,35 @@ def _run_engineering_canvas_scenario(args: argparse.Namespace, app: Any) -> int:
                     True,
                     0,
                 )
-                app.processEvents()
                 _render_without_readback()
                 if index >= warmup_count:
                     timings.append((time.perf_counter() - started) * 1000.0)
             measured_frame_end = host.frame_render_timestamp_index()
+            continuous_after = _lifecycle_snapshot()
             card.portDragCanceled.emit(
                 _ENGINEERING_CAD_NODE_ID,
                 "scene",
                 "output",
             )
-            app.processEvents()
+            _drain(timeout_s=0.05)
+            _render_without_readback()
+            restoration_after = _lifecycle_snapshot()
             return {
                 "timings_ms": timings,
+                "viewer_during": viewer_during,
                 "warmup_samples_applied": warmup_count,
                 "frame_timestamp_range": [
                     measured_frame_start,
                     measured_frame_end,
                 ],
                 "committed": False,
+                "counter_boundaries": {
+                    "transition_before": transition_before,
+                    "transition_after": transition_after,
+                    "continuous_before": continuous_before,
+                    "continuous_after": continuous_after,
+                    "restoration_after": restoration_after,
+                },
             }
 
         created_node_id = [""]
@@ -1393,87 +1761,209 @@ def _run_engineering_canvas_scenario(args: argparse.Namespace, app: Any) -> int:
                 **(dict(result) if isinstance(result, dict) else {}),
             }
 
-        _record_operation("viewport_pan", lambda: _viewport_steps(zoom=False))
-        _record_operation("viewport_zoom", lambda: _viewport_steps(zoom=True))
+        def _select_without_activation() -> None:
+            host.scene.select_node(_ENGINEERING_VIEWER_NODE_ID, False)
+            _drain(timeout_s=0.05)
+            if _viewer_state()["live_mode"] != "proxy":
+                raise RuntimeError("Selection unexpectedly activated the Model Viewer")
 
-        if args.engineering_condition == "selected-viewer":
-            _record_operation(
-                "viewer_node_drag",
-                lambda: _drag(_ENGINEERING_VIEWER_NODE_ID),
+        def _hover_without_activation() -> None:
+            QTest.mouseMove(host.window, _viewer_viewport_point())
+            _drain(timeout_s=0.05)
+            if _viewer_state()["live_mode"] != "proxy":
+                raise RuntimeError("Hover unexpectedly activated the Model Viewer")
+
+        def _single_click_without_activation() -> None:
+            QTest.mouseClick(
+                host.window,
+                Qt.MouseButton.LeftButton,
+                Qt.KeyboardModifier.NoModifier,
+                _viewer_viewport_point(),
             )
-            _record_operation(
-                "viewer_node_resize",
-                lambda: _resize(_ENGINEERING_VIEWER_NODE_ID),
+            _drain(timeout_s=0.05)
+            if _viewer_state()["live_mode"] != "proxy":
+                raise RuntimeError("Single click unexpectedly activated the Model Viewer")
+
+        def _double_click_activate(*, retained: bool = False) -> None:
+            if _ENGINEERING_VIEWER_NODE_ID not in dict(
+                host.scene.selected_node_lookup
+            ):
+                host.scene.select_node(_ENGINEERING_VIEWER_NODE_ID, False)
+                _drain(timeout_s=0.05)
+            point = (
+                _prepare_retained_reactivation_point()
+                if retained
+                else _viewer_viewport_point()
             )
-            _record_operation("viewer_park", lambda: _single(_park_viewer))
-        else:
-            _record_operation(
-                "unrelated_node_drag",
-                lambda: _drag(_ENGINEERING_UNRELATED_NODE_ID),
+            QTest.mouseDClick(
+                host.window,
+                Qt.MouseButton.LeftButton,
+                Qt.KeyboardModifier.NoModifier,
+                point,
             )
-            _record_operation(
-                "unrelated_node_resize",
-                lambda: _resize(_ENGINEERING_UNRELATED_NODE_ID),
+            _wait_for_live()
+
+        def _canvas_click_demote() -> None:
+            QTest.mouseClick(
+                host.window,
+                Qt.MouseButton.LeftButton,
+                Qt.KeyboardModifier.NoModifier,
+                _empty_canvas_point(),
             )
-            _record_operation("active_wire_drag", _wire_drag)
-            _record_operation(
-                "unrelated_property_edit",
-                lambda: _single(
-                    lambda: host.scene.set_node_property(
-                        _ENGINEERING_UNRELATED_NODE_ID,
-                        "value",
-                        not bool(
-                            host.model.project.workspaces[_ENGINEERING_WORKSPACE_ID]
-                            .nodes[_ENGINEERING_UNRELATED_NODE_ID]
-                            .properties.get("value", False)
-                        ),
-                    )
-                ),
-            )
+            _wait_for_retained_proxy()
+
+        wire_edge_id = [""]
 
         def _add_unrelated() -> dict[str, Any]:
-            created_node_id[0] = host.scene.create_node_from_type(
-                type_id="data.boolean_toggle",
-                x=940.0,
-                y=440.0,
-                parent_node_id=None,
-                select_node=False,
+            created_node_id[0] = host.scene.add_node_from_type(
+                "data.boolean_toggle", 940.0, 440.0
             )
+            _wait_for_retained_proxy()
             return {"created_node_id": created_node_id[0]}
 
-        if args.engineering_condition == "selected-viewer":
-            _record_operation(
-                "unrelated_node_drag",
-                lambda: _drag(_ENGINEERING_UNRELATED_NODE_ID),
-                viewer_live=False,
+        def _create_wire() -> dict[str, Any]:
+            wire_edge_id[0] = host.scene.add_edge(
+                _ENGINEERING_WIRE_SOURCE_NODE_ID,
+                "value",
+                _ENGINEERING_WIRE_TARGET_A_NODE_ID,
+                "payload",
             )
-            _record_operation(
-                "unrelated_node_resize",
-                lambda: _resize(_ENGINEERING_UNRELATED_NODE_ID),
-                viewer_live=False,
-            )
-            _record_operation("active_wire_drag", _wire_drag, viewer_live=False)
-            _record_operation(
-                "unrelated_property_edit",
-                lambda: _single(
-                    lambda: host.scene.set_node_property(
-                        _ENGINEERING_UNRELATED_NODE_ID,
-                        "value",
-                        not bool(
-                            host.model.project.workspaces[_ENGINEERING_WORKSPACE_ID]
-                            .nodes[_ENGINEERING_UNRELATED_NODE_ID]
-                            .properties.get("value", False)
-                        ),
-                    )
-                ),
-                viewer_live=False,
-            )
+            return {"edge_id": wire_edge_id[0]}
 
+        def _reroute_wire() -> dict[str, Any]:
+            if not host.scene.request_rewire_edges(
+                [wire_edge_id[0]],
+                "target",
+                _ENGINEERING_WIRE_TARGET_B_NODE_ID,
+                "payload",
+            ):
+                raise RuntimeError("Committed wire reroute was rejected")
+            return {"edge_id": wire_edge_id[0]}
+
+        _record_operation("proxy_pan_control", lambda: _viewport_steps(mode="pan"))
+        _record_operation("proxy_zoom_control", lambda: _viewport_steps(mode="wheel"))
         _record_operation(
-            "unrelated_node_add",
-            lambda: _single(_add_unrelated),
-            viewer_live=False,
+            "selection_without_activation", lambda: _single(_select_without_activation)
         )
+        _record_operation(
+            "hover_without_activation", lambda: _single(_hover_without_activation)
+        )
+        _record_operation(
+            "single_click_without_activation",
+            lambda: _single(_single_click_without_activation),
+        )
+        _record_operation(
+            "proxy_double_click_activation", lambda: _single(_double_click_activate)
+        )
+        activation_ok = (
+            _operation_record("proxy_double_click_activation")["status"] == "measured"
+            and _viewer_state()["live_mode"] == "full"
+            and _viewer_state()["explicit_inline_active"]
+        )
+        if activation_ok:
+            _record_operation("live_wheel_zoom", lambda: _viewport_steps(mode="wheel"))
+            if _viewer_state()["live_mode"] != "full":
+                _set_operation_status(
+                    "live_wheel_zoom",
+                    "failed",
+                    "Viewer did not remain live after wheel zoom",
+                )
+            if _viewer_state()["live_mode"] == "full":
+                _record_operation("live_box_zoom", _box_zoom_steps)
+            else:
+                _record_blocked("live_box_zoom", "live_wheel_zoom")
+            box_ok = (
+                _operation_record("live_box_zoom")["status"] == "measured"
+                and _viewer_state()["live_mode"] == "full"
+                and _viewer_state()["explicit_inline_active"]
+            )
+            if not box_ok and _operation_record("live_box_zoom")["status"] == "measured":
+                _set_operation_status(
+                    "live_box_zoom",
+                    "failed",
+                    "Viewer did not restore explicit live mode after box zoom",
+                )
+            live_root = "" if box_ok else "live_box_zoom"
+        else:
+            _record_blocked("live_wheel_zoom", "proxy_double_click_activation")
+            _record_blocked("live_box_zoom", "proxy_double_click_activation")
+            live_root = "proxy_double_click_activation"
+
+        if not live_root:
+            _record_operation(
+                "active_viewer_drag", lambda: _drag(_ENGINEERING_VIEWER_NODE_ID)
+            )
+            _record_operation(
+                "active_viewer_resize", lambda: _resize(_ENGINEERING_VIEWER_NODE_ID)
+            )
+            _record_operation(
+                "canvas_click_demotion", lambda: _single(_canvas_click_demote)
+            )
+        else:
+            _record_blocked("active_viewer_drag", live_root)
+            _record_blocked("active_viewer_resize", live_root)
+            _record_blocked("canvas_click_demotion", live_root)
+
+        retained_ready = (
+            _viewer_state()["retained_inline_node_id"]
+            == _ENGINEERING_VIEWER_NODE_ID
+            and _viewer_state()["live_mode"] == "proxy"
+        )
+        if retained_ready:
+            if live_root:
+                _record_derived(
+                    "retained_proxy_pan",
+                    lambda: _viewport_steps(mode="pan"),
+                    live_root,
+                )
+                _record_derived(
+                    "retained_proxy_zoom",
+                    lambda: _viewport_steps(mode="wheel"),
+                    live_root,
+                )
+            else:
+                _record_operation(
+                    "retained_proxy_pan", lambda: _viewport_steps(mode="pan")
+                )
+                _record_operation(
+                    "retained_proxy_zoom", lambda: _viewport_steps(mode="wheel")
+                )
+            _record_operation(
+                "double_click_reactivation",
+                lambda: _single(lambda: _double_click_activate(retained=True)),
+            )
+            reactivation_ok = (
+                _operation_record("double_click_reactivation")["status"] == "measured"
+                and _viewer_state()["live_mode"] == "full"
+                and _viewer_state()["explicit_inline_active"]
+            )
+        else:
+            _record_blocked("retained_proxy_pan", live_root or "canvas_click_demotion")
+            _record_blocked("retained_proxy_zoom", live_root or "canvas_click_demotion")
+            _record_blocked(
+                "double_click_reactivation", live_root or "canvas_click_demotion"
+            )
+            reactivation_ok = False
+
+        if reactivation_ok:
+            _record_operation("active_wire_drag", _wire_drag)
+        else:
+            _record_blocked("active_wire_drag", "double_click_reactivation")
+        _record_operation(
+            "unrelated_property_edit",
+            lambda: _single(
+                lambda: host.scene.set_node_property(
+                    _ENGINEERING_UNRELATED_NODE_ID,
+                    "value",
+                    not bool(
+                        host.model.project.workspaces[_ENGINEERING_WORKSPACE_ID]
+                        .nodes[_ENGINEERING_UNRELATED_NODE_ID]
+                        .properties.get("value", False)
+                    ),
+                )
+            ),
+        )
+        _record_operation("unrelated_node_add", lambda: _single(_add_unrelated))
         _record_operation(
             "unrelated_node_delete",
             lambda: _single(
@@ -1481,22 +1971,25 @@ def _run_engineering_canvas_scenario(args: argparse.Namespace, app: Any) -> int:
                 if created_node_id[0]
                 else None
             ),
-            viewer_live=False,
         )
-
-        def _delete_viewer() -> dict[str, Any]:
-            return _single(
-                lambda: host.scene.remove_node(_ENGINEERING_VIEWER_NODE_ID)
-            )
-
-        _record_operation("viewer_node_delete", _delete_viewer, viewer_live=False)
+        _record_operation("unrelated_wire_create", lambda: _single(_create_wire))
+        _record_operation("unrelated_wire_reroute", lambda: _single(_reroute_wire))
+        _record_operation(
+            "unrelated_wire_delete",
+            lambda: _single(lambda: host.scene.remove_edge(wire_edge_id[0])),
+        )
+        _record_operation(
+            "viewer_deletion",
+            lambda: _single(lambda: host.scene.remove_node(_ENGINEERING_VIEWER_NODE_ID)),
+        )
 
         all_frame_intervals = host.frame_interval_samples_without_readback_ms()
         operation_lookup = {item["operation"]: item for item in operations}
         primary_screen = QGuiApplication.primaryScreen()
+        renderer_diagnostics = host.renderer_diagnostics()
+        renderer_diagnostics["grab_window_readback_included"] = False
         payload = {
             "scenario": "engineering_step",
-            "engineering_condition": args.engineering_condition,
             "engineering_step": str(step_path),
             "qt_platform": args.qt_platform,
             "scale_factor_override": args.scale_factor or "",
@@ -1507,7 +2000,7 @@ def _run_engineering_canvas_scenario(args: argparse.Namespace, app: Any) -> int:
             "samples": args.samples,
             "warmup": args.warmup,
             "media_surface_count": 0,
-            "node_count": 4,
+            "node_count": 7,
             "edge_count": 2,
             "workspace_id": _ENGINEERING_WORKSPACE_ID,
             "fixture_metadata": {
@@ -1516,12 +2009,12 @@ def _run_engineering_canvas_scenario(args: argparse.Namespace, app: Any) -> int:
                 "step_path": str(step_path),
             },
             "setup_ms": setup_ms,
-            "pan_ms": operation_lookup["viewport_pan"]["timings_ms"],
-            "zoom_ms": operation_lookup["viewport_zoom"]["timings_ms"],
+            "pan_ms": operation_lookup["proxy_pan_control"]["timings_ms"],
+            "zoom_ms": operation_lookup["proxy_zoom_control"]["timings_ms"],
             "frame_intervals_ms": all_frame_intervals,
             "frame_interval_ms_without_readback": all_frame_intervals,
             "frame_count": host.frame_render_timestamp_index(),
-            "renderer_diagnostics": host.renderer_diagnostics(),
+            "renderer_diagnostics": renderer_diagnostics,
             "feature_parity": host.collect_feature_parity_snapshot(
                 expected_media_surface_count=0
             ),
@@ -1540,19 +2033,13 @@ def _run_engineering_canvas_scenario(args: argparse.Namespace, app: Any) -> int:
                 if item["status"] != "measured"
             ],
             "driver_limitations": [
-                "Node drag and resize use the production delegate gesture signals. Selected-viewer runs transition once to the retained proxy before exercising unrelated authoring and deletion.",
+                "Node drag, resize, and active wire drag use the production delegate signals; hover, click, double-click, canvas click, wheel, and box zoom use actual QML input events.",
             ],
-            "initial_viewer_state": {
-                "phase": str(initial_session.get("phase", "")),
-                "live_mode": str(initial_session.get("live_mode", "")),
-                "cache_state": str(initial_session.get("cache_state", "")),
-                "transport_revision": int(
-                    initial_session.get("transport_revision", 0) or 0
-                ),
-            },
+            "initial_viewer_state": startup_viewer_state,
             "final_viewer_state": _viewer_state(),
             "worker_event_types": [str(event.get("type", "")) for event in worker_events],
         }
+        payload["engineering_acceptance"] = _evaluate_engineering_acceptance(payload)
         Path(args.output_path).write_text(
             json.dumps(payload, indent=2),
             encoding="utf-8",
@@ -1642,6 +2129,409 @@ def _percentile(values: list[float], percentile: float) -> float:
     lower = int(rank)
     upper = min(lower + 1, len(ordered) - 1)
     return float(ordered[lower] + (ordered[upper] - ordered[lower]) * (rank - lower))
+
+
+def _evaluate_engineering_acceptance(report: dict[str, Any]) -> dict[str, Any]:
+    """Evaluate one engineering interaction report without launching Qt or CAD."""
+    failures: list[str] = []
+    operations = list(report.get("operations", []))
+    actual_order = tuple(str(item.get("operation", "")) for item in operations)
+    if actual_order != _ENGINEERING_OPERATION_ORDER:
+        failures.append(
+            "operation order mismatch: "
+            f"expected {list(_ENGINEERING_OPERATION_ORDER)!r}, got {list(actual_order)!r}"
+        )
+    by_name = {str(item.get("operation", "")): item for item in operations}
+
+    def operation(name: str) -> dict[str, Any]:
+        value = by_name.get(name)
+        if value is None:
+            failures.append(f"missing operation: {name}")
+            return {}
+        status = str(value.get("status", ""))
+        if status in {"failed", "unsupported"}:
+            failures.append(
+                f"{name}: {value.get('unavailable_reason') or 'not measured'}"
+            )
+        return value
+
+    def measured(item: dict[str, Any]) -> bool:
+        return str(item.get("status", "")) == "measured"
+
+    def state(item: dict[str, Any], key: str) -> dict[str, Any]:
+        value = item.get(key, {})
+        return dict(value) if isinstance(value, dict) else {}
+
+    def deltas(item: dict[str, Any], key: str = "lifecycle_deltas") -> dict[str, int]:
+        value = item.get(key, {})
+        if not isinstance(value, dict):
+            return {}
+        return {str(name): int(count or 0) for name, count in value.items()}
+
+    native_churn_keys = (
+        "binder_bind",
+        "binder_release",
+        "binder_render",
+        "dataset_load",
+        "widget_create",
+        "native_move_calls",
+        "native_resize_calls",
+        "native_set_geometry_calls",
+    )
+    passive_unchanged_keys = (
+        *native_churn_keys,
+        "viewer_host_sync",
+        "embedded_interaction_sync",
+        "camera_capture",
+        "preview_capture",
+        "execution_open",
+        "execution_update",
+        "execution_close",
+        "execution_materialize",
+        "execution_query",
+        "overlay_full_sync",
+        "overlay_transform_sync",
+        "overlay_skipped_delta",
+    )
+
+    def require_zero(name: str, values: dict[str, int], keys=native_churn_keys) -> None:  # noqa: ANN001
+        nonzero = {key: values.get(key, 0) for key in keys if values.get(key, 0)}
+        if nonzero:
+            failures.append(f"{name}: unexpected native work {nonzero!r}")
+
+    startup = operation("startup_proxy")
+    if measured(startup):
+        startup_after = state(startup, "viewer_after")
+        if startup_after.get("live_mode") != "proxy":
+            failures.append("startup_proxy: viewer must remain proxy")
+        if startup_after.get("widget_identity"):
+            failures.append("startup_proxy: native widget exists before activation")
+        if startup_after.get("retained_inline_node_id"):
+            failures.append("startup_proxy: retained widget exists before activation")
+        if bool(startup_after.get("explicit_inline_active")):
+            failures.append("startup_proxy: explicit activation became active")
+        require_zero("startup_proxy", deltas(startup))
+
+    passive_names = (
+        "selection_without_activation",
+        "hover_without_activation",
+        "single_click_without_activation",
+    )
+    for name in passive_names:
+        item = operation(name)
+        if not measured(item):
+            continue
+        after = state(item, "viewer_after")
+        if after.get("live_mode") != "proxy":
+            failures.append(f"{name}: viewer must remain proxy")
+        if after.get("widget_identity"):
+            failures.append(f"{name}: native widget exists before activation")
+        if after.get("retained_inline_node_id"):
+            failures.append(f"{name}: retained widget exists before activation")
+        if bool(after.get("explicit_inline_active")):
+            failures.append(f"{name}: explicit activation became active")
+        require_zero(name, deltas(item), passive_unchanged_keys)
+
+    activation = operation("proxy_double_click_activation")
+    if measured(activation):
+        activation_before = state(activation, "viewer_before")
+        activation_after = state(activation, "viewer_after")
+        activation_delta = deltas(activation)
+        if activation_before.get("widget_identity"):
+            failures.append("proxy_double_click_activation: widget existed before activation")
+        if not activation_after.get("widget_identity"):
+            failures.append("proxy_double_click_activation: widget was not created")
+        if activation_after.get("live_mode") != "full":
+            failures.append("proxy_double_click_activation: viewer did not become full")
+        if not bool(activation_after.get("explicit_inline_active")):
+            failures.append("proxy_double_click_activation: explicit activation not recorded")
+        if activation_delta.get("widget_create", 0) != 1:
+            failures.append("proxy_double_click_activation: expected exactly one widget creation")
+        if activation_delta.get("dataset_load", 0) != 1:
+            failures.append("proxy_double_click_activation: expected exactly one dataset load")
+        if activation_delta.get("binder_release", 0):
+            failures.append("proxy_double_click_activation: binder released during activation")
+        if activation_before.get("transport_revision") != activation_after.get(
+            "transport_revision"
+        ):
+            failures.append("proxy_double_click_activation: transport revision changed")
+
+    continuous_names = _ENGINEERING_CONTINUOUS_OPERATION_NAMES
+    live_names = {
+        "live_wheel_zoom",
+        "live_box_zoom",
+        "active_viewer_drag",
+        "active_viewer_resize",
+        "active_wire_drag",
+    }
+    for name in continuous_names:
+        item = operation(name)
+        if not measured(item):
+            continue
+        continuous_delta = deltas(item, "continuous_lifecycle_deltas")
+        require_zero(name, continuous_delta)
+        if deltas(item).get("execution_update", 0):
+            failures.append(
+                f"{name}: execution live-mode update occurred during transient gesture"
+            )
+        if name == "active_wire_drag":
+            require_zero(
+                name,
+                continuous_delta,
+                ("viewer_host_sync", "overlay_full_sync"),
+            )
+        if float(item.get("timing_p95_ms", 0.0)) > 33.3:
+            failures.append(f"{name}: timing p95 exceeds 33.3 ms")
+        if float(item.get("frame_interval_p95_ms", 0.0)) > 33.3:
+            failures.append(f"{name}: frame p95 exceeds 33.3 ms")
+        before = state(item, "viewer_before")
+        after = state(item, "viewer_after")
+        if before.get("transport_revision") != after.get("transport_revision"):
+            failures.append(f"{name}: transport revision changed")
+        if name in live_names:
+            during = state(item, "viewer_during")
+            if before.get("live_mode") != "full" or not bool(
+                before.get("explicit_inline_active")
+            ):
+                failures.append(f"{name}: viewer was not explicitly live before gesture")
+            if bool(during.get("native_overlay_visible")):
+                failures.append(f"{name}: native overlay remained visible during gesture")
+            if bool(during.get("native_overlay_geometry_ready")):
+                failures.append(f"{name}: native geometry remained ready during gesture")
+            if bool(during.get("native_updates_enabled")):
+                failures.append(f"{name}: native updates remained enabled during gesture")
+            if before.get("widget_identity") != after.get("widget_identity"):
+                failures.append(f"{name}: widget identity changed")
+            if after.get("live_mode") != "full":
+                failures.append(f"{name}: viewer did not restore full mode")
+            if not bool(after.get("explicit_inline_active")):
+                failures.append(f"{name}: explicit inline activation did not restore")
+            if not bool(after.get("native_overlay_visible")):
+                failures.append(f"{name}: native overlay did not restore")
+            if not bool(after.get("native_overlay_geometry_ready")):
+                failures.append(f"{name}: native geometry did not restore")
+            if not bool(after.get("native_updates_enabled")):
+                failures.append(f"{name}: native updates did not restore")
+
+    proxy_pan = operation("proxy_pan_control")
+    retained_pan = operation("retained_proxy_pan")
+    proxy_zoom = operation("proxy_zoom_control")
+    retained_zoom = operation("retained_proxy_zoom")
+    if measured(proxy_pan) and measured(retained_pan) and float(
+        retained_pan.get("timing_p95_ms", 0.0)
+    ) > float(
+        proxy_pan.get("timing_p95_ms", 0.0)
+    ) + 8.0:
+        failures.append("retained_proxy_pan: more than 8 ms slower than proxy control")
+    if measured(proxy_zoom) and measured(retained_zoom) and float(
+        retained_zoom.get("timing_p95_ms", 0.0)
+    ) > float(
+        proxy_zoom.get("timing_p95_ms", 0.0)
+    ) + 8.0:
+        failures.append("retained_proxy_zoom: more than 8 ms slower than proxy control")
+
+    demotion = operation("canvas_click_demotion")
+    if measured(demotion):
+        demotion_before = state(demotion, "viewer_before")
+        demotion_after = state(demotion, "viewer_after")
+        if demotion_before.get("live_mode") != "full" or not bool(
+            demotion_before.get("explicit_inline_active")
+        ):
+            failures.append("canvas_click_demotion: viewer was not live before click")
+        if demotion_before.get("widget_identity") != demotion_after.get("widget_identity"):
+            failures.append("canvas_click_demotion: widget identity changed")
+        if demotion_after.get("live_mode") != "proxy":
+            failures.append("canvas_click_demotion: viewer did not demote")
+        if demotion_after.get("retained_inline_node_id") != _ENGINEERING_VIEWER_NODE_ID:
+            failures.append("canvas_click_demotion: viewer was not retained")
+        if demotion_after.get("native_overlay_visible"):
+            failures.append("canvas_click_demotion: retained widget remained visible")
+        demotion_delta = deltas(demotion)
+        if demotion_delta.get("binder_release", 0):
+            failures.append("canvas_click_demotion: binder released retained widget")
+        preview_captures = demotion_delta.get("preview_capture", 0)
+        if preview_captures > 1:
+            failures.append("canvas_click_demotion: captured more than one preview")
+        if (
+            preview_captures == 1
+            or bool(demotion_before.get("cached_preview_available"))
+        ) and not bool(demotion_after.get("cached_preview_available")):
+            failures.append("canvas_click_demotion: cached preview was not retained")
+
+    reactivation = operation("double_click_reactivation")
+    if measured(reactivation):
+        reactivation_before = state(reactivation, "viewer_before")
+        reactivation_after = state(reactivation, "viewer_after")
+        if reactivation_before.get("widget_identity") != reactivation_after.get(
+            "widget_identity"
+        ):
+            failures.append("double_click_reactivation: widget identity changed")
+        if reactivation_after.get("live_mode") != "full" or not bool(
+            reactivation_after.get("explicit_inline_active")
+        ):
+            failures.append("double_click_reactivation: viewer did not restore full mode")
+        require_zero(
+            "double_click_reactivation",
+            deltas(reactivation),
+            ("binder_release", "dataset_load", "widget_create"),
+        )
+
+    unrelated_names = (
+        "unrelated_property_edit",
+        "unrelated_node_add",
+        "unrelated_node_delete",
+        "unrelated_wire_create",
+        "unrelated_wire_reroute",
+        "unrelated_wire_delete",
+    )
+    for name in unrelated_names:
+        item = operation(name)
+        if not measured(item):
+            continue
+        require_zero(name, deltas(item))
+        before = state(item, "viewer_before")
+        after = state(item, "viewer_after")
+        if before.get("widget_identity") != after.get("widget_identity"):
+            failures.append(f"{name}: retained widget identity changed")
+        if before.get("transport_revision") != after.get("transport_revision"):
+            failures.append(f"{name}: transport revision changed")
+        if deltas(item).get("overlay_skipped_delta", 0) < 1:
+            failures.append(f"{name}: skipped-delta counter did not increment")
+
+    deletion = operation("viewer_deletion")
+    if measured(deletion):
+        deletion_after = state(deletion, "viewer_after")
+        if deltas(deletion).get("binder_release", 0) != 1:
+            failures.append("viewer_deletion: expected exactly one binder release")
+        if deletion_after.get("widget_identity"):
+            failures.append("viewer_deletion: widget remains resident")
+        if deletion_after.get("retained_inline_node_id"):
+            failures.append("viewer_deletion: retained key remains")
+        if deletion_after.get("phase") or deletion_after.get("session_id"):
+            failures.append("viewer_deletion: session projection remains")
+        if bool(deletion_after.get("explicit_inline_active")):
+            failures.append("viewer_deletion: explicit inline activation remains")
+        if int(deletion_after.get("transport_revision", 0) or 0) != 0:
+            failures.append("viewer_deletion: transport revision remains")
+
+    return {
+        "status": "PASS" if not failures else "FAIL",
+        "evaluation_scope": "single_run_diagnostic",
+        "release_status": "DIAGNOSTIC_ONLY",
+        "release_ready": False,
+        "failures": failures,
+        "operation_count": len(operations),
+        "preferred_frame_target_ms": 16.7,
+        "hard_frame_target_ms": 33.3,
+        "three_run_cv_gate": 0.20,
+        "three_run_cv_evaluated": False,
+    }
+
+
+def _evaluate_engineering_release_acceptance(
+    reports: list[dict[str, Any]],
+) -> dict[str, Any]:
+    """Evaluate three independent engineering reports for release readiness."""
+    failures: list[str] = []
+    if len(reports) != 3:
+        failures.append(
+            f"release acceptance requires exactly 3 reports; received {len(reports)}"
+        )
+    per_run_results = [
+        _evaluate_engineering_acceptance(report) for report in reports
+    ]
+    for index, (report, result) in enumerate(
+        zip(reports, per_run_results), start=1
+    ):
+        if str(report.get("qt_platform", "")).strip().casefold() != "windows":
+            failures.append(f"run {index}: qt_platform must be windows")
+        renderer = report.get("renderer_diagnostics", {})
+        renderer = renderer if isinstance(renderer, dict) else {}
+        if str(renderer.get("graphics_api", "")) != "Direct3D11Rhi":
+            failures.append(
+                f"run {index}: graphics_api must be Direct3D11Rhi"
+            )
+        if str(renderer.get("qml_host_kind", "")) != "qquickwidget":
+            failures.append(f"run {index}: qml_host_kind must be qquickwidget")
+        if renderer.get("grab_window_readback_included") is not False:
+            failures.append(
+                f"run {index}: renderer grab_window_readback_included must be false"
+            )
+        feature_parity = report.get("feature_parity", {})
+        feature_parity = feature_parity if isinstance(feature_parity, dict) else {}
+        if feature_parity.get("pass") is not True:
+            failures.append(f"run {index}: feature parity must pass")
+        if report.get("grab_window_readback_included") is not False:
+            failures.append(
+                f"run {index}: grab_window_readback_included must be false"
+            )
+        if result["status"] != "PASS":
+            failures.extend(
+                f"run {index}: {failure}" for failure in result["failures"]
+            )
+        non_measured = [
+            str(item.get("operation", ""))
+            for item in report.get("operations", [])
+            if str(item.get("status", "")) != "measured"
+        ]
+        if non_measured:
+            failures.append(
+                f"run {index}: non-measured operations {non_measured!r}"
+            )
+
+    coefficients: dict[str, dict[str, float]] = {}
+    if len(reports) == 3:
+        operation_maps = [
+            {
+                str(item.get("operation", "")): item
+                for item in report.get("operations", [])
+            }
+            for report in reports
+        ]
+        for name in _ENGINEERING_CONTINUOUS_OPERATION_NAMES:
+            timing_values = [
+                float(operation_map.get(name, {}).get("timing_p95_ms", 0.0))
+                for operation_map in operation_maps
+            ]
+            frame_values = [
+                float(
+                    operation_map.get(name, {}).get(
+                        "frame_interval_p95_ms", 0.0
+                    )
+                )
+                for operation_map in operation_maps
+            ]
+
+            def cv(values: list[float]) -> float:
+                mean = statistics.fmean(values)
+                if mean == 0.0:
+                    return 0.0 if not any(values) else float("inf")
+                return statistics.pstdev(values) / abs(mean)
+
+            timing_cv = cv(timing_values)
+            frame_cv = cv(frame_values)
+            coefficients[name] = {
+                "timing_p95_cv": timing_cv,
+                "frame_p95_cv": frame_cv,
+            }
+            if timing_cv > 0.20:
+                failures.append(f"{name}: timing p95 CV exceeds 0.20")
+            if frame_cv > 0.20:
+                failures.append(f"{name}: frame p95 CV exceeds 0.20")
+
+    release_ready = len(reports) == 3 and not failures
+    return {
+        "status": "PASS" if release_ready else "FAIL",
+        "evaluation_scope": "three_run_release",
+        "release_status": "READY" if release_ready else "NOT_READY",
+        "release_ready": release_ready,
+        "failures": failures,
+        "run_count": len(reports),
+        "per_run_results": per_run_results,
+        "coefficients_of_variation": coefficients,
+        "three_run_cv_gate": 0.20,
+        "three_run_cv_evaluated": len(reports) == 3,
+    }
 
 
 def _profile_top_functions(stats: pstats.Stats, *, top_n: int) -> list[dict[str, Any]]:
@@ -1912,10 +2802,10 @@ def _orchestrate(args: argparse.Namespace) -> int:
     if args.engineering_step:
         scenarios = [
             {
-                "label": f"engineering_{args.engineering_condition}",
+                "label": "engineering_explicit_live",
                 "scenario": "synthetic_exec",
                 "scale_factor": "",
-                "nodes": 4,
+                "nodes": 7,
                 "edges": 2,
             }
         ]
@@ -1979,14 +2869,7 @@ def _orchestrate(args: argparse.Namespace) -> int:
         if args.stress_fixture:
             cmd.extend(["--stress-fixture", args.stress_fixture])
         if args.engineering_step:
-            cmd.extend(
-                [
-                    "--engineering-step",
-                    args.engineering_step,
-                    "--engineering-condition",
-                    args.engineering_condition,
-                ]
-            )
+            cmd.extend(["--engineering-step", args.engineering_step])
         if args.qml_host:
             cmd.extend(["--qml-host", args.qml_host])
         if args.qsg_rhi_backend:
@@ -2398,13 +3281,26 @@ def _write_markdown_report(
             continue
         lines.append(f"## Engineering operations: {result['label']}")
         lines.append("")
+        acceptance = dict(result.get("engineering_acceptance", {}))
+        lines.append(
+            "- Per-run diagnostic acceptance: "
+            f"`{acceptance.get('status', 'NOT_EVALUATED')}`"
+        )
+        lines.append(
+            "- Release readiness: "
+            f"`{acceptance.get('release_ready', False)}` "
+            f"(`{acceptance.get('release_status', 'NOT_EVALUATED')}`)"
+        )
+        for failure in acceptance.get("failures", []):
+            lines.append(f"  - {failure}")
+        lines.append("")
         lines.append(
             "| Operation | Status | p50 (ms) | p95 (ms) | Frame p95 (ms) | "
             "Widget before/after | Bind | Release | Render | Load | Full sync | "
-            "Transform sync | Move | Resize |"
+            "Transform sync | Native move | Native resize | Native setGeometry |"
         )
         lines.append(
-            "|---|---|---:|---:|---:|---|---:|---:|---:|---:|---:|---:|---:|---:|"
+            "|---|---|---:|---:|---:|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|"
         )
         for operation in operations:
             delta = operation.get("lifecycle_deltas", {})
@@ -2413,7 +3309,7 @@ def _write_markdown_report(
             lines.append(
                 "| {name} | {status} | {p50:.2f} | {p95:.2f} | {frame:.2f} | "
                 "{before}/{after} | {bind} | {release} | {render} | {load} | "
-                "{full} | {transform} | {move} | {resize} |".format(
+                "{full} | {transform} | {move} | {resize} | {set_geometry} |".format(
                     name=operation.get("operation", ""),
                     status=operation.get("status", ""),
                     p50=float(operation.get("timing_p50_ms", 0.0)),
@@ -2427,8 +3323,9 @@ def _write_markdown_report(
                     load=delta.get("dataset_load", 0),
                     full=delta.get("overlay_full_sync", 0),
                     transform=delta.get("overlay_transform_sync", 0),
-                    move=delta.get("overlay_move", 0),
-                    resize=delta.get("overlay_resize", 0),
+                    move=delta.get("native_move_calls", 0),
+                    resize=delta.get("native_resize_calls", 0),
+                    set_geometry=delta.get("native_set_geometry_calls", 0),
                 )
             )
         lines.append("")
@@ -2584,12 +3481,6 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         default="",
         help="Run the production Panel -> CAD Import -> Model Viewer flow with this STEP file.",
     )
-    parser.add_argument(
-        "--engineering-condition",
-        choices=("control", "settled-proxy", "selected-viewer"),
-        default="",
-        help="Engineering viewer presentation state; defaults to selected-viewer when --engineering-step is set.",
-    )
     parser.add_argument("--qt-platform", default="windows")
     parser.add_argument("--qml-host", choices=("qquickwidget", "qquickview_container"), default="")
     parser.add_argument(
@@ -2614,10 +3505,7 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         action="store_true",
         help="Set QSG_INFO=1 in profile subprocesses and capture Qt scene graph diagnostics in logs.",
     )
-    args = parser.parse_args(argv)
-    if args.engineering_step and not args.engineering_condition:
-        args.engineering_condition = "selected-viewer"
-    return args
+    return parser.parse_args(argv)
 
 
 def main(argv: list[str] | None = None) -> int:

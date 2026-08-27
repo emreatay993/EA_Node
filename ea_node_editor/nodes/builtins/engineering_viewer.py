@@ -284,8 +284,6 @@ def _open_engineering_viewer_session(
     session_id = default_viewer_session_id(ctx.workspace_id, ctx.node_id)
     options = {
         "live_mode": "proxy",
-        "live_policy": "focus_only",
-        "keep_live": False,
         "playback_state": "paused",
         "step_index": 0,
         "show_mesh_edges": bool(ctx.properties.get("show_mesh_edges", False)),

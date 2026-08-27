@@ -71,6 +71,7 @@ class ViewerSurfaceContractTests(unittest.TestCase):
         self.assertIn("GraphViewerSurfaceBody.qml", facade_text)
         self.assertIn("dispatchSurfaceAction", facade_text)
         self.assertIn("surfaceActions", facade_text)
+        self.assertNotIn("triggerHoverAction", facade_text)
 
 
     def test_graph_surface_metrics_facade_uses_helper_split(self) -> None:
@@ -810,8 +811,6 @@ class ViewerSurfaceContractTests(unittest.TestCase):
                             "last_error": "",
                             "playback_state": "playing",
                             "step_index": 99,
-                            "live_policy": "keep_live",
-                            "keep_live": True,
                             "cache_state": "live_ready",
                             "backend_id": "backend.legacy",
                             "transport_revision": 99,
@@ -837,8 +836,6 @@ class ViewerSurfaceContractTests(unittest.TestCase):
                                 "live_mode": "full",
                                 "playback_state": "playing",
                                 "step_index": 99,
-                                "live_policy": "keep_live",
-                                "keep_live": True,
                                 "backend_id": "backend.legacy",
                                 "transport_revision": 99,
                                 "live_open_status": "blocked",
@@ -854,8 +851,6 @@ class ViewerSurfaceContractTests(unittest.TestCase):
                                 "playback_state": "paused",
                                 "step_index": 2,
                                 "playback": {"state": "paused", "step_index": 2},
-                                "live_policy": "focus_only",
-                                "keep_live": False,
                                 "cache_state": "proxy_ready",
                                 "backend_id": "backend.viewer",
                                 "transport_revision": 7,
@@ -882,8 +877,6 @@ class ViewerSurfaceContractTests(unittest.TestCase):
                                     "live_mode": "proxy",
                                     "playback_state": "paused",
                                     "step_index": 2,
-                                    "live_policy": "focus_only",
-                                    "keep_live": False,
                                     "backend_id": "backend.viewer",
                                     "transport_revision": 7,
                                     "live_open_status": "ready",
@@ -907,7 +900,7 @@ class ViewerSurfaceContractTests(unittest.TestCase):
 
             actions = variant_list(surface.property("surfaceActions"))
             action_ids = [str(action["id"]) for action in actions]
-            assert action_ids == ["openSession", "playPause", "step", "keepLive", "camera", "screenshot", "copyImage", "detach", "fullscreen"], action_ids
+            assert action_ids == ["openSession", "playPause", "step", "camera", "screenshot", "copyImage", "detach", "fullscreen"], action_ids
 
             camera_action = next(action for action in actions if action["id"] == "camera")
             popover_actions = list(camera_action["popoverActions"])
@@ -970,8 +963,6 @@ class ViewerSurfaceContractTests(unittest.TestCase):
                         "last_error": "",
                         "playback_state": "paused",
                         "step_index": 1,
-                        "live_policy": "focus_only",
-                        "keep_live": False,
                         "cache_state": "proxy_ready",
                         "backend_id": "backend.viewer",
                         "transport_revision": 3,

@@ -159,7 +159,12 @@ CROSS_PROCESS_VIEWER_BACKEND_FRAMEWORK_REQUIREMENT_TOKENS: dict[str, dict[str, t
             "transport_revision",
             "rerun_required",
         ),
-        "AC-REQ-UI-032-01": ("focus_only", "keep_live", "rerun_required", "widget cleanup and rebinding"),
+        "AC-REQ-UI-032-01": (
+            "explicit activation",
+            "presentation holds",
+            "rerun_required",
+            "widget cleanup and rebinding",
+        ),
     },
     "docs/specs/requirements/45_NODE_EXECUTION_MODEL.md": {
         "REQ-NODE-026": ("session-owned", "output_mode=memory", "temp transport bundle", "rerun-required"),

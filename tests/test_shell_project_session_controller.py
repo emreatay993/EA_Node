@@ -211,8 +211,6 @@ def _viewer_opened_event(
     options = {
         "session_state": "open",
         "cache_state": summary["cache_state"],
-        "live_policy": "focus_only",
-        "keep_live": False,
         "playback_state": "paused",
         "step_index": 4,
         "live_mode": "full",

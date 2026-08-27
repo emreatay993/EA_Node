@@ -116,6 +116,11 @@ INPUT_REFERENCE_SECTIONS: tuple[InputReferenceSection, ...] = (
             InputReferenceEntry("Empty canvas", "Right-drag", "Zoom to the dragged rectangle."),
             InputReferenceEntry("Empty canvas", "Right-click", "Open the graph or selection context menu."),
             InputReferenceEntry("Empty canvas", "Double-click", "Open quick insert at the pointer."),
+            InputReferenceEntry(
+                "Model Viewer proxy viewport",
+                "Double-click",
+                "Activate the inline 3D viewer.",
+            ),
             InputReferenceEntry("Viewport", "Mouse wheel", "Zoom the graph canvas."),
             InputReferenceEntry("Viewport", "Middle-drag", "Pan the graph canvas."),
             InputReferenceEntry(

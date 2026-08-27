@@ -464,6 +464,7 @@ class ShellWindow(
     def __init__(self, composition: ShellWindowComposition | None = None, *, _defer_bootstrap: bool = False) -> None:
         super().__init__()
         self._viewer_window_active = True
+        self._viewer_deactivate_decision_queued = False
         self._application_state_signal_connected = False
         self._shell_teardown_started = False
         self.tooltip_manager = TooltipManager(
@@ -614,7 +615,7 @@ class ShellWindow(
     def _open_logs(self) -> None:
         return
 
-    def _handle_window_deactivate(self) -> None:
+    def _clear_viewer_focus_for_deactivation(self) -> None:
         if not getattr(self, "_viewer_window_active", True):
             return
         self._viewer_window_active = False
@@ -626,6 +627,35 @@ class ShellWindow(
             clear_focus()
         except Exception:  # noqa: BLE001
             return
+
+    def _queue_window_deactivate_decision(self) -> None:
+        if self._viewer_deactivate_decision_queued:
+            return
+        self._viewer_deactivate_decision_queued = True
+        QTimer.singleShot(0, self._resolve_window_deactivate_decision)
+
+    def _resolve_window_deactivate_decision(self) -> None:
+        if not self._viewer_deactivate_decision_queued:
+            return
+        self._viewer_deactivate_decision_queued = False
+        app = QApplication.instance()
+        if app is None or app.applicationState() != Qt.ApplicationState.ApplicationActive:
+            self._clear_viewer_focus_for_deactivation()
+            return
+        active_window = QApplication.activeWindow()
+        if active_window is self:
+            self._viewer_window_active = True
+            return
+        host_service = getattr(self, "viewer_host_service", None)
+        owns_detached = getattr(host_service, "owns_detached_viewer_window", None)
+        if callable(owns_detached):
+            try:
+                if owns_detached(active_window):
+                    self._viewer_window_active = True
+                    return
+            except Exception:  # noqa: BLE001
+                pass
+        self._clear_viewer_focus_for_deactivation()
 
     def _connect_application_state_signal(self) -> None:
         if self._application_state_signal_connected:
@@ -716,11 +746,12 @@ class ShellWindow(
         if state == Qt.ApplicationState.ApplicationActive:
             self._viewer_window_active = True
             return
-        self._handle_window_deactivate()
+        self._viewer_deactivate_decision_queued = False
+        self._clear_viewer_focus_for_deactivation()
 
     def event(self, event):  # noqa: ANN001
         if event is not None and event.type() == QEvent.Type.WindowDeactivate:
-            self._handle_window_deactivate()
+            self._queue_window_deactivate_decision()
         return super().event(event)
 
     def changeEvent(self, event) -> None:  # noqa: ANN001
@@ -728,7 +759,7 @@ class ShellWindow(
             if self.isActiveWindow():
                 self._viewer_window_active = True
             else:
-                self._handle_window_deactivate()
+                self._queue_window_deactivate_decision()
         super().changeEvent(event)
 
     def showEvent(self, event) -> None:  # noqa: ANN001

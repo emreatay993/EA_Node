@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import copy
 import importlib.util
 import json
 import subprocess
@@ -1958,21 +1959,36 @@ class TrackHPerformanceHarnessTests(unittest.TestCase):
         self.assertIn("EA_NODE_EDITOR_QML_HOST", profiler_text)
         self.assertIn("EA_NODE_EDITOR_QSG_RHI_BACKEND", profiler_text)
         self.assertIn("--engineering-step", profiler_text)
-        self.assertIn("--engineering-condition", profiler_text)
         self.assertIn("root_context_setup=_setup_viewer_context", profiler_text)
         self.assertIn("root_context_setup(self, root_context)", harness_text)
+        self.assertIn(
+            'renderer_diagnostics["grab_window_readback_included"] = False',
+            profiler_text,
+        )
         for operation_name in (
-            "viewport_pan",
-            "viewport_zoom",
-            "viewer_node_drag",
-            "viewer_node_resize",
-            "unrelated_node_drag",
-            "unrelated_node_resize",
+            "startup_proxy",
+            "proxy_pan_control",
+            "proxy_zoom_control",
+            "selection_without_activation",
+            "hover_without_activation",
+            "single_click_without_activation",
+            "proxy_double_click_activation",
+            "live_wheel_zoom",
+            "live_box_zoom",
+            "active_viewer_drag",
+            "active_viewer_resize",
+            "canvas_click_demotion",
+            "retained_proxy_pan",
+            "retained_proxy_zoom",
+            "double_click_reactivation",
             "active_wire_drag",
             "unrelated_property_edit",
             "unrelated_node_add",
             "unrelated_node_delete",
-            "viewer_node_delete",
+            "unrelated_wire_create",
+            "unrelated_wire_reroute",
+            "unrelated_wire_delete",
+            "viewer_deletion",
         ):
             self.assertIn(f'"{operation_name}"', profiler_text)
         for report_field in (
@@ -1984,33 +2000,40 @@ class TrackHPerformanceHarnessTests(unittest.TestCase):
             "dataset_load",
             "widget_create",
             "overlay_full_sync",
+            "viewer_host_sync",
             "overlay_transform_sync",
-            "overlay_move",
-            "overlay_resize",
+            "native_move_calls",
+            "native_resize_calls",
+            "native_set_geometry_calls",
+            "overlay_skipped_delta",
             "cached_preview_available",
+            "cached_preview_source",
+            "preview_cache_revision",
             "transport_revision",
+            "native_updates_enabled",
+            "retained_inline_node_id",
+            "presentation_hold_count",
+            "explicit_inline_active",
+            "camera_capture",
+            "preview_capture",
+            "execution_update",
+            "transition_lifecycle_deltas",
+            "continuous_lifecycle_deltas",
+            "restoration_lifecycle_deltas",
+            "engineering_acceptance",
+            "release_ready",
+            "release_status",
+            "coefficients_of_variation",
             "operation_gaps",
             "driver_limitations",
             "warmup_samples_applied",
         ):
             self.assertIn(f'"{report_field}"', profiler_text)
-        self.assertEqual(
-            profile_canvas_lag._parse_args(
-                ["--engineering-step", "part.stp"]
-            ).engineering_condition,
-            "selected-viewer",
+        parsed = profile_canvas_lag._parse_args(
+            ["--engineering-step", "part.stp"]
         )
-        self.assertEqual(
-            profile_canvas_lag._parse_args(
-                [
-                    "--engineering-step",
-                    "part.stp",
-                    "--engineering-condition",
-                    "control",
-                ]
-            ).engineering_condition,
-            "control",
-        )
+        self.assertEqual(parsed.engineering_step, "part.stp")
+        self.assertFalse(hasattr(parsed, "engineering_condition"))
         registry = build_default_registry()
         engineering_project = profile_canvas_lag._build_engineering_project(
             Path("part.stp"), registry
@@ -2025,6 +2048,9 @@ class TrackHPerformanceHarnessTests(unittest.TestCase):
                 "engineering.cad_import",
                 "model.viewer",
                 "data.boolean_toggle",
+                "core.constant",
+                "core.python_script",
+                "core.python_script",
             ],
         )
         self.assertEqual(
@@ -2049,6 +2075,488 @@ class TrackHPerformanceHarnessTests(unittest.TestCase):
         )
         self.assertIn("--capture-qsg-info", harness_text)
         self.assertIn("QSG_INFO", harness_text)
+
+    def _passing_engineering_canvas_report(self) -> dict:
+        from scripts import profile_canvas_lag
+
+        zero = {
+            "binder_bind": 0,
+            "binder_release": 0,
+            "binder_render": 0,
+            "dataset_load": 0,
+            "widget_create": 0,
+            "native_move_calls": 0,
+            "native_resize_calls": 0,
+            "native_set_geometry_calls": 0,
+            "overlay_skipped_delta": 0,
+            "overlay_full_sync": 0,
+            "viewer_host_sync": 0,
+        }
+
+        def viewer(
+            *,
+            live="proxy",
+            widget="",
+            explicit=False,
+            retained="",
+            visible=False,
+            transport=1,
+        ):
+            return {
+                "live_mode": live,
+                "widget_identity": widget,
+                "explicit_inline_active": explicit,
+                "retained_inline_node_id": retained,
+                "transport_revision": transport,
+                "native_overlay_visible": visible,
+                "native_overlay_geometry_ready": visible,
+                "native_updates_enabled": visible,
+            }
+
+        operations = []
+        for name in profile_canvas_lag._ENGINEERING_OPERATION_ORDER:
+            before = viewer()
+            after = viewer()
+            during = {}
+            delta = dict(zero)
+            continuous = dict(zero)
+            if name == "proxy_double_click_activation":
+                after = viewer(live="full", widget="widget-1", explicit=True, visible=True)
+                delta.update(
+                    binder_bind=1,
+                    binder_render=1,
+                    dataset_load=1,
+                    widget_create=1,
+                )
+            elif name in {
+                "live_wheel_zoom",
+                "live_box_zoom",
+                "active_viewer_drag",
+                "active_viewer_resize",
+                "active_wire_drag",
+            }:
+                before = viewer(live="full", widget="widget-1", explicit=True, visible=True)
+                after = dict(before)
+                during = viewer(live="full", widget="widget-1", explicit=True)
+            elif name == "canvas_click_demotion":
+                before = viewer(live="full", widget="widget-1", explicit=True, visible=True)
+                after = viewer(
+                    widget="widget-1",
+                    retained=profile_canvas_lag._ENGINEERING_VIEWER_NODE_ID,
+                )
+            elif name in {"retained_proxy_pan", "retained_proxy_zoom"}:
+                before = viewer(
+                    widget="widget-1",
+                    retained=profile_canvas_lag._ENGINEERING_VIEWER_NODE_ID,
+                )
+                after = dict(before)
+            elif name == "double_click_reactivation":
+                before = viewer(
+                    widget="widget-1",
+                    retained=profile_canvas_lag._ENGINEERING_VIEWER_NODE_ID,
+                )
+                after = viewer(live="full", widget="widget-1", explicit=True, visible=True)
+            elif name == "unrelated_property_edit":
+                before = viewer(live="full", widget="widget-1", explicit=True, visible=True)
+                after = dict(before)
+                delta["overlay_skipped_delta"] = 1
+            elif name == "unrelated_node_add":
+                before = viewer(live="full", widget="widget-1", explicit=True, visible=True)
+                after = viewer(
+                    widget="widget-1",
+                    retained=profile_canvas_lag._ENGINEERING_VIEWER_NODE_ID,
+                )
+                delta["overlay_skipped_delta"] = 1
+            elif name in {
+                "unrelated_node_delete",
+                "unrelated_wire_create",
+                "unrelated_wire_reroute",
+                "unrelated_wire_delete",
+            }:
+                before = viewer(
+                    widget="widget-1",
+                    retained=profile_canvas_lag._ENGINEERING_VIEWER_NODE_ID,
+                )
+                after = dict(before)
+                delta["overlay_skipped_delta"] = 1
+            elif name == "viewer_deletion":
+                before = viewer(
+                    widget="widget-1",
+                    retained=profile_canvas_lag._ENGINEERING_VIEWER_NODE_ID,
+                )
+                after = viewer(transport=0)
+                delta["binder_release"] = 1
+            operations.append(
+                {
+                    "operation": name,
+                    "status": "measured",
+                    "timing_p95_ms": 10.0,
+                    "frame_interval_p95_ms": 10.0,
+                    "viewer_before": before,
+                    "viewer_during": during,
+                    "viewer_after": after,
+                    "lifecycle_deltas": delta,
+                    "continuous_lifecycle_deltas": continuous,
+                }
+            )
+
+        return {
+            "operations": operations,
+            "qt_platform": "windows",
+            "renderer_diagnostics": {
+                "graphics_api": "Direct3D11Rhi",
+                "qml_host_kind": "qquickwidget",
+                "grab_window_readback_included": False,
+            },
+            "feature_parity": {"pass": True},
+            "grab_window_readback_included": False,
+        }
+
+    def test_engineering_canvas_acceptance_accepts_contract_payload(self) -> None:
+        from scripts import profile_canvas_lag
+
+        result = profile_canvas_lag._evaluate_engineering_acceptance(
+            self._passing_engineering_canvas_report()
+        )
+
+        self.assertEqual(result["status"], "PASS", result["failures"])
+        self.assertEqual(result["operation_count"], 23)
+        self.assertFalse(result["three_run_cv_evaluated"])
+        self.assertFalse(result["release_ready"])
+        self.assertEqual(result["release_status"], "DIAGNOSTIC_ONLY")
+
+    def test_engineering_canvas_acceptance_rejects_churn_and_missing_phases(self) -> None:
+        from scripts import profile_canvas_lag
+
+        result = profile_canvas_lag._evaluate_engineering_acceptance(
+            {
+                "operations": [
+                    {
+                        "operation": "startup_proxy",
+                        "status": "measured",
+                        "viewer_after": {
+                            "live_mode": "full",
+                            "widget_identity": "unexpected-widget",
+                            "explicit_inline_active": True,
+                        },
+                        "lifecycle_deltas": {
+                            "binder_bind": 1,
+                            "widget_create": 1,
+                        },
+                    }
+                ]
+            }
+        )
+
+        self.assertEqual(result["status"], "FAIL")
+        self.assertTrue(
+            any("operation order mismatch" in failure for failure in result["failures"])
+        )
+        self.assertTrue(
+            any("native widget exists before activation" in failure for failure in result["failures"])
+        )
+
+    def test_engineering_canvas_acceptance_collapses_blocked_phase_cascade(self) -> None:
+        from scripts import profile_canvas_lag
+
+        operations = []
+        for name in profile_canvas_lag._ENGINEERING_OPERATION_ORDER:
+            operations.append(
+                {
+                    "operation": name,
+                    "status": "failed" if name == "live_box_zoom" else "blocked",
+                    "unavailable_reason": (
+                        "root box failure"
+                        if name == "live_box_zoom"
+                        else "Blocked by prerequisite phase live_box_zoom"
+                    ),
+                    "derived_from": "" if name == "live_box_zoom" else "live_box_zoom",
+                }
+            )
+
+        result = profile_canvas_lag._evaluate_engineering_acceptance(
+            {"operations": operations}
+        )
+
+        self.assertEqual(result["status"], "FAIL")
+        self.assertEqual(result["failures"], ["live_box_zoom: root box failure"])
+
+    def test_engineering_canvas_acceptance_rejects_wire_host_or_full_sync(self) -> None:
+        from scripts import profile_canvas_lag
+
+        operations = []
+        for name in profile_canvas_lag._ENGINEERING_OPERATION_ORDER:
+            item = {
+                "operation": name,
+                "status": "blocked",
+                "unavailable_reason": "not part of this synthetic wire check",
+            }
+            if name == "active_wire_drag":
+                live = {
+                    "live_mode": "full",
+                    "explicit_inline_active": True,
+                    "widget_identity": "widget-1",
+                    "transport_revision": 1,
+                    "native_overlay_visible": True,
+                    "native_overlay_geometry_ready": True,
+                    "native_updates_enabled": True,
+                }
+                during = {
+                    **live,
+                    "native_overlay_visible": False,
+                    "native_overlay_geometry_ready": False,
+                    "native_updates_enabled": False,
+                }
+                item = {
+                    "operation": name,
+                    "status": "measured",
+                    "timing_p95_ms": 10.0,
+                    "frame_interval_p95_ms": 10.0,
+                    "viewer_before": live,
+                    "viewer_during": during,
+                    "viewer_after": live,
+                    "lifecycle_deltas": {},
+                    "continuous_lifecycle_deltas": {
+                        "binder_bind": 0,
+                        "binder_release": 0,
+                        "binder_render": 0,
+                        "dataset_load": 0,
+                        "widget_create": 0,
+                        "native_move_calls": 0,
+                        "native_resize_calls": 0,
+                        "native_set_geometry_calls": 0,
+                        "viewer_host_sync": 1,
+                        "overlay_full_sync": 1,
+                    },
+                }
+            operations.append(item)
+
+        result = profile_canvas_lag._evaluate_engineering_acceptance(
+            {"operations": operations}
+        )
+
+        self.assertEqual(result["status"], "FAIL")
+        self.assertEqual(
+            result["failures"],
+            [
+                "active_wire_drag: unexpected native work "
+                "{'viewer_host_sync': 1, 'overlay_full_sync': 1}"
+            ],
+        )
+
+    def test_engineering_canvas_acceptance_rejects_passive_counter_changes(self) -> None:
+        from scripts import profile_canvas_lag
+
+        report = self._passing_engineering_canvas_report()
+        selection = next(
+            item
+            for item in report["operations"]
+            if item["operation"] == "selection_without_activation"
+        )
+        selection["lifecycle_deltas"].update(
+            viewer_host_sync=1,
+            embedded_interaction_sync=1,
+            camera_capture=1,
+            preview_capture=1,
+            execution_update=1,
+            overlay_full_sync=1,
+            overlay_transform_sync=1,
+            overlay_skipped_delta=1,
+        )
+
+        result = profile_canvas_lag._evaluate_engineering_acceptance(report)
+
+        self.assertEqual(result["status"], "FAIL")
+        passive_failure = next(
+            failure
+            for failure in result["failures"]
+            if failure.startswith("selection_without_activation: unexpected native work")
+        )
+        for counter in (
+            "viewer_host_sync",
+            "embedded_interaction_sync",
+            "camera_capture",
+            "preview_capture",
+            "execution_update",
+            "overlay_full_sync",
+            "overlay_transform_sync",
+            "overlay_skipped_delta",
+        ):
+            self.assertIn(counter, passive_failure)
+
+    def test_engineering_canvas_acceptance_rejects_transient_update_and_activation_loss(
+        self,
+    ) -> None:
+        from scripts import profile_canvas_lag
+
+        report = self._passing_engineering_canvas_report()
+        box_zoom = next(
+            item
+            for item in report["operations"]
+            if item["operation"] == "live_box_zoom"
+        )
+        box_zoom["viewer_after"]["explicit_inline_active"] = False
+        box_zoom["lifecycle_deltas"]["execution_update"] = 1
+
+        result = profile_canvas_lag._evaluate_engineering_acceptance(report)
+
+        self.assertEqual(result["status"], "FAIL")
+        self.assertIn(
+            "live_box_zoom: execution live-mode update occurred during transient gesture",
+            result["failures"],
+        )
+        self.assertIn(
+            "live_box_zoom: explicit inline activation did not restore",
+            result["failures"],
+        )
+
+    def test_engineering_canvas_acceptance_rejects_incomplete_deletion_cleanup(
+        self,
+    ) -> None:
+        from scripts import profile_canvas_lag
+
+        report = self._passing_engineering_canvas_report()
+        deletion = next(
+            item
+            for item in report["operations"]
+            if item["operation"] == "viewer_deletion"
+        )
+        deletion["viewer_after"].update(
+            phase="open",
+            session_id="session-still-present",
+            explicit_inline_active=True,
+            retained_inline_node_id=profile_canvas_lag._ENGINEERING_VIEWER_NODE_ID,
+            widget_identity="widget-still-present",
+            transport_revision=1,
+        )
+
+        result = profile_canvas_lag._evaluate_engineering_acceptance(report)
+
+        self.assertEqual(result["status"], "FAIL")
+        for expected in (
+            "viewer_deletion: widget remains resident",
+            "viewer_deletion: retained key remains",
+            "viewer_deletion: session projection remains",
+            "viewer_deletion: explicit inline activation remains",
+            "viewer_deletion: transport revision remains",
+        ):
+            self.assertIn(expected, result["failures"])
+
+    def test_engineering_release_acceptance_passes_three_stable_reports(self) -> None:
+        from scripts import profile_canvas_lag
+
+        reports = [
+            copy.deepcopy(self._passing_engineering_canvas_report())
+            for _ in range(3)
+        ]
+        for report, value in zip(reports, (9.0, 10.0, 11.0)):
+            operation = next(
+                item
+                for item in report["operations"]
+                if item["operation"] == "live_box_zoom"
+            )
+            operation["timing_p95_ms"] = value
+
+        result = profile_canvas_lag._evaluate_engineering_release_acceptance(
+            reports
+        )
+
+        self.assertEqual(result["status"], "PASS", result["failures"])
+        self.assertTrue(result["release_ready"])
+        self.assertEqual(result["release_status"], "READY")
+        self.assertTrue(result["three_run_cv_evaluated"])
+        self.assertLessEqual(
+            result["coefficients_of_variation"]["live_box_zoom"]["timing_p95_cv"],
+            0.20,
+        )
+
+    def test_engineering_release_acceptance_rejects_invalid_environment_or_parity(
+        self,
+    ) -> None:
+        from scripts import profile_canvas_lag
+
+        cases = (
+            (
+                "qt_platform",
+                lambda report: report.__setitem__("qt_platform", "offscreen"),
+                "run 1: qt_platform must be windows",
+            ),
+            (
+                "graphics_api",
+                lambda report: report["renderer_diagnostics"].__setitem__(
+                    "graphics_api", "Software"
+                ),
+                "run 1: graphics_api must be Direct3D11Rhi",
+            ),
+            (
+                "qml_host_kind",
+                lambda report: report["renderer_diagnostics"].__setitem__(
+                    "qml_host_kind", "qquickview_container"
+                ),
+                "run 1: qml_host_kind must be qquickwidget",
+            ),
+            (
+                "feature_parity",
+                lambda report: report["feature_parity"].__setitem__("pass", False),
+                "run 1: feature parity must pass",
+            ),
+            (
+                "renderer_grab_window_readback_included",
+                lambda report: report["renderer_diagnostics"].__setitem__(
+                    "grab_window_readback_included", True
+                ),
+                "run 1: renderer grab_window_readback_included must be false",
+            ),
+            (
+                "grab_window_readback_included",
+                lambda report: report.__setitem__(
+                    "grab_window_readback_included", True
+                ),
+                "run 1: grab_window_readback_included must be false",
+            ),
+        )
+        for label, mutate, expected_failure in cases:
+            with self.subTest(label=label):
+                reports = [
+                    copy.deepcopy(self._passing_engineering_canvas_report())
+                    for _ in range(3)
+                ]
+                mutate(reports[0])
+
+                result = profile_canvas_lag._evaluate_engineering_release_acceptance(
+                    reports
+                )
+
+                self.assertEqual(result["status"], "FAIL")
+                self.assertFalse(result["release_ready"])
+                self.assertIn(expected_failure, result["failures"])
+
+    def test_engineering_release_acceptance_rejects_unstable_cv(self) -> None:
+        from scripts import profile_canvas_lag
+
+        reports = [
+            copy.deepcopy(self._passing_engineering_canvas_report())
+            for _ in range(3)
+        ]
+        for report, value in zip(reports, (1.0, 1.0, 30.0)):
+            operation = next(
+                item
+                for item in report["operations"]
+                if item["operation"] == "live_box_zoom"
+            )
+            operation["timing_p95_ms"] = value
+
+        result = profile_canvas_lag._evaluate_engineering_release_acceptance(
+            reports
+        )
+
+        self.assertEqual(result["status"], "FAIL")
+        self.assertFalse(result["release_ready"])
+        self.assertEqual(result["release_status"], "NOT_READY")
+        self.assertIn(
+            "live_box_zoom: timing p95 CV exceeds 0.20",
+            result["failures"],
+        )
 
     def test_benchmark_runner_emits_baseline_series_with_machine_metadata(self) -> None:
         report = run_benchmark(

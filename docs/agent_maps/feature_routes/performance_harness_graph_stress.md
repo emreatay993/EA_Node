@@ -40,7 +40,7 @@ Lookup aliases: `stress_1200_nodes`, `notched port rendering`, `benchmark report
   only on display-attached Windows with Qt Quick `Direct3D11Rhi`. Its retained
   report covers interaction p95, full-detail restoration, warm coarse frame,
   maximum UI-thread stall, and release-on-close.
-- `scripts/profile_canvas_lag.py --engineering-step <path>` adds the production CAD Import/Model Viewer canvas condition without a second benchmark framework. It drives the real frame-scheduler pan/wheel routes and reports steady `afterRendering` frame intervals separately from live/proxy transition time. Use isolated `control`, `settled-proxy`, and `selected-viewer` conditions to compare widget identity, binder lifecycle, cached-proxy, native-overlay, and overlay-sync counters.
+- `scripts/profile_canvas_lag.py --engineering-step <path>` runs one production CAD Import/Model Viewer flow without a second benchmark framework. Its ordered phases prove initial proxy/no warm-up; selection, hover, and single-click inactivity; proxy-viewport double-click activation; temporary wheel/box/drag/resize/wire suppression; background demotion; retained reactivation; unrelated graph mutations; and deletion. Reports separate transition, continuous, and restoration counters plus `afterRendering` frame intervals, widget identity, binder lifecycle, cached-preview, native-geometry, and overlay-sync evidence.
 
 ## Focused Verification
 ```powershell

@@ -58,7 +58,7 @@ def _mapping(value: Any) -> dict[str, Any]:
 
 
 def _string(value: Any) -> str:
-    return str(value).strip()
+    return "" if value is None else str(value).strip()
 
 
 def _freeze_value(value: Any) -> Any:
@@ -77,9 +77,7 @@ def _cache_relevant_options(options: Mapping[str, Any]) -> dict[str, Any]:
         # The probe changes no committed pixels, so it must not invalidate
         # cached previews or camera state.
         "hover_probe",
-        "keep_live",
         "live_mode",
-        "live_policy",
         "output_profile",
         "playback",
         "playback_state",
@@ -207,6 +205,7 @@ class _DetachedViewerWindow(QWidget):
         self._side_panel_width_connected = False
         self.widget: QWidget | None = None
         self.setObjectName(f"detachedViewerWindow::{key[0]}::{key[1]}")
+        self.setAttribute(Qt.WidgetAttribute.WA_QuitOnClose, False)
         self.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose, False)
         self.setWindowTitle(title)
         self.resize(1180, 760)
@@ -534,8 +533,10 @@ class ViewerHostService(QObject):
         self._engineering_binder: EngineeringViewerWidgetBinder | None = None
         self._bound_overlays: dict[_OverlayKey, _BoundOverlay] = {}
         self._retained_inline_key: _OverlayKey | None = None
+        self._inline_retention_identities: dict[_OverlayKey, tuple[str, str, int]] = {}
         self._detached_windows: dict[_OverlayKey, _DetachedViewerWindow] = {}
         self._pending_detached_sessions: dict[_OverlayKey, str] = {}
+        self._fullscreen_hold_key: _OverlayKey | None = None
         self._embedded_interaction_active: set[_OverlayKey] = set()
         self._pending_embedded_exit_demotions: dict[_OverlayKey, _PendingEmbeddedExitDemotion] = {}
         self._embedded_exit_demotion_serial = 0
@@ -604,6 +605,7 @@ class ViewerHostService(QObject):
         demotion_deferred = False
         if bool(active):
             self._cancel_pending_embedded_exit_demotion(key)
+            self._remember_inline_retention_identity(key)
             if key not in self._embedded_interaction_active:
                 self._embedded_interaction_active.add(key)
                 changed = True
@@ -804,27 +806,7 @@ class ViewerHostService(QObject):
         if snapshot is None or snapshot.phase != "open":
             return False
         if not self._snapshot_ready_for_live_widget(snapshot):
-            bridge = self._viewer_session_bridge
-            focus = getattr(bridge, "focus_session", None) if bridge is not None else None
-            if not callable(focus):
-                return False
             self._acquire_presentation_hold(key)
-            try:
-                focused = bool(focus(snapshot.node_id, {"workspace_id": snapshot.workspace_id}))
-            except TypeError:
-                try:
-                    focused = bool(focus(snapshot.node_id))
-                except Exception as exc:  # noqa: BLE001
-                    self._release_presentation_hold(key)
-                    self._set_last_error(str(exc))
-                    return False
-            except Exception as exc:  # noqa: BLE001
-                self._release_presentation_hold(key)
-                self._set_last_error(str(exc))
-                return False
-            if not focused:
-                self._release_presentation_hold(key)
-                return False
             self._pending_detached_sessions[key] = snapshot.session_id
             self._schedule_sync()
             self.state_changed.emit()
@@ -873,6 +855,13 @@ class ViewerHostService(QObject):
             return False
         return key in self._detached_windows or key in self._pending_detached_sessions
 
+    def owns_detached_viewer_window(self, window: QWidget | None = None) -> bool:
+        candidate = window or QApplication.activeWindow()
+        if not isinstance(candidate, QWidget):
+            return False
+        top_level = candidate.window()
+        return any(top_level is detached for detached in self._detached_windows.values())
+
     def _acquire_presentation_hold(self, key: _OverlayKey) -> None:
         bridge = self._viewer_session_bridge
         adder = getattr(bridge, "add_viewer_presentation_hold", None) if bridge is not None else None
@@ -898,9 +887,30 @@ class ViewerHostService(QObject):
             self._set_last_error(str(exc))
 
     def _release_presentation_hold_if_unused(self, key: _OverlayKey) -> None:
-        if key in self._detached_windows or key in self._pending_detached_sessions:
+        if (
+            key in self._detached_windows
+            or key in self._pending_detached_sessions
+            or self._fullscreen_hold_key == key
+        ):
             return
         self._release_presentation_hold(key)
+
+    def _sync_fullscreen_hold(self) -> None:
+        next_key = self._content_fullscreen_key()
+        previous_key = self._fullscreen_hold_key
+        if next_key == previous_key:
+            return
+        self._fullscreen_hold_key = next_key
+        if next_key is not None:
+            self._acquire_presentation_hold(next_key)
+        if previous_key is not None:
+            self._release_presentation_hold_if_unused(previous_key)
+
+    def _clear_fullscreen_hold(self) -> None:
+        key = self._fullscreen_hold_key
+        self._fullscreen_hold_key = None
+        if key is not None:
+            self._release_presentation_hold_if_unused(key)
 
     def _clear_pending_detached_sessions(self) -> None:
         for key in list(self._pending_detached_sessions):
@@ -1460,6 +1470,7 @@ class ViewerHostService(QObject):
         self._release_all_bindings(reason=reason or "reset")
         self._close_all_detached_windows(reason=reason or "reset")
         self._clear_pending_detached_sessions()
+        self._clear_fullscreen_hold()
         self._embedded_interaction_active.clear()
         self._clear_all_cached_previews()
         overlay_manager = self._overlay_manager
@@ -1497,6 +1508,7 @@ class ViewerHostService(QObject):
         self._release_all_bindings(reason=reason or "shutdown")
         self._close_all_detached_windows(reason=reason or "shutdown")
         self._clear_pending_detached_sessions()
+        self._clear_fullscreen_hold()
         if self._engineering_binder is not None:
             self._engineering_binder.shutdown()
             self._engineering_binder = None
@@ -1526,8 +1538,13 @@ class ViewerHostService(QObject):
         if bridge is self._content_fullscreen_bridge:
             return bridge
         self._content_fullscreen_bridge = bridge
-        self._connect_signal(bridge, "content_fullscreen_changed", self._schedule_sync)
+        self._connect_signal(bridge, "content_fullscreen_changed", self._on_content_fullscreen_changed)
+        self._sync_fullscreen_hold()
         return bridge if isinstance(bridge, QObject) else None
+
+    def _on_content_fullscreen_changed(self) -> None:
+        self._sync_fullscreen_hold()
+        self._schedule_sync()
 
     def _qml_engine(self) -> Any:
         qml_host = getattr(self._shell_window, "qml_host", None)
@@ -1727,6 +1744,7 @@ class ViewerHostService(QObject):
         self._sync_preview_cache_signatures()
         self._set_viewer_content_fullscreen_target(overlay_manager, self._content_fullscreen_overlay_spec())
         projected_sessions = bridge.sessions_model
+        self._prune_inline_retention_identities()
         desired_overlays, errors = self._presentation_service.desired_overlays(
             projected_sessions,
             self._ensure_binders_initialized,
@@ -1755,6 +1773,7 @@ class ViewerHostService(QObject):
         for key, bound in list(self._bound_overlays.items()):
             if bound.widget is not None and sip.isdeleted(bound.widget):
                 self._bound_overlays.pop(key, None)
+                self._inline_retention_identities.pop(key, None)
                 if self._retained_inline_key == key:
                     self._retained_inline_key = None
                 self._bump_viewer_overlay_revision()
@@ -1920,24 +1939,6 @@ class ViewerHostService(QObject):
                 container=container,
                 widget=widget,
             )
-            previous_retained_key = self._retained_inline_key
-            if (
-                previous_retained_key is not None
-                and previous_retained_key != key
-                and presentation == _PRESENTATION_OVERLAY
-                and self._automatic_inline_snapshot(snapshot)
-            ):
-                self._release_binding(previous_retained_key, reason="viewer_replaced")
-                self._set_active_viewer_overlays(
-                    overlay_manager,
-                    (
-                        desired_snapshot.overlay_spec()
-                        for desired_key, (desired_snapshot, _desired_binder) in desired_overlays.items()
-                        if self._presentation_target_for_key(desired_key)
-                        == _PRESENTATION_OVERLAY
-                    ),
-                )
-                self._sync_overlay_manager_now()
             if self._retained_inline_key == key:
                 self._retained_inline_key = None
             self._restore_cached_view_state_for_binding(
@@ -1948,16 +1949,61 @@ class ViewerHostService(QObject):
             )
             self._bump_viewer_overlay_revision()
 
+        retained_key = self._retained_inline_key
+        if retained_key is not None:
+            replacement_key = next(
+                (
+                    key
+                    for key, (snapshot, _binder) in desired_overlays.items()
+                    if key != retained_key
+                    and key in self._embedded_interaction_active
+                    and self._presentation_target_for_key(key) == _PRESENTATION_OVERLAY
+                    and self._inline_retention_identity_matches(key, snapshot)
+                    and key in self._bound_overlays
+                ),
+                None,
+            )
+            if replacement_key is not None:
+                self._release_binding(retained_key, reason="viewer_replaced")
+                self._set_active_viewer_overlays(
+                    overlay_manager,
+                    (
+                        snapshot.overlay_spec()
+                        for key, (snapshot, _binder) in desired_overlays.items()
+                        if self._presentation_target_for_key(key) == _PRESENTATION_OVERLAY
+                    ),
+                )
+                self._sync_overlay_manager_now()
+
         self._sync_fullscreen_shortcut_filter()
         self._set_last_error(errors[0] if errors else "")
         self.state_changed.emit()
 
     @staticmethod
-    def _automatic_inline_snapshot(snapshot: _ViewerHostSessionSnapshot) -> bool:
-        return (
-            not bool(snapshot.options.get("keep_live", False))
-            and (_string(snapshot.options.get("live_policy")) or "focus_only") == "focus_only"
-        )
+    def _retention_identity(snapshot: _ViewerHostSessionSnapshot) -> tuple[str, str, int]:
+        return snapshot.session_id, snapshot.backend_id, snapshot.transport_revision
+
+    def _remember_inline_retention_identity(self, key: _OverlayKey) -> None:
+        snapshot = self._snapshot_for_key(key)
+        if snapshot is not None and snapshot.phase == "open":
+            self._inline_retention_identities[key] = self._retention_identity(snapshot)
+
+    def _inline_retention_identity_matches(
+        self,
+        key: _OverlayKey,
+        snapshot: _ViewerHostSessionSnapshot,
+    ) -> bool:
+        return self._inline_retention_identities.get(key) == self._retention_identity(snapshot)
+
+    def _prune_inline_retention_identities(self) -> None:
+        for key, identity in list(self._inline_retention_identities.items()):
+            snapshot = self._snapshot_for_key(key)
+            if (
+                snapshot is None
+                or snapshot.phase != "open"
+                or identity != self._retention_identity(snapshot)
+            ):
+                self._inline_retention_identities.pop(key, None)
 
     def _binding_can_be_retained(self, key: _OverlayKey) -> bool:
         bound = self._bound_overlays.get(key)
@@ -1979,7 +2025,7 @@ class ViewerHostService(QObject):
             and current.session_id == bound.snapshot.session_id
             and current.backend_id == bound.snapshot.backend_id
             and current.transport_revision == bound.snapshot.transport_revision
-            and self._automatic_inline_snapshot(current)
+            and self._inline_retention_identity_matches(key, current)
         )
 
     def _cached_preview_available(self, key: _OverlayKey) -> bool:
@@ -2370,6 +2416,7 @@ class ViewerHostService(QObject):
         for key in list(self._bound_overlays):
             self._release_binding(key, reason=reason)
         self._retained_inline_key = None
+        self._inline_retention_identities.clear()
 
     def _release_binding(self, key: _OverlayKey, *, reason: str) -> bool:
         bound = self._bound_overlays.get(key)
@@ -2397,6 +2444,7 @@ class ViewerHostService(QObject):
             return False
         if self._bound_overlays.get(key) is bound:
             self._bound_overlays.pop(key, None)
+        self._inline_retention_identities.pop(key, None)
         if self._retained_inline_key == key:
             self._retained_inline_key = None
         self._bump_viewer_overlay_revision()
@@ -2440,10 +2488,7 @@ class ViewerHostService(QObject):
                 window = self._detached_windows.get(snapshot.overlay_key)
                 if window is not None and window.widget is widget:
                     window.detach_widget(widget)
-                try:
-                    widget.hide()
-                except Exception:  # noqa: BLE001
-                    pass
+                EmbeddedViewerOverlayManager._teardown_widget(widget)
             elif overlay_manager is not None and overlay_manager.overlay_widget(snapshot.node_id, workspace_id=snapshot.workspace_id) is widget:
                 if container is not None:
                     try:
@@ -2519,6 +2564,7 @@ class ViewerHostService(QObject):
             return
         camera_signature = self._camera_relevant_signature(current_snapshot)
         binding_signature = self._binding_signature(current_snapshot)
+        signature = self._preview_cache_signature(current_snapshot)
         if binding_signature != bound.signature:
             # The camera is independent of visual options: keep it as long as
             # the session still shows the same transported geometry.
@@ -2526,11 +2572,11 @@ class ViewerHostService(QObject):
                 self._capture_cached_view_state_for_binding(key, bound, camera_signature)
             else:
                 self._viewer_view_states.pop(key, None)
-            if self._preview_cache_signature(current_snapshot) != self._preview_cache_signature(bound.snapshot):
+            if signature != self._preview_cache_signature(bound.snapshot):
                 self._clear_cached_preview(key)
-            return
-        signature = self._preview_cache_signature(current_snapshot)
-        self._capture_cached_view_state_for_binding(key, bound, camera_signature)
+                return
+        else:
+            self._capture_cached_view_state_for_binding(key, bound, camera_signature)
         provider = self._preview_cache_provider
         if provider is None:
             return

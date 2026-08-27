@@ -20,7 +20,7 @@ from PyQt6.QtCore import (
 from PyQt6.QtGui import QImage, QPageLayout, QPageSize, QPainter, QPdfWriter
 from PyQt6.QtTest import QTest
 from PyQt6.QtQuickWidgets import QQuickWidget
-from PyQt6.QtWidgets import QApplication
+from PyQt6.QtWidgets import QApplication, QWidget
 import pytest
 
 from ea_node_editor.graph.model import GraphModel
@@ -472,6 +472,67 @@ def test_close_releases_viewer_host_service_overlay_manager() -> None:
 
         assert host_service.overlay_manager is None
         assert host_service.active_overlay_count == 0
+        _delete_window(window, app)
+
+
+def test_window_deactivate_coalesces_duplicate_events_and_clears_unowned_focus() -> None:
+    with _shell_lifecycle_context() as app:
+        window = _create_window(app, _build_window_via_constructor)
+        host_service = _shell_runtime(window).viewer_host_service
+        bridge = _shell_runtime(window).viewer_session_bridge
+        unowned = QWidget()
+
+        with (
+            patch.object(bridge, "clear_viewer_focus", wraps=bridge.clear_viewer_focus) as clear_focus,
+            patch.object(host_service, "owns_detached_viewer_window", return_value=False),
+            patch.object(
+                QApplication,
+                "applicationState",
+                return_value=Qt.ApplicationState.ApplicationActive,
+            ),
+            patch.object(QApplication, "activeWindow", return_value=unowned),
+        ):
+            window._viewer_window_active = True
+            window._queue_window_deactivate_decision()
+            window._queue_window_deactivate_decision()
+            assert window._viewer_deactivate_decision_queued is True
+            _flush_shell_qt_events(app)
+            clear_focus.assert_called_once_with()
+            assert window._viewer_window_active is False
+            assert window._viewer_deactivate_decision_queued is False
+
+        unowned.deleteLater()
+        window.close()
+        _flush_shell_qt_events(app)
+        _delete_window(window, app)
+
+
+def test_application_inactive_clears_immediately_and_cancels_queued_deactivation() -> None:
+    with _shell_lifecycle_context() as app:
+        window = _create_window(app, _build_window_via_constructor)
+        bridge = _shell_runtime(window).viewer_session_bridge
+
+        with patch.object(
+            bridge,
+            "clear_viewer_focus",
+            wraps=bridge.clear_viewer_focus,
+        ) as clear_focus:
+            window._viewer_window_active = True
+            window._queue_window_deactivate_decision()
+            assert window._viewer_deactivate_decision_queued is True
+
+            window._handle_application_state_changed(
+                Qt.ApplicationState.ApplicationInactive
+            )
+
+            clear_focus.assert_called_once_with()
+            assert window._viewer_window_active is False
+            assert window._viewer_deactivate_decision_queued is False
+            _flush_shell_qt_events(app)
+            clear_focus.assert_called_once_with()
+
+        window.close()
+        _flush_shell_qt_events(app)
         _delete_window(window, app)
 
 

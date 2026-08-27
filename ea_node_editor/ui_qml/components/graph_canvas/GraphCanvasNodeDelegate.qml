@@ -119,8 +119,6 @@ GraphComponents.GraphNodeHost {
             return;
         var bridge = canvasItem.sceneCommandBridge;
         canvasItem.forceActiveFocus();
-        if (canvasItem.clearViewerFocus)
-            canvasItem.clearViewerFocus();
         canvasItem._closeContextMenus();
         canvasItem.clearPendingConnection();
         if (!bridge || !bridge.select_node)

@@ -84,10 +84,7 @@ Item {
         var single = Number(surface.viewerSummary.time_value);
         return isFinite(single) ? single : NaN;
     }
-    readonly property bool hostSurfaceActive: host
-        ? Boolean(host.hoverActive || host.isSelected)
-        : false
-    readonly property bool viewportHoverActive: viewerViewportHover.hovered
+    readonly property bool hostSelected: host ? Boolean(host.isSelected) : false
     readonly property bool transientInteractionPreviewActive: host
         ? Boolean(
             host.canvasItem && host.canvasItem.nativeOverlaySuppressionActive !== undefined
@@ -127,8 +124,6 @@ Item {
     readonly property bool viewerSupportsPlayback: viewerCapabilities.playback === undefined
         ? true : Boolean(viewerCapabilities.playback)
     readonly property int viewerStepIndex: Math.max(0, Math.floor(_number(viewerSessionModel.step_index, 0)))
-    readonly property string viewerLivePolicy: String(viewerSessionModel.live_policy || "focus_only")
-    readonly property bool viewerKeepLive: Boolean(viewerSessionModel.keep_live)
     readonly property string viewerCacheState: String(viewerSessionModel.cache_state || "empty")
     readonly property string viewerBackendId: String(
         viewerSessionModel.backend_id || ""
@@ -315,13 +310,8 @@ Item {
         && liveSurfaceSupported
         && viewerSessionOpen
         && !viewerRunRequired
-        && !contentFullscreenOpen
-        && !transientInteractionPreviewActive
-        && (
-            _initialProxyPreviewWarmupActive
-            || hostSurfaceActive
-            || viewportHoverActive
-        )
+        && hostSelected
+        && inlineLiveRequested
         && viewerLiveOpenStatus === "ready"
     readonly property int hostOverlayRevision: viewerHostServiceRef !== null
         && viewerHostServiceRef.viewer_overlay_revision !== undefined
@@ -362,12 +352,13 @@ Item {
         if (!surface.liveSurfaceSupported)
             return false;
         return surface.embeddedInteractionActive
+            && !surface.contentFullscreenOpen
             && !surface.transientInteractionPreviewActive
             && surface.viewerLiveMode === "full"
             && surface.viewerLiveOpenStatus === "ready";
     }
-    readonly property bool viewerShowsPlaceholder: (!surface.viewerSessionOpen || surface.viewerRunRequired)
-        && !surface.cachedPreviewVisible
+    readonly property bool viewerShowsPlaceholder: !surface.cachedPreviewVisible
+        && (!surface.viewerSessionOpen || surface.proxySurfaceActive || surface.viewerRunRequired)
     readonly property string viewerSessionIconName: {
         if (surface.viewerPhase === "opening")
             return "open-session";
@@ -436,14 +427,6 @@ Item {
             });
         }
         actions.push({
-            "id": "keepLive",
-            "label": "Keep Live",
-            "icon": "pin",
-            "kind": "viewer",
-            "enabled": surface.viewerCanControlSession,
-            "primary": surface.viewerKeepLive
-        });
-        actions.push({
             "id": "camera",
             "label": "Camera",
             "icon": "focus",
@@ -499,8 +482,6 @@ Item {
             return Boolean(surface.requestPlayPause());
         if (normalized === "step")
             return Boolean(surface.requestStep());
-        if (normalized === "keepLive")
-            return Boolean(surface.requestKeepLiveToggle());
         if (normalized === "cameraFit")
             return Boolean(surface.requestCameraReset());
         if (normalized === "cameraIso")
@@ -529,8 +510,6 @@ Item {
         "phase": viewerPhase,
         "playback_state": viewerPlaybackState,
         "step_index": viewerStepIndex,
-        "live_policy": viewerLivePolicy,
-        "keep_live": viewerKeepLive,
         "cache_state": viewerCacheState,
         "live_mode": viewerLiveMode,
         "last_error": viewerLastError,
@@ -554,56 +533,60 @@ Item {
     })
     readonly property var viewerFooterMetaModel: _buildFooterMetaModel()
     implicitHeight: host ? Number(host.surfaceMetrics.body_height || 0) : 0
+    readonly property bool inlineLiveRequested: _inlineLiveRequested
     property string _activeInteractionNodeId: ""
     property string _cachedPreviewImageSource: ""
     property int _cachedPreviewImageSerial: 0
-    property bool _initialProxyPreviewWarmupActive: false
-    property string _initialProxyPreviewAttemptKey: ""
-    property bool _initialProxyPreviewSyncQueued: false
+    property bool _inlineLiveRequested: false
+    property bool _inlineActivationAfterSelectionQueued: false
     property bool _embeddedInteractionSyncQueued: false
 
     onEmbeddedInteractionActiveChanged: _queueEmbeddedInteractionSync()
+    onHostSelectedChanged: {
+        if (!surface.hostSelected)
+            surface._clearInlineLiveRequest();
+    }
     onViewerNodeIdChanged: {
+        _clearInlineLiveRequest();
         _clearCachedPreviewImage();
-        _queueInitialProxyPreview();
         _queueEmbeddedInteractionSync();
         _queueCachedPreviewImageRefresh();
     }
-    onViewerSessionIdChanged: _queueInitialProxyPreview()
-    onViewerPhaseChanged: _queueInitialProxyPreview()
-    onViewerLiveModeChanged: _queueInitialProxyPreview()
-    onViewerTransportRevisionChanged: _queueInitialProxyPreview()
-    onViewerLiveOpenStatusChanged: _queueInitialProxyPreview()
-    onViewerRunRequiredChanged: _queueInitialProxyPreview()
-    onViewerLastErrorChanged: _queueInitialProxyPreview()
-    onLiveOverlayReadyChanged: _queueInitialProxyPreview()
-    onLiveSurfaceRectChanged: _queueInitialProxyPreview()
-    onWindowChanged: _queueInitialProxyPreview()
-    onCachedPreviewSourceChanged: {
-        _queueInitialProxyPreview();
-        _queueCachedPreviewImageRefresh();
+    onViewerSessionIdChanged: _clearInlineLiveRequest()
+    onViewerBackendIdChanged: _clearInlineLiveRequest()
+    onViewerTransportRevisionChanged: _clearInlineLiveRequest()
+    onViewerLiveModeChanged: {
+        if (surface.viewerLiveMode === "proxy"
+                && !surface.transientInteractionPreviewActive
+                && !surface.contentFullscreenOpen)
+            surface._clearInlineLiveRequest();
     }
+    onViewerPhaseChanged: {
+        if (!surface.viewerSessionOpen)
+            surface._clearInlineLiveRequest();
+    }
+    onViewerRunRequiredChanged: {
+        if (surface.viewerRunRequired)
+            surface._clearInlineLiveRequest();
+    }
+    onCachedPreviewSourceChanged: _queueCachedPreviewImageRefresh()
     onCachedPreviewVisibleChanged: _queueCachedPreviewImageRefresh()
     onContentFullscreenOpenChanged: {
         if (surface.contentFullscreenOpen)
             _clearCachedPreviewImage();
-        _queueInitialProxyPreview();
         _queueEmbeddedInteractionSync();
         _queueCachedPreviewImageRefresh();
     }
     Component.onCompleted: {
-        _queueInitialProxyPreview();
         _queueEmbeddedInteractionSync();
         _queueCachedPreviewImageRefresh();
     }
     Component.onDestruction: {
-        if (surface.viewerHostServiceRef && surface.viewerHostServiceRef.set_embedded_interaction_active) {
-            var nodeId = surface._activeInteractionNodeId.length > 0
-                ? surface._activeInteractionNodeId
-                : surface.viewerNodeId;
-            if (nodeId.length > 0)
-                surface.viewerHostServiceRef.set_embedded_interaction_active(nodeId, false);
-        }
+        surface._inlineLiveRequested = false;
+        if (surface._activeInteractionNodeId.length > 0
+                && surface.viewerHostServiceRef
+                && surface.viewerHostServiceRef.set_embedded_interaction_active)
+            surface.viewerHostServiceRef.set_embedded_interaction_active(surface._activeInteractionNodeId, false);
     }
 
     function _number(value, fallback) {
@@ -711,57 +694,50 @@ Item {
     function _beginSurfaceControl() {
         if (host && host.nodeData)
             host.surfaceControlInteractionStarted(String(host.nodeData.node_id || ""));
-        _focusViewerSession();
-        _syncEmbeddedInteraction();
     }
 
-    function _focusViewerSession() {
-        if (!viewerBridgeAvailable || !viewerNodeId.length || !viewerSessionBridgeRef.focus_session)
+    function _selectViewerNode() {
+        if (!surface.host || !surface.viewerNodeId.length || !surface.host.nodeClicked)
             return false;
-        return Boolean(viewerSessionBridgeRef.focus_session(viewerNodeId));
+        surface.host.nodeClicked(surface.viewerNodeId, false);
+        return true;
     }
 
-    function _queueInitialProxyPreview() {
-        if (surface._initialProxyPreviewSyncQueued)
-            return;
-        surface._initialProxyPreviewSyncQueued = true;
+    function requestProxySelection() {
+        return surface._selectViewerNode();
+    }
+
+    function requestInlineLiveActivation() {
+        if (!surface._selectViewerNode()
+                || !surface.proxySurfaceActive
+                || !surface.viewerHostServiceAvailable
+                || !surface.viewerSessionOpen
+                || surface.viewerRunRequired
+                || surface.contentFullscreenOpen)
+            return false;
+        if (surface._inlineActivationAfterSelectionQueued)
+            return true;
+        surface._inlineActivationAfterSelectionQueued = true;
         Qt.callLater(function() {
-            surface._initialProxyPreviewSyncQueued = false;
-            surface._syncInitialProxyPreview();
+            if (!surface._inlineActivationAfterSelectionQueued)
+                return;
+            surface._inlineActivationAfterSelectionQueued = false;
+            if (!surface.hostSelected
+                    || !surface.proxySurfaceActive
+                    || !surface.viewerSessionOpen
+                    || surface.viewerRunRequired
+                    || surface.contentFullscreenOpen)
+                return;
+            surface._inlineLiveRequested = true;
+            surface._queueEmbeddedInteractionSync();
         });
+        return true;
     }
 
-    function _syncInitialProxyPreview() {
-        var attemptKey = surface.viewerSessionId
-            + ":" + surface.viewerTransportRevision
-            + ":" + surface.previewCacheRevision;
-        var canWarmUp = surface.viewerBackendId === "corex_scene"
-            && surface.viewerSessionOpen
-            && !surface.viewerRunRequired
-            && !surface.contentFullscreenOpen
-            && surface.viewerLastError.length === 0
-            && surface.window !== null
-            && surface.liveSurfaceRect.width > 1
-            && surface.liveSurfaceRect.height > 1
-            && surface.viewerLiveOpenStatus === "ready";
-        if (!canWarmUp || surface.cachedPreviewSource.length > 0) {
-            surface._initialProxyPreviewWarmupActive = false;
-            if (!surface.viewerSessionOpen || surface.viewerRunRequired)
-                surface._initialProxyPreviewAttemptKey = "";
-            return;
-        }
-        if (surface._initialProxyPreviewWarmupActive) {
-            if (surface.liveOverlayReady)
-                surface._initialProxyPreviewWarmupActive = false;
-            return;
-        }
-        if (
-            surface.viewerLiveMode === "proxy"
-            && surface._initialProxyPreviewAttemptKey !== attemptKey
-        ) {
-            surface._initialProxyPreviewAttemptKey = attemptKey;
-            surface._initialProxyPreviewWarmupActive = true;
-        }
+    function _clearInlineLiveRequest() {
+        surface._inlineActivationAfterSelectionQueued = false;
+        if (surface._inlineLiveRequested)
+            surface._inlineLiveRequested = false;
     }
 
     function _queueEmbeddedInteractionSync() {
@@ -787,12 +763,14 @@ Item {
         }
         if (!currentNodeId.length)
             return;
-        surface.viewerHostServiceRef.set_embedded_interaction_active(currentNodeId, surface.embeddedInteractionActive);
-        surface._activeInteractionNodeId = surface.embeddedInteractionActive ? currentNodeId : "";
-    }
-
-    function triggerHoverAction() {
-        surface._syncEmbeddedInteraction();
+        if (surface.embeddedInteractionActive) {
+            if (surface._activeInteractionNodeId !== currentNodeId)
+                surface.viewerHostServiceRef.set_embedded_interaction_active(currentNodeId, true);
+            surface._activeInteractionNodeId = currentNodeId;
+        } else if (surface._activeInteractionNodeId === currentNodeId) {
+            surface.viewerHostServiceRef.set_embedded_interaction_active(currentNodeId, false);
+            surface._activeInteractionNodeId = "";
+        }
     }
 
     function _cachedPreviewSource() {
@@ -1004,12 +982,6 @@ Item {
         return Boolean(surface.viewerHostServiceRef.open_detached_viewer(surface.viewerNodeId));
     }
 
-    function requestKeepLiveToggle() {
-        if (!viewerCanControlPlayback || !viewerSessionBridgeRef.set_keep_live)
-            return false;
-        return Boolean(viewerSessionBridgeRef.set_keep_live(viewerNodeId, !viewerKeepLive));
-    }
-
     function requestContentFullscreen() {
         if (!host || !host.requestSurfaceContentFullscreen || !viewerNodeId.length)
             return false;
@@ -1137,14 +1109,13 @@ Item {
                     border.color: surface.viewerViewportBorderColor
                     clip: true
 
-                    HoverHandler {
-                        id: viewerViewportHover
-                    }
-
                     TapHandler {
                         objectName: "graphNodeViewerViewportTapHandler"
+                        enabled: surface.proxySurfaceActive
                         acceptedButtons: Qt.LeftButton
-                        onTapped: surface._beginSurfaceControl()
+                        exclusiveSignals: TapHandler.DoubleTap
+                        onTapped: surface.requestProxySelection()
+                        onDoubleTapped: surface.requestInlineLiveActivation()
                     }
 
                     Canvas {
@@ -1245,7 +1216,11 @@ Item {
                                 ? surface.viewerStatusLabel
                                 : (surface.viewerRunRequired || surface.viewerPhase === "invalidated"
                                     ? surface.viewerStatusLabel
-                                    : "Open session to view")
+                                    : (surface.viewerSessionOpen
+                                        ? (surface.inlineLiveRequested
+                                            ? "Activating 3D view"
+                                            : "Double-click to activate 3D view")
+                                        : "Open session to view"))
                             color: (
                                 surface.viewerRunRequired
                                 || surface.viewerPhase === "error"

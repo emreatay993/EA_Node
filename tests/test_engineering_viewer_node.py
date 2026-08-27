@@ -175,8 +175,6 @@ class EngineeringViewerNodeTests(unittest.TestCase):
         self.assertEqual(session["backend_id"], ENGINEERING_VIEWER_BACKEND_ID)
         self.assertEqual(session["live_open_status"], "ready")
         self.assertEqual(session["options"]["live_mode"], "proxy")
-        self.assertEqual(session["options"]["live_policy"], "focus_only")
-        self.assertFalse(session["options"]["keep_live"])
         self.assertEqual(len(session["transport"]["overlays"]), 1)
         self.assertEqual(session["transport"]["overlays"][0]["scale_factor"], 1000.0)
         self.assertEqual(session["summary"]["source_kind"], "fe")

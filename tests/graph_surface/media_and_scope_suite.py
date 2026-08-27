@@ -287,8 +287,6 @@ class GraphSurfaceMediaAndScopeContractTests(GraphSurfaceInputContractTestBase):
                         "live_mode": "proxy",
                         "playback_state": "paused",
                         "step_index": 1,
-                        "live_policy": "focus_only",
-                        "keep_live": False,
                         "cache_state": "proxy_ready",
                         "invalidated_reason": "",
                         "close_reason": "",
@@ -302,8 +300,6 @@ class GraphSurfaceMediaAndScopeContractTests(GraphSurfaceInputContractTestBase):
                             "live_mode": "proxy",
                             "playback_state": "paused",
                             "step_index": 1,
-                            "live_policy": "focus_only",
-                            "keep_live": False,
                         },
                     }
 
@@ -409,7 +405,7 @@ class GraphSurfaceMediaAndScopeContractTests(GraphSurfaceInputContractTestBase):
             assert control_rects == [], control_rects
             assert variant_list(loader.property("embeddedInteractiveRects")) == [], variant_list(loader.property("embeddedInteractiveRects"))
             assert contract["interactive_rects"] == [], contract
-            assert [action["id"] for action in surface_actions] == ["openSession", "playPause", "step", "keepLive", "camera", "screenshot", "copyImage", "detach", "fullscreen"], surface_actions
+            assert [action["id"] for action in surface_actions] == ["openSession", "playPause", "step", "camera", "screenshot", "copyImage", "detach", "fullscreen"], surface_actions
             assert rect_field(host.property("viewerBodyRect"), "x") == float(contract["body_rect"]["x"]), variant_value(host.property("viewerBodyRect"))
             assert rect_field(host.property("viewerLiveSurfaceRect"), "width") == float(contract["live_rect"]["width"]), variant_value(host.property("viewerLiveSurfaceRect"))
             assert rect_field(host.property("viewerLiveSurfaceRect"), "height") == float(contract["live_rect"]["height"]), variant_value(host.property("viewerLiveSurfaceRect"))

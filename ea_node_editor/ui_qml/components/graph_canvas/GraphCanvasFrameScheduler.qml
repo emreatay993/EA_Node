@@ -175,6 +175,14 @@ Item {
         root._pendingZoomCursorX = Number(cursorX);
         root._pendingZoomCursorY = Number(cursorY);
         root._pendingZoomHasCursor = isFinite(root._pendingZoomCursorX) && isFinite(root._pendingZoomCursorY);
+        if (
+            canvasItem
+            && canvasItem.noteViewportInteraction
+            && canvasItem.shouldUseViewportInteractionQualityForWheelZoom
+            && canvasItem.shouldUseViewportInteractionQualityForWheelZoom()
+        ) {
+            canvasItem.noteViewportInteraction();
+        }
         root._applyWheelZoomNow(
             canvasItem,
             viewCommandBridge,
@@ -186,14 +194,6 @@ Item {
         root._pendingZoomCanvas = null;
         root._pendingZoomBridge = null;
         root._zoomDirty = true;
-        if (
-            canvasItem
-            && canvasItem.noteViewportInteraction
-            && canvasItem.shouldUseViewportInteractionQualityForWheelZoom
-            && canvasItem.shouldUseViewportInteractionQualityForWheelZoom()
-        ) {
-            canvasItem.noteViewportInteraction();
-        }
         root._markViewStateDirty();
         root._queueFlush();
         return true;

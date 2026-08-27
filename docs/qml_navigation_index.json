@@ -8,9 +8,9 @@
     "qml_files": 170,
     "repeater_constructs": 98,
     "loader_constructs": 24,
-    "signal_handlers": 882,
+    "signal_handlers": 880,
     "connections": 47,
-    "property_bindings": 7591,
+    "property_bindings": 7595,
     "local_component_refs": 270
   },
   "entries": [
@@ -78526,9 +78526,6 @@
       "signals": [],
       "functions": [
         {
-          "name": "triggerHoverAction"
-        },
-        {
           "name": "dispatchSurfaceAction"
         },
         {
@@ -78649,11 +78646,6 @@
           "detail": "var"
         },
         {
-          "anchor": "GraphViewerSurfaceFunctionTriggerHoverAction",
-          "kind": "function",
-          "name": "triggerHoverAction"
-        },
-        {
           "anchor": "GraphViewerSurfaceFunctionDispatchSurfaceAction",
           "kind": "function",
           "name": "dispatchSurfaceAction"
@@ -78724,9 +78716,6 @@
         },
         {
           "name": "viewportFrame"
-        },
-        {
-          "name": "viewerViewportHover"
         },
         {
           "name": "crosshatchCanvas"
@@ -78801,6 +78790,9 @@
         },
         {
           "name": "graphNodeViewerSurfaceHint"
+        },
+        {
+          "name": "graphNodeViewerTransientProxyPane"
         }
       ],
       "properties": [
@@ -78866,11 +78858,7 @@
         },
         {
           "kind": "bool",
-          "name": "hostSurfaceActive"
-        },
-        {
-          "kind": "bool",
-          "name": "viewportHoverActive"
+          "name": "hostSelected"
         },
         {
           "kind": "bool",
@@ -78939,14 +78927,6 @@
         {
           "kind": "int",
           "name": "viewerStepIndex"
-        },
-        {
-          "kind": "string",
-          "name": "viewerLivePolicy"
-        },
-        {
-          "kind": "bool",
-          "name": "viewerKeepLive"
         },
         {
           "kind": "string",
@@ -79149,6 +79129,10 @@
           "name": "viewerFooterMetaModel"
         },
         {
+          "kind": "bool",
+          "name": "inlineLiveRequested"
+        },
+        {
           "kind": "string",
           "name": "_activeInteractionNodeId"
         },
@@ -79162,15 +79146,7 @@
         },
         {
           "kind": "bool",
-          "name": "_initialProxyPreviewWarmupActive"
-        },
-        {
-          "kind": "string",
-          "name": "_initialProxyPreviewAttemptKey"
-        },
-        {
-          "kind": "bool",
-          "name": "_initialProxyPreviewSyncQueued"
+          "name": "_inlineLiveRequested"
         },
         {
           "kind": "bool",
@@ -79211,22 +79187,16 @@
           "name": "_beginSurfaceControl"
         },
         {
-          "name": "_focusViewerSession"
+          "name": "requestInlineLiveActivation"
         },
         {
-          "name": "_queueInitialProxyPreview"
-        },
-        {
-          "name": "_syncInitialProxyPreview"
+          "name": "_clearInlineLiveRequest"
         },
         {
           "name": "_queueEmbeddedInteractionSync"
         },
         {
           "name": "_syncEmbeddedInteraction"
-        },
-        {
-          "name": "triggerHoverAction"
         },
         {
           "name": "_cachedPreviewSource"
@@ -79283,9 +79253,6 @@
           "name": "requestDetachedViewer"
         },
         {
-          "name": "requestKeepLiveToggle"
-        },
-        {
           "name": "requestContentFullscreen"
         }
       ],
@@ -79298,9 +79265,6 @@
         },
         {
           "name": "Text"
-        },
-        {
-          "name": "HoverHandler"
         },
         {
           "name": "TapHandler"
@@ -79355,6 +79319,10 @@
         },
         {
           "kind": "handler",
+          "name": "onHostSelectedChanged"
+        },
+        {
+          "kind": "handler",
           "name": "onViewerNodeIdChanged"
         },
         {
@@ -79363,11 +79331,7 @@
         },
         {
           "kind": "handler",
-          "name": "onViewerPhaseChanged"
-        },
-        {
-          "kind": "handler",
-          "name": "onViewerLiveModeChanged"
+          "name": "onViewerBackendIdChanged"
         },
         {
           "kind": "handler",
@@ -79375,27 +79339,15 @@
         },
         {
           "kind": "handler",
-          "name": "onViewerLiveOpenStatusChanged"
+          "name": "onViewerLiveModeChanged"
+        },
+        {
+          "kind": "handler",
+          "name": "onViewerPhaseChanged"
         },
         {
           "kind": "handler",
           "name": "onViewerRunRequiredChanged"
-        },
-        {
-          "kind": "handler",
-          "name": "onViewerLastErrorChanged"
-        },
-        {
-          "kind": "handler",
-          "name": "onLiveOverlayReadyChanged"
-        },
-        {
-          "kind": "handler",
-          "name": "onLiveSurfaceRectChanged"
-        },
-        {
-          "kind": "handler",
-          "name": "onWindowChanged"
         },
         {
           "kind": "handler",
@@ -79420,6 +79372,10 @@
         {
           "kind": "handler",
           "name": "onTapped"
+        },
+        {
+          "kind": "handler",
+          "name": "onDoubleTapped"
         },
         {
           "kind": "handler",
@@ -79517,6 +79473,13 @@
         {
           "kind": "binding",
           "name": "spacing"
+        },
+        {
+          "kind": "binding",
+          "name": "visible",
+          "targets": [
+            "surface.transientInteractionPreviewActive"
+          ]
         },
         {
           "kind": "binding",
@@ -79728,6 +79691,13 @@
         },
         {
           "kind": "binding",
+          "name": "enabled",
+          "targets": [
+            "surface.proxySurfaceActive"
+          ]
+        },
+        {
+          "kind": "binding",
           "name": "acceptedButtons",
           "targets": [
             "Qt.LeftButton"
@@ -79778,10 +79748,7 @@
           "kind": "binding",
           "name": "visible",
           "targets": [
-            "surface.cachedPreviewVisible",
-            "String",
-            "source",
-            "length"
+            "surface.cachedPreviewVisible"
           ]
         },
         {
@@ -80005,6 +79972,19 @@
           "targets": [
             "Text.ElideRight"
           ]
+        },
+        {
+          "kind": "binding",
+          "name": "border.color",
+          "targets": [
+            "host",
+            "Qt.alpha",
+            "host.outlineColor"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "text"
         }
       ],
       "local_component_refs": [],
@@ -80100,15 +80080,9 @@
           "detail": "real"
         },
         {
-          "anchor": "GraphViewerSurfaceBodyPropertyHostSurfaceActive",
+          "anchor": "GraphViewerSurfaceBodyPropertyHostSelected",
           "kind": "property",
-          "name": "hostSurfaceActive",
-          "detail": "bool"
-        },
-        {
-          "anchor": "GraphViewerSurfaceBodyPropertyViewportHoverActive",
-          "kind": "property",
-          "name": "viewportHoverActive",
+          "name": "hostSelected",
           "detail": "bool"
         },
         {
@@ -80212,18 +80186,6 @@
           "kind": "property",
           "name": "viewerStepIndex",
           "detail": "int"
-        },
-        {
-          "anchor": "GraphViewerSurfaceBodyPropertyViewerLivePolicy",
-          "kind": "property",
-          "name": "viewerLivePolicy",
-          "detail": "string"
-        },
-        {
-          "anchor": "GraphViewerSurfaceBodyPropertyViewerKeepLive",
-          "kind": "property",
-          "name": "viewerKeepLive",
-          "detail": "bool"
         },
         {
           "anchor": "GraphViewerSurfaceBodyPropertyViewerCacheState",
@@ -80526,6 +80488,12 @@
           "detail": "var"
         },
         {
+          "anchor": "GraphViewerSurfaceBodyPropertyInlineLiveRequested",
+          "kind": "property",
+          "name": "inlineLiveRequested",
+          "detail": "bool"
+        },
+        {
           "anchor": "GraphViewerSurfaceBodyPropertyActiveInteractionNodeId",
           "kind": "property",
           "name": "_activeInteractionNodeId",
@@ -80544,21 +80512,9 @@
           "detail": "int"
         },
         {
-          "anchor": "GraphViewerSurfaceBodyPropertyInitialProxyPreviewWarmupActive",
+          "anchor": "GraphViewerSurfaceBodyPropertyInlineLiveRequested2",
           "kind": "property",
-          "name": "_initialProxyPreviewWarmupActive",
-          "detail": "bool"
-        },
-        {
-          "anchor": "GraphViewerSurfaceBodyPropertyInitialProxyPreviewAttemptKey",
-          "kind": "property",
-          "name": "_initialProxyPreviewAttemptKey",
-          "detail": "string"
-        },
-        {
-          "anchor": "GraphViewerSurfaceBodyPropertyInitialProxyPreviewSyncQueued",
-          "kind": "property",
-          "name": "_initialProxyPreviewSyncQueued",
+          "name": "_inlineLiveRequested",
           "detail": "bool"
         },
         {
@@ -80619,19 +80575,14 @@
           "name": "_beginSurfaceControl"
         },
         {
-          "anchor": "GraphViewerSurfaceBodyFunctionFocusViewerSession",
+          "anchor": "GraphViewerSurfaceBodyFunctionRequestInlineLiveActivation",
           "kind": "function",
-          "name": "_focusViewerSession"
+          "name": "requestInlineLiveActivation"
         },
         {
-          "anchor": "GraphViewerSurfaceBodyFunctionQueueInitialProxyPreview",
+          "anchor": "GraphViewerSurfaceBodyFunctionClearInlineLiveRequest",
           "kind": "function",
-          "name": "_queueInitialProxyPreview"
-        },
-        {
-          "anchor": "GraphViewerSurfaceBodyFunctionSyncInitialProxyPreview",
-          "kind": "function",
-          "name": "_syncInitialProxyPreview"
+          "name": "_clearInlineLiveRequest"
         },
         {
           "anchor": "GraphViewerSurfaceBodyFunctionQueueEmbeddedInteractionSync",
@@ -80642,11 +80593,6 @@
           "anchor": "GraphViewerSurfaceBodyFunctionSyncEmbeddedInteraction",
           "kind": "function",
           "name": "_syncEmbeddedInteraction"
-        },
-        {
-          "anchor": "GraphViewerSurfaceBodyFunctionTriggerHoverAction",
-          "kind": "function",
-          "name": "triggerHoverAction"
         },
         {
           "anchor": "GraphViewerSurfaceBodyFunctionCachedPreviewSource",
@@ -80739,11 +80685,6 @@
           "name": "requestDetachedViewer"
         },
         {
-          "anchor": "GraphViewerSurfaceBodyFunctionRequestKeepLiveToggle",
-          "kind": "function",
-          "name": "requestKeepLiveToggle"
-        },
-        {
           "anchor": "GraphViewerSurfaceBodyFunctionRequestContentFullscreen",
           "kind": "function",
           "name": "requestContentFullscreen"
@@ -80752,6 +80693,11 @@
           "anchor": "GraphViewerSurfaceBodyHandlerOnEmbeddedInteractionActiveChanged",
           "kind": "handler",
           "name": "onEmbeddedInteractionActiveChanged"
+        },
+        {
+          "anchor": "GraphViewerSurfaceBodyHandlerOnHostSelectedChanged",
+          "kind": "handler",
+          "name": "onHostSelectedChanged"
         },
         {
           "anchor": "GraphViewerSurfaceBodyHandlerOnViewerNodeIdChanged",
@@ -80764,14 +80710,9 @@
           "name": "onViewerSessionIdChanged"
         },
         {
-          "anchor": "GraphViewerSurfaceBodyHandlerOnViewerPhaseChanged",
+          "anchor": "GraphViewerSurfaceBodyHandlerOnViewerBackendIdChanged",
           "kind": "handler",
-          "name": "onViewerPhaseChanged"
-        },
-        {
-          "anchor": "GraphViewerSurfaceBodyHandlerOnViewerLiveModeChanged",
-          "kind": "handler",
-          "name": "onViewerLiveModeChanged"
+          "name": "onViewerBackendIdChanged"
         },
         {
           "anchor": "GraphViewerSurfaceBodyHandlerOnViewerTransportRevisionChanged",
@@ -80779,34 +80720,19 @@
           "name": "onViewerTransportRevisionChanged"
         },
         {
-          "anchor": "GraphViewerSurfaceBodyHandlerOnViewerLiveOpenStatusChanged",
+          "anchor": "GraphViewerSurfaceBodyHandlerOnViewerLiveModeChanged",
           "kind": "handler",
-          "name": "onViewerLiveOpenStatusChanged"
+          "name": "onViewerLiveModeChanged"
+        },
+        {
+          "anchor": "GraphViewerSurfaceBodyHandlerOnViewerPhaseChanged",
+          "kind": "handler",
+          "name": "onViewerPhaseChanged"
         },
         {
           "anchor": "GraphViewerSurfaceBodyHandlerOnViewerRunRequiredChanged",
           "kind": "handler",
           "name": "onViewerRunRequiredChanged"
-        },
-        {
-          "anchor": "GraphViewerSurfaceBodyHandlerOnViewerLastErrorChanged",
-          "kind": "handler",
-          "name": "onViewerLastErrorChanged"
-        },
-        {
-          "anchor": "GraphViewerSurfaceBodyHandlerOnLiveOverlayReadyChanged",
-          "kind": "handler",
-          "name": "onLiveOverlayReadyChanged"
-        },
-        {
-          "anchor": "GraphViewerSurfaceBodyHandlerOnLiveSurfaceRectChanged",
-          "kind": "handler",
-          "name": "onLiveSurfaceRectChanged"
-        },
-        {
-          "anchor": "GraphViewerSurfaceBodyHandlerOnWindowChanged",
-          "kind": "handler",
-          "name": "onWindowChanged"
         },
         {
           "anchor": "GraphViewerSurfaceBodyHandlerOnCachedPreviewSourceChanged",
@@ -80837,6 +80763,11 @@
           "anchor": "GraphViewerSurfaceBodyHandlerOnTapped",
           "kind": "handler",
           "name": "onTapped"
+        },
+        {
+          "anchor": "GraphViewerSurfaceBodyHandlerOnDoubleTapped",
+          "kind": "handler",
+          "name": "onDoubleTapped"
         },
         {
           "anchor": "GraphViewerSurfaceBodyHandlerOnPaint",
@@ -91118,6 +91049,10 @@
           "name": "interactionIdleDelayMs"
         },
         {
+          "kind": "bool",
+          "name": "viewportInteractionHeld"
+        },
+        {
           "kind": "real",
           "name": "wireDragThreshold"
         },
@@ -91521,6 +91456,12 @@
           "kind": "property",
           "name": "interactionIdleDelayMs",
           "detail": "int"
+        },
+        {
+          "anchor": "GraphCanvasInteractionStatePropertyViewportInteractionHeld",
+          "kind": "property",
+          "name": "viewportInteractionHeld",
+          "detail": "bool"
         },
         {
           "anchor": "GraphCanvasInteractionStatePropertyWireDragThreshold",
@@ -100904,7 +100845,10 @@
           "name": "_nodeUsesPlotViewportInteractionCache"
         },
         {
-          "name": "_plotViewportInteractionCacheSurfacePresent"
+          "name": "_nodeUsesViewerViewportInteractionCache"
+        },
+        {
+          "name": "_viewportInteractionCacheSurfacePresent"
         },
         {
           "name": "shouldUseViewportInteractionQualityForWheelZoom"
@@ -101073,9 +101017,14 @@
           "name": "_nodeUsesPlotViewportInteractionCache"
         },
         {
-          "anchor": "GraphCanvasViewportControllerFunctionPlotViewportInteractionCacheSurfacePresent",
+          "anchor": "GraphCanvasViewportControllerFunctionNodeUsesViewerViewportInteractionCache",
           "kind": "function",
-          "name": "_plotViewportInteractionCacheSurfacePresent"
+          "name": "_nodeUsesViewerViewportInteractionCache"
+        },
+        {
+          "anchor": "GraphCanvasViewportControllerFunctionViewportInteractionCacheSurfacePresent",
+          "kind": "function",
+          "name": "_viewportInteractionCacheSurfacePresent"
         },
         {
           "anchor": "GraphCanvasViewportControllerFunctionShouldUseViewportInteractionQualityForWheelZoom",
@@ -101800,6 +101749,10 @@
           "name": "viewportInteractionWorldCacheActive"
         },
         {
+          "kind": "bool",
+          "name": "nativeOverlaySuppressionActive"
+        },
+        {
           "kind": "real",
           "name": "profileOverlaySyncMs"
         },
@@ -102014,6 +101967,10 @@
         {
           "kind": "alias",
           "name": "interactionActive"
+        },
+        {
+          "kind": "alias",
+          "name": "viewportInteractionHeld"
         },
         {
           "kind": "alias",
@@ -103766,6 +103723,12 @@
           "detail": "bool"
         },
         {
+          "anchor": "GraphCanvasPropertyNativeOverlaySuppressionActive",
+          "kind": "property",
+          "name": "nativeOverlaySuppressionActive",
+          "detail": "bool"
+        },
+        {
           "anchor": "GraphCanvasPropertyProfileOverlaySyncMs",
           "kind": "property",
           "name": "profileOverlaySyncMs",
@@ -104087,6 +104050,12 @@
           "anchor": "GraphCanvasPropertyInteractionActive",
           "kind": "property",
           "name": "interactionActive",
+          "detail": "alias"
+        },
+        {
+          "anchor": "GraphCanvasPropertyViewportInteractionHeld",
+          "kind": "property",
+          "name": "viewportInteractionHeld",
           "detail": "alias"
         },
         {

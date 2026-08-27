@@ -14,7 +14,6 @@ Item {
     readonly property var surfaceActions: _impl && _impl.surfaceActions !== undefined && _impl.surfaceActions !== null ? _impl.surfaceActions : []
     implicitHeight: _impl ? Number(_impl.implicitHeight || 0) : 0
 
-    function triggerHoverAction() { if (_impl && _impl.triggerHoverAction) _impl.triggerHoverAction(); }
     function dispatchSurfaceAction(actionId) {
         if (_impl && _impl.dispatchSurfaceAction)
             return Boolean(_impl.dispatchSurfaceAction(actionId));

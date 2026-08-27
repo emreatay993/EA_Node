@@ -97,7 +97,7 @@ class ViewerExecutionProtocolTests(unittest.TestCase):
                 camera_state={"position": [1.0, 2.0, 3.0]},
                 playback_state={"state": "paused", "step_index": 1},
                 summary={"result_name": "displacement", "set_ids": [1, 2]},
-                options={"live_mode": "proxy", "focus_only": True},
+                options={"live_mode": "proxy"},
             ),
             UpdateViewerSessionCommand(
                 request_id="viewer_req_update",

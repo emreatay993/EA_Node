@@ -98,8 +98,6 @@ def build_viewer_session_model(
     last_command: str = "",
     last_error: str = "",
     playback_state: Mapping[str, Any] | None = None,
-    live_policy: str = "focus_only",
-    keep_live: bool = False,
     cache_state: str = "empty",
     invalidated_reason: str = "",
     close_reason: str = "",
@@ -122,9 +120,6 @@ def build_viewer_session_model(
         "state": str(normalized_playback.get("state", "paused")).strip() or "paused",
         "step_index": _coerce_int(normalized_playback.get("step_index"), default=0),
     }
-    normalized_live_policy = str(live_policy).strip().lower() or "focus_only"
-    if normalized_live_policy not in {"focus_only", "keep_live"}:
-        normalized_live_policy = "focus_only"
     normalized_live_mode = str(live_mode).strip().lower() or "proxy"
     if normalized_live_mode not in {"proxy", "full"}:
         normalized_live_mode = "proxy"
@@ -146,8 +141,6 @@ def build_viewer_session_model(
         normalized_summary.setdefault("camera_state", copy.deepcopy(normalized_camera_state))
         normalized_summary.setdefault("camera", copy.deepcopy(normalized_camera_state))
 
-    normalized_options["live_policy"] = normalized_live_policy
-    normalized_options["keep_live"] = bool(keep_live)
     normalized_options["playback_state"] = normalized_playback["state"]
     normalized_options["step_index"] = normalized_playback["step_index"]
     normalized_options["playback"] = copy.deepcopy(normalized_playback)
@@ -163,8 +156,6 @@ def build_viewer_session_model(
         "playback_state": normalized_playback["state"],
         "step_index": normalized_playback["step_index"],
         "playback": copy.deepcopy(normalized_playback),
-        "live_policy": normalized_live_policy,
-        "keep_live": bool(keep_live),
         "cache_state": normalized_cache_state,
         "invalidated_reason": normalized_invalidated_reason,
         "close_reason": normalized_close_reason,
@@ -227,8 +218,6 @@ def coerce_viewer_session_model(payload: Mapping[str, Any] | None) -> dict[str, 
         last_command=str(payload_map.get("last_command", "") or "").strip(),
         last_error=str(payload_map.get("last_error", "") or "").strip(),
         playback_state=playback,
-        live_policy=payload_map.get("live_policy", ""),
-        keep_live=bool(payload_map.get("keep_live", False)),
         cache_state=str(payload_map.get("cache_state", "") or "").strip(),
         invalidated_reason=str(payload_map.get("invalidated_reason", "") or "").strip(),
         close_reason=str(payload_map.get("close_reason", "") or "").strip(),
@@ -295,8 +284,6 @@ def build_run_required_viewer_session_model(
     options["rerun_required"] = True
     options["playback_state"] = str(base_model.get("playback_state", "paused")).strip() or "paused"
     options["step_index"] = _coerce_int(base_model.get("step_index"), default=0)
-    options["live_policy"] = "focus_only"
-    options["keep_live"] = False
     if backend_id:
         options["backend_id"] = backend_id
     if transport_revision > 0:
@@ -314,8 +301,6 @@ def build_run_required_viewer_session_model(
             "state": str(base_model.get("playback_state", "paused")).strip() or "paused",
             "step_index": _coerce_int(base_model.get("step_index"), default=0),
         },
-        live_policy="focus_only",
-        keep_live=False,
         cache_state=cache_state,
         invalidated_reason=str(base_model.get("invalidated_reason", "")).strip(),
         close_reason=str(base_model.get("close_reason", "")).strip(),
@@ -457,8 +442,6 @@ class _ViewerSessionRecord:
             session_id=self.session_id,
             phase=self.public_phase(),
             playback_state=self.playback_state,
-            live_policy=str(resolved_options.get("live_policy", self.options.get("live_policy", "focus_only"))),
-            keep_live=bool(resolved_options.get("keep_live", self.options.get("keep_live", False))),
             cache_state=self.cache_state(),
             invalidated_reason=self.invalidated_reason,
             close_reason=str(
@@ -713,9 +696,6 @@ class ViewerSessionService:
             )
 
         self._sanitize_record(record)
-        open_options = _copy_mapping(command.options)
-        open_options["live_policy"] = "focus_only"
-        open_options["keep_live"] = False
         self._apply_session_payload(
             record,
             backend_id=command.backend_id,
@@ -727,7 +707,7 @@ class ViewerSessionService:
             camera_state=command.camera_state,
             playback_state=command.playback_state,
             summary=command.summary,
-            options=open_options,
+            options=command.options,
         )
         if command.data_refs or command.transport:
             record.invalidated_reason = ""

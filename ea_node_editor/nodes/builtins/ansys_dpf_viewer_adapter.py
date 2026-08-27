@@ -9,7 +9,6 @@ from ea_node_editor.nodes.builtins.ansys_dpf_common import (
     DPF_OUTPUT_MODE_BOTH,
     DPF_OUTPUT_MODE_MEMORY,
     DPF_VIEWER_SHOW_MESH_EDGES_PROPERTY,
-    DPF_VIEWER_LIVE_POLICY_FOCUS_ONLY,
     normalize_dpf_viewer_view_options,
     wrap_field_handle_as_fields_container,
 )
@@ -154,8 +153,6 @@ def open_dpf_viewer_session_payload(
     summary = viewer_summary_from_metadata(dict(runtime_fields_ref.metadata))
     options = {
         "live_mode": "proxy",
-        "live_policy": DPF_VIEWER_LIVE_POLICY_FOCUS_ONLY,
-        "keep_live": False,
         "output_profile": output_mode,
         "playback_state": "paused",
         **normalized_view_options,

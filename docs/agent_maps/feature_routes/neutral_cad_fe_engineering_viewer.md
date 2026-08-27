@@ -27,6 +27,11 @@ sessions, selection, clipping, export, and the shared fullscreen/detached host.
   retain file validation, prepared-scene work, native geometry, and session ownership.
 - Viewer sessions own camera, selection, clipping, display options, and export
   state through validated handles.
+- Model Viewer starts as a lightweight proxy without native warm-up. Selection,
+  hover, and single-click do not activate it; a proxy-viewport double-click is
+  the only inline activation gesture, and selection/background loss demotes it.
+- Fullscreen and detached views acquire explicit presentation holds. Only a
+  widget previously activated inline may be retained hidden for reactivation.
 - Fullscreen and detached views retarget the same session rather than creating
   a second authoritative viewer.
 - Optional topology remains lazy, asynchronous, and cached; points remain the

@@ -181,7 +181,7 @@ class DpfViewerNodeTests(unittest.TestCase):
             "metadata": {},
         }
 
-    def test_viewer_node_seeds_cached_session_payload_with_focus_only_defaults_and_ignores_legacy_live_policy(self) -> None:
+    def test_viewer_node_seeds_cached_session_payload_in_proxy_mode(self) -> None:
         services = dpf_worker_services()
         model_ref, field_ref = self._model_and_field_refs(services)
 
@@ -191,7 +191,6 @@ class DpfViewerNodeTests(unittest.TestCase):
                 self._execution_context(
                     DPF_VIEWER_NODE_TYPE_ID,
                     inputs={"field": field_ref, "model": model_ref},
-                    properties={"viewer_live_policy": "keep_live"},
                     services=services,
                     node_id="node_viewer_packet_p13",
                 )
@@ -208,8 +207,6 @@ class DpfViewerNodeTests(unittest.TestCase):
         self.assertEqual(session_payload["summary"]["cache_state"], "live_ready")
         self.assertEqual(session_payload["live_open_status"], "ready")
         self.assertEqual(session_payload["options"]["output_profile"], "both")
-        self.assertEqual(session_payload["options"]["live_policy"], "focus_only")
-        self.assertFalse(session_payload["options"]["keep_live"])
         self.assertEqual(session_payload["options"]["live_mode"], "proxy")
         self.assertEqual(session_payload["options"]["session_state"], "open")
         self.assertFalse(session_payload["options"][DPF_VIEWER_SHOW_MESH_EDGES_PROPERTY])
@@ -370,7 +367,7 @@ class DpfViewerNodeTests(unittest.TestCase):
             DPF_VIEWER_DATASET_HANDLE_KIND,
         )
 
-    def test_viewer_node_reopen_restores_result_summary_but_resets_keep_live_defaults(self) -> None:
+    def test_viewer_node_reopen_restores_result_summary_in_proxy_mode(self) -> None:
         services = dpf_worker_services()
         model_ref, field_ref = self._model_and_field_refs(services)
 
@@ -381,11 +378,10 @@ class DpfViewerNodeTests(unittest.TestCase):
                     DPF_VIEWER_NODE_TYPE_ID,
                     inputs={"field": field_ref, "model": model_ref},
                     properties={
-                        "viewer_live_policy": "keep_live",
                         "output_mode": "memory",
                     },
                     services=services,
-                    node_id="node_viewer_keep_live_packet_p13",
+                    node_id="node_viewer_reopen_packet_p13",
                 )
             ).outputs["session"],
         )
@@ -393,7 +389,7 @@ class DpfViewerNodeTests(unittest.TestCase):
         closed = services.viewer_session_service.close_session(
             CloseViewerSessionCommand(
                 workspace_id="ws_dpf_viewer",
-                node_id="node_viewer_keep_live_packet_p13",
+                node_id="node_viewer_reopen_packet_p13",
                 session_id=session_payload["session_id"],
                 options={"reason": "test_demote", "release_handles": True},
             )
@@ -401,7 +397,7 @@ class DpfViewerNodeTests(unittest.TestCase):
         reopened = services.viewer_session_service.open_session(
             OpenViewerSessionCommand(
                 workspace_id="ws_dpf_viewer",
-                node_id="node_viewer_keep_live_packet_p13",
+                node_id="node_viewer_reopen_packet_p13",
                 session_id=session_payload["session_id"],
             )
         )
@@ -409,8 +405,6 @@ class DpfViewerNodeTests(unittest.TestCase):
         self.assertEqual(closed.summary["close_reason"], "test_demote")
         self.assertEqual(reopened.summary["result_name"], "displacement")
         self.assertEqual(reopened.summary["set_label"], "Set 2")
-        self.assertEqual(reopened.options["live_policy"], "focus_only")
-        self.assertFalse(reopened.options["keep_live"])
         self.assertEqual(reopened.options["live_mode"], "proxy")
         self.assertEqual(reopened.summary["cache_state"], "proxy_ready")
         self.assertEqual(reopened.backend_id, DPF_EXECUTION_VIEWER_BACKEND_ID)

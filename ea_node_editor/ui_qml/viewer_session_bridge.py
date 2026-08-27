@@ -9,11 +9,9 @@ import copy
 import hashlib
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
-from pathlib import Path, PurePosixPath
 from typing import TYPE_CHECKING, Any
 
 from PyQt6.QtCore import QObject, pyqtProperty, pyqtSignal, pyqtSlot
-from PyQt6.QtGui import QImage
 
 from ea_node_editor.common.coercions import coerce_float
 from ea_node_editor.common.scene_protocol import (
@@ -46,7 +44,6 @@ from ea_node_editor.nodes.builtins.ansys_dpf_common import (
     normalize_dpf_viewer_scalar_range_bound,
     normalize_dpf_viewer_scalar_range_mode,
 )
-from ea_node_editor.persistence.artifact_resolution import ProjectArtifactResolver
 from ea_node_editor.runtime_contracts import (
     COREX_VIEWER_SESSION_HANDLE_KIND,
     VIEWER_SESSION_DATA_TYPE_ID,
@@ -64,8 +61,6 @@ if TYPE_CHECKING:
 
 _LIVE_MODE_FULL = "full"
 _LIVE_MODE_PROXY = "proxy"
-_LIVE_POLICY_FOCUS_ONLY = "focus_only"
-_LIVE_POLICY_KEEP_LIVE = "keep_live"
 _OPEN_SESSION_PHASES = frozenset({"open", "opening"})
 _VIEWER_EVENT_TYPES = frozenset(
     {
@@ -105,8 +100,6 @@ class _ViewerSessionProjection:
     last_error: str = ""
     playback_state: str = "paused"
     step_index: int = 0
-    live_policy: str = _LIVE_POLICY_FOCUS_ONLY
-    keep_live: bool = False
     cache_state: str = "empty"
     invalidated_reason: str = ""
     close_reason: str = ""
@@ -122,7 +115,6 @@ class _ViewerSessionProjection:
     pending_display: _ViewerPendingDisplay = field(
         default_factory=_ViewerPendingDisplay
     )
-    pending_proxy_snapshot_refresh: bool = False
     camera_state_locally_captured: bool = False
 
     def payload(self, *, include_pending: bool = True) -> dict[str, Any]:
@@ -131,10 +123,6 @@ class _ViewerSessionProjection:
         summary.update(copy.deepcopy(pending.summary))
         options = _copy_mapping(self.options)
         options.update(copy.deepcopy(pending.options))
-        live_policy = _normalize_live_policy(
-            options.get("live_policy", self.live_policy)
-        )
-        keep_live = bool(options.get("keep_live", self.keep_live))
         playback_state = (
             pending.playback_state
             or _string(options.get("playback_state", self.playback_state))
@@ -147,8 +135,6 @@ class _ViewerSessionProjection:
         )
         live_mode = _normalize_live_mode(options.get("live_mode", _LIVE_MODE_PROXY))
         playback = {"state": playback_state, "step_index": step_index}
-        options["live_policy"] = live_policy
-        options["keep_live"] = keep_live
         options["playback_state"] = playback_state
         options["step_index"] = step_index
         options["playback"] = copy.deepcopy(playback)
@@ -170,8 +156,6 @@ class _ViewerSessionProjection:
             "playback_state": playback_state,
             "step_index": step_index,
             "playback": playback,
-            "live_policy": live_policy,
-            "keep_live": keep_live,
             "cache_state": self.cache_state,
             "invalidated_reason": (
                 pending.invalidated_reason
@@ -261,13 +245,6 @@ def _session_option_updates_for_node_property(key: Any, value: Any) -> dict[str,
     return {normalized_key: coercer(value)}
 
 
-def _normalize_live_policy(value: Any) -> str:
-    normalized = _string(value).lower() or _LIVE_POLICY_FOCUS_ONLY
-    if normalized not in {_LIVE_POLICY_FOCUS_ONLY, _LIVE_POLICY_KEEP_LIVE}:
-        return _LIVE_POLICY_FOCUS_ONLY
-    return normalized
-
-
 def _normalize_live_mode(value: Any) -> str:
     normalized = _string(value).lower() or _LIVE_MODE_PROXY
     if normalized not in {_LIVE_MODE_PROXY, _LIVE_MODE_FULL}:
@@ -307,19 +284,8 @@ class _ViewerSessionPresentationService:
         self,
         *,
         capture_overlay_camera_state: Callable[..., Any] | None,
-        capture_overlay_preview_image: Callable[..., Any] | None,
-        project_path_provider: Callable[[], str],
-        project_metadata_provider: Callable[[], dict[str, Any] | None],
     ) -> None:
         self._capture_overlay_camera_state = capture_overlay_camera_state
-        self._capture_overlay_preview_image = capture_overlay_preview_image
-        self._project_path_provider = project_path_provider
-        self._project_metadata_provider = project_metadata_provider
-        self._transient_proxy_preview_paths: dict[tuple[str, str], str] = {}
-
-    @property
-    def transient_proxy_preview_paths(self) -> dict[tuple[str, str], str]:
-        return self._transient_proxy_preview_paths
 
     def projected_payload(self, state: _ViewerSessionProjection) -> dict[str, Any]:
         return state.payload()
@@ -344,111 +310,6 @@ class _ViewerSessionPresentationService:
             return captured
         return copy.deepcopy(state.camera_state)
 
-    def capture_live_overlay_preview_image(
-        self,
-        state: _ViewerSessionProjection,
-    ) -> QImage:
-        capture = self._capture_overlay_preview_image
-        if not callable(capture):
-            return QImage()
-        try:
-            captured = capture(
-                state.node_id,
-                workspace_id=state.workspace_id,
-            )
-        except Exception:  # noqa: BLE001
-            return QImage()
-        if isinstance(captured, QImage) and not captured.isNull():
-            return captured.copy()
-        return QImage()
-
-    def projected_proxy_preview_path(self, data_refs: Mapping[str, Any]) -> str:
-        for key in ("png", "preview"):
-            preview_path = self.preview_data_ref_path(data_refs.get(key))
-            if preview_path:
-                return preview_path
-        return ""
-
-    def preview_data_ref_path(self, value: Any) -> str:
-        resolver = ProjectArtifactResolver(
-            project_path=self._project_path_provider() or None,
-            project_metadata=self._project_metadata_provider(),
-        )
-        source_ref = ""
-        if isinstance(value, Mapping):
-            source_ref = _string(value.get("source") or value.get("ref"))
-        else:
-            source_ref = _string(value)
-        if source_ref:
-            resolved_path = resolver.resolve_to_path(source_ref)
-            if resolved_path is not None and resolved_path.is_file():
-                return str(resolved_path)
-
-        if not isinstance(value, Mapping):
-            return ""
-
-        metadata = value.get("metadata")
-        if isinstance(metadata, Mapping):
-            runtime_path = self.preview_runtime_metadata_path(metadata)
-            if runtime_path:
-                return runtime_path
-        return self.preview_runtime_metadata_path(value)
-
-    def preview_runtime_metadata_path(self, payload: Mapping[str, Any]) -> str:
-        absolute_path = _string(payload.get("absolute_path"))
-        if absolute_path:
-            candidate = Path(absolute_path)
-            if candidate.is_file():
-                return str(candidate)
-
-        relative_path = _string(payload.get("relative_path") or payload.get("path"))
-        project_path = self._project_path_provider()
-        if not relative_path or not project_path:
-            return ""
-
-        relative_parts: list[str] = []
-        for part in PurePosixPath(relative_path.replace("\\", "/")).parts:
-            if part in {"", "."}:
-                continue
-            if part == "..":
-                return ""
-            relative_parts.append(part)
-        if not relative_parts:
-            return ""
-
-        project_file = Path(project_path)
-        sidecar_root = project_file.with_name(f"{project_file.stem}.data")
-        candidate = sidecar_root.joinpath(*relative_parts)
-        return str(candidate) if candidate.is_file() else ""
-
-    def transient_proxy_preview_path(self, workspace_id: str, node_id: str) -> str:
-        return ""
-
-    def set_transient_proxy_preview(
-        self,
-        workspace_id: str,
-        node_id: str,
-        image: QImage,
-    ) -> str:
-        normalized_workspace_id = _string(workspace_id)
-        normalized_node_id = _string(node_id)
-        if not normalized_workspace_id or not normalized_node_id:
-            return ""
-        del image
-        return ""
-
-    def clear_transient_proxy_preview(self, workspace_id: str, node_id: str) -> None:
-        key = (_string(workspace_id), _string(node_id))
-        self._transient_proxy_preview_paths.pop(key, None)
-
-    def clear_all_transient_proxy_previews(self) -> None:
-        self._transient_proxy_preview_paths.clear()
-
-    @staticmethod
-    def remove_transient_proxy_file(path_text: str) -> None:
-        del path_text
-
-
 class ViewerSessionBridge(QObject):
     sessions_changed = pyqtSignal()
     active_workspace_changed = pyqtSignal()
@@ -463,7 +324,6 @@ class ViewerSessionBridge(QObject):
         scene_bridge: "GraphSceneBridge | None" = None,
         data_types: DataTypeCatalog,
         capture_overlay_camera_state: Callable[..., Any] | None = None,
-        capture_overlay_preview_image: Callable[..., Any] | None = None,
     ) -> None:
         super().__init__(parent)
         self._shell_window = shell_window
@@ -472,21 +332,14 @@ class ViewerSessionBridge(QObject):
         self._sessions: dict[tuple[str, str], _ViewerSessionProjection] = {}
         self._presentation_service = _ViewerSessionPresentationService(
             capture_overlay_camera_state=capture_overlay_camera_state,
-            capture_overlay_preview_image=capture_overlay_preview_image,
-            project_path_provider=self._current_project_path,
-            project_metadata_provider=self._current_project_metadata,
-        )
-        self._transient_proxy_preview_paths = (
-            self._presentation_service.transient_proxy_preview_paths
         )
         self._pending_reset_seed: (
             dict[tuple[str, str], _ViewerSessionProjection] | None
         ) = None
-        self._focused_viewer_node_by_workspace: dict[str, str] = {}
-        self._embedded_interaction_active: set[tuple[str, str]] = set()
+        self._explicit_inline_node_by_workspace: dict[str, str] = {}
         self._viewer_presentation_holds: set[tuple[str, str]] = set()
         self._last_error = ""
-        self._policy_sync_in_progress = False
+        self._live_mode_sync_in_progress = False
 
         if shell_window is not None:
             execution_event = getattr(shell_window, "execution_event", None)
@@ -496,7 +349,6 @@ class ViewerSessionBridge(QObject):
             scene_bridge.workspace_changed.connect(self._on_workspace_changed)
             scene_bridge.selection_changed.connect(self._on_selection_changed)
             scene_bridge.nodes_changed.connect(self._on_nodes_changed)
-            scene_bridge.edges_changed.connect(self._on_edges_changed)
 
     def assert_registry_replaceable(self) -> None:
         if any(
@@ -663,8 +515,6 @@ class ViewerSessionBridge(QObject):
         if existing_state is not None:
             option_updates.pop("reason", None)
             option_updates.pop("release_handles", None)
-        option_updates["live_policy"] = _LIVE_POLICY_FOCUS_ONLY
-        option_updates["keep_live"] = False
         backend_id = self._resolve_backend_id(state, payload_map)
         camera_state = _copy_mapping(payload_map.get("camera_state"))
         if not camera_state and existing_state is not None:
@@ -777,9 +627,9 @@ class ViewerSessionBridge(QObject):
             last_error="",
             close_reason=_string(option_updates.get("reason")),
         )
-        self._clear_focused_viewer_node_if_matches(state.workspace_id, state.node_id)
+        self._clear_explicit_inline_if_matches(state.workspace_id, state.node_id)
         self.sessions_changed.emit()
-        self._sync_live_policy(state.workspace_id)
+        self._sync_live_modes(state.workspace_id)
         return True
 
     @pyqtSlot(str, result=bool)
@@ -854,57 +704,14 @@ class ViewerSessionBridge(QObject):
             },
         )
 
-    @pyqtSlot(str, str, result=bool)
-    @pyqtSlot(str, str, "QVariantMap", result=bool)
-    def set_live_policy(
-        self, node_id: str, live_policy: str, payload: Any = None
-    ) -> bool:
-        return self._update_session_command(
-            node_id,
-            payload,
-            command_name="set_live_policy",
-            option_updates={
-                "live_policy": str(live_policy or "").strip() or _LIVE_POLICY_FOCUS_ONLY
-            },
-        )
-
-    @pyqtSlot(str, bool, result=bool)
-    @pyqtSlot(str, bool, "QVariantMap", result=bool)
-    def set_keep_live(self, node_id: str, keep_live: bool, payload: Any = None) -> bool:
-        return self._update_session_command(
-            node_id,
-            payload,
-            command_name="set_keep_live",
-            option_updates={"keep_live": bool(keep_live)},
-        )
-
-    @pyqtSlot(str, result=bool)
-    @pyqtSlot(str, "QVariantMap", result=bool)
-    def focus_session(self, node_id: str, payload: Any = None) -> bool:
-        workspace_id = self._workspace_id_from_payload(payload)
-        normalized_node_id = _string(node_id)
-        if not workspace_id or not normalized_node_id:
-            return False
-        changed = self._set_focused_viewer_node(workspace_id, normalized_node_id)
-        self._sync_live_policy(workspace_id)
-        if changed:
-            self.sessions_changed.emit()
-        return True
-
     @pyqtSlot(result=bool)
     @pyqtSlot("QVariantMap", result=bool)
     def clear_viewer_focus(self, payload: Any = None) -> bool:
         workspace_id = self._workspace_id_from_payload(payload)
         if not workspace_id:
             return False
-        changed = self._set_focused_viewer_node(workspace_id, "")
-        active_keys = {
-            key for key in self._embedded_interaction_active if key[0] == workspace_id
-        }
-        if active_keys:
-            self._embedded_interaction_active.difference_update(active_keys)
-            changed = True
-        self._sync_live_policy(workspace_id)
+        changed = self._explicit_inline_node_by_workspace.pop(workspace_id, None) is not None
+        self._sync_live_modes(workspace_id)
         if changed:
             self.sessions_changed.emit()
         return True
@@ -918,27 +725,18 @@ class ViewerSessionBridge(QObject):
         normalized_node_id = _string(node_id)
         if not workspace_id or not normalized_node_id:
             return False
-        key = (workspace_id, normalized_node_id)
-        changed = False
+        state = self._active_session(normalized_node_id, {"workspace_id": workspace_id})
+        if state is None:
+            return False
+        current_node_id = self._explicit_inline_node_by_workspace.get(workspace_id)
         if bool(active):
-            if key not in self._embedded_interaction_active:
-                self._embedded_interaction_active.add(key)
-                changed = True
-            changed = (
-                self._set_focused_viewer_node(workspace_id, normalized_node_id)
-                or changed
-            )
+            changed = current_node_id != normalized_node_id
+            self._explicit_inline_node_by_workspace[workspace_id] = normalized_node_id
         else:
-            if key in self._embedded_interaction_active:
-                self._embedded_interaction_active.remove(key)
-                changed = True
-            changed = (
-                self._clear_focused_viewer_node_if_matches(
-                    workspace_id, normalized_node_id
-                )
-                or changed
-            )
-        self._sync_live_policy(workspace_id)
+            changed = current_node_id == normalized_node_id
+            if changed:
+                self._explicit_inline_node_by_workspace.pop(workspace_id, None)
+        self._sync_live_modes(workspace_id)
         if changed:
             self.sessions_changed.emit()
         return True
@@ -946,7 +744,7 @@ class ViewerSessionBridge(QObject):
     @pyqtSlot(str, result=bool)
     @pyqtSlot(str, "QVariantMap", result=bool)
     def add_viewer_presentation_hold(self, node_id: str, payload: Any = None) -> bool:
-        """Keep a focus-only session live while a detached/external presentation shows it."""
+        """Keep a session live while a detached/external presentation shows it."""
         workspace_id = self._workspace_id_from_payload(payload)
         normalized_node_id = _string(node_id)
         if not workspace_id or not normalized_node_id:
@@ -954,7 +752,7 @@ class ViewerSessionBridge(QObject):
         key = (workspace_id, normalized_node_id)
         changed = key not in self._viewer_presentation_holds
         self._viewer_presentation_holds.add(key)
-        self._sync_live_policy(workspace_id)
+        self._sync_live_modes(workspace_id)
         if changed:
             self.sessions_changed.emit()
         return True
@@ -971,7 +769,7 @@ class ViewerSessionBridge(QObject):
         key = (workspace_id, normalized_node_id)
         changed = key in self._viewer_presentation_holds
         self._viewer_presentation_holds.discard(key)
-        self._sync_live_policy(workspace_id)
+        self._sync_live_modes(workspace_id)
         if changed:
             self.sessions_changed.emit()
         return True
@@ -983,11 +781,9 @@ class ViewerSessionBridge(QObject):
         *,
         reseed_on_next_reset: bool = False,
     ) -> None:
-        self._clear_all_transient_proxy_previews()
         next_sessions = self._build_project_projection(project, registry)
         self._sessions = next_sessions
-        self._focused_viewer_node_by_workspace.clear()
-        self._embedded_interaction_active.clear()
+        self._explicit_inline_node_by_workspace.clear()
         self._viewer_presentation_holds.clear()
         self._pending_reset_seed = (
             copy.deepcopy(next_sessions) if reseed_on_next_reset else None
@@ -1012,11 +808,9 @@ class ViewerSessionBridge(QObject):
             self._project_run_required_state(
                 state, reason=normalized_reason, run_id=run_id
             )
-            self._embedded_interaction_active.discard(
-                (state.workspace_id, state.node_id)
-            )
             self._viewer_presentation_holds.discard((state.workspace_id, state.node_id))
             changed = True
+        self._explicit_inline_node_by_workspace.pop(normalized_workspace_id, None)
         if changed:
             self.sessions_changed.emit()
 
@@ -1026,10 +820,8 @@ class ViewerSessionBridge(QObject):
             return
         for state in self._sessions.values():
             self._project_run_required_state(state, reason=normalized_reason)
-            self._embedded_interaction_active.discard(
-                (state.workspace_id, state.node_id)
-            )
             self._viewer_presentation_holds.discard((state.workspace_id, state.node_id))
+        self._explicit_inline_node_by_workspace.clear()
         self.sessions_changed.emit()
 
     def invalidate_workspace_sessions(
@@ -1053,10 +845,8 @@ class ViewerSessionBridge(QObject):
             else None
         )
         self._pending_reset_seed = None
-        self._clear_all_transient_proxy_previews()
         self._sessions.clear()
-        self._focused_viewer_node_by_workspace.clear()
-        self._embedded_interaction_active.clear()
+        self._explicit_inline_node_by_workspace.clear()
         self._viewer_presentation_holds.clear()
         if pending_seed is not None and _string(reason) == "project_close":
             self._sessions = pending_seed
@@ -1098,7 +888,6 @@ class ViewerSessionBridge(QObject):
                 state.invalidated_reason = ""
                 state.close_reason = ""
                 self._clear_pending_projection(state)
-                state.pending_proxy_snapshot_refresh = False
                 if not state.backend_id:
                     state.backend_id = self._default_backend_id_for_node(node)
                 self._project_run_required_state(
@@ -1224,7 +1013,7 @@ class ViewerSessionBridge(QObject):
             options=request_options,
         )
         self.sessions_changed.emit()
-        self._sync_live_policy(state.workspace_id)
+        self._sync_live_modes(state.workspace_id)
         return True
 
     def _resolve_backend_id(
@@ -1301,10 +1090,6 @@ class ViewerSessionBridge(QObject):
     ) -> dict[str, Any]:
         options = self._effective_options(state)
         options.update(copy.deepcopy(option_updates))
-        options["live_policy"] = _normalize_live_policy(
-            options.get("live_policy", state.live_policy)
-        )
-        options["keep_live"] = bool(options.get("keep_live", state.keep_live))
         options["playback_state"] = (
             _string(options.get("playback_state", state.playback_state)) or "paused"
         )
@@ -1399,12 +1184,6 @@ class ViewerSessionBridge(QObject):
     ) -> dict[str, Any]:
         return self._presentation_service.capture_live_overlay_camera_state(state)
 
-    def _capture_live_overlay_preview_image(
-        self,
-        state: _ViewerSessionProjection,
-    ) -> QImage:
-        return self._presentation_service.capture_live_overlay_preview_image(state)
-
     @staticmethod
     def _apply_session_model(
         state: _ViewerSessionProjection,
@@ -1432,8 +1211,6 @@ class ViewerSessionBridge(QObject):
         state.step_index = _coerce_step_index(
             playback.get("step_index"), default=state.step_index
         )
-        state.live_policy = _normalize_live_policy(session_model.get("live_policy"))
-        state.keep_live = bool(session_model.get("keep_live"))
         state.cache_state = _string(session_model.get("cache_state")) or "empty"
         state.invalidated_reason = _string(session_model.get("invalidated_reason"))
         state.close_reason = _string(session_model.get("close_reason"))
@@ -1542,6 +1319,29 @@ class ViewerSessionBridge(QObject):
             return
 
         state = self._ensure_session_state(workspace_id, node_id)
+        event_request_id = _string(event.get("request_id"))
+        if (
+            event_type == "viewer_session_failed"
+            and event_request_id
+            and event_request_id != state.request_id
+        ):
+            return
+        event_live_mode = _string(event.get("live_mode")) or _string(
+            _copy_mapping(event.get("options")).get("live_mode")
+        )
+        pending_live_mode = _string(state.pending_display.options.get("live_mode"))
+        if (
+            event_type == "viewer_session_updated"
+            and state.last_command == "set_live_mode"
+            and event_request_id
+            and state.request_id
+            and event_request_id != state.request_id
+            and event_live_mode
+            and pending_live_mode
+            and _normalize_live_mode(event_live_mode)
+            != _normalize_live_mode(pending_live_mode)
+        ):
+            return
 
         if event_type == "viewer_session_failed":
             failure_payload = state.payload(include_pending=False)
@@ -1574,15 +1374,11 @@ class ViewerSessionBridge(QObject):
             # Hold the locally captured proxy camera until live mode is
             # authoritatively restored so the first refocus uses it.
             state.camera_state_locally_captured = False
-        if authoritative_live_mode == _LIVE_MODE_FULL:
-            state.pending_proxy_snapshot_refresh = False
         if event_type == "viewer_session_closed":
             state.camera_state_locally_captured = False
-            state.pending_proxy_snapshot_refresh = False
-            self._embedded_interaction_active.discard((workspace_id, node_id))
-            self._clear_focused_viewer_node_if_matches(workspace_id, node_id)
+            self._clear_explicit_inline_if_matches(workspace_id, node_id)
         self.sessions_changed.emit()
-        self._sync_live_policy(workspace_id)
+        self._sync_live_modes(workspace_id)
 
     def _seed_runtime_projection_from_node_settled(
         self,
@@ -1693,10 +1489,6 @@ class ViewerSessionBridge(QObject):
             event_payload["invalidated_reason"] = summary.get("invalidated_reason", "")
         if "live_mode" not in event_payload:
             event_payload["live_mode"] = options.get("live_mode", "")
-        if "live_policy" not in event_payload:
-            event_payload["live_policy"] = options.get("live_policy", "")
-        if "keep_live" not in event_payload:
-            event_payload["keep_live"] = bool(options.get("keep_live", False))
         if event_type == "viewer_session_closed":
             event_payload["data_refs"] = {}
             event_payload["transport"] = projection_safe_viewer_transport(
@@ -1721,22 +1513,24 @@ class ViewerSessionBridge(QObject):
         return authoritative_model
 
     def _on_workspace_changed(self, _workspace_id: str) -> None:
+        previous_workspaces = tuple(self._explicit_inline_node_by_workspace)
+        self._explicit_inline_node_by_workspace.clear()
+        for workspace_id in previous_workspaces:
+            self._sync_live_modes(workspace_id)
         self.active_workspace_changed.emit()
         self.sessions_changed.emit()
-        self._sync_live_policy(self._current_workspace_id())
+        self._sync_live_modes(self._current_workspace_id())
 
     def _on_selection_changed(self) -> None:
         workspace_id = self._current_workspace_id()
-        if workspace_id in self._focused_viewer_node_by_workspace:
+        explicit_node_id = self._explicit_inline_node_by_workspace.get(workspace_id, "")
+        if explicit_node_id:
             selected_lookup = _copy_mapping(
                 getattr(self._scene_bridge, "selected_node_lookup", {})
             )
-            focused_node_id = self._focused_viewer_node_id(workspace_id)
-            if focused_node_id and not bool(
-                selected_lookup.get(focused_node_id, False)
-            ):
-                self._focused_viewer_node_by_workspace[workspace_id] = ""
-        self._sync_live_policy(workspace_id)
+            if not bool(selected_lookup.get(explicit_node_id, False)):
+                self._explicit_inline_node_by_workspace.pop(workspace_id, None)
+        self._sync_live_modes(workspace_id)
 
     def _on_nodes_changed(self) -> None:
         workspace_id = self._current_workspace_id()
@@ -1753,15 +1547,13 @@ class ViewerSessionBridge(QObject):
         ]
         if removed_keys:
             for key in removed_keys:
-                self._clear_transient_proxy_preview(*key)
-                self._embedded_interaction_active.discard(key)
+                self._viewer_presentation_holds.discard(key)
                 self._sessions.pop(key, None)
             self.sessions_changed.emit()
-        self._prune_focused_viewer_node(workspace_id, workspace_node_ids)
-        self._sync_live_policy(workspace_id)
-
-    def _on_edges_changed(self) -> None:
-        self._sync_live_policy(self._current_workspace_id())
+        explicit_node_id = self._explicit_inline_node_by_workspace.get(workspace_id, "")
+        if explicit_node_id and explicit_node_id not in workspace_node_ids:
+            self._explicit_inline_node_by_workspace.pop(workspace_id, None)
+        self._sync_live_modes(workspace_id)
 
     def _workspace_node_ids(self, workspace_id: str) -> set[str] | None:
         shell_window = self._shell_window
@@ -1792,27 +1584,7 @@ class ViewerSessionBridge(QObject):
         states.sort(key=lambda state: state.node_id)
         return states
 
-    def _focused_viewer_node_id(self, workspace_id: str) -> str:
-        return _string(
-            self._focused_viewer_node_by_workspace.get(_string(workspace_id), "")
-        )
-
-    def _set_focused_viewer_node(self, workspace_id: str, node_id: str) -> bool:
-        normalized_workspace_id = _string(workspace_id)
-        if not normalized_workspace_id:
-            return False
-        normalized_node_id = _string(node_id)
-        current_node_id = self._focused_viewer_node_by_workspace.get(
-            normalized_workspace_id
-        )
-        if current_node_id == normalized_node_id:
-            return False
-        self._focused_viewer_node_by_workspace[normalized_workspace_id] = (
-            normalized_node_id
-        )
-        return True
-
-    def _clear_focused_viewer_node_if_matches(
+    def _clear_explicit_inline_if_matches(
         self, workspace_id: str, node_id: str
     ) -> bool:
         normalized_workspace_id = _string(workspace_id)
@@ -1820,83 +1592,15 @@ class ViewerSessionBridge(QObject):
         if not normalized_workspace_id or not normalized_node_id:
             return False
         if (
-            self._focused_viewer_node_by_workspace.get(normalized_workspace_id)
+            self._explicit_inline_node_by_workspace.get(normalized_workspace_id)
             != normalized_node_id
         ):
             return False
-        self._focused_viewer_node_by_workspace[normalized_workspace_id] = ""
+        self._explicit_inline_node_by_workspace.pop(normalized_workspace_id, None)
         return True
-
-    def _prune_focused_viewer_node(
-        self, workspace_id: str, available_node_ids: set[str]
-    ) -> bool:
-        normalized_workspace_id = _string(workspace_id)
-        if (
-            not normalized_workspace_id
-            or normalized_workspace_id not in self._focused_viewer_node_by_workspace
-        ):
-            return False
-        focused_node_id = self._focused_viewer_node_id(normalized_workspace_id)
-        if not focused_node_id or focused_node_id in available_node_ids:
-            return False
-        self._focused_viewer_node_by_workspace[normalized_workspace_id] = ""
-        return True
-
-    @staticmethod
-    def _has_proxy_preview(state: _ViewerSessionProjection) -> bool:
-        return bool(state.data_refs.get("png") or state.data_refs.get("preview"))
 
     def _projected_payload(self, state: _ViewerSessionProjection) -> dict[str, Any]:
         return self._presentation_service.projected_payload(state)
-
-    def _current_project_path(self) -> str:
-        shell_window = self._shell_window
-        if shell_window is None:
-            return ""
-        return _string(getattr(shell_window, "project_path", ""))
-
-    def _current_project_metadata(self) -> dict[str, Any] | None:
-        shell_window = self._shell_window
-        if shell_window is None:
-            return None
-        model = getattr(shell_window, "model", None)
-        project = getattr(model, "project", None)
-        metadata = getattr(project, "metadata", None)
-        return dict(metadata) if isinstance(metadata, Mapping) else None
-
-    def _projected_proxy_preview_path(self, data_refs: Mapping[str, Any]) -> str:
-        return self._presentation_service.projected_proxy_preview_path(data_refs)
-
-    def _preview_data_ref_path(self, value: Any) -> str:
-        return self._presentation_service.preview_data_ref_path(value)
-
-    def _preview_runtime_metadata_path(self, payload: Mapping[str, Any]) -> str:
-        return self._presentation_service.preview_runtime_metadata_path(payload)
-
-    def _transient_proxy_preview_path(self, workspace_id: str, node_id: str) -> str:
-        return self._presentation_service.transient_proxy_preview_path(
-            workspace_id, node_id
-        )
-
-    def _set_transient_proxy_preview(
-        self,
-        workspace_id: str,
-        node_id: str,
-        image: QImage,
-    ) -> str:
-        return self._presentation_service.set_transient_proxy_preview(
-            workspace_id, node_id, image
-        )
-
-    def _clear_transient_proxy_preview(self, workspace_id: str, node_id: str) -> None:
-        self._presentation_service.clear_transient_proxy_preview(workspace_id, node_id)
-
-    def _clear_all_transient_proxy_previews(self) -> None:
-        self._presentation_service.clear_all_transient_proxy_previews()
-
-    @staticmethod
-    def _remove_transient_proxy_file(path_text: str) -> None:
-        _ViewerSessionPresentationService.remove_transient_proxy_file(path_text)
 
     def _desired_live_mode_map(self, workspace_id: str) -> dict[tuple[str, str], str]:
         desired_modes: dict[tuple[str, str], str] = {}
@@ -1906,77 +1610,26 @@ class ViewerSessionBridge(QObject):
         if not states:
             return desired_modes
 
-        keep_live_keys: list[tuple[str, str]] = []
-        focus_only_keys: list[tuple[str, str]] = []
+        explicit_node_id = self._explicit_inline_node_by_workspace.get(workspace_id, "")
         for state in states:
             key = (state.workspace_id, state.node_id)
-            effective_options = self._effective_options(state)
-            if (
-                bool(effective_options.get("keep_live", state.keep_live))
-                or _normalize_live_policy(
-                    effective_options.get("live_policy", state.live_policy)
-                )
-                == _LIVE_POLICY_KEEP_LIVE
-            ):
-                keep_live_keys.append(key)
-            else:
-                focus_only_keys.append(key)
-
-        focus_entry_present = workspace_id in self._focused_viewer_node_by_workspace
-        focused_node_id = self._focused_viewer_node_id(workspace_id)
-        chosen_focus_key: tuple[str, str] | None = None
-        embedded_focus_keys = [
-            key for key in focus_only_keys if key in self._embedded_interaction_active
-        ]
-        if embedded_focus_keys:
-            chosen_focus_key = embedded_focus_keys[0]
-        if chosen_focus_key is None and focused_node_id:
-            for key in focus_only_keys:
-                if key[1] == focused_node_id:
-                    chosen_focus_key = key
-                    break
-        if chosen_focus_key is None and not focus_entry_present:
-            selected_lookup = _copy_mapping(
-                getattr(self._scene_bridge, "selected_node_lookup", {})
+            desired_modes[key] = (
+                _LIVE_MODE_FULL
+                if state.node_id == explicit_node_id
+                or key in self._viewer_presentation_holds
+                else _LIVE_MODE_PROXY
             )
-            for key in focus_only_keys:
-                if bool(selected_lookup.get(key[1], False)):
-                    chosen_focus_key = key
-                    break
-        if chosen_focus_key is None and not focus_entry_present:
-            for state in states:
-                key = (state.workspace_id, state.node_id)
-                if key not in focus_only_keys:
-                    continue
-                if (
-                    _normalize_live_mode(
-                        self._effective_options(state).get("live_mode")
-                    )
-                    == _LIVE_MODE_FULL
-                ):
-                    chosen_focus_key = key
-                    break
-
-        for key in keep_live_keys:
-            desired_modes[key] = _LIVE_MODE_FULL
-        if chosen_focus_key is not None:
-            desired_modes[chosen_focus_key] = _LIVE_MODE_FULL
-        for key in focus_only_keys:
-            if key in self._viewer_presentation_holds:
-                desired_modes[key] = _LIVE_MODE_FULL
-        for key in focus_only_keys:
-            desired_modes.setdefault(key, _LIVE_MODE_PROXY)
         return desired_modes
 
-    def _sync_live_policy(self, workspace_id: str) -> None:
+    def _sync_live_modes(self, workspace_id: str) -> None:
         normalized_workspace_id = _string(workspace_id)
-        if not normalized_workspace_id or self._policy_sync_in_progress:
+        if not normalized_workspace_id or self._live_mode_sync_in_progress:
             return
         desired_modes = self._desired_live_mode_map(normalized_workspace_id)
         if not desired_modes:
             return
 
-        self._policy_sync_in_progress = True
+        self._live_mode_sync_in_progress = True
         changed = False
         try:
             for state in self._workspace_open_states(normalized_workspace_id):
@@ -1987,7 +1640,7 @@ class ViewerSessionBridge(QObject):
                 )
                 changed = self._apply_desired_live_mode(state, desired_mode) or changed
         finally:
-            self._policy_sync_in_progress = False
+            self._live_mode_sync_in_progress = False
 
         if changed:
             self.sessions_changed.emit()
@@ -2031,7 +1684,6 @@ class ViewerSessionBridge(QObject):
                 state.last_command = "set_live_mode"
                 state.camera_state = captured_camera_state
                 state.camera_state_locally_captured = bool(captured_camera_state)
-                state.pending_proxy_snapshot_refresh = False
                 self._merge_pending_projection(
                     state,
                     phase="open",
@@ -2039,10 +1691,8 @@ class ViewerSessionBridge(QObject):
                     options={"live_mode": _LIVE_MODE_PROXY},
                 )
                 return True
-            state.pending_proxy_snapshot_refresh = False
             return False
 
-        state.pending_proxy_snapshot_refresh = False
         if _string(state.live_open_status).lower() != "ready":
             return False
         if state.cache_state == "live_ready":

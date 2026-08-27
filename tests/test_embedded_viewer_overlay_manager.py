@@ -834,10 +834,24 @@ class EmbeddedViewerOverlayManagerTests(MainWindowShellTestBase):
         self.assertIs(self.manager.overlay_widget(node_id, workspace_id=self.workspace_id), widget)
         self.assertTrue(container.isVisible())
 
+        self.manager.set_active_overlays(
+            (
+                EmbeddedViewerOverlaySpec(
+                    workspace_id=self.workspace_id,
+                    node_id=node_id,
+                    session_id=f"session::{node_id}",
+                    visible=False,
+                ),
+            )
+        )
+        self.app.processEvents()
+        self.assertFalse(widget.updatesEnabled())
+
         taken = self.manager.take_overlay_widget(node_id, workspace_id=self.workspace_id)
         self.app.processEvents()
 
         self.assertIs(taken, widget)
+        self.assertTrue(widget.updatesEnabled())
         self.assertEqual(widget.close_calls, 0)
         self.assertIsNone(self.manager.overlay_widget(node_id, workspace_id=self.workspace_id))
         self.assertIs(self.manager.overlay_container(node_id, workspace_id=self.workspace_id), container)

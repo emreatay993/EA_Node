@@ -105,12 +105,6 @@ DPF_OUTPUT_MODE_VALUES = (
     DPF_OUTPUT_MODE_BOTH,
 )
 
-DPF_VIEWER_LIVE_POLICY_FOCUS_ONLY = "focus_only"
-DPF_VIEWER_LIVE_POLICY_KEEP_LIVE = "keep_live"
-DPF_VIEWER_LIVE_POLICY_VALUES = (
-    DPF_VIEWER_LIVE_POLICY_FOCUS_ONLY,
-    DPF_VIEWER_LIVE_POLICY_KEEP_LIVE,
-)
 DPF_VIEWER_SHOW_MESH_EDGES_PROPERTY = "show_mesh_edges"
 DPF_VIEWER_COLORMAP_PROPERTY = "colormap"
 DPF_VIEWER_RESULT_COMPONENT_PROPERTY = "result_component"
@@ -895,23 +889,6 @@ def normalize_dpf_output_mode(value: Any, *, default: str = DPF_OUTPUT_MODE_MEMO
         raise ValueError(
             "DPF output_mode must be one of "
             f"{', '.join(DPF_OUTPUT_MODE_VALUES)}."
-        )
-    return normalized
-
-
-def normalize_dpf_viewer_live_policy(
-    value: Any,
-    *,
-    default: str = DPF_VIEWER_LIVE_POLICY_FOCUS_ONLY,
-) -> str:
-    normalized_default = str(default or DPF_VIEWER_LIVE_POLICY_FOCUS_ONLY).strip().lower()
-    if normalized_default not in DPF_VIEWER_LIVE_POLICY_VALUES:
-        normalized_default = DPF_VIEWER_LIVE_POLICY_FOCUS_ONLY
-    normalized = str(value or normalized_default).strip().lower()
-    if normalized not in DPF_VIEWER_LIVE_POLICY_VALUES:
-        raise ValueError(
-            "viewer_live_policy must be one of "
-            f"{', '.join(DPF_VIEWER_LIVE_POLICY_VALUES)}."
         )
     return normalized
 
@@ -1704,9 +1681,6 @@ __all__ = [
     "DPF_OUTPUT_MODE_MEMORY",
     "DPF_OUTPUT_MODE_STORED",
     "DPF_OUTPUT_MODE_VALUES",
-    "DPF_VIEWER_LIVE_POLICY_FOCUS_ONLY",
-    "DPF_VIEWER_LIVE_POLICY_KEEP_LIVE",
-    "DPF_VIEWER_LIVE_POLICY_VALUES",
     "DPF_VIEWER_NODE_TYPE_ID",
     "DPF_VIEWER_CATEGORY_PATH",
     "DPF_VIEWER_SHOW_MESH_EDGES_PROPERTY",
@@ -1780,7 +1754,6 @@ __all__ = [
     "normalize_dpf_viewer_background",
     "normalize_dpf_viewer_colormap",
     "normalize_dpf_viewer_deform_scale",
-    "normalize_dpf_viewer_live_policy",
     "normalize_dpf_viewer_result_component",
     "normalize_dpf_viewer_scalar_range_bound",
     "normalize_dpf_viewer_scalar_range_mode",

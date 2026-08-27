@@ -746,6 +746,7 @@ class EmbeddedViewerOverlayManager(QObject):
         if record is None or record.overlay_widget is None:
             return None
         widget = record.overlay_widget
+        self._set_widget_updates_suspended(record, False)
         record.overlay_widget = None
         record.fullscreen_target_active = False
         record.geometry_ready = False

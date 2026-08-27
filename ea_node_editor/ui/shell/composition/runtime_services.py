@@ -54,22 +54,12 @@ def create_viewer_service_dependencies(
             workspace_id=workspace_id,
         )
 
-    def capture_overlay_preview_image(node_id: str, *, workspace_id: str = ""):  # noqa: ANN202
-        viewer_host_service = viewer_host_service_ref[0]
-        if viewer_host_service is None:
-            return None
-        return viewer_host_service.capture_overlay_preview_image(
-            node_id,
-            workspace_id=workspace_id,
-        )
-
     viewer_session_bridge = ViewerSessionBridge(
         host,
         shell_window=host,
         scene_bridge=primitives.scene,
         data_types=primitives.registry.data_types,
         capture_overlay_camera_state=capture_overlay_camera_state,
-        capture_overlay_preview_image=capture_overlay_preview_image,
     )
     content_fullscreen_bridge = ContentFullscreenBridge(
         host,

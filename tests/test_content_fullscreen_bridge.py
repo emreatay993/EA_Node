@@ -817,6 +817,43 @@ class ContentFullscreenBridgeTests(MainWindowShellTestBase):
         self.assertIsInstance(viewer_payload["session_state"], dict)
         self.assertIsInstance(viewer_payload["viewer_surface"], dict)
 
+    def test_viewer_fullscreen_target_owns_presentation_hold_until_close(self) -> None:
+        node_id = self._add_dpf_viewer_node()
+        self.app.processEvents()
+        workspace_id = self.window.workspace_manager.active_workspace_id()
+        key = (workspace_id, node_id)
+        bridge = self._bridge()
+
+        self.assertTrue(bridge.request_open_node(node_id))
+        self.app.processEvents()
+
+        self.assertEqual(self.window.viewer_host_service._fullscreen_hold_key, key)
+        self.assertIn(key, self.window.viewer_session_bridge._viewer_presentation_holds)
+
+        self.window.scene.clear_selection()
+        self.app.processEvents()
+        self.assertIn(key, self.window.viewer_session_bridge._viewer_presentation_holds)
+
+        bridge.request_close()
+        self.app.processEvents()
+
+        self.assertIsNone(self.window.viewer_host_service._fullscreen_hold_key)
+        self.assertNotIn(key, self.window.viewer_session_bridge._viewer_presentation_holds)
+
+    def test_viewer_host_reset_releases_fullscreen_presentation_hold(self) -> None:
+        node_id = self._add_dpf_viewer_node()
+        self.app.processEvents()
+        key = (self.window.workspace_manager.active_workspace_id(), node_id)
+        bridge = self._bridge()
+        self.assertTrue(bridge.request_open_node(node_id))
+        self.app.processEvents()
+        self.assertIn(key, self.window.viewer_session_bridge._viewer_presentation_holds)
+
+        self.window.viewer_host_service.reset(reason="test_reset")
+
+        self.assertIsNone(self.window.viewer_host_service._fullscreen_hold_key)
+        self.assertNotIn(key, self.window.viewer_session_bridge._viewer_presentation_holds)
+
     def test_viewer_control_bridge_sets_node_scoped_view_options(self) -> None:
         node_id = self._add_dpf_viewer_node()
         self.app.processEvents()
