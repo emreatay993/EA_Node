@@ -912,7 +912,7 @@ class ViewerSurfaceHostTests(unittest.TestCase):
             """,
         )
 
-    def test_viewer_surface_keeps_cached_proxy_source_without_drawing_raster_during_drag(self) -> None:
+    def test_viewer_surface_keeps_cached_preview_raster_during_drag(self) -> None:
         self._run_qml_probe(
             "viewer-surface-host-drag-keeps-proxy-image",
             """
@@ -934,11 +934,10 @@ class ViewerSurfaceHostTests(unittest.TestCase):
             surface = host.findChild(QObject, "graphNodeViewerSurface")
             viewport = host.findChild(QObject, "graphNodeViewerViewport")
             cached_image = host.findChild(QObject, "graphNodeViewerCachedPreviewImage")
-            transient_proxy = host.findChild(QObject, "graphNodeViewerTransientProxyPane")
             assert surface is not None
             assert viewport is not None
             assert cached_image is not None
-            assert transient_proxy is not None
+            assert host.findChild(QObject, "graphNodeViewerTransientProxyPane") is None
 
             def source_text():
                 source = cached_image.property("source")
@@ -985,9 +984,8 @@ class ViewerSurfaceHostTests(unittest.TestCase):
                 assert not bool(surface.property("liveSurfaceActive"))
                 assert bool(surface.property("proxySurfaceActive"))
                 assert bool(surface.property("cachedPreviewVisible"))
-                assert not bool(cached_image.property("visible"))
+                assert bool(cached_image.property("visible"))
                 assert bool(cached_image.property("cache"))
-                assert bool(transient_proxy.property("visible"))
                 assert variant_list(surface.property("viewerInteractiveRects")) == []
                 assert viewerHostServiceStub.active_calls == baseline_active_calls
                 assert bridge.embedded_interaction_calls == baseline_session_calls
@@ -1023,8 +1021,14 @@ class ViewerSurfaceHostTests(unittest.TestCase):
             host.setProperty("canvasItem", canvas_item)
             surface = host.findChild(QObject, "graphNodeViewerSurface")
             viewport = host.findChild(QObject, "graphNodeViewerViewport")
+            cached_image = host.findChild(QObject, "graphNodeViewerCachedPreviewImage")
             assert surface is not None
             assert viewport is not None
+            assert cached_image is not None
+
+            def source_text():
+                source = cached_image.property("source")
+                return source.toString() if hasattr(source, "toString") else str(source)
 
             window = attach_host_to_window(host, width=640, height=480)
             try:
@@ -1042,6 +1046,8 @@ class ViewerSurfaceHostTests(unittest.TestCase):
                 assert bool(surface.property("inlineLiveRequested"))
                 assert bool(surface.property("embeddedInteractionActive"))
                 assert bool(surface.property("liveSurfaceActive"))
+                cached_source_text = source_text()
+                assert cached_source_text.startswith("image://viewer-preview-cache/preview?")
 
                 baseline_active_calls = list(viewerHostServiceStub.active_calls)
                 baseline_session_calls = list(bridge.embedded_interaction_calls)
@@ -1052,6 +1058,8 @@ class ViewerSurfaceHostTests(unittest.TestCase):
                     assert bool(surface.property("inlineLiveRequested")), category
                     assert bool(surface.property("embeddedInteractionActive")), category
                     assert not bool(surface.property("liveSurfaceActive")), category
+                    assert bool(cached_image.property("visible")), category
+                    assert source_text() == cached_source_text, category
                     assert viewerHostServiceStub.active_calls == baseline_active_calls, category
                     assert bridge.embedded_interaction_calls == baseline_session_calls, category
                     assert bridge.update_calls == baseline_updates, category
@@ -1070,6 +1078,7 @@ class ViewerSurfaceHostTests(unittest.TestCase):
                     assert bool(surface.property("inlineLiveRequested")), category
                     assert bool(surface.property("embeddedInteractionActive")), category
                     assert bool(surface.property("liveSurfaceActive")), category
+                    assert source_text() == cached_source_text, category
                     assert viewerHostServiceStub.active_calls == baseline_active_calls, category
                     assert bridge.embedded_interaction_calls == baseline_session_calls, category
                     assert bridge.update_calls == baseline_updates, category

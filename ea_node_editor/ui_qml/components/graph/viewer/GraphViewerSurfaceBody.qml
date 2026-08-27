@@ -1024,7 +1024,6 @@ Item {
         Column {
             anchors.fill: parent
             spacing: 0
-            visible: !surface.transientInteractionPreviewActive
 
             Rectangle {
                 id: statusStrip
@@ -1160,7 +1159,6 @@ Item {
                         id: cachedPreviewImage
                         objectName: "graphNodeViewerCachedPreviewImage"
                         visible: surface.cachedPreviewVisible
-                            && !surface.transientInteractionPreviewActive
                             && String(source).length > 0
                         anchors.fill: parent
                         anchors.margins: 1
@@ -1333,23 +1331,5 @@ Item {
             }
         }
 
-        Rectangle {
-            objectName: "graphNodeViewerTransientProxyPane"
-            visible: surface.transientInteractionPreviewActive
-            anchors.fill: parent
-            radius: host ? Math.max(8, Number(host.resolvedCornerRadius || 6) - 1) : 8
-            color: host ? Qt.darker(host.inlineInputBackgroundColor, 1.05) : "#1a202b"
-            border.width: 1
-            border.color: host ? Qt.alpha(host.outlineColor, 0.72) : "#4c7bc0"
-
-            Text {
-                anchors.centerIn: parent
-                text: "Preview"
-                color: host ? host.inlineDrivenTextColor : "#b5c0d4"
-                font.pixelSize: 10
-                font.bold: true
-                renderType: host ? host.nodeTextRenderType : Text.CurveRendering
-            }
-        }
     }
 }
