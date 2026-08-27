@@ -179,6 +179,7 @@ class EngineeringViewerNodeTests(unittest.TestCase):
         self.assertFalse(session["options"]["keep_live"])
         self.assertEqual(len(session["transport"]["overlays"]), 1)
         self.assertEqual(session["transport"]["overlays"][0]["scale_factor"], 1000.0)
+        self.assertEqual(session["summary"]["source_kind"], "fe")
         self.assertTrue(session["summary"]["capabilities"]["model_tree"])
         self.assertTrue(session["options"]["show_attribute_colors"])
         self.assertFalse(session["options"]["show_orientation_triad"])

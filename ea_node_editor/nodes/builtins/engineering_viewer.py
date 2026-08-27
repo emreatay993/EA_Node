@@ -250,6 +250,7 @@ def _viewer_summary(primary_ref: Any, overlay_ref: Any | None) -> dict[str, Any]
         item.setdefault("role", "primary")
     return {
         "viewer_kind": "engineering_scene",
+        "source_kind": str(primary_ref.metadata.get("source_kind", "")),
         "capabilities": capabilities,
         "scene_layers": scene_layers,
         "model_tree": hierarchy,

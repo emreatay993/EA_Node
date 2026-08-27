@@ -959,6 +959,7 @@ class ViewerSurfaceContractTests(unittest.TestCase):
 
             class ViewerSessionBridgeStub(QObject):
                 sessions_changed = pyqtSignal()
+                source_kind = "fe"
 
                 def _projection(self):
                     return {
@@ -979,6 +980,7 @@ class ViewerSurfaceContractTests(unittest.TestCase):
                         "live_open_blocker": {},
                         "transport": {"kind": "bundle"},
                         "summary": {
+                            "source_kind": self.source_kind,
                             "result_name": "Displacement",
                             "set_label": "Set 2",
                             "unit": "mm",
@@ -1049,6 +1051,11 @@ class ViewerSurfaceContractTests(unittest.TestCase):
             assert labels["Min"] == "0.001 mm", labels
             assert labels["Max"] == "0.042155 mm", labels
             assert labels["Time"] == "2.5", labels
+
+            bridge.source_kind = "cad"
+            bridge.sessions_changed.emit()
+            app.processEvents()
+            assert variant_list(surface.property("viewerFooterMetaModel")) == []
 
             QMetaObject.invokeMethod(surface, "dispatchSurfaceAction", Q_ARG("QVariant", "cameraIso"))
             QMetaObject.invokeMethod(surface, "dispatchSurfaceAction", Q_ARG("QVariant", "cameraFit"))

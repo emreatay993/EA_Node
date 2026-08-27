@@ -187,6 +187,7 @@ Item {
         || viewerSummary.result_label
         || (host && host.nodeData ? host.nodeData.title || "" : "")
     )
+    readonly property string viewerSourceKind: String(viewerSummary.source_kind || "").toLowerCase()
     readonly property string viewerSetLabel: String(viewerSummary.set_label || viewerSummary.time_label || "")
     readonly property string viewerInvalidatedReason: String(
         viewerSessionModel.invalidated_reason
@@ -898,6 +899,8 @@ Item {
 
     function _buildFooterMetaModel() {
         var items = [];
+        if (surface.viewerSourceKind === "cad")
+            return items;
         if (surface.viewerSessionOpen || surface.viewerRunRequired) {
             _appendFooterMeta(items, "graphNodeViewerResultMeta", "Result", surface.viewerResultLabel);
             _appendFooterMeta(items, "graphNodeViewerSelectionMeta", "Selection", surface.viewerSetLabel);
