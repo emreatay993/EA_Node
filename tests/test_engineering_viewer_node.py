@@ -80,6 +80,7 @@ class EngineeringViewerNodeTests(unittest.TestCase):
         self.assertEqual(ports["selections"].data_type, ENGINEERING_SELECTION_DATA_TYPE)
         self.assertEqual(spec.surface_family, "viewer")
         properties = {prop.key: prop for prop in spec.properties}
+        self.assertEqual(properties["representation"].default, "surface_with_edges")
         self.assertIn("wireframe_visible_edges", properties["representation"].enum_values)
         self.assertFalse(properties["show_attribute_colors"].default)
         self.assertTrue(properties["show_orientation_triad"].default)

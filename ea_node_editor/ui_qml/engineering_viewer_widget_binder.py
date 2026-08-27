@@ -979,6 +979,9 @@ class EngineeringViewerWidgetBinder(QObject):
     def _prepare_shaded_dataset(dataset: Any, *, source_kind: str) -> Any:
         if source_kind != "cad":
             return dataset
+        clear_active_scalars = getattr(dataset, "set_active_scalars", None)
+        if callable(clear_active_scalars):
+            clear_active_scalars(None)
         compute_normals = getattr(dataset, "compute_normals", None)
         if not callable(compute_normals):
             return dataset

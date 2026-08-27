@@ -53,7 +53,7 @@ from ea_node_editor.nodes.builtins.engineering_viewer import execute_engineering
 )
 @corex.dropdown(
     "representation",
-    default="surface",
+    default="surface_with_edges",
     options=(
         "surface",
         "surface_with_edges",

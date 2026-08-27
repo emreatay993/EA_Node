@@ -1504,6 +1504,20 @@ class EngineeringViewerWidgetBinderTests(unittest.TestCase):
             binder.shutdown()
 
     def test_cad_render_matrix_and_fe_flat_shading(self) -> None:
+        import pyvista
+
+        prepared = pyvista.Cube().triangulate()
+        prepared.cell_data["corex_part_index"] = list(range(prepared.n_cells))
+        self.assertEqual(prepared.active_scalars_name, "corex_part_index")
+
+        prepared = EngineeringViewerWidgetBinder._prepare_shaded_dataset(
+            prepared,
+            source_kind="cad",
+        )
+
+        self.assertIsNone(prepared.active_scalars_name)
+        self.assertIn("corex_part_index", prepared.cell_data)
+        self.assertEqual(prepared.point_data.active_normals_name, "Normals")
         cad_dataset = _FakeDataset("cad", [1])
         cad_layer = {
             "source_kind": "cad",

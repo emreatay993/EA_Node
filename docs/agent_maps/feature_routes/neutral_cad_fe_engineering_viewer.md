@@ -31,6 +31,8 @@ sessions, selection, clipping, export, and the shared fullscreen/detached host.
   a second authoritative viewer.
 - Optional topology remains lazy, asynchronous, and cached; points remain the
   fast default.
+- CAD datasets keep identity arrays for selection but clear them as active
+  display scalars; new Model Viewer nodes default to shaded exact body edges.
 - Static Structural result geometry uses actual selected-set displacement when
   deformation is available and never claims deformed evidence from reference
   geometry.
