@@ -581,7 +581,7 @@ class ViewerSurfaceHostTests(unittest.TestCase):
                 assert bool(surface.property("proxySurfaceActive"))
                 assert not bool(surface.property("liveSurfaceActive"))
                 assert not bool(surface.property("viewerShowsPlaceholder"))
-                assert status_text.property("text") == "Proxy viewer ready"
+                assert status_text.property("text") == "Double-click the viewer for live mode"
                 assert mode_label.property("text") == "Proxy"
                 assert variant_list(surface.property("viewerInteractiveRects")) == []
 
@@ -691,8 +691,10 @@ class ViewerSurfaceHostTests(unittest.TestCase):
             host.setProperty("canvasItem", canvas_item)
             surface = host.findChild(QObject, "graphNodeViewerSurface")
             viewport = host.findChild(QObject, "graphNodeViewerViewport")
+            status_text = host.findChild(QObject, "graphNodeViewerStatusText")
             assert surface is not None
             assert viewport is not None
+            assert status_text is not None
 
             def dispatch(action_id):
                 QMetaObject.invokeMethod(surface, "dispatchSurfaceAction", Q_ARG("QVariant", action_id))
@@ -712,6 +714,7 @@ class ViewerSurfaceHostTests(unittest.TestCase):
                 settle_events(4)
                 assert bool(surface.property("inlineLiveRequested"))
                 assert bool(surface.property("liveSurfaceActive"))
+                assert status_text.property("text") == "Live mode - click outside the node to return to proxy"
                 baseline_active_calls = list(viewerHostServiceStub.active_calls)
                 baseline_session_calls = list(bridge.embedded_interaction_calls)
 

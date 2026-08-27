@@ -232,10 +232,10 @@ Item {
             && surface.viewerLiveMode === "full"
             && surface.viewerLiveOpenStatus === "ready"
         ) {
-            return "Live overlay active";
+            return "Live mode - click outside the node to return to proxy";
         }
         if (surface.viewerSessionOpen)
-            return "Proxy viewer ready";
+            return "Double-click the viewer for live mode";
         return "Ready to open viewer session";
     }
     readonly property string viewerHintText: {
