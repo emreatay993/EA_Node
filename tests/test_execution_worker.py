@@ -987,6 +987,35 @@ class ExecutionWorkerTests(unittest.TestCase):
         self.assertEqual(normalized.data_refs["fields_container"], fields_ref)
         self.assertEqual(normalized.data_refs["result"], wrong_kind_ref)
 
+    def test_worker_viewer_catch_all_failure_preserves_invalidation_epochs(self) -> None:
+        services = WorkerServices()
+        services.bind_data_types(build_default_registry().data_types)
+        event_queue: queue.Queue = queue.Queue()
+        command = CloseViewerSessionCommand(
+            request_id="late_close",
+            workspace_id="ws_main",
+            node_id="viewer_a",
+            session_id="session_a",
+            workspace_invalidation_epoch=4,
+            node_invalidation_epoch=7,
+        )
+
+        with mock.patch.object(
+            services.viewer_session_service,
+            "handle_command",
+            side_effect=RuntimeError("dispatch failed"),
+        ):
+            dispatch_viewer_command(
+                command,
+                event_queue=event_queue,
+                worker_services=services,
+            )
+
+        failed = event_queue.get_nowait()
+        self.assertEqual(failed["type"], "viewer_session_failed")
+        self.assertEqual(failed["workspace_invalidation_epoch"], 4)
+        self.assertEqual(failed["node_invalidation_epoch"], 7)
+
     def test_run_workflow_emits_tabular_warning_logs_and_node_settled_warning_state(
         self,
     ) -> None:
@@ -2596,6 +2625,7 @@ def run(ctx):
                         data_refs={"fields_container": fields_ref, "model": model_ref},
                         summary={"result_name": "displacement"},
                         options={"live_mode": "full"},
+                        workspace_invalidation_epoch=1,
                     )
                     transported = dict_to_command(
                         command_to_dict(open_command, catalog=registry.data_types),
@@ -2640,6 +2670,7 @@ def run(ctx):
                                 session_id="session_worker",
                                 summary={"camera": {"zoom": 1.1}},
                                 options={"selection": {"set_ids": [3]}},
+                                workspace_invalidation_epoch=1,
                             ),
                             catalog=registry.data_types,
                         )
@@ -2690,6 +2721,7 @@ def run(ctx):
                                     "output_profile": "both",
                                     "export_formats": ["png"],
                                 },
+                                workspace_invalidation_epoch=1,
                             ),
                             catalog=registry.data_types,
                         )
@@ -2778,6 +2810,7 @@ def run(ctx):
                                     "reason": "node_hidden",
                                     "release_handles": True,
                                 },
+                                workspace_invalidation_epoch=1,
                             ),
                             catalog=registry.data_types,
                         )
@@ -2940,6 +2973,7 @@ def run(ctx):
                             workspace_id=ws.workspace_id,
                             node_id="node_viewer",
                             session_id="session_rerun",
+                            workspace_invalidation_epoch=1,
                             data_refs={
                                 "fields_container": fields_ref,
                                 "model": model_ref,
@@ -2990,6 +3024,7 @@ def run(ctx):
                             workspace_id=ws.workspace_id,
                             node_id="node_viewer",
                             session_id="session_rerun",
+                            workspace_invalidation_epoch=2,
                             options={"output_profile": "memory"},
                         ),
                         catalog=registry.data_types,
@@ -3007,6 +3042,29 @@ def run(ctx):
                 command_queue.put(command_to_dict(ShutdownCommand()))
                 thread.join(timeout=6.0)
                 self.assertFalse(thread.is_alive())
+
+    def test_worker_viewer_filter_uses_prepared_execute_metadata_only(self) -> None:
+        source = (
+            Path(__file__).resolve().parents[1]
+            / "ea_node_editor"
+            / "execution"
+            / "worker_runner.py"
+        ).read_text(encoding="utf-8")
+
+        self.assertIn("if not command.preparation_id", source)
+        self.assertIn("decision.action is PreparedAction.EXECUTE", source)
+        self.assertIn(
+            'prepared.plan.node_specs[decision.node_id].surface_family\n'
+            '                    == "viewer"',
+            source,
+        )
+        self.assertIn(
+            "viewer_node_ids != command.viewer_invalidation_node_ids", source
+        )
+        self.assertIn("validate_invalidation_snapshot", source)
+        self.assertIn("adopt_invalidation_snapshot", source)
+        self.assertIn("emit_run_preflight_accepted", source)
+        self.assertNotIn("invalidate_existing=True", source)
 
     def test_worker_protocol_normalizes_legacy_dpf_fields_alias_before_viewer_session(
         self,

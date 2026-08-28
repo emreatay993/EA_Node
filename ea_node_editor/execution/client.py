@@ -19,7 +19,7 @@ import time
 import traceback
 import uuid
 from collections import deque
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Iterable, Mapping
 from contextlib import contextmanager, nullcontext
 from dataclasses import dataclass, replace
 from functools import wraps
@@ -35,7 +35,9 @@ from ea_node_editor.execution.backends import (
     coerce_execution_backend_selection,
 )
 from ea_node_editor.execution.protocol import (
+    CancelRunPreflightCommand,
     CloseViewerSessionCommand,
+    CommitRunPreflightCommand,
     EMPTY_REGISTRY_CONTRACT_FINGERPRINT,
     MaterializeViewerDataCommand,
     OpenViewerSessionCommand,
@@ -44,6 +46,7 @@ from ea_node_editor.execution.protocol import (
     QueryViewerSessionCommand,
     ResumeRunCommand,
     RunFailedEvent,
+    RunPreflightAcceptedEvent,
     RunStateEvent,
     ShutdownCommand,
     StartRunCommand,
@@ -60,7 +63,9 @@ from ea_node_editor.execution.protocol import (
     dict_to_event,
     event_to_dict,
     normalize_addon_runtime_config,
+    normalize_viewer_invalidation_node_ids,
     runtime_registry_fingerprint,
+    viewer_epoch_snapshot_digest,
 )
 from ea_node_editor.runtime_contracts.settled_results import SettledPortResult
 from ea_node_editor.execution.python_environment import (
@@ -187,6 +192,41 @@ class _PendingViewerRequest:
     node_id: str
     session_id: str
     generation_token: int = 0
+    workspace_invalidation_epoch: int = 0
+    node_invalidation_epoch: int = 0
+
+
+@dataclass(frozen=True)
+class _ConcreteViewerInvalidationPlan:
+    workspace_epochs: dict[str, int]
+    node_epochs: dict[tuple[str, str], int]
+    pending_requests: dict[str, _PendingViewerRequest]
+    session_ids: set[tuple[str, str]]
+    session_generations: dict[tuple[str, str], int]
+    session_node_ids: dict[tuple[str, str], str]
+    retired_request_ids: frozenset[str]
+
+
+@dataclass(frozen=True)
+class _BackendViewerInvalidationPlan:
+    workspace_epochs: dict[str, int]
+    node_epochs: dict[tuple[str, str], int]
+    workspace_clients: dict[str, Any]
+    workspace_client_generations: dict[str, int]
+    session_clients: dict[tuple[str, str], Any]
+    session_client_generations: dict[tuple[str, str], int]
+    session_node_ids: dict[tuple[str, str], str]
+    provisional_routes: dict[tuple[str, str], _ProvisionalViewerRoute]
+    provisional_request_sessions: dict[str, tuple[str, str]]
+    retired_request_ids: frozenset[str]
+
+
+@dataclass(frozen=True, slots=True)
+class _ViewerInvalidationSnapshot:
+    generation: int | None
+    workspace_epoch: int
+    node_epochs: tuple[tuple[str, int], ...]
+    snapshot_digest: str
 
 
 @dataclass(frozen=True)
@@ -238,6 +278,70 @@ class ExecutionRunReservation:
     workspace_id: str
     selection: ExecutionBackendSelection
     generation_snapshot: ExecutionGenerationSnapshot
+
+
+@dataclass(frozen=True, slots=True)
+class ViewerInvalidationReservation:
+    reservation_id: str
+    run_id: str
+    preparation_id: str
+    workspace_id: str
+    node_ids: tuple[str, ...] | None
+    process_snapshot: _ViewerInvalidationSnapshot
+    trusted_snapshot: _ViewerInvalidationSnapshot
+    external_snapshot: _ViewerInvalidationSnapshot
+    projection_snapshot: _ViewerInvalidationSnapshot
+    selected_snapshot: _ViewerInvalidationSnapshot
+    client: Any
+
+    @property
+    def workspace_epoch(self) -> int:
+        return self.selected_snapshot.workspace_epoch
+
+    @property
+    def node_epochs(self) -> tuple[tuple[str, int], ...]:
+        return self.selected_snapshot.node_epochs
+
+    @property
+    def snapshot_digest(self) -> str:
+        return self.selected_snapshot.snapshot_digest
+
+    @property
+    def backend_generation(self) -> int:
+        return int(self.selected_snapshot.generation or 0)
+
+
+def _participant_viewer_snapshot(
+    *,
+    workspace_id: str,
+    node_ids: tuple[str, ...] | None,
+    workspace_epochs: Mapping[str, int],
+    node_epochs: Mapping[tuple[str, str], int],
+    generation: int | None,
+) -> _ViewerInvalidationSnapshot:
+    workspace_epoch = int(workspace_epochs.get(workspace_id, 0))
+    if node_ids is None:
+        workspace_epoch += 1
+        planned_node_epochs: tuple[tuple[str, int], ...] = ()
+    else:
+        planned_node_epochs = tuple(
+            (
+                node_id,
+                int(node_epochs.get((workspace_id, node_id), 0)) + 1,
+            )
+            for node_id in node_ids
+        )
+    return _ViewerInvalidationSnapshot(
+        generation=generation,
+        workspace_epoch=workspace_epoch,
+        node_epochs=planned_node_epochs,
+        snapshot_digest=viewer_epoch_snapshot_digest(
+            workspace_id=workspace_id,
+            node_ids=node_ids,
+            workspace_epoch=workspace_epoch,
+            node_epochs=planned_node_epochs,
+        ),
+    )
 
 
 @dataclass(frozen=True, slots=True)
@@ -471,10 +575,27 @@ class _ExecutionClientCommon:
 
     def _drop_stale_viewer_generation(self, error: str) -> None:
         with self._viewer_request_lock:
+            if not hasattr(self, "_workspace_viewer_epochs"):
+                self._workspace_viewer_epochs = {}
+            if not hasattr(self, "_node_viewer_epochs"):
+                self._node_viewer_epochs = {}
+            if not hasattr(self, "_viewer_session_node_ids"):
+                self._viewer_session_node_ids = {}
+            workspace_ids = {
+                *self._workspace_viewer_epochs,
+                *(pending.workspace_id for pending in self._pending_viewer_requests.values()),
+                *(workspace_id for workspace_id, _session_id in self._viewer_session_ids),
+            }
+            for workspace_id in workspace_ids:
+                self._workspace_viewer_epochs[workspace_id] = (
+                    self._workspace_viewer_epochs.get(workspace_id, 0) + 1
+                )
+            self._node_viewer_epochs.clear()
             pending_requests = tuple(self._pending_viewer_requests.values())
             self._pending_viewer_requests.clear()
             self._viewer_session_ids.clear()
             self._viewer_session_generations.clear()
+            self._viewer_session_node_ids.clear()
         for pending in pending_requests:
             self._dispatch_viewer_request_failure(
                 pending,
@@ -513,7 +634,6 @@ class _ExecutionClientCommon:
             raise DataTypeCatalogError("replacement data-type catalog must be frozen")
         requested_fingerprint = registry.contract_fingerprint()
         with self._start_lock:
-            self._assert_registry_replaceable_locked()
             with self._state_lock:
                 pinned_fingerprint = str(
                     getattr(
@@ -524,6 +644,7 @@ class _ExecutionClientCommon:
                 )
             if not pinned_fingerprint or pinned_fingerprint == requested_fingerprint:
                 return False
+            self._assert_registry_replaceable_locked()
             self._recycle_catalog_generation()
             with self._state_lock:
                 self._data_types = None
@@ -806,6 +927,166 @@ class _ExecutionClientCommon:
     def _next_viewer_request_id() -> str:
         return f"viewer_{uuid.uuid4().hex[:8]}"
 
+    def _viewer_epochs(self, workspace_id: str, node_id: str) -> tuple[int, int]:
+        with self._viewer_request_lock:
+            if not hasattr(self, "_workspace_viewer_epochs"):
+                self._workspace_viewer_epochs = {}
+            if not hasattr(self, "_node_viewer_epochs"):
+                self._node_viewer_epochs = {}
+            return (
+                self._workspace_viewer_epochs.get(workspace_id, 0),
+                self._node_viewer_epochs.get((workspace_id, node_id), 0),
+            )
+
+    @staticmethod
+    def _normalize_viewer_node_ids(
+        node_ids: Iterable[str] | None,
+    ) -> tuple[str, ...] | None:
+        if node_ids is None:
+            return None
+        if isinstance(node_ids, (str, bytes)):
+            raise TypeError("node_ids must be an iterable of node IDs or None")
+        normalized: list[str] = []
+        for value in node_ids:
+            node_id = str(value or "").strip()
+            if node_id and node_id not in normalized:
+                normalized.append(node_id)
+        return tuple(normalized)
+
+    def invalidate_viewer_requests(
+        self,
+        workspace_id: str,
+        node_ids: Iterable[str] | None,
+    ) -> int:
+        return len(
+            self._invalidate_viewer_requests_with_ids(workspace_id, node_ids)
+        )
+
+    def _invalidate_viewer_requests_with_ids(
+        self,
+        workspace_id: str,
+        node_ids: Iterable[str] | None,
+    ) -> set[str]:
+        normalized_workspace_id = str(workspace_id or "").strip()
+        if not normalized_workspace_id:
+            raise ValueError("workspace_id is required")
+        normalized_node_ids = self._normalize_viewer_node_ids(node_ids)
+        if normalized_node_ids == ():
+            return set()
+        with self._viewer_request_lock:
+            workspace_epoch = self._workspace_viewer_epochs.get(
+                normalized_workspace_id, 0
+            ) + (1 if normalized_node_ids is None else 0)
+            node_epochs = tuple(
+                (
+                    node_id,
+                    self._node_viewer_epochs.get(
+                        (normalized_workspace_id, node_id), 0
+                    )
+                    + 1,
+                )
+                for node_id in (normalized_node_ids or ())
+            )
+        return self._commit_viewer_invalidation_snapshot(
+            normalized_workspace_id,
+            normalized_node_ids,
+            workspace_epoch,
+            node_epochs,
+        )
+
+    def _commit_viewer_invalidation_snapshot(
+        self,
+        workspace_id: str,
+        node_ids: tuple[str, ...] | None,
+        workspace_epoch: int,
+        node_epochs: tuple[tuple[str, int], ...],
+    ) -> set[str]:
+        with self._viewer_request_lock:
+            plan = self._plan_viewer_invalidation_snapshot_locked(
+                workspace_id,
+                node_ids,
+                workspace_epoch,
+                node_epochs,
+            )
+            self._apply_viewer_invalidation_plan_locked(plan)
+        return set(plan.retired_request_ids)
+
+    def _plan_viewer_invalidation_snapshot_locked(
+        self,
+        workspace_id: str,
+        node_ids: tuple[str, ...] | None,
+        workspace_epoch: int,
+        node_epochs: tuple[tuple[str, int], ...],
+    ) -> _ConcreteViewerInvalidationPlan:
+        workspace_epochs = dict(self._workspace_viewer_epochs)
+        planned_node_epochs = dict(self._node_viewer_epochs)
+        pending_requests = dict(self._pending_viewer_requests)
+        session_ids = set(self._viewer_session_ids)
+        session_generations = dict(self._viewer_session_generations)
+        session_node_ids = dict(self._viewer_session_node_ids)
+        retired_request_ids: set[str] = set()
+        current_workspace_epoch = workspace_epochs.get(workspace_id, 0)
+        node_epoch_lookup = dict(node_epochs)
+        if node_ids is None:
+            if node_epochs:
+                raise ValueError("global viewer invalidation forbids node epochs")
+            if workspace_epoch != current_workspace_epoch + 1:
+                raise ValueError(
+                    "global viewer workspace epoch must advance locally once"
+                )
+            workspace_epochs[workspace_id] = workspace_epoch
+            planned_node_epochs = {
+                key: epoch
+                for key, epoch in planned_node_epochs.items()
+                if key[0] != workspace_id
+            }
+        else:
+            if workspace_epoch != current_workspace_epoch:
+                raise ValueError(
+                    "scoped viewer invalidation must retain the local workspace epoch"
+                )
+            if tuple(node_epoch_lookup) != node_ids:
+                raise ValueError("viewer node epochs do not match the filter")
+            for node_id in node_ids:
+                key = (workspace_id, node_id)
+                target_node_epoch = node_epoch_lookup[node_id]
+                if target_node_epoch != planned_node_epochs.get(key, 0) + 1:
+                    raise ValueError("viewer node epoch must advance locally once")
+                planned_node_epochs[key] = target_node_epoch
+        cleanup_node_ids = node_ids
+        for request_id, pending in tuple(pending_requests.items()):
+            if pending.workspace_id == workspace_id and (
+                cleanup_node_ids is None or pending.node_id in cleanup_node_ids
+            ):
+                retired_request_ids.add(request_id)
+                pending_requests.pop(request_id, None)
+        for session_key, node_id in tuple(session_node_ids.items()):
+            if session_key[0] == workspace_id and (
+                cleanup_node_ids is None or node_id in cleanup_node_ids
+            ):
+                session_ids.discard(session_key)
+                session_generations.pop(session_key, None)
+                session_node_ids.pop(session_key, None)
+        return _ConcreteViewerInvalidationPlan(
+            workspace_epochs=workspace_epochs,
+            node_epochs=planned_node_epochs,
+            pending_requests=pending_requests,
+            session_ids=session_ids,
+            session_generations=session_generations,
+            session_node_ids=session_node_ids,
+            retired_request_ids=frozenset(retired_request_ids),
+        )
+
+    def _apply_viewer_invalidation_plan_locked(
+        self, plan: _ConcreteViewerInvalidationPlan
+    ) -> None:
+        self._workspace_viewer_epochs = plan.workspace_epochs
+        self._node_viewer_epochs = plan.node_epochs
+        self._pending_viewer_requests = plan.pending_requests
+        self._viewer_session_ids = plan.session_ids
+        self._viewer_session_generations = plan.session_generations
+        self._viewer_session_node_ids = plan.session_node_ids
+
     def _track_viewer_request(self, pending: _PendingViewerRequest) -> None:
         generation_token = self._catalog_generation_token_value()
         with self._viewer_request_lock:
@@ -815,6 +1096,22 @@ class _ExecutionClientCommon:
                     generation_token=generation_token,
                 )
             self._pending_viewer_requests[pending.request_id] = pending
+
+    @staticmethod
+    def _pending_viewer_request(command: WorkerCommand) -> _PendingViewerRequest:
+        return _PendingViewerRequest(
+            request_id=str(getattr(command, "request_id", "")),
+            command=str(getattr(command, "type", "")),
+            workspace_id=str(getattr(command, "workspace_id", "")),
+            node_id=str(getattr(command, "node_id", "")),
+            session_id=str(getattr(command, "session_id", "")),
+            workspace_invalidation_epoch=int(
+                getattr(command, "workspace_invalidation_epoch", 0)
+            ),
+            node_invalidation_epoch=int(
+                getattr(command, "node_invalidation_epoch", 0)
+            ),
+        )
 
     def _complete_viewer_request(self, request_id: str) -> _PendingViewerRequest | None:
         if not request_id:
@@ -831,8 +1128,11 @@ class _ExecutionClientCommon:
     ) -> int:
         event_type = str(payload.get("type", "") or "")
         workspace_id = str(payload.get("workspace_id", "") or "").strip()
+        node_id = str(payload.get("node_id", "") or "").strip()
         session_id = str(payload.get("session_id", "") or "").strip()
         request_id = str(payload.get("request_id", "") or "").strip()
+        workspace_epoch = int(payload.get("workspace_invalidation_epoch", 0))
+        node_epoch = int(payload.get("node_invalidation_epoch", 0))
         state_context = (
             self._state_lock
             if expected_generation_token is not None
@@ -851,6 +1151,27 @@ class _ExecutionClientCommon:
                 return -1
             with self._viewer_request_lock:
                 pending = self._pending_viewer_requests.get(request_id)
+                current_workspace_epoch = self._workspace_viewer_epochs.get(
+                    workspace_id, 0
+                )
+                current_node_epoch = self._node_viewer_epochs.get(
+                    (workspace_id, node_id), 0
+                )
+                if (
+                    workspace_epoch != current_workspace_epoch
+                    or node_epoch != current_node_epoch
+                    or request_id
+                    and (
+                        pending is None
+                        or pending.workspace_id != workspace_id
+                        or pending.node_id != node_id
+                        or pending.session_id
+                        and pending.session_id != session_id
+                        or pending.workspace_invalidation_epoch != workspace_epoch
+                        or pending.node_invalidation_epoch != node_epoch
+                    )
+                ):
+                    return -1
                 generation_token = (
                     pending.generation_token
                     if pending is not None
@@ -864,11 +1185,13 @@ class _ExecutionClientCommon:
                     if event_type == "viewer_session_closed":
                         self._viewer_session_ids.discard(session_key)
                         self._viewer_session_generations.pop(session_key, None)
+                        self._viewer_session_node_ids.pop(session_key, None)
                     elif event_type != "viewer_session_failed":
                         self._viewer_session_ids.add(session_key)
                         self._viewer_session_generations[session_key] = (
                             generation_token
                         )
+                        self._viewer_session_node_ids[session_key] = node_id
                 if request_id:
                     self._pending_viewer_requests.pop(request_id, None)
         return generation_token
@@ -918,6 +1241,10 @@ class _ExecutionClientCommon:
                 session_id=pending.session_id,
                 command=pending.command,
                 error=error,
+                workspace_invalidation_epoch=(
+                    pending.workspace_invalidation_epoch
+                ),
+                node_invalidation_epoch=pending.node_invalidation_epoch,
             ),
             generation_token=(
                 pending.generation_token
@@ -957,6 +1284,10 @@ class _ExecutionClientCommon:
             session_id=pending.session_id,
             command=command,
             error=str(payload.get("error", "")),
+            workspace_invalidation_epoch=(
+                pending.workspace_invalidation_epoch
+            ),
+            node_invalidation_epoch=pending.node_invalidation_epoch,
         )
 
     def pause_run(self, run_id: str) -> None:
@@ -990,6 +1321,7 @@ class _ExecutionClientCommon:
         options: dict[str, Any] | None = None,
         _request_id: str = "",
     ) -> str:
+        workspace_epoch, node_epoch = self._viewer_epochs(workspace_id, node_id)
         return self._send_viewer_command(
             OpenViewerSessionCommand(
                 request_id=_request_id or self._next_viewer_request_id(),
@@ -1006,6 +1338,8 @@ class _ExecutionClientCommon:
                 playback_state=dict(playback_state or {}),
                 summary=dict(summary or {}),
                 options=dict(options or {}),
+                workspace_invalidation_epoch=workspace_epoch,
+                node_invalidation_epoch=node_epoch,
             )
         )
 
@@ -1026,6 +1360,7 @@ class _ExecutionClientCommon:
         summary: dict[str, Any] | None = None,
         options: dict[str, Any] | None = None,
     ) -> str:
+        workspace_epoch, node_epoch = self._viewer_epochs(workspace_id, node_id)
         return self._send_viewer_command(
             UpdateViewerSessionCommand(
                 request_id=self._next_viewer_request_id(),
@@ -1042,6 +1377,8 @@ class _ExecutionClientCommon:
                 playback_state=dict(playback_state or {}),
                 summary=dict(summary or {}),
                 options=dict(options or {}),
+                workspace_invalidation_epoch=workspace_epoch,
+                node_invalidation_epoch=node_epoch,
             ),
             require_session_id=True,
         )
@@ -1054,6 +1391,7 @@ class _ExecutionClientCommon:
         *,
         options: dict[str, Any] | None = None,
     ) -> str:
+        workspace_epoch, node_epoch = self._viewer_epochs(workspace_id, node_id)
         return self._send_viewer_command(
             CloseViewerSessionCommand(
                 request_id=self._next_viewer_request_id(),
@@ -1061,6 +1399,8 @@ class _ExecutionClientCommon:
                 node_id=node_id,
                 session_id=session_id,
                 options=dict(options or {}),
+                workspace_invalidation_epoch=workspace_epoch,
+                node_invalidation_epoch=node_epoch,
             ),
             require_session_id=True,
         )
@@ -1074,6 +1414,7 @@ class _ExecutionClientCommon:
         backend_id: str = "",
         options: dict[str, Any] | None = None,
     ) -> str:
+        workspace_epoch, node_epoch = self._viewer_epochs(workspace_id, node_id)
         return self._send_viewer_command(
             MaterializeViewerDataCommand(
                 request_id=self._next_viewer_request_id(),
@@ -1082,6 +1423,8 @@ class _ExecutionClientCommon:
                 session_id=session_id,
                 backend_id=backend_id,
                 options=dict(options or {}),
+                workspace_invalidation_epoch=workspace_epoch,
+                node_invalidation_epoch=node_epoch,
             ),
             require_session_id=True,
         )
@@ -1097,6 +1440,7 @@ class _ExecutionClientCommon:
         payload: dict[str, Any] | None = None,
         options: dict[str, Any] | None = None,
     ) -> str:
+        workspace_epoch, node_epoch = self._viewer_epochs(workspace_id, node_id)
         return self._send_viewer_command(
             QueryViewerSessionCommand(
                 request_id=self._next_viewer_request_id(),
@@ -1107,6 +1451,8 @@ class _ExecutionClientCommon:
                 query_type=str(query_type or "").strip(),
                 payload=dict(payload or {}),
                 options=dict(options or {}),
+                workspace_invalidation_epoch=workspace_epoch,
+                node_invalidation_epoch=node_epoch,
             ),
             require_session_id=True,
         )
@@ -1144,6 +1490,9 @@ class ProcessExecutionClient(_ExecutionClientCommon):
         self._pending_viewer_requests: dict[str, _PendingViewerRequest] = {}
         self._viewer_session_ids: set[tuple[str, str]] = set()
         self._viewer_session_generations: dict[tuple[str, str], int] = {}
+        self._viewer_session_node_ids: dict[tuple[str, str], str] = {}
+        self._workspace_viewer_epochs: dict[str, int] = {}
+        self._node_viewer_epochs: dict[tuple[str, str], int] = {}
         self._listener_thread = threading.Thread(
             target=self._event_listener,
             args=(self._event_queue, None, 0),
@@ -1276,43 +1625,68 @@ class ProcessExecutionClient(_ExecutionClientCommon):
         success, _message = self._try_post_command(command)
         return success
 
+    def _deliver_run_preflight_command(
+        self, command: WorkerCommand
+    ) -> tuple[bool, str]:
+        payload = self._encode_run_preflight_command(command)
+        with self._state_lock:
+            transport = self._pin_run_preflight_transport_locked()
+        return self._deliver_encoded_run_preflight_command(payload, transport)
+
+    def _encode_run_preflight_command(self, command: WorkerCommand) -> dict[str, Any]:
+        return self._encode_command(command)
+
+    def _pin_run_preflight_transport_locked(self) -> mp.Queue | None:
+        return self._command_queue
+
+    @staticmethod
+    def _deliver_encoded_run_preflight_command(
+        payload: dict[str, Any], transport: mp.Queue | None
+    ) -> tuple[bool, str]:
+        try:
+            if transport is None:
+                raise RuntimeError("Execution worker is not running.")
+            transport.put(payload)
+            return True, ""
+        except Exception as exc:  # noqa: BLE001
+            return False, str(exc) or "Failed to deliver run preflight command."
+
     def _send_viewer_command(
         self,
         command: WorkerCommand,
         *,
         require_session_id: bool = False,
     ) -> str:
-        try:
-            command = self._decode_command(self._encode_command(command))
-        except (TypeError, ValueError) as exc:
-            request_id = str(getattr(command, "request_id", ""))
-            pending = _PendingViewerRequest(
-                request_id=request_id,
-                command=str(getattr(command, "type", "")),
-                workspace_id=str(getattr(command, "workspace_id", "")),
-                node_id=str(getattr(command, "node_id", "")),
-                session_id=str(getattr(command, "session_id", "")),
-            )
-            self._dispatch_viewer_request_failure(pending, str(exc))
-            return request_id
-        request_id = str(getattr(command, "request_id", ""))
-        pending = _PendingViewerRequest(
-            request_id=request_id,
-            command=str(getattr(command, "type", "")),
-            workspace_id=str(getattr(command, "workspace_id", "")),
-            node_id=str(getattr(command, "node_id", "")),
-            session_id=str(getattr(command, "session_id", "")),
-        )
-        if require_session_id and not pending.session_id:
-            self._dispatch_viewer_request_failure(pending, "session_id is required.")
-            return request_id
         with self._start_lock:
             try:
                 self._ensure_process()
             except Exception as exc:  # noqa: BLE001
+                pending = self._pending_viewer_request(command)
                 self._dispatch_viewer_request_failure(
                     pending,
                     f"Failed to start worker process: {exc}",
+                )
+                return pending.request_id
+            workspace_epoch, node_epoch = self._viewer_epochs(
+                str(getattr(command, "workspace_id", "")),
+                str(getattr(command, "node_id", "")),
+            )
+            command = replace(
+                command,
+                workspace_invalidation_epoch=workspace_epoch,
+                node_invalidation_epoch=node_epoch,
+            )
+            try:
+                command = self._decode_command(self._encode_command(command))
+            except (TypeError, ValueError) as exc:
+                pending = self._pending_viewer_request(command)
+                self._dispatch_viewer_request_failure(pending, str(exc))
+                return pending.request_id
+            request_id = str(getattr(command, "request_id", ""))
+            pending = self._pending_viewer_request(command)
+            if require_session_id and not pending.session_id:
+                self._dispatch_viewer_request_failure(
+                    pending, "session_id is required."
                 )
                 return request_id
             self._track_viewer_request(pending)
@@ -1473,6 +1847,7 @@ class ProcessExecutionClient(_ExecutionClientCommon):
             self._pending_viewer_requests.clear()
             self._viewer_session_ids.clear()
             self._viewer_session_generations.clear()
+            self._viewer_session_node_ids.clear()
 
     def _check_worker_health(
         self,
@@ -1778,6 +2153,9 @@ class ExternalPythonExecutionClient(_ExecutionClientCommon):
         self._pending_viewer_requests: dict[str, _PendingViewerRequest] = {}
         self._viewer_session_ids: set[tuple[str, str]] = set()
         self._viewer_session_generations: dict[tuple[str, str], int] = {}
+        self._viewer_session_node_ids: dict[tuple[str, str], str] = {}
+        self._workspace_viewer_epochs: dict[str, int] = {}
+        self._node_viewer_epochs: dict[tuple[str, str], int] = {}
         self._stderr_tail: deque[str] = deque(maxlen=40)
         self._running = True
         self._stdout_thread: threading.Thread | None = None
@@ -2017,6 +2395,40 @@ class ExternalPythonExecutionClient(_ExecutionClientCommon):
         success, _message = self._try_post_command(command)
         return success
 
+    def _deliver_run_preflight_command(
+        self, command: WorkerCommand
+    ) -> tuple[bool, str]:
+        payload = self._encode_run_preflight_command(command)
+        with self._state_lock:
+            transport = self._pin_run_preflight_transport_locked()
+        return self._deliver_encoded_run_preflight_command(payload, transport)
+
+    def _encode_run_preflight_command(self, command: WorkerCommand) -> str:
+        payload = self._encode_command(command)
+        return json.dumps(payload, ensure_ascii=True, separators=(",", ":")) + "\n"
+
+    def _pin_run_preflight_transport_locked(self) -> subprocess.Popen | None:
+        return self._process
+
+    def _deliver_encoded_run_preflight_command(
+        self, payload: str, transport: subprocess.Popen | None
+    ) -> tuple[bool, str]:
+        try:
+            with self._stdin_lock:
+                if (
+                    transport is None
+                    or transport.poll() is not None
+                    or transport.stdin is None
+                ):
+                    raise RuntimeError(
+                        "External Python workflow worker is not running."
+                    )
+                transport.stdin.write(payload)
+                transport.stdin.flush()
+            return True, ""
+        except Exception as exc:  # noqa: BLE001
+            return False, str(exc) or "Failed to deliver run preflight command."
+
     @_registry_admitted
     def start_run(
         self,
@@ -2172,31 +2584,33 @@ class ExternalPythonExecutionClient(_ExecutionClientCommon):
         *,
         require_session_id: bool = False,
     ) -> str:
-        try:
-            command = self._decode_command(self._encode_command(command))
-        except (TypeError, ValueError) as exc:
-            request_id = str(getattr(command, "request_id", ""))
-            pending = _PendingViewerRequest(
-                request_id=request_id,
-                command=str(getattr(command, "type", "")),
-                workspace_id=str(getattr(command, "workspace_id", "")),
-                node_id=str(getattr(command, "node_id", "")),
-                session_id=str(getattr(command, "session_id", "")),
-            )
-            self._dispatch_viewer_request_failure(pending, str(exc))
-            return request_id
-        request_id = str(getattr(command, "request_id", ""))
-        pending = _PendingViewerRequest(
-            request_id=request_id,
-            command=str(getattr(command, "type", "")),
-            workspace_id=str(getattr(command, "workspace_id", "")),
-            node_id=str(getattr(command, "node_id", "")),
-            session_id=str(getattr(command, "session_id", "")),
-        )
-        if require_session_id and not pending.session_id:
-            self._dispatch_viewer_request_failure(pending, "session_id is required.")
-            return request_id
         with self._start_lock:
+            with self._state_lock:
+                python_executable = self._python_executable
+            try:
+                if python_executable:
+                    self._ensure_process(python_executable)
+                workspace_epoch, node_epoch = self._viewer_epochs(
+                    str(getattr(command, "workspace_id", "")),
+                    str(getattr(command, "node_id", "")),
+                )
+                command = replace(
+                    command,
+                    workspace_invalidation_epoch=workspace_epoch,
+                    node_invalidation_epoch=node_epoch,
+                )
+                command = self._decode_command(self._encode_command(command))
+            except (RuntimeError, TypeError, ValueError) as exc:
+                pending = self._pending_viewer_request(command)
+                self._dispatch_viewer_request_failure(pending, str(exc))
+                return pending.request_id
+            request_id = str(getattr(command, "request_id", ""))
+            pending = self._pending_viewer_request(command)
+            if require_session_id and not pending.session_id:
+                self._dispatch_viewer_request_failure(
+                    pending, "session_id is required."
+                )
+                return request_id
             self._track_viewer_request(pending)
             if not self._post_command(command):
                 self._complete_viewer_request(request_id)
@@ -2584,6 +2998,7 @@ class ExternalPythonExecutionClient(_ExecutionClientCommon):
             self._pending_viewer_requests.clear()
             self._viewer_session_ids.clear()
             self._viewer_session_generations.clear()
+            self._viewer_session_node_ids.clear()
         for thread in (self._stdout_thread, self._stderr_thread, self._monitor_thread):
             if thread is not None and thread.is_alive():
                 thread.join(timeout=1.0)
@@ -2620,6 +3035,9 @@ class TrustedInProcessExecutionClient(_ExecutionClientCommon):
         self._pending_viewer_requests: dict[str, _PendingViewerRequest] = {}
         self._viewer_session_ids: set[tuple[str, str]] = set()
         self._viewer_session_generations: dict[tuple[str, str], int] = {}
+        self._viewer_session_node_ids: dict[tuple[str, str], str] = {}
+        self._workspace_viewer_epochs: dict[str, int] = {}
+        self._node_viewer_epochs: dict[tuple[str, str], int] = {}
         self._listener_thread = threading.Thread(
             target=self._event_listener,
             daemon=True,
@@ -2640,6 +3058,30 @@ class TrustedInProcessExecutionClient(_ExecutionClientCommon):
                 command=getattr(command, "type", ""),
             )
             return False
+
+    def _deliver_run_preflight_command(
+        self, command: WorkerCommand
+    ) -> tuple[bool, str]:
+        payload = self._encode_run_preflight_command(command)
+        with self._state_lock:
+            transport = self._pin_run_preflight_transport_locked()
+        return self._deliver_encoded_run_preflight_command(payload, transport)
+
+    def _encode_run_preflight_command(self, command: WorkerCommand) -> dict[str, Any]:
+        return self._encode_command(command)
+
+    def _pin_run_preflight_transport_locked(self) -> queue.Queue[dict[str, Any]]:
+        return self._command_queue
+
+    @staticmethod
+    def _deliver_encoded_run_preflight_command(
+        payload: dict[str, Any], transport: queue.Queue[dict[str, Any]]
+    ) -> tuple[bool, str]:
+        try:
+            transport.put(payload)
+            return True, ""
+        except Exception as exc:  # noqa: BLE001
+            return False, str(exc) or "Failed to deliver run preflight command."
 
     def _drain_command_queue(self) -> None:
         while True:
@@ -2912,6 +3354,7 @@ class TrustedInProcessExecutionClient(_ExecutionClientCommon):
                                 session_key,
                                 None,
                             )
+                            self._viewer_session_node_ids.pop(session_key, None)
             for pending in stale_pending:
                 self._dispatch_viewer_request_failure(
                     pending,
@@ -2954,28 +3397,24 @@ class TrustedInProcessExecutionClient(_ExecutionClientCommon):
         *,
         require_session_id: bool = False,
     ) -> str:
-        try:
-            command = self._decode_command(self._encode_command(command))
-        except (TypeError, ValueError) as exc:
-            request_id = str(getattr(command, "request_id", ""))
-            pending = _PendingViewerRequest(
-                request_id=request_id,
-                command=str(getattr(command, "type", "")),
-                workspace_id=str(getattr(command, "workspace_id", "")),
-                node_id=str(getattr(command, "node_id", "")),
-                session_id=str(getattr(command, "session_id", "")),
-            )
-            self._dispatch_viewer_request_failure(pending, str(exc))
-            return request_id
-        request_id = str(getattr(command, "request_id", ""))
-        pending = _PendingViewerRequest(
-            request_id=request_id,
-            command=str(getattr(command, "type", "")),
-            workspace_id=str(getattr(command, "workspace_id", "")),
-            node_id=str(getattr(command, "node_id", "")),
-            session_id=str(getattr(command, "session_id", "")),
-        )
         with self._start_lock:
+            workspace_epoch, node_epoch = self._viewer_epochs(
+                str(getattr(command, "workspace_id", "")),
+                str(getattr(command, "node_id", "")),
+            )
+            command = replace(
+                command,
+                workspace_invalidation_epoch=workspace_epoch,
+                node_invalidation_epoch=node_epoch,
+            )
+            try:
+                command = self._decode_command(self._encode_command(command))
+            except (TypeError, ValueError) as exc:
+                pending = self._pending_viewer_request(command)
+                self._dispatch_viewer_request_failure(pending, str(exc))
+                return pending.request_id
+            request_id = str(getattr(command, "request_id", ""))
+            pending = self._pending_viewer_request(command)
             self._track_viewer_request(pending)
             if require_session_id and not pending.session_id:
                 self._complete_viewer_request(request_id)
@@ -3021,6 +3460,7 @@ class TrustedInProcessExecutionClient(_ExecutionClientCommon):
             self._pending_viewer_requests.clear()
             self._viewer_session_ids.clear()
             self._viewer_session_generations.clear()
+            self._viewer_session_node_ids.clear()
         if self._listener_thread.is_alive():
             self._listener_thread.join(timeout=1.0)
         self._worker_services.reset()
@@ -3159,6 +3599,9 @@ class ExecutionBackendClient:
         ] = []
         self._published_registry: NodeRegistry | None = None
         self._run_reservations: dict[str, tuple[ExecutionRunReservation, Any]] = {}
+        self._viewer_invalidation_reservations: dict[
+            str, ViewerInvalidationReservation
+        ] = {}
         self._client_selections: dict[int, ExecutionBackendSelection] = {
             id(self._process_client): ExecutionBackendSelection(),
             id(self._trusted_client): ExecutionBackendSelection(
@@ -3186,6 +3629,9 @@ class ExecutionBackendClient:
         self._workspace_client_generations: dict[str, int] = {}
         self._session_clients: dict[tuple[str, str], Any] = {}
         self._session_client_generations: dict[tuple[str, str], int] = {}
+        self._session_node_ids: dict[tuple[str, str], str] = {}
+        self._workspace_viewer_epochs: dict[str, int] = {}
+        self._node_viewer_epochs: dict[tuple[str, str], int] = {}
         self._provisional_viewer_routes: dict[
             tuple[str, str],
             _ProvisionalViewerRoute,
@@ -3197,6 +3643,7 @@ class ExecutionBackendClient:
         self._next_viewer_request_order = 0
         self._terminal_run_ids_seen: set[str] = set()
         self._active_lock = threading.Lock()
+        self._viewer_invalidation_lock = threading.RLock()
         self._registry_publication_lock = threading.RLock()
         self._process_client.subscribe(
             lambda event, generation: self._dispatch_client_event(
@@ -3225,6 +3672,16 @@ class ExecutionBackendClient:
 
     def subscribe(self, callback: Callable[[dict[str, Any]], None]) -> None:
         self._callbacks.append(callback)
+
+    def _ensure_viewer_invalidation_state(self) -> None:
+        if not hasattr(self, "_viewer_invalidation_lock"):
+            self._viewer_invalidation_lock = threading.RLock()
+        if not hasattr(self, "_viewer_invalidation_reservations"):
+            self._viewer_invalidation_reservations = {}
+        if not hasattr(self, "_viewer_commit_publication_pending"):
+            self._viewer_commit_publication_pending = set()
+        if not hasattr(self, "_viewer_commit_event_buffers"):
+            self._viewer_commit_event_buffers = {}
 
     def subscribe_generation_events(
         self,
@@ -3536,6 +3993,258 @@ class ExecutionBackendClient:
             self._run_reservations[run_id] = (reservation, client)
         return reservation
 
+    def reserve_viewer_invalidation(
+        self,
+        run_reservation: ExecutionRunReservation,
+        preparation_id: str,
+        node_ids: Iterable[str] | None,
+    ) -> ViewerInvalidationReservation:
+        self._ensure_viewer_invalidation_state()
+        if not isinstance(run_reservation, ExecutionRunReservation):
+            raise TypeError("run_reservation must be an ExecutionRunReservation")
+        normalized_node_ids = normalize_viewer_invalidation_node_ids(node_ids)
+        workspace_id = run_reservation.workspace_id
+        process = self._process_client
+        trusted = self._trusted_client
+        external = self._external_python_client
+        selected_client = self._client_for_selection(run_reservation.selection)
+        with self._viewer_invalidation_lock:
+            with self._active_lock:
+                self._ensure_route_generation_maps_locked()
+                projection_snapshot = _participant_viewer_snapshot(
+                    workspace_id=workspace_id,
+                    node_ids=normalized_node_ids,
+                    workspace_epochs=self._workspace_viewer_epochs,
+                    node_epochs=self._node_viewer_epochs,
+                    generation=None,
+                )
+                with process._state_lock:  # noqa: SLF001
+                    with process._viewer_request_lock:  # noqa: SLF001
+                        process_snapshot = _participant_viewer_snapshot(
+                            workspace_id=workspace_id,
+                            node_ids=normalized_node_ids,
+                            workspace_epochs=process._workspace_viewer_epochs,  # noqa: SLF001
+                            node_epochs=process._node_viewer_epochs,  # noqa: SLF001
+                            generation=process._catalog_generation_token,  # noqa: SLF001
+                        )
+                        with trusted._state_lock:  # noqa: SLF001
+                            with trusted._viewer_request_lock:  # noqa: SLF001
+                                trusted_snapshot = _participant_viewer_snapshot(
+                                    workspace_id=workspace_id,
+                                    node_ids=normalized_node_ids,
+                                    workspace_epochs=trusted._workspace_viewer_epochs,  # noqa: SLF001
+                                    node_epochs=trusted._node_viewer_epochs,  # noqa: SLF001
+                                    generation=trusted._catalog_generation_token,  # noqa: SLF001
+                                )
+                                with external._state_lock:  # noqa: SLF001
+                                    with external._viewer_request_lock:  # noqa: SLF001
+                                        external_snapshot = (
+                                            _participant_viewer_snapshot(
+                                                workspace_id=workspace_id,
+                                                node_ids=normalized_node_ids,
+                                                workspace_epochs=(
+                                                    external._workspace_viewer_epochs  # noqa: SLF001
+                                                ),
+                                                node_epochs=external._node_viewer_epochs,  # noqa: SLF001
+                                                generation=(
+                                                    external._catalog_generation_token  # noqa: SLF001
+                                                ),
+                                            )
+                                        )
+            snapshot_by_client_id = {
+                id(process): process_snapshot,
+                id(trusted): trusted_snapshot,
+                id(external): external_snapshot,
+            }
+            selected_snapshot = snapshot_by_client_id[id(selected_client)]
+            if (
+                selected_snapshot.generation
+                != run_reservation.generation_snapshot.backend_generation
+            ):
+                raise ValueError(
+                    "viewer invalidation reservation generation changed"
+                )
+            reservation = ViewerInvalidationReservation(
+                reservation_id=f"viewer_inv_{uuid.uuid4().hex}",
+                run_id=run_reservation.run_id,
+                preparation_id=str(preparation_id).strip(),
+                workspace_id=workspace_id,
+                node_ids=normalized_node_ids,
+                process_snapshot=process_snapshot,
+                trusted_snapshot=trusted_snapshot,
+                external_snapshot=external_snapshot,
+                projection_snapshot=projection_snapshot,
+                selected_snapshot=selected_snapshot,
+                client=selected_client,
+            )
+            self._viewer_invalidation_reservations[
+                reservation.reservation_id
+            ] = reservation
+            return reservation
+
+    def commit_viewer_invalidation(
+        self,
+        reservation: ViewerInvalidationReservation,
+    ) -> set[str]:
+        self._ensure_viewer_invalidation_state()
+        if not isinstance(reservation, ViewerInvalidationReservation):
+            raise TypeError("reservation must be a ViewerInvalidationReservation")
+        delivery_error = ""
+        delivered = False
+        retired_request_ids: set[str] = set()
+        process = self._process_client
+        trusted = self._trusted_client
+        external = self._external_python_client
+        commit_command = CommitRunPreflightCommand(
+            run_id=reservation.run_id,
+            viewer_invalidation_reservation_id=reservation.reservation_id,
+            viewer_epoch_snapshot_digest=reservation.snapshot_digest,
+        )
+        encoded_commit = reservation.client._encode_run_preflight_command(  # noqa: SLF001
+            commit_command
+        )
+        with self._viewer_invalidation_lock:
+            with self._active_lock:
+                with process._state_lock:  # noqa: SLF001
+                    with process._viewer_request_lock:  # noqa: SLF001
+                        with trusted._state_lock:  # noqa: SLF001
+                            with trusted._viewer_request_lock:  # noqa: SLF001
+                                with external._state_lock:  # noqa: SLF001
+                                    with external._viewer_request_lock:  # noqa: SLF001
+                                        participants = (
+                                            (process, reservation.process_snapshot),
+                                            (trusted, reservation.trusted_snapshot),
+                                            (external, reservation.external_snapshot),
+                                        )
+                                        stored = (
+                                            self._viewer_invalidation_reservations.get(
+                                                reservation.reservation_id
+                                            )
+                                        )
+                                        if stored != reservation:
+                                            raise ValueError(
+                                                "viewer invalidation reservation is unknown"
+                                            )
+                                        for child, snapshot in participants:
+                                            if (
+                                                child._catalog_generation_token  # noqa: SLF001
+                                                != snapshot.generation
+                                            ):
+                                                raise ValueError(
+                                                    "viewer invalidation participant generation changed"
+                                                )
+                                        if (
+                                            reservation.client._accepted_physical_generation_token  # noqa: SLF001
+                                            != reservation.backend_generation
+                                        ):
+                                            raise ValueError(
+                                                "viewer invalidation reservation generation changed"
+                                            )
+                                        process_plan = process._plan_viewer_invalidation_snapshot_locked(  # noqa: SLF001
+                                            reservation.workspace_id,
+                                            reservation.node_ids,
+                                            reservation.process_snapshot.workspace_epoch,
+                                            reservation.process_snapshot.node_epochs,
+                                        )
+                                        trusted_plan = trusted._plan_viewer_invalidation_snapshot_locked(  # noqa: SLF001
+                                            reservation.workspace_id,
+                                            reservation.node_ids,
+                                            reservation.trusted_snapshot.workspace_epoch,
+                                            reservation.trusted_snapshot.node_epochs,
+                                        )
+                                        external_plan = external._plan_viewer_invalidation_snapshot_locked(  # noqa: SLF001
+                                            reservation.workspace_id,
+                                            reservation.node_ids,
+                                            reservation.external_snapshot.workspace_epoch,
+                                            reservation.external_snapshot.node_epochs,
+                                        )
+                                        backend_plan = self._plan_backend_viewer_invalidation_snapshot_locked(
+                                            reservation
+                                        )
+                                        transport = reservation.client._pin_run_preflight_transport_locked()  # noqa: SLF001
+                                        try:
+                                            delivered, delivery_error = reservation.client._deliver_encoded_run_preflight_command(  # noqa: SLF001
+                                                encoded_commit,
+                                                transport,
+                                            )
+                                        except Exception as exc:  # noqa: BLE001
+                                            delivered = False
+                                            delivery_error = str(exc)
+                                        if delivered:
+                                            process._apply_viewer_invalidation_plan_locked(  # noqa: SLF001
+                                                process_plan
+                                            )
+                                            trusted._apply_viewer_invalidation_plan_locked(  # noqa: SLF001
+                                                trusted_plan
+                                            )
+                                            external._apply_viewer_invalidation_plan_locked(  # noqa: SLF001
+                                                external_plan
+                                            )
+                                            self._apply_backend_viewer_invalidation_plan_locked(
+                                                backend_plan
+                                            )
+                                            retired_request_ids.update(
+                                                process_plan.retired_request_ids
+                                            )
+                                            retired_request_ids.update(
+                                                trusted_plan.retired_request_ids
+                                            )
+                                            retired_request_ids.update(
+                                                external_plan.retired_request_ids
+                                            )
+                                            retired_request_ids.update(
+                                                backend_plan.retired_request_ids
+                                            )
+                                            self._viewer_commit_publication_pending.add(
+                                                reservation.run_id
+                                            )
+                                        self._viewer_invalidation_reservations.pop(
+                                            reservation.reservation_id, None
+                                        )
+        if delivery_error or not delivered:
+            try:
+                reservation.client._deliver_run_preflight_command(  # noqa: SLF001
+                    CancelRunPreflightCommand(
+                        run_id=reservation.run_id,
+                        viewer_invalidation_reservation_id=(
+                            reservation.reservation_id
+                        ),
+                        viewer_epoch_snapshot_digest=reservation.snapshot_digest,
+                    )
+                )
+            except Exception:  # noqa: BLE001
+                pass
+            raise RuntimeError(
+                delivery_error or "Failed to deliver run preflight commit."
+            )
+        return retired_request_ids
+
+    def cancel_viewer_invalidation(
+        self,
+        reservation: ViewerInvalidationReservation,
+    ) -> None:
+        self._ensure_viewer_invalidation_state()
+        if not isinstance(reservation, ViewerInvalidationReservation):
+            return
+        with self._viewer_invalidation_lock:
+            stored = self._viewer_invalidation_reservations.pop(
+                reservation.reservation_id, None
+            )
+            self._viewer_commit_publication_pending.discard(reservation.run_id)
+            self._viewer_commit_event_buffers.pop(reservation.run_id, None)
+        if stored != reservation:
+            return
+        with self._active_lock:
+            active_client = self._active_clients.get(reservation.run_id)
+        if active_client is reservation.client:
+            active_client._post_command(  # noqa: SLF001
+                CancelRunPreflightCommand(
+                    run_id=reservation.run_id,
+                    viewer_invalidation_reservation_id=reservation.reservation_id,
+                    viewer_epoch_snapshot_digest=reservation.snapshot_digest,
+                )
+            )
+
     def release_run_reservation(
         self,
         reservation: ExecutionRunReservation,
@@ -3596,6 +4305,26 @@ class ExecutionBackendClient:
             raise ValueError(
                 "prepared command generation does not match the reserved execution"
             )
+        with self._viewer_invalidation_lock:
+            viewer_reservation = self._viewer_invalidation_reservations.get(
+                command.viewer_invalidation_reservation_id
+            )
+        if (
+            viewer_reservation is None
+            or viewer_reservation.run_id != reservation.run_id
+            or viewer_reservation.preparation_id != command.preparation_id
+            or viewer_reservation.client is not client
+            or viewer_reservation.snapshot_digest
+            != command.viewer_epoch_snapshot_digest
+            or viewer_reservation.workspace_epoch
+            != command.viewer_workspace_invalidation_epoch
+            or viewer_reservation.node_epochs
+            != command.viewer_node_invalidation_epochs
+            or viewer_reservation.node_ids
+            != command.viewer_invalidation_node_ids
+        ):
+            client._release_start_run(reservation.run_id)  # noqa: SLF001
+            raise ValueError("prepared viewer invalidation reservation changed")
         with self._active_lock:
             self._active_clients[reservation.run_id] = client
             self._run_clients[reservation.run_id] = client
@@ -3674,6 +4403,12 @@ class ExecutionBackendClient:
             self._provisional_request_sessions = {}
         if not hasattr(self, "_next_viewer_request_order"):
             self._next_viewer_request_order = 0
+        if not hasattr(self, "_session_node_ids"):
+            self._session_node_ids = {}
+        if not hasattr(self, "_workspace_viewer_epochs"):
+            self._workspace_viewer_epochs = {}
+        if not hasattr(self, "_node_viewer_epochs"):
+            self._node_viewer_epochs = {}
 
     def _apply_provisional_viewer_route_locked(
         self,
@@ -3881,6 +4616,7 @@ class ExecutionBackendClient:
         for session_key in stale_session_keys:
             self._session_clients.pop(session_key, None)
             self._session_client_generations.pop(session_key, None)
+            self._session_node_ids.pop(session_key, None)
         for workspace_id, owner in tuple(self._workspace_clients.items()):
             if (
                 owner is client
@@ -3905,6 +4641,7 @@ class ExecutionBackendClient:
             session_key = (workspace_id, session_id)
             self._session_clients.pop(session_key, None)
             self._session_client_generations.pop(session_key, None)
+            self._session_node_ids.pop(session_key, None)
         if not workspace_id:
             return
         remaining_session_client = None
@@ -3941,6 +4678,111 @@ class ExecutionBackendClient:
                 self._run_client_generations.pop(run_id, None)
                 self._run_generation_snapshots.pop(run_id, None)
 
+    def _dispatch_committed_preflight(
+        self,
+        *,
+        client: Any,
+        reservation: ViewerInvalidationReservation,
+        accepted_event: dict[str, Any],
+        committed_event: dict[str, Any],
+    ) -> None:
+        run_id = str(accepted_event.get("run_id", ""))
+        drain_buffered_events = True
+        if self._client_generation_token(client) != reservation.backend_generation:
+            retired_request_count = self.invalidate_viewer_requests(
+                reservation.workspace_id,
+                None,
+            )
+            with self._active_lock:
+                projection_workspace_epoch = self._workspace_viewer_epochs.get(
+                    reservation.workspace_id,
+                    0,
+                )
+                projection = _ViewerInvalidationSnapshot(
+                    generation=None,
+                    workspace_epoch=projection_workspace_epoch,
+                    node_epochs=(),
+                    snapshot_digest=viewer_epoch_snapshot_digest(
+                        workspace_id=reservation.workspace_id,
+                        node_ids=None,
+                        workspace_epoch=projection_workspace_epoch,
+                        node_epochs=(),
+                    ),
+                )
+            committed_event = {
+                **committed_event,
+                "viewer_invalidation_node_ids": None,
+                "viewer_workspace_invalidation_epoch": projection.workspace_epoch,
+                "viewer_node_invalidation_epochs": [],
+                "viewer_epoch_snapshot_digest": projection.snapshot_digest,
+                "retired_request_count": (
+                    int(committed_event.get("retired_request_count", 0))
+                    + retired_request_count
+                ),
+                "reason": "execution_generation_retired",
+            }
+            drain_buffered_events = False
+        with self._active_lock:
+            generation_snapshot = self._run_generation_snapshots.get(run_id)
+        if generation_snapshot is None:
+            selection = self._client_selections.get(
+                id(client),
+                ExecutionBackendSelection(),
+            )
+            generation_snapshot = self._generation_snapshot_for_client(
+                client,
+                selection,
+            )
+        try:
+            for callback in tuple(self._generation_callbacks):
+                try:
+                    callback(dict(accepted_event), generation_snapshot)
+                except Exception:
+                    continue
+            for callback in tuple(self._callbacks):
+                try:
+                    callback(dict(accepted_event))
+                except Exception:
+                    continue
+        finally:
+            self._finalize_viewer_invalidation_commit(
+                committed_event,
+                drain_buffered_events=drain_buffered_events,
+            )
+
+    def _finalize_viewer_invalidation_commit(
+        self,
+        committed_event: dict[str, Any],
+        *,
+        drain_buffered_events: bool,
+    ) -> None:
+        run_id = str(committed_event.get("run_id", ""))
+        with self._viewer_invalidation_lock:
+            publish_adoption = run_id in self._viewer_commit_publication_pending
+            if not publish_adoption:
+                self._viewer_commit_event_buffers.pop(run_id, None)
+                return
+        try:
+            for callback in tuple(self._callbacks):
+                try:
+                    callback(dict(committed_event))
+                except Exception:
+                    continue
+        finally:
+            with self._viewer_invalidation_lock:
+                self._viewer_commit_publication_pending.discard(run_id)
+                buffered_events = tuple(
+                    self._viewer_commit_event_buffers.pop(run_id, ())
+                )
+            if not drain_buffered_events:
+                return
+            for buffered_client, buffered_event, buffered_generation in buffered_events:
+                self._dispatch_client_event(
+                    buffered_client,
+                    buffered_event,
+                    generation_token=buffered_generation,
+                )
+
     def _dispatch_client_event(
         self,
         client: Any,
@@ -3948,11 +4790,90 @@ class ExecutionBackendClient:
         *,
         generation_token: int | None = None,
     ) -> None:
+        self._ensure_viewer_invalidation_state()
         event_type = str(event.get("type", ""))
         run_id = str(event.get("run_id", ""))
         workspace_id = str(event.get("workspace_id", "")).strip()
         session_id = str(event.get("session_id", "")).strip()
         request_id = str(event.get("request_id", "")).strip()
+        node_id = str(event.get("node_id", "")).strip()
+        if event_type != "run_preflight_accepted" and run_id:
+            with self._viewer_invalidation_lock:
+                if run_id in self._viewer_commit_publication_pending:
+                    self._viewer_commit_event_buffers.setdefault(run_id, []).append(
+                        (client, dict(event), generation_token)
+                    )
+                    return
+        if event_type in self._TERMINAL_EVENT_TYPES and run_id:
+            with self._viewer_invalidation_lock:
+                for reservation_id, pending_reservation in tuple(
+                    self._viewer_invalidation_reservations.items()
+                ):
+                    if pending_reservation.run_id == run_id:
+                        self._viewer_invalidation_reservations.pop(
+                            reservation_id, None
+                        )
+        if event_type == "run_preflight_accepted":
+            reservation_id = str(
+                event.get("viewer_invalidation_reservation_id", "")
+            ).strip()
+            with self._viewer_invalidation_lock:
+                candidate = self._viewer_invalidation_reservations.get(
+                    reservation_id
+                )
+            if (
+                candidate is None
+                or candidate.client is not client
+                or candidate.run_id != run_id
+                or candidate.workspace_id != workspace_id
+                or candidate.preparation_id
+                != str(event.get("preparation_id", "")).strip()
+                or candidate.snapshot_digest
+                != str(event.get("viewer_epoch_snapshot_digest", "")).strip()
+                or (
+                    generation_token is not None
+                    and candidate.backend_generation != int(generation_token)
+                )
+            ):
+                if candidate is not None:
+                    self.cancel_viewer_invalidation(candidate)
+                return
+            try:
+                retired_request_ids = self.commit_viewer_invalidation(candidate)
+            except (RuntimeError, TypeError, ValueError) as exc:
+                self.cancel_viewer_invalidation(candidate)
+                self._emit_protocol_error(
+                    f"Run preflight commit failed: {exc}",
+                    run_id=run_id,
+                    command="commit_run_preflight",
+                )
+                return
+            projection = candidate.projection_snapshot
+            committed_viewer_event = {
+                "type": "viewer_invalidation_committed",
+                "run_id": candidate.run_id,
+                "preparation_id": candidate.preparation_id,
+                "workspace_id": candidate.workspace_id,
+                "viewer_invalidation_node_ids": (
+                    None if candidate.node_ids is None else list(candidate.node_ids)
+                ),
+                "viewer_workspace_invalidation_epoch": projection.workspace_epoch,
+                "viewer_node_invalidation_epochs": [
+                    [item_node_id, epoch]
+                    for item_node_id, epoch in projection.node_epochs
+                ],
+                "viewer_invalidation_reservation_id": candidate.reservation_id,
+                "viewer_epoch_snapshot_digest": projection.snapshot_digest,
+                "retired_request_count": len(retired_request_ids),
+                "reason": "workspace_rerun",
+            }
+            self._dispatch_committed_preflight(
+                client=client,
+                reservation=candidate,
+                accepted_event=dict(event),
+                committed_event=committed_viewer_event,
+            )
+            return
         failed_open = (
             event_type == "viewer_session_failed"
             and str(event.get("command", "")).strip() == "open_viewer_session"
@@ -3963,6 +4884,53 @@ class ExecutionBackendClient:
         pinned_generation_snapshot = None
         with self._active_lock:
             self._ensure_route_generation_maps_locked()
+            current_generation = 0
+            event_generation = 0
+            if client is not None:
+                event_generation = (
+                    int(generation_token)
+                    if generation_token is not None
+                    else 0
+                )
+                with client._state_lock:  # noqa: SLF001
+                    current_generation = int(  # noqa: SLF001
+                        client._catalog_generation_token
+                    )
+                    if generation_token is None:
+                        event_generation = current_generation
+                    if event_generation != current_generation:
+                        return
+                    if event_type in VIEWER_RESPONSE_EVENT_TYPES:
+                        with client._viewer_request_lock:  # noqa: SLF001
+                            if (
+                                int(event.get("workspace_invalidation_epoch", 0))
+                                != client._workspace_viewer_epochs.get(  # noqa: SLF001
+                                    workspace_id,
+                                    0,
+                                )
+                                or int(event.get("node_invalidation_epoch", 0))
+                                != client._node_viewer_epochs.get(  # noqa: SLF001
+                                    (workspace_id, node_id),
+                                    0,
+                                )
+                            ):
+                                return
+                if event_type in VIEWER_RESPONSE_EVENT_TYPES:
+                    event = dict(event)
+                    event["workspace_invalidation_epoch"] = (
+                        self._workspace_viewer_epochs.get(workspace_id, 0)
+                    )
+                    event["node_invalidation_epoch"] = self._node_viewer_epochs.get(
+                        (workspace_id, node_id),
+                        0,
+                    )
+            if event_type in VIEWER_RESPONSE_EVENT_TYPES and (
+                int(event.get("workspace_invalidation_epoch", 0))
+                != self._workspace_viewer_epochs.get(workspace_id, 0)
+                or int(event.get("node_invalidation_epoch", 0))
+                != self._node_viewer_epochs.get((workspace_id, node_id), 0)
+            ):
+                return
             if run_id:
                 pinned_generation_snapshot = self._run_generation_snapshots.get(
                     run_id
@@ -3972,14 +4940,6 @@ class ExecutionBackendClient:
                 and request_id
                 and request_id in self._provisional_request_sessions
             )
-            current_generation = self._client_generation_token(client)
-            event_generation = (
-                current_generation
-                if generation_token is None
-                else int(generation_token)
-            )
-            if client is not None and event_generation != current_generation:
-                return
             if client is not None and request_id:
                 self._refresh_provisional_request_generation_locked(
                     request_id=request_id,
@@ -4014,6 +4974,7 @@ class ExecutionBackendClient:
                 session_key = (workspace_id, session_id)
                 self._session_clients[session_key] = client
                 self._session_client_generations[session_key] = event_generation
+                self._session_node_ids[session_key] = node_id
             if client is not None and releases_session:
                 self._release_closed_session_owner_locked(
                     session_id=session_id,
@@ -4096,6 +5057,7 @@ class ExecutionBackendClient:
         client: Any,
         workspace_id: str,
         session_id: str,
+        node_id: str = "",
         request_id: str = "",
     ) -> None:
         if not workspace_id or not session_id:
@@ -4103,6 +5065,7 @@ class ExecutionBackendClient:
         with self._active_lock:
             self._ensure_route_generation_maps_locked()
             session_key = (workspace_id, session_id)
+            self._session_node_ids[session_key] = node_id
             if request_id:
                 route = self._provisional_viewer_routes.get(session_key)
                 if route is None:
@@ -4225,6 +5188,7 @@ class ExecutionBackendClient:
             self._workspace_client_generations.clear()
             self._session_clients.clear()
             self._session_client_generations.clear()
+            self._session_node_ids.clear()
             self._provisional_viewer_routes.clear()
             self._provisional_request_sessions.clear()
             self._next_viewer_request_order = 0
@@ -4264,6 +5228,13 @@ class ExecutionBackendClient:
     def replace_registry(self, registry: NodeRegistry) -> bool:
         if not isinstance(registry, NodeRegistry):
             raise TypeError("registry must be a NodeRegistry")
+        requested_fingerprint = registry.contract_fingerprint()
+        published_registry = self._published_registry
+        if (
+            published_registry is not None
+            and published_registry.contract_fingerprint() == requested_fingerprint
+        ):
+            return False
         with self._active_lock:
             self._assert_registry_replaceable_locked()
         retirement_results = tuple(
@@ -4280,10 +5251,17 @@ class ExecutionBackendClient:
             self._clear_viewer_owners()
         return retired
 
-    def _emit_protocol_error(self, message: str, *, command: str = "start_run") -> None:
+    def _emit_protocol_error(
+        self,
+        message: str,
+        *,
+        run_id: str = "",
+        command: str = "start_run",
+    ) -> None:
         self._dispatch_event(
             event_to_dict(
                 ProtocolErrorEvent(
+                    run_id=run_id,
                     command=command,
                     error=message,
                 ),
@@ -4524,6 +5502,7 @@ class ExecutionBackendClient:
             client=client,
             workspace_id=workspace_id,
             session_id=session_id,
+            node_id=str(kwargs.get("node_id", args[1] if len(args) > 1 else "") or "").strip(),
             request_id=request_id,
         )
         if request_id:
@@ -4571,8 +5550,18 @@ class ExecutionBackendClient:
             return ""
         return client.materialize_viewer_data(*args, **kwargs)
 
-    def query_viewer_session(self, *args: Any, **kwargs: Any) -> str:
-        run_id, workspace_id, session_id = self._viewer_route_ids(args, kwargs)
+    def query_viewer_session(
+        self,
+        workspace_id: str,
+        node_id: str,
+        session_id: str,
+        *,
+        run_id: str = "",
+        backend_id: str = "",
+        query_type: str,
+        payload: dict[str, Any] | None = None,
+        options: dict[str, Any] | None = None,
+    ) -> str:
         client = self._viewer_client(
             run_id=run_id,
             workspace_id=workspace_id,
@@ -4580,9 +5569,210 @@ class ExecutionBackendClient:
         )
         if client is None:
             return ""
-        return client.query_viewer_session(*args, **kwargs)
+        return client.query_viewer_session(
+            workspace_id,
+            node_id,
+            session_id,
+            backend_id=backend_id,
+            query_type=query_type,
+            payload=payload,
+            options=options,
+        )
+
+    def _commit_backend_viewer_invalidation_snapshot(
+        self,
+        reservation: ViewerInvalidationReservation,
+    ) -> set[str]:
+        with self._active_lock:
+            plan = self._plan_backend_viewer_invalidation_snapshot_locked(
+                reservation
+            )
+            self._apply_backend_viewer_invalidation_plan_locked(plan)
+        return set(plan.retired_request_ids)
+
+    def _plan_backend_viewer_invalidation_snapshot_locked(
+        self,
+        reservation: ViewerInvalidationReservation,
+    ) -> _BackendViewerInvalidationPlan:
+        self._ensure_route_generation_maps_locked()
+        retired_request_ids: set[str] = set()
+        workspace_epochs = dict(self._workspace_viewer_epochs)
+        node_epochs = dict(self._node_viewer_epochs)
+        workspace_clients = dict(self._workspace_clients)
+        workspace_client_generations = dict(self._workspace_client_generations)
+        session_clients = dict(self._session_clients)
+        session_client_generations = dict(self._session_client_generations)
+        session_node_ids = dict(self._session_node_ids)
+        provisional_routes = dict(self._provisional_viewer_routes)
+        provisional_request_sessions = dict(self._provisional_request_sessions)
+        snapshot = reservation.projection_snapshot
+        node_epoch_lookup = dict(snapshot.node_epochs)
+        current_workspace_epoch = workspace_epochs.get(reservation.workspace_id, 0)
+        if reservation.node_ids is None:
+            if snapshot.node_epochs:
+                raise ValueError("global viewer invalidation forbids node epochs")
+            if snapshot.workspace_epoch != current_workspace_epoch + 1:
+                raise ValueError(
+                    "global backend viewer workspace epoch must advance locally once"
+                )
+            workspace_epochs[reservation.workspace_id] = snapshot.workspace_epoch
+            node_epochs = {
+                key: epoch
+                for key, epoch in node_epochs.items()
+                if key[0] != reservation.workspace_id
+            }
+        else:
+            if snapshot.workspace_epoch != current_workspace_epoch:
+                raise ValueError(
+                    "scoped backend viewer invalidation must retain the local workspace epoch"
+                )
+            if tuple(node_epoch_lookup) != reservation.node_ids:
+                raise ValueError("backend viewer node epochs do not match filter")
+            for node_id, epoch in snapshot.node_epochs:
+                key = (reservation.workspace_id, node_id)
+                if epoch != node_epochs.get(key, 0) + 1:
+                    raise ValueError(
+                        "backend viewer node epoch must advance locally once"
+                    )
+                node_epochs[key] = epoch
+        cleanup_node_ids = reservation.node_ids
+        affected_session_keys = tuple(
+            session_key
+            for session_key, node_id in session_node_ids.items()
+            if session_key[0] == reservation.workspace_id
+            and (cleanup_node_ids is None or node_id in cleanup_node_ids)
+        )
+        for session_key in affected_session_keys:
+            session_clients.pop(session_key, None)
+            session_client_generations.pop(session_key, None)
+            session_node_ids.pop(session_key, None)
+            route = provisional_routes.pop(session_key, None)
+            if route is not None:
+                for _order, request_id, _client, _generation in route.requests:
+                    retired_request_ids.add(request_id)
+                    provisional_request_sessions.pop(request_id, None)
+        remaining_workspace_sessions = any(
+            session_key[0] == reservation.workspace_id
+            for session_key in session_clients
+        )
+        if cleanup_node_ids is None or not remaining_workspace_sessions:
+            workspace_clients.pop(reservation.workspace_id, None)
+            workspace_client_generations.pop(reservation.workspace_id, None)
+        return _BackendViewerInvalidationPlan(
+            workspace_epochs=workspace_epochs,
+            node_epochs=node_epochs,
+            workspace_clients=workspace_clients,
+            workspace_client_generations=workspace_client_generations,
+            session_clients=session_clients,
+            session_client_generations=session_client_generations,
+            session_node_ids=session_node_ids,
+            provisional_routes=provisional_routes,
+            provisional_request_sessions=provisional_request_sessions,
+            retired_request_ids=frozenset(retired_request_ids),
+        )
+
+    def _apply_backend_viewer_invalidation_plan_locked(
+        self, plan: _BackendViewerInvalidationPlan
+    ) -> None:
+        self._workspace_viewer_epochs = plan.workspace_epochs
+        self._node_viewer_epochs = plan.node_epochs
+        self._workspace_clients = plan.workspace_clients
+        self._workspace_client_generations = plan.workspace_client_generations
+        self._session_clients = plan.session_clients
+        self._session_client_generations = plan.session_client_generations
+        self._session_node_ids = plan.session_node_ids
+        self._provisional_viewer_routes = plan.provisional_routes
+        self._provisional_request_sessions = plan.provisional_request_sessions
+
+    def invalidate_viewer_requests(
+        self,
+        workspace_id: str,
+        node_ids: Iterable[str] | None,
+    ) -> int:
+        self._ensure_viewer_invalidation_state()
+        with self._viewer_invalidation_lock:
+            return self._invalidate_viewer_requests_now(workspace_id, node_ids)
+
+    def _invalidate_viewer_requests_now(
+        self,
+        workspace_id: str,
+        node_ids: Iterable[str] | None,
+    ) -> int:
+        normalized_workspace_id = str(workspace_id or "").strip()
+        if not normalized_workspace_id:
+            raise ValueError("workspace_id is required")
+        normalized_node_ids = _ExecutionClientCommon._normalize_viewer_node_ids(
+            node_ids
+        )
+        if normalized_node_ids == ():
+            return 0
+        retired_request_ids: set[str] = set()
+        for child in (
+            self._process_client,
+            self._trusted_client,
+            self._external_python_client,
+        ):
+            retired_request_ids.update(
+                child._invalidate_viewer_requests_with_ids(  # noqa: SLF001
+                    normalized_workspace_id, normalized_node_ids
+                )
+            )
+        with self._active_lock:
+            self._ensure_route_generation_maps_locked()
+            if normalized_node_ids is None:
+                self._workspace_viewer_epochs[normalized_workspace_id] = (
+                    self._workspace_viewer_epochs.get(normalized_workspace_id, 0)
+                    + 1
+                )
+                for key in tuple(self._node_viewer_epochs):
+                    if key[0] == normalized_workspace_id:
+                        self._node_viewer_epochs.pop(key, None)
+            else:
+                for node_id in normalized_node_ids:
+                    key = (normalized_workspace_id, node_id)
+                    self._node_viewer_epochs[key] = (
+                        self._node_viewer_epochs.get(key, 0) + 1
+                    )
+            affected_session_keys = tuple(
+                session_key
+                for session_key, node_id in self._session_node_ids.items()
+                if session_key[0] == normalized_workspace_id
+                and (
+                    normalized_node_ids is None
+                    or node_id in normalized_node_ids
+                )
+            )
+            for session_key in affected_session_keys:
+                self._session_clients.pop(session_key, None)
+                self._session_client_generations.pop(session_key, None)
+                self._session_node_ids.pop(session_key, None)
+                route = self._provisional_viewer_routes.pop(session_key, None)
+                if route is not None:
+                    for _order, request_id, _client, _generation in route.requests:
+                        retired_request_ids.add(request_id)
+                        self._provisional_request_sessions.pop(request_id, None)
+            remaining_workspace_sessions = any(
+                session_key[0] == normalized_workspace_id
+                for session_key in self._session_clients
+            )
+            if normalized_node_ids is None or not remaining_workspace_sessions:
+                self._workspace_clients.pop(normalized_workspace_id, None)
+                self._workspace_client_generations.pop(
+                    normalized_workspace_id, None
+                )
+        return len(retired_request_ids)
 
     def shutdown(self) -> None:
+        self._ensure_viewer_invalidation_state()
+        with self._viewer_invalidation_lock:
+            viewer_reservations = tuple(
+                self._viewer_invalidation_reservations.values()
+            )
+        for viewer_reservation in viewer_reservations:
+            self.cancel_viewer_invalidation(viewer_reservation)
+        with self._viewer_invalidation_lock:
+            self._viewer_commit_publication_pending.clear()
+            self._viewer_commit_event_buffers.clear()
         with self._active_lock:
             reservation_map = getattr(self, "_run_reservations", {})
             reservations = tuple(reservation_map.values())
@@ -4603,4 +5793,5 @@ __all__ = [
     "ExternalPythonExecutionClient",
     "ProcessExecutionClient",
     "TrustedInProcessExecutionClient",
+    "ViewerInvalidationReservation",
 ]

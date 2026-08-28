@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import importlib.util
+import os
 import sys
 import unittest
 from io import BytesIO, TextIOWrapper
@@ -327,6 +328,11 @@ class RunVerificationTests(unittest.TestCase):
             capture_output=True,
             text=True,
             check=False,
+            env={
+                key: value
+                for key, value in os.environ.items()
+                if key.upper() not in {"PYTHONHOME", "PYTHONPATH"}
+            },
         )
 
         self.assertEqual(

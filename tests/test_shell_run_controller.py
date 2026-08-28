@@ -14,6 +14,7 @@ from PyQt6.QtWidgets import QMessageBox
 
 from ea_node_editor.runtime_contracts.settled_results import SettledPortResult
 from ea_node_editor.execution.prepared_execution import InvalidationResult
+from ea_node_editor.execution.protocol import viewer_epoch_snapshot_digest
 from ea_node_editor.runtime_contracts import DataTree
 from ea_node_editor.ui.icon_registry import icon_path
 from ea_node_editor.ui_qml.shell_inspector_bridge import ShellInspectorBridge
@@ -53,6 +54,7 @@ class _ViewerExecutionClientStub:
         self.open_calls: list[dict] = []
         self.update_calls: list[dict] = []
         self.close_calls: list[dict] = []
+        self.invalidate_viewer_calls: list[tuple[str, tuple[str, ...] | None]] = []
         self._request_counter = 0
         self._solution_revisions: dict[str, int] = {}
 
@@ -119,6 +121,11 @@ class _ViewerExecutionClientStub:
 
     def stop_run(self, run_id: str) -> None:
         self.stop_calls.append(str(run_id))
+
+    def invalidate_viewer_requests(self, workspace_id: str, node_ids) -> int:
+        normalized = None if node_ids is None else tuple(dict.fromkeys(node_ids))
+        self.invalidate_viewer_calls.append((workspace_id, normalized))
+        return 0
 
     def open_viewer_session(
         self,
@@ -1013,7 +1020,7 @@ class ShellRunControllerTests(MainWindowShellTestBase):
         self.assertIs(bridge, self.window.viewer_session_bridge)
 
         workspace_id = self.window.workspace_manager.active_workspace_id()
-        node_id = self.window.scene.add_node_from_type("core.logger", x=120.0, y=40.0)
+        node_id = self.window.scene.add_node_from_type("dpf.viewer", x=120.0, y=40.0)
         session_id = bridge.open(
             node_id,
             {
@@ -1035,6 +1042,29 @@ class ShellRunControllerTests(MainWindowShellTestBase):
         self.window._run_workflow()
         self.app.processEvents()
 
+        workspace_epoch, node_epoch = bridge._viewer_epochs(  # noqa: SLF001
+            workspace_id, node_id
+        )
+        digest = viewer_epoch_snapshot_digest(
+            workspace_id=workspace_id,
+            node_ids=(node_id,),
+            workspace_epoch=workspace_epoch,
+            node_epochs=((node_id, node_epoch + 1),),
+        )
+        self.window.execution_event.emit(
+            {
+                "type": "viewer_invalidation_committed",
+                "run_id": self.window.run_state.active_run_id,
+                "workspace_id": workspace_id,
+                "viewer_invalidation_node_ids": [node_id],
+                "viewer_workspace_invalidation_epoch": workspace_epoch,
+                "viewer_node_invalidation_epochs": [[node_id, node_epoch + 1]],
+                "viewer_epoch_snapshot_digest": digest,
+                "reason": "workspace_rerun",
+            }
+        )
+        self.app.processEvents()
+
         state = bridge.session_state(node_id)
         self.assertEqual(state["phase"], "blocked")
         self.assertEqual(state["live_open_status"], "blocked")
@@ -1043,7 +1073,7 @@ class ShellRunControllerTests(MainWindowShellTestBase):
         self.assertEqual(self.window.run_state.active_run_id, "run_live")
         self.assertEqual(self.window.run_state.active_run_workspace_id, workspace_id)
 
-    def test_rerun_preflight_resets_live_viewer_host_before_worker_start(self) -> None:
+    def test_successful_dispatch_invalidates_exact_viewers_without_host_reset(self) -> None:
         execution_client = _ViewerExecutionClientStub()
         self.window.execution_client = execution_client
         self.window.run_controller.set_auto_run_enabled(False)
@@ -1085,18 +1115,35 @@ class ShellRunControllerTests(MainWindowShellTestBase):
         self.window._run_workflow()
         self.app.processEvents()
 
-        self.assertGreaterEqual(len(viewer_host_service.calls), 3)
-        self.assertEqual(
-            viewer_host_service.calls[:3],
-            [
-                ("suspend_sync", "workspace_rerun_preflight"),
-                ("reset", "workspace_rerun_preflight"),
-                ("resume_sync", ""),
-            ],
+        workspace_epoch, node_epoch = bridge._viewer_epochs(  # noqa: SLF001
+            workspace_id, node_id
         )
-        self.assertEqual(execution_client.start_calls[-1]["workspace_id"], workspace_id)
+        snapshot_digest = viewer_epoch_snapshot_digest(
+            workspace_id=workspace_id,
+            node_ids=(node_id,),
+            workspace_epoch=workspace_epoch,
+            node_epochs=((node_id, node_epoch + 1),),
+        )
+        self.window.execution_event.emit(
+            {
+                "type": "viewer_invalidation_committed",
+                "run_id": self.window.run_state.active_run_id,
+                "workspace_id": workspace_id,
+                "viewer_invalidation_node_ids": [node_id],
+                "viewer_workspace_invalidation_epoch": workspace_epoch,
+                "viewer_node_invalidation_epochs": [[node_id, node_epoch + 1]],
+                "viewer_epoch_snapshot_digest": snapshot_digest,
+                "reason": "workspace_rerun",
+            }
+        )
+        self.app.processEvents()
 
-    def test_failed_start_restores_live_viewer_host_after_preflight_reset(self) -> None:
+        self.assertEqual(viewer_host_service.calls, [])
+        self.assertEqual(execution_client.start_calls[-1]["workspace_id"], workspace_id)
+        self.assertEqual(execution_client.invalidate_viewer_calls, [])
+        self.assertEqual(bridge.session_state(node_id)["phase"], "blocked")
+
+    def test_failed_dispatch_leaves_viewer_host_and_epochs_untouched(self) -> None:
         execution_client = _ViewerExecutionClientStub()
         execution_client.next_run_id = ""
         self.window.execution_client = execution_client
@@ -1139,14 +1186,8 @@ class ShellRunControllerTests(MainWindowShellTestBase):
         self.window._run_workflow()
         self.app.processEvents()
 
-        self.assertEqual(
-            viewer_host_service.calls,
-            [
-                ("suspend_sync", "workspace_rerun_preflight"),
-                ("reset", "workspace_rerun_preflight"),
-                ("resume_sync", ""),
-            ],
-        )
+        self.assertEqual(viewer_host_service.calls, [])
+        self.assertEqual(execution_client.invalidate_viewer_calls, [])
         self.assertEqual(self.window.run_state.engine_state_value, "error")
 
     def test_shell_context_bridge_explicit_sources_wrap_shell_window_with_focused_sources(self) -> None:

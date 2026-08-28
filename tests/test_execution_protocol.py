@@ -16,13 +16,16 @@ from ea_node_editor.execution.client import (
     TrustedInProcessExecutionClient,
 )
 from ea_node_editor.execution.protocol import (
+    CancelRunPreflightCommand,
     CatalogRevisionRecord,
+    CommitRunPreflightCommand,
     NodeSettledEvent,
     OpenViewerSessionCommand,
     ProtocolErrorEvent,
     QueryViewerSessionCommand,
     RunCompletedEvent,
     RunFailedEvent,
+    RunPreflightAcceptedEvent,
     RunStateEvent,
     RunStoppedEvent,
     ShutdownCommand,
@@ -34,6 +37,7 @@ from ea_node_editor.execution.protocol import (
     dict_to_event,
     event_to_dict,
     normalize_catalog_revisions,
+    viewer_epoch_snapshot_digest,
 )
 from ea_node_editor.execution.prepared_execution import (
     AcceptedOutputPayload,
@@ -268,11 +272,24 @@ class ExecutionProtocolTests(unittest.TestCase):
             trigger_publication_generations=(("trigger", 2),),
             node_decisions=(decision,),
             accepted_output_payloads=(accepted,),
+            viewer_invalidation_node_ids=(),
+            viewer_invalidation_reservation_id="viewer_inv_protocol",
+            viewer_epoch_snapshot_digest=viewer_epoch_snapshot_digest(
+                workspace_id="ws_protocol",
+                node_ids=(),
+                workspace_epoch=0,
+                node_epochs=(),
+            ),
         )
         payload = command_to_dict(command, catalog=catalog)
         restored = dict_to_command(json.loads(json.dumps(payload)), catalog=catalog)
         self.assertEqual(command_to_dict(restored, catalog=catalog), payload)
         self.assertEqual(restored.preparation_id, command.preparation_id)
+        self.assertEqual(restored.viewer_invalidation_node_ids, ())
+        self.assertEqual(
+            restored.viewer_epoch_snapshot_digest,
+            command.viewer_epoch_snapshot_digest,
+        )
         self.assertEqual(restored.node_decisions, command.node_decisions)
         self.assertEqual(
             restored.accepted_output_payloads[0].to_payload(catalog=catalog),
@@ -305,11 +322,38 @@ class ExecutionProtocolTests(unittest.TestCase):
             lambda value: value.pop("solution_namespace_id"),
             lambda value: value.__setitem__("dispatch_runtime_generation", 8),
             lambda value: value.__setitem__("preparation_id", ""),
+            lambda value: value.__setitem__(
+                "viewer_epoch_snapshot_digest", "0" * 64
+            ),
         ):
             malformed = copy.deepcopy(payload)
             mutate(malformed)
             with self.assertRaises(ValueError):
                 dict_to_command(malformed, catalog=catalog)
+
+    def test_run_preflight_acknowledgments_round_trip_exact_identity(self) -> None:
+        digest = "a" * 64
+        for command in (
+            CommitRunPreflightCommand(
+                run_id="run_preflight",
+                viewer_invalidation_reservation_id="viewer_inv_preflight",
+                viewer_epoch_snapshot_digest=digest,
+            ),
+            CancelRunPreflightCommand(
+                run_id="run_preflight",
+                viewer_invalidation_reservation_id="viewer_inv_preflight",
+                viewer_epoch_snapshot_digest=digest,
+            ),
+        ):
+            self.assertEqual(dict_to_command(command_to_dict(command)), command)
+        event = RunPreflightAcceptedEvent(
+            run_id="run_preflight",
+            workspace_id="ws_preflight",
+            preparation_id="prepared_preflight",
+            viewer_invalidation_reservation_id="viewer_inv_preflight",
+            viewer_epoch_snapshot_digest=digest,
+        )
+        self.assertEqual(dict_to_event(event_to_dict(event)), event)
 
     def test_solution_settlement_identity_combinations_are_strict(self) -> None:
         reused = NodeSettledEvent(

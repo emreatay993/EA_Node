@@ -60,6 +60,7 @@ from ea_node_editor.execution.runtime_snapshot import (
 EngineState = Literal["ready", "running", "paused", "error"]
 RunTransition = Literal["start", "pause", "resume", "stop", "complete", "fail"]
 EventType = Literal[
+    "run_preflight_accepted",
     "run_started",
     "run_state",
     "run_completed",
@@ -178,6 +179,11 @@ class StartRunCommand:
     trigger_publication_generations: tuple[tuple[str, int], ...] = ()
     node_decisions: tuple[PreparedNodeDecision, ...] = ()
     accepted_output_payloads: tuple[AcceptedOutputPayload, ...] = ()
+    viewer_invalidation_node_ids: tuple[str, ...] | None = None
+    viewer_workspace_invalidation_epoch: int = 0
+    viewer_node_invalidation_epochs: tuple[tuple[str, int], ...] = ()
+    viewer_invalidation_reservation_id: str = ""
+    viewer_epoch_snapshot_digest: str = ""
 
 
 @dataclass(frozen=True)
@@ -205,6 +211,22 @@ class ShutdownCommand:
 
 
 @dataclass(frozen=True)
+class CommitRunPreflightCommand:
+    type: Literal["commit_run_preflight"] = "commit_run_preflight"
+    run_id: str = ""
+    viewer_invalidation_reservation_id: str = ""
+    viewer_epoch_snapshot_digest: str = ""
+
+
+@dataclass(frozen=True)
+class CancelRunPreflightCommand:
+    type: Literal["cancel_run_preflight"] = "cancel_run_preflight"
+    run_id: str = ""
+    viewer_invalidation_reservation_id: str = ""
+    viewer_epoch_snapshot_digest: str = ""
+
+
+@dataclass(frozen=True)
 class OpenViewerSessionCommand:
     type: Literal["open_viewer_session"] = "open_viewer_session"
     request_id: str = ""
@@ -221,6 +243,8 @@ class OpenViewerSessionCommand:
     playback_state: dict[str, Any] = field(default_factory=dict)
     summary: dict[str, Any] = field(default_factory=dict)
     options: dict[str, Any] = field(default_factory=dict)
+    workspace_invalidation_epoch: int = 0
+    node_invalidation_epoch: int = 0
 
 
 @dataclass(frozen=True)
@@ -240,6 +264,8 @@ class UpdateViewerSessionCommand:
     playback_state: dict[str, Any] = field(default_factory=dict)
     summary: dict[str, Any] = field(default_factory=dict)
     options: dict[str, Any] = field(default_factory=dict)
+    workspace_invalidation_epoch: int = 0
+    node_invalidation_epoch: int = 0
 
 
 @dataclass(frozen=True)
@@ -250,6 +276,8 @@ class CloseViewerSessionCommand:
     node_id: str = ""
     session_id: str = ""
     options: dict[str, Any] = field(default_factory=dict)
+    workspace_invalidation_epoch: int = 0
+    node_invalidation_epoch: int = 0
 
 
 @dataclass(frozen=True)
@@ -261,6 +289,8 @@ class MaterializeViewerDataCommand:
     session_id: str = ""
     backend_id: str = ""
     options: dict[str, Any] = field(default_factory=dict)
+    workspace_invalidation_epoch: int = 0
+    node_invalidation_epoch: int = 0
 
 
 @dataclass(frozen=True)
@@ -278,12 +308,24 @@ WorkerCommand: TypeAlias = (
     | PauseRunCommand
     | ResumeRunCommand
     | ShutdownCommand
+    | CommitRunPreflightCommand
+    | CancelRunPreflightCommand
     | OpenViewerSessionCommand
     | UpdateViewerSessionCommand
     | CloseViewerSessionCommand
     | QueryViewerSessionCommand
     | MaterializeViewerDataCommand
 )
+
+
+@dataclass(frozen=True)
+class RunPreflightAcceptedEvent:
+    type: Literal["run_preflight_accepted"] = "run_preflight_accepted"
+    run_id: str = ""
+    workspace_id: str = ""
+    preparation_id: str = ""
+    viewer_invalidation_reservation_id: str = ""
+    viewer_epoch_snapshot_digest: str = ""
 
 
 @dataclass(frozen=True)
@@ -418,6 +460,8 @@ class ViewerSessionOpenedEvent:
     playback_state: dict[str, Any] = field(default_factory=dict)
     summary: dict[str, Any] = field(default_factory=dict)
     options: dict[str, Any] = field(default_factory=dict)
+    workspace_invalidation_epoch: int = 0
+    node_invalidation_epoch: int = 0
 
 
 @dataclass(frozen=True)
@@ -437,6 +481,8 @@ class ViewerSessionUpdatedEvent:
     playback_state: dict[str, Any] = field(default_factory=dict)
     summary: dict[str, Any] = field(default_factory=dict)
     options: dict[str, Any] = field(default_factory=dict)
+    workspace_invalidation_epoch: int = 0
+    node_invalidation_epoch: int = 0
 
 
 @dataclass(frozen=True)
@@ -455,6 +501,8 @@ class ViewerSessionClosedEvent:
     playback_state: dict[str, Any] = field(default_factory=dict)
     summary: dict[str, Any] = field(default_factory=dict)
     options: dict[str, Any] = field(default_factory=dict)
+    workspace_invalidation_epoch: int = 0
+    node_invalidation_epoch: int = 0
 
 
 @dataclass(frozen=True)
@@ -474,6 +522,8 @@ class ViewerDataMaterializedEvent:
     playback_state: dict[str, Any] = field(default_factory=dict)
     summary: dict[str, Any] = field(default_factory=dict)
     options: dict[str, Any] = field(default_factory=dict)
+    workspace_invalidation_epoch: int = 0
+    node_invalidation_epoch: int = 0
 
 
 @dataclass(frozen=True)
@@ -488,6 +538,8 @@ class ViewerQueryResultEvent:
     supported: bool = False
     value: dict[str, Any] = field(default_factory=dict)
     explanation: str = ""
+    workspace_invalidation_epoch: int = 0
+    node_invalidation_epoch: int = 0
 
 
 @dataclass(frozen=True)
@@ -499,10 +551,13 @@ class ViewerSessionFailedEvent:
     session_id: str = ""
     command: str = ""
     error: str = ""
+    workspace_invalidation_epoch: int = 0
+    node_invalidation_epoch: int = 0
 
 
 WorkerEvent: TypeAlias = (
-    RunStartedEvent
+    RunPreflightAcceptedEvent
+    | RunStartedEvent
     | RunStateEvent
     | RunCompletedEvent
     | RunFailedEvent
@@ -528,6 +583,9 @@ _SCALAR_PROTOCOL_TYPES = frozenset(
         PauseRunCommand,
         ResumeRunCommand,
         ShutdownCommand,
+        CommitRunPreflightCommand,
+        CancelRunPreflightCommand,
+        RunPreflightAcceptedEvent,
         RunStartedEvent,
         RunStateEvent,
         RunCompletedEvent,
@@ -1698,6 +1756,145 @@ def normalize_target_node_ids(value: Any) -> tuple[str, ...]:
     return tuple(normalized)
 
 
+def normalize_viewer_invalidation_node_ids(
+    value: Any,
+) -> tuple[str, ...] | None:
+    if value is None:
+        return None
+    if isinstance(value, (str, bytes)):
+        raise TypeError(
+            "viewer_invalidation_node_ids must be a list or None"
+        )
+    return normalize_target_node_ids(value)
+
+
+def normalize_viewer_node_invalidation_epochs(
+    value: Any,
+) -> tuple[tuple[str, int], ...]:
+    if not isinstance(value, (list, tuple)):
+        raise ValueError("viewer_node_invalidation_epochs must be a list")
+    normalized: list[tuple[str, int]] = []
+    for index, item in enumerate(value):
+        if (
+            not isinstance(item, (list, tuple))
+            or len(item) != 2
+            or not isinstance(item[0], str)
+        ):
+            raise ValueError(
+                f"viewer_node_invalidation_epochs[{index}] must be [node_id, epoch]"
+            )
+        node_id = item[0].strip()
+        if not node_id:
+            raise ValueError(
+                f"viewer_node_invalidation_epochs[{index}] node_id is required"
+            )
+        epoch = _nonnegative_int_value(
+            item[1],
+            field_name=f"viewer_node_invalidation_epochs[{index}].epoch",
+        )
+        normalized.append((node_id, epoch))
+    result = tuple(normalized)
+    if result != tuple(sorted(result)):
+        raise ValueError("viewer_node_invalidation_epochs must be sorted")
+    if len({node_id for node_id, _epoch in result}) != len(result):
+        raise ValueError("viewer_node_invalidation_epochs contains duplicate nodes")
+    return result
+
+
+def viewer_epoch_snapshot_digest(
+    *,
+    workspace_id: str,
+    node_ids: tuple[str, ...] | None,
+    workspace_epoch: int,
+    node_epochs: tuple[tuple[str, int], ...],
+) -> str:
+    return hashlib.sha256(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "workspace_id": workspace_id,
+                "node_ids": None if node_ids is None else list(node_ids),
+                "workspace_epoch": workspace_epoch,
+                "node_epochs": [list(item) for item in node_epochs],
+            },
+            ensure_ascii=True,
+            separators=(",", ":"),
+            sort_keys=True,
+        ).encode("utf-8")
+    ).hexdigest()
+
+
+def normalize_viewer_invalidation_fields(
+    *,
+    preparation_id: str,
+    workspace_id: str,
+    node_ids: Any,
+    workspace_epoch: Any,
+    node_epochs: Any,
+    reservation_id: Any,
+    snapshot_digest: Any,
+) -> dict[str, Any]:
+    normalized_node_ids = normalize_viewer_invalidation_node_ids(node_ids)
+    normalized_workspace_epoch = _nonnegative_int_value(
+        workspace_epoch,
+        field_name="viewer_workspace_invalidation_epoch",
+    )
+    normalized_node_epochs = normalize_viewer_node_invalidation_epochs(
+        node_epochs
+    )
+    normalized_reservation_id = _bounded_catalog_text(
+        reservation_id,
+        field_name="viewer_invalidation_reservation_id",
+        max_length=128,
+        allow_empty=True,
+    )
+    if normalized_reservation_id:
+        normalized_digest = _sha256_digest(
+            snapshot_digest,
+            field_name="viewer_epoch_snapshot_digest",
+        )
+        if not preparation_id:
+            raise ValueError(
+                "viewer invalidation reservation requires prepared execution"
+            )
+        expected_node_ids = (
+            () if normalized_node_ids is None else normalized_node_ids
+        )
+        if tuple(node_id for node_id, _epoch in normalized_node_epochs) != expected_node_ids:
+            raise ValueError(
+                "viewer node epochs must match the exact invalidation filter"
+            )
+        expected_digest = viewer_epoch_snapshot_digest(
+            workspace_id=workspace_id,
+            node_ids=normalized_node_ids,
+            workspace_epoch=normalized_workspace_epoch,
+            node_epochs=normalized_node_epochs,
+        )
+        if normalized_digest != expected_digest:
+            raise ValueError("viewer invalidation snapshot digest mismatch")
+    else:
+        if preparation_id:
+            raise ValueError(
+                "prepared execution requires a viewer invalidation reservation"
+            )
+        if (
+            normalized_workspace_epoch != 0
+            or normalized_node_epochs
+            or snapshot_digest not in {"", None}
+        ):
+            raise ValueError(
+                "legacy start_run forbids viewer invalidation reservation fields"
+            )
+        normalized_digest = ""
+    return {
+        "viewer_invalidation_node_ids": normalized_node_ids,
+        "viewer_workspace_invalidation_epoch": normalized_workspace_epoch,
+        "viewer_node_invalidation_epochs": normalized_node_epochs,
+        "viewer_invalidation_reservation_id": normalized_reservation_id,
+        "viewer_epoch_snapshot_digest": normalized_digest,
+    }
+
+
 def _prepared_node_decisions(value: Any) -> tuple[PreparedNodeDecision, ...]:
     if not isinstance(value, (list, tuple)):
         raise ValueError("node_decisions must be a list")
@@ -2034,6 +2231,22 @@ def command_to_dict(
                 accepted.to_payload(catalog=catalog)
                 for accepted in command.accepted_output_payloads
             ],
+            "viewer_invalidation_node_ids": (
+                None
+                if command.viewer_invalidation_node_ids is None
+                else list(command.viewer_invalidation_node_ids)
+            ),
+            "viewer_workspace_invalidation_epoch": (
+                command.viewer_workspace_invalidation_epoch
+            ),
+            "viewer_node_invalidation_epochs": [
+                [node_id, epoch]
+                for node_id, epoch in command.viewer_node_invalidation_epochs
+            ],
+            "viewer_invalidation_reservation_id": (
+                command.viewer_invalidation_reservation_id
+            ),
+            "viewer_epoch_snapshot_digest": command.viewer_epoch_snapshot_digest,
         }
         dict_to_command(payload, catalog=catalog)
         return payload
@@ -2070,6 +2283,14 @@ def command_to_dict(
                 command.options,
                 field_name="options",
                 catalog=catalog,
+            ),
+            "workspace_invalidation_epoch": _nonnegative_int_value(
+                command.workspace_invalidation_epoch,
+                field_name="workspace_invalidation_epoch",
+            ),
+            "node_invalidation_epoch": _nonnegative_int_value(
+                command.node_invalidation_epoch,
+                field_name="node_invalidation_epoch",
             ),
         }
     if isinstance(command, (OpenViewerSessionCommand, UpdateViewerSessionCommand)):
@@ -2123,6 +2344,14 @@ def command_to_dict(
             "options": _serialize_viewer_mapping(
                 command.options, field_name="options", catalog=catalog
             ),
+            "workspace_invalidation_epoch": _nonnegative_int_value(
+                command.workspace_invalidation_epoch,
+                field_name="workspace_invalidation_epoch",
+            ),
+            "node_invalidation_epoch": _nonnegative_int_value(
+                command.node_invalidation_epoch,
+                field_name="node_invalidation_epoch",
+            ),
         }
     if isinstance(command, CloseViewerSessionCommand):
         return {
@@ -2142,6 +2371,14 @@ def command_to_dict(
             ),
             "options": _serialize_viewer_mapping(
                 command.options, field_name="options", catalog=catalog
+            ),
+            "workspace_invalidation_epoch": _nonnegative_int_value(
+                command.workspace_invalidation_epoch,
+                field_name="workspace_invalidation_epoch",
+            ),
+            "node_invalidation_epoch": _nonnegative_int_value(
+                command.node_invalidation_epoch,
+                field_name="node_invalidation_epoch",
             ),
         }
     if isinstance(command, MaterializeViewerDataCommand):
@@ -2166,6 +2403,14 @@ def command_to_dict(
             ),
             "options": _serialize_viewer_mapping(
                 command.options, field_name="options", catalog=catalog
+            ),
+            "workspace_invalidation_epoch": _nonnegative_int_value(
+                command.workspace_invalidation_epoch,
+                field_name="workspace_invalidation_epoch",
+            ),
+            "node_invalidation_epoch": _nonnegative_int_value(
+                command.node_invalidation_epoch,
+                field_name="node_invalidation_epoch",
             ),
         }
     return _serialize_scalar_payload(command, catalog=catalog)
@@ -2257,6 +2502,14 @@ def event_to_dict(
                 event.explanation,
                 field_name="explanation",
             ),
+            "workspace_invalidation_epoch": _nonnegative_int_value(
+                event.workspace_invalidation_epoch,
+                field_name="workspace_invalidation_epoch",
+            ),
+            "node_invalidation_epoch": _nonnegative_int_value(
+                event.node_invalidation_epoch,
+                field_name="node_invalidation_epoch",
+            ),
         }
     if isinstance(
         event,
@@ -2316,6 +2569,14 @@ def event_to_dict(
             "options": _serialize_viewer_mapping(
                 event.options, field_name="options", catalog=catalog
             ),
+            "workspace_invalidation_epoch": _nonnegative_int_value(
+                event.workspace_invalidation_epoch,
+                field_name="workspace_invalidation_epoch",
+            ),
+            "node_invalidation_epoch": _nonnegative_int_value(
+                event.node_invalidation_epoch,
+                field_name="node_invalidation_epoch",
+            ),
         }
     if isinstance(event, ViewerSessionClosedEvent):
         return {
@@ -2365,6 +2626,14 @@ def event_to_dict(
             "options": _serialize_viewer_mapping(
                 event.options, field_name="options", catalog=catalog
             ),
+            "workspace_invalidation_epoch": _nonnegative_int_value(
+                event.workspace_invalidation_epoch,
+                field_name="workspace_invalidation_epoch",
+            ),
+            "node_invalidation_epoch": _nonnegative_int_value(
+                event.node_invalidation_epoch,
+                field_name="node_invalidation_epoch",
+            ),
         }
     if isinstance(event, ViewerSessionFailedEvent):
         return {
@@ -2384,6 +2653,14 @@ def event_to_dict(
             ),
             "command": _string_value(event.command, field_name="command"),
             "error": _string_value(event.error, field_name="error"),
+            "workspace_invalidation_epoch": _nonnegative_int_value(
+                event.workspace_invalidation_epoch,
+                field_name="workspace_invalidation_epoch",
+            ),
+            "node_invalidation_epoch": _nonnegative_int_value(
+                event.node_invalidation_epoch,
+                field_name="node_invalidation_epoch",
+            ),
         }
     return _serialize_scalar_payload(event, catalog=catalog)
 
@@ -2418,6 +2695,11 @@ def _start_run_command_from_payload(
         "trigger_publication_generations",
         "node_decisions",
         "accepted_output_payloads",
+        "viewer_invalidation_node_ids",
+        "viewer_workspace_invalidation_epoch",
+        "viewer_node_invalidation_epochs",
+        "viewer_invalidation_reservation_id",
+        "viewer_epoch_snapshot_digest",
     }
     if str(payload.get("preparation_id", "")).strip():
         if missing_prepared_fields := prepared_field_names - set(payload):
@@ -2488,6 +2770,15 @@ def _start_run_command_from_payload(
         accepted_output_payloads=payload.get("accepted_output_payloads", ()),
         catalog=catalog,
     )
+    viewer_fields = normalize_viewer_invalidation_fields(
+        preparation_id=prepared_fields["preparation_id"],
+        workspace_id=_string_field(payload, "workspace_id"),
+        node_ids=payload.get("viewer_invalidation_node_ids"),
+        workspace_epoch=payload.get("viewer_workspace_invalidation_epoch", 0),
+        node_epochs=payload.get("viewer_node_invalidation_epochs", ()),
+        reservation_id=payload.get("viewer_invalidation_reservation_id", ""),
+        snapshot_digest=payload.get("viewer_epoch_snapshot_digest", ""),
+    )
     return StartRunCommand(
         run_id=_string_field(payload, "run_id"),
         project_path=_string_field(payload, "project_path"),
@@ -2518,6 +2809,7 @@ def _start_run_command_from_payload(
         registry_contract_fingerprint=registry_contract_fingerprint,
         addon_runtime_config=addon_runtime_config,
         **prepared_fields,
+        **viewer_fields,
     )
 
 
@@ -2577,6 +2869,15 @@ def coerce_start_run_command(
             accepted_output_payloads=command.accepted_output_payloads,
             catalog=catalog,
         )
+        viewer_fields = normalize_viewer_invalidation_fields(
+            preparation_id=prepared_fields["preparation_id"],
+            workspace_id=command.workspace_id,
+            node_ids=command.viewer_invalidation_node_ids,
+            workspace_epoch=command.viewer_workspace_invalidation_epoch,
+            node_epochs=command.viewer_node_invalidation_epochs,
+            reservation_id=command.viewer_invalidation_reservation_id,
+            snapshot_digest=command.viewer_epoch_snapshot_digest,
+        )
         return StartRunCommand(
             run_id=_string_field({"run_id": command.run_id}, "run_id"),
             project_path=_string_field(
@@ -2613,6 +2914,7 @@ def coerce_start_run_command(
             registry_contract_fingerprint=registry_contract_fingerprint,
             addon_runtime_config=addon_runtime_config,
             **prepared_fields,
+            **viewer_fields,
         )
 
     if (
@@ -2674,6 +2976,15 @@ def coerce_start_run_command(
         accepted_output_payloads=command.get("accepted_output_payloads", ()),
         catalog=catalog,
     )
+    viewer_fields = normalize_viewer_invalidation_fields(
+        preparation_id=prepared_fields["preparation_id"],
+        workspace_id=_string_field(command, "workspace_id"),
+        node_ids=command.get("viewer_invalidation_node_ids"),
+        workspace_epoch=command.get("viewer_workspace_invalidation_epoch", 0),
+        node_epochs=command.get("viewer_node_invalidation_epochs", ()),
+        reservation_id=command.get("viewer_invalidation_reservation_id", ""),
+        snapshot_digest=command.get("viewer_epoch_snapshot_digest", ""),
+    )
     return StartRunCommand(
         run_id=_string_field(command, "run_id"),
         project_path=_string_field(command, "project_path"),
@@ -2704,6 +3015,7 @@ def coerce_start_run_command(
         registry_contract_fingerprint=registry_contract_fingerprint,
         addon_runtime_config=addon_runtime_config,
         **prepared_fields,
+        **viewer_fields,
     )
 
 
@@ -2727,6 +3039,28 @@ def dict_to_command(
         return ResumeRunCommand(run_id=_string_field(payload, "run_id"))
     if command_type == "shutdown":
         return ShutdownCommand()
+    if command_type == "commit_run_preflight":
+        return CommitRunPreflightCommand(
+            run_id=_string_field(payload, "run_id", strip=True),
+            viewer_invalidation_reservation_id=_string_field(
+                payload, "viewer_invalidation_reservation_id", strip=True
+            ),
+            viewer_epoch_snapshot_digest=_sha256_digest(
+                payload.get("viewer_epoch_snapshot_digest", ""),
+                field_name="viewer_epoch_snapshot_digest",
+            ),
+        )
+    if command_type == "cancel_run_preflight":
+        return CancelRunPreflightCommand(
+            run_id=_string_field(payload, "run_id", strip=True),
+            viewer_invalidation_reservation_id=_string_field(
+                payload, "viewer_invalidation_reservation_id", strip=True
+            ),
+            viewer_epoch_snapshot_digest=_sha256_digest(
+                payload.get("viewer_epoch_snapshot_digest", ""),
+                field_name="viewer_epoch_snapshot_digest",
+            ),
+        )
     if command_type == "open_viewer_session":
         return OpenViewerSessionCommand(
             request_id=_string_field(payload, "request_id"),
@@ -2756,6 +3090,12 @@ def dict_to_command(
             ),
             summary=_deserialize_viewer_mapping(payload, "summary", catalog=catalog),
             options=_deserialize_viewer_mapping(payload, "options", catalog=catalog),
+            workspace_invalidation_epoch=_nonnegative_int_field(
+                payload, "workspace_invalidation_epoch"
+            ),
+            node_invalidation_epoch=_nonnegative_int_field(
+                payload, "node_invalidation_epoch"
+            ),
         )
     if command_type == "update_viewer_session":
         return UpdateViewerSessionCommand(
@@ -2786,6 +3126,12 @@ def dict_to_command(
             ),
             summary=_deserialize_viewer_mapping(payload, "summary", catalog=catalog),
             options=_deserialize_viewer_mapping(payload, "options", catalog=catalog),
+            workspace_invalidation_epoch=_nonnegative_int_field(
+                payload, "workspace_invalidation_epoch"
+            ),
+            node_invalidation_epoch=_nonnegative_int_field(
+                payload, "node_invalidation_epoch"
+            ),
         )
     if command_type == "close_viewer_session":
         return CloseViewerSessionCommand(
@@ -2794,6 +3140,12 @@ def dict_to_command(
             node_id=_string_field(payload, "node_id"),
             session_id=_string_field(payload, "session_id"),
             options=_deserialize_viewer_mapping(payload, "options", catalog=catalog),
+            workspace_invalidation_epoch=_nonnegative_int_field(
+                payload, "workspace_invalidation_epoch"
+            ),
+            node_invalidation_epoch=_nonnegative_int_field(
+                payload, "node_invalidation_epoch"
+            ),
         )
     if command_type == "materialize_viewer_data":
         return MaterializeViewerDataCommand(
@@ -2803,6 +3155,12 @@ def dict_to_command(
             session_id=_string_field(payload, "session_id"),
             backend_id=_string_field(payload, "backend_id"),
             options=_deserialize_viewer_mapping(payload, "options", catalog=catalog),
+            workspace_invalidation_epoch=_nonnegative_int_field(
+                payload, "workspace_invalidation_epoch"
+            ),
+            node_invalidation_epoch=_nonnegative_int_field(
+                payload, "node_invalidation_epoch"
+            ),
         )
     if command_type == "query_viewer_session":
         return QueryViewerSessionCommand(
@@ -2814,6 +3172,12 @@ def dict_to_command(
             query_type=_string_field(payload, "query_type"),
             payload=_deserialize_viewer_mapping(payload, "payload", catalog=catalog),
             options=_deserialize_viewer_mapping(payload, "options", catalog=catalog),
+            workspace_invalidation_epoch=_nonnegative_int_field(
+                payload, "workspace_invalidation_epoch"
+            ),
+            node_invalidation_epoch=_nonnegative_int_field(
+                payload, "node_invalidation_epoch"
+            ),
         )
     raise ValueError(f"Unknown command type: {command_type!r}")
 
@@ -2825,6 +3189,19 @@ def dict_to_event(
 ) -> WorkerEvent:
     payload = dict(copy_json_safe(payload, field_name="worker event"))
     event_type = _string_field(payload, "type")
+    if event_type == "run_preflight_accepted":
+        return RunPreflightAcceptedEvent(
+            run_id=_string_field(payload, "run_id", strip=True),
+            workspace_id=_string_field(payload, "workspace_id", strip=True),
+            preparation_id=_string_field(payload, "preparation_id", strip=True),
+            viewer_invalidation_reservation_id=_string_field(
+                payload, "viewer_invalidation_reservation_id", strip=True
+            ),
+            viewer_epoch_snapshot_digest=_sha256_digest(
+                payload.get("viewer_epoch_snapshot_digest", ""),
+                field_name="viewer_epoch_snapshot_digest",
+            ),
+        )
     if event_type == "run_started":
         return RunStartedEvent(
             run_id=_string_field(payload, "run_id"),
@@ -2973,6 +3350,12 @@ def dict_to_event(
             ),
             summary=_deserialize_viewer_mapping(payload, "summary", catalog=catalog),
             options=_deserialize_viewer_mapping(payload, "options", catalog=catalog),
+            workspace_invalidation_epoch=_nonnegative_int_field(
+                payload, "workspace_invalidation_epoch"
+            ),
+            node_invalidation_epoch=_nonnegative_int_field(
+                payload, "node_invalidation_epoch"
+            ),
         )
     if event_type == "viewer_session_updated":
         return ViewerSessionUpdatedEvent(
@@ -3003,6 +3386,12 @@ def dict_to_event(
             ),
             summary=_deserialize_viewer_mapping(payload, "summary", catalog=catalog),
             options=_deserialize_viewer_mapping(payload, "options", catalog=catalog),
+            workspace_invalidation_epoch=_nonnegative_int_field(
+                payload, "workspace_invalidation_epoch"
+            ),
+            node_invalidation_epoch=_nonnegative_int_field(
+                payload, "node_invalidation_epoch"
+            ),
         )
     if event_type == "viewer_session_closed":
         return ViewerSessionClosedEvent(
@@ -3030,6 +3419,12 @@ def dict_to_event(
             ),
             summary=_deserialize_viewer_mapping(payload, "summary", catalog=catalog),
             options=_deserialize_viewer_mapping(payload, "options", catalog=catalog),
+            workspace_invalidation_epoch=_nonnegative_int_field(
+                payload, "workspace_invalidation_epoch"
+            ),
+            node_invalidation_epoch=_nonnegative_int_field(
+                payload, "node_invalidation_epoch"
+            ),
         )
     if event_type == "viewer_data_materialized":
         return ViewerDataMaterializedEvent(
@@ -3060,6 +3455,12 @@ def dict_to_event(
             ),
             summary=_deserialize_viewer_mapping(payload, "summary", catalog=catalog),
             options=_deserialize_viewer_mapping(payload, "options", catalog=catalog),
+            workspace_invalidation_epoch=_nonnegative_int_field(
+                payload, "workspace_invalidation_epoch"
+            ),
+            node_invalidation_epoch=_nonnegative_int_field(
+                payload, "node_invalidation_epoch"
+            ),
         )
     if event_type == "viewer_query_result":
         return ViewerQueryResultEvent(
@@ -3072,6 +3473,12 @@ def dict_to_event(
             supported=_bool_field(payload, "supported"),
             value=_deserialize_viewer_mapping(payload, "value", catalog=catalog),
             explanation=_string_field(payload, "explanation"),
+            workspace_invalidation_epoch=_nonnegative_int_field(
+                payload, "workspace_invalidation_epoch"
+            ),
+            node_invalidation_epoch=_nonnegative_int_field(
+                payload, "node_invalidation_epoch"
+            ),
         )
     if event_type == "viewer_session_failed":
         return ViewerSessionFailedEvent(
@@ -3081,5 +3488,11 @@ def dict_to_event(
             session_id=_string_field(payload, "session_id"),
             command=_string_field(payload, "command"),
             error=_string_field(payload, "error"),
+            workspace_invalidation_epoch=_nonnegative_int_field(
+                payload, "workspace_invalidation_epoch"
+            ),
+            node_invalidation_epoch=_nonnegative_int_field(
+                payload, "node_invalidation_epoch"
+            ),
         )
     raise ValueError(f"Unknown event type: {event_type!r}")

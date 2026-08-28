@@ -15,7 +15,7 @@ import sys
 import threading
 import time
 import uuid
-from collections.abc import Callable, Iterator, Mapping, Sequence
+from collections.abc import Callable, Iterable, Iterator, Mapping, Sequence
 from contextlib import contextmanager
 from dataclasses import dataclass, field, replace
 from pathlib import Path
@@ -91,6 +91,8 @@ ExecutionEventCallback = Callable[[ExecutionEvent], None]
 TERMINAL_EVENT_TYPES = frozenset({"run_completed", "run_failed", "run_stopped"})
 RUN_SCOPED_EVENT_TYPES = frozenset(
     {
+        "run_preflight_accepted",
+        "viewer_invalidation_committed",
         "run_started",
         "run_state",
         "run_completed",
@@ -949,6 +951,7 @@ class CorexRuntime:
             raise TypeError("prepared must be a PreparedExecution")
         solution_events: list[InvalidationResult] = []
         reservation: Any | None = None
+        viewer_reservation: Any | None = None
         command: Any | None = None
         candidate_fingerprint = ""
         dispatch_workspace_revision = -1
@@ -1005,6 +1008,18 @@ class CorexRuntime:
                     prepared,
                     entry=entry,
                     generation_snapshot=reservation.generation_snapshot,
+                )
+                viewer_node_ids = tuple(
+                    decision.node_id
+                    for decision in prepared.node_decisions
+                    if decision.action is PreparedAction.EXECUTE
+                    and entry.plan.node_specs[decision.node_id].surface_family
+                    == "viewer"
+                )
+                viewer_reservation = self._client.reserve_viewer_invalidation(
+                    reservation,
+                    prepared.preparation_id,
+                    viewer_node_ids,
                 )
                 if not entry.generation_snapshot.available:
                     self._release_all_solution_resources()
@@ -1080,6 +1095,19 @@ class CorexRuntime:
                         ),
                         node_decisions=prepared.node_decisions,
                         accepted_output_payloads=prepared.accepted_output_payloads,
+                        viewer_invalidation_node_ids=viewer_reservation.node_ids,
+                        viewer_workspace_invalidation_epoch=(
+                            viewer_reservation.workspace_epoch
+                        ),
+                        viewer_node_invalidation_epochs=(
+                            viewer_reservation.node_epochs
+                        ),
+                        viewer_invalidation_reservation_id=(
+                            viewer_reservation.reservation_id
+                        ),
+                        viewer_epoch_snapshot_digest=(
+                            viewer_reservation.snapshot_digest
+                        ),
                     ),
                     catalog=candidate_registry.data_types,
                 )
@@ -1090,6 +1118,8 @@ class CorexRuntime:
         except Exception:
             if reservation is not None:
                 with self._lifecycle_lock, self.registry_publication_guard():
+                    if viewer_reservation is not None:
+                        self._client.cancel_viewer_invalidation(viewer_reservation)
                     self._solution_store.release_run(
                         reservation.run_id,
                         "dispatch_preparation_failed",
@@ -1139,12 +1169,16 @@ class CorexRuntime:
         except Exception:
             reason = "start_failed" if started else "dispatch_changed_before_start"
             with self._lifecycle_lock, self.registry_publication_guard():
+                if viewer_reservation is not None:
+                    self._client.cancel_viewer_invalidation(viewer_reservation)
                 self._solution_store.release_run(reservation.run_id, reason)
                 self._run_artifact_services.pop(reservation.run_id, None)
                 self._client.release_run_reservation(reservation, reason)
             raise
 
         with self._lifecycle_lock, self.registry_publication_guard():
+            if viewer_reservation is not None:
+                self._client.cancel_viewer_invalidation(viewer_reservation)
             self._solution_store.release_run(reservation.run_id, "start_failed")
             self._run_artifact_services.pop(reservation.run_id, None)
             self._client.release_run_reservation(reservation, "start_failed")
@@ -1559,6 +1593,36 @@ class CorexRuntime:
 
     def materialize_viewer_data(self, *args: Any, **kwargs: Any) -> str:
         return self._client.materialize_viewer_data(*args, **kwargs)
+
+    def query_viewer_session(
+        self,
+        workspace_id: str,
+        node_id: str,
+        session_id: str,
+        *,
+        run_id: str = "",
+        backend_id: str = "",
+        query_type: str,
+        payload: dict[str, Any] | None = None,
+        options: dict[str, Any] | None = None,
+    ) -> str:
+        return self._client.query_viewer_session(
+            workspace_id,
+            node_id,
+            session_id,
+            run_id=run_id,
+            backend_id=backend_id,
+            query_type=query_type,
+            payload=payload,
+            options=options,
+        )
+
+    def invalidate_viewer_requests(
+        self,
+        workspace_id: str,
+        node_ids: Iterable[str] | None,
+    ) -> int:
+        return self._client.invalidate_viewer_requests(workspace_id, node_ids)
 
     def shutdown(self) -> None:
         with self._lifecycle_lock:

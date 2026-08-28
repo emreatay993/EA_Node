@@ -287,7 +287,6 @@ class RunController:
             runtime_snapshot=runtime_snapshot,
             trigger_kind="manual",
             target_node_ids=self._active_node_ids(workspace),
-            viewer_preflight=True,
         )
         if not run_id:
             self._host.console_panel.append_log(
@@ -452,7 +451,6 @@ class RunController:
         target_node_ids: tuple[str, ...],
         trigger_captures: Mapping[str, SettledPortResult] | None = None,
         clicked_trigger_node_id: str = "",
-        viewer_preflight: bool = False,
     ) -> str:
         client = self._host.execution_client
         request = ExecutionRequest(
@@ -474,11 +472,8 @@ class RunController:
             trigger_captures=dict(trigger_captures or {}),
             clicked_trigger_node_id=clicked_trigger_node_id,
         )
-        viewer_preflight_reset = False
         try:
             prepared = client.prepare_execution(request)
-            if viewer_preflight:
-                viewer_preflight_reset = self._preflight_release_live_viewers_for_rerun()
             for node_id in prepared.recompute_node_ids:
                 clear_port_availability_runtime_node(workspace_id, node_id)
             run_id = client.dispatch_prepared(prepared)
@@ -487,18 +482,10 @@ class RunController:
             run_id = ""
         self._sync_solution_facts(workspace_id)
         if not run_id:
-            if viewer_preflight_reset:
-                self._restore_live_viewers_after_failed_start()
             return ""
         self._state.active_run_id = run_id
         self._state.active_run_workspace_id = workspace_id
         self._run_start_runtime_snapshots[run_id] = runtime_snapshot
-        self._invalidate_viewer_sessions_for_rerun(
-            workspace_id=workspace_id,
-            run_id=run_id,
-        )
-        if viewer_preflight_reset:
-            self._resume_live_viewers_after_preflight()
         return run_id
 
     def _execution_backend_policy_for_runtime_snapshot(
@@ -608,6 +595,11 @@ class RunController:
 
     def handle_execution_event(self, event: dict[str, Any]) -> None:
         event_type = str(event.get("type", ""))
+        if event_type in {
+            "run_preflight_accepted",
+            "viewer_invalidation_committed",
+        } and str(event.get("run_id", "")) != self._state.active_run_id:
+            return
         if not event_targets_active_run(
             event,
             active_run_id=self._state.active_run_id,
@@ -616,6 +608,9 @@ class RunController:
             return
         if event_type == "solution_state_changed":
             self._handle_solution_state_changed(event)
+            return
+        if event_type == "viewer_invalidation_committed":
+            self._adopt_committed_viewer_invalidation(event)
             return
 
         if event_type == "run_started":
@@ -1607,31 +1602,29 @@ class RunController:
                 break
         return tuple(normalized)
 
-    def _invalidate_viewer_sessions_for_rerun(
-        self, *, workspace_id: str, run_id: str
+    def _adopt_committed_viewer_invalidation(
+        self, event: Mapping[str, Any]
     ) -> None:
         viewer_session_bridge = getattr(self._host, "viewer_session_bridge", None)
         if viewer_session_bridge is None:
             return
-        project_workspace_run_required = getattr(
-            viewer_session_bridge, "project_workspace_run_required", None
+        adopt = getattr(
+            viewer_session_bridge, "adopt_committed_invalidation", None
         )
-        if callable(project_workspace_run_required):
-            project_workspace_run_required(
-                workspace_id,
-                reason="workspace_rerun",
-                run_id=run_id,
-            )
+        if not callable(adopt):
             return
-        invalidate_workspace_sessions = getattr(
-            viewer_session_bridge, "invalidate_workspace_sessions", None
-        )
-        if not callable(invalidate_workspace_sessions):
-            return
-        invalidate_workspace_sessions(
-            workspace_id,
-            reason="workspace_rerun",
-            run_id=run_id,
+        adopt(
+            workspace_id=str(event.get("workspace_id", "")),
+            node_ids=event.get("viewer_invalidation_node_ids"),
+            workspace_epoch=event.get(
+                "viewer_workspace_invalidation_epoch", 0
+            ),
+            node_epochs=event.get("viewer_node_invalidation_epochs", ()),
+            snapshot_digest=str(
+                event.get("viewer_epoch_snapshot_digest", "")
+            ),
+            reason=str(event.get("reason", "workspace_rerun")),
+            run_id=str(event.get("run_id", "")),
         )
 
     def _invalidate_viewer_sessions_for_worker_reset(self) -> None:
@@ -1656,92 +1649,6 @@ class RunController:
         if not normalized_run_id:
             return None
         return self._run_start_runtime_snapshots.pop(normalized_run_id, None)
-
-    def _preflight_release_live_viewers_for_rerun(self) -> bool:
-        if not self._active_workspace_has_live_viewer_session():
-            return False
-        viewer_host_service = getattr(self._host, "viewer_host_service", None)
-        suspend_sync = getattr(viewer_host_service, "suspend_sync", None)
-        if callable(suspend_sync):
-            try:
-                suspend_sync(reason="workspace_rerun_preflight")
-            except Exception:  # noqa: BLE001
-                return False
-        reset = getattr(viewer_host_service, "reset", None)
-        if not callable(reset):
-            return False
-        try:
-            reset(reason="workspace_rerun_preflight")
-        except Exception:  # noqa: BLE001
-            return False
-        return True
-
-    def _resume_live_viewers_after_preflight(self) -> None:
-        viewer_host_service = getattr(self._host, "viewer_host_service", None)
-        resume_sync = getattr(viewer_host_service, "resume_sync", None)
-        if callable(resume_sync):
-            try:
-                resume_sync()
-            except Exception:  # noqa: BLE001
-                return
-            return
-        sync = getattr(viewer_host_service, "sync", None)
-        if not callable(sync):
-            return
-        try:
-            sync()
-        except Exception:  # noqa: BLE001
-            return
-
-    def _restore_live_viewers_after_failed_start(self) -> None:
-        self._resume_live_viewers_after_preflight()
-
-    def _active_workspace_has_live_viewer_session(self) -> bool:
-        viewer_session_bridge = getattr(self._host, "viewer_session_bridge", None)
-        sessions_model = getattr(viewer_session_bridge, "sessions_model", None)
-        if not isinstance(sessions_model, list):
-            return False
-        for projected_state in sessions_model:
-            session_model = self._session_model_payload(projected_state)
-            if str(session_model.get("phase", "")).strip() != "open":
-                continue
-            options = self._mapping(session_model.get("options"))
-            live_mode = (
-                str(session_model.get("live_mode") or options.get("live_mode") or "")
-                .strip()
-                .lower()
-            )
-            if live_mode != "full":
-                continue
-            live_open_status = (
-                str(
-                    session_model.get("live_open_status")
-                    or options.get("live_open_status")
-                    or ""
-                )
-                .strip()
-                .lower()
-            )
-            cache_state = (
-                str(
-                    session_model.get("cache_state") or options.get("cache_state") or ""
-                )
-                .strip()
-                .lower()
-            )
-            if live_open_status == "ready" or cache_state == "live_ready":
-                return True
-        return False
-
-    @staticmethod
-    def _mapping(value: Any) -> dict[str, Any]:
-        return dict(value) if isinstance(value, Mapping) else {}
-
-    @classmethod
-    def _session_model_payload(cls, projected_state: Any) -> dict[str, Any]:
-        payload = cls._mapping(projected_state)
-        session_model = cls._mapping(payload.get("session_model"))
-        return session_model if session_model else payload
 
     @staticmethod
     def _coerce_nonnegative_timing_ms(value: object) -> float:

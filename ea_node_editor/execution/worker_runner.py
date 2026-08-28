@@ -13,10 +13,13 @@ from types import MappingProxyType
 from typing import Any
 
 from ea_node_editor.execution.protocol import (
+    CancelRunPreflightCommand,
+    CommitRunPreflightCommand,
     PauseRunCommand,
     ResumeRunCommand,
     RunCompletedEvent,
     RunFailedEvent,
+    RunPreflightAcceptedEvent,
     RunStartedEvent,
     RunStoppedEvent,
     ShutdownCommand,
@@ -80,6 +83,8 @@ from ea_node_editor.runtime_contracts import (
     RuntimeHandleRef,
     TypedInlineValue,
 )
+
+_RUN_PREFLIGHT_COMMIT_TIMEOUT_SEC = 30.0
 
 _CONTEXT_SEMANTIC_LINK_FIELDS = (
     "id",
@@ -306,6 +311,23 @@ class RunEventPublisher:
     def emit_run_started(self) -> None:
         self.emit(RunStartedEvent(run_id=self.run_id, workspace_id=self.workspace_id))
         self.emit_run_state(state="running", transition="start", reason="run_started")
+
+    def emit_run_preflight_accepted(
+        self,
+        *,
+        preparation_id: str,
+        reservation_id: str,
+        snapshot_digest: str,
+    ) -> None:
+        self.emit(
+            RunPreflightAcceptedEvent(
+                run_id=self.run_id,
+                workspace_id=self.workspace_id,
+                preparation_id=preparation_id,
+                viewer_invalidation_reservation_id=reservation_id,
+                viewer_epoch_snapshot_digest=snapshot_digest,
+            )
+        )
 
     def emit_run_state(self, *, state: str, transition: str, reason: str) -> None:
         emit_run_state(
@@ -1605,10 +1627,14 @@ class WorkflowRunner:
         worker_services: WorkerServices | None = None,
     ) -> None:
         self._command = command
+        self._command_queue = command_queue
         self._worker_services = worker_services or WorkerServices()
         self._preflight_error: tuple[str, str, str] | None = None
         self._plan: ExecutionPlan | None = None
         self._executor: NodeExecutor | None = None
+        self._viewer_invalidation_node_ids: tuple[str, ...] | None = ()
+        self._buffered_preflight_commands: list[WorkerCommand] = []
+        self._viewer_workspace_context: tuple[str, RuntimeSnapshot, RuntimeSnapshotContext] | None = None
         self._reused_outputs: dict[
             str,
             tuple[
@@ -1704,13 +1730,37 @@ class WorkflowRunner:
                 developer_mode=command.developer_mode,
             )
             self._validate_prepared_command(prepared)
-            self._worker_services.viewer_session_service.prepare_workspace_context(
-                workspace_id=command.workspace_id,
-                project_path=command.project_path,
-                runtime_snapshot=prepared.runtime_snapshot,
-                runtime_snapshot_context=prepared.runtime_context,
-                invalidate_existing=True,
+            viewer_node_ids = (
+                None
+                if not command.preparation_id
+                else tuple(
+                    decision.node_id
+                    for decision in command.node_decisions
+                    if decision.action is PreparedAction.EXECUTE
+                    and prepared.plan.node_specs[decision.node_id].surface_family
+                    == "viewer"
+                )
             )
+            if command.preparation_id and (
+                viewer_node_ids != command.viewer_invalidation_node_ids
+            ):
+                raise ValueError(
+                    "prepared viewer invalidation filter changed"
+                )
+            self._viewer_invalidation_node_ids = viewer_node_ids
+            self._viewer_workspace_context = (
+                command.project_path,
+                prepared.runtime_snapshot,
+                prepared.runtime_context,
+            )
+            if command.preparation_id:
+                self._worker_services.viewer_session_service.validate_invalidation_snapshot(
+                    workspace_id=command.workspace_id,
+                    node_ids=command.viewer_invalidation_node_ids,
+                    workspace_epoch=command.viewer_workspace_invalidation_epoch,
+                    node_epochs=command.viewer_node_invalidation_epochs,
+                    snapshot_digest=command.viewer_epoch_snapshot_digest,
+                )
         except Exception as exc:  # noqa: BLE001
             self._preflight_error = (
                 _exception_message(exc),
@@ -1868,18 +1918,65 @@ class WorkflowRunner:
                 event_outputs,
             )
 
+    def _await_run_preflight_commit(self) -> tuple[bool, str]:
+        command_queue = self._command_queue
+        if command_queue is None:
+            return False, "run_preflight_commit_queue_unavailable"
+        deadline = time.monotonic() + _RUN_PREFLIGHT_COMMIT_TIMEOUT_SEC
+        while True:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0.0:
+                return False, "run_preflight_commit_timeout"
+            try:
+                raw_command = command_queue.get(timeout=min(remaining, 0.25))
+            except queue.Empty:
+                continue
+            command = decode_command_payload(
+                raw_command,
+                event_queue=self._control._event_queue,  # noqa: SLF001
+                catalog=self._control._data_types,  # noqa: SLF001
+            )
+            if command is None:
+                continue
+            if isinstance(command, (CommitRunPreflightCommand, CancelRunPreflightCommand)):
+                matches = (
+                    command.run_id == self._command.run_id
+                    and command.viewer_invalidation_reservation_id
+                    == self._command.viewer_invalidation_reservation_id
+                    and command.viewer_epoch_snapshot_digest
+                    == self._command.viewer_epoch_snapshot_digest
+                )
+                if not matches:
+                    emit_protocol_error(
+                        self._control._event_queue,  # noqa: SLF001
+                        "Run preflight acknowledgment does not match the reservation.",
+                        run_id=command.run_id,
+                        workspace_id=self._command.workspace_id,
+                        command=command.type,
+                        catalog=self._control._data_types,  # noqa: SLF001
+                    )
+                    continue
+                return (
+                    isinstance(command, CommitRunPreflightCommand),
+                    "" if isinstance(command, CommitRunPreflightCommand)
+                    else "run_preflight_cancelled",
+                )
+            if isinstance(command, (ShutdownCommand, StopRunCommand)):
+                self._control._handle_command(command)  # noqa: SLF001
+                return False, self._control.stop_reason or "run_preflight_cancelled"
+            if is_viewer_command(command):
+                self._buffered_preflight_commands.append(command)
+                continue
+            self._control._handle_command(command)  # noqa: SLF001
+
+    def _dispatch_buffered_preflight_commands(self) -> None:
+        buffered = tuple(self._buffered_preflight_commands)
+        self._buffered_preflight_commands.clear()
+        for command in buffered:
+            self._control._handle_command(command)  # noqa: SLF001
+
     def run(self) -> None:
         try:
-            self._publisher.emit_run_started()
-            self._publisher.emit_log("info", "Workflow run started.")
-            self._publisher.emit_log(
-                "info",
-                (
-                    "Execution backend selected: "
-                    f"{self._command.execution_backend.backend_id} "
-                    f"({self._command.execution_backend.reason})."
-                ),
-            )
             if self._preflight_error is not None:
                 error, traceback_text, reason = self._preflight_error
                 self._publisher.emit_run_failed(
@@ -1891,6 +1988,79 @@ class WorkflowRunner:
                 return
             assert self._plan is not None
             assert self._executor is not None
+            if self._command.preparation_id:
+                self._publisher.emit_run_preflight_accepted(
+                    preparation_id=self._command.preparation_id,
+                    reservation_id=(
+                        self._command.viewer_invalidation_reservation_id
+                    ),
+                    snapshot_digest=self._command.viewer_epoch_snapshot_digest,
+                )
+                committed, cancel_reason = self._await_run_preflight_commit()
+                if not committed:
+                    self._buffered_preflight_commands.clear()
+                    self._publisher.emit_run_failed(
+                        node_id="",
+                        error=cancel_reason,
+                        traceback_text="",
+                        reason=cancel_reason,
+                    )
+                    return
+                assert self._viewer_workspace_context is not None
+                project_path, runtime_snapshot, runtime_context = (
+                    self._viewer_workspace_context
+                )
+                try:
+                    self._worker_services.viewer_session_service.adopt_invalidation_snapshot(
+                        workspace_id=self._command.workspace_id,
+                        node_ids=self._command.viewer_invalidation_node_ids,
+                        workspace_epoch=(
+                            self._command.viewer_workspace_invalidation_epoch
+                        ),
+                        node_epochs=self._command.viewer_node_invalidation_epochs,
+                        snapshot_digest=self._command.viewer_epoch_snapshot_digest,
+                        reason="workspace_rerun",
+                        buffered_viewer_commands=bool(
+                            self._buffered_preflight_commands
+                        ),
+                    )
+                except Exception:
+                    self._publisher.emit_run_started()
+                    raise
+                self._publisher.emit_run_started()
+                self._worker_services.viewer_session_service.install_workspace_context(
+                    workspace_id=self._command.workspace_id,
+                    project_path=project_path,
+                    runtime_snapshot=runtime_snapshot,
+                    runtime_snapshot_context=runtime_context,
+                )
+                self._dispatch_buffered_preflight_commands()
+            else:
+                assert self._viewer_workspace_context is not None
+                project_path, runtime_snapshot, runtime_context = (
+                    self._viewer_workspace_context
+                )
+                self._worker_services.viewer_session_service.install_workspace_context(
+                    workspace_id=self._command.workspace_id,
+                    project_path=project_path,
+                    runtime_snapshot=runtime_snapshot,
+                    runtime_snapshot_context=runtime_context,
+                )
+                self._worker_services.viewer_session_service.invalidate_workspace(
+                    self._command.workspace_id,
+                    reason="workspace_rerun",
+                    node_ids=None,
+                )
+                self._publisher.emit_run_started()
+            self._publisher.emit_log("info", "Workflow run started.")
+            self._publisher.emit_log(
+                "info",
+                (
+                    "Execution backend selected: "
+                    f"{self._command.execution_backend.backend_id} "
+                    f"({self._command.execution_backend.reason})."
+                ),
+            )
             for node_id in self._plan.execution_order:
                 reused = self._reused_outputs.get(node_id)
                 status = (

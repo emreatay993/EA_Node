@@ -490,6 +490,7 @@ def test_connection_failure_error_is_fixed_and_sensitive_text_free(
         SimpleNamespace(output_ports=lambda _node_id: ()),
     )
     object.__setattr__(executor, "_developer_mode", False)
+    object.__setattr__(executor, "_node_decisions", {})
     executor.node_outputs = {}
     executor.executed = set()
 

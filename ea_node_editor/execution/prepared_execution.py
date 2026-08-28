@@ -461,6 +461,11 @@ class PreparedDispatchEnvelope:
             "trigger_publication_generations",
             "node_decisions",
             "accepted_output_payloads",
+            "viewer_invalidation_node_ids",
+            "viewer_workspace_invalidation_epoch",
+            "viewer_node_invalidation_epochs",
+            "viewer_invalidation_reservation_id",
+            "viewer_epoch_snapshot_digest",
         ):
             command_payload.pop(field_name, None)
         command_payload.update(

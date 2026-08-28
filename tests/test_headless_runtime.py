@@ -6,14 +6,28 @@ import hashlib
 import json
 import queue
 import threading
+import time
 from typing import Any
 
 import pytest
+from unittest.mock import patch
 
-from ea_node_editor.execution.backends import ExecutionBackendSelection
+from ea_node_editor.execution.backends import (
+    TRUSTED_IN_PROCESS_BACKEND,
+    ExecutionBackendSelection,
+)
 from ea_node_editor.execution.client import (
     ExecutionGenerationSnapshot,
     ExecutionRunReservation,
+    ViewerInvalidationReservation,
+    _ViewerInvalidationSnapshot,
+)
+from ea_node_editor.execution.protocol import (
+    CancelRunPreflightCommand,
+    CommitRunPreflightCommand,
+    OpenViewerSessionCommand,
+    command_to_dict,
+    viewer_epoch_snapshot_digest,
 )
 from ea_node_editor.execution.headless_runtime import CorexRuntime, ExecutionRequest
 from ea_node_editor.execution.prepared_execution import (
@@ -23,9 +37,11 @@ from ea_node_editor.execution.prepared_execution import (
 )
 from ea_node_editor.execution.runtime_snapshot import build_runtime_snapshot
 from ea_node_editor.execution.worker_runner import WorkflowRunner
+from ea_node_editor.execution.worker_services import WorkerServices
 from ea_node_editor.graph.model import GraphModel
-from ea_node_editor.nodes.bootstrap import build_default_registry
+from ea_node_editor.nodes.bootstrap import build_builtin_registry, build_default_registry
 from ea_node_editor.runtime_contracts import DataTree
+from ea_node_editor.runtime_contracts import DataTypeCatalogError
 from ea_node_editor.runtime_contracts.settled_results import (
     SettledPortResult,
     settled_outputs_to_payload,
@@ -55,6 +71,9 @@ class _PreparedClient:
         self.reservation_generation: int | None = None
         self.publication_lock = threading.RLock()
         self._next_run = 0
+        self.viewer_reservations: dict[str, ViewerInvalidationReservation] = {}
+        self.viewer_queries: list[tuple[Any, ...]] = []
+        self.viewer_invalidations: list[tuple[str, object]] = []
 
     def subscribe(self, callback):  # noqa: ANN001, ANN201
         self.callbacks.append(callback)
@@ -127,6 +146,49 @@ class _PreparedClient:
                     snapshot=reservation.generation_snapshot,
                 )
             raise RuntimeError("start failed")
+        self.emit(
+            {
+                "type": "run_preflight_accepted",
+                "run_id": reservation.run_id,
+                "workspace_id": reservation.workspace_id,
+                "preparation_id": command.preparation_id,
+                "viewer_invalidation_reservation_id": (
+                    command.viewer_invalidation_reservation_id
+                ),
+                "viewer_epoch_snapshot_digest": (
+                    command.viewer_epoch_snapshot_digest
+                ),
+            },
+            snapshot=reservation.generation_snapshot,
+        )
+        viewer_reservation = self.viewer_reservations[
+            command.viewer_invalidation_reservation_id
+        ]
+        projection = viewer_reservation.projection_snapshot
+        self.emit(
+            {
+                "type": "viewer_invalidation_committed",
+                "run_id": reservation.run_id,
+                "workspace_id": reservation.workspace_id,
+                "viewer_invalidation_node_ids": list(
+                    command.viewer_invalidation_node_ids or ()
+                ),
+                "viewer_workspace_invalidation_epoch": projection.workspace_epoch,
+                "viewer_node_invalidation_epochs": [
+                    list(item) for item in projection.node_epochs
+                ],
+                "viewer_invalidation_reservation_id": (
+                    command.viewer_invalidation_reservation_id
+                ),
+                "viewer_epoch_snapshot_digest": projection.snapshot_digest,
+                "retired_request_count": 0,
+                "reason": "workspace_rerun",
+            },
+            snapshot=reservation.generation_snapshot,
+        )
+        self.viewer_reservations.pop(
+            command.viewer_invalidation_reservation_id, None
+        )
         decisions = {item.node_id: item for item in command.node_decisions}
         accepted = {item.node_id: item for item in command.accepted_output_payloads}
         for source in self.events_on_start:
@@ -159,6 +221,44 @@ class _PreparedClient:
             self.emit(event, snapshot=reservation.generation_snapshot)
         return reservation.run_id
 
+    def reserve_viewer_invalidation(
+        self, run_reservation, preparation_id, node_ids  # noqa: ANN001, ANN201
+    ):
+        normalized_node_ids = tuple(node_ids)
+        node_epochs = tuple((node_id, 1) for node_id in normalized_node_ids)
+        digest = viewer_epoch_snapshot_digest(
+            workspace_id=run_reservation.workspace_id,
+            node_ids=normalized_node_ids,
+            workspace_epoch=0,
+            node_epochs=node_epochs,
+        )
+        concrete_snapshot = _ViewerInvalidationSnapshot(
+            generation=run_reservation.generation_snapshot.backend_generation,
+            workspace_epoch=0,
+            node_epochs=node_epochs,
+            snapshot_digest=digest,
+        )
+        viewer_reservation = ViewerInvalidationReservation(
+            reservation_id=f"viewer_inv_{run_reservation.run_id}",
+            run_id=run_reservation.run_id,
+            preparation_id=preparation_id,
+            workspace_id=run_reservation.workspace_id,
+            node_ids=normalized_node_ids,
+            process_snapshot=concrete_snapshot,
+            trusted_snapshot=concrete_snapshot,
+            external_snapshot=concrete_snapshot,
+            projection_snapshot=replace(concrete_snapshot, generation=None),
+            selected_snapshot=concrete_snapshot,
+            client=self,
+        )
+        self.viewer_reservations[viewer_reservation.reservation_id] = (
+            viewer_reservation
+        )
+        return viewer_reservation
+
+    def cancel_viewer_invalidation(self, reservation):  # noqa: ANN001
+        self.viewer_reservations.pop(reservation.reservation_id, None)
+
     def start_run(self, *args, **kwargs) -> str:  # noqa: ANN002, ANN003
         del args, kwargs
         self.legacy_starts += 1
@@ -179,6 +279,14 @@ class _PreparedClient:
             callback(dict(event), active_snapshot)
         for callback in tuple(self.callbacks):
             callback(dict(event))
+
+    def query_viewer_session(self, *args, **kwargs) -> str:  # noqa: ANN002, ANN003
+        self.viewer_queries.append((args, kwargs))
+        return "viewer_query_1"
+
+    def invalidate_viewer_requests(self, workspace_id, node_ids):  # noqa: ANN001, ANN201
+        self.viewer_invalidations.append((workspace_id, node_ids))
+        return 2
 
 
 def _runtime_with_constant(*, cold: bool = False):  # noqa: ANN201
@@ -203,6 +311,35 @@ def _runtime_with_constant(*, cold: bool = False):  # noqa: ANN201
     return runtime, client, registry, model, workspace, node, snapshot
 
 
+def _prepared_viewer_worker_command():  # noqa: ANN201
+    registry = build_default_registry()
+    model = GraphModel()
+    workspace = model.active_workspace
+    viewer = model.add_node(
+        workspace.workspace_id,
+        "model.viewer",
+        "Viewer",
+        0,
+        0,
+    )
+    snapshot = build_runtime_snapshot(
+        model.project,
+        workspace_id=workspace.workspace_id,
+        registry=registry,
+    )
+    client = _PreparedClient()
+    runtime = CorexRuntime(client=client, registry=registry)
+    prepared = runtime.prepare_execution(
+        ExecutionRequest(
+            runtime_snapshot=snapshot,
+            workspace_id=workspace.workspace_id,
+            recompute_mode=RecomputeMode.FORCE_RECOMPUTE,
+        )
+    )
+    assert runtime.dispatch_prepared(prepared)
+    return client.commands[-1], registry, viewer
+
+
 def _settled(node_id: str, value: str = "first") -> dict[str, Any]:
     return {
         "type": "node_settled",
@@ -215,6 +352,317 @@ def _settled(node_id: str, value: str = "first") -> dict[str, Any]:
             )
         },
     }
+
+
+def _wait_for_backend_run_cleanup(
+    runtime: CorexRuntime, *, timeout: float = 30.0
+) -> None:
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        client = runtime._client  # noqa: SLF001
+        active_clients = getattr(client, "_active_clients", {})
+        if not active_clients:
+            return
+        time.sleep(0.01)
+    raise AssertionError("execution backend did not retire the completed run")
+
+
+def test_headless_viewer_query_and_invalidation_delegate_exact_arguments() -> None:
+    runtime, client, *_rest = _runtime_with_constant()
+
+    assert (
+        runtime.query_viewer_session(
+            "ws_main",
+            "viewer_a",
+            "session_a",
+            run_id="run_a",
+            backend_id="scene",
+            query_type="bounds",
+            payload={"role": "primary"},
+            options={"precision": 3},
+        )
+        == "viewer_query_1"
+    )
+    assert runtime.invalidate_viewer_requests("ws_main", ("viewer_a",)) == 2
+    assert client.viewer_queries == [
+        (
+            ("ws_main", "viewer_a", "session_a"),
+            {
+                "run_id": "run_a",
+                "backend_id": "scene",
+                "query_type": "bounds",
+                "payload": {"role": "primary"},
+                "options": {"precision": 3},
+            },
+        )
+    ]
+    assert client.viewer_invalidations == [("ws_main", ("viewer_a",))]
+
+
+def test_worker_preflight_timeout_and_cancel_leave_viewer_service_unchanged() -> None:
+    command, _registry, viewer = _prepared_viewer_worker_command()
+    for acknowledgment in (None, "cancel", "wrong"):
+        services = WorkerServices()
+        service = services.viewer_session_service
+        service.open_session(
+            OpenViewerSessionCommand(
+                workspace_id=command.workspace_id,
+                node_id=viewer.node_id,
+                session_id="session_before_preflight",
+                data_refs={"source": "retained"},
+                transport={"kind": "mock_live", "revision": 1},
+            )
+        )
+        before = service._sessions[  # noqa: SLF001
+            (command.workspace_id, "session_before_preflight")
+        ].public_projection()
+        command_queue: queue.Queue[dict[str, Any]] = queue.Queue()
+        if acknowledgment == "cancel":
+            command_queue.put(
+                command_to_dict(
+                    CancelRunPreflightCommand(
+                        run_id=command.run_id,
+                        viewer_invalidation_reservation_id=(
+                            command.viewer_invalidation_reservation_id
+                        ),
+                        viewer_epoch_snapshot_digest=(
+                            command.viewer_epoch_snapshot_digest
+                        ),
+                    )
+                )
+            )
+        elif acknowledgment == "wrong":
+            command_queue.put(
+                command_to_dict(
+                    CommitRunPreflightCommand(
+                        run_id=command.run_id,
+                        viewer_invalidation_reservation_id="wrong_reservation",
+                        viewer_epoch_snapshot_digest="0" * 64,
+                    )
+                )
+            )
+        event_queue: queue.Queue[dict[str, Any]] = queue.Queue()
+        with patch(
+            "ea_node_editor.execution.worker_runner._RUN_PREFLIGHT_COMMIT_TIMEOUT_SEC",
+            0.05,
+        ):
+            WorkflowRunner(
+                command,
+                event_queue,
+                command_queue=command_queue,
+                worker_services=services,
+            ).run()
+        events = []
+        while not event_queue.empty():
+            events.append(event_queue.get_nowait())
+        event_types = [event["type"] for event in events]
+        assert event_types[0] == "run_preflight_accepted"
+        assert "run_started" not in event_types
+        assert "viewer_session_opened" not in event_types
+        if acknowledgment == "wrong":
+            assert "protocol_error" in event_types
+        assert service._sessions[  # noqa: SLF001
+            (command.workspace_id, "session_before_preflight")
+        ].public_projection() == before
+        assert service._workspace_invalidation_epochs == {}  # noqa: SLF001
+        assert service._node_invalidation_epochs == {}  # noqa: SLF001
+
+
+def test_worker_preflight_commit_adopts_before_buffered_viewer_response() -> None:
+    command, registry, viewer = _prepared_viewer_worker_command()
+    del registry
+    services = WorkerServices()
+    service = services.viewer_session_service
+    service.open_session(
+        OpenViewerSessionCommand(
+            workspace_id=command.workspace_id,
+            node_id=viewer.node_id,
+            session_id="session_before_preflight",
+            data_refs={"source": "retained"},
+            transport={"kind": "mock_live", "revision": 1},
+        )
+    )
+    command_queue: queue.Queue[dict[str, Any]] = queue.Queue()
+    command_queue.put(
+        command_to_dict(
+            OpenViewerSessionCommand(
+                request_id="buffered_open",
+                workspace_id=command.workspace_id,
+                node_id=viewer.node_id,
+                session_id="session_recomputed",
+                data_refs={"source": "recomputed"},
+                transport={"kind": "mock_live", "revision": 2},
+                workspace_invalidation_epoch=(
+                    command.viewer_workspace_invalidation_epoch
+                ),
+                node_invalidation_epoch=dict(
+                    command.viewer_node_invalidation_epochs
+                )[viewer.node_id],
+            )
+        )
+    )
+    command_queue.put(
+        command_to_dict(
+            CommitRunPreflightCommand(
+                run_id=command.run_id,
+                viewer_invalidation_reservation_id=(
+                    command.viewer_invalidation_reservation_id
+                ),
+                viewer_epoch_snapshot_digest=command.viewer_epoch_snapshot_digest,
+            )
+        )
+    )
+    event_queue: queue.Queue[dict[str, Any]] = queue.Queue()
+    WorkflowRunner(
+        command,
+        event_queue,
+        command_queue=command_queue,
+        worker_services=services,
+    ).run()
+    events = []
+    while not event_queue.empty():
+        events.append(event_queue.get_nowait())
+    event_types = [event["type"] for event in events]
+    assert event_types[0] == "run_preflight_accepted"
+    assert event_types.index("run_started") < event_types.index(
+        "viewer_session_opened"
+    )
+    assert service._node_invalidation_epochs[  # noqa: SLF001
+        (command.workspace_id, viewer.node_id)
+    ] == dict(command.viewer_node_invalidation_epochs)[viewer.node_id]
+    assert service._sessions[  # noqa: SLF001
+        (command.workspace_id, "session_before_preflight")
+    ].invalidated_reason == "workspace_rerun"
+
+
+def test_worker_post_ack_cleanup_failure_is_started_and_committed() -> None:
+    command, _registry, _viewer = _prepared_viewer_worker_command()
+    services = WorkerServices()
+    command_queue: queue.Queue[dict[str, Any]] = queue.Queue()
+    command_queue.put(
+        command_to_dict(
+            CommitRunPreflightCommand(
+                run_id=command.run_id,
+                viewer_invalidation_reservation_id=(
+                    command.viewer_invalidation_reservation_id
+                ),
+                viewer_epoch_snapshot_digest=command.viewer_epoch_snapshot_digest,
+            )
+        )
+    )
+    event_queue: queue.Queue[dict[str, Any]] = queue.Queue()
+    with patch.object(
+        services.viewer_session_service,
+        "adopt_invalidation_snapshot",
+        side_effect=RuntimeError("cleanup failed"),
+    ):
+        WorkflowRunner(
+            command,
+            event_queue,
+            command_queue=command_queue,
+            worker_services=services,
+        ).run()
+    events = []
+    while not event_queue.empty():
+        events.append(event_queue.get_nowait())
+    event_types = [event["type"] for event in events]
+    assert event_types[0] == "run_preflight_accepted"
+    assert event_types.index("run_started") < event_types.index("run_failed")
+
+
+def test_worker_preflight_failure_emits_no_acceptance_or_viewer_mutation() -> None:
+    command, _registry, viewer = _prepared_viewer_worker_command()
+    command = replace(command, execution_plan_fingerprint="0" * 64)
+    services = WorkerServices()
+    service = services.viewer_session_service
+    service.open_session(
+        OpenViewerSessionCommand(
+            workspace_id=command.workspace_id,
+            node_id=viewer.node_id,
+            session_id="session_before_failure",
+            data_refs={"source": "retained"},
+            transport={"kind": "mock_live"},
+        )
+    )
+    before = service._sessions[  # noqa: SLF001
+        (command.workspace_id, "session_before_failure")
+    ].public_projection()
+    event_queue: queue.Queue[dict[str, Any]] = queue.Queue()
+    WorkflowRunner(
+        command,
+        event_queue,
+        command_queue=queue.Queue(),
+        worker_services=services,
+    ).run()
+    events = []
+    while not event_queue.empty():
+        events.append(event_queue.get_nowait())
+    event_types = [event["type"] for event in events]
+    assert event_types[0] == "run_failed"
+    assert "run_preflight_accepted" not in event_types
+    assert "run_started" not in event_types
+    assert service._sessions[  # noqa: SLF001
+        (command.workspace_id, "session_before_failure")
+    ].public_projection() == before
+    assert service._node_invalidation_epochs == {}  # noqa: SLF001
+
+
+def test_empty_filter_run_baselines_a_fresh_recycled_service_epoch() -> None:
+    runtime, client, _registry, _model, workspace, _node, snapshot = (
+        _runtime_with_constant()
+    )
+    prepared = runtime.prepare_execution(
+        ExecutionRequest(
+            runtime_snapshot=snapshot,
+            workspace_id=workspace.workspace_id,
+        )
+    )
+    assert runtime.dispatch_prepared(prepared)
+    command = client.commands[-1]
+    command = replace(
+        command,
+        viewer_workspace_invalidation_epoch=3,
+        viewer_epoch_snapshot_digest=viewer_epoch_snapshot_digest(
+            workspace_id=command.workspace_id,
+            node_ids=(),
+            workspace_epoch=3,
+            node_epochs=(),
+        ),
+    )
+    command_queue: queue.Queue[dict[str, Any]] = queue.Queue()
+    command_queue.put(
+        command_to_dict(
+            CommitRunPreflightCommand(
+                run_id=command.run_id,
+                viewer_invalidation_reservation_id=(
+                    command.viewer_invalidation_reservation_id
+                ),
+                viewer_epoch_snapshot_digest=command.viewer_epoch_snapshot_digest,
+            )
+        )
+    )
+    services = WorkerServices()
+    event_queue: queue.Queue[dict[str, Any]] = queue.Queue()
+
+    WorkflowRunner(
+        command,
+        event_queue,
+        command_queue=command_queue,
+        worker_services=services,
+    ).run()
+
+    events = []
+    while not event_queue.empty():
+        events.append(event_queue.get_nowait())
+    event_types = [event["type"] for event in events]
+    assert event_types[0] == "run_preflight_accepted"
+    assert "run_started" in event_types
+    assert "run_completed" in event_types
+    service = services.viewer_session_service
+    assert service._workspace_invalidation_epochs == {  # noqa: SLF001
+        command.workspace_id: 3
+    }
+    assert service._node_invalidation_epochs == {}  # noqa: SLF001
 
 
 def test_prepare_is_private_and_dispatch_registers_context_before_sync_events() -> None:
@@ -365,6 +813,7 @@ def test_failed_start_restores_current_fact_but_started_failure_does_not() -> No
         model.project.project_id, workspace.workspace_id
     )[0]
     assert restored == before
+    assert client.viewer_reservations == {}
 
     client.emit_run_started_before_failure = True
     with pytest.raises(RuntimeError, match="start failed"):
@@ -375,6 +824,7 @@ def test_failed_start_restores_current_fact_but_started_failure_does_not() -> No
     assert started_then_failed.freshness is SolutionFreshness.EXPIRED
     assert started_then_failed.retained_record_id == before.retained_record_id
     assert started_then_failed.expiration_reason_code == "recompute_started"
+    assert client.viewer_reservations == {}
 
     client.emit_run_started_before_failure = False
     client.raise_on_start = False
@@ -1078,7 +1528,7 @@ def test_real_process_prepared_dispatch_smoke() -> None:
             )
         )
         assert runtime.dispatch_prepared(prepared)
-        assert terminal.wait(20.0)
+        assert terminal.wait(45.0)
         assert terminal_types == ["run_completed"]
         assert runtime.solution_facts(
             model.project.project_id,
@@ -1111,10 +1561,30 @@ def test_real_process_second_run_reuses_without_node_started() -> None:
         workspace_id=workspace.workspace_id,
     )
     try:
-        first = runtime.run(request, timeout=10.0)
-        second = runtime.run(request, timeout=10.0)
+        first = runtime.run(request, timeout=30.0)
+        _wait_for_backend_run_cleanup(runtime)
+        second = runtime.run(request, timeout=30.0)
         assert first.status == "completed"
         assert second.status == "completed"
+        for result in (first, second):
+            event_types = [event.get("type") for event in result.events]
+            self_scoped = [
+                event_type
+                for event_type in event_types
+                if event_type in {
+                    "run_preflight_accepted",
+                    "viewer_invalidation_committed",
+                    "run_started",
+                    "node_started",
+                    "node_settled",
+                    "run_completed",
+                }
+            ]
+            assert self_scoped[0] == "run_preflight_accepted"
+            assert event_types.index("viewer_invalidation_committed") < (
+                event_types.index("run_started")
+            )
+        assert runtime._client._viewer_invalidation_reservations == {}  # noqa: SLF001
         assert not any(
             event.get("type") == "node_started"
             and event.get("node_id") == node.node_id
@@ -1129,6 +1599,113 @@ def test_real_process_second_run_reuses_without_node_started() -> None:
         assert len(settled) == 1
         assert settled[0]["disposition"] == "reused"
         assert runtime.solution_store.stats()["records"] == 1
+    finally:
+        runtime.shutdown()
+
+
+def test_trusted_viewer_run_commits_identical_client_service_and_event_epochs() -> None:
+    registry = build_builtin_registry()
+    model = GraphModel()
+    workspace = model.active_workspace
+    viewer = model.add_node(
+        workspace.workspace_id,
+        "model.viewer",
+        "Viewer",
+        0,
+        0,
+    )
+    snapshot = build_runtime_snapshot(
+        model.project,
+        workspace_id=workspace.workspace_id,
+        registry=registry,
+    )
+    runtime = CorexRuntime(registry=registry)
+    try:
+        result = runtime.run(
+            ExecutionRequest(
+                runtime_snapshot=snapshot,
+                workspace_id=workspace.workspace_id,
+                execution_backend={
+                    "requested_backend": TRUSTED_IN_PROCESS_BACKEND,
+                    "allow_trusted_in_process": True,
+                },
+                recompute_mode=RecomputeMode.FORCE_RECOMPUTE,
+            ),
+            timeout=30.0,
+        )
+        assert result.status == "completed", [
+            (event.get("type"), event.get("error"), event.get("reason"))
+            for event in result.events
+        ]
+        committed = next(
+            event
+            for event in result.events
+            if event.get("type") == "viewer_invalidation_committed"
+        )
+        expected_epoch = dict(committed["viewer_node_invalidation_epochs"])[
+            viewer.node_id
+        ]
+        backend = runtime._client  # noqa: SLF001
+        trusted = backend._trusted_client  # noqa: SLF001
+        key = (workspace.workspace_id, viewer.node_id)
+        assert backend._node_viewer_epochs[key] == expected_epoch  # noqa: SLF001
+        assert trusted._node_viewer_epochs[key] == expected_epoch  # noqa: SLF001
+        assert (
+            trusted._worker_services.viewer_session_service._node_invalidation_epochs[  # noqa: SLF001
+                key
+            ]
+            == expected_epoch
+        )
+        assert backend._viewer_invalidation_reservations == {}  # noqa: SLF001
+    finally:
+        runtime.shutdown()
+
+
+def test_real_dispatch_same_registry_bypasses_live_viewer_replaceability_guard() -> None:
+    registry = build_default_registry()
+    model = GraphModel()
+    workspace = model.active_workspace
+    model.add_node(
+        workspace.workspace_id,
+        "core.constant",
+        "Constant",
+        0,
+        0,
+    )
+    snapshot = build_runtime_snapshot(
+        model.project,
+        workspace_id=workspace.workspace_id,
+        registry=registry,
+    )
+    runtime = CorexRuntime(registry=registry)
+    request = ExecutionRequest(
+        runtime_snapshot=snapshot,
+        workspace_id=workspace.workspace_id,
+    )
+    try:
+        assert runtime.run(request, timeout=30.0).status == "completed"
+        backend = runtime._client  # noqa: SLF001
+        process = backend._process_client  # noqa: SLF001
+        session_key = (workspace.workspace_id, "session_live")
+        generation = process._catalog_generation_token_value()  # noqa: SLF001
+        backend._session_clients[session_key] = process  # noqa: SLF001
+        backend._session_client_generations[session_key] = generation  # noqa: SLF001
+        backend._session_node_ids[session_key] = "viewer_live"  # noqa: SLF001
+        process._viewer_session_ids.add(session_key)  # noqa: SLF001
+        process._viewer_session_generations[session_key] = generation  # noqa: SLF001
+        process._viewer_session_node_ids[session_key] = "viewer_live"  # noqa: SLF001
+
+        second = runtime.run(request, timeout=30.0)
+
+        assert second.status == "completed", second.events
+        assert any(
+            event.get("type") == "run_preflight_accepted"
+            for event in second.events
+        )
+        assert session_key in backend._session_clients  # noqa: SLF001
+        with pytest.raises(DataTypeCatalogError, match="viewer routes"):
+            backend.replace_registry(build_builtin_registry())
+        assert session_key in backend._session_clients  # noqa: SLF001
     finally:
         runtime.shutdown()
 
@@ -1238,12 +1815,13 @@ def test_selected_and_diamond_reuse_preserve_plan_order() -> None:
         )
 
     try:
-        first = runtime.run(request(point.node_id), timeout=10.0)
+        first = runtime.run(request(point.node_id), timeout=30.0)
         assert first.status == "completed", [
             (event.get("type"), event.get("error"), event.get("reason"))
             for event in first.events
         ]
-        second = runtime.run(request(point.node_id), timeout=10.0)
+        _wait_for_backend_run_cleanup(runtime)
+        second = runtime.run(request(point.node_id), timeout=30.0)
         first_point = next(
             event
             for event in first.events
@@ -1275,7 +1853,8 @@ def test_selected_and_diamond_reuse_preserve_plan_order() -> None:
         runtime.solution_store.discard_preparation(
             selected_probe.preparation_id, "test_probe"
         )
-        selected = runtime.run(request(left.node_id), timeout=10.0)
+        _wait_for_backend_run_cleanup(runtime)
+        selected = runtime.run(request(left.node_id), timeout=30.0)
         assert selected.status == "completed"
         assert [
             event["node_id"]

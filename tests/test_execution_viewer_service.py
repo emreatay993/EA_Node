@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import copy
 import json
 import unittest
 from pathlib import Path
@@ -28,6 +29,7 @@ from ea_node_editor.execution.protocol import (
     ViewerQueryResultEvent,
     ViewerSessionUpdatedEvent,
     event_to_dict,
+    viewer_epoch_snapshot_digest,
 )
 from ea_node_editor.execution.viewer_backend import (
     ViewerBackendMaterializationResult,
@@ -80,6 +82,144 @@ class ViewerSessionServiceTests(unittest.TestCase):
         self.assertNotIn("base64.b85decode", facade_text)
         self.assertNotIn("zlib.decompress", facade_text)
         self.assertIn("class ViewerSessionService", facade_text)
+
+    def test_empty_filter_baseline_adopts_only_on_a_fresh_recycled_service(
+        self,
+    ) -> None:
+        digest = viewer_epoch_snapshot_digest(
+            workspace_id="ws_fresh",
+            node_ids=(),
+            workspace_epoch=3,
+            node_epochs=(),
+        )
+        self.assertEqual(
+            self.service.adopt_invalidation_snapshot(
+                workspace_id="ws_fresh",
+                node_ids=(),
+                workspace_epoch=3,
+                node_epochs=(),
+                snapshot_digest=digest,
+                reason="workspace_rerun",
+            ),
+            0,
+        )
+        self.assertEqual(
+            self.service._workspace_invalidation_epochs,  # noqa: SLF001
+            {"ws_fresh": 3},
+        )
+        equal_before = dict(
+            self.service._workspace_invalidation_epochs  # noqa: SLF001
+        )
+        self.assertEqual(
+            self.service.adopt_invalidation_snapshot(
+                workspace_id="ws_fresh",
+                node_ids=(),
+                workspace_epoch=3,
+                node_epochs=(),
+                snapshot_digest=digest,
+                reason="workspace_rerun",
+            ),
+            0,
+        )
+        self.assertEqual(
+            self.service._workspace_invalidation_epochs,  # noqa: SLF001
+            equal_before,
+        )
+
+        for stale_kind in ("context", "node_epoch", "session", "lease", "buffer"):
+            with self.subTest(stale_kind=stale_kind):
+                services = dpf_worker_services()
+                service = services.viewer_session_service
+                buffered = stale_kind == "buffer"
+                if stale_kind == "context":
+                    service.install_workspace_context(workspace_id="ws_fresh")
+                elif stale_kind == "node_epoch":
+                    service._node_invalidation_epochs[("ws_fresh", "viewer")] = 1  # noqa: SLF001
+                elif stale_kind == "session":
+                    service.open_session(
+                        OpenViewerSessionCommand(
+                            workspace_id="ws_fresh",
+                            node_id="viewer",
+                            session_id="session_stale",
+                            transport={"kind": "mock_live"},
+                        )
+                    )
+                elif stale_kind == "lease":
+                    services.register_handle(
+                        _FakeDpfObject("stale_lease"),
+                        data_type_id=DPF_FIELDS_CONTAINER_DATA_TYPE,
+                        kind=DPF_FIELDS_CONTAINER_HANDLE_KIND,
+                        owner_scope="cache:viewer_session:stale",
+                    )
+                with self.assertRaisesRegex(ValueError, "fresh service"):
+                    service.adopt_invalidation_snapshot(
+                        workspace_id="ws_fresh",
+                        node_ids=(),
+                        workspace_epoch=3,
+                        node_epochs=(),
+                        snapshot_digest=digest,
+                        reason="workspace_rerun",
+                        buffered_viewer_commands=buffered,
+                    )
+                self.assertNotIn(
+                    "ws_fresh",
+                    service._workspace_invalidation_epochs,  # noqa: SLF001
+                )
+
+    def test_scoped_snapshot_baselines_only_a_fresh_selected_service(self) -> None:
+        digest = viewer_epoch_snapshot_digest(
+            workspace_id="ws_scoped_fresh",
+            node_ids=("viewer",),
+            workspace_epoch=5,
+            node_epochs=(("viewer", 4),),
+        )
+        self.assertEqual(
+            self.service.adopt_invalidation_snapshot(
+                workspace_id="ws_scoped_fresh",
+                node_ids=("viewer",),
+                workspace_epoch=5,
+                node_epochs=(("viewer", 4),),
+                snapshot_digest=digest,
+                reason="workspace_rerun",
+            ),
+            0,
+        )
+        self.assertEqual(
+            self.service._workspace_invalidation_epochs["ws_scoped_fresh"],  # noqa: SLF001
+            5,
+        )
+        self.assertEqual(
+            self.service._node_invalidation_epochs[  # noqa: SLF001
+                ("ws_scoped_fresh", "viewer")
+            ],
+            4,
+        )
+
+        services = dpf_worker_services()
+        service = services.viewer_session_service
+        service.install_workspace_context(workspace_id="ws_scoped_fresh")
+        before = (
+            dict(service._workspace_invalidation_epochs),  # noqa: SLF001
+            dict(service._node_invalidation_epochs),  # noqa: SLF001
+            dict(service._workspace_contexts),  # noqa: SLF001
+        )
+        with self.assertRaisesRegex(ValueError, "fresh service"):
+            service.adopt_invalidation_snapshot(
+                workspace_id="ws_scoped_fresh",
+                node_ids=("viewer",),
+                workspace_epoch=5,
+                node_epochs=(("viewer", 4),),
+                snapshot_digest=digest,
+                reason="workspace_rerun",
+            )
+        self.assertEqual(
+            (
+                dict(service._workspace_invalidation_epochs),  # noqa: SLF001
+                dict(service._node_invalidation_epochs),  # noqa: SLF001
+                dict(service._workspace_contexts),  # noqa: SLF001
+            ),
+            before,
+        )
 
     def test_session_handle_exposes_identity_only_and_resolves_current_projection(
         self,
@@ -1408,7 +1548,7 @@ class ViewerSessionServiceTests(unittest.TestCase):
             )
             self.service.open_session(
                 OpenViewerSessionCommand(
-                    request_id="viewer_req_open_reenabled",
+                    request_id="",
                     workspace_id="ws_main",
                     node_id="node_viewer",
                     session_id="session_live_toggle_reenabled",
@@ -1418,7 +1558,7 @@ class ViewerSessionServiceTests(unittest.TestCase):
             )
             rematerialized = self.service.materialize_data(
                 MaterializeViewerDataCommand(
-                    request_id="viewer_req_materialize_reenabled",
+                    request_id="",
                     workspace_id="ws_main",
                     node_id="node_viewer",
                     session_id="session_live_toggle_reenabled",
@@ -1459,7 +1599,7 @@ class ViewerSessionServiceTests(unittest.TestCase):
         )
         self.service.prepare_workspace_context(
             workspace_id="ws_main",
-            invalidate_existing=True,
+            node_ids=None,
         )
 
         failed = self.service.materialize_data(
@@ -1468,11 +1608,97 @@ class ViewerSessionServiceTests(unittest.TestCase):
                 workspace_id="ws_main",
                 node_id="node_viewer",
                 session_id="session_invalidated",
+                workspace_invalidation_epoch=1,
             )
         )
 
         self.assertIsInstance(failed, ViewerSessionFailedEvent)
         self.assertIn("invalidated", failed.error)
+
+    def test_scoped_and_empty_invalidation_preserve_unaffected_viewer_state(
+        self,
+    ) -> None:
+        for node_id in ("viewer_a", "viewer_b"):
+            self.service.open_session(
+                OpenViewerSessionCommand(
+                    request_id=f"open_{node_id}",
+                    workspace_id="ws_main",
+                    node_id=node_id,
+                    session_id=f"session_{node_id}",
+                    data_refs={"source": node_id},
+                    transport={"kind": "mock_live", "node_id": node_id},
+                )
+            )
+        unaffected_before = copy.deepcopy(
+            self.service._sessions[("ws_main", "session_viewer_b")].public_projection()  # noqa: SLF001
+        )
+
+        self.assertEqual(
+            self.service.invalidate_workspace(
+                "ws_main",
+                reason="workspace_rerun",
+                node_ids=("viewer_a", "viewer_a"),
+            ),
+            1,
+        )
+        self.assertEqual(
+            self.service._sessions[("ws_main", "session_viewer_b")].public_projection(),  # noqa: SLF001
+            unaffected_before,
+        )
+        self.assertEqual(
+            self.service._node_invalidation_epochs[("ws_main", "viewer_a")],  # noqa: SLF001
+            1,
+        )
+
+        context_marker = object()
+        self.service.prepare_workspace_context(
+            workspace_id="ws_main",
+            project_path="updated.cxproj",
+            runtime_snapshot_context=context_marker,
+            node_ids=(),
+        )
+        self.assertIs(
+            self.service._workspace_contexts["ws_main"].runtime_snapshot_context,  # noqa: SLF001
+            context_marker,
+        )
+        self.assertEqual(
+            self.service._sessions[("ws_main", "session_viewer_b")].public_projection(),  # noqa: SLF001
+            unaffected_before,
+        )
+
+        stale = self.service.close_session(
+            CloseViewerSessionCommand(
+                request_id="late_close",
+                workspace_id="ws_main",
+                node_id="viewer_a",
+                session_id="session_viewer_a",
+            )
+        )
+        self.assertIsInstance(stale, ViewerSessionFailedEvent)
+        self.assertIn("newer epoch", stale.error)
+
+        reopened = self.service.open_session(
+            OpenViewerSessionCommand(
+                request_id="",
+                workspace_id="ws_main",
+                node_id="viewer_a",
+                session_id="session_viewer_a",
+                data_refs={"source": "viewer_a_recomputed"},
+                transport={"kind": "mock_live", "revision": 2},
+            )
+        )
+        self.assertIsInstance(reopened, ViewerSessionOpenedEvent)
+        self.assertEqual(reopened.node_invalidation_epoch, 1)
+        self.assertEqual(reopened.live_open_status, "ready")
+        self.service.reset()
+        self.assertEqual(
+            self.service._workspace_invalidation_epochs["ws_main"],  # noqa: SLF001
+            1,
+        )
+        self.assertNotIn(
+            ("ws_main", "viewer_a"),
+            self.service._node_invalidation_epochs,  # noqa: SLF001
+        )
 
     def test_coerce_viewer_session_model_normalizes_current_typed_projection(
         self,

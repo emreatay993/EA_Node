@@ -127,7 +127,7 @@ Only `ACCEPTED` satisfies a dependent task.
 | T03 | Session solution store | T01, T02 plus revised T03 contract review | `ACCEPTED` | `/root/t03_explorer` | `/root/t03_implementer` | `/root/t03_reviewer` | accepted: no P0-P3; adversarial closure green | none |
 | T04 | Worker reuse cutover | T01-T03 plus revised T04 contract review | `ACCEPTED` | `/root/t04_explorer` | `/root/t04_implementer` | `/root/t04_reviewer` | accepted: no P0-P3; cross-backend tamper matrix green | none |
 | T05 | Shell invalidation and freshness projection | T03, T04 plus revised T05 contract review | `ACCEPTED` | `/root/t05_explorer` | `/root/t05_implementer_recovery` | `/root/t05_reviewer` | accepted: no P0-P3; shell/cache/QML closure green | none |
-| T06 | Scoped viewer invalidation | T03-T05 | `READY_FOR_EXPLORATION` | unassigned | unassigned | unassigned | none | commit accepted T01-T05 boundary, then assign explorer |
+| T06 | Scoped viewer invalidation | T03-T05 plus revised T06 contract review | `ACCEPTED` | `/root/t06_explorer` | `/root/t06_implementer` | `/root/t06_reviewer` | accepted: no P0-P3; participant-local viewer acceptance and focused/fast evidence green | none |
 | T07 | Durable solution repository | T01-T04 | `PLANNED_BLOCKED_PENDING_APPROVAL` | unassigned | unassigned | unassigned | none | wait for T01-T04 |
 | T08 | Save and Save-As transactions | T07 | `PLANNED_BLOCKED_PENDING_APPROVAL` | unassigned | unassigned | unassigned | none | wait for T07 |
 | T09 | Closeout and acceptance | T01-T08 | `PLANNED_BLOCKED_PENDING_APPROVAL` | unassigned | unassigned | unassigned | none | wait for all tasks |
@@ -145,7 +145,7 @@ test output must name the exact command and result or a stable log path.
 | T03 | T01-T02 accepted working-tree state; HEAD `86a5f562e7c5c9d7d52dad97f842a89631508a26` | `C:\Users\emre_\PycharmProjects\EA_Node_Editor` | accepted T01-T02 diff plus prohibited plan/spec paths | revised T03 plan SHA-256 `6F833C47577289AC041822C99BB4F1E4255A756CE539D57681A6D461D8644381` | `/root/t03_explorer` accepted: lifecycle/generation/revision/cache/closure/lock map and exact project/composition/reader/contract tests/maps | `/root/t03_implementer`; working-tree diff; no commit | central 51; client/contracts 248 + 187 subtests; project 43 + 5; artifact/handle/security 56 + 23; exact closure 5; real process/maps/links/Ruff/diff pass; baseline isolated | `/root/t03_reviewer`: no P0-P3; accept | none | sequential shared checkout |
 | T04 | T01-T03 accepted working-tree state; HEAD `86a5f562e7c5c9d7d52dad97f842a89631508a26` | `C:\Users\emre_\PycharmProjects\EA_Node_Editor` | accepted T01-T03 diff plus prohibited plan/spec paths | revised T04 plan SHA-256 `8C8677AD60353B26A37A367B32616A30D52310CFCC8F2B0CC2E0A131918CC3BC` | `/root/t04_explorer` accepted: transport/event/store/headless boundary map, exact reuse validation and scope drift | `/root/t04_implementer`; working-tree diff; no commit | core 66; protocol/client/headless/store 150 + 186 subtests; worker/dataflow 67 + 5; process/selected/start/run/legacy 7; maps/Ruff/diff pass | `/root/t04_reviewer`: no P0-P3; accept | none | sequential shared checkout |
 | T05 | T01-T04 accepted working-tree state; HEAD `86a5f562e7c5c9d7d52dad97f842a89631508a26` | `C:\Users\emre_\PycharmProjects\EA_Node_Editor` | accepted T01-T04 diff plus prohibited plan/spec paths | revised T05 plan SHA-256 `2F3626EB5620181CE6790E2F8D80139F12A525858551F6542FE61BC65027F82D` | `/root/t05_explorer` accepted: history/dispatch/cache/projection/availability/media/API-removal consumer map and store start-failure drift | `/root/t05_implementer_recovery`; audited/completed partial working-tree diff; no commit | exact closure 7; expanded store/headless/run/port/media/DPF 168 + 17 subtests; prior locked suites/maps/indexes/Ruff/diff pass; tooltip/Ruff baselines isolated | `/root/t05_reviewer`: no P0-P3; accept | none | sequential shared checkout |
-| T06 | pending assignment | pending assignment | pending | plan T06; hash pending | none | none | none | none | none | sequential shared checkout |
+| T06 | HEAD `63e9786f`; accepted T01-T05 foundation | `C:\Users\emre_\PycharmProjects\EA_Node_Editor` | prohibited `docs/specs/INDEX.md` and Physical Simulation plan only | participant-local T06 plan SHA-256 `1AD2CF1FE568683497504B9EC2ED51B6BD269A53DBC53DCD6100D89515F6F58C` | `/root/t06_explorer` accepted: every invalidator/global reset, bridge/client/service epoch, worker filter, request registry, exact APIs, test/map owner | `/root/t06_implementer`; accepted working-tree diff; scoped commit pending | reopened 10 + 23 subtests; expanded focused 404 + 244 subtests; client/service/headless/store 160 + 64; DPF 25 + 3 and generator check; SSH 17; process reuse xdist 2; fast 4092 passed, 2 skipped, exactly 2 approved Model Viewer fixture baselines; maps/Ruff/diff/scope/process-leak pass | `/root/t06_reviewer`: no P0-P3; accept | none | sequential shared checkout; individual T06 commit |
 | T07 | pending assignment | pending assignment | pending | plan T07; hash pending | none | none | none | none | none | sequential shared checkout |
 | T08 | pending assignment | pending assignment | pending | plan T08; hash pending | none | none | none | none | none | sequential shared checkout |
 | T09 | pending assignment | pending assignment | pending | plan T09; hash pending | none | none | none | none | none | sequential shared checkout |
@@ -335,14 +335,64 @@ The drafter and reviewer must be different sub-agents.
   - disconnected Model Viewer acceptance;
   - two-viewer filtered invalidation;
   - empty filter versus `None` semantics;
+  - empty filter refreshes runtime context without viewer invalidation;
+  - legacy empty-preparation viewer run/failure/skip remains workspace-global;
+  - failed dispatch performs zero viewer invalidation/reset;
+  - all open/update/close/materialize/query protocol round-trips carry exact
+    workspace/node epochs;
+  - stale command/response and delayed close/query events fail before signals,
+    ownership, projection, or service mutation;
+  - exact query/invalidate forwarding signatures, string rejection, unresolved
+    owner, and unique retired-request count;
+  - scoped pending/session/provisional/generation/owner registry cleanup across
+    process/external/trusted clients;
+  - run-carried selected-concrete/service snapshot plus independently digested high-
+    level/Bridge projection snapshot and post-restart capture order;
+  - viewer invalidation reservation failed-start rollback, synchronous response
+    buffering, participant-local all-or-nothing commit, and concrete-to-projection
+    response translation;
+  - identity-bound `run_preflight_accepted` first-event ordering, one-shot commit
+    event, preflight-failure invisibility, and reservation/buffer terminal cleanup;
+  - matching parent commit/cancel acknowledgment, timeout/wrong-digest rejection,
+    worker post-ack adoption order, and post-ack failure semantics;
+  - project-load old/incoming workspace union and worker reset global epoch advance;
+  - worker filter derives only prepared `execute` viewer metadata and preserves
+    unaffected transport/leases/owner scope byte-for-byte;
   - same-branch change invalidation;
-  - worker-reset global invalidation.
+  - worker-reset global invalidation;
+  - real non-stub same-registry dispatch with an active viewer route reaches worker
+    preflight; a differing fingerprint remains rejected without partial retirement;
+  - per-participant process/trusted/external/high-level stale-state injections reject
+    before delivery and leave every participant unchanged; success commits all once;
+  - commit-command delivery `False`/exception matrices leave client, Bridge, and
+    service state byte-identical and publish no commit event;
+  - recycled fresh-service empty-filter baseline adoption versus non-fresh rejection
+    matrix;
+  - heterogeneous empty-filter matrix across process/trusted/external/high-level
+    epochs proves zero participant cleanup, retirement, or projection change; only a
+    qualifying selected fresh service may baseline-adopt its selected-client epoch;
+  - selected worker and high-level projection views use independent identity-bound
+    digests; a following non-empty recomputation retires only the exact viewer and
+    preserves/accepts unrelated backend responses;
+  - heterogeneous `None` advances each participant's local workspace epoch once and
+    remains global;
+  - deterministic response-ingress/commit barrier proves child state-before-viewer
+    lock order without deadlock, lock reacquisition, or callbacks under locks;
+  - post-delivery generation drift and raising-subscriber/buffered-event matrices
+    yield exactly one commit adoption or synchronous global retirement, always clear
+    the publication gate, and never leak buffered events;
+  - trusted fatal-generation cleanup removes session-node indices with session IDs
+    and generations;
+  - expanded-scope audit from foundation `63e9786f`;
+  - DPF operator catalog regeneration/check;
+  - 17 SSH synthetic NodeExecutor cases with prepared-decision state;
+  - full-fast-xdist-stable real-process second-run and selected/diamond reuse tests.
 - Required review lenses:
   - no viewer-specific scheduler branch;
   - transport/owner-scope lifetime;
   - bridge projection and worker state agreement;
   - live handle generation safety.
-- Acceptance record: `none`.
+- Acceptance record: `/root/t06_reviewer`; no P0-P3; accepted.
 
 ### T07 Durable solution repository
 
@@ -489,8 +539,29 @@ planning research.
 | L063 | T05 closure review opened adopted-generation event ordering and metadata-only unavailable-state findings. | `/root/t05_reviewer`. |
 | L064 | T05 recovery owner fixed pre-start reset event ordering and explicit metadata-only unavailable projection with exact regressions. | `/root/t05_implementer_recovery`. |
 | L065 | Accepted T05 after independent closure review found no P0-P3 issues; opened the safe cumulative T01-T05 commit boundary. | `/root/t05_reviewer`. |
+| L066 | Created local planning/classification commit `3abfbc4b` and accepted T01-T05 foundation commit `63e9786f`; no push. | Scoped staging/private-provenance checks passed. |
+| L067 | T06 exploration removed blanket preflight, locked exact filter semantics and workspace/node epochs across all viewer commands/responses, added worker execute-viewer filtering and full client/service/bridge scope. | `/root/t06_explorer`. |
+| L068 | Resolved T06 plan-review findings with legacy global invalidation, close-epoch consistency, exact query/invalidate APIs, and empty-filter context refresh semantics. | `/root/plan_architecture_review`. |
+| L069 | Accepted revised T06 contract/scope after independent review found no P0-P2 issues. | `/root/plan_architecture_review`. |
+| L070 | T06 scoped invalidation/epoch implementation completed with focused acceptance green; broad fast lane exposed 22 failures requiring independent baseline/plan attribution. | `/root/t06_implementer`. |
+| L071 | T06 review attributed 20 fast failures to the plan and reopened epoch synchronization, process capture, runtime-contract scope, unique cleanup counts, DPF asset, SSH fixture, and process-load stability; revised T06 scope accordingly. | `/root/t06_reviewer`. |
+| L072 | Added transactional viewer invalidation reservation/commit/cancel and exact Bridge/client/service epoch adoption to preserve failed-dispatch no-op semantics. | `/root/plan_architecture_review`. |
+| L073 | Added identity-bound first-event `run_preflight_accepted` commit boundary and one-shot viewer invalidation commit/cleanup semantics. | `/root/plan_architecture_review`. |
+| L074 | Added two-phase worker preflight acceptance and parent commit/cancel handshake so service adoption occurs only after ordered client/Bridge commit. | `/root/plan_architecture_review`. |
+| L075 | Accepted the revised T06 fix contract after independent review found no P0-P2 issues. | `/root/plan_architecture_review`. |
+| L076 | Original T06 implementer resolved the transactional preflight/epoch and fast-lane findings; focused, xdist, DPF, SSH, and summarized fast evidence is ready for independent closure. | `/root/t06_implementer`. |
+| L077 | T06 closure review reopened same-registry live-viewer dispatch, atomic multi-backend commit, recycled-worker empty-filter synchronization, failed commit-ack rollback, trusted cleanup, and locked-scope findings. | `/root/t06_reviewer`. |
+| L078 | Revised T06 closure contract to make same-fingerprint publication an early no-op, multi-participant commit prevalidated and atomic, fresh-service empty-filter epoch alignment baseline-only, failed commit-command delivery invisible, trusted fatal cleanup complete, and the locked scope exhaustive. | `/root/plan_architecture_review`. |
+| L079 | Removed the remaining empty-filter wording conflict: ordinary empty invalidation is unchanged, while only a qualifying state-free recycled service may baseline-adopt the already-committed workspace epoch. | `/root/plan_architecture_review`. |
+| L080 | Accepted finding-revised T06 contract/scope after independent review found no remaining P0-P2 contradictions. | `/root/plan_architecture_review`. |
+| L081 | Original T06 implementer resolved all reopened live-route, atomicity, recycle, delivery, cleanup, and scope findings; expanded focused and clean-process fast evidence is ready for closure. | `/root/t06_implementer`. |
+| L082 | Second T06 closure review reopened lagging-participant empty-filter cleanup, transaction lock inversion, and post-delivery commit-event/gate suppression. | `/root/t06_reviewer`. |
+| L083 | Revised T06 to participant-local transport/projection snapshots, child state-before-viewer transaction locking, and an irreversible post-delivery finalizer with mandatory gate cleanup. | `/root/plan_architecture_review`. |
+| L084 | Removed residual shared-epoch wording so recycled service alignment uses only the selected concrete baseline and high-level callbacks receive projection-local translated epochs. | `/root/plan_architecture_review`. |
+| L085 | Accepted the participant-local T06 contract after independent review found no remaining P0-P2 contradictions. | `/root/plan_architecture_review`. |
+| L086 | Original T06 implementer completed participant-local snapshots/translation, state-before-viewer transaction locking, and irreversible commit finalization; focused and clean-process fast evidence is ready for closure. | `/root/t06_implementer`. |
+| L087 | Accepted T06 after independent closure review found no P0-P3 issues; opened the individual T06 commit boundary. | `/root/t06_reviewer`. |
 
 ## Current Next Action
 
-Create separate planning/classification and accepted T01-T05 foundation commits on
-`main` without pushing, preserve prohibited dirty paths, then assign T06 exploration.
+Create the scoped individual T06 commit without pushing, then open T07 exploration.

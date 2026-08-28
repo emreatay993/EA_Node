@@ -11,6 +11,13 @@ from ea_node_editor.execution.backends import ExecutionBackendSelection
 from ea_node_editor.execution.client import (
     ExecutionGenerationSnapshot,
     ExecutionRunReservation,
+    ViewerInvalidationReservation,
+    _ViewerInvalidationSnapshot,
+)
+from ea_node_editor.execution.protocol import (
+    CommitRunPreflightCommand,
+    command_to_dict,
+    viewer_epoch_snapshot_digest,
 )
 from ea_node_editor.execution.headless_runtime import (
     CancellationRequest,
@@ -59,6 +66,7 @@ class _Client:
         self.lease_resources = False
         self.released_resources: list[Any] = []
         self._next_run = 0
+        self.viewer_reservations: dict[str, ViewerInvalidationReservation] = {}
 
     def subscribe(self, callback):  # noqa: ANN001, ANN201
         self.callbacks.append(callback)
@@ -99,7 +107,82 @@ class _Client:
 
     def start_reserved_run(self, reservation, command):  # noqa: ANN001, ANN201
         self.runs[reservation.run_id] = (reservation, command)
+        self.emit(
+            reservation.run_id,
+            {
+                "type": "run_preflight_accepted",
+                "preparation_id": command.preparation_id,
+                "viewer_invalidation_reservation_id": (
+                    command.viewer_invalidation_reservation_id
+                ),
+                "viewer_epoch_snapshot_digest": (
+                    command.viewer_epoch_snapshot_digest
+                ),
+            },
+        )
+        viewer_reservation = self.viewer_reservations[
+            command.viewer_invalidation_reservation_id
+        ]
+        projection = viewer_reservation.projection_snapshot
+        self.emit(
+            reservation.run_id,
+            {
+                "type": "viewer_invalidation_committed",
+                "viewer_invalidation_node_ids": list(
+                    command.viewer_invalidation_node_ids or ()
+                ),
+                "viewer_workspace_invalidation_epoch": projection.workspace_epoch,
+                "viewer_node_invalidation_epochs": [
+                    list(item) for item in projection.node_epochs
+                ],
+                "viewer_invalidation_reservation_id": (
+                    command.viewer_invalidation_reservation_id
+                ),
+                "viewer_epoch_snapshot_digest": projection.snapshot_digest,
+                "retired_request_count": 0,
+                "reason": "workspace_rerun",
+            },
+        )
+        self.viewer_reservations.pop(
+            command.viewer_invalidation_reservation_id, None
+        )
         return reservation.run_id
+
+    def reserve_viewer_invalidation(
+        self, run_reservation, preparation_id, node_ids  # noqa: ANN001, ANN201
+    ):
+        normalized_node_ids = tuple(node_ids)
+        node_epochs = tuple((node_id, 1) for node_id in normalized_node_ids)
+        digest = viewer_epoch_snapshot_digest(
+            workspace_id=run_reservation.workspace_id,
+            node_ids=normalized_node_ids,
+            workspace_epoch=0,
+            node_epochs=node_epochs,
+        )
+        concrete_snapshot = _ViewerInvalidationSnapshot(
+            generation=run_reservation.generation_snapshot.backend_generation,
+            workspace_epoch=0,
+            node_epochs=node_epochs,
+            snapshot_digest=digest,
+        )
+        reservation = ViewerInvalidationReservation(
+            reservation_id=f"viewer_inv_{run_reservation.run_id}",
+            run_id=run_reservation.run_id,
+            preparation_id=preparation_id,
+            workspace_id=run_reservation.workspace_id,
+            node_ids=normalized_node_ids,
+            process_snapshot=concrete_snapshot,
+            trusted_snapshot=concrete_snapshot,
+            external_snapshot=concrete_snapshot,
+            projection_snapshot=replace(concrete_snapshot, generation=None),
+            selected_snapshot=concrete_snapshot,
+            client=self,
+        )
+        self.viewer_reservations[reservation.reservation_id] = reservation
+        return reservation
+
+    def cancel_viewer_invalidation(self, reservation):  # noqa: ANN001
+        self.viewer_reservations.pop(reservation.reservation_id, None)
 
     def release_run_reservation(self, reservation, reason):  # noqa: ANN001, ANN201
         del reason
@@ -185,6 +268,22 @@ def _snapshot(model: GraphModel, registry, workspace_id: str):  # noqa: ANN001, 
         workspace_id=workspace_id,
         registry=registry,
     )
+
+
+def _preflight_commit_queue(command):  # noqa: ANN001, ANN201
+    command_queue: queue.Queue[dict[str, Any]] = queue.Queue()
+    command_queue.put(
+        command_to_dict(
+            CommitRunPreflightCommand(
+                run_id=command.run_id,
+                viewer_invalidation_reservation_id=(
+                    command.viewer_invalidation_reservation_id
+                ),
+                viewer_epoch_snapshot_digest=command.viewer_epoch_snapshot_digest,
+            )
+        )
+    )
+    return command_queue
 
 
 def _settle(
@@ -562,7 +661,12 @@ def test_empty_eligible_settlement_reuses_without_a_new_record() -> None:
     ) == empty_outputs
     second_run = runtime.dispatch_prepared(second)
     worker_events: queue.Queue = queue.Queue()
-    worker = WorkflowRunner(client.runs[second_run][1], worker_events)
+    worker_command = client.runs[second_run][1]
+    worker = WorkflowRunner(
+        worker_command,
+        worker_events,
+        command_queue=_preflight_commit_queue(worker_command),
+    )
     worker.run()
     worker_emitted = []
     while not worker_events.empty():
@@ -1135,7 +1239,11 @@ def test_live_resource_lease_is_released_on_project_reset() -> None:
     reused_run = runtime.dispatch_prepared(reusable)
     command = client.runs[reused_run][1]
     worker_events: queue.Queue = queue.Queue()
-    runner = WorkflowRunner(command, worker_events)
+    runner = WorkflowRunner(
+        command,
+        worker_events,
+        command_queue=_preflight_commit_queue(command),
+    )
     runner.run()
     emitted = []
     while not worker_events.empty():
@@ -1338,7 +1446,11 @@ def test_preparation_revalidates_artifact_integrity_before_selecting_reuse(
     command = client.runs[reused_run][1]
     payload_path.write_bytes(b"mutated")
     worker_events: queue.Queue = queue.Queue()
-    runner = WorkflowRunner(command, worker_events)
+    runner = WorkflowRunner(
+        command,
+        worker_events,
+        command_queue=_preflight_commit_queue(command),
+    )
     runner.run()
     emitted = []
     while not worker_events.empty():

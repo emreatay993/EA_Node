@@ -1,3 +1,6 @@
+# Purpose: Dependency-light viewer command ports used by executable viewer nodes.
+# Map: feature_routes/viewer_session_overlay_fullscreen.md
+# Tests: tests/test_dpf_viewer_node.py
 from __future__ import annotations
 
 from dataclasses import dataclass, field
@@ -25,6 +28,8 @@ class OpenViewerSessionCommand:
     playback_state: dict[str, Any] = field(default_factory=dict)
     summary: dict[str, Any] = field(default_factory=dict)
     options: dict[str, Any] = field(default_factory=dict)
+    workspace_invalidation_epoch: int = 0
+    node_invalidation_epoch: int = 0
 
 
 @dataclass(frozen=True)
@@ -44,6 +49,8 @@ class UpdateViewerSessionCommand:
     playback_state: dict[str, Any] = field(default_factory=dict)
     summary: dict[str, Any] = field(default_factory=dict)
     options: dict[str, Any] = field(default_factory=dict)
+    workspace_invalidation_epoch: int = 0
+    node_invalidation_epoch: int = 0
 
 
 @dataclass(frozen=True)
@@ -55,6 +62,8 @@ class MaterializeViewerDataCommand:
     session_id: str = ""
     backend_id: str = ""
     options: dict[str, Any] = field(default_factory=dict)
+    workspace_invalidation_epoch: int = 0
+    node_invalidation_epoch: int = 0
 
 
 class ViewerSessionServicePort(Protocol):

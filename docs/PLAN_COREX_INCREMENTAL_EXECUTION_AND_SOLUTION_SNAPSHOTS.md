@@ -763,7 +763,7 @@ Replace blanket viewer invalidation in both processes:
 
 Filtering alone is insufficient for in-flight requests. The bridge, execution
 client, and worker viewer service maintain a monotonic per-workspace/per-node viewer
-invalidation epoch. Every open/update/materialize/query request captures the epoch;
+invalidation epoch. Every open/update/close/materialize/query request captures the epoch;
 every response carries it. Scoped invalidation increments only affected nodes,
 retires their pending requests, and rejects any later response from an older epoch.
 True global resets advance the workspace epoch and retire all pending requests.
@@ -925,6 +925,19 @@ container nodes or internalization commands.
   prepared-only field to be empty/default. Non-empty ID requires the complete
   prepared field set. Session payload generation equals the command generation;
   durable payloads have no runtime generation.
+- Add run-carried viewer invalidation synchronization:
+  `viewer_invalidation_node_ids: tuple[str, ...] | None`,
+  `viewer_workspace_invalidation_epoch`, and sorted unique
+  `viewer_node_invalidation_epochs`. Prepared runs carry the exact execute-viewer
+  filter; legacy runs carry `None`. Client and worker validate the same None/empty/
+  exact semantics and epoch snapshot before service cleanup.
+- Add `RunPreflightAcceptedEvent` with run ID, preparation ID, viewer reservation
+  ID, and viewer epoch-snapshot digest. It is the first run-scoped event and the
+  client commit boundary; preflight failure emits no acceptance event.
+- Add `CommitRunPreflightCommand` and `CancelRunPreflightCommand`, each bound to the
+  run/reservation/snapshot digest. The worker executes viewer cleanup/node work only
+  after a matching commit; cancel/timeout before commit leaves service state
+  unchanged.
 - Extend `NodeSettledEvent` with disposition, reason, solution key, record ID, and
   residency.
 - Settlement combinations are strict:
@@ -950,8 +963,27 @@ container nodes or internalization commands.
 
 - Add optional exact `node_ids` filters to bridge/service workspace invalidators.
 - `None` means a true workspace-wide reset; an empty set means invalidate none.
-- Add viewer invalidation epoch fields to viewer commands/events and pending-request
-  registries; older-epoch responses are ignored.
+- Add `workspace_invalidation_epoch` and `node_invalidation_epoch` to every viewer
+  command/event—including close—and pending-request registry; older-epoch commands
+  and responses are ignored before any signal/state mutation. Newer epochs may
+  synchronize a recycled worker through scoped cleanup.
+- Add explicit forwarding APIs:
+  - `CorexRuntime.query_viewer_session(workspace_id, node_id, session_id, *,
+    run_id="", backend_id="", query_type, payload=None, options=None) -> str`;
+  - `ExecutionBackendClient.query_viewer_session(...) -> str` with the same
+    signature; unresolved owner returns `""`;
+  - `CorexRuntime.invalidate_viewer_requests(workspace_id: str,
+    node_ids: Iterable[str] | None) -> int`;
+  - `ExecutionBackendClient.invalidate_viewer_requests(...) -> int` with the same
+    signature. The count is unique pending request IDs retired; routing/session map
+    cleanup is not double-counted. String/bytes `node_ids` raises `TypeError`,
+    `None` is global, and empty returns `0` with no epoch/state change.
+- Add internal typed reservation APIs on `ExecutionBackendClient`:
+  `reserve_viewer_invalidation(...) -> ViewerInvalidationReservation`,
+  `commit_viewer_invalidation(reservation)`, and
+  `cancel_viewer_invalidation(reservation)`. Reservations are single-use and bound
+  to route/workspace/filter/generation. The committed snapshot is delivered once by
+  `viewer_invalidation_committed`; there is no retained per-run query API.
 
 ### Future UI transport, without styling
 
@@ -1469,31 +1501,260 @@ container nodes or internalization commands.
   - `ea_node_editor/ui/shell/controllers/run_controller.py`
   - `ea_node_editor/ui_qml/viewer_session_bridge.py`
   - `ea_node_editor/execution/protocol.py`
+  - `ea_node_editor/execution/prepared_execution.py`
+  - `ea_node_editor/execution/worker_protocol.py`
   - `ea_node_editor/execution/client.py`
+  - `ea_node_editor/execution/headless_runtime.py`
   - `ea_node_editor/execution/viewer_session_service.py`
   - `ea_node_editor/execution/worker_runner.py`
+  - `ea_node_editor/nodes/viewer_runtime_contracts.py`
+  - `ea_node_editor/addons/ansys_dpf/operator_catalog.json`
+  - `scripts/generate_ansys_dpf_operator_catalog.py`
   - `tests/test_shell_run_controller.py`
   - `tests/test_viewer_session_bridge.py`
   - `tests/test_execution_viewer_service.py`
   - `tests/test_viewer_host_service.py`
+  - `tests/test_execution_client.py`
+  - `tests/test_execution_protocol.py`
+  - `tests/test_solution_store_session.py`
+  - `tests/test_run_verification.py`
+  - `tests/test_execution_viewer_protocol.py`
+  - `tests/test_execution_worker.py`
+  - `tests/test_headless_runtime.py`
+  - `tests/test_ssh_sftp_runtime.py`
+  - `tests/test_dpf_operator_catalog_asset.py`
+  - `docs/agent_maps/subsystems/execution.md`
+  - `docs/agent_maps/subsystems/viewer_surfaces.md`
+  - `docs/agent_maps/feature_routes/run_controller_selected_workspace_state.md`
+  - `docs/agent_maps/feature_routes/viewer_session_overlay_fullscreen.md`
+  - `docs/agent_maps/testing/qml_and_graph_surface_tests.md`
+  - `docs/agent_maps/COVERAGE.md`
+  - regenerated source/test and route indexes
 - Deliverables:
-  - exact node filters on UI/worker viewer invalidators;
+  - delete blanket viewer preflight/reset/rollback helpers and manual-run flag;
+    prepared dispatch reserves invalidation for `prepared.recompute_node_ids` but
+    does not project it until worker preflight acceptance; failed dispatch/preflight
+    invalidates nothing;
+  - registry publication is idempotent by exact registry contract fingerprint:
+    concrete execution clients and `ExecutionBackendClient` compare the requested
+    fingerprint with their currently published/pinned fingerprint before every
+    active-run, viewer-request, viewer-session, or high-level route replacement
+    guard. An exact match returns `False` with no retirement, generation/epoch
+    change, route cleanup, registry-owner replacement, or callback; only a differing
+    fingerprint enters replaceability guards and replacement. The real
+    `CorexRuntime.dispatch_prepared()` path continues publishing the registry, so
+    same-registry reruns with live viewer routes reach prepared dispatch;
+  - exact optional node filters on UI/worker viewer invalidators with one contract:
+    `None` advances workspace epoch once and invalidates all; normalized empty is a
+    strict invalidation no-op; non-empty deduplicates and affects exact nodes only;
+    string-as-iterable filters reject. `prepare_workspace_context` always installs
+    the newly validated runtime snapshot/context for an empty filter. Invalidation,
+    cleanup, signal, and transport mutation are skipped; epoch mutation is also
+    skipped except for the fresh-worker service-only baseline adoption defined
+    below;
   - partial run invalidates only recomputed viewers;
-  - per-node viewer invalidation epochs retire affected pending requests and reject
-    older responses;
+  - every viewer command/response carries nonnegative workspace/node epochs.
+    Concrete clients and worker services validate transport-local epochs; the high-
+    level client and Bridge validate projection-local epochs. After validating the
+    emitting client, generation, request, and route against the concrete snapshot,
+    the high-level client translates the event to its projection snapshot before
+    callbacks; unvalidated or stale events are never translated;
+  - scoped invalidation advances only affected node epochs, retires their pending
+    requests/session/provisional/generation/owner maps, and preserves unaffected
+    projections byte-for-byte;
+  - `ViewerInvalidationReservation` carries immutable participant-local snapshots
+    for process, trusted, external, and high-level projection state. It does not
+    derive workspace or node epochs from a cross-participant maximum:
+    - `None`: each participant advances its own workspace epoch exactly once and
+      performs workspace-global cleanup;
+    - normalized empty: every concrete/high-level target equals that participant's
+      captured local epoch, node epochs are empty, and its plan is byte-identical;
+    - non-empty: every participant retains its local workspace epoch, advances only
+      the named nodes from that participant's local node epochs, and cleans only
+      those nodes;
+  - the reservation derives two identity-bound views without adding participant
+    data to the worker wire contract: the existing `StartRunCommand`/preflight/
+    commit fields carry the selected concrete participant's worker-service snapshot
+    and digest; `viewer_invalidation_committed` carries the high-level/Bridge
+    projection snapshot and its independently computed digest. The reservation
+    retains all participant snapshots for parent prevalidation and all-or-nothing
+    apply;
+  - only the selected worker service may reconcile a participant difference. Equal
+    selected-service epochs are a no-op. A lower service workspace epoch may
+    baseline-adopt the selected concrete participant's already-committed epoch only
+    when the selected worker/service generation is entirely fresh under the existing
+    no-session/context/owner/lease/transport/buffer rule. Other concrete clients and
+    the high-level client never advance or clean state merely to match another
+    participant. Higher service epochs or non-fresh mismatches reject;
+  - after final worker ensure/recycle, `CorexRuntime` derives the trusted viewer
+    filter and creates the staged reservation. `StartRunCommand` carries only the
+    selected worker-service view; reservation creation changes no visible counter,
+    route, session, or projection;
+  - worker preflight validates the prepared run and a non-mutating service cleanup/
+    baseline plan, then emits identity/digest-bound `run_preflight_accepted` as the
+    first run-scoped event and waits at most 30 seconds for
+    `CommitRunPreflightCommand`. No viewer/node/run response precedes acceptance;
+    failure does not adopt service state;
+  - on matching preflight acceptance, encode the commit command before acquiring
+    transaction locks. The sole commit order is: high-level
+    `_viewer_invalidation_lock`; high-level `_active_lock`; then, in process/trusted/
+    external order, each child `_state_lock` followed immediately by that child's
+    `_viewer_request_lock`; finally the selected delivery transport/queue lock or
+    already-pinned queue handle. Response ingress retains its existing child state-
+    before-viewer order and high-level active-before-child-state order;
+  - while those locks are held, read the selected generation directly from the
+    already-held state lock, prevalidate every participant-local snapshot, and build
+    immutable replacement plans. Commit delivery uses the pre-encoded payload and
+    pinned transport/queue state and must not reacquire a child state/viewer lock.
+    Successful delivery applies only precomputed non-throwing map replacements
+    before releasing locks;
+  - no callback, signal, protocol-error publication, generation callback, or
+    buffered-event dispatch runs while any transaction lock is held. Delivery
+    errors are recorded under lock and published only after release. Generation
+    retirement/reset paths that need the same state follow the same order or wait
+    until the transaction seal is released;
+  - a `False` delivery result or exception cancels the parent/worker reservation and
+    buffered responses after lock release, publishes no
+    `viewer_invalidation_committed`, and leaves all visible concrete/high-level
+    client, Bridge, and worker-service state byte-identical;
+  - successful delivery and participant apply create an irreversible local commit
+    finalizer before the generic selected-generation event path runs. The finalizer
+    is not subject to ordinary child-generation or viewer-response filtering;
+  - under the transaction seal, the finalizer chooses exactly one outcome: publish
+    one `viewer_invalidation_committed` event carrying the projection snapshot; or,
+    if same-turn generation retirement has already superseded that snapshot,
+    synchronously complete the existing workspace-global retirement/reset adoption
+    instead;
+  - outside all locks, dispatch the chosen event/adoption exactly once. In a
+    `finally` path, clear `_viewer_commit_publication_pending` and either drain still-
+    current buffered events after Bridge adoption or discard them after global
+    retirement. Callback failure, terminal events, later generation drift, reset,
+    or shutdown cannot bypass gate cleanup;
+  - later generation drift may globally retire the already-published snapshot, but
+    may not suppress the commit finalizer. No state is permitted in which child/
+    service commit succeeded while Bridge received neither the exact commit adoption
+    nor the superseding global retirement;
+  - the worker adopts the already-validated service cleanup/baseline plan only after
+    receiving the exact commit command, then emits `run_started` and executes. Post-
+    delivery service/run failure is a started-run failure and retains committed
+    invalidation. Timeout, cancel, wrong identity/digest, terminal/reset, and
+    shutdown discard uncommitted plans and buffers; no committed per-run snapshot
+    registry is retained;
+  - process/external clients ensure/recycle/handshake the worker before capturing
+    the command epoch snapshot, so first post-restart viewer commands cannot use a
+    retired epoch;
+  - global project/load/reset paths advance/retire epochs before projection
+    replacement; project load covers the union of old/incoming workspace IDs;
+  - query success/failure signals move after epoch and workspace/node validation;
+  - delayed close cannot close a replacement session;
   - reuse preserves session handles and transport;
+  - worker derives viewer invalidation filter only from trusted prepared
+    `EXECUTE` decisions whose resolved node spec has `surface_family == "viewer"`;
+    remove unconditional `invalidate_existing=True`. Legacy commands with empty
+    `preparation_id` pass `node_ids=None` and retain workspace-wide invalidation;
+  - affected service records release transport, owner scope, handles/leases, strip
+    stale refs, and become rerun-required; unaffected records/transport revisions
+    remain identical; reused viewer open is idempotent;
+  - add missing headless query and viewer-request invalidation delegation;
+  - catch-all worker failure responses preserve both epoch fields;
+  - high-level retired-request counts deduplicate request IDs across child backends;
+    every generation-retirement and fatal-generation path, including trusted-worker
+    fatal successor cleanup, removes matching session IDs, session generations, and
+    session-node indices together;
+  - regenerate the DPF operator catalog after reuse metadata changes and update
+    synthetic SSH `NodeExecutor` fixtures for accepted prepared-decision state;
+    real-process reuse tests use load-tolerant bounded waits and deterministic
+    stale-run cleanup without weakening assertions;
   - true reset/project/registry/runtime/backend replacement remains global;
   - no Model Viewer-specific branch in generic scheduling.
 - Verification:
   - primary eight-step acceptance scenario in Viewer and live-resource scoping;
+  - real, non-stub `CorexRuntime.dispatch_prepared()` with an active viewer route
+    and the same registry reaches `run_preflight_accepted` and dispatch; a differing
+    fingerprint remains rejected without partial retirement;
+  - stale state injected independently into process, trusted, external, and high-
+    level participants before commit rejects before delivery and leaves every
+    participant unchanged; success commits all participants once;
+  - `CommitRunPreflightCommand` delivery returning `False` and raising for each
+    selected backend emits no commit event, causes no Bridge/service adoption, and
+    leaves visible epochs, pending requests, routes, sessions, indices, owners,
+    leases, and transports byte-identical;
+  - with the selected concrete workspace epoch ahead of its recycled selected
+    service, an empty-filter run baseline-adopts only that selected-client epoch and
+    reaches dispatch. Equal selected concrete/service epochs are byte-identical; any
+    selected-generation session, route, pending request, context, node epoch, owner,
+    lease, transport, or buffered command makes the mismatch reject without
+    mutation; high-level/Bridge projection state remains unchanged;
+  - heterogeneous empty-filter matrix for each selected backend: process/trusted/
+    external/high-level epochs differ and a non-selected backend owns a live
+    session, route, pending request, and transport. Commit leaves every concrete/
+    high-level map and Bridge byte-identical, retires zero requests, and only a
+    qualifying fresh selected service baseline-adopts its selected-client epoch;
+  - worker preflight/commit digest uses the selected concrete snapshot while the
+    commit event digest uses the high-level projection snapshot;
+  - a heterogeneous empty run followed by non-empty viewer recomputation retires
+    only that viewer; the unrelated backend route survives, and both its response
+    and the recomputed viewer response pass concrete validation and high-level
+    projection translation;
+  - `None` from heterogeneous participant epochs advances each participant's local
+    workspace epoch once and remains truly global;
+  - deterministic barrier proof holds response ingress at child state-before-viewer
+    while commit begins; both threads complete and commit never acquires viewer-
+    before-state;
+  - process/trusted/external delivery helpers do not reacquire already-held state/
+    viewer locks and invoke no callback while locked;
+  - generation advancement immediately after successful delivery/apply yields
+    exactly one commit adoption or one synchronous global retirement, coherent
+    Bridge state, an empty pending gate, and no buffered-event leak. A raising
+    subscriber and buffered `run_started`/terminal variants still clear the gate in
+    `finally`; events drain only after adoption or are discarded by retirement;
+  - trusted fatal-generation cleanup removes matching session-node entries together
+    with session IDs and generations;
+  - failed-start/cancelled viewer reservation leaves client/bridge/service epochs,
+    pending requests, sessions, and transports byte-identical;
+  - preflight-accepted acknowledgment is first, identity-bound, and commits exactly
+    once; preflight failure yields no commit event or visible cleanup;
+  - missing parent commit acknowledgment times out/cancels byte-identically; wrong
+    reservation/digest rejects; post-ack service cleanup failure is reported as a
+    started-run failure with committed invalidation retained;
+  - synchronous reserved viewer responses buffer until successful commit and never
+    escape after cancellation;
+  - first post-recycle run commits the selected concrete/service and high-level/
+    Bridge participant-local snapshots with no double increment;
+  - terminal/reset/shutdown clear every unacknowledged reservation/buffer; no
+    per-run committed snapshot registry leaks;
   - two viewers in one workspace, recompute one, retain one;
-  - empty filter invalidates none; `None` invalidates all;
+  - empty filter invalidates none; `None` invalidates all. Empty filters refresh
+    runtime context; equal selected concrete/service epochs remain byte-identical,
+    while a qualifying fresh recycled selected service may adopt only the selected
+    concrete participant's already-committed workspace-epoch baseline. High-level/
+    Bridge projection epochs remain unchanged;
+  - legacy direct viewer run/failure/skip uses global invalidation and retires old
+    transport/leases;
   - same-branch upstream change expires/recomputes viewer and requires a new live
     transport;
   - worker reset invalidates all session-only handles;
-  - delayed pre-invalidation open/update/materialize/query responses cannot restore
-    ready state;
-  - `./venv/Scripts/python.exe -m pytest tests/test_shell_run_controller.py tests/test_viewer_session_bridge.py tests/test_execution_viewer_service.py tests/test_viewer_host_service.py -q`.
+  - delayed pre-invalidation open/update/materialize/query/close responses cannot
+    emit completion, mutate ownership, close replacements, or restore ready state;
+  - process/external/trusted pending-request registries and provisional routes
+    validate their participant-local transport epochs; high-level callbacks receive
+    projection-local epochs only after validated translation;
+  - direct empty-request-ID service calls use current epochs without node edits;
+  - explicit query/invalidate delegation signatures, unresolved query owner, string
+    rejection, and retired-request count tests;
+  - regenerated DPF catalog passes
+    `test_committed_catalog_matches_live_discovery_and_complete_contract` and
+    generator `--check`;
+  - all 17 `test_connection_failure_error_is_fixed_and_sensitive_text_free` SSH
+    parameter cases pass with initialized prepared-decision fixture state;
+  - `test_real_process_second_run_reuses_without_node_started` and
+    `test_selected_and_diamond_reuse_preserve_plan_order` pass under the full fast
+    xdist lane using load-tolerant bounded timeouts and deterministic cleanup;
+  - `./venv/Scripts/python.exe -m pytest tests/test_shell_run_controller.py tests/test_viewer_session_bridge.py tests/test_execution_viewer_service.py tests/test_viewer_host_service.py tests/test_execution_client.py tests/test_execution_protocol.py tests/test_execution_viewer_protocol.py tests/test_execution_worker.py tests/test_headless_runtime.py tests/test_solution_store_session.py tests/test_run_verification.py -q`;
+  - scope audit proves the diff from foundation `63e9786f` is a subset of the
+    expanded T06 scope plus the two declared unrelated/prohibited baseline paths;
+  - regenerate source/test and route indexes, run `check_agent_maps.py`, then
+    `run_verification.py --mode fast --summarize-output` and `git diff --check`.
 - Non-goals: viewer QML styling or a persistent live native handle.
 - Packetization notes: `P06`; primary UX acceptance packet.
 

@@ -3,7 +3,7 @@ from __future__ import annotations
 import copy
 import logging
 from collections.abc import Callable, Iterable, Mapping
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 from uuid import uuid4
@@ -25,6 +25,9 @@ from ea_node_editor.execution.protocol import (
     ViewerSessionOpenedEvent,
     ViewerQueryResultEvent,
     ViewerSessionUpdatedEvent,
+    normalize_viewer_invalidation_node_ids,
+    normalize_viewer_node_invalidation_epochs,
+    viewer_epoch_snapshot_digest,
 )
 from ea_node_editor.execution.viewer_backend import (
     ViewerBackendMaterializationRequest,
@@ -466,6 +469,8 @@ class ViewerSessionService:
         self._backend_registry = worker_services.viewer_backend_registry
         self._sessions: dict[tuple[str, str], _ViewerSessionRecord] = {}
         self._workspace_contexts: dict[str, _ViewerWorkspaceContext] = {}
+        self._workspace_invalidation_epochs: dict[str, int] = {}
+        self._node_invalidation_epochs: dict[tuple[str, str], int] = {}
 
     def session_handle(
         self,
@@ -512,14 +517,13 @@ class ViewerSessionService:
         project_path: str = "",
         runtime_snapshot: RuntimeSnapshot | None = None,
         runtime_snapshot_context: RuntimeSnapshotContext | None = None,
-        invalidate_existing: bool = False,
+        node_ids: Iterable[str] | None = (),
     ) -> None:
         normalized_workspace_id = self._normalize_required_string("workspace_id", workspace_id)
         normalized_project_path = str(project_path).strip()
         previous_context = self._workspace_contexts.get(normalized_workspace_id)
         if (
             previous_context is not None
-            and not invalidate_existing
             and previous_context.project_path
             and normalized_project_path
             and previous_context.project_path != normalized_project_path
@@ -527,48 +531,209 @@ class ViewerSessionService:
             self.invalidate_workspace(
                 normalized_workspace_id,
                 reason=_SESSION_INVALIDATION_REASON_PROJECT_REPLACED,
+                node_ids=None,
             )
-        if invalidate_existing:
+        else:
             self.invalidate_workspace(
                 normalized_workspace_id,
                 reason=_SESSION_INVALIDATION_REASON_RERUN,
+                node_ids=node_ids,
             )
-        self._workspace_contexts[normalized_workspace_id] = _ViewerWorkspaceContext(
+        self.install_workspace_context(
+            workspace_id=normalized_workspace_id,
             project_path=normalized_project_path,
             runtime_snapshot=runtime_snapshot,
             runtime_snapshot_context=runtime_snapshot_context,
         )
 
-    def invalidate_workspace(self, workspace_id: str, *, reason: str) -> int:
+    def install_workspace_context(
+        self,
+        *,
+        workspace_id: str,
+        project_path: str = "",
+        runtime_snapshot: RuntimeSnapshot | None = None,
+        runtime_snapshot_context: RuntimeSnapshotContext | None = None,
+    ) -> None:
+        normalized_workspace_id = self._normalize_required_string(
+            "workspace_id", workspace_id
+        )
+        self._workspace_contexts[normalized_workspace_id] = _ViewerWorkspaceContext(
+            project_path=str(project_path).strip(),
+            runtime_snapshot=runtime_snapshot,
+            runtime_snapshot_context=runtime_snapshot_context,
+        )
+
+    def validate_invalidation_snapshot(
+        self,
+        *,
+        workspace_id: str,
+        node_ids: Iterable[str] | None,
+        workspace_epoch: int,
+        node_epochs: Iterable[tuple[str, int]],
+        snapshot_digest: str,
+        buffered_viewer_commands: bool = False,
+    ) -> tuple[tuple[str, ...] | None, tuple[tuple[str, int], ...]]:
+        normalized_workspace_id = self._normalize_required_string(
+            "workspace_id", workspace_id
+        )
+        normalized_node_ids = normalize_viewer_invalidation_node_ids(node_ids)
+        normalized_node_epochs = normalize_viewer_node_invalidation_epochs(
+            tuple(node_epochs)
+        )
+        expected_digest = viewer_epoch_snapshot_digest(
+            workspace_id=normalized_workspace_id,
+            node_ids=normalized_node_ids,
+            workspace_epoch=workspace_epoch,
+            node_epochs=normalized_node_epochs,
+        )
+        if snapshot_digest != expected_digest:
+            raise ValueError("viewer invalidation snapshot digest mismatch")
+        current_workspace_epoch = self._workspace_invalidation_epochs.get(
+            normalized_workspace_id, 0
+        )
+        if workspace_epoch < current_workspace_epoch:
+            raise ValueError("viewer workspace invalidation epoch is stale")
+        if normalized_node_ids is None:
+            if normalized_node_epochs or workspace_epoch <= current_workspace_epoch:
+                raise ValueError("global viewer invalidation epoch must advance")
+        elif normalized_node_ids == ():
+            if normalized_node_epochs:
+                raise ValueError("empty viewer invalidation forbids node epochs")
+            if workspace_epoch > current_workspace_epoch:
+                if buffered_viewer_commands or not self._fresh_for_epoch_baseline(
+                    normalized_workspace_id
+                ):
+                    raise ValueError(
+                        "empty viewer baseline adoption requires a fresh service"
+                    )
+            elif workspace_epoch != current_workspace_epoch:
+                raise ValueError("empty viewer invalidation epoch is stale")
+        else:
+            if tuple(node_id for node_id, _epoch in normalized_node_epochs) != normalized_node_ids:
+                raise ValueError("viewer node epochs do not match the filter")
+            if workspace_epoch > current_workspace_epoch:
+                if buffered_viewer_commands or not self._fresh_for_epoch_baseline(
+                    normalized_workspace_id
+                ):
+                    raise ValueError(
+                        "scoped viewer baseline adoption requires a fresh service"
+                    )
+            else:
+                for node_id, epoch in normalized_node_epochs:
+                    if epoch != self._node_invalidation_epochs.get(
+                        (normalized_workspace_id, node_id), 0
+                    ) + 1:
+                        raise ValueError("viewer node invalidation epoch must advance once")
+        return normalized_node_ids, normalized_node_epochs
+
+    def _fresh_for_epoch_baseline(self, workspace_id: str) -> bool:
+        return bool(
+            workspace_id not in self._workspace_invalidation_epochs
+            and workspace_id not in self._workspace_contexts
+            and not any(key[0] == workspace_id for key in self._node_invalidation_epochs)
+            and not any(key[0] == workspace_id for key in self._sessions)
+            and self._worker_services.handle_registry.active_handle_count == 0
+            and self._worker_services.handle_registry.active_lease_count == 0
+        )
+
+    def adopt_invalidation_snapshot(
+        self,
+        *,
+        workspace_id: str,
+        node_ids: Iterable[str] | None,
+        workspace_epoch: int,
+        node_epochs: Iterable[tuple[str, int]],
+        snapshot_digest: str,
+        reason: str,
+        buffered_viewer_commands: bool = False,
+    ) -> int:
+        normalized_node_ids, normalized_node_epochs = (
+            self.validate_invalidation_snapshot(
+                workspace_id=workspace_id,
+                node_ids=node_ids,
+                workspace_epoch=workspace_epoch,
+                node_epochs=node_epochs,
+                snapshot_digest=snapshot_digest,
+                buffered_viewer_commands=buffered_viewer_commands,
+            )
+        )
+        normalized_workspace_id = self._normalize_required_string(
+            "workspace_id", workspace_id
+        )
+        current_workspace_epoch = self._workspace_invalidation_epochs.get(
+            normalized_workspace_id, 0
+        )
+        if normalized_node_ids == ():
+            if workspace_epoch > current_workspace_epoch:
+                self._workspace_invalidation_epochs[normalized_workspace_id] = (
+                    workspace_epoch
+                )
+            return 0
+        normalized_reason = self._normalize_required_string("reason", reason)
+        workspace_advanced = workspace_epoch > current_workspace_epoch
+        if workspace_advanced:
+            self._workspace_invalidation_epochs[normalized_workspace_id] = (
+                workspace_epoch
+            )
+            if normalized_node_ids is None:
+                for key in tuple(self._node_invalidation_epochs):
+                    if key[0] == normalized_workspace_id:
+                        self._node_invalidation_epochs.pop(key, None)
+        for node_id, epoch in normalized_node_epochs:
+            self._node_invalidation_epochs[(normalized_workspace_id, node_id)] = epoch
+        return self._invalidate_records(
+            normalized_workspace_id,
+            reason=normalized_reason,
+            node_ids=normalized_node_ids,
+        )
+
+    def invalidate_workspace(
+        self,
+        workspace_id: str,
+        *,
+        reason: str,
+        node_ids: Iterable[str] | None = None,
+    ) -> int:
         normalized_workspace_id = self._normalize_required_string("workspace_id", workspace_id)
         normalized_reason = self._normalize_required_string("reason", reason)
-        invalidated_count = 0
-        for session_key, record in self._sessions.items():
-            if session_key[0] != normalized_workspace_id:
-                continue
-            self._release_live_transport(
-                record,
-                reason=normalized_reason,
-                mark_rerun_required=True,
+        normalized_node_ids = self._normalize_node_ids(node_ids)
+        if normalized_node_ids == ():
+            return 0
+        if normalized_node_ids is None:
+            self._workspace_invalidation_epochs[normalized_workspace_id] = (
+                self._workspace_invalidation_epochs.get(normalized_workspace_id, 0)
+                + 1
             )
-            self._release_owner_scope(record.owner_scope)
-            record.source_refs = self._without_handle_refs(record.source_refs)
-            record.materialized_refs = self._without_handle_refs(
-                record.materialized_refs
-            )
-            record.session_state = "invalidated"
-            record.invalidated_reason = normalized_reason
-            record.rerun_required = True
-            record.stale_ref_keys.clear()
-            self._refresh_public_contract(record)
-            invalidated_count += 1
-        return invalidated_count
+            for key in tuple(self._node_invalidation_epochs):
+                if key[0] == normalized_workspace_id:
+                    self._node_invalidation_epochs.pop(key, None)
+        else:
+            for node_id in normalized_node_ids:
+                key = (normalized_workspace_id, node_id)
+                self._node_invalidation_epochs[key] = (
+                    self._node_invalidation_epochs.get(key, 0) + 1
+                )
+        return self._invalidate_records(
+            normalized_workspace_id,
+            reason=normalized_reason,
+            node_ids=normalized_node_ids,
+        )
 
     def reset(
         self,
         *,
         warn: Callable[[str], None] | None = None,
     ) -> None:
+        workspace_ids = {
+            *self._workspace_contexts,
+            *(workspace_id for workspace_id, _session_id in self._sessions),
+            *self._workspace_invalidation_epochs,
+        }
+        for workspace_id in workspace_ids:
+            self._workspace_invalidation_epochs[workspace_id] = (
+                self._workspace_invalidation_epochs.get(workspace_id, 0) + 1
+            )
+        self._node_invalidation_epochs.clear()
         for record in self._sessions.values():
             self._release_live_transport(
                 record,
@@ -601,6 +766,99 @@ class ViewerSessionService:
         if isinstance(command, MaterializeViewerDataCommand):
             return self.materialize_data(command)
         raise TypeError(f"Unsupported viewer session command: {type(command)!r}")
+
+    @staticmethod
+    def _normalize_node_ids(
+        node_ids: Iterable[str] | None,
+    ) -> tuple[str, ...] | None:
+        if node_ids is None:
+            return None
+        if isinstance(node_ids, (str, bytes)):
+            raise TypeError("node_ids must be an iterable of node IDs or None")
+        normalized: list[str] = []
+        for value in node_ids:
+            node_id = str(value or "").strip()
+            if node_id and node_id not in normalized:
+                normalized.append(node_id)
+        return tuple(normalized)
+
+    def _command_for_current_epoch(
+        self,
+        command: WorkerCommand,
+    ) -> WorkerCommand | ViewerSessionFailedEvent:
+        workspace_id, node_id = self._normalize_workspace_and_node(command)
+        if not workspace_id or not node_id:
+            return command
+        workspace_epoch = self._workspace_invalidation_epochs.get(workspace_id, 0)
+        node_key = (workspace_id, node_id)
+        node_epoch = self._node_invalidation_epochs.get(node_key, 0)
+        request_id = str(getattr(command, "request_id", "")).strip()
+        if not request_id:
+            return replace(
+                command,
+                workspace_invalidation_epoch=workspace_epoch,
+                node_invalidation_epoch=node_epoch,
+            )
+        command_workspace_epoch = int(
+            getattr(command, "workspace_invalidation_epoch", 0)
+        )
+        command_node_epoch = int(getattr(command, "node_invalidation_epoch", 0))
+        if command_workspace_epoch < workspace_epoch or (
+            command_workspace_epoch == workspace_epoch
+            and command_node_epoch < node_epoch
+        ):
+            return self._failure(
+                command, "viewer command was invalidated by a newer epoch"
+            )
+        if command_workspace_epoch > workspace_epoch:
+            self._invalidate_records(
+                workspace_id,
+                reason="workspace_epoch_advanced",
+                node_ids=None,
+            )
+            self._workspace_invalidation_epochs[workspace_id] = command_workspace_epoch
+            for key in tuple(self._node_invalidation_epochs):
+                if key[0] == workspace_id:
+                    self._node_invalidation_epochs.pop(key, None)
+            self._node_invalidation_epochs[node_key] = command_node_epoch
+        elif command_node_epoch > node_epoch:
+            self._invalidate_records(
+                workspace_id,
+                reason="node_epoch_advanced",
+                node_ids=(node_id,),
+            )
+            self._node_invalidation_epochs[node_key] = command_node_epoch
+        return command
+
+    def _invalidate_records(
+        self,
+        workspace_id: str,
+        *,
+        reason: str,
+        node_ids: tuple[str, ...] | None,
+    ) -> int:
+        invalidated_count = 0
+        for session_workspace_id, session_id in tuple(self._sessions):
+            if session_workspace_id != workspace_id:
+                continue
+            record = self._sessions[(session_workspace_id, session_id)]
+            if node_ids is not None and record.node_id not in node_ids:
+                continue
+            self._release_live_transport(
+                record,
+                reason=reason,
+                mark_rerun_required=True,
+            )
+            self._release_owner_scope(record.owner_scope)
+            record.source_refs = self._without_handle_refs(record.source_refs)
+            record.materialized_refs = self._without_handle_refs(record.materialized_refs)
+            record.session_state = "invalidated"
+            record.invalidated_reason = reason
+            record.rerun_required = True
+            record.stale_ref_keys.clear()
+            self._refresh_public_contract(record)
+            invalidated_count += 1
+        return invalidated_count
 
     def query_session(
         self,
@@ -642,6 +900,10 @@ class ViewerSessionService:
         self,
         command: QueryViewerSessionCommand,
     ) -> ViewerQueryResultEvent | ViewerSessionFailedEvent:
+        current_command = self._command_for_current_epoch(command)
+        if isinstance(current_command, ViewerSessionFailedEvent):
+            return current_command
+        command = current_command
         record = self._require_record(command)
         if isinstance(record, ViewerSessionFailedEvent):
             return record
@@ -670,9 +932,15 @@ class ViewerSessionService:
             supported=bool(result.supported),
             value=copy.deepcopy(result.value),
             explanation=str(result.explanation),
+            workspace_invalidation_epoch=command.workspace_invalidation_epoch,
+            node_invalidation_epoch=command.node_invalidation_epoch,
         )
 
     def open_session(self, command: OpenViewerSessionCommand) -> ViewerSessionOpenedEvent | ViewerSessionFailedEvent:
+        current_command = self._command_for_current_epoch(command)
+        if isinstance(current_command, ViewerSessionFailedEvent):
+            return current_command
+        command = current_command
         workspace_id, node_id = self._normalize_workspace_and_node(command)
         if not workspace_id or not node_id:
             return self._failure(command, "workspace_id and node_id are required.")
@@ -729,9 +997,15 @@ class ViewerSessionService:
             playback_state=copy.deepcopy(record.playback_state),
             summary=public_summary,
             options=public_options,
+            workspace_invalidation_epoch=command.workspace_invalidation_epoch,
+            node_invalidation_epoch=command.node_invalidation_epoch,
         )
 
     def update_session(self, command: UpdateViewerSessionCommand) -> ViewerSessionUpdatedEvent | ViewerSessionFailedEvent:
+        current_command = self._command_for_current_epoch(command)
+        if isinstance(current_command, ViewerSessionFailedEvent):
+            return current_command
+        command = current_command
         record = self._require_record(command)
         if isinstance(record, ViewerSessionFailedEvent):
             return record
@@ -770,9 +1044,15 @@ class ViewerSessionService:
             playback_state=copy.deepcopy(record.playback_state),
             summary=public_summary,
             options=public_options,
+            workspace_invalidation_epoch=command.workspace_invalidation_epoch,
+            node_invalidation_epoch=command.node_invalidation_epoch,
         )
 
     def close_session(self, command: CloseViewerSessionCommand) -> ViewerSessionClosedEvent | ViewerSessionFailedEvent:
+        current_command = self._command_for_current_epoch(command)
+        if isinstance(current_command, ViewerSessionFailedEvent):
+            return current_command
+        command = current_command
         record = self._require_record(command)
         if isinstance(record, ViewerSessionFailedEvent):
             return record
@@ -830,12 +1110,18 @@ class ViewerSessionService:
             playback_state=copy.deepcopy(record.playback_state),
             summary=public_summary,
             options=public_options,
+            workspace_invalidation_epoch=command.workspace_invalidation_epoch,
+            node_invalidation_epoch=command.node_invalidation_epoch,
         )
 
     def materialize_data(
         self,
         command: MaterializeViewerDataCommand,
     ) -> ViewerDataMaterializedEvent | ViewerSessionFailedEvent:
+        current_command = self._command_for_current_epoch(command)
+        if isinstance(current_command, ViewerSessionFailedEvent):
+            return current_command
+        command = current_command
         record = self._require_record(command)
         if isinstance(record, ViewerSessionFailedEvent):
             return record
@@ -938,6 +1224,8 @@ class ViewerSessionService:
             playback_state=copy.deepcopy(record.playback_state),
             summary=public_summary,
             options=public_options,
+            workspace_invalidation_epoch=command.workspace_invalidation_epoch,
+            node_invalidation_epoch=command.node_invalidation_epoch,
         )
 
     def _materialize_backend_result(
@@ -1050,6 +1338,12 @@ class ViewerSessionService:
             session_id=session_id or str(getattr(command, "session_id", "")).strip(),
             command=str(getattr(command, "type", "")).strip(),
             error=str(error).strip() or "viewer session command failed",
+            workspace_invalidation_epoch=int(
+                getattr(command, "workspace_invalidation_epoch", 0)
+            ),
+            node_invalidation_epoch=int(
+                getattr(command, "node_invalidation_epoch", 0)
+            ),
         )
 
     def _sanitize_record(self, record: _ViewerSessionRecord) -> None:
@@ -1516,6 +1810,8 @@ class ViewerSessionService:
             playback_state=copy.deepcopy(record.playback_state),
             summary=public_summary,
             options=public_options,
+            workspace_invalidation_epoch=command.workspace_invalidation_epoch,
+            node_invalidation_epoch=command.node_invalidation_epoch,
         )
 
 

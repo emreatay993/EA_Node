@@ -151,6 +151,12 @@ def dispatch_viewer_command(
             session_id=str(getattr(command, "session_id", "")).strip(),
             command=str(getattr(command, "type", "")).strip(),
             error=str(exc).strip() or "viewer session dispatch failed",
+            workspace_invalidation_epoch=int(
+                getattr(command, "workspace_invalidation_epoch", 0)
+            ),
+            node_invalidation_epoch=int(
+                getattr(command, "node_invalidation_epoch", 0)
+            ),
         )
     emit(event_queue, event, catalog=data_types)
 

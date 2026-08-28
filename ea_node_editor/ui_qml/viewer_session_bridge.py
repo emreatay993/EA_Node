@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import copy
 import hashlib
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
@@ -19,6 +19,11 @@ from ea_node_editor.common.scene_protocol import (
     normalize_viewer_representation,
 )
 from ea_node_editor.execution.viewer_backend_dpf import DPF_EXECUTION_VIEWER_BACKEND_ID
+from ea_node_editor.execution.protocol import (
+    normalize_viewer_invalidation_node_ids,
+    normalize_viewer_node_invalidation_epochs,
+    viewer_epoch_snapshot_digest,
+)
 from ea_node_editor.execution.viewer_session_service import (
     build_run_required_viewer_session_model,
     coerce_viewer_session_model,
@@ -338,6 +343,11 @@ class ViewerSessionBridge(QObject):
         ) = None
         self._explicit_inline_node_by_workspace: dict[str, str] = {}
         self._viewer_presentation_holds: set[tuple[str, str]] = set()
+        self._workspace_invalidation_epochs: dict[str, int] = {}
+        self._node_invalidation_epochs: dict[tuple[str, str], int] = {}
+        self._pending_query_requests: dict[
+            str, tuple[str, str, str, int, int]
+        ] = {}
         self._last_error = ""
         self._live_mode_sync_in_progress = False
 
@@ -446,6 +456,16 @@ class ViewerSessionBridge(QObject):
                 "explanation": self._last_error
                 or "The viewer query could not be dispatched.",
             }
+        workspace_epoch, node_epoch = self._viewer_epochs(
+            state.workspace_id, state.node_id
+        )
+        self._pending_query_requests[request_id] = (
+            state.workspace_id,
+            state.node_id,
+            state.session_id,
+            workspace_epoch,
+            node_epoch,
+        )
         return {
             "pending": True,
             "request_id": request_id,
@@ -781,6 +801,15 @@ class ViewerSessionBridge(QObject):
         *,
         reseed_on_next_reset: bool = False,
     ) -> None:
+        old_workspace_ids = {workspace_id for workspace_id, _node_id in self._sessions}
+        incoming_workspaces = getattr(project, "workspaces", {})
+        incoming_workspace_ids = (
+            {str(workspace_id) for workspace_id in incoming_workspaces}
+            if isinstance(incoming_workspaces, dict)
+            else set()
+        )
+        for workspace_id in sorted(old_workspace_ids | incoming_workspace_ids):
+            self._advance_invalidation_epochs(workspace_id, None)
         next_sessions = self._build_project_projection(project, registry)
         self._sessions = next_sessions
         self._explicit_inline_node_by_workspace.clear()
@@ -796,28 +825,140 @@ class ViewerSessionBridge(QObject):
         *,
         reason: str,
         run_id: str = "",
+        node_ids: Iterable[str] | None = None,
     ) -> None:
         normalized_workspace_id = _string(workspace_id)
         normalized_reason = _string(reason)
         if not normalized_workspace_id or not normalized_reason:
             return
+        normalized_node_ids = self._normalize_node_ids(node_ids)
+        if normalized_node_ids == ():
+            return
+        self._advance_invalidation_epochs(
+            normalized_workspace_id, normalized_node_ids
+        )
         changed = False
         for state in self._sessions.values():
-            if state.workspace_id != normalized_workspace_id:
+            if (
+                state.workspace_id != normalized_workspace_id
+                or normalized_node_ids is not None
+                and state.node_id not in normalized_node_ids
+            ):
                 continue
             self._project_run_required_state(
                 state, reason=normalized_reason, run_id=run_id
             )
             self._viewer_presentation_holds.discard((state.workspace_id, state.node_id))
             changed = True
-        self._explicit_inline_node_by_workspace.pop(normalized_workspace_id, None)
+        explicit_node_id = self._explicit_inline_node_by_workspace.get(
+            normalized_workspace_id, ""
+        )
+        if normalized_node_ids is None or explicit_node_id in normalized_node_ids:
+            self._explicit_inline_node_by_workspace.pop(normalized_workspace_id, None)
         if changed:
             self.sessions_changed.emit()
+
+    def adopt_committed_invalidation(
+        self,
+        *,
+        workspace_id: str,
+        node_ids: Iterable[str] | None,
+        workspace_epoch: int,
+        node_epochs: Iterable[tuple[str, int]],
+        snapshot_digest: str,
+        reason: str,
+        run_id: str = "",
+    ) -> bool:
+        normalized_workspace_id = _string(workspace_id)
+        normalized_reason = _string(reason)
+        normalized_node_ids = normalize_viewer_invalidation_node_ids(node_ids)
+        normalized_node_epochs = normalize_viewer_node_invalidation_epochs(
+            tuple(node_epochs)
+        )
+        if not normalized_workspace_id or not normalized_reason:
+            return False
+        if snapshot_digest != viewer_epoch_snapshot_digest(
+            workspace_id=normalized_workspace_id,
+            node_ids=normalized_node_ids,
+            workspace_epoch=workspace_epoch,
+            node_epochs=normalized_node_epochs,
+        ):
+            return False
+        current_workspace_epoch = self._workspace_invalidation_epochs.get(
+            normalized_workspace_id, 0
+        )
+        if workspace_epoch < current_workspace_epoch:
+            return False
+        if normalized_node_ids is None:
+            if normalized_node_epochs or workspace_epoch <= current_workspace_epoch:
+                return False
+        elif normalized_node_ids == ():
+            return bool(
+                not normalized_node_epochs
+                and workspace_epoch == current_workspace_epoch
+            )
+        elif tuple(node_id for node_id, _epoch in normalized_node_epochs) != normalized_node_ids:
+            return False
+
+        workspace_advanced = workspace_epoch > current_workspace_epoch
+        if not workspace_advanced and normalized_node_ids not in {None, ()}:
+            for node_id, epoch in normalized_node_epochs:
+                if epoch != self._node_invalidation_epochs.get(
+                    (normalized_workspace_id, node_id), 0
+                ) + 1:
+                    return False
+        if workspace_advanced:
+            self._workspace_invalidation_epochs[normalized_workspace_id] = (
+                workspace_epoch
+            )
+            for key in tuple(self._node_invalidation_epochs):
+                if key[0] == normalized_workspace_id:
+                    self._node_invalidation_epochs.pop(key, None)
+        for node_id, epoch in normalized_node_epochs:
+            key = (normalized_workspace_id, node_id)
+            if epoch < self._node_invalidation_epochs.get(key, 0):
+                return False
+            self._node_invalidation_epochs[key] = epoch
+        cleanup_node_ids = None if workspace_advanced else normalized_node_ids
+        for request_id, pending in tuple(self._pending_query_requests.items()):
+            pending_workspace_id, pending_node_id, *_rest = pending
+            if pending_workspace_id == normalized_workspace_id and (
+                cleanup_node_ids is None or pending_node_id in cleanup_node_ids
+            ):
+                self._pending_query_requests.pop(request_id, None)
+        changed = False
+        for state in self._sessions.values():
+            if state.workspace_id != normalized_workspace_id or (
+                cleanup_node_ids is not None
+                and state.node_id not in cleanup_node_ids
+            ):
+                continue
+            self._project_run_required_state(
+                state, reason=normalized_reason, run_id=run_id
+            )
+            self._viewer_presentation_holds.discard(
+                (state.workspace_id, state.node_id)
+            )
+            changed = True
+        explicit_node_id = self._explicit_inline_node_by_workspace.get(
+            normalized_workspace_id, ""
+        )
+        if cleanup_node_ids is None or explicit_node_id in cleanup_node_ids:
+            self._explicit_inline_node_by_workspace.pop(
+                normalized_workspace_id, None
+            )
+        if changed:
+            self.sessions_changed.emit()
+        return True
 
     def project_all_run_required(self, *, reason: str) -> None:
         normalized_reason = _string(reason)
         if not normalized_reason or not self._sessions:
             return
+        for workspace_id in sorted(
+            {state.workspace_id for state in self._sessions.values()}
+        ):
+            self._advance_invalidation_epochs(workspace_id, None)
         for state in self._sessions.values():
             self._project_run_required_state(state, reason=normalized_reason)
             self._viewer_presentation_holds.discard((state.workspace_id, state.node_id))
@@ -830,8 +971,14 @@ class ViewerSessionBridge(QObject):
         *,
         reason: str,
         run_id: str = "",
+        node_ids: Iterable[str] | None = None,
     ) -> None:
-        self.project_workspace_run_required(workspace_id, reason=reason, run_id=run_id)
+        self.project_workspace_run_required(
+            workspace_id,
+            reason=reason,
+            run_id=run_id,
+            node_ids=node_ids,
+        )
 
     def invalidate_all_sessions(self, *, reason: str) -> None:
         self.project_all_run_required(reason=reason)
@@ -844,6 +991,12 @@ class ViewerSessionBridge(QObject):
             if self._pending_reset_seed is not None
             else None
         )
+        workspace_ids = {
+            *self._workspace_invalidation_epochs,
+            *(workspace_id for workspace_id, _node_id in self._sessions),
+        }
+        for workspace_id in sorted(workspace_ids):
+            self._advance_invalidation_epochs(workspace_id, None)
         self._pending_reset_seed = None
         self._sessions.clear()
         self._explicit_inline_node_by_workspace.clear()
@@ -851,6 +1004,71 @@ class ViewerSessionBridge(QObject):
         if pending_seed is not None and _string(reason) == "project_close":
             self._sessions = pending_seed
         self.sessions_changed.emit()
+
+    @staticmethod
+    def _normalize_node_ids(
+        node_ids: Iterable[str] | None,
+    ) -> tuple[str, ...] | None:
+        if node_ids is None:
+            return None
+        if isinstance(node_ids, (str, bytes)):
+            raise TypeError("node_ids must be an iterable of node IDs or None")
+        normalized: list[str] = []
+        for value in node_ids:
+            node_id = _string(value)
+            if node_id and node_id not in normalized:
+                normalized.append(node_id)
+        return tuple(normalized)
+
+    def _viewer_epochs(self, workspace_id: str, node_id: str) -> tuple[int, int]:
+        return (
+            self._workspace_invalidation_epochs.get(workspace_id, 0),
+            self._node_invalidation_epochs.get((workspace_id, node_id), 0),
+        )
+
+    def _advance_invalidation_epochs(
+        self,
+        workspace_id: str,
+        node_ids: tuple[str, ...] | None,
+    ) -> None:
+        if node_ids == ():
+            return
+        if node_ids is None:
+            self._workspace_invalidation_epochs[workspace_id] = (
+                self._workspace_invalidation_epochs.get(workspace_id, 0) + 1
+            )
+            for key in tuple(self._node_invalidation_epochs):
+                if key[0] == workspace_id:
+                    self._node_invalidation_epochs.pop(key, None)
+        else:
+            for node_id in node_ids:
+                key = (workspace_id, node_id)
+                self._node_invalidation_epochs[key] = (
+                    self._node_invalidation_epochs.get(key, 0) + 1
+                )
+        for request_id, pending in tuple(self._pending_query_requests.items()):
+            pending_workspace_id, pending_node_id, *_rest = pending
+            if pending_workspace_id == workspace_id and (
+                node_ids is None or pending_node_id in node_ids
+            ):
+                self._pending_query_requests.pop(request_id, None)
+        execution_client = getattr(self._shell_window, "execution_client", None)
+        invalidate = getattr(execution_client, "invalidate_viewer_requests", None)
+        if callable(invalidate):
+            invalidate(workspace_id, node_ids)
+
+    def _event_epoch_is_current(self, event: Mapping[str, Any]) -> bool:
+        workspace_id = _string(event.get("workspace_id"))
+        node_id = _string(event.get("node_id"))
+        if not workspace_id or not node_id:
+            return False
+        workspace_epoch, node_epoch = self._viewer_epochs(workspace_id, node_id)
+        return (
+            _coerce_step_index(event.get("workspace_invalidation_epoch"))
+            == workspace_epoch
+            and _coerce_step_index(event.get("node_invalidation_epoch"))
+            == node_epoch
+        )
 
     def _build_project_projection(
         self,
@@ -1278,9 +1496,19 @@ class ViewerSessionBridge(QObject):
         if event_type not in _VIEWER_EVENT_TYPES:
             return
 
+        workspace_id = _string(event.get("workspace_id"))
+        node_id = _string(event.get("node_id"))
+        if not workspace_id or not node_id or not self._event_epoch_is_current(event):
+            return
+        event_request_id = _string(event.get("request_id"))
+
         if event_type == "viewer_query_result":
-            node_id = _string(event.get("node_id"))
-            if not node_id:
+            pending_query = self._pending_query_requests.pop(event_request_id, None)
+            if pending_query is None or pending_query[:3] != (
+                workspace_id,
+                node_id,
+                _string(event.get("session_id")),
+            ):
                 return
             result = {
                 "pending": False,
@@ -1297,8 +1525,12 @@ class ViewerSessionBridge(QObject):
             event_type == "viewer_session_failed"
             and _string(event.get("command")) == "query_viewer_session"
         ):
-            node_id = _string(event.get("node_id"))
-            if node_id:
+            pending_query = self._pending_query_requests.pop(event_request_id, None)
+            if pending_query is not None and pending_query[:3] == (
+                workspace_id,
+                node_id,
+                _string(event.get("session_id")),
+            ):
                 self.viewer_query_completed.emit(
                     node_id,
                     {
@@ -1313,18 +1545,13 @@ class ViewerSessionBridge(QObject):
                 )
             return
 
-        workspace_id = _string(event.get("workspace_id"))
-        node_id = _string(event.get("node_id"))
-        if not workspace_id or not node_id:
+        state = self._sessions.get((workspace_id, node_id))
+        if state is None:
             return
-
-        state = self._ensure_session_state(workspace_id, node_id)
-        event_request_id = _string(event.get("request_id"))
-        if (
-            event_type == "viewer_session_failed"
-            and event_request_id
-            and event_request_id != state.request_id
-        ):
+        event_session_id = _string(event.get("session_id"))
+        if event_request_id and event_request_id != state.request_id:
+            return
+        if event_session_id and event_session_id != state.session_id:
             return
         event_live_mode = _string(event.get("live_mode")) or _string(
             _copy_mapping(event.get("options")).get("live_mode")

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import ast
+import copy
 import json
 import unittest
 from dataclasses import dataclass
@@ -14,7 +15,9 @@ from PyQt6.QtCore import QCoreApplication, QEvent, QObject, QUrl, pyqtSignal
 from ea_node_editor.execution.protocol import (
     NodeSettledEvent,
     event_to_dict,
+    viewer_epoch_snapshot_digest,
 )
+from ea_node_editor.execution.prepared_execution import InvalidationResult
 from ea_node_editor.runtime_contracts.settled_results import SettledPortResult
 from ea_node_editor.execution.viewer_backend_dpf import DPF_EXECUTION_VIEWER_BACKEND_ID
 from ea_node_editor.nodes.builtins.ansys_dpf_common import (
@@ -46,6 +49,8 @@ class _ViewerExecutionClientStub:
         self.materialize_calls: list[dict[str, Any]] = []
         self.query_calls: list[dict[str, Any]] = []
         self.close_calls: list[dict[str, Any]] = []
+        self.invalidate_viewer_calls: list[tuple[str, tuple[str, ...] | None]] = []
+        self._solution_revisions: dict[str, int] = {}
         self._request_counter = 0
 
     def _next_request_id(self, prefix: str) -> str:
@@ -223,6 +228,37 @@ class _ViewerExecutionClientStub:
 
     def shutdown(self) -> None:
         return None
+
+    def invalidate_viewer_requests(
+        self,
+        workspace_id: str,
+        node_ids,
+    ) -> int:
+        normalized = None if node_ids is None else tuple(dict.fromkeys(node_ids))
+        self.invalidate_viewer_calls.append((workspace_id, normalized))
+        return 0
+
+    def invalidate_solution(
+        self,
+        project_id: str,
+        workspace_id: str,
+        _runtime_snapshot,
+        changed_root_node_ids,
+        reason_code: str,
+    ) -> InvalidationResult:
+        self._solution_revisions[workspace_id] = (
+            self._solution_revisions.get(workspace_id, 0) + 1
+        )
+        roots = tuple(changed_root_node_ids)
+        return InvalidationResult(
+            project_id=project_id,
+            workspace_id=workspace_id,
+            solution_revision=self._solution_revisions[workspace_id],
+            changed_root_node_ids=roots,
+            expired_node_ids=roots,
+            removed_node_ids=(),
+            reason_code=reason_code,
+        )
 
 
 class _SceneStub(QObject):
@@ -1797,8 +1833,18 @@ class ViewerSessionBridgeUnitTests(unittest.TestCase):
             "live_mode": "full",
             "step_index": 4,
         }
+        self.bridge._ensure_session_state("ws_old", "old_viewer")
 
         self.bridge.project_loaded(self.host.model.project, None)
+
+        self.assertIn(
+            ("ws_main", None),
+            self.host.execution_client.invalidate_viewer_calls,
+        )
+        self.assertIn(
+            ("ws_old", None),
+            self.host.execution_client.invalidate_viewer_calls,
+        )
 
         projected_state = self.bridge.session_state("node_viewer")
         self.assertEqual(projected_state["phase"], "blocked")
@@ -1875,6 +1921,146 @@ class ViewerSessionBridgeUnitTests(unittest.TestCase):
             {"kind": "bundle", "backend_id": DPF_EXECUTION_VIEWER_BACKEND_ID},
         )
 
+    def test_scoped_invalidation_preserves_other_viewer_and_rejects_late_events(
+        self,
+    ) -> None:
+        session_a = self._open_live_session("viewer_a")
+        self.bridge.clear_viewer_focus()
+        self._open_live_session("viewer_b")
+        viewer_b_before = copy.deepcopy(self.bridge.session_state("viewer_b"))
+        stale_open_request = self.host.execution_client.open_calls[-2]["request_id"]
+
+        self.bridge.project_workspace_run_required(
+            "ws_main",
+            reason="workspace_rerun",
+            run_id="run_partial",
+            node_ids=("viewer_a", "viewer_a"),
+        )
+
+        self.assertEqual(self.bridge.session_state("viewer_b"), viewer_b_before)
+        self.assertEqual(self.bridge.session_state("viewer_a")["phase"], "blocked")
+        self.assertEqual(
+            self.host.execution_client.invalidate_viewer_calls[-1],
+            ("ws_main", ("viewer_a",)),
+        )
+        before_empty = copy.deepcopy(self.bridge.sessions_model)
+        invalidate_call_count = len(
+            self.host.execution_client.invalidate_viewer_calls
+        )
+        self.bridge.project_workspace_run_required(
+            "ws_main",
+            reason="workspace_rerun",
+            node_ids=(),
+        )
+        self.assertEqual(self.bridge.sessions_model, before_empty)
+        self.assertEqual(
+            len(self.host.execution_client.invalidate_viewer_calls),
+            invalidate_call_count,
+        )
+
+        self.host.execution_event.emit(
+            _viewer_opened_event(
+                request_id=stale_open_request,
+                workspace_id="ws_main",
+                node_id="viewer_a",
+                session_id=session_a,
+                summary={"cache_state": "live_ready"},
+                transport={"kind": "late_transport"},
+                workspace_invalidation_epoch=0,
+                node_invalidation_epoch=0,
+            )
+        )
+        self.assertEqual(self.bridge.session_state("viewer_a")["phase"], "blocked")
+
+    def test_invalidated_query_emits_no_late_completion_signal(self) -> None:
+        session_id = self._open_live_session()
+        results: list[tuple[str, dict[str, Any]]] = []
+        self.bridge.viewer_query_completed.connect(
+            lambda node_id, result: results.append((str(node_id), dict(result)))
+        )
+        pending = self.bridge.query_session(
+            workspace_id="ws_main",
+            node_id="node_viewer",
+            session_id=session_id,
+            query_type="bounds",
+        )
+        self.bridge.project_workspace_run_required(
+            "ws_main",
+            reason="workspace_rerun",
+            node_ids=("node_viewer",),
+        )
+        self.host.execution_event.emit(
+            {
+                "type": "viewer_query_result",
+                "request_id": pending["request_id"],
+                "workspace_id": "ws_main",
+                "node_id": "node_viewer",
+                "session_id": session_id,
+                "backend_id": "",
+                "query_type": "bounds",
+                "supported": True,
+                "value": {"bounds": [0, 1]},
+                "explanation": "",
+                "workspace_invalidation_epoch": 0,
+                "node_invalidation_epoch": 0,
+            }
+        )
+        self.assertEqual(results, [])
+
+    def test_committed_invalidation_adopts_exact_epoch_without_client_increment(
+        self,
+    ) -> None:
+        self._open_live_session("viewer_a")
+        self.bridge.clear_viewer_focus()
+        self._open_live_session("viewer_b")
+        viewer_b_before = copy.deepcopy(self.bridge.session_state("viewer_b"))
+        workspace_epoch, node_epoch = self.bridge._viewer_epochs(  # noqa: SLF001
+            "ws_main", "viewer_a"
+        )
+        node_epochs = (("viewer_a", node_epoch + 1),)
+        digest = viewer_epoch_snapshot_digest(
+            workspace_id="ws_main",
+            node_ids=("viewer_a",),
+            workspace_epoch=workspace_epoch,
+            node_epochs=node_epochs,
+        )
+        invalidation_calls = list(
+            self.host.execution_client.invalidate_viewer_calls
+        )
+
+        self.assertTrue(
+            self.bridge.adopt_committed_invalidation(
+                workspace_id="ws_main",
+                node_ids=("viewer_a",),
+                workspace_epoch=workspace_epoch,
+                node_epochs=node_epochs,
+                snapshot_digest=digest,
+                reason="workspace_rerun",
+                run_id="run_partial",
+            )
+        )
+
+        self.assertEqual(
+            self.bridge._viewer_epochs("ws_main", "viewer_a"),  # noqa: SLF001
+            (workspace_epoch, node_epoch + 1),
+        )
+        self.assertEqual(self.bridge.session_state("viewer_a")["phase"], "blocked")
+        self.assertEqual(self.bridge.session_state("viewer_b"), viewer_b_before)
+        self.assertEqual(
+            self.host.execution_client.invalidate_viewer_calls,
+            invalidation_calls,
+        )
+        self.assertFalse(
+            self.bridge.adopt_committed_invalidation(
+                workspace_id="ws_main",
+                node_ids=("viewer_a",),
+                workspace_epoch=workspace_epoch,
+                node_epochs=node_epochs,
+                snapshot_digest=digest,
+                reason="workspace_rerun",
+            )
+        )
+
     def test_node_settled_runtime_payload_clears_stale_rerun_blocker_after_workspace_rerun(
         self,
     ) -> None:
@@ -1931,6 +2117,8 @@ class ViewerSessionBridgeUnitTests(unittest.TestCase):
                 "backend_id": DPF_EXECUTION_VIEWER_BACKEND_ID,
                 "bundle_path": "C:/temp/viewer_bundle",
             },
+            workspace_invalidation_epoch=1,
+            node_invalidation_epoch=0,
         )
         self.host.execution_event.emit(
             event_to_dict(

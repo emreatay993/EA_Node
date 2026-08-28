@@ -13,6 +13,7 @@ from PyQt6.QtWidgets import QApplication, QWidget
 
 from ea_node_editor.addons.catalog import ANSYS_DPF_ADDON_ID
 from ea_node_editor.app_preferences import default_app_preferences_document, set_addon_state
+from ea_node_editor.execution.prepared_execution import InvalidationResult
 from ea_node_editor.nodes.builtins.ansys_dpf_common import (
     DPF_VIEWER_NODE_TYPE_ID,
     DPF_VIEWER_SHOW_MESH_EDGES_PROPERTY,
@@ -67,6 +68,7 @@ class _ViewerExecutionClientStub:
         self.update_calls: list[dict[str, Any]] = []
         self.materialize_calls: list[dict[str, Any]] = []
         self.close_calls: list[dict[str, Any]] = []
+        self._solution_revisions: dict[str, int] = {}
 
     def _next_request_id(self, prefix: str) -> str:
         self._request_counter += 1
@@ -105,6 +107,34 @@ class _ViewerExecutionClientStub:
         request_id = self._next_request_id("close")
         self.close_calls.append({"request_id": request_id, **kwargs})
         return request_id
+
+    def invalidate_solution(
+        self,
+        project_id: str,
+        workspace_id: str,
+        _runtime_snapshot,
+        changed_root_node_ids,
+        reason_code: str,
+    ) -> InvalidationResult:
+        self._solution_revisions[workspace_id] = (
+            self._solution_revisions.get(workspace_id, 0) + 1
+        )
+        roots = tuple(changed_root_node_ids)
+        return InvalidationResult(
+            project_id=project_id,
+            workspace_id=workspace_id,
+            solution_revision=self._solution_revisions[workspace_id],
+            changed_root_node_ids=roots,
+            expired_node_ids=roots,
+            removed_node_ids=(),
+            reason_code=reason_code,
+        )
+
+    def solution_facts(self, _project_id: str, _workspace_id: str):  # noqa: ANN201
+        return ()
+
+    def invalidate_viewer_requests(self, _workspace_id: str, _node_ids) -> int:
+        return 0
 
     def shutdown(self) -> None:
         return None
@@ -161,6 +191,7 @@ class _RecordingBinder:
         self.release_calls: list[dict[str, Any]] = []
         self.capture_calls: list[QWidget] = []
         self.capture_preview_calls: list[QWidget] = []
+        self.capture_preview_sizes: list[QSize] = []
         self.activate_selection_calls: list[dict[str, Any]] = []
         self.selection_filter_calls: list[dict[str, Any]] = []
         self.fail_prepare = fail_prepare
@@ -254,6 +285,7 @@ class _RecordingBinder:
 
     def capture_preview_image(self, widget: QWidget) -> QImage:
         self.capture_preview_calls.append(widget)
+        self.capture_preview_sizes.append(widget.size())
         return self.captured_preview_image.copy()
 
     def activate_selection(self, widget: QWidget, entities: list[dict[str, Any]]) -> bool:
@@ -467,10 +499,17 @@ class ViewerHostServiceTests(MainWindowShellTestBase):
             "state": "paused",
             "step_index": 0,
         }
+        request_id = f"req::{event_type}::{node_id}::{transport_revision}"
+        state = self.bridge._ensure_session_state(self.workspace_id, node_id)  # noqa: SLF001
+        state.request_id = request_id
+        state.session_id = resolved_session_id
+        workspace_epoch, node_epoch = self.bridge._viewer_epochs(  # noqa: SLF001
+            self.workspace_id, node_id
+        )
         self.window.execution_event.emit(
             {
                 "type": event_type,
-                "request_id": f"req::{event_type}::{node_id}::{transport_revision}",
+                "request_id": request_id,
                 "workspace_id": self.workspace_id,
                 "node_id": node_id,
                 "session_id": resolved_session_id,
@@ -505,6 +544,8 @@ class ViewerHostServiceTests(MainWindowShellTestBase):
                     "playback": playback,
                     "live_mode": live_mode,
                 },
+                "workspace_invalidation_epoch": workspace_epoch,
+                "node_invalidation_epoch": node_epoch,
             }
         )
         self.app.processEvents()
@@ -525,10 +566,17 @@ class ViewerHostServiceTests(MainWindowShellTestBase):
 
     def _close_viewer_session(self, *, node_id: str, session_id: str = "") -> None:
         resolved_session_id = session_id or f"session::{node_id}"
+        request_id = f"req::close::{node_id}"
+        state = self.bridge._ensure_session_state(self.workspace_id, node_id)  # noqa: SLF001
+        state.request_id = request_id
+        state.session_id = resolved_session_id
+        workspace_epoch, node_epoch = self.bridge._viewer_epochs(  # noqa: SLF001
+            self.workspace_id, node_id
+        )
         self.window.execution_event.emit(
             {
                 "type": "viewer_session_closed",
-                "request_id": f"req::close::{node_id}",
+                "request_id": request_id,
                 "workspace_id": self.workspace_id,
                 "node_id": node_id,
                 "session_id": resolved_session_id,
@@ -541,6 +589,8 @@ class ViewerHostServiceTests(MainWindowShellTestBase):
                     "reason": "test_close",
                     "live_mode": "proxy",
                 },
+                "workspace_invalidation_epoch": workspace_epoch,
+                "node_invalidation_epoch": node_epoch,
             }
         )
         self.app.processEvents()
@@ -1437,7 +1487,7 @@ class ViewerHostServiceTests(MainWindowShellTestBase):
         self.assertEqual(self.host_service.retained_inline_viewer_node_id, node_id)
         self.assertEqual(binder.release_calls, [])
         cached, cached_size = provider.requestImage(source.split("image://viewer-preview-cache/", 1)[1], QSize())
-        self.assertEqual(cached_size, container.size())
+        self.assertEqual(cached_size, binder.capture_preview_sizes[0])
         self.assertEqual(cached.pixelColor(0, 0), QColor("#67D487"))
 
     def test_cached_preview_capture_skips_incompatible_transport_identity(self) -> None:

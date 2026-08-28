@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import unittest
+from dataclasses import replace
 from pathlib import Path
 
 from ea_node_editor.execution.protocol import (
@@ -144,6 +145,14 @@ class ViewerExecutionProtocolTests(unittest.TestCase):
                 options={"precision": 3},
             ),
         ]
+        commands = [
+            replace(
+                command,
+                workspace_invalidation_epoch=3,
+                node_invalidation_epoch=5,
+            )
+            for command in commands
+        ]
 
         for command in commands:
             with self.subTest(command_type=command.type):
@@ -153,6 +162,8 @@ class ViewerExecutionProtocolTests(unittest.TestCase):
                 self.assertEqual(payload["workspace_id"], "ws_main")
                 self.assertEqual(payload["node_id"], "node_viewer")
                 self.assertEqual(payload["session_id"], "session_existing")
+                self.assertEqual(payload["workspace_invalidation_epoch"], 3)
+                self.assertEqual(payload["node_invalidation_epoch"], 5)
 
                 if "data_refs" in payload:
                     self.assertEqual(
@@ -181,6 +192,8 @@ class ViewerExecutionProtocolTests(unittest.TestCase):
                 self.assertEqual(restored.workspace_id, command.workspace_id)
                 self.assertEqual(restored.node_id, command.node_id)
                 self.assertEqual(restored.session_id, command.session_id)
+                self.assertEqual(restored.workspace_invalidation_epoch, 3)
+                self.assertEqual(restored.node_invalidation_epoch, 5)
 
                 if isinstance(
                     restored, (OpenViewerSessionCommand, UpdateViewerSessionCommand)
@@ -320,6 +333,14 @@ class ViewerExecutionProtocolTests(unittest.TestCase):
                 error="viewer session expired",
             ),
         ]
+        events = [
+            replace(
+                event,
+                workspace_invalidation_epoch=3,
+                node_invalidation_epoch=5,
+            )
+            for event in events
+        ]
 
         for event in events:
             with self.subTest(event_type=event.type):
@@ -331,6 +352,10 @@ class ViewerExecutionProtocolTests(unittest.TestCase):
                 self.assertEqual(restored.workspace_id, event.workspace_id)
                 self.assertEqual(restored.node_id, event.node_id)
                 self.assertEqual(restored.session_id, event.session_id)
+                self.assertEqual(payload["workspace_invalidation_epoch"], 3)
+                self.assertEqual(payload["node_invalidation_epoch"], 5)
+                self.assertEqual(restored.workspace_invalidation_epoch, 3)
+                self.assertEqual(restored.node_invalidation_epoch, 5)
 
                 if isinstance(
                     restored,

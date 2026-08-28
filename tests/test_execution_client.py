@@ -49,10 +49,13 @@ from ea_node_editor.execution.managed_runtime import (
     resolve_managed_runtime_paths,
 )
 from ea_node_editor.execution.protocol import (
+    CommitRunPreflightCommand,
     NodeSettledEvent,
     NodeStartedEvent,
+    OpenViewerSessionCommand,
     ProtocolErrorEvent,
     RunCompletedEvent,
+    RunPreflightAcceptedEvent,
     StartRunCommand,
     ViewerSessionOpenedEvent,
     catalog_agreement,
@@ -214,6 +217,11 @@ class _RoutingClient:
     def __init__(self, name: str) -> None:
         self.name = name
         self.calls: list[tuple[str, tuple, dict]] = []
+        self._state_lock = threading.Lock()
+        self._viewer_request_lock = threading.Lock()
+        self._catalog_generation_token = 0
+        self._workspace_viewer_epochs: dict[str, int] = {}
+        self._node_viewer_epochs: dict[tuple[str, str], int] = {}
 
     def _record(self, method: str, args: tuple, kwargs: dict) -> str:
         self.calls.append((method, args, dict(kwargs)))
@@ -239,6 +247,1078 @@ class _RoutingClient:
 
 
 class ExecutionClientCommonTests(unittest.TestCase):
+    def test_scoped_viewer_request_invalidation_captures_epochs_and_counts_once(
+        self,
+    ) -> None:
+        client = ProcessExecutionClient()
+        commands = []
+        client._ensure_process = lambda: None  # type: ignore[method-assign]  # noqa: SLF001
+        client._try_post_command = (  # type: ignore[method-assign]  # noqa: SLF001
+            lambda command: (commands.append(command) is None, "")
+        )
+        try:
+            request_a = client.open_viewer_session(
+                "ws_main", "viewer_a", session_id="session_a"
+            )
+            request_b = client.open_viewer_session(
+                "ws_main", "viewer_b", session_id="session_b"
+            )
+            self.assertEqual(
+                client.invalidate_viewer_requests(
+                    "ws_main", ("viewer_a", "viewer_a")
+                ),
+                1,
+            )
+            self.assertNotIn(request_a, client._pending_viewer_requests)  # noqa: SLF001
+            self.assertIn(request_b, client._pending_viewer_requests)  # noqa: SLF001
+            self.assertEqual(
+                client._record_viewer_response_state(  # noqa: SLF001
+                    event_to_dict(
+                        ViewerSessionOpenedEvent(
+                            request_id=request_a,
+                            workspace_id="ws_main",
+                            node_id="viewer_a",
+                            session_id="session_a",
+                        )
+                    ),
+                    default_generation_token=0,
+                ),
+                -1,
+            )
+            self.assertNotIn(
+                ("ws_main", "session_a"),
+                client._viewer_session_ids,  # noqa: SLF001
+            )
+            client.close_viewer_session("ws_main", "viewer_a", "session_a")
+            self.assertEqual(commands[-1].workspace_invalidation_epoch, 0)
+            self.assertEqual(commands[-1].node_invalidation_epoch, 1)
+            self.assertEqual(
+                client.invalidate_viewer_requests("ws_main", ()), 0
+            )
+            with self.assertRaises(TypeError):
+                client.invalidate_viewer_requests("ws_main", "viewer_a")
+            self.assertEqual(client.invalidate_viewer_requests("ws_main", None), 2)
+            self.assertEqual(client._workspace_viewer_epochs["ws_main"], 1)  # noqa: SLF001
+            self.assertNotIn(("ws_main", "viewer_a"), client._node_viewer_epochs)  # noqa: SLF001
+        finally:
+            client.shutdown()
+
+    def test_process_viewer_command_captures_epoch_after_worker_ensure(self) -> None:
+        client = ProcessExecutionClient()
+        commands = []
+
+        def ensure_process() -> None:
+            with client._viewer_request_lock:  # noqa: SLF001
+                client._workspace_viewer_epochs["ws_main"] = 1  # noqa: SLF001
+
+        client._ensure_process = ensure_process  # type: ignore[method-assign]  # noqa: SLF001
+        client._try_post_command = (  # type: ignore[method-assign]  # noqa: SLF001
+            lambda command: (commands.append(command) is None, "")
+        )
+        try:
+            request_id = client.open_viewer_session(
+                "ws_main", "viewer_a", session_id="session_a"
+            )
+            self.assertTrue(request_id)
+            self.assertEqual(commands[-1].workspace_invalidation_epoch, 1)
+            self.assertEqual(
+                client._pending_viewer_requests[  # noqa: SLF001
+                    request_id
+                ].workspace_invalidation_epoch,
+                1,
+            )
+        finally:
+            client.shutdown()
+
+    def test_concrete_registry_publication_is_noop_before_live_viewer_guard(self) -> None:
+        registry = build_default_registry()
+        fingerprint = registry.contract_fingerprint()
+        for client_type in (
+            ProcessExecutionClient,
+            TrustedInProcessExecutionClient,
+            ExternalPythonExecutionClient,
+        ):
+            client = client_type()
+            session_key = ("ws_main", "session_live")
+            client._registry_contract_generation_fingerprint = fingerprint  # noqa: SLF001
+            client._viewer_session_ids.add(session_key)  # noqa: SLF001
+            client._viewer_session_generations[session_key] = 0  # noqa: SLF001
+            client._viewer_session_node_ids[session_key] = "viewer_live"  # noqa: SLF001
+            before_generation = client._catalog_generation_token  # noqa: SLF001
+            try:
+                self.assertFalse(client.replace_registry(registry))
+                self.assertEqual(
+                    client._catalog_generation_token,  # noqa: SLF001
+                    before_generation,
+                )
+                self.assertIn(session_key, client._viewer_session_ids)  # noqa: SLF001
+                different = build_builtin_registry()
+                with self.assertRaises(DataTypeCatalogError):
+                    client.replace_registry(different)
+                self.assertIn(session_key, client._viewer_session_ids)  # noqa: SLF001
+            finally:
+                client.shutdown()
+
+    def test_backend_viewer_forwarding_has_exact_query_and_empty_invalidation_contract(
+        self,
+    ) -> None:
+        backend = ExecutionBackendClient()
+        try:
+            self.assertEqual(
+                backend.query_viewer_session(
+                    "ws_missing",
+                    "viewer_missing",
+                    "session_missing",
+                    query_type="bounds",
+                ),
+                "",
+            )
+            self.assertEqual(
+                backend.invalidate_viewer_requests("ws_missing", ()), 0
+            )
+            with self.assertRaises(TypeError):
+                backend.invalidate_viewer_requests("ws_missing", "viewer")
+            owner = backend._process_client  # noqa: SLF001
+            for node_id in ("viewer_a", "viewer_b"):
+                session_key = ("ws_main", f"session_{node_id}")
+                backend._session_clients[session_key] = owner  # noqa: SLF001
+                backend._session_client_generations[session_key] = 0  # noqa: SLF001
+                backend._session_node_ids[session_key] = node_id  # noqa: SLF001
+            backend._workspace_clients["ws_main"] = owner  # noqa: SLF001
+            backend._workspace_client_generations["ws_main"] = 0  # noqa: SLF001
+
+            backend.invalidate_viewer_requests("ws_main", ("viewer_a",))
+
+            self.assertNotIn(
+                ("ws_main", "session_viewer_a"),
+                backend._session_clients,  # noqa: SLF001
+            )
+            self.assertIn(
+                ("ws_main", "session_viewer_b"),
+                backend._session_clients,  # noqa: SLF001
+            )
+            self.assertIs(
+                backend._workspace_clients["ws_main"],  # noqa: SLF001
+                owner,
+            )
+        finally:
+            backend.shutdown()
+
+    def test_viewer_invalidation_reservation_stages_then_commits_once(self) -> None:
+        backend = ExecutionBackendClient()
+        selection = ExecutionBackendSelection()
+        process = backend._process_client  # noqa: SLF001
+        snapshot = ExecutionGenerationSnapshot(
+            selection=selection,
+            backend_generation=0,
+            runtime_generation=0,
+            environment_digest="a" * 64,
+            available=True,
+        )
+        run_reservation = ExecutionRunReservation(
+            run_id="run_viewer_commit",
+            workspace_id="ws_main",
+            selection=selection,
+            generation_snapshot=snapshot,
+        )
+        for child in (
+            backend._process_client,  # noqa: SLF001
+            backend._trusted_client,  # noqa: SLF001
+            backend._external_python_client,  # noqa: SLF001
+        ):
+            child._pending_viewer_requests["same_request"] = _PendingViewerRequest(  # noqa: SLF001
+                request_id="same_request",
+                command="open_viewer_session",
+                workspace_id="ws_main",
+                node_id="viewer_a",
+                session_id="session_a",
+            )
+        session_key = ("ws_main", "session_a")
+        backend._session_clients[session_key] = process  # noqa: SLF001
+        backend._session_client_generations[session_key] = 0  # noqa: SLF001
+        backend._session_node_ids[session_key] = "viewer_a"  # noqa: SLF001
+        before = tuple(
+            (
+                dict(child._workspace_viewer_epochs),  # noqa: SLF001
+                dict(child._node_viewer_epochs),  # noqa: SLF001
+                set(child._pending_viewer_requests),  # noqa: SLF001
+            )
+            for child in (
+                backend._process_client,  # noqa: SLF001
+                backend._trusted_client,  # noqa: SLF001
+                backend._external_python_client,  # noqa: SLF001
+            )
+        )
+        try:
+            staged = backend.reserve_viewer_invalidation(
+                run_reservation, "prepared_viewer_commit", ("viewer_a",)
+            )
+            self.assertEqual(
+                tuple(
+                    (
+                        dict(child._workspace_viewer_epochs),  # noqa: SLF001
+                        dict(child._node_viewer_epochs),  # noqa: SLF001
+                        set(child._pending_viewer_requests),  # noqa: SLF001
+                    )
+                    for child in (
+                        backend._process_client,  # noqa: SLF001
+                        backend._trusted_client,  # noqa: SLF001
+                        backend._external_python_client,  # noqa: SLF001
+                    )
+                ),
+                before,
+            )
+            backend.cancel_viewer_invalidation(staged)
+            self.assertEqual(backend._viewer_invalidation_reservations, {})  # noqa: SLF001
+
+            staged = backend.reserve_viewer_invalidation(
+                run_reservation, "prepared_viewer_commit", ("viewer_a",)
+            )
+            backend._active_clients[run_reservation.run_id] = process  # noqa: SLF001
+            posted_payloads = []
+            process._deliver_encoded_run_preflight_command = (  # type: ignore[method-assign]  # noqa: SLF001
+                lambda payload, _transport: (
+                    posted_payloads.append(payload) is None,
+                    "",
+                )
+            )
+            events: list[dict[str, object]] = []
+            backend.subscribe(lambda event: events.append(dict(event)))
+
+            backend._dispatch_client_event(  # noqa: SLF001
+                process,
+                event_to_dict(
+                    RunPreflightAcceptedEvent(
+                        run_id=staged.run_id,
+                        workspace_id=staged.workspace_id,
+                        preparation_id=staged.preparation_id,
+                        viewer_invalidation_reservation_id=staged.reservation_id,
+                        viewer_epoch_snapshot_digest=staged.snapshot_digest,
+                    )
+                ),
+                generation_token=0,
+            )
+
+            self.assertEqual(
+                [event["type"] for event in events],
+                ["run_preflight_accepted", "viewer_invalidation_committed"],
+            )
+            self.assertEqual(events[-1]["retired_request_count"], 1)
+            self.assertEqual(posted_payloads[-1]["type"], "commit_run_preflight")
+            self.assertEqual(backend._viewer_invalidation_reservations, {})  # noqa: SLF001
+            self.assertNotIn(session_key, backend._session_node_ids)  # noqa: SLF001
+            for child in (
+                backend._process_client,  # noqa: SLF001
+                backend._trusted_client,  # noqa: SLF001
+                backend._external_python_client,  # noqa: SLF001
+            ):
+                self.assertEqual(
+                    child._node_viewer_epochs[("ws_main", "viewer_a")],  # noqa: SLF001
+                    1,
+                )
+                self.assertNotIn("same_request", child._pending_viewer_requests)  # noqa: SLF001
+        finally:
+            backend.shutdown()
+
+    def test_preflight_commit_delivery_failure_is_invisible_for_every_backend(
+        self,
+    ) -> None:
+        selections = (
+            ExecutionBackendSelection(),
+            ExecutionBackendSelection(
+                backend_id=TRUSTED_IN_PROCESS_BACKEND,
+                isolation="in_process",
+                trusted_in_process=True,
+            ),
+            ExecutionBackendSelection(
+                backend_id=EXTERNAL_SUBPROCESS_BACKEND,
+                isolation="external_subprocess",
+                external_subprocess=True,
+                python_executable="C:/python.exe",
+            ),
+        )
+
+        def visible_state(backend):  # noqa: ANN001, ANN202
+            children = (
+                backend._process_client,  # noqa: SLF001
+                backend._trusted_client,  # noqa: SLF001
+                backend._external_python_client,  # noqa: SLF001
+            )
+            return (
+                tuple(
+                    (
+                        dict(child._workspace_viewer_epochs),  # noqa: SLF001
+                        dict(child._node_viewer_epochs),  # noqa: SLF001
+                        dict(child._pending_viewer_requests),  # noqa: SLF001
+                        set(child._viewer_session_ids),  # noqa: SLF001
+                        dict(child._viewer_session_generations),  # noqa: SLF001
+                        dict(child._viewer_session_node_ids),  # noqa: SLF001
+                    )
+                    for child in children
+                ),
+                dict(backend._workspace_viewer_epochs),  # noqa: SLF001
+                dict(backend._node_viewer_epochs),  # noqa: SLF001
+                dict(backend._workspace_clients),  # noqa: SLF001
+                dict(backend._session_clients),  # noqa: SLF001
+                dict(backend._session_node_ids),  # noqa: SLF001
+                dict(backend._provisional_request_sessions),  # noqa: SLF001
+            )
+
+        for selection in selections:
+            for failure_mode in ("false", "raise"):
+                with self.subTest(
+                    backend=selection.backend_id, failure_mode=failure_mode
+                ):
+                    backend = ExecutionBackendClient()
+                    selected = backend._client_for_selection(selection)  # noqa: SLF001
+                    run_reservation = ExecutionRunReservation(
+                        run_id="run_delivery_failure",
+                        workspace_id="ws_main",
+                        selection=selection,
+                        generation_snapshot=ExecutionGenerationSnapshot(
+                            selection,
+                            0,
+                            0,
+                            "a" * 64,
+                            True,
+                        ),
+                    )
+                    pending = _PendingViewerRequest(
+                        request_id="pending_delivery",
+                        command="open_viewer_session",
+                        workspace_id="ws_main",
+                        node_id="viewer_a",
+                        session_id="session_a",
+                    )
+                    for child in (
+                        backend._process_client,  # noqa: SLF001
+                        backend._trusted_client,  # noqa: SLF001
+                        backend._external_python_client,  # noqa: SLF001
+                    ):
+                        child._pending_viewer_requests[pending.request_id] = pending  # noqa: SLF001
+                    service = (
+                        backend._trusted_client._worker_services.viewer_session_service  # noqa: SLF001
+                    )
+                    service.open_session(
+                        OpenViewerSessionCommand(
+                            workspace_id="ws_main",
+                            node_id="viewer_a",
+                            session_id="service_session",
+                            transport={"kind": "mock_live"},
+                        )
+                    )
+                    service_before = service._sessions[  # noqa: SLF001
+                        ("ws_main", "service_session")
+                    ].public_projection()
+                    reservation = backend.reserve_viewer_invalidation(
+                        run_reservation,
+                        "prepared_delivery_failure",
+                        ("viewer_a",),
+                    )
+                    before = visible_state(backend)
+                    selected._post_command = lambda _command: True  # type: ignore[method-assign]  # noqa: SLF001
+                    if failure_mode == "false":
+                        selected._deliver_encoded_run_preflight_command = (  # type: ignore[method-assign]  # noqa: SLF001
+                            lambda _payload, _transport: (False, "delivery failed")
+                        )
+                    else:
+                        selected._deliver_encoded_run_preflight_command = Mock(  # type: ignore[method-assign]  # noqa: SLF001
+                            side_effect=RuntimeError("delivery exploded")
+                        )
+                    events = []
+                    backend.subscribe(events.append)
+                    try:
+                        backend._dispatch_client_event(  # noqa: SLF001
+                            selected,
+                            event_to_dict(
+                                RunPreflightAcceptedEvent(
+                                    run_id=reservation.run_id,
+                                    workspace_id=reservation.workspace_id,
+                                    preparation_id=reservation.preparation_id,
+                                    viewer_invalidation_reservation_id=(
+                                        reservation.reservation_id
+                                    ),
+                                    viewer_epoch_snapshot_digest=(
+                                        reservation.snapshot_digest
+                                    ),
+                                )
+                            ),
+                            generation_token=0,
+                        )
+                        self.assertEqual(visible_state(backend), before)
+                        self.assertEqual(
+                            service._sessions[  # noqa: SLF001
+                                ("ws_main", "service_session")
+                            ].public_projection(),
+                            service_before,
+                        )
+                        self.assertFalse(
+                            any(
+                                event.get("type")
+                                == "viewer_invalidation_committed"
+                                for event in events
+                            )
+                        )
+                        self.assertTrue(
+                            any(
+                                event.get("type") == "protocol_error"
+                                for event in events
+                            )
+                        )
+                    finally:
+                        backend.shutdown()
+
+    def test_empty_reservation_is_participant_local_and_projection_is_independent(
+        self,
+    ) -> None:
+        selections = (
+            ExecutionBackendSelection(),
+            ExecutionBackendSelection(
+                backend_id=TRUSTED_IN_PROCESS_BACKEND,
+                isolation="in_process",
+                trusted_in_process=True,
+            ),
+            ExecutionBackendSelection(
+                backend_id=EXTERNAL_SUBPROCESS_BACKEND,
+                isolation="external_subprocess",
+                external_subprocess=True,
+                python_executable="C:/python.exe",
+            ),
+        )
+        for selection in selections:
+            with self.subTest(backend=selection.backend_id):
+                backend = ExecutionBackendClient()
+                children = (
+                    backend._process_client,  # noqa: SLF001
+                    backend._trusted_client,  # noqa: SLF001
+                    backend._external_python_client,  # noqa: SLF001
+                )
+                selected = backend._client_for_selection(selection)  # noqa: SLF001
+                owner = next(child for child in children if child is not selected)
+                for child, epoch in zip(children, (1, 3, 5), strict=True):
+                    child._workspace_viewer_epochs["ws_main"] = epoch  # noqa: SLF001
+                backend._workspace_viewer_epochs["ws_main"] = 7  # noqa: SLF001
+                pending = _PendingViewerRequest(
+                    request_id="unrelated_pending",
+                    command="open_viewer_session",
+                    workspace_id="ws_main",
+                    node_id="viewer_b",
+                    session_id="session_b",
+                )
+                owner._pending_viewer_requests[pending.request_id] = pending  # noqa: SLF001
+                session_key = ("ws_main", "session_b")
+                owner._viewer_session_ids.add(session_key)  # noqa: SLF001
+                owner._viewer_session_generations[session_key] = 0  # noqa: SLF001
+                owner._viewer_session_node_ids[session_key] = "viewer_b"  # noqa: SLF001
+                backend._workspace_clients["ws_main"] = owner  # noqa: SLF001
+                backend._workspace_client_generations["ws_main"] = 0  # noqa: SLF001
+                backend._session_clients[session_key] = owner  # noqa: SLF001
+                backend._session_client_generations[session_key] = 0  # noqa: SLF001
+                backend._session_node_ids[session_key] = "viewer_b"  # noqa: SLF001
+
+                def visible_state():  # noqa: ANN202
+                    return (
+                        tuple(
+                            (
+                                dict(child._workspace_viewer_epochs),  # noqa: SLF001
+                                dict(child._node_viewer_epochs),  # noqa: SLF001
+                                dict(child._pending_viewer_requests),  # noqa: SLF001
+                                set(child._viewer_session_ids),  # noqa: SLF001
+                                dict(child._viewer_session_generations),  # noqa: SLF001
+                                dict(child._viewer_session_node_ids),  # noqa: SLF001
+                            )
+                            for child in children
+                        ),
+                        dict(backend._workspace_viewer_epochs),  # noqa: SLF001
+                        dict(backend._node_viewer_epochs),  # noqa: SLF001
+                        dict(backend._workspace_clients),  # noqa: SLF001
+                        dict(backend._session_clients),  # noqa: SLF001
+                        dict(backend._session_node_ids),  # noqa: SLF001
+                    )
+
+                run_reservation = ExecutionRunReservation(
+                    run_id=f"run_empty_{selection.backend_id}",
+                    workspace_id="ws_main",
+                    selection=selection,
+                    generation_snapshot=ExecutionGenerationSnapshot(
+                        selection, 0, 0, "a" * 64, True
+                    ),
+                )
+                reservation = backend.reserve_viewer_invalidation(
+                    run_reservation,
+                    "prepared_empty",
+                    (),
+                )
+                before = visible_state()
+                delivered_payloads = []
+                selected._deliver_encoded_run_preflight_command = (  # type: ignore[method-assign]  # noqa: SLF001
+                    lambda payload, _transport: (
+                        delivered_payloads.append(payload) is None,
+                        "",
+                    )
+                )
+                events = []
+                backend.subscribe(events.append)
+                try:
+                    backend._dispatch_client_event(  # noqa: SLF001
+                        selected,
+                        event_to_dict(
+                            RunPreflightAcceptedEvent(
+                                run_id=reservation.run_id,
+                                workspace_id=reservation.workspace_id,
+                                preparation_id=reservation.preparation_id,
+                                viewer_invalidation_reservation_id=(
+                                    reservation.reservation_id
+                                ),
+                                viewer_epoch_snapshot_digest=(
+                                    reservation.snapshot_digest
+                                ),
+                            )
+                        ),
+                        generation_token=0,
+                    )
+                    self.assertEqual(visible_state(), before)
+                    committed = events[-1]
+                    self.assertEqual(committed["retired_request_count"], 0)
+                    self.assertEqual(
+                        committed["viewer_workspace_invalidation_epoch"], 7
+                    )
+                    self.assertEqual(
+                        committed["viewer_epoch_snapshot_digest"],
+                        reservation.projection_snapshot.snapshot_digest,
+                    )
+                    payload = delivered_payloads[-1]
+                    if isinstance(payload, str):
+                        payload = json.loads(payload)
+                    self.assertEqual(payload["viewer_epoch_snapshot_digest"], reservation.snapshot_digest)
+                    self.assertNotEqual(
+                        reservation.snapshot_digest,
+                        reservation.projection_snapshot.snapshot_digest,
+                    )
+                finally:
+                    backend.shutdown()
+
+    def test_global_reservation_advances_each_participant_once(self) -> None:
+        backend = ExecutionBackendClient()
+        children = (
+            backend._process_client,  # noqa: SLF001
+            backend._trusted_client,  # noqa: SLF001
+            backend._external_python_client,  # noqa: SLF001
+        )
+        process = children[0]
+        for child, epoch in zip(children, (1, 3, 5), strict=True):
+            child._workspace_viewer_epochs["ws_main"] = epoch  # noqa: SLF001
+            child._node_viewer_epochs[("ws_main", "viewer_a")] = epoch + 10  # noqa: SLF001
+            child._pending_viewer_requests["same_request"] = _PendingViewerRequest(  # noqa: SLF001
+                request_id="same_request",
+                command="open_viewer_session",
+                workspace_id="ws_main",
+                node_id="viewer_a",
+                session_id="session_a",
+            )
+            child._viewer_session_ids.add(("ws_main", "session_a"))  # noqa: SLF001
+            child._viewer_session_generations[("ws_main", "session_a")] = 0  # noqa: SLF001
+            child._viewer_session_node_ids[("ws_main", "session_a")] = "viewer_a"  # noqa: SLF001
+        backend._workspace_viewer_epochs["ws_main"] = 7  # noqa: SLF001
+        backend._node_viewer_epochs[("ws_main", "viewer_a")] = 19  # noqa: SLF001
+        backend._session_clients[("ws_main", "session_a")] = process  # noqa: SLF001
+        backend._session_client_generations[("ws_main", "session_a")] = 0  # noqa: SLF001
+        backend._session_node_ids[("ws_main", "session_a")] = "viewer_a"  # noqa: SLF001
+        selection = ExecutionBackendSelection()
+        run_reservation = ExecutionRunReservation(
+            run_id="run_global_local_epochs",
+            workspace_id="ws_main",
+            selection=selection,
+            generation_snapshot=ExecutionGenerationSnapshot(
+                selection, 0, 0, "a" * 64, True
+            ),
+        )
+        reservation = backend.reserve_viewer_invalidation(
+            run_reservation,
+            "prepared_global",
+            None,
+        )
+        process._deliver_encoded_run_preflight_command = (  # type: ignore[method-assign]  # noqa: SLF001
+            lambda _payload, _transport: (True, "")
+        )
+        events = []
+        backend.subscribe(events.append)
+        try:
+            backend._dispatch_client_event(  # noqa: SLF001
+                process,
+                event_to_dict(
+                    RunPreflightAcceptedEvent(
+                        run_id=reservation.run_id,
+                        workspace_id=reservation.workspace_id,
+                        preparation_id=reservation.preparation_id,
+                        viewer_invalidation_reservation_id=reservation.reservation_id,
+                        viewer_epoch_snapshot_digest=reservation.snapshot_digest,
+                    )
+                ),
+                generation_token=0,
+            )
+            self.assertEqual(
+                [child._workspace_viewer_epochs["ws_main"] for child in children],  # noqa: SLF001
+                [2, 4, 6],
+            )
+            self.assertEqual(backend._workspace_viewer_epochs["ws_main"], 8)  # noqa: SLF001
+            for child in children:
+                self.assertNotIn(("ws_main", "viewer_a"), child._node_viewer_epochs)  # noqa: SLF001
+                self.assertEqual(child._pending_viewer_requests, {})  # noqa: SLF001
+                self.assertEqual(child._viewer_session_ids, set())  # noqa: SLF001
+            self.assertNotIn(("ws_main", "viewer_a"), backend._node_viewer_epochs)  # noqa: SLF001
+            self.assertEqual(events[-1]["retired_request_count"], 1)
+            self.assertEqual(
+                events[-1]["viewer_workspace_invalidation_epoch"], 8
+            )
+        finally:
+            backend.shutdown()
+
+    def test_scoped_reservation_translates_concrete_response_epochs(self) -> None:
+        backend = ExecutionBackendClient()
+        process = backend._process_client  # noqa: SLF001
+        trusted = backend._trusted_client  # noqa: SLF001
+        external = backend._external_python_client  # noqa: SLF001
+        children = (process, trusted, external)
+        for child, workspace_epoch, node_epoch in zip(
+            children, (1, 3, 5), (2, 4, 6), strict=True
+        ):
+            child._workspace_viewer_epochs["ws_main"] = workspace_epoch  # noqa: SLF001
+            child._node_viewer_epochs[("ws_main", "viewer_a")] = node_epoch  # noqa: SLF001
+            child._node_viewer_epochs[("ws_main", "viewer_b")] = node_epoch + 9  # noqa: SLF001
+            child._pending_viewer_requests["same_request"] = _PendingViewerRequest(  # noqa: SLF001
+                request_id="same_request",
+                command="open_viewer_session",
+                workspace_id="ws_main",
+                node_id="viewer_a",
+                session_id="session_a",
+            )
+        backend._workspace_viewer_epochs["ws_main"] = 7  # noqa: SLF001
+        backend._node_viewer_epochs[("ws_main", "viewer_a")] = 8  # noqa: SLF001
+        backend._node_viewer_epochs[("ws_main", "viewer_b")] = 17  # noqa: SLF001
+        session_b = ("ws_main", "session_b")
+        backend._workspace_clients["ws_main"] = trusted  # noqa: SLF001
+        backend._workspace_client_generations["ws_main"] = 0  # noqa: SLF001
+        backend._session_clients[session_b] = trusted  # noqa: SLF001
+        backend._session_client_generations[session_b] = 0  # noqa: SLF001
+        backend._session_node_ids[session_b] = "viewer_b"  # noqa: SLF001
+        selection = ExecutionBackendSelection()
+        run_reservation = ExecutionRunReservation(
+            run_id="run_scoped_translation",
+            workspace_id="ws_main",
+            selection=selection,
+            generation_snapshot=ExecutionGenerationSnapshot(
+                selection, 0, 0, "a" * 64, True
+            ),
+        )
+        reservation = backend.reserve_viewer_invalidation(
+            run_reservation,
+            "prepared_scoped",
+            ("viewer_a",),
+        )
+        process._deliver_encoded_run_preflight_command = (  # type: ignore[method-assign]  # noqa: SLF001
+            lambda _payload, _transport: (True, "")
+        )
+        events = []
+        backend.subscribe(events.append)
+        try:
+            backend._dispatch_client_event(  # noqa: SLF001
+                process,
+                event_to_dict(
+                    RunPreflightAcceptedEvent(
+                        run_id=reservation.run_id,
+                        workspace_id=reservation.workspace_id,
+                        preparation_id=reservation.preparation_id,
+                        viewer_invalidation_reservation_id=reservation.reservation_id,
+                        viewer_epoch_snapshot_digest=reservation.snapshot_digest,
+                    )
+                ),
+                generation_token=0,
+            )
+            self.assertEqual(
+                [
+                    child._node_viewer_epochs[("ws_main", "viewer_a")]  # noqa: SLF001
+                    for child in children
+                ],
+                [3, 5, 7],
+            )
+            self.assertEqual(backend._node_viewer_epochs[("ws_main", "viewer_a")], 9)  # noqa: SLF001
+            self.assertIs(backend._session_clients[session_b], trusted)  # noqa: SLF001
+            events.clear()
+            backend._dispatch_client_event(  # noqa: SLF001
+                trusted,
+                {
+                    "type": "viewer_session_updated",
+                    "workspace_id": "ws_main",
+                    "node_id": "viewer_b",
+                    "session_id": "session_b",
+                    "request_id": "",
+                    "workspace_invalidation_epoch": 3,
+                    "node_invalidation_epoch": 13,
+                },
+                generation_token=0,
+            )
+            self.assertEqual(events[-1]["workspace_invalidation_epoch"], 7)
+            self.assertEqual(events[-1]["node_invalidation_epoch"], 17)
+            backend._dispatch_client_event(  # noqa: SLF001
+                process,
+                {
+                    "type": "viewer_session_opened",
+                    "workspace_id": "ws_main",
+                    "node_id": "viewer_a",
+                    "session_id": "session_a_new",
+                    "request_id": "",
+                    "workspace_invalidation_epoch": 1,
+                    "node_invalidation_epoch": 3,
+                },
+                generation_token=0,
+            )
+            self.assertEqual(events[-1]["workspace_invalidation_epoch"], 7)
+            self.assertEqual(events[-1]["node_invalidation_epoch"], 9)
+        finally:
+            backend.shutdown()
+
+    def test_commit_waits_state_before_viewer_without_deadlock_or_locked_callback(
+        self,
+    ) -> None:
+        class BarrierLock:
+            def __init__(self) -> None:
+                self._lock = threading.Lock()
+                self.waiting = threading.Event()
+
+            def acquire(self, *args, **kwargs):  # noqa: ANN002, ANN003, ANN202
+                if self._lock.locked():
+                    self.waiting.set()
+                return self._lock.acquire(*args, **kwargs)
+
+            def release(self) -> None:
+                self._lock.release()
+
+            def locked(self) -> bool:
+                return self._lock.locked()
+
+            def __enter__(self):  # noqa: ANN204
+                self.acquire()
+                return self
+
+            def __exit__(self, *_args):  # noqa: ANN002, ANN204
+                self.release()
+
+        backend = ExecutionBackendClient()
+        process = backend._process_client  # noqa: SLF001
+        process_state_lock = BarrierLock()
+        process._state_lock = process_state_lock  # type: ignore[assignment]  # noqa: SLF001
+        selection = ExecutionBackendSelection()
+        run_reservation = ExecutionRunReservation(
+            run_id="run_lock_barrier",
+            workspace_id="ws_main",
+            selection=selection,
+            generation_snapshot=ExecutionGenerationSnapshot(
+                selection, 0, 0, "a" * 64, True
+            ),
+        )
+        reservation = backend.reserve_viewer_invalidation(
+            run_reservation,
+            "prepared_lock_barrier",
+            ("viewer_a",),
+        )
+        callback_events = []
+        backend.subscribe(callback_events.append)
+        delivery_observations = []
+
+        def deliver(_payload, _transport):  # noqa: ANN001, ANN202
+            delivery_observations.append(
+                (
+                    process._state_lock.locked(),  # noqa: SLF001
+                    process._viewer_request_lock.locked(),  # noqa: SLF001
+                    bool(callback_events),
+                )
+            )
+            return True, ""
+
+        process._deliver_encoded_run_preflight_command = deliver  # type: ignore[method-assign]  # noqa: SLF001
+        response_holds_state = threading.Event()
+        response_done = threading.Event()
+        commit_done = threading.Event()
+        commit_errors = []
+        process._viewer_request_lock.acquire()  # noqa: SLF001
+
+        def response_ingress() -> None:
+            with process._state_lock:  # noqa: SLF001
+                response_holds_state.set()
+                with process._viewer_request_lock:  # noqa: SLF001
+                    response_done.set()
+
+        def commit() -> None:
+            try:
+                backend.commit_viewer_invalidation(reservation)
+            except Exception as exc:  # noqa: BLE001
+                commit_errors.append(exc)
+            finally:
+                commit_done.set()
+
+        response_thread = threading.Thread(target=response_ingress)
+        commit_thread = threading.Thread(target=commit)
+        try:
+            response_thread.start()
+            self.assertTrue(response_holds_state.wait(1.0))
+            commit_thread.start()
+            self.assertTrue(process_state_lock.waiting.wait(1.0))
+            process._viewer_request_lock.release()  # noqa: SLF001
+            self.assertTrue(response_done.wait(1.0))
+            self.assertTrue(commit_done.wait(1.0))
+            response_thread.join(timeout=1.0)
+            commit_thread.join(timeout=1.0)
+            self.assertFalse(response_thread.is_alive())
+            self.assertFalse(commit_thread.is_alive())
+            self.assertEqual(commit_errors, [])
+            self.assertEqual(delivery_observations, [(True, True, False)])
+        finally:
+            if process._viewer_request_lock.locked():  # noqa: SLF001
+                process._viewer_request_lock.release()  # noqa: SLF001
+            backend.shutdown()
+
+    def test_commit_finalizer_survives_generation_drift_raising_subscriber_and_buffers(
+        self,
+    ) -> None:
+        for generation_drift in (False, True):
+            with self.subTest(generation_drift=generation_drift):
+                backend = ExecutionBackendClient()
+                process = backend._process_client  # noqa: SLF001
+                selection = ExecutionBackendSelection()
+                generation_snapshot = ExecutionGenerationSnapshot(
+                    selection, 0, 0, "a" * 64, True
+                )
+                run_reservation = ExecutionRunReservation(
+                    run_id=f"run_finalizer_{generation_drift}",
+                    workspace_id="ws_main",
+                    selection=selection,
+                    generation_snapshot=generation_snapshot,
+                )
+                reservation = backend.reserve_viewer_invalidation(
+                    run_reservation,
+                    "prepared_finalizer",
+                    ("viewer_a",),
+                )
+                backend._run_generation_snapshots[reservation.run_id] = (  # noqa: SLF001
+                    generation_snapshot
+                )
+
+                def deliver(_payload, _transport):  # noqa: ANN001, ANN202
+                    if generation_drift:
+                        process._catalog_generation_token += 1  # noqa: SLF001
+                        process._accepted_physical_generation_token += 1  # noqa: SLF001
+                    return True, ""
+
+                process._deliver_encoded_run_preflight_command = deliver  # type: ignore[method-assign]  # noqa: SLF001
+                observed = []
+
+                def buffer_run_events(event):  # noqa: ANN001, ANN202
+                    if event.get("type") != "run_preflight_accepted":
+                        return
+                    for event_type in ("run_started", "run_completed"):
+                        backend._dispatch_client_event(  # noqa: SLF001
+                            process,
+                            {
+                                "type": event_type,
+                                "run_id": reservation.run_id,
+                                "workspace_id": "ws_main",
+                            },
+                            generation_token=0,
+                        )
+
+                def raising_subscriber(event):  # noqa: ANN001, ANN202
+                    if event.get("type") == "viewer_invalidation_committed":
+                        raise RuntimeError("subscriber failed")
+
+                backend.subscribe(buffer_run_events)
+                backend.subscribe(raising_subscriber)
+                backend.subscribe(lambda event: observed.append(dict(event)))
+                try:
+                    backend._dispatch_client_event(  # noqa: SLF001
+                        process,
+                        event_to_dict(
+                            RunPreflightAcceptedEvent(
+                                run_id=reservation.run_id,
+                                workspace_id=reservation.workspace_id,
+                                preparation_id=reservation.preparation_id,
+                                viewer_invalidation_reservation_id=(
+                                    reservation.reservation_id
+                                ),
+                                viewer_epoch_snapshot_digest=(
+                                    reservation.snapshot_digest
+                                ),
+                            )
+                        ),
+                        generation_token=0,
+                    )
+                    event_types = [event["type"] for event in observed]
+                    self.assertEqual(
+                        event_types[:2],
+                        ["run_preflight_accepted", "viewer_invalidation_committed"],
+                    )
+                    self.assertEqual(
+                        event_types.count("viewer_invalidation_committed"),
+                        1,
+                    )
+                    if generation_drift:
+                        self.assertEqual(event_types, event_types[:2])
+                        self.assertEqual(
+                            observed[1]["reason"],
+                            "execution_generation_retired",
+                        )
+                        self.assertIsNone(
+                            observed[1]["viewer_invalidation_node_ids"]
+                        )
+                    else:
+                        self.assertEqual(
+                            event_types,
+                            [
+                                "run_preflight_accepted",
+                                "viewer_invalidation_committed",
+                                "run_started",
+                                "run_completed",
+                            ],
+                        )
+                    self.assertNotIn(
+                        reservation.run_id,
+                        backend._viewer_commit_publication_pending,  # noqa: SLF001
+                    )
+                    self.assertNotIn(
+                        reservation.run_id,
+                        backend._viewer_commit_event_buffers,  # noqa: SLF001
+                    )
+                finally:
+                    backend.shutdown()
+
+    def test_preflight_delivery_helpers_do_not_reacquire_state_or_viewer_locks(
+        self,
+    ) -> None:
+        class ExplodingLock:
+            def __enter__(self):  # noqa: ANN204
+                raise AssertionError("delivery reacquired a participant lock")
+
+            def __exit__(self, *_args):  # noqa: ANN002, ANN204
+                return None
+
+            def acquire(self, *_args, **_kwargs):  # noqa: ANN002, ANN202
+                raise AssertionError("delivery reacquired a participant lock")
+
+            def release(self) -> None:
+                raise AssertionError("delivery released an unowned participant lock")
+
+        command = CommitRunPreflightCommand(
+            run_id="run_delivery_lock_test",
+            viewer_invalidation_reservation_id="viewer_inv_delivery_lock_test",
+            viewer_epoch_snapshot_digest="a" * 64,
+        )
+        clients = (
+            ProcessExecutionClient(),
+            TrustedInProcessExecutionClient(),
+            ExternalPythonExecutionClient(),
+        )
+        try:
+            for client in clients:
+                with self.subTest(client=type(client).__name__):
+                    payload = client._encode_run_preflight_command(command)  # noqa: SLF001
+                    if isinstance(client, ExternalPythonExecutionClient):
+                        transport = Mock()
+                        transport.poll.return_value = None
+                        transport.stdin = Mock()
+                    else:
+                        transport = queue.Queue()
+                    state_lock = client._state_lock  # noqa: SLF001
+                    viewer_lock = client._viewer_request_lock  # noqa: SLF001
+                    try:
+                        client._state_lock = ExplodingLock()  # type: ignore[assignment]  # noqa: SLF001
+                        client._viewer_request_lock = ExplodingLock()  # type: ignore[assignment]  # noqa: SLF001
+                        self.assertEqual(
+                            client._deliver_encoded_run_preflight_command(  # noqa: SLF001
+                                payload,
+                                transport,
+                            ),
+                            (True, ""),
+                        )
+                    finally:
+                        client._state_lock = state_lock  # type: ignore[assignment]  # noqa: SLF001
+                        client._viewer_request_lock = viewer_lock  # type: ignore[assignment]  # noqa: SLF001
+        finally:
+            for client in clients:
+                client.shutdown()
+
+    def test_stale_participant_rejects_before_delivery_without_partial_commit(
+        self,
+    ) -> None:
+        for stale_participant in ("process", "trusted", "external", "backend"):
+            with self.subTest(stale_participant=stale_participant):
+                backend = ExecutionBackendClient()
+                process = backend._process_client  # noqa: SLF001
+                run_reservation = ExecutionRunReservation(
+                    run_id=f"run_stale_{stale_participant}",
+                    workspace_id="ws_main",
+                    selection=ExecutionBackendSelection(),
+                    generation_snapshot=ExecutionGenerationSnapshot(
+                        ExecutionBackendSelection(),
+                        0,
+                        0,
+                        "a" * 64,
+                        True,
+                    ),
+                )
+                reservation = backend.reserve_viewer_invalidation(
+                    run_reservation,
+                    "prepared_stale_participant",
+                    ("viewer_a",),
+                )
+                participant = {
+                    "process": backend._process_client,  # noqa: SLF001
+                    "trusted": backend._trusted_client,  # noqa: SLF001
+                    "external": backend._external_python_client,  # noqa: SLF001
+                    "backend": backend,
+                }[stale_participant]
+                participant._node_viewer_epochs[("ws_main", "viewer_a")] = 2  # noqa: SLF001
+                before = tuple(
+                    dict(child._node_viewer_epochs)  # noqa: SLF001
+                    for child in (
+                        backend._process_client,  # noqa: SLF001
+                        backend._trusted_client,  # noqa: SLF001
+                        backend._external_python_client,  # noqa: SLF001
+                    )
+                ) + (dict(backend._node_viewer_epochs),)  # noqa: SLF001
+                delivery = Mock(return_value=(True, ""))
+                process._deliver_encoded_run_preflight_command = delivery  # type: ignore[method-assign]  # noqa: SLF001
+                process._post_command = lambda _command: True  # type: ignore[method-assign]  # noqa: SLF001
+                try:
+                    backend._dispatch_client_event(  # noqa: SLF001
+                        process,
+                        event_to_dict(
+                            RunPreflightAcceptedEvent(
+                                run_id=reservation.run_id,
+                                workspace_id=reservation.workspace_id,
+                                preparation_id=reservation.preparation_id,
+                                viewer_invalidation_reservation_id=(
+                                    reservation.reservation_id
+                                ),
+                                viewer_epoch_snapshot_digest=(
+                                    reservation.snapshot_digest
+                                ),
+                            )
+                        ),
+                        generation_token=0,
+                    )
+                    after = tuple(
+                        dict(child._node_viewer_epochs)  # noqa: SLF001
+                        for child in (
+                            backend._process_client,  # noqa: SLF001
+                            backend._trusted_client,  # noqa: SLF001
+                            backend._external_python_client,  # noqa: SLF001
+                        )
+                    ) + (dict(backend._node_viewer_epochs),)  # noqa: SLF001
+                    self.assertEqual(after, before)
+                    delivery.assert_not_called()
+                finally:
+                    backend.shutdown()
+
     def test_common_methods_and_commands_are_shared_across_backends(self) -> None:
         common_methods = (
             "subscribe",
@@ -910,6 +1990,7 @@ class ExecutionClientCommonTests(unittest.TestCase):
         session_key = ("ws_viewer", "session_viewer")
         client._viewer_session_ids.add(session_key)  # noqa: SLF001
         client._viewer_session_generations[session_key] = 1  # noqa: SLF001
+        client._viewer_session_node_ids[session_key] = "node_viewer"  # noqa: SLF001
 
         try:
             self.assertTrue(
@@ -1677,6 +2758,10 @@ class ExecutionClientCommonTests(unittest.TestCase):
                 client._viewer_session_generations,
             )
             self.assertNotIn(  # noqa: SLF001
+                session_key,
+                client._viewer_session_node_ids,
+            )
+            self.assertNotIn(  # noqa: SLF001
                 pending_request.request_id,
                 client._pending_viewer_requests,
             )
@@ -1929,6 +3014,7 @@ class ExecutionClientCommonTests(unittest.TestCase):
         backend._workspace_client_generations["ws_old"] = 1  # noqa: SLF001
         backend._session_clients[session_key] = client  # noqa: SLF001
         backend._session_client_generations[session_key] = 1  # noqa: SLF001
+        backend._session_node_ids[session_key] = "viewer_old"  # noqa: SLF001
         events: list[dict] = []
         backend.subscribe(events.append)
 
@@ -1941,6 +3027,7 @@ class ExecutionClientCommonTests(unittest.TestCase):
             self.assertNotIn("run_old", backend._run_clients)  # noqa: SLF001
             self.assertNotIn("ws_old", backend._workspace_clients)  # noqa: SLF001
             self.assertNotIn(session_key, backend._session_clients)  # noqa: SLF001
+            self.assertNotIn(session_key, backend._session_node_ids)  # noqa: SLF001
 
             backend._dispatch_client_event(  # noqa: SLF001
                 client,
