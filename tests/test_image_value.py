@@ -15,9 +15,11 @@ from ea_node_editor.execution.signal_plot_renderer import render_signal_plot
 from ea_node_editor.nodes.bootstrap import build_default_registry
 from ea_node_editor.persistence.image_blobs import (
     PROJECT_IMAGE_MARKER_KEY,
+    collect_project_image_garbage,
     externalize_project_images,
     hydrate_project_images,
     prune_project_images,
+    stage_project_images,
     tracked_project_image_digests,
 )
 import ea_node_editor.persistence.artifact_store as artifact_store_module
@@ -253,7 +255,7 @@ def test_project_save_failure_preserves_previous_document_and_tracked_blobs(
         real_replace(source, destination)
 
     monkeypatch.setattr(serializer_module.os, "replace", fail_document_replace)
-    with pytest.raises(OSError, match="document replace failed"):
+    with pytest.raises(OSError, match="project document was not published"):
         serializer.save_document(
             str(project_path),
             {"metadata": {}, "value": serialize_runtime_value(new_image, catalog=registry.data_types)},
@@ -262,3 +264,59 @@ def test_project_save_failure_preserves_previous_document_and_tracked_blobs(
     assert old_blob.read_bytes() == old_image.encoded_bytes
     hydrated = hydrate_project_images(old_document, project_path=project_path, catalog=registry.data_types)
     assert deserialize_runtime_value(hydrated["value"], catalog=registry.data_types) == old_image
+
+
+def test_image_stage_never_replaces_a_conflicting_digest_blob(tmp_path: Path) -> None:
+    registry = build_default_registry()
+    image = _image()
+    project_path = tmp_path / "image.cxproj"
+    document = {
+        "metadata": {},
+        "value": serialize_runtime_value(image, catalog=registry.data_types),
+    }
+    first = stage_project_images(
+        document,
+        project_path=project_path,
+        catalog=registry.data_types,
+    )
+    blob = (
+        ProjectArtifactLayout.from_project_path(project_path).sidecar_root
+        / "images"
+        / f"{image.sha256}.png"
+    )
+    assert first.staged_new_bytes == len(image.encoded_bytes)
+    blob.write_bytes(b"conflicting committed bytes")
+
+    with pytest.raises(ValueError, match="image digest conflict"):
+        stage_project_images(
+            document,
+            project_path=project_path,
+            catalog=registry.data_types,
+        )
+
+    assert blob.read_bytes() == b"conflicting committed bytes"
+
+
+def test_project_image_gc_partial_batch_returns_retryable_remaining_digests(
+    tmp_path: Path,
+) -> None:
+    project = tmp_path / "images.cxproj"
+    image_root = ProjectArtifactLayout.from_project_path(project).sidecar_root / "images"
+    image_root.mkdir(parents=True)
+    digests = ("a" * 64, "b" * 64)
+    for digest in digests:
+        (image_root / f"{digest}.png").write_bytes(digest.encode("ascii"))
+    first = collect_project_image_garbage(
+        project_path=project,
+        candidate_digests=digests,
+        limit=1,
+    )
+    assert first.has_more
+    assert len(first.removed_digests) == 1
+    assert len(first.remaining_digests) == 1
+    second = collect_project_image_garbage(
+        project_path=project,
+        candidate_digests=first.remaining_digests,
+    )
+    assert not second.has_more
+    assert second.remaining_digests == ()

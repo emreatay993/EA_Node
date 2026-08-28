@@ -1,12 +1,14 @@
 from __future__ import annotations
 
 from contextlib import contextmanager
+import copy
 from dataclasses import replace
 import hashlib
 import json
 import queue
 import threading
 import time
+from pathlib import Path
 from typing import Any
 
 import pytest
@@ -46,6 +48,8 @@ from ea_node_editor.execution.worker_runner import WorkflowRunner
 from ea_node_editor.execution.worker_services import WorkerServices
 from ea_node_editor.graph.model import GraphModel
 from ea_node_editor.nodes.bootstrap import build_builtin_registry, build_default_registry
+from ea_node_editor.persistence.artifact_store import ProjectArtifactStore
+from ea_node_editor.persistence.solution_repository import SolutionRepositoryFactory
 from ea_node_editor.runtime_contracts import DataTree
 from ea_node_editor.runtime_contracts import DataTypeCatalogError
 from ea_node_editor.runtime_contracts.settled_results import (
@@ -53,6 +57,167 @@ from ea_node_editor.runtime_contracts.settled_results import (
     settled_outputs_to_payload,
 )
 from ea_node_editor.runtime_contracts.solution_records import SolutionFreshness
+
+
+def test_project_solution_save_candidate_is_prepared_then_adopted_without_io(
+    tmp_path: Path,
+) -> None:
+    registry = build_default_registry()
+    runtime = CorexRuntime(
+        client=_PreparedClient(),
+        registry=registry,
+        solution_repository_factory=SolutionRepositoryFactory(),
+    )
+    try:
+        project_id = "project-save"
+        runtime.reset_project_session(project_id, "")
+        runtime.bind_project_solution_store(project_id, "", None)
+        source_store = ProjectArtifactStore(project_path=None, metadata=None)
+        snapshot = runtime.capture_project_solution_save(
+            project_id,
+            "",
+            (),
+            source_store,
+        )
+        destination = tmp_path / "saved.cxproj"
+        destination_store = ProjectArtifactStore(
+            project_path=destination,
+            metadata=None,
+        )
+        result = runtime.stage_project_solution_save(
+            snapshot,
+            str(destination),
+            destination_store,
+        )
+        assert result.reason_code == "project_solution_save_staged"
+        assert runtime.project_solution_save_snapshot_is_current(
+            snapshot.snapshot_token
+        )
+        assert (
+            runtime._project_solution_save_contexts[snapshot.snapshot_token].candidate  # noqa: SLF001
+            is None
+        )
+        candidate = runtime.prepare_project_solution_adoption(
+            result,
+            project_id,
+            str(destination),
+            result.metadata_solution_store,
+            destination_store,
+        )
+        assert candidate.prepared
+
+        adoption = runtime.adopt_project_solution_save(
+            result,
+            project_id,
+            str(destination),
+            result.metadata_solution_store,
+            destination_store,
+        )
+
+        assert adoption.adopted
+        assert not runtime.project_solution_save_snapshot_is_current(
+            snapshot.snapshot_token
+        )
+        assert runtime.solution_store.durable_status[0] == "durable_bound_active"
+        gc_result = runtime.collect_project_solution_garbage(
+            result,
+            protect_previous_generation=True,
+        )
+        assert gc_result.reason_code in {
+            "project_solution_gc_completed",
+            "project_solution_gc_partial",
+        }
+    finally:
+        runtime.shutdown()
+
+
+def test_project_solution_binding_drift_invalidates_snapshot_before_staging(
+    tmp_path: Path,
+) -> None:
+    registry = build_default_registry()
+    runtime = CorexRuntime(
+        client=_PreparedClient(),
+        registry=registry,
+        solution_repository_factory=SolutionRepositoryFactory(),
+    )
+    try:
+        project_id = "project-drift"
+        runtime.reset_project_session(project_id, "")
+        runtime.bind_project_solution_store(project_id, "", None)
+        snapshot = runtime.capture_project_solution_save(
+            project_id,
+            "",
+            (),
+            ProjectArtifactStore(project_path=None, metadata=None),
+        )
+        runtime.reset_project_session(project_id, "")
+        assert not runtime.project_solution_save_snapshot_is_current(
+            snapshot.snapshot_token
+        )
+        result = runtime.stage_project_solution_save(
+            snapshot,
+            str(tmp_path / "stale.cxproj"),
+            ProjectArtifactStore(
+                project_path=tmp_path / "stale.cxproj",
+                metadata=None,
+            ),
+        )
+        assert result.reason_code == "project_solution_save_snapshot_stale"
+        assert not (tmp_path / "stale.data").exists()
+    finally:
+        runtime.shutdown()
+
+
+def test_project_solution_snapshot_token_rejects_copied_token_with_altered_payload(
+    tmp_path: Path,
+) -> None:
+    registry = build_default_registry()
+    runtime = CorexRuntime(
+        client=_PreparedClient(),
+        registry=registry,
+        solution_repository_factory=SolutionRepositoryFactory(),
+    )
+    try:
+        project_id = "project-token"
+        runtime.reset_project_session(project_id, "")
+        runtime.bind_project_solution_store(project_id, "", None)
+        snapshot = runtime.capture_project_solution_save(
+            project_id,
+            "",
+            (),
+            ProjectArtifactStore(project_path=None, metadata=None),
+        )
+        with pytest.raises(ValueError, match="token"):
+            replace(
+                snapshot,
+                required_managed_artifact_ids=("altered",),
+            )
+        with pytest.raises(ValueError, match="source project path"):
+            replace(snapshot, source_project_path=123)
+        with pytest.raises(ValueError, match="binding revision"):
+            replace(snapshot, binding_revision=True)
+        with pytest.raises(ValueError, match="solution_namespace_id"):
+            replace(snapshot, solution_namespace_id=" namespace")
+        with pytest.raises(ValueError, match="artifact_id"):
+            replace(snapshot, required_managed_artifact_ids=(" altered",))
+        altered = copy.copy(snapshot)
+        object.__setattr__(
+            altered,
+            "required_managed_artifact_ids",
+            ("altered",),
+        )
+        stale = runtime.stage_project_solution_save(
+            altered,
+            str(tmp_path / "altered.cxproj"),
+            ProjectArtifactStore(
+                project_path=tmp_path / "altered.cxproj",
+                metadata=None,
+            ),
+        )
+        assert stale.reason_code == "project_solution_save_snapshot_stale"
+        assert not (tmp_path / "altered.data").exists()
+    finally:
+        runtime.shutdown()
 
 
 class _DurableLifecycleBackend:
@@ -87,6 +252,8 @@ class _DurableLifecycleFactory:
             self.backend,
             "stored-namespace",
             "durable_bound_active",
+            active_generation_id="a" * 32,
+            active_manifest_set_digest="b" * 64,
         )
 
 

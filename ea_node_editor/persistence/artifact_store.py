@@ -2,10 +2,12 @@ from __future__ import annotations
 
 import copy
 import hashlib
+import json
 import os
 import re
 import shutil
 import stat
+import tempfile
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, field, replace
 from pathlib import Path, PurePosixPath, PureWindowsPath
@@ -631,6 +633,121 @@ def _prune_empty_ancestors(path: Path, *, stop_roots: tuple[Path, ...]) -> None:
         current = current.parent
 
 
+def _artifact_integrity(path: Path) -> tuple[int, str]:
+    return artifact_content_integrity(path.parent, path.name)
+
+
+def _digest_suffixed_relative_path(relative_path: str, digest: str) -> str:
+    path = PurePosixPath(relative_path)
+    suffix = Path(path.name).suffix
+    stem = path.name[: -len(suffix)] if suffix else path.name
+    return path.with_name(f"{stem}.{digest}{suffix}").as_posix()
+
+
+def _ensure_owned_relative_parent(root: Path, relative_path: str) -> Path:
+    current = ensure_owned_artifact_directory(root)
+    for part in PurePosixPath(relative_path).parent.parts:
+        current = ensure_owned_artifact_directory(current / part)
+    return current
+
+
+def _copy_artifact_cow(
+    source: Path,
+    destination_root: Path,
+    relative_path: str,
+) -> tuple[str, int]:
+    source_stat = os.lstat(source)
+    if _is_link_or_reparse(source_stat) or not (
+        stat.S_ISREG(source_stat.st_mode) or stat.S_ISDIR(source_stat.st_mode)
+    ):
+        raise ValueError("artifact save source is unsafe")
+    source_size, source_digest = _artifact_integrity(source)
+    leaf_kind = "directory" if stat.S_ISDIR(source_stat.st_mode) else "file"
+
+    def target_for(relative: str) -> Path:
+        try:
+            target = validate_owned_artifact_path(
+                destination_root,
+                relative,
+                leaf_kind=leaf_kind,
+            )
+        except FileNotFoundError:
+            return validate_owned_artifact_path(
+                destination_root,
+                relative,
+                allow_missing=True,
+                leaf_kind=leaf_kind,
+            )
+        target_size, target_digest = _artifact_integrity(target)
+        if (target_size, target_digest) == (source_size, source_digest):
+            return target
+        raise FileExistsError
+
+    selected_relative = relative_path
+    try:
+        target = target_for(selected_relative)
+    except FileExistsError:
+        selected_relative = _digest_suffixed_relative_path(
+            relative_path,
+            source_digest,
+        )
+        try:
+            target = target_for(selected_relative)
+        except FileExistsError:
+            raise ValueError("immutable artifact digest target conflicts") from None
+    if target.exists():
+        return selected_relative, 0
+
+    parent = _ensure_owned_relative_parent(destination_root, selected_relative)
+    target = parent / PurePosixPath(selected_relative).name
+    if stat.S_ISREG(source_stat.st_mode):
+        fd, temporary = tempfile.mkstemp(
+            prefix=f".{target.name}.",
+            suffix=".tmp",
+            dir=parent,
+        )
+        temporary_path = Path(temporary)
+        try:
+            with source.open("rb") as source_stream, os.fdopen(fd, "wb") as target_stream:
+                shutil.copyfileobj(source_stream, target_stream, length=1024 * 1024)
+                target_stream.flush()
+                os.fsync(target_stream.fileno())
+            if _artifact_integrity(source) != (source_size, source_digest):
+                raise OSError("artifact source changed during copy")
+            if _artifact_integrity(temporary_path) != (source_size, source_digest):
+                raise OSError("artifact copy verification failed")
+            try:
+                os.link(temporary_path, target)
+            except FileExistsError:
+                if _artifact_integrity(target) != (source_size, source_digest):
+                    raise ValueError("immutable artifact target changed during copy") from None
+                return selected_relative, 0
+        finally:
+            temporary_path.unlink(missing_ok=True)
+    else:
+        temporary_path = Path(
+            tempfile.mkdtemp(prefix=f".{target.name}.", suffix=".tmp", dir=parent)
+        )
+        try:
+            shutil.copytree(source, temporary_path, dirs_exist_ok=True)
+            if _artifact_integrity(source) != (source_size, source_digest):
+                raise OSError("artifact source changed during copy")
+            if _artifact_integrity(temporary_path) != (source_size, source_digest):
+                raise OSError("artifact copy verification failed")
+            try:
+                os.rename(temporary_path, target)
+            except FileExistsError:
+                if _artifact_integrity(target) != (source_size, source_digest):
+                    raise ValueError("immutable artifact target changed during copy") from None
+                return selected_relative, 0
+        finally:
+            if temporary_path.exists():
+                shutil.rmtree(temporary_path, ignore_errors=True)
+    if _artifact_integrity(target) != (source_size, source_digest):
+        raise OSError("published artifact verification failed")
+    return selected_relative, source_size
+
+
 @dataclass(frozen=True, slots=True)
 class ProjectArtifactLayout:
     project_file: Path
@@ -1015,6 +1132,77 @@ class SavePromotionResult:
     discarded_staged_ids: tuple[str, ...] = ()
 
 
+@dataclass(frozen=True, slots=True)
+class ProjectArtifactSaveStage:
+    destination_store: "ProjectArtifactStore"
+    ref_replacements: dict[str, str]
+    previous_relative_paths: tuple[str, ...]
+    retained_relative_paths: tuple[str, ...]
+    cleanup_candidates: tuple[str, ...]
+    promoted_artifact_ids: tuple[str, ...]
+    staged_new_bytes: int
+    expected_integrity_facts: tuple["ProjectArtifactIntegrityFact", ...]
+
+
+@dataclass(frozen=True, slots=True)
+class ProjectArtifactIntegrityFact:
+    artifact_id: str
+    relative_path: str
+    kind: str
+    size_bytes: int
+    sha256: str
+
+    def __post_init__(self) -> None:
+        if coerce_managed_artifact_id(self.artifact_id) != self.artifact_id:
+            raise ValueError("project artifact integrity ID is invalid")
+        if (
+            _normalize_relative_path(
+                self.relative_path,
+                allowed_roots=_MANAGED_ROOT_NAMES,
+            )
+            != self.relative_path
+            or self.kind not in {"file", "directory"}
+            or type(self.size_bytes) is not int
+            or self.size_bytes < 0
+            or not isinstance(self.sha256, str)
+            or re.fullmatch(r"[0-9a-f]{64}", self.sha256) is None
+        ):
+            raise ValueError("project artifact integrity fact is invalid")
+
+
+@dataclass(frozen=True, slots=True)
+class ProjectArtifactGcResult:
+    candidate_relative_paths: tuple[str, ...]
+    removed_relative_paths: tuple[str, ...]
+    remaining_relative_paths: tuple[str, ...]
+    has_more: bool
+
+    def __post_init__(self) -> None:
+        if type(self.has_more) is not bool:
+            raise TypeError("project artifact GC has_more must be boolean")
+        for values in (
+            self.candidate_relative_paths,
+            self.removed_relative_paths,
+            self.remaining_relative_paths,
+        ):
+            if (
+                not isinstance(values, tuple)
+                or values != tuple(sorted(set(values)))
+                or len(values) > 100_000
+            ):
+                raise ValueError("project artifact GC paths are invalid")
+        candidates = set(self.candidate_relative_paths)
+        removed = set(self.removed_relative_paths)
+        remaining = set(self.remaining_relative_paths)
+        if (
+            not removed.issubset(candidates)
+            or not remaining.issubset(candidates)
+            or removed.intersection(remaining)
+            or self.has_more != bool(remaining)
+        ):
+            raise ValueError("project artifact GC result is inconsistent")
+
+
 def normalize_artifact_store_metadata(payload: Any) -> dict[str, Any]:
     return ArtifactStoreState.from_metadata(payload).to_metadata()
 
@@ -1068,6 +1256,77 @@ class ProjectArtifactStore:
     @property
     def staging_root_hint(self) -> StagingRootHint | None:
         return self._state.staging_root
+
+    def project_save_context_digest(self) -> str:
+        project_path = (
+            os.path.normcase(os.path.abspath(os.fspath(self._project_path)))
+            if self._project_path is not None
+            else ""
+        )
+        raw = json.dumps(
+            {
+                "schema_version": 1,
+                "project_path": project_path,
+                "metadata": self.metadata,
+            },
+            allow_nan=False,
+            ensure_ascii=False,
+            separators=(",", ":"),
+            sort_keys=True,
+        ).encode("utf-8")
+        return hashlib.sha256(raw).hexdigest()
+
+    def expected_integrity_facts(
+        self,
+        artifact_ids: Iterable[object],
+    ) -> tuple[ProjectArtifactIntegrityFact, ...]:
+        layout = self.layout
+        if layout is None:
+            raise ValueError("project path is required for artifact integrity")
+        facts: list[ProjectArtifactIntegrityFact] = []
+        normalized_ids = tuple(
+            sorted(
+                {
+                    artifact_id
+                    for artifact_id in (
+                        coerce_managed_artifact_id(value) for value in artifact_ids
+                    )
+                    if artifact_id
+                }
+            )
+        )
+        for artifact_id in normalized_ids:
+            entry = self.managed_entry(artifact_id)
+            if entry is None:
+                raise ValueError("expected managed artifact is not registered")
+            target = entry.absolute_path(layout)
+            target_stat = os.lstat(target)
+            if _is_link_or_reparse(target_stat):
+                raise ValueError("expected managed artifact is unsafe")
+            if stat.S_ISREG(target_stat.st_mode):
+                kind = "file"
+            elif stat.S_ISDIR(target_stat.st_mode):
+                kind = "directory"
+            else:
+                raise ValueError("expected managed artifact kind is invalid")
+            validated = validate_owned_artifact_path(
+                layout.sidecar_root,
+                entry.relative_path,
+                leaf_kind=kind,
+            )
+            if validated != target:
+                raise ValueError("expected managed artifact path is invalid")
+            size_bytes, sha256 = _artifact_integrity(target)
+            facts.append(
+                ProjectArtifactIntegrityFact(
+                    artifact_id=artifact_id,
+                    relative_path=entry.relative_path,
+                    kind=kind,
+                    size_bytes=size_bytes,
+                    sha256=sha256,
+                )
+            )
+        return tuple(facts)
 
     def managed_ref(self, artifact_id: str) -> str:
         return format_managed_artifact_ref(artifact_id)
@@ -1879,6 +2138,250 @@ class ProjectArtifactStore:
             promoted_artifact_ids=tuple(sorted(promoted_ids)),
             pruned_artifact_ids=tuple(sorted(pruned_ids)),
             discarded_staged_ids=tuple(sorted(discarded_ids)),
+        )
+
+    def stage_project_save(
+        self,
+        *,
+        destination_project_path: str | Path,
+        workspaces: Mapping[str, Any] | Iterable[Any],
+        referenced_managed_ids: Iterable[object] = (),
+        referenced_staged_ids: Iterable[object] = (),
+        required_managed_artifact_ids: Iterable[object] = (),
+    ) -> ProjectArtifactSaveStage:
+        destination_path = Path(destination_project_path)
+        destination_layout = ProjectArtifactLayout.from_project_path(destination_path)
+        destination_root = ensure_owned_artifact_directory(destination_layout.sidecar_root)
+        document_managed_ids = {
+            artifact_id
+            for artifact_id in (
+                coerce_managed_artifact_id(value) for value in referenced_managed_ids
+            )
+            if artifact_id
+        }
+        solution_managed_ids = {
+            artifact_id
+            for artifact_id in (
+                coerce_managed_artifact_id(value)
+                for value in required_managed_artifact_ids
+            )
+            if artifact_id
+        }
+        staged_ids = {
+            artifact_id
+            for artifact_id in (
+                coerce_staged_artifact_id(value) for value in referenced_staged_ids
+            )
+            if artifact_id
+        }
+        owner_lookup = _artifact_owner_lookup(workspaces)
+        artifacts: dict[str, ManagedArtifactEntry] = {}
+        replacements: dict[str, str] = {}
+        promoted: list[str] = []
+        staged_new_bytes = 0
+
+        for artifact_id in sorted(document_managed_ids | solution_managed_ids):
+            entry = self._state.artifacts.get(artifact_id)
+            if entry is None:
+                if artifact_id in document_managed_ids:
+                    raise ValueError("referenced managed artifact is not registered")
+                continue
+            source = self.resolve_managed_path(artifact_id)
+            if source is None or not source.exists():
+                if artifact_id in document_managed_ids:
+                    raise ValueError("referenced managed artifact is missing")
+                continue
+            scoped = self._workspace_scoped_managed_entry(
+                entry,
+                workspaces=workspaces,
+                owner_lookup=owner_lookup,
+            )
+            selected_relative, copied_bytes = _copy_artifact_cow(
+                source,
+                destination_root,
+                scoped.relative_path,
+            )
+            artifacts[artifact_id] = replace(
+                scoped,
+                relative_path=selected_relative,
+            )
+            staged_new_bytes += copied_bytes
+
+        for artifact_id in sorted(staged_ids):
+            entry = self._state.staged.get(artifact_id)
+            if entry is None:
+                raise ValueError("referenced staged artifact is not registered")
+            source = self.resolve_staged_path(artifact_id)
+            if source is None or not source.exists():
+                raise ValueError("referenced staged artifact is missing")
+            scoped = self._workspace_scoped_staged_entry(
+                entry,
+                workspaces=workspaces,
+                owner_lookup=owner_lookup,
+            )
+            relative_path = self._managed_relative_path_for_staged_entry(
+                artifact_id,
+                scoped,
+                source_path=source,
+            )
+            selected_relative, copied_bytes = _copy_artifact_cow(
+                source,
+                destination_root,
+                relative_path,
+            )
+            artifacts[artifact_id] = ManagedArtifactEntry(
+                artifact_id=artifact_id,
+                relative_path=selected_relative,
+                extra=self._managed_extra_from_staged_entry(scoped),
+            )
+            replacements[self.staged_ref(artifact_id)] = self.managed_ref(artifact_id)
+            promoted.append(artifact_id)
+            staged_new_bytes += copied_bytes
+
+        same_project = bool(
+            self._project_path is not None
+            and os.path.normcase(os.path.abspath(os.fspath(self._project_path)))
+            == os.path.normcase(os.path.abspath(os.fspath(destination_path)))
+        )
+        previous_relative_paths = (
+            tuple(
+                sorted(
+                    {
+                        *(entry.relative_path for entry in self._state.artifacts.values()),
+                        *(
+                            entry.relative_path
+                            for entry in self._state.staged.values()
+                            if entry.relative_path is not None
+                        ),
+                    }
+                )
+            )
+            if same_project
+            else ()
+        )
+        retained_relative_paths = tuple(
+            sorted(entry.relative_path for entry in artifacts.values())
+        )
+        destination_store = ProjectArtifactStore(
+            project_path=destination_path,
+            metadata=ArtifactStoreState(
+                artifacts=artifacts,
+                staged={},
+                staging_root=None,
+                extra=copy.deepcopy(self._state.extra),
+            ),
+        )
+        return ProjectArtifactSaveStage(
+            destination_store=destination_store,
+            ref_replacements=replacements,
+            previous_relative_paths=previous_relative_paths,
+            retained_relative_paths=retained_relative_paths,
+            cleanup_candidates=tuple(
+                sorted(set(previous_relative_paths) - set(retained_relative_paths))
+            ),
+            promoted_artifact_ids=tuple(promoted),
+            staged_new_bytes=staged_new_bytes,
+            expected_integrity_facts=destination_store.expected_integrity_facts(
+                artifacts
+            ),
+        )
+
+    @staticmethod
+    def collect_project_save_garbage(
+        *,
+        project_path: str | Path,
+        candidate_relative_paths: Iterable[str],
+        protected_relative_paths: Iterable[str],
+        limit: int = 10_000,
+    ) -> ProjectArtifactGcResult:
+        root = ProjectArtifactLayout.from_project_path(project_path).sidecar_root
+        protected: set[str] = set()
+        for index, relative in enumerate(protected_relative_paths):
+            if index >= 100_000:
+                break
+            protected.add(relative)
+        candidates: set[str] = set()
+        for index, relative in enumerate(candidate_relative_paths):
+            if index >= 100_000:
+                break
+            candidates.add(relative)
+        ordered_candidates = tuple(sorted(candidates))
+        selected = ordered_candidates[: min(max(int(limit), 0), 10_000)]
+        removed: list[str] = []
+        remaining: set[str] = set(ordered_candidates[len(selected) :])
+        scanned = 0
+        for relative in selected:
+            relative_path = PurePosixPath(relative)
+            if any(
+                relative_path.is_relative_to(PurePosixPath(item))
+                or PurePosixPath(item).is_relative_to(relative_path)
+                for item in protected
+            ):
+                remaining.add(relative)
+                continue
+            normalized = _normalize_relative_path(relative, allowed_roots=_MANAGED_ROOT_NAMES)
+            if not normalized or normalized != relative:
+                remaining.add(relative)
+                continue
+            try:
+                file_target = validate_owned_artifact_path(root, relative)
+                target_stat = os.lstat(file_target)
+            except FileNotFoundError:
+                removed.append(relative)
+                continue
+            except ValueError:
+                try:
+                    file_target = validate_owned_artifact_path(
+                        root,
+                        relative,
+                        leaf_kind="directory",
+                    )
+                    target_stat = os.lstat(file_target)
+                except (FileNotFoundError, OSError, ValueError):
+                    remaining.add(relative)
+                    continue
+            if stat.S_ISREG(target_stat.st_mode):
+                try:
+                    file_target.unlink()
+                except OSError:
+                    remaining.add(relative)
+                    continue
+                removed.append(relative)
+                continue
+            if not stat.S_ISDIR(target_stat.st_mode):
+                remaining.add(relative)
+                continue
+            safe = True
+            for directory, directory_names, filenames in os.walk(file_target):
+                scanned += len(directory_names) + len(filenames)
+                if scanned > 100_000:
+                    safe = False
+                    break
+                for name in (*directory_names, *filenames):
+                    try:
+                        child_stat = os.lstat(Path(directory) / name)
+                    except OSError:
+                        safe = False
+                        break
+                    if _is_link_or_reparse(child_stat):
+                        safe = False
+                        break
+                if not safe:
+                    break
+            if not safe:
+                remaining.add(relative)
+                continue
+            try:
+                shutil.rmtree(file_target)
+            except OSError:
+                remaining.add(relative)
+                continue
+            removed.append(relative)
+        return ProjectArtifactGcResult(
+            candidate_relative_paths=ordered_candidates,
+            removed_relative_paths=tuple(sorted(removed)),
+            remaining_relative_paths=tuple(sorted(remaining)),
+            has_more=bool(remaining),
         )
 
     def _cleanup_stop_roots(self) -> tuple[Path, ...]:

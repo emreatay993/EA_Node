@@ -377,6 +377,8 @@ def test_durable_backend_open_result_enforces_active_and_session_only_shapes() -
         backend,
         "namespace",
         "durable_bound_active",
+        active_generation_id="a" * 32,
+        active_manifest_set_digest="b" * 64,
     )
     assert active.backend is backend
     fallback = DurableBackendOpenResult(

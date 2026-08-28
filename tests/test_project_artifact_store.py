@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import hashlib
 import stat
 import tempfile
 import unittest
@@ -2107,6 +2108,156 @@ class ProjectArtifactStoreTests(unittest.TestCase):
         self.assertEqual(staged, StagedArtifactRef("diagram_asset"))
         self.assertEqual(format_managed_artifact_ref("diagram_asset"), "saved://diagram_asset")
         self.assertEqual(format_staged_artifact_ref("diagram_asset"), "temp://diagram_asset")
+
+    def test_stage_project_save_is_copy_on_write_and_suffixes_full_digest_collision(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            source_project = root / "source.cxproj"
+            destination_project = root / "destination.cxproj"
+            workspace_folder = format_workspace_artifact_folder(
+                workspace_id="ws", workspace_name="Main"
+            )
+            node_folder = format_node_artifact_folder(
+                workspace_id="ws",
+                node_id="node",
+                node_type="Node",
+            )
+            relative = f"workspaces/{workspace_folder}/nodes/{node_folder}/out/value.bin"
+            staged_relative = f"workspaces/{workspace_folder}/nodes/{node_folder}/tmp/out/new.bin"
+            source_layout = ProjectArtifactLayout.from_project_path(source_project)
+            source_managed = source_layout.absolute_path_for_relative(relative)
+            source_staged = source_layout.absolute_path_for_relative(staged_relative)
+            source_managed.parent.mkdir(parents=True, exist_ok=True)
+            source_staged.parent.mkdir(parents=True, exist_ok=True)
+            source_managed.write_bytes(b"source-managed")
+            source_staged.write_bytes(b"source-staged")
+            store = ProjectArtifactStore(
+                project_path=source_project,
+                metadata={
+                    "artifacts": {
+                        "managed": {
+                            "relative_path": relative,
+                            "node_workspace_id": "ws",
+                            "node_workspace_name": "Main",
+                            "node_id": "node",
+                            "node_type": "Node",
+                        }
+                    },
+                    "staged": {
+                        "staged": {
+                            "relative_path": staged_relative,
+                            "managed_relative_path": relative,
+                            "node_workspace_id": "ws",
+                            "node_workspace_name": "Main",
+                            "node_id": "node",
+                            "node_type": "Node",
+                        }
+                    },
+                },
+            )
+            destination_layout = ProjectArtifactLayout.from_project_path(
+                destination_project
+            )
+            conflicting = destination_layout.absolute_path_for_relative(relative)
+            conflicting.parent.mkdir(parents=True, exist_ok=True)
+            conflicting.write_bytes(b"committed-winner")
+
+            stage = store.stage_project_save(
+                destination_project_path=destination_project,
+                workspaces={"ws": SimpleNamespace(name="Main", nodes={})},
+                referenced_managed_ids=("managed",),
+                referenced_staged_ids=("staged",),
+            )
+
+            digest = hashlib.sha256(b"source-staged").hexdigest()
+            staged_entry = stage.destination_store.managed_entry("staged")
+            self.assertIsNotNone(staged_entry)
+            self.assertIn(digest, staged_entry.relative_path)
+            self.assertEqual(conflicting.read_bytes(), b"committed-winner")
+            self.assertEqual(source_managed.read_bytes(), b"source-managed")
+            self.assertEqual(source_staged.read_bytes(), b"source-staged")
+            copied = stage.destination_store.resolve_managed_path("staged")
+            self.assertIsNotNone(copied)
+            self.assertEqual(copied.read_bytes(), b"source-staged")
+            self.assertEqual(stage.destination_store.metadata["staged"], {})
+
+    def test_project_save_cleanup_protects_previous_then_allows_active_only_retry(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            project = Path(temp_dir) / "project.cxproj"
+            metadata = {
+                "artifacts": {
+                    "old": {"relative_path": "nodes/Old [11111111]/out/old.bin"},
+                    "current": {"relative_path": "nodes/Current [22222222]/out/current.bin"},
+                },
+                "staged": {},
+            }
+            store = ProjectArtifactStore(project_path=project, metadata=metadata)
+            old_path = store.resolve_managed_path("old")
+            current_path = store.resolve_managed_path("current")
+            old_path.parent.mkdir(parents=True, exist_ok=True)
+            current_path.parent.mkdir(parents=True, exist_ok=True)
+            old_path.write_bytes(b"old")
+            current_path.write_bytes(b"current")
+
+            stage = store.stage_project_save(
+                destination_project_path=project,
+                workspaces={},
+                referenced_managed_ids=("current",),
+            )
+            first = ProjectArtifactStore.collect_project_save_garbage(
+                project_path=project,
+                candidate_relative_paths=stage.cleanup_candidates,
+                protected_relative_paths=(
+                    *stage.previous_relative_paths,
+                    *stage.retained_relative_paths,
+                ),
+            )
+            self.assertEqual(first.removed_relative_paths, ())
+            self.assertEqual(first.remaining_relative_paths, stage.cleanup_candidates)
+            self.assertTrue(first.has_more)
+            self.assertTrue(old_path.exists())
+
+            second = ProjectArtifactStore.collect_project_save_garbage(
+                project_path=project,
+                candidate_relative_paths=stage.cleanup_candidates,
+                protected_relative_paths=stage.retained_relative_paths,
+            )
+            self.assertEqual(
+                second.removed_relative_paths,
+                (metadata["artifacts"]["old"]["relative_path"],),
+            )
+            self.assertFalse(second.has_more)
+            self.assertFalse(old_path.exists())
+            self.assertTrue(current_path.exists())
+
+    def test_project_artifact_gc_partial_batch_returns_retryable_remaining_paths(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            project = Path(temp_dir) / "project.cxproj"
+            root = ProjectArtifactLayout.from_project_path(project).sidecar_root
+            candidates = (
+                "nodes/Old [11111111]/out/a.bin",
+                "nodes/Old [11111111]/out/b.bin",
+            )
+            for relative in candidates:
+                path = root.joinpath(*PurePosixPath(relative).parts)
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_bytes(relative.encode("utf-8"))
+            first = ProjectArtifactStore.collect_project_save_garbage(
+                project_path=project,
+                candidate_relative_paths=candidates,
+                protected_relative_paths=(),
+                limit=1,
+            )
+            self.assertTrue(first.has_more)
+            self.assertEqual(len(first.removed_relative_paths), 1)
+            self.assertEqual(len(first.remaining_relative_paths), 1)
+            second = ProjectArtifactStore.collect_project_save_garbage(
+                project_path=project,
+                candidate_relative_paths=first.remaining_relative_paths,
+                protected_relative_paths=(),
+            )
+            self.assertFalse(second.has_more)
+            self.assertEqual(second.remaining_relative_paths, ())
 
 
 if __name__ == "__main__":

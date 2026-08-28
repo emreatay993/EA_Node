@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from collections.abc import Iterable, Mapping
+from collections.abc import Iterable
 from pathlib import Path
 from typing import Any
 
@@ -106,17 +106,6 @@ class ProjectSessionController:
     def _default_save_as_path(self) -> str:
         return self._document_service._default_save_as_path()
 
-    @staticmethod
-    def _delete_save_as_sidecar_path(path: Path) -> None:
-        ProjectDocumentIOService._delete_save_as_sidecar_path(path)
-
-    @classmethod
-    def _copy_save_as_payload(cls, source_path: Path, destination_path: Path) -> None:
-        ProjectDocumentIOService._copy_save_as_payload(source_path, destination_path)
-
-    def _reset_save_as_destination_sidecar(self, saved_path: Path) -> None:
-        self._document_service._reset_save_as_destination_sidecar(saved_path)
-
     def build_project_files_snapshot(
         self,
         *,
@@ -177,30 +166,14 @@ class ProjectSessionController:
     def _repair_project_file_issue(self, issue: ProjectFilesBrokenEntry) -> bool:
         return self._project_files_service.repair_project_file_issue(issue)
 
-    def _build_save_as_artifact_store_metadata(
-        self,
-        *,
-        saved_path: Path,
-        source_document: Mapping[str, Any],
-        referenced_managed_ids: Iterable[object],
-        copy_managed_data: bool,
-    ) -> dict[str, Any]:
-        return self._document_service._build_save_as_artifact_store_metadata(
-            saved_path=saved_path,
-            source_document=source_document,
-            workspaces=self._host.model.project.workspaces,
-            referenced_managed_ids=referenced_managed_ids,
-            copy_managed_data=copy_managed_data,
-        )
-
     def _rewrite_live_project_artifact_refs(self, replacements: dict[str, str]) -> None:
         self._document_service._rewrite_live_project_artifact_refs(replacements)
 
-    def save_project(self) -> None:
-        self._document_service.save_project()
+    def save_project(self):  # noqa: ANN201
+        return self._document_service.save_project()
 
-    def save_project_as(self) -> None:
-        self._document_service.save_project_as()
+    def save_project_as(self):  # noqa: ANN201
+        return self._document_service.save_project_as()
 
     def new_project(self) -> bool:
         replaced = bool(self._document_service.new_project())

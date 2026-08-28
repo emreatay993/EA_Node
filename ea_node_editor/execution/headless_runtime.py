@@ -10,6 +10,7 @@ from __future__ import annotations
 import argparse
 import copy
 import json
+import os
 import queue
 import sys
 import threading
@@ -63,7 +64,13 @@ from ea_node_editor.execution.solution_store import (
     CapturedNodeSolution,
     DurableBackendOpenResult,
     DurableSolutionBackendFactory,
+    ProjectSolutionAdoptionResult,
+    ProjectSolutionCandidateResult,
+    ProjectSolutionGcResult,
+    ProjectSolutionSaveResult,
+    ProjectSolutionSaveSnapshot,
     SolutionStore,
+    project_solution_snapshot_token,
 )
 from ea_node_editor.execution.runtime_snapshot import (
     RuntimeSnapshot,
@@ -200,6 +207,18 @@ class ExecutionResult:
         }
 
 
+@dataclass(slots=True)
+class _ProjectSolutionSaveContext:
+    snapshot: ProjectSolutionSaveSnapshot
+    binding_revision: int
+    destination_project_path: str = ""
+    result: ProjectSolutionSaveResult | None = None
+    candidate: DurableBackendOpenResult | None = None
+    adopted: bool = False
+    gc_candidate_relative_paths: tuple[str, ...] = ()
+    gc_scan_complete: bool = True
+
+
 class ExecutionEventStream:
     def __init__(self) -> None:
         self._events: queue.Queue[ExecutionEvent] = queue.Queue()
@@ -312,6 +331,8 @@ class CorexRuntime:
         self._solution_store = solution_store or SolutionStore()
         self._solution_repository_factory = solution_repository_factory
         self._project_solution_binding_revision = 0
+        self._project_solution_save_contexts: dict[str, _ProjectSolutionSaveContext] = {}
+        self._retired_solution_backends: list[Any] = []
         self._generation_snapshots: dict[str, Any] = {}
         self._run_artifact_services: dict[str, RuntimeArtifactService] = {}
         self._event_stream = ExecutionEventStream()
@@ -380,6 +401,7 @@ class CorexRuntime:
                 previous_fingerprint
                 and previous_fingerprint != registry.contract_fingerprint()
             ):
+                self._project_solution_binding_revision += 1
                 self._release_all_solution_resources()
                 solution_events = self._solution_store.reset_runtime_generation(
                     "registry_generation_replaced"
@@ -1300,6 +1322,397 @@ class CorexRuntime:
     def solution_record(self, record_id: str) -> SolutionRecord | None:
         return self._solution_store.record(record_id)
 
+    def capture_project_solution_save(
+        self,
+        project_id: str,
+        source_project_path: str,
+        retained_owner_ids: Iterable[tuple[str, str]],
+        source_artifact_context: object,
+    ) -> ProjectSolutionSaveSnapshot:
+        if self._solution_repository_factory is None or self._registry is None:
+            raise ValueError("project_solution_save_source_invalid")
+        normalized_source_path = (
+            os.path.normcase(os.path.abspath(source_project_path))
+            if str(source_project_path).strip()
+            else ""
+        )
+        context_digest = getattr(
+            source_artifact_context,
+            "project_save_context_digest",
+            None,
+        )
+        if not callable(context_digest):
+            raise ValueError("project_solution_save_source_invalid")
+        source_artifact_context_digest = context_digest()
+        registry_contract_fingerprint = self._registry.contract_fingerprint()
+        with self._lifecycle_lock:
+            binding_revision = self._project_solution_binding_revision
+            (
+                namespace_id,
+                source_generation_id,
+                source_manifest_set_digest,
+                owners,
+                supplemental_records,
+                _required_artifact_ids,
+                _estimated_copy_bytes,
+            ) = self._solution_store.project_solution_save_inputs(
+                project_id,
+                retained_owner_ids,
+                catalog=self._registry.data_types,
+            )
+        snapshot = self._solution_repository_factory.export_project_solution_save(
+            project_id,
+            normalized_source_path,
+            namespace_id,
+            source_generation_id,
+            source_manifest_set_digest,
+            owners,
+            supplemental_records,
+            binding_revision,
+            registry_contract_fingerprint,
+            source_artifact_context_digest,
+            self._registry.data_types,
+            source_artifact_context,
+        )
+        if not isinstance(snapshot, ProjectSolutionSaveSnapshot):
+            raise TypeError("project solution factory returned an invalid snapshot")
+        with self._lifecycle_lock:
+            if (
+                binding_revision != self._project_solution_binding_revision
+                or self._solution_store.solution_namespace_id(project_id)
+                != snapshot.solution_namespace_id
+                or snapshot.binding_revision != binding_revision
+                or snapshot.registry_contract_fingerprint
+                != registry_contract_fingerprint
+                or snapshot.source_artifact_context_digest
+                != source_artifact_context_digest
+                or project_solution_snapshot_token(snapshot)
+                != snapshot.snapshot_token
+            ):
+                raise ValueError("project_solution_save_snapshot_stale")
+            self._project_solution_save_contexts[snapshot.snapshot_token] = (
+                _ProjectSolutionSaveContext(
+                    snapshot=snapshot,
+                    binding_revision=binding_revision,
+                )
+            )
+        return snapshot
+
+    def project_solution_save_snapshot_is_current(self, snapshot_token: str) -> bool:
+        token = str(snapshot_token).strip()
+        with self._lifecycle_lock:
+            context = self._project_solution_save_contexts.get(token)
+            return bool(
+                context is not None
+                and not context.adopted
+                and project_solution_snapshot_token(context.snapshot)
+                == context.snapshot.snapshot_token
+                and context.binding_revision == self._project_solution_binding_revision
+                and self._solution_store.solution_namespace_id(
+                    context.snapshot.project_id
+                )
+                == context.snapshot.solution_namespace_id
+            )
+
+    def stage_project_solution_save(
+        self,
+        snapshot: ProjectSolutionSaveSnapshot,
+        destination_project_path: str,
+        destination_artifact_context: object,
+    ) -> ProjectSolutionSaveResult:
+        if self._solution_repository_factory is None or self._registry is None:
+            raise ValueError("project_solution_save_destination_invalid")
+        with self._lifecycle_lock:
+            context = self._project_solution_save_contexts.get(
+                snapshot.snapshot_token
+            )
+            snapshot_matches = bool(
+                context is not None
+                and context.snapshot == snapshot
+                and project_solution_snapshot_token(snapshot)
+                == snapshot.snapshot_token
+                and not context.adopted
+                and context.binding_revision
+                == self._project_solution_binding_revision
+            )
+        if not snapshot_matches:
+            return ProjectSolutionSaveResult(
+                snapshot_token=snapshot.snapshot_token,
+                solution_namespace_id=snapshot.solution_namespace_id,
+                reason_code="project_solution_save_snapshot_stale",
+                diagnostic="The project solution snapshot changed before staging.",
+            )
+        result = self._solution_repository_factory.stage_project_solution_save(
+            snapshot,
+            destination_project_path,
+            self._registry.data_types,
+            destination_artifact_context,
+        )
+        if not isinstance(result, ProjectSolutionSaveResult):
+            raise TypeError("project solution factory returned an invalid save result")
+        if result.reason_code != "project_solution_save_staged":
+            return result
+        if (
+            result.snapshot_token != snapshot.snapshot_token
+            or result.solution_namespace_id != snapshot.solution_namespace_id
+            or result.estimated_copy_bytes != snapshot.estimated_copy_bytes
+            or result.staged_new_bytes > snapshot.estimated_copy_bytes
+        ):
+            return ProjectSolutionSaveResult(
+                snapshot_token=snapshot.snapshot_token,
+                solution_namespace_id=snapshot.solution_namespace_id,
+                reason_code="project_solution_save_capacity_exceeded",
+                diagnostic="The destination solution generation exceeded its estimate.",
+            )
+        with self._lifecycle_lock:
+            context = self._project_solution_save_contexts.get(snapshot.snapshot_token)
+            if (
+                context is None
+                or context.snapshot != snapshot
+                or context.binding_revision != self._project_solution_binding_revision
+                or self._solution_store.solution_namespace_id(snapshot.project_id)
+                != snapshot.solution_namespace_id
+            ):
+                stale = True
+            else:
+                stale = False
+                context.destination_project_path = str(destination_project_path)
+                context.result = result
+                context.gc_candidate_relative_paths = (
+                    result.orphan_candidate_relative_paths
+                )
+                context.gc_scan_complete = result.orphan_scan_complete
+        if stale:
+            return ProjectSolutionSaveResult(
+                snapshot_token=snapshot.snapshot_token,
+                solution_namespace_id=snapshot.solution_namespace_id,
+                reason_code="project_solution_save_snapshot_stale",
+                diagnostic="The project solution binding changed during staging.",
+            )
+        return result
+
+    def prepare_project_solution_adoption(
+        self,
+        result: ProjectSolutionSaveResult,
+        project_id: str,
+        destination_project_path: str,
+        metadata_solution_store: object,
+        destination_artifact_context: object,
+    ) -> ProjectSolutionCandidateResult:
+        if self._solution_repository_factory is None or self._registry is None:
+            return ProjectSolutionCandidateResult(
+                False,
+                "project_solution_candidate_invalid",
+                "Project solution storage is unavailable.",
+            )
+        with self._lifecycle_lock:
+            context = self._project_solution_save_contexts.get(result.snapshot_token)
+            snapshot = context.snapshot if context is not None else None
+            valid = bool(
+                context is not None
+                and snapshot is not None
+                and project_solution_snapshot_token(snapshot)
+                == snapshot.snapshot_token
+                and context.result == result
+                and context.binding_revision == self._project_solution_binding_revision
+                and snapshot.project_id == str(project_id).strip()
+                and context.destination_project_path == str(destination_project_path)
+                and result.solution_namespace_id == snapshot.solution_namespace_id
+                and result.metadata_solution_store == metadata_solution_store
+                and context.candidate is None
+            )
+        if not valid or snapshot is None:
+            return ProjectSolutionCandidateResult(
+                False,
+                "project_solution_candidate_snapshot_stale",
+                "The project solution snapshot changed before candidate reopen.",
+            )
+        try:
+            candidate = self._solution_repository_factory.open_project_solution_save_candidate(
+                snapshot.project_id,
+                destination_project_path,
+                metadata_solution_store,
+                snapshot.solution_namespace_id,
+                self._registry.data_types,
+                destination_artifact_context,
+            )
+        except Exception:  # noqa: BLE001 - committed candidate reopen fails closed.
+            candidate = None
+        if not isinstance(candidate, DurableBackendOpenResult) or not (
+            candidate.backend is not None
+            and candidate.status_code == "durable_bound_active"
+            and candidate.solution_namespace_id == snapshot.solution_namespace_id
+            and candidate.active_generation_id == result.candidate_generation_id
+            and candidate.active_manifest_set_digest
+            == result.candidate_manifest_set_digest
+        ):
+            self._close_durable_backend(
+                candidate.backend
+                if isinstance(candidate, DurableBackendOpenResult)
+                else None
+            )
+            return ProjectSolutionCandidateResult(
+                False,
+                "project_solution_candidate_invalid",
+                "The committed project solution candidate is invalid.",
+            )
+        with self._lifecycle_lock:
+            context = self._project_solution_save_contexts.get(result.snapshot_token)
+            if (
+                context is None
+                or context.snapshot != snapshot
+                or context.result != result
+                or context.binding_revision != self._project_solution_binding_revision
+                or context.candidate is not None
+            ):
+                stale = True
+            else:
+                stale = False
+                context.candidate = candidate
+        if stale:
+            self._close_durable_backend(candidate.backend)
+            return ProjectSolutionCandidateResult(
+                False,
+                "project_solution_candidate_snapshot_stale",
+                "The project solution snapshot changed during candidate reopen.",
+            )
+        return ProjectSolutionCandidateResult(
+            True,
+            "project_solution_candidate_prepared",
+        )
+
+    def adopt_project_solution_save(
+        self,
+        result: ProjectSolutionSaveResult,
+        project_id: str,
+        destination_project_path: str,
+        metadata_solution_store: object,
+        destination_artifact_context: object,
+    ) -> ProjectSolutionAdoptionResult:
+        del destination_artifact_context
+        if not isinstance(result, ProjectSolutionSaveResult):
+            raise TypeError("result must be ProjectSolutionSaveResult")
+        with self._lifecycle_lock:
+            context = self._project_solution_save_contexts.get(result.snapshot_token)
+            candidate = context.candidate if context is not None else None
+            if (
+                context is None
+                or project_solution_snapshot_token(context.snapshot)
+                != context.snapshot.snapshot_token
+                or context.binding_revision != self._project_solution_binding_revision
+            ):
+                reason = "project_solution_adoption_snapshot_stale"
+            elif (
+                context.snapshot.project_id != str(project_id).strip()
+                or context.destination_project_path != str(destination_project_path)
+                or result.solution_namespace_id
+                != context.snapshot.solution_namespace_id
+            ):
+                reason = "project_solution_adoption_namespace_mismatch"
+            elif (
+                candidate is None
+                or candidate.backend is None
+                or context.result != result
+                or result.metadata_solution_store != metadata_solution_store
+            ):
+                reason = "project_solution_adoption_candidate_invalid"
+            else:
+                previous = self._solution_store.install_durable_backend(
+                    context.snapshot.project_id,
+                    candidate,
+                )
+                if previous is not None:
+                    self._retired_solution_backends.append(previous)
+                context.candidate = None
+                context.adopted = True
+                self._project_solution_binding_revision += 1
+                context.binding_revision = self._project_solution_binding_revision
+                reason = "project_solution_adopted"
+        if reason == "project_solution_adopted":
+            return ProjectSolutionAdoptionResult(True, reason)
+        return ProjectSolutionAdoptionResult(
+            False,
+            reason,
+            "The prepared project solution candidate could not be adopted.",
+        )
+
+    def cancel_project_solution_save(self, snapshot_token: str) -> None:
+        with self._lifecycle_lock:
+            context = self._project_solution_save_contexts.pop(
+                str(snapshot_token).strip(),
+                None,
+            )
+        self._close_durable_backend(
+            context.candidate.backend
+            if context is not None and context.candidate is not None
+            else None
+        )
+
+    def collect_project_solution_garbage(
+        self,
+        result: ProjectSolutionSaveResult,
+        *,
+        protect_previous_generation: bool,
+        limit: int = 10_000,
+    ) -> ProjectSolutionGcResult:
+        if self._solution_repository_factory is None or self._registry is None:
+            return ProjectSolutionGcResult(
+                (), (), False, "project_solution_gc_skipped_invalid"
+            )
+        with self._lifecycle_lock:
+            context = self._project_solution_save_contexts.get(result.snapshot_token)
+            retired = tuple(self._retired_solution_backends)
+            self._retired_solution_backends.clear()
+        for backend in retired:
+            self._close_durable_backend(backend)
+        if context is None or context.result != result:
+            return ProjectSolutionGcResult(
+                (), (), False, "project_solution_gc_skipped_invalid"
+            )
+        protected = (
+            ((result.previous_generation_id, result.previous_manifest_set_digest),)
+            if protect_previous_generation and result.previous_generation_id
+            else ()
+        )
+        active_generation_id = result.candidate_generation_id
+        active_manifest_set_digest = result.candidate_manifest_set_digest
+        if not protect_previous_generation:
+            current_pointer = self._solution_store.durable_binding_pointer(
+                context.snapshot.project_id
+            )
+            if all(current_pointer):
+                active_generation_id, active_manifest_set_digest = current_pointer
+        gc_result = self._solution_repository_factory.collect_project_solution_garbage(
+            context.snapshot.project_id,
+            context.destination_project_path,
+            active_generation_id,
+            active_manifest_set_digest,
+            protected,
+            context.gc_candidate_relative_paths,
+            context.gc_scan_complete,
+            limit,
+            self._registry.data_types,
+        )
+        remaining = tuple(
+            sorted(
+                set(gc_result.candidate_relative_paths).difference(
+                    gc_result.removed_relative_paths
+                )
+            )
+        )
+        with self._lifecycle_lock:
+            current_context = self._project_solution_save_contexts.get(
+                result.snapshot_token
+            )
+            if current_context is context:
+                current_context.gc_candidate_relative_paths = remaining
+                if not gc_result.has_more:
+                    current_context.gc_scan_complete = True
+        if not protect_previous_generation and not gc_result.has_more:
+            with self._lifecycle_lock:
+                self._project_solution_save_contexts.pop(result.snapshot_token, None)
+        return gc_result
+
     def bind_project_solution_store(
         self,
         project_id: str,
@@ -1758,10 +2171,20 @@ class CorexRuntime:
             self._release_all_solution_resources()
             self._run_artifact_services.clear()
             backend = self._solution_store.detach_durable_backend()
+            candidates = tuple(
+                context.candidate.backend
+                for context in self._project_solution_save_contexts.values()
+                if context.candidate is not None and context.candidate.backend is not None
+            )
+            retired = tuple(self._retired_solution_backends)
+            self._project_solution_save_contexts.clear()
+            self._retired_solution_backends.clear()
             self._solution_store.shutdown()
             if self._owns_client:
                 self._client.shutdown()
         self._close_durable_backend(backend)
+        for candidate in (*candidates, *retired):
+            self._close_durable_backend(candidate)
 
     @staticmethod
     def _start_failure_event(

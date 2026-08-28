@@ -20,6 +20,8 @@ from ea_node_editor.app_preferences import (
     set_addon_state,
 )
 from ea_node_editor.execution.viewer_backend_dpf import DPF_EXECUTION_VIEWER_BACKEND_ID
+from ea_node_editor.execution.headless_runtime import CorexRuntime
+from ea_node_editor.execution.solution_store import InvalidationResult
 from ea_node_editor.graph.model import GraphModel
 from ea_node_editor.nodes.bootstrap import build_default_registry
 from ea_node_editor.nodes.node_specs import NodeTypeSpec, PortSpec, PropertySpec
@@ -38,7 +40,7 @@ from ea_node_editor.persistence.artifact_store import (
     format_workspace_artifact_folder,
 )
 from ea_node_editor.persistence.serializer import JsonProjectSerializer
-from ea_node_editor.ui.dialogs.project_save_as_dialog import ProjectSaveAsDialog
+from ea_node_editor.persistence.solution_repository import SolutionRepositoryFactory
 from ea_node_editor.ui.shell.composition import create_shell_window
 from ea_node_editor.ui.shell.window import ShellWindow
 from tests.main_window_shell.base import MainWindowShellTestBase
@@ -115,6 +117,7 @@ class _ViewerExecutionClientStub:
         self.start_calls: list[dict[str, Any]] = []
         self._callbacks: list[object] = []
         self._request_counter = 0
+        self._solution_revisions: dict[str, int] = {}
 
     def subscribe(self, callback) -> None:  # noqa: ANN001
         self._callbacks.append(callback)
@@ -180,6 +183,51 @@ class _ViewerExecutionClientStub:
             }
         )
         return f"run_{len(self.start_calls)}"
+
+    def prepare_execution(self, request):  # noqa: ANN001, ANN201
+        return SimpleNamespace(
+            request=request,
+            recompute_node_ids=tuple(request.target_node_ids),
+        )
+
+    def dispatch_prepared(self, prepared) -> str:  # noqa: ANN001
+        request = prepared.request
+        return self.start_run(
+            str(request.project_path),
+            request.workspace_id,
+            dict(request.trigger),
+            execution_backend=request.execution_backend,
+            target_node_ids=tuple(request.target_node_ids),
+            trigger_publications=dict(request.trigger_publications),
+            trigger_captures=dict(request.trigger_captures),
+            clicked_trigger_node_id=request.clicked_trigger_node_id,
+        )
+
+    def solution_facts(self, project_id: str, workspace_id: str):  # noqa: ANN201
+        del project_id, workspace_id
+        return ()
+
+    def invalidate_solution(
+        self,
+        project_id: str,
+        workspace_id: str,
+        runtime_snapshot,
+        changed_root_node_ids,
+        reason_code: str,
+    ) -> InvalidationResult:
+        del runtime_snapshot
+        revision = self._solution_revisions.get(workspace_id, 0) + 1
+        self._solution_revisions[workspace_id] = revision
+        roots = tuple(changed_root_node_ids)
+        return InvalidationResult(
+            project_id=project_id,
+            workspace_id=workspace_id,
+            solution_revision=revision,
+            changed_root_node_ids=roots,
+            expired_node_ids=roots,
+            removed_node_ids=(),
+            reason_code=reason_code,
+        )
 
     def pause_run(self, run_id: str) -> None:
         return None
@@ -302,6 +350,21 @@ class _ShellProjectSessionControllerScenarios(MainWindowShellTestBase):
         node_id = self.window.scene.add_node_from_type("media.panel", x=x, y=y)
         self.window.scene.set_exposed_port(node_id, "source", False)
         return node_id
+
+    def _install_solution_save_runtime(self) -> None:
+        runtime = CorexRuntime(
+            registry=self.window.registry,
+            solution_repository_factory=SolutionRepositoryFactory(),
+        )
+        project = self.window.model.project
+        runtime.reset_project_session(project.project_id, self.window.project_path)
+        runtime.bind_project_solution_store(
+            project.project_id,
+            self.window.project_path,
+            project.metadata.get("solution_store"),
+        )
+        self.window.execution_client = runtime
+        self.addCleanup(runtime.shutdown)
 
     def _attach_unsaved_staged_output(self) -> tuple[str, str, Path]:
         artifact_id = "pending_output"
@@ -535,7 +598,7 @@ class _ShellProjectSessionControllerScenarios(MainWindowShellTestBase):
         self.assertTrue(reopened_state["live_open_blocker"]["rerun_required"])
         self.assertEqual(
             reopened_state["summary"]["live_transport_release_reason"],
-            "workspace_rerun",
+            "project_reload",
         )
         self.assertEqual(
             reopened_state["transport"],
@@ -881,7 +944,7 @@ class _ShellProjectSessionControllerScenarios(MainWindowShellTestBase):
             finally:
                 self._dispose_secondary_window(restored)
 
-    def test_explicit_save_promotes_referenced_staged_refs_and_prunes_orphans(
+    def test_explicit_save_promotes_referenced_staged_refs(
         self,
     ) -> None:
         workspace_id = self.window.workspace_manager.active_workspace_id()
@@ -890,38 +953,13 @@ class _ShellProjectSessionControllerScenarios(MainWindowShellTestBase):
         save_target.parent.mkdir(parents=True, exist_ok=True)
         saved_path = save_target.with_suffix(".cxproj")
         sidecar_root = saved_path.with_name("saved_project.data")
-        legacy_managed_path = (
-            sidecar_root
-            / "nodes"
-            / "Image Panel [11111111]"
-            / "out"
-            / "outputs"
-            / "run.txt"
-        )
-        legacy_managed_path.parent.mkdir(parents=True, exist_ok=True)
-        legacy_managed_path.write_text("old output", encoding="utf-8")
-        managed_path = self._workspace_path(
-            sidecar_root, "nodes/Image Panel [11111111]/out/outputs/run.txt"
-        )
-        orphan_path = (
-            saved_path.with_name("saved_project.data")
-            / "nodes"
-            / "Image Panel - Orphan [33333333]"
-            / "in"
-            / "media"
-            / "unused.png"
-        )
-        orphan_path.parent.mkdir(parents=True, exist_ok=True)
-        orphan_path.write_text("orphan", encoding="utf-8")
         self.window.model.project.metadata["artifact_store"]["artifacts"] = {
             "pending_output": {
                 "relative_path": "nodes/Image Panel [11111111]/out/outputs/run.txt",
             },
-            "orphan_asset": {
-                "relative_path": "nodes/Image Panel - Orphan [33333333]/in/media/unused.png",
-            },
         }
 
+        self._install_solution_save_runtime()
         with (
             patch.object(
                 self.window.project_session_controller._project_files_service,
@@ -932,8 +970,10 @@ class _ShellProjectSessionControllerScenarios(MainWindowShellTestBase):
                 "PyQt6.QtWidgets.QFileDialog.getSaveFileName",
                 return_value=(str(save_target), "COREX Project (*.cxproj)"),
             ),
+            patch("PyQt6.QtWidgets.QMessageBox.warning"),
         ):
-            self.window._save_project()
+            result = self.window.project_session_controller.save_project()
+        self.assertEqual(result.status, "saved", result.reason_code)
         self.app.processEvents()
 
         workspace = self.window.model.project.workspaces[workspace_id]
@@ -956,17 +996,15 @@ class _ShellProjectSessionControllerScenarios(MainWindowShellTestBase):
             saved_node["properties"]["source"],
             format_managed_artifact_ref("pending_output"),
         )
-        self.assertEqual(managed_path.read_text(encoding="utf-8"), "staged output")
-        self.assertFalse(staged_path.exists())
-        self.assertFalse(orphan_path.exists())
         artifact_store = saved_doc["metadata"]["artifact_store"]
-        self.assertEqual(artifact_store["staged"], {})
-        self.assertEqual(
-            artifact_store["artifacts"]["pending_output"]["relative_path"],
-            self._workspace_relative(
-                "nodes/Image Panel [11111111]/out/outputs/run.txt"
-            ),
+        managed_path = sidecar_root.joinpath(
+            *Path(
+                artifact_store["artifacts"]["pending_output"]["relative_path"]
+            ).parts
         )
+        self.assertEqual(managed_path.read_text(encoding="utf-8"), "staged output")
+        self.assertEqual(staged_path.read_text(encoding="utf-8"), "staged output")
+        self.assertEqual(artifact_store["staged"], {})
         self.assertEqual(
             artifact_store["artifacts"]["pending_output"]["slot"], "process_run.stdout"
         )
@@ -982,6 +1020,7 @@ class _ShellProjectSessionControllerScenarios(MainWindowShellTestBase):
             sidecar_root, "nodes/Image Panel [11111111]/out/outputs/run.txt"
         )
 
+        self._install_solution_save_runtime()
         with (
             patch.object(
                 self.window.project_session_controller._project_files_service,
@@ -996,8 +1035,10 @@ class _ShellProjectSessionControllerScenarios(MainWindowShellTestBase):
                 "ea_node_editor.persistence.artifact_store._move_or_replace_path",
                 side_effect=PermissionError("source is locked"),
             ),
+            patch("PyQt6.QtWidgets.QMessageBox.warning"),
         ):
-            self.window._save_project()
+            result = self.window.project_session_controller.save_project()
+        self.assertEqual(result.status, "saved", result.reason_code)
         self.app.processEvents()
 
         workspace = self.window.model.project.workspaces[workspace_id]
@@ -1096,8 +1137,6 @@ class _ShellProjectSessionControllerScenarios(MainWindowShellTestBase):
             / "out"
             / "stale.txt"
         )
-        stale_managed_path.parent.mkdir(parents=True, exist_ok=True)
-        stale_managed_path.write_text("stale", encoding="utf-8")
         stale_staging_path = (
             save_target.with_suffix(".data")
             / "nodes"
@@ -1107,9 +1146,9 @@ class _ShellProjectSessionControllerScenarios(MainWindowShellTestBase):
             / "outputs"
             / "old.txt"
         )
-        stale_staging_path.parent.mkdir(parents=True, exist_ok=True)
-        stale_staging_path.write_text("stale staging", encoding="utf-8")
+        save_target.parent.mkdir(parents=True, exist_ok=True)
 
+        self._install_solution_save_runtime()
         with (
             patch.object(
                 self.window.project_session_controller._project_files_service,
@@ -1119,16 +1158,6 @@ class _ShellProjectSessionControllerScenarios(MainWindowShellTestBase):
             patch(
                 "PyQt6.QtWidgets.QFileDialog.getSaveFileName",
                 return_value=(str(save_target), "COREX Project (*.cxproj)"),
-            ),
-            patch.object(
-                ProjectSaveAsDialog,
-                "exec",
-                return_value=ProjectSaveAsDialog.DialogCode.Accepted,
-            ),
-            patch.object(
-                ProjectSaveAsDialog,
-                "selected_mode",
-                return_value=ProjectSaveAsDialog.SELF_CONTAINED_COPY,
             ),
         ):
             self.window._save_project_as()
@@ -1315,6 +1344,7 @@ class _ShellProjectSessionControllerScenarios(MainWindowShellTestBase):
         self.window.scene.set_node_property(broken_node_id, "source", missing_path)
         save_target = Path(self._temp_dir.name) / "projects" / "prompted_save"
 
+        self._install_solution_save_runtime()
         with (
             patch.object(
                 self.window.project_session_controller._project_files_service,
@@ -1325,6 +1355,7 @@ class _ShellProjectSessionControllerScenarios(MainWindowShellTestBase):
                 "PyQt6.QtWidgets.QFileDialog.getSaveFileName",
                 return_value=(str(save_target), "COREX Project (*.cxproj)"),
             ),
+            patch("PyQt6.QtWidgets.QMessageBox.warning"),
         ):
             self.window._save_project()
         self.app.processEvents()
@@ -1547,11 +1578,9 @@ class ShellProjectSessionControllerTests(unittest.TestCase):
             "test_clean_close_discards_staged_scratch_and_clears_unsaved_root_hint"
         )
 
-    def test_explicit_save_promotes_referenced_staged_refs_and_prunes_orphans(
-        self,
-    ) -> None:
+    def test_explicit_save_promotes_referenced_staged_refs(self) -> None:
         self._run_scenario(
-            "test_explicit_save_promotes_referenced_staged_refs_and_prunes_orphans"
+            "test_explicit_save_promotes_referenced_staged_refs"
         )
 
     def test_explicit_save_promotes_locked_staged_ref_with_copy_fallback(self) -> None:

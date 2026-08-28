@@ -9,6 +9,7 @@ from typing import Any
 import zlib
 
 import pytest
+import ea_node_editor.execution.solution_store as solution_store_module
 
 from ea_node_editor.execution.backends import ExecutionBackendSelection
 from ea_node_editor.execution.client import (
@@ -34,6 +35,10 @@ from ea_node_editor.execution.solution_store import (
     DurableLookupResult,
     DurablePayloadResult,
     DurableStageResult,
+    ProjectSolutionAdoptionResult,
+    ProjectSolutionCandidateResult,
+    ProjectSolutionGcResult,
+    ProjectSolutionSaveResult,
     SolutionStore,
     SolutionStoreLimits,
 )
@@ -664,6 +669,8 @@ def test_maximum_durable_scope_publishes_conditionally_and_detects_conflict(
             repository,
             model.project.project_id,
             "durable_bound_active",
+            active_generation_id="a" * 32,
+            active_manifest_set_digest="b" * 64,
         ),
     )
     snapshot = _snapshot(model, registry, workspace.workspace_id)
@@ -826,6 +833,8 @@ def test_durable_backend_rebind_evicts_only_previous_durable_state(
             backend_a,
             model.project.project_id,
             "durable_bound_active",
+            active_generation_id="a" * 32,
+            active_manifest_set_digest="b" * 64,
         ),
     )
     snapshot = _snapshot(model, registry, workspace.workspace_id)
@@ -869,6 +878,8 @@ def test_durable_backend_rebind_evicts_only_previous_durable_state(
             backend_b,
             model.project.project_id,
             "durable_bound_active",
+            active_generation_id="c" * 32,
+            active_manifest_set_digest="d" * 64,
         )
     else:
         backend_b = None
@@ -953,6 +964,8 @@ def test_durable_stage_failure_falls_back_to_valid_session_record() -> None:
             FailingBackend(),
             model.project.project_id,
             "durable_bound_active",
+            active_generation_id="a" * 32,
+            active_manifest_set_digest="b" * 64,
         ),
     )
     snapshot = _snapshot(model, registry, workspace.workspace_id)
@@ -1006,6 +1019,8 @@ def test_large_durable_image_falls_back_to_session_without_repository_bytes(
             repository,
             model.project.project_id,
             "durable_bound_active",
+            active_generation_id="a" * 32,
+            active_manifest_set_digest="b" * 64,
         ),
     )
     snapshot = _snapshot(model, registry, workspace.workspace_id)
@@ -1053,6 +1068,8 @@ def test_solution_repository_restart_payload_failure_installs_no_partial_record_
             repository,
             model.project.project_id,
             "durable_bound_active",
+            active_generation_id="a" * 32,
+            active_manifest_set_digest="b" * 64,
         ),
     )
     snapshot = _snapshot(model, registry, workspace.workspace_id)
@@ -2018,3 +2035,256 @@ def test_unresolved_runtime_resolver_ref_is_never_indexed() -> None:
     )[0]
     record = runtime.solution_record(fact.retained_record_id or "")
     assert record is not None and not record.reuse_eligible
+
+
+def test_project_save_exports_only_current_session_records_with_durable_maximum_scope() -> None:
+    model = GraphModel()
+    workspace = model.active_workspace
+    durable_node = model.add_node(
+        workspace.workspace_id,
+        "data.boolean_toggle",
+        "Toggle",
+        0,
+        0,
+    )
+    session_node = model.add_node(
+        workspace.workspace_id,
+        "core.constant",
+        "Constant",
+        200,
+        0,
+    )
+    runtime, client, registry = _runtime(model)
+    snapshot = _snapshot(model, registry, workspace.workspace_id)
+    prepared = runtime.prepare_execution(
+        ExecutionRequest(runtime_snapshot=snapshot, workspace_id=workspace.workspace_id)
+    )
+    run_id = runtime.dispatch_prepared(prepared)
+    _settle(client, run_id, durable_node.node_id, port_key="boolean", value=True)
+    _settle(client, run_id, session_node.node_id, value="session")
+    _terminal(client, run_id)
+
+    (
+        _namespace,
+        _generation_id,
+        _manifest_digest,
+        owners,
+        exports,
+        _artifact_ids,
+        _estimated_bytes,
+    ) = runtime.solution_store.project_solution_save_inputs(
+        model.project.project_id,
+        (
+            (workspace.workspace_id, durable_node.node_id),
+            (workspace.workspace_id, session_node.node_id),
+        ),
+        catalog=registry.data_types,
+    )
+
+    assert owners == tuple(sorted(owners))
+    assert [item.record.node_id for item in exports] == [durable_node.node_id]
+    assert exports[0].record.residency is SolutionResidency.SESSION
+    assert exports[0].maximum_reuse_scope == "durable"
+    assert exports[0].is_current
+
+
+def test_first_save_preserves_unsaved_namespace_and_restart_prepares_reuse(
+    tmp_path,
+) -> None:  # noqa: ANN001
+    model = GraphModel()
+    workspace = model.active_workspace
+    node = model.add_node(
+        workspace.workspace_id,
+        "data.boolean_toggle",
+        "Toggle",
+        0,
+        0,
+    )
+    registry = build_default_registry()
+    client = _Client()
+    runtime = CorexRuntime(
+        client=client,
+        registry=registry,
+        solution_store=SolutionStore(),
+        solution_repository_factory=SolutionRepositoryFactory(),
+    )
+    namespace = runtime.reset_project_session(model.project.project_id, "")
+    runtime.bind_project_solution_store(model.project.project_id, "", None)
+    runtime_snapshot = _snapshot(model, registry, workspace.workspace_id)
+    prepared = runtime.prepare_execution(
+        ExecutionRequest(
+            runtime_snapshot=runtime_snapshot,
+            workspace_id=workspace.workspace_id,
+        )
+    )
+    run_id = runtime.dispatch_prepared(prepared)
+    _settle(client, run_id, node.node_id, port_key="boolean", value=True)
+    _terminal(client, run_id)
+    save_snapshot = runtime.capture_project_solution_save(
+        model.project.project_id,
+        "",
+        ((workspace.workspace_id, node.node_id),),
+        ProjectArtifactStore(project_path=None, metadata=None),
+    )
+    destination = tmp_path / "saved.cxproj"
+    destination_store = ProjectArtifactStore(
+        project_path=destination,
+        metadata=None,
+    )
+    save_result = runtime.stage_project_solution_save(
+        save_snapshot,
+        str(destination),
+        destination_store,
+    )
+    assert save_result.solution_namespace_id == namespace
+    assert runtime.prepare_project_solution_adoption(
+        save_result,
+        model.project.project_id,
+        str(destination),
+        save_result.metadata_solution_store,
+        destination_store,
+    ).prepared
+    assert runtime.adopt_project_solution_save(
+        save_result,
+        model.project.project_id,
+        str(destination),
+        save_result.metadata_solution_store,
+        destination_store,
+    ).adopted
+    runtime.shutdown()
+
+    restarted_client = _Client()
+    restarted = CorexRuntime(
+        client=restarted_client,
+        registry=registry,
+        solution_store=SolutionStore(),
+        solution_repository_factory=SolutionRepositoryFactory(),
+    )
+    try:
+        restarted.reset_project_session(model.project.project_id, str(destination))
+        opened = restarted.bind_project_solution_store(
+            model.project.project_id,
+            str(destination),
+            save_result.metadata_solution_store,
+        )
+        assert opened.solution_namespace_id == namespace
+        reused = restarted.prepare_execution(
+            ExecutionRequest(
+                runtime_snapshot=runtime_snapshot,
+                workspace_id=workspace.workspace_id,
+            )
+        )
+        assert reused.node_decisions[0].action is PreparedAction.REUSE
+        observed: list[dict[str, Any]] = []
+        restarted.subscribe(observed.append)
+        restarted.dispatch_prepared(reused)
+        assert not any(event.get("type") == "node_started" for event in observed)
+    finally:
+        restarted.shutdown()
+
+
+def test_project_solution_save_adoption_and_gc_result_shapes_are_strict() -> None:
+    for reason in solution_store_module._PROJECT_SOLUTION_SAVE_REASONS:  # noqa: SLF001
+        success = reason == "project_solution_save_staged"
+        result = ProjectSolutionSaveResult(
+            snapshot_token="1" * 64,
+            solution_namespace_id="namespace",
+            candidate_generation_id="2" * 32 if success else "",
+            candidate_manifest_set_digest="3" * 64 if success else "",
+            initially_protected_generations=(
+                (("2" * 32, "3" * 64),) if success else ()
+            ),
+            reason_code=reason,
+            diagnostic="" if success else "Save failed safely.",
+        )
+        assert bool(result.metadata_solution_store) is success
+    with pytest.raises(ValueError, match="candidate generation"):
+        ProjectSolutionSaveResult(
+            snapshot_token="1" * 64,
+            solution_namespace_id="namespace",
+            candidate_generation_id="2" * 32,
+            candidate_manifest_set_digest="3" * 64,
+        )
+
+    adopted = ProjectSolutionAdoptionResult(
+        True,
+        "project_solution_adopted",
+    )
+    failed = ProjectSolutionAdoptionResult(
+        False,
+        "project_solution_adoption_candidate_invalid",
+        "Candidate invalid.",
+    )
+    assert adopted.adopted and not failed.adopted
+    assert ProjectSolutionCandidateResult(
+        True,
+        "project_solution_candidate_prepared",
+    ).prepared
+    with pytest.raises(ValueError, match="candidate result"):
+        ProjectSolutionCandidateResult(
+            True,
+            "project_solution_candidate_invalid",
+            "Invalid.",
+        )
+    completed = ProjectSolutionGcResult(
+        ("records/sha256/aa/" + "a" * 64 + ".json",),
+        (),
+        False,
+        "project_solution_gc_completed",
+    )
+    partial = ProjectSolutionGcResult(
+        (),
+        (),
+        True,
+        "project_solution_gc_partial",
+    )
+    assert not completed.has_more and partial.has_more
+
+
+@pytest.mark.parametrize("namespace", ("namespace", "n" * 4_096))
+def test_project_solution_save_result_accepts_exact_namespace_bounds(
+    namespace: str,
+) -> None:
+    result = ProjectSolutionSaveResult(
+        snapshot_token="1" * 64,
+        solution_namespace_id=namespace,
+        reason_code="project_solution_save_io_error",
+        diagnostic="Save failed safely.",
+    )
+    assert result.solution_namespace_id == namespace
+
+
+@pytest.mark.parametrize(
+    "namespace",
+    (
+        "",
+        " ",
+        " namespace",
+        "namespace ",
+        "name\nspace",
+        "name\x7fspace",
+        "n" * 4_097,
+        None,
+        1,
+        b"namespace",
+    ),
+)
+def test_project_solution_save_result_rejects_invalid_namespace_shapes(
+    namespace: object,
+) -> None:
+    with pytest.raises(ValueError, match="solution_namespace_id"):
+        ProjectSolutionSaveResult(
+            snapshot_token="1" * 64,
+            solution_namespace_id=namespace,  # type: ignore[arg-type]
+            reason_code="project_solution_save_io_error",
+            diagnostic="Save failed safely.",
+        )
+
+    with pytest.raises(ValueError, match="solution_namespace_id"):
+        ProjectSolutionSaveResult(
+            snapshot_token="1" * 64,
+            solution_namespace_id=namespace,  # type: ignore[arg-type]
+            candidate_generation_id="2" * 32,
+            candidate_manifest_set_digest="3" * 64,
+            initially_protected_generations=(("2" * 32, "3" * 64),),
+        )

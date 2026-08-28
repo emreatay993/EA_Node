@@ -378,7 +378,7 @@ class GraphArchitectureBoundaryTests(unittest.TestCase):
         self.assertNotIn("ea_node_editor.persistence.serializer", imports)
         self.assertNotIn("ea_node_editor.persistence.project_codec", imports)
 
-    def test_solution_repository_has_no_project_commit_or_lifecycle_prune_caller(self) -> None:
+    def test_solution_repository_has_no_project_commit_and_t08_owns_prune_call(self) -> None:
         repository_source = (
             REPO_ROOT / "ea_node_editor" / "persistence" / "solution_repository.py"
         ).read_text(encoding="utf-8")
@@ -393,7 +393,30 @@ class GraphArchitectureBoundaryTests(unittest.TestCase):
         )
         self.assertNotIn("os.replace(", repository_source)
         self.assertNotIn("JsonProjectSerializer", repository_source)
-        self.assertEqual(production_source.count(".prune_unreachable_paths("), 0)
+        self.assertEqual(production_source.count(".prune_unreachable_paths("), 1)
+        self.assertIn(
+            "def collect_project_solution_garbage(",
+            repository_source,
+        )
+
+    def test_production_save_path_uses_only_copy_on_write_staging(self) -> None:
+        document_io_source = (
+            REPO_ROOT
+            / "ea_node_editor"
+            / "ui"
+            / "shell"
+            / "controllers"
+            / "project_session_services_support"
+            / "document_io_service.py"
+        ).read_text(encoding="utf-8")
+        save_source = document_io_source.split("def _run_project_save(", 1)[1]
+        self.assertIn(".stage_project_save(", save_source)
+        self.assertIn('"stage_project_solution_save"', save_source)
+        self.assertIn(".stage_document(", save_source)
+        self.assertNotIn(".migrate_workspace_artifact_folders(", save_source)
+        self.assertNotIn(".commit_referenced_artifacts(", save_source)
+        self.assertNotIn(".save_document(", save_source)
+        self.assertNotIn("project_save_as_dialog", document_io_source)
 
     def test_runtime_contracts_do_not_import_execution_implementation(self) -> None:
         contract_root = REPO_ROOT / "ea_node_editor" / "runtime_contracts"

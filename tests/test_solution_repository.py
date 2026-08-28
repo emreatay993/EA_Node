@@ -3,6 +3,8 @@ from __future__ import annotations
 from dataclasses import replace
 import hashlib
 import json
+import os
+import shutil
 from pathlib import Path
 
 import pytest
@@ -11,9 +13,12 @@ import ea_node_editor.persistence.solution_repository as solution_repository_mod
 
 from ea_node_editor.execution.solution_store import (
     DurableBackendOpenResult,
+    ProjectSolutionSaveRecordExport,
+    ProjectSolutionSaveSnapshot,
     SolutionStore,
 )
 from ea_node_editor.nodes.bootstrap import build_default_registry
+from ea_node_editor.persistence.artifact_store import ProjectArtifactStore
 from ea_node_editor.persistence.solution_repository import (
     DurableGenerationResult,
     MAX_DURABLE_MANIFEST_SET_BYTES,
@@ -28,6 +33,7 @@ from ea_node_editor.runtime_contracts import (
     DataTypeFamilySpec,
     DataTypeSpec,
     STRING_DATA_TYPE_ID,
+    RuntimeArtifactRef,
     TypedInlineValue,
 )
 from ea_node_editor.runtime_contracts.settled_results import (
@@ -127,6 +133,421 @@ def _built_repository(tmp_path: Path):  # noqa: ANN202
     assert generation.reason_code == "durable_generation_built"
     metadata = generation.metadata_solution_store
     return catalog, outputs, record, project_path, repository, staged.record, metadata
+
+
+def test_project_solution_save_stages_opens_and_filters_removed_owners(
+    tmp_path: Path,
+) -> None:
+    catalog, _outputs, canonical, record, _source_path = _fixture(tmp_path)
+    with pytest.raises(ValueError, match="must be current"):
+        ProjectSolutionSaveRecordExport(
+            record=record,
+            canonical_payload=canonical,
+            maximum_reuse_scope="durable",
+            is_current=False,
+        )
+    factory = SolutionRepositoryFactory()
+    destination = tmp_path / "destination.cxproj"
+    snapshot = factory.export_project_solution_save(
+        record.project_id,
+        "",
+        "save-namespace",
+        "",
+        "",
+        ((record.workspace_id, record.node_id),),
+        (
+            ProjectSolutionSaveRecordExport(
+                record=record,
+                canonical_payload=canonical,
+                maximum_reuse_scope="durable",
+                is_current=True,
+            ),
+        ),
+        0,
+        "a" * 64,
+        "b" * 64,
+        catalog,
+        None,
+    )
+
+    result = factory.stage_project_solution_save(
+        snapshot,
+        str(destination),
+        catalog,
+        None,
+    )
+    assert result.reason_code == "project_solution_save_staged"
+    assert result.omitted_record_count == 0
+    solution_root = destination.with_name("destination.data") / "solutions" / "v1"
+    published_bytes = sum(
+        path.stat().st_size for path in solution_root.rglob("*") if path.is_file()
+    )
+    assert result.estimated_copy_bytes == snapshot.estimated_copy_bytes
+    assert result.staged_new_bytes == published_bytes
+    assert result.estimated_copy_bytes >= result.staged_new_bytes
+    candidate = factory.open_project_solution_save_candidate(
+        record.project_id,
+        str(destination),
+        result.metadata_solution_store,
+        snapshot.solution_namespace_id,
+        catalog,
+        None,
+    )
+    assert candidate.status_code == "durable_bound_active"
+    assert candidate.active_generation_id == result.candidate_generation_id
+    assert candidate.active_manifest_set_digest == result.candidate_manifest_set_digest
+    assert candidate.backend is not None
+    hit = candidate.backend.lookup_record(
+        record.workspace_id,
+        record.node_id,
+        record.solution_key,
+        catalog,
+    )
+    assert hit.record is not None
+    candidate.backend.close()
+    gc_result = factory.collect_project_solution_garbage(
+        record.project_id,
+        str(destination),
+        result.candidate_generation_id,
+        result.candidate_manifest_set_digest,
+        (),
+        result.orphan_candidate_relative_paths,
+        result.orphan_scan_complete,
+        10_000,
+        catalog,
+    )
+    assert gc_result.removed_relative_paths == ()
+    assert gc_result.reason_code == "project_solution_gc_completed"
+
+    with pytest.raises(ValueError, match="binding"):
+        replace(
+            snapshot,
+            retained_owner_ids=((record.workspace_id, "removed-node"),),
+        )
+
+
+def test_save_as_managed_artifact_solution_survives_source_deletion(
+    tmp_path: Path,
+) -> None:
+    registry = build_default_registry()
+    catalog = registry.data_types
+    project_id = "artifact-project"
+    workspace_id = "workspace"
+    node_id = "artifact-node"
+    source_project = tmp_path / "source" / "source.cxproj"
+    destination_project = tmp_path / "destination" / "copy.cxproj"
+    destination_project.parent.mkdir(parents=True)
+    relative = "workspaces/Workspace [11111111]/nodes/Node [22222222]/out/payload.bin"
+    source_store = ProjectArtifactStore(
+        project_path=source_project,
+        metadata=None,
+    )
+    source_path = source_store.layout.absolute_path_for_relative(relative)
+    source_path.parent.mkdir(parents=True, exist_ok=True)
+    source_path.write_bytes(b"portable managed solution")
+    artifact_digest = hashlib.sha256(source_path.read_bytes()).hexdigest()
+    artifact_ref = RuntimeArtifactRef.managed(
+        "managed-solution",
+        data_type_id="COREX.DataTypes.Animation",
+        schema_version=1,
+        format="gif",
+        size_bytes=source_path.stat().st_size,
+        sha256=artifact_digest,
+        provenance="corex.test",
+    )
+    source_store = ProjectArtifactStore(
+        project_path=source_project,
+        metadata={
+            "artifacts": {
+                artifact_ref.artifact_id: {
+                    "relative_path": relative,
+                    "runtime_artifact": artifact_ref.to_descriptor(),
+                }
+            },
+            "staged": {},
+        },
+    )
+    outputs = {
+        "result": SettledPortResult(
+            status="value",
+            value=DataTree.from_item(artifact_ref),
+        )
+    }
+    payload = settled_outputs_to_payload(outputs, catalog=catalog)
+    canonical = _canonical(payload)
+    record = SolutionRecord(
+        record_id="managed-artifact-record",
+        project_id=project_id,
+        workspace_id=workspace_id,
+        node_id=node_id,
+        solution_key="9" * 64,
+        workflow_interface_revision=1,
+        workflow_interface_digest="1" * 64,
+        node_contract_digest="2" * 64,
+        dependency_solution_keys=(),
+        input_provenance_digest="3" * 64,
+        execution_policy_digest="4" * 64,
+        implementation_digest="5" * 64,
+        execution_environment_digest="6" * 64,
+        settlement_status="completed",
+        result_digest=hashlib.sha256(canonical).hexdigest(),
+        reuse_eligible=True,
+        output_descriptors=(
+            SolutionOutputDescriptor(
+                port_key="result",
+                status="value",
+                data_type_id="COREX.DataTypes.Animation",
+                concrete_data_type_ids=("COREX.DataTypes.Animation",),
+                data_access="item",
+                item_count=1,
+                payload_kinds=("artifact_ref",),
+                payload_digest=hashlib.sha256(
+                    _canonical({"result": payload["result"]})
+                ).hexdigest(),
+                payload_schema_version=1,
+            ),
+        ),
+        payload_locator=SolutionPayloadLocator(
+            kind=SolutionResidency.SESSION,
+            reference_id="managed-session-payload",
+        ),
+        residency=SolutionResidency.SESSION,
+        runtime_generation=1,
+        created_at_epoch_ms=1,
+        catalog=catalog,
+    )
+    source_repository = SolutionRepository.create_empty(
+        project_id=project_id,
+        project_path=source_project,
+        solution_namespace_id="managed-namespace",
+        catalog=catalog,
+    )
+    staged = source_repository.stage_record(record, canonical, catalog)
+    assert staged.record is not None
+    generation = source_repository.build_candidate_generation((staged.record,))
+    assert generation.reason_code == "durable_generation_built"
+    source_repository.close()
+    factory = SolutionRepositoryFactory()
+    snapshot = factory.export_project_solution_save(
+        project_id,
+        os.path.normcase(os.path.abspath(source_project)),
+        "managed-namespace",
+        generation.generation_id,
+        generation.manifest_set_digest,
+        ((workspace_id, node_id),),
+        (),
+        0,
+        "a" * 64,
+        source_store.project_save_context_digest(),
+        catalog,
+        source_store,
+    )
+    assert snapshot.required_managed_artifact_ids == (artifact_ref.artifact_id,)
+    artifact_stage = source_store.stage_project_save(
+        destination_project_path=destination_project,
+        workspaces={},
+        required_managed_artifact_ids=snapshot.required_managed_artifact_ids,
+    )
+    save_result = factory.stage_project_solution_save(
+        snapshot,
+        str(destination_project),
+        catalog,
+        artifact_stage.destination_store,
+    )
+    assert save_result.reason_code == "project_solution_save_staged"
+
+    shutil.rmtree(source_project.with_name("source.data"))
+    reopened = factory.open_project_solution_save_candidate(
+        project_id,
+        str(destination_project),
+        save_result.metadata_solution_store,
+        "managed-namespace",
+        catalog,
+        artifact_stage.destination_store,
+    )
+    assert reopened.backend is not None
+    hit = reopened.backend.lookup_record(
+        workspace_id,
+        node_id,
+        record.solution_key,
+        catalog,
+    )
+    assert hit.record is not None
+    loaded = reopened.backend.load_payload(hit.record, catalog)
+    assert loaded.reason_code == "durable_hit"
+    copied = artifact_stage.destination_store.resolve_managed_path(
+        artifact_ref.artifact_id
+    )
+    assert copied is not None and copied.read_bytes() == b"portable managed solution"
+    reopened.backend.close()
+
+
+def test_solution_gc_incomplete_scan_rescans_and_partial_retry_completes(
+    tmp_path: Path,
+) -> None:
+    catalog, _outputs, canonical, record, _source_path = _fixture(tmp_path)
+    factory = SolutionRepositoryFactory()
+    snapshot = factory.export_project_solution_save(
+        record.project_id,
+        "",
+        "gc-namespace",
+        "",
+        "",
+        ((record.workspace_id, record.node_id),),
+        (ProjectSolutionSaveRecordExport(record, canonical, "durable", True),),
+        0,
+        "a" * 64,
+        "b" * 64,
+        catalog,
+        None,
+    )
+    destination = tmp_path / "gc.cxproj"
+    result = factory.stage_project_solution_save(snapshot, str(destination), catalog, None)
+    root = destination.with_name("gc.data") / "solutions" / "v1"
+    orphan_paths = (
+        f"records/sha256/cc/{'c' * 64}.json",
+        f"records/sha256/dd/{'d' * 64}.json",
+    )
+    for relative in orphan_paths:
+        path = root / Path(relative)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(b"orphan")
+
+    first = factory.collect_project_solution_garbage(
+        record.project_id,
+        str(destination),
+        result.candidate_generation_id,
+        result.candidate_manifest_set_digest,
+        (),
+        (),
+        False,
+        1,
+        catalog,
+    )
+    assert first.reason_code == "project_solution_gc_partial"
+    assert first.has_more
+    remaining = tuple(
+        sorted(set(first.candidate_relative_paths).difference(first.removed_relative_paths))
+    )
+    second = factory.collect_project_solution_garbage(
+        record.project_id,
+        str(destination),
+        result.candidate_generation_id,
+        result.candidate_manifest_set_digest,
+        (),
+        remaining,
+        True,
+        10_000,
+        catalog,
+    )
+    assert second.reason_code == "project_solution_gc_completed"
+    assert not second.has_more
+    assert all(not (root / Path(relative)).exists() for relative in orphan_paths)
+
+
+def test_solution_stage_fails_when_new_publications_exceed_snapshot_estimate(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    catalog, _outputs, canonical, record, _source_path = _fixture(tmp_path)
+    monkeypatch.setattr(
+        solution_repository_module,
+        "_projected_supplemental_bytes",
+        lambda *_args, **_kwargs: 1,
+    )
+    factory = SolutionRepositoryFactory()
+    snapshot = factory.export_project_solution_save(
+        record.project_id,
+        "",
+        "estimate-namespace",
+        "",
+        "",
+        ((record.workspace_id, record.node_id),),
+        (ProjectSolutionSaveRecordExport(record, canonical, "durable", True),),
+        0,
+        "a" * 64,
+        "b" * 64,
+        catalog,
+        None,
+    )
+    result = factory.stage_project_solution_save(
+        snapshot,
+        str(tmp_path / "estimate.cxproj"),
+        catalog,
+        None,
+    )
+    assert result.reason_code == "project_solution_save_capacity_exceeded"
+    assert result.staged_new_bytes == 0
+    assert result.estimated_copy_bytes == 0
+
+
+def test_normal_save_merges_active_generation_with_current_supplemental_record(
+    tmp_path: Path,
+) -> None:
+    catalog, outputs, record, source_path, repository, _durable, metadata = (
+        _built_repository(tmp_path)
+    )
+    repository.close()
+    canonical = _canonical(settled_outputs_to_payload(outputs, catalog=catalog))
+    supplemental = replace(
+        record,
+        record_id="record-2",
+        node_id="node-2",
+        solution_key="2" * 64,
+        created_at_epoch_ms=2,
+        catalog=catalog,
+    )
+    factory = SolutionRepositoryFactory()
+    snapshot = factory.export_project_solution_save(
+        record.project_id,
+        os.path.normcase(os.path.abspath(source_path)),
+        metadata["solution_namespace_id"],
+        metadata["active_generation_id"],
+        metadata["active_manifest_set_digest"],
+        (
+            (record.workspace_id, record.node_id),
+            (supplemental.workspace_id, supplemental.node_id),
+        ),
+        (
+            ProjectSolutionSaveRecordExport(
+                supplemental,
+                canonical,
+                "durable",
+                True,
+            ),
+        ),
+        0,
+        "a" * 64,
+        "b" * 64,
+        catalog,
+        None,
+    )
+    destination = tmp_path / "normal-copy.cxproj"
+    result = factory.stage_project_solution_save(
+        snapshot,
+        str(destination),
+        catalog,
+        None,
+    )
+    assert result.reason_code == "project_solution_save_staged"
+    candidate = factory.open_project_solution_save_candidate(
+        record.project_id,
+        str(destination),
+        result.metadata_solution_store,
+        snapshot.solution_namespace_id,
+        catalog,
+        None,
+    )
+    assert candidate.backend is not None
+    for expected in (record, supplemental):
+        hit = candidate.backend.lookup_record(
+            expected.workspace_id,
+            expected.node_id,
+            expected.solution_key,
+            catalog,
+        )
+        assert hit.record is not None
+    candidate.backend.close()
 
 
 def test_path_keys_are_full_tagged_sha256_digests() -> None:
@@ -334,6 +755,8 @@ def test_durable_load_and_restart_invoke_zero_catalog_callbacks(tmp_path: Path) 
             opened.backend,
             "namespace",
             "durable_bound_active",
+            active_generation_id=opened.active_generation_id,
+            active_manifest_set_digest=opened.active_manifest_set_digest,
         ),
     )
     selected = store.select_record(

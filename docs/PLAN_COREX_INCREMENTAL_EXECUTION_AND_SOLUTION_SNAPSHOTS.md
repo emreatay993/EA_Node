@@ -362,6 +362,8 @@ DurableStageResult
 DurableBackendOpenResult
   backend: DurableSolutionBackend | None
   solution_namespace_id
+  active_generation_id
+  active_manifest_set_digest
   status_code
   diagnostic
 ```
@@ -373,9 +375,10 @@ metadata, secret values, absolute paths, or exception `repr`. `close()` is
 idempotent and never deletes repository content. Malformed/corrupt repository state
 crosses this port only as a deterministic result code, not a persistence exception.
 
-`durable_bound_active` requires a backend, a valid namespace, and an empty
-diagnostic. Every `durable_session_only_*` status requires `backend=None`, the
-runtime's valid session namespace, and exactly one sanitized bounded diagnostic.
+`durable_bound_active` requires a backend, valid namespace, valid active generation
+ID/digest pair, and empty diagnostic. Every `durable_session_only_*` status requires
+`backend=None`, the runtime's valid session namespace, no active pointer, and
+exactly one sanitized bounded diagnostic.
 `durable_hit` requires a record/output; every other lookup/load reason forbids it.
 `durable_stage_published` and `durable_stage_existing_identical` require a record;
 every other stage reason forbids one.
@@ -421,6 +424,310 @@ CorexRuntime(
 
 Tests inject in-memory/faulting ports. `common/` remains a leaf and does not acquire
 a generic storage framework.
+
+#### T08 project-solution save/export port
+
+T08 adds no persistence import to execution, no concrete solution-repository
+reference to `ProjectDocumentIOService`, and no generic transaction framework.
+`solution_store.py` owns frozen, slotted, persistence-neutral contracts:
+
+```text
+ProjectSolutionSaveRecordExport
+  record: SolutionRecord
+  canonical_payload: bytes
+  maximum_reuse_scope: durable
+  is_current: bool
+
+ProjectSolutionSaveSnapshot
+  project_id
+  source_project_path
+  solution_namespace_id
+  binding_revision
+  registry_contract_fingerprint
+  source_artifact_context_digest
+  snapshot_token
+  source_generation_id
+  source_manifest_set_digest
+  retained_owner_ids: sorted unique tuple[(workspace_id, node_id), ...]
+  supplemental_records: tuple[ProjectSolutionSaveRecordExport, ...]
+  required_managed_artifact_ids: sorted unique tuple[str, ...]
+  estimated_copy_bytes
+
+ProjectSolutionSaveResult
+  snapshot_token
+  solution_namespace_id
+  candidate_generation_id
+  candidate_manifest_set_digest
+  previous_generation_id
+  previous_manifest_set_digest
+  initially_protected_generations:
+    tuple[(generation_id, manifest_set_digest), ...]
+  orphan_candidate_relative_paths
+  orphan_scan_complete
+  omitted_record_count
+  estimated_copy_bytes
+  staged_new_bytes
+  reason_code
+  diagnostic
+
+ProjectSolutionAdoptionResult
+  adopted
+  reason_code
+  diagnostic
+
+ProjectSolutionCandidateResult
+  prepared
+  reason_code:
+    project_solution_candidate_prepared |
+    project_solution_candidate_snapshot_stale |
+    project_solution_candidate_invalid |
+    project_solution_candidate_io_error
+  diagnostic
+
+ProjectSolutionGcResult
+  candidate_relative_paths
+  removed_relative_paths
+  has_more
+  reason_code
+```
+
+`ProjectSolutionSaveRecordExport.maximum_reuse_scope` is exactly `durable`.
+A session-resident export is allowed only when retained by the current
+`NodeSolutionFact` and `_RecordEntry.maximum_reuse_scope == "durable"`. A durable-
+resident export may be current or a T07-staged historical record. `_RecordEntry`
+therefore retains `maximum_reuse_scope`; lazy-loaded durable entries set it to
+`durable`.
+
+`source_generation_id` and `source_manifest_set_digest` are both empty or both
+identify the fully validated active generation of the currently bound backend.
+Missing, unsupported, corrupt, or session-only source metadata produces an empty
+source pointer; it is never read or migrated as cache input.
+
+`retained_owner_ids` is the removed-owner filter and comes from the candidate
+project, never artifact-owner inference. The snapshot reuses T07 bounds: at most
+100,000 retained owners, 16,384 supplemental in-memory records, the existing per-
+record/store payload ceilings, and candidate-generation record/4-GiB ceilings.
+New GC bounds are:
+
+```text
+MAX_PROJECT_SOLUTION_ORPHAN_SCAN_ENTRIES = 100_000
+MAX_PROJECT_SOLUTION_ORPHAN_CANDIDATES = 10_000
+```
+
+A capped scan returns the lexicographically first safe candidates and
+`orphan_scan_complete=false`; later passes continue from current filesystem state.
+
+`ProjectArtifactStore.project_save_context_digest()` returns 64 lowercase hex over
+canonical artifact-store metadata plus normalized source project path without
+value/catalog callbacks. `snapshot_token` is 64 lowercase hex:
+
+```text
+snapshot_token = SHA256(
+  canonical tagged T08 snapshot payload excluding snapshot_token
+)
+```
+
+The payload binds every snapshot field, complete canonical
+`SolutionRecord.to_payload()` data, canonical payload size/SHA-256, maximum scope/
+current flag, owners/artifact IDs, binding revision, registry contract fingerprint,
+and source artifact-context digest.
+
+`DurableSolutionBackendFactory` adds:
+
+```text
+export_project_solution_save(
+  project_id,
+  source_project_path,
+  solution_namespace_id,
+  source_generation_id,
+  source_manifest_set_digest,
+  retained_owner_ids,
+  supplemental_records,
+  binding_revision,
+  registry_contract_fingerprint,
+  source_artifact_context_digest,
+  catalog,
+  source_artifact_context,
+) -> ProjectSolutionSaveSnapshot
+
+stage_project_solution_save(
+  snapshot,
+  destination_project_path,
+  catalog,
+  destination_artifact_context,
+) -> ProjectSolutionSaveResult
+
+open_project_solution_save_candidate(
+  project_id,
+  destination_project_path,
+  metadata_solution_store,
+  expected_namespace_id,
+  catalog,
+  destination_artifact_context,
+) -> DurableBackendOpenResult
+
+collect_project_solution_garbage(
+  project_id,
+  project_path,
+  active_generation_id,
+  active_manifest_set_digest,
+  extra_protected_generations,
+  candidate_relative_paths,
+  orphan_scan_complete,
+  limit,
+  catalog,
+) -> ProjectSolutionGcResult
+```
+
+`CorexRuntime` exposes:
+
+```text
+capture_project_solution_save(
+  project_id,
+  source_project_path,
+  retained_owner_ids,
+  source_artifact_context,
+) -> ProjectSolutionSaveSnapshot
+
+stage_project_solution_save(
+  snapshot,
+  destination_project_path,
+  destination_artifact_context,
+) -> ProjectSolutionSaveResult
+
+project_solution_save_snapshot_is_current(snapshot_token) -> bool
+
+prepare_project_solution_adoption(
+  result,
+  project_id,
+  destination_project_path,
+  metadata_solution_store,
+  destination_artifact_context,
+) -> ProjectSolutionCandidateResult
+
+adopt_project_solution_save(
+  result,
+  project_id,
+  destination_project_path,
+  metadata_solution_store,
+  destination_artifact_context,
+) -> ProjectSolutionAdoptionResult
+
+cancel_project_solution_save(snapshot_token) -> None
+
+collect_project_solution_garbage(
+  result,
+  *,
+  protect_previous_generation,
+  limit=10_000,
+) -> ProjectSolutionGcResult
+```
+
+Capture briefly holds runtime lifecycle/store locks only to copy immutable
+namespace, binding token, record, payload, maximum-scope, and backend-pointer facts.
+Repository export, validation, artifact inspection, copying, hashing, and all other
+I/O run without runtime/store locks. The runtime rechecks backend identity,
+namespace, and binding revision before publishing the snapshot token.
+
+Settlement after capture does not invalidate a snapshot; newly settled cache data
+may wait for the next save. Project reset/detach, backend or namespace replacement,
+registry replacement, or another binding adoption invalidates it.
+
+Candidate backend construction/full validation occurs outside runtime/store locks.
+Under the lifecycle lock adoption installs it only when the token remains current
+and namespace equals the snapshot. Failure closes the candidate outside locks and
+retains the source backend/session state.
+
+`SolutionStore.install_durable_backend()` retains the normalized active generation
+ID/digest pair from `DurableBackendOpenResult`; capture reads it under the store
+lock. `stage_project_solution_save()` publishes the candidate generation but
+retains no precommit backend. After project publication,
+`prepare_project_solution_adoption()` freshly reopens the committed pointer, fully
+validates generation/records/blobs/values/managed artifacts against the reopened
+destination store, and retains exactly one pending candidate backend keyed by
+`snapshot_token`. Failure closes it outside locks. `adopt_project_solution_save()`
+performs no I/O/callbacks: under the lifecycle lock it requires exact stored-
+snapshot/result/token/namespace equality and swaps the pending candidate. Cancel,
+failure, reset, or replacement closes it outside locks.
+
+Factory save reasons are exact:
+
+```text
+project_solution_save_staged
+project_solution_save_snapshot_stale
+project_solution_save_source_invalid
+project_solution_save_destination_invalid
+project_solution_save_artifact_invalid
+project_solution_save_capacity_exceeded
+project_solution_save_generation_invalid
+project_solution_save_io_error
+
+project_solution_adopted
+project_solution_adoption_snapshot_stale
+project_solution_adoption_namespace_mismatch
+project_solution_adoption_candidate_invalid
+project_solution_adoption_io_error
+
+project_solution_gc_completed
+project_solution_gc_partial
+project_solution_gc_skipped_invalid
+project_solution_gc_io_error
+```
+
+DTO rules are strict:
+
+- `snapshot_token`, fingerprints, and artifact-context digest are exactly 64
+  lowercase hex; generation IDs/digests use T07 grammar;
+- project ID/namespace are nonempty, trimmed, bounded, and control-free;
+  `source_project_path` is exact normalized absolute string or empty for unsaved;
+- binding revision is a nonnegative exact integer and rejects Boolean;
+- artifact IDs are trimmed, bounded, control-free, sorted unique; every
+  supplemental owner exists in `retained_owner_ids`; session-resident export
+  requires `is_current=true`;
+- counts/byte sizes are nonnegative exact integers and reject booleans;
+- `project_solution_save_staged` requires candidate pointer, empty diagnostic, and
+  a previous pointer that is both present or both empty;
+- failed save results retain token/namespace for cancellation but forbid candidate/
+  previous pointers, protection/orphan paths, and nonzero counters; one sanitized
+  diagnostic is required;
+- adoption success is `adopted=true`, `project_solution_adopted`, empty diagnostic;
+  every other reason is `false` with one sanitized diagnostic;
+- candidate prepared requires `project_solution_candidate_prepared` and empty
+  diagnostic; every failure is `prepared=false` with one sanitized diagnostic;
+- GC `completed` requires `has_more=false`, `partial` requires `true`, and skipped-
+  invalid removes nothing.
+
+Adoption/GC failures expose no backend.
+
+`CorexRuntime` stores the exact snapshot object. Capture, stage, candidate
+preparation, and adoption recompute the token and require exact stored-snapshot
+equality; copied-token altered DTOs fail stale/invalid.
+
+`ProjectSolutionSaveSnapshot.estimated_copy_bytes` is a conservative no-write
+projection using publication encoders/layout. It includes every reachable active-
+generation result blob, record JSON, node manifest, and manifest set, plus worst-
+case result blob/record/node-manifest/manifest-set bytes for every supplemental
+record. Active generation is counted fully even when content may be reused;
+supplemental records are counted before deduplication/omission/trimming.
+
+`ProjectSolutionSaveResult.estimated_copy_bytes` equals the snapshot estimate.
+`staged_new_bytes` counts only newly published raw solution bytes and must satisfy
+`0 <= staged_new_bytes <= estimated_copy_bytes`; failed results carry both counters
+as zero. Document free-space preflight includes this estimate. A stage result above
+the estimate fails before project-file publication.
+
+Candidate construction starts from the validated active generation, omits removed
+owners, and merges T07-staged records plus current session records whose captured
+maximum scope is durable. Invalid/corrupt active generation is discarded whole,
+its pruning is disabled, and a fresh generation is built from validated
+supplemental records. Invalid solution-only artifact/value records are omitted and
+increment `omitted_record_count`. Same `(workspace, node, solution_key)` and result
+retains one record; differing results omit that key. Capacity trims non-current
+historical, then supplemental records deterministically, retaining newest by
+`(created_at_epoch_ms, record_id)` and current supplemental records before active
+historical. Even an empty selection produces a valid schema-1 generation. Only
+malformed capture token/identity/namespace or inability to publish/validate even an
+empty destination generation fails solution staging.
 
 Session namespace and retention are locked:
 
@@ -1018,7 +1325,8 @@ raw bytes and digest and reuse it; otherwise atomically install the completed sa
 directory temporary file only if the target remains absent. A race that creates the
 target is resolved by validating the winner and discarding the temporary file.
 Never call a replacing/overwriting primitive on an immutable content-addressed
-target. T08 may still atomically replace `.cxproj`. Publication order is result
+target. T08 may atomically publish `.cxproj`; only `replace_current` may replace an
+existing target. Publication order is result
 blob, record, node manifests, then `manifest-set.json`; a valid manifest set marks
 a complete generation.
 
@@ -1040,24 +1348,321 @@ provides safe prune primitives tested in isolation. T07 does not mutate metadata
 write/replace `.cxproj`, report Save/Save As success, switch a Save As binding, or
 invoke lifecycle pruning.
 
-T08 alone coordinates project commit:
+T08 alone coordinates one guarded copy-on-write project transaction.
 
-1. preflight destination, artifacts, records, space, and codecs;
-2. ask the T07 repository to stage content/build the candidate generation;
-3. stage `.cxproj` with the exact generation pointer;
-4. atomically replace `.cxproj`;
-5. reopen and validate the committed pointer/generation;
-6. switch runtime binding only after successful reopen;
-7. mark reachability and prune while protecting the previous and new committed
-   generations until reopen succeeds.
+`ProjectDocumentIOService` owns one non-reentrant, nonblocking save guard shared by
+Save and Save As. A second Save/Save As returns `save_in_progress`; New/Open/import
+replacement is rejected while the guard is active. Ordinary authoring edits remain
+unlocked during I/O.
 
-Failure before replacement preserves the previous project/generation. Failure
-after replacement but before reopen reports failure without pruning or source-
-binding loss. Complete unreferenced generations/blobs remain garbage until safe
-later collection; a mixed generation is never active. Save As preserves namespace,
-logical IDs, portable artifact identity, and keys while rewriting destination
-descriptors outside the key; live handles, temporary refs, credentials, secrets,
-private absolute paths, and session Trigger state remain excluded.
+After view/script-editor synchronization, capture:
+
+```text
+ProjectSaveToken
+  save_id
+  project_object_identity
+  project_id
+  normalized_source_path
+  project_document_epoch
+  persistent_document_fingerprint
+  solution_snapshot_token
+```
+
+Immediately before project-file publication, recheck object identity, project ID,
+source path, document epoch, an independently rebuilt persistent-document
+fingerprint, and runtime solution token. A mismatch returns `save_source_changed`
+without commit/clean-state mutation. Repeat after disk commit before candidate
+adoption; mismatch becomes `save_committed_not_adopted_source_changed`.
+
+The exact transaction is:
+
+1. Resolve mode: first Save is `create_new`; normal Save at the bound path is
+   `replace_current`; distinct Save As is self-contained `create_new`.
+2. Capture/export the project-solution snapshot and finish `ProjectSaveToken`.
+3. Preflight current project/final persistent document, source artifact integrity,
+   image markers, destination parent/target/sidecar policy, containment/reparse
+   state, and conservative free space including `snapshot.estimated_copy_bytes`.
+4. Build candidate metadata/property rewrites without changing live metadata,
+   properties, path, dirty flags, runtime binding, Recent Projects, or autosave.
+5. Stage project artifacts copy-on-write using document references union
+   `snapshot.required_managed_artifact_ids`. Legacy workspace-path migration is
+   metadata rewrite plus copy, never a source move. Referenced staged data is
+   copied to a managed target; source staged/unreferenced data remains until after
+   commit. Reuse an existing managed target only after exact content-integrity
+   equality; differing content gets a deterministic full-SHA-256-suffixed target.
+   Immutable targets are never overwritten/deleted.
+6. Stage/build/validate the destination solution generation against the completed
+   destination artifact context. This publishes immutable candidate content and
+   returns `ProjectSolutionSaveResult` only; it does not open or retain a backend.
+   The sole retained candidate is created by the fresh postcommit
+   `prepare_project_solution_adoption()` reopen.
+7. Write artifact metadata and the exact four-field `metadata.solution_store`
+   pointer only into the candidate. Rewrite `temp://` only there; live values stay
+   unchanged.
+8. Stage image blobs copy-on-write. Reuse an existing digest target only when
+   bounded raw bytes match; differing bytes return `save_image_digest_conflict`.
+   No image is pruned before commit.
+9. Validate the final candidate, encode canonical bytes, write an unpredictable
+   same-directory `.cxproj` temporary, flush, and fsync.
+10. Recheck source token, destination identities/reparse state, and free-space
+    floor.
+11. Publish `.cxproj`, immediately record `ProjectDocumentPublicationResult`, and
+    set committed state before any verification. `replace_current` uses `os.replace`;
+    `create_new` uses atomic create-if-absent and never a replacing primitive.
+12. For published/uncertain, call `verify_committed_document()`, decode/hydrate the
+    current serializer output, verify project ID/schema/pointer/no staged/temp refs/
+    every image, and reconstruct the destination artifact store.
+13. Build postcommit artifact verification set as reopened document managed refs
+    union `solution_snapshot.required_managed_artifact_ids`. Require exact equality
+    with `artifact_stage.expected_integrity_facts`; each fact verifies ID, selected
+    destination relative path, file/directory kind, size, SHA-256, containment,
+    non-reparse state, and current content integrity.
+14. Call `CorexRuntime.prepare_project_solution_adoption(...)` to freshly reopen the
+    committed pointer and fully validate generation/records/blobs/values/managed
+    artifacts against the reopened destination store; retain the pending candidate.
+15. Perform the second document-token check after all reopen/artifact/image/solution
+    I/O. No blocking I/O, nested event loop, or callback may occur between this
+    check, backend swap, and live adoption. On mismatch, close/cancel the pending
+    candidate and retain source binding/state.
+16. `adopt_project_solution_save(...)` performs only token/snapshot/namespace/result
+    equality checks and the in-memory backend swap.
+17. Apply the precomputed no-I/O live adoption block: properties, metadata, artifact-
+    store object, path, timestamp, clean flags, adopted runtime-document fingerprint,
+    and autosave snapshot replacement facts.
+18. After success only, run bounded best-effort artifact/image/solution cleanup.
+    The first pass protects previous/new generation ID+manifest-digest pairs and
+    reachability; a later successful save or same-process deferred retry may use
+    active-only protection.
+
+The save guard may span filesystem work; no runtime/store lock does. Core adoption
+and bounded cleanup finish before the guard releases. Only then may session
+persistence, tab/recent notifications, metadata signals, dialogs, error
+presentation, or user callbacks run. Backend close and diagnostics also occur
+outside runtime/store locks.
+
+`create_new` uses the repository's existing same-directory no-clobber semantics:
+completed/fsynced temp, create-only install, racing target untouched, then installed-
+byte verification. It never falls back to `os.replace`.
+
+Destination policy is exact:
+
+- Parent already exists, is a real directory, and has no reparse component.
+- Normal Save target equals the case-normalized current path and is a regular,
+  non-reparse file. Its sibling sidecar is an existing safe real directory or a
+  safe create target.
+- First Save/distinct Save As require neither target `.cxproj` nor sibling
+  `<stem>.data` existed at initial preflight; target remains absent until create-new
+  publication.
+- Destination is outside source sidecar/staging/candidate-managed roots.
+- Required free bytes conservatively sum candidate project/artifact/image/solution
+  bytes plus `SAVE_FREE_SPACE_RESERVE_BYTES = 16_777_216`.
+- Target, parent, sidecar identity, and referenced paths are rechecked before commit.
+
+`ProjectArtifactStore.stage_project_save(...)` replaces production Save/Save As use
+of `migrate_workspace_artifact_folders()` and `commit_referenced_artifacts()`. It
+returns frozen candidate metadata/ref replacements, previous/new reachability,
+promoted staged IDs, safe cleanup candidates, and byte estimate. It performs no
+source move/delete or immutable overwrite.
+
+```text
+ProjectArtifactIntegrityFact
+  artifact_id
+  relative_path
+  kind: file | directory
+  size_bytes
+  sha256
+
+ProjectArtifactSaveStage
+  ...
+  expected_integrity_facts:
+    sorted unique tuple[ProjectArtifactIntegrityFact, ...]
+```
+
+Facts cover document-managed plus solution-required IDs after destination path
+selection/copying.
+
+`image_blobs.stage_project_images(...)` returns the prepared marker document plus
+previous/new digest reachability and cleanup candidates. `_write_blob()` never
+replaces a digest target.
+
+Artifact and image cleanup use the same 100,000-entry scan and 10,000-candidate
+ceilings as solution GC. Artifact cleanup considers only exact paths from validated
+previous/candidate metadata. Image cleanup considers only exact
+`[0-9a-f]{64}.png` children under the validated image root. No save cleanup performs
+broad recursive deletion.
+
+```text
+ProjectArtifactGcResult
+  candidate_relative_paths
+  removed_relative_paths
+  remaining_relative_paths
+  has_more
+
+ProjectImageGcResult
+  candidate_digests
+  removed_digests
+  remaining_digests
+  has_more
+```
+
+Tuples are sorted/unique/bounded; removed and remaining are disjoint candidate
+subsets. `has_more=true` when remaining is nonempty or scan/batch is incomplete.
+Deferred candidates are never popped before collection: success-empty removes the
+entry, partial/protected/locked replaces it with remaining work, and exception
+retains the original tuple. New candidates merge before first attempt. Failed or
+committed-not-adopted transaction candidates remain for later same-target save.
+
+When `orphan_scan_complete=false`, solution GC performs a new bounded scan of
+current filesystem state after validating active/extra protected generation ID+
+digest pairs. It merges/deduplicates supplied/new candidates and selects a bounded
+batch. `has_more` stays true for incomplete scan, unselected/partial candidates, or
+I/O failure with unresolved work. The runtime save context remains until a complete
+scan returns `has_more=false`.
+
+`serializer.py` owns publication state explicitly:
+
+```text
+ProjectDocumentPublicationState =
+  not_published | published | publication_uncertain
+
+ProjectDocumentPublicationResult
+  state: ProjectDocumentPublicationState
+  reason_code:
+    project_document_not_published |
+    project_document_published |
+    project_document_publication_uncertain
+
+  committed = state != not_published
+
+stage_document(path, document, commit_mode) -> StagedProjectDocument
+commit_staged_document(stage) -> ProjectDocumentPublicationResult
+verify_committed_document(stage) -> None
+discard_staged_document(stage) -> None
+```
+
+`commit_mode` is `replace_current | create_new`. `StagedProjectDocument` owns its
+temporary path, canonical-byte SHA-256, prepared image-marker document, prior/new
+image digests, and image cleanup candidates. Document I/O no longer calls
+`save_document()` as the project transaction.
+
+`commit_staged_document()` validates the temporary before the atomic operation but
+performs no post-publication verification. It captures exact pre-attempt target
+identity, executes replace-current/create-only, and catches every post-attempt
+exception. Classification is conservative:
+
+- create-new target still absent after failure -> `not_published`;
+- replace-current target provably retains exact prior identity/bytes ->
+  `not_published`;
+- target appeared, identity changed, or canonical bytes are installed ->
+  `published`;
+- target cannot be read or proven unchanged -> `publication_uncertain`.
+
+Published/uncertain are committed. Document I/O assigns committed state immediately
+from the result before `verify_committed_document()`. A not-published result maps to
+commit failed or create-new destination exists; any later exception is committed-
+not-adopted. `verify_committed_document()` requires exact canonical bytes/SHA-256.
+`save_document()` uses the same publish/result/verify order and performs no cleanup
+when committed verification fails.
+
+Each publication state requires its identically named reason code; cross-pairs are
+invalid. `committed` is exactly false for `not_published` and true for `published`
+or `publication_uncertain`.
+
+No artifact/image/solution rollback occurs after a `published` or
+`publication_uncertain` atomic attempt. After verified publication, the candidate
+disk project is authoritative and self-contained. After an uncertain attempt whose
+verification fails, disk may contain the prior or candidate complete atomic file;
+the window retains source binding/live metadata/properties/path/dirty state/Recent
+Projects/autosave state, performs no pruning, and reports
+`committed_not_adopted`. For normal Save, the retained live path is already the
+attempted target but stays dirty until later successful adoption.
+
+Crash semantics:
+
+- before the atomic publication attempt: prior commit is authoritative;
+- after verified publication: the new project is authoritative and complete;
+- after a publication-uncertain attempt but before verification: disk may contain
+  the prior or candidate atomic file; treat the operation as committed for no-
+  rollback/no-prune purposes, retain live source state, and let normal restart
+  validation determine which complete file is present;
+- GC failure: save succeeds and safe orphans remain.
+
+First Save persists the runtime namespace, including the random unsaved namespace,
+and writes a valid generation even when empty. Normal Save preserves namespace and
+merges active generation/new durable-eligible records. Save As preserves logical
+project/workspace/node/artifact IDs, namespace, solution keys/result identities,
+and image digests; only destination-local descriptors outside keys change.
+
+Solution export excludes session/live handles, callbacks/native objects,
+credentials/secrets/protected values, Trigger session publications, private/
+absolute/staging paths, raw `temp://`, and values rejected by T07. External authored
+links remain external and are outside the self-contained guarantee. Unsupported/
+corrupt prior solution metadata stays opaque until save and is never cache input;
+the committed candidate replaces it with a fresh schema-1 pointer from validated
+records.
+
+`document_io_service.py` adds internal:
+
+```text
+ProjectSaveResult
+  status: cancelled | saved | failed | committed_not_adopted
+  reason_code
+  target_path
+```
+
+Reason codes are locked:
+
+```text
+save_cancelled
+save_succeeded
+save_in_progress
+save_destination_invalid
+save_destination_exists
+save_destination_sidecar_exists
+save_destination_unsafe
+save_destination_overlaps_source
+save_destination_space_insufficient
+save_source_changed
+save_document_invalid
+save_artifact_stage_failed
+save_solution_stage_failed
+save_image_digest_conflict
+save_project_stage_failed
+save_project_commit_failed
+save_committed_not_adopted_source_changed
+save_committed_not_adopted_reopen_failed
+save_committed_not_adopted_verification_failed
+save_committed_not_adopted_binding_failed
+```
+
+Failure matrix:
+
+| Injection | Required outcome |
+| --- | --- |
+| Reentrant Save/Save As | `failed/save_in_progress`; no mutation |
+| Prompt/path/document/source preflight | cancelled/failed; zero writes |
+| Artifact/image staging | prior commits valid; COW orphans allowed |
+| Solution export/build/validation | prior commits valid; immutable orphans allowed |
+| `.cxproj` temp write/fsync | prior commit valid; temp removed |
+| Precommit source-token drift | `failed/save_source_changed`; no commit |
+| Normal replace failure with target proven exactly unchanged | `failed/save_project_commit_failed`; prior `.cxproj` authoritative |
+| Atomic helper installs then raises, target changes, or outcome cannot be proven unchanged | publication is `published` or `publication_uncertain`; committed flag set immediately; later failure is `committed_not_adopted` |
+| Create-new race | `failed/save_destination_exists`; racing target untouched |
+| Crash after verified publication | candidate disk project authoritative/complete |
+| Crash after publication-uncertain attempt before verification | disk contains either prior or candidate complete atomic file; no live adoption or pruning |
+| Reopen/artifact/image/solution failure | `committed_not_adopted`; source live state/binding retained; no prune |
+| Candidate bind/token/namespace failure | same; candidate closed |
+| Postcommit source-token drift | `save_committed_not_adopted_source_changed` |
+| Recent/autosave/session/signal failure | core save succeeds; bounded notification only |
+| GC scan/delete failure | save succeeds; candidates retained |
+
+Autosave continues serializing the runtime document only. It never stages sidecars,
+builds generations, or writes a candidate pointer. Live metadata stays unchanged
+until adoption, so autosave during staging retains the last committed pointer and
+precommit fingerprint catches authored changes. Successful adoption discards the
+prior autosave snapshot and seeds the adopted fingerprint. `committed_not_adopted`
+changes no autosave fingerprint/recovery snapshot/recent path/source path/live
+pointer/dirty flag. `session_lifecycle_service.py` requires no production edit.
 
 Forced recomputation under an existing `solution_key` calculates the canonical
 `result_digest` before publication. An identical digest retains the existing
@@ -2115,47 +2720,97 @@ container nodes or internalization commands.
 - Packetization notes: `P07`; execution timing and worktree use defer entirely to
   the current orchestration baseline in the ledger.
 
-### T08 Integrate Save, Save As, reopen, and garbage collection
+### T08 Integrate copy-on-write Save, Save As, reopen, adoption, and garbage collection
 
-- Goal: Make project lifecycle operations transactionally preserve reachable
-  durable solutions and artifacts.
-- Preconditions: T07 accepted.
+- Goal: Commit one self-contained project snapshot without moving, deleting, or
+  overwriting source/committed sidecar content before the project-file commit.
+- Preconditions: T07 accepted; reviewed T08 transaction and self-contained create-
+  new no-clobber policy authorized.
 - Conservative write scope:
   - `ea_node_editor/ui/shell/controllers/project_session_controller.py`
   - `ea_node_editor/ui/shell/controllers/project_session_services_support/document_io_service.py`
-  - `ea_node_editor/ui/shell/controllers/project_session_services_support/session_lifecycle_service.py`
-  - `ea_node_editor/ui/shell/controllers/project_session_services_support/project_files_service.py`
+  - `ea_node_editor/execution/solution_store.py`
   - `ea_node_editor/execution/headless_runtime.py`
   - `ea_node_editor/persistence/solution_repository.py`
   - `ea_node_editor/persistence/artifact_store.py`
+  - `ea_node_editor/persistence/image_blobs.py`
+  - `ea_node_editor/persistence/serializer.py`
+  - delete `ea_node_editor/ui/dialogs/project_save_as_dialog.py`
   - `tests/test_project_save_as_flow.py`
   - `tests/test_project_artifact_store.py`
   - `tests/test_serializer.py`
   - `tests/test_solution_repository.py`
+  - `tests/test_solution_store_session.py`
+  - `tests/test_headless_runtime.py`
+  - `tests/test_project_session_controller_unit.py`
+  - `tests/test_image_value.py`
+  - `tests/test_architecture_boundaries.py`
+  - `tests/test_shell_project_session_controller.py`
+  - `tests/test_tabular_project_managed_data.py`
+  - `tests/test_solution_records.py`
+  - `docs/agent_maps/subsystems/execution.md`
+  - `docs/agent_maps/subsystems/persistence.md`
+  - `docs/agent_maps/subsystems/ui_shell.md`
+  - `docs/agent_maps/feature_routes/project_session_files_managed_artifacts.md`
+  - `docs/agent_maps/feature_routes/managed_artifacts_project_data.md`
+  - `docs/agent_maps/feature_routes/serialization_migration_legacy_rejection.md`
+  - `docs/agent_maps/COVERAGE.md`
+  - regenerated source/test and agent-route indexes
+- Explicitly unnecessary production scope:
+  - `session_lifecycle_service.py`
+  - `project_files_service.py`
+  - QML, composition, migration, project schema, runtime-value/solution-record
+    schemas, requirements/traceability/release docs, and `docs/specs/INDEX.md`
 - Deliverables:
-  - immutable-generation preflight/stage, one `.cxproj` commit point, reopen, and
-    prune ordering;
-  - destination descriptor rewrite and portable copy;
-  - reopen verification before Save As success;
-  - unreachable staged-blob recovery/GC;
-  - unsupported/corrupt prior solution metadata is never used as cache input and
-    never blocks authored reopen; T08 may regenerate a fresh schema-1 generation/
-    pointer from currently validated reachable records without reading or migrating
-    the unsupported snapshot;
-  - no legacy reader or migration path.
-  - Save As candidate repository binding switches only after destination reopen;
-    failure restores neither metadata nor binding because the old commit remains
-    authoritative.
+  - non-reentrant save guard and document/solution snapshot tokens;
+  - copy-on-write artifact migration/promotion and immutable image publication;
+  - execution-owned solution save/export DTOs and factory port;
+  - active-generation merge, durable-maximum session export, removed-owner filter,
+    destination artifact validation, and fresh empty generation;
+  - self-contained create-new first Save/Save As with atomic no-clobber publication;
+  - normal-save atomic replacement only at the currently bound path;
+  - raw reopen plus complete pointer/artifact/image/generation verification;
+  - expected-namespace/token candidate adoption preserving source on failure;
+  - exact saved versus committed-not-adopted outcomes;
+  - bounded previous+new-protected GC followed by later active-only retries;
+  - remove the Save As `Project file only` choice;
+  - retain legacy destructive artifact helpers only for explicit non-save callers;
+    no production Save/Save As path may call them.
 - Verification:
-  - Save and reopen reuses durable eligible nodes;
-  - Save As reopens independently after source project removal from the test scope;
-  - injected failures at each stage preserve prior document/manifests/artifacts;
-  - clear/prune removes only unreachable content;
-  - temp artifact promotion and solution manifest publication are atomic together;
-  - `./venv/Scripts/python.exe -m pytest tests/test_project_save_as_flow.py tests/test_project_artifact_store.py tests/test_serializer.py tests/test_solution_repository.py -q`.
-- Non-goals: compatibility migration, cloud synchronization.
-- Packetization notes: `P08`; implementation sub-agent must reread T07 accepted
-  contracts and the ledger before editing.
+  - first Save preserves random unsaved namespace and reuses eligible records after
+    restart;
+  - normal Save merges active generation and new records;
+  - source-removal Save As fixture includes managed/staged artifacts, `ImageValue`,
+    ordinary durable value, and durable managed-artifact solution; after deleting
+    source `.cxproj`/`.data`, fresh runtime resolves/hydrates destination, binds the
+    generation, and reuses without `node_started`;
+  - removed owners do not enter the candidate; session records export only when
+    current and captured maximum scope was durable;
+  - every failure-matrix stage asserts exact source/destination/live state;
+  - destination `.cxproj`/sibling `.data` and create-new race no-clobber tests;
+  - source mutation/autosave/project replacement and solution-binding drift tests;
+  - identical image/managed targets reuse; differing immutable image bytes reject,
+    and artifact bytes use the full-digest-suffixed target without overwrite;
+  - immediate GC protects previous/new reachability; later active-only pass deletes
+    only validated candidates; GC failure never changes save success;
+  - architecture proof: Document I/O imports no concrete solution repository and
+    execution imports no persistence implementation;
+  - publication-state shapes, publish-then-raise modes, postcommit artifact union/
+    exact integrity mismatch, fresh solution reopen, deterministic altered-snapshot
+    rejection, strict snapshot fields, complete byte estimate, retryable GC, and
+    affected shell/Tabular/solution-record caller compatibility;
+  - `./venv/Scripts/python.exe -m pytest tests/test_project_save_as_flow.py tests/test_project_artifact_store.py tests/test_serializer.py tests/test_solution_repository.py -q`;
+  - `./venv/Scripts/python.exe -m pytest tests/test_solution_store_session.py tests/test_headless_runtime.py -k "project_solution_save or durable_save or binding" -q`;
+  - `./venv/Scripts/python.exe -m pytest tests/test_project_session_controller_unit.py -k "save or reopen or bind or autosave or recovery" -q`;
+  - `./venv/Scripts/python.exe -m pytest tests/test_image_value.py tests/test_architecture_boundaries.py -k "save or sidecar or solution or no_clobber or prune" -q`;
+  - `./venv/Scripts/python.exe -m pytest tests/test_shell_project_session_controller.py tests/test_tabular_project_managed_data.py tests/test_solution_records.py -q`;
+  - regenerate source/test and agent-route indexes, run `check_agent_maps.py`, then
+    `git diff --check`.
+- Non-goals: overwrite of a different existing project, project-file-only Save As,
+  compatibility migration, cloud/global cache, requirements/traceability updates,
+  broad fast/full verification, or unrelated lifecycle cleanup.
+- Packetization notes: `P08`; implementation starts after revised whole-plan hash
+  is independently accepted. User authorization is already recorded in the ledger.
 
 ### T09 Closeout, independent review, documentation, and acceptance
 
@@ -2257,10 +2912,15 @@ only by `docs/PLANS/COREX_INCREMENTAL_EXECUTION_TASK_LEDGER.md`.
 - durable restart uses stable environment/interface identity, never ephemeral
   runtime-generation counters.
 - corrupt or unsupported durable state -> recompute with deterministic reason.
-- Save/Save As failure -> previous committed project and artifact set remain valid.
+- precommit Save/Save As failure -> previous committed project/artifact set remains
+  authoritative;
+- postpublication verification/adoption failure -> verified publication makes the
+  candidate disk project authoritative; publication-uncertain failure may leave
+  either prior or candidate complete atomic file; in both cases live source
+  state/binding remains dirty and unadopted with no pruning;
 - Save As preserves logical solution identity while rewriting destination storage
   descriptors outside solution keys.
-- crash before/after `.cxproj` pointer replacement resolves to one complete
+- crash before/after `.cxproj` publication resolves to one complete
   generation, never a mixed manifest set.
 
 ### Primary UX regression

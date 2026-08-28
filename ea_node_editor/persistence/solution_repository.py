@@ -23,6 +23,12 @@ from ea_node_editor.execution.solution_store import (
     DurableLookupResult,
     DurablePayloadResult,
     DurableStageResult,
+    MAX_PROJECT_SOLUTION_ORPHAN_CANDIDATES,
+    MAX_PROJECT_SOLUTION_ORPHAN_SCAN_ENTRIES,
+    ProjectSolutionGcResult,
+    ProjectSolutionSaveRecordExport,
+    ProjectSolutionSaveResult,
+    ProjectSolutionSaveSnapshot,
 )
 from ea_node_editor.persistence.artifact_store import (
     ProjectArtifactLayout,
@@ -252,6 +258,13 @@ def _identity(file_stat: os.stat_result) -> tuple[int, int, int, int, int]:
     )
 
 
+def _is_link_or_reparse(file_stat: os.stat_result) -> bool:
+    reparse_flag = getattr(stat, "FILE_ATTRIBUTE_REPARSE_POINT", 0x400)
+    return stat.S_ISLNK(file_stat.st_mode) or bool(
+        getattr(file_stat, "st_file_attributes", 0) & reparse_flag
+    )
+
+
 def _contains_reparse_component(root: Path, relative_path: str) -> bool:
     target = Path(os.path.abspath(os.path.join(root, *PurePosixPath(relative_path).parts)))
     current = Path(target.anchor)
@@ -412,6 +425,96 @@ class _TrustedStagedArtifactContext:
 _TRUSTED_STAGED_ARTIFACT_CONTEXT = _TrustedStagedArtifactContext()
 
 
+def _projected_supplemental_bytes(
+    exports: tuple[ProjectSolutionSaveRecordExport, ...],
+    *,
+    solution_namespace_id: str,
+    catalog: DataTypeCatalog,
+) -> int:
+    total = 0
+    manifest_entries: list[dict[str, str]] = []
+    for exported in exports:
+        outputs_payload = _strict_json_bytes(
+            exported.canonical_payload,
+            maximum=MAX_DURABLE_RESULT_BLOB_BYTES,
+        )
+        record = exported.record
+        if any(item.status == "value" for item in record.output_descriptors):
+            blob_without_locator = _canonical_json_bytes(
+                _result_blob_payload(record, outputs_payload)
+            )
+            blob_digest = hashlib.sha256(blob_without_locator).hexdigest()
+            durable_record = replace(
+                record,
+                residency=SolutionResidency.DURABLE,
+                runtime_generation=None,
+                payload_locator=SolutionPayloadLocator(
+                    kind=SolutionResidency.DURABLE,
+                    reference_id=blob_digest,
+                    blob_digests=(blob_digest,),
+                ),
+                reuse_eligible=True,
+                catalog=catalog,
+            )
+            blob_raw = _canonical_json_bytes(
+                _result_blob_payload(durable_record, outputs_payload)
+            )
+            total += len(blob_raw)
+        else:
+            durable_record = replace(
+                record,
+                residency=SolutionResidency.DURABLE,
+                runtime_generation=None,
+                payload_locator=None,
+                reuse_eligible=True,
+                catalog=catalog,
+            )
+        record_raw = _canonical_json_bytes(
+            durable_record.to_payload(catalog=catalog)
+        )
+        record_digest = hashlib.sha256(record_raw).hexdigest()
+        total += len(record_raw)
+        workspace_key = workspace_path_key(record.workspace_id)
+        node_key = node_path_key(record.node_id)
+        node_raw = _canonical_json_bytes(
+            {
+                "schema_version": SCHEMA_VERSION,
+                "solution_namespace_id": solution_namespace_id,
+                "workspace_id": record.workspace_id,
+                "node_id": record.node_id,
+                "workspace_key": workspace_key,
+                "node_key": node_key,
+                "records": [
+                    {
+                        "solution_key": record.solution_key,
+                        "record_digest": record_digest,
+                    }
+                ],
+            }
+        )
+        total += len(node_raw)
+        manifest_entries.append(
+            {
+                "workspace_key": workspace_key,
+                "node_key": node_key,
+                "relative_path": f"nodes/{workspace_key}/{node_key}.json",
+                "node_manifest_digest": hashlib.sha256(node_raw).hexdigest(),
+            }
+        )
+    manifest_raw = _canonical_json_bytes(
+        {
+            "schema_version": SCHEMA_VERSION,
+            "generation_id": "0" * 32,
+            "solution_namespace_id": solution_namespace_id,
+            "node_manifests": sorted(
+                manifest_entries,
+                key=lambda item: (item["workspace_key"], item["node_key"]),
+            ),
+        }
+    )
+    return total + len(manifest_raw)
+
+
 class SolutionRepositoryFactory:
     def open_backend(
         self,
@@ -478,6 +581,8 @@ class SolutionRepositoryFactory:
             repository,
             namespace_id,
             "durable_bound_active",
+            active_generation_id=metadata["active_generation_id"],
+            active_manifest_set_digest=metadata["active_manifest_set_digest"],
         )
 
     @staticmethod
@@ -506,6 +611,444 @@ class SolutionRepositoryFactory:
             "active_manifest_set_digest": digest,
         }
 
+    def export_project_solution_save(
+        self,
+        project_id: str,
+        source_project_path: str,
+        solution_namespace_id: str,
+        source_generation_id: str,
+        source_manifest_set_digest: str,
+        retained_owner_ids: tuple[tuple[str, str], ...],
+        supplemental_records: tuple[ProjectSolutionSaveRecordExport, ...],
+        binding_revision: int,
+        registry_contract_fingerprint: str,
+        source_artifact_context_digest: str,
+        catalog: DataTypeCatalog,
+        source_artifact_context: object,
+    ) -> ProjectSolutionSaveSnapshot:
+        required_artifact_ids: set[str] = set()
+        estimated_copy_bytes = _projected_supplemental_bytes(
+            supplemental_records,
+            solution_namespace_id=solution_namespace_id,
+            catalog=catalog,
+        )
+        for exported in supplemental_records:
+            required_artifact_ids.update(
+                _managed_artifact_ids_from_payload(exported.canonical_payload)
+            )
+        if source_generation_id and source_manifest_set_digest and source_project_path:
+            try:
+                repository = SolutionRepository(
+                    project_id=project_id,
+                    project_path=source_project_path,
+                    solution_namespace_id=solution_namespace_id,
+                    active_generation_id=source_generation_id,
+                    active_manifest_set_digest=source_manifest_set_digest,
+                    catalog=catalog,
+                )
+                active_exports = repository.generation_record_exports(
+                    artifact_context=source_artifact_context,
+                )
+                estimated_copy_bytes += repository.generation_storage_bytes()
+            except Exception:  # noqa: BLE001 - corrupt cache is omitted from save.
+                active_exports = ()
+            else:
+                for exported in active_exports:
+                    required_artifact_ids.update(
+                        _managed_artifact_ids_from_payload(exported.canonical_payload)
+                    )
+                repository.close()
+        return ProjectSolutionSaveSnapshot.create(
+            project_id=_logical_id(project_id, "project_id"),
+            source_project_path=source_project_path,
+            solution_namespace_id=_logical_id(
+                solution_namespace_id,
+                "solution_namespace_id",
+            ),
+            binding_revision=binding_revision,
+            registry_contract_fingerprint=registry_contract_fingerprint,
+            source_artifact_context_digest=source_artifact_context_digest,
+            source_generation_id=source_generation_id,
+            source_manifest_set_digest=source_manifest_set_digest,
+            retained_owner_ids=retained_owner_ids,
+            supplemental_records=supplemental_records,
+            required_managed_artifact_ids=tuple(sorted(required_artifact_ids)),
+            estimated_copy_bytes=estimated_copy_bytes,
+        )
+
+    def stage_project_solution_save(
+        self,
+        snapshot: ProjectSolutionSaveSnapshot,
+        destination_project_path: str,
+        catalog: DataTypeCatalog,
+        destination_artifact_context: object,
+    ) -> ProjectSolutionSaveResult:
+        if not isinstance(snapshot, ProjectSolutionSaveSnapshot):
+            raise TypeError("snapshot must be ProjectSolutionSaveSnapshot")
+
+        def failed(reason_code: str, diagnostic: str) -> ProjectSolutionSaveResult:
+            return ProjectSolutionSaveResult(
+                snapshot_token=snapshot.snapshot_token,
+                solution_namespace_id=snapshot.solution_namespace_id,
+                reason_code=reason_code,
+                diagnostic=diagnostic,
+            )
+
+        try:
+            destination = Path(destination_project_path)
+            if not destination.is_absolute() or not destination.parent.is_dir():
+                return failed(
+                    "project_solution_save_destination_invalid",
+                    "The destination project path is invalid.",
+                )
+            active_exports: tuple[ProjectSolutionSaveRecordExport, ...] = ()
+            previous_generation_id = ""
+            previous_manifest_set_digest = ""
+            source_generation_valid = not snapshot.source_generation_id
+            if snapshot.source_generation_id:
+                try:
+                    source_repository = SolutionRepository(
+                        project_id=snapshot.project_id,
+                        project_path=snapshot.source_project_path,
+                        solution_namespace_id=snapshot.solution_namespace_id,
+                        active_generation_id=snapshot.source_generation_id,
+                        active_manifest_set_digest=snapshot.source_manifest_set_digest,
+                        catalog=catalog,
+                    )
+                    active_exports = source_repository.generation_record_exports(
+                        artifact_context=None,
+                    )
+                    source_repository.close()
+                    source_generation_valid = True
+                    previous_generation_id = snapshot.source_generation_id
+                    previous_manifest_set_digest = snapshot.source_manifest_set_digest
+                except Exception:  # noqa: BLE001 - the active cache is discarded whole.
+                    active_exports = ()
+                    source_generation_valid = False
+
+            retained = set(snapshot.retained_owner_ids)
+            by_key: dict[
+                tuple[str, str, str], ProjectSolutionSaveRecordExport
+            ] = {}
+            conflicts: set[tuple[str, str, str]] = set()
+            omitted = 0
+            ordered_exports = sorted(
+                (*active_exports, *snapshot.supplemental_records),
+                key=lambda item: (
+                    not item.is_current,
+                    -item.record.created_at_epoch_ms,
+                    item.record.record_id,
+                ),
+            )
+            for exported in ordered_exports:
+                record = exported.record
+                key = (record.workspace_id, record.node_id, record.solution_key)
+                if (record.workspace_id, record.node_id) not in retained:
+                    omitted += 1
+                    continue
+                if key in conflicts:
+                    omitted += 1
+                    continue
+                existing = by_key.get(key)
+                if existing is None:
+                    by_key[key] = exported
+                    continue
+                if existing.record.result_digest != record.result_digest:
+                    by_key.pop(key, None)
+                    conflicts.add(key)
+                    omitted += 2
+
+            selected: list[ProjectSolutionSaveRecordExport] = []
+            per_owner: dict[tuple[str, str], int] = {}
+            referenced_bytes = 0
+            for exported in sorted(
+                by_key.values(),
+                key=lambda item: (
+                    not item.is_current,
+                    -item.record.created_at_epoch_ms,
+                    item.record.record_id,
+                ),
+            ):
+                owner = (exported.record.workspace_id, exported.record.node_id)
+                if (
+                    per_owner.get(owner, 0) >= MAX_DURABLE_RECORDS_PER_NODE
+                    or len(selected) >= MAX_DURABLE_RECORDS_PER_GENERATION
+                    or referenced_bytes + len(exported.canonical_payload)
+                    > MAX_DURABLE_REFERENCED_BYTES_PER_GENERATION
+                ):
+                    omitted += 1
+                    continue
+                selected.append(exported)
+                per_owner[owner] = per_owner.get(owner, 0) + 1
+                referenced_bytes += len(exported.canonical_payload)
+
+            repository = SolutionRepository.create_empty(
+                project_id=snapshot.project_id,
+                project_path=destination,
+                solution_namespace_id=snapshot.solution_namespace_id,
+                catalog=catalog,
+            )
+            staged_records: list[SolutionRecord] = []
+            for exported in selected:
+                try:
+                    payload = _strict_json_bytes(
+                        exported.canonical_payload,
+                        maximum=MAX_DURABLE_RESULT_BLOB_BYTES,
+                    )
+                    outputs = durable_settled_outputs_from_payload(payload)
+                    validation = validate_durable_settled_outputs(
+                        outputs,
+                        exported.record.output_descriptors,
+                        catalog,
+                        destination_artifact_context,
+                    )
+                except Exception:  # noqa: BLE001 - one invalid record is omitted.
+                    validation = None
+                if (
+                    validation is None
+                    or not validation.eligible
+                    or validation.canonical_payload is None
+                    or validation.canonical_payload != exported.canonical_payload
+                ):
+                    omitted += 1
+                    continue
+                staged = repository.stage_record(
+                    exported.record,
+                    exported.canonical_payload,
+                    catalog,
+                )
+                if staged.record is None:
+                    omitted += 1
+                    continue
+                staged_records.append(staged.record)
+            generation = repository.build_candidate_generation(staged_records)
+            if generation.reason_code == "durable_generation_capacity_exceeded":
+                repository.close()
+                return failed(
+                    "project_solution_save_capacity_exceeded",
+                    "The project solution snapshot exceeds the destination capacity.",
+                )
+            if generation.reason_code != "durable_generation_built":
+                repository.close()
+                return failed(
+                    "project_solution_save_generation_invalid",
+                    "The project solution generation could not be validated.",
+                )
+            staged_new_bytes = repository.published_bytes
+            if staged_new_bytes > snapshot.estimated_copy_bytes:
+                repository.close()
+                return failed(
+                    "project_solution_save_capacity_exceeded",
+                    "The project solution generation exceeded its byte estimate.",
+                )
+            orphan_candidates, scan_complete = repository.enumerate_orphan_candidates()
+            if not source_generation_valid:
+                orphan_candidates = ()
+            protected = tuple(
+                sorted(
+                    {
+                        *(
+                            ((previous_generation_id, previous_manifest_set_digest),)
+                            if previous_generation_id
+                            else ()
+                        ),
+                        (generation.generation_id, generation.manifest_set_digest),
+                    }
+                )
+            )
+            repository.close()
+            return ProjectSolutionSaveResult(
+                snapshot_token=snapshot.snapshot_token,
+                solution_namespace_id=snapshot.solution_namespace_id,
+                candidate_generation_id=generation.generation_id,
+                candidate_manifest_set_digest=generation.manifest_set_digest,
+                previous_generation_id=previous_generation_id,
+                previous_manifest_set_digest=previous_manifest_set_digest,
+                initially_protected_generations=protected,
+                orphan_candidate_relative_paths=orphan_candidates,
+                orphan_scan_complete=scan_complete and source_generation_valid,
+                omitted_record_count=omitted,
+                estimated_copy_bytes=snapshot.estimated_copy_bytes,
+                staged_new_bytes=staged_new_bytes,
+                reason_code="project_solution_save_staged",
+            )
+        except (OSError, OverflowError, RecursionError, TypeError, ValueError):
+            return failed(
+                "project_solution_save_io_error",
+                "The project solution snapshot could not be staged.",
+            )
+
+    def open_project_solution_save_candidate(
+        self,
+        project_id: str,
+        destination_project_path: str,
+        metadata_solution_store: object,
+        expected_namespace_id: str,
+        catalog: DataTypeCatalog,
+        destination_artifact_context: object,
+    ) -> DurableBackendOpenResult:
+        opened = self.open_backend(
+            project_id,
+            destination_project_path,
+            metadata_solution_store,
+            catalog,
+        )
+        if opened.backend is None:
+            return opened
+        if opened.solution_namespace_id != expected_namespace_id:
+            opened.backend.close()
+            return DurableBackendOpenResult(
+                None,
+                expected_namespace_id,
+                "durable_session_only_metadata_invalid",
+                "The project solution namespace does not match.",
+            )
+        try:
+            opened.backend.generation_record_exports(
+                artifact_context=destination_artifact_context,
+            )
+        except Exception:  # noqa: BLE001 - candidate validation fails closed.
+            opened.backend.close()
+            return DurableBackendOpenResult(
+                None,
+                expected_namespace_id,
+                "durable_session_only_manifest_invalid",
+                "The project solution generation could not be validated.",
+            )
+        return opened
+
+    def collect_project_solution_garbage(
+        self,
+        project_id: str,
+        project_path: str,
+        active_generation_id: str,
+        active_manifest_set_digest: str,
+        extra_protected_generations: tuple[tuple[str, str], ...],
+        candidate_relative_paths: tuple[str, ...],
+        orphan_scan_complete: bool,
+        limit: int,
+        catalog: DataTypeCatalog,
+    ) -> ProjectSolutionGcResult:
+        candidates = set(candidate_relative_paths)
+        bounded_limit = min(max(int(limit), 0), MAX_PROJECT_SOLUTION_ORPHAN_CANDIDATES)
+        scan_complete = bool(orphan_scan_complete)
+        try:
+            metadata = {
+                "schema_version": SCHEMA_VERSION,
+                "solution_namespace_id": "placeholder",
+                "active_generation_id": active_generation_id,
+                "active_manifest_set_digest": active_manifest_set_digest,
+            }
+            solution_root = (
+                ProjectArtifactLayout.from_project_path(project_path).sidecar_root
+                / _SOLUTION_ROOT
+            )
+            manifest = _strict_json_bytes(
+                _read_file(
+                    solution_root,
+                    f"generations/{active_generation_id}/manifest-set.json",
+                    maximum=MAX_DURABLE_MANIFEST_SET_BYTES,
+                    missing_reason="durable_generation_invalid",
+                    oversized_reason="durable_generation_capacity_exceeded",
+                ),
+                maximum=MAX_DURABLE_MANIFEST_SET_BYTES,
+            )
+            metadata["solution_namespace_id"] = manifest["solution_namespace_id"]
+            repository = SolutionRepository(
+                project_id=project_id,
+                project_path=project_path,
+                solution_namespace_id=metadata["solution_namespace_id"],
+                active_generation_id=active_generation_id,
+                active_manifest_set_digest=active_manifest_set_digest,
+                catalog=catalog,
+            )
+            if not scan_complete:
+                rescanned, scan_complete = repository.enumerate_orphan_candidates()
+                candidates.update(rescanned)
+                if len(candidates) > MAX_PROJECT_SOLUTION_ORPHAN_CANDIDATES:
+                    candidates = set(
+                        sorted(candidates)[:MAX_PROJECT_SOLUTION_ORPHAN_CANDIDATES]
+                    )
+                    scan_complete = False
+            ordered_candidates = tuple(sorted(candidates))
+            selected = ordered_candidates[:bounded_limit]
+            active_protected = repository.reachable_generation_pairs(
+                ((active_generation_id, active_manifest_set_digest),)
+            )
+            extra_protected = repository.reachable_generation_pairs(
+                extra_protected_generations
+            ) if extra_protected_generations else frozenset()
+            protected = frozenset(
+                (*active_protected, *extra_protected)
+            )
+            removed = repository.prune_unreachable_paths(
+                selected,
+                reachable_paths=protected,
+            )
+            resolved = set(removed)
+            active_relative_paths = {
+                path.relative_to(repository._root).as_posix()  # noqa: SLF001
+                for path in active_protected
+            }
+            for relative in selected:
+                candidate_path = repository._root / PurePosixPath(relative)  # noqa: SLF001
+                if not candidate_path.exists():
+                    resolved.add(relative)
+            repository.close()
+        except Exception:  # noqa: BLE001 - garbage collection never changes save success.
+            ordered_candidates = tuple(sorted(candidates))
+            return ProjectSolutionGcResult(
+                candidate_relative_paths=ordered_candidates,
+                removed_relative_paths=(),
+                has_more=bool(ordered_candidates) or not scan_complete,
+                reason_code="project_solution_gc_io_error",
+            )
+        report_candidates = tuple(
+            relative
+            for relative in ordered_candidates
+            if relative not in active_relative_paths
+        )
+        report_removed = tuple(
+            sorted(set(resolved).intersection(report_candidates))
+        )
+        has_more = bool(set(report_candidates).difference(report_removed)) or not scan_complete
+        return ProjectSolutionGcResult(
+            candidate_relative_paths=report_candidates,
+            removed_relative_paths=report_removed,
+            has_more=has_more,
+            reason_code=(
+                "project_solution_gc_partial"
+                if has_more
+                else "project_solution_gc_completed"
+            ),
+        )
+
+
+def _managed_artifact_ids_from_payload(raw: bytes) -> tuple[str, ...]:
+    try:
+        payload = json.loads(raw.decode("utf-8"))
+    except (UnicodeDecodeError, json.JSONDecodeError):
+        return ()
+    result: set[str] = set()
+
+    def visit(value: object) -> None:
+        if isinstance(value, Mapping):
+            if (
+                value.get("__ea_runtime_value__") == "artifact_ref"
+                and value.get("scope") == "managed"
+                and isinstance(value.get("artifact_id"), str)
+                and value["artifact_id"].strip()
+            ):
+                result.add(value["artifact_id"].strip())
+            for nested in value.values():
+                visit(nested)
+        elif isinstance(value, list):
+            for nested in value:
+                visit(nested)
+
+    visit(payload)
+    return tuple(sorted(result))
+
 
 class SolutionRepository:
     def __init__(
@@ -527,6 +1070,7 @@ class SolutionRepository:
         self._layout = ProjectArtifactLayout.from_project_path(project_path)
         self._root = self._layout.sidecar_root / _SOLUTION_ROOT
         self._closed = False
+        self._published_bytes = 0
         if _HEX_32.fullmatch(active_generation_id or "") is None:
             raise _RepositoryError("durable_session_only_pointer_invalid")
         if _SHA256.fullmatch(active_manifest_set_digest or "") is None:
@@ -575,6 +1119,7 @@ class SolutionRepository:
         self._layout = ProjectArtifactLayout.from_project_path(project_path)
         self._root = self._layout.sidecar_root / _SOLUTION_ROOT
         self._closed = False
+        self._published_bytes = 0
         self._active_generation_id = ""
         self._active_manifest_set_digest = ""
         self._staged_records = {}
@@ -594,6 +1139,10 @@ class SolutionRepository:
     def _require_open(self) -> None:
         if self._closed:
             raise _RepositoryError("durable_not_bound")
+
+    @property
+    def published_bytes(self) -> int:
+        return self._published_bytes
 
     @staticmethod
     def _manifest_set(raw: bytes) -> dict[str, Any]:
@@ -847,11 +1396,12 @@ class SolutionRepository:
                     return DurableStageResult(None, "durable_stage_ineligible")
                 if len(blob_raw) > MAX_DURABLE_RESULT_BLOB_BYTES:
                     return DurableStageResult(None, "durable_stage_capacity_exceeded")
-                _publish_immutable(
+                if _publish_immutable(
                     self._root,
                     f"blobs/sha256/{blob_digest[:2]}/{blob_digest}",
                     blob_raw,
-                )
+                ):
+                    self._published_bytes += len(blob_raw)
             else:
                 durable_record = replace(
                     record,
@@ -870,6 +1420,8 @@ class SolutionRepository:
                 f"records/sha256/{record_digest[:2]}/{record_digest}.json",
                 record_raw,
             )
+            if published:
+                self._published_bytes += len(record_raw)
             self._record_digests[durable_record.record_id] = record_digest
             self._staged_records[
                 (durable_record.workspace_id, durable_record.node_id, durable_record.solution_key)
@@ -1017,16 +1569,18 @@ class SolutionRepository:
                 return DurableGenerationResult("", "", "durable_generation_capacity_exceeded")
             digest = hashlib.sha256(raw).hexdigest()
             for relative, node_raw in sorted(node_publications):
-                _publish_immutable(
+                if _publish_immutable(
                     self._root / "generations" / generation,
                     relative,
                     node_raw,
-                )
-            _publish_immutable(
+                ):
+                    self._published_bytes += len(node_raw)
+            if _publish_immutable(
                 self._root,
                 f"generations/{generation}/manifest-set.json",
                 raw,
-            )
+            ):
+                self._published_bytes += len(raw)
             inspection = self._inspect_generation(
                 generation,
                 expected_manifest_set_digest=digest,
@@ -1248,6 +1802,142 @@ class SolutionRepository:
             "durable_generation_valid",
             self.solution_namespace_id,
         )
+
+    def generation_record_exports(
+        self,
+        *,
+        artifact_context: object | None,
+    ) -> tuple[ProjectSolutionSaveRecordExport, ...]:
+        self._require_open()
+        exports: list[ProjectSolutionSaveRecordExport] = []
+        validation_context = (
+            artifact_context
+            if artifact_context is not None
+            else _TRUSTED_STAGED_ARTIFACT_CONTEXT
+        )
+        for entry in self._manifest["node_manifests"]:
+            node_raw = _read_file(
+                self._root / "generations" / self._active_generation_id,
+                entry["relative_path"],
+                maximum=MAX_DURABLE_NODE_MANIFEST_BYTES,
+                missing_reason="durable_generation_invalid",
+                oversized_reason="durable_generation_capacity_exceeded",
+            )
+            if hashlib.sha256(node_raw).hexdigest() != entry["node_manifest_digest"]:
+                raise _RepositoryError("durable_generation_digest_mismatch")
+            node_manifest = self._node_manifest(
+                node_raw,
+                workspace_id=_strict_json_bytes(
+                    node_raw,
+                    maximum=MAX_DURABLE_NODE_MANIFEST_BYTES,
+                )["workspace_id"],
+                node_id=_strict_json_bytes(
+                    node_raw,
+                    maximum=MAX_DURABLE_NODE_MANIFEST_BYTES,
+                )["node_id"],
+            )
+            for record_ref in node_manifest["records"]:
+                lookup = self.lookup_record(
+                    node_manifest["workspace_id"],
+                    node_manifest["node_id"],
+                    record_ref["solution_key"],
+                    self._catalog,
+                )
+                if lookup.record is None:
+                    raise _RepositoryError("durable_generation_invalid")
+                loaded = self.load_payload(lookup.record, self._catalog)
+                if loaded.outputs is None:
+                    raise _RepositoryError("durable_generation_invalid")
+                validation = validate_durable_settled_outputs(
+                    dict(loaded.outputs),
+                    lookup.record.output_descriptors,
+                    self._catalog,
+                    validation_context,
+                )
+                if not validation.eligible or validation.canonical_payload is None:
+                    raise _RepositoryError("durable_generation_invalid")
+                exports.append(
+                    ProjectSolutionSaveRecordExport(
+                        record=lookup.record,
+                        canonical_payload=validation.canonical_payload,
+                        maximum_reuse_scope="durable",
+                        is_current=False,
+                    )
+                )
+        return tuple(exports)
+
+    def reachable_generation_pairs(
+        self,
+        generation_pairs: Iterable[tuple[str, str]],
+    ) -> frozenset[Path]:
+        if isinstance(generation_pairs, (str, bytes)):
+            raise TypeError("generation pairs must be an iterable")
+        reachable: set[Path] = set()
+        for generation_id, manifest_set_digest in tuple(generation_pairs):
+            inspection = self._inspect_generation(
+                generation_id,
+                expected_manifest_set_digest=manifest_set_digest,
+            )
+            reachable.update(inspection.paths)
+        return frozenset(reachable)
+
+    def generation_storage_bytes(self) -> int:
+        self._require_open()
+        if not self._active_generation_id or not self._active_manifest_set_digest:
+            return 0
+        inspection = self._inspect_generation(
+            self._active_generation_id,
+            expected_manifest_set_digest=self._active_manifest_set_digest,
+        )
+        total = 0
+        for path in inspection.paths:
+            path_stat = os.lstat(path)
+            if _is_link_or_reparse(path_stat) or not stat.S_ISREG(path_stat.st_mode):
+                raise _RepositoryError("durable_path_unsafe")
+            total += int(path_stat.st_size)
+        return total
+
+    def enumerate_orphan_candidates(
+        self,
+    ) -> tuple[tuple[str, ...], bool]:
+        self._require_open()
+        try:
+            root_stat = os.lstat(self._root)
+        except FileNotFoundError:
+            return (), True
+        if _is_link_or_reparse(root_stat) or not stat.S_ISDIR(root_stat.st_mode):
+            raise _RepositoryError("durable_path_unsafe")
+        stack = [self._root]
+        candidates: list[str] = []
+        scanned = 0
+        scan_complete = True
+        while stack:
+            directory = stack.pop()
+            with os.scandir(directory) as entries:
+                ordered = sorted(entries, key=lambda item: item.name)
+            for entry in ordered:
+                scanned += 1
+                if scanned > MAX_PROJECT_SOLUTION_ORPHAN_SCAN_ENTRIES:
+                    scan_complete = False
+                    stack.clear()
+                    break
+                entry_stat = entry.stat(follow_symlinks=False)
+                if _is_link_or_reparse(entry_stat):
+                    raise _RepositoryError("durable_reparse_rejected")
+                path = Path(entry.path)
+                if stat.S_ISDIR(entry_stat.st_mode):
+                    stack.append(path)
+                    continue
+                if not stat.S_ISREG(entry_stat.st_mode):
+                    raise _RepositoryError("durable_path_unsafe")
+                relative = path.relative_to(self._root).as_posix()
+                if any(pattern.fullmatch(relative) for pattern in _PRUNABLE_PATH_PATTERNS):
+                    candidates.append(relative)
+        ordered_candidates = tuple(sorted(set(candidates)))
+        if len(ordered_candidates) > MAX_PROJECT_SOLUTION_ORPHAN_CANDIDATES:
+            ordered_candidates = ordered_candidates[:MAX_PROJECT_SOLUTION_ORPHAN_CANDIDATES]
+            scan_complete = False
+        return ordered_candidates, scan_complete
 
     def enumerate_reachable_paths(
         self,

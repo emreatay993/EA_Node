@@ -23,7 +23,7 @@ from ea_node_editor.persistence.artifact_refs import (
 from ea_node_editor.persistence.artifact_store import ProjectArtifactStore, format_workspace_artifact_folder
 from ea_node_editor.ui.shell.controllers.project_session_controller import ProjectSessionController
 from ea_node_editor.ui.shell.host_presenter import ShellHostPresenter
-from tests.test_project_save_as_flow import _AcceptingSelfContainedSaveAsDialog, _ProjectHostStub
+from tests.test_project_save_as_flow import _ProjectHostStub
 
 
 class _SignalStub:
@@ -235,7 +235,7 @@ class TabularProjectManagedSaveFlowTests(unittest.TestCase):
     @staticmethod
     def _tabular_document(*, node_properties: dict, artifact_store: dict) -> dict:
         return {
-            "schema_version": 1,
+            "schema_version": 5,
             "project_id": "proj_tabular_managed",
             "name": "Tabular Managed Data",
             "active_workspace_id": "ws_1",
@@ -274,7 +274,7 @@ class TabularProjectManagedSaveFlowTests(unittest.TestCase):
             "metadata": {"artifact_store": artifact_store},
         }
 
-    def test_save_project_promotes_referenced_tabular_source_and_discards_unreferenced_cache_scratch(self) -> None:
+    def test_save_project_copies_referenced_tabular_source_and_defers_staged_cleanup(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
             source_project = root / "source" / "tabular.cxproj"
@@ -324,7 +324,14 @@ class TabularProjectManagedSaveFlowTests(unittest.TestCase):
                     },
                 },
             )
-            host = _ProjectHostStub(project_path=str(source_project), persistent_document=persistent_document)
+            with patch(
+                "ea_node_editor.addons.tabular_data.catalog._find_spec",
+                return_value=object(),
+            ):
+                host = _ProjectHostStub(
+                    project_path=str(source_project),
+                    persistent_document=persistent_document,
+                )
             controller = ProjectSessionController(host)  # type: ignore[arg-type]
 
             with patch.object(
@@ -355,8 +362,8 @@ class TabularProjectManagedSaveFlowTests(unittest.TestCase):
             self.assertEqual(artifact_store["artifacts"]["tabular_source.weather"]["artifact_kind"], "tabular_source")
             self.assertEqual(artifact_store["artifacts"]["tabular_source.weather"]["node_workspace_name"], "Main")
             self.assertEqual(managed_source_path.read_text(encoding="utf-8"), "station,temp\nA,21.5\n")
-            self.assertFalse(staged_source_path.exists())
-            self.assertFalse(staged_cache_path.exists())
+            self.assertTrue(staged_source_path.exists())
+            self.assertTrue(staged_cache_path.exists())
 
     def test_save_as_self_contained_copy_preserves_managed_tabular_source_and_selected_cache(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -401,9 +408,15 @@ class TabularProjectManagedSaveFlowTests(unittest.TestCase):
             )
             target_project = root / "copies" / "clone_tabular.cxproj"
             stale_target_staging = target_project.with_name("clone_tabular.data") / "nodes" / "Old Node [99999999]" / "tmp" / "out" / "old.parquet"
-            stale_target_staging.parent.mkdir(parents=True, exist_ok=True)
-            stale_target_staging.write_bytes(b"stale")
-            host = _ProjectHostStub(project_path=str(source_project), persistent_document=persistent_document)
+            target_project.parent.mkdir(parents=True, exist_ok=True)
+            with patch(
+                "ea_node_editor.addons.tabular_data.catalog._find_spec",
+                return_value=object(),
+            ):
+                host = _ProjectHostStub(
+                    project_path=str(source_project),
+                    persistent_document=persistent_document,
+                )
             controller = ProjectSessionController(host)  # type: ignore[arg-type]
 
             with patch.object(
@@ -414,10 +427,11 @@ class TabularProjectManagedSaveFlowTests(unittest.TestCase):
                 "PyQt6.QtWidgets.QFileDialog.getSaveFileName",
                 return_value=(str(target_project), "COREX Project (*.cxproj)"),
             ), patch(
-                "ea_node_editor.ui.dialogs.project_save_as_dialog.ProjectSaveAsDialog",
-                _AcceptingSelfContainedSaveAsDialog,
+                "PyQt6.QtWidgets.QMessageBox.warning",
             ):
-                controller.save_project_as()
+                result = controller.save_project_as()
+
+            self.assertEqual(result.status, "saved", result.reason_code)
 
             saved_doc = json.loads(target_project.read_text(encoding="utf-8"))
             saved_properties = saved_doc["workspaces"][0]["nodes"][0]["properties"]

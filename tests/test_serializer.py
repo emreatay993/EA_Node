@@ -5,7 +5,10 @@ import json
 import tempfile
 import unittest
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import Mock, patch
+
+import pytest
+import ea_node_editor.persistence.serializer as serializer_module
 
 from ea_node_editor.common.payload_tools import document_fingerprint
 from ea_node_editor.graph.model import GraphModel
@@ -1682,6 +1685,188 @@ class SerializerLegacyPlotSessionLayoutTests(unittest.TestCase):
         round_tripped = serializer.to_persistent_document(loaded_project)
 
         self.assertNotIn("plot_session_layout", round_tripped)
+
+
+def test_staged_create_new_commit_never_clobbers_a_racing_project() -> None:
+    serializer = JsonProjectSerializer(build_default_registry())
+    document = serializer.to_persistent_document(GraphModel().project)
+    with tempfile.TemporaryDirectory() as temp_dir:
+        target = Path(temp_dir) / "race.cxproj"
+        stage = serializer.stage_document(target, document, "create_new")
+        target.write_bytes(b"racing project")
+        try:
+            publication = serializer.commit_staged_document(stage)
+        finally:
+            serializer.discard_staged_document(stage)
+        assert publication.state == "not_published"
+        assert not publication.committed
+        assert target.read_bytes() == b"racing project"
+
+
+def test_create_new_target_appearing_during_atomic_attempt_is_published_state(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    serializer = JsonProjectSerializer(build_default_registry())
+    target = tmp_path / "attempt-race.cxproj"
+    stage = serializer.stage_document(
+        target,
+        serializer.to_persistent_document(GraphModel().project),
+        "create_new",
+    )
+
+    def race_during_attempt(_source, destination) -> None:  # noqa: ANN001
+        Path(destination).write_bytes(b"racing project")
+        raise FileExistsError
+
+    monkeypatch.setattr(serializer_module.os, "link", race_during_attempt)
+    try:
+        publication = serializer.commit_staged_document(stage)
+    finally:
+        serializer.discard_staged_document(stage)
+
+    assert publication.state == "published"
+    assert publication.committed
+    assert target.read_bytes() == b"racing project"
+
+
+def test_publication_result_rejects_cross_state_reason_pairs() -> None:
+    with pytest.raises(ValueError, match="state/reason"):
+        serializer_module.ProjectDocumentPublicationResult(
+            "published",
+            "project_document_not_published",
+        )
+
+
+@pytest.mark.parametrize("commit_mode", ["create_new", "replace_current"])
+def test_atomic_helper_publish_then_raise_is_still_published(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    commit_mode: str,
+) -> None:
+    serializer = JsonProjectSerializer(build_default_registry())
+    target = tmp_path / f"{commit_mode}.cxproj"
+    if commit_mode == "replace_current":
+        target.write_bytes(b"previous")
+    stage = serializer.stage_document(
+        target,
+        serializer.to_persistent_document(GraphModel().project),
+        commit_mode,
+    )
+    helper_name = "replace" if commit_mode == "replace_current" else "link"
+    real_helper = (
+        serializer_module.os.replace
+        if commit_mode == "replace_current"
+        else serializer_module.os.link
+    )
+
+    def publish_then_raise(source, destination) -> None:  # noqa: ANN001
+        real_helper(source, destination)
+        raise OSError("raised after publication")
+
+    monkeypatch.setattr(serializer_module.os, helper_name, publish_then_raise)
+    try:
+        publication = serializer.commit_staged_document(stage)
+        assert publication.state == "published"
+        assert publication.committed
+        serializer.verify_committed_document(stage)
+    finally:
+        serializer.discard_staged_document(stage)
+
+
+@pytest.mark.parametrize("commit_mode", ["create_new", "replace_current"])
+def test_atomic_helper_failure_before_attempt_is_not_published(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    commit_mode: str,
+) -> None:
+    serializer = JsonProjectSerializer(build_default_registry())
+    target = tmp_path / f"before-{commit_mode}.cxproj"
+    previous = b"previous"
+    if commit_mode == "replace_current":
+        target.write_bytes(previous)
+    stage = serializer.stage_document(
+        target,
+        serializer.to_persistent_document(GraphModel().project),
+        commit_mode,
+    )
+    helper_name = "replace" if commit_mode == "replace_current" else "link"
+    monkeypatch.setattr(
+        serializer_module.os,
+        helper_name,
+        lambda *_args: (_ for _ in ()).throw(OSError("before attempt")),
+    )
+    try:
+        publication = serializer.commit_staged_document(stage)
+    finally:
+        serializer.discard_staged_document(stage)
+    assert publication.state == "not_published"
+    assert not publication.committed
+    if target.exists():
+        assert target.read_bytes() == previous
+    else:
+        assert commit_mode == "create_new"
+
+
+def test_unreadable_postattempt_probe_is_publication_uncertain(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    serializer = JsonProjectSerializer(build_default_registry())
+    target = tmp_path / "uncertain.cxproj"
+    stage = serializer.stage_document(
+        target,
+        serializer.to_persistent_document(GraphModel().project),
+        "create_new",
+    )
+    real_link = serializer_module.os.link
+    real_fact = serializer_module._publication_target_fact  # noqa: SLF001
+    probe_count = 0
+
+    def publish_then_raise(source, destination) -> None:  # noqa: ANN001
+        real_link(source, destination)
+        raise OSError("raised after publication")
+
+    def unreadable_after_attempt(path):  # noqa: ANN001, ANN202
+        nonlocal probe_count
+        probe_count += 1
+        if probe_count > 1:
+            raise OSError("unreadable")
+        return real_fact(path)
+
+    monkeypatch.setattr(serializer_module.os, "link", publish_then_raise)
+    monkeypatch.setattr(serializer_module, "_publication_target_fact", unreadable_after_attempt)
+    try:
+        publication = serializer.commit_staged_document(stage)
+    finally:
+        serializer.discard_staged_document(stage)
+    assert publication.state == "publication_uncertain"
+    assert publication.committed
+
+
+def test_save_document_skips_cleanup_after_committed_verification_failure(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    serializer = JsonProjectSerializer(build_default_registry())
+    target = tmp_path / "verify-failure.cxproj"
+    target.write_bytes(b"previous")
+    real_replace = serializer_module.os.replace
+
+    def publish_corrupt_then_raise(source, destination) -> None:  # noqa: ANN001
+        real_replace(source, destination)
+        Path(destination).write_bytes(b"corrupt")
+        raise OSError("raised after publication")
+
+    cleanup = Mock()
+    monkeypatch.setattr(serializer_module.os, "replace", publish_corrupt_then_raise)
+    monkeypatch.setattr(serializer_module, "collect_project_image_garbage", cleanup)
+    with pytest.raises(OSError, match="verification failed"):
+        serializer.save_document(
+            str(target),
+            serializer.to_persistent_document(GraphModel().project),
+        )
+    cleanup.assert_not_called()
 
 
 if __name__ == "__main__":

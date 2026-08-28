@@ -117,6 +117,11 @@ Only `ACCEPTED` satisfies a dependent task.
   - detailed task-first plan;
   - sub-agents own exploration, implementation, and review;
   - orchestrator rereads plan and ledger after compaction.
+  - T08 first Save and distinct Save As are self-contained create-new/no-clobber;
+    only normal Save may replace the currently bound project, and project-file-only
+    Save As is removed;
+  - user authorized the T08 material revision and no further approval pause after
+    independent plan closure.
 
 ## Task Overview
 
@@ -129,7 +134,7 @@ Only `ACCEPTED` satisfies a dependent task.
 | T05 | Shell invalidation and freshness projection | T03, T04 plus revised T05 contract review | `ACCEPTED` | `/root/t05_explorer` | `/root/t05_implementer_recovery` | `/root/t05_reviewer` | accepted: no P0-P3; shell/cache/QML closure green | none |
 | T06 | Scoped viewer invalidation | T03-T05 plus revised T06 contract review | `ACCEPTED` | `/root/t06_explorer` | `/root/t06_implementer` | `/root/t06_reviewer` | accepted: no P0-P3; participant-local viewer acceptance and focused/fast evidence green | none |
 | T07 | Durable solution repository | T01-T04 | `ACCEPTED` | `/root/t07_explorer` | `/root/t07_implementer_recovery` | `/root/t07_reviewer` | accepted: no P0-P3; durable repository/security evidence green | none |
-| T08 | Save and Save-As transactions | T07 | `PLANNED_BLOCKED_PENDING_APPROVAL` | unassigned | unassigned | unassigned | none | wait for T07 |
+| T08 | Save and Save-As transactions | T07 | `ACCEPTED` | `/root/t08_explorer` | `/root/t08_implementer` | `/root/t08_reviewer` | accepted: no P0-P3; copy-on-write transaction evidence green | none |
 | T09 | Closeout and acceptance | T01-T08 | `PLANNED_BLOCKED_PENDING_APPROVAL` | unassigned | unassigned | unassigned | none | wait for all tasks |
 
 ## Per-Task Resume And Integration Records
@@ -146,8 +151,8 @@ test output must name the exact command and result or a stable log path.
 | T04 | T01-T03 accepted working-tree state; HEAD `86a5f562e7c5c9d7d52dad97f842a89631508a26` | `C:\Users\emre_\PycharmProjects\EA_Node_Editor` | accepted T01-T03 diff plus prohibited plan/spec paths | revised T04 plan SHA-256 `8C8677AD60353B26A37A367B32616A30D52310CFCC8F2B0CC2E0A131918CC3BC` | `/root/t04_explorer` accepted: transport/event/store/headless boundary map, exact reuse validation and scope drift | `/root/t04_implementer`; working-tree diff; no commit | core 66; protocol/client/headless/store 150 + 186 subtests; worker/dataflow 67 + 5; process/selected/start/run/legacy 7; maps/Ruff/diff pass | `/root/t04_reviewer`: no P0-P3; accept | none | sequential shared checkout |
 | T05 | T01-T04 accepted working-tree state; HEAD `86a5f562e7c5c9d7d52dad97f842a89631508a26` | `C:\Users\emre_\PycharmProjects\EA_Node_Editor` | accepted T01-T04 diff plus prohibited plan/spec paths | revised T05 plan SHA-256 `2F3626EB5620181CE6790E2F8D80139F12A525858551F6542FE61BC65027F82D` | `/root/t05_explorer` accepted: history/dispatch/cache/projection/availability/media/API-removal consumer map and store start-failure drift | `/root/t05_implementer_recovery`; audited/completed partial working-tree diff; no commit | exact closure 7; expanded store/headless/run/port/media/DPF 168 + 17 subtests; prior locked suites/maps/indexes/Ruff/diff pass; tooltip/Ruff baselines isolated | `/root/t05_reviewer`: no P0-P3; accept | none | sequential shared checkout |
 | T06 | HEAD `63e9786f`; accepted T01-T05 foundation | `C:\Users\emre_\PycharmProjects\EA_Node_Editor` | prohibited `docs/specs/INDEX.md` and Physical Simulation plan only | participant-local T06 plan SHA-256 `1AD2CF1FE568683497504B9EC2ED51B6BD269A53DBC53DCD6100D89515F6F58C` | `/root/t06_explorer` accepted: every invalidator/global reset, bridge/client/service epoch, worker filter, request registry, exact APIs, test/map owner | `/root/t06_implementer`; commit `057a507a`; no push | reopened 10 + 23 subtests; expanded focused 404 + 244 subtests; client/service/headless/store 160 + 64; DPF 25 + 3 and generator check; SSH 17; process reuse xdist 2; fast 4092 passed, 2 skipped, exactly 2 approved Model Viewer fixture baselines; maps/Ruff/diff/scope/process-leak pass | `/root/t06_reviewer`: no P0-P3; accept | none | sequential shared checkout; individual T06 commit |
-| T07 | HEAD `057a507a`; accepted T01-T06 | `C:\Users\emre_\PycharmProjects\EA_Node_Editor` | prohibited `docs/specs/INDEX.md` and Physical Simulation plan only; approved plan/ledger revision plus scoped T07 diff | approved T07 whole-plan SHA-256 `9E4C0EDC7030C466E8357F71670B3EB591C432EC9A82847E38323C0084ECC456` | `/root/t07_explorer` accepted: store/backend seam, artifact/path primitives, codec eligibility, metadata/lifecycle owners, lazy-load threat model, exact scope/tests/maps | `/root/t07_implementer_recovery`; accepted working-tree diff; scoped commit pending | real artifact probes 49; prior/new closure 55; repository/records/value 177; store/runtime 10; artifact/project 2; serializer/boundary/import 4; all ten modules 404 + 92 subtests; maps/indexes/Ruff/diff/scope/privacy pass | `/root/t07_reviewer`: no P0-P3; accept | none | sequential shared checkout; individual T07 commit |
-| T08 | pending assignment | pending assignment | pending | plan T08; hash pending | none | none | none | none | none | sequential shared checkout |
+| T07 | HEAD `057a507a`; accepted T01-T06 | `C:\Users\emre_\PycharmProjects\EA_Node_Editor` | prohibited `docs/specs/INDEX.md` and Physical Simulation plan only; approved plan/ledger revision plus scoped T07 diff | approved T07 whole-plan SHA-256 `9E4C0EDC7030C466E8357F71670B3EB591C432EC9A82847E38323C0084ECC456` | `/root/t07_explorer` accepted: store/backend seam, artifact/path primitives, codec eligibility, metadata/lifecycle owners, lazy-load threat model, exact scope/tests/maps | `/root/t07_implementer_recovery`; commit `2bd7ffe1`; no push | real artifact probes 49; prior/new closure 55; repository/records/value 177; store/runtime 10; artifact/project 2; serializer/boundary/import 4; all ten modules 404 + 92 subtests; maps/indexes/Ruff/diff/scope/privacy pass | `/root/t07_reviewer`: no P0-P3; accept | none | sequential shared checkout; individual T07 commit |
+| T08 | HEAD `2bd7ffe1`; accepted T01-T07 | `C:\Users\emre_\PycharmProjects\EA_Node_Editor` | prohibited `docs/specs/INDEX.md` and Physical Simulation plan only; finding-revised plan/ledger plus scoped T08 diff | accepted finding-revised T08 whole-plan SHA-256 `0DAB80DAC9E13AAA227135B721B2B9DCA2CF7F33E82F343EE186D8CFAC49857C` | `/root/t08_explorer` accepted: destructive artifact/save order, T07 adapter gaps, metadata/binding transitions, failure matrix, exact scope/tests/maps | `/root/t08_implementer`; accepted working-tree diff; scoped commit pending | namespace store 48; repository/headless/save 90 + 20 subtests; expanded scope 366 + 117; final independent baseline 354 + 117; maps/Ruff/diff/scope/privacy pass | `/root/t08_reviewer`: no P0-P3; accept | none | sequential shared checkout; individual T08 commit |
 | T09 | pending assignment | pending assignment | pending | plan T09; hash pending | none | none | none | none | none | sequential shared checkout |
 
 ## T02 Classification Approval Gate
@@ -444,17 +449,37 @@ The drafter and reviewer must be different sub-agents.
   - current dirty-worktree test artifacts that must not be overwritten.
 - Locked implementation scope: plan T08 only.
 - Required implementation evidence:
-  - stage-by-stage failure injection;
-  - previous project/manifest/artifact preservation;
-  - portable Save As reopen;
-  - reachability prune correctness;
-  - current-schema rejection and regeneration message.
+  - one non-reentrant guard and exact document/runtime solution snapshot tokens;
+  - copy-on-write artifact migration/promotion, immutable image staging, and zero
+    source/destination deletion or overwrite before project-file publication;
+  - execution-neutral solution export/adoption/GC DTOs and factory ports, active-
+    generation merge, durable-maximum session export, removed-owner filter, and
+    destination artifact validation;
+  - first Save/distinct Save As self-contained create-new no-clobber policy plus
+    normal Save replace-current-only behavior;
+  - candidate-only metadata/temp rewrites and live-state immutability until adoption;
+  - sole `.cxproj` commit point, raw reopen/canonical-byte/project/pointer/artifact/
+    image/generation validation, and expected token/namespace binding adoption;
+  - exact saved/failed/committed-not-adopted result/reason matrix;
+  - source mutation/autosave/project replacement/binding drift and create-new race
+    failure injection with exact disk/live assertions;
+  - source-deletion portability fixture spanning staged/managed artifacts, image,
+    ordinary durable value, and managed-artifact durable solution reuse;
+  - previous+new protected bounded cleanup and later active-only retry; GC failure
+    never changes save success;
+  - removal of project-file-only Save As and proof that no T08 save path invokes
+    destructive legacy promotion/migration helpers;
+  - publication-aware committed state, exact postcommit artifact union/integrity,
+    fresh committed-generation reopen, deterministic full-snapshot token binding,
+    complete conservative solution bytes, retry-safe deferred cleanup/rescan, and
+    the three directly affected test modules;
+  - architecture, maps/indexes, focused suites, scope, and diff evidence.
 - Required review lenses:
   - transactional ordering;
   - destination/source isolation;
   - cleanup cannot delete committed content;
   - no migration/compatibility residue.
-- Acceptance record: `none`.
+- Acceptance record: `/root/t08_reviewer`; no P0-P3; accepted.
 
 ### T09 Closeout and acceptance
 
@@ -596,7 +621,26 @@ planning research.
 | L101 | T07 closure review reopened managed-artifact resolver callbacks and private-path metadata/drive/home/environment exclusions; prior seven findings remained closed. | `/root/t07_reviewer`. |
 | L102 | T07 recovery added callback-free managed-artifact inspection and recursive private-path rejection within scope; real artifact probes and the expanded ten-module suite passed. | `/root/t07_implementer_recovery`. |
 | L103 | Accepted T07 after independent closure review found no P0-P3 issues; opened the individual T07 commit boundary. | `/root/t07_reviewer`. |
+| L104 | Created local individual T07 commit `2bd7ffe1`; staged-scope and private-provenance audits passed; no push. | Orchestrator commit boundary. |
+| L105 | Opened read-only T08 Save/Save As transaction exploration at accepted HEAD `2bd7ffe1`. | `/root/t08_explorer`. |
+| L106 | T08 exploration found destructive pre-commit artifact mutation, missing solution-save snapshot/export/GC ports, absent reopen/binding switch, and conflicting nonportable Save As options; returned T08 to its revision approval gate. | `/root/t08_explorer`. |
+| L107 | Independently reviewed and revised T08 around one guarded copy-on-write save transaction, execution-neutral solution export/adoption ports, atomic create-new Save As, committed-not-adopted semantics, and bounded protected GC. | `/root/t08_plan_reviewer`. |
+| L108 | User authorized the revised self-contained create-new no-clobber Save As policy and instructed the orchestrator not to pause for another approval after independent plan closure. | User authorization. |
+| L109 | Corrected T08 active-pointer ownership, solution-artifact order, no-I/O adoption handoff, digest-bound GC protection, cache-degradation/result shapes, cleanup bounds, create-new publication, global failure semantics, locked scope, callback order, and ledger state. | `/root/t08_plan_reviewer`. |
+| L110 | Independently accepted corrected T08 plan hash `166D4ED94A5352FA699C7B078236E3EBB7E3CBF1227F0C7985CC88BB5C598F3E` with no P0-P2 findings under standing user authorization. | `/root/t08_plan_reviewer`. |
+| L111 | Assigned accepted T08 scope to `/root/t08_implementer` in the sequential shared checkout. | Orchestrator assignment. |
+| L112 | T08 implementation completed the guarded copy-on-write transaction, no-clobber publication, solution export/adoption, reopen verification, and protected GC with the locked focused suites green; moved to independent review. | `/root/t08_implementer`. |
+| L113 | Independent T08 review reopened publication-state classification, committed artifact/solution revalidation, snapshot payload binding/shape, solution byte estimation, retryable bounded GC, and three directly broken test modules. | `/root/t08_reviewer`. |
+| L114 | Revised T08 closure contract for publication-aware commit classification, postcommit artifact/generation verification, deterministic full-snapshot binding, conservative complete solution-byte accounting, retry-safe GC/rescan, and three directly affected test modules. | `/root/t08_plan_reviewer`. |
+| L115 | Removed remaining T08 closure contradictions by making solution staging backend-free before commit and classifying replace/install exceptions through conservative publication state and committed-not-adopted crash semantics. | `/root/t08_plan_reviewer`. |
+| L116 | Corrected verified-publication versus publication-uncertain disk authority across the T08 transaction, failure matrix, crash semantics, and global test matrix. | `/root/t08_plan_reviewer`. |
+| L117 | Independently accepted finding-revised T08 plan hash `0DAB80DAC9E13AAA227135B721B2B9DCA2CF7F33E82F343EE186D8CFAC49857C` with no P0-P2 findings. | `/root/t08_plan_reviewer`. |
+| L118 | T08 implementation resolved publication classification, postcommit sidecar verification, full snapshot binding, solution byte estimates, retry-safe GC/rescan, and affected-test findings; expanded focused evidence passed. | `/root/t08_implementer`. |
+| L119 | T08 closure review closed the six transaction findings and retained one P2 strict `ProjectSolutionSaveResult` namespace-shape validation gap. | `/root/t08_reviewer`. |
+| L120 | T08 implementation applied shared strict namespace validation and exact type/control/whitespace/4,096-byte boundary coverage; expanded scoped evidence passed. | `/root/t08_implementer`. |
+| L121 | Accepted T08 after independent closure review found no P0-P3 issues; opened the individual T08 commit boundary. | `/root/t08_reviewer`. |
 
 ## Current Next Action
 
-Create the scoped individual T07 commit without pushing, then open T08 exploration.
+Create the scoped individual T08 commit without pushing, then open T09 closeout
+exploration.
