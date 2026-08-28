@@ -1,10 +1,19 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
+import hashlib
+import json
+from pathlib import Path
+import struct
+import zlib
 
 import pytest
 
 from ea_node_editor.nodes.bootstrap import build_builtin_registry
+from ea_node_editor.nodes.output_artifacts import register_staged_artifact
+from ea_node_editor.execution.runtime_snapshot import RuntimeSnapshotContext
+from ea_node_editor.execution.worker_runtime import RuntimeArtifactService
+from ea_node_editor.persistence.artifact_store import ProjectArtifactStore
 from ea_node_editor.nodes.core_data_types import (
     GRAPH_ARRAY_DATA_TYPE_ID,
     GRAPH_DICTIONARY_DATA_TYPE_ID,
@@ -20,6 +29,8 @@ from ea_node_editor.runtime_contracts import (
     DataTypeFamilySpec,
     DataTypeSpec,
     INTERVAL_1D_GRAPH_DATA_TYPE_ID,
+    IMAGE_VALUE_DATA_TYPE_ID,
+    ImageValue,
     Interval1D,
     RuntimeArtifactRef,
     RuntimeHandleRef,
@@ -31,6 +42,14 @@ from ea_node_editor.runtime_contracts import (
     deserialize_runtime_value,
     serialize_runtime_value,
 )
+from ea_node_editor.runtime_contracts.runtime_values import (
+    validate_durable_settled_outputs,
+)
+from ea_node_editor.runtime_contracts.settled_results import (
+    SettledPortResult,
+    settled_outputs_to_payload,
+)
+from ea_node_editor.runtime_contracts.solution_records import SolutionOutputDescriptor
 
 ROOT_TYPE = "Test.Runtime.Root"
 INLINE_TYPE = "Test.Runtime.Inline"
@@ -41,6 +60,69 @@ SECRET_TYPE = "Test.Runtime.Secret"
 ARTIFACT_SIZE_BYTES = 12
 ARTIFACT_SHA256 = "a" * 64
 ARTIFACT_PROVENANCE = "corex.test.fixture"
+
+
+def _durable_catalog() -> DataTypeCatalog:
+    catalog = DataTypeCatalog()
+    catalog.register_many(
+        families=(
+            DataTypeFamilySpec("durable_test", "Durable", "type.test", "test"),
+        ),
+        types=(
+            DataTypeSpec(
+                "Test.Durable.Value",
+                "Value",
+                "durable_test",
+                lambda _value: True,
+                carriers=frozenset({"native", "inline", "artifact"}),
+                persistence="inline",
+            ),
+            DataTypeSpec(
+                "Test.Durable.Secret",
+                "Secret",
+                "durable_test",
+                lambda _value: True,
+                carriers=frozenset({"native"}),
+                persistence="never",
+                sensitivity="secret",
+            ),
+        ),
+        owner_id="tests",
+    )
+    catalog.freeze()
+    return catalog
+
+
+def _durable_outputs_and_descriptor(value: object):  # noqa: ANN202
+    catalog = _durable_catalog()
+    outputs = {
+        "result": SettledPortResult(status="value", value=DataTree.from_item(value))
+    }
+    try:
+        payload = settled_outputs_to_payload(outputs, catalog=catalog)
+        digest = hashlib.sha256(
+            json.dumps(
+                {"result": payload["result"]},
+                allow_nan=False,
+                ensure_ascii=False,
+                separators=(",", ":"),
+                sort_keys=True,
+            ).encode("utf-8")
+        ).hexdigest()
+    except Exception:  # noqa: BLE001 - hostile fixtures intentionally do not serialize.
+        digest = "a" * 64
+    descriptor = SolutionOutputDescriptor(
+        port_key="result",
+        status="value",
+        data_type_id="Test.Durable.Value",
+        concrete_data_type_ids=("Test.Durable.Value",),
+        data_access="item",
+        item_count=1,
+        payload_kinds=("artifact_ref",) if isinstance(value, RuntimeArtifactRef) else ("inline",),
+        payload_digest=digest,
+        payload_schema_version=1,
+    )
+    return catalog, outputs, (descriptor,)
 
 
 def _catalog() -> DataTypeCatalog:
@@ -980,3 +1062,497 @@ def test_core_viewer_session_type_accepts_only_typed_handle_refs() -> None:
             VIEWER_SESSION_DATA_TYPE_ID,
             {"session_id": "legacy-mapping"},
         )
+
+
+class _ArtifactContext:
+    def __init__(self, accepted: RuntimeArtifactRef | None = None) -> None:
+        self.accepted = accepted
+        self.calls = 0
+
+    def inspect_durable_artifact(self, value: RuntimeArtifactRef) -> str:
+        self.calls += 1
+        if value != self.accepted:
+            raise FileNotFoundError
+        return "managed"
+
+
+@pytest.mark.parametrize(
+    "value",
+    [
+        "temp://artifact",
+        "saved://artifact",
+        r"C:\private\result.dat",
+        "/private/result.dat",
+        "../private/result.dat",
+        r"..\private\result.dat",
+        "private/result.dat",
+        r"private\result.dat",
+        "staging/results/payload.bin",
+        r"staging\results\payload.bin",
+        "session-temporary/cache.bin",
+        r"session-temporary\cache.bin",
+        r"C:private\result.dat",
+        "~/.ssh/id_rsa",
+        r"%USERPROFILE%\.ssh\id_rsa",
+        "$HOME/.ssh/id_rsa",
+        r"${HOME}\.ssh\id_rsa",
+        {"__ea_runtime_value__": "secret_data", "token": "hidden"},
+        {"__ea_runtime_value__": "ssh_sftp_host_data", "host": "private"},
+        {1, 2},
+        b"raw",
+    ],
+)
+def test_durable_value_gate_rejects_private_paths_secrets_and_raw_carriers(
+    value: object,
+) -> None:
+    catalog, outputs, descriptors = _durable_outputs_and_descriptor(value)
+    validation = validate_durable_settled_outputs(
+        outputs,
+        descriptors,
+        catalog,
+        _ArtifactContext(),
+    )
+    assert not validation.eligible
+    assert validation.canonical_payload is None
+
+
+@pytest.mark.parametrize(
+    "value",
+    [
+        "private",
+        "staging",
+        "session-temporary",
+        "ordinary/folder/value",
+        "a..b",
+    ],
+)
+def test_durable_value_gate_preserves_ordinary_non_path_strings(value: str) -> None:
+    catalog, outputs, descriptors = _durable_outputs_and_descriptor(value)
+    assert validate_durable_settled_outputs(
+        outputs,
+        descriptors,
+        catalog,
+        _ArtifactContext(),
+    ).eligible
+
+
+def test_durable_value_gate_rejects_all_session_reference_carriers() -> None:
+    table = TabularDataRef(ref_id="table", resolver_id="resolver")
+    array = ArrayDataRef(ref_id="array", resolver_id="resolver", shape=(1,), dtype="float64")
+    values = (
+        RuntimeHandleRef(
+            data_type_id=HANDLE_TYPE,
+            schema_version=1,
+            handle_id="handle",
+            kind="test.handle",
+            owner_scope="run",
+            worker_generation=1,
+        ),
+        table,
+        array,
+        TabularWindowRef(ref_id="window", table_data=table),
+        ArraySlice2DRef(ref_id="slice", array_data=array),
+    )
+    for value in values:
+        catalog, outputs, descriptors = _durable_outputs_and_descriptor(value)
+        validation = validate_durable_settled_outputs(
+            outputs,
+            descriptors,
+            catalog,
+            _ArtifactContext(),
+        )
+        assert validation.reason_code == "durable_value_ineligible"
+
+
+def test_durable_value_gate_requires_managed_current_artifacts() -> None:
+    staged = RuntimeArtifactRef.staged(
+        "artifact",
+        data_type_id="Test.Durable.Value",
+        schema_version=1,
+        format="bin",
+        size_bytes=1,
+        sha256="a" * 64,
+        provenance="corex.test",
+    )
+    catalog, outputs, descriptors = _durable_outputs_and_descriptor(staged)
+    assert validate_durable_settled_outputs(
+        outputs,
+        descriptors,
+        catalog,
+        _ArtifactContext(),
+    ).reason_code == "durable_artifact_invalid"
+
+    managed = RuntimeArtifactRef.managed(
+        "artifact",
+        data_type_id="Test.Durable.Value",
+        schema_version=1,
+        format="bin",
+        size_bytes=1,
+        sha256="a" * 64,
+        provenance="corex.test",
+    )
+    catalog, outputs, descriptors = _durable_outputs_and_descriptor(managed)
+    assert validate_durable_settled_outputs(
+        outputs,
+        descriptors,
+        catalog,
+        _ArtifactContext(),
+    ).reason_code == "durable_artifact_invalid"
+    accepted = _ArtifactContext(managed)
+    validation = validate_durable_settled_outputs(
+        outputs,
+        descriptors,
+        catalog,
+        accepted,
+    )
+    assert validation.eligible
+    assert accepted.calls == 1
+
+
+def test_durable_value_gate_verifies_managed_artifact_content_integrity(
+    tmp_path: Path,
+) -> None:
+    validator_calls = 0
+
+    def hostile_validator(_value: object) -> bool:
+        nonlocal validator_calls
+        validator_calls += 1
+        return True
+
+    catalog = DataTypeCatalog()
+    catalog.register_many(
+        families=(DataTypeFamilySpec("durable_test", "Durable", "type.test", "test"),),
+        types=(
+            DataTypeSpec(
+                "Test.Durable.Value",
+                "Value",
+                "durable_test",
+                hostile_validator,
+                carriers=frozenset({"native", "inline", "artifact"}),
+                persistence="inline",
+            ),
+        ),
+        owner_id="tests",
+    )
+    catalog.freeze()
+    project_path = tmp_path / "artifact.cxproj"
+    store = ProjectArtifactStore(project_path=project_path, metadata=None)
+    store.ensure_staging_root(temporary_root_parent=tmp_path)
+    paths = store.node_artifact_paths(
+        artifact_id="durable-artifact",
+        workspace_id="workspace",
+        node_id="node",
+        io_dir="out",
+        filename="payload.bin",
+    )
+    payload_path = store.staged_target_path(paths.staged_relative_path)
+    payload_path.parent.mkdir(parents=True, exist_ok=True)
+    payload_path.write_bytes(b"portable")
+    staged = register_staged_artifact(
+        store=store,
+        artifact_id="durable-artifact",
+        payload_path=payload_path,
+        relative_path=paths.staged_relative_path,
+        slot="workspace:node:durable-artifact",
+        data_type_id="Test.Durable.Value",
+        schema_version=1,
+        format="bin",
+        provenance="corex.test",
+        entry_metadata=paths.metadata,
+    )
+    store.commit_referenced_artifacts(
+        referenced_staged_ids={staged.artifact_id},
+    )
+    managed = RuntimeArtifactRef.managed(
+        staged.artifact_id,
+        data_type_id=staged.data_type_id,
+        schema_version=staged.schema_version,
+        format=staged.format,
+        size_bytes=staged.size_bytes,
+        sha256=staged.sha256,
+        provenance=staged.provenance,
+    )
+    service = RuntimeArtifactService(
+        runtime_context=RuntimeSnapshotContext.from_snapshot(
+            None,
+            project_path=str(project_path),
+            artifact_store=store,
+        ),
+        data_types=catalog,
+    )
+    hostile_catalog = catalog
+    _fixture_catalog, outputs, descriptors = _durable_outputs_and_descriptor(managed)
+    catalog = hostile_catalog
+    validator_calls = 0
+    assert validate_durable_settled_outputs(
+        outputs,
+        descriptors,
+        catalog,
+        service.store,
+    ).eligible
+    assert validator_calls == 0
+    managed_path = store.resolve_managed_path(managed.artifact_id)
+    assert managed_path is not None
+    managed_path.write_bytes(b"mutated")
+    assert validate_durable_settled_outputs(
+        outputs,
+        descriptors,
+        catalog,
+        service.store,
+    ).reason_code == "durable_artifact_invalid"
+    assert validator_calls == 0
+
+
+@pytest.mark.parametrize(
+    "private_path",
+    [
+        "../private/key",
+        r"..\private\key",
+        "private/key",
+        "staging/results/payload.bin",
+        "session-temporary/cache.bin",
+        r"C:private\result.dat",
+        "~/.ssh/id_rsa",
+        "~user/.ssh/id_rsa",
+        r"%USERPROFILE%\.ssh\id_rsa",
+        "%HOME%/.ssh/id_rsa",
+        "$HOME/.ssh/id_rsa",
+        r"${HOME}\.ssh\id_rsa",
+        r"%HOMEDRIVE%%HOMEPATH%\private\key",
+    ],
+)
+def test_durable_artifact_metadata_rejects_private_path_forms(
+    private_path: str,
+) -> None:
+    managed = RuntimeArtifactRef.managed(
+        "artifact",
+        data_type_id="Test.Durable.Value",
+        schema_version=1,
+        format="bin",
+        size_bytes=1,
+        sha256="a" * 64,
+        provenance="corex.test",
+        metadata={"nested": {"location": private_path}},
+    )
+    catalog, outputs, descriptors = _durable_outputs_and_descriptor(managed)
+    context = _ArtifactContext(managed)
+    validation = validate_durable_settled_outputs(
+        outputs,
+        descriptors,
+        catalog,
+        context,
+    )
+    assert not validation.eligible
+    assert validation.canonical_payload is None
+    assert context.calls == 0
+
+
+@pytest.mark.parametrize(
+    "ordinary_value",
+    [
+        "private",
+        "staging",
+        "session-temporary",
+        "ordinary/folder/value",
+        "~approximate",
+        "100%USERPROFILE%",
+        "C label",
+    ],
+)
+def test_durable_artifact_metadata_preserves_ordinary_strings(
+    ordinary_value: str,
+) -> None:
+    managed = RuntimeArtifactRef.managed(
+        "artifact",
+        data_type_id="Test.Durable.Value",
+        schema_version=1,
+        format="bin",
+        size_bytes=1,
+        sha256="a" * 64,
+        provenance="corex.test",
+        metadata={"nested": {"description": ordinary_value}},
+    )
+    catalog, outputs, descriptors = _durable_outputs_and_descriptor(managed)
+    context = _ArtifactContext(managed)
+    validation = validate_durable_settled_outputs(
+        outputs,
+        descriptors,
+        catalog,
+        context,
+    )
+    assert validation.eligible
+    assert validation.canonical_payload is not None
+    assert context.calls == 1
+
+
+def test_durable_value_gate_rejects_callbacks_without_invoking_them() -> None:
+    class Hostile:
+        def __iter__(self):  # noqa: ANN204
+            raise AssertionError("iterated")
+
+        def __repr__(self) -> str:
+            raise AssertionError("represented")
+
+        def __str__(self) -> str:
+            raise AssertionError("stringified")
+
+    catalog, outputs, descriptors = _durable_outputs_and_descriptor(Hostile())
+    validation = validate_durable_settled_outputs(
+        outputs,
+        descriptors,
+        catalog,
+        _ArtifactContext(),
+    )
+    assert validation.reason_code == "durable_value_ineligible"
+
+
+def test_durable_value_gate_does_not_invoke_catalog_validators() -> None:
+    safe_catalog, outputs, descriptors = _durable_outputs_and_descriptor("portable")
+    del safe_catalog
+    calls = 0
+
+    def hostile_validator(_value: object) -> bool:
+        nonlocal calls
+        calls += 1
+        raise AssertionError("catalog validator invoked")
+
+    catalog = DataTypeCatalog()
+    catalog.register_many(
+        families=(DataTypeFamilySpec("durable_test", "Durable", "type.test", "test"),),
+        types=(
+            DataTypeSpec(
+                "Test.Durable.Value",
+                "Value",
+                "durable_test",
+                hostile_validator,
+                carriers=frozenset({"native", "inline", "artifact"}),
+                persistence="inline",
+            ),
+        ),
+        owner_id="tests",
+    )
+    catalog.freeze()
+    validation = validate_durable_settled_outputs(
+        outputs,
+        descriptors,
+        catalog,
+        _ArtifactContext(),
+    )
+    assert validation.eligible
+    assert calls == 0
+
+
+def test_durable_value_gate_checks_declared_and_every_concrete_type() -> None:
+    catalog, outputs, descriptors = _durable_outputs_and_descriptor("portable")
+    secret_descriptor = replace(
+        descriptors[0],
+        concrete_data_type_ids=("Test.Durable.Secret",),
+    )
+    validation = validate_durable_settled_outputs(
+        outputs,
+        (secret_descriptor,),
+        catalog,
+        _ArtifactContext(),
+    )
+    assert validation.reason_code == "durable_value_ineligible"
+
+
+def test_durable_value_gate_binds_observed_carriers_to_descriptors() -> None:
+    catalog, outputs, descriptors = _durable_outputs_and_descriptor("portable")
+    mismatched = replace(descriptors[0], payload_kinds=("artifact_ref",))
+    validation = validate_durable_settled_outputs(
+        outputs,
+        (mismatched,),
+        catalog,
+        _ArtifactContext(),
+    )
+    assert validation.reason_code == "durable_value_ineligible"
+
+
+def test_durable_native_inline_limit_accepts_n_and_rejects_n_plus_one() -> None:
+    for encoded_size, eligible in ((1_048_576, True), (1_048_577, False)):
+        value = "x" * (encoded_size - 2)
+        catalog, outputs, descriptors = _durable_outputs_and_descriptor(value)
+        validation = validate_durable_settled_outputs(
+            outputs,
+            descriptors,
+            catalog,
+            _ArtifactContext(),
+        )
+        assert validation.eligible is eligible
+
+
+def _png_chunk(kind: bytes, payload: bytes) -> bytes:
+    return (
+        struct.pack(">I", len(payload))
+        + kind
+        + payload
+        + struct.pack(">I", zlib.crc32(kind + payload) & 0xFFFFFFFF)
+    )
+
+
+def _large_valid_png() -> bytes:
+    width = height = 512
+    ihdr = struct.pack(">IIBBBBB", width, height, 8, 6, 0, 0, 0)
+    raster = b"".join(b"\x00" + bytes(width * 4) for _row in range(height))
+    return (
+        b"\x89PNG\r\n\x1a\n"
+        + _png_chunk(b"IHDR", ihdr)
+        + _png_chunk(b"IDAT", zlib.compress(raster, level=0))
+        + _png_chunk(b"IEND", b"")
+    )
+
+
+def test_large_image_value_remains_session_only_without_durable_bytes() -> None:
+    catalog = build_builtin_registry().data_types
+    image = ImageValue.from_png(_large_valid_png())
+    outputs = {
+        "image": SettledPortResult(
+            status="value",
+            value=DataTree.from_item(image),
+        )
+    }
+    payload = settled_outputs_to_payload(outputs, catalog=catalog)
+    descriptor = SolutionOutputDescriptor(
+        port_key="image",
+        status="value",
+        data_type_id=IMAGE_VALUE_DATA_TYPE_ID,
+        concrete_data_type_ids=(IMAGE_VALUE_DATA_TYPE_ID,),
+        data_access="item",
+        item_count=1,
+        payload_kinds=("inline",),
+        payload_digest=hashlib.sha256(
+            json.dumps(
+                {"image": payload["image"]},
+                allow_nan=False,
+                ensure_ascii=False,
+                separators=(",", ":"),
+                sort_keys=True,
+            ).encode("utf-8")
+        ).hexdigest(),
+        payload_schema_version=1,
+    )
+    validation = validate_durable_settled_outputs(
+        outputs,
+        (descriptor,),
+        catalog,
+        _ArtifactContext(),
+    )
+    assert not validation.eligible
+    assert validation.canonical_payload is None
+
+
+def test_durable_value_gate_rejects_known_wire_markers_as_raw_mappings() -> None:
+    raw_marker = {
+        "__ea_runtime_value__": "typed_inline",
+        "data_type_id": "Test.Durable.Value",
+        "schema_version": 1,
+        "payload": "hidden",
+    }
+    catalog, outputs, descriptors = _durable_outputs_and_descriptor(raw_marker)
+    assert validate_durable_settled_outputs(
+        outputs,
+        descriptors,
+        catalog,
+        _ArtifactContext(),
+    ).reason_code == "durable_value_ineligible"

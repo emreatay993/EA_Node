@@ -39,6 +39,15 @@ class ProjectArtifactStoreTests(unittest.TestCase):
         self.assertEqual(layout.workspaces_root, project_path.with_name("demo_project.data") / "workspaces")
         self.assertEqual(layout.nodes_root, project_path.with_name("demo_project.data") / "nodes")
 
+    def test_solution_repository_uses_the_same_project_owned_sidecar_root(self) -> None:
+        project_path = Path("demo_project.cxproj")
+        layout = ProjectArtifactLayout.from_project_path(project_path)
+
+        self.assertEqual(
+            layout.sidecar_root / "solutions" / "v1",
+            project_path.with_name("demo_project.data") / "solutions" / "v1",
+        )
+
     def test_node_artifact_paths_create_tmp_and_final_paths_with_metadata(self) -> None:
         store = ProjectArtifactStore(project_path=None, metadata=None)
 

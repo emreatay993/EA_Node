@@ -15,7 +15,10 @@ from ea_node_editor.execution.runtime_snapshot import RuntimeSnapshot
 from ea_node_editor.runtime_contracts.data_types import DataTypeCatalog
 from ea_node_editor.runtime_contracts.runtime_values import (
     deserialize_runtime_value,
+    durable_settled_outputs_from_payload,
+    durable_settled_outputs_to_payload,
     serialize_runtime_value,
+    validate_durable_settled_outputs,
 )
 from ea_node_editor.runtime_contracts.settled_results import (
     MAX_OUTPUTS_PER_NODE,
@@ -675,10 +678,14 @@ class AcceptedOutputPayload:
                 raw_outputs,
                 max_outputs=MAX_OUTPUTS_PER_NODE,
             )
-            outputs = settled_output_mapping_from_payload(
-                raw_outputs,
-                catalog=catalog,
-                max_outputs=MAX_OUTPUTS_PER_NODE,
+            outputs = (
+                durable_settled_outputs_from_payload(dict(raw_outputs))
+                if residency is SolutionResidency.DURABLE
+                else settled_output_mapping_from_payload(
+                    raw_outputs,
+                    catalog=catalog,
+                    max_outputs=MAX_OUTPUTS_PER_NODE,
+                )
             )
         elif isinstance(self.outputs, Mapping) and all(
             isinstance(result, SettledPortResult)
@@ -698,10 +705,14 @@ class AcceptedOutputPayload:
                 self.outputs,
                 max_outputs=MAX_OUTPUTS_PER_NODE,
             )
-            outputs = settled_output_mapping_from_payload(
-                self.outputs,
-                catalog=catalog,
-                max_outputs=MAX_OUTPUTS_PER_NODE,
+            outputs = (
+                durable_settled_outputs_from_payload(dict(self.outputs))
+                if residency is SolutionResidency.DURABLE
+                else settled_output_mapping_from_payload(
+                    self.outputs,
+                    catalog=catalog,
+                    max_outputs=MAX_OUTPUTS_PER_NODE,
+                )
             )
         if any(result.status == "failed" for result in outputs.values()):
             raise ValueError("accepted outputs cannot contain failed port results")
@@ -715,7 +726,11 @@ class AcceptedOutputPayload:
             raise ValueError(
                 "completed accepted outputs with ports require a value result"
             )
-        output_payload = settled_outputs_to_payload(outputs, catalog=catalog)
+        output_payload = (
+            durable_settled_outputs_to_payload(dict(outputs))
+            if residency is SolutionResidency.DURABLE
+            else settled_outputs_to_payload(outputs, catalog=catalog)
+        )
         preflight_settled_output_mapping_payload(
             output_payload,
             max_outputs=MAX_OUTPUTS_PER_NODE,
@@ -743,10 +758,14 @@ class AcceptedOutputPayload:
         catalog: DataTypeCatalog | None = None,
     ) -> dict[str, SettledPortResult]:
         payload = _json_from_bytes(self.outputs, field_name="accepted outputs")
-        return settled_output_mapping_from_payload(
-            payload,
-            catalog=catalog,
-            max_outputs=MAX_OUTPUTS_PER_NODE,
+        return (
+            durable_settled_outputs_from_payload(dict(payload))
+            if self.residency is SolutionResidency.DURABLE
+            else settled_output_mapping_from_payload(
+                payload,
+                catalog=catalog,
+                max_outputs=MAX_OUTPUTS_PER_NODE,
+            )
         )
 
     def _to_payload(
@@ -792,6 +811,7 @@ def validate_accepted_output_payload(
     payload: AcceptedOutputPayload,
     *,
     catalog: DataTypeCatalog | None = None,
+    artifact_context: Any = None,
 ) -> None:
     if not isinstance(record, SolutionRecord):
         raise TypeError("record must be a SolutionRecord")
@@ -811,14 +831,26 @@ def validate_accepted_output_payload(
         descriptor.port_key: descriptor.status
         for descriptor in record.output_descriptors
     }
+    decoded_outputs = payload.decode_outputs(catalog=catalog)
     output_statuses = {
         port_key: result.status
-        for port_key, result in payload.decode_outputs(catalog=catalog).items()
+        for port_key, result in decoded_outputs.items()
     }
     if descriptor_statuses != output_statuses:
         raise ValueError(
             "accepted output port keys and statuses must match solution descriptors"
         )
+    if record.residency is SolutionResidency.DURABLE and artifact_context is not None:
+        if catalog is None:
+            raise ValueError("durable accepted outputs require a data-type catalog")
+        validation = validate_durable_settled_outputs(
+            decoded_outputs,
+            record.output_descriptors,
+            catalog,
+            artifact_context,
+        )
+        if not validation.eligible:
+            raise ValueError(validation.reason_code)
 
 
 @dataclass(slots=True, frozen=True, kw_only=True)

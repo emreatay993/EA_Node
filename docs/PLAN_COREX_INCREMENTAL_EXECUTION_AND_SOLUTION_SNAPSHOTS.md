@@ -330,14 +330,62 @@ values use validated artifact/blob/handle references.
 
 Add `ea_node_editor/execution/solution_store.py` as the only scheduler-facing
 store. It owns session records, node facts, record selection, invalidation, and
-record publication. It accepts an optional durable backend through a narrow
-protocol defined in the same module.
+record publication. It owns these execution-facing persistence ports; execution,
+worker, compiler, and store code never import `ea_node_editor.persistence`:
+
+```text
+DurableSolutionBackend
+  lookup_record(workspace_id, node_id, solution_key, catalog)
+    -> DurableLookupResult
+  load_payload(record, catalog)
+    -> DurablePayloadResult
+  stage_record(record, canonical_payload, catalog)
+    -> DurableStageResult
+  close() -> None
+
+DurableSolutionBackendFactory
+  open_backend(project_id, project_path, metadata_solution_store, catalog)
+    -> DurableBackendOpenResult
+
+DurableLookupResult
+  record: SolutionRecord | None
+  reason_code
+
+DurablePayloadResult
+  outputs: tuple[(port_key, SettledPortResult), ...] | None
+  reason_code
+
+DurableStageResult
+  record: SolutionRecord | None
+  reason_code
+
+DurableBackendOpenResult
+  backend: DurableSolutionBackend | None
+  solution_namespace_id
+  status_code
+  diagnostic
+```
+
+Result combinations are strict and type-specific as defined below; no result
+carries payload fields belonging to another result type. Diagnostics are sanitized
+UTF-8 capped at 512 bytes and never include raw
+metadata, secret values, absolute paths, or exception `repr`. `close()` is
+idempotent and never deletes repository content. Malformed/corrupt repository state
+crosses this port only as a deterministic result code, not a persistence exception.
+
+`durable_bound_active` requires a backend, a valid namespace, and an empty
+diagnostic. Every `durable_session_only_*` status requires `backend=None`, the
+runtime's valid session namespace, and exactly one sanitized bounded diagnostic.
+`durable_hit` requires a record/output; every other lookup/load reason forbids it.
+`durable_stage_published` and `durable_stage_existing_identical` require a record;
+every other stage reason forbids one.
 
 Add `ea_node_editor/persistence/solution_repository.py` as the durable backend.
-Execution never imports persistence codecs or concrete repositories. Shell
-composition in `ea_node_editor/ui/shell/composition/controllers.py` binds the
-repository to `CorexRuntime` only after the project-session services have validated
-an opened project. Session-only use keeps working with the in-memory backend.
+`SolutionRepository` structurally implements the execution ports. Shell and
+headless composition inject the concrete factory when constructing `CorexRuntime`.
+The runtime does not invoke the factory until authored project decoding succeeds
+and `bind_project_solution_store()` is called. Execution imports no concrete
+persistence implementation; session-only use requires no backend.
 
 The runtime binding contract is explicit:
 
@@ -345,38 +393,44 @@ The runtime binding contract is explicit:
 CorexRuntime.bind_project_solution_store(
   project_id,
   project_path,
-  repository,
-  active_generation_id,
-  active_generation_digest,
-)
-CorexRuntime.detach_project_solution_store(project_id, reason)
+  metadata_solution_store,
+) -> DurableBackendOpenResult
+CorexRuntime.detach_project_solution_store(project_id, reason) -> None
 ```
 
-New/unsaved projects use session residency only. Project replacement detaches the
-old repository under the existing replacement guard and invalidates incompatible
-session records/viewers. Save As prepares a candidate repository but does not
-switch the runtime binding until destination reopen validation succeeds. A failed
-Save As leaves the original binding untouched.
+Candidate construction and manifest-set validation complete before replacement.
+Under the runtime lifecycle lock, bind atomically detaches the previous store
+backend and installs the validated candidate or session-only state. Backend close,
+diagnostics, and callbacks occur after store/runtime locks are released.
+
+New/unsaved projects and missing/invalid solution metadata use session residency
+only. Runtime-generation reset releases runs/preparations/session records and
+loaded durable payload/negative caches while retaining the durable backend and
+immutable content. Project detach/replacement clears durable indexes/caches/facts,
+closes the backend, and never deletes sidecar content. Shutdown detaches/closes.
+Save As keeps the source binding until T08 destination reopen succeeds.
 
 Qt-free/headless construction uses dependency injection, not an execution-to-
 persistence import inside the store/compiler/worker:
 
 ```text
 CorexRuntime(
-  solution_repository_factory: SolutionRepositoryFactory | None = None,
+  solution_repository_factory: DurableSolutionBackendFactory | None = None,
 )
 ```
 
-`headless_runtime.py`'s project-loading/CLI composition supplies the persistence
-factory after it validates a project path. Tests may inject an in-memory or faulting
-factory. `execution/solution_store.py`, `execution_plan.py`, the compiler, and the
-worker never import the concrete persistence repository.
+Tests inject in-memory/faulting ports. `common/` remains a leaf and does not acquire
+a generic storage framework.
 
 Session namespace and retention are locked:
 
-- `solution_namespace_id = project_id` for saved projects;
-- unsaved projects receive one random in-memory namespace retained for that loaded
-  project lifetime; T07 persists that same value on first save;
+- a project keeps one namespace for its loaded lifetime;
+- valid solution metadata supplies the stored namespace;
+- a saved project without solution metadata uses `project_id` as its session-only
+  fallback;
+- an unsaved project receives one random namespace;
+- T08 persists the current namespace on first save and preserves it through Save
+  As, even when it differs from `project_id`;
 - maximum two session records per node (current plus newest historical);
 - maximum 4,096 session records per workspace;
 - maximum 536,870,912 bytes (512 MiB) of canonical session payload per workspace;
@@ -404,6 +458,37 @@ fact can become `current`. `solution_reuse_scope=never` records set
 `reuse_eligible=false`, are never inserted into the solution-key reuse index, and
 remain subject to the same retention limits. T03 adds this field to the contract
 and tests; it does not broaden any T02 classification.
+
+`CapturedNodeSolution` stores the declared maximum `solution_reuse_scope`, not a
+Boolean eligibility approximation. Record selection is deterministic:
+
+1. validate an exact current in-memory record;
+2. otherwise ask the bound durable backend for the exact workspace/node/solution
+   key;
+3. load and validate its payload only when preparation requests accepted outputs;
+4. install the durable record/index/fact atomically only after record and payload
+   pass binding, catalog, descriptor, digest, artifact, and value validation.
+
+A lazy-load failure installs no partial record, reuse index, fact, or payload.
+
+Publication follows the declared maximum:
+
+- `never`: publish only the existing non-reusable observation record;
+- `session`: use existing session publication;
+- `durable` without a valid backend or with a durably ineligible/oversized result:
+  publish a session record when ordinary session validation succeeds;
+- `durable` with a valid backend/payload: construct canonical payload and a complete
+  durable `SolutionRecord`, then call `stage_record`;
+- durable capacity/I/O/ineligibility failure may fall back to valid session
+  publication with a sanitized durable diagnostic;
+- same key/same result retains the established durable record;
+- same key/different result returns `durable_nondeterminism_conflict`, publishes no
+  replacement at either residency, preserves the established record, and leaves
+  the fact expired with `nondeterministic_solution_result`.
+
+Forced recomputation ignores records for reuse but still consults the established
+active/staged durable mapping for conflict detection. T07 reuses the existing T04
+worker payload path; it adds no worker or scheduler path.
 
 Each registered run stores per node the captured solution key and captured
 `NodeSolutionFact.revision`. On settlement, under the store lock:
@@ -437,6 +522,39 @@ SolutionStore RLock`; client calls never occur while holding the store lock.
 Adding durable storage changes a record's eligible residency, not the planner,
 solution key, or scheduler authority. Do not build separate session and durable
 cache frameworks.
+
+`runtime_contracts/runtime_values.py` owns one dependency-light durable value gate
+consumed by `prepared_execution.py`, `solution_store.py`,
+`solution_records.py`, and `solution_repository.py`:
+
+```text
+validate_durable_settled_outputs(outputs, descriptors, catalog, artifact_context)
+  -> DurableRuntimeValueValidation
+
+DurableRuntimeValueValidation
+  eligible
+  reason_code
+  canonical_payload: bytes | None
+```
+
+It traverses exact built-in/runtime-contract types without invoking user-controlled
+`repr`, iteration, callbacks, filesystem hooks, or network hooks. After exact
+structural/type validation, only the trusted `artifact_context` may perform bounded,
+no-follow local descriptor/content-integrity reads for a managed
+`RuntimeArtifactRef`; it never invokes methods supplied by the value. It validates
+the declared and every concrete catalog type for schema, assignability,
+`persistence != "never"`, and `sensitivity == "normal"`.
+
+Durable values are limited to strict JSON-native values, `DataTree`, `Interval1D`,
+`TypedInlineValue`, valid sub-1-MiB `ImageValue`, and validated managed
+`RuntimeArtifactRef`. Managed artifacts require managed scope plus current
+descriptor, target, size, SHA-256, provenance, containment, and content integrity.
+Reject staged artifacts, `RuntimeHandleRef`, `TabularDataRef`, `ArrayDataRef`,
+`TabularWindowRef`, `ArraySlice2DRef`, secret/SSH markers, callbacks,
+native/unknown objects, raw bytes/sets, `temp://`/`saved://`, absolute/private
+paths, staging/session-temporary paths, unsupported markers, or existing count/
+depth overflow. Values beyond the 1-MiB inline ceiling, including large
+`ImageValue`, remain session-only; T07 adds no image/blob worker carrier.
 
 #### Staged authority cutover
 
@@ -797,20 +915,112 @@ Use this current-schema sidecar layout:
   blobs/sha256/<first-two>/<sha256>
 ```
 
-`workspace-key` and `node-key` are SHA-256 path keys derived from logical IDs; the
-logical IDs remain inside validated manifests. Do not place untrusted IDs directly
-into paths.
+Path keys are full lowercase SHA-256 digests; untrusted logical IDs never appear in
+paths:
+
+```text
+workspace_key =
+  SHA256("corex-solution-workspace-key-v1\0" + UTF8(workspace_id))
+
+node_key =
+  SHA256("corex-solution-node-key-v1\0" + UTF8(node_id))
+```
 
 Generation directories, node manifests, records, and blobs are immutable after
 publication. Each durable output uses the existing data-type catalog codec and a
 bounded descriptor; never use pickle or assembly-qualified runtime-object
 serialization.
 
-Each immutable node manifest maps `solution_key` to `record_digest`; each record
-binds both values plus `result_digest`. A corrupt record digest/path never owns the
-solution key permanently: a valid recomputation may publish a new content-addressed
-record, and the next immutable generation points to it. Corrupt/unreachable records
-remain garbage until safe pruning.
+Strict canonical JSON schema 1 is:
+
+```text
+manifest-set.json
+  schema_version = 1
+  generation_id: 32 lowercase hex
+  solution_namespace_id: bounded string
+  node_manifests: sorted unique by (workspace_key, node_key)
+    workspace_key: 64 lowercase hex
+    node_key: 64 lowercase hex
+    relative_path: nodes/<workspace_key>/<node_key>.json
+    node_manifest_digest: 64 lowercase hex
+
+node manifest
+  schema_version = 1
+  solution_namespace_id: bounded string
+  workspace_id: bounded logical ID
+  node_id: bounded logical ID
+  workspace_key: exact derived key
+  node_key: exact derived key
+  records: sorted unique by solution_key
+    solution_key: 64 lowercase hex
+    record_digest: 64 lowercase hex
+
+record file
+  exact canonical JSON from strict SolutionRecord.to_payload()
+
+result blob
+  schema_version = 1
+  record_id: opaque bounded ID
+  solution_key: 64 lowercase hex
+  result_digest: 64 lowercase hex
+  settlement_status: completed | empty
+  outputs: sorted unique by port_key
+    port_key: bounded port key
+    result: strict SettledPortResult payload
+```
+
+`record_id` is an opaque non-control-character ID capped at 128 UTF-8 bytes. It is
+never a path and need not equal a digest. `record_digest` is SHA-256 of canonical
+record JSON bytes and is the filename/manifest value; it is not embedded in the
+record. For T07 value records, `payload_locator.reference_id` equals the result-
+blob digest and `blob_digests` contains exactly that digest. Outputless/wholly empty
+records retain `payload_locator=None`; managed artifacts remain managed references
+instead of duplicated solution blobs.
+
+All JSON rejects unknown fields, duplicate keys/entries, booleans as integers,
+invalid UTF-8, NaN/infinity, noncanonical bytes, and count/depth/byte overflow.
+
+Repository ceilings are:
+
+```text
+MAX_DURABLE_JSON_DEPTH = 32
+MAX_DURABLE_LOGICAL_ID_UTF8_BYTES = 4_096
+MAX_DURABLE_RECORD_ID_UTF8_BYTES = 128
+MAX_DURABLE_DIAGNOSTIC_UTF8_BYTES = 512
+
+MAX_DURABLE_MANIFEST_SET_BYTES = 67_108_864
+MAX_DURABLE_NODE_MANIFEST_BYTES = 1_048_576
+MAX_DURABLE_RECORD_JSON_BYTES = 8_388_608
+MAX_DURABLE_RESULT_BLOB_BYTES = 67_108_864
+
+MAX_DURABLE_NODE_MANIFESTS_PER_GENERATION = 100_000
+MAX_DURABLE_RECORDS_PER_NODE = 256
+MAX_DURABLE_RECORDS_PER_GENERATION = 1_000_000
+MAX_DURABLE_NODE_MANIFEST_BYTES_PER_GENERATION = 268_435_456
+MAX_DURABLE_REFERENCED_BYTES_PER_GENERATION = 4_294_967_296
+MAX_DURABLE_BLOBS_PER_RECORD = 1
+```
+
+Limits apply before decode and after canonical re-encoding. Per-node and per-
+generation record ceilings both apply. The 4-GiB generation ceiling includes
+referenced record JSON and result blobs; each result blob independently fits 64
+MiB. Prepared durable hits still share the existing 64-MiB accepted-output
+aggregate, and every inline value remains capped at 1 MiB. Capacity excess rejects
+durable stage/generation publication without truncation or partial publication.
+
+Safe immutable I/O validates containment and every existing component for symlink/
+junction/reparse state before and after directory creation, read, write, publish,
+and prune. Reads compare file identity, size, and metadata before/after. Stage with
+an unpredictable `mkstemp` file in the destination directory, canonical bytes, and
+flush/fsync. Publish immutable blob, record, node-manifest, and manifest-set targets
+with an atomic no-clobber operation. If the final target already exists, verify its
+raw bytes and digest and reuse it; otherwise atomically install the completed same-
+directory temporary file only if the target remains absent. A race that creates the
+target is resolved by validating the winner and discarding the temporary file.
+Never call a replacing/overwriting primitive on an immutable content-addressed
+target. T08 may still atomically replace `.cxproj`. Publication order is result
+blob, record, node manifests, then `manifest-set.json`; a valid manifest set marks
+a complete generation.
 
 The `.cxproj` document is the sole commit point. Current-schema project metadata
 contains only:
@@ -824,41 +1034,30 @@ solution_store
 ```
 
 The manifest-set digest covers every node-manifest path/digest in the generation.
-Opening a project validates the generation and digest before binding it. A complete
-but unreferenced generation is unreachable garbage, not a partially committed
-project state.
+T07 binds only an already committed pointer, lazily loads it, stages immutable
+content, builds/validates candidate generations, enumerates reachability, and
+provides safe prune primitives tested in isolation. T07 does not mutate metadata,
+write/replace `.cxproj`, report Save/Save As success, switch a Save As binding, or
+invoke lifecycle pruning.
 
-Durable commit order:
+T08 alone coordinates project commit:
 
-1. Preflight graph document, solution records, artifacts, destination, free space,
-   codecs, and every referenced digest.
-2. Stage immutable result blobs and any promoted managed artifacts.
-3. Stage immutable solution records.
-4. Write and fsync one immutable candidate generation and its manifest-set digest.
-5. Stage `.cxproj` with the candidate generation pointer.
-6. Atomically replace `.cxproj`; this one replacement commits the generation.
-7. Reopen and validate the committed pointer/generation before reporting success.
-8. Mark every referenced solution/artifact payload reachable from the committed
-   document/generation.
-9. Prune unreferenced generations/payloads only after reopen succeeds, retaining
-   the previous generation until then.
+1. preflight destination, artifacts, records, space, and codecs;
+2. ask the T07 repository to stage content/build the candidate generation;
+3. stage `.cxproj` with the exact generation pointer;
+4. atomically replace `.cxproj`;
+5. reopen and validate the committed pointer/generation;
+6. switch runtime binding only after successful reopen;
+7. mark reachability and prune while protecting the previous and new committed
+   generations until reopen succeeds.
 
-A failed save before the `.cxproj` replacement leaves the previous document,
-generation, records, and reachable artifacts intact. A crash after replacement
-finds a fully written candidate generation. Unreachable staged generations/blobs
-may remain for later garbage collection; a mixed manifest generation is never the
-active commit.
-
-Save As preserves `solution_namespace_id`, logical workspace/node IDs, portable
-artifact identity, and solution keys. It copies only validated reachable
-records/blobs/artifacts into a new immutable destination generation, then atomically
-replaces the destination `.cxproj` pointer. Destination-root-specific store
-descriptors are rewritten outside the key. An existing destination's old `.cxproj`
-and active generation remain authoritative until the replacement. Runtime
-repository binding switches only after destination reopen succeeds; otherwise the
-source binding and destination's previous commit remain intact. Live handles,
-temporary refs, credentials, secret values, private absolute paths, and session
-Trigger state are excluded.
+Failure before replacement preserves the previous project/generation. Failure
+after replacement but before reopen reports failure without pruning or source-
+binding loss. Complete unreferenced generations/blobs remain garbage until safe
+later collection; a mixed generation is never active. Save As preserves namespace,
+logical IDs, portable artifact identity, and keys while rewriting destination
+descriptors outside the key; live handles, temporary refs, credentials, secrets,
+private absolute paths, and session Trigger state remain excluded.
 
 Forced recomputation under an existing `solution_key` calculates the canonical
 `result_digest` before publication. An identical digest retains the existing
@@ -866,8 +1065,79 @@ immutable record (updating only mutable node fact/history projections). A differ
 digest is a nondeterminism conflict: report it, quarantine no new current record,
 and never overwrite the established record.
 
-There is no migration. Schema values other than `1` fail closed with a clear
-current-schema error and require regeneration.
+Existing project-schema migration remains unchanged. There is no migration or
+compatibility reader for nested `metadata.solution_store`. Absent metadata opens
+authored data session-only with `durable_session_only_metadata_absent`. Present
+metadata must contain exactly `schema_version`, `solution_namespace_id`,
+`active_generation_id`, and `active_manifest_set_digest`. Malformed fields,
+unknown schema, invalid pointer grammar, missing/corrupt manifest, unsafe path, or
+I/O failure preserve the authored graph and original metadata, install no durable
+record/fact/index, and open session-only with at most one sanitized 512-byte
+regeneration diagnostic per project install.
+
+Deterministic repository reasons are locked:
+
+```text
+bind:
+  durable_bound_active
+  durable_session_only_metadata_absent
+  durable_session_only_factory_unavailable
+  durable_session_only_metadata_invalid
+  durable_session_only_schema_unsupported
+  durable_session_only_pointer_invalid
+  durable_session_only_manifest_missing
+  durable_session_only_manifest_oversized
+  durable_session_only_manifest_invalid
+  durable_session_only_manifest_digest_mismatch
+  durable_session_only_path_unsafe
+  durable_session_only_reparse_rejected
+  durable_session_only_io_error
+
+lookup/load:
+  durable_hit
+  durable_not_bound
+  durable_key_absent
+  durable_node_manifest_missing
+  durable_node_manifest_oversized
+  durable_node_manifest_invalid
+  durable_node_manifest_digest_mismatch
+  durable_record_missing
+  durable_record_oversized
+  durable_record_invalid
+  durable_record_digest_mismatch
+  durable_record_binding_mismatch
+  durable_payload_missing
+  durable_payload_oversized
+  durable_payload_invalid
+  durable_payload_digest_mismatch
+  durable_payload_binding_mismatch
+  durable_value_ineligible
+  durable_artifact_invalid
+  durable_path_unsafe
+  durable_reparse_rejected
+  durable_io_error
+
+stage/generation:
+  durable_stage_published
+  durable_stage_existing_identical
+  durable_stage_ineligible
+  durable_stage_capacity_exceeded
+  durable_stage_path_unsafe
+  durable_stage_reparse_rejected
+  durable_stage_write_failed
+  durable_nondeterminism_conflict
+  durable_generation_built
+  durable_generation_valid
+  durable_generation_capacity_exceeded
+  durable_generation_invalid
+  durable_generation_digest_mismatch
+  durable_generation_write_failed
+```
+
+Prepared decisions continue mapping unbound/absent key to `no_reusable_record` and
+located-invalid record/payload/artifact to `accepted_output_invalid`, while bounded
+diagnostics retain the durable reason. Nondeterminism retains the existing
+`nondeterministic_solution_result` fact/event behavior.
 
 ### Relationship to explicit value internalization
 
@@ -1765,39 +2035,83 @@ container nodes or internalization commands.
 - Preconditions: T01-T04 accepted; durable eligibility and implementation identity
   gates from T02 complete.
 - Conservative write scope:
-  - `ea_node_editor/persistence/solution_repository.py` (new)
+  - `ea_node_editor/execution/solution_store.py`
   - `ea_node_editor/execution/headless_runtime.py`
-  - `ea_node_editor/ui/shell/composition/controllers.py`
-  - `ea_node_editor/ui/shell/controllers/project_session_controller.py`
-  - `ea_node_editor/ui/shell/controllers/project_session_services_support/document_io_service.py`
-  - `ea_node_editor/ui/shell/controllers/project_session_services_support/session_lifecycle_service.py`
+  - `ea_node_editor/execution/prepared_execution.py`
+  - `ea_node_editor/persistence/solution_repository.py` (new)
   - `ea_node_editor/persistence/artifact_store.py`
   - `ea_node_editor/runtime_contracts/runtime_values.py`
+  - `ea_node_editor/runtime_contracts/solution_records.py`
+  - `ea_node_editor/ui/shell/composition/controllers.py`
+  - `ea_node_editor/ui/shell/controllers/project_session_services_support/document_io_service.py`
   - `tests/test_solution_repository.py` (new)
+  - `tests/test_solution_store_session.py`
+  - `tests/test_headless_runtime.py`
+  - `tests/test_solution_records.py`
+  - `tests/test_typed_runtime_values.py`
   - `tests/test_project_artifact_store.py`
+  - `tests/test_project_session_controller_unit.py`
+  - `tests/test_serializer.py`
   - `tests/test_architecture_boundaries.py`
+  - `tests/test_persistence_package_imports.py`
+  - `docs/agent_maps/subsystems/execution.md`
+  - `docs/agent_maps/subsystems/persistence.md`
+  - `docs/agent_maps/subsystems/supporting_runtime_assets.md`
+  - `docs/agent_maps/subsystems/ui_shell.md`
+  - `docs/agent_maps/subsystems/startup_and_bootstrap.md`
+  - `docs/agent_maps/feature_routes/project_session_files_managed_artifacts.md`
+  - `docs/agent_maps/feature_routes/managed_artifacts_project_data.md`
+  - `docs/agent_maps/feature_routes/serialization_migration_legacy_rejection.md`
+  - `docs/agent_maps/COVERAGE.md`
+  - regenerated source/test and agent-route indexes
 - Deliverables:
-  - exact `solutions/v1` layout;
-  - schema-1 strict manifest/record/blob codecs;
-  - immutable generation/manifest-set publication and `.cxproj` pointer contract;
-  - lazy per-node record/blob load;
-  - validated project open/new/replacement bind/detach lifecycle;
-  - current integrity verification and recompute fallback;
-  - reachability mark/prune API shared with artifact ownership;
-  - live/protected/nonportable result exclusion;
-  - nondeterminism conflict reporting for divergent results under one key.
+  - execution-owned durable backend/factory ports and persistence-owned concrete
+    repository with no reverse import;
+  - captured maximum reuse scope, conditional durable/session publication, forced-
+    recompute conflict lookup, and runtime-reset versus project-detach semantics;
+  - centralized durable runtime-value gate covering every declared/concrete catalog
+    type, sensitivity, carrier, artifact, path, and inline ceiling;
+  - exact schema-1 manifest-set/node-manifest/record/result-blob layouts, full
+    logical-ID path keys, bounds, deterministic reasons, and immutable I/O rules;
+  - bind reads only `manifest-set.json`; lookup reads only the requested node
+    manifest/record; payload loads only for accepted-output resolution;
+  - candidate generation build/validation plus reachability/safe-prune primitives;
+  - saved open/replacement binds an already committed pointer; absent/corrupt/
+    unknown solution metadata opens authored data session-only with one sanitized
+    regeneration diagnostic and no cache state;
+  - restart reuse for strict portable values and validated managed artifacts;
+  - current integrity verification and deterministic recompute fallback;
+  - same-key/same-result retention and ordinary/forced same-key/different-result
+    nondeterminism without overwrite or session fallback;
+  - no `.cxproj` mutation, Save/Save As success/binding switch, or lifecycle prune
+    until T08.
 - Verification:
-  - restart reuse for JSON-safe typed values and supported artifact outputs;
-  - corrupt/missing/hash-mismatched/path-escaping/reparse/unknown-schema records
-    fail closed;
-  - no pickle, callbacks, credentials, handles, absolute private paths, or temp
-    refs in durable files;
-  - atomic failure retains prior valid record;
-  - project replacement detaches old repository and unsaved projects remain
-    session-only;
-  - lazy load touches only requested node data;
-  - `./venv/Scripts/python.exe -m pytest tests/test_solution_repository.py tests/test_project_artifact_store.py tests/test_architecture_boundaries.py -q`.
-- Non-goals: remote/global cache, cross-project deduplication, migration.
+  - every schema field/order/type and each repository limit at `N` and `N+1`;
+  - full SHA-256 path-key collision/binding, containment, link/junction/reparse,
+    replace-scan-restore, truncation, mutation-during-read, digest, canonical-byte,
+    and unknown-field rejection;
+  - lazy-load read-count/order proof and no partial cache installation on failure;
+  - repository-built restart generation with manually supplied committed descriptor,
+    without a `.cxproj` write;
+  - absent/corrupt/unknown solution metadata preserves authored data session-only
+    with one sanitized diagnostic;
+  - all 29 maximum-durable rows remain conditional on actual output eligibility;
+  - every excluded carrier/sensitivity/path/artifact case and large `ImageValue`
+    stays session-only without durable bytes;
+  - stage I/O/capacity failure falls back safely to session;
+  - nondeterminism, generation-reset binding preservation, project-detach close/no-
+    delete, and T07/T08 non-overlap tests;
+  - execution imports no persistence implementation; `common` remains a leaf; no
+    duplicate scheduler/store framework;
+  - `./venv/Scripts/python.exe -m pytest tests/test_solution_repository.py tests/test_solution_records.py tests/test_typed_runtime_values.py -q`;
+  - `./venv/Scripts/python.exe -m pytest tests/test_solution_store_session.py tests/test_headless_runtime.py -k "durable or solution_repository or project_solution" -q`;
+  - `./venv/Scripts/python.exe -m pytest tests/test_project_artifact_store.py tests/test_project_session_controller_unit.py -k "solution or reachability or bind or replacement" -q`;
+  - `./venv/Scripts/python.exe -m pytest tests/test_serializer.py tests/test_architecture_boundaries.py tests/test_persistence_package_imports.py -k "solution_store or solution_repository or persistence_neutral" -q`;
+  - acceptance runs all ten scoped test modules together, regenerates source/test
+    and agent-route indexes, runs `check_agent_maps.py`, then `git diff --check`;
+  - no broad fast/full lane unless implementation escapes this boundary.
+- Non-goals: remote/global cache, cross-project deduplication, migration, Save/Save
+  As orchestration, `.cxproj` replacement, lifecycle pruning, QML.
 - Packetization notes: `P07`; execution timing and worktree use defer entirely to
   the current orchestration baseline in the ledger.
 
@@ -1824,7 +2138,10 @@ container nodes or internalization commands.
   - destination descriptor rewrite and portable copy;
   - reopen verification before Save As success;
   - unreachable staged-blob recovery/GC;
-  - schema-1 rejection with regeneration guidance;
+  - unsupported/corrupt prior solution metadata is never used as cache input and
+    never blocks authored reopen; T08 may regenerate a fresh schema-1 generation/
+    pointer from currently validated reachable records without reading or migrating
+    the unsupported snapshot;
   - no legacy reader or migration path.
   - Save As candidate repository binding switches only after destination reopen;
     failure restores neither metadata nor binding because the old commit remains

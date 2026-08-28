@@ -20,6 +20,7 @@ Use this for `.cxproj` serialization, coordinated format cutovers, legacy reject
 - Deprecated plot-session layout data is accepted on old documents but stripped during migration/save; do not re-add `plot_session_layout` to the current schema.
 - The dataflow cutover writes `.cxproj` v5, fragment v2, `.cxwf` v2, global custom-workflow store v2, and app preferences v6. Surviving legacy data edges default enabled and derive `input_order` from serialized order; existing data ports default to Item access with no modifiers or Principal.
 - T07 retains `.cxproj` schema 5: projects do not persist type definitions or port schemas. `to_persistent_document()` reconstructs the artifact store from project metadata and preflights typed `RuntimeArtifactRef` carriers plus literal `saved://`/`temp://` properties against owned entries and their exact `runtime_artifact` descriptors before Save/Save As mutation. Store-less decode preserves those literals as strings so a later save revalidates them; successful staged promotion rewrites both carriers and nested temp literals to saved strings. Final writes run the document-wide persistence guard across nested values, mapping keys, and metadata, rejecting remaining temp refs, malformed/unowned saved refs, unauthorized typed markers, live handles, raw DataTrees, bytes, and native objects without reading artifact content or materializing a runtime value.
+- `metadata.solution_store` remains an opaque metadata extra to `JsonProjectCodec`; schema interpretation belongs only to `SolutionRepositoryFactory` after authored decode. T07 adds no serializer/migration branch and performs no `.cxproj` write. Missing/unsupported/corrupt solution metadata survives authored decode and falls back session-only at project install.
 - `visual_style` is passive-node-only: current active-scene serialization omits it, schema-5 load strips it from registered active and `compile_only` nodes, and unresolved types retain it until their real type is known.
 - Current `media.panel` nodes serialize their authored renderer-setting superset plus exact Source exposure. App preference v8 affects future blank creation only. Projects containing removed media identities fail through normal unknown-type validation; add no alias, migration, or authored-source fallback.
 - Migration deletes known control edges, the five retired routing/status nodes, control-kind subnode pins, shell mappings, stale control-port metadata, and control-row state. Nested workflows/fragments migrate in the same pass; workflows left empty are removed and reported.
@@ -27,7 +28,7 @@ Use this for `.cxproj` serialization, coordinated format cutovers, legacy reject
 
 ## Focused Verification
 ```powershell
-.\venv\Scripts\python.exe -m pytest tests/test_serializer.py tests/test_serializer_schema_migration.py tests/test_persistence_package_imports.py --ignore=venv -q
+.\venv\Scripts\python.exe -m pytest tests/test_serializer.py tests/test_persistence_package_imports.py -k "solution_store or solution_repository" -q
 .\venv\Scripts\python.exe -m pytest tests/test_dataflow_graph_persistence.py tests/test_data_tree_ui.py --ignore=venv -q
 ```
 

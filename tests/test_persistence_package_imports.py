@@ -41,11 +41,13 @@ class PersistencePackageImportTests(unittest.TestCase):
             "from ea_node_editor.persistence.migration import JsonProjectMigration; "
             "from ea_node_editor.persistence.serializer import JsonProjectSerializer; "
             "from ea_node_editor.persistence.session_store import SessionAutosaveStore; "
+            "from ea_node_editor.persistence.solution_repository import SolutionRepository; "
             "print(','.join(["
             "JsonProjectCodec.__name__, "
             "JsonProjectMigration.__name__, "
             "JsonProjectSerializer.__name__, "
-            "SessionAutosaveStore.__name__]))"
+            "SessionAutosaveStore.__name__, "
+            "SolutionRepository.__name__]))"
         )
 
         self.assertEqual(
@@ -55,7 +57,7 @@ class PersistencePackageImportTests(unittest.TestCase):
         )
         self.assertEqual(
             result.stdout.strip(),
-            "JsonProjectCodec,JsonProjectMigration,JsonProjectSerializer,SessionAutosaveStore",
+            "JsonProjectCodec,JsonProjectMigration,JsonProjectSerializer,SessionAutosaveStore,SolutionRepository",
         )
 
     def test_persistence_package_root_has_no_lazy_barrel(self) -> None:

@@ -10,10 +10,11 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, replace
 import hashlib
 import json
+import re
 import threading
 import time
 import uuid
-from typing import Any
+from typing import Any, Protocol, runtime_checkable
 
 from ea_node_editor.execution.prepared_execution import (
     AcceptedOutputPayload,
@@ -27,6 +28,7 @@ from ea_node_editor.runtime_contracts.data_types import DataTypeCatalog
 from ea_node_editor.runtime_contracts.runtime_values import (
     RuntimeArtifactRef,
     RuntimeHandleRef,
+    validate_durable_settled_outputs,
 )
 from ea_node_editor.runtime_contracts import (
     ArrayDataRef,
@@ -35,6 +37,7 @@ from ea_node_editor.runtime_contracts import (
     TabularWindowRef,
 )
 from ea_node_editor.runtime_contracts.settled_results import (
+    MAX_OUTPUTS_PER_NODE,
     SettledPortResult,
     settled_output_mapping_from_payload,
     settled_outputs_to_payload,
@@ -61,6 +64,260 @@ class SolutionStoreLimits:
     preparation_bytes_per_runtime: int = 268_435_456
 
 
+MAX_DURABLE_DIAGNOSTIC_UTF8_BYTES = 512
+_DURABLE_NAMESPACE_MAX_UTF8_BYTES = 4_096
+_SENSITIVE_DIAGNOSTIC_PATTERN = re.compile(
+    r"(?:api[_ -]?key|authorization|cookie|credential|password|private[_ -]?key|secret|token)",
+    re.IGNORECASE,
+)
+_DURABLE_SESSION_ONLY_STATUSES = frozenset(
+    {
+        "durable_session_only_metadata_absent",
+        "durable_session_only_factory_unavailable",
+        "durable_session_only_metadata_invalid",
+        "durable_session_only_schema_unsupported",
+        "durable_session_only_pointer_invalid",
+        "durable_session_only_manifest_missing",
+        "durable_session_only_manifest_oversized",
+        "durable_session_only_manifest_invalid",
+        "durable_session_only_manifest_digest_mismatch",
+        "durable_session_only_path_unsafe",
+        "durable_session_only_reparse_rejected",
+        "durable_session_only_io_error",
+    }
+)
+_DURABLE_LOOKUP_REASONS = frozenset(
+    {
+        "durable_hit",
+        "durable_not_bound",
+        "durable_key_absent",
+        "durable_node_manifest_missing",
+        "durable_node_manifest_oversized",
+        "durable_node_manifest_invalid",
+        "durable_node_manifest_digest_mismatch",
+        "durable_record_missing",
+        "durable_record_oversized",
+        "durable_record_invalid",
+        "durable_record_digest_mismatch",
+        "durable_record_binding_mismatch",
+        "durable_path_unsafe",
+        "durable_reparse_rejected",
+        "durable_io_error",
+    }
+)
+_DURABLE_PAYLOAD_REASONS = frozenset(
+    {
+        "durable_hit",
+        "durable_not_bound",
+        "durable_payload_missing",
+        "durable_payload_oversized",
+        "durable_payload_invalid",
+        "durable_payload_digest_mismatch",
+        "durable_payload_binding_mismatch",
+        "durable_value_ineligible",
+        "durable_artifact_invalid",
+        "durable_path_unsafe",
+        "durable_reparse_rejected",
+        "durable_io_error",
+    }
+)
+_DURABLE_STAGE_REASONS = frozenset(
+    {
+        "durable_stage_published",
+        "durable_stage_existing_identical",
+        "durable_stage_ineligible",
+        "durable_stage_capacity_exceeded",
+        "durable_stage_path_unsafe",
+        "durable_stage_reparse_rejected",
+        "durable_stage_write_failed",
+        "durable_nondeterminism_conflict",
+    }
+)
+
+
+def sanitize_durable_diagnostic(value: object) -> str:
+    text = value if type(value) is str else ""
+    if re.search(r"(?:[A-Za-z]:[\\/]|\\\\|/[^ ]|://)", text) or (
+        _SENSITIVE_DIAGNOSTIC_PATTERN.search(text)
+    ):
+        text = ""
+    text = text.replace("\x00", " ").replace("\r", " ").replace("\n", " ")
+    text = " ".join(text.split()) or "Durable solutions are unavailable; results will be recomputed."
+    encoded = text.encode("utf-8", errors="replace")[:MAX_DURABLE_DIAGNOSTIC_UTF8_BYTES]
+    while encoded:
+        try:
+            return encoded.decode("utf-8")
+        except UnicodeDecodeError:
+            encoded = encoded[:-1]
+    return "Durable solutions are unavailable."
+
+
+def _durable_record_matches(
+    record: SolutionRecord,
+    *,
+    project_id: str,
+    workspace_id: str,
+    node_id: str,
+    solution_key: str,
+) -> bool:
+    return bool(
+        isinstance(record, SolutionRecord)
+        and record.project_id == project_id
+        and record.workspace_id == workspace_id
+        and record.node_id == node_id
+        and record.solution_key == solution_key
+        and record.residency is SolutionResidency.DURABLE
+        and record.runtime_generation is None
+        and record.reuse_eligible
+    )
+
+
+@dataclass(frozen=True, slots=True)
+class DurableLookupResult:
+    record: SolutionRecord | None
+    reason_code: str
+
+    def __post_init__(self) -> None:
+        if self.reason_code not in _DURABLE_LOOKUP_REASONS:
+            raise ValueError("durable lookup reason_code is invalid")
+        if self.reason_code == "durable_hit":
+            if not isinstance(self.record, SolutionRecord):
+                raise ValueError("durable_hit requires a solution record")
+            if (
+                self.record.residency is not SolutionResidency.DURABLE
+                or not self.record.reuse_eligible
+                or self.record.runtime_generation is not None
+            ):
+                raise ValueError("durable_hit requires a reusable durable record")
+        elif self.record is not None:
+            raise ValueError("durable lookup misses cannot carry a record")
+
+
+@dataclass(frozen=True, slots=True)
+class DurablePayloadResult:
+    outputs: tuple[tuple[str, SettledPortResult], ...] | None
+    reason_code: str
+
+    def __post_init__(self) -> None:
+        if self.reason_code not in _DURABLE_PAYLOAD_REASONS:
+            raise ValueError("durable payload reason_code is invalid")
+        if self.reason_code == "durable_hit":
+            if not isinstance(self.outputs, tuple):
+                raise ValueError("durable_hit requires outputs")
+            if any(
+                not isinstance(item, tuple)
+                or len(item) != 2
+                or not isinstance(item[0], str)
+                or not isinstance(item[1], SettledPortResult)
+                for item in self.outputs
+            ):
+                raise TypeError("durable outputs must be port/result pairs")
+            port_keys = tuple(item[0] for item in self.outputs)
+            if (
+                len(port_keys) > MAX_OUTPUTS_PER_NODE
+                or any(not key.strip() or key != key.strip() for key in port_keys)
+                or len(port_keys) != len(set(port_keys))
+                or port_keys != tuple(sorted(port_keys))
+                or any(item[1].status not in {"value", "empty"} for item in self.outputs)
+            ):
+                raise ValueError("durable outputs must be bounded, sorted, and unique")
+        elif self.outputs is not None:
+            raise ValueError("durable payload misses cannot carry outputs")
+
+
+@dataclass(frozen=True, slots=True)
+class DurableStageResult:
+    record: SolutionRecord | None
+    reason_code: str
+
+    def __post_init__(self) -> None:
+        if self.reason_code not in _DURABLE_STAGE_REASONS:
+            raise ValueError("durable stage reason_code is invalid")
+        if self.reason_code in {
+            "durable_stage_published",
+            "durable_stage_existing_identical",
+        }:
+            if not isinstance(self.record, SolutionRecord):
+                raise ValueError("successful durable stage requires a record")
+            if (
+                self.record.residency is not SolutionResidency.DURABLE
+                or not self.record.reuse_eligible
+                or self.record.runtime_generation is not None
+            ):
+                raise ValueError("successful durable stage requires a durable record")
+        elif self.record is not None:
+            raise ValueError("failed durable stages cannot carry a record")
+
+
+@dataclass(frozen=True, slots=True)
+class DurableBackendOpenResult:
+    backend: DurableSolutionBackend | None
+    solution_namespace_id: str
+    status_code: str
+    diagnostic: str = ""
+
+    def __post_init__(self) -> None:
+        namespace_id = str(self.solution_namespace_id).strip()
+        if (
+            not namespace_id
+            or len(namespace_id.encode("utf-8")) > _DURABLE_NAMESPACE_MAX_UTF8_BYTES
+            or any(ord(character) < 32 or ord(character) == 127 for character in namespace_id)
+        ):
+            raise ValueError("durable backend result requires a namespace")
+        if self.status_code == "durable_bound_active":
+            if (
+                self.backend is None
+                or not isinstance(self.backend, DurableSolutionBackend)
+                or self.diagnostic
+            ):
+                raise ValueError("active durable binding requires a backend only")
+        elif self.status_code in _DURABLE_SESSION_ONLY_STATUSES:
+            if self.backend is not None or not self.diagnostic:
+                raise ValueError("session-only durable binding requires one diagnostic")
+            diagnostic = sanitize_durable_diagnostic(self.diagnostic)
+            object.__setattr__(self, "diagnostic", diagnostic)
+        else:
+            raise ValueError("durable backend status_code is invalid")
+        object.__setattr__(self, "solution_namespace_id", namespace_id)
+
+
+@runtime_checkable
+class DurableSolutionBackend(Protocol):
+    def lookup_record(
+        self,
+        workspace_id: str,
+        node_id: str,
+        solution_key: str,
+        catalog: DataTypeCatalog,
+    ) -> DurableLookupResult: ...
+
+    def load_payload(
+        self,
+        record: SolutionRecord,
+        catalog: DataTypeCatalog,
+    ) -> DurablePayloadResult: ...
+
+    def stage_record(
+        self,
+        record: SolutionRecord,
+        canonical_payload: bytes,
+        catalog: DataTypeCatalog,
+    ) -> DurableStageResult: ...
+
+    def close(self) -> None: ...
+
+
+@runtime_checkable
+class DurableSolutionBackendFactory(Protocol):
+    def open_backend(
+        self,
+        project_id: str,
+        project_path: str,
+        metadata_solution_store: object,
+        catalog: DataTypeCatalog,
+    ) -> DurableBackendOpenResult: ...
+
+
 @dataclass(frozen=True, slots=True)
 class CapturedNodeSolution:
     node_id: str
@@ -75,7 +332,14 @@ class CapturedNodeSolution:
     implementation_digest: str
     execution_environment_digest: str
     output_specs: tuple[tuple[str, str, str], ...]
-    reuse_eligible: bool
+    solution_reuse_scope: str
+    identity_reuse_eligible: bool
+
+    def __post_init__(self) -> None:
+        if self.solution_reuse_scope not in {"never", "session", "durable"}:
+            raise ValueError("solution_reuse_scope is invalid")
+        if not isinstance(self.identity_reuse_eligible, bool):
+            raise TypeError("identity_reuse_eligible must be a boolean")
 
 
 @dataclass(frozen=True, slots=True)
@@ -159,6 +423,11 @@ class SolutionStore:
         self._runs: dict[str, _RunEntry] = {}
         self._trigger_generations: dict[tuple[str, str, str], int] = defaultdict(int)
         self._trigger_reservations: dict[str, _TriggerReservation] = {}
+        self._durable_backend: DurableSolutionBackend | None = None
+        self._durable_project_id = ""
+        self._durable_status_code = "durable_session_only_factory_unavailable"
+        self._durable_diagnostic = ""
+        self._last_durable_reason_code = "durable_not_bound"
 
     def _next_sequence(self) -> int:
         self._sequence += 1
@@ -218,6 +487,124 @@ class SolutionStore:
     def solution_namespace_id(self, project_id: str) -> str:
         with self._lock:
             return self._namespaces.get(str(project_id).strip(), "")
+
+    def project_ids(self) -> tuple[str, ...]:
+        with self._lock:
+            return tuple(sorted(self._namespaces))
+
+    @property
+    def durable_status(self) -> tuple[str, str]:
+        with self._lock:
+            return self._durable_status_code, self._durable_diagnostic
+
+    @property
+    def last_durable_reason_code(self) -> str:
+        with self._lock:
+            return self._last_durable_reason_code
+
+    def install_durable_backend(
+        self,
+        project_id: str,
+        result: DurableBackendOpenResult,
+    ) -> DurableSolutionBackend | None:
+        if not isinstance(result, DurableBackendOpenResult):
+            raise TypeError("result must be DurableBackendOpenResult")
+        normalized_project_id = str(project_id).strip()
+        if not normalized_project_id:
+            raise ValueError("project_id must be non-empty")
+        with self._lock:
+            previous = self._durable_backend
+            if previous is not result.backend:
+                self._evict_durable_binding_state_locked()
+            self._durable_backend = result.backend
+            self._durable_project_id = (
+                normalized_project_id if result.backend is not None else ""
+            )
+            self._durable_status_code = result.status_code
+            self._durable_diagnostic = result.diagnostic
+            self._last_durable_reason_code = (
+                "durable_hit" if result.backend is not None else "durable_not_bound"
+            )
+            self._namespaces[normalized_project_id] = result.solution_namespace_id
+            return previous if previous is not result.backend else None
+
+    def detach_durable_backend(self) -> DurableSolutionBackend | None:
+        with self._lock:
+            backend = self._durable_backend
+            self._evict_durable_binding_state_locked()
+            self._durable_backend = None
+            self._durable_project_id = ""
+            self._durable_status_code = "durable_session_only_factory_unavailable"
+            self._durable_diagnostic = ""
+            self._last_durable_reason_code = "durable_not_bound"
+            return backend
+
+    def _evict_durable_binding_state_locked(self) -> None:
+        durable_record_ids = {
+            record_id
+            for record_id, entry in self._records.items()
+            if entry.record.residency is SolutionResidency.DURABLE
+        }
+        for preparation_id, entry in tuple(self._preparations.items()):
+            if entry.pinned_record_ids.intersection(durable_record_ids):
+                self._drop_preparation_locked(
+                    preparation_id,
+                    "durable_backend_replaced",
+                )
+        for run_id, run in tuple(self._runs.items()):
+            if run.pinned_record_ids.intersection(durable_record_ids):
+                self._runs.pop(run_id, None)
+                self._release_trigger_locked(run.trigger_reservation_id)
+        for key, fact in tuple(self._facts.items()):
+            if (
+                fact.residency is SolutionResidency.DURABLE
+                or fact.retained_record_id in durable_record_ids
+            ):
+                self._facts.pop(key, None)
+        for record_id in durable_record_ids:
+            self._remove_record_locked(record_id)
+
+    def _fact_allows_solution_locked(
+        self,
+        *,
+        project_id: str,
+        workspace_id: str,
+        node_id: str,
+        solution_key: str,
+    ) -> bool:
+        fact = self._facts.get(
+            self._fact_key(project_id, workspace_id, node_id)
+        )
+        return fact is None or bool(
+            fact.freshness is SolutionFreshness.CURRENT
+            and fact.retained_solution_key == solution_key
+        )
+
+    def _install_lazy_durable_fact_locked(self, record: SolutionRecord) -> None:
+        key = self._fact_key(
+            record.project_id,
+            record.workspace_id,
+            record.node_id,
+        )
+        fact = self._facts.get(key)
+        if fact is not None and (
+            fact.freshness is not SolutionFreshness.CURRENT
+            or fact.retained_solution_key != record.solution_key
+            or fact.retained_record_id != record.record_id
+            or fact.residency is not SolutionResidency.DURABLE
+        ):
+            raise ValueError("durable solution fact does not match the record")
+        self._facts[key] = NodeSolutionFact(
+            project_id=record.project_id,
+            workspace_id=record.workspace_id,
+            node_id=record.node_id,
+            freshness=SolutionFreshness.CURRENT,
+            revision=self._node_revisions[key],
+            retained_record_id=record.record_id,
+            retained_solution_key=record.solution_key,
+            residency=SolutionResidency.DURABLE,
+            last_disposition=SolutionDisposition.REUSED,
+        )
 
     def workspace_revision(self, project_id: str, workspace_id: str) -> int:
         with self._lock:
@@ -319,47 +706,174 @@ class SolutionStore:
         workspace_id: str,
         node_id: str,
         runtime_generation: int,
+        catalog: DataTypeCatalog,
     ) -> SolutionRecord | None:
         with self._lock:
-            record_id = self._reuse_index.get(solution_key)
-            entry = self._records.get(record_id or "")
-            if entry is None:
-                return None
-            record = entry.record
-            if (
-                not record.reuse_eligible
-                or record.project_id != project_id
-                or record.workspace_id != workspace_id
-                or record.node_id != node_id
-                or record.residency is not SolutionResidency.SESSION
-                or record.runtime_generation != runtime_generation
+            if not self._fact_allows_solution_locked(
+                project_id=project_id,
+                workspace_id=workspace_id,
+                node_id=node_id,
+                solution_key=solution_key,
             ):
                 return None
-            return record
+            fact = self._facts.get(
+                self._fact_key(project_id, workspace_id, node_id)
+            )
+            record_id = self._reuse_index.get(solution_key)
+            entry = self._records.get(record_id or "")
+            if entry is not None:
+                record = entry.record
+                generation_valid = (
+                    record.runtime_generation == runtime_generation
+                    if record.residency is SolutionResidency.SESSION
+                    else record.runtime_generation is None
+                )
+                if (
+                    record.reuse_eligible
+                    and record.project_id == project_id
+                    and record.workspace_id == workspace_id
+                    and record.node_id == node_id
+                    and generation_valid
+                    and (
+                        fact is None
+                        or fact.retained_record_id == record.record_id
+                    )
+                ):
+                    return record
+            if (
+                fact is not None
+                and fact.residency is not SolutionResidency.DURABLE
+            ):
+                return None
+            backend = (
+                self._durable_backend
+                if self._durable_project_id == project_id
+                else None
+            )
+        if backend is None:
+            with self._lock:
+                self._last_durable_reason_code = "durable_not_bound"
+            return None
+        try:
+            result = backend.lookup_record(
+                workspace_id,
+                node_id,
+                solution_key,
+                catalog,
+            )
+        except Exception:  # noqa: BLE001 - port failures fail closed.
+            result = DurableLookupResult(None, "durable_io_error")
+        if not isinstance(result, DurableLookupResult):
+            result = DurableLookupResult(None, "durable_io_error")
+        if result.record is not None and not _durable_record_matches(
+            result.record,
+            project_id=project_id,
+            workspace_id=workspace_id,
+            node_id=node_id,
+            solution_key=solution_key,
+        ):
+            result = DurableLookupResult(None, "durable_record_binding_mismatch")
+        with self._lock:
+            if backend is not self._durable_backend:
+                self._last_durable_reason_code = "durable_not_bound"
+                return None
+            self._last_durable_reason_code = result.reason_code
+        return result.record
 
     def accepted_outputs(
         self,
-        record_id: str,
+        record_id: str | SolutionRecord,
         *,
         catalog: DataTypeCatalog,
         runtime_generation: int,
+        artifact_context: Any = None,
     ) -> AcceptedOutputPayload:
+        requested_record = record_id if isinstance(record_id, SolutionRecord) else None
+        normalized_record_id = (
+            requested_record.record_id
+            if requested_record is not None
+            else str(record_id).strip()
+        )
         with self._lock:
-            entry = self._records.get(str(record_id).strip())
-            if entry is None or not entry.record.reuse_eligible:
-                raise ValueError("solution record is unavailable for reuse")
-            record = entry.record
+            entry = self._records.get(normalized_record_id)
             if (
-                record.residency is not SolutionResidency.SESSION
-                or record.runtime_generation != runtime_generation
+                entry is not None
+                and requested_record is not None
+                and entry.record != requested_record
+            ):
+                raise ValueError("solution record identity is ambiguous")
+            if entry is None or not entry.record.reuse_eligible:
+                if requested_record is None:
+                    raise ValueError("solution record is unavailable for reuse")
+                record = requested_record
+                backend = (
+                    self._durable_backend
+                    if self._durable_project_id == requested_record.project_id
+                    else None
+                )
+            else:
+                record = entry.record
+                backend = None
+            if not self._fact_allows_solution_locked(
+                project_id=record.project_id,
+                workspace_id=record.workspace_id,
+                node_id=record.node_id,
+                solution_key=record.solution_key,
+            ):
+                raise ValueError("solution fact is not current")
+            if record.residency is SolutionResidency.SESSION and (
+                record.runtime_generation != runtime_generation
             ):
                 raise ValueError("solution record runtime generation is stale")
-            if record.payload_locator is None:
-                payload_bytes = _canonical_json_bytes({})
-            elif entry.payload is None:
+            if record.residency is SolutionResidency.DURABLE and record.runtime_generation is not None:
+                raise ValueError("durable solution records cannot carry a runtime generation")
+            if entry is not None and record.payload_locator is None:
+                payload_bytes = _canonical_json_bytes(
+                    settled_outputs_to_payload(
+                        {
+                            descriptor.port_key: SettledPortResult(status="empty")
+                            for descriptor in record.output_descriptors
+                        },
+                        catalog=catalog,
+                    )
+                )
+            elif entry is not None and entry.payload is None:
                 raise ValueError("solution record payload is unavailable")
-            else:
+            elif entry is not None:
                 payload_bytes = entry.payload
+            else:
+                payload_bytes = b""
+        if entry is None:
+            if backend is None or not _durable_record_matches(
+                record,
+                project_id=record.project_id,
+                workspace_id=record.workspace_id,
+                node_id=record.node_id,
+                solution_key=record.solution_key,
+            ):
+                raise ValueError("durable solution backend is unavailable")
+            try:
+                loaded = backend.load_payload(record, catalog)
+            except Exception:  # noqa: BLE001 - persistence failures fail closed.
+                loaded = DurablePayloadResult(None, "durable_io_error")
+            if not isinstance(loaded, DurablePayloadResult):
+                loaded = DurablePayloadResult(None, "durable_io_error")
+            with self._lock:
+                self._last_durable_reason_code = loaded.reason_code
+            if loaded.reason_code != "durable_hit" or loaded.outputs is None:
+                raise ValueError(loaded.reason_code)
+            outputs = dict(loaded.outputs)
+            validation = validate_durable_settled_outputs(
+                outputs,
+                record.output_descriptors,
+                catalog,
+                artifact_context,
+            )
+            if not validation.eligible or validation.canonical_payload is None:
+                with self._lock:
+                    self._last_durable_reason_code = validation.reason_code
+                raise ValueError(validation.reason_code)
+            payload_bytes = validation.canonical_payload
             if hashlib.sha256(payload_bytes).hexdigest() != record.result_digest:
                 raise ValueError("solution record payload digest is invalid")
             payload = AcceptedOutputPayload(
@@ -373,8 +887,67 @@ class SolutionStore:
                 outputs=payload_bytes,
                 catalog=catalog,
             )
-            validate_accepted_output_payload(record, payload, catalog=catalog)
+            validate_accepted_output_payload(
+                record,
+                payload,
+                catalog=catalog,
+                artifact_context=artifact_context,
+            )
+            with self._lock:
+                if (
+                    backend is not self._durable_backend
+                    or self._durable_project_id != record.project_id
+                ):
+                    raise ValueError("durable solution backend changed during load")
+                existing_id = self._reuse_index.get(record.solution_key)
+                existing = self._records.get(existing_id or "")
+                if existing is not None and existing.record.result_digest != record.result_digest:
+                    self._last_durable_reason_code = "durable_nondeterminism_conflict"
+                    raise ValueError("durable_nondeterminism_conflict")
+                same_id = self._records.get(record.record_id)
+                if same_id is not None and same_id.record != record:
+                    self._last_durable_reason_code = "durable_record_binding_mismatch"
+                    raise ValueError("durable_record_binding_mismatch")
+                if existing is None:
+                    new_entry = _RecordEntry(
+                        record=record,
+                        payload=payload_bytes if record.payload_locator is not None else None,
+                        payload_size=len(payload_bytes) if record.payload_locator is not None else 0,
+                        sequence=self._next_sequence(),
+                    )
+                    self._records[record.record_id] = new_entry
+                    key = self._fact_key(record.project_id, record.workspace_id, record.node_id)
+                    self._record_ids_by_node[key].append(record.record_id)
+                    self._reuse_index[record.solution_key] = record.record_id
+                self._install_lazy_durable_fact_locked(record)
+                self._last_durable_reason_code = "durable_hit"
             return payload
+        if hashlib.sha256(payload_bytes).hexdigest() != record.result_digest:
+            raise ValueError("solution record payload digest is invalid")
+        payload = AcceptedOutputPayload(
+            node_id=record.node_id,
+            record_id=record.record_id,
+            solution_key=record.solution_key,
+            settlement_status=record.settlement_status,
+            result_digest=record.result_digest,
+            residency=record.residency,
+            runtime_generation=record.runtime_generation,
+            outputs=payload_bytes,
+            catalog=catalog,
+        )
+        validate_accepted_output_payload(
+            record,
+            payload,
+            catalog=catalog,
+            artifact_context=artifact_context,
+        )
+        if record.residency is SolutionResidency.DURABLE:
+            with self._lock:
+                current_entry = self._records.get(record.record_id)
+                if current_entry is None or current_entry.record != record:
+                    raise ValueError("durable solution record changed during validation")
+                self._install_lazy_durable_fact_locked(record)
+        return payload
 
     def invalidate(
         self,
@@ -652,6 +1225,7 @@ class SolutionStore:
         catalog: DataTypeCatalog,
         resources_reusable: bool = False,
         resource_leases: Sequence[Any] = (),
+        artifact_context: Any = None,
     ) -> tuple[
         tuple[dict[str, Any], ...],
         tuple[Any, ...],
@@ -675,6 +1249,7 @@ class SolutionStore:
                     catalog=catalog,
                     resources_reusable=resources_reusable,
                     resource_leases=tuple(resource_leases),
+                    artifact_context=artifact_context,
                 )
                 released_leases.extend(released)
                 if diagnostic is not None:
@@ -696,6 +1271,7 @@ class SolutionStore:
         catalog: DataTypeCatalog,
         resources_reusable: bool,
         resource_leases: tuple[Any, ...],
+        artifact_context: Any,
     ) -> tuple[
         dict[str, Any] | None,
         tuple[Any, ...],
@@ -832,6 +1408,12 @@ class SolutionStore:
                 if became_current
                 else None,
             )
+        session_reuse_eligible = (
+            capture.identity_reuse_eligible
+            and capture.solution_reuse_scope != "never"
+            and carriers_reusable
+            and resources_reusable
+        )
         record = SolutionRecord(
             record_id=f"record_{uuid.uuid4().hex}",
             project_id=envelope.project_id,
@@ -848,11 +1430,7 @@ class SolutionStore:
             execution_environment_digest=capture.execution_environment_digest,
             settlement_status=status,
             result_digest=result_digest,
-            reuse_eligible=(
-                capture.reuse_eligible
-                and carriers_reusable
-                and resources_reusable
-            ),
+            reuse_eligible=session_reuse_eligible,
             output_descriptors=descriptors,
             payload_locator=locator,
             residency=SolutionResidency.SESSION,
@@ -860,6 +1438,87 @@ class SolutionStore:
             created_at_epoch_ms=int(time.time() * 1000),
             catalog=catalog,
         )
+        if capture.solution_reuse_scope == "durable" and session_reuse_eligible:
+            validation = validate_durable_settled_outputs(
+                outputs,
+                descriptors,
+                catalog,
+                artifact_context,
+            )
+            backend = (
+                self._durable_backend
+                if self._durable_project_id == envelope.project_id
+                else None
+            )
+            if validation.eligible and validation.canonical_payload is not None and backend is not None:
+                try:
+                    staged = backend.stage_record(
+                        record,
+                        validation.canonical_payload,
+                        catalog,
+                    )
+                except Exception:  # noqa: BLE001 - durable publication fails closed.
+                    staged = DurableStageResult(None, "durable_stage_write_failed")
+                if not isinstance(staged, DurableStageResult):
+                    staged = DurableStageResult(None, "durable_stage_write_failed")
+                if staged.record is not None and (
+                    not _durable_record_matches(
+                        staged.record,
+                        project_id=record.project_id,
+                        workspace_id=record.workspace_id,
+                        node_id=record.node_id,
+                        solution_key=record.solution_key,
+                    )
+                    or staged.record.result_digest != record.result_digest
+                    or staged.record.settlement_status != record.settlement_status
+                    or staged.record.output_descriptors != record.output_descriptors
+                ):
+                    staged = DurableStageResult(None, "durable_stage_write_failed")
+                self._last_durable_reason_code = staged.reason_code
+                if staged.reason_code == "durable_nondeterminism_conflict":
+                    key = self._fact_key(
+                        envelope.project_id,
+                        envelope.workspace_id,
+                        node_id,
+                    )
+                    previous = self._never_fact_locked(*key)
+                    self._facts[key] = NodeSolutionFact(
+                        project_id=key[0],
+                        workspace_id=key[1],
+                        node_id=key[2],
+                        freshness=SolutionFreshness.EXPIRED,
+                        revision=self._node_revisions[key],
+                        retained_record_id=previous.retained_record_id,
+                        retained_solution_key=previous.retained_solution_key,
+                        residency=previous.residency,
+                        expiration_reason_code="nondeterministic_solution_result",
+                        expiration_root_node_ids=(node_id,),
+                        last_disposition=previous.last_disposition,
+                    )
+                    return (
+                        {
+                            "type": "solution_nondeterminism",
+                            "run_id": run.run_id,
+                            "workspace_id": key[1],
+                            "node_id": node_id,
+                            "reason": "same_solution_key_different_result",
+                        },
+                        resource_leases,
+                        None,
+                    )
+                if staged.record is not None:
+                    record = staged.record
+                    locator = record.payload_locator
+                    stored_payload = (
+                        validation.canonical_payload
+                        if locator is not None
+                        else None
+                    )
+                    payload_size = len(stored_payload or b"")
+            elif not validation.eligible:
+                self._last_durable_reason_code = validation.reason_code
+            elif backend is None:
+                self._last_durable_reason_code = "durable_not_bound"
         retained_resource_leases = (
             resource_leases if record.reuse_eligible else ()
         )
@@ -1316,7 +1975,7 @@ class SolutionStore:
             entry.captured_nodes = {
                 node_id: replace(
                     capture,
-                    reuse_eligible=(
+                    identity_reuse_eligible=(
                         decisions[node_id].reason_code in unavailable_reasons
                     ),
                 )
@@ -1513,7 +2172,15 @@ class SolutionStore:
 
 __all__ = [
     "CapturedNodeSolution",
+    "DurableBackendOpenResult",
+    "DurableLookupResult",
+    "DurablePayloadResult",
+    "DurableSolutionBackend",
+    "DurableSolutionBackendFactory",
+    "DurableStageResult",
+    "MAX_DURABLE_DIAGNOSTIC_UTF8_BYTES",
     "SettlementAcceptance",
     "SolutionStore",
     "SolutionStoreLimits",
+    "sanitize_durable_diagnostic",
 ]

@@ -5,6 +5,8 @@ from unittest import mock
 
 import pytest
 
+import ea_node_editor.execution.solution_store as solution_store_module
+
 from ea_node_editor.execution.backends import ExecutionBackendSelection
 from ea_node_editor.execution.prepared_execution import (
     AcceptedOutputPayload,
@@ -16,6 +18,12 @@ from ea_node_editor.execution.prepared_execution import (
     RecomputeMode,
     SolutionStateChangedEvent,
     validate_accepted_output_payload,
+)
+from ea_node_editor.execution.solution_store import (
+    DurableBackendOpenResult,
+    DurableLookupResult,
+    DurablePayloadResult,
+    DurableStageResult,
 )
 from ea_node_editor.execution.protocol import (
     NodeSettledEvent,
@@ -85,7 +93,7 @@ def _record(
         payload_locator = SolutionPayloadLocator(
             kind=residency,
             reference_id="session-output" if residency is SolutionResidency.SESSION else _B,
-            blob_digests=() if residency is SolutionResidency.SESSION else (_C,),
+            blob_digests=() if residency is SolutionResidency.SESSION else (_B,),
         )
     return SolutionRecord(
         record_id="record-1",
@@ -298,6 +306,170 @@ def test_solution_record_descriptor_locator_and_generation_matrix() -> None:
                 "created_at_epoch_ms": True,
             }
         )
+
+
+def test_durable_port_results_enforce_type_specific_combinations() -> None:
+    record = _record(residency=SolutionResidency.DURABLE)
+    outputs = (("result", SettledPortResult(status="empty")),)
+
+    assert DurableLookupResult(record, "durable_hit").record is record
+    assert DurablePayloadResult(outputs, "durable_hit").outputs == outputs
+    assert DurableStageResult(record, "durable_stage_published").record is record
+    with pytest.raises(ValueError, match="requires a solution record"):
+        DurableLookupResult(None, "durable_hit")
+    with pytest.raises(ValueError, match="misses cannot carry"):
+        DurableLookupResult(record, "durable_key_absent")
+    with pytest.raises(ValueError, match="requires outputs"):
+        DurablePayloadResult(None, "durable_hit")
+    with pytest.raises(ValueError, match="misses cannot carry"):
+        DurablePayloadResult(outputs, "durable_payload_missing")
+    with pytest.raises(ValueError, match="requires a record"):
+        DurableStageResult(None, "durable_stage_existing_identical")
+    with pytest.raises(ValueError, match="failed durable stages"):
+        DurableStageResult(record, "durable_stage_write_failed")
+    with pytest.raises(ValueError, match="reason_code"):
+        DurableLookupResult(None, "unknown")
+
+
+def test_every_durable_port_reason_has_one_strict_result_shape() -> None:
+    record = _record(residency=SolutionResidency.DURABLE)
+    outputs = (("result", SettledPortResult(status="empty")),)
+    for reason in solution_store_module._DURABLE_LOOKUP_REASONS:  # noqa: SLF001
+        result = DurableLookupResult(
+            record if reason == "durable_hit" else None,
+            reason,
+        )
+        assert (result.record is not None) is (reason == "durable_hit")
+    for reason in solution_store_module._DURABLE_PAYLOAD_REASONS:  # noqa: SLF001
+        result = DurablePayloadResult(
+            outputs if reason == "durable_hit" else None,
+            reason,
+        )
+        assert (result.outputs is not None) is (reason == "durable_hit")
+    for reason in solution_store_module._DURABLE_STAGE_REASONS:  # noqa: SLF001
+        succeeded = reason in {
+            "durable_stage_published",
+            "durable_stage_existing_identical",
+        }
+        result = DurableStageResult(record if succeeded else None, reason)
+        assert (result.record is not None) is succeeded
+
+
+def test_durable_backend_open_result_enforces_active_and_session_only_shapes() -> None:
+    class Backend:
+        def lookup_record(self, workspace_id, node_id, solution_key, catalog):  # noqa: ANN001, ANN201
+            del workspace_id, node_id, solution_key, catalog
+            return DurableLookupResult(None, "durable_key_absent")
+
+        def load_payload(self, record, catalog):  # noqa: ANN001, ANN201
+            del record, catalog
+            return DurablePayloadResult(None, "durable_payload_missing")
+
+        def stage_record(self, record, canonical_payload, catalog):  # noqa: ANN001, ANN201
+            del record, canonical_payload, catalog
+            return DurableStageResult(None, "durable_stage_write_failed")
+
+        def close(self) -> None:
+            return None
+
+    backend = Backend()
+    active = DurableBackendOpenResult(
+        backend,
+        "namespace",
+        "durable_bound_active",
+    )
+    assert active.backend is backend
+    fallback = DurableBackendOpenResult(
+        None,
+        "namespace",
+        "durable_session_only_metadata_absent",
+        "x" * 600,
+    )
+    assert len(fallback.diagnostic.encode("utf-8")) == 512
+    with pytest.raises(ValueError, match="backend only"):
+        DurableBackendOpenResult(None, "namespace", "durable_bound_active")
+    with pytest.raises(ValueError, match="diagnostic"):
+        DurableBackendOpenResult(
+            None,
+            "namespace",
+            "durable_session_only_metadata_absent",
+        )
+    for status_code in solution_store_module._DURABLE_SESSION_ONLY_STATUSES:  # noqa: SLF001
+        result = DurableBackendOpenResult(
+            None,
+            "namespace",
+            status_code,
+            "Durable result data will be recomputed.",
+        )
+        assert result.status_code == status_code
+
+
+def test_solution_record_routes_durable_output_validation_to_shared_gate() -> None:
+    record = _record(residency=SolutionResidency.DURABLE)
+    outputs = {
+        "result": SettledPortResult(
+            status="value",
+            value=DataTree.from_item("cached"),
+        )
+    }
+    validation = record.validate_durable_outputs(
+        outputs,
+        catalog=_REGISTRY.data_types,
+        artifact_context=None,
+    )
+    assert not validation.eligible  # fixture descriptor digest intentionally differs
+    with pytest.raises(ValueError, match="durable residency"):
+        _record().validate_durable_outputs(
+            outputs,
+            catalog=_REGISTRY.data_types,
+            artifact_context=None,
+        )
+
+
+def test_durable_record_id_and_logical_id_limits_accept_n_reject_n_plus_one() -> None:
+    record = _record()
+    assert len(replace(record, record_id="r" * 128).record_id.encode("utf-8")) == 128
+    with pytest.raises(ValueError, match="128 bytes"):
+        replace(record, record_id="r" * 129)
+    assert len(replace(record, project_id="p" * 4096).project_id.encode("utf-8")) == 4096
+    with pytest.raises(ValueError, match="4096 bytes"):
+        replace(record, project_id="p" * 4097)
+    with pytest.raises(ValueError, match="control"):
+        replace(record, record_id="record\x7funsafe")
+    with pytest.raises(ValueError, match="matching result blob"):
+        replace(
+            _record(residency=SolutionResidency.DURABLE),
+            payload_locator=SolutionPayloadLocator(
+                kind=SolutionResidency.DURABLE,
+                reference_id=_B,
+                blob_digests=(_B, _C),
+            ),
+            catalog=_REGISTRY.data_types,
+        )
+
+
+def test_durable_payload_result_requires_sorted_unique_bounded_ports() -> None:
+    empty = SettledPortResult(status="empty")
+    with pytest.raises(ValueError, match="sorted"):
+        DurablePayloadResult((('z', empty), ('a', empty)), "durable_hit")
+    with pytest.raises(ValueError, match="unique"):
+        DurablePayloadResult((('a', empty), ('a', empty)), "durable_hit")
+
+
+def test_durable_diagnostics_drop_paths_and_sensitive_text() -> None:
+    for diagnostic in (
+        r"C:\private\solution.json",
+        "token=never-echo-this",
+        "/private/solution.json",
+    ):
+        result = DurableBackendOpenResult(
+            None,
+            "namespace",
+            "durable_session_only_io_error",
+            diagnostic,
+        )
+        assert "private" not in result.diagnostic.casefold()
+        assert "never-echo-this" not in result.diagnostic
 
 
 def test_solution_record_and_accepted_output_port_statuses_match_exactly() -> None:

@@ -288,6 +288,18 @@ class ProjectDocumentIOService:
         )
         if callable(reset_project_session):
             reset_project_session(project.project_id, project_path)
+        bind_project_solution_store = getattr(
+            execution_client,
+            "bind_project_solution_store",
+            None,
+        )
+        if callable(bind_project_solution_store):
+            metadata = project.metadata if isinstance(project.metadata, Mapping) else {}
+            bind_project_solution_store(
+                project.project_id,
+                project_path,
+                metadata.get("solution_store"),
+            )
         self._host.model = GraphModel(project)
         self._host.workspace_manager = ShellWorkspaceManagerAdapter(
             WorkspaceManager(self._host.model), self._host.model

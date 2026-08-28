@@ -128,7 +128,7 @@ Only `ACCEPTED` satisfies a dependent task.
 | T04 | Worker reuse cutover | T01-T03 plus revised T04 contract review | `ACCEPTED` | `/root/t04_explorer` | `/root/t04_implementer` | `/root/t04_reviewer` | accepted: no P0-P3; cross-backend tamper matrix green | none |
 | T05 | Shell invalidation and freshness projection | T03, T04 plus revised T05 contract review | `ACCEPTED` | `/root/t05_explorer` | `/root/t05_implementer_recovery` | `/root/t05_reviewer` | accepted: no P0-P3; shell/cache/QML closure green | none |
 | T06 | Scoped viewer invalidation | T03-T05 plus revised T06 contract review | `ACCEPTED` | `/root/t06_explorer` | `/root/t06_implementer` | `/root/t06_reviewer` | accepted: no P0-P3; participant-local viewer acceptance and focused/fast evidence green | none |
-| T07 | Durable solution repository | T01-T04 | `PLANNED_BLOCKED_PENDING_APPROVAL` | unassigned | unassigned | unassigned | none | wait for T01-T04 |
+| T07 | Durable solution repository | T01-T04 | `ACCEPTED` | `/root/t07_explorer` | `/root/t07_implementer_recovery` | `/root/t07_reviewer` | accepted: no P0-P3; durable repository/security evidence green | none |
 | T08 | Save and Save-As transactions | T07 | `PLANNED_BLOCKED_PENDING_APPROVAL` | unassigned | unassigned | unassigned | none | wait for T07 |
 | T09 | Closeout and acceptance | T01-T08 | `PLANNED_BLOCKED_PENDING_APPROVAL` | unassigned | unassigned | unassigned | none | wait for all tasks |
 
@@ -145,8 +145,8 @@ test output must name the exact command and result or a stable log path.
 | T03 | T01-T02 accepted working-tree state; HEAD `86a5f562e7c5c9d7d52dad97f842a89631508a26` | `C:\Users\emre_\PycharmProjects\EA_Node_Editor` | accepted T01-T02 diff plus prohibited plan/spec paths | revised T03 plan SHA-256 `6F833C47577289AC041822C99BB4F1E4255A756CE539D57681A6D461D8644381` | `/root/t03_explorer` accepted: lifecycle/generation/revision/cache/closure/lock map and exact project/composition/reader/contract tests/maps | `/root/t03_implementer`; working-tree diff; no commit | central 51; client/contracts 248 + 187 subtests; project 43 + 5; artifact/handle/security 56 + 23; exact closure 5; real process/maps/links/Ruff/diff pass; baseline isolated | `/root/t03_reviewer`: no P0-P3; accept | none | sequential shared checkout |
 | T04 | T01-T03 accepted working-tree state; HEAD `86a5f562e7c5c9d7d52dad97f842a89631508a26` | `C:\Users\emre_\PycharmProjects\EA_Node_Editor` | accepted T01-T03 diff plus prohibited plan/spec paths | revised T04 plan SHA-256 `8C8677AD60353B26A37A367B32616A30D52310CFCC8F2B0CC2E0A131918CC3BC` | `/root/t04_explorer` accepted: transport/event/store/headless boundary map, exact reuse validation and scope drift | `/root/t04_implementer`; working-tree diff; no commit | core 66; protocol/client/headless/store 150 + 186 subtests; worker/dataflow 67 + 5; process/selected/start/run/legacy 7; maps/Ruff/diff pass | `/root/t04_reviewer`: no P0-P3; accept | none | sequential shared checkout |
 | T05 | T01-T04 accepted working-tree state; HEAD `86a5f562e7c5c9d7d52dad97f842a89631508a26` | `C:\Users\emre_\PycharmProjects\EA_Node_Editor` | accepted T01-T04 diff plus prohibited plan/spec paths | revised T05 plan SHA-256 `2F3626EB5620181CE6790E2F8D80139F12A525858551F6542FE61BC65027F82D` | `/root/t05_explorer` accepted: history/dispatch/cache/projection/availability/media/API-removal consumer map and store start-failure drift | `/root/t05_implementer_recovery`; audited/completed partial working-tree diff; no commit | exact closure 7; expanded store/headless/run/port/media/DPF 168 + 17 subtests; prior locked suites/maps/indexes/Ruff/diff pass; tooltip/Ruff baselines isolated | `/root/t05_reviewer`: no P0-P3; accept | none | sequential shared checkout |
-| T06 | HEAD `63e9786f`; accepted T01-T05 foundation | `C:\Users\emre_\PycharmProjects\EA_Node_Editor` | prohibited `docs/specs/INDEX.md` and Physical Simulation plan only | participant-local T06 plan SHA-256 `1AD2CF1FE568683497504B9EC2ED51B6BD269A53DBC53DCD6100D89515F6F58C` | `/root/t06_explorer` accepted: every invalidator/global reset, bridge/client/service epoch, worker filter, request registry, exact APIs, test/map owner | `/root/t06_implementer`; accepted working-tree diff; scoped commit pending | reopened 10 + 23 subtests; expanded focused 404 + 244 subtests; client/service/headless/store 160 + 64; DPF 25 + 3 and generator check; SSH 17; process reuse xdist 2; fast 4092 passed, 2 skipped, exactly 2 approved Model Viewer fixture baselines; maps/Ruff/diff/scope/process-leak pass | `/root/t06_reviewer`: no P0-P3; accept | none | sequential shared checkout; individual T06 commit |
-| T07 | pending assignment | pending assignment | pending | plan T07; hash pending | none | none | none | none | none | sequential shared checkout |
+| T06 | HEAD `63e9786f`; accepted T01-T05 foundation | `C:\Users\emre_\PycharmProjects\EA_Node_Editor` | prohibited `docs/specs/INDEX.md` and Physical Simulation plan only | participant-local T06 plan SHA-256 `1AD2CF1FE568683497504B9EC2ED51B6BD269A53DBC53DCD6100D89515F6F58C` | `/root/t06_explorer` accepted: every invalidator/global reset, bridge/client/service epoch, worker filter, request registry, exact APIs, test/map owner | `/root/t06_implementer`; commit `057a507a`; no push | reopened 10 + 23 subtests; expanded focused 404 + 244 subtests; client/service/headless/store 160 + 64; DPF 25 + 3 and generator check; SSH 17; process reuse xdist 2; fast 4092 passed, 2 skipped, exactly 2 approved Model Viewer fixture baselines; maps/Ruff/diff/scope/process-leak pass | `/root/t06_reviewer`: no P0-P3; accept | none | sequential shared checkout; individual T06 commit |
+| T07 | HEAD `057a507a`; accepted T01-T06 | `C:\Users\emre_\PycharmProjects\EA_Node_Editor` | prohibited `docs/specs/INDEX.md` and Physical Simulation plan only; approved plan/ledger revision plus scoped T07 diff | approved T07 whole-plan SHA-256 `9E4C0EDC7030C466E8357F71670B3EB591C432EC9A82847E38323C0084ECC456` | `/root/t07_explorer` accepted: store/backend seam, artifact/path primitives, codec eligibility, metadata/lifecycle owners, lazy-load threat model, exact scope/tests/maps | `/root/t07_implementer_recovery`; accepted working-tree diff; scoped commit pending | real artifact probes 49; prior/new closure 55; repository/records/value 177; store/runtime 10; artifact/project 2; serializer/boundary/import 4; all ten modules 404 + 92 subtests; maps/indexes/Ruff/diff/scope/privacy pass | `/root/t07_reviewer`: no P0-P3; accept | none | sequential shared checkout; individual T07 commit |
 | T08 | pending assignment | pending assignment | pending | plan T08; hash pending | none | none | none | none | none | sequential shared checkout |
 | T09 | pending assignment | pending assignment | pending | plan T09; hash pending | none | none | none | none | none | sequential shared checkout |
 
@@ -403,18 +403,37 @@ The drafter and reviewer must be different sub-agents.
   - exact durable schema threat model.
 - Locked implementation scope: plan T07 only.
 - Required implementation evidence:
-  - schema and path-key tests;
-  - atomic record/blob/manifest tests;
-  - restart/lazy-load tests;
-  - corruption/path/reparse/hash failure matrix;
-  - secret/handle/temp/private-path exclusion tests;
-  - nondeterminism conflict test.
+  - execution-owned durable backend/factory ports, concrete structural
+    implementation, binding/reset/detach lifecycle, and no execution-to-persistence
+    implementation import;
+  - exact schema-1 manifest-set/node-manifest/record/result-blob adapters and every
+    byte/count/depth/generation limit at `N` and `N+1`;
+  - full SHA-256 logical path keys plus containment, link/junction/reparse,
+    replace-scan-restore, mutation/truncation/digest/canonical-byte failure matrix;
+  - conditional durable/session publication by maximum scope and actual output
+    eligibility, including all 29 maximum-durable rows;
+  - centralized durable value validation across declared/concrete catalog types,
+    sensitivity, artifacts, secrets, handles, tabular/array/window/slice refs,
+    temp/private paths, callbacks/native objects, and large images;
+  - lazy bind/record/payload read order with zero partial installation;
+  - deterministic bind/lookup/load/stage/generation reason matrices and sanitized
+    diagnostic bounds;
+  - authored open with absent/corrupt/unknown solution metadata remains session-only
+    without graph/metadata loss;
+  - same-result retention and ordinary/forced divergent nondeterminism without
+    overwrite or session fallback;
+  - runtime-generation reset preserves binding/content; detach closes/clears caches
+    without deleting content;
+  - immutable blob/record/node-manifest/manifest-set publication and safe isolated
+    reachability/prune primitives;
+  - T07 performs no `.cxproj` write, Save/Save As binding switch, or lifecycle prune;
+  - focused ten-module acceptance, maps/indexes, architecture, and diff checks.
 - Required review lenses:
   - data-loss prevention;
   - path traversal/reparse safety;
   - atomicity and previous-record preservation;
   - persistence/execution dependency direction.
-- Acceptance record: `none`.
+- Acceptance record: `/root/t07_reviewer`; no P0-P3; accepted.
 
 ### T08 Save and Save-As transactions
 
@@ -561,7 +580,23 @@ planning research.
 | L085 | Accepted the participant-local T06 contract after independent review found no remaining P0-P2 contradictions. | `/root/plan_architecture_review`. |
 | L086 | Original T06 implementer completed participant-local snapshots/translation, state-before-viewer transaction locking, and irreversible commit finalization; focused and clean-process fast evidence is ready for closure. | `/root/t06_implementer`. |
 | L087 | Accepted T06 after independent closure review found no P0-P3 issues; opened the individual T06 commit boundary. | `/root/t06_reviewer`. |
+| L088 | Created local individual T06 commit `057a507a`; staged-scope and private-provenance audits passed; no push. | Orchestrator commit boundary. |
+| L089 | Opened read-only T07 durable-repository exploration at accepted HEAD `057a507a`. | `/root/t07_explorer`. |
+| L090 | T07 exploration found the central SolutionStore missing from scope and unresolved durable protocol, manifest bounds, metadata fallback, reason-code, and T07/T08 ownership details; returned T07 to its revision approval gate. | `/root/t07_explorer`. |
+| L091 | Revised T07 around an execution-owned durable backend/factory port, strict bounded schema-1 repository, centralized durable runtime-value validation, session-only authored-open fallback, and an explicit T07/T08 transaction split. | `/root/plan_architecture_review`. |
+| L092 | Corrected T07 namespace lifetime, immutable no-clobber publication, trusted artifact-I/O boundary, factory timing, strict backend-result combinations, and unsupported-metadata T08 wording. | `/root/plan_architecture_review`. |
+| L093 | Removed the remaining cross-result payload ambiguity so bind, lookup/load, and stage combinations remain type-specific. | `/root/plan_architecture_review`. |
+| L094 | Independently accepted revised T07 plan hash `9E4C0EDC7030C466E8357F71670B3EB591C432EC9A82847E38323C0084ECC456`; production remains blocked pending explicit user approval. | `/root/plan_architecture_review`. |
+| L095 | User explicitly approved revised T07 plan hash `9E4C0EDC7030C466E8357F71670B3EB591C432EC9A82847E38323C0084ECC456`. | User approval. |
+| L096 | Assigned accepted T07 scope to `/root/t07_implementer` in the sequential shared checkout. | Orchestrator assignment. |
+| L097 | Windows update ended `/root/t07_implementer` without a handoff; the partial scoped diff survived, no proving output survived, and recovery was assigned to `/root/t07_implementer_recovery`. | User interruption; orchestrator resume audit. |
+| L098 | T07 recovery audited the surviving partial diff, corrected callback, binding, prune, result-shape, and partial-install risks, completed maps/indexes, and returned all ten scoped modules green. | `/root/t07_implementer_recovery`. |
+| L099 | Independent T07 review reopened callback-free durable decode, backend-rebind eviction, nondeterminism freshness, excluded path, recursion containment, lazy fact installation, and reachability aggregate-bound findings. | `/root/t07_reviewer`. |
+| L100 | T07 recovery resolved all seven review findings and reran reviewer probes plus the expanded ten-module acceptance successfully. | `/root/t07_implementer_recovery`. |
+| L101 | T07 closure review reopened managed-artifact resolver callbacks and private-path metadata/drive/home/environment exclusions; prior seven findings remained closed. | `/root/t07_reviewer`. |
+| L102 | T07 recovery added callback-free managed-artifact inspection and recursive private-path rejection within scope; real artifact probes and the expanded ten-module suite passed. | `/root/t07_implementer_recovery`. |
+| L103 | Accepted T07 after independent closure review found no P0-P3 issues; opened the individual T07 commit boundary. | `/root/t07_reviewer`. |
 
 ## Current Next Action
 
-Create the scoped individual T06 commit without pushing, then open T07 exploration.
+Create the scoped individual T07 commit without pushing, then open T08 exploration.

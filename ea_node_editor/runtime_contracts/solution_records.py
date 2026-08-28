@@ -8,13 +8,21 @@ from collections.abc import Mapping
 from dataclasses import InitVar, dataclass
 from enum import Enum
 import re
+import unicodedata
 from typing import Any
 
 from ea_node_editor.runtime_contracts.settled_results import MAX_OUTPUTS_PER_NODE
 from ea_node_editor.runtime_contracts.data_types import DataTypeCatalog
+from ea_node_editor.runtime_contracts.runtime_values import (
+    DurableRuntimeValueValidation,
+    validate_durable_settled_outputs,
+)
 
 _SHA256 = re.compile(r"[0-9a-f]{64}")
 _MAX_ID_BYTES = 1_024
+MAX_DURABLE_LOGICAL_ID_UTF8_BYTES = 4_096
+MAX_DURABLE_RECORD_ID_UTF8_BYTES = 128
+MAX_DURABLE_BLOBS_PER_RECORD = 1
 _MAX_DESCRIPTOR_VARIANTS = 64
 
 
@@ -67,6 +75,8 @@ def _text(
         raise ValueError(f"{field_name} must be non-empty")
     if len(normalized.encode("utf-8")) > max_bytes:
         raise ValueError(f"{field_name} exceeds {max_bytes} bytes")
+    if any(unicodedata.category(character) == "Cc" for character in normalized):
+        raise ValueError(f"{field_name} must not contain control characters")
     return normalized
 
 
@@ -409,9 +419,24 @@ class SolutionRecord:
     def __post_init__(self, catalog: DataTypeCatalog | None) -> None:
         if _integer(self.schema_version, field_name="schema_version") != 1:
             raise ValueError("solution record schema_version must be 1")
-        for field_name in ("record_id", "project_id", "workspace_id", "node_id"):
+        object.__setattr__(
+            self,
+            "record_id",
+            _text(
+                self.record_id,
+                field_name="record_id",
+                max_bytes=MAX_DURABLE_RECORD_ID_UTF8_BYTES,
+            ),
+        )
+        for field_name in ("project_id", "workspace_id", "node_id"):
             object.__setattr__(
-                self, field_name, _text(getattr(self, field_name), field_name=field_name)
+                self,
+                field_name,
+                _text(
+                    getattr(self, field_name),
+                    field_name=field_name,
+                    max_bytes=MAX_DURABLE_LOGICAL_ID_UTF8_BYTES,
+                ),
             )
         for field_name in (
             "solution_key",
@@ -475,6 +500,8 @@ class SolutionRecord:
         if has_value and self.payload_locator is None:
             raise ValueError("value descriptors require a payload locator")
         if residency is SolutionResidency.DURABLE:
+            if not self.reuse_eligible:
+                raise ValueError("durable solution records must be reuse eligible")
             if any("handle_ref" in item.payload_kinds for item in descriptors):
                 raise ValueError(
                     "durable solution records cannot contain session-only carriers"
@@ -487,10 +514,46 @@ class SolutionRecord:
                     "durable solution records with outputs require a data-type catalog"
                 )
             for descriptor in value_descriptors:
-                if catalog.require(descriptor.data_type_id).persistence == "never":
+                declared_spec = catalog.require(descriptor.data_type_id)
+                if (
+                    declared_spec.persistence == "never"
+                    or declared_spec.sensitivity != "normal"
+                ):
                     raise ValueError(
                         "durable solution records cannot contain session-only carriers"
                     )
+                for concrete_type_id in descriptor.concrete_data_type_ids:
+                    concrete_spec = catalog.require(concrete_type_id)
+                    if (
+                        concrete_spec.persistence == "never"
+                        or concrete_spec.sensitivity != "normal"
+                        or not catalog.is_assignable(
+                            concrete_type_id,
+                            descriptor.data_type_id,
+                        )
+                    ):
+                        raise ValueError(
+                            "durable solution records cannot contain ineligible concrete types"
+                        )
+            if value_descriptors:
+                if (
+                    self.payload_locator is None
+                    or self.payload_locator.blob_digests
+                    != (self.payload_locator.reference_id,)
+                ):
+                    raise ValueError(
+                        "durable value records require one matching result blob digest"
+                    )
+            elif self.payload_locator is not None:
+                raise ValueError(
+                    "durable outputless or empty records cannot have a payload locator"
+                )
+            if (
+                self.payload_locator is not None
+                and len(self.payload_locator.blob_digests)
+                > MAX_DURABLE_BLOBS_PER_RECORD
+            ):
+                raise ValueError("durable payload locator exceeds the blob limit")
         if residency is SolutionResidency.SESSION:
             if self.runtime_generation is None:
                 raise ValueError("session records require a runtime generation")
@@ -516,6 +579,22 @@ class SolutionRecord:
             self._to_payload(),
             catalog=catalog,
         )._to_payload()
+
+    def validate_durable_outputs(
+        self,
+        outputs: Mapping[str, Any],
+        *,
+        catalog: DataTypeCatalog,
+        artifact_context: Any,
+    ) -> DurableRuntimeValueValidation:
+        if self.residency is not SolutionResidency.DURABLE:
+            raise ValueError("durable output validation requires durable residency")
+        return validate_durable_settled_outputs(
+            outputs,
+            self.output_descriptors,
+            catalog,
+            artifact_context,
+        )
 
     def _to_payload(self) -> dict[str, Any]:
         return {
@@ -587,6 +666,9 @@ _SOLUTION_RECORD_FIELDS = frozenset(SolutionRecord.__dataclass_fields__) - {
 }
 
 __all__ = [
+    "MAX_DURABLE_BLOBS_PER_RECORD",
+    "MAX_DURABLE_LOGICAL_ID_UTF8_BYTES",
+    "MAX_DURABLE_RECORD_ID_UTF8_BYTES",
     "NodeSolutionFact",
     "SolutionDisposition",
     "SolutionFreshness",

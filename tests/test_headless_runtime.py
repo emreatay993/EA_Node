@@ -36,6 +36,12 @@ from ea_node_editor.execution.prepared_execution import (
     RecomputeMode,
 )
 from ea_node_editor.execution.runtime_snapshot import build_runtime_snapshot
+from ea_node_editor.execution.solution_store import (
+    DurableBackendOpenResult,
+    DurableLookupResult,
+    DurablePayloadResult,
+    DurableStageResult,
+)
 from ea_node_editor.execution.worker_runner import WorkflowRunner
 from ea_node_editor.execution.worker_services import WorkerServices
 from ea_node_editor.graph.model import GraphModel
@@ -47,6 +53,41 @@ from ea_node_editor.runtime_contracts.settled_results import (
     settled_outputs_to_payload,
 )
 from ea_node_editor.runtime_contracts.solution_records import SolutionFreshness
+
+
+class _DurableLifecycleBackend:
+    def __init__(self) -> None:
+        self.close_calls = 0
+
+    def close(self) -> None:
+        self.close_calls += 1
+
+    def lookup_record(self, workspace_id, node_id, solution_key, catalog):  # noqa: ANN001, ANN201
+        del workspace_id, node_id, solution_key, catalog
+        return DurableLookupResult(None, "durable_key_absent")
+
+    def load_payload(self, record, catalog):  # noqa: ANN001, ANN201
+        del record, catalog
+        return DurablePayloadResult(None, "durable_payload_missing")
+
+    def stage_record(self, record, canonical_payload, catalog):  # noqa: ANN001, ANN201
+        del record, canonical_payload, catalog
+        return DurableStageResult(None, "durable_stage_write_failed")
+
+
+class _DurableLifecycleFactory:
+    def __init__(self, backend: _DurableLifecycleBackend) -> None:
+        self.backend = backend
+        self.calls: list[tuple[str, str, object]] = []
+
+    def open_backend(self, project_id, project_path, metadata, catalog):  # noqa: ANN001, ANN201
+        del catalog
+        self.calls.append((project_id, project_path, metadata))
+        return DurableBackendOpenResult(
+            self.backend,
+            "stored-namespace",
+            "durable_bound_active",
+        )
 
 
 class _PreparedClient:
@@ -1536,6 +1577,60 @@ def test_real_process_prepared_dispatch_smoke() -> None:
         )[0].freshness is SolutionFreshness.CURRENT
     finally:
         runtime.shutdown()
+
+
+def test_project_solution_binding_reset_detach_and_shutdown_lifecycle() -> None:
+    backend = _DurableLifecycleBackend()
+    factory = _DurableLifecycleFactory(backend)
+    runtime = CorexRuntime(
+        client=_PreparedClient(),
+        registry=build_default_registry(),
+        solution_repository_factory=factory,
+    )
+    runtime.reset_project_session("project", "C:/project.cxproj")
+    result = runtime.bind_project_solution_store(
+        "project",
+        "C:/project.cxproj",
+        {"schema_version": 1},
+    )
+    assert result.status_code == "durable_bound_active"
+    assert runtime.solution_store.solution_namespace_id("project") == "stored-namespace"
+    assert backend.close_calls == 0
+
+    runtime.solution_store.reset_runtime_generation("test_generation")
+    assert runtime.solution_store.durable_status == ("durable_bound_active", "")
+    assert backend.close_calls == 0
+
+    runtime.detach_project_solution_store("project", "project_replaced")
+    assert backend.close_calls == 1
+    assert runtime.solution_store.stats()["records"] == 0
+    runtime.shutdown()
+    assert backend.close_calls == 1
+
+
+def test_project_solution_factory_failure_falls_back_without_partial_binding() -> None:
+    class MalformedFactory:
+        @staticmethod
+        def open_backend(project_id, project_path, metadata, catalog):  # noqa: ANN001, ANN201
+            del project_id, project_path, metadata, catalog
+            return object()
+
+    runtime = CorexRuntime(
+        client=_PreparedClient(),
+        registry=build_default_registry(),
+        solution_repository_factory=MalformedFactory(),
+    )
+    assert runtime.reset_project_session("project", "C:/project.cxproj") == "project"
+    result = runtime.bind_project_solution_store(
+        "project",
+        "C:/project.cxproj",
+        {"schema_version": 1},
+    )
+    assert result.status_code == "durable_session_only_io_error"
+    assert result.backend is None
+    assert runtime.solution_store.solution_namespace_id("project") == "project"
+    assert runtime.solution_store.stats()["records"] == 0
+    runtime.shutdown()
 
 
 def test_real_process_second_run_reuses_without_node_started() -> None:

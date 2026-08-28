@@ -20,11 +20,12 @@ Use this for launch path, app lifetime, splash handoff, and startup authority ch
 - Startup still calls session restore during shell bootstrap, but restore should leave the active project empty instead of reopening the last saved project.
 - For splash behavior, route through `ui/splash/opening_screen.py` and app handoff code; the splash should keep normal desktop z-order and not force itself above unrelated windows.
 - For shell dependency changes, keep `ShellWindowComposition` as the startup contract and use `ShellServices` as the attached dependency aggregate.
-- Shell composition still creates one `CorexRuntime`; its session `SolutionStore` is execution-owned and project install/new/open resets it through the existing attached execution-client seam. No second shell cache becomes scheduler authority during the dormant T03 stage.
+- Shell composition creates one `CorexRuntime` with the persistence-owned durable repository factory injected through the execution-owned port. Project install/new/open resets and binds that same store; no shell or persistence cache becomes another scheduler authority.
 
 ## Focused Verification
 ```powershell
 .\venv\Scripts\python.exe -m pytest tests/test_main_bootstrap.py tests/test_shell_window_lifecycle.py --ignore=venv -q
+.\venv\Scripts\python.exe -m pytest tests/test_headless_runtime.py -k "project_solution" -q
 ```
 
 ## Breadcrumbs

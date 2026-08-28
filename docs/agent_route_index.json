@@ -47,6 +47,7 @@
         "custom",
         "workflows",
         "telemetry",
+        "cxproj",
         "addons",
         "tabular",
         "data",
@@ -3345,6 +3346,7 @@
         "ea_node_editor/persistence/artifact_refs.py",
         "ea_node_editor/persistence/artifact_store.py",
         "ea_node_editor/persistence/artifact_resolution.py",
+        "ea_node_editor/persistence/solution_repository.py",
         "ea_node_editor/persistence/project_codec.py",
         "ea_node_editor/persistence/file_issues.py",
         "ea_node_editor/ui/shell/host_presenter.py",
@@ -3371,6 +3373,8 @@
         "refs",
         "store",
         "resolution",
+        "solution",
+        "repository",
         "codec",
         "file",
         "issues",
@@ -3396,7 +3400,10 @@
         "projectdata",
         "replace",
         "metadata",
+        "inspect",
+        "durable",
         "runtimeartifactref",
+        "solutions",
         "runtime",
         "type",
         "persistent",
@@ -3415,7 +3422,6 @@
         "python",
         "exe",
         "pytest",
-        "ignore",
         "breadcrumbs",
         "documents",
         "migrations",
@@ -3442,12 +3448,13 @@
       ],
       "aliases": [],
       "focused_verification": [
-        ".\\venv\\Scripts\\python.exe -m pytest tests/test_project_artifact_store.py tests/test_project_artifact_resolution.py --ignore=venv -q"
+        ".\\venv\\Scripts\\python.exe -m pytest tests/test_project_artifact_store.py tests/test_solution_repository.py -q"
       ],
       "start_here": [
         "ea_node_editor/persistence/artifact_refs.py",
         "ea_node_editor/persistence/artifact_store.py",
         "ea_node_editor/persistence/artifact_resolution.py",
+        "ea_node_editor/persistence/solution_repository.py",
         "ea_node_editor/persistence/project_codec.py",
         "ea_node_editor/persistence/file_issues.py",
         "ea_node_editor/ui/shell/host_presenter.py",
@@ -5813,6 +5820,7 @@
         "corexruntime",
         "reset",
         "path",
+        "bind",
         "solution",
         "powershell",
         "venv",
@@ -5820,11 +5828,11 @@
         "python",
         "exe",
         "pytest",
-        "ignore"
+        "replacement"
       ],
       "aliases": [],
       "focused_verification": [
-        ".\\venv\\Scripts\\python.exe -m pytest tests/test_project_session_controller_unit.py --ignore=venv -q"
+        ".\\venv\\Scripts\\python.exe -m pytest tests/test_project_session_controller_unit.py -k \"solution or bind or replacement\" -q"
       ],
       "start_here": [
         "ea_node_editor/ui/shell/controllers/project_session_controller.py",
@@ -6340,6 +6348,11 @@
         "temp",
         "runtime",
         "artifact",
+        "metadata",
+        "solution",
+        "store",
+        "jsonprojectcodec",
+        "solutionrepositoryfactory",
         "visual",
         "style",
         "compile",
@@ -6354,14 +6367,15 @@
         "pytest",
         "package",
         "imports",
-        "ignore",
+        "repository",
         "dataflow",
         "data",
-        "tree"
+        "tree",
+        "ignore"
       ],
       "aliases": [],
       "focused_verification": [
-        ".\\venv\\Scripts\\python.exe -m pytest tests/test_serializer.py tests/test_serializer_schema_migration.py tests/test_persistence_package_imports.py --ignore=venv -q",
+        ".\\venv\\Scripts\\python.exe -m pytest tests/test_serializer.py tests/test_persistence_package_imports.py -k \"solution_store or solution_repository\" -q",
         ".\\venv\\Scripts\\python.exe -m pytest tests/test_dataflow_graph_persistence.py tests/test_data_tree_ui.py --ignore=venv -q"
       ],
       "start_here": [
@@ -24171,25 +24185,29 @@
         "hidden",
         "pairs",
         "event",
+        "durablesolutionbackend",
+        "durable",
         "started",
         "legacy",
         "executionrequest",
         "changed",
         "reserved",
         "executionbackendclient",
+        "projectartifactstore",
+        "runtimeartifactservice",
+        "resolve",
+        "path",
         "settled",
         "results",
         "layout",
         "format",
         "size",
         "bytes",
-        "path",
         "temp",
         "saved",
         "default",
         "executable",
         "from",
-        "resolve",
         "externalpythonexecutionclient",
         "popen",
         "all",
@@ -24216,6 +24234,8 @@
         "export",
         "dataflow",
         "tree",
+        "repository",
+        "project",
         "breadcrumbs",
         "visualization",
         "feature",
@@ -24300,6 +24320,7 @@
         ".\\venv\\Scripts\\python.exe -m pytest tests/test_dataflow_execution_runtime.py tests/test_data_tree_contract.py --ignore=venv -q",
         ".\\venv\\Scripts\\python.exe -m pytest tests/test_solution_identity.py tests/test_execution_plan.py --ignore=venv -q",
         ".\\venv\\Scripts\\python.exe -m pytest tests/test_solution_store_session.py tests/test_headless_runtime.py tests/test_execution_plan.py tests/test_solution_identity.py --ignore=venv -q",
+        ".\\venv\\Scripts\\python.exe -m pytest tests/test_solution_store_session.py tests/test_headless_runtime.py -k \"durable or solution_repository or project_solution\" -q",
         ".\\venv\\Scripts\\python.exe -m pytest tests/test_execution_type_enforcement.py tests/test_viewer_viewport.py tests/test_security_contracts_types.py --ignore=venv -q"
       ],
       "start_here": [
@@ -25770,6 +25791,7 @@
         "ea_node_editor/persistence/project_codec.py",
         "ea_node_editor/persistence/serializer.py",
         "ea_node_editor/persistence/session_store.py",
+        "ea_node_editor/persistence/solution_repository.py",
         "ea_node_editor/ui/shell/controllers/project_session_services_support/document_io_service.py"
       ],
       "test_candidates": [
@@ -25779,7 +25801,8 @@
         "tests/test_project_save_as_flow.py",
         "tests/test_project_session_controller_unit.py",
         "tests/test_serializer.py",
-        "tests/test_serializer_schema_migration.py"
+        "tests/test_serializer_schema_migration.py",
+        "tests/test_solution_repository.py"
       ],
       "qml_candidates": [],
       "keywords": [
@@ -25799,6 +25822,8 @@
         "refs",
         "store",
         "resolution",
+        "solution",
+        "repository",
         "session",
         "shell",
         "controllers",
@@ -25811,6 +25836,10 @@
         "imagevalue",
         "media",
         "panel",
+        "stem",
+        "data",
+        "solutions",
+        "metadata",
         "tests",
         "test",
         "schema",
@@ -25832,7 +25861,7 @@
       ],
       "aliases": [],
       "focused_verification": [
-        ".\\venv\\Scripts\\python.exe -m pytest tests/test_serializer.py tests/test_project_save_as_flow.py tests/test_project_artifact_store.py -q"
+        ".\\venv\\Scripts\\python.exe -m pytest tests/test_solution_repository.py tests/test_serializer.py tests/test_project_artifact_store.py -q"
       ],
       "start_here": [
         "ea_node_editor/persistence/serializer.py",
@@ -25841,6 +25870,7 @@
         "ea_node_editor/persistence/artifact_refs.py",
         "ea_node_editor/persistence/artifact_store.py",
         "ea_node_editor/persistence/artifact_resolution.py",
+        "ea_node_editor/persistence/solution_repository.py",
         "ea_node_editor/persistence/session_store.py",
         "ea_node_editor/ui/shell/controllers/project_session_services_support/document_io_service.py"
       ],
@@ -26500,7 +26530,6 @@
         "shellwindowcomposition",
         "shellservices",
         "corexruntime",
-        "solutionstore",
         "powershell",
         "venv",
         "scripts",
@@ -26510,6 +26539,10 @@
         "test",
         "main",
         "ignore",
+        "headless",
+        "runtime",
+        "project",
+        "solution",
         "breadcrumbs",
         "qml",
         "context",
@@ -26560,7 +26593,6 @@
         "harness",
         "patches",
         "empty",
-        "project",
         "still",
         "through",
         "but",
@@ -26589,7 +26621,8 @@
       ],
       "aliases": [],
       "focused_verification": [
-        ".\\venv\\Scripts\\python.exe -m pytest tests/test_main_bootstrap.py tests/test_shell_window_lifecycle.py --ignore=venv -q"
+        ".\\venv\\Scripts\\python.exe -m pytest tests/test_main_bootstrap.py tests/test_shell_window_lifecycle.py --ignore=venv -q",
+        ".\\venv\\Scripts\\python.exe -m pytest tests/test_headless_runtime.py -k \"project_solution\" -q"
       ],
       "start_here": [
         "ea_node_editor/bootstrap.py",
@@ -26713,7 +26746,7 @@
       ],
       "aliases": [],
       "focused_verification": [
-        ".\\venv\\Scripts\\python.exe -m pytest tests/test_typed_runtime_values.py tests/test_data_type_catalog.py tests/test_core_value_codecs.py -q"
+        ".\\venv\\Scripts\\python.exe -m pytest tests/test_typed_runtime_values.py tests/test_solution_records.py -q"
       ],
       "start_here": [
         "ea_node_editor/runtime_contracts/data_types.py",
@@ -26909,8 +26942,12 @@
         "settings",
         "dialog",
         "persist",
-        "install",
         "corexruntime",
+        "solutionrepositoryfactory",
+        "install",
+        "metadata",
+        "solution",
+        "store",
         "runcontroller",
         "execution",
         "backend",
@@ -26946,7 +26983,6 @@
         "inspectornodelinkssection",
         "inspectornodecommentssection",
         "nodesolutionfact",
-        "solution",
         "changed",
         "cache",
         "domain",
@@ -26983,6 +27019,7 @@
         "exe",
         "pytest",
         "ignore",
+        "bind",
         "application",
         "default",
         "main",
@@ -27179,6 +27216,7 @@
       "focused_verification": [
         ".\\venv\\Scripts\\python.exe -m pytest tests/test_run_controller_unit.py --ignore=venv -q",
         ".\\venv\\Scripts\\python.exe -m pytest tests/test_project_session_controller_unit.py -k \"workflow_settings\" --ignore=venv -q",
+        ".\\venv\\Scripts\\python.exe -m pytest tests/test_project_session_controller_unit.py -k \"solution or bind or replacement\" -q",
         ".\\venv\\Scripts\\python.exe -m pytest tests/test_run_controller_unit.py -k \"application_default_python\" --ignore=venv -q",
         ".\\venv\\Scripts\\python.exe -m pytest tests/test_registry_replacement.py tests/test_node_package_io_ops.py tests/test_main_window_shell.py -k \"registry or package or addon\" --ignore=venv -q",
         ".\\venv\\Scripts\\python.exe -m pytest tests/test_plugin_authoring_controller.py -q"

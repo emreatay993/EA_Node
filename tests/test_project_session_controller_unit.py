@@ -699,12 +699,21 @@ class ProjectSessionControllerUnitTests(unittest.TestCase):
             [(repaired_node.node_id, "source", "repaired.png")],
         )
 
-    def test_document_service_seeds_viewer_projection_when_installing_project(
+    def test_document_service_solution_bind_seeds_viewer_projection_when_installing_project(
         self,
     ) -> None:
         host = _ProjectHostStub()
         controller = ProjectSessionController(host)  # type: ignore[arg-type]
         project = GraphModel().project
+        solution_pointer = {
+            "schema_version": 1,
+            "solution_namespace_id": "namespace",
+            "active_generation_id": "a" * 32,
+            "active_manifest_set_digest": "b" * 64,
+        }
+        project.replace_metadata(
+            {**project.metadata, "solution_store": solution_pointer}
+        )
         previous_model = host.model
 
         controller._document_service._install_project(  # noqa: SLF001
@@ -723,6 +732,11 @@ class ProjectSessionControllerUnitTests(unittest.TestCase):
         host.execution_client.reset_project_session.assert_called_once_with(
             project.project_id,
             "example.cxproj",
+        )
+        host.execution_client.bind_project_solution_store.assert_called_once_with(
+            project.project_id,
+            "example.cxproj",
+            solution_pointer,
         )
         self.assertEqual(host.run_controller.models_seen_at_reset, [previous_model])
         self.assertIsNot(host.model, previous_model)

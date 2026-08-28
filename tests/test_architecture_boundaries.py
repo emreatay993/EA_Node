@@ -362,6 +362,39 @@ class GraphArchitectureBoundaryTests(unittest.TestCase):
             }
         )
 
+    def test_solution_repository_implements_only_the_execution_port_boundary(self) -> None:
+        imports = imported_modules(
+            parse_module("ea_node_editor/persistence/solution_repository.py")
+        )
+        self.assertIn("ea_node_editor.execution.solution_store", imports)
+        self.assertFalse(
+            {
+                module
+                for module in imports
+                if module.startswith("ea_node_editor.execution.")
+                and module != "ea_node_editor.execution.solution_store"
+            }
+        )
+        self.assertNotIn("ea_node_editor.persistence.serializer", imports)
+        self.assertNotIn("ea_node_editor.persistence.project_codec", imports)
+
+    def test_solution_repository_has_no_project_commit_or_lifecycle_prune_caller(self) -> None:
+        repository_source = (
+            REPO_ROOT / "ea_node_editor" / "persistence" / "solution_repository.py"
+        ).read_text(encoding="utf-8")
+        production_source = "\n".join(
+            path.read_text(encoding="utf-8")
+            for root in (
+                REPO_ROOT / "ea_node_editor" / "execution",
+                REPO_ROOT / "ea_node_editor" / "persistence",
+                REPO_ROOT / "ea_node_editor" / "ui" / "shell",
+            )
+            for path in root.rglob("*.py")
+        )
+        self.assertNotIn("os.replace(", repository_source)
+        self.assertNotIn("JsonProjectSerializer", repository_source)
+        self.assertEqual(production_source.count(".prune_unreachable_paths("), 0)
+
     def test_runtime_contracts_do_not_import_execution_implementation(self) -> None:
         contract_root = REPO_ROOT / "ea_node_editor" / "runtime_contracts"
 

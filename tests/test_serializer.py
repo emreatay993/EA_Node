@@ -955,6 +955,12 @@ class SerializerTests(SerializerRoundTripMixin, SerializerWorkflowMixin, Seriali
                         }
                     }
                 },
+                "solution_store": {
+                    "schema_version": 1,
+                    "solution_namespace_id": "namespace",
+                    "active_generation_id": "a" * 32,
+                    "active_manifest_set_digest": "b" * 64,
+                },
             }
         )
 
@@ -979,6 +985,29 @@ class SerializerTests(SerializerRoundTripMixin, SerializerWorkflowMixin, Seriali
             round_tripped["artifact_store"],
             copy.deepcopy(metadata.extra["artifact_store"]),
         )
+        self.assertEqual(
+            round_tripped["solution_store"],
+            metadata.extra["solution_store"],
+        )
+
+    def test_project_codec_preserves_solution_store_metadata_without_migration(self) -> None:
+        registry = build_default_registry()
+        serializer = JsonProjectSerializer(registry)
+        model = GraphModel()
+        pointer = {
+            "schema_version": 99,
+            "solution_namespace_id": "original-namespace",
+            "active_generation_id": "not-interpreted-by-codec",
+            "active_manifest_set_digest": "original-metadata",
+            "unknown": {"preserved": True},
+        }
+        model.project.replace_metadata(
+            {**model.project.metadata, "solution_store": pointer}
+        )
+
+        loaded = serializer.from_document(serializer.to_document(model.project))
+
+        self.assertEqual(loaded.metadata["solution_store"], pointer)
 
     def test_script_editor_session_metadata_normalizes_panel_width(self) -> None:
         def width_for(value: object) -> float:

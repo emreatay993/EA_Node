@@ -12,6 +12,7 @@ from pathlib import Path, PurePosixPath, PureWindowsPath
 from typing import Any
 from uuid import uuid4
 
+from ea_node_editor.common.payload_tools import artifact_content_integrity
 from ea_node_editor.settings import (
     PROJECT_ARTIFACT_STORE_METADATA_KEY,
     PROJECT_DATA_DIR_SUFFIX,
@@ -1156,6 +1157,51 @@ class ProjectArtifactStore:
         if entry is None or layout is None:
             return None
         return entry.absolute_path(layout)
+
+    def inspect_durable_artifact(self, value: object) -> Path:
+        """Verify one managed runtime artifact without catalog or value callbacks."""
+
+        from ea_node_editor.runtime_contracts.runtime_values import RuntimeArtifactRef
+
+        if type(value) is not RuntimeArtifactRef or value.scope != "managed":
+            raise ValueError("durable artifact must be an exact managed reference")
+        entry = self.managed_entry(value.artifact_id)
+        layout = self.layout
+        if entry is None or layout is None:
+            raise FileNotFoundError("durable artifact is not registered")
+        resolved_path = entry.absolute_path(layout)
+        trusted_path = layout.absolute_path_for_relative(entry.relative_path)
+        if (
+            os.path.normcase(os.path.abspath(os.fspath(resolved_path)))
+            != os.path.normcase(os.path.abspath(os.fspath(trusted_path)))
+        ):
+            raise ValueError("durable artifact target does not match")
+        descriptor = entry.extra.get("runtime_artifact")
+        expected_descriptor = {
+            "data_type_id": value.data_type_id,
+            "schema_version": value.schema_version,
+            "format": value.format,
+            "size_bytes": value.size_bytes,
+            "sha256": value.sha256,
+            "provenance": value.provenance,
+        }
+        if (
+            type(descriptor) is not dict
+            or set(descriptor) != set(expected_descriptor)
+            or any(
+                type(descriptor.get(field_name)) is not type(expected_value)
+                or descriptor.get(field_name) != expected_value
+                for field_name, expected_value in expected_descriptor.items()
+            )
+        ):
+            raise ValueError("durable artifact descriptor does not match")
+        size_bytes, sha256 = artifact_content_integrity(
+            layout.sidecar_root,
+            entry.relative_path,
+        )
+        if size_bytes != value.size_bytes or sha256 != value.sha256:
+            raise ValueError("durable artifact content does not match")
+        return resolved_path
 
     def resolve_staged_path(self, artifact_id_or_ref: object) -> Path | None:
         entry = self.staged_entry(artifact_id_or_ref)

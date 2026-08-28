@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING
 from PyQt6.QtCore import Qt
 
 from ea_node_editor.execution.headless_runtime import CorexRuntime
+from ea_node_editor.persistence.solution_repository import SolutionRepositoryFactory
 from ea_node_editor.ui.shell.controllers import (
     AddonManagerController,
     PluginAuthoringController,
@@ -41,7 +42,10 @@ class ShellControllerDependencies:
 
 
 def _create_shell_execution_client(registry: "NodeRegistry") -> CorexRuntime:
-    return CorexRuntime(registry=registry)
+    return CorexRuntime(
+        registry=registry,
+        solution_repository_factory=SolutionRepositoryFactory(),
+    )
 
 
 def create_controller_dependencies(

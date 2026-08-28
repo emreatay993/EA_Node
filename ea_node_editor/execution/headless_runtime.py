@@ -53,6 +53,7 @@ from ea_node_editor.runtime_contracts.settled_results import (
 from ea_node_editor.runtime_contracts.solution_records import (
     NodeSolutionFact,
     SolutionRecord,
+    SolutionResidency,
 )
 from ea_node_editor.execution.solution_identity import (
     assemble_node_solution,
@@ -60,6 +61,8 @@ from ea_node_editor.execution.solution_identity import (
 )
 from ea_node_editor.execution.solution_store import (
     CapturedNodeSolution,
+    DurableBackendOpenResult,
+    DurableSolutionBackendFactory,
     SolutionStore,
 )
 from ea_node_editor.execution.runtime_snapshot import (
@@ -299,6 +302,7 @@ class CorexRuntime:
         client: Any | None = None,
         registry: NodeRegistry | None = None,
         solution_store: SolutionStore | None = None,
+        solution_repository_factory: DurableSolutionBackendFactory | None = None,
     ) -> None:
         self._client = client or ExecutionBackendClient()
         self._owns_client = client is None
@@ -306,6 +310,8 @@ class CorexRuntime:
         self._lifecycle_lock = threading.RLock()
         self._registry_publication_lock = threading.RLock()
         self._solution_store = solution_store or SolutionStore()
+        self._solution_repository_factory = solution_repository_factory
+        self._project_solution_binding_revision = 0
         self._generation_snapshots: dict[str, Any] = {}
         self._run_artifact_services: dict[str, RuntimeArtifactService] = {}
         self._event_stream = ExecutionEventStream()
@@ -801,21 +807,24 @@ class CorexRuntime:
                     workspace_id=workspace_id,
                     node_id=node_id,
                     runtime_generation=generation_snapshot.runtime_generation,
+                    catalog=registry.data_types,
                 )
                 if record is None:
                     reason = "no_reusable_record"
                 else:
                     try:
                         output_payload = self._solution_store.accepted_outputs(
-                            record.record_id,
+                            record,
                             catalog=registry.data_types,
                             runtime_generation=generation_snapshot.runtime_generation,
+                            artifact_context=artifact_service.store,
                         )
-                        self._validate_prepared_artifacts(
-                            output_payload,
-                            artifact_service=artifact_service,
-                            catalog=registry.data_types,
-                        )
+                        if record.residency is SolutionResidency.SESSION:
+                            self._validate_prepared_artifacts(
+                                output_payload,
+                                artifact_service=artifact_service,
+                                catalog=registry.data_types,
+                            )
                     except (FileNotFoundError, KeyError, OSError, TypeError, ValueError):
                         reason = "accepted_output_invalid"
                     else:
@@ -937,7 +946,8 @@ class CorexRuntime:
                 implementation_digest=assembled.implementation_digest,
                 execution_environment_digest=generation_snapshot.environment_digest,
                 output_specs=assembled.output_specs,
-                reuse_eligible=(
+                solution_reuse_scope=spec.solution_reuse_scope,
+                identity_reuse_eligible=(
                     not assembled.reason_code
                     and generation_snapshot.available
                     and spec.solution_reuse_scope != "never"
@@ -1290,17 +1300,127 @@ class CorexRuntime:
     def solution_record(self, record_id: str) -> SolutionRecord | None:
         return self._solution_store.record(record_id)
 
-    def reset_project_session(self, project_id: str, project_path: str = "") -> str:
+    def bind_project_solution_store(
+        self,
+        project_id: str,
+        project_path: str,
+        metadata_solution_store: object,
+    ) -> DurableBackendOpenResult:
+        normalized_project_id = str(project_id).strip()
+        if not normalized_project_id:
+            raise ValueError("project_id must be non-empty")
         with self._lifecycle_lock:
+            active_project_ids = self._solution_store.project_ids()
+            if (
+                active_project_ids
+                and normalized_project_id not in active_project_ids
+            ):
+                raise ValueError("project solution session is not active")
+            namespace_id = self._solution_store.ensure_project(
+                normalized_project_id,
+                project_path,
+            )
+            binding_revision = self._project_solution_binding_revision
+        if not str(project_path).strip():
+            result = DurableBackendOpenResult(
+                None,
+                namespace_id,
+                "durable_session_only_metadata_absent",
+                "Unsaved projects use session-only solution reuse.",
+            )
+        elif self._solution_repository_factory is None or self._registry is None:
+            result = DurableBackendOpenResult(
+                None,
+                namespace_id,
+                "durable_session_only_factory_unavailable",
+                "Durable solution storage is unavailable; results will be recomputed.",
+            )
+        else:
+            try:
+                result = self._solution_repository_factory.open_backend(
+                    normalized_project_id,
+                    project_path,
+                    metadata_solution_store,
+                    self._registry.data_types,
+                )
+                if not isinstance(result, DurableBackendOpenResult):
+                    raise TypeError("durable backend factory returned an invalid result")
+            except Exception:  # noqa: BLE001 - factory failures fail closed.
+                result = DurableBackendOpenResult(
+                    None,
+                    namespace_id,
+                    "durable_session_only_io_error",
+                    "Durable solution storage could not be opened; results will be recomputed.",
+                )
+        with self._lifecycle_lock:
+            if (
+                binding_revision != self._project_solution_binding_revision
+                or self._solution_store.solution_namespace_id(normalized_project_id)
+                != namespace_id
+            ):
+                candidate = result.backend
+                result = DurableBackendOpenResult(
+                    None,
+                    self._solution_store.solution_namespace_id(normalized_project_id)
+                    or namespace_id,
+                    "durable_session_only_io_error",
+                    "Project solution binding changed while durable data was opening.",
+                )
+                previous = None
+            else:
+                candidate = None
+                previous = self._solution_store.install_durable_backend(
+                    normalized_project_id,
+                    result,
+                )
+                self._project_solution_binding_revision += 1
+        self._close_durable_backend(candidate)
+        self._close_durable_backend(previous)
+        return result
+
+    def detach_project_solution_store(self, project_id: str, reason: str) -> None:
+        del reason
+        normalized_project_id = str(project_id).strip()
+        if not normalized_project_id:
+            raise ValueError("project_id must be non-empty")
+        with self._lifecycle_lock:
+            if not self._solution_store.solution_namespace_id(normalized_project_id):
+                raise ValueError("project solution session is not active")
+            self._project_solution_binding_revision += 1
             self._generation_snapshots.clear()
             self._run_artifact_services.clear()
             self._release_all_solution_resources()
+            backend = self._solution_store.detach_durable_backend()
+            _namespace, solution_events = self._solution_store.reset_project_session(
+                normalized_project_id,
+                "",
+            )
+        self._close_durable_backend(backend)
+        self._publish_solution_state_results(solution_events)
+
+    def reset_project_session(self, project_id: str, project_path: str = "") -> str:
+        with self._lifecycle_lock:
+            self._project_solution_binding_revision += 1
+            self._generation_snapshots.clear()
+            self._run_artifact_services.clear()
+            self._release_all_solution_resources()
+            backend = self._solution_store.detach_durable_backend()
             namespace_id, solution_events = self._solution_store.reset_project_session(
                 project_id,
                 project_path,
             )
+        self._close_durable_backend(backend)
         self._publish_solution_state_results(solution_events)
         return namespace_id
+
+    @staticmethod
+    def _close_durable_backend(backend: Any | None) -> None:
+        if backend is None:
+            return
+        try:
+            backend.close()
+        except Exception:  # noqa: BLE001 - detach must preserve authored state.
+            return
 
     def _release_resource_leases(self, leases: Sequence[Any]) -> None:
         release = getattr(self._client, "release_solution_resource", None)
@@ -1430,12 +1550,20 @@ class CorexRuntime:
             validated_event, resources_reusable, resource_leases = (
                 self._validated_event_resources(event)
             )
+            run_artifact_service = self._run_artifact_services.get(
+                str(event.get("run_id", "")).strip()
+            )
             diagnostics, released_leases, acceptance = self._solution_store.handle_event(
                 validated_event,
                 generation_snapshot,
                 catalog=self._registry.data_types,
                 resources_reusable=resources_reusable,
                 resource_leases=resource_leases,
+                artifact_context=(
+                    run_artifact_service.store
+                    if run_artifact_service is not None
+                    else None
+                ),
             )
             enriched_event = dict(validated_event)
             if str(enriched_event.get("type", "")) == "node_settled":
@@ -1626,11 +1754,14 @@ class CorexRuntime:
 
     def shutdown(self) -> None:
         with self._lifecycle_lock:
+            self._project_solution_binding_revision += 1
             self._release_all_solution_resources()
             self._run_artifact_services.clear()
+            backend = self._solution_store.detach_durable_backend()
             self._solution_store.shutdown()
             if self._owns_client:
                 self._client.shutdown()
+        self._close_durable_backend(backend)
 
     @staticmethod
     def _start_failure_event(

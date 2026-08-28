@@ -29,10 +29,10 @@
 - Manual Save and Save As snapshot the current `ScriptEditorModel` state immediately before persistent document conversion. Project open restores through the existing script-editor panel adapter; autosave, session, and close synchronization stay on `ProjectSessionLifecycleService._sync_session_state()`.
 - Artifact-store, workflow, passive-style preset, and script-editor metadata writers should call `ProjectData.replace_metadata(...)` so the autosave epoch changes without hashing full project metadata on idle ticks.
 - Project install/open/new flows reset `ViewerHostService` before `ViewerSessionBridge.project_loaded(...)` reseeds project viewer projections; this clears native overlay bindings, cached previews, and viewer view state before fixed `(workspace_id, node_id)` viewer keys are reused.
-- The same install seam calls `CorexRuntime.reset_project_session(project_id, project_path)` before model replacement. Saved projects use `project_id` as their session solution namespace; each loaded unsaved project receives one stable random in-memory namespace, and every replacement clears records, payloads, preparations, runs, and Trigger reservations. The runtime publishes strict `solution_state_changed` removal notifications for the retired project after releasing its locks; RunController project/revision filters prevent cross-project projection.
+- The same install seam calls `CorexRuntime.reset_project_session(project_id, project_path)`, then `bind_project_solution_store(project_id, project_path, metadata.solution_store)`, before model replacement. Valid metadata supplies the stored namespace and committed generation; saved metadata-absent projects use `project_id`, while unsaved projects keep one random session namespace. Invalid cache state is one sanitized session-only fallback and never blocks authored install. Replacement clears records/payloads/preparations/runs, closes the old backend without deleting sidecar content, and publishes the existing removal notifications.
 ## Focused Verification
 ```powershell
-.\venv\Scripts\python.exe -m pytest tests/test_project_session_controller_unit.py --ignore=venv -q
+.\venv\Scripts\python.exe -m pytest tests/test_project_session_controller_unit.py -k "solution or bind or replacement" -q
 ```
 
 ## Breadcrumbs

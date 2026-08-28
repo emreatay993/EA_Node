@@ -1,9 +1,12 @@
 from __future__ import annotations
 
+import base64
 from contextlib import contextmanager
 from dataclasses import replace
 import queue
+import struct
 from typing import Any
+import zlib
 
 import pytest
 
@@ -26,16 +29,28 @@ from ea_node_editor.execution.headless_runtime import (
 )
 from ea_node_editor.execution.prepared_execution import PreparedAction, RecomputeMode
 from ea_node_editor.execution.runtime_snapshot import build_runtime_snapshot
-from ea_node_editor.execution.solution_store import SolutionStore, SolutionStoreLimits
+from ea_node_editor.execution.solution_store import (
+    DurableBackendOpenResult,
+    DurableLookupResult,
+    DurablePayloadResult,
+    DurableStageResult,
+    SolutionStore,
+    SolutionStoreLimits,
+)
 from ea_node_editor.execution.worker_runner import WorkflowRunner
 from ea_node_editor.graph.model import GraphModel
 from ea_node_editor.nodes.bootstrap import build_default_registry
 from ea_node_editor.nodes.output_artifacts import register_staged_artifact
 from ea_node_editor.persistence.artifact_store import ProjectArtifactStore
+from ea_node_editor.persistence.solution_repository import (
+    SolutionRepository,
+    SolutionRepositoryFactory,
+)
 from ea_node_editor.settings import PROJECT_ARTIFACT_STORE_METADATA_KEY
 from ea_node_editor.runtime_contracts import (
     COREX_VIEWER_SESSION_HANDLE_KIND,
     DataTree,
+    ImageValue,
     RuntimeHandleRef,
     RuntimeArtifactRef,
     PATH_DATA_TYPE_ID,
@@ -46,6 +61,7 @@ from ea_node_editor.runtime_contracts.settled_results import SettledPortResult
 from ea_node_editor.runtime_contracts.solution_records import (
     SolutionDisposition,
     SolutionFreshness,
+    SolutionResidency,
 )
 
 
@@ -619,6 +635,520 @@ def test_identical_force_recompute_retains_the_established_record() -> None:
     assert after.retained_record_id == before.retained_record_id
     assert after.last_disposition is SolutionDisposition.RECOMPUTED
     assert runtime.solution_store.stats()["records"] == 1
+
+
+def test_maximum_durable_scope_publishes_conditionally_and_detects_conflict(
+    tmp_path,
+) -> None:  # noqa: ANN001
+    model = GraphModel()
+    workspace = model.active_workspace
+    node = model.add_node(
+        workspace.workspace_id,
+        "data.boolean_toggle",
+        "Toggle",
+        0,
+        0,
+    )
+    runtime, client, registry = _runtime(model)
+    project_path = tmp_path / "project.cxproj"
+    runtime.reset_project_session(model.project.project_id, str(project_path))
+    repository = SolutionRepository.create_empty(
+        project_id=model.project.project_id,
+        project_path=project_path,
+        solution_namespace_id=model.project.project_id,
+        catalog=registry.data_types,
+    )
+    runtime.solution_store.install_durable_backend(
+        model.project.project_id,
+        DurableBackendOpenResult(
+            repository,
+            model.project.project_id,
+            "durable_bound_active",
+        ),
+    )
+    snapshot = _snapshot(model, registry, workspace.workspace_id)
+
+    first = runtime.prepare_execution(
+        ExecutionRequest(runtime_snapshot=snapshot, workspace_id=workspace.workspace_id)
+    )
+    first_run = runtime.dispatch_prepared(first)
+    _settle(
+        client,
+        first_run,
+        node.node_id,
+        port_key="boolean",
+        value=True,
+    )
+    _terminal(client, first_run)
+    fact = runtime.solution_facts(model.project.project_id, workspace.workspace_id)[0]
+    record = runtime.solution_record(fact.retained_record_id or "")
+    assert fact.residency is SolutionResidency.DURABLE
+    assert record is not None and record.residency is SolutionResidency.DURABLE
+    assert runtime.solution_store.last_durable_reason_code == "durable_stage_published"
+
+    second = runtime.prepare_execution(
+        ExecutionRequest(runtime_snapshot=snapshot, workspace_id=workspace.workspace_id)
+    )
+    assert second.node_decisions[0].action is PreparedAction.REUSE
+    runtime.solution_store.discard_preparation(second.preparation_id, "test_probe")
+
+    forced = runtime.prepare_execution(
+        ExecutionRequest(
+            runtime_snapshot=snapshot,
+            workspace_id=workspace.workspace_id,
+            recompute_mode=RecomputeMode.FORCE_RECOMPUTE,
+        )
+    )
+    forced_run = runtime.dispatch_prepared(forced)
+    _settle(
+        client,
+        forced_run,
+        node.node_id,
+        port_key="boolean",
+        value=False,
+    )
+    _terminal(client, forced_run)
+    conflict_fact = runtime.solution_facts(
+        model.project.project_id,
+        workspace.workspace_id,
+    )[0]
+    assert conflict_fact.freshness is SolutionFreshness.EXPIRED
+    assert conflict_fact.expiration_reason_code == "nondeterministic_solution_result"
+    assert runtime.solution_store.stats()["records"] == 1
+
+    quarantined = runtime.prepare_execution(
+        ExecutionRequest(runtime_snapshot=snapshot, workspace_id=workspace.workspace_id)
+    )
+    assert quarantined.node_decisions[0].action is PreparedAction.EXECUTE
+    assert quarantined.node_decisions[0].reason_code == "no_reusable_record"
+    runtime.solution_store.discard_preparation(
+        quarantined.preparation_id,
+        "test_probe",
+    )
+
+    model.set_node_property(workspace.workspace_id, node.node_id, "value", True)
+    changed_snapshot = _snapshot(model, registry, workspace.workspace_id)
+    runtime.invalidate_solution(
+        model.project.project_id,
+        workspace.workspace_id,
+        changed_snapshot,
+        (node.node_id,),
+        "property_changed",
+    )
+    changed = runtime.prepare_execution(
+        ExecutionRequest(
+            runtime_snapshot=changed_snapshot,
+            workspace_id=workspace.workspace_id,
+        )
+    )
+    assert changed.node_decisions[0].action is PreparedAction.EXECUTE
+    changed_run = runtime.dispatch_prepared(changed)
+    _settle(
+        client,
+        changed_run,
+        node.node_id,
+        port_key="boolean",
+        value=True,
+    )
+    _terminal(client, changed_run)
+    recovered_fact = runtime.solution_facts(
+        model.project.project_id,
+        workspace.workspace_id,
+    )[0]
+    assert recovered_fact.freshness is SolutionFreshness.CURRENT
+    assert recovered_fact.retained_solution_key != record.solution_key
+    recovered = runtime.prepare_execution(
+        ExecutionRequest(
+            runtime_snapshot=changed_snapshot,
+            workspace_id=workspace.workspace_id,
+        )
+    )
+    assert recovered.node_decisions[0].action is PreparedAction.REUSE
+    runtime.solution_store.discard_preparation(recovered.preparation_id, "test_probe")
+
+
+def test_maximum_durable_scope_falls_back_to_session_without_backend() -> None:
+    model = GraphModel()
+    workspace = model.active_workspace
+    node = model.add_node(
+        workspace.workspace_id,
+        "data.boolean_toggle",
+        "Toggle",
+        0,
+        0,
+    )
+    runtime, client, registry = _runtime(model)
+    snapshot = _snapshot(model, registry, workspace.workspace_id)
+    prepared = runtime.prepare_execution(
+        ExecutionRequest(runtime_snapshot=snapshot, workspace_id=workspace.workspace_id)
+    )
+    run_id = runtime.dispatch_prepared(prepared)
+    _settle(client, run_id, node.node_id, port_key="boolean", value=True)
+    _terminal(client, run_id)
+    fact = runtime.solution_facts(model.project.project_id, workspace.workspace_id)[0]
+    assert fact.residency is SolutionResidency.SESSION
+    assert runtime.solution_store.last_durable_reason_code == "durable_not_bound"
+
+
+@pytest.mark.parametrize("replacement_kind", ["session_only", "backend_b"])
+def test_durable_backend_rebind_evicts_only_previous_durable_state(
+    tmp_path,
+    replacement_kind: str,
+) -> None:  # noqa: ANN001
+    model = GraphModel()
+    workspace = model.active_workspace
+    durable_node = model.add_node(
+        workspace.workspace_id,
+        "data.boolean_toggle",
+        "Toggle",
+        0,
+        0,
+    )
+    session_node = model.add_node(
+        workspace.workspace_id,
+        "core.constant",
+        "Constant",
+        200,
+        0,
+    )
+    runtime, client, registry = _runtime(model)
+    project_path = tmp_path / "backend-a.cxproj"
+    runtime.reset_project_session(model.project.project_id, str(project_path))
+    backend_a = SolutionRepository.create_empty(
+        project_id=model.project.project_id,
+        project_path=project_path,
+        solution_namespace_id=model.project.project_id,
+        catalog=registry.data_types,
+    )
+    runtime.solution_store.install_durable_backend(
+        model.project.project_id,
+        DurableBackendOpenResult(
+            backend_a,
+            model.project.project_id,
+            "durable_bound_active",
+        ),
+    )
+    snapshot = _snapshot(model, registry, workspace.workspace_id)
+    prepared = runtime.prepare_execution(
+        ExecutionRequest(runtime_snapshot=snapshot, workspace_id=workspace.workspace_id)
+    )
+    run_id = runtime.dispatch_prepared(prepared)
+    _settle(
+        client,
+        run_id,
+        durable_node.node_id,
+        port_key="boolean",
+        value=True,
+    )
+    _settle(client, run_id, session_node.node_id, value="session")
+    _terminal(client, run_id)
+    facts = {
+        fact.node_id: fact
+        for fact in runtime.solution_facts(
+            model.project.project_id,
+            workspace.workspace_id,
+        )
+    }
+    durable_record_id = facts[durable_node.node_id].retained_record_id or ""
+    durable_record = runtime.solution_record(durable_record_id)
+    session_record_id = facts[session_node.node_id].retained_record_id or ""
+    session_record = runtime.solution_record(session_record_id)
+    assert durable_record is not None
+    assert durable_record.residency is SolutionResidency.DURABLE
+    assert session_record is not None
+    assert session_record.residency is SolutionResidency.SESSION
+
+    if replacement_kind == "backend_b":
+        backend_b = SolutionRepository.create_empty(
+            project_id=model.project.project_id,
+            project_path=tmp_path / "backend-b.cxproj",
+            solution_namespace_id=model.project.project_id,
+            catalog=registry.data_types,
+        )
+        replacement = DurableBackendOpenResult(
+            backend_b,
+            model.project.project_id,
+            "durable_bound_active",
+        )
+    else:
+        backend_b = None
+        replacement = DurableBackendOpenResult(
+            None,
+            model.project.project_id,
+            "durable_session_only_metadata_absent",
+            "No committed durable generation is available.",
+        )
+    previous = runtime.solution_store.install_durable_backend(
+        model.project.project_id,
+        replacement,
+    )
+    assert previous is backend_a
+    previous.close()
+
+    remaining_facts = {
+        fact.node_id: fact
+        for fact in runtime.solution_facts(
+            model.project.project_id,
+            workspace.workspace_id,
+        )
+    }
+    assert durable_node.node_id not in remaining_facts
+    assert remaining_facts[session_node.node_id].retained_record_id == session_record_id
+    assert runtime.solution_record(durable_record_id) is None
+    assert runtime.solution_record(session_record_id) == session_record
+    assert durable_record.solution_key not in runtime.solution_store._reuse_index  # noqa: SLF001
+    assert runtime.solution_store.select_record(
+        solution_key=durable_record.solution_key,
+        project_id=model.project.project_id,
+        workspace_id=workspace.workspace_id,
+        node_id=durable_node.node_id,
+        runtime_generation=client.snapshot.runtime_generation,
+        catalog=registry.data_types,
+    ) is None
+    runtime.shutdown()
+
+
+def test_all_29_maximum_durable_rows_share_conditional_store_publication() -> None:
+    registry = build_default_registry()
+    durable_rows = tuple(
+        spec.type_id
+        for spec in registry.all_specs()
+        if spec.runtime_behavior == "active"
+        and spec.solution_reuse_scope == "durable"
+    )
+    assert len(durable_rows) == 29
+    assert "data.boolean_toggle" in durable_rows
+
+
+def test_durable_stage_failure_falls_back_to_valid_session_record() -> None:
+    class FailingBackend:
+        def lookup_record(self, workspace_id, node_id, solution_key, catalog):  # noqa: ANN001, ANN201
+            del workspace_id, node_id, solution_key, catalog
+            return DurableLookupResult(None, "durable_key_absent")
+
+        def stage_record(self, record, canonical_payload, catalog):  # noqa: ANN001, ANN201
+            del record, canonical_payload, catalog
+            return DurableStageResult(None, "durable_stage_write_failed")
+
+        def load_payload(self, record, catalog):  # noqa: ANN001, ANN201
+            del record, catalog
+            return DurablePayloadResult(None, "durable_payload_missing")
+
+        def close(self) -> None:
+            return None
+
+    model = GraphModel()
+    workspace = model.active_workspace
+    node = model.add_node(
+        workspace.workspace_id,
+        "data.boolean_toggle",
+        "Toggle",
+        0,
+        0,
+    )
+    runtime, client, registry = _runtime(model)
+    runtime.solution_store.install_durable_backend(
+        model.project.project_id,
+        DurableBackendOpenResult(
+            FailingBackend(),
+            model.project.project_id,
+            "durable_bound_active",
+        ),
+    )
+    snapshot = _snapshot(model, registry, workspace.workspace_id)
+    prepared = runtime.prepare_execution(
+        ExecutionRequest(runtime_snapshot=snapshot, workspace_id=workspace.workspace_id)
+    )
+    run_id = runtime.dispatch_prepared(prepared)
+    _settle(client, run_id, node.node_id, port_key="boolean", value=True)
+    _terminal(client, run_id)
+    fact = runtime.solution_facts(model.project.project_id, workspace.workspace_id)[0]
+    assert fact.residency is SolutionResidency.SESSION
+    assert runtime.solution_store.last_durable_reason_code == "durable_stage_write_failed"
+
+
+def test_large_durable_image_falls_back_to_session_without_repository_bytes(
+    tmp_path,
+) -> None:  # noqa: ANN001
+    small_png = base64.b64decode(
+        "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGNgYGBgAAAABQABpfZFQAAAAABJRU5ErkJggg=="
+    )
+    ancillary_payload = b"x" * 1_048_576
+    ancillary = (
+        struct.pack(">I", len(ancillary_payload))
+        + b"tEXt"
+        + ancillary_payload
+        + struct.pack(">I", zlib.crc32(b"tEXt" + ancillary_payload) & 0xFFFFFFFF)
+    )
+    image = ImageValue.from_png(small_png[:-12] + ancillary + small_png[-12:])
+
+    model = GraphModel()
+    workspace = model.active_workspace
+    node = model.add_node(
+        workspace.workspace_id,
+        "plot.signal",
+        "Signal Plot",
+        0,
+        0,
+    )
+    runtime, client, registry = _runtime(model)
+    project_path = tmp_path / "large-image.cxproj"
+    runtime.reset_project_session(model.project.project_id, str(project_path))
+    repository = SolutionRepository.create_empty(
+        project_id=model.project.project_id,
+        project_path=project_path,
+        solution_namespace_id=model.project.project_id,
+        catalog=registry.data_types,
+    )
+    runtime.solution_store.install_durable_backend(
+        model.project.project_id,
+        DurableBackendOpenResult(
+            repository,
+            model.project.project_id,
+            "durable_bound_active",
+        ),
+    )
+    snapshot = _snapshot(model, registry, workspace.workspace_id)
+    prepared = runtime.prepare_execution(
+        ExecutionRequest(runtime_snapshot=snapshot, workspace_id=workspace.workspace_id)
+    )
+    run_id = runtime.dispatch_prepared(prepared)
+    _settle(client, run_id, node.node_id, port_key="image", value=image)
+    _terminal(client, run_id)
+
+    fact = runtime.solution_facts(model.project.project_id, workspace.workspace_id)[0]
+    record = runtime.solution_record(fact.retained_record_id or "")
+    assert record is not None and record.residency is SolutionResidency.SESSION
+    assert record.reuse_eligible
+    assert runtime.solution_store.last_durable_reason_code == "durable_value_ineligible"
+    assert repository._staged_records == {}  # noqa: SLF001
+    assert not repository._root.exists()  # noqa: SLF001
+    runtime.shutdown()
+
+
+def test_solution_repository_restart_payload_failure_installs_no_partial_record_index_or_fact(
+    tmp_path,
+) -> None:  # noqa: ANN001
+    model = GraphModel()
+    workspace = model.active_workspace
+    node = model.add_node(
+        workspace.workspace_id,
+        "data.boolean_toggle",
+        "Toggle",
+        0,
+        0,
+    )
+    project_path = tmp_path / "restart.cxproj"
+    runtime, client, registry = _runtime(model)
+    runtime.reset_project_session(model.project.project_id, str(project_path))
+    repository = SolutionRepository.create_empty(
+        project_id=model.project.project_id,
+        project_path=project_path,
+        solution_namespace_id=model.project.project_id,
+        catalog=registry.data_types,
+    )
+    runtime.solution_store.install_durable_backend(
+        model.project.project_id,
+        DurableBackendOpenResult(
+            repository,
+            model.project.project_id,
+            "durable_bound_active",
+        ),
+    )
+    snapshot = _snapshot(model, registry, workspace.workspace_id)
+    prepared = runtime.prepare_execution(
+        ExecutionRequest(runtime_snapshot=snapshot, workspace_id=workspace.workspace_id)
+    )
+    run_id = runtime.dispatch_prepared(prepared)
+    _settle(client, run_id, node.node_id, port_key="boolean", value=True)
+    _terminal(client, run_id)
+    fact = runtime.solution_facts(model.project.project_id, workspace.workspace_id)[0]
+    durable = runtime.solution_record(fact.retained_record_id or "")
+    assert durable is not None and durable.residency is SolutionResidency.DURABLE
+    generation = repository.build_candidate_generation((durable,))
+    metadata = generation.metadata_solution_store
+    runtime.shutdown()
+    assert not project_path.exists()
+
+    restarted, _restarted_client, restarted_registry = _runtime(model)
+    restarted.reset_project_session(model.project.project_id, str(project_path))
+    opened = SolutionRepositoryFactory().open_backend(
+        model.project.project_id,
+        str(project_path),
+        metadata,
+        restarted_registry.data_types,
+    )
+    assert opened.backend is not None
+    restarted.solution_store.install_durable_backend(
+        model.project.project_id,
+        opened,
+    )
+    successful = restarted.prepare_execution(
+        ExecutionRequest(runtime_snapshot=snapshot, workspace_id=workspace.workspace_id)
+    )
+    assert successful.node_decisions[0].action is PreparedAction.REUSE
+    lazy_fact = restarted.solution_facts(
+        model.project.project_id,
+        workspace.workspace_id,
+    )[0]
+    assert lazy_fact.freshness is SolutionFreshness.CURRENT
+    assert lazy_fact.retained_record_id == durable.record_id
+    assert lazy_fact.retained_solution_key == durable.solution_key
+    assert lazy_fact.residency is SolutionResidency.DURABLE
+    assert lazy_fact.last_disposition is SolutionDisposition.REUSED
+    assert restarted.solution_record(durable.record_id) == durable
+    assert restarted.solution_store._reuse_index[durable.solution_key] == (  # noqa: SLF001
+        durable.record_id
+    )
+    restarted.solution_store.discard_preparation(
+        successful.preparation_id,
+        "test_probe",
+    )
+    restarted.shutdown()
+
+    assert durable.payload_locator is not None
+    blob = (
+        project_path.with_name(f"{project_path.stem}.data")
+        / "solutions"
+        / "v1"
+        / "blobs"
+        / "sha256"
+        / durable.payload_locator.reference_id[:2]
+        / durable.payload_locator.reference_id
+    )
+    blob.write_bytes(blob.read_bytes()[:-1])
+
+    failed, _failed_client, failed_registry = _runtime(model)
+    failed.reset_project_session(model.project.project_id, str(project_path))
+    failed_open = SolutionRepositoryFactory().open_backend(
+        model.project.project_id,
+        str(project_path),
+        metadata,
+        failed_registry.data_types,
+    )
+    assert failed_open.backend is not None
+    failed.solution_store.install_durable_backend(
+        model.project.project_id,
+        failed_open,
+    )
+    restarted_prepared = failed.prepare_execution(
+        ExecutionRequest(runtime_snapshot=snapshot, workspace_id=workspace.workspace_id)
+    )
+    assert restarted_prepared.node_decisions[0].action is PreparedAction.EXECUTE
+    assert failed.solution_store.last_durable_reason_code == (
+        "durable_payload_digest_mismatch"
+    )
+    assert failed.solution_store.stats()["records"] == 0
+    assert failed.solution_facts(
+        model.project.project_id,
+        workspace.workspace_id,
+    ) == ()
+    assert durable.solution_key not in failed.solution_store._reuse_index  # noqa: SLF001
+    failed.solution_store.discard_preparation(
+        restarted_prepared.preparation_id,
+        "test_probe",
+    )
+    failed.shutdown()
 
 
 def test_empty_eligible_settlement_reuses_without_a_new_record() -> None:
