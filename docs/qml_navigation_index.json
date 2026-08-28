@@ -10,7 +10,7 @@
     "loader_constructs": 24,
     "signal_handlers": 880,
     "connections": 47,
-    "property_bindings": 7595,
+    "property_bindings": 7593,
     "local_component_refs": 270
   },
   "entries": [
@@ -78790,9 +78790,6 @@
         },
         {
           "name": "graphNodeViewerSurfaceHint"
-        },
-        {
-          "name": "graphNodeViewerTransientProxyPane"
         }
       ],
       "properties": [
@@ -78978,6 +78975,10 @@
         },
         {
           "kind": "string",
+          "name": "viewerSourceKind"
+        },
+        {
+          "kind": "string",
           "name": "viewerSetLabel"
         },
         {
@@ -79150,6 +79151,10 @@
         },
         {
           "kind": "bool",
+          "name": "_inlineActivationAfterSelectionQueued"
+        },
+        {
+          "kind": "bool",
           "name": "_embeddedInteractionSyncQueued"
         },
         {
@@ -79185,6 +79190,12 @@
         },
         {
           "name": "_beginSurfaceControl"
+        },
+        {
+          "name": "_selectViewerNode"
+        },
+        {
+          "name": "requestProxySelection"
         },
         {
           "name": "requestInlineLiveActivation"
@@ -79476,13 +79487,6 @@
         },
         {
           "kind": "binding",
-          "name": "visible",
-          "targets": [
-            "surface.transientInteractionPreviewActive"
-          ]
-        },
-        {
-          "kind": "binding",
           "name": "width",
           "targets": [
             "parent.width"
@@ -79701,6 +79705,13 @@
           "name": "acceptedButtons",
           "targets": [
             "Qt.LeftButton"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "exclusiveSignals",
+          "targets": [
+            "TapHandler.DoubleTap"
           ]
         },
         {
@@ -79972,19 +79983,6 @@
           "targets": [
             "Text.ElideRight"
           ]
-        },
-        {
-          "kind": "binding",
-          "name": "border.color",
-          "targets": [
-            "host",
-            "Qt.alpha",
-            "host.outlineColor"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "text"
         }
       ],
       "local_component_refs": [],
@@ -80260,6 +80258,12 @@
           "detail": "string"
         },
         {
+          "anchor": "GraphViewerSurfaceBodyPropertyViewerSourceKind",
+          "kind": "property",
+          "name": "viewerSourceKind",
+          "detail": "string"
+        },
+        {
           "anchor": "GraphViewerSurfaceBodyPropertyViewerSetLabel",
           "kind": "property",
           "name": "viewerSetLabel",
@@ -80518,6 +80522,12 @@
           "detail": "bool"
         },
         {
+          "anchor": "GraphViewerSurfaceBodyPropertyInlineActivationAfterSelectionQueued",
+          "kind": "property",
+          "name": "_inlineActivationAfterSelectionQueued",
+          "detail": "bool"
+        },
+        {
           "anchor": "GraphViewerSurfaceBodyPropertyEmbeddedInteractionSyncQueued",
           "kind": "property",
           "name": "_embeddedInteractionSyncQueued",
@@ -80573,6 +80583,16 @@
           "anchor": "GraphViewerSurfaceBodyFunctionBeginSurfaceControl",
           "kind": "function",
           "name": "_beginSurfaceControl"
+        },
+        {
+          "anchor": "GraphViewerSurfaceBodyFunctionSelectViewerNode",
+          "kind": "function",
+          "name": "_selectViewerNode"
+        },
+        {
+          "anchor": "GraphViewerSurfaceBodyFunctionRequestProxySelection",
+          "kind": "function",
+          "name": "requestProxySelection"
         },
         {
           "anchor": "GraphViewerSurfaceBodyFunctionRequestInlineLiveActivation",
@@ -88625,6 +88645,10 @@
         },
         {
           "kind": "var",
+          "name": "nodeSolutionFreshnessLookup"
+        },
+        {
+          "kind": "var",
           "name": "propertyPresentationLookup"
         },
         {
@@ -88745,6 +88769,12 @@
           "anchor": "GraphCanvasExecutionFactsPropertyFreshRunNodeLookup",
           "kind": "property",
           "name": "freshRunNodeLookup",
+          "detail": "var"
+        },
+        {
+          "anchor": "GraphCanvasExecutionFactsPropertyNodeSolutionFreshnessLookup",
+          "kind": "property",
+          "name": "nodeSolutionFreshnessLookup",
           "detail": "var"
         },
         {
@@ -90479,9 +90509,6 @@
       "signals": [],
       "functions": [
         {
-          "name": "_findFrameScheduler"
-        },
-        {
           "name": "_frameScheduler"
         },
         {
@@ -90859,11 +90886,6 @@
           "kind": "property",
           "name": "lastY",
           "detail": "real"
-        },
-        {
-          "anchor": "GraphCanvasInputLayersFunctionFindFrameScheduler",
-          "kind": "function",
-          "name": "_findFrameScheduler"
         },
         {
           "anchor": "GraphCanvasInputLayersFunctionFrameScheduler",

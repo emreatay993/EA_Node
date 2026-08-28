@@ -24,6 +24,7 @@ from ea_node_editor.nodes.node_specs import (
     PropertySpec,
     ReadinessRequirementSpec,
     SettingsGroupSpec,
+    SolutionReuseScope,
 )
 from ea_node_editor.nodes.plugin_contracts import NodePlugin, PluginDescriptor
 
@@ -267,6 +268,7 @@ def node_type(
     description: str = "",
     keywords: tuple[str, ...] | list[str] = (),
     runtime_behavior: str = "active",
+    solution_reuse_scope: SolutionReuseScope = "never",
     surface_family: str = "standard",
     surface_variant: str = "",
     render_quality: NodeRenderQualitySpec | dict[str, Any] | None = None,
@@ -293,6 +295,7 @@ def node_type(
         description=description,
         keywords=tuple(keywords),
         runtime_behavior=runtime_behavior,  # type: ignore[arg-type]
+        solution_reuse_scope=solution_reuse_scope,
         surface_family=surface_family,  # type: ignore[arg-type]
         surface_variant=surface_variant,
         render_quality=render_quality,  # type: ignore[arg-type]

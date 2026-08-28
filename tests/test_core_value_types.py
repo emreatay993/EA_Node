@@ -9,10 +9,10 @@ import pytest
 
 from ea_node_editor.execution.protocol import (
     NodeSettledEvent,
-    SettledPortResult,
     dict_to_event,
     event_to_dict,
 )
+from ea_node_editor.runtime_contracts.settled_results import SettledPortResult
 from ea_node_editor.graph.model import GraphModel
 from ea_node_editor.nodes.builtins.core_values import (
     COLOR_DATA_TYPE_ID,

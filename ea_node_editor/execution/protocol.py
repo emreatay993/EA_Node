@@ -1,6 +1,7 @@
 """Typed worker command/event contracts with queue-boundary dict adapters.
 
-This module owns process transport DTOs and their dict adapters only. Runtime
+This module owns process transport DTOs and their dict adapters only. Shared
+settled-result DTOs live in ``runtime_contracts.settled_results``. Runtime
 snapshot assembly lives in ``runtime_snapshot``/``runtime_snapshot_assembly``,
 workspace compilation in ``compiler``, worker execution and cancellation in the
 worker/client modules, and viewer state machines in ``viewer_session_service``.
@@ -25,6 +26,16 @@ from ea_node_editor.execution.backends import (
     ExecutionBackendSelection,
     coerce_execution_backend_selection,
 )
+from ea_node_editor.execution.prepared_execution import (
+    MAX_ACCEPTED_NODE_PAYLOADS_PER_PREPARATION,
+    MAX_ACCEPTED_OUTPUT_PAYLOAD_BYTES,
+    MAX_ACCEPTED_PORT_RESULTS_PER_PREPARATION,
+    MAX_PREPARED_NODES,
+    AcceptedOutputPayload,
+    PreparedAction,
+    PreparedNodeDecision,
+    normalize_trigger_publication_generations,
+)
 from ea_node_editor.nodes.function_plugin import (
     EMPTY_PLUGIN_FINGERPRINT,
     PluginBundleRef,
@@ -39,6 +50,8 @@ from ea_node_editor.runtime_contracts import (
     serialize_runtime_value,
 )
 from ea_node_editor.runtime_contracts.data_types import MAX_PAYLOAD_SCHEMA_VERSION
+from ea_node_editor.runtime_contracts import settled_results as _settled
+from ea_node_editor.runtime_contracts.solution_records import SolutionResidency
 from ea_node_editor.execution.runtime_snapshot import (
     RuntimeSnapshot,
     coerce_runtime_snapshot,
@@ -65,7 +78,6 @@ EventType = Literal[
     "viewer_query_result",
     "viewer_session_failed",
 ]
-SettledStatus = Literal["value", "empty", "failed"]
 NodeSettlementStatus = Literal["completed", "empty", "failed", "blocked"]
 
 VIEWER_COMMAND_TYPES = frozenset(
@@ -121,20 +133,6 @@ _PLUGIN_UNAVAILABLE_REASON_LENGTH = 2048
 
 
 @dataclass(frozen=True)
-class RootExecutionError:
-    node_id: str = ""
-    error: str = ""
-    traceback: str = ""
-
-
-@dataclass(frozen=True)
-class SettledPortResult:
-    status: SettledStatus | str = "empty"
-    value: DataTree | None = None
-    errors: tuple[RootExecutionError, ...] = ()
-
-
-@dataclass(frozen=True)
 class CatalogRevisionRecord:
     kind: Literal["family", "type", "conversion"]
     identity: str
@@ -157,8 +155,8 @@ class StartRunCommand:
         default_factory=ExecutionBackendSelection
     )
     target_node_ids: tuple[str, ...] = ()
-    trigger_publications: dict[str, SettledPortResult] = field(default_factory=dict)
-    trigger_captures: dict[str, SettledPortResult] = field(default_factory=dict)
+    trigger_publications: dict[str, _settled.SettledPortResult] = field(default_factory=dict)
+    trigger_captures: dict[str, _settled.SettledPortResult] = field(default_factory=dict)
     clicked_trigger_node_id: str = ""
     developer_mode: bool = False
     catalog_fingerprint: str = ""
@@ -168,6 +166,18 @@ class StartRunCommand:
     runtime_registry_fingerprint: str = ""
     registry_contract_fingerprint: str = EMPTY_REGISTRY_CONTRACT_FINGERPRINT
     addon_runtime_config: tuple[tuple[str, bool], ...] = ()
+    preparation_id: str = ""
+    solution_namespace_id: str = ""
+    execution_affecting_workspace_revision: int = 0
+    dispatch_runtime_generation: int = 0
+    runtime_snapshot_fingerprint: str = ""
+    execution_plan_fingerprint: str = ""
+    workflow_interface_revision: int = 0
+    workflow_interface_digest: str = ""
+    execution_environment_digest: str = ""
+    trigger_publication_generations: tuple[tuple[str, int], ...] = ()
+    node_decisions: tuple[PreparedNodeDecision, ...] = ()
+    accepted_output_payloads: tuple[AcceptedOutputPayload, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -339,9 +349,14 @@ class NodeSettledEvent:
     node_id: str = ""
     status: NodeSettlementStatus | str = "completed"
     elapsed_ms: float = 0.0
-    outputs: dict[str, SettledPortResult] = field(default_factory=dict)
-    errors: tuple[RootExecutionError, ...] = field(default_factory=tuple)
+    outputs: dict[str, _settled.SettledPortResult] = field(default_factory=dict)
+    errors: tuple[_settled.RootExecutionError, ...] = field(default_factory=tuple)
     warnings: tuple[str, ...] = field(default_factory=tuple)
+    disposition: str = ""
+    decision_reason: str = "legacy_direct_run"
+    solution_key: str = ""
+    record_id: str = ""
+    residency: str = ""
 
 
 @dataclass(frozen=True)
@@ -350,7 +365,9 @@ class TriggerCaptureSettledEvent:
     run_id: str = ""
     workspace_id: str = ""
     trigger_node_id: str = ""
-    result: SettledPortResult = field(default_factory=SettledPortResult)
+    result: _settled.SettledPortResult = field(
+        default_factory=_settled.SettledPortResult
+    )
 
 
 @dataclass(frozen=True)
@@ -359,7 +376,9 @@ class TriggerPublishedEvent:
     run_id: str = ""
     workspace_id: str = ""
     trigger_node_id: str = ""
-    result: SettledPortResult = field(default_factory=SettledPortResult)
+    result: _settled.SettledPortResult = field(
+        default_factory=_settled.SettledPortResult
+    )
 
 
 @dataclass(frozen=True)
@@ -1462,6 +1481,73 @@ def _literal_field(
     )
 
 
+def _settlement_identity_fields(
+    *,
+    status: str,
+    disposition: Any,
+    decision_reason: Any,
+    solution_key: Any,
+    record_id: Any,
+    residency: Any,
+) -> dict[str, str]:
+    normalized_disposition = _string_value(
+        disposition, field_name="disposition"
+    ).strip().lower()
+    reason = _string_value(decision_reason, field_name="decision_reason").strip()
+    key = _string_value(solution_key, field_name="solution_key").strip()
+    normalized_record_id = _string_value(record_id, field_name="record_id").strip()
+    normalized_residency = _string_value(residency, field_name="residency").strip()
+    if not normalized_disposition:
+        if (
+            reason != "legacy_direct_run"
+            or key
+            or normalized_record_id
+            or normalized_residency
+        ):
+            raise ValueError("legacy settlement identity fields are invalid")
+    else:
+        if normalized_disposition not in {
+            "reused",
+            "recomputed",
+            "skipped",
+            "blocked",
+        }:
+            raise ValueError(f"invalid solution disposition: {normalized_disposition!r}")
+        if not reason:
+            raise ValueError("prepared settlements require decision_reason")
+        key = _sha256_digest(key, field_name="solution_key")
+        if normalized_disposition == "reused":
+            if status not in {"completed", "empty"}:
+                raise ValueError("reused settlements must be completed or empty")
+            if not normalized_record_id or normalized_residency not in {
+                "session",
+                "durable",
+            }:
+                raise ValueError("reused settlements require record_id and residency")
+        else:
+            if normalized_record_id or normalized_residency:
+                raise ValueError(
+                    "non-reused settlements forbid record_id and residency"
+                )
+            if normalized_disposition == "recomputed" and status not in {
+                "completed",
+                "empty",
+                "failed",
+            }:
+                raise ValueError("recomputed settlement status is invalid")
+            if normalized_disposition == "skipped" and status != "empty":
+                raise ValueError("skipped settlements must be empty")
+            if normalized_disposition == "blocked" and status != "blocked":
+                raise ValueError("blocked dispositions require blocked status")
+    return {
+        "disposition": normalized_disposition,
+        "decision_reason": reason,
+        "solution_key": key,
+        "record_id": normalized_record_id,
+        "residency": normalized_residency,
+    }
+
+
 def _fixed_run_event_state(
     payload: Mapping[str, Any],
     *,
@@ -1612,133 +1698,252 @@ def normalize_target_node_ids(value: Any) -> tuple[str, ...]:
     return tuple(normalized)
 
 
-def normalize_root_execution_errors(value: Any) -> tuple[RootExecutionError, ...]:
-    if isinstance(value, RootExecutionError):
-        candidates = (value,)
-    elif isinstance(value, (list, tuple)):
-        candidates = tuple(value)
-    else:
-        raise ValueError("settled result errors must be a list")
-    normalized: list[RootExecutionError] = []
-    for candidate in candidates:
-        if isinstance(candidate, RootExecutionError):
-            normalized.append(candidate)
-            continue
-        if not isinstance(candidate, Mapping):
-            raise ValueError(
-                "settled result errors must be RootExecutionError mappings"
-            )
-        normalized.append(
-            RootExecutionError(
-                node_id=_string_field(candidate, "node_id"),
-                error=_string_field(candidate, "error"),
-                traceback=_string_field(candidate, "traceback"),
-            )
+def _prepared_node_decisions(value: Any) -> tuple[PreparedNodeDecision, ...]:
+    if not isinstance(value, (list, tuple)):
+        raise ValueError("node_decisions must be a list")
+    if len(value) > MAX_PREPARED_NODES:
+        raise ValueError(f"node_decisions exceeds maximum count {MAX_PREPARED_NODES}")
+    decisions = tuple(
+        PreparedNodeDecision.from_payload(
+            item.to_payload() if isinstance(item, PreparedNodeDecision) else item
         )
-    return tuple(normalized)
+        for item in value
+    )
+    node_ids = tuple(item.node_id for item in decisions)
+    if len(node_ids) != len(set(node_ids)):
+        raise ValueError("node_decisions must not contain duplicate node IDs")
+    solution_keys = tuple(item.solution_key for item in decisions)
+    if len(solution_keys) != len(set(solution_keys)):
+        raise ValueError("node_decisions cannot share cross-node solution keys")
+    return decisions
+
+
+def _accepted_output_payloads(
+    value: Any,
+    *,
+    catalog: DataTypeCatalog | None,
+) -> tuple[AcceptedOutputPayload, ...]:
+    if not isinstance(value, (list, tuple)):
+        raise ValueError("accepted_output_payloads must be a list")
+    if len(value) > MAX_ACCEPTED_NODE_PAYLOADS_PER_PREPARATION:
+        raise ValueError(
+            "accepted_output_payloads exceeds maximum count "
+            f"{MAX_ACCEPTED_NODE_PAYLOADS_PER_PREPARATION}"
+        )
+    accepted = tuple(
+        AcceptedOutputPayload.from_payload(
+            item.to_payload(catalog=catalog)
+            if isinstance(item, AcceptedOutputPayload)
+            else item,
+            catalog=catalog,
+        )
+        for item in value
+    )
+    if sum(item.output_count for item in accepted) > MAX_ACCEPTED_PORT_RESULTS_PER_PREPARATION:
+        raise ValueError(
+            "accepted output port results exceed maximum count "
+            f"{MAX_ACCEPTED_PORT_RESULTS_PER_PREPARATION}"
+        )
+    encoded_size = len(
+        json.dumps(
+            {
+                "accepted_output_payloads": [
+                    item.to_payload(catalog=catalog) for item in accepted
+                ]
+            },
+            allow_nan=False,
+            ensure_ascii=False,
+            separators=(",", ":"),
+            sort_keys=True,
+        ).encode("utf-8")
+    )
+    if encoded_size > MAX_ACCEPTED_OUTPUT_PAYLOAD_BYTES:
+        raise ValueError(
+            "accepted_output_payloads exceeds maximum encoded size "
+            f"{MAX_ACCEPTED_OUTPUT_PAYLOAD_BYTES} bytes"
+        )
+    return accepted
+
+
+def _normalize_prepared_start_fields(
+    *,
+    preparation_id: Any,
+    solution_namespace_id: Any,
+    execution_affecting_workspace_revision: Any,
+    dispatch_runtime_generation: Any,
+    runtime_snapshot_fingerprint: Any,
+    execution_plan_fingerprint: Any,
+    workflow_interface_revision: Any,
+    workflow_interface_digest: Any,
+    execution_environment_digest: Any,
+    trigger_publication_generations: Any,
+    node_decisions: Any,
+    accepted_output_payloads: Any,
+    catalog: DataTypeCatalog | None,
+) -> dict[str, Any]:
+    if type(preparation_id) is not str:
+        raise TypeError("preparation_id must be a string")
+    preparation_id = _bounded_catalog_text(
+        preparation_id,
+        field_name="preparation_id",
+        max_length=1024,
+        allow_empty=True,
+    )
+    revision = _nonnegative_int_value(
+        execution_affecting_workspace_revision,
+        field_name="execution_affecting_workspace_revision",
+    )
+    runtime_generation = _nonnegative_int_value(
+        dispatch_runtime_generation,
+        field_name="dispatch_runtime_generation",
+    )
+    interface_revision = _nonnegative_int_value(
+        workflow_interface_revision,
+        field_name="workflow_interface_revision",
+    )
+    trigger_generations = normalize_trigger_publication_generations(
+        trigger_publication_generations
+    )
+    decisions = _prepared_node_decisions(node_decisions)
+    accepted = _accepted_output_payloads(
+        accepted_output_payloads,
+        catalog=catalog,
+    )
+    if not preparation_id:
+        legacy_strings = {
+            "solution_namespace_id": solution_namespace_id,
+            "runtime_snapshot_fingerprint": runtime_snapshot_fingerprint,
+            "execution_plan_fingerprint": execution_plan_fingerprint,
+            "workflow_interface_digest": workflow_interface_digest,
+            "execution_environment_digest": execution_environment_digest,
+        }
+        if any(type(value) is not str for value in legacy_strings.values()):
+            raise TypeError("legacy prepared-only text fields must be strings")
+        if (
+            any(value != "" for value in legacy_strings.values())
+            or revision != 0
+            or runtime_generation != 0
+            or interface_revision != 0
+            or trigger_generations
+            or decisions
+            or accepted
+        ):
+            raise ValueError(
+                "legacy start_run forbids prepared execution fields"
+            )
+        return {
+            "preparation_id": "",
+            "solution_namespace_id": "",
+            "execution_affecting_workspace_revision": 0,
+            "dispatch_runtime_generation": 0,
+            "runtime_snapshot_fingerprint": "",
+            "execution_plan_fingerprint": "",
+            "workflow_interface_revision": 0,
+            "workflow_interface_digest": "",
+            "execution_environment_digest": "",
+            "trigger_publication_generations": (),
+            "node_decisions": (),
+            "accepted_output_payloads": (),
+        }
+    namespace_id = _bounded_catalog_text(
+        solution_namespace_id,
+        field_name="solution_namespace_id",
+        max_length=1024,
+    )
+    if runtime_generation <= 0:
+        raise ValueError("prepared start_run requires a positive runtime generation")
+    if interface_revision <= 0:
+        raise ValueError("prepared start_run requires a positive workflow revision")
+    normalized_digests = {
+        field_name: _sha256_digest(value, field_name=field_name)
+        for field_name, value in (
+            ("runtime_snapshot_fingerprint", runtime_snapshot_fingerprint),
+            ("execution_plan_fingerprint", execution_plan_fingerprint),
+            ("workflow_interface_digest", workflow_interface_digest),
+            ("execution_environment_digest", execution_environment_digest),
+        )
+    }
+    accepted_by_node = {item.node_id: item for item in accepted}
+    if len(accepted_by_node) != len(accepted):
+        raise ValueError("accepted_output_payloads must not contain duplicate nodes")
+    reuse_node_ids = {
+        item.node_id for item in decisions if item.action is PreparedAction.REUSE
+    }
+    if set(accepted_by_node) != reuse_node_ids:
+        raise ValueError(
+            "accepted output payloads require exactly the matching reuse decisions"
+        )
+    for decision in decisions:
+        payload = accepted_by_node.get(decision.node_id)
+        if payload is None:
+            continue
+        if (
+            payload.record_id != decision.accepted_record_id
+            or payload.solution_key != decision.solution_key
+        ):
+            raise ValueError(
+                "accepted output payload must match decision record and solution key"
+            )
+        if (
+            payload.residency is SolutionResidency.SESSION
+            and payload.runtime_generation != runtime_generation
+        ):
+            raise ValueError(
+                "session accepted output generation must match command generation"
+            )
+    return {
+        "preparation_id": preparation_id,
+        "solution_namespace_id": namespace_id,
+        "execution_affecting_workspace_revision": revision,
+        "dispatch_runtime_generation": runtime_generation,
+        "workflow_interface_revision": interface_revision,
+        "trigger_publication_generations": trigger_generations,
+        "node_decisions": decisions,
+        "accepted_output_payloads": accepted,
+        **normalized_digests,
+    }
+
+
+def normalize_root_execution_errors(
+    value: Any,
+) -> tuple[_settled.RootExecutionError, ...]:
+    return _settled.normalize_root_execution_errors(value)
 
 
 def normalize_settled_port_result(
     value: Any,
     *,
     catalog: DataTypeCatalog | None = None,
-) -> SettledPortResult:
-    if isinstance(value, SettledPortResult):
-        payload: Mapping[str, Any] = {
-            "status": value.status,
-            "value": value.value,
-            "errors": value.errors,
-        }
-    elif isinstance(value, Mapping):
-        payload = value
-    else:
-        decoded = deserialize_runtime_value(value, catalog=catalog)
-        if not isinstance(decoded, Mapping):
-            raise ValueError("settled port result must be a mapping")
-        payload = decoded
-    status = _string_field(
-        payload,
-        "status",
-        default="empty",
-        strip=True,
-    ).lower()
-    if status not in {"value", "empty", "failed"}:
-        raise ValueError(f"invalid settled port status: {status!r}")
-    tree = payload.get("value")
-    if tree is not None and not isinstance(tree, DataTree):
-        tree = deserialize_runtime_value(tree, catalog=catalog)
-    errors = normalize_root_execution_errors(payload.get("errors", ()))
-    if status == "value":
-        if not isinstance(tree, DataTree):
-            raise ValueError("value settled port results require a DataTree")
-        if errors:
-            raise ValueError("value settled port results cannot contain errors")
-        return SettledPortResult(status="value", value=tree)
-    if tree is not None:
-        raise ValueError(f"{status} settled port results cannot contain a value")
-    if status == "empty":
-        if errors:
-            raise ValueError("empty settled port results cannot contain errors")
-        return SettledPortResult(status="empty")
-    if not errors:
-        raise ValueError("failed settled port results require a root error")
-    return SettledPortResult(status="failed", errors=errors)
+) -> _settled.SettledPortResult:
+    return _settled.normalize_settled_port_result(value, catalog=catalog)
 
 
 def normalize_settled_output_mapping(
     value: Any,
     *,
     catalog: DataTypeCatalog | None = None,
-) -> dict[str, SettledPortResult]:
-    if isinstance(value, Mapping):
-        payload = value
-    else:
-        payload = deserialize_runtime_value(value, catalog=catalog)
-    if not isinstance(payload, Mapping):
-        raise ValueError("settled output mapping must be a mapping")
-    normalized: dict[str, SettledPortResult] = {}
-    for raw_key, raw_result in payload.items():
-        if not isinstance(raw_key, str):
-            raise ValueError("settled output mapping keys must be strings")
-        key = raw_key.strip()
-        if not key:
-            raise ValueError("settled output mapping keys must be non-empty")
-        normalized[key] = normalize_settled_port_result(raw_result, catalog=catalog)
-    return normalized
+) -> dict[str, _settled.SettledPortResult]:
+    return _settled.normalize_settled_output_mapping(value, catalog=catalog)
 
 
-def _root_error_to_dict(error: RootExecutionError) -> dict[str, str]:
-    return {
-        "node_id": _string_value(error.node_id, field_name="node_id"),
-        "error": _string_value(error.error, field_name="error"),
-        "traceback": _string_value(error.traceback, field_name="traceback"),
-    }
+def _root_error_to_dict(error: _settled.RootExecutionError) -> dict[str, str]:
+    return error.to_payload()
 
 
 def _settled_port_to_dict(
-    result: SettledPortResult,
+    result: _settled.SettledPortResult,
     *,
     catalog: DataTypeCatalog | None,
 ) -> dict[str, Any]:
-    normalized = normalize_settled_port_result(result, catalog=catalog)
-    return {
-        "status": normalized.status,
-        "value": serialize_runtime_value(normalized.value, catalog=catalog),
-        "errors": [_root_error_to_dict(error) for error in normalized.errors],
-    }
+    return result.to_payload(catalog=catalog)
 
 
 def _settled_outputs_to_dict(
-    values: Mapping[str, SettledPortResult],
+    values: Mapping[str, _settled.SettledPortResult],
     *,
     catalog: DataTypeCatalog | None,
 ) -> dict[str, Any]:
-    normalized: dict[str, Any] = {}
-    for key, result in values.items():
-        if not isinstance(key, str) or not key.strip():
-            raise ValueError("settled output mapping keys must be non-empty strings")
-        normalized[key.strip()] = _settled_port_to_dict(result, catalog=catalog)
-    return normalized
+    return _settled.settled_outputs_to_payload(values, catalog=catalog)
 
 
 def command_to_dict(
@@ -1807,6 +2012,28 @@ def command_to_dict(
             "addon_runtime_config": _addon_runtime_config_payload(
                 command.addon_runtime_config
             ),
+            "preparation_id": command.preparation_id,
+            "solution_namespace_id": command.solution_namespace_id,
+            "execution_affecting_workspace_revision": (
+                command.execution_affecting_workspace_revision
+            ),
+            "dispatch_runtime_generation": command.dispatch_runtime_generation,
+            "runtime_snapshot_fingerprint": command.runtime_snapshot_fingerprint,
+            "execution_plan_fingerprint": command.execution_plan_fingerprint,
+            "workflow_interface_revision": command.workflow_interface_revision,
+            "workflow_interface_digest": command.workflow_interface_digest,
+            "execution_environment_digest": command.execution_environment_digest,
+            "trigger_publication_generations": [
+                [node_id, generation]
+                for node_id, generation in command.trigger_publication_generations
+            ],
+            "node_decisions": [
+                decision.to_payload() for decision in command.node_decisions
+            ],
+            "accepted_output_payloads": [
+                accepted.to_payload(catalog=catalog)
+                for accepted in command.accepted_output_payloads
+            ],
         }
         dict_to_command(payload, catalog=catalog)
         return payload
@@ -1958,6 +2185,14 @@ def event_to_dict(
             "warnings",
         )
         errors = normalize_root_execution_errors(event.errors)
+        identity_fields = _settlement_identity_fields(
+            status=status,
+            disposition=event.disposition,
+            decision_reason=event.decision_reason,
+            solution_key=event.solution_key,
+            record_id=event.record_id,
+            residency=event.residency,
+        )
         return {
             "type": _string_value(event.type, field_name="type"),
             "run_id": _string_value(event.run_id, field_name="run_id"),
@@ -1974,6 +2209,7 @@ def event_to_dict(
             "outputs": _settled_outputs_to_dict(event.outputs, catalog=catalog),
             "errors": [_root_error_to_dict(error) for error in errors],
             "warnings": list(warnings),
+            **identity_fields,
         }
     if isinstance(event, (TriggerCaptureSettledEvent, TriggerPublishedEvent)):
         return {
@@ -2169,6 +2405,26 @@ def _start_run_command_from_payload(
             "start_run requires plugin agreement fields: "
             + ", ".join(sorted(missing_plugin_fields))
         )
+    prepared_field_names = {
+        "preparation_id",
+        "solution_namespace_id",
+        "execution_affecting_workspace_revision",
+        "dispatch_runtime_generation",
+        "runtime_snapshot_fingerprint",
+        "execution_plan_fingerprint",
+        "workflow_interface_revision",
+        "workflow_interface_digest",
+        "execution_environment_digest",
+        "trigger_publication_generations",
+        "node_decisions",
+        "accepted_output_payloads",
+    }
+    if str(payload.get("preparation_id", "")).strip():
+        if missing_prepared_fields := prepared_field_names - set(payload):
+            raise ValueError(
+                "prepared start_run requires fields: "
+                + ", ".join(sorted(missing_prepared_fields))
+            )
     if not isinstance(payload["plugin_bundles"], list):
         raise ValueError("start_run plugin_bundles must be a list")
     _plugin_fingerprint(payload["plugin_fingerprint"])
@@ -2213,6 +2469,25 @@ def _start_run_command_from_payload(
     )
     if runtime_snapshot is None:
         raise ValueError("start_run requires runtime_snapshot.")
+    prepared_fields = _normalize_prepared_start_fields(
+        preparation_id=payload.get("preparation_id", ""),
+        solution_namespace_id=payload.get("solution_namespace_id", ""),
+        execution_affecting_workspace_revision=payload.get(
+            "execution_affecting_workspace_revision", 0
+        ),
+        dispatch_runtime_generation=payload.get("dispatch_runtime_generation", 0),
+        runtime_snapshot_fingerprint=payload.get("runtime_snapshot_fingerprint", ""),
+        execution_plan_fingerprint=payload.get("execution_plan_fingerprint", ""),
+        workflow_interface_revision=payload.get("workflow_interface_revision", 0),
+        workflow_interface_digest=payload.get("workflow_interface_digest", ""),
+        execution_environment_digest=payload.get("execution_environment_digest", ""),
+        trigger_publication_generations=payload.get(
+            "trigger_publication_generations", ()
+        ),
+        node_decisions=payload.get("node_decisions", ()),
+        accepted_output_payloads=payload.get("accepted_output_payloads", ()),
+        catalog=catalog,
+    )
     return StartRunCommand(
         run_id=_string_field(payload, "run_id"),
         project_path=_string_field(payload, "project_path"),
@@ -2221,11 +2496,11 @@ def _start_run_command_from_payload(
         runtime_snapshot=runtime_snapshot,
         execution_backend=_execution_backend_from_payload(payload),
         target_node_ids=normalize_target_node_ids(payload.get("target_node_ids", ())),
-        trigger_publications=normalize_settled_output_mapping(
+        trigger_publications=_settled.settled_output_mapping_from_payload(
             payload.get("trigger_publications", {}),
             catalog=catalog,
         ),
-        trigger_captures=normalize_settled_output_mapping(
+        trigger_captures=_settled.settled_output_mapping_from_payload(
             payload.get("trigger_captures", {}),
             catalog=catalog,
         ),
@@ -2242,6 +2517,7 @@ def _start_run_command_from_payload(
         runtime_registry_fingerprint=runtime_fingerprint,
         registry_contract_fingerprint=registry_contract_fingerprint,
         addon_runtime_config=addon_runtime_config,
+        **prepared_fields,
     )
 
 
@@ -2282,6 +2558,25 @@ def coerce_start_run_command(
         addon_runtime_config = normalize_addon_runtime_config(
             command.addon_runtime_config
         )
+        prepared_fields = _normalize_prepared_start_fields(
+            preparation_id=command.preparation_id,
+            solution_namespace_id=command.solution_namespace_id,
+            execution_affecting_workspace_revision=(
+                command.execution_affecting_workspace_revision
+            ),
+            dispatch_runtime_generation=command.dispatch_runtime_generation,
+            runtime_snapshot_fingerprint=command.runtime_snapshot_fingerprint,
+            execution_plan_fingerprint=command.execution_plan_fingerprint,
+            workflow_interface_revision=command.workflow_interface_revision,
+            workflow_interface_digest=command.workflow_interface_digest,
+            execution_environment_digest=command.execution_environment_digest,
+            trigger_publication_generations=(
+                command.trigger_publication_generations
+            ),
+            node_decisions=command.node_decisions,
+            accepted_output_payloads=command.accepted_output_payloads,
+            catalog=catalog,
+        )
         return StartRunCommand(
             run_id=_string_field({"run_id": command.run_id}, "run_id"),
             project_path=_string_field(
@@ -2317,6 +2612,7 @@ def coerce_start_run_command(
             runtime_registry_fingerprint=runtime_fingerprint,
             registry_contract_fingerprint=registry_contract_fingerprint,
             addon_runtime_config=addon_runtime_config,
+            **prepared_fields,
         )
 
     if (
@@ -2359,6 +2655,25 @@ def coerce_start_run_command(
     )
     if runtime_snapshot is None:
         raise ValueError("start_run requires runtime_snapshot.")
+    prepared_fields = _normalize_prepared_start_fields(
+        preparation_id=command.get("preparation_id", ""),
+        solution_namespace_id=command.get("solution_namespace_id", ""),
+        execution_affecting_workspace_revision=command.get(
+            "execution_affecting_workspace_revision", 0
+        ),
+        dispatch_runtime_generation=command.get("dispatch_runtime_generation", 0),
+        runtime_snapshot_fingerprint=command.get("runtime_snapshot_fingerprint", ""),
+        execution_plan_fingerprint=command.get("execution_plan_fingerprint", ""),
+        workflow_interface_revision=command.get("workflow_interface_revision", 0),
+        workflow_interface_digest=command.get("workflow_interface_digest", ""),
+        execution_environment_digest=command.get("execution_environment_digest", ""),
+        trigger_publication_generations=command.get(
+            "trigger_publication_generations", ()
+        ),
+        node_decisions=command.get("node_decisions", ()),
+        accepted_output_payloads=command.get("accepted_output_payloads", ()),
+        catalog=catalog,
+    )
     return StartRunCommand(
         run_id=_string_field(command, "run_id"),
         project_path=_string_field(command, "project_path"),
@@ -2388,6 +2703,7 @@ def coerce_start_run_command(
         runtime_registry_fingerprint=runtime_fingerprint,
         registry_contract_fingerprint=registry_contract_fingerprint,
         addon_runtime_config=addon_runtime_config,
+        **prepared_fields,
     )
 
 
@@ -2572,25 +2888,36 @@ def dict_to_event(
         ).lower()
         if status not in {"completed", "empty", "failed", "blocked"}:
             raise ValueError(f"invalid node settlement status: {status!r}")
+        identity_fields = _settlement_identity_fields(
+            status=status,
+            disposition=payload.get("disposition", ""),
+            decision_reason=payload.get("decision_reason", "legacy_direct_run"),
+            solution_key=payload.get("solution_key", ""),
+            record_id=payload.get("record_id", ""),
+            residency=payload.get("residency", ""),
+        )
         return NodeSettledEvent(
             run_id=_string_field(payload, "run_id"),
             workspace_id=_string_field(payload, "workspace_id"),
             node_id=_string_field(payload, "node_id"),
             status=status,
             elapsed_ms=_float_field(payload, "elapsed_ms"),
-            outputs=normalize_settled_output_mapping(
+            outputs=_settled.settled_output_mapping_from_payload(
                 payload.get("outputs", {}),
                 catalog=catalog,
             ),
-            errors=normalize_root_execution_errors(payload.get("errors", ())),
+            errors=_settled.root_execution_errors_from_payload(
+                payload.get("errors", ())
+            ),
             warnings=warnings,
+            **identity_fields,
         )
     if event_type in {"trigger_capture_settled", "trigger_published"}:
         event_type_args = {
             "run_id": _string_field(payload, "run_id"),
             "workspace_id": _string_field(payload, "workspace_id"),
             "trigger_node_id": _string_field(payload, "trigger_node_id"),
-            "result": normalize_settled_port_result(
+            "result": _settled.SettledPortResult.from_payload(
                 payload.get(
                     "result",
                     {"status": "empty", "value": None, "errors": ()},

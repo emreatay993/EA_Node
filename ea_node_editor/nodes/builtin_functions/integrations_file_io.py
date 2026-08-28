@@ -14,6 +14,7 @@ from ea_node_editor.nodes.builtins.integrations_file_io import (
 
 @corex.node(
     id="io.file_read",
+    _solution_reuse_scope="session",
     name="File Read",
     category=("Input / Output",),
     icon="integrations/description.svg",
@@ -106,6 +107,7 @@ def file_write(ctx, text, data, settings):
 
 @corex.node(
     id="io.image_import",
+    _solution_reuse_scope="session",
     name="Import Image",
     category=("Input / Output",),
     icon="integrations/download.svg",

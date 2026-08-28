@@ -720,7 +720,13 @@ def _register_prepared_bundle(
         generation_root,
     )
     for entry in function_entries:
-        registry.register_python_function(
+        register_function = (
+            registry._register_trusted_python_function  # noqa: SLF001
+            if prepared.owner_id == INTERNAL_BUILTIN_FUNCTION_OWNER_ID
+            and entry.provenance is None
+            else registry.register_python_function
+        )
+        register_function(
             entry.spec,
             entry.function_ref,
             provenance=entry.provenance,

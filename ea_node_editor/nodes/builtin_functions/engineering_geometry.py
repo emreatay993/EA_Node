@@ -21,6 +21,7 @@ def _outputs(ctx, result, code):
 
 @corex.node(
     id="geometry.cylinder",
+    _solution_reuse_scope="session",
     name="Cylinder",
     category=("Geometry", "Primitive"),
     icon="cylinder",
@@ -60,6 +61,7 @@ def cylinder(ctx, plane, radius, interval):
 
 @corex.node(
     id="fea.construct_zone",
+    _solution_reuse_scope="session",
     name="Construct Zone",
     category=("FEA", "Model"),
     icon="select_all",
@@ -101,6 +103,7 @@ def construct_zone(ctx, name, geometry, tolerances):
 
 @corex.node(
     id="mesh.deconstruct_mesh_face",
+    _solution_reuse_scope="session",
     name="Deconstruct Mesh Face",
     category=("Mesh", "Analyse"),
     icon="grid_on",

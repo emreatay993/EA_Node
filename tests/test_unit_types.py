@@ -6,10 +6,10 @@ import pytest
 
 from ea_node_editor.execution.protocol import (
     NodeSettledEvent,
-    SettledPortResult,
     dict_to_event,
     event_to_dict,
 )
+from ea_node_editor.runtime_contracts.settled_results import SettledPortResult
 from ea_node_editor.nodes.builtins.units import (
     IQUANTITY_DATA_TYPE_ID,
     LENGTH_DATA_TYPE_ID,

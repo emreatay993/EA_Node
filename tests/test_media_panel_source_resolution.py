@@ -7,9 +7,17 @@ from PyQt6.QtCore import QObject, pyqtSignal
 
 from ea_node_editor.execution.protocol import (
     NodeSettledEvent,
+    dict_to_event,
+)
+from ea_node_editor.runtime_contracts.settled_results import (
     RootExecutionError,
     SettledPortResult,
-    dict_to_event,
+)
+from ea_node_editor.runtime_contracts.solution_records import (
+    NodeSolutionFact,
+    SolutionDisposition,
+    SolutionFreshness,
+    SolutionResidency,
 )
 from ea_node_editor.graph.model import GraphModel
 from ea_node_editor.nodes.bootstrap import build_default_registry
@@ -71,9 +79,9 @@ def _run_state(*, result=None, state: str = "", stale: bool = False):  # noqa: A
             "workspace-1": {
                 "media-1": {
                     "run-1": {
+                        "record_id": "run-1",
                         "observed_at_epoch_ms": 1.0,
                         "outputs": {"_surface_source": result},
-                        "stale": stale,
                     }
                 }
             }
@@ -87,6 +95,31 @@ def _run_state(*, result=None, state: str = "", stale: bool = False):  # noqa: A
         blocked_node_ids=state_ids if state == "blocked" else set(),
         root_errors_by_node_id={},
         cached_node_output_records_by_workspace_id=records,
+        node_solution_facts_by_workspace_id=(
+            {
+                "workspace-1": {
+                    "media-1": NodeSolutionFact(
+                        project_id="project",
+                        workspace_id="workspace-1",
+                        node_id="media-1",
+                        freshness=(
+                            SolutionFreshness.EXPIRED
+                            if stale
+                            else SolutionFreshness.CURRENT
+                        ),
+                        revision=1,
+                        retained_record_id="run-1",
+                        retained_solution_key="a" * 64,
+                        residency=SolutionResidency.SESSION,
+                        expiration_reason_code="graph_changed" if stale else "",
+                        expiration_root_node_ids=("media-1",) if stale else (),
+                        last_disposition=SolutionDisposition.RECOMPUTED,
+                    )
+                }
+            }
+            if result is not None
+            else {}
+        ),
     )
 
 
@@ -199,6 +232,26 @@ def test_input_runtime_states_clear_every_source_url() -> None:
         assert resolution.resolved_source_url == ""
         assert resolution.preview_source_url == ""
         assert resolution.message
+
+
+def test_metadata_only_runtime_record_is_unavailable_not_empty_media() -> None:
+    node = _node(source=str(_IMAGE_PATH), exposed=True)
+    run_state = _run_state(
+        result=_value_result(str(_IMAGE_PATH)),
+        state="completed",
+    )
+    run_state.cached_node_output_records_by_workspace_id["workspace-1"]["media-1"][
+        "run-1"
+    ]["outputs_available"] = False
+
+    resolution = resolve_media_panel_source(
+        node=node,
+        workspace=_workspace(node, connected=True),
+        run_state=run_state,
+    )
+
+    assert resolution.state == "unavailable"
+    assert resolution.source_ref == ""
 
 
 def test_malformed_url_worker_failure_resolves_as_controlled_invalid() -> None:

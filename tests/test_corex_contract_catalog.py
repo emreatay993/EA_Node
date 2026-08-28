@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections import Counter
 from collections.abc import Mapping
 from dataclasses import fields, is_dataclass
 from enum import Enum
@@ -32,6 +33,7 @@ from tests.non_dpf_catalog_fixture import (
     FROZEN_CATALOG_SHA256,
     load_effective_non_dpf_catalog,
     load_frozen_non_dpf_catalog,
+    load_solution_reuse_scopes,
 )
 
 
@@ -155,6 +157,62 @@ def test_frozen_non_dpf_catalog_plus_documentation_and_structural_overlays_match
     effective = load_effective_non_dpf_catalog()
     assert len(effective) == 131
     assert _current_non_dpf_catalog() == effective
+
+
+def test_solution_reuse_classification_matches_all_shipped_rows() -> None:
+    tabular_specs = tuple(
+        declaration.spec
+        for declaration in discover_plugin_declarations(
+            TABULAR_SOURCE,
+            filename="tabular_data.py",
+            allow_reserved_ids=True,
+            owner_id=TABULAR_DATA_ADDON_ID,
+            allow_internal_metadata=True,
+        )
+    )
+    mars_specs = tuple(
+        declaration.spec
+        for declaration in discover_plugin_declarations(
+            MARS_SOURCE,
+            filename="mars_nodes.py",
+            allow_reserved_ids=True,
+            owner_id=MARS_ADDON_ID,
+            allow_internal_metadata=True,
+        )
+    )
+    non_dpf = (*build_builtin_registry().all_specs(), *tabular_specs, *mars_specs)
+    dpf = tuple(
+        descriptor.spec
+        for descriptor in (
+            *load_ansys_dpf_helper_plugin_descriptors(),
+            *load_ansys_dpf_curated_plugin_descriptors(),
+            *load_ansys_dpf_plot_plugin_descriptors(),
+            *load_ansys_dpf_operator_plugin_descriptors(),
+        )
+    )
+    specs = (*non_dpf, *dpf)
+    executable = tuple(spec for spec in specs if spec.runtime_behavior == "active")
+    excluded = tuple(spec for spec in specs if spec.runtime_behavior != "active")
+
+    assert len(specs) == 936
+    assert len(executable) == 898
+    assert Counter(spec.solution_reuse_scope for spec in executable) == {
+        "durable": 29,
+        "session": 27,
+        "never": 842,
+    }
+    assert Counter(spec.runtime_behavior for spec in excluded) == {
+        "passive": 35,
+        "compile_only": 3,
+    }
+    assert len(dpf) == 805
+    assert {spec.solution_reuse_scope for spec in dpf} == {"never"}
+    assert {
+        spec.type_id: spec.solution_reuse_scope for spec in specs
+    } == load_solution_reuse_scopes()
+    non_dpf_by_id = {spec.type_id: spec for spec in non_dpf}
+    assert non_dpf_by_id["engineering.cad_import"].solution_reuse_scope == "session"
+    assert non_dpf_by_id["model.viewer"].solution_reuse_scope == "session"
 
 
 def test_novice_plugin_sdk_migration_inventory_is_exhaustive() -> None:

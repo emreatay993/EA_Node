@@ -27,6 +27,7 @@ from ea_node_editor.runtime_contracts import TypedInlineValue
 
 @corex.node(
     id="math.bounding_interval_2d",
+    _solution_reuse_scope="durable",
     name="Bounding Interval 2D",
     category=("Math", "Interval"),
     icon="aspect_ratio",
@@ -64,6 +65,7 @@ def bounding_interval_2d(ctx, coordinates):
 
 @corex.node(
     id="math.field_vector_container",
+    _solution_reuse_scope="session",
     name="Field Vector",
     category=("Math", "Container"),
     icon="storage",
@@ -102,6 +104,7 @@ def field_vector_container(ctx, input):
 
 @corex.node(
     id="reference.reverse_vector",
+    _solution_reuse_scope="durable",
     name="Reverse Vector",
     category=("Reference", "Vector"),
     icon="swap_horiz",
@@ -129,6 +132,7 @@ def reverse_vector(ctx, vector):
 
 @corex.node(
     id="reference.deconstruct_vector",
+    _solution_reuse_scope="durable",
     name="Deconstruct Vector",
     category=("Reference", "Vector"),
     icon="view_in_ar",
@@ -168,6 +172,7 @@ def deconstruct_vector(ctx, vector):
 
 @corex.node(
     id="reference.deconstruct_point",
+    _solution_reuse_scope="durable",
     name="Deconstruct Point",
     category=("Reference", "Point"),
     icon="view_in_ar",
@@ -207,6 +212,7 @@ def deconstruct_point(ctx, point):
 
 @corex.node(
     id="reference.construct_point",
+    _solution_reuse_scope="durable",
     name="Construct Point",
     category=("Reference", "Point"),
     icon="location_on",
@@ -227,6 +233,7 @@ def construct_point(ctx, x, y, z):
 
 @corex.node(
     id="reference.construct_vector",
+    _solution_reuse_scope="durable",
     name="Construct Vector",
     category=("Reference", "Vector"),
     icon="arrow_forward",
@@ -247,6 +254,7 @@ def construct_vector(ctx, x, y, z):
 
 @corex.node(
     id="reference.xy_plane",
+    _solution_reuse_scope="durable",
     name="XY Plane",
     category=("Reference", "Plane"),
     icon="grid_4x4",
@@ -267,6 +275,7 @@ def xy_plane(ctx, origin):
 
 @corex.node(
     id="reference.construct_plane",
+    _solution_reuse_scope="durable",
     name="Construct Plane",
     category=("Reference", "Plane"),
     icon="3d_rotation",
@@ -289,6 +298,7 @@ def construct_plane(ctx, origin, x_axis, y_axis):
 
 @corex.node(
     id="geometry.construct_transform",
+    _solution_reuse_scope="durable",
     name="Construct Transform",
     category=("Geometry", "Transform"),
     icon="matrix",
@@ -332,6 +342,7 @@ def construct_transform(ctx, entries, settings):
 
 @corex.node(
     id="geometry.deconstruct_transform",
+    _solution_reuse_scope="durable",
     name="Deconstruct Transform",
     category=("Geometry", "Transform"),
     icon="matrix",
@@ -375,6 +386,7 @@ def deconstruct_transform(ctx, transform, settings):
 
 @corex.node(
     id="reference.vector_length",
+    _solution_reuse_scope="durable",
     name="Vector Length",
     category=("Reference", "Vector"),
     icon="straighten",
@@ -404,6 +416,7 @@ def vector_length(ctx, vector):
 
 @corex.node(
     id="geometry.chain_transforms",
+    _solution_reuse_scope="durable",
     name="Chain Transforms",
     category=("Geometry", "Transform"),
     icon="matrix",
@@ -430,6 +443,7 @@ def chain_transforms(ctx, transforms):
 
 @corex.node(
     id="geometry.unchain_transforms",
+    _solution_reuse_scope="durable",
     name="Unchain Transforms",
     category=("Geometry", "Transform"),
     icon="matrix",

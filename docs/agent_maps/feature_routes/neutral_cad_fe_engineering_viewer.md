@@ -25,6 +25,7 @@ sessions, selection, clipping, export, and the shared fullscreen/detached host.
 - CAD/FE Import, Model Viewer, Cylinder, Construct Zone, and Deconstruct Mesh
   Face are inert reserved-bundle declarations; the existing trusted helpers
   retain file validation, prepared-scene work, native geometry, and session ownership.
+- CAD Import and FE Import receive trusted registry-owned file provenance for their `path` input. Content hashing is bounded and link/reparse-safe; connected path inputs bind through upstream solution keys instead. This metadata remains private to the shipped registry.
 - Viewer sessions own camera, selection, clipping, display options, and export
   state through validated handles.
 - Model Viewer starts as a lightweight proxy without native warm-up. Selection,

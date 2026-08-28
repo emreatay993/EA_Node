@@ -13,9 +13,9 @@ from PyQt6.QtCore import QCoreApplication, QEvent, QObject, QUrl, pyqtSignal
 
 from ea_node_editor.execution.protocol import (
     NodeSettledEvent,
-    SettledPortResult,
     event_to_dict,
 )
+from ea_node_editor.runtime_contracts.settled_results import SettledPortResult
 from ea_node_editor.execution.viewer_backend_dpf import DPF_EXECUTION_VIEWER_BACKEND_ID
 from ea_node_editor.nodes.builtins.ansys_dpf_common import (
     DPF_VIEWER_NODE_TYPE_ID,

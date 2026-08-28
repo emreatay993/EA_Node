@@ -21,12 +21,10 @@ from ea_node_editor.execution.protocol import (
     OpenViewerSessionCommand,
     ProtocolErrorEvent,
     QueryViewerSessionCommand,
-    RootExecutionError,
     RunCompletedEvent,
     RunFailedEvent,
     RunStateEvent,
     RunStoppedEvent,
-    SettledPortResult,
     ShutdownCommand,
     StartRunCommand,
     catalog_agreement,
@@ -36,6 +34,15 @@ from ea_node_editor.execution.protocol import (
     dict_to_event,
     event_to_dict,
     normalize_catalog_revisions,
+)
+from ea_node_editor.execution.prepared_execution import (
+    AcceptedOutputPayload,
+    PreparedAction,
+    PreparedNodeDecision,
+)
+from ea_node_editor.runtime_contracts.settled_results import (
+    RootExecutionError,
+    SettledPortResult,
 )
 from ea_node_editor.execution.runtime_dto import (
     RuntimeEdge,
@@ -64,6 +71,7 @@ from ea_node_editor.runtime_contracts import (
     TabularDataRef,
 )
 from ea_node_editor.runtime_contracts.data_types import MAX_PAYLOAD_SCHEMA_VERSION
+from ea_node_editor.runtime_contracts.solution_records import SolutionResidency
 
 
 @dataclass
@@ -218,6 +226,178 @@ def _typed_snapshot() -> RuntimeSnapshot:
 
 
 class ExecutionProtocolTests(unittest.TestCase):
+    def test_prepared_start_roundtrip_and_legacy_prepared_field_rejection(self) -> None:
+        catalog = _catalog()
+        decision = PreparedNodeDecision(
+            node_id="node_protocol",
+            action=PreparedAction.REUSE,
+            reason_code="reusable_record_accepted",
+            solution_key="a" * 64,
+            dependency_solution_keys=(),
+            accepted_record_id="record_protocol",
+        )
+        accepted = AcceptedOutputPayload(
+            node_id=decision.node_id,
+            record_id="record_protocol",
+            solution_key=decision.solution_key,
+            settlement_status="completed",
+            result_digest="b" * 64,
+            residency=SolutionResidency.SESSION,
+            runtime_generation=7,
+            outputs={
+                "value": SettledPortResult(
+                    status="value",
+                    value=DataTree.from_item("cached"),
+                )
+            },
+            catalog=catalog,
+        )
+        command = StartRunCommand(
+            run_id="run_prepared",
+            workspace_id="ws_protocol",
+            runtime_snapshot=_typed_snapshot(),
+            preparation_id="preparation_protocol",
+            solution_namespace_id="namespace_protocol",
+            execution_affecting_workspace_revision=3,
+            dispatch_runtime_generation=7,
+            runtime_snapshot_fingerprint="c" * 64,
+            execution_plan_fingerprint="d" * 64,
+            workflow_interface_revision=1,
+            workflow_interface_digest="e" * 64,
+            execution_environment_digest="f" * 64,
+            trigger_publication_generations=(("trigger", 2),),
+            node_decisions=(decision,),
+            accepted_output_payloads=(accepted,),
+        )
+        payload = command_to_dict(command, catalog=catalog)
+        restored = dict_to_command(json.loads(json.dumps(payload)), catalog=catalog)
+        self.assertEqual(command_to_dict(restored, catalog=catalog), payload)
+        self.assertEqual(restored.preparation_id, command.preparation_id)
+        self.assertEqual(restored.node_decisions, command.node_decisions)
+        self.assertEqual(
+            restored.accepted_output_payloads[0].to_payload(catalog=catalog),
+            accepted.to_payload(catalog=catalog),
+        )
+        clients = (
+            ProcessExecutionClient(),
+            ExternalPythonExecutionClient(),
+            TrustedInProcessExecutionClient(),
+        )
+        try:
+            for client in clients:
+                client._data_types = catalog  # noqa: SLF001
+                transported = client._decode_command(  # noqa: SLF001
+                    client._encode_command(command)  # noqa: SLF001
+                )
+                self.assertEqual(transported.preparation_id, command.preparation_id)
+                self.assertEqual(transported.node_decisions, command.node_decisions)
+                self.assertEqual(
+                    transported.accepted_output_payloads[0].to_payload(
+                        catalog=catalog
+                    ),
+                    accepted.to_payload(catalog=catalog),
+                )
+        finally:
+            for client in clients:
+                client.shutdown()
+
+        for mutate in (
+            lambda value: value.pop("solution_namespace_id"),
+            lambda value: value.__setitem__("dispatch_runtime_generation", 8),
+            lambda value: value.__setitem__("preparation_id", ""),
+        ):
+            malformed = copy.deepcopy(payload)
+            mutate(malformed)
+            with self.assertRaises(ValueError):
+                dict_to_command(malformed, catalog=catalog)
+
+    def test_solution_settlement_identity_combinations_are_strict(self) -> None:
+        reused = NodeSettledEvent(
+            run_id="run",
+            workspace_id="ws",
+            node_id="node",
+            status="empty",
+            disposition="reused",
+            decision_reason="reusable_record_accepted",
+            solution_key="a" * 64,
+            record_id="record",
+            residency="session",
+        )
+        self.assertEqual(
+            dict_to_event(event_to_dict(reused)),
+            reused,
+        )
+        invalid = (
+            replace(reused, status="failed"),
+            replace(reused, record_id=""),
+            replace(reused, disposition="recomputed"),
+            replace(
+                reused,
+                disposition="skipped",
+                status="completed",
+                record_id="",
+                residency="",
+            ),
+            replace(
+                reused,
+                disposition="blocked",
+                status="empty",
+                record_id="",
+                residency="",
+            ),
+        )
+        for event in invalid:
+            with self.assertRaises(ValueError):
+                event_to_dict(event)
+
+    def test_legacy_start_requires_exact_prepared_field_default_types(self) -> None:
+        catalog = _catalog()
+        payload = command_to_dict(
+            StartRunCommand(
+                run_id="legacy",
+                workspace_id="ws_protocol",
+                runtime_snapshot=_typed_snapshot(),
+            ),
+            catalog=catalog,
+        )
+        self.assertIsInstance(dict_to_command(payload, catalog=catalog), StartRunCommand)
+        text_fields = (
+            "preparation_id",
+            "solution_namespace_id",
+            "runtime_snapshot_fingerprint",
+            "execution_plan_fingerprint",
+            "workflow_interface_digest",
+            "execution_environment_digest",
+        )
+        sequence_fields = (
+            "trigger_publication_generations",
+            "node_decisions",
+            "accepted_output_payloads",
+        )
+        integer_fields = (
+            "execution_affecting_workspace_revision",
+            "dispatch_runtime_generation",
+            "workflow_interface_revision",
+        )
+        for field_name in text_fields:
+            for invalid in (None, False, 0):
+                malformed = copy.deepcopy(payload)
+                malformed[field_name] = invalid
+                with self.assertRaises((TypeError, ValueError)):
+                    dict_to_command(malformed, catalog=catalog)
+        for field_name in sequence_fields:
+            for invalid in (None, False, 0):
+                malformed = copy.deepcopy(payload)
+                malformed[field_name] = invalid
+                with self.assertRaises((TypeError, ValueError)):
+                    dict_to_command(malformed, catalog=catalog)
+        for field_name in integer_fields:
+            for invalid in (None, False, "0"):
+                malformed = copy.deepcopy(payload)
+                malformed[field_name] = invalid
+                with self.assertRaises((TypeError, ValueError)):
+                    dict_to_command(malformed, catalog=catalog)
+
     def test_start_run_semantic_carrier_round_trips_through_json(self) -> None:
         catalog = _catalog()
         command = StartRunCommand(

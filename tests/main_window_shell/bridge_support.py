@@ -13,6 +13,12 @@ from ea_node_editor.nodes.category_paths import category_key
 from ea_node_editor.ui.shell.presenters.state import build_default_shell_workspace_ui_state
 from ea_node_editor.ui.shell.presenters.workspace_presenter import ShellWorkspacePresenter
 from ea_node_editor.ui.shell.state import ShellRunState
+from ea_node_editor.runtime_contracts.solution_records import (
+    NodeSolutionFact,
+    SolutionDisposition,
+    SolutionFreshness,
+    SolutionResidency,
+)
 from ea_node_editor.ui.shell.tooltip_policy import (
     TOOLTIP_CATEGORY_NAMES,
     default_tooltip_category_preferences,
@@ -2057,7 +2063,21 @@ class GraphCanvasBridgeTests(unittest.TestCase):
         host.run_state.running_node_ids.add("node_running")
         host.run_state.completed_node_ids.add("node_completed")
         host.run_state.warning_node_ids.add("node_warning")
-        host.run_state.fresh_run_node_ids_by_workspace_id = {"ws-1": {"node_fresh"}}
+        host.run_state.node_solution_facts_by_workspace_id = {
+            "ws-1": {
+                "node_fresh": NodeSolutionFact(
+                    project_id="project",
+                    workspace_id="ws-1",
+                    node_id="node_fresh",
+                    freshness=SolutionFreshness.CURRENT,
+                    revision=1,
+                    retained_record_id="record_fresh",
+                    retained_solution_key="a" * 64,
+                    residency=SolutionResidency.SESSION,
+                    last_disposition=SolutionDisposition.RECOMPUTED,
+                )
+            }
+        }
         host.run_state.node_execution_revision = 8
         host.node_execution_state_changed.emit()
 
@@ -2065,6 +2085,9 @@ class GraphCanvasBridgeTests(unittest.TestCase):
         self.assertEqual(bridge.completed_node_lookup, {"node_completed": True})
         self.assertEqual(bridge.warning_node_lookup, {"node_warning": True})
         self.assertEqual(bridge.fresh_run_node_lookup, {"node_fresh": True})
+        self.assertEqual(
+            bridge.node_solution_freshness_lookup, {"node_fresh": "current"}
+        )
         self.assertEqual(bridge.node_execution_revision, 8)
 
         scene.workspace_id = "ws-2"
@@ -2107,9 +2130,24 @@ class GraphCanvasBridgeTests(unittest.TestCase):
             "ws-1": {"node_cached": 48.25},
             "ws-2": {"node_foreign": 99.0},
         }
-        host.run_state.fresh_run_node_ids_by_workspace_id = {
-            "ws-1": {"node_cached"},
-            "ws-2": {"node_foreign"},
+        host.run_state.node_solution_facts_by_workspace_id = {
+            workspace_id: {
+                node_id: NodeSolutionFact(
+                    project_id="project",
+                    workspace_id=workspace_id,
+                    node_id=node_id,
+                    freshness=SolutionFreshness.CURRENT,
+                    revision=1,
+                    retained_record_id=f"record_{node_id}",
+                    retained_solution_key="a" * 64,
+                    residency=SolutionResidency.SESSION,
+                    last_disposition=SolutionDisposition.RECOMPUTED,
+                )
+            }
+            for workspace_id, node_id in (
+                ("ws-1", "node_cached"),
+                ("ws-2", "node_foreign"),
+            )
         }
         host.run_state.node_execution_revision = 15
         host.node_execution_state_changed.emit()

@@ -191,6 +191,7 @@ def builtin_node_type(
     render_quality: Any = None,
     settings_groups: tuple[SettingsGroupSpec, ...] | list[SettingsGroupSpec] = (),
     readiness_requirements: tuple[ReadinessRequirementSpec, ...] | list[ReadinessRequirementSpec] = (),
+    solution_reuse_scope: str = "never",
 ) -> Callable[[type[Any]], type[Any]]:
     return node_type(
         type_id=type_id,
@@ -209,6 +210,7 @@ def builtin_node_type(
         render_quality=render_quality,
         settings_groups=settings_groups,
         readiness_requirements=readiness_requirements,
+        solution_reuse_scope=solution_reuse_scope,  # type: ignore[arg-type]
     )
 
 

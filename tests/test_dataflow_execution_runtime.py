@@ -6,12 +6,12 @@ from pathlib import Path
 from unittest import mock
 
 from ea_node_editor.execution.protocol import (
-    SettledPortResult,
     TriggerCaptureSettledEvent,
     TriggerPublishedEvent,
     coerce_start_run_command,
     dict_to_event,
 )
+from ea_node_editor.runtime_contracts.settled_results import SettledPortResult
 from ea_node_editor.execution.runtime_snapshot import build_runtime_snapshot
 from ea_node_editor.execution.worker import run_workflow
 from ea_node_editor.graph.model import GraphModel

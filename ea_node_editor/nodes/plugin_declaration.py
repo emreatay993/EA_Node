@@ -37,6 +37,7 @@ _INTERNAL_NODE_FIELDS = _NODE_FIELDS | {
     "_property_output_collisions",
     "_readiness_requirements",
     "_render_quality_tiers",
+    "_solution_reuse_scope",
     "_surface_family",
     "_surface_variant",
 }
@@ -339,6 +340,15 @@ def _node_metadata(
         )
     if len(set(render_quality_tiers)) != len(render_quality_tiers):
         raise fail(decorator, "_render_quality_tiers must not contain duplicates")
+    solution_reuse_scope = values.get("_solution_reuse_scope", "never")
+    if (
+        not isinstance(solution_reuse_scope, str)
+        or solution_reuse_scope not in {"never", "session", "durable"}
+    ):
+        raise fail(
+            decorator,
+            "_solution_reuse_scope must be 'never', 'session', or 'durable'",
+        )
     property_output_collisions = _key_tuple(
         values.get("_property_output_collisions", ()),
         field="_property_output_collisions",
@@ -356,6 +366,7 @@ def _node_metadata(
         "property_output_collisions": property_output_collisions,
         "readiness_requirements": values.get("_readiness_requirements", ()),
         "render_quality_tiers": tuple(render_quality_tiers),
+        "solution_reuse_scope": solution_reuse_scope,
         "surface_family": surface_family,
         "surface_variant": surface_variant,
     }
@@ -884,6 +895,7 @@ def _parse_function(
             collapsible=metadata["collapsible"],
             description=metadata["description"],
             is_async=is_async,
+            solution_reuse_scope=metadata["solution_reuse_scope"],
             surface_family=metadata["surface_family"],
             surface_variant=metadata["surface_variant"],
             render_quality=NodeRenderQualitySpec(

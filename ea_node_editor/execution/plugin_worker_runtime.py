@@ -13,7 +13,7 @@ import keyword
 import sys
 import threading
 from collections.abc import Mapping
-from pathlib import PurePosixPath
+from pathlib import Path, PurePosixPath
 from types import ModuleType
 from typing import Any
 
@@ -26,6 +26,7 @@ from ea_node_editor.nodes.function_plugin import (
     PythonFunctionRef,
 )
 from ea_node_editor.nodes.node_specs import NodeTypeSpec
+from ea_node_editor.nodes.plugin_contracts import PluginProvenance
 from ea_node_editor.nodes.plugin_generation import (
     VerifiedPluginGeneration,
     read_verified_plugin_generation,
@@ -139,9 +140,34 @@ class WorkerPluginRuntime:
                     function_ref = ref_by_identity[identity]
                     if declaration.is_async != function_ref.is_async:
                         raise ValueError("Plugin function async state changed")
-                    candidate.register_python_function(
+                    trusted_solution_reuse = bool(
+                        declaration.spec.solution_reuse_scope != "never"
+                        and bundle.owner_id in trusted_owner_ids
+                    )
+                    register_function = (
+                        candidate._register_trusted_python_function  # noqa: SLF001
+                        if trusted_solution_reuse
+                        else candidate.register_python_function
+                    )
+                    provenance = None
+                    if (
+                        trusted_solution_reuse
+                        and bundle.owner_id
+                        == "ea_node_editor.builtins.tabular_data"
+                    ):
+                        package_root = Path(bundle.approved_generation_root)
+                        provenance = PluginProvenance(
+                            kind="package",
+                            source_path=(
+                                package_root / function_ref.module_relative_path
+                            ),
+                            package_root=package_root,
+                            package_name="ea_node_editor_builtins_tabular_data",
+                        )
+                    register_function(
                         declaration.spec,
                         function_ref,
+                        provenance=provenance,
                         owner_id=bundle.owner_id,
                         unavailable_reason=bundle.unavailable_reason,
                     )

@@ -46,6 +46,7 @@ MARKER_CODES = (0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17)
 
 @corex.node(
     id="plot.signal",
+    _solution_reuse_scope="durable",
     name="Signal Plot",
     category=("Plot",),
     icon="show_chart",

@@ -109,6 +109,7 @@ def _run_function_plugin_package_smoke() -> None:
 
     from ea_node_editor.execution.client import ProcessExecutionClient
     from ea_node_editor.execution.runtime_snapshot import build_runtime_snapshot
+    from ea_node_editor.execution.solution_identity import corex_build_digest
     from ea_node_editor.graph.model import GraphModel
     from ea_node_editor.nodes.bootstrap import build_plugin_candidate_registry
     from ea_node_editor.runtime_contracts import DataTree, deserialize_runtime_value
@@ -116,6 +117,8 @@ def _run_function_plugin_package_smoke() -> None:
 
     type_id = "custom.package_smoke.1234abcd"
     expected_value = 37
+    if len(corex_build_digest()) != 64:
+        raise RuntimeError("Packaged COREX build identity smoke failed.")
     previous_appdata = os.environ.get("APPDATA")
     try:
         with tempfile.TemporaryDirectory(prefix="corex-function-plugin-smoke-") as temp_dir:

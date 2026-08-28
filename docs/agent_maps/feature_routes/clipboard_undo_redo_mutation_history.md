@@ -36,7 +36,7 @@ Use this for graph mutation history, undo/redo, clipboard fragments, runtime cli
 - Dynamic group commands record `insert-dynamic-port`, `remove-dynamic-port`, or `rename-dynamic-port`. Each successful request is one history entry; invalid and no-op requests record none. Undo/redo restores the exact ordered keys, wires, labels, modifiers, and Principal state.
 - Python Script Apply captures one `edit-node-property` history snapshot around `ValidatedGraphMutation.apply_python_script(...)`. The mutation validates the candidate source first; one successful entry reconciles source, resolved ports, ordinary settings, wires, sparse port state, and section expansion together.
 - `RuntimeGraphHistory.capture_workspace()` memoizes snapshots by exact `WorkspaceData.mutation_revision` and workspace object identity. Graph/view mutations and snapshot restore bump the runtime-only revision; undo/redo still replay full `WorkspaceSnapshot` entries.
-- Undo/redo shell aftermath routes through `MutationUiEffects.after_history_replayed(...)`, which performs the full scene refresh, runtime elapsed/cache invalidation hook, and workspace-tab refresh. History replay deltas and model rebuild decisions remain graph-scene-owned.
+- Undo/redo shell aftermath routes through `MutationUiEffects.after_history_replayed(...)`, which performs the full scene refresh, the registry-aware solution invalidation hook, and workspace-tab refresh. The classifier normalizes present active roots, removed executable IDs, and old/new edge targets; graph-scene code does not compute a downstream closure.
 
 ## Breadcrumbs
 - [Graph Domain, Mutation, Transforms, And Hierarchy](../subsystems/graph_domain.md)

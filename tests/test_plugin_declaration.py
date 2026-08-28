@@ -1030,6 +1030,7 @@ def private_input(ctx, value): return {{}}
         '_surface_family="viewer"',
         '_surface_variant="embedded"',
         '_render_quality_tiers=("full", "proxy")',
+        '_solution_reuse_scope="durable"',
     ),
 )
 def test_external_plugins_reject_internal_node_surface_fields(field: str) -> None:
@@ -1043,6 +1044,16 @@ def private_surface(ctx): return {{}}
 
     with pytest.raises(PluginDeclarationError, match="reserved for internal built-ins"):
         discover_plugin_declarations(source)
+
+
+def test_public_function_declarations_are_hard_locked_to_never_reuse() -> None:
+    source = '''
+@corex.node(id="custom.reuse_default.1234abcd", name="Reuse", category=("Tests",))
+def reuse_default(ctx): return {}
+'''
+
+    (declaration,) = discover_plugin_declarations(source)
+    assert declaration.spec.solution_reuse_scope == "never"
 
 
 @pytest.mark.parametrize(
@@ -1121,6 +1132,7 @@ def test_runtime_private_metadata_accepts_known_fields_and_rejects_unknown() -> 
         _property_output_collisions=(),
         _readiness_requirements=(),
         _render_quality_tiers=("full", "proxy"),
+        _solution_reuse_scope="session",
         _surface_family="viewer",
         _surface_variant="embedded",
     )
@@ -1159,6 +1171,7 @@ def test_internal_node_surface_metadata_maps_to_node_type_spec() -> None:
     id="engineering.viewer", name="Viewer", category=("Engineering",),
     _collapsible=False, _surface_family="viewer", _surface_variant="embedded",
     _render_quality_tiers=("full", "proxy"),
+    _solution_reuse_scope="session",
 )
 @corex.output("session")
 def viewer(ctx): return {"session": None}
@@ -1173,6 +1186,7 @@ def viewer(ctx): return {"session": None}
         "full",
         "proxy",
     )
+    assert declaration.spec.solution_reuse_scope == "session"
 
 
 @pytest.mark.parametrize(
@@ -1209,6 +1223,8 @@ def viewer(ctx): return {{}}
         ('_surface_family=" viewer"', "non-empty trimmed string"),
         ("_surface_variant=1", "trimmed string"),
         ('_surface_variant=" embedded"', "trimmed string"),
+        ('_solution_reuse_scope="global"', "never.*session.*durable"),
+        ("_solution_reuse_scope=[]", "never.*session.*durable"),
     ),
 )
 def test_internal_node_surface_fields_validate_types(

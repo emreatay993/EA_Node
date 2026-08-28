@@ -8,7 +8,11 @@ from collections.abc import Iterable
 from dataclasses import dataclass, field
 from typing import Any, Literal, TypeAlias
 
-from ea_node_editor.execution.protocol import RootExecutionError, SettledPortResult
+from ea_node_editor.runtime_contracts.settled_results import (
+    RootExecutionError,
+    SettledPortResult,
+)
+from ea_node_editor.runtime_contracts.solution_records import NodeSolutionFact
 
 
 ScopeCameraKey: TypeAlias = tuple[str, str, tuple[str, ...]]
@@ -60,7 +64,7 @@ class ShellLibraryFilterState:
 class ShellRunState:
     solution_mode_by_workspace_id: dict[str, SolutionMode] = field(default_factory=dict)
     pending_auto_run_workspace_id: str = ""
-    pending_auto_run_root_node_ids: set[str] = field(default_factory=set)
+    pending_auto_run_target_node_ids: set[str] = field(default_factory=set)
     latest_trigger_inputs_by_workspace_id: dict[str, dict[str, SettledPortResult]] = field(default_factory=dict)
     trigger_publications_by_workspace_id: dict[str, dict[str, SettledPortResult]] = field(default_factory=dict)
     current_trigger_capture_node_ids_by_workspace_id: dict[str, set[str]] = field(default_factory=dict)
@@ -76,9 +80,17 @@ class ShellRunState:
     warning_node_ids: set[str] = field(default_factory=set)
     running_node_started_at_epoch_ms_by_node_id: dict[str, float] = field(default_factory=dict)
     cached_node_elapsed_ms_by_workspace_id: dict[str, dict[str, float]] = field(default_factory=dict)
-    fresh_run_node_ids_by_workspace_id: dict[str, set[str]] = field(default_factory=dict)
     cached_node_output_records_by_workspace_id: dict[str, dict[str, dict[str, dict[str, Any]]]] = (
         field(default_factory=dict)
+    )
+    node_output_run_counts_by_workspace_id: dict[str, dict[str, int]] = field(
+        default_factory=dict
+    )
+    node_output_cache_sequence: int = 0
+    solution_project_id: str = ""
+    solution_revision_by_workspace_id: dict[str, int] = field(default_factory=dict)
+    node_solution_facts_by_workspace_id: dict[str, dict[str, NodeSolutionFact]] = field(
+        default_factory=dict
     )
     runtime_warning_messages_by_workspace_id: dict[str, dict[str, tuple[str, ...]]] = field(
         default_factory=dict

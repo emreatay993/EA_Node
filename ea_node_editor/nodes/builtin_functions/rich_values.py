@@ -20,6 +20,7 @@ IDENTITY_PLANE = {
 
 @corex.node(
     id="reference.plane_container",
+    _solution_reuse_scope="durable",
     name="Plane",
     category=("Reference", "Container"),
     icon="3d_rotation",

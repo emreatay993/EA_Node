@@ -144,6 +144,25 @@ class DecoratorSdkTests(unittest.TestCase):
 
         self.assertEqual(registry.get_spec("tests.decorated_settings_groups").settings_groups, (options,))
 
+    def test_node_type_forwards_internal_solution_reuse_scope(self) -> None:
+        @node_type(
+            type_id="tests.decorated_solution_scope",
+            display_name="Decorated Solution Scope",
+            category_path=("Tests",),
+            icon="code",
+            ports=(),
+            properties=(),
+            solution_reuse_scope="session",
+        )
+        class _DecoratedSolutionScopePlugin:
+            def execute(self, _ctx: ExecutionContext) -> NodeResult:
+                return NodeResult()
+
+        self.assertEqual(
+            _DecoratedSolutionScopePlugin.__node_type_spec__.solution_reuse_scope,
+            "session",
+        )
+
     def test_nested_category_sdk_decorator_accepts_single_level_path(self) -> None:
         registry = NodeRegistry()
 

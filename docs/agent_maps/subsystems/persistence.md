@@ -23,6 +23,7 @@ Use this for `.cxproj` documents, serializers, migrations, workspace-scoped proj
 - Persist Python Script source and authored decorator settings as ordinary node
   properties; resolve the declaration from source instead of storing a second manifest.
 - Persist `media.panel` authored properties and exact per-instance Source exposure through the normal node document path. The removed pre-cutover media identities are unknown types with no alias or migration; current project/fragment/history paths preserve serialized exposure without consulting app preferences.
+- Project install/new/open calls the attached execution runtime's project-session reset after existing shell runtime-state cleanup and before replacing the graph model. T03 clears session-only solutions here; durable repository binding remains deferred and persistence does not become a second scheduler owner.
 
 ## Focused Tests
 - `tests/test_serializer.py`

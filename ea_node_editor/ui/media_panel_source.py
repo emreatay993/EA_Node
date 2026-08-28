@@ -12,7 +12,7 @@ from urllib.parse import quote, urlsplit
 
 from PyQt6.QtCore import QUrl
 
-from ea_node_editor.execution.protocol import SettledPortResult
+from ea_node_editor.runtime_contracts.settled_results import SettledPortResult
 from ea_node_editor.nodes.builtins.media_panel import MEDIA_PANEL_TYPE_ID
 from ea_node_editor.nodes.file_dialog_filters import media_kind_from_source
 from ea_node_editor.persistence.artifact_resolution import ProjectArtifactResolver
@@ -23,6 +23,7 @@ from ea_node_editor.ui.media_preview_provider import (
     describe_local_image,
 )
 from ea_node_editor.ui.pdf_preview_provider import describe_pdf_preview
+from ea_node_editor.ui.support.solution_output_cache import retained_output_record
 
 
 _READY_STATE = "ready"
@@ -88,28 +89,7 @@ def _input_connected(workspace: object, node_id: str) -> bool:
 
 
 def _latest_output_record(run_state: object | None, workspace_id: str, node_id: str):
-    records_by_workspace = getattr(
-        run_state, "cached_node_output_records_by_workspace_id", {}
-    )
-    if not isinstance(records_by_workspace, Mapping):
-        return None
-    records_by_node = records_by_workspace.get(workspace_id, {})
-    records = records_by_node.get(node_id, {}) if isinstance(records_by_node, Mapping) else {}
-    if not isinstance(records, Mapping):
-        return None
-    latest = None
-    latest_observed_at = float("-inf")
-    for record in records.values():
-        if not isinstance(record, Mapping):
-            continue
-        try:
-            observed_at = float(record.get("observed_at_epoch_ms", 0.0) or 0.0)
-        except (TypeError, ValueError):
-            observed_at = 0.0
-        if latest is None or observed_at >= latest_observed_at:
-            latest = record
-            latest_observed_at = observed_at
-    return latest
+    return retained_output_record(run_state, workspace_id, node_id)
 
 
 def _node_execution_state(run_state: object | None, workspace_id: str, node_id: str) -> str:
@@ -424,6 +404,14 @@ def resolve_media_panel_source(
         )
 
     record = _latest_output_record(run_state, workspace_id, node_id)
+    if record is not None and not bool(record.get("outputs_available", True)):
+        return _non_ready(
+            authority="input",
+            input_exposed=True,
+            input_connected=True,
+            state="unavailable",
+            message="The connected runtime output is unavailable.",
+        )
     if record is not None and bool(record.get("stale", False)):
         return _non_ready(
             authority="input",

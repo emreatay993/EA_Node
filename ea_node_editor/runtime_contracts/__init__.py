@@ -42,6 +42,19 @@ from ea_node_editor.runtime_contracts.interval_1d import (
     Interval1D,
     coerce_interval_1d,
 )
+from ea_node_editor.runtime_contracts.settled_results import (
+    RootExecutionError,
+    SettledPortResult,
+)
+from ea_node_editor.runtime_contracts.solution_records import (
+    NodeSolutionFact,
+    SolutionDisposition,
+    SolutionFreshness,
+    SolutionOutputDescriptor,
+    SolutionPayloadLocator,
+    SolutionRecord,
+    SolutionResidency,
+)
 from ea_node_editor.runtime_contracts.runtime_values import (
     ArrayDataRef,
     ArraySlice2DRef,
@@ -118,10 +131,19 @@ __all__ = [
     "Interval1D",
     "JSON_DATA_TYPE_ID",
     "PATH_DATA_TYPE_ID",
+    "NodeSolutionFact",
+    "RootExecutionError",
     "RuntimeArtifactRef",
     "RuntimeArtifactScope",
     "RuntimeHandleRef",
     "RuntimeValueRef",
+    "SettledPortResult",
+    "SolutionDisposition",
+    "SolutionFreshness",
+    "SolutionOutputDescriptor",
+    "SolutionPayloadLocator",
+    "SolutionRecord",
+    "SolutionResidency",
     "STRING_DATA_TYPE_ID",
     "STRING_LIST_DATA_TYPE_ID",
     "TABULAR_DATA_REF_TYPE_ID",

@@ -218,6 +218,7 @@ class _ProjectHostStub:
         self.workspace_navigation_controller = _WorkspaceNavigationControllerStub()
         self.runtime_history = _RuntimeHistoryStub()
         self.run_controller = _RunControllerStub(self)
+        self.execution_client = mock.Mock()
         self.install_events: list[tuple[str, str]] = []
         self.viewer_host_service = _ViewerHostServiceStub(self.install_events)
         self.viewer_session_bridge = _ViewerSessionBridgeStub(self.install_events)
@@ -719,6 +720,10 @@ class ProjectSessionControllerUnitTests(unittest.TestCase):
         self.assertTrue(call["reseed_on_next_reset"])
         self.assertEqual(host.runtime_history.clear_all_calls, 1)
         self.assertEqual(host.run_controller.reset_runtime_solution_state_calls, 1)
+        host.execution_client.reset_project_session.assert_called_once_with(
+            project.project_id,
+            "example.cxproj",
+        )
         self.assertEqual(host.run_controller.models_seen_at_reset, [previous_model])
         self.assertIsNot(host.model, previous_model)
         self.assertEqual(host.viewer_host_service.reset_calls, ["project_install"])

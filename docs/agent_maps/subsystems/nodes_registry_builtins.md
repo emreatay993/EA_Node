@@ -30,6 +30,7 @@ Use this for node definitions, registry validation, built-in node families, data
 - `docs/examples/strain_conditioner_plugin.py`
 - `docs/specs/requirements/COREX_NOVICE_PLUGIN_SDK_MIGRATION_INVENTORY.md`
 - `docs/specs/perf/COREX_NOVICE_PLUGIN_SDK_QA_MATRIX.md`
+- `docs/specs/perf/COREX_SOLUTION_REUSE_CLASSIFICATION.md`
 
 ## Built-in Contract Families
 - Core values and media contracts: `core_values.py` and `core_media.py`; ordinary converted execution source lives as inert strings under `builtin_functions/`.
@@ -49,6 +50,9 @@ Use this for node definitions, registry validation, built-in node families, data
   exclusions, and three shipped add-on catalogs. Public authors never use those
   descriptor/backend records.
 - `TrustedFactoryEntry` and `PythonFunctionEntry` are the mutually exclusive private registry implementations. Public function entries store only `PythonFunctionRef`; process workers re-hash the immutable generation and use `PythonFunctionAdapter` without exposing a callable to GUI discovery.
+- `NodeTypeSpec.solution_reuse_scope` is the internal fail-closed `never|session|durable` maximum. Every normal/untrusted function registration is locked to `never` regardless of type-ID prefix; broader scopes enter only through the attested internal built-in or shipped Tabular package construction paths. Every trusted factory remains `never`. The locked classification artifact is the row authority; the effective catalog fixture layers it after the frozen 133-row fixture instead of editing that fixture.
+- `nodes/solution_provenance.py` is the registry-owned typed overlay for the six accepted shipped session readers. It adds exact `path` file provenance only for the trusted built-in/tabular owners; declarations, public packages, and trusted factories cannot supply or imitate this metadata.
+- `NodeRegistry.execution_environment_facts()` projects deterministic active add-on, plugin-bundle, toolchain, and Python-package requirements for the concrete execution-route handshake; it contains no mutable source/install paths.
 - Public loose files and installed schema-2 directories are parsed without import, checked for bundled imports, and copied byte-for-byte into `runtime/plugin_generations/<bundle-digest>/`; registry fingerprints exclude author/install paths. Worker registry construction reparses only the verified generation and never the mutable discovery roots.
 - `build_plugin_candidate_registry(...)` builds fail-closed candidates into a caller-owned disposable generation root; one staged schema-2 package may replace only the installed package with the same exact name. Candidate and canonical registries must have the same full `NodeRegistry.contract_fingerprint()` before publication.
 - `.cxpkg` import/export accepts schema 2 only. `package_manager.py` applies the shared static directory/declaration checks, exact source/asset hashes, Windows-safe paths and documented size/member limits; the 128-file ceiling includes `node_package.json`, and filesystem members must be singly linked regular files. ZIP exports use canonical manifest JSON, sorted members, fixed timestamps, and stored bytes for deterministic output. `PackageInstallTransaction` separates stage, reversible activation, commit, and retryable rollback; unresolved cleanup/restore work is exposed only as bounded issue codes.
@@ -81,6 +85,8 @@ Use this for node definitions, registry validation, built-in node families, data
 - `tests/test_builtin_function_migration.py`
 - `tests/test_remaining_builtin_function_migration.py`
 - `tests/test_corex_contract_catalog.py`
+- `tests/test_solution_identity.py`
+- `tests/test_solution_store_session.py`
 - `tests/test_corex_type_conformance.py`
 - `tests/test_core_value_types.py`
 - `tests/test_spatial_values.py`

@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import asyncio
+import hashlib
+import json
 import queue
 import time
 import traceback
@@ -12,7 +14,6 @@ from typing import Any
 
 from ea_node_editor.execution.protocol import (
     PauseRunCommand,
-    RootExecutionError,
     ResumeRunCommand,
     RunCompletedEvent,
     RunFailedEvent,
@@ -20,13 +21,26 @@ from ea_node_editor.execution.protocol import (
     RunStoppedEvent,
     ShutdownCommand,
     StartRunCommand,
-    SettledPortResult,
     StopRunCommand,
     TriggerCaptureSettledEvent,
     TriggerPublishedEvent,
     WorkerCommand,
     WorkerEvent,
     catalog_mismatch_message,
+)
+from ea_node_editor.runtime_contracts.settled_results import (
+    RootExecutionError,
+    SettledPortResult,
+    settled_outputs_to_payload,
+)
+from ea_node_editor.execution.prepared_execution import (
+    AcceptedOutputPayload,
+    PreparedAction,
+    PreparedNodeDecision,
+)
+from ea_node_editor.execution.solution_identity import (
+    assemble_node_solution,
+    canonical_digest,
 )
 from ea_node_editor.execution.runtime_snapshot import (
     RuntimeSnapshot,
@@ -42,9 +56,9 @@ from ea_node_editor.execution.worker_protocol import (
     is_viewer_command,
 )
 from ea_node_editor.execution.plugin_worker_runtime import WorkerPluginRuntime
+from ea_node_editor.execution.execution_plan import ExecutionPlan
 from ea_node_editor.execution.worker_runtime import (
     DEFAULT_RUNTIME_PREPARATION_CACHE,
-    ExecutionPlan,
     RuntimeArtifactService,
     prepare_runtime,
 )
@@ -62,6 +76,8 @@ from ea_node_editor.runtime_contracts import (
     DataTree,
     DataTypeCatalog,
     DataTypeCatalogError,
+    RuntimeArtifactRef,
+    RuntimeHandleRef,
     TypedInlineValue,
 )
 
@@ -360,6 +376,11 @@ class RunEventPublisher:
         elapsed_ms: float = 0.0,
         errors: Iterable[RootExecutionError] = (),
         warnings: Iterable[str] = (),
+        disposition: str = "",
+        decision_reason: str = "legacy_direct_run",
+        solution_key: str = "",
+        record_id: str = "",
+        residency: str = "",
     ) -> None:
         from ea_node_editor.execution.protocol import NodeSettledEvent
 
@@ -374,6 +395,11 @@ class RunEventPublisher:
                 outputs=dict(outputs),
                 errors=tuple(errors),
                 warnings=normalized_warnings,
+                disposition=disposition,
+                decision_reason=decision_reason,
+                solution_key=solution_key,
+                record_id=record_id,
+                residency=residency,
             )
         )
 
@@ -448,6 +474,7 @@ class NodeExecutor:
         trigger: dict[str, Any],
         trigger_publications: Mapping[str, SettledPortResult] | None = None,
         trigger_captures: Mapping[str, SettledPortResult] | None = None,
+        node_decisions: Mapping[str, PreparedNodeDecision] | None = None,
         developer_mode: bool = False,
     ) -> None:
         self._plan = execution_plan
@@ -465,6 +492,7 @@ class NodeExecutor:
         self._developer_mode = bool(developer_mode)
         self._trigger_publications = dict(trigger_publications or {})
         self._trigger_captures = dict(trigger_captures or {})
+        self._node_decisions = dict(node_decisions or {})
         self._workspace_node_types: Mapping[str, str] = MappingProxyType(
             {
                 node_id: node.type_id
@@ -507,6 +535,103 @@ class NodeExecutor:
         if self._plan.is_trigger(node_id):
             return self._execute_trigger(node_id)
         return self._execute_node(node_id)
+
+    def validate_reused_output(
+        self,
+        payload: AcceptedOutputPayload,
+    ) -> tuple[dict[str, SettledPortResult], dict[str, SettledPortResult]]:
+        node_id = payload.node_id
+        expected_ports = {
+            port.key: port
+            for port in self._plan.output_ports(node_id)
+            if port.kind == "data"
+        }
+        event_outputs = payload.decode_outputs(catalog=self._data_types)
+        if payload.settlement_status == "completed":
+            if set(event_outputs) != set(expected_ports):
+                raise ValueError("reused outputs do not match actual output ports")
+        elif event_outputs and (
+            set(event_outputs) != set(expected_ports)
+            or any(result.status != "empty" for result in event_outputs.values())
+        ):
+            raise ValueError("empty reused outputs do not match actual output ports")
+        if any(result.status == "failed" for result in event_outputs.values()):
+            raise ValueError("reused outputs cannot contain failed results")
+        for port_key, result in event_outputs.items():
+            if result.status != "value" or not isinstance(result.value, DataTree):
+                continue
+            port = expected_ports[port_key]
+            for _path, items in result.value.branches:
+                for item in items:
+                    for candidate in self._candidate_type_ids(port):
+                        try:
+                            self._data_types.validate_carrier(candidate, item)
+                        except DataTypeCatalogError:
+                            continue
+                        break
+                    else:
+                        raise ValueError(
+                            "reused output item does not match the active catalog"
+                        )
+
+        def validate_resource(value: Any, *, port_key: str) -> None:
+            if isinstance(value, RuntimeArtifactRef):
+                self._artifact_service.resolve_path(value)
+                return
+            if isinstance(value, RuntimeHandleRef):
+                port = expected_ports[port_key]
+                self._worker_services.resolve_handle(
+                    value,
+                    expected_data_type=port.data_type,
+                    expected_kind=value.kind,
+                )
+                return
+            if isinstance(value, DataTree):
+                for _path, items in value.branches:
+                    for item in items:
+                        validate_resource(item, port_key=port_key)
+
+        for port_key, result in event_outputs.items():
+            if result.status == "value":
+                validate_resource(result.value, port_key=port_key)
+        installed_outputs = (
+            {
+                port_key: event_outputs.get(
+                    port_key,
+                    SettledPortResult(status="empty"),
+                )
+                for port_key in expected_ports
+            }
+            if payload.settlement_status == "empty"
+            else dict(event_outputs)
+        )
+        return installed_outputs, event_outputs
+
+    def install_reused_output(
+        self,
+        decision: PreparedNodeDecision,
+        payload: AcceptedOutputPayload,
+        installed_outputs: Mapping[str, SettledPortResult],
+        event_outputs: Mapping[str, SettledPortResult],
+    ) -> str:
+        status = self._await_runnable()
+        if status is not None:
+            return status
+        if decision.node_id in self.executed:
+            raise ValueError("reused node was installed more than once")
+        self.node_outputs[decision.node_id] = dict(installed_outputs)
+        self.executed.add(decision.node_id)
+        self._publisher.emit_node_settled(
+            decision.node_id,
+            payload.settlement_status,
+            event_outputs,
+            disposition="reused",
+            decision_reason=decision.reason_code,
+            solution_key=decision.solution_key,
+            record_id=payload.record_id,
+            residency=payload.residency.value,
+        )
+        return "ok"
 
     def _await_runnable(self) -> str | None:
         self._control.poll_commands()
@@ -1356,6 +1481,7 @@ class NodeExecutor:
             status="empty",
             elapsed_ms=max(0.0, (time.time() * 1000.0) - started_at_epoch_ms),
             warnings=warnings,
+            disposition="skipped",
         )
 
     def _settle_failed(
@@ -1384,10 +1510,23 @@ class NodeExecutor:
         elapsed_ms: float,
         errors: Iterable[RootExecutionError] = (),
         warnings: Iterable[str] = (),
+        disposition: str = "",
     ) -> str:
         settled = dict(outputs)
         self.node_outputs[node_id] = settled
         self.executed.add(node_id)
+        decision = self._node_decisions.get(node_id)
+        if decision is None:
+            identity_fields = {}
+        else:
+            resolved_disposition = disposition or (
+                "blocked" if status == "blocked" else "recomputed"
+            )
+            identity_fields = {
+                "disposition": resolved_disposition,
+                "decision_reason": decision.reason_code,
+                "solution_key": decision.solution_key,
+            }
         self._publisher.emit_node_settled(
             node_id,
             status,
@@ -1395,6 +1534,7 @@ class NodeExecutor:
             elapsed_ms=elapsed_ms,
             errors=errors,
             warnings=warnings,
+            **identity_fields,
         )
         return "ok"
 
@@ -1469,6 +1609,15 @@ class WorkflowRunner:
         self._preflight_error: tuple[str, str, str] | None = None
         self._plan: ExecutionPlan | None = None
         self._executor: NodeExecutor | None = None
+        self._reused_outputs: dict[
+            str,
+            tuple[
+                PreparedNodeDecision,
+                AcceptedOutputPayload,
+                dict[str, SettledPortResult],
+                dict[str, SettledPortResult],
+            ],
+        ] = {}
         prepared = None
         data_types: DataTypeCatalog | None = None
         try:
@@ -1530,13 +1679,6 @@ class WorkflowRunner:
             return
         try:
             self._plan = prepared.plan
-            self._worker_services.viewer_session_service.prepare_workspace_context(
-                workspace_id=command.workspace_id,
-                project_path=command.project_path,
-                runtime_snapshot=prepared.runtime_snapshot,
-                runtime_snapshot_context=prepared.runtime_context,
-                invalidate_existing=True,
-            )
             artifact_service = RuntimeArtifactService(
                 runtime_context=prepared.runtime_context,
                 data_types=prepared.registry.data_types,
@@ -1555,13 +1697,175 @@ class WorkflowRunner:
                 trigger=dict(command.trigger),
                 trigger_publications=command.trigger_publications,
                 trigger_captures=command.trigger_captures,
+                node_decisions={
+                    decision.node_id: decision
+                    for decision in command.node_decisions
+                },
                 developer_mode=command.developer_mode,
+            )
+            self._validate_prepared_command(prepared)
+            self._worker_services.viewer_session_service.prepare_workspace_context(
+                workspace_id=command.workspace_id,
+                project_path=command.project_path,
+                runtime_snapshot=prepared.runtime_snapshot,
+                runtime_snapshot_context=prepared.runtime_context,
+                invalidate_existing=True,
             )
         except Exception as exc:  # noqa: BLE001
             self._preflight_error = (
                 _exception_message(exc),
                 traceback.format_exc(),
                 "preflight_failed",
+            )
+
+    def _validate_prepared_command(self, prepared: Any) -> None:
+        command = self._command
+        if not command.preparation_id:
+            return
+        assert self._plan is not None
+        assert self._executor is not None
+        registry = prepared.registry
+        if (
+            registry.contract_fingerprint()
+            != command.registry_contract_fingerprint
+        ):
+            raise ValueError("prepared registry contract fingerprint changed")
+        if (
+            canonical_digest(
+                prepared.runtime_snapshot.to_document(catalog=registry.data_types)
+            )
+            != command.runtime_snapshot_fingerprint
+        ):
+            raise ValueError("prepared runtime snapshot fingerprint changed")
+        if self._plan.fingerprint != command.execution_plan_fingerprint:
+            raise ValueError("prepared execution plan fingerprint changed")
+        interface_plan = ExecutionPlan(
+            prepared.runtime_snapshot.workspace(command.workspace_id),
+            registry,
+        )
+        if (
+            interface_plan.workflow_interface_revision
+            != command.workflow_interface_revision
+            or interface_plan.workflow_interface_digest
+            != command.workflow_interface_digest
+        ):
+            raise ValueError("prepared workflow interface changed")
+        expected_trigger_ids = tuple(
+            sorted(node_id for node_id in self._plan.nodes if self._plan.is_trigger(node_id))
+        )
+        if tuple(
+            node_id
+            for node_id, _generation in command.trigger_publication_generations
+        ) != expected_trigger_ids:
+            raise ValueError("prepared trigger publication generations changed")
+        scheduled_node_ids = tuple(
+            node_id
+            for node_id in self._plan.execution_order
+            if self._plan.node_specs[node_id].runtime_behavior == "active"
+        )
+        if tuple(decision.node_id for decision in command.node_decisions) != scheduled_node_ids:
+            raise ValueError("prepared decisions do not match scheduled node order")
+        keys_by_node: dict[str, str] = {}
+        actions_by_node: dict[str, PreparedAction] = {}
+        trigger_generations = dict(command.trigger_publication_generations)
+        for decision in command.node_decisions:
+            assembled = assemble_node_solution(
+                preparation_id=command.preparation_id,
+                solution_namespace_id=command.solution_namespace_id,
+                workspace_solution_revision=(
+                    command.execution_affecting_workspace_revision
+                ),
+                plan=self._plan,
+                registry=registry,
+                node_id=decision.node_id,
+                keys_by_node=keys_by_node,
+                execution_environment_digest=(
+                    command.execution_environment_digest
+                ),
+                trigger_publication_generations=trigger_generations,
+                workflow_interface_revision=command.workflow_interface_revision,
+                workflow_interface_digest=command.workflow_interface_digest,
+            )
+            if (
+                assembled.solution_key != decision.solution_key
+                or assembled.dependency_solution_keys
+                != decision.dependency_solution_keys
+            ):
+                raise ValueError("prepared node solution identity changed")
+            if decision.action is PreparedAction.REUSE and (
+                assembled.reason_code
+                or self._plan.node_specs[decision.node_id].solution_reuse_scope
+                == "never"
+            ):
+                raise ValueError("prepared node is not eligible for reuse")
+            upstream_execute = any(
+                actions_by_node.get(edge.source_node_id)
+                is PreparedAction.EXECUTE
+                for edge in self._plan.incoming_edges_for(decision.node_id)
+                if not self._plan.is_trigger(edge.source_node_id)
+            ) or any(
+                target == decision.node_id
+                and actions_by_node.get(source) is PreparedAction.EXECUTE
+                for source, target in self._plan.hidden_ordering_pairs
+            )
+            reason = decision.reason_code
+            if decision.action is PreparedAction.REUSE:
+                reason_valid = reason == "reusable_record_accepted"
+            elif reason == "force_recompute":
+                reason_valid = True
+            elif assembled.reason_code:
+                reason_valid = reason == assembled.reason_code
+            elif self._plan.node_specs[decision.node_id].solution_reuse_scope == "never":
+                reason_valid = reason == "solution_reuse_scope_never"
+            elif reason in {
+                "execution_generation_unavailable",
+                "execution_environment_unavailable",
+            }:
+                reason_valid = True
+            elif upstream_execute:
+                reason_valid = reason == "upstream_recompute_required"
+            else:
+                reason_valid = reason in {
+                    "no_reusable_record",
+                    "accepted_output_invalid",
+                    "reuse_payload_budget_exceeded",
+                }
+            if not reason_valid:
+                raise ValueError("prepared node action and reason are contradictory")
+            keys_by_node[decision.node_id] = decision.solution_key
+            actions_by_node[decision.node_id] = decision.action
+        accepted_by_node = {
+            item.node_id: AcceptedOutputPayload.from_payload(
+                item.to_payload(catalog=registry.data_types),
+                catalog=registry.data_types,
+            )
+            for item in command.accepted_output_payloads
+        }
+        for decision in command.node_decisions:
+            if decision.action is not PreparedAction.REUSE:
+                continue
+            payload = accepted_by_node[decision.node_id]
+            outputs_payload = settled_outputs_to_payload(
+                payload.decode_outputs(catalog=registry.data_types),
+                catalog=registry.data_types,
+            )
+            result_digest = hashlib.sha256(
+                json.dumps(
+                    outputs_payload,
+                    allow_nan=False,
+                    ensure_ascii=False,
+                    separators=(",", ":"),
+                    sort_keys=True,
+                ).encode("utf-8")
+            ).hexdigest()
+            if result_digest != payload.result_digest:
+                raise ValueError("prepared accepted output digest changed")
+            installed, event_outputs = self._executor.validate_reused_output(payload)
+            self._reused_outputs[decision.node_id] = (
+                decision,
+                payload,
+                installed,
+                event_outputs,
             )
 
     def run(self) -> None:
@@ -1588,7 +1892,13 @@ class WorkflowRunner:
             assert self._plan is not None
             assert self._executor is not None
             for node_id in self._plan.execution_order:
-                if self._executor.run_node(node_id) == "stopped":
+                reused = self._reused_outputs.get(node_id)
+                status = (
+                    self._executor.install_reused_output(*reused)
+                    if reused is not None
+                    else self._executor.run_node(node_id)
+                )
+                if status == "stopped":
                     self._publisher.emit_run_stopped(
                         self._control.stop_reason or "stop_requested"
                     )

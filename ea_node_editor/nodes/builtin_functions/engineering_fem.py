@@ -21,6 +21,7 @@ def _outputs(ctx, result, code):
 
 @corex.node(
     id="fea.force",
+    _solution_reuse_scope="session",
     name="Force",
     category=("FEA", "Loads"),
     icon="arrow_forward",
@@ -76,6 +77,7 @@ def force(ctx, name, index, geometry, tolerances, vector):
 
 @corex.node(
     id="fea.load_container",
+    _solution_reuse_scope="session",
     name="Load Container",
     category=("FEA", "Loads"),
     icon="inventory_2",
@@ -101,6 +103,7 @@ def load_container(ctx, load):
 
 @corex.node(
     id="optimization.construct_parameters",
+    _solution_reuse_scope="session",
     name="Construct Parameters",
     category=("Optimization",),
     icon="tune",
@@ -162,6 +165,7 @@ def construct_parameters(
 
 @corex.node(
     id="optimization.construct_responses",
+    _solution_reuse_scope="session",
     name="Construct Responses",
     category=("Optimization",),
     icon="analytics",
@@ -223,6 +227,7 @@ def construct_responses(
 
 @corex.node(
     id="optimization.construct_design",
+    _solution_reuse_scope="session",
     name="Construct Design",
     category=("Control", "Parameter Optimization"),
     icon="design_services",

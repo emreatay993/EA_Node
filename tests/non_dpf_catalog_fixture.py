@@ -11,8 +11,18 @@ FIXTURE_DIR = Path(__file__).parent / "fixtures" / "node_catalog"
 FROZEN_CATALOG_PATH = FIXTURE_DIR / "pre_cutover_non_dpf_catalog.json"
 DOCUMENTATION_OVERLAY_PATH = FIXTURE_DIR / "t17_non_dpf_documentation_overlay.json"
 STRUCTURAL_OVERLAY_PATH = FIXTURE_DIR / "unified_media_panel_structural_overlay.json"
+SOLUTION_REUSE_CLASSIFICATION_PATH = (
+    Path(__file__).resolve().parents[1]
+    / "docs"
+    / "specs"
+    / "perf"
+    / "COREX_SOLUTION_REUSE_CLASSIFICATION.md"
+)
 FROZEN_CATALOG_SHA256 = (
     "3CF91390E9E4C606B571ED3C907D7BF35647165F5358328F8FE9C18BF15C618F"
+)
+SOLUTION_REUSE_CLASSIFICATION_SHA256 = (
+    "D19369093E7A100A518A8B0E939CDEECC61AA1A78E26A1E51FD46543F6AB460A"
 )
 
 
@@ -65,6 +75,7 @@ def load_effective_non_dpf_catalog(
     fixture_path: Path = FROZEN_CATALOG_PATH,
     overlay_path: Path = DOCUMENTATION_OVERLAY_PATH,
     structural_overlay_path: Path = STRUCTURAL_OVERLAY_PATH,
+    solution_reuse_classification_path: Path = SOLUTION_REUSE_CLASSIFICATION_PATH,
 ) -> list[dict[str, Any]]:
     catalog = deepcopy(load_frozen_non_dpf_catalog(fixture_path=fixture_path))
     by_type = _catalog_by_type(catalog)
@@ -187,7 +198,78 @@ def load_effective_non_dpf_catalog(
             f"Duplicate structural addition: {sorted(duplicate_additions)}"
         )
     catalog.extend(deepcopy(add_rows))
+    reuse_scopes = load_solution_reuse_scopes(solution_reuse_classification_path)
+    for type_id, row in _catalog_by_type(catalog).items():
+        try:
+            scope = reuse_scopes[type_id]
+        except KeyError as exc:
+            raise ValueError(
+                f"Missing solution reuse classification for {type_id}"
+            ) from exc
+        spec = row["spec"]
+        if "solution_reuse_scope" in spec:
+            raise ValueError(
+                f"Solution reuse classification already applied for {type_id}"
+            )
+        spec["solution_reuse_scope"] = scope
+        spec["solution_provenance_inputs"] = (
+            [
+                {
+                    "property_key": "path",
+                    "kind": "file",
+                    "policy_revision": 1,
+                }
+            ]
+            if type_id
+            in {
+                "engineering.cad_import",
+                "engineering.fe_import",
+                "io.file_read",
+                "io.image_import",
+                "io.excel_read",
+                "tabular.input",
+            }
+            else []
+        )
     return sorted(catalog, key=lambda row: row["spec"]["type_id"])
+
+
+def load_solution_reuse_scopes(
+    path: Path = SOLUTION_REUSE_CLASSIFICATION_PATH,
+) -> dict[str, str]:
+    payload = path.read_bytes()
+    digest = hashlib.sha256(payload).hexdigest().upper()
+    if digest != SOLUTION_REUSE_CLASSIFICATION_SHA256:
+        raise ValueError(
+            f"Solution reuse classification SHA256 changed: {digest}; "
+            f"expected {SOLUTION_REUSE_CLASSIFICATION_SHA256}"
+        )
+    section = ""
+    scopes: dict[str, str] = {}
+    for line in payload.decode("utf-8").splitlines():
+        if line == "## Executable Row Inventory":
+            section = "executable"
+            continue
+        if line == "## Excluded Row Inventory":
+            section = "excluded"
+            continue
+        if line.startswith("## "):
+            section = ""
+            continue
+        if not section or not line.startswith("| `"):
+            continue
+        cells = [cell.strip().strip("`") for cell in line.strip("|").split("|")]
+        expected_columns = 14 if section == "executable" else 7
+        if len(cells) != expected_columns:
+            raise ValueError("Solution reuse classification row is malformed")
+        type_id = cells[0]
+        scope = cells[6] if section == "executable" else "never"
+        if type_id in scopes or scope not in {"never", "session", "durable"}:
+            raise ValueError(
+                f"Invalid solution reuse classification for {type_id}"
+            )
+        scopes[type_id] = scope
+    return scopes
 
 
 __all__ = [
@@ -195,6 +277,9 @@ __all__ = [
     "FROZEN_CATALOG_PATH",
     "FROZEN_CATALOG_SHA256",
     "STRUCTURAL_OVERLAY_PATH",
+    "SOLUTION_REUSE_CLASSIFICATION_PATH",
+    "SOLUTION_REUSE_CLASSIFICATION_SHA256",
     "load_effective_non_dpf_catalog",
     "load_frozen_non_dpf_catalog",
+    "load_solution_reuse_scopes",
 ]

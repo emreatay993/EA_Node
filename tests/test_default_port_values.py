@@ -4,7 +4,10 @@ from types import SimpleNamespace
 
 import pytest
 
-from ea_node_editor.execution.protocol import RootExecutionError, SettledPortResult
+from ea_node_editor.runtime_contracts.settled_results import (
+    RootExecutionError,
+    SettledPortResult,
+)
 from ea_node_editor.execution.worker_runner import NodeExecutor
 from ea_node_editor.graph.effective_ports import effective_ports
 from ea_node_editor.graph.model import GraphModel

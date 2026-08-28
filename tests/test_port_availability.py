@@ -157,9 +157,7 @@ def _next_test_output(_properties) -> str:  # noqa: ANN001
 
 
 def _registry() -> NodeRegistry:
-    registry = NodeRegistry()
-    assert _TABULAR_INPUT_FUNCTION_REF is not None
-    registry.register_python_function(_TABULAR_INPUT_SPEC, _TABULAR_INPUT_FUNCTION_REF)
+    registry = build_default_registry()
     registry.register(_ArraySinkPlugin)
     return registry
 

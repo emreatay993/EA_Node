@@ -12,6 +12,7 @@ from ea_node_editor.nodes.builtins.integrations_spreadsheet import (
 
 @corex.node(
     id="io.excel_read",
+    _solution_reuse_scope="session",
     name="Excel Read",
     category=("Input / Output",),
     icon="integrations/table_view.svg",

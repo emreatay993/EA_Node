@@ -40,6 +40,7 @@ implementation studies are intentionally excluded.
 
 ## Current ownership notes
 
+- Incremental execution freshness, invalidation closure, settlement acceptance, and reset notifications are execution-owned. Shell/QML retain only bounded record-ID-selected presentation caches, exact node cleanup, and the transport-only current/expired projection.
 - Tabular's seven executable declarations are owned by `addons/tabular_data/function_nodes.py`; dependency gating and bundle publication stay under the add-on catalog, while refs, preview, property editing, native preload, and execution helpers remain in their existing Tabular owners.
 - MARS's three executable declarations are owned by `addons/mars/function_nodes.py`; its catalog owns dependency gating, package provenance, and bundle publication while `nodes.py` and `runtime.py` retain job construction, JSONL execution, cancellation, and artifact publication.
 - Signal Plot declaration/execution is owned by `nodes/builtin_functions/plot_signal.py`,

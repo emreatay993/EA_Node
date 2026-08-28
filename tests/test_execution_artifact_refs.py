@@ -14,7 +14,6 @@ from unittest.mock import Mock, patch
 from ea_node_editor.common.payload_tools import artifact_content_integrity
 from ea_node_editor.execution.protocol import (
     NodeSettledEvent,
-    SettledPortResult,
     StartRunCommand,
     command_to_dict,
     coerce_start_run_command,
@@ -22,6 +21,7 @@ from ea_node_editor.execution.protocol import (
     dict_to_event,
     event_to_dict,
 )
+from ea_node_editor.runtime_contracts.settled_results import SettledPortResult
 from ea_node_editor.execution.runtime_snapshot import (
     RuntimeSnapshot,
     RuntimeSnapshotContext,

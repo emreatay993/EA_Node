@@ -14,6 +14,7 @@ from ea_node_editor.nodes.builtins.data_control import (
 
 @corex.node(
     id="data.boolean_toggle",
+    _solution_reuse_scope="durable",
     name="Boolean Toggle",
     category=("Data", "Control"),
     icon="check",
@@ -44,6 +45,7 @@ def boolean_toggle(ctx, settings):
 
 @corex.node(
     id="data.number_slider",
+    _solution_reuse_scope="durable",
     name="Number Slider",
     category=("Data", "Control"),
     icon="linear_scale",
@@ -79,6 +81,7 @@ def number_slider(ctx, settings):
 
 @corex.node(
     id="data.panel",
+    _solution_reuse_scope="session",
     name="Panel",
     category=("Data", "Control"),
     icon="core/article.svg",
@@ -123,6 +126,7 @@ def panel(ctx, input, settings):
 
 @corex.node(
     id="data.select",
+    _solution_reuse_scope="durable",
     name="Select",
     category=("Data", "Control"),
     icon="arrow_drop_down_circle",

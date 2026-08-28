@@ -17,6 +17,7 @@ from ea_node_editor.addons.tabular_data.input_node import execute_tabular_input
 
 @corex.node(
     id="tabular.input",
+    _solution_reuse_scope="session",
     name="Tabular Data Input",
     category=("Data",),
     icon="integrations/tabular_data.svg",
@@ -174,6 +175,7 @@ def tabular_input(ctx, settings):
 
 @corex.node(
     id="tabular.table_filter",
+    _solution_reuse_scope="session",
     name="Table Filter",
     category=("Data",),
     icon="integrations/tabular_data.svg",
@@ -242,6 +244,7 @@ def table_filter(ctx, table_data, settings):
 
 @corex.node(
     id="tabular.array_slice_2d",
+    _solution_reuse_scope="session",
     name="Array Slice 2D",
     category=("Data",),
     icon="integrations/tabular_data.svg",
@@ -388,6 +391,7 @@ def write_array_slice_2d(ctx, slice_2d, settings):
 
 @corex.node(
     id="tabular.materialize_table_filter",
+    _solution_reuse_scope="session",
     name="Materialize Filtered Table",
     category=("Data",),
     icon="integrations/tabular_data.svg",
@@ -417,6 +421,7 @@ def materialize_table_filter(ctx, window):
 
 @corex.node(
     id="tabular.materialize_array_slice_2d",
+    _solution_reuse_scope="session",
     name="Materialize Array Slice 2D",
     category=("Data",),
     icon="integrations/tabular_data.svg",

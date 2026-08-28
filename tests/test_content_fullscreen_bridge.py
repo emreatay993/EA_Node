@@ -11,7 +11,13 @@ from PyQt6.QtCore import QObject, QPointF, QMarginsF, QRectF, Qt, QUrl
 from PyQt6.QtGui import QImage, QPainter, QPageLayout, QPageSize, QPdfWriter
 from PyQt6.QtTest import QTest
 
-from ea_node_editor.execution.protocol import SettledPortResult
+from ea_node_editor.runtime_contracts.settled_results import SettledPortResult
+from ea_node_editor.runtime_contracts.solution_records import (
+    NodeSolutionFact,
+    SolutionDisposition,
+    SolutionFreshness,
+    SolutionResidency,
+)
 from ea_node_editor.runtime_contracts import DataTree
 from ea_node_editor.nodes.builtins.ansys_dpf_common import DPF_VIEWER_NODE_TYPE_ID
 from ea_node_editor.nodes.builtins.core import PYTHON_SCRIPT_DEFAULT_SOURCE
@@ -426,6 +432,7 @@ class ContentFullscreenBridgeTests(MainWindowShellTestBase):
             workspace_id: {
                 node_id: {
                     "run-1": {
+                        "record_id": "run-1",
                         "observed_at_epoch_ms": 1.0,
                         "outputs": {
                             "_surface_source": SettledPortResult(
@@ -433,9 +440,23 @@ class ContentFullscreenBridgeTests(MainWindowShellTestBase):
                                 value=DataTree.from_item(str(image_path)),
                             )
                         },
-                        "stale": False,
                     }
                 }
+            }
+        }
+        self.window.run_state.node_solution_facts_by_workspace_id = {
+            workspace_id: {
+                node_id: NodeSolutionFact(
+                    project_id=self.window.model.project.project_id,
+                    workspace_id=workspace_id,
+                    node_id=node_id,
+                    freshness=SolutionFreshness.CURRENT,
+                    revision=1,
+                    retained_record_id="run-1",
+                    retained_solution_key="a" * 64,
+                    residency=SolutionResidency.SESSION,
+                    last_disposition=SolutionDisposition.RECOMPUTED,
+                )
             }
         }
         self.window.run_state.node_execution_workspace_id = workspace_id

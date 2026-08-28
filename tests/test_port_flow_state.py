@@ -6,7 +6,16 @@ from types import SimpleNamespace
 import pytest
 from PyQt6.QtCore import QObject, pyqtSignal
 
-from ea_node_editor.execution.protocol import RootExecutionError, SettledPortResult
+from ea_node_editor.runtime_contracts.settled_results import (
+    RootExecutionError,
+    SettledPortResult,
+)
+from ea_node_editor.runtime_contracts.solution_records import (
+    NodeSolutionFact,
+    SolutionDisposition,
+    SolutionFreshness,
+    SolutionResidency,
+)
 from ea_node_editor.graph.model import GraphModel
 from ea_node_editor.nodes.node_specs import (
     DynamicPortGroupSpec,
@@ -25,6 +34,31 @@ from ea_node_editor.ui.support.port_flow_state import (
 )
 from ea_node_editor.ui_qml.graph_scene_payload import GraphScenePayloadBuilder
 from ea_node_editor.ui_qml.graph_canvas_state import GraphCanvasStateBridge
+
+
+def _solution_fact(
+    node_id: str,
+    record_id: str = "run",
+    *,
+    freshness: SolutionFreshness = SolutionFreshness.CURRENT,
+) -> NodeSolutionFact:
+    return NodeSolutionFact(
+        project_id="project",
+        workspace_id="workspace",
+        node_id=node_id,
+        freshness=freshness,
+        revision=1,
+        retained_record_id=record_id,
+        retained_solution_key="a" * 64,
+        residency=SolutionResidency.SESSION,
+        expiration_reason_code=(
+            "graph_changed" if freshness is SolutionFreshness.EXPIRED else ""
+        ),
+        expiration_root_node_ids=(
+            (node_id,) if freshness is SolutionFreshness.EXPIRED else ()
+        ),
+        last_disposition=SolutionDisposition.RECOMPUTED,
+    )
 
 
 @pytest.mark.parametrize(
@@ -223,6 +257,7 @@ def test_runtime_flow_states_use_output_presence_and_edge_type_warnings() -> Non
                 "stale": True,
             },
             "current": {
+                "record_id": "current",
                 "observed_at_epoch_ms": 2.0,
                 "outputs": {
                     "out": SettledPortResult(
@@ -248,6 +283,7 @@ def test_runtime_flow_states_use_output_presence_and_edge_type_warnings() -> Non
         node_payloads=nodes,
         edge_payloads=edges,
         output_records_by_node=records,
+        solution_facts_by_node={"source": _solution_fact("source", "current")},
     )
 
     assert states["source"] == {
@@ -394,6 +430,7 @@ def test_runtime_flow_states_treat_empty_trees_and_disabled_edges_as_no_data() -
     records = {
         "source": {
             "current": {
+                "record_id": "current",
                 "observed_at_epoch_ms": 1.0,
                 "outputs": {
                     "empty_tree": SettledPortResult(status="empty"),
@@ -410,6 +447,7 @@ def test_runtime_flow_states_treat_empty_trees_and_disabled_edges_as_no_data() -
         node_payloads=nodes,
         edge_payloads=edges,
         output_records_by_node=records,
+        solution_facts_by_node={"source": _solution_fact("source", "current")},
     )
 
     assert states["source"] == {
@@ -432,6 +470,7 @@ def test_runtime_flow_states_treat_empty_trees_and_disabled_edges_as_no_data() -
         node_payloads=nodes,
         edge_payloads=edges,
         output_records_by_node=records,
+        solution_facts_by_node={"source": _solution_fact("source", "current")},
     )
 
     assert restored_states["sink"] == {
@@ -497,6 +536,7 @@ class _FlowExecutionStub(QObject):
                 "workspace": {
                     "source": {
                         "run": {
+                            "record_id": "run",
                             "observed_at_epoch_ms": 1.0,
                             "outputs": {
                                 "out": SettledPortResult(
@@ -504,11 +544,14 @@ class _FlowExecutionStub(QObject):
                                     value=DataTree.from_item("__raw_runtime_value__"),
                                 )
                             },
-                            "stale": False,
                         }
                     }
                 }
-            }
+            },
+            node_solution_facts_by_workspace_id={
+                "workspace": {"source": _solution_fact("source")}
+            },
+            node_output_run_counts_by_workspace_id={"workspace": {"source": 1}},
         )
 
 
@@ -522,6 +565,27 @@ def test_canvas_execution_facts_project_runtime_port_states() -> None:
         "source": {"out": "flowing"},
         "sink": {"in": "flowing"},
     }
+    assert bridge.node_solution_freshness_lookup == {"source": "current"}
+    assert bridge.fresh_run_node_lookup == {"source": True}
+
+
+def test_metadata_only_records_are_unavailable_without_runtime_flow() -> None:
+    execution = _FlowExecutionStub()
+    execution.run_state.cached_node_output_records_by_workspace_id["workspace"][
+        "source"
+    ]["run"]["outputs_available"] = False
+    bridge = GraphCanvasStateBridge(
+        scene_bridge=_FlowSceneStub(),
+        execution_source=execution,
+    )
+
+    assert bridge.port_flow_state_lookup == {
+        "source": {"out": "idle"},
+        "sink": {"in": "waiting"},
+    }
+    preview = bridge.port_value_preview_lookup["source"]["out"]
+    assert preview["state"] == "unavailable"
+    assert preview["tooltip_text"] == "Unavailable"
 
 
 def _property_presentation_bridge(
@@ -547,11 +611,21 @@ def _property_presentation_bridge(
         "workspace": {
             "source": {
                 "run": {
+                    "record_id": "run",
                     "observed_at_epoch_ms": 1.0,
                     "outputs": {} if result is None else {"out": result},
-                    "stale": stale,
                 }
             }
+        }
+    }
+    execution.run_state.node_solution_facts_by_workspace_id = {
+        "workspace": {
+            "source": _solution_fact(
+                "source",
+                freshness=(
+                    SolutionFreshness.EXPIRED if stale else SolutionFreshness.CURRENT
+                ),
+            )
         }
     }
     return (
@@ -909,6 +983,9 @@ def test_canvas_execution_facts_project_node_run_counts() -> None:
             "ignored": [],
         }
     }
+    execution.run_state.node_output_run_counts_by_workspace_id = {
+        "workspace": {"select": 2}
+    }
     bridge = GraphCanvasStateBridge(
         scene_bridge=_FlowSceneStub(),
         execution_source=execution,
@@ -995,6 +1072,7 @@ def test_canvas_output_previews_are_bounded_and_distinguish_freshness() -> None:
         "workspace": {
             "current": {
                 "run": {
+                    "record_id": "run",
                     "observed_at_epoch_ms": 2.0,
                     "outputs": {
                         "item": SettledPortResult(
@@ -1015,11 +1093,11 @@ def test_canvas_output_previews_are_bounded_and_distinguish_freshness() -> None:
                             ),
                         ),
                     },
-                    "stale": False,
                 }
             },
             "stale": {
                 "run": {
+                    "record_id": "run",
                     "observed_at_epoch_ms": 1.0,
                     "outputs": {
                         "out": SettledPortResult(
@@ -1027,9 +1105,16 @@ def test_canvas_output_previews_are_bounded_and_distinguish_freshness() -> None:
                             value=DataTree((((0, 1), ("old", "again")),)),
                         )
                     },
-                    "stale": True,
                 }
             },
+        }
+    }
+    execution.run_state.node_solution_facts_by_workspace_id = {
+        "workspace": {
+            "current": _solution_fact("current"),
+            "stale": _solution_fact(
+                "stale", freshness=SolutionFreshness.EXPIRED
+            ),
         }
     }
 
@@ -1129,6 +1214,7 @@ def test_panel_copy_text_formats_latest_current_output() -> None:
         "workspace": {
             "panel": {
                 "older": {
+                    "record_id": "older",
                     "observed_at_epoch_ms": 1.0,
                     "outputs": {
                         "output": SettledPortResult(
@@ -1138,6 +1224,7 @@ def test_panel_copy_text_formats_latest_current_output() -> None:
                     "stale": False,
                 },
                 "latest": {
+                    "record_id": "latest",
                     "observed_at_epoch_ms": 2.0,
                     "outputs": {
                         "output": SettledPortResult(
@@ -1154,6 +1241,9 @@ def test_panel_copy_text_formats_latest_current_output() -> None:
                 },
             }
         }
+    }
+    execution.run_state.node_solution_facts_by_workspace_id = {
+        "workspace": {"panel": _solution_fact("panel", "latest")}
     }
     bridge = GraphCanvasStateBridge(
         scene_bridge=_FlowSceneStub(), execution_source=execution

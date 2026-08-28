@@ -280,6 +280,14 @@ class ProjectDocumentIOService:
         )
         if callable(reset_runtime_solution_state):
             reset_runtime_solution_state()
+        execution_client = getattr(self._host, "execution_client", None)
+        reset_project_session = getattr(
+            execution_client,
+            "reset_project_session",
+            None,
+        )
+        if callable(reset_project_session):
+            reset_project_session(project.project_id, project_path)
         self._host.model = GraphModel(project)
         self._host.workspace_manager = ShellWorkspaceManagerAdapter(
             WorkspaceManager(self._host.model), self._host.model

@@ -9,6 +9,7 @@ from ea_node_editor.nodes.builtins.engineering_imports import execute_engineerin
 
 @corex.node(
     id="engineering.fe_import",
+    _solution_reuse_scope="session",
     name="FE Import",
     category=("Engineering", "Import"),
     icon="integrations/download.svg",
@@ -54,6 +55,7 @@ def fe_import(ctx, settings):
 
 @corex.node(
     id="engineering.cad_import",
+    _solution_reuse_scope="session",
     name="CAD Import",
     category=("Engineering", "Import"),
     icon="integrations/download.svg",

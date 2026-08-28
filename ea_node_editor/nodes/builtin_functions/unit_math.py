@@ -92,6 +92,7 @@ def _validated_quantity(value):
 
 @corex.node(
     id="data.construct_path",
+    _solution_reuse_scope="durable",
     name="Construct Path",
     category=("Data Structure", "Tree"),
     icon="account_tree",
@@ -118,6 +119,7 @@ def construct_path(ctx, indices):
 
 @corex.node(
     id="data.deconstruct_path",
+    _solution_reuse_scope="durable",
     name="Deconstruct Path",
     category=("Data Structure", "Tree"),
     icon="account_tree",
@@ -144,6 +146,7 @@ def deconstruct_path(ctx, path):
 
 @corex.node(
     id="utilities.deconstruct_date_time",
+    _solution_reuse_scope="durable",
     name="Deconstruct Date and Time",
     category=("Utilities", "Time"),
     icon="schedule",
@@ -208,6 +211,7 @@ def deconstruct_date_time(ctx, date_and_time):
 
 @corex.node(
     id="math.deconstruct_tensor",
+    _solution_reuse_scope="durable",
     name="Deconstruct Tensor",
     category=("Math", "Tensor"),
     icon="view_in_ar",
@@ -245,6 +249,7 @@ def deconstruct_tensor(ctx, tensor):
 
 @corex.node(
     id="data.excel_cell",
+    _solution_reuse_scope="session",
     name="Excel Cell",
     category=("Data", "Excel"),
     icon="grid_on",
@@ -282,6 +287,7 @@ def excel_cell(ctx, column, row):
 
 @corex.node(
     id="math.deconstruct_interval_2d",
+    _solution_reuse_scope="durable",
     name="Deconstruct Interval 2D",
     category=("Math", "Interval"),
     icon="aspect_ratio",
@@ -317,6 +323,7 @@ def deconstruct_interval_2d(ctx, interval):
 
 @corex.node(
     id="math.physical_quantity_container",
+    _solution_reuse_scope="session",
     name="Physical Quantity",
     category=("Math", "Container"),
     icon="straighten",
@@ -344,6 +351,7 @@ def physical_quantity_container(ctx, input):
 
 @corex.node(
     id="math.unit_system_container",
+    _solution_reuse_scope="durable",
     name="Unit System",
     category=("Math", "Container"),
     icon="square_foot",
@@ -373,6 +381,7 @@ def unit_system_container(ctx, input):
 
 @corex.node(
     id="math.deconstruct_interval",
+    _solution_reuse_scope="durable",
     name="Deconstruct Interval",
     category=("Math", "Interval"),
     icon="core/data_object.svg",
@@ -405,6 +414,7 @@ def deconstruct_interval(ctx, interval):
 
 @corex.node(
     id="math.construct_interval",
+    _solution_reuse_scope="durable",
     name="Construct Interval",
     category=("Math", "Interval"),
     icon="core/data_object.svg",

@@ -11,9 +11,10 @@ import json
 import math
 import re
 from collections.abc import Iterable, Mapping, Sequence
-from dataclasses import dataclass, fields, is_dataclass
+from dataclasses import dataclass, fields, is_dataclass, replace
 from functools import partial
 from numbers import Real
+from pathlib import Path
 from typing import Any, Callable
 
 from ea_node_editor.runtime_contracts import (
@@ -61,6 +62,7 @@ from .node_specs import (
     SettingsGroupSpec,
     property_inspector_editor,
 )
+from .solution_provenance import trusted_solution_provenance_inputs
 from .plugin_contracts import (
     NodePlugin,
     PluginContractManifest,
@@ -532,6 +534,7 @@ class NodeRegistry:
         "secret",
     }
     _SUPPORTED_RUNTIME_BEHAVIORS = {"active", "passive", "compile_only"}
+    _SUPPORTED_SOLUTION_REUSE_SCOPES = {"never", "session", "durable"}
     _SUPPORTED_SURFACE_FAMILIES = {
         "standard",
         "flowchart",
@@ -699,7 +702,23 @@ class NodeRegistry:
                 raise ValueError(
                     "Python function entry owner_id must match plugin bundle owner_id"
                 )
-            staged.register_python_function(
+            trusted_solution_reuse = bool(
+                normalized_owner_id == "ea_node_editor.builtins.tabular_data"
+                and entry.provenance is not None
+                and entry.provenance.kind == "package"
+                and entry.provenance.package_name
+                == "ea_node_editor_builtins_tabular_data"
+                and entry.provenance.package_root is not None
+                and plugin_bundle is not None
+                and Path(plugin_bundle.approved_generation_root)
+                == entry.provenance.package_root
+            )
+            register_function = (
+                staged._register_trusted_python_function
+                if trusted_solution_reuse
+                else staged.register_python_function
+            )
+            register_function(
                 entry.spec,
                 entry.function_ref,
                 provenance=entry.provenance,
@@ -797,6 +816,10 @@ class NodeRegistry:
         if factory is None or not callable(factory):
             raise TypeError("Plugin factory must be callable")
         self._validate_spec(spec)
+        if spec.solution_provenance_inputs:
+            raise ValueError("Trusted factory nodes cannot declare solution provenance")
+        if spec.solution_reuse_scope != "never":
+            raise ValueError("Trusted factory nodes must use solution_reuse_scope='never'")
         if spec.type_id in self._entries:
             raise ValueError(f"Node type already registered: {spec.type_id}")
         self._entries[spec.type_id] = TrustedFactoryEntry(
@@ -824,6 +847,14 @@ class NodeRegistry:
             if not callable(descriptor.factory):
                 raise TypeError("Plugin factory must be callable")
             self._validate_spec(descriptor.spec)
+            if descriptor.spec.solution_provenance_inputs:
+                raise ValueError(
+                    "Trusted factory nodes cannot declare solution provenance"
+                )
+            if descriptor.spec.solution_reuse_scope != "never":
+                raise ValueError(
+                    "Trusted factory nodes must use solution_reuse_scope='never'"
+                )
             type_id = descriptor.spec.type_id
             if type_id in staged_entries:
                 raise ValueError(f"Node type already registered: {type_id}")
@@ -845,12 +876,83 @@ class NodeRegistry:
         owner_id: str = "",
         unavailable_reason: str = "",
     ) -> None:
+        self._register_python_function(
+            spec,
+            function_ref,
+            provenance=provenance,
+            owner_id=owner_id,
+            unavailable_reason=unavailable_reason,
+            trusted_solution_reuse=False,
+        )
+
+    def _register_trusted_python_function(
+        self,
+        spec: NodeTypeSpec,
+        function_ref: PythonFunctionRef,
+        *,
+        provenance: PluginProvenance | None = None,
+        owner_id: str = "",
+        unavailable_reason: str = "",
+    ) -> None:
+        normalized_owner_id = str(owner_id).strip() or function_ref.bundle_id
+        trusted_builtin = bool(
+            normalized_owner_id == "corex:builtin:functions"
+            and provenance is None
+        )
+        trusted_tabular = bool(
+            normalized_owner_id == "ea_node_editor.builtins.tabular_data"
+            and provenance is not None
+            and provenance.kind == "package"
+            and provenance.package_name == "ea_node_editor_builtins_tabular_data"
+            and provenance.package_root is not None
+            and provenance.source_path is not None
+            and provenance.source_path.parent == provenance.package_root
+        )
+        if not trusted_builtin and not trusted_tabular:
+            raise ValueError("Trusted solution reuse provenance is invalid")
+        self._register_python_function(
+            spec,
+            function_ref,
+            provenance=provenance,
+            owner_id=owner_id,
+            unavailable_reason=unavailable_reason,
+            trusted_solution_reuse=True,
+        )
+
+    def _register_python_function(
+        self,
+        spec: NodeTypeSpec,
+        function_ref: PythonFunctionRef,
+        *,
+        provenance: PluginProvenance | None,
+        owner_id: str,
+        unavailable_reason: str,
+        trusted_solution_reuse: bool,
+    ) -> None:
         if not isinstance(function_ref, PythonFunctionRef):
             raise TypeError("function_ref must be a PythonFunctionRef")
         normalized_owner_id = str(owner_id).strip() or function_ref.bundle_id
         if normalized_owner_id != function_ref.bundle_id:
             raise ValueError("owner_id must match function_ref.bundle_id")
+        trusted_provenance = (
+            trusted_solution_provenance_inputs(
+                normalized_owner_id,
+                spec.type_id,
+            )
+            if trusted_solution_reuse
+            else ()
+        )
+        if spec.solution_provenance_inputs:
+            raise ValueError(
+                "Python function declarations cannot supply solution provenance"
+            )
+        if trusted_provenance:
+            spec = replace(spec, solution_provenance_inputs=trusted_provenance)
         self._validate_spec(spec)
+        if spec.solution_reuse_scope != "never" and not trusted_solution_reuse:
+            raise ValueError(
+                "Untrusted function nodes must use solution_reuse_scope='never'"
+            )
         if spec.type_id in self._entries:
             raise ValueError(f"Node type already registered: {spec.type_id}")
         self._entries[spec.type_id] = PythonFunctionEntry(
@@ -1019,6 +1121,60 @@ class NodeRegistry:
 
     def addon_runtime_config(self) -> tuple[tuple[str, bool], ...]:
         return self._addon_runtime_config
+
+    def execution_environment_facts(self) -> dict[str, object]:
+        """Return deterministic declared environment inputs for route handshakes."""
+
+        enabled_by_id = dict(self._addon_runtime_config)
+        toolchains = []
+        package_names: set[str] = set()
+        for owner_id, manifest in sorted(self._contract_manifests.items()):
+            for toolchain in manifest.toolchains:
+                requirements = tuple(
+                    (
+                        requirement.requirement_id,
+                        requirement.kind,
+                        requirement.import_name,
+                        requirement.command,
+                        requirement.version_spec,
+                        requirement.optional,
+                    )
+                    for requirement in toolchain.requirements
+                )
+                toolchains.append(
+                    (
+                        owner_id,
+                        toolchain.toolchain_id,
+                        toolchain.kind,
+                        toolchain.language,
+                        requirements,
+                    )
+                )
+                package_names.update(
+                    requirement.import_name or requirement.requirement_id
+                    for requirement in toolchain.requirements
+                    if requirement.kind == "python_module"
+                )
+        return {
+            "addons": tuple(
+                (
+                    owner_id,
+                    enabled,
+                    self._contract_manifest_versions.get(owner_id, ""),
+                )
+                for owner_id, enabled in sorted(enabled_by_id.items())
+            ),
+            "plugin_bundles": tuple(
+                (
+                    bundle.owner_id,
+                    bundle.version,
+                    bundle.bundle_digest,
+                )
+                for bundle in self.plugin_bundle_refs()
+            ),
+            "toolchains": tuple(toolchains),
+            "python_packages": tuple(sorted(package_names)),
+        }
 
     def contract_fingerprint(self) -> str:
         if self._contract_fingerprint:
@@ -1374,6 +1530,19 @@ class NodeRegistry:
                 f"Node {spec.type_id} runtime_behavior has invalid value: {spec.runtime_behavior}"
             )
         if (
+            not isinstance(spec.solution_reuse_scope, str)
+            or spec.solution_reuse_scope not in self._SUPPORTED_SOLUTION_REUSE_SCOPES
+        ):
+            raise ValueError(
+                f"Node {spec.type_id} solution_reuse_scope has invalid value: "
+                f"{spec.solution_reuse_scope}"
+            )
+        if spec.runtime_behavior != "active" and spec.solution_reuse_scope != "never":
+            raise ValueError(
+                f"Node {spec.type_id} non-active nodes must use "
+                "solution_reuse_scope='never'"
+            )
+        if (
             not isinstance(spec.surface_family, str)
             or not spec.surface_family
             or spec.surface_family.strip() != spec.surface_family
@@ -1437,6 +1606,25 @@ class NodeRegistry:
             property_keys.add(prop.key)
             properties_by_key[prop.key] = prop
         self._validate_sensitive_properties(spec, properties_by_key)
+        for provenance_input in spec.solution_provenance_inputs:
+            property_spec = properties_by_key.get(provenance_input.property_key)
+            if property_spec is None:
+                raise ValueError(
+                    f"Node {spec.type_id} solution provenance references unknown "
+                    f"property {provenance_input.property_key!r}"
+                )
+            if property_spec.type != "path":
+                raise ValueError(
+                    f"Node {spec.type_id} solution provenance property "
+                    f"{provenance_input.property_key!r} must use path type"
+                )
+        if spec.solution_reuse_scope != "never" and any(
+            property_spec.sensitive for property_spec in spec.properties
+        ):
+            raise ValueError(
+                f"Node {spec.type_id} sensitive properties require "
+                "solution_reuse_scope='never'"
+            )
         resolved_ports = self._validate_dynamic_port_groups(spec, properties_by_key)
         self._validate_property_conditions(spec, properties_by_key)
         self._validate_property_default_ports(spec, properties_by_key)

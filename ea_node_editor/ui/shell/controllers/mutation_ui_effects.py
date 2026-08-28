@@ -137,7 +137,7 @@ class MutationUiEffects:
 
     def after_history_replayed(self, workspace_id: str, entry: object) -> None:
         self.refresh_scene_from_model(workspace_id)
-        self.invalidate_cached_node_elapsed_for_history_entry(workspace_id, entry)
+        self.invalidate_solution_for_history_entry(workspace_id, entry)
         self.refresh_workspace_tabs()
 
     def after_connected_ports_request(self) -> None:
@@ -155,12 +155,12 @@ class MutationUiEffects:
     def after_selected_graph_items_deleted(self) -> None:
         self._selected_node_and_workspace_tabs()
 
-    def invalidate_cached_node_elapsed_for_history_entry(
+    def invalidate_solution_for_history_entry(
         self,
         workspace_id: str,
         entry: object,
     ) -> None:
-        hook = getattr(self._host, "invalidate_cached_node_elapsed_for_history_action", None)
+        hook = getattr(self._host, "invalidate_solution_for_history_action", None)
         if not callable(hook):
             return
         hook(

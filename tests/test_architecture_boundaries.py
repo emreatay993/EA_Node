@@ -348,6 +348,20 @@ class GraphArchitectureBoundaryTests(unittest.TestCase):
         self.assertIn("CorexRuntime", imported_names_from(tree, "ea_node_editor.execution.headless_runtime"))
         self.assertNotIn("ProcessExecutionClient", imported_names_from(tree, "ea_node_editor.execution.client"))
 
+    def test_solution_store_stays_execution_owned_and_persistence_neutral(self) -> None:
+        imports = imported_modules(
+            parse_module("ea_node_editor/execution/solution_store.py")
+        )
+        self.assertFalse(
+            {
+                module
+                for module in imports
+                if module.startswith("ea_node_editor.persistence")
+                or module.startswith("ea_node_editor.ui")
+                or module.startswith("ea_node_editor.ui_qml")
+            }
+        )
+
     def test_runtime_contracts_do_not_import_execution_implementation(self) -> None:
         contract_root = REPO_ROOT / "ea_node_editor" / "runtime_contracts"
 
@@ -363,6 +377,49 @@ class GraphArchitectureBoundaryTests(unittest.TestCase):
                         or module.startswith("ea_node_editor.execution.")
                     }
                 )
+
+    def test_settled_results_have_one_runtime_contract_owner(self) -> None:
+        settled_tree = parse_module(
+            "ea_node_editor/runtime_contracts/settled_results.py"
+        )
+        protocol_tree = parse_module("ea_node_editor/execution/protocol.py")
+        worker_runtime_tree = parse_module(
+            "ea_node_editor/execution/worker_runtime.py"
+        )
+        settled_classes = {
+            node.name for node in settled_tree.body if isinstance(node, ast.ClassDef)
+        }
+        protocol_classes = {
+            node.name for node in protocol_tree.body if isinstance(node, ast.ClassDef)
+        }
+        worker_runtime_classes = {
+            node.name
+            for node in worker_runtime_tree.body
+            if isinstance(node, ast.ClassDef)
+        }
+
+        self.assertTrue(
+            {"RootExecutionError", "SettledPortResult"} <= settled_classes
+        )
+        self.assertFalse(
+            {"RootExecutionError", "SettledPortResult"} & protocol_classes
+        )
+        self.assertNotIn("ExecutionPlan", worker_runtime_classes)
+
+        offenders: dict[str, list[str]] = {}
+        for root_name in ("ea_node_editor", "tests"):
+            for source_path in (REPO_ROOT / root_name).rglob("*.py"):
+                relative_path = source_path.relative_to(REPO_ROOT).as_posix()
+                old_owner_imports = sorted(
+                    imported_names_from(
+                        parse_module(relative_path),
+                        "ea_node_editor.execution.protocol",
+                    )
+                    & {"RootExecutionError", "SettledPortResult"}
+                )
+                if old_owner_imports:
+                    offenders[relative_path] = old_owner_imports
+        self.assertEqual(offenders, {})
 
     def test_nodes_sdk_modules_do_not_import_runtime_or_ui_implementations_at_module_load(self) -> None:
         nodes_root = REPO_ROOT / "ea_node_editor" / "nodes"

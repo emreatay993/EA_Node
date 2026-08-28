@@ -9,6 +9,7 @@ from ea_node_editor.nodes.builtins.engineering_viewer import execute_engineering
 
 @corex.node(
     id="model.viewer",
+    _solution_reuse_scope="session",
     name="Model Viewer",
     category=("Engineering", "Viewer"),
     icon="deployed_code",

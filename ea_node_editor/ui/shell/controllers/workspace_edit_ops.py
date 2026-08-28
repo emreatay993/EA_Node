@@ -24,9 +24,6 @@ from ea_node_editor.nodes.builtins.subnode import (
     SUBNODE_PIN_LABEL_PROPERTY,
     SUBNODE_TYPE_ID,
 )
-from ea_node_editor.ui.port_availability import (
-    clear_port_availability_runtime_workspace,
-)
 from ea_node_editor.ui.shell.controllers.dialog_support import resolve_dialog_parent
 from ea_node_editor.ui.shell.controllers.mutation_ui_effects import MutationUiEffects
 from ea_node_editor.ui.shell.controllers.result import ControllerResult
@@ -358,8 +355,6 @@ class WorkspaceEditOps:
 
     def on_node_property_changed(self, node_id: str, key: str, value: Any) -> None:
         workspace = self._controller.active_workspace()
-        if workspace is not None:
-            clear_port_availability_runtime_workspace(workspace.workspace_id)
         self._host.scene.set_node_property(node_id, key, value)
         should_refresh_shell_payload = (
             workspace is not None
@@ -393,8 +388,6 @@ class WorkspaceEditOps:
 
     def on_port_exposed_changed(self, node_id: str, key: str, exposed: bool) -> None:
         workspace = self._controller.active_workspace()
-        if workspace is not None:
-            clear_port_availability_runtime_workspace(workspace.workspace_id)
         self._host.scene.set_exposed_port(node_id, key, exposed)
         self._effects.after_selected_port_exposure_changed()
 

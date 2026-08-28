@@ -31,7 +31,13 @@ from PyQt6.QtQuick import QQuickItem
 from PyQt6.QtQml import QJSValue
 from PyQt6.QtTest import QTest
 
-from ea_node_editor.execution.protocol import SettledPortResult
+from ea_node_editor.runtime_contracts.settled_results import SettledPortResult
+from ea_node_editor.runtime_contracts.solution_records import (
+    NodeSolutionFact,
+    SolutionDisposition,
+    SolutionFreshness,
+    SolutionResidency,
+)
 from ea_node_editor.runtime_contracts import DataTree
 
 
@@ -415,6 +421,7 @@ class MainWindowShellViewLibraryInspectorTests(SharedMainWindowShellTestBase):
             source_id
         ] = {
             "settled": {
+                "record_id": "settled",
                 "observed_at_epoch_ms": 1.0,
                 "outputs": {
                     "result": SettledPortResult(
@@ -422,9 +429,21 @@ class MainWindowShellViewLibraryInspectorTests(SharedMainWindowShellTestBase):
                         value=DataTree.from_item(Interval1D(3.0, 7.0)),
                     ),
                 },
-                "stale": False,
             }
         }
+        self.window.run_state.node_solution_facts_by_workspace_id.setdefault(
+            workspace_id, {}
+        )[source_id] = NodeSolutionFact(
+            project_id=self.window.model.project.project_id,
+            workspace_id=workspace_id,
+            node_id=source_id,
+            freshness=SolutionFreshness.CURRENT,
+            revision=1,
+            retained_record_id="settled",
+            retained_solution_key="a" * 64,
+            residency=SolutionResidency.SESSION,
+            last_disposition=SolutionDisposition.RECOMPUTED,
+        )
         self.window.graph_canvas_state_bridge.port_flow_state_changed.emit()
         self.app.processEvents()
 

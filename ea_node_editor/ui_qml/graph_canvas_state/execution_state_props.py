@@ -14,7 +14,7 @@ import unicodedata
 
 from PyQt6.QtCore import pyqtProperty, pyqtSignal, pyqtSlot
 
-from ea_node_editor.execution.protocol import SettledPortResult
+from ea_node_editor.runtime_contracts.settled_results import SettledPortResult
 from ea_node_editor.nodes.builtins.media_panel import MEDIA_PANEL_TYPE_ID
 from ea_node_editor.nodes.readiness import (
     evaluate_node_readiness,
@@ -32,6 +32,9 @@ from ea_node_editor.ui.support.node_presentation import (
     project_supported_upstream_property_value,
 )
 from ea_node_editor.ui.support.port_flow_state import resolve_runtime_port_flow_states
+from ea_node_editor.ui.support.solution_output_cache import (
+    retained_output_records_by_node,
+)
 from ea_node_editor.ui.image_value_preview_provider import image_value_preview_source
 from ea_node_editor.ui.media_panel_source import resolve_media_panel_source
 from ea_node_editor.ui_qml.bridge_runtime import (
@@ -789,6 +792,7 @@ def _readiness_input_facts(
         if (
             not node_id
             or latest is None
+            or not bool(latest.get("outputs_available", True))
             or bool(latest.get("stale", False))
             or not isinstance(outputs, Mapping)
         ):
@@ -1110,6 +1114,17 @@ def _missing_output_preview(
     }
 
 
+def _unavailable_output_preview(access: str) -> dict[str, Any]:
+    return {
+        "state": "unavailable",
+        "access": access,
+        "tooltip_text": "Unavailable",
+        "rows": [],
+        "truncated": False,
+        "rich_preview": _empty_rich_preview(),
+    }
+
+
 def _lookup_node_ids(lookup: object) -> set[str]:
     if not isinstance(lookup, dict):
         return set()
@@ -1147,6 +1162,13 @@ def _latest_dpf_workflow_summary(records: object) -> dict[str, Any] | None:
             latest_observed_at = observed_at
     if latest_record is None:
         return None
+    if not bool(latest_record.get("outputs_available", True)):
+        return {
+            "state": "unavailable",
+            "headline": "Unavailable",
+            "detail": "",
+            "facts": [],
+        }
     summary = latest_record.get("dpf_workflow_summary")
     if not isinstance(summary, dict):
         return None
@@ -1272,30 +1294,23 @@ class ExecutionStateProps:
             return {}
         return _copy_dict(lookup_by_workspace.get(active_workspace_id, {}))
 
-    def _active_workspace_set_lookup(self, attribute_name: str) -> dict[str, bool]:
+    def _active_workspace_solution_facts(self) -> dict[str, Any]:
+        return self._active_workspace_lookup("node_solution_facts_by_workspace_id")
+
+    def _active_workspace_retained_records(
+        self, *, current_only: bool = False
+    ) -> dict[str, dict[str, dict[str, Any]]]:
         execution_source = self._execution_source
-        if execution_source is None:
-            return {}
-        run_state = getattr(execution_source, "run_state", None)
-        if run_state is None:
-            return {}
-        active_workspace_id = self._active_workspace_id()
-        if not active_workspace_id:
-            return {}
-        lookup_by_workspace = getattr(run_state, attribute_name, None)
-        if not isinstance(lookup_by_workspace, dict):
-            return {}
-        values = lookup_by_workspace.get(active_workspace_id, ())
-        if isinstance(values, dict):
-            values = values.keys()
-        if not isinstance(values, (set, frozenset, list, tuple)):
-            return {}
-        lookup: dict[str, bool] = {}
-        for value in values:
-            normalized_value = str(value or "").strip()
-            if normalized_value:
-                lookup[normalized_value] = True
-        return lookup
+        run_state = (
+            getattr(execution_source, "run_state", None)
+            if execution_source is not None
+            else None
+        )
+        return retained_output_records_by_node(
+            run_state,
+            self._active_workspace_id(),
+            current_only=current_only,
+        )
 
     def _selected_run_preview_workspace_matches(self) -> bool:
         execution_source = self._execution_source
@@ -1334,23 +1349,34 @@ class ExecutionStateProps:
 
     @pyqtProperty("QVariantMap", notify=node_execution_state_changed)
     def node_run_count_lookup(self) -> dict[str, int]:
-        records_by_node = self._active_workspace_lookup(
-            "cached_node_output_records_by_workspace_id"
+        return self._active_workspace_lookup(
+            "node_output_run_counts_by_workspace_id"
         )
-        return {
-            str(node_id): len(records)
-            for node_id, records in records_by_node.items()
-            if str(node_id).strip() and isinstance(records, Mapping)
-        }
 
     @pyqtProperty("QVariantMap", notify=node_execution_state_changed)
     def fresh_run_node_lookup(self) -> dict[str, bool]:
-        return self._active_workspace_set_lookup("fresh_run_node_ids_by_workspace_id")
+        return {
+            node_id: True
+            for node_id, fact in self._active_workspace_solution_facts().items()
+            if str(getattr(getattr(fact, "freshness", ""), "value", ""))
+            == "current"
+        }
+
+    @pyqtProperty("QVariantMap", notify=node_execution_state_changed)
+    def node_solution_freshness_lookup(self) -> dict[str, str]:
+        return {
+            node_id: freshness
+            for node_id, fact in self._active_workspace_solution_facts().items()
+            if (freshness := str(
+                getattr(getattr(fact, "freshness", ""), "value", "")
+            ))
+            in {"current", "expired"}
+        }
 
     @pyqtProperty("QVariantMap", notify=port_flow_state_changed)
     def property_presentation_lookup(self) -> dict[str, dict[str, dict[str, Any]]]:
-        records_by_node = self._active_workspace_lookup(
-            "cached_node_output_records_by_workspace_id"
+        records_by_node = self._active_workspace_retained_records(
+            current_only=True
         )
         node_payloads = [
             *(_source_attr(self._scene_state_source, "nodes_model", []) or []),
@@ -1400,23 +1426,8 @@ class ExecutionStateProps:
 
     @pyqtProperty("QVariantMap", notify=port_flow_state_changed)
     def port_flow_state_lookup(self) -> dict[str, dict[str, str]]:
-        execution_source = self._execution_source
-        run_state = (
-            getattr(execution_source, "run_state", None)
-            if execution_source is not None
-            else None
-        )
-        workspace_id = self._active_workspace_id()
-        records_by_workspace = (
-            getattr(run_state, "cached_node_output_records_by_workspace_id", {})
-            if run_state is not None
-            else {}
-        )
-        records_by_node = (
-            records_by_workspace.get(workspace_id, {})
-            if workspace_id and isinstance(records_by_workspace, dict)
-            else {}
-        )
+        records_by_node = self._active_workspace_retained_records(current_only=True)
+        solution_facts_by_node = self._active_workspace_solution_facts()
         node_payloads = [
             *(_source_attr(self._scene_state_source, "nodes_model", []) or []),
             *(_source_attr(self._scene_state_source, "backdrop_nodes_model", []) or []),
@@ -1426,6 +1437,7 @@ class ExecutionStateProps:
             node_payloads=node_payloads,
             edge_payloads=edge_payloads,
             output_records_by_node=records_by_node,
+            solution_facts_by_node=solution_facts_by_node,
         )
         presence_by_node, overridden_by_node = _readiness_input_facts(
             edge_payloads=edge_payloads,
@@ -1464,23 +1476,7 @@ class ExecutionStateProps:
     @pyqtProperty("QVariantMap", notify=port_flow_state_changed)
     def port_value_preview_lookup(self) -> dict[str, dict[str, dict[str, Any]]]:
         """Project bounded output summaries from the existing workspace cache."""
-        execution_source = self._execution_source
-        run_state = (
-            getattr(execution_source, "run_state", None)
-            if execution_source is not None
-            else None
-        )
-        workspace_id = self._active_workspace_id()
-        records_by_workspace = (
-            getattr(run_state, "cached_node_output_records_by_workspace_id", {})
-            if run_state is not None
-            else {}
-        )
-        records_by_node = (
-            records_by_workspace.get(workspace_id, {})
-            if workspace_id and isinstance(records_by_workspace, Mapping)
-            else {}
-        )
+        records_by_node = self._active_workspace_retained_records()
         node_payloads = [
             *(_source_attr(self._scene_state_source, "nodes_model", []) or []),
             *(_source_attr(self._scene_state_source, "backdrop_nodes_model", []) or []),
@@ -1514,7 +1510,11 @@ class ExecutionStateProps:
                 access = str(port.get("data_access", "item") or "item").strip().lower()
                 if access not in {"item", "list", "tree"}:
                     access = "item"
-                if latest_record is None:
+                if latest_record is not None and not bool(
+                    latest_record.get("outputs_available", True)
+                ):
+                    preview = _unavailable_output_preview(access)
+                elif latest_record is None:
                     preview = _missing_output_preview(access, never_run=True)
                 elif not isinstance(outputs, Mapping) or port_key not in outputs:
                     preview = _missing_output_preview(
@@ -1534,8 +1534,8 @@ class ExecutionStateProps:
 
     def _current_panel_tree(self, node_id: str) -> DataTree | None:
         normalized_node_id = normalize_node_id(node_id)
-        records_by_node = self._active_workspace_lookup(
-            "cached_node_output_records_by_workspace_id"
+        records_by_node = self._active_workspace_retained_records(
+            current_only=True
         )
         latest_record = _latest_output_record(
             records_by_node.get(normalized_node_id, {})
@@ -1602,8 +1602,8 @@ class ExecutionStateProps:
             *(_source_attr(self._scene_state_source, "nodes_model", []) or []),
             *(_source_attr(self._scene_state_source, "backdrop_nodes_model", []) or []),
         ]
-        records_by_node = self._active_workspace_lookup(
-            "cached_node_output_records_by_workspace_id"
+        records_by_node = self._active_workspace_retained_records(
+            current_only=True
         )
         presence_by_node, overridden_by_node = _readiness_input_facts(
             edge_payloads=_source_attr(self._scene_state_source, "edges_model", []),
@@ -1684,9 +1684,7 @@ class ExecutionStateProps:
 
     @pyqtProperty("QVariantMap", notify=node_execution_state_changed)
     def dpf_workflow_summary_lookup(self) -> dict[str, dict[str, Any]]:
-        records_by_node = self._active_workspace_lookup(
-            "cached_node_output_records_by_workspace_id"
-        )
+        records_by_node = self._active_workspace_retained_records()
         lookup: dict[str, dict[str, Any]] = {}
         for raw_node_id, records in records_by_node.items():
             node_id = normalize_node_id(raw_node_id)

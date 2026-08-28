@@ -12,6 +12,7 @@ from ea_node_editor.nodes.builtins.reporting import (
 
 @corex.node(
     id="reporting.markdown_flowchart_node",
+    _solution_reuse_scope="session",
     name="Markdown Flowchart Node",
     category=("Utilities", "Reporting"),
     icon="git-branch",
@@ -86,6 +87,7 @@ def markdown_flowchart_node(ctx, text, input_nodes, link_text, settings):
 
 @corex.node(
     id="reporting.markdown_flowchart",
+    _solution_reuse_scope="session",
     name="Markdown Flowchart",
     category=("Utilities", "Reporting"),
     icon="git-branch",

@@ -15,6 +15,7 @@ from ea_node_editor.runtime_contracts.data_tree import resolve_single_run_inputs
 
 @corex.node(
     id="core.constant",
+    _solution_reuse_scope="session",
     name="Constant",
     category=("Core",),
     icon="core/data_object.svg",
@@ -95,6 +96,7 @@ def logger(ctx, settings):
 
 @corex.node(
     id="core.if",
+    _solution_reuse_scope="session",
     name="If",
     category=("Core",),
     icon="call_split",
@@ -140,6 +142,7 @@ def core_if(ctx, condition, true_value, false_value):
 
 @corex.node(
     id="data.deconstruct_color",
+    _solution_reuse_scope="durable",
     name="Deconstruct Color",
     category=("Utilities", "Color"),
     icon="palette",

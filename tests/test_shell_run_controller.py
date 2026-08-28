@@ -5,13 +5,15 @@ import sys
 import time
 import unittest
 from unittest.mock import patch
+from types import SimpleNamespace
 
 from PyQt6.QtCore import QMetaObject, QObject
 from PyQt6.QtQuick import QQuickItem
 from PyQt6.QtTest import QTest
 from PyQt6.QtWidgets import QMessageBox
 
-from ea_node_editor.execution.protocol import SettledPortResult
+from ea_node_editor.runtime_contracts.settled_results import SettledPortResult
+from ea_node_editor.execution.prepared_execution import InvalidationResult
 from ea_node_editor.runtime_contracts import DataTree
 from ea_node_editor.ui.icon_registry import icon_path
 from ea_node_editor.ui_qml.shell_inspector_bridge import ShellInspectorBridge
@@ -52,36 +54,62 @@ class _ViewerExecutionClientStub:
         self.update_calls: list[dict] = []
         self.close_calls: list[dict] = []
         self._request_counter = 0
+        self._solution_revisions: dict[str, int] = {}
 
     def _next_request_id(self, prefix: str) -> str:
         self._request_counter += 1
         return f"{prefix}_{self._request_counter}"
 
-    def start_run(
-        self,
-        project_path: str,
-        workspace_id: str,
-        trigger: dict | None = None,
-        *,
-        execution_backend: object | None = None,
-        target_node_ids: tuple[str, ...] = (),
-        trigger_publications: dict[str, SettledPortResult] | None = None,
-        trigger_captures: dict[str, SettledPortResult] | None = None,
-        clicked_trigger_node_id: str = "",
-    ) -> str:
+    def prepare_execution(self, request):  # noqa: ANN001, ANN201
+        return SimpleNamespace(
+            request=request,
+            recompute_node_ids=tuple(request.target_node_ids),
+        )
+
+    def dispatch_prepared(self, prepared) -> str:  # noqa: ANN001
+        request = prepared.request
+        trigger = dict(request.trigger)
+        trigger["runtime_snapshot"] = request.runtime_snapshot
         self.start_calls.append(
             {
-                "project_path": project_path,
-                "workspace_id": workspace_id,
-                "trigger": dict(trigger or {}),
-                "execution_backend": execution_backend,
-                "target_node_ids": tuple(target_node_ids),
-                "trigger_publications": dict(trigger_publications or {}),
-                "trigger_captures": dict(trigger_captures or {}),
-                "clicked_trigger_node_id": clicked_trigger_node_id,
+                "project_path": str(request.project_path),
+                "workspace_id": request.workspace_id,
+                "trigger": trigger,
+                "execution_backend": request.execution_backend,
+                "target_node_ids": tuple(request.target_node_ids),
+                "trigger_publications": dict(request.trigger_publications),
+                "trigger_captures": dict(request.trigger_captures),
+                "clicked_trigger_node_id": request.clicked_trigger_node_id,
             }
         )
         return self.next_run_id
+
+    def solution_facts(self, project_id: str, workspace_id: str):  # noqa: ANN201
+        del project_id, workspace_id
+        return ()
+
+    def invalidate_solution(
+        self,
+        project_id: str,
+        workspace_id: str,
+        runtime_snapshot,
+        changed_root_node_ids,
+        reason_code: str,
+    ) -> InvalidationResult:
+        del runtime_snapshot
+        self._solution_revisions[workspace_id] = (
+            self._solution_revisions.get(workspace_id, 0) + 1
+        )
+        roots = tuple(changed_root_node_ids)
+        return InvalidationResult(
+            project_id=project_id,
+            workspace_id=workspace_id,
+            solution_revision=self._solution_revisions[workspace_id],
+            changed_root_node_ids=roots,
+            expired_node_ids=roots,
+            removed_node_ids=(),
+            reason_code=reason_code,
+        )
 
     def pause_run(self, run_id: str) -> None:
         self.pause_calls.append(str(run_id))
@@ -395,7 +423,6 @@ class ShellRunControllerTests(MainWindowShellTestBase):
         wait_for_condition_or_raise(
             lambda: bool(node_card.property("isCompletedNode"))
             and not bool(node_card.property("isRunningNode"))
-            and bool(node_card.property("isFreshRunNode"))
             and bool(elapsed_timer.property("cachedElapsedActive")),
             timeout_ms=400,
             app=self.app,
@@ -403,8 +430,8 @@ class ShellRunControllerTests(MainWindowShellTestBase):
         )
         self.assertEqual(dict(graph_canvas.property("runningNodeLookup")), {})
         self.assertEqual(dict(graph_canvas.property("completedNodeLookup")), {node_id: True})
-        self.assertEqual(dict(graph_canvas.property("freshRunNodeLookup")), {node_id: True})
-        self.assertTrue(bool(node_card.property("isFreshRunNode")))
+        self.assertEqual(dict(graph_canvas.property("freshRunNodeLookup")), {})
+        self.assertFalse(bool(node_card.property("isFreshRunNode")))
         self.assertTrue(bool(elapsed_timer.property("visible")))
         self.assertTrue(bool(elapsed_timer.property("cachedElapsedActive")))
 
@@ -592,7 +619,7 @@ class ShellRunControllerTests(MainWindowShellTestBase):
             graph_canvas.property("nodeElapsedMsLookup"),
             {node_id: completed_elapsed_ms},
         )
-        self.assertEqual(graph_canvas.property("freshRunNodeLookup"), {node_id: True})
+        self.assertEqual(graph_canvas.property("freshRunNodeLookup"), {})
 
         self.window.execution_event.emit(
             {
@@ -606,7 +633,6 @@ class ShellRunControllerTests(MainWindowShellTestBase):
         wait_for_condition_or_raise(
             lambda: not bool(node_card.property("isRunningNode"))
             and bool(node_card.property("isCompletedNode"))
-            and bool(node_card.property("isFreshRunNode"))
             and bool(elapsed_timer.property("visible"))
             and bool(elapsed_timer.property("cachedElapsedActive"))
             and str(elapsed_timer.property("text") or "") == "3.5s",
@@ -614,7 +640,8 @@ class ShellRunControllerTests(MainWindowShellTestBase):
             app=self.app,
             timeout_message="Timed out waiting for cached elapsed footer persistence after run completion.",
         )
-        self.assertEqual(graph_canvas.property("freshRunNodeLookup"), {node_id: True})
+        self.assertEqual(graph_canvas.property("freshRunNodeLookup"), {})
+        self.assertFalse(bool(node_card.property("isFreshRunNode")))
 
         self.window.scene.set_node_title(node_id, "Retained Footer")
         self.app.processEvents()
@@ -636,7 +663,7 @@ class ShellRunControllerTests(MainWindowShellTestBase):
         self.assertIsNotNone(elapsed_timer)
         if node_card is None or elapsed_timer is None:
             self.fail("Expected graph node card and elapsed timer to survive cosmetic title edits")
-        self.assertTrue(bool(node_card.property("isFreshRunNode")))
+        self.assertFalse(bool(node_card.property("isFreshRunNode")))
         self.assertTrue(bool(node_card.property("isCompletedNode")))
 
         self.window.scene.set_node_property(node_id, "message", "Invalidate cached elapsed footer")
@@ -1195,7 +1222,7 @@ class ShellRunControllerTests(MainWindowShellTestBase):
         )
 
         with (
-            patch.object(self.window.execution_client, "start_run", return_value="run_owner") as start_run,
+            patch.object(self.window.execution_client, "dispatch_prepared", return_value="run_owner") as dispatch_prepared,
             patch.object(self.window.execution_client, "pause_run") as pause_run,
             patch.object(self.window.execution_client, "resume_run") as resume_run,
         ):
@@ -1217,7 +1244,7 @@ class ShellRunControllerTests(MainWindowShellTestBase):
             self.assertTrue(bridge.auto_run_enabled)
             self.assertTrue(bool(auto_button.property("selectedStyle")))
             self.assertEqual(self.window.run_state.active_run_id, "run_owner")
-            self.assertEqual(start_run.call_count, 1)
+            self.assertEqual(dispatch_prepared.call_count, 1)
 
             self.window._switch_workspace(workspace_b_id)
             self.app.processEvents()
@@ -1235,7 +1262,7 @@ class ShellRunControllerTests(MainWindowShellTestBase):
             QMetaObject.invokeMethod(run_control_button, "clicked")
             self.app.processEvents()
 
-            self.assertEqual(start_run.call_count, 1)
+            self.assertEqual(dispatch_prepared.call_count, 1)
             self.assertEqual(self.window.run_state.active_run_id, "run_owner")
             self.assertEqual(self.window.run_state.active_run_workspace_id, workspace_a_id)
             self.assertEqual(self.window.console_panel.warning_count, warnings_before + 1)
@@ -1570,23 +1597,31 @@ class ShellRunControllerTests(MainWindowShellTestBase):
             self.assertFalse(self.window.run_state.developer_mode_active)
 
     def test_run_carries_developer_mode_only_when_capability_and_active(self) -> None:
-        with patch.object(self.window.execution_client, "start_run", return_value="") as start_run_mock:
+        with patch.object(
+            self.window.execution_client,
+            "prepare_execution",
+            wraps=self.window.execution_client.prepare_execution,
+        ) as prepare_mock:
             with patch(
                 "ea_node_editor.ui.shell.controllers.run_controller.developer_mode_capability_enabled",
                 return_value=True,
             ):
                 self.window.run_state.developer_mode_active = True
                 self.window._run_workflow()
-        self.assertTrue(start_run_mock.call_args.kwargs["trigger"]["developer_mode"])
+        self.assertTrue(prepare_mock.call_args.args[0].trigger["developer_mode"])
 
-        with patch.object(self.window.execution_client, "start_run", return_value="") as start_run_mock:
+        with patch.object(
+            self.window.execution_client,
+            "prepare_execution",
+            wraps=self.window.execution_client.prepare_execution,
+        ) as prepare_mock:
             with patch(
                 "ea_node_editor.ui.shell.controllers.run_controller.developer_mode_capability_enabled",
                 return_value=False,
             ):
                 self.window.run_state.developer_mode_active = True
                 self.window._run_workflow()
-        self.assertFalse(start_run_mock.call_args.kwargs["trigger"]["developer_mode"])
+        self.assertFalse(prepare_mock.call_args.args[0].trigger["developer_mode"])
 
 
 class _SubprocessShellWindowTest(unittest.TestCase):

@@ -8,7 +8,13 @@ from PyQt6.QtCore import QMarginsF, QRectF, Qt
 from PyQt6.QtGui import QColor, QImage, QPainter, QPageLayout, QPageSize, QPdfWriter
 from PyQt6.QtWidgets import QApplication
 
-from ea_node_editor.execution.protocol import SettledPortResult
+from ea_node_editor.runtime_contracts.settled_results import SettledPortResult
+from ea_node_editor.runtime_contracts.solution_records import (
+    NodeSolutionFact,
+    SolutionDisposition,
+    SolutionFreshness,
+    SolutionResidency,
+)
 from ea_node_editor.graph.model import GraphModel
 from ea_node_editor.graph.workspace_state import ViewState
 from ea_node_editor.nodes.bootstrap import build_default_registry
@@ -303,6 +309,7 @@ def test_project_review_materializes_runtime_image_value_only_in_temp_area(
             workspace.workspace_id: {
                 node.node_id: {
                     "run-1": {
+                        "record_id": "run-1",
                         "observed_at_epoch_ms": 1.0,
                         "outputs": {
                             "_surface_source": SettledPortResult(
@@ -312,6 +319,21 @@ def test_project_review_materializes_runtime_image_value_only_in_temp_area(
                         },
                     }
                 }
+            }
+        },
+        node_solution_facts_by_workspace_id={
+            workspace.workspace_id: {
+                node.node_id: NodeSolutionFact(
+                    project_id=model.project.project_id,
+                    workspace_id=workspace.workspace_id,
+                    node_id=node.node_id,
+                    freshness=SolutionFreshness.CURRENT,
+                    revision=1,
+                    retained_record_id="run-1",
+                    retained_solution_key="a" * 64,
+                    residency=SolutionResidency.SESSION,
+                    last_disposition=SolutionDisposition.RECOMPUTED,
+                )
             }
         },
     )

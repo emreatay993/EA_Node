@@ -8,6 +8,7 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from typing import Any, Callable, Literal
 
+from ea_node_editor.nodes.solution_provenance import SolutionProvenanceInputSpec
 from ea_node_editor.runtime_contracts.data_tree import DataAccess
 from ea_node_editor.nodes.category_paths import (
     CategoryPath,
@@ -48,6 +49,7 @@ InspectorEditorType = Literal[
     "secret",
 ]
 RuntimeBehavior = Literal["active", "passive", "compile_only"]
+SolutionReuseScope = Literal["never", "session", "durable"]
 SurfaceFamily = Literal[
     "standard",
     "flowchart",
@@ -641,6 +643,8 @@ class NodeTypeSpec:
     description: str = ""
     is_async: bool = False
     runtime_behavior: RuntimeBehavior = "active"
+    solution_reuse_scope: SolutionReuseScope = "never"
+    solution_provenance_inputs: tuple[SolutionProvenanceInputSpec, ...] = ()
     surface_family: SurfaceFamily = "standard"
     surface_variant: str = ""
     render_quality: NodeRenderQualitySpec = field(default_factory=NodeRenderQualitySpec)
@@ -664,6 +668,19 @@ class NodeTypeSpec:
     ] | None = None
 
     def __post_init__(self) -> None:
+        if not isinstance(self.solution_provenance_inputs, tuple) or any(
+            not isinstance(item, SolutionProvenanceInputSpec)
+            for item in self.solution_provenance_inputs
+        ):
+            raise TypeError(
+                "NodeTypeSpec.solution_provenance_inputs must be a tuple of "
+                "SolutionProvenanceInputSpec values"
+            )
+        provenance_keys = tuple(
+            item.property_key for item in self.solution_provenance_inputs
+        )
+        if len(provenance_keys) != len(set(provenance_keys)):
+            raise ValueError("solution provenance property keys must be unique")
         object.__setattr__(
             self,
             "keywords",
@@ -759,6 +776,7 @@ __all__ = [
     "ReadinessRequirementSpec",
     "RenderQualityTier",
     "RuntimeBehavior",
+    "SolutionReuseScope",
     "SettingsGroupItemSpec",
     "SettingsGroupSpec",
     "SurfaceFamily",

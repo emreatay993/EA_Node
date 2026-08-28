@@ -1397,7 +1397,7 @@ class GraphCanvasQmlBoundaryTests(unittest.TestCase):
             "property alias pendingConnectionPort: interactionState.pendingConnectionPort",
             "property alias interactionActive: interactionState.interactionActive",
             'GraphCanvasRootApi.invoke(interactionState, "updateLibraryDropPreview", [screenX, screenY, payload]);',
-            'GraphCanvasRootApi.invoke(interactionState, "beginPortWireDrag", [nodeId, portKey, direction, sceneX, sceneY, screenX, screenY]);',
+            'GraphCanvasRootApi.invoke(interactionState, "beginPortWireDrag", [nodeId, portKey, direction, sceneX, sceneY, screenX, screenY, modifiers]);',
             'GraphCanvasRootApi.invoke(viewportController, "applyWheelZoom", [eventObj], false);',
             'GraphCanvasRootApi.invoke(sceneLifecycle, "requestEdgeRedraw");',
             "sceneBridge: root.sceneStateBridge",
@@ -1954,6 +1954,18 @@ class GraphCanvasQmlBoundaryTests(unittest.TestCase):
             for snippet in present_snippets:
                 with self.subTest(path=relative_path, snippet=snippet):
                     self.assertIn(snippet, qml_text)
+
+    def test_solution_freshness_qml_transport_has_no_styling_consumer(self) -> None:
+        facts = (
+            _REPO_ROOT
+            / "ea_node_editor/ui_qml/components/graph_canvas/GraphCanvasExecutionFacts.qml"
+        ).read_text(encoding="utf-8")
+        host = (
+            _REPO_ROOT / "ea_node_editor/ui_qml/components/graph/GraphNodeHost.qml"
+        ).read_text(encoding="utf-8")
+        self.assertIn("readonly property var nodeSolutionFreshnessLookup", facts)
+        self.assertIn("facts.stateBridge.node_solution_freshness_lookup", facts)
+        self.assertNotIn("nodeSolutionFreshnessLookup", host)
 
     def test_graph_canvas_interaction_state_helper_owns_extracted_canvas_state(
         self,

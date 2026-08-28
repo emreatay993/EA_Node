@@ -8,7 +8,7 @@ from PyQt6.QtCore import Qt, pyqtSlot
 from ea_node_editor.developer_mode import developer_mode_capability_enabled
 
 if TYPE_CHECKING:
-    from ea_node_editor.execution.protocol import RootExecutionError
+    from ea_node_editor.runtime_contracts.settled_results import RootExecutionError
     from ea_node_editor.ui.shell.window import ShellWindow
 
 logger = logging.getLogger(__name__)
@@ -130,7 +130,7 @@ class ShellWindowRunAndStyleStateMixin:
             warning=warning,
         )
 
-    def invalidate_cached_node_elapsed_for_history_action(
+    def invalidate_solution_for_history_action(
         self: "ShellWindow",
         workspace_id: str,
         action_type: str,
@@ -139,7 +139,7 @@ class ShellWindowRunAndStyleStateMixin:
         after_snapshot: object | None = None,
     ) -> bool:
         return bool(
-            self.run_controller.invalidate_cached_node_elapsed_for_history_action(
+            self.run_controller.invalidate_solution_for_history_action(
                 workspace_id,
                 action_type,
                 before_snapshot=before_snapshot,

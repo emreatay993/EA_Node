@@ -21,6 +21,8 @@ Use this for Run, Run Selected, workspace solution mode, Auto evaluation, Trigge
 - `ea_node_editor/ui_qml/components/graph/overlay/GraphSelectionEnvelopeOverlay.qml`
 - `ea_node_editor/ui_qml/status_model.py`
 - `ea_node_editor/execution/client.py`
+- `ea_node_editor/execution/headless_runtime.py`
+- `ea_node_editor/execution/solution_store.py`
 - `ea_node_editor/execution/protocol.py`
 - `ea_node_editor/execution/worker_runtime.py`
 
@@ -28,18 +30,19 @@ Use this for Run, Run Selected, workspace solution mode, Auto evaluation, Trigge
 - `Run` targets every active node, including ready isolated nodes and outputless sinks. Enabled data dependencies determine evaluation order; there is no control-edge queue or Start-node special case.
 - `Run Selected` expands selected groups, sends the selected active node IDs as explicit targets, and lets the worker pull their enabled upstream dependencies. An explicitly selected isolated active node runs. Run Upstream Chain and selected-run cache seeding are removed.
 - Before explicit Run or a confirmed manual Run Selected builds its snapshot, the controller applies a valid dirty selected Python Script draft. A failed Apply cancels dispatch and leaves the draft dirty; preview-only or unconfirmed Run Selected does not apply it.
-- Every Run, Run Selected, Auto, and Trigger dispatch supplies `host.registry.data_types` explicitly to the execution client together with the snapshot. The resulting `StartRunCommand` carries the catalog fingerprint plus compact deterministic revision records, not catalog definitions; a client must not reuse a catalog cached by an earlier run.
+- Manual, Run Selected, Auto, and Trigger build one `ExecutionRequest`, call `CorexRuntime.prepare_execution(...)`, and consume it once through `dispatch_prepared(...)`. Manual targets all active nodes, Selected uses explicit targets, Auto uses the exact invalidation result, and Trigger preserves clicked/capture fields. `CorexRuntime.start_run` and the legacy direct shell path are absent.
 - Every Run, Run Selected, Auto, and Trigger dispatch also calls `RunController._execution_backend_policy_for_runtime_snapshot(...)`. A non-empty project Workflow Override leaves selection to the execution client; otherwise a non-empty app default becomes the existing external policy. Blank app/project values keep built-in execution. The app path never enters the trigger or runtime snapshot.
-- Node and Trigger settlement payloads are normalized with that same active catalogue before shell caching or execution-state transitions; semantic runtime carriers such as images and handles cannot be decoded without it.
+- Node and Trigger settlement payloads are normalized with the active catalogue before execution-state transitions. Shell output caching accepts only runtime-enriched settlements whose store acceptance result names the retained record ID/key/digest/disposition; rejected or late events cannot publish cache or availability state.
 - Preview and settings actions route through graph actions; preview state is shell-owned and projects a compact QML list plus canvas node highlights with confirm and cancel actions. The `GraphCanvasRootLayers.qml` preview overlay sizes to measured row/header/action content, its `+N more` control expands the full row list inside a bounded scroll area, and wheel input over the overlay is consumed so preview scrolling does not also zoom the canvas.
 - `Run Settings...` opens `SelectedRunSettingsDialog`, which edits the same `selected_run.preview_before_run` app preference exposed by the canvas options menu.
 - Shell run/status host methods are explicit `ShellWindowRunAndStyleStateMixin` entries in `window_state/run_and_style_state.py`; `RunController` remains the owner of run state changes, and no dynamic shell facade binding map should be reintroduced.
 
 ## Current Session Auto-Run Rules
 - App preference `solution.default_mode` defaults to Auto. Each opened workspace copies that value into live runtime-only state; switching to Manual/Pause changes only that workspace and is not persisted.
-- Auto evaluates all active nodes immediately when a project opens, when the active workspace's Auto toolbar toggle is switched on, and after execution-affecting graph/property history, including dynamic-port insert/remove/rename. Disabled edges and Trigger nodes are propagation boundaries; there is no pure-node/action-node eligibility split or action-output cache reuse.
+- Auto evaluates all active nodes when a project opens or Manual transitions to Auto. After execution-affecting history, `CorexRuntime.invalidate_solution(...)` and the shared `ExecutionPlan.affected_downstream_closure(...)` return the exact Auto target set; the shell does not calculate another closure. Disabled edges and Trigger boundaries remain execution-plan rules.
 - Apply consumed by explicit dispatch still invalidates runtime state but suppresses its duplicate Auto rerun. An Auto run never applies an unsaved script draft.
-- An active run finishes against its captured snapshot. A concurrent edit marks affected outputs stale, coalesces changes, and starts one pending rerun after terminal settlement. Stop, infrastructure failure, disabling Auto, project replacement, or active-workspace mismatch cancels pending work.
+- An active run finishes against its captured snapshot. Concurrent invalidations union exact expired targets and successful `run_completed` drains one pending Auto run. Failed/stopped/cancelled/protocol/infrastructure outcomes, Manual/Pause, project replacement, or active-workspace mismatch clear the pending set without retry.
+- The history classifier in `runtime_history.py` compares before/after snapshots with the registry: cosmetic/passive-only changes do nothing, present active roots invalidate, old/new edge targets are considered, and removed-only executable changes advance the solution revision with an empty root tuple.
 
 ## Trigger Rules
 - `core.trigger` is a runtime-only sample-and-hold boundary. Upstream changes refresh `latest_input` without republishing downstream; before the first click its publication is EMPTY.

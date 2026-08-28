@@ -517,12 +517,11 @@ def test_addon_contract_change_retires_every_backend_generation(
         client.shutdown()
 
 
-def test_corex_runtime_replace_registry_retires_client_and_forwards_agreement() -> None:
+def test_corex_runtime_replace_registry_retires_client_without_legacy_start() -> None:
     class RecordingBackend:
         def __init__(self) -> None:
             self.preflights = 0
             self.replacements = []
-            self.starts = []
 
         def subscribe(self, _callback):  # noqa: ANN001
             return None
@@ -534,10 +533,6 @@ def test_corex_runtime_replace_registry_retires_client_and_forwards_agreement() 
         def assert_registry_replaceable(self) -> None:
             self.preflights += 1
 
-        def start_run(self, *args, **kwargs):  # noqa: ANN002, ANN003
-            self.starts.append((args, kwargs))
-            return "run-1"
-
     original = _registry_with_fingerprint(EMPTY_PLUGIN_FINGERPRINT)
     replacement = _registry_with_fingerprint(_PLUGIN_FINGERPRINT)
     backend = RecordingBackend()
@@ -547,17 +542,7 @@ def test_corex_runtime_replace_registry_retires_client_and_forwards_agreement() 
     assert backend.preflights == 1
     assert runtime.replace_registry(replacement)
     assert backend.replacements == [replacement]
-    assert runtime.start(
-        ExecutionRequest(workspace_id="ws", runtime_snapshot=_snapshot())
-    ) == "run-1"
-    _args, kwargs = backend.starts[0]
-    assert kwargs["data_types"] is replacement.data_types
-    assert kwargs["plugin_bundles"] == ()
-    assert kwargs["plugin_fingerprint"] == _PLUGIN_FINGERPRINT
-    assert kwargs["registry_contract_fingerprint"] == (
-        replacement.contract_fingerprint()
-    )
-    assert kwargs["addon_runtime_config"] == replacement.addon_runtime_config()
+    assert not hasattr(runtime, "start_run")
 
 
 def test_execution_backend_registry_replacement_visits_every_client(monkeypatch) -> None:

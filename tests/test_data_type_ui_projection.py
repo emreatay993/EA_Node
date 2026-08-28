@@ -8,7 +8,16 @@ from types import SimpleNamespace
 import unicodedata
 from unittest.mock import patch
 
-from ea_node_editor.execution.protocol import SettledPortResult
+from ea_node_editor.runtime_contracts.settled_results import (
+    RootExecutionError,
+    SettledPortResult,
+)
+from ea_node_editor.runtime_contracts.solution_records import (
+    NodeSolutionFact,
+    SolutionDisposition,
+    SolutionFreshness,
+    SolutionResidency,
+)
 from ea_node_editor.graph.model import GraphModel
 from ea_node_editor.graph.records import EdgeInstance
 from ea_node_editor.nodes.bootstrap import build_default_registry
@@ -1251,6 +1260,7 @@ def test_panel_rows_and_copy_use_the_safe_catalog_projection() -> None:
                 workspace.workspace_id: {
                     "panel": {
                         "run": {
+                            "record_id": "run",
                             "observed_at_epoch_ms": 1.0,
                             "outputs": {
                                 "output": SettledPortResult(
@@ -1258,11 +1268,25 @@ def test_panel_rows_and_copy_use_the_safe_catalog_projection() -> None:
                                     value=tree,
                                 )
                             },
-                            "stale": False,
                         }
                     }
                 }
-            }
+            },
+            node_solution_facts_by_workspace_id={
+                workspace.workspace_id: {
+                    "panel": NodeSolutionFact(
+                        project_id=model.project.project_id,
+                        workspace_id=workspace.workspace_id,
+                        node_id="panel",
+                        freshness=SolutionFreshness.CURRENT,
+                        revision=1,
+                        retained_record_id="run",
+                        retained_solution_key="a" * 64,
+                        residency=SolutionResidency.SESSION,
+                        last_disposition=SolutionDisposition.RECOMPUTED,
+                    )
+                }
+            },
         )
     )
 
@@ -1439,7 +1463,10 @@ def test_preview_states_always_publish_the_fixed_rich_preview_shape() -> None:
             data_types=registry.data_types,
         ),
         "failed": _output_preview(
-            SettledPortResult(status="failed"),
+            SettledPortResult(
+                status="failed",
+                errors=(RootExecutionError(error="preview failed"),),
+            ),
             "item",
             stale=False,
             data_types=registry.data_types,

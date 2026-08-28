@@ -1,16 +1,28 @@
 from __future__ import annotations
 
 import base64
+import hashlib
 import unittest
 from unittest import mock
+from types import SimpleNamespace
 
 from ea_node_editor.execution.backends import EXTERNAL_SUBPROCESS_BACKEND
+from ea_node_editor.execution.execution_plan import ExecutionPlan
+from ea_node_editor.execution.prepared_execution import InvalidationResult
 from ea_node_editor.execution.protocol import (
     NodeSettledEvent,
-    RootExecutionError,
-    SettledPortResult,
     TriggerCaptureSettledEvent,
     event_to_dict,
+)
+from ea_node_editor.runtime_contracts.settled_results import (
+    RootExecutionError,
+    SettledPortResult,
+)
+from ea_node_editor.runtime_contracts.solution_records import (
+    NodeSolutionFact,
+    SolutionDisposition,
+    SolutionFreshness,
+    SolutionResidency,
 )
 from ea_node_editor.execution.runtime_snapshot import build_runtime_snapshot
 from ea_node_editor.graph.model import GraphModel
@@ -21,6 +33,11 @@ from ea_node_editor.nodes.runtime_refs import RuntimeHandleRef
 from ea_node_editor.ui.shell.controllers.run_controller import RunController
 from ea_node_editor.ui.shell.state import ShellRunState
 from ea_node_editor.ui.support.port_flow_state import resolve_runtime_port_flow_states
+from ea_node_editor.ui.support.solution_output_cache import (
+    cache_accepted_output_record,
+    retained_output_record,
+    retained_output_records_by_node,
+)
 from ea_node_editor.ui_qml.graph_scene_payload import GraphScenePayloadBuilder
 from ea_node_editor.runtime_contracts import DataTree, ImageValue
 
@@ -39,6 +56,54 @@ def _value_outputs(**values: object) -> dict[str, SettledPortResult]:
 
 def _value_result(value: object) -> SettledPortResult:
     return SettledPortResult(status="value", value=DataTree.from_item(value))
+
+
+def _accepted_settlement(
+    host,
+    *,
+    workspace_id: str,
+    node_id: str,
+    run_id: str,
+    outputs: dict[str, SettledPortResult],
+    status: str = "completed",
+) -> dict:
+    solution_key = hashlib.sha256(node_id.encode("utf-8")).hexdigest()
+    result_digest = hashlib.sha256(run_id.encode("utf-8")).hexdigest()
+    record_id = f"record_{run_id}_{node_id}"
+    existing = {
+        fact.node_id: fact
+        for fact in host.execution_client.solution_facts_by_workspace.get(
+            workspace_id, ()
+        )
+    }
+    existing[node_id] = NodeSolutionFact(
+        project_id=host.model.project.project_id,
+        workspace_id=workspace_id,
+        node_id=node_id,
+        freshness=SolutionFreshness.CURRENT,
+        revision=int(getattr(existing.get(node_id), "revision", 0)),
+        retained_record_id=record_id,
+        retained_solution_key=solution_key,
+        residency=SolutionResidency.SESSION,
+        last_disposition=SolutionDisposition.RECOMPUTED,
+    )
+    host.execution_client.solution_facts_by_workspace[workspace_id] = tuple(
+        existing.values()
+    )
+    return {
+        "type": "node_settled",
+        "status": status,
+        "run_id": run_id,
+        "workspace_id": workspace_id,
+        "node_id": node_id,
+        "outputs": outputs,
+        "accepted_solution_record": True,
+        "record_id": record_id,
+        "solution_key": solution_key,
+        "result_digest": result_digest,
+        "disposition": "recomputed",
+        "solution_fact_revision": existing[node_id].revision,
+    }
 
 
 def _script_result(expression: str) -> str:
@@ -121,38 +186,99 @@ class _ProjectSessionControllerStub:
 
 
 class _ExecutionClientStub:
-    def __init__(self) -> None:
+    def __init__(self, registry) -> None:  # noqa: ANN001
+        self.registry = registry
         self.next_run_id = "run_live"
         self.start_calls: list[dict] = []
         self.pause_calls: list[str] = []
         self.resume_calls: list[str] = []
         self.stop_calls: list[str] = []
+        self.solution_facts_by_workspace: dict[str, tuple] = {}
+        self.solution_revisions: dict[str, int] = {}
+        self.invalidate_calls: list[dict] = []
 
-    def start_run(
-        self,
-        project_path: str,
-        workspace_id: str,
-        trigger: dict | None = None,
-        *,
-        execution_backend=None,  # noqa: ANN001
-        target_node_ids=(),  # noqa: ANN001
-        trigger_publications=None,  # noqa: ANN001
-        trigger_captures=None,  # noqa: ANN001
-        clicked_trigger_node_id: str = "",
-    ) -> str:
+    def prepare_execution(self, request):  # noqa: ANN001, ANN201
+        return SimpleNamespace(
+            request=request,
+            recompute_node_ids=tuple(request.target_node_ids),
+        )
+
+    def dispatch_prepared(self, prepared) -> str:  # noqa: ANN001
+        request = prepared.request
+        trigger = dict(request.trigger)
+        trigger["runtime_snapshot"] = request.runtime_snapshot
         self.start_calls.append(
             {
-                "project_path": project_path,
-                "workspace_id": workspace_id,
-                "trigger": dict(trigger or {}),
-                "execution_backend": execution_backend,
-                "target_node_ids": tuple(target_node_ids),
-                "trigger_publications": dict(trigger_publications or {}),
-                "trigger_captures": dict(trigger_captures or {}),
-                "clicked_trigger_node_id": clicked_trigger_node_id,
+                "project_path": str(request.project_path),
+                "workspace_id": request.workspace_id,
+                "trigger": trigger,
+                "execution_backend": request.execution_backend,
+                "target_node_ids": tuple(request.target_node_ids),
+                "trigger_publications": dict(request.trigger_publications),
+                "trigger_captures": dict(request.trigger_captures),
+                "clicked_trigger_node_id": request.clicked_trigger_node_id,
             }
         )
         return self.next_run_id
+
+    def solution_facts(self, project_id: str, workspace_id: str):  # noqa: ANN201
+        del project_id
+        return self.solution_facts_by_workspace.get(workspace_id, ())
+
+    def invalidate_solution(
+        self,
+        project_id: str,
+        workspace_id: str,
+        runtime_snapshot,
+        changed_root_node_ids,
+        reason_code: str,
+    ) -> InvalidationResult:
+        plan = ExecutionPlan(runtime_snapshot.workspace(workspace_id), self.registry)
+        closure = plan.affected_downstream_closure(tuple(changed_root_node_ids))
+        active_ids = {
+            node_id
+            for node_id in plan.execution_order
+            if plan.node_specs[node_id].runtime_behavior == "active"
+        }
+        removed = tuple(
+            fact.node_id
+            for fact in self.solution_facts_by_workspace.get(workspace_id, ())
+            if fact.node_id not in active_ids
+        )
+        self.solution_revisions[workspace_id] = (
+            self.solution_revisions.get(workspace_id, 0) + 1
+        )
+        result = InvalidationResult(
+            project_id=project_id,
+            workspace_id=workspace_id,
+            solution_revision=self.solution_revisions[workspace_id],
+            changed_root_node_ids=tuple(changed_root_node_ids),
+            expired_node_ids=tuple(closure),
+            removed_node_ids=removed,
+            reason_code=reason_code,
+        )
+        updated_facts = []
+        for fact in self.solution_facts_by_workspace.get(workspace_id, ()):
+            if fact.node_id in removed:
+                continue
+            if fact.node_id in closure:
+                fact = NodeSolutionFact(
+                    project_id=fact.project_id,
+                    workspace_id=fact.workspace_id,
+                    node_id=fact.node_id,
+                    freshness=SolutionFreshness.EXPIRED,
+                    revision=fact.revision + 1,
+                    retained_record_id=fact.retained_record_id,
+                    retained_solution_key=fact.retained_solution_key,
+                    residency=fact.residency,
+                    expiration_reason_code=reason_code,
+                    expiration_root_node_ids=closure[fact.node_id],
+                    last_disposition=fact.last_disposition,
+                )
+            updated_facts.append(fact)
+        self.solution_facts_by_workspace[workspace_id] = tuple(updated_facts)
+        self.invalidate_calls.append(result.to_payload())
+        return result
 
     def pause_run(self, run_id: str) -> None:
         self.pause_calls.append(run_id)
@@ -295,7 +421,7 @@ class _RunHostStub:
             default_mode=default_mode
         )
         self.console_panel = _ConsoleStub()
-        self.execution_client = _ExecutionClientStub()
+        self.execution_client = _ExecutionClientStub(self.registry)
         self.script_editor = _ScriptEditorStub()
         self.workspace_library_controller = _WorkspaceLibraryControllerStub()
         self.action_run = _ActionStub()
@@ -342,6 +468,272 @@ class RunControllerUnitTests(unittest.TestCase):
         self.assertEqual(host.action_pause.enabled, pause_enabled)
         self.assertEqual(host.action_stop.enabled, stop_enabled)
         self.assertEqual(host.action_pause.text, pause_label)
+
+    def test_ui_solution_cache_is_bounded_and_run_count_is_monotonic(self) -> None:
+        host = _RunHostStub()
+        workspace_id = host.model.active_workspace.workspace_id
+        node = host.model.add_node(
+            workspace_id, "core.constant", "Cached", 0, 0
+        )
+        controller = RunController(host)  # type: ignore[arg-type]
+        for run_id in ("run_1", "run_2", "run_3"):
+            host.run_state.active_run_id = run_id
+            host.run_state.active_run_workspace_id = workspace_id
+            controller.handle_execution_event(
+                _accepted_settlement(
+                    host,
+                    workspace_id=workspace_id,
+                    node_id=node.node_id,
+                    run_id=run_id,
+                    outputs=_value_outputs(value=run_id),
+                )
+            )
+        records = host.run_state.cached_node_output_records_by_workspace_id[
+            workspace_id
+        ][node.node_id]
+        self.assertEqual(len(records), 2)
+        self.assertEqual(
+            host.run_state.node_output_run_counts_by_workspace_id[workspace_id][
+                node.node_id
+            ],
+            3,
+        )
+        retained = retained_output_record(host.run_state, workspace_id, node.node_id)
+        self.assertIsNotNone(retained)
+        self.assertEqual(retained["run_id"], "run_3")
+
+    def test_ui_solution_cache_global_eviction_and_metadata_only_fallback(self) -> None:
+        state = ShellRunState()
+        catalog = build_default_registry().data_types
+
+        def cache(workspace_id: str, node_id: str, record_id: str) -> None:
+            state.node_solution_facts_by_workspace_id[workspace_id] = {
+                node_id: NodeSolutionFact(
+                    project_id="project",
+                    workspace_id=workspace_id,
+                    node_id=node_id,
+                    freshness=SolutionFreshness.CURRENT,
+                    revision=1,
+                    retained_record_id=record_id,
+                    retained_solution_key="a" * 64,
+                    residency=SolutionResidency.SESSION,
+                    last_disposition=SolutionDisposition.RECOMPUTED,
+                )
+            }
+            self.assertTrue(
+                cache_accepted_output_record(
+                    state,
+                    workspace_id=workspace_id,
+                    node_id=node_id,
+                    event={
+                        "record_id": record_id,
+                        "solution_key": "a" * 64,
+                        "result_digest": "b" * 64,
+                        "disposition": "recomputed",
+                        "run_id": record_id,
+                    },
+                    outputs=_value_outputs(value=record_id),
+                    catalog=catalog,
+                )
+            )
+
+        with mock.patch(
+            "ea_node_editor.ui.support.solution_output_cache.MAX_RECORDS_GLOBAL", 2
+        ):
+            cache("ws_1", "node_1", "record_1")
+            state.node_solution_facts_by_workspace_id["ws_1"] = {}
+            cache("ws_2", "node_2", "record_2")
+            state.node_solution_facts_by_workspace_id["ws_2"] = {}
+            cache("ws_3", "node_3", "record_3")
+        self.assertNotIn("ws_1", state.cached_node_output_records_by_workspace_id)
+        self.assertEqual(
+            set(state.cached_node_output_records_by_workspace_id), {"ws_2", "ws_3"}
+        )
+
+        metadata_state = ShellRunState()
+        state = metadata_state
+        with mock.patch(
+            "ea_node_editor.ui.support.solution_output_cache.MAX_PAYLOAD_BYTES_GLOBAL",
+            1,
+        ):
+            cache("ws_meta", "node_meta", "record_meta")
+        metadata = metadata_state.cached_node_output_records_by_workspace_id[
+            "ws_meta"
+        ]["node_meta"]["record_meta"]
+        self.assertFalse(metadata["outputs_available"])
+        self.assertEqual(metadata["outputs"], {})
+        self.assertFalse(
+            retained_output_records_by_node(metadata_state, "ws_meta")["node_meta"][
+                "record_meta"
+            ]["outputs_available"]
+        )
+
+    def test_solution_state_events_filter_project_and_monotonic_revision(self) -> None:
+        host = _RunHostStub()
+        workspace_id = host.model.active_workspace.workspace_id
+        node = host.model.add_node(
+            workspace_id, "core.constant", "State", 0, 0
+        )
+        controller = RunController(host)  # type: ignore[arg-type]
+        fact = NodeSolutionFact(
+            project_id=host.model.project.project_id,
+            workspace_id=workspace_id,
+            node_id=node.node_id,
+            freshness=SolutionFreshness.CURRENT,
+            revision=1,
+            retained_record_id="record_current",
+            retained_solution_key="a" * 64,
+            residency=SolutionResidency.SESSION,
+            last_disposition=SolutionDisposition.RECOMPUTED,
+        )
+        host.execution_client.solution_facts_by_workspace[workspace_id] = (fact,)
+        event = {
+            "type": "solution_state_changed",
+            "project_id": host.model.project.project_id,
+            "workspace_id": workspace_id,
+            "solution_revision": 1,
+            "expired_node_ids": [],
+            "removed_node_ids": [],
+            "reason_code": "registry_generation_replaced",
+        }
+        controller.handle_execution_event({**event, "project_id": "other"})
+        self.assertNotIn(workspace_id, host.run_state.solution_revision_by_workspace_id)
+        controller.handle_execution_event(event)
+        self.assertIs(
+            host.run_state.node_solution_facts_by_workspace_id[workspace_id][
+                node.node_id
+            ].freshness,
+            SolutionFreshness.CURRENT,
+        )
+        host.execution_client.solution_facts_by_workspace[workspace_id] = (
+            NodeSolutionFact(
+                project_id=fact.project_id,
+                workspace_id=workspace_id,
+                node_id=node.node_id,
+                freshness=SolutionFreshness.EXPIRED,
+                revision=2,
+                retained_record_id=fact.retained_record_id,
+                retained_solution_key=fact.retained_solution_key,
+                residency=fact.residency,
+                expiration_reason_code="late_duplicate",
+                expiration_root_node_ids=(node.node_id,),
+                last_disposition=fact.last_disposition,
+            ),
+        )
+        controller.handle_execution_event(
+            {**event, "expired_node_ids": [node.node_id]}
+        )
+        self.assertIs(
+            host.run_state.node_solution_facts_by_workspace_id[workspace_id][
+                node.node_id
+            ].freshness,
+            SolutionFreshness.CURRENT,
+        )
+
+    def test_reset_before_settlement_keeps_current_cache_and_availability(self) -> None:
+        host = _RunHostStub()
+        workspace_id = host.model.active_workspace.workspace_id
+        node = host.model.add_node(workspace_id, "core.constant", "State", 0, 0)
+        controller = RunController(host)  # type: ignore[arg-type]
+        host.execution_client.solution_facts_by_workspace[workspace_id] = (
+            NodeSolutionFact(
+                project_id=host.model.project.project_id,
+                workspace_id=workspace_id,
+                node_id=node.node_id,
+                freshness=SolutionFreshness.EXPIRED,
+                revision=1,
+                expiration_reason_code="runtime_generation_replaced",
+                expiration_root_node_ids=(node.node_id,),
+            ),
+        )
+        controller.handle_execution_event(
+            {
+                "type": "solution_state_changed",
+                "project_id": host.model.project.project_id,
+                "workspace_id": workspace_id,
+                "solution_revision": 1,
+                "expired_node_ids": [node.node_id],
+                "removed_node_ids": [],
+                "reason_code": "runtime_generation_replaced",
+            }
+        )
+        host.run_state.active_run_id = "run_after_reset"
+        host.run_state.active_run_workspace_id = workspace_id
+        settled = _accepted_settlement(
+            host,
+            workspace_id=workspace_id,
+            node_id=node.node_id,
+            run_id="run_after_reset",
+            outputs=_value_outputs(value="current"),
+        )
+
+        with mock.patch(
+            "ea_node_editor.ui.shell.controllers.run_controller.observe_node_outputs"
+        ) as observe:
+            controller.handle_execution_event(settled)
+
+        observe.assert_called_once()
+        self.assertIn(node.node_id, host.run_state.completed_node_ids)
+        self.assertIn(
+            node.node_id,
+            host.run_state.cached_node_output_records_by_workspace_id[workspace_id],
+        )
+
+    def test_history_classifier_ignores_passive_and_normalizes_removed_only(self) -> None:
+        host = _RunHostStub()
+        workspace_id = host.model.active_workspace.workspace_id
+        controller = RunController(host)  # type: ignore[arg-type]
+        passive_before = host.model.active_workspace.capture_snapshot()
+        host.model.add_node(
+            workspace_id,
+            "passive.annotation.sticky_note",
+            "Note",
+            0,
+            0,
+        )
+        self.assertFalse(
+            controller.invalidate_solution_for_history_action(
+                workspace_id,
+                "add-node",
+                before_snapshot=passive_before,
+                after_snapshot=host.model.active_workspace.capture_snapshot(),
+            )
+        )
+        self.assertEqual(host.execution_client.invalidate_calls, [])
+
+        active = host.model.add_node(
+            workspace_id,
+            "core.constant",
+            "Removed",
+            0,
+            0,
+        )
+        fact = NodeSolutionFact(
+            project_id=host.model.project.project_id,
+            workspace_id=workspace_id,
+            node_id=active.node_id,
+            freshness=SolutionFreshness.CURRENT,
+            revision=1,
+            retained_record_id="record_removed",
+            retained_solution_key="a" * 64,
+            residency=SolutionResidency.SESSION,
+            last_disposition=SolutionDisposition.RECOMPUTED,
+        )
+        host.execution_client.solution_facts_by_workspace[workspace_id] = (fact,)
+        before_remove = host.model.active_workspace.capture_snapshot()
+        host.model.remove_node(workspace_id, active.node_id)
+        self.assertTrue(
+            controller.invalidate_solution_for_history_action(
+                workspace_id,
+                "remove-node",
+                before_snapshot=before_remove,
+                after_snapshot=host.model.active_workspace.capture_snapshot(),
+            )
+        )
+        invalidation = host.execution_client.invalidate_calls[-1]
+        self.assertEqual(invalidation["changed_root_node_ids"], [])
+        self.assertEqual(invalidation["expired_node_ids"], [])
+        self.assertEqual(invalidation["removed_node_ids"], [active.node_id])
 
     def test_run_workflow_starts_new_run_with_manual_trigger_and_updates_state(
         self,
@@ -523,7 +915,7 @@ class RunControllerUnitTests(unittest.TestCase):
                 "script",
                 _script_result("'draft'"),
             )
-            controller.invalidate_cached_node_elapsed_for_history_action(
+            controller.invalidate_solution_for_history_action(
                 workspace_id,
                 "edit-node-property",
                 before_snapshot=before,
@@ -553,7 +945,7 @@ class RunControllerUnitTests(unittest.TestCase):
             "timeout_sec",
             1.0,
         )
-        controller.invalidate_cached_node_elapsed_for_history_action(
+        controller.invalidate_solution_for_history_action(
             workspace_id,
             "edit-node-property",
             before_snapshot=before,
@@ -924,7 +1316,9 @@ class RunControllerUnitTests(unittest.TestCase):
         host.run_state.solution_mode_by_workspace_id["ws_deleted"] = "manual"
         host.run_state.cached_node_output_records_by_workspace_id["ws_deleted"] = {}
         host.run_state.cached_node_elapsed_ms_by_workspace_id["ws_deleted"] = {}
-        host.run_state.fresh_run_node_ids_by_workspace_id["ws_deleted"] = set()
+        host.run_state.node_output_run_counts_by_workspace_id["ws_deleted"] = {}
+        host.run_state.solution_revision_by_workspace_id["ws_deleted"] = 1
+        host.run_state.node_solution_facts_by_workspace_id["ws_deleted"] = {}
         host.run_state.runtime_warning_messages_by_workspace_id["ws_deleted"] = {}
 
         host.model.remove_node(workspace_id, trigger.node_id)
@@ -943,7 +1337,13 @@ class RunControllerUnitTests(unittest.TestCase):
             "ws_deleted", host.run_state.cached_node_elapsed_ms_by_workspace_id
         )
         self.assertNotIn(
-            "ws_deleted", host.run_state.fresh_run_node_ids_by_workspace_id
+            "ws_deleted", host.run_state.node_output_run_counts_by_workspace_id
+        )
+        self.assertNotIn(
+            "ws_deleted", host.run_state.solution_revision_by_workspace_id
+        )
+        self.assertNotIn(
+            "ws_deleted", host.run_state.node_solution_facts_by_workspace_id
         )
         self.assertNotIn(
             "ws_deleted", host.run_state.runtime_warning_messages_by_workspace_id
@@ -1003,7 +1403,7 @@ class RunControllerUnitTests(unittest.TestCase):
         before_snapshot = host.model.active_workspace.capture_snapshot()
         host.model.set_node_property(workspace_id, source.node_id, "note", "changed")
         after_snapshot = host.model.active_workspace.capture_snapshot()
-        controller.invalidate_cached_node_elapsed_for_history_action(
+        controller.invalidate_solution_for_history_action(
             workspace_id,
             "edit-node-property",
             before_snapshot=before_snapshot,
@@ -1025,8 +1425,8 @@ class RunControllerUnitTests(unittest.TestCase):
         cached_records = host.run_state.cached_node_output_records_by_workspace_id[
             workspace_id
         ]
-        self.assertTrue(cached_records[source.node_id]["run_old"]["stale"])
-        self.assertTrue(cached_records[trigger.node_id]["run_old"]["stale"])
+        self.assertFalse(cached_records[source.node_id]["run_old"]["stale"])
+        self.assertFalse(cached_records[trigger.node_id]["run_old"]["stale"])
         self.assertFalse(cached_records[after_trigger.node_id]["run_old"]["stale"])
         self.assertFalse(cached_records[disabled_target.node_id]["run_old"]["stale"])
         self.assertNotIn(
@@ -1056,7 +1456,7 @@ class RunControllerUnitTests(unittest.TestCase):
             workspace_id, source.node_id, "result", target.node_id, "value"
         )
         after_snapshot = host.model.active_workspace.capture_snapshot()
-        controller.invalidate_cached_node_elapsed_for_history_action(
+        controller.invalidate_solution_for_history_action(
             workspace_id,
             "add-edge",
             before_snapshot=before_snapshot,
@@ -1068,7 +1468,7 @@ class RunControllerUnitTests(unittest.TestCase):
         rename_before = host.model.active_workspace.capture_snapshot()
         host.model.set_node_title(workspace_id, target.node_id, "Renamed Target")
         rename_after = host.model.active_workspace.capture_snapshot()
-        controller.invalidate_cached_node_elapsed_for_history_action(
+        controller.invalidate_solution_for_history_action(
             workspace_id,
             "rename-node",
             before_snapshot=rename_before,
@@ -1077,7 +1477,7 @@ class RunControllerUnitTests(unittest.TestCase):
         self.assertEqual(host.execution_client.start_calls, [])
 
         disconnected_snapshot = before_snapshot
-        controller.invalidate_cached_node_elapsed_for_history_action(
+        controller.invalidate_solution_for_history_action(
             workspace_id,
             "add-edge",
             before_snapshot=disconnected_snapshot,
@@ -1107,7 +1507,7 @@ class RunControllerUnitTests(unittest.TestCase):
         before_snapshot = host.model.active_workspace.capture_snapshot()
         host.model.set_node_property(workspace_id, target.node_id, "value", 2)
         after_snapshot = host.model.active_workspace.capture_snapshot()
-        controller.invalidate_cached_node_elapsed_for_history_action(
+        controller.invalidate_solution_for_history_action(
             workspace_id,
             "edit-node-property",
             before_snapshot=before_snapshot,
@@ -1146,7 +1546,7 @@ class RunControllerUnitTests(unittest.TestCase):
         before_snapshot = host.model.active_workspace.capture_snapshot()
         host.model.remove_edge(workspace_id, first_edge.edge_id)
         after_snapshot = host.model.active_workspace.capture_snapshot()
-        controller.invalidate_cached_node_elapsed_for_history_action(
+        controller.invalidate_solution_for_history_action(
             workspace_id,
             "remove-edge",
             before_snapshot=before_snapshot,
@@ -1160,7 +1560,7 @@ class RunControllerUnitTests(unittest.TestCase):
         before_last_removal = host.model.active_workspace.capture_snapshot()
         host.model.remove_edge(workspace_id, second_edge.edge_id)
         after_last_removal = host.model.active_workspace.capture_snapshot()
-        controller.invalidate_cached_node_elapsed_for_history_action(
+        controller.invalidate_solution_for_history_action(
             workspace_id,
             "remove-edge",
             before_snapshot=before_last_removal,
@@ -1212,7 +1612,7 @@ class RunControllerUnitTests(unittest.TestCase):
         before_snapshot = host.model.active_workspace.capture_snapshot()
         host.model.set_node_property(workspace_id, source.node_id, "note", "changed")
         after_snapshot = host.model.active_workspace.capture_snapshot()
-        controller.invalidate_cached_node_elapsed_for_history_action(
+        controller.invalidate_solution_for_history_action(
             workspace_id,
             "edit-node-property",
             before_snapshot=before_snapshot,
@@ -1238,7 +1638,7 @@ class RunControllerUnitTests(unittest.TestCase):
         before_snapshot = host.model.active_workspace.capture_snapshot()
         host.model.set_node_property(workspace_id, panel.node_id, "value", "1")
         after_snapshot = host.model.active_workspace.capture_snapshot()
-        controller.invalidate_cached_node_elapsed_for_history_action(
+        controller.invalidate_solution_for_history_action(
             workspace_id,
             "edit-node-property",
             before_snapshot=before_snapshot,
@@ -1250,14 +1650,13 @@ class RunControllerUnitTests(unittest.TestCase):
         )
         changes_before_settle = host.node_execution_state_changed.calls
         controller.handle_execution_event(
-            {
-                "type": "node_settled",
-                "status": "completed",
-                "run_id": "run_live",
-                "workspace_id": workspace_id,
-                "node_id": panel.node_id,
-                "outputs": _value_outputs(output="1"),
-            }
+            _accepted_settlement(
+                host,
+                workspace_id=workspace_id,
+                node_id=panel.node_id,
+                run_id="run_live",
+                outputs=_value_outputs(output="1"),
+            )
         )
 
         nodes, _backdrops, _minimap, edges = (
@@ -1273,6 +1672,9 @@ class RunControllerUnitTests(unittest.TestCase):
             node_payloads=nodes,
             edge_payloads=edges,
             output_records_by_node=host.run_state.cached_node_output_records_by_workspace_id[
+                workspace_id
+            ],
+            solution_facts_by_node=host.run_state.node_solution_facts_by_workspace_id[
                 workspace_id
             ],
         )
@@ -1318,7 +1720,7 @@ class RunControllerUnitTests(unittest.TestCase):
                     workspace_id
                 ] = {node.node_id: {"run_old": {"stale": False, "stale_reason": ""}}}
 
-                controller.invalidate_cached_node_elapsed_for_history_action(
+                controller.invalidate_solution_for_history_action(
                     workspace_id,
                     action_type,
                     before_snapshot=before_snapshot,
@@ -1330,7 +1732,7 @@ class RunControllerUnitTests(unittest.TestCase):
                     host.execution_client.start_calls[0]["target_node_ids"],
                     (node.node_id,),
                 )
-                self.assertTrue(
+                self.assertFalse(
                     host.run_state.cached_node_output_records_by_workspace_id[
                         workspace_id
                     ][node.node_id]["run_old"]["stale"]
@@ -1370,7 +1772,7 @@ class RunControllerUnitTests(unittest.TestCase):
         )
         after_snapshot = host.model.active_workspace.capture_snapshot()
 
-        controller.invalidate_cached_node_elapsed_for_history_action(
+        controller.invalidate_solution_for_history_action(
             workspace_id,
             "toggle-edge-enabled",
             before_snapshot=before_snapshot,
@@ -1403,7 +1805,7 @@ class RunControllerUnitTests(unittest.TestCase):
                 host.model.active_workspace.restore_snapshot(restored_snapshot)
                 host.execution_client.start_calls.clear()
                 controller.clear_active_run()
-                controller.invalidate_cached_node_elapsed_for_history_action(
+                controller.invalidate_solution_for_history_action(
                     workspace_id,
                     "edit-node-property",
                     before_snapshot=before_snapshot,
@@ -1416,7 +1818,7 @@ class RunControllerUnitTests(unittest.TestCase):
                     (node.node_id,),
                 )
 
-    def test_auto_run_coalesces_active_run_edits_and_marks_late_outputs_stale(
+    def test_auto_run_coalesces_active_run_edits_and_rejects_late_outputs(
         self,
     ) -> None:
         host = _RunHostStub()
@@ -1441,7 +1843,7 @@ class RunControllerUnitTests(unittest.TestCase):
             before_snapshot = host.model.active_workspace.capture_snapshot()
             host.model.set_node_property(workspace_id, target.node_id, "value", value)
             after_snapshot = host.model.active_workspace.capture_snapshot()
-            controller.invalidate_cached_node_elapsed_for_history_action(
+            controller.invalidate_solution_for_history_action(
                 workspace_id,
                 "edit-node-property",
                 before_snapshot=before_snapshot,
@@ -1450,7 +1852,7 @@ class RunControllerUnitTests(unittest.TestCase):
 
         self.assertEqual(host.execution_client.start_calls, [])
         self.assertEqual(
-            host.run_state.pending_auto_run_root_node_ids, {target.node_id}
+            host.run_state.pending_auto_run_target_node_ids, {target.node_id}
         )
         controller.handle_execution_event(
             {
@@ -1463,14 +1865,11 @@ class RunControllerUnitTests(unittest.TestCase):
                 "elapsed_ms": 10.0,
             }
         )
-        stale_record = host.run_state.cached_node_output_records_by_workspace_id[
-            workspace_id
-        ][target.node_id]["run_old"]
-        self.assertTrue(stale_record["stale"])
-        self.assertEqual(stale_record["stale_reason"], "graph changed")
         self.assertNotIn(
             target.node_id,
-            host.run_state.fresh_run_node_ids_by_workspace_id.get(workspace_id, set()),
+            host.run_state.cached_node_output_records_by_workspace_id.get(
+                workspace_id, {}
+            ),
         )
 
         controller.handle_execution_event(
@@ -1484,7 +1883,7 @@ class RunControllerUnitTests(unittest.TestCase):
         self.assertEqual(
             host.execution_client.start_calls[0]["trigger"]["kind"], "auto"
         )
-        self.assertEqual(host.run_state.pending_auto_run_root_node_ids, set())
+        self.assertEqual(host.run_state.pending_auto_run_target_node_ids, set())
 
     def test_disabling_auto_run_clears_pending_without_stopping_active_run(
         self,
@@ -1499,24 +1898,24 @@ class RunControllerUnitTests(unittest.TestCase):
         host.run_state.pending_auto_run_workspace_id = (
             host.model.active_workspace.workspace_id
         )
-        host.run_state.pending_auto_run_root_node_ids = {"node_1"}
+        host.run_state.pending_auto_run_target_node_ids = {"node_1"}
 
         controller.set_auto_run_enabled(False)
 
         self.assertEqual(host.run_state.active_run_id, "run_live")
         self.assertEqual(host.execution_client.stop_calls, [])
         self.assertEqual(host.run_state.pending_auto_run_workspace_id, "")
-        self.assertEqual(host.run_state.pending_auto_run_root_node_ids, set())
+        self.assertEqual(host.run_state.pending_auto_run_target_node_ids, set())
 
         controller.set_auto_run_enabled(True)
         host.run_state.pending_auto_run_workspace_id = (
             host.model.active_workspace.workspace_id
         )
-        host.run_state.pending_auto_run_root_node_ids = {"node_2"}
+        host.run_state.pending_auto_run_target_node_ids = {"node_2"}
         controller.stop_workflow()
         self.assertEqual(host.execution_client.stop_calls, ["run_live"])
         self.assertEqual(host.run_state.pending_auto_run_workspace_id, "")
-        self.assertEqual(host.run_state.pending_auto_run_root_node_ids, set())
+        self.assertEqual(host.run_state.pending_auto_run_target_node_ids, set())
 
     def test_fatal_failure_discards_pending_auto_run(self) -> None:
         host = _RunHostStub()
@@ -1526,7 +1925,7 @@ class RunControllerUnitTests(unittest.TestCase):
         host.run_state.active_run_id = "run_live"
         host.run_state.active_run_workspace_id = workspace_id
         host.run_state.pending_auto_run_workspace_id = workspace_id
-        host.run_state.pending_auto_run_root_node_ids = {"node_1"}
+        host.run_state.pending_auto_run_target_node_ids = {"node_1"}
 
         controller.handle_execution_event(
             {
@@ -1542,7 +1941,7 @@ class RunControllerUnitTests(unittest.TestCase):
 
         self.assertEqual(host.execution_client.start_calls, [])
         self.assertEqual(host.run_state.pending_auto_run_workspace_id, "")
-        self.assertEqual(host.run_state.pending_auto_run_root_node_ids, set())
+        self.assertEqual(host.run_state.pending_auto_run_target_node_ids, set())
 
     def test_node_settled_caches_typed_outputs_by_workspace_node_and_run(self) -> None:
         host = _RunHostStub()
@@ -1564,25 +1963,68 @@ class RunControllerUnitTests(unittest.TestCase):
                 host.run_state.active_run_id = run_id
                 host.run_state.active_run_workspace_id = workspace_id
                 controller.handle_execution_event(
-                    {
-                        "type": "node_settled",
-                        "status": "completed",
-                        "run_id": run_id,
-                        "workspace_id": workspace_id,
-                        "node_id": script.node_id,
-                        "outputs": _value_outputs(result=result),
-                    }
+                    _accepted_settlement(
+                        host,
+                        workspace_id=workspace_id,
+                        node_id=script.node_id,
+                        run_id=run_id,
+                        outputs=_value_outputs(result=result),
+                    )
                 )
 
         records = host.run_state.cached_node_output_records_by_workspace_id[
             workspace_id
         ][script.node_id]
-        self.assertEqual(set(records), {"run_1", "run_2"})
-        self.assertEqual(records["run_1"]["outputs"], _value_outputs(result="first"))
-        self.assertEqual(records["run_2"]["outputs"], _value_outputs(result="second"))
+        self.assertEqual(len(records), 2)
         self.assertEqual(
-            host.run_state.fresh_run_node_ids_by_workspace_id[workspace_id],
-            {script.node_id},
+            {next(iter(record["outputs"].values())).value.branches[0][1][0] for record in records.values()},
+            {"first", "second"},
+        )
+        self.assertEqual(
+            host.run_state.node_output_run_counts_by_workspace_id[workspace_id][
+                script.node_id
+            ],
+            2,
+        )
+
+    def test_invalidated_accepted_settlement_cannot_restore_cache_or_availability(self) -> None:
+        host = _RunHostStub()
+        workspace_id = host.model.active_workspace.workspace_id
+        node = host.model.add_node(workspace_id, "core.constant", "Constant", 0, 0)
+        controller = RunController(host)  # type: ignore[arg-type]
+        event = _accepted_settlement(
+            host,
+            workspace_id=workspace_id,
+            node_id=node.node_id,
+            run_id="run_late",
+            outputs=_value_outputs(value="late"),
+        )
+        accepted = host.execution_client.solution_facts_by_workspace[workspace_id][0]
+        host.execution_client.solution_facts_by_workspace[workspace_id] = (
+            NodeSolutionFact(
+                project_id=accepted.project_id,
+                workspace_id=accepted.workspace_id,
+                node_id=accepted.node_id,
+                freshness=SolutionFreshness.EXPIRED,
+                revision=accepted.revision + 1,
+                retained_record_id=accepted.retained_record_id,
+                retained_solution_key=accepted.retained_solution_key,
+                residency=accepted.residency,
+                expiration_reason_code="graph_changed",
+                expiration_root_node_ids=(node.node_id,),
+                last_disposition=accepted.last_disposition,
+            ),
+        )
+
+        with mock.patch(
+            "ea_node_editor.ui.shell.controllers.run_controller.observe_node_outputs"
+        ) as observe:
+            controller.handle_execution_event(event)
+
+        observe.assert_not_called()
+        self.assertNotIn(
+            workspace_id,
+            host.run_state.cached_node_output_records_by_workspace_id,
         )
 
     def test_node_settled_caches_compact_dpf_workflow_summary(self) -> None:
@@ -1616,19 +2058,22 @@ class RunControllerUnitTests(unittest.TestCase):
         host.run_state.active_run_workspace_id = workspace_id
 
         controller.handle_execution_event(
-            {
-                "type": "node_settled",
-                "status": "completed",
-                "run_id": "run_summary",
-                "workspace_id": workspace_id,
-                "node_id": node.node_id,
-                "outputs": _value_outputs(fields=fields),
-            }
+            _accepted_settlement(
+                host,
+                workspace_id=workspace_id,
+                node_id=node.node_id,
+                run_id="run_summary",
+                outputs=_value_outputs(fields=fields),
+            )
         )
 
-        record = host.run_state.cached_node_output_records_by_workspace_id[
-            workspace_id
-        ][node.node_id]["run_summary"]
+        record = next(
+            iter(
+                host.run_state.cached_node_output_records_by_workspace_id[
+                    workspace_id
+                ][node.node_id].values()
+            )
+        )
         self.assertEqual(
             record["dpf_workflow_summary"],
             {
@@ -1644,7 +2089,7 @@ class RunControllerUnitTests(unittest.TestCase):
             },
         )
 
-    def test_graph_change_marks_all_cached_output_run_records_stale(self) -> None:
+    def test_graph_change_expires_fact_without_mutating_cached_records(self) -> None:
         host = _RunHostStub()
         workspace_id = host.model.active_workspace.workspace_id
         script = host.model.add_node(
@@ -1664,19 +2109,18 @@ class RunControllerUnitTests(unittest.TestCase):
                 host.run_state.active_run_id = run_id
                 host.run_state.active_run_workspace_id = workspace_id
                 controller.handle_execution_event(
-                    {
-                        "type": "node_settled",
-                        "status": "completed",
-                        "run_id": run_id,
-                        "workspace_id": workspace_id,
-                        "node_id": script.node_id,
-                        "outputs": _value_outputs(result=result),
-                    }
+                    _accepted_settlement(
+                        host,
+                        workspace_id=workspace_id,
+                        node_id=script.node_id,
+                        run_id=run_id,
+                        outputs=_value_outputs(result=result),
+                    )
                 )
         host.run_state.active_run_id = ""
         host.run_state.active_run_workspace_id = ""
 
-        changed = controller.invalidate_cached_node_elapsed_for_history_action(
+        changed = controller.invalidate_solution_for_history_action(
             workspace_id, "add-edge"
         )
 
@@ -1684,14 +2128,15 @@ class RunControllerUnitTests(unittest.TestCase):
         records = host.run_state.cached_node_output_records_by_workspace_id[
             workspace_id
         ][script.node_id]
-        self.assertTrue(all(record["stale"] for record in records.values()))
-        self.assertEqual(
-            {record["stale_reason"] for record in records.values()},
-            {"graph changed"},
+        self.assertTrue(all("stale" not in record for record in records.values()))
+        projected = retained_output_record(
+            host.run_state,
+            workspace_id,
+            script.node_id,
         )
-        self.assertNotIn(
-            workspace_id, host.run_state.fresh_run_node_ids_by_workspace_id
-        )
+        self.assertIsNotNone(projected)
+        self.assertTrue(projected["stale"])
+        self.assertEqual(projected["stale_reason"], "graph_changed")
 
     def test_graph_change_marks_changed_node_and_downstream_run_records_stale(
         self,
@@ -1742,17 +2187,15 @@ class RunControllerUnitTests(unittest.TestCase):
         for index, node in enumerate(
             (upstream, middle, downstream, unrelated), start=1
         ):
-            controller.handle_execution_event(
-                {
-                    "type": "node_settled",
-                    "status": "completed",
-                    "run_id": "run_1",
-                    "workspace_id": workspace_id,
-                    "node_id": node.node_id,
-                    "elapsed_ms": float(index * 100),
-                    "outputs": _value_outputs(result=node.title),
-                }
+            event = _accepted_settlement(
+                host,
+                workspace_id=workspace_id,
+                node_id=node.node_id,
+                run_id="run_1",
+                outputs=_value_outputs(result=node.title),
             )
+            event["elapsed_ms"] = float(index * 100)
+            controller.handle_execution_event(event)
         host.run_state.active_run_id = ""
         host.run_state.active_run_workspace_id = ""
         before_snapshot = host.model.active_workspace.capture_snapshot()
@@ -1761,7 +2204,7 @@ class RunControllerUnitTests(unittest.TestCase):
         )
         after_snapshot = host.model.active_workspace.capture_snapshot()
 
-        changed = controller.invalidate_cached_node_elapsed_for_history_action(
+        changed = controller.invalidate_solution_for_history_action(
             workspace_id,
             "edit-node-property",
             before_snapshot=before_snapshot,
@@ -1770,8 +2213,18 @@ class RunControllerUnitTests(unittest.TestCase):
 
         self.assertTrue(changed)
         self.assertEqual(
-            host.run_state.fresh_run_node_ids_by_workspace_id[workspace_id],
-            {upstream.node_id, unrelated.node_id},
+            {
+                node_id: fact.freshness
+                for node_id, fact in host.run_state.node_solution_facts_by_workspace_id[
+                    workspace_id
+                ].items()
+            },
+            {
+                upstream.node_id: SolutionFreshness.CURRENT,
+                middle.node_id: SolutionFreshness.EXPIRED,
+                downstream.node_id: SolutionFreshness.EXPIRED,
+                unrelated.node_id: SolutionFreshness.CURRENT,
+            },
         )
         self.assertEqual(
             set(host.run_state.cached_node_elapsed_ms_by_workspace_id[workspace_id]),
@@ -1780,17 +2233,28 @@ class RunControllerUnitTests(unittest.TestCase):
         records_by_node = host.run_state.cached_node_output_records_by_workspace_id[
             workspace_id
         ]
-        self.assertFalse(records_by_node[upstream.node_id]["run_1"].get("stale", False))
-        self.assertTrue(records_by_node[middle.node_id]["run_1"]["stale"])
-        self.assertTrue(records_by_node[downstream.node_id]["run_1"]["stale"])
+        self.assertTrue(
+            all(
+                "stale" not in record
+                for records in records_by_node.values()
+                for record in records.values()
+            )
+        )
+        self.assertTrue(
+            retained_output_record(host.run_state, workspace_id, middle.node_id)[
+                "stale"
+            ]
+        )
         self.assertFalse(
-            records_by_node[unrelated.node_id]["run_1"].get("stale", False)
+            retained_output_record(host.run_state, workspace_id, unrelated.node_id)[
+                "stale"
+            ]
         )
 
         cosmetic_before = host.model.active_workspace.capture_snapshot()
         host.model.set_node_title(workspace_id, upstream.node_id, "Renamed Upstream")
         cosmetic_after = host.model.active_workspace.capture_snapshot()
-        cosmetic_changed = controller.invalidate_cached_node_elapsed_for_history_action(
+        cosmetic_changed = controller.invalidate_solution_for_history_action(
             workspace_id,
             "rename-node",
             before_snapshot=cosmetic_before,
@@ -1798,9 +2262,11 @@ class RunControllerUnitTests(unittest.TestCase):
         )
 
         self.assertFalse(cosmetic_changed)
-        self.assertEqual(
-            host.run_state.fresh_run_node_ids_by_workspace_id[workspace_id],
-            {upstream.node_id, unrelated.node_id},
+        self.assertIs(
+            host.run_state.node_solution_facts_by_workspace_id[workspace_id][
+                upstream.node_id
+            ].freshness,
+            SolutionFreshness.CURRENT,
         )
 
     def test_run_selected_group_targets_executable_contents_only(self) -> None:
@@ -2294,7 +2760,7 @@ class RunControllerUnitTests(unittest.TestCase):
             workspace_id, node.node_id, "script", _script_result("2")
         )
         after_snapshot = host.model.active_workspace.capture_snapshot()
-        controller.invalidate_cached_node_elapsed_for_history_action(
+        controller.invalidate_solution_for_history_action(
             workspace_id,
             "edit-node-property",
             before_snapshot=before_snapshot,
@@ -2312,7 +2778,7 @@ class RunControllerUnitTests(unittest.TestCase):
             workspace_id, node.node_id, "script", _script_result("3")
         )
         after_snapshot = host.model.active_workspace.capture_snapshot()
-        controller.invalidate_cached_node_elapsed_for_history_action(
+        controller.invalidate_solution_for_history_action(
             workspace_id,
             "edit-node-property",
             before_snapshot=before_snapshot,
@@ -2535,10 +3001,6 @@ class RunControllerUnitTests(unittest.TestCase):
             workspace_id: {"node_cached": 12.5},
             "ws_other": {"node_other": 8.0},
         }
-        host.run_state.fresh_run_node_ids_by_workspace_id = {
-            workspace_id: {"node_cached"},
-            "ws_other": {"node_other"},
-        }
 
         host.run_state.active_run_id = "run_live"
         host.run_state.active_run_workspace_id = workspace_id
@@ -2563,13 +3025,6 @@ class RunControllerUnitTests(unittest.TestCase):
             {
                 workspace_id: {"node_cached": 12.5},
                 "ws_other": {"node_other": 8.0},
-            },
-        )
-        self.assertEqual(
-            host.run_state.fresh_run_node_ids_by_workspace_id,
-            {
-                workspace_id: {"node_cached"},
-                "ws_other": {"node_other"},
             },
         )
         self.assertEqual(host.run_state.node_execution_revision, 1)
@@ -2597,13 +3052,6 @@ class RunControllerUnitTests(unittest.TestCase):
             {
                 workspace_id: {"node_cached": 12.5},
                 "ws_other": {"node_other": 8.0},
-            },
-        )
-        self.assertEqual(
-            host.run_state.fresh_run_node_ids_by_workspace_id,
-            {
-                workspace_id: {"node_cached"},
-                "ws_other": {"node_other"},
             },
         )
         self.assertEqual(host.run_state.node_execution_revision, 2)

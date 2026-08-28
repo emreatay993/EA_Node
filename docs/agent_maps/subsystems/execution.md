@@ -17,6 +17,10 @@ Use this for runtime snapshot assembly, ordered data-edge DTOs, dependency sched
 - `ea_node_editor/execution/runtime_snapshot.py`
 - `ea_node_editor/execution/runtime_snapshot_assembly.py`
 - `ea_node_editor/execution/runtime_dto.py`
+- `ea_node_editor/execution/execution_plan.py`
+- `ea_node_editor/execution/solution_identity.py`
+- `ea_node_editor/execution/solution_store.py`
+- `ea_node_editor/execution/prepared_execution.py`
 - `ea_node_editor/execution/compiler.py`
 - `ea_node_editor/execution/protocol.py`
 - `ea_node_editor/execution/worker_protocol.py`
@@ -41,6 +45,11 @@ Use this for runtime snapshot assembly, ordered data-edge DTOs, dependency sched
 - `ea_node_editor/execution/plot_backend_pyqtgraph.py`
 - `ea_node_editor/execution/plot_backend_pyvista.py`
 - `tests/test_execution_worker.py`
+- `tests/test_execution_plan.py`
+- `tests/test_solution_identity.py`
+- `tests/test_solution_store_session.py`
+- `tests/test_headless_runtime.py`
+- `tests/test_solution_records.py`
 - `tests/test_execution_protocol.py`
 - `tests/test_plugin_runtime_agreement.py`
 - `tests/test_plugin_worker_loading.py`
@@ -106,6 +115,18 @@ Use this for runtime snapshot assembly, ordered data-edge DTOs, dependency sched
 - Run targets every active node, including ready isolated nodes and outputless sinks. Run Selected carries explicit selected/group-expanded active targets and the worker pulls their enabled upstream dependencies; selected isolated active nodes run. The upstream-chain mode and selected-run output seeding are removed.
 - Parameter/Response Setup-to-Pool node links add hidden execution dependencies without becoming data edges. Each run owns fresh worker-local pool state; Construct Design freezes that state into a worker-local `corex.optimization.design` handle. Legacy COREX object IDs are deterministic, and COREX `node_<id>` identifiers project within the workspace to nonzero UUIDs while literal UUID node IDs remain unchanged.
 - `NodeSettledEvent` publishes typed completed/empty/failed/blocked settlements. Trigger seeds/publications use the same typed value/empty/failure model; Trigger boundaries stop normal propagation and their publications remain runtime-only.
+- `execution_plan.py` owns the shared executable topology, target/Trigger/hidden-ordering traversal, and the deterministic versioned topology fingerprint. Worker/runtime callers import it directly; `worker_runtime.py` does not re-export it.
+- `solution_identity.py` owns callback-free tagged canonical hashing, the versioned bounded file/directory provenance policy, cached COREX build identity, normalized execution-environment identity, and solution-key assembly. Raw bytes, runtime handles, unsupported values, links/reparse points, changed files, and provenance limit breaches fail closed with stable reason codes.
+- `ExecutionPlan.workflow_interface_digest` binds the normalized execution-facing effective ports, defaults, exposure/compatibility, readiness, principal input, and port modifiers. `hidden_ordering_pairs` is the public read-only identity input; identity code does not read the plan's private storage.
+- `prepared_execution.py` owns the frozen preparation/dispatch DTOs and strict queue-boundary adapters. Runtime snapshots, triggers, and accepted outputs are detached into canonical bytes and decoded only for dispatch; raw count/size/DataTree preflight runs before DTO materialization, durable payloads reject session-only carriers, and runtime consumption state remains outside the DTO. `StartRunCommand` has one strict empty-ID legacy form and one complete prepared form carrying namespace, workspace/runtime generation, snapshot/plan/interface/environment fingerprints, Trigger generations, decisions, and accepted payloads.
+- `solution_store.py` is the one session scheduler/freshness owner for namespaces, full-plan-ordered node facts/revisions, immutable records and typed payloads, bounded preparation/run pins, Trigger generation reservations, exact downstream invalidation, revision-gated late settlements, resource leases, and deterministic eviction. Invalidation removes deleted facts, pins, records, and reuse-index entries while retaining a node-revision tombstone. `handle_event()` returns an explicit settlement acceptance only when that event became/reused the retained record; late/rejected/nondeterministic/capacity/failed events return no record identity.
+- `solution_identity.py` owns the one per-node identity assembler used by both runtime preparation and worker preflight. The worker rebuilds the registry/catalog/plan, requires exact decision order and key/dependency parity, reparses payloads, validates result digests, actual output ports/catalog items, artifacts, and live handles, then installs every accepted reuse once in plan order without `node_started`. Any mismatch rejects the whole run before node output installation.
+- `CorexRuntime.start()` and `run()` use executable prepare-plus-dispatch; `run()` subscribes before preparation. `CorexRuntime.start_run()` and `_start_legacy()` are removed, and shell Manual/Selected/Auto/Trigger requests use the same `ExecutionRequest` preparation path.
+- `CorexRuntime` enriches generation-aware settlements after store handling and before publishing its event stream. Non-run-scoped strict `solution_state_changed` events carry project/workspace, monotonic solution revision, separate expired/removed IDs, and reason for invalidation plus registry/runtime/project resets. Failed `start_reserved_run` restores captured pre-dispatch facts; a run that started and then failed/stopped remains expired.
+- `ExecutionBackendClient` pins one exact result-affecting route/generation/environment snapshot per reserved run and exposes caller-ID reserve/start/release APIs. Explanatory selection reasons are excluded from identity and compatibility. Prepared dispatch order is registry publication, generation snapshot, reservation, generation adoption, store context registration, then start; synchronous events therefore use the pinned run snapshot. Concrete process/external routes notify idle generation death, and retired terminal events cannot republish an old available snapshot. Environment identity remains unavailable until the route handshake binds interpreter, package, add-on, toolchain, plugin, and registry facts.
+- Session handles reuse only through a live trusted-worker lease; process/external handles and unresolved resolver refs fail closed. Runtime artifacts must match the active store descriptor, target, size, SHA-256, and current content both at settlement and again outside the store lock before reuse selection. Leases are retained only by final reusable records and otherwise release immediately; retained leases release after leaving the store lock on eviction, generation/project reset, failed publication, or shutdown.
+- `CorexRuntime.registry_publication_guard()` owns the global lock order: lifecycle first, then client publication, then brief store locks. Prepared dispatch, viewer admission, and shell registry transactions share this order.
+- Settled result DTO ownership is dependency-light under `runtime_contracts/settled_results.py`. Protocol, worker, shell, and tests import those classes from the runtime-contract owner; `execution/protocol.py` retains transport adapters but does not re-export the classes.
 - Runtime snapshots omit removed plot-session document state; legacy `plot_session_layout` stripping is owned by persistence.
 - Avoid importing persistence serializer internals from worker/runtime code.
 - Test worker, client, artifact refs, handles, and viewer protocols together for cross-process changes.
@@ -135,6 +156,8 @@ Use this for runtime snapshot assembly, ordered data-edge DTOs, dependency sched
 .\venv\Scripts\python.exe -m pytest tests/test_plot_backend_registry.py tests/test_plot_headless_export.py --ignore=venv -q
 .\venv\Scripts\python.exe -m pytest tests/test_plot_dpf_node_contracts.py tests/test_dpf_runtime_service.py --ignore=venv -q
 .\venv\Scripts\python.exe -m pytest tests/test_dataflow_execution_runtime.py tests/test_data_tree_contract.py --ignore=venv -q
+.\venv\Scripts\python.exe -m pytest tests/test_solution_identity.py tests/test_execution_plan.py --ignore=venv -q
+.\venv\Scripts\python.exe -m pytest tests/test_solution_store_session.py tests/test_headless_runtime.py tests/test_execution_plan.py tests/test_solution_identity.py --ignore=venv -q
 .\venv\Scripts\python.exe -m pytest tests/test_execution_type_enforcement.py tests/test_viewer_viewport.py tests/test_security_contracts_types.py --ignore=venv -q
 ```
 
@@ -147,7 +170,7 @@ Use this for runtime snapshot assembly, ordered data-edge DTOs, dependency sched
 - [SSH/SFTP Nodes](../feature_routes/ssh_sftp_nodes.md)
 
 ## Update Triggers
-Update when runtime DTOs, catalog/plugin/runtime-registry agreement and fingerprint adapters, raw worker bootstrap, snapshot assembly, instance-port resolution, ordered data-edge or semantic-link dependency compilation, DataTree/Interval 1D/typed-default matching or serialization, declarative readiness evaluation, dependency scheduling, optimization pool/design-handle state, typed settlements or Trigger publications, Workflow/app-default Python routing or external-worker lifecycle, managed or add-on runtime preparation, node-scoped fatal failures/timeouts, handle leases/scoped disposal, Windows identity handle production, artifact integrity, prepared scenes, shared-memory viewer transports, viewer services, plot backend contracts, DPF plot frame-selection contracts, export backends, or execution tests change.
+Update when runtime DTOs, prepared-execution contracts, shared plan topology/fingerprints, catalog/plugin/runtime-registry agreement and fingerprint adapters, raw worker bootstrap, snapshot assembly, instance-port resolution, ordered data-edge or semantic-link dependency compilation, DataTree/Interval 1D/typed-default matching or serialization, declarative readiness evaluation, dependency scheduling, optimization pool/design-handle state, typed settlements or Trigger publications, Workflow/app-default Python routing or external-worker lifecycle, managed or add-on runtime preparation, node-scoped fatal failures/timeouts, handle leases/scoped disposal, Windows identity handle production, artifact integrity, prepared scenes, shared-memory viewer transports, viewer services, plot backend contracts, DPF plot frame-selection contracts, export backends, or execution tests change.
 
 ## 2026-07-11 Performance Ownership
 

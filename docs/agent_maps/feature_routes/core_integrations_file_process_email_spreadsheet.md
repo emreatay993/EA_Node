@@ -23,6 +23,7 @@ Use this for built-in integration nodes, process execution policies, file IO nod
 
 ## Notes
 - The reserved built-in function bundle owns File Read/Write, Image Import/Export, Process Run, Email Send, and Excel Read/Write as eight `PythonFunctionEntry` declarations. Their inert decorator source lives under `nodes/builtin_functions/`; runtime, artifact, cancellation, SMTP, CSV, and optional worker-lazy OpenPyXL behavior stays in the matching trusted `nodes/builtins/` helpers.
+- File Read, Image Import, and Excel Read receive exact registry-owned file-content provenance for `path`; write/effect rows and public lookalikes do not. Provenance failures create execute-only preparation keys rather than cache hits.
 - `io.path_pointer` and `io.folder_explorer` are the two retained trusted descriptor exceptions in this route because their passive/native surfaces do not fit ordinary function execution.
 - File Read/Write and Excel Read/Write browse filters are declared in their inert path controls. Keep file-type changes in the declaration and shared filter constants, not in shell presenter conditionals.
 - Process Run declares its command input mandatory with a same-key property fallback. Email Send declares SMTP host, sender, and recipient settings centrally, and requires a password only when Username is nonblank. Missing configuration waits/yellows before plugin construction; subprocess and SMTP failures remain runtime errors.

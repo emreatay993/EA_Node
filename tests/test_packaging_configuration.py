@@ -850,6 +850,8 @@ def test_windows_build_scripts_use_profile_specific_packaging_switches() -> None
     assert 'os.environ.get("EA_FUNCTION_PLUGIN_PACKAGE_SMOKE") == "1"' in app_source
     assert "build_plugin_candidate_registry" in app_source
     assert "ProcessExecutionClient" in app_source
+    assert "corex_build_digest()" in app_source
+    assert "Packaged COREX build identity smoke failed." in app_source
     assert app_source.index("EA_FUNCTION_PLUGIN_PACKAGE_SMOKE") < app_source.index(
         "run.preload_native_tabular_runtime"
     )

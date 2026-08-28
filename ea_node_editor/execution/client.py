@@ -5,11 +5,15 @@
 # Landmarks: ExecutionBackendClient, ProcessExecutionClient, ExternalPythonExecutionClient, TrustedInProcessExecutionClient
 from __future__ import annotations
 
+import hashlib
+import importlib.metadata
 import json
 import multiprocessing as mp
 import os
+import platform
 import queue
 import subprocess
+import sys
 import threading
 import time
 import traceback
@@ -19,6 +23,7 @@ from collections.abc import Callable, Mapping
 from contextlib import contextmanager, nullcontext
 from dataclasses import dataclass, replace
 from functools import wraps
+from pathlib import Path
 from typing import Any
 
 from ea_node_editor.common.coercions import normalize_path_text
@@ -40,8 +45,8 @@ from ea_node_editor.execution.protocol import (
     ResumeRunCommand,
     RunFailedEvent,
     RunStateEvent,
-    SettledPortResult,
     ShutdownCommand,
+    StartRunCommand,
     StopRunCommand,
     UpdateViewerSessionCommand,
     VIEWER_COMMAND_TYPES,
@@ -57,10 +62,12 @@ from ea_node_editor.execution.protocol import (
     normalize_addon_runtime_config,
     runtime_registry_fingerprint,
 )
+from ea_node_editor.runtime_contracts.settled_results import SettledPortResult
 from ea_node_editor.execution.python_environment import (
     resolve_python_environment,
     workflow_python_path_from_snapshot,
 )
+from ea_node_editor.execution.solution_identity import canonical_digest
 from ea_node_editor.execution.worker import run_workflow, worker_main
 from ea_node_editor.execution.worker_protocol import dispatch_viewer_command
 from ea_node_editor.execution.worker_runtime import (
@@ -73,9 +80,83 @@ from ea_node_editor.nodes.function_plugin import (
     PluginBundleRef,
 )
 from ea_node_editor.nodes.registry import NodeRegistry
-from ea_node_editor.runtime_contracts import DataTypeCatalog, DataTypeCatalogError
+from ea_node_editor.runtime_contracts import (
+    DataTypeCatalog,
+    DataTypeCatalogError,
+    RuntimeHandleRef,
+)
 
 _LISTENER_SHUTDOWN_SENTINEL = {"type": "__listener_shutdown__"}
+
+_EXTERNAL_RUNTIME_IDENTITY_PROBE = r"""
+import hashlib
+import importlib.metadata
+import json
+import platform
+import sys
+from pathlib import Path
+
+names = json.loads(sys.argv[1])
+mapping = importlib.metadata.packages_distributions()
+packages = []
+for name in names:
+    distributions = mapping.get(name, ()) or (name,)
+    versions = []
+    for distribution in sorted(set(distributions)):
+        try:
+            versions.append((distribution, importlib.metadata.version(distribution)))
+        except importlib.metadata.PackageNotFoundError:
+            continue
+    packages.append((name, versions or [("", "missing")]))
+executable = Path(sys.executable)
+digest = hashlib.sha256()
+with executable.open("rb") as source:
+    for chunk in iter(lambda: source.read(1024 * 1024), b""):
+        digest.update(chunk)
+print(json.dumps({
+    "implementation": sys.implementation.name,
+    "cache_tag": sys.implementation.cache_tag or "",
+    "version": list(sys.version_info[:3]),
+    "platform": [platform.system(), platform.release(), platform.machine()],
+    "executable_size": executable.stat().st_size,
+    "executable_sha256": digest.hexdigest(),
+    "packages": packages,
+}, sort_keys=True, separators=(",", ":")))
+"""
+
+
+def _package_versions(package_names: tuple[str, ...]) -> tuple[tuple[str, object], ...]:
+    mapping = importlib.metadata.packages_distributions()
+    result = []
+    for name in package_names:
+        distributions = mapping.get(name, ()) or (name,)
+        versions = []
+        for distribution in sorted(set(distributions)):
+            try:
+                versions.append(
+                    (distribution, importlib.metadata.version(distribution))
+                )
+            except importlib.metadata.PackageNotFoundError:
+                continue
+        result.append((name, tuple(versions) or (("", "missing"),)))
+    return tuple(result)
+
+
+def _local_runtime_identity(package_names: tuple[str, ...]) -> dict[str, object]:
+    executable = Path(sys.executable)
+    digest = hashlib.sha256()
+    with executable.open("rb") as source:
+        for chunk in iter(lambda: source.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return {
+        "implementation": sys.implementation.name,
+        "cache_tag": sys.implementation.cache_tag or "",
+        "version": tuple(sys.version_info[:3]),
+        "platform": (platform.system(), platform.release(), platform.machine()),
+        "executable_size": executable.stat().st_size,
+        "executable_sha256": digest.hexdigest(),
+        "packages": _package_versions(package_names),
+    }
 
 
 def _registry_contract_digest(value: object) -> str:
@@ -124,6 +205,60 @@ class _ProvisionalViewerRoute:
     baseline_generation: int
     baseline_request_order: int
     requests: list[tuple[int, str, Any, int]]
+
+
+@dataclass(frozen=True, slots=True)
+class ExecutionGenerationSnapshot:
+    selection: ExecutionBackendSelection
+    backend_generation: int
+    runtime_generation: int
+    environment_digest: str
+    available: bool
+    reason: str = ""
+
+    def route_compatible_with(self, selection: ExecutionBackendSelection) -> bool:
+        return _result_affecting_selection_payload(self.selection) == (
+            _result_affecting_selection_payload(selection)
+        )
+
+    def compatible_with(self, other: object) -> bool:
+        return bool(
+            isinstance(other, ExecutionGenerationSnapshot)
+            and self.route_compatible_with(other.selection)
+            and self.backend_generation == other.backend_generation
+            and self.runtime_generation == other.runtime_generation
+            and self.environment_digest == other.environment_digest
+            and self.available == other.available
+        )
+
+
+@dataclass(frozen=True, slots=True)
+class ExecutionRunReservation:
+    run_id: str
+    workspace_id: str
+    selection: ExecutionBackendSelection
+    generation_snapshot: ExecutionGenerationSnapshot
+
+
+@dataclass(frozen=True, slots=True)
+class ExecutionResourceLease:
+    client: Any
+    value: RuntimeHandleRef
+
+
+def _result_affecting_selection_payload(
+    selection: ExecutionBackendSelection,
+) -> dict[str, object]:
+    return {
+        "backend_id": selection.backend_id,
+        "isolation": selection.isolation,
+        "trusted_in_process": selection.trusted_in_process,
+        "external_subprocess": selection.external_subprocess,
+        "python_executable_digest": canonical_digest(
+            str(selection.python_executable or "")
+        ),
+        "runtime_backend_ids": selection.runtime_backend_ids,
+    }
 
 
 def _coerce_positive_timeout(value: Any) -> float:
@@ -288,6 +423,9 @@ class _ExecutionClientCommon:
             self._catalog_generation_token = catalog_generation
             self._physical_generation_token = catalog_generation
             self._accepted_physical_generation_token = catalog_generation
+            self._execution_environment_digest = ""
+            self._execution_environment_registry_fingerprint = ""
+            self._execution_environment_selection_digest = ""
             self._run_generation_tokens.clear()
             if (
                 self._active_run_id
@@ -304,6 +442,9 @@ class _ExecutionClientCommon:
                 getattr(self, "_physical_generation_token", 0)
             )
             self._accepted_physical_generation_token = -1
+            self._execution_environment_digest = ""
+            self._execution_environment_registry_fingerprint = ""
+            self._execution_environment_selection_digest = ""
             return generation_token
 
     def _restore_physical_generation(self, generation_token: int) -> None:
@@ -494,6 +635,9 @@ class _ExecutionClientCommon:
                 if new_generation:
                     self._catalog_generation_token += 1
                     self._run_generation_tokens.clear()
+                    self._execution_environment_digest = ""
+                    self._execution_environment_registry_fingerprint = ""
+                    self._execution_environment_selection_digest = ""
                 self._bind_data_types(
                     data_types,
                     plugin_bundles=plugin_bundles,
@@ -562,6 +706,22 @@ class _ExecutionClientCommon:
         for callback in list(getattr(self, "_generation_callbacks", ())):
             try:
                 callback(dict(payload), token)
+            except Exception:
+                continue
+
+    def _notify_generation_change(
+        self,
+        *,
+        reason: str,
+        generation_token: int,
+    ) -> None:
+        payload = {
+            "type": "execution_generation_changed",
+            "reason": str(reason).strip(),
+        }
+        for callback in list(getattr(self, "_generation_callbacks", ())):
+            try:
+                callback(dict(payload), int(generation_token))
             except Exception:
                 continue
 
@@ -1179,9 +1339,12 @@ class ProcessExecutionClient(_ExecutionClientCommon):
         plugin_fingerprint: str = EMPTY_PLUGIN_FINGERPRINT,
         registry_contract_fingerprint: str = EMPTY_REGISTRY_CONTRACT_FINGERPRINT,
         addon_runtime_config: tuple[tuple[str, bool], ...] = (),
+        _reserved_run_id: str = "",
+        _reservation_prepared: bool = False,
+        _prepared_command: StartRunCommand | None = None,
     ) -> str:
         trigger_payload = dict(trigger or {})
-        run_id = f"run_{uuid.uuid4().hex[:8]}"
+        run_id = _reserved_run_id or f"run_{uuid.uuid4().hex[:8]}"
         runtime_snapshot = trigger_payload.pop("runtime_snapshot", None)
         command_target_node_ids = trigger_payload.pop(
             "target_node_ids", target_node_ids or ()
@@ -1198,7 +1361,7 @@ class ProcessExecutionClient(_ExecutionClientCommon):
         command_developer_mode = trigger_payload.pop("developer_mode", False)
         selection = coerce_execution_backend_selection(execution_backend)
         try:
-            prepared_start = self._prepare_start_run(
+            prepared_start = _reservation_prepared or self._prepare_start_run(
                 run_id,
                 workspace_id,
                 data_types,
@@ -1225,8 +1388,10 @@ class ProcessExecutionClient(_ExecutionClientCommon):
             contract_fingerprint, command_addon_runtime_config = (
                 self._registry_contract_agreement()
             )
-            command = coerce_start_run_command(
-                {
+            command_source: StartRunCommand | dict[str, Any] = (
+                _prepared_command
+                if _prepared_command is not None
+                else {
                     "run_id": run_id,
                     "project_path": project_path,
                     "workspace_id": workspace_id,
@@ -1245,9 +1410,18 @@ class ProcessExecutionClient(_ExecutionClientCommon):
                     "runtime_registry_fingerprint": runtime_fingerprint,
                     "registry_contract_fingerprint": contract_fingerprint,
                     "addon_runtime_config": command_addon_runtime_config,
-                },
+                }
+            )
+            command = coerce_start_run_command(
+                command_source,
                 catalog=self._data_types,
             )
+            if (
+                command.run_id != run_id
+                or command.workspace_id != workspace_id
+                or command.execution_backend != selection
+            ):
+                raise ValueError("prepared command does not match reserved process run")
         except (TypeError, ValueError) as exc:
             self._release_start_run(run_id)
             self._emit_protocol_error(str(exc), run_id=run_id, command="start_run")
@@ -1314,7 +1488,7 @@ class ProcessExecutionClient(_ExecutionClientCommon):
             ):
                 return
             active_run_id = self._active_run_id
-            if self._start_run_pending_id == active_run_id:
+            if active_run_id and self._start_run_pending_id == active_run_id:
                 return
             workspace_id = self._active_workspace_id
             active_node_id = self._active_node_id
@@ -1352,6 +1526,11 @@ class ProcessExecutionClient(_ExecutionClientCommon):
             failed_node_id = self._active_node_id
             self._accepted_physical_generation_token = -1
             self._clear_active_run_state_locked()
+
+        self._notify_generation_change(
+            reason="worker_terminated",
+            generation_token=generation_token,
+        )
 
         if active_run_id and run_id == active_run_id:
             self._dispatch_event(
@@ -1855,9 +2034,12 @@ class ExternalPythonExecutionClient(_ExecutionClientCommon):
         plugin_fingerprint: str = EMPTY_PLUGIN_FINGERPRINT,
         registry_contract_fingerprint: str = EMPTY_REGISTRY_CONTRACT_FINGERPRINT,
         addon_runtime_config: tuple[tuple[str, bool], ...] = (),
+        _reserved_run_id: str = "",
+        _reservation_prepared: bool = False,
+        _prepared_command: StartRunCommand | None = None,
     ) -> str:
         trigger_payload = dict(trigger or {})
-        run_id = f"run_{uuid.uuid4().hex[:8]}"
+        run_id = _reserved_run_id or f"run_{uuid.uuid4().hex[:8]}"
         runtime_snapshot = trigger_payload.pop("runtime_snapshot", None)
         command_target_node_ids = trigger_payload.pop(
             "target_node_ids", target_node_ids or ()
@@ -1884,7 +2066,7 @@ class ExternalPythonExecutionClient(_ExecutionClientCommon):
         with self._start_lock:
             with self._state_lock:
                 active_run = bool(self._active_run_id)
-            if active_run:
+            if active_run and not _reservation_prepared:
                 self._emit_protocol_error(
                     "External Python worker already has an active run.",
                     run_id=run_id,
@@ -1898,7 +2080,7 @@ class ExternalPythonExecutionClient(_ExecutionClientCommon):
                 ):
                     self._assert_process_transition_allowed()
                     self._verify_runtime_available(python_executable)
-                prepared_start = self._prepare_start_run(
+                prepared_start = _reservation_prepared or self._prepare_start_run(
                     run_id,
                     workspace_id,
                     data_types,
@@ -1925,8 +2107,10 @@ class ExternalPythonExecutionClient(_ExecutionClientCommon):
                 contract_fingerprint, command_addon_runtime_config = (
                     self._registry_contract_agreement()
                 )
-                command = coerce_start_run_command(
-                    {
+                command_source: StartRunCommand | dict[str, Any] = (
+                    _prepared_command
+                    if _prepared_command is not None
+                    else {
                         "run_id": run_id,
                         "project_path": project_path,
                         "workspace_id": workspace_id,
@@ -1945,9 +2129,20 @@ class ExternalPythonExecutionClient(_ExecutionClientCommon):
                         "runtime_registry_fingerprint": runtime_fingerprint,
                         "registry_contract_fingerprint": contract_fingerprint,
                         "addon_runtime_config": command_addon_runtime_config,
-                    },
+                    }
+                )
+                command = coerce_start_run_command(
+                    command_source,
                     catalog=self._data_types,
                 )
+                if (
+                    command.run_id != run_id
+                    or command.workspace_id != workspace_id
+                    or command.execution_backend != selection
+                ):
+                    raise ValueError(
+                        "prepared command does not match reserved external run"
+                    )
             except (TypeError, ValueError) as exc:
                 self._release_start_run(run_id)
                 self._emit_protocol_error(str(exc), run_id=run_id, command="start_run")
@@ -2164,7 +2359,7 @@ class ExternalPythonExecutionClient(_ExecutionClientCommon):
             ):
                 return
             active_run_id = self._active_run_id
-            if self._start_run_pending_id == active_run_id:
+            if active_run_id and self._start_run_pending_id == active_run_id:
                 return
             workspace_id = self._active_workspace_id
             active_node_id = self._active_node_id
@@ -2201,6 +2396,11 @@ class ExternalPythonExecutionClient(_ExecutionClientCommon):
             failed_node_id = self._active_node_id
             self._accepted_physical_generation_token = -1
             self._clear_active_run_state_locked()
+
+        self._notify_generation_change(
+            reason="external_python_worker_terminated",
+            generation_token=generation_token,
+        )
 
         if active_run_id and run_id == active_run_id:
             stderr_tail = self._stderr_tail_text()
@@ -2487,9 +2687,12 @@ class TrustedInProcessExecutionClient(_ExecutionClientCommon):
         plugin_fingerprint: str = EMPTY_PLUGIN_FINGERPRINT,
         registry_contract_fingerprint: str = EMPTY_REGISTRY_CONTRACT_FINGERPRINT,
         addon_runtime_config: tuple[tuple[str, bool], ...] = (),
+        _reserved_run_id: str = "",
+        _reservation_prepared: bool = False,
+        _prepared_command: StartRunCommand | None = None,
     ) -> str:
         trigger_payload = dict(trigger or {})
-        run_id = f"run_{uuid.uuid4().hex[:8]}"
+        run_id = _reserved_run_id or f"run_{uuid.uuid4().hex[:8]}"
         runtime_snapshot = trigger_payload.pop("runtime_snapshot", None)
         command_target_node_ids = trigger_payload.pop(
             "target_node_ids", target_node_ids or ()
@@ -2528,7 +2731,7 @@ class TrustedInProcessExecutionClient(_ExecutionClientCommon):
             )
         )
         try:
-            prepared_start = self._prepare_start_run(
+            prepared_start = _reservation_prepared or self._prepare_start_run(
                 run_id,
                 workspace_id,
                 data_types,
@@ -2558,8 +2761,10 @@ class TrustedInProcessExecutionClient(_ExecutionClientCommon):
             contract_fingerprint, command_addon_runtime_config = (
                 self._registry_contract_agreement()
             )
-            command = coerce_start_run_command(
-                {
+            command_source: StartRunCommand | dict[str, Any] = (
+                _prepared_command
+                if _prepared_command is not None
+                else {
                     "run_id": run_id,
                     "project_path": project_path,
                     "workspace_id": workspace_id,
@@ -2578,9 +2783,18 @@ class TrustedInProcessExecutionClient(_ExecutionClientCommon):
                     "runtime_registry_fingerprint": runtime_fingerprint,
                     "registry_contract_fingerprint": contract_fingerprint,
                     "addon_runtime_config": command_addon_runtime_config,
-                },
+                }
+            )
+            command = coerce_start_run_command(
+                command_source,
                 catalog=self._data_types,
             )
+            if (
+                command.run_id != run_id
+                or command.workspace_id != workspace_id
+                or command.execution_backend != selection
+            ):
+                raise ValueError("prepared command does not match reserved trusted run")
             command = self._decode_command(self._encode_command(command))
         except (TypeError, ValueError) as exc:
             self._release_start_run(run_id)
@@ -2940,9 +3154,33 @@ class ExecutionBackendClient:
         self._trusted_client = TrustedInProcessExecutionClient()
         self._external_python_client = ExternalPythonExecutionClient()
         self._callbacks: list[Callable[[dict[str, Any]], None]] = []
+        self._generation_callbacks: list[
+            Callable[[dict[str, Any], ExecutionGenerationSnapshot], None]
+        ] = []
+        self._published_registry: NodeRegistry | None = None
+        self._run_reservations: dict[str, tuple[ExecutionRunReservation, Any]] = {}
+        self._client_selections: dict[int, ExecutionBackendSelection] = {
+            id(self._process_client): ExecutionBackendSelection(),
+            id(self._trusted_client): ExecutionBackendSelection(
+                backend_id=TRUSTED_IN_PROCESS_BACKEND,
+                isolation="in_process",
+                reason="trusted_in_process_opt_in",
+                trusted_in_process=True,
+            ),
+            id(self._external_python_client): ExecutionBackendSelection(
+                backend_id=EXTERNAL_SUBPROCESS_BACKEND,
+                isolation="external_subprocess",
+                reason="external_runtime_contract",
+                external_subprocess=True,
+            ),
+        }
         self._active_clients: dict[str, Any] = {}
         self._run_clients: dict[str, Any] = {}
         self._run_client_generations: dict[str, int] = {}
+        self._run_generation_snapshots: dict[
+            str,
+            ExecutionGenerationSnapshot,
+        ] = {}
         self._run_workspace_ids: dict[str, str] = {}
         self._workspace_clients: dict[str, Any] = {}
         self._workspace_client_generations: dict[str, int] = {}
@@ -2988,6 +3226,429 @@ class ExecutionBackendClient:
     def subscribe(self, callback: Callable[[dict[str, Any]], None]) -> None:
         self._callbacks.append(callback)
 
+    def subscribe_generation_events(
+        self,
+        callback: Callable[[dict[str, Any], ExecutionGenerationSnapshot], None],
+    ) -> None:
+        self._generation_callbacks.append(callback)
+
+    def _client_for_selection(self, selection: ExecutionBackendSelection) -> Any:
+        if selection.backend_id == EXTERNAL_SUBPROCESS_BACKEND:
+            return self._external_python_client
+        if selection.backend_id == TRUSTED_IN_PROCESS_BACKEND:
+            return self._trusted_client
+        return self._process_client
+
+    def resolve_execution_selection(
+        self,
+        policy: Any,
+        runtime_snapshot: Any = None,
+    ) -> ExecutionBackendSelection:
+        workflow_python_path = workflow_python_path_from_snapshot(runtime_snapshot)
+        raw_policy = policy
+        if raw_policy is None and workflow_python_path:
+            raw_policy = {
+                "requested_backend": EXTERNAL_SUBPROCESS_BACKEND,
+                "allow_external_subprocess": True,
+                "python_executable": workflow_python_path,
+                "reason": "workflow_python_path",
+            }
+        selection = self._orchestrator.select(raw_policy)
+        if selection.backend_id != EXTERNAL_SUBPROCESS_BACKEND:
+            return selection
+        python_executable = normalize_path_text(selection.python_executable)
+        if not python_executable:
+            python_executable = workflow_python_path
+        if not python_executable:
+            raise ValueError(
+                "External Python workflow execution requires python_executable or "
+                "Workflow Settings > Environment > Workflow Override."
+            )
+        python_environment = resolve_python_environment(python_executable)
+        if not python_environment.valid:
+            raise ValueError(python_environment.error)
+        return replace(
+            selection,
+            python_executable=python_environment.python_executable,
+            reason=selection.reason
+            or ("workflow_python_path" if workflow_python_path else ""),
+        )
+
+    def _generation_snapshot_for_client(
+        self,
+        client: Any,
+        selection: ExecutionBackendSelection,
+        *,
+        registry_contract_fingerprint: str = "",
+    ) -> ExecutionGenerationSnapshot:
+        with client._state_lock:  # noqa: SLF001
+            backend_generation = int(
+                getattr(client, "_catalog_generation_token", 0)
+            )
+            runtime_generation = int(
+                getattr(client, "_physical_generation_token", backend_generation)
+            )
+            accepted_generation = int(
+                getattr(
+                    client,
+                    "_accepted_physical_generation_token",
+                    runtime_generation,
+                )
+            )
+            registry_fingerprint = str(
+                getattr(client, "_registry_contract_generation_fingerprint", "")
+            )
+            concrete_environment_digest = str(
+                getattr(client, "_execution_environment_digest", "")
+            )
+            environment_registry_fingerprint = str(
+                getattr(
+                    client,
+                    "_execution_environment_registry_fingerprint",
+                    "",
+                )
+            )
+            environment_selection_digest = str(
+                getattr(
+                    client,
+                    "_execution_environment_selection_digest",
+                    "",
+                )
+            )
+        live = bool(client._viewer_generation_is_live())  # noqa: SLF001
+        available = bool(
+            backend_generation > 0
+            and runtime_generation > 0
+            and backend_generation == runtime_generation == accepted_generation
+            and live
+        )
+        if registry_contract_fingerprint:
+            registry_fingerprint = _registry_contract_digest(
+                registry_contract_fingerprint
+            )
+        expected_registry = getattr(self, "_published_registry", None)
+        if not registry_fingerprint and expected_registry is not None:
+            registry_fingerprint = expected_registry.contract_fingerprint()
+        expected_registry_fingerprint = (
+            registry_fingerprint or EMPTY_REGISTRY_CONTRACT_FINGERPRINT
+        )
+        environment_ready = bool(
+            len(concrete_environment_digest) == 64
+            and environment_registry_fingerprint == expected_registry_fingerprint
+            and environment_selection_digest
+            == canonical_digest(_result_affecting_selection_payload(selection))
+        )
+        environment_digest = (
+            concrete_environment_digest
+            if environment_ready
+            else canonical_digest(
+                {
+                    "kind": "execution_environment_unavailable",
+                    "backend_id": selection.backend_id,
+                    "isolation": selection.isolation,
+                    "runtime_backend_ids": selection.runtime_backend_ids,
+                    "registry_contract_fingerprint": expected_registry_fingerprint,
+                }
+            )
+        )
+        available = available and environment_ready
+        return ExecutionGenerationSnapshot(
+            selection=selection,
+            backend_generation=backend_generation,
+            runtime_generation=runtime_generation,
+            environment_digest=environment_digest,
+            available=available,
+            reason=(
+                ""
+                if available
+                else (
+                    "execution_environment_unavailable"
+                    if live and backend_generation > 0
+                    else "execution_generation_unavailable"
+                )
+            ),
+        )
+
+    def _bind_route_environment(
+        self,
+        client: Any,
+        selection: ExecutionBackendSelection,
+        registry: NodeRegistry,
+        *,
+        publish: bool = True,
+    ) -> str:
+        registry_fingerprint = registry.contract_fingerprint()
+        selection_payload = _result_affecting_selection_payload(selection)
+        selection_digest = canonical_digest(selection_payload)
+        with client._state_lock:  # noqa: SLF001
+            if (
+                len(getattr(client, "_execution_environment_digest", "")) == 64
+                and getattr(
+                    client,
+                    "_execution_environment_registry_fingerprint",
+                    "",
+                )
+                == registry_fingerprint
+                and getattr(
+                    client,
+                    "_execution_environment_selection_digest",
+                    "",
+                )
+                == selection_digest
+            ):
+                return str(client._execution_environment_digest)  # noqa: SLF001
+        declared_facts = registry.execution_environment_facts()
+        package_names = tuple(declared_facts.get("python_packages", ()))
+        if selection.backend_id == EXTERNAL_SUBPROCESS_BACKEND:
+            result = subprocess.run(
+                [
+                    selection.python_executable,
+                    "-c",
+                    _EXTERNAL_RUNTIME_IDENTITY_PROBE,
+                    json.dumps(package_names, separators=(",", ":")),
+                ],
+                capture_output=True,
+                check=False,
+                text=True,
+                timeout=10.0,
+            )
+            if result.returncode != 0:
+                raise RuntimeError(
+                    "External Python runtime identity handshake failed."
+                )
+            try:
+                runtime_facts = json.loads(result.stdout)
+            except json.JSONDecodeError as exc:
+                raise RuntimeError(
+                    "External Python runtime identity handshake was invalid."
+                ) from exc
+            if not isinstance(runtime_facts, Mapping):
+                raise RuntimeError(
+                    "External Python runtime identity handshake was invalid."
+                )
+        else:
+            runtime_facts = _local_runtime_identity(package_names)
+        environment_digest = canonical_digest(
+            {
+                "schema_version": 1,
+                "selection": selection_payload,
+                "runtime": dict(runtime_facts),
+                "declared": declared_facts,
+                "registry_contract_fingerprint": registry_fingerprint,
+            }
+        )
+        if publish:
+            with client._state_lock:  # noqa: SLF001
+                client._execution_environment_digest = environment_digest  # noqa: SLF001
+                client._execution_environment_registry_fingerprint = (  # noqa: SLF001
+                    registry_fingerprint
+                )
+                client._execution_environment_selection_digest = (  # noqa: SLF001
+                    selection_digest
+                )
+        return environment_digest
+
+    def execution_generation_snapshot(
+        self,
+        selection: ExecutionBackendSelection,
+        *,
+        registry_contract_fingerprint: str = "",
+    ) -> ExecutionGenerationSnapshot:
+        if not isinstance(selection, ExecutionBackendSelection):
+            raise TypeError("selection must be an ExecutionBackendSelection")
+        client = self._client_for_selection(selection)
+        return self._generation_snapshot_for_client(
+            client,
+            selection,
+            registry_contract_fingerprint=registry_contract_fingerprint,
+        )
+
+    def preview_execution_environment(
+        self,
+        selection: ExecutionBackendSelection,
+        registry: NodeRegistry,
+    ) -> str:
+        """Compute the exact result-affecting environment without starting a run."""
+
+        if not isinstance(registry, NodeRegistry):
+            raise TypeError("registry must be a NodeRegistry")
+        client = self._client_for_selection(selection)
+        return self._bind_route_environment(
+            client,
+            selection,
+            registry,
+            publish=False,
+        )
+
+    @_registry_admitted
+    def reserve_run(
+        self,
+        selection: ExecutionBackendSelection,
+        workspace_id: str,
+    ) -> ExecutionRunReservation:
+        registry = self._published_registry
+        if registry is None:
+            raise RuntimeError("reserve_run requires a published registry")
+        client = self._client_for_selection(selection)
+        run_id = f"run_{uuid.uuid4().hex[:8]}"
+        normalized_workspace_id = str(workspace_id).strip()
+        if not normalized_workspace_id:
+            raise ValueError("workspace_id must be non-empty")
+        try:
+            if client is self._process_client:
+                client._ensure_process()  # noqa: SLF001
+            elif client is self._external_python_client:
+                python_executable = str(selection.python_executable).strip()
+                client._assert_process_transition_allowed()  # noqa: SLF001
+                client._verify_runtime_available(python_executable)  # noqa: SLF001
+                client._ensure_process(python_executable)  # noqa: SLF001
+            prepared = client._prepare_start_run(  # noqa: SLF001
+                run_id,
+                normalized_workspace_id,
+                registry.data_types,
+                registry.plugin_bundle_refs(),
+                registry.plugin_fingerprint(),
+                registry.contract_fingerprint(),
+                registry.addon_runtime_config(),
+            )
+            if not prepared:
+                raise RuntimeError("execution backend already has an active run")
+            if client is self._trusted_client:
+                with client._state_lock:  # noqa: SLF001
+                    client._accepted_physical_generation_token = (  # noqa: SLF001
+                        client._catalog_generation_token  # noqa: SLF001
+                    )
+            self._bind_route_environment(client, selection, registry)
+            self._client_selections[id(client)] = selection
+            snapshot = self._generation_snapshot_for_client(client, selection)
+            if not snapshot.available:
+                raise RuntimeError(snapshot.reason)
+        except Exception:
+            client._release_start_run(run_id)  # noqa: SLF001
+            raise
+        reservation = ExecutionRunReservation(
+            run_id=run_id,
+            workspace_id=normalized_workspace_id,
+            selection=selection,
+            generation_snapshot=snapshot,
+        )
+        with self._active_lock:
+            self._run_reservations[run_id] = (reservation, client)
+        return reservation
+
+    def release_run_reservation(
+        self,
+        reservation: ExecutionRunReservation,
+        reason: str,
+    ) -> None:
+        del reason
+        with self._active_lock:
+            stored = self._run_reservations.pop(reservation.run_id, None)
+        if stored is not None:
+            stored[1]._release_start_run(reservation.run_id)  # noqa: SLF001
+
+    @_registry_admitted
+    def start_reserved_run(
+        self,
+        reservation: ExecutionRunReservation,
+        command: Any,
+    ) -> str:
+        from ea_node_editor.execution.protocol import StartRunCommand
+
+        if not isinstance(reservation, ExecutionRunReservation):
+            raise TypeError("reservation must be an ExecutionRunReservation")
+        if not isinstance(command, StartRunCommand):
+            raise TypeError("command must be a StartRunCommand")
+        with self._active_lock:
+            stored = self._run_reservations.pop(reservation.run_id, None)
+        if stored is None or stored[0] != reservation:
+            raise ValueError("run reservation is unknown or already consumed")
+        client = stored[1]
+        registry = self._published_registry
+        if registry is None:
+            client._release_start_run(reservation.run_id)  # noqa: SLF001
+            raise RuntimeError("start_reserved_run requires a published registry")
+        if (
+            command.run_id != reservation.run_id
+            or command.workspace_id != reservation.workspace_id
+            or command.execution_backend != reservation.selection
+        ):
+            client._release_start_run(reservation.run_id)  # noqa: SLF001
+            raise ValueError("reserved command does not match the reservation")
+        current_generation = self._generation_snapshot_for_client(
+            client,
+            reservation.selection,
+        )
+        if not current_generation.compatible_with(reservation.generation_snapshot):
+            client._release_start_run(reservation.run_id)  # noqa: SLF001
+            raise ValueError("reserved execution generation changed before start")
+        if (
+            command.dispatch_runtime_generation
+            != reservation.generation_snapshot.runtime_generation
+            or command.execution_environment_digest
+            != reservation.generation_snapshot.environment_digest
+            or command.dispatch_runtime_generation
+            != current_generation.runtime_generation
+            or command.execution_environment_digest
+            != current_generation.environment_digest
+        ):
+            client._release_start_run(reservation.run_id)  # noqa: SLF001
+            raise ValueError(
+                "prepared command generation does not match the reserved execution"
+            )
+        with self._active_lock:
+            self._active_clients[reservation.run_id] = client
+            self._run_clients[reservation.run_id] = client
+            self._run_client_generations[reservation.run_id] = (
+                reservation.generation_snapshot.backend_generation
+            )
+            self._run_generation_snapshots[reservation.run_id] = (
+                reservation.generation_snapshot
+            )
+            self._run_workspace_ids[reservation.run_id] = reservation.workspace_id
+        try:
+            run_id = client.start_run(
+                command.project_path,
+                command.workspace_id,
+                trigger={
+                    **dict(command.trigger),
+                    "runtime_snapshot": command.runtime_snapshot,
+                    "developer_mode": command.developer_mode,
+                },
+                execution_backend=command.execution_backend,
+                target_node_ids=command.target_node_ids,
+                trigger_publications=command.trigger_publications,
+                trigger_captures=command.trigger_captures,
+                clicked_trigger_node_id=command.clicked_trigger_node_id,
+                data_types=registry.data_types,
+                plugin_bundles=registry.plugin_bundle_refs(),
+                plugin_fingerprint=registry.plugin_fingerprint(),
+                registry_contract_fingerprint=registry.contract_fingerprint(),
+                addon_runtime_config=registry.addon_runtime_config(),
+                _reserved_run_id=reservation.run_id,
+                _reservation_prepared=True,
+                _prepared_command=command,
+            )
+        except Exception:
+            client._release_start_run(reservation.run_id)  # noqa: SLF001
+            with self._active_lock:
+                self._active_clients.pop(reservation.run_id, None)
+                self._run_clients.pop(reservation.run_id, None)
+                self._run_client_generations.pop(reservation.run_id, None)
+                self._run_generation_snapshots.pop(reservation.run_id, None)
+                self._run_workspace_ids.pop(reservation.run_id, None)
+            raise
+        if run_id == reservation.run_id:
+            return run_id
+        client._release_start_run(reservation.run_id)  # noqa: SLF001
+        with self._active_lock:
+            self._active_clients.pop(reservation.run_id, None)
+            self._run_clients.pop(reservation.run_id, None)
+            self._run_client_generations.pop(reservation.run_id, None)
+            self._run_generation_snapshots.pop(reservation.run_id, None)
+            self._run_workspace_ids.pop(reservation.run_id, None)
+        return ""
+
     @staticmethod
     def _client_generation_token(client: Any) -> int:
         getter = getattr(client, "_catalog_generation_token_value", None)
@@ -3001,6 +3662,8 @@ class ExecutionBackendClient:
     def _ensure_route_generation_maps_locked(self) -> None:
         if not hasattr(self, "_run_client_generations"):
             self._run_client_generations = {}
+        if not hasattr(self, "_run_generation_snapshots"):
+            self._run_generation_snapshots = {}
         if not hasattr(self, "_workspace_client_generations"):
             self._workspace_client_generations = {}
         if not hasattr(self, "_session_client_generations"):
@@ -3168,6 +3831,7 @@ class ExecutionBackendClient:
                 continue
             client = self._run_clients.pop(run_id, None)
             self._run_client_generations.pop(run_id, None)
+            self._run_generation_snapshots.pop(run_id, None)
             self._run_workspace_ids.pop(run_id, None)
             if (
                 workspace_id
@@ -3201,6 +3865,7 @@ class ExecutionBackendClient:
             self._active_clients.pop(run_id, None)
             self._run_clients.pop(run_id, None)
             self._run_client_generations.pop(run_id, None)
+            self._run_generation_snapshots.pop(run_id, None)
             self._run_workspace_ids.pop(run_id, None)
             self._terminal_run_ids_seen.discard(run_id)
         stale_session_keys = tuple(
@@ -3274,6 +3939,7 @@ class ExecutionBackendClient:
                 self._run_workspace_ids.pop(run_id, None)
                 self._run_clients.pop(run_id, None)
                 self._run_client_generations.pop(run_id, None)
+                self._run_generation_snapshots.pop(run_id, None)
 
     def _dispatch_client_event(
         self,
@@ -3294,8 +3960,13 @@ class ExecutionBackendClient:
         opened_session = event_type == "viewer_session_opened"
         releases_session = event_type == "viewer_session_closed"
         retains_route = not releases_session and not failed_open
+        pinned_generation_snapshot = None
         with self._active_lock:
             self._ensure_route_generation_maps_locked()
+            if run_id:
+                pinned_generation_snapshot = self._run_generation_snapshots.get(
+                    run_id
+                )
             tracked_open = bool(
                 opened_session
                 and request_id
@@ -3356,6 +4027,32 @@ class ExecutionBackendClient:
                     generation_token=event_generation,
                 )
             self._trim_viewer_run_owners_locked()
+        generation_callbacks = tuple(getattr(self, "_generation_callbacks", ()))
+        if client is not None and generation_callbacks:
+            generation_snapshot = pinned_generation_snapshot
+            if generation_snapshot is not None:
+                current_snapshot = self._generation_snapshot_for_client(
+                    client,
+                    generation_snapshot.selection,
+                )
+                if not current_snapshot.available:
+                    generation_snapshot = current_snapshot
+            if generation_snapshot is None:
+                selection = getattr(self, "_client_selections", {}).get(
+                    id(client),
+                    ExecutionBackendSelection(),
+                )
+                generation_snapshot = self._generation_snapshot_for_client(
+                    client,
+                    selection,
+                )
+            for callback in generation_callbacks:
+                try:
+                    callback(dict(event), generation_snapshot)
+                except Exception:
+                    continue
+        if event_type == "execution_generation_changed":
+            return
         for callback in list(self._callbacks):
             try:
                 callback(dict(event))
@@ -3472,6 +4169,7 @@ class ExecutionBackendClient:
                 self._active_clients.pop(run_id, None)
                 self._run_clients.pop(run_id, None)
                 self._run_client_generations.pop(run_id, None)
+                self._run_generation_snapshots.pop(run_id, None)
                 self._run_workspace_ids.pop(run_id, None)
                 if not allow_unowned_fallback:
                     return None
@@ -3521,6 +4219,7 @@ class ExecutionBackendClient:
             self._active_clients.clear()
             self._run_clients.clear()
             self._run_client_generations.clear()
+            self._run_generation_snapshots.clear()
             self._run_workspace_ids.clear()
             self._workspace_clients.clear()
             self._workspace_client_generations.clear()
@@ -3576,6 +4275,7 @@ class ExecutionBackendClient:
             )
         )
         retired = any(retirement_results)
+        self._published_registry = registry
         if retired:
             self._clear_viewer_owners()
         return retired
@@ -3681,6 +4381,7 @@ class ExecutionBackendClient:
             client = self._trusted_client
         else:
             client = self._process_client
+        self._client_selections[id(client)] = selection
         previous_catalog_generation = self._client_generation_token(client)
         run_id = client.start_run(
             project_path,
@@ -3698,6 +4399,15 @@ class ExecutionBackendClient:
             addon_runtime_config=addon_runtime_config,
         )
         current_catalog_generation = self._client_generation_token(client)
+        run_generation_snapshot = (
+            self._generation_snapshot_for_client(
+                client,
+                selection,
+                registry_contract_fingerprint=registry_contract_fingerprint,
+            )
+            if run_id
+            else None
+        )
         with self._active_lock:
             self._ensure_route_generation_maps_locked()
             if previous_catalog_generation != current_catalog_generation:
@@ -3709,6 +4419,10 @@ class ExecutionBackendClient:
                     self._terminal_run_ids_seen.discard(run_id)
                 self._run_clients[run_id] = client
                 self._run_client_generations[run_id] = current_catalog_generation
+                if run_generation_snapshot is not None:
+                    self._run_generation_snapshots[run_id] = (
+                        run_generation_snapshot
+                    )
                 self._run_workspace_ids[run_id] = str(workspace_id).strip()
                 if str(workspace_id).strip():
                     self._workspace_clients[str(workspace_id).strip()] = client
@@ -3733,8 +4447,46 @@ class ExecutionBackendClient:
             self._active_clients.pop(run_id, None)
             self._run_clients.pop(run_id, None)
             self._run_client_generations.pop(run_id, None)
+            self._run_generation_snapshots.pop(run_id, None)
             self._run_workspace_ids.pop(run_id, None)
         return None
+
+    def lease_solution_resource(
+        self,
+        run_id: str,
+        value: Any,
+        *,
+        owner_scope: str,
+    ) -> tuple[Any, ExecutionResourceLease] | None:
+        if not isinstance(value, RuntimeHandleRef):
+            return None
+        with self._active_lock:
+            self._ensure_route_generation_maps_locked()
+            client = self._run_clients.get(str(run_id).strip())
+            snapshot = self._run_generation_snapshots.get(str(run_id).strip())
+        if (
+            client is not self._trusted_client
+            or snapshot is None
+            or value.worker_generation != snapshot.runtime_generation
+        ):
+            return None
+        try:
+            leased = client._worker_services.lease_handle(  # noqa: SLF001
+                value,
+                owner_scope=str(owner_scope).strip(),
+            )
+        except (LookupError, RuntimeError, TypeError, ValueError):
+            return None
+        return leased, ExecutionResourceLease(client=client, value=leased)
+
+    @staticmethod
+    def release_solution_resource(lease: Any) -> None:
+        if not isinstance(lease, ExecutionResourceLease):
+            return
+        try:
+            lease.client._worker_services.release_handle(lease.value)  # noqa: SLF001
+        except (LookupError, RuntimeError, TypeError, ValueError):
+            return
 
     def pause_run(self, run_id: str) -> None:
         client = self._client_for_run(run_id)
@@ -3831,7 +4583,24 @@ class ExecutionBackendClient:
         return client.query_viewer_session(*args, **kwargs)
 
     def shutdown(self) -> None:
+        with self._active_lock:
+            reservation_map = getattr(self, "_run_reservations", {})
+            reservations = tuple(reservation_map.values())
+            reservation_map.clear()
+        for reservation, client in reservations:
+            client._release_start_run(reservation.run_id)  # noqa: SLF001
         self._process_client.shutdown()
         self._trusted_client.shutdown()
         self._external_python_client.shutdown()
         self._clear_viewer_owners()
+
+
+__all__ = [
+    "ExecutionBackendClient",
+    "ExecutionGenerationSnapshot",
+    "ExecutionResourceLease",
+    "ExecutionRunReservation",
+    "ExternalPythonExecutionClient",
+    "ProcessExecutionClient",
+    "TrustedInProcessExecutionClient",
+]

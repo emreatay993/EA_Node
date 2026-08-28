@@ -14,6 +14,12 @@ from ea_node_editor.runtime_contracts import (
     RuntimeArtifactRef,
     RuntimeHandleRef,
 )
+from ea_node_editor.runtime_contracts.solution_records import (
+    NodeSolutionFact,
+    SolutionDisposition,
+    SolutionFreshness,
+    SolutionResidency,
+)
 from ea_node_editor.ui.shell.state import ShellRunState
 from ea_node_editor.ui_qml.graph_canvas_state import GraphCanvasStateBridge
 
@@ -182,6 +188,7 @@ class DpfUiSummaryTests(unittest.TestCase):
             "workspace": {
                 "node": {
                     "older": {
+                        "record_id": "older",
                         "observed_at_epoch_ms": 100.0,
                         "stale": False,
                         "dpf_workflow_summary": {
@@ -191,6 +198,7 @@ class DpfUiSummaryTests(unittest.TestCase):
                         },
                     },
                     "newer": {
+                        "record_id": "newer",
                         "observed_at_epoch_ms": 200.0,
                         "stale": True,
                         "dpf_workflow_summary": {
@@ -200,6 +208,23 @@ class DpfUiSummaryTests(unittest.TestCase):
                         },
                     },
                 }
+            }
+        }
+        source.run_state.node_solution_facts_by_workspace_id = {
+            "workspace": {
+                "node": NodeSolutionFact(
+                    project_id="project",
+                    workspace_id="workspace",
+                    node_id="node",
+                    freshness=SolutionFreshness.EXPIRED,
+                    revision=1,
+                    retained_record_id="newer",
+                    retained_solution_key="a" * 64,
+                    residency=SolutionResidency.SESSION,
+                    expiration_reason_code="graph_changed",
+                    expiration_root_node_ids=("node",),
+                    last_disposition=SolutionDisposition.RECOMPUTED,
+                )
             }
         }
         bridge = GraphCanvasStateBridge(
@@ -215,6 +240,56 @@ class DpfUiSummaryTests(unittest.TestCase):
                     "headline": "Newer",
                     "detail": "Graph changed",
                     "facts": [{"label": "Rows", "value": "10"}],
+                }
+            },
+        )
+
+    def test_metadata_only_record_does_not_project_a_ready_dpf_summary(self) -> None:
+        source = _ExecutionSource()
+        source.run_state.cached_node_output_records_by_workspace_id = {
+            "workspace": {
+                "node": {
+                    "record": {
+                        "record_id": "record",
+                        "observed_at_epoch_ms": 1.0,
+                        "outputs_available": False,
+                        "dpf_workflow_summary": {
+                            "headline": "Stress · 2 fields",
+                            "detail": "Nodal · MPa",
+                            "facts": [],
+                        },
+                    }
+                }
+            }
+        }
+        source.run_state.node_solution_facts_by_workspace_id = {
+            "workspace": {
+                "node": NodeSolutionFact(
+                    project_id="project",
+                    workspace_id="workspace",
+                    node_id="node",
+                    freshness=SolutionFreshness.CURRENT,
+                    revision=1,
+                    retained_record_id="record",
+                    retained_solution_key="a" * 64,
+                    residency=SolutionResidency.SESSION,
+                    last_disposition=SolutionDisposition.RECOMPUTED,
+                )
+            }
+        }
+        bridge = GraphCanvasStateBridge(
+            execution_source=source,
+            scene_bridge=_SceneBridge(),  # type: ignore[arg-type]
+        )
+
+        self.assertEqual(
+            bridge.dpf_workflow_summary_lookup,
+            {
+                "node": {
+                    "state": "unavailable",
+                    "headline": "Unavailable",
+                    "detail": "",
+                    "facts": [],
                 }
             },
         )

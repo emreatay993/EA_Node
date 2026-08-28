@@ -13,10 +13,10 @@ from ea_node_editor.nodes.builtin_functions.security import SOURCE as SECURITY_S
 from ea_node_editor.nodes.builtins import security_contracts as security_module
 from ea_node_editor.execution.protocol import (
     NodeSettledEvent,
-    SettledPortResult,
     dict_to_event,
     event_to_dict,
 )
+from ea_node_editor.runtime_contracts.settled_results import SettledPortResult
 from ea_node_editor.nodes.builtins.security_contracts import (
     AUTHENTICATION_DATA_TYPE_ID,
     COREX_SECURITY_CONTRACT_MANIFEST,

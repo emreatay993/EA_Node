@@ -17,7 +17,6 @@ from ea_node_editor.graph.records import NodeInstance
 from ea_node_editor.nodes.registry import NodeRegistry
 from ea_node_editor.ui.shell.runtime_history import ACTION_DELETE_SELECTED
 from ea_node_editor.ui.port_availability import (
-    clear_port_availability_runtime_workspace,
     unavailable_connection_reason,
 )
 
@@ -190,7 +189,6 @@ class GraphInteractions:
             )
         except (KeyError, ValueError) as exc:
             return GraphActionResult(False, str(exc))
-        clear_port_availability_runtime_workspace(workspace.workspace_id)
         return GraphActionResult(True)
 
     def remove_edge(self, edge_id: str) -> GraphActionResult:
@@ -201,7 +199,6 @@ class GraphInteractions:
         if normalized_edge_id not in workspace.edges:
             return GraphActionResult(False, "Connection not found.")
         self._scene.remove_edge(normalized_edge_id)
-        clear_port_availability_runtime_workspace(workspace.workspace_id)
         return GraphActionResult(True)
 
     def rewire_edges(
@@ -293,7 +290,6 @@ class GraphInteractions:
             return GraphActionResult(False, str(exc))
         if not changed:
             return GraphActionResult(False, "Connection was not changed.")
-        clear_port_availability_runtime_workspace(workspace.workspace_id)
         return GraphActionResult(True)
 
     def move_edge_endpoint(
@@ -324,7 +320,6 @@ class GraphInteractions:
             self._scene.remove_node(normalized_node_id)
             return GraphActionResult(False, "Node not found.")
         self._scene.remove_node(normalized_node_id)
-        clear_port_availability_runtime_workspace(workspace.workspace_id)
         if normalized_node_id in workspace.nodes:
             return GraphActionResult(False, "Node could not be removed from the current scope.")
         return GraphActionResult(True)

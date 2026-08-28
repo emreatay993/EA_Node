@@ -79,6 +79,8 @@ Use this for QML shell composition, Python-to-QML bridge wiring, shell bridge mo
 - Prefer focused bridge boundary tests for QML/Python contract changes.
 - `ShellAddOnManagerBridge` owns transient managed-install progress; worker signals queue the latest runtime output line to `AddOnManagerPane.qml`, and thread cleanup clears it.
 
+- `GraphCanvasStateBridge` projects `node_solution_freshness_lookup` through `GraphCanvasExecutionFacts.nodeSolutionFreshnessLookup`; missing means never. This is transport-only—no badge, color, tooltip, animation, or action consumes it yet. The unchanged `freshRunNodeLookup` is derived from current solution facts for existing neutral chrome.
+
 ## Focused Verification
 ```powershell
 .\venv\Scripts\python.exe -m pytest tests/test_script_editor_dock.py --ignore=venv -q

@@ -4,13 +4,13 @@ import unittest
 
 from ea_node_editor.execution.protocol import (
     NodeSettledEvent,
-    SettledPortResult,
     StartRunCommand,
     command_to_dict,
     dict_to_command,
     dict_to_event,
     event_to_dict,
 )
+from ea_node_editor.runtime_contracts.settled_results import SettledPortResult
 from ea_node_editor.execution.runtime_snapshot import RuntimeSnapshot
 from ea_node_editor.execution.runtime_value_codec import (
     deserialize_runtime_value,

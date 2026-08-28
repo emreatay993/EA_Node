@@ -19,6 +19,8 @@ Use this for support layers that are not owned by graph, persistence, or UI: tel
 - `runtime_contracts/runtime_values.py` owns carrier serialization for native values, `TypedInlineValue`, `RuntimeHandleRef`, `RuntimeArtifactRef`, and `ImageValue`.
 - `runtime_contracts/data_types.py` owns catalog registration, parent assignability, carrier compatibility, and catalog fingerprints.
 - `runtime_contracts/interval_1d.py` owns immutable ordered `Interval1D` values and strict coercion.
+- `runtime_contracts/settled_results.py` owns immutable settled port/root-error DTOs plus shared DataTree/output/error count and transport limits.
+- `runtime_contracts/solution_records.py` owns strict immutable freshness, residency, heterogeneous concrete-type/carrier output descriptors, payload locators, and `reuse_eligible` observation/solution records without importing execution implementation.
 
 ## Boundaries
 - Keep support ownership explicit; do not move graph, persistence, or UI behavior here.
@@ -34,6 +36,7 @@ Use this for support layers that are not owned by graph, persistence, or UI: tel
 - `tests/test_tree_path_types.py`
 - `tests/test_core_media_types.py`
 - `tests/test_unit_types.py`
+- `tests/test_solution_records.py`
 
 ## Focused Verification
 ```powershell

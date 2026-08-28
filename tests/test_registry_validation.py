@@ -66,6 +66,7 @@ from ea_node_editor.nodes.ansys_dpf_data_types import (
     COREX_MODEL_INTERFACE_DATA_TYPE,
 )
 from ea_node_editor.nodes.bootstrap import build_default_registry
+from ea_node_editor.nodes.solution_provenance import SolutionProvenanceInputSpec
 from ea_node_editor.nodes.builtins.ansys_dpf_common import (
     DPF_FIELD_OPS_VARIANT_NORM,
     DPF_NODE_CATEGORY_PATH,
@@ -88,6 +89,10 @@ from ea_node_editor.nodes.decorators import (
     prop_enum,
     prop_int,
     prop_interval_1d,
+)
+from ea_node_editor.nodes.function_plugin import (
+    INTERNAL_BUILTIN_FUNCTION_OWNER_ID,
+    PythonFunctionRef,
 )
 from ea_node_editor.nodes.readiness import (
     evaluate_node_readiness,
@@ -4333,6 +4338,154 @@ class RegistryValidationTests(unittest.TestCase):
         self.assertEqual(
             registry.data_types.require(SSH_SFTP_HOST_DATA_TYPE_ID).persistence,
             "never",
+        )
+
+    def test_solution_reuse_scope_is_fail_closed_by_registry_entry_kind(self) -> None:
+        registry = NodeRegistry()
+        base = NodeTypeSpec(
+            "tests.solution_scope",
+            "Solution Scope",
+            ("Tests",),
+            "",
+            (),
+            (),
+        )
+        invalid = replace(base, solution_reuse_scope="global")  # type: ignore[arg-type]
+        with self.assertRaisesRegex(ValueError, "solution_reuse_scope"):
+            registry.validate_spec(invalid)
+
+        trusted = replace(base, solution_reuse_scope="session")
+        with self.assertRaisesRegex(ValueError, "Trusted factory.*never"):
+            registry.register_descriptor(trusted, _factory(trusted))
+
+        passive = replace(
+            base,
+            runtime_behavior="passive",
+            solution_reuse_scope="session",
+        )
+        with self.assertRaisesRegex(ValueError, "non-active.*never"):
+            registry.validate_spec(passive)
+
+        public = replace(
+            base,
+            type_id="custom.solution_scope.1234abcd",
+            solution_reuse_scope="durable",
+        )
+        function_ref = PythonFunctionRef(
+            bundle_id="public.bundle",
+            bundle_digest="a" * 64,
+            module_relative_path="node.py",
+            function_name="run",
+            source_digest="b" * 64,
+        )
+        with self.assertRaisesRegex(ValueError, "Untrusted function.*never"):
+            registry.register_python_function(public, function_ref)
+
+        non_custom_untrusted = replace(
+            base,
+            type_id="tests.non_custom_untrusted",
+            solution_reuse_scope="durable",
+        )
+        with self.assertRaisesRegex(ValueError, "Untrusted function.*never"):
+            registry.register_python_function(
+                non_custom_untrusted,
+                replace(function_ref, bundle_id="untrusted.bundle"),
+            )
+
+    def test_solution_reuse_scope_changes_registry_contract_fingerprint(self) -> None:
+        function_ref = PythonFunctionRef(
+            bundle_id=INTERNAL_BUILTIN_FUNCTION_OWNER_ID,
+            bundle_digest="a" * 64,
+            module_relative_path="node.py",
+            function_name="run",
+            source_digest="b" * 64,
+        )
+        base = NodeTypeSpec(
+            "tests.solution_fingerprint",
+            "Solution Fingerprint",
+            ("Tests",),
+            "",
+            (),
+            (),
+        )
+        first = NodeRegistry()
+        first.register_python_function(base, function_ref)
+        second = NodeRegistry()
+        second._register_trusted_python_function(  # noqa: SLF001
+            replace(base, solution_reuse_scope="session"),
+            function_ref,
+        )
+
+        self.assertNotEqual(
+            first.contract_fingerprint(),
+            second.contract_fingerprint(),
+        )
+
+    def test_solution_provenance_overlay_is_registry_owned_and_trusted_only(self) -> None:
+        registry = build_default_registry()
+        for type_id in (
+            "engineering.cad_import",
+            "engineering.fe_import",
+            "io.file_read",
+            "io.image_import",
+            "io.excel_read",
+            "tabular.input",
+        ):
+            self.assertEqual(
+                registry.get_spec(type_id).solution_provenance_inputs,
+                (SolutionProvenanceInputSpec("path", "file"),),
+            )
+
+        base = NodeTypeSpec(
+            "io.file_read",
+            "Untrusted Lookalike",
+            ("Tests",),
+            "",
+            (),
+            (),
+        )
+        function_ref = PythonFunctionRef(
+            bundle_id="untrusted.bundle",
+            bundle_digest="a" * 64,
+            module_relative_path="node.py",
+            function_name="run",
+            source_digest="b" * 64,
+        )
+        untrusted = NodeRegistry()
+        untrusted.register_python_function(base, function_ref)
+        self.assertEqual(
+            untrusted.get_spec(base.type_id).solution_provenance_inputs,
+            (),
+        )
+        with self.assertRaisesRegex(ValueError, "cannot supply solution provenance"):
+            NodeRegistry().register_python_function(
+                replace(
+                    base,
+                    solution_provenance_inputs=(
+                        SolutionProvenanceInputSpec("path", "file"),
+                    ),
+                ),
+                function_ref,
+            )
+
+    def test_execution_environment_facts_include_packages_addons_and_toolchains(
+        self,
+    ) -> None:
+        facts = build_default_registry().execution_environment_facts()
+        self.assertIn("numpy", facts["python_packages"])
+        self.assertTrue(
+            any(
+                owner_id == "ea_node_editor.builtins.tabular_data"
+                for owner_id, _enabled, _version in facts["addons"]
+            )
+        )
+        self.assertTrue(
+            any(
+                toolchain_id == "tabular_data.python_runtime"
+                for _owner, toolchain_id, _kind, _language, _requirements in facts[
+                    "toolchains"
+                ]
+            )
         )
 
 

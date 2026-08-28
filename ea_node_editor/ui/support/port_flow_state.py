@@ -27,8 +27,11 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 
-from ea_node_editor.execution.protocol import SettledPortResult
+from ea_node_editor.runtime_contracts.settled_results import SettledPortResult
 from ea_node_editor.runtime_contracts.data_tree import DataTree
+from ea_node_editor.ui.support.solution_output_cache import (
+    retained_output_record_from_records,
+)
 
 PORT_FLOW_STATES = (
     "flowing",
@@ -69,22 +72,15 @@ def resolve_port_flow_state(
     return "default" if has_default else ("waiting" if required else "idle")
 
 
-def _latest_outputs(records: object) -> Mapping[str, object]:
-    if not isinstance(records, Mapping):
+def _latest_outputs(records: object, fact: object | None) -> Mapping[str, object]:
+    latest_record = retained_output_record_from_records(
+        records,
+        fact,
+        current_only=True,
+    )
+    if latest_record is None:
         return {}
-    latest_record: Mapping[str, object] | None = None
-    latest_observed_at = float("-inf")
-    for record in records.values():
-        if not isinstance(record, Mapping):
-            continue
-        try:
-            observed_at = float(record.get("observed_at_epoch_ms", 0.0) or 0.0)
-        except (TypeError, ValueError):
-            observed_at = 0.0
-        if observed_at >= latest_observed_at:
-            latest_record = record
-            latest_observed_at = observed_at
-    if latest_record is None or bool(latest_record.get("stale", False)):
+    if not bool(latest_record.get("outputs_available", True)):
         return {}
     outputs = latest_record.get("outputs")
     return outputs if isinstance(outputs, Mapping) else {}
@@ -104,13 +100,20 @@ def resolve_runtime_port_flow_states(
     node_payloads: object,
     edge_payloads: object,
     output_records_by_node: object,
+    solution_facts_by_node: object = None,
 ) -> dict[str, dict[str, str]]:
     """Refine topology fallback states with retained runtime output presence."""
     records_by_node = (
         output_records_by_node if isinstance(output_records_by_node, Mapping) else {}
     )
+    facts_by_node = (
+        solution_facts_by_node if isinstance(solution_facts_by_node, Mapping) else {}
+    )
     latest_outputs_by_node = {
-        str(raw_node_id or "").strip(): _latest_outputs(records)
+        str(raw_node_id or "").strip(): _latest_outputs(
+            records,
+            facts_by_node.get(raw_node_id),
+        )
         for raw_node_id, records in records_by_node.items()
         if str(raw_node_id or "").strip()
     }

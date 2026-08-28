@@ -8,7 +8,10 @@ from types import SimpleNamespace
 
 import pytest
 
-from ea_node_editor.execution.protocol import RootExecutionError, SettledPortResult
+from ea_node_editor.runtime_contracts.settled_results import (
+    RootExecutionError,
+    SettledPortResult,
+)
 from ea_node_editor.execution.runtime_dto import RuntimeEdge
 from ea_node_editor.execution.worker_runner import NodeExecutor
 from ea_node_editor.nodes.node_specs import PortSpec

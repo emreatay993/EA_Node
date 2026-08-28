@@ -12,71 +12,39 @@ from typing import Any, Iterable, Literal, Protocol
 from ea_node_editor.addons.ansys_dpf.ui_summary import project_dpf_workflow_summary
 from ea_node_editor.developer_mode import developer_mode_capability_enabled
 from ea_node_editor.execution.backends import EXTERNAL_SUBPROCESS_BACKEND
+from ea_node_editor.execution.headless_runtime import ExecutionRequest
+from ea_node_editor.execution.prepared_execution import SolutionStateChangedEvent
 from ea_node_editor.execution.protocol import (
-    RootExecutionError,
-    SettledPortResult,
     normalize_root_execution_errors,
     normalize_settled_output_mapping,
     normalize_settled_port_result,
+)
+from ea_node_editor.runtime_contracts.settled_results import (
+    RootExecutionError,
+    SettledPortResult,
 )
 from ea_node_editor.execution.python_environment import (
     workflow_python_path_from_snapshot,
 )
 from ea_node_editor.execution.runtime_snapshot import build_runtime_snapshot
-from ea_node_editor.graph.effective_ports import effective_ports
 from ea_node_editor.graph.hierarchy import root_node_ids_for_fragment, subtree_node_ids
-from ea_node_editor.graph.workspace_state import WorkspaceSnapshot
 from ea_node_editor.ui.icon_registry import qicon
 from ea_node_editor.ui.port_availability import (
+    clear_port_availability_runtime_node,
     clear_port_availability_runtime_workspace,
     observe_node_outputs,
 )
 from ea_node_editor.ui.shell.runtime_history import (
-    ACTION_ADD_EDGE,
-    ACTION_ADD_NODE,
-    ACTION_DELETE_SELECTED,
-    ACTION_DUPLICATE_SUBGRAPH,
-    ACTION_EDIT_NODE_PROPERTY,
-    ACTION_EDIT_PORT_MODIFIERS,
-    ACTION_GROUP_SELECTED_NODES,
-    ACTION_INSERT_DYNAMIC_PORT,
-    ACTION_PASTE_SUBGRAPH,
-    ACTION_REMOVE_DYNAMIC_PORT,
-    ACTION_REMOVE_EDGE,
-    ACTION_REMOVE_NODE,
-    ACTION_RENAME_DYNAMIC_PORT,
-    ACTION_SET_PRINCIPAL_INPUT,
-    ACTION_TOGGLE_EDGE_ENABLED,
-    ACTION_TOGGLE_EXPOSED_PORT,
-    ACTION_UNGROUP_SELECTED_SUBNODE,
-    history_action_invalidates_persistent_node_elapsed,
+    classify_history_execution_change,
 )
 from ea_node_editor.ui.shell.run_flow import (
     event_targets_active_run,
     selected_workspace_run_control_state,
 )
 from ea_node_editor.ui.shell.state import ShellRunState
-
-_AUTO_RUN_ACTION_TYPES = frozenset(
-    {
-        ACTION_ADD_EDGE,
-        ACTION_ADD_NODE,
-        ACTION_DELETE_SELECTED,
-        ACTION_DUPLICATE_SUBGRAPH,
-        ACTION_EDIT_NODE_PROPERTY,
-        ACTION_EDIT_PORT_MODIFIERS,
-        ACTION_GROUP_SELECTED_NODES,
-        ACTION_INSERT_DYNAMIC_PORT,
-        ACTION_PASTE_SUBGRAPH,
-        ACTION_REMOVE_DYNAMIC_PORT,
-        ACTION_REMOVE_EDGE,
-        ACTION_REMOVE_NODE,
-        ACTION_RENAME_DYNAMIC_PORT,
-        ACTION_SET_PRINCIPAL_INPUT,
-        ACTION_TOGGLE_EDGE_ENABLED,
-        ACTION_TOGGLE_EXPOSED_PORT,
-        ACTION_UNGROUP_SELECTED_SUBNODE,
-    }
+from ea_node_editor.ui.support.solution_output_cache import (
+    cache_accepted_output_record,
+    remove_cached_nodes,
 )
 
 
@@ -184,21 +152,27 @@ class RunController:
 
     def clear_pending_auto_run(self) -> None:
         self._state.pending_auto_run_workspace_id = ""
-        self._state.pending_auto_run_root_node_ids.clear()
+        self._state.pending_auto_run_target_node_ids.clear()
 
     def reset_runtime_solution_state(self) -> None:
         from ea_node_editor.ui.image_value_preview_provider import clear_image_value_previews
 
         clear_image_value_previews()
         state = self._state
+        for workspace_id in tuple(self._host.model.project.workspaces):
+            clear_port_availability_runtime_workspace(workspace_id)
         self.clear_pending_auto_run()
         state.solution_mode_by_workspace_id.clear()
         state.latest_trigger_inputs_by_workspace_id.clear()
         state.trigger_publications_by_workspace_id.clear()
         state.current_trigger_capture_node_ids_by_workspace_id.clear()
         state.cached_node_output_records_by_workspace_id.clear()
+        state.node_output_run_counts_by_workspace_id.clear()
+        state.node_output_cache_sequence = 0
         state.cached_node_elapsed_ms_by_workspace_id.clear()
-        state.fresh_run_node_ids_by_workspace_id.clear()
+        state.solution_project_id = ""
+        state.solution_revision_by_workspace_id.clear()
+        state.node_solution_facts_by_workspace_id.clear()
         state.runtime_warning_messages_by_workspace_id.clear()
         self.clear_node_execution_visualization_state()
         self.clear_active_run()
@@ -215,8 +189,10 @@ class RunController:
             state.trigger_publications_by_workspace_id,
             state.current_trigger_capture_node_ids_by_workspace_id,
             state.cached_node_output_records_by_workspace_id,
+            state.node_output_run_counts_by_workspace_id,
             state.cached_node_elapsed_ms_by_workspace_id,
-            state.fresh_run_node_ids_by_workspace_id,
+            state.solution_revision_by_workspace_id,
+            state.node_solution_facts_by_workspace_id,
             state.runtime_warning_messages_by_workspace_id,
         ):
             for workspace_id in tuple(mapping):
@@ -261,6 +237,11 @@ class RunController:
         if self._solution_project_identity != id(self._host.model.project):
             self.reset_runtime_solution_state()
         normalized_workspace_id = str(workspace_id or "").strip()
+        if (
+            self._state.pending_auto_run_workspace_id
+            and self._state.pending_auto_run_workspace_id != normalized_workspace_id
+        ):
+            self.clear_pending_auto_run()
         workspace = self._host.model.project.workspaces.get(normalized_workspace_id)
         if workspace is None:
             return
@@ -291,36 +272,24 @@ class RunController:
         self.clear_run_failure_focus()
         workspace_id = self._host.workspace_manager.active_workspace_id()
         self.prune_runtime_solution_state()
-        clear_port_availability_runtime_workspace(workspace_id)
+        workspace = self._host.model.project.workspaces.get(workspace_id)
+        if workspace is None:
+            return
         runtime_snapshot = build_runtime_snapshot(
             self._host.model.project,
             workspace_id=workspace_id,
             registry=self._host.registry,
         )
-        trigger = {
-            "kind": "manual",
-            "workflow_settings": self._host.project_session_controller.workflow_settings_payload(),
-            "runtime_snapshot": runtime_snapshot,
-            "developer_mode": self._developer_mode_active(),
-        }
-        viewer_preflight_reset = self._preflight_release_live_viewers_for_rerun()
         self._host.console_panel.clear_all()
         self.clear_selected_run_preview()
-        run_id = self._host.execution_client.start_run(
-            project_path=self._host.project_path,
+        run_id = self._prepare_and_dispatch(
             workspace_id=workspace_id,
-            trigger=trigger,
-            execution_backend=self._execution_backend_policy_for_runtime_snapshot(
-                runtime_snapshot
-            ),
-            target_node_ids=(),
-            trigger_publications=dict(
-                self._state.trigger_publications_by_workspace_id.get(workspace_id, {})
-            ),
+            runtime_snapshot=runtime_snapshot,
+            trigger_kind="manual",
+            target_node_ids=self._active_node_ids(workspace),
+            viewer_preflight=True,
         )
         if not run_id:
-            if viewer_preflight_reset:
-                self._restore_live_viewers_after_failed_start()
             self._host.console_panel.append_log(
                 "error", "Failed to start workflow run."
             )
@@ -330,14 +299,6 @@ class RunController:
             )
             self.set_run_ui_state("error", "Start Failed", 0, 0, 0, 1, clear_run=True)
             return
-        self._state.active_run_id = run_id
-        self._state.active_run_workspace_id = workspace_id
-        self._run_start_runtime_snapshots[run_id] = runtime_snapshot
-        self._invalidate_viewer_sessions_for_rerun(
-            workspace_id=workspace_id, run_id=run_id
-        )
-        if viewer_preflight_reset:
-            self._resume_live_viewers_after_preflight()
         self.set_run_ui_state("running", "Starting", 1, 0, 0, 0)
 
     def run_selected_nodes(
@@ -361,7 +322,19 @@ class RunController:
                 "warning", "No active workspace is available."
             )
             return
-        target_node_ids = self._selected_run_target_node_ids(workspace, node_ids)
+        target_node_ids = (
+            tuple(
+                candidate
+                for candidate in workspace.nodes
+                if candidate
+                in {
+                    str(node_id or "").strip() for node_id in (node_ids or ())
+                }
+                and self._node_is_active(workspace, candidate)
+            )
+            if normalized_trigger_kind == "auto"
+            else self._selected_run_target_node_ids(workspace, node_ids)
+        )
         if not target_node_ids:
             self._host.console_panel.append_log(
                 "warning", "Select an executable node or group to run."
@@ -391,32 +364,19 @@ class RunController:
             return
         self.clear_run_failure_focus()
         self.prune_runtime_solution_state()
-        clear_port_availability_runtime_workspace(workspace_id)
         runtime_snapshot = build_runtime_snapshot(
             self._host.model.project,
             workspace_id=workspace_id,
             registry=self._host.registry,
         )
-        trigger = {
-            "kind": normalized_trigger_kind,
-            "workflow_settings": self._host.project_session_controller.workflow_settings_payload(),
-            "runtime_snapshot": runtime_snapshot,
-            "developer_mode": self._developer_mode_active(),
-        }
         self._host.console_panel.clear_all()
         if preview_enabled:
             self._host.console_panel.append_log("info", preview_text)
-        run_id = self._host.execution_client.start_run(
-            project_path=self._host.project_path,
+        run_id = self._prepare_and_dispatch(
             workspace_id=workspace_id,
-            trigger=trigger,
-            execution_backend=self._execution_backend_policy_for_runtime_snapshot(
-                runtime_snapshot
-            ),
+            runtime_snapshot=runtime_snapshot,
+            trigger_kind=normalized_trigger_kind,
             target_node_ids=target_node_ids,
-            trigger_publications=dict(
-                self._state.trigger_publications_by_workspace_id.get(workspace_id, {})
-            ),
         )
         if not run_id:
             self._host.console_panel.append_log(
@@ -425,12 +385,6 @@ class RunController:
             self.set_run_ui_state("error", "Start Failed", 0, 0, 0, 1, clear_run=True)
             return
         self.clear_selected_run_preview()
-        self._state.active_run_id = run_id
-        self._state.active_run_workspace_id = workspace_id
-        self._run_start_runtime_snapshots[run_id] = runtime_snapshot
-        self._invalidate_viewer_sessions_for_rerun(
-            workspace_id=workspace_id, run_id=run_id
-        )
         self.set_run_ui_state("running", "Starting", 1, 0, 0, 0)
 
     def trigger_node(self, node_id: str) -> bool:
@@ -454,18 +408,11 @@ class RunController:
             return False
         self.clear_run_failure_focus()
         self.prune_runtime_solution_state()
-        clear_port_availability_runtime_workspace(workspace_id)
         runtime_snapshot = build_runtime_snapshot(
             self._host.model.project,
             workspace_id=workspace_id,
             registry=self._host.registry,
         )
-        trigger = {
-            "kind": "trigger",
-            "workflow_settings": self._host.project_session_controller.workflow_settings_payload(),
-            "runtime_snapshot": runtime_snapshot,
-            "developer_mode": self._developer_mode_active(),
-        }
         latest_captures = self._state.latest_trigger_inputs_by_workspace_id.get(
             workspace_id, {}
         )
@@ -481,17 +428,11 @@ class RunController:
             else {}
         )
         self._host.console_panel.clear_all()
-        run_id = self._host.execution_client.start_run(
-            project_path=self._host.project_path,
+        run_id = self._prepare_and_dispatch(
             workspace_id=workspace_id,
-            trigger=trigger,
-            execution_backend=self._execution_backend_policy_for_runtime_snapshot(
-                runtime_snapshot
-            ),
+            runtime_snapshot=runtime_snapshot,
+            trigger_kind="trigger",
             target_node_ids=(normalized_node_id,),
-            trigger_publications=dict(
-                self._state.trigger_publications_by_workspace_id.get(workspace_id, {})
-            ),
             trigger_captures=trigger_captures,
             clicked_trigger_node_id=normalized_node_id,
         )
@@ -499,14 +440,66 @@ class RunController:
             self._host.console_panel.append_log("error", "Failed to trigger node.")
             self.set_run_ui_state("error", "Start Failed", 0, 0, 0, 1, clear_run=True)
             return False
+        self.set_run_ui_state("running", "Starting", 1, 0, 0, 0)
+        return True
+
+    def _prepare_and_dispatch(
+        self,
+        *,
+        workspace_id: str,
+        runtime_snapshot: Any,
+        trigger_kind: str,
+        target_node_ids: tuple[str, ...],
+        trigger_captures: Mapping[str, SettledPortResult] | None = None,
+        clicked_trigger_node_id: str = "",
+        viewer_preflight: bool = False,
+    ) -> str:
+        client = self._host.execution_client
+        request = ExecutionRequest(
+            project_path=self._host.project_path,
+            workspace_id=workspace_id,
+            trigger={
+                "kind": str(trigger_kind),
+                "workflow_settings": self._host.project_session_controller.workflow_settings_payload(),
+                "developer_mode": self._developer_mode_active(),
+            },
+            runtime_snapshot=runtime_snapshot,
+            execution_backend=self._execution_backend_policy_for_runtime_snapshot(
+                runtime_snapshot
+            ),
+            target_node_ids=tuple(target_node_ids),
+            trigger_publications=dict(
+                self._state.trigger_publications_by_workspace_id.get(workspace_id, {})
+            ),
+            trigger_captures=dict(trigger_captures or {}),
+            clicked_trigger_node_id=clicked_trigger_node_id,
+        )
+        viewer_preflight_reset = False
+        try:
+            prepared = client.prepare_execution(request)
+            if viewer_preflight:
+                viewer_preflight_reset = self._preflight_release_live_viewers_for_rerun()
+            for node_id in prepared.recompute_node_ids:
+                clear_port_availability_runtime_node(workspace_id, node_id)
+            run_id = client.dispatch_prepared(prepared)
+        except Exception as exc:  # noqa: BLE001
+            self._host.console_panel.append_log("error", str(exc))
+            run_id = ""
+        self._sync_solution_facts(workspace_id)
+        if not run_id:
+            if viewer_preflight_reset:
+                self._restore_live_viewers_after_failed_start()
+            return ""
         self._state.active_run_id = run_id
         self._state.active_run_workspace_id = workspace_id
         self._run_start_runtime_snapshots[run_id] = runtime_snapshot
         self._invalidate_viewer_sessions_for_rerun(
-            workspace_id=workspace_id, run_id=run_id
+            workspace_id=workspace_id,
+            run_id=run_id,
         )
-        self.set_run_ui_state("running", "Starting", 1, 0, 0, 0)
-        return True
+        if viewer_preflight_reset:
+            self._resume_live_viewers_after_preflight()
+        return run_id
 
     def _execution_backend_policy_for_runtime_snapshot(
         self,
@@ -621,12 +614,14 @@ class RunController:
             run_scoped_event_types=self._host._RUN_SCOPED_EVENT_TYPES,
         ):
             return
+        if event_type == "solution_state_changed":
+            self._handle_solution_state_changed(event)
+            return
 
         if event_type == "run_started":
             workspace_id = self._event_workspace_id(event)
             if workspace_id:
                 self._state.active_run_workspace_id = workspace_id
-                clear_port_availability_runtime_workspace(workspace_id)
             self.clear_node_execution_visualization_state()
             self.clear_run_failure_focus()
             self._take_run_start_runtime_snapshot(str(event.get("run_id", "")))
@@ -652,8 +647,16 @@ class RunController:
             errors = normalize_root_execution_errors(event.get("errors", ()))
             settled_event = dict(event)
             settled_event["outputs"] = outputs
-            self._observe_node_port_availability(workspace_id, node_id, settled_event)
-            self._cache_node_outputs(workspace_id, node_id, settled_event)
+            self._sync_solution_facts(workspace_id, emit=False)
+            if self._accepted_settlement_is_current(
+                workspace_id,
+                node_id,
+                settled_event,
+            ):
+                self._observe_node_port_availability(
+                    workspace_id, node_id, settled_event
+                )
+                self._cache_node_outputs(workspace_id, node_id, settled_event)
             self.mark_node_execution_settled(
                 workspace_id,
                 node_id,
@@ -757,8 +760,10 @@ class RunController:
                 self.clear_pending_auto_run()
                 self.set_run_ui_state("ready", "Stopped", 0, 0, 0, 0, clear_run=True)
             elif state == "error":
+                self.clear_pending_auto_run()
                 self.set_run_ui_state("error", "Failed", 0, 0, 0, 1)
         elif event_type == "protocol_error":
+            self.clear_pending_auto_run()
             self._host.console_panel.append_log(
                 "error", event.get("error", "Execution protocol error.")
             )
@@ -799,6 +804,41 @@ class RunController:
             outputs=value_outputs,
         )
 
+    def _accepted_settlement_is_current(
+        self,
+        workspace_id: str,
+        node_id: str,
+        event: Mapping[str, Any],
+    ) -> bool:
+        if not bool(event.get("accepted_solution_record", False)):
+            return False
+        expected_record_id = str(event.get("record_id", "") or "").strip()
+        expected_solution_key = str(event.get("solution_key", "") or "").strip()
+        expected_revision = event.get("solution_fact_revision")
+        if (
+            not expected_record_id
+            or not expected_solution_key
+            or isinstance(expected_revision, bool)
+            or not isinstance(expected_revision, int)
+        ):
+            return False
+        project_id = str(getattr(self._host.model.project, "project_id", "") or "")
+        query = getattr(self._host.execution_client, "solution_facts", None)
+        if not project_id or not callable(query):
+            return False
+        for fact in query(project_id, str(workspace_id or "").strip()):
+            if str(getattr(fact, "node_id", "") or "") != str(node_id or ""):
+                continue
+            return (
+                str(getattr(getattr(fact, "freshness", ""), "value", ""))
+                == "current"
+                and getattr(fact, "revision", None) == expected_revision
+                and getattr(fact, "retained_record_id", None) == expected_record_id
+                and getattr(fact, "retained_solution_key", None)
+                == expected_solution_key
+            )
+        return False
+
     def _cache_node_outputs(
         self, workspace_id: str, node_id: str, event: Mapping[str, Any]
     ) -> None:
@@ -815,32 +855,23 @@ class RunController:
             workspace.nodes.get(normalized_node_id) if workspace is not None else None
         )
         state = self._state
-        run_id = str(event.get("run_id", "") or state.active_run_id or "").strip()
         observed_at_epoch_ms = self._current_epoch_ms()
-        if not run_id:
-            run_id = f"run:{int(observed_at_epoch_ms)}"
-        invalidated_during_run = (
-            normalized_workspace_id == state.active_run_workspace_id
-            and normalized_node_id in self._active_run_invalidated_node_ids
-        )
-        record = {
-            "run_id": run_id,
-            "observed_at_epoch_ms": observed_at_epoch_ms,
-            "outputs": dict(typed_outputs),
-            "stale": invalidated_during_run,
-            "stale_reason": "graph changed" if invalidated_during_run else "",
-        }
         summary = project_dpf_workflow_summary(
             getattr(node, "type_id", ""),
             self._summary_output_values(typed_outputs),
             getattr(node, "properties", {}),
         )
-        if summary is not None:
-            record["dpf_workflow_summary"] = summary
-        state.cached_node_output_records_by_workspace_id.setdefault(
-            normalized_workspace_id,
-            {},
-        ).setdefault(normalized_node_id, {})[run_id] = record
+        enriched_event = dict(event)
+        enriched_event["observed_at_epoch_ms"] = observed_at_epoch_ms
+        cache_accepted_output_record(
+            state,
+            workspace_id=normalized_workspace_id,
+            node_id=normalized_node_id,
+            event=enriched_event,
+            outputs=typed_outputs,
+            catalog=self._host.registry.data_types,
+            dpf_workflow_summary=summary,
+        )
 
     @staticmethod
     def _summary_output_values(
@@ -908,31 +939,31 @@ class RunController:
             normalized.append(node_id)
         return tuple(normalized)
 
-    def _queue_auto_run(self, workspace_id: str, root_node_ids: set[str]) -> None:
+    def _queue_auto_run(self, workspace_id: str, target_node_ids: set[str]) -> None:
         state = self._state
         normalized_workspace_id = str(workspace_id or "").strip()
-        normalized_roots = {str(node_id or "").strip() for node_id in root_node_ids}
-        normalized_roots.discard("")
+        normalized_targets = {str(node_id or "").strip() for node_id in target_node_ids}
+        normalized_targets.discard("")
         if (
             not self.auto_run_enabled_for_workspace(normalized_workspace_id)
             or not normalized_workspace_id
-            or not normalized_roots
+            or not normalized_targets
             or normalized_workspace_id
             != self._host.workspace_manager.active_workspace_id()
         ):
             return
         if state.pending_auto_run_workspace_id == normalized_workspace_id:
-            state.pending_auto_run_root_node_ids.update(normalized_roots)
+            state.pending_auto_run_target_node_ids.update(normalized_targets)
         else:
             state.pending_auto_run_workspace_id = normalized_workspace_id
-            state.pending_auto_run_root_node_ids = normalized_roots
+            state.pending_auto_run_target_node_ids = normalized_targets
         if not state.active_run_id:
             self._drain_pending_auto_run()
 
     def _drain_pending_auto_run(self) -> None:
         state = self._state
         workspace_id = state.pending_auto_run_workspace_id
-        root_node_ids = set(state.pending_auto_run_root_node_ids)
+        target_node_ids = set(state.pending_auto_run_target_node_ids)
         self.clear_pending_auto_run()
         if (
             not self.auto_run_enabled_for_workspace(workspace_id)
@@ -944,50 +975,17 @@ class RunController:
         workspace = self._host.model.project.workspaces.get(workspace_id)
         if workspace is None:
             return
-        target_node_ids = self._auto_run_target_node_ids(
-            workspace=workspace,
-            root_node_ids=root_node_ids,
-        )
-        if not target_node_ids:
-            return
-        self.run_selected_nodes(
-            target_node_ids,
-            preview_confirmed=True,
-            trigger_kind="auto",
-        )
-
-    def _auto_run_target_node_ids(
-        self,
-        *,
-        workspace: Any,
-        root_node_ids: set[str],
-    ) -> tuple[str, ...]:
-        candidates = {
-            node_id
-            for node_id in (
-                str(raw_node_id or "").strip() for raw_node_id in root_node_ids
-            )
-            if node_id in workspace.nodes
-        }
-        pending = list(candidates)
-        while pending:
-            source_node_id = pending.pop(0)
-            source_node = workspace.nodes.get(source_node_id)
-            if source_node is None or str(source_node.type_id) == "core.trigger":
-                continue
-            for edge in workspace.edges.values():
-                if str(
-                    edge.source_node_id
-                ) != source_node_id or not self._edge_is_enabled_data(workspace, edge):
-                    continue
-                target_node_id = str(edge.target_node_id or "").strip()
-                if target_node_id and target_node_id not in candidates:
-                    candidates.add(target_node_id)
-                    pending.append(target_node_id)
-        return tuple(
+        ordered_target_node_ids = tuple(
             node_id
             for node_id in workspace.nodes
-            if node_id in candidates and self._node_is_active(workspace, node_id)
+            if node_id in target_node_ids and self._node_is_active(workspace, node_id)
+        )
+        if not ordered_target_node_ids:
+            return
+        self.run_selected_nodes(
+            ordered_target_node_ids,
+            preview_confirmed=True,
+            trigger_kind="auto",
         )
 
     def _active_node_ids(self, workspace: Any) -> tuple[str, ...]:
@@ -1009,47 +1007,6 @@ class RunController:
             str(getattr(spec, "runtime_behavior", "") or "").strip().lower()
         )
         return runtime_behavior not in {"passive", "compile_only"}
-
-    def _edge_is_enabled_data(self, workspace: Any, edge: Any) -> bool:
-        if not bool(getattr(edge, "enabled", True)):
-            return False
-        return (
-            self._port_kind(
-                workspace,
-                str(edge.source_node_id),
-                str(edge.source_port_key),
-                "out",
-            )
-            == "data"
-            and self._port_kind(
-                workspace,
-                str(edge.target_node_id),
-                str(edge.target_port_key),
-                "in",
-            )
-            == "data"
-        )
-
-    def _port_kind(
-        self,
-        workspace: Any,
-        node_id: str,
-        port_key: str,
-        direction: str,
-    ) -> str:
-        node = workspace.nodes.get(node_id)
-        if node is None:
-            return ""
-        try:
-            spec = self._host.registry.get_spec(node.type_id)
-        except Exception:  # noqa: BLE001
-            return ""
-        for port in effective_ports(
-            node=node, spec=spec, workspace_nodes=workspace.nodes
-        ):
-            if port.key == port_key and port.direction == direction:
-                return str(port.kind)
-        return ""
 
     def _selected_run_preview_payload(
         self,
@@ -1391,99 +1348,8 @@ class RunController:
             if workspace_cache.get(normalized_node_id) != resolved_elapsed_ms:
                 workspace_cache[normalized_node_id] = resolved_elapsed_ms
                 changed = True
-        if not invalidated_during_run:
-            fresh_nodes = state.fresh_run_node_ids_by_workspace_id.setdefault(
-                normalized_workspace_id, set()
-            )
-            if normalized_node_id not in fresh_nodes:
-                fresh_nodes.add(normalized_node_id)
-                changed = True
         if changed:
             self.commit_node_execution_state_change()
-
-    @staticmethod
-    def _history_changed_node_ids(
-        before_snapshot: WorkspaceSnapshot,
-        after_snapshot: WorkspaceSnapshot,
-    ) -> set[str]:
-        changed_node_ids: set[str] = set()
-        for node_id in set(before_snapshot.nodes) | set(after_snapshot.nodes):
-            normalized_node_id = str(node_id or "").strip()
-            if not normalized_node_id:
-                continue
-            if before_snapshot.nodes.get(node_id) != after_snapshot.nodes.get(node_id):
-                changed_node_ids.add(normalized_node_id)
-        return changed_node_ids
-
-    @staticmethod
-    def _history_changed_edge_target_node_ids(
-        before_snapshot: WorkspaceSnapshot,
-        after_snapshot: WorkspaceSnapshot,
-    ) -> set[str]:
-        changed_target_node_ids: set[str] = set()
-        for edge_id in set(before_snapshot.edges) | set(after_snapshot.edges):
-            before_edge = before_snapshot.edges.get(edge_id)
-            after_edge = after_snapshot.edges.get(edge_id)
-            if before_edge == after_edge:
-                continue
-            for edge in (before_edge, after_edge):
-                if edge is None:
-                    continue
-                target_node_id = str(edge.target_node_id or "").strip()
-                if target_node_id:
-                    changed_target_node_ids.add(target_node_id)
-        return changed_target_node_ids
-
-    @classmethod
-    def _history_changed_root_node_ids(
-        cls,
-        before_snapshot: object | None,
-        after_snapshot: object | None,
-    ) -> set[str] | None:
-        if not isinstance(before_snapshot, WorkspaceSnapshot) or not isinstance(
-            after_snapshot, WorkspaceSnapshot
-        ):
-            return None
-        roots = cls._history_changed_node_ids(before_snapshot, after_snapshot)
-        roots.update(
-            cls._history_changed_edge_target_node_ids(before_snapshot, after_snapshot)
-        )
-        return roots
-
-    def _fallback_cached_execution_node_ids(self, workspace_id: str) -> set[str]:
-        state = self._state
-        node_ids: set[str] = set()
-        node_ids.update(
-            str(node_id or "").strip()
-            for node_id in state.cached_node_elapsed_ms_by_workspace_id.get(
-                workspace_id, {}
-            )
-        )
-        node_ids.update(
-            str(node_id or "").strip()
-            for node_id in state.fresh_run_node_ids_by_workspace_id.get(
-                workspace_id, set()
-            )
-        )
-        node_ids.update(
-            str(node_id or "").strip()
-            for node_id in state.cached_node_output_records_by_workspace_id.get(
-                workspace_id, {}
-            )
-        )
-        node_ids.update(
-            str(node_id or "").strip()
-            for node_id in state.runtime_warning_messages_by_workspace_id.get(
-                workspace_id, {}
-            )
-        )
-        if state.node_execution_workspace_id == workspace_id:
-            node_ids.update(
-                str(node_id or "").strip()
-                for node_id in state.running_node_started_at_epoch_ms_by_node_id
-            )
-        node_ids.discard("")
-        return node_ids
 
     @staticmethod
     def _discard_node_ids_from_mapping(
@@ -1496,7 +1362,7 @@ class RunController:
                 changed = True
         return changed
 
-    def invalidate_cached_node_elapsed_for_history_action(
+    def invalidate_solution_for_history_action(
         self,
         workspace_id: str,
         action_type: str,
@@ -1507,42 +1373,43 @@ class RunController:
         normalized_workspace_id = str(workspace_id or "").strip()
         if not normalized_workspace_id:
             return False
-        if not history_action_invalidates_persistent_node_elapsed(
+        change = classify_history_execution_change(
             action_type,
+            registry=self._host.registry,
             before_snapshot=before_snapshot,
             after_snapshot=after_snapshot,
-        ):
-            return False
-        state = self._state
-        changed = False
-        auto_root_node_ids = self._history_changed_root_node_ids(
-            before_snapshot,
-            after_snapshot,
         )
-        if auto_root_node_ids is None:
-            affected_node_ids = self._fallback_cached_execution_node_ids(
-                normalized_workspace_id
-            )
-        else:
-            affected_node_ids = set(auto_root_node_ids)
-            workspace = self._host.model.project.workspaces.get(normalized_workspace_id)
-            if workspace is not None:
-                affected_node_ids.update(
-                    self._auto_run_target_node_ids(
-                        workspace=workspace,
-                        root_node_ids=auto_root_node_ids,
-                    )
-                )
-        affected_node_ids = {node_id for node_id in affected_node_ids if node_id}
-        if not affected_node_ids:
+        if not change.affects_execution:
             return False
         workspace = self._host.model.project.workspaces.get(normalized_workspace_id)
+        if workspace is None:
+            return False
+        changed_root_node_ids = change.changed_root_node_ids
+        if not changed_root_node_ids and not change.removed_node_ids:
+            changed_root_node_ids = self._active_node_ids(workspace)
+        runtime_snapshot = build_runtime_snapshot(
+            self._host.model.project,
+            workspace_id=normalized_workspace_id,
+            registry=self._host.registry,
+        )
+        result = self._host.execution_client.invalidate_solution(
+            runtime_snapshot.project_id,
+            normalized_workspace_id,
+            runtime_snapshot,
+            changed_root_node_ids,
+            "graph_changed",
+        )
+        affected_node_ids = set(result.expired_node_ids)
+        self._handle_solution_state_changed(
+            SolutionStateChangedEvent.from_invalidation(result).to_payload()
+        )
+        state = self._state
         current_capture_ids = (
             state.current_trigger_capture_node_ids_by_workspace_id.get(
                 normalized_workspace_id
             )
         )
-        if workspace is not None and current_capture_ids is not None:
+        if current_capture_ids is not None:
             stale_trigger_ids = {
                 node_id
                 for node_id in affected_node_ids
@@ -1555,106 +1422,106 @@ class RunController:
                     state.current_trigger_capture_node_ids_by_workspace_id.pop(
                         normalized_workspace_id, None
                     )
-                changed = True
-        if auto_root_node_ids is None:
-            auto_root_node_ids = set(affected_node_ids)
-        else:
-            auto_root_node_ids = {node_id for node_id in auto_root_node_ids if node_id}
         if (
             state.active_run_id
             and state.active_run_workspace_id == normalized_workspace_id
         ):
             self._active_run_invalidated_node_ids.update(affected_node_ids)
-        if state.node_execution_workspace_id == normalized_workspace_id:
-            if state.running_node_started_at_epoch_ms_by_node_id:
-                if self._discard_node_ids_from_mapping(
-                    state.running_node_started_at_epoch_ms_by_node_id,
-                    affected_node_ids,
-                ):
-                    changed = True
-            if state.running_node_ids.intersection(affected_node_ids):
-                state.running_node_ids.difference_update(affected_node_ids)
-                changed = True
-            if state.completed_node_ids.intersection(affected_node_ids):
-                state.completed_node_ids.difference_update(affected_node_ids)
-                changed = True
-            for settled_ids in (
+        if (
+            not self._suppress_auto_run_for_script_apply
+            and result.expired_node_ids
+        ):
+            self._queue_auto_run(
+                normalized_workspace_id,
+                set(result.expired_node_ids),
+            )
+        return True
+
+    def _handle_solution_state_changed(self, event: Mapping[str, Any]) -> None:
+        try:
+            changed = SolutionStateChangedEvent.from_payload(event)
+        except (TypeError, ValueError):
+            return
+        project_id = str(getattr(self._host.model.project, "project_id", "") or "")
+        if changed.project_id != project_id:
+            return
+        state = self._state
+        previous_revision = int(
+            state.solution_revision_by_workspace_id.get(changed.workspace_id, -1)
+        )
+        if changed.solution_revision <= previous_revision:
+            return
+        state.solution_project_id = changed.project_id
+        state.solution_revision_by_workspace_id[changed.workspace_id] = (
+            changed.solution_revision
+        )
+        self._sync_solution_facts(changed.workspace_id, emit=False)
+        expired = set(changed.expired_node_ids)
+        removed = set(changed.removed_node_ids)
+        self._clear_node_projection_state(
+            changed.workspace_id,
+            expired | removed,
+            removed_node_ids=removed,
+        )
+        for node_id in expired | removed:
+            clear_port_availability_runtime_node(changed.workspace_id, node_id)
+        self.commit_node_execution_state_change()
+        if changed.reason_code == "project_session_reset":
+            state.solution_revision_by_workspace_id.pop(changed.workspace_id, None)
+
+    def _sync_solution_facts(self, workspace_id: str, *, emit: bool = True) -> None:
+        workspace_key = str(workspace_id or "").strip()
+        project_id = str(getattr(self._host.model.project, "project_id", "") or "")
+        query = getattr(self._host.execution_client, "solution_facts", None)
+        if not workspace_key or not project_id or not callable(query):
+            return
+        facts = tuple(query(project_id, workspace_key))
+        self._state.solution_project_id = project_id
+        if facts:
+            self._state.node_solution_facts_by_workspace_id[workspace_key] = {
+                fact.node_id: fact for fact in facts
+            }
+        else:
+            self._state.node_solution_facts_by_workspace_id.pop(workspace_key, None)
+        if emit:
+            self.commit_node_execution_state_change()
+
+    def _clear_node_projection_state(
+        self,
+        workspace_id: str,
+        node_ids: set[str],
+        *,
+        removed_node_ids: set[str] | None = None,
+    ) -> None:
+        if not node_ids:
+            return
+        state = self._state
+        if state.node_execution_workspace_id == workspace_id:
+            self._discard_node_ids_from_mapping(
+                state.running_node_started_at_epoch_ms_by_node_id, node_ids
+            )
+            for values in (
+                state.running_node_ids,
+                state.completed_node_ids,
                 state.empty_node_ids,
                 state.failed_node_ids,
                 state.blocked_node_ids,
+                state.warning_node_ids,
             ):
-                if settled_ids.intersection(affected_node_ids):
-                    settled_ids.difference_update(affected_node_ids)
-                    changed = True
-            if self._discard_node_ids_from_mapping(
-                state.root_errors_by_node_id,
-                affected_node_ids,
-            ):
-                changed = True
-            if state.warning_node_ids.intersection(affected_node_ids):
-                state.warning_node_ids.difference_update(affected_node_ids)
-                changed = True
-        workspace_warnings = state.runtime_warning_messages_by_workspace_id.get(
-            normalized_workspace_id
-        )
-        if workspace_warnings is not None and self._discard_node_ids_from_mapping(
-            workspace_warnings,
-            affected_node_ids,
-        ):
-            if not workspace_warnings:
-                state.runtime_warning_messages_by_workspace_id.pop(
-                    normalized_workspace_id, None
-                )
-            changed = True
-        workspace_cache = state.cached_node_elapsed_ms_by_workspace_id.get(
-            normalized_workspace_id
-        )
-        if workspace_cache is not None:
-            if self._discard_node_ids_from_mapping(workspace_cache, affected_node_ids):
-                changed = True
-            if not workspace_cache:
-                state.cached_node_elapsed_ms_by_workspace_id.pop(
-                    normalized_workspace_id, None
-                )
-        fresh_nodes = state.fresh_run_node_ids_by_workspace_id.get(
-            normalized_workspace_id
-        )
-        if fresh_nodes is not None and fresh_nodes.intersection(affected_node_ids):
-            fresh_nodes.difference_update(affected_node_ids)
-            changed = True
-            if not fresh_nodes:
-                state.fresh_run_node_ids_by_workspace_id.pop(
-                    normalized_workspace_id, None
-                )
-        output_records = state.cached_node_output_records_by_workspace_id.get(
-            normalized_workspace_id, {}
-        )
-        for node_id, node_records in output_records.items():
-            if node_id not in affected_node_ids:
-                continue
-            if not isinstance(node_records, dict):
-                continue
-            for record in node_records.values():
-                if not isinstance(record, dict):
-                    continue
-                if (
-                    record.get("stale")
-                    and record.get("stale_reason") == "graph changed"
-                ):
-                    continue
-                record["stale"] = True
-                record["stale_reason"] = "graph changed"
-                changed = True
-        if changed:
-            self.commit_node_execution_state_change()
-        self.prune_runtime_solution_state()
-        if (
-            not self._suppress_auto_run_for_script_apply
-            and str(action_type or "").strip() in _AUTO_RUN_ACTION_TYPES
-            and auto_root_node_ids
-        ):
-            self._queue_auto_run(normalized_workspace_id, auto_root_node_ids)
-        return changed
+                values.difference_update(node_ids)
+            self._discard_node_ids_from_mapping(state.root_errors_by_node_id, node_ids)
+        warnings = state.runtime_warning_messages_by_workspace_id.get(workspace_id)
+        if warnings is not None:
+            self._discard_node_ids_from_mapping(warnings, node_ids)
+            if not warnings:
+                state.runtime_warning_messages_by_workspace_id.pop(workspace_id, None)
+        elapsed = state.cached_node_elapsed_ms_by_workspace_id.get(workspace_id)
+        if elapsed is not None:
+            self._discard_node_ids_from_mapping(elapsed, node_ids)
+            if not elapsed:
+                state.cached_node_elapsed_ms_by_workspace_id.pop(workspace_id, None)
+        if removed_node_ids:
+            remove_cached_nodes(state, workspace_id, removed_node_ids)
 
     def clear_node_execution_visualization_state(self) -> None:
         state = self._state

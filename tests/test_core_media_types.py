@@ -6,10 +6,10 @@ import pytest
 
 from ea_node_editor.execution.protocol import (
     NodeSettledEvent,
-    SettledPortResult,
     dict_to_event,
     event_to_dict,
 )
+from ea_node_editor.runtime_contracts.settled_results import SettledPortResult
 from ea_node_editor.nodes.builtins.core_media import (
     ANIMATION_DATA_TYPE_ID,
     CELL_DATA_TYPE_ID,

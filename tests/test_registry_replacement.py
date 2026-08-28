@@ -825,13 +825,8 @@ def test_publication_guard_blocks_run_and_viewer_until_failed_publication_rolls_
 
     def start_run() -> None:
         run_attempted.set()
-        runtime.start(
-            ExecutionRequest(
-                project_path="",
-                workspace_id="ws",
-                runtime_snapshot=object(),  # type: ignore[arg-type]
-            )
-        )
+        runtime.assert_registry_replaceable()
+        backend.admissions.append(("run", runtime._registry.contract_fingerprint()))  # noqa: SLF001
 
     def open_viewer() -> None:
         viewer_attempted.set()

@@ -20,6 +20,7 @@ Use this for launch path, app lifetime, splash handoff, and startup authority ch
 - Startup still calls session restore during shell bootstrap, but restore should leave the active project empty instead of reopening the last saved project.
 - For splash behavior, route through `ui/splash/opening_screen.py` and app handoff code; the splash should keep normal desktop z-order and not force itself above unrelated windows.
 - For shell dependency changes, keep `ShellWindowComposition` as the startup contract and use `ShellServices` as the attached dependency aggregate.
+- Shell composition still creates one `CorexRuntime`; its session `SolutionStore` is execution-owned and project install/new/open resets it through the existing attached execution-client seam. No second shell cache becomes scheduler authority during the dormant T03 stage.
 
 ## Focused Verification
 ```powershell
@@ -48,4 +49,4 @@ Update this map when launch entry points, app lifetime, splash handoff, shell co
 
 ## 2026-07-11 Performance Ownership
 
-- `ea_node_editor/app.py` owns side-effect-light imports, explicit pre-QML PyArrow preload, and QML `setSource()` timing. Process-wall and shell-create timings are separate evidence; do not use one as the other's relative baseline.
+- `ea_node_editor/app.py` owns side-effect-light imports, explicit pre-QML PyArrow preload, and QML `setSource()` timing. Its packaged function-plugin smoke also invokes the default execution-owned COREX build digest, proving the frozen-executable authority is available before worker use. Process-wall and shell-create timings are separate evidence; do not use one as the other's relative baseline.

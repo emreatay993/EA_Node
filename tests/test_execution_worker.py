@@ -31,13 +31,13 @@ from ea_node_editor.execution.backends import (
     ExecutionBackendSelection,
 )
 from ea_node_editor.execution.handle_registry import StaleHandleError
+from ea_node_editor.execution.execution_plan import ExecutionPlan
 from ea_node_editor.execution.protocol import (
     CloseViewerSessionCommand,
     MaterializeViewerDataCommand,
     NodeSettledEvent,
     OpenViewerSessionCommand,
     QueryViewerSessionCommand,
-    SettledPortResult,
     ShutdownCommand,
     StartRunCommand,
     UpdateViewerSessionCommand,
@@ -48,6 +48,7 @@ from ea_node_editor.execution.protocol import (
     dict_to_command,
     dict_to_event,
 )
+from ea_node_editor.runtime_contracts.settled_results import SettledPortResult
 from ea_node_editor.execution.runtime_snapshot import (
     RuntimeSnapshot,
     build_runtime_snapshot,
@@ -55,7 +56,6 @@ from ea_node_editor.execution.runtime_snapshot import (
 from ea_node_editor.execution.worker import run_workflow, worker_main
 from ea_node_editor.execution.worker_runner import WorkflowRunner
 from ea_node_editor.execution.worker_runtime import (
-    ExecutionPlan,
     RuntimePreparationCache,
     prepare_runtime,
 )

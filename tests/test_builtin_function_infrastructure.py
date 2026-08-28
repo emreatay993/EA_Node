@@ -4,6 +4,7 @@
 
 from __future__ import annotations
 
+from collections import Counter
 import json
 import threading
 from pathlib import Path
@@ -52,6 +53,7 @@ from ea_node_editor.nodes.function_plugin import (
     INTERNAL_BUILTIN_FUNCTION_OWNER_ID,
 )
 from ea_node_editor.nodes.plugin_authoring import summarize_plugin_registry
+from ea_node_editor.nodes.registry import PythonFunctionEntry
 from ea_node_editor.persistence.serializer import JsonProjectSerializer
 from ea_node_editor.ui.shell.controllers.workspace_io_ops import WorkspaceIOOps
 
@@ -162,6 +164,24 @@ def test_placeholder_sources_form_one_noop_internal_bundle(
     bundle = registry.plugin_bundle_refs()[0]
     assert bundle.owner_id == INTERNAL_BUILTIN_FUNCTION_OWNER_ID
     assert bundle.functions == ()
+
+
+def test_internal_function_declarations_carry_the_accepted_reuse_scopes(
+    tmp_path: Path,
+) -> None:
+    registry = build_builtin_registry(generation_root=tmp_path / "generations")
+    function_entries = tuple(
+        entry
+        for spec in registry.all_specs()
+        if isinstance((entry := registry.get_entry(spec.type_id)), PythonFunctionEntry)
+    )
+
+    assert len(function_entries) == 68
+    assert Counter(entry.spec.solution_reuse_scope for entry in function_entries) == {
+        "durable": 29,
+        "session": 22,
+        "never": 17,
+    }
 
 
 def test_internal_generation_is_static_lazy_and_path_independent(

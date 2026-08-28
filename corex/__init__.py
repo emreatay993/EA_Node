@@ -42,6 +42,7 @@ def node(function=None, **_metadata: object):
             "_property_output_collisions",
             "_readiness_requirements",
             "_render_quality_tiers",
+            "_solution_reuse_scope",
             "_surface_family",
             "_surface_variant",
         },

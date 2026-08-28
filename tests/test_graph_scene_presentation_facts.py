@@ -6,7 +6,7 @@ from unittest import mock
 import pytest
 
 import ea_node_editor.ui_qml.graph_geometry.route_payload as route_payload
-from ea_node_editor.execution.protocol import SettledPortResult
+from ea_node_editor.runtime_contracts.settled_results import SettledPortResult
 from ea_node_editor.graph.model import GraphModel
 from ea_node_editor.graph.record_payloads import node_instance_to_mapping
 from ea_node_editor.nodes.bootstrap import build_default_registry

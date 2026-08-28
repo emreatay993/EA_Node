@@ -10,6 +10,7 @@ import threading
 import time
 import unittest
 from contextlib import nullcontext
+from dataclasses import replace
 from pathlib import Path
 from unittest.mock import Mock, patch
 
@@ -22,11 +23,14 @@ from ea_node_editor.execution.backends import (
 )
 from ea_node_editor.execution.client import (
     ExecutionBackendClient,
+    ExecutionGenerationSnapshot,
+    ExecutionRunReservation,
     ExternalPythonExecutionClient,
     ProcessExecutionClient,
     TrustedInProcessExecutionClient,
     _ExecutionClientCommon,
     _PendingViewerRequest,
+    _result_affecting_selection_payload,
 )
 from ea_node_editor.execution.headless_runtime import (
     CorexRuntime,
@@ -49,11 +53,18 @@ from ea_node_editor.execution.protocol import (
     NodeStartedEvent,
     ProtocolErrorEvent,
     RunCompletedEvent,
-    SettledPortResult,
+    StartRunCommand,
     ViewerSessionOpenedEvent,
     catalog_agreement,
     event_to_dict,
 )
+from ea_node_editor.execution.prepared_execution import (
+    AcceptedOutputPayload,
+    PreparedAction,
+    PreparedNodeDecision,
+)
+from ea_node_editor.execution.solution_identity import canonical_digest
+from ea_node_editor.runtime_contracts.settled_results import SettledPortResult
 from ea_node_editor.execution.runtime_snapshot import build_runtime_snapshot
 from ea_node_editor.execution.worker_runtime import (
     DEFAULT_RUNTIME_PREPARATION_CACHE,
@@ -79,7 +90,10 @@ from ea_node_editor.runtime_contracts import (
     ImageValue,
     PATH_DATA_TYPE_ID,
     TabularDataRef,
+    COREX_VIEWER_SESSION_HANDLE_KIND,
+    VIEWER_SESSION_DATA_TYPE_ID,
 )
+from ea_node_editor.runtime_contracts.solution_records import SolutionResidency
 
 
 def _decorated_python_script(body: str) -> str:
@@ -4002,15 +4016,18 @@ class ProcessExecutionClientTests(unittest.TestCase):
             selected = select_workspace(loaded, WorkspaceSelection())
             self.assertEqual(selected.workspace_id, workspace.workspace_id)
 
-            runtime = CorexRuntime(client=self.client, registry=registry)
+            runtime = CorexRuntime(registry=registry)
             streamed_events: list[dict] = []
-            result = runtime.run(
-                ExecutionRequest(
-                    project_path=project_path, workspace_id=selected.workspace_id
-                ),
-                timeout=12.0,
-                on_event=streamed_events.append,
-            )
+            try:
+                result = runtime.run(
+                    ExecutionRequest(
+                        project_path=project_path, workspace_id=selected.workspace_id
+                    ),
+                    timeout=12.0,
+                    on_event=streamed_events.append,
+                )
+            finally:
+                runtime.shutdown()
 
         self.assertEqual(result.status, "completed")
         self.assertEqual(result.workspace_id, workspace.workspace_id)
@@ -4022,40 +4039,16 @@ class ProcessExecutionClientTests(unittest.TestCase):
         )
         self.assertIs(qapplication_after, qapplication_before)
 
-    def test_corex_runtime_injects_registry_catalog_and_forwards_trigger_captures(
+    def test_corex_runtime_exposes_only_prepared_run_entrypoints(
         self,
     ) -> None:
         registry = build_default_registry()
-        model = GraphModel()
-        workspace_id = model.active_workspace.workspace_id
-        runtime_snapshot = build_runtime_snapshot(
-            model.project,
-            workspace_id=workspace_id,
-            registry=registry,
-        )
-        capture = SettledPortResult(
-            status="value",
-            value=DataTree.from_item("captured"),
-        )
         backend_client = Mock()
-        backend_client.start_run.return_value = "run_capture"
         runtime = CorexRuntime(client=backend_client, registry=registry)
-
-        run_id = runtime.start_run(
-            project_path="",
-            workspace_id=workspace_id,
-            trigger={"runtime_snapshot": runtime_snapshot},
-            trigger_captures={"node_trigger": capture},
-            clicked_trigger_node_id="node_trigger",
-        )
-
-        self.assertEqual(run_id, "run_capture")
-        start_payload = backend_client.start_run.call_args.kwargs
-        self.assertIs(start_payload["data_types"], registry.data_types)
-        self.assertEqual(
-            start_payload["trigger_captures"],
-            {"node_trigger": capture},
-        )
+        self.assertTrue(callable(runtime.prepare_execution))
+        self.assertTrue(callable(runtime.dispatch_prepared))
+        self.assertFalse(hasattr(runtime, "start_run"))
+        self.assertFalse(hasattr(runtime, "_start_legacy"))
 
     def test_open_viewer_session_enqueues_correlated_runtime_ref_payload(self) -> None:
         self.client._ensure_process = lambda: None  # type: ignore[method-assign]  # noqa: SLF001
@@ -4302,6 +4295,374 @@ class ProcessExecutionClientTests(unittest.TestCase):
             self.assertEqual(self.client._active_workspace_id, "")  # noqa: SLF001
         with self.client._viewer_request_lock:  # noqa: SLF001
             self.assertNotIn(request_id, self.client._pending_viewer_requests)  # noqa: SLF001
+
+
+class PreparedRunReservationTests(unittest.TestCase):
+    def test_run_events_keep_reserved_snapshot_when_prepare_changes_selection(self) -> None:
+        backend = ExecutionBackendClient()
+        process = backend._process_client  # noqa: SLF001
+        selection_a = ExecutionBackendSelection(reason="run-a")
+        selection_b = ExecutionBackendSelection(reason="prepare-only-b")
+        snapshot_a = ExecutionGenerationSnapshot(
+            selection_a,
+            1,
+            1,
+            "a" * 64,
+            True,
+            "",
+        )
+        received = []
+        backend.subscribe_generation_events(
+            lambda _event, generation: received.append(generation)
+        )
+        try:
+            with backend._active_lock:  # noqa: SLF001
+                backend._run_clients["run-a"] = process  # noqa: SLF001
+                backend._run_client_generations["run-a"] = 1  # noqa: SLF001
+                backend._run_generation_snapshots["run-a"] = snapshot_a  # noqa: SLF001
+                backend._run_workspace_ids["run-a"] = "ws_main"  # noqa: SLF001
+            backend._client_selections[id(process)] = selection_b  # noqa: SLF001
+            process._catalog_generation_token = 1  # noqa: SLF001
+            with patch.object(
+                backend,
+                "_generation_snapshot_for_client",
+                return_value=snapshot_a,
+            ):
+                backend._dispatch_client_event(  # noqa: SLF001
+                    process,
+                    {
+                        "type": "node_settled",
+                        "run_id": "run-a",
+                        "workspace_id": "ws_main",
+                        "node_id": "node-a",
+                    },
+                    generation_token=1,
+                )
+            self.assertEqual(received, [snapshot_a])
+        finally:
+            backend.shutdown()
+
+    def test_retired_terminal_never_republishes_old_available_snapshot(self) -> None:
+        backend = ExecutionBackendClient()
+        process = backend._process_client  # noqa: SLF001
+        selection = ExecutionBackendSelection()
+        pinned = ExecutionGenerationSnapshot(
+            selection,
+            1,
+            1,
+            "a" * 64,
+            True,
+            "",
+        )
+        availability = []
+        shell_events = []
+        backend.subscribe_generation_events(
+            lambda _event, generation: availability.append(generation.available)
+        )
+        backend.subscribe(shell_events.append)
+        with backend._active_lock:  # noqa: SLF001
+            backend._run_clients["run-retired"] = process  # noqa: SLF001
+            backend._run_generation_snapshots["run-retired"] = pinned  # noqa: SLF001
+            backend._run_client_generations["run-retired"] = 0  # noqa: SLF001
+        try:
+            backend._dispatch_client_event(  # noqa: SLF001
+                process,
+                {
+                    "type": "execution_generation_changed",
+                    "reason": "worker_terminated",
+                },
+                generation_token=0,
+            )
+            backend._dispatch_client_event(  # noqa: SLF001
+                process,
+                {
+                    "type": "run_failed",
+                    "run_id": "run-retired",
+                    "workspace_id": "ws",
+                },
+                generation_token=0,
+            )
+            self.assertEqual(availability, [False, False])
+            self.assertEqual(
+                [event["type"] for event in shell_events],
+                ["run_failed"],
+            )
+        finally:
+            backend.shutdown()
+
+    def test_cold_route_reservation_binds_generation_and_forwards_snapshot(self) -> None:
+        backend = ExecutionBackendClient()
+        registry = build_default_registry()
+        selection = ExecutionBackendSelection()
+        snapshots = []
+        backend.subscribe_generation_events(
+            lambda _event, generation: snapshots.append(generation)
+        )
+        try:
+            backend.replace_registry(registry)
+            self.assertFalse(
+                backend.execution_generation_snapshot(selection).available
+            )
+            process = backend._process_client  # noqa: SLF001
+            with patch.object(
+                process,
+                "_ensure_process",
+                side_effect=process._install_physical_generation,  # noqa: SLF001
+            ), patch.object(process, "_viewer_generation_is_live", return_value=True):
+                reservation = backend.reserve_run(selection, "ws_main")
+                self.assertTrue(reservation.generation_snapshot.available)
+                self.assertEqual(
+                    reservation.generation_snapshot.backend_generation,
+                    reservation.generation_snapshot.runtime_generation,
+                )
+                self.assertEqual(
+                    process._execution_environment_registry_fingerprint,  # noqa: SLF001
+                    registry.contract_fingerprint(),
+                )
+                self.assertEqual(
+                    len(process._execution_environment_digest),  # noqa: SLF001
+                    64,
+                )
+                alternate_reason = replace(
+                    selection,
+                    reason="explanatory-text-only",
+                )
+                alternate_snapshot = backend.execution_generation_snapshot(
+                    alternate_reason,
+                    registry_contract_fingerprint=registry.contract_fingerprint(),
+                )
+                self.assertTrue(alternate_snapshot.available)
+                self.assertEqual(
+                    alternate_snapshot.environment_digest,
+                    reservation.generation_snapshot.environment_digest,
+                )
+                self.assertTrue(
+                    alternate_snapshot.compatible_with(
+                        reservation.generation_snapshot
+                    )
+                )
+                backend.release_run_reservation(reservation, "test")
+                backend._dispatch_client_event(  # noqa: SLF001
+                    process,
+                    {
+                        "type": "run_completed",
+                        "run_id": "unregistered",
+                        "workspace_id": "ws_main",
+                    },
+                    generation_token=reservation.generation_snapshot.backend_generation,
+                )
+            self.assertEqual(snapshots[-1], reservation.generation_snapshot)
+        finally:
+            backend.shutdown()
+
+    def test_reserved_start_rejects_tampered_prepared_generation_and_environment(
+        self,
+    ) -> None:
+        backend = ExecutionBackendClient()
+        registry = build_default_registry()
+        selection = ExecutionBackendSelection()
+        backend.replace_registry(registry)
+        process = backend._process_client  # noqa: SLF001
+
+        def command_for(
+            reservation: ExecutionRunReservation,
+            *,
+            runtime_generation: int,
+            environment_digest: str,
+            decision: PreparedNodeDecision,
+            accepted: tuple[AcceptedOutputPayload, ...] = (),
+        ) -> StartRunCommand:
+            return StartRunCommand(
+                run_id=reservation.run_id,
+                workspace_id=reservation.workspace_id,
+                execution_backend=reservation.selection,
+                preparation_id="prepared-tamper-probe",
+                solution_namespace_id="namespace",
+                execution_affecting_workspace_revision=0,
+                dispatch_runtime_generation=runtime_generation,
+                runtime_snapshot_fingerprint="1" * 64,
+                execution_plan_fingerprint="2" * 64,
+                workflow_interface_revision=1,
+                workflow_interface_digest="3" * 64,
+                execution_environment_digest=environment_digest,
+                node_decisions=(decision,),
+                accepted_output_payloads=accepted,
+            )
+
+        try:
+            with patch.object(
+                process,
+                "_ensure_process",
+                side_effect=process._install_physical_generation,  # noqa: SLF001
+            ), patch.object(process, "_viewer_generation_is_live", return_value=True):
+                generation_reservation = backend.reserve_run(selection, "ws_main")
+                stale_generation = (
+                    generation_reservation.generation_snapshot.runtime_generation + 1
+                )
+                reused = PreparedNodeDecision(
+                    node_id="node",
+                    action=PreparedAction.REUSE,
+                    reason_code="reusable_record_accepted",
+                    solution_key="4" * 64,
+                    dependency_solution_keys=(),
+                    accepted_record_id="record",
+                )
+                accepted = AcceptedOutputPayload(
+                    node_id="node",
+                    record_id="record",
+                    solution_key=reused.solution_key,
+                    settlement_status="completed",
+                    result_digest="5" * 64,
+                    residency=SolutionResidency.SESSION,
+                    runtime_generation=stale_generation,
+                    outputs={},
+                )
+                with self.assertRaisesRegex(ValueError, "generation does not match"):
+                    backend.start_reserved_run(
+                        generation_reservation,
+                        command_for(
+                            generation_reservation,
+                            runtime_generation=stale_generation,
+                            environment_digest=(
+                                generation_reservation.generation_snapshot.environment_digest
+                            ),
+                            decision=reused,
+                            accepted=(accepted,),
+                        ),
+                    )
+
+                environment_reservation = backend.reserve_run(selection, "ws_main")
+                tampered_environment = "f" * 64
+                recomputed_key = canonical_digest(
+                    {"execution_environment_digest": tampered_environment}
+                )
+                execute = PreparedNodeDecision(
+                    node_id="node",
+                    action=PreparedAction.EXECUTE,
+                    reason_code="no_reusable_record",
+                    solution_key=recomputed_key,
+                    dependency_solution_keys=(),
+                )
+                with self.assertRaisesRegex(ValueError, "generation does not match"):
+                    backend.start_reserved_run(
+                        environment_reservation,
+                        command_for(
+                            environment_reservation,
+                            runtime_generation=(
+                                environment_reservation.generation_snapshot.runtime_generation
+                            ),
+                            environment_digest=tampered_environment,
+                            decision=execute,
+                        ),
+                    )
+                self.assertEqual(backend._active_clients, {})  # noqa: SLF001
+                self.assertEqual(backend._run_clients, {})  # noqa: SLF001
+        finally:
+            backend.shutdown()
+
+    def test_live_generation_without_environment_handshake_is_unavailable(self) -> None:
+        backend = ExecutionBackendClient()
+        process = backend._process_client  # noqa: SLF001
+        try:
+            process._catalog_generation_token = 1  # noqa: SLF001
+            process._physical_generation_token = 1  # noqa: SLF001
+            process._accepted_physical_generation_token = 1  # noqa: SLF001
+            with patch.object(process, "_viewer_generation_is_live", return_value=True):
+                snapshot = backend.execution_generation_snapshot(
+                    ExecutionBackendSelection(),
+                    registry_contract_fingerprint="a" * 64,
+                )
+            self.assertFalse(snapshot.available)
+            self.assertEqual(snapshot.reason, "execution_environment_unavailable")
+        finally:
+            backend.shutdown()
+
+    def test_trusted_solution_handle_requires_live_registry_entry_and_leases_it(self) -> None:
+        backend = ExecutionBackendClient()
+        trusted = backend._trusted_client  # noqa: SLF001
+        registry = build_default_registry()
+        trusted._worker_services.bind_data_types(registry.data_types)  # noqa: SLF001
+        live = trusted._worker_services.register_handle(  # noqa: SLF001
+            object(),
+            data_type_id=VIEWER_SESSION_DATA_TYPE_ID,
+            kind=COREX_VIEWER_SESSION_HANDLE_KIND,
+            run_id="run-live",
+        )
+        snapshot = ExecutionGenerationSnapshot(
+            ExecutionBackendSelection(
+                backend_id=TRUSTED_IN_PROCESS_BACKEND,
+                isolation="in_process",
+                trusted_in_process=True,
+            ),
+            live.worker_generation,
+            live.worker_generation,
+            "a" * 64,
+            True,
+            "",
+        )
+        with backend._active_lock:  # noqa: SLF001
+            backend._run_clients["run-live"] = trusted  # noqa: SLF001
+            backend._run_generation_snapshots["run-live"] = snapshot  # noqa: SLF001
+        try:
+            fabricated = replace(live, handle_id="missing-handle")
+            self.assertIsNone(
+                backend.lease_solution_resource(
+                    "run-live",
+                    fabricated,
+                    owner_scope="solution:missing",
+                )
+            )
+            leased = backend.lease_solution_resource(
+                "run-live",
+                live,
+                owner_scope="solution:live",
+            )
+            self.assertIsNotNone(leased)
+            assert leased is not None
+            backend.release_solution_resource(leased[1])
+        finally:
+            backend.shutdown()
+
+    def test_idle_process_and_external_death_emit_generation_notification(self) -> None:
+        process_client = ProcessExecutionClient()
+        process_events = []
+        process_client.subscribe(
+            lambda event, generation: process_events.append((event, generation)),
+            include_generation=True,
+        )
+        process = Mock()
+        process.is_alive.return_value = False
+        process_client._process = process  # noqa: SLF001
+        process_client._catalog_generation_token = 1  # noqa: SLF001
+        process_client._physical_generation_token = 1  # noqa: SLF001
+        process_client._accepted_physical_generation_token = 1  # noqa: SLF001
+        process_client._check_worker_health(process, 1)  # noqa: SLF001
+        self.assertEqual(
+            process_events[-1][0]["type"],
+            "execution_generation_changed",
+        )
+        process_client._process = None  # noqa: SLF001
+        process_client.shutdown()
+
+        external_client = ExternalPythonExecutionClient()
+        external_events = []
+        external_client.subscribe(
+            lambda event, generation: external_events.append((event, generation)),
+            include_generation=True,
+        )
+        external = Mock()
+        external.poll.return_value = 1
+        external_client._process = external  # noqa: SLF001
+        external_client._catalog_generation_token = 1  # noqa: SLF001
+        external_client._physical_generation_token = 1  # noqa: SLF001
+        external_client._accepted_physical_generation_token = 1  # noqa: SLF001
+        external_client._check_worker_health()  # noqa: SLF001
+        self.assertEqual(
+            external_events[-1][0]["type"],
+            "execution_generation_changed",
+        )
+        external_client._process = None  # noqa: SLF001
+        external_client.shutdown()
 
 
 if __name__ == "__main__":

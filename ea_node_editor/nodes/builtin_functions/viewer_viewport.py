@@ -12,6 +12,7 @@ from ea_node_editor.nodes.builtins.viewer_viewport import (
 
 @corex.node(
     id="utilities.construct_view",
+    _solution_reuse_scope="durable",
     name="Construct View",
     category=("Utilities", "Viewer"),
     icon="visibility",
@@ -189,6 +190,7 @@ def construct_view(ctx, settings):
 
 @corex.node(
     id="utilities.deconstruct_view",
+    _solution_reuse_scope="durable",
     name="Deconstruct View",
     category=("Utilities", "Viewer"),
     icon="visibility",

@@ -1331,7 +1331,7 @@ class _GraphSceneContext:
             if self.mutation_timing_enabled():
                 self.record_mutation_timing_phase("history_capture_ms", (time.perf_counter() - start) * 1000.0)
 
-    def _invalidate_cached_node_elapsed_for_history_action(
+    def _invalidate_solution_for_history_action(
         self,
         workspace_id: str,
         action_type: str,
@@ -1340,7 +1340,7 @@ class _GraphSceneContext:
         after_snapshot: WorkspaceSnapshot | None,
     ) -> None:
         host = self._bridge.parent()
-        hook = getattr(host, "invalidate_cached_node_elapsed_for_history_action", None)
+        hook = getattr(host, "invalidate_solution_for_history_action", None)
         if not callable(hook):
             return
         hook(
@@ -1371,7 +1371,7 @@ class _GraphSceneContext:
             )
             if entry is None:
                 return
-            self._invalidate_cached_node_elapsed_for_history_action(
+            self._invalidate_solution_for_history_action(
                 self.workspace_id,
                 action_type,
                 before_snapshot=entry.before,
@@ -1423,7 +1423,7 @@ class _GraphSceneContext:
                     after_snapshot,
                 )
                 if entry is not None:
-                    self._invalidate_cached_node_elapsed_for_history_action(
+                    self._invalidate_solution_for_history_action(
                         self.workspace_id,
                         action_type,
                         before_snapshot=entry.before,

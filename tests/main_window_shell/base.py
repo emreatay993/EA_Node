@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import gc
+from types import SimpleNamespace
 import unittest
 from unittest.mock import patch
 
@@ -9,6 +10,8 @@ from PyQt6.QtGui import QKeySequence
 from PyQt6.QtWidgets import QApplication, QWidget
 
 from ea_node_editor.runtime_contracts import GRAPH_DATA_TYPE_ID
+from ea_node_editor.execution.execution_plan import ExecutionPlan
+from ea_node_editor.execution.prepared_execution import InvalidationResult
 from ea_node_editor.telemetry.frame_rate import FrameRateSampler
 from ea_node_editor.ui.shell.window import ShellWindow
 from scripts import verification_manifest as manifest
@@ -16,25 +19,48 @@ from tests.conftest import ShellTestEnvironment
 
 
 class _ShellTestExecutionClient:
-    def __init__(self, _registry: object | None = None) -> None:
+    def __init__(self, registry: object | None = None) -> None:
         self._callbacks: list[object] = []
+        self._registry = registry
+        self._solution_revisions: dict[str, int] = {}
 
     def subscribe(self, callback) -> None:  # noqa: ANN001
         self._callbacks.append(callback)
 
-    def start_run(  # noqa: ANN001
-        self,
-        project_path: str,
-        workspace_id: str,
-        trigger=None,
-        *,
-        execution_backend=None,
-        target_node_ids=(),
-        trigger_publications=None,
-        trigger_captures=None,
-        clicked_trigger_node_id: str = "",
-    ) -> str:
+    def prepare_execution(self, request):  # noqa: ANN001, ANN201
+        return SimpleNamespace(
+            request=request,
+            recompute_node_ids=tuple(request.target_node_ids),
+        )
+
+    def dispatch_prepared(self, _prepared) -> str:  # noqa: ANN001
         return ""
+
+    def solution_facts(self, _project_id: str, _workspace_id: str) -> tuple:
+        return ()
+
+    def invalidate_solution(
+        self,
+        project_id: str,
+        workspace_id: str,
+        runtime_snapshot,
+        changed_root_node_ids,
+        reason_code: str,
+    ) -> InvalidationResult:
+        plan = ExecutionPlan(runtime_snapshot.workspace(workspace_id), self._registry)
+        closure = plan.affected_downstream_closure(tuple(changed_root_node_ids))
+        self._solution_revisions[workspace_id] = (
+            self._solution_revisions.get(workspace_id, 0) + 1
+        )
+        return InvalidationResult(
+            project_id=project_id,
+            workspace_id=workspace_id,
+            solution_revision=self._solution_revisions[workspace_id],
+            changed_root_node_ids=tuple(changed_root_node_ids),
+            expired_node_ids=tuple(closure),
+            removed_node_ids=(),
+            reason_code=reason_code,
+        )
 
     def pause_run(self, run_id: str) -> None:
         return None

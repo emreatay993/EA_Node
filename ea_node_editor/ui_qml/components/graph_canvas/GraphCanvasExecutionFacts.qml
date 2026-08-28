@@ -46,6 +46,10 @@ QtObject {
         && typeof facts.stateBridge.fresh_run_node_lookup !== "undefined"
         ? facts.stateBridge.fresh_run_node_lookup
         : ({})
+    readonly property var nodeSolutionFreshnessLookup: facts.stateBridge
+        && typeof facts.stateBridge.node_solution_freshness_lookup !== "undefined"
+        ? facts.stateBridge.node_solution_freshness_lookup
+        : ({})
     readonly property var propertyPresentationLookup: facts.stateBridge
         && typeof facts.stateBridge.property_presentation_lookup !== "undefined"
         ? facts.stateBridge.property_presentation_lookup

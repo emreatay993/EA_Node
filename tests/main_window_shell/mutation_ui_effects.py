@@ -53,7 +53,7 @@ class _MutationEffectsHostProbe:
         self.invalidated_history_entries: list[tuple[object, ...]] = []
         self.graph_hints: list[tuple[str, int]] = []
 
-    def invalidate_cached_node_elapsed_for_history_action(
+    def invalidate_solution_for_history_action(
         self,
         workspace_id: str,
         action_type: str,
