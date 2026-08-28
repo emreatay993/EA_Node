@@ -364,6 +364,7 @@ docs/specs/requirements/*
 !docs/specs/requirements/TRACEABILITY_MATRIX.md
 !docs/specs/perf/
 docs/specs/perf/*
+!docs/specs/perf/COREX_SOLUTION_REUSE_CLASSIFICATION.md
 !docs/specs/perf/GRAPH_CANVAS_PERF_QA_MATRIX.md
 !docs/specs/perf/ENGINEERING_VIEWER_V1_QA_MATRIX.md
 !docs/specs/perf/ENGINEERING_VIEWER_V1_NATIVE_PERF_REPORT.md
