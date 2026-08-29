@@ -84,9 +84,12 @@ def _preview_url(source: str, page_number: int, file_stamp_token: str) -> str:
 
 
 def _normalized_requested_size(requested_size: QSize) -> QSize:
-    width = max(1, int(requested_size.width() or _DEFAULT_PREVIEW_WIDTH))
-    height = max(1, int(requested_size.height() or _DEFAULT_PREVIEW_HEIGHT))
-    return QSize(width, height)
+    width = int(requested_size.width())
+    height = int(requested_size.height())
+    return QSize(
+        width if width > 0 else _DEFAULT_PREVIEW_WIDTH,
+        height if height > 0 else _DEFAULT_PREVIEW_HEIGHT,
+    )
 
 
 def _aspect_fit_render_size(page_width: float, page_height: float, requested_size: QSize) -> QSize:

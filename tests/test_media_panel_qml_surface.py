@@ -436,7 +436,11 @@ class MediaPanelQmlSurfaceTests(PassiveGraphSurfaceHostTestBase):
 
             canvas.set_resolution(resolution("pdf", image_url, exposed=True))
             pdf_renderer = wait_for_named(host, "graphNodeMediaPdfRenderer")
+            pdf_preview = wait_for_named(host, "graphNodeMediaPdfPreviewImage")
             assert bool(image_renderer.property("rendererReleased"))
+            pdf_source_size = pdf_preview.property("sourceSize")
+            assert pdf_source_size.width() >= round(float(pdf_preview.width()))
+            assert pdf_source_size.height() >= round(float(pdf_preview.height()))
             actions = variant_list(surface.property("surfaceActions"))
             source_action = next(action for action in actions if action["id"] == "editSource")
             exposure_action = next(action for action in actions if action["id"] == "toggle_source_input")

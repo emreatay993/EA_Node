@@ -28,6 +28,8 @@ GraphShared.GraphSurfaceBase {
     readonly property string previewSourceUrl: rendererReleased
         ? ""
         : String(pdfPreviewInfo.preview_url || sourceResolution.preview_source_url || "")
+    readonly property real previewRenderScale: Math.max(1.0, Number(Screen.devicePixelRatio || 1.0))
+        * Math.max(1.0, host && host.currentViewportZoom ? Number(host.currentViewportZoom()) : 1.0)
     readonly property string previewState: {
         if (String(sourceResolution.state || "") !== "ready")
             return "error";
@@ -244,6 +246,8 @@ GraphShared.GraphSurfaceBase {
             mipmap: true
             fillMode: Image.PreserveAspectFit
             source: renderer.previewSourceUrl
+            sourceSize.width: Math.max(1, Math.ceil(width * renderer.previewRenderScale))
+            sourceSize.height: Math.max(1, Math.ceil(height * renderer.previewRenderScale))
             visible: renderer.previewState === "ready"
             smooth: true
         }

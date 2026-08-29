@@ -146,6 +146,20 @@ class PdfPreviewProviderTests(unittest.TestCase):
         self.assertGreaterEqual(paper_pixel.green(), 250)
         self.assertGreaterEqual(paper_pixel.blue(), 250)
 
+    def test_provider_uses_default_render_size_when_request_is_unspecified(self) -> None:
+        provider = LocalPdfPreviewImageProvider()
+        with tempfile.TemporaryDirectory() as temp_dir:
+            pdf_path = Path(temp_dir) / "preview.pdf"
+            _write_pdf(pdf_path)
+            image, size = provider.requestImage(
+                f"preview?source={quote(str(pdf_path), safe='')}&page=1",
+                QSize(),
+            )
+
+        self.assertEqual(image.size(), size)
+        self.assertGreater(size.width(), 100)
+        self.assertGreater(size.height(), 100)
+
     def test_describe_preview_and_provider_render_managed_pdf_ref(self) -> None:
         provider = LocalPdfPreviewImageProvider()
         with tempfile.TemporaryDirectory() as temp_dir:
