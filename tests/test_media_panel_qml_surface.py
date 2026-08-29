@@ -418,6 +418,22 @@ class MediaPanelQmlSurfaceTests(PassiveGraphSurfaceHostTestBase):
             settle_events(3)
             assert canvas.exposure_bridge.calls == [("node_surface_host_test", "source", True)]
 
+            canvas.set_resolution(resolution("image", image_url, exposed=True))
+            actions = variant_list(surface.property("surfaceActions"))
+            exposure_action = next(action for action in actions if action["id"] == "toggle_source_input")
+            assert bool(exposure_action["checked"])
+            assert exposure_action["label"] == "Hide Source Input"
+            QMetaObject.invokeMethod(
+                surface,
+                "dispatchSurfaceAction",
+                Q_ARG("QVariant", "toggle_source_input"),
+            )
+            settle_events(3)
+            assert canvas.exposure_bridge.calls == [
+                ("node_surface_host_test", "source", True),
+                ("node_surface_host_test", "source", False),
+            ]
+
             canvas.set_resolution(resolution("pdf", image_url, exposed=True))
             pdf_renderer = wait_for_named(host, "graphNodeMediaPdfRenderer")
             assert bool(image_renderer.property("rendererReleased"))
