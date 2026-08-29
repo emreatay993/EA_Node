@@ -53,6 +53,19 @@ scene_bridge.command_bridge directly."""
     def set_node_port_label(self, node_id: str, port_key: str, label: str) -> None:
         _invoke(self._scene_command_source, "set_node_port_label", node_id, port_key, label)
 
+    @pyqtSlot(str, str, bool, result=bool)
+    def set_exposed_port(self, node_id: str, port_key: str, exposed: bool) -> bool:
+        return bool(
+            _invoke(
+                self._scene_command_source,
+                "set_exposed_port",
+                node_id,
+                port_key,
+                bool(exposed),
+                default=False,
+            )
+        )
+
     @pyqtSlot(str, str, "QVariant")
     def set_node_property(self, node_id: str, key: str, value: object) -> None:
         _invoke(self._scene_command_source, "set_node_property", node_id, key, _variant_value(value))

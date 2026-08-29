@@ -412,6 +412,43 @@ class MainWindowShellPassiveImageNodesTests(SharedMainWindowShellTestBase):
         self.assertAlmostEqual(float(node.x), initial_x, places=6)
         self.assertAlmostEqual(float(node.y), initial_y, places=6)
 
+    def test_media_panel_toolbar_source_input_toggle_round_trips(self) -> None:
+        workspace_id = self.window.workspace_manager.active_workspace_id()
+        node_id = self._create_browse_media_panel()
+        self.window.scene.focus_node(node_id)
+        self.app.processEvents()
+
+        def source_input_exposed() -> bool:
+            workspace = self.window.model.project.workspaces[workspace_id]
+            return bool(workspace.nodes[node_id].exposed_ports["source"])
+
+        button_name = "graphNodeFloatingToolbarAction_toggle_source_input"
+        for expected_exposed in (True, False):
+            button = self._find_qml_item(button_name)
+            self.assertIsNotNone(button)
+            assert button is not None
+            self.assertTrue(bool(button.property("visible")))
+            self.assertTrue(bool(button.property("enabled")))
+            self.assertIs(bool(button.property("active")), not expected_exposed)
+            item_window = button.window()
+            self.assertIsNotNone(item_window)
+            assert item_window is not None
+            QTest.mouseClick(
+                item_window,
+                Qt.MouseButton.LeftButton,
+                Qt.KeyboardModifier.NoModifier,
+                self._item_scene_center(button),
+            )
+            wait_for_condition_or_raise(
+                lambda: source_input_exposed() is expected_exposed,
+                timeout_ms=5000,
+                app=self.app,
+            )
+            updated_button = self._find_qml_item(button_name)
+            self.assertIsNotNone(updated_button)
+            assert updated_button is not None
+            self.assertIs(bool(updated_button.property("active")), expected_exposed)
+
     def test_image_panel_toolbar_internalize_action_copies_file_and_flips_storage_mode(self) -> None:
         workspace_id = self.window.workspace_manager.active_workspace_id()
         node_id = self._create_browse_media_panel()
