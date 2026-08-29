@@ -1636,13 +1636,6 @@ class RunController:
         )
         if callable(project_all_run_required):
             project_all_run_required(reason="worker_reset")
-            return
-        invalidate_all_sessions = getattr(
-            viewer_session_bridge, "invalidate_all_sessions", None
-        )
-        if not callable(invalidate_all_sessions):
-            return
-        invalidate_all_sessions(reason="worker_reset")
 
     def _take_run_start_runtime_snapshot(self, run_id: str) -> Any:
         normalized_run_id = str(run_id or self._state.active_run_id).strip()

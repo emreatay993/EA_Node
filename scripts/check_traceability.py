@@ -626,6 +626,8 @@ SPEC_INDEX_REQUIRED_TOKENS = (
     "COREX_EXCALIDRAW_REAL_EDITOR_MANIFEST.md",
     "COREX_EXCALIDRAW_REAL_EDITOR_STATUS.md",
     "COREX_EXCALIDRAW_REAL_EDITOR QA Evidence",
+    "PLAN_COREX_INCREMENTAL_EXECUTION_AND_SOLUTION_SNAPSHOTS.md",
+    "COMPLETED — T01–T09 ACCEPTED",
 )
 COREX_EXCALIDRAW_REAL_EDITOR_QA_MATRIX_REQUIRED_TOKENS = (
     "COREX Excalidraw Web Host Layer QA Matrix",
@@ -1830,17 +1832,22 @@ def audit_spec_index(text: str, relative_path: str, issues: list[str]) -> None:
     rows = table_after_heading(
         text,
         relative_path=relative_path,
-        heading="Planned Capabilities — No Implementation Proof",
+        heading="Capability Roadmap Status",
         issues=issues,
     )
     if rows is None:
         return
-    if len(rows) != len(manifest.PLANNED_CAPABILITY_GROUPS):
+    if len(rows) != len(manifest.CAPABILITY_GROUPS):
         issues.append(
             f"{relative_path}: planned capability table has {len(rows)} rows; "
-            f"expected {len(manifest.PLANNED_CAPABILITY_GROUPS)}"
+            f"expected {len(manifest.CAPABILITY_GROUPS)}"
         )
-    for opportunity_id, capability, requirement_ids in manifest.PLANNED_CAPABILITY_GROUPS:
+    for (
+        opportunity_id,
+        capability,
+        requirement_ids,
+        expected_status,
+    ) in manifest.CAPABILITY_GROUPS:
         row = find_row(
             rows,
             column="Research opportunity",
@@ -1851,14 +1858,14 @@ def audit_spec_index(text: str, relative_path: str, issues: list[str]) -> None:
             continue
         if row.get("COREX capability") != capability:
             issues.append(f"{relative_path}: planned capability {opportunity_id} has wrong title")
-        requirement_text = row.get("Planned requirements", "")
+        requirement_text = row.get("Requirements", "")
         for requirement_id in requirement_ids:
             if f"`{requirement_id}`" not in requirement_text:
                 issues.append(
                     f"{relative_path}: planned capability {opportunity_id} missing requirement: "
                     f"{requirement_id}"
                 )
-        if strip_code_fence(row.get("Status", "")) != "PLANNED":
+        if strip_code_fence(row.get("Status", "")) != expected_status:
             issues.append(f"{relative_path}: planned capability {opportunity_id} has wrong status")
 
 

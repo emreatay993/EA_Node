@@ -11,6 +11,9 @@ FIXTURE_DIR = Path(__file__).parent / "fixtures" / "node_catalog"
 FROZEN_CATALOG_PATH = FIXTURE_DIR / "pre_cutover_non_dpf_catalog.json"
 DOCUMENTATION_OVERLAY_PATH = FIXTURE_DIR / "t17_non_dpf_documentation_overlay.json"
 STRUCTURAL_OVERLAY_PATH = FIXTURE_DIR / "unified_media_panel_structural_overlay.json"
+CURRENT_CONTRACT_OVERLAY_PATH = (
+    FIXTURE_DIR / "current_non_dpf_contract_overlay.json"
+)
 SOLUTION_REUSE_CLASSIFICATION_PATH = (
     Path(__file__).resolve().parents[1]
     / "docs"
@@ -75,6 +78,7 @@ def load_effective_non_dpf_catalog(
     fixture_path: Path = FROZEN_CATALOG_PATH,
     overlay_path: Path = DOCUMENTATION_OVERLAY_PATH,
     structural_overlay_path: Path = STRUCTURAL_OVERLAY_PATH,
+    current_contract_overlay_path: Path = CURRENT_CONTRACT_OVERLAY_PATH,
     solution_reuse_classification_path: Path = SOLUTION_REUSE_CLASSIFICATION_PATH,
 ) -> list[dict[str, Any]]:
     catalog = deepcopy(load_frozen_non_dpf_catalog(fixture_path=fixture_path))
@@ -198,6 +202,52 @@ def load_effective_non_dpf_catalog(
             f"Duplicate structural addition: {sorted(duplicate_additions)}"
         )
     catalog.extend(deepcopy(add_rows))
+
+    current_contract = json.loads(
+        current_contract_overlay_path.read_text(encoding="utf-8"),
+        object_pairs_hook=_unique_object,
+    )
+    current_contract = _exact_keys(
+        current_contract,
+        {"schema_version", "frozen_sha256", "property_default_patches"},
+        label="Current contract overlay",
+    )
+    if type(current_contract["schema_version"]) is not int or current_contract["schema_version"] != 1:
+        raise ValueError("Current contract overlay schema_version must be 1")
+    if current_contract["frozen_sha256"] != FROZEN_CATALOG_SHA256:
+        raise ValueError("Current contract overlay targets the wrong frozen catalog")
+    patches = _exact_keys(
+        current_contract["property_default_patches"],
+        {"model.viewer"},
+        label="property_default_patches",
+    )
+    properties = _exact_keys(
+        patches["model.viewer"],
+        {"representation"},
+        label="model.viewer property patches",
+    )
+    patch = _exact_keys(
+        properties["representation"],
+        {"expected_default", "replacement_default"},
+        label="model.viewer.representation patch",
+    )
+    current_by_type = _catalog_by_type(catalog)
+    try:
+        property_rows = current_by_type["model.viewer"]["spec"]["properties"]
+    except KeyError as exc:
+        raise ValueError("Unknown current-contract patch target: model.viewer") from exc
+    matching = [item for item in property_rows if item.get("key") == "representation"]
+    if len(matching) != 1:
+        raise ValueError("Unknown current-contract patch target: model.viewer.representation")
+    property_row = matching[0]
+    if property_row.get("default") != patch["expected_default"]:
+        raise ValueError("Current-contract patch expected default drifted")
+    replacement = patch["replacement_default"]
+    enum_values = property_row.get("enum_values")
+    if type(replacement) is not str or type(enum_values) is not list or replacement not in enum_values:
+        raise ValueError("Current-contract patch replacement is outside the property enum")
+    property_row["default"] = replacement
+
     reuse_scopes = load_solution_reuse_scopes(solution_reuse_classification_path)
     for type_id, row in _catalog_by_type(catalog).items():
         try:
@@ -273,6 +323,7 @@ def load_solution_reuse_scopes(
 
 
 __all__ = [
+    "CURRENT_CONTRACT_OVERLAY_PATH",
     "DOCUMENTATION_OVERLAY_PATH",
     "FROZEN_CATALOG_PATH",
     "FROZEN_CATALOG_SHA256",

@@ -135,7 +135,7 @@ Only `ACCEPTED` satisfies a dependent task.
 | T06 | Scoped viewer invalidation | T03-T05 plus revised T06 contract review | `ACCEPTED` | `/root/t06_explorer` | `/root/t06_implementer` | `/root/t06_reviewer` | accepted: no P0-P3; participant-local viewer acceptance and focused/fast evidence green | none |
 | T07 | Durable solution repository | T01-T04 | `ACCEPTED` | `/root/t07_explorer` | `/root/t07_implementer_recovery` | `/root/t07_reviewer` | accepted: no P0-P3; durable repository/security evidence green | none |
 | T08 | Save and Save-As transactions | T07 | `ACCEPTED` | `/root/t08_explorer` | `/root/t08_implementer` | `/root/t08_reviewer` | accepted: no P0-P3; copy-on-write transaction evidence green | none |
-| T09 | Closeout and acceptance | T01-T08 | `PLANNED_BLOCKED_PENDING_APPROVAL` | unassigned | unassigned | unassigned | none | wait for all tasks |
+| T09 | Closeout and acceptance | T01-T08 | `ACCEPTED` | `/root/t09_explorer` | `/root/t09_implementer` | architecture/security/UX trio | accepted: no P0-P3; clean fast and final docs/traceability closure | none |
 
 ## Per-Task Resume And Integration Records
 
@@ -152,8 +152,8 @@ test output must name the exact command and result or a stable log path.
 | T05 | T01-T04 accepted working-tree state; HEAD `86a5f562e7c5c9d7d52dad97f842a89631508a26` | `C:\Users\emre_\PycharmProjects\EA_Node_Editor` | accepted T01-T04 diff plus prohibited plan/spec paths | revised T05 plan SHA-256 `2F3626EB5620181CE6790E2F8D80139F12A525858551F6542FE61BC65027F82D` | `/root/t05_explorer` accepted: history/dispatch/cache/projection/availability/media/API-removal consumer map and store start-failure drift | `/root/t05_implementer_recovery`; audited/completed partial working-tree diff; no commit | exact closure 7; expanded store/headless/run/port/media/DPF 168 + 17 subtests; prior locked suites/maps/indexes/Ruff/diff pass; tooltip/Ruff baselines isolated | `/root/t05_reviewer`: no P0-P3; accept | none | sequential shared checkout |
 | T06 | HEAD `63e9786f`; accepted T01-T05 foundation | `C:\Users\emre_\PycharmProjects\EA_Node_Editor` | prohibited `docs/specs/INDEX.md` and Physical Simulation plan only | participant-local T06 plan SHA-256 `1AD2CF1FE568683497504B9EC2ED51B6BD269A53DBC53DCD6100D89515F6F58C` | `/root/t06_explorer` accepted: every invalidator/global reset, bridge/client/service epoch, worker filter, request registry, exact APIs, test/map owner | `/root/t06_implementer`; commit `057a507a`; no push | reopened 10 + 23 subtests; expanded focused 404 + 244 subtests; client/service/headless/store 160 + 64; DPF 25 + 3 and generator check; SSH 17; process reuse xdist 2; fast 4092 passed, 2 skipped, exactly 2 approved Model Viewer fixture baselines; maps/Ruff/diff/scope/process-leak pass | `/root/t06_reviewer`: no P0-P3; accept | none | sequential shared checkout; individual T06 commit |
 | T07 | HEAD `057a507a`; accepted T01-T06 | `C:\Users\emre_\PycharmProjects\EA_Node_Editor` | prohibited `docs/specs/INDEX.md` and Physical Simulation plan only; approved plan/ledger revision plus scoped T07 diff | approved T07 whole-plan SHA-256 `9E4C0EDC7030C466E8357F71670B3EB591C432EC9A82847E38323C0084ECC456` | `/root/t07_explorer` accepted: store/backend seam, artifact/path primitives, codec eligibility, metadata/lifecycle owners, lazy-load threat model, exact scope/tests/maps | `/root/t07_implementer_recovery`; commit `2bd7ffe1`; no push | real artifact probes 49; prior/new closure 55; repository/records/value 177; store/runtime 10; artifact/project 2; serializer/boundary/import 4; all ten modules 404 + 92 subtests; maps/indexes/Ruff/diff/scope/privacy pass | `/root/t07_reviewer`: no P0-P3; accept | none | sequential shared checkout; individual T07 commit |
-| T08 | HEAD `2bd7ffe1`; accepted T01-T07 | `C:\Users\emre_\PycharmProjects\EA_Node_Editor` | prohibited `docs/specs/INDEX.md` and Physical Simulation plan only; finding-revised plan/ledger plus scoped T08 diff | accepted finding-revised T08 whole-plan SHA-256 `0DAB80DAC9E13AAA227135B721B2B9DCA2CF7F33E82F343EE186D8CFAC49857C` | `/root/t08_explorer` accepted: destructive artifact/save order, T07 adapter gaps, metadata/binding transitions, failure matrix, exact scope/tests/maps | `/root/t08_implementer`; accepted working-tree diff; scoped commit pending | namespace store 48; repository/headless/save 90 + 20 subtests; expanded scope 366 + 117; final independent baseline 354 + 117; maps/Ruff/diff/scope/privacy pass | `/root/t08_reviewer`: no P0-P3; accept | none | sequential shared checkout; individual T08 commit |
-| T09 | pending assignment | pending assignment | pending | plan T09; hash pending | none | none | none | none | none | sequential shared checkout |
+| T08 | HEAD `2bd7ffe1`; accepted T01-T07 | `C:\Users\emre_\PycharmProjects\EA_Node_Editor` | prohibited `docs/specs/INDEX.md` and Physical Simulation plan only; finding-revised plan/ledger plus scoped T08 diff | accepted finding-revised T08 whole-plan SHA-256 `0DAB80DAC9E13AAA227135B721B2B9DCA2CF7F33E82F343EE186D8CFAC49857C` | `/root/t08_explorer` accepted: destructive artifact/save order, T07 adapter gaps, metadata/binding transitions, failure matrix, exact scope/tests/maps | `/root/t08_implementer`; commit `5397bc4a`; no push | namespace store 48; repository/headless/save 90 + 20 subtests; expanded scope 366 + 117; final independent baseline 354 + 117; maps/Ruff/diff/scope/privacy pass | `/root/t08_reviewer`: no P0-P3; accept | none | sequential shared checkout; individual T08 commit |
+| T09 | HEAD `5397bc4a`; accepted T01-T08 | `C:\Users\emre_\PycharmProjects\EA_Node_Editor` | existing owner hunk in `docs/specs/INDEX.md`; untracked Physical Simulation plan; approved plan/ledger revision plus scoped T09 diff | final plan status `COMPLETED — T01–T09 ACCEPTED`; final whole-plan SHA-256 `66323A758F59309E28ACE4E3EC68D22351B62A9EFD8E3DB89745E0D7E86B7F0B` | `/root/t09_explorer` accepted: dead invalidation APIs/raw-cache fixtures, direct viewer acceptance gap, current-catalog overlay, requirements/traceability/maps, fast/manual/publish checklist | `/root/t09_implementer`; accepted phase-A/finalization working-tree diff; scoped commit pending | terminal fast 4472 passed, 2 skipped, 0 failed; final traceability/Markdown/route suite 117 + 83 subtests; maps/Ruff/diff/scope/privacy pass | architecture/security/UX/final-doc closure all no P0-P3 | none | sequential shared checkout; preserve/stage INDEX hunks separately |
 
 ## T02 Classification Approval Gate
 
@@ -492,15 +492,26 @@ The drafter and reviewer must be different sub-agents.
 - Required implementation evidence:
   - zero duplicate freshness/scheduler authorities;
   - zero partial-run blanket viewer invalidators;
+  - dead bridge/service alternate invalidators removed with committed/global-reset
+    ownership preserved;
+  - direct disconnected-toggle acceptance spanning RunController, mounted bridge,
+    real worker service, freshness, no start/release, byte-identical transport/
+    preview, and stale-epoch rejection;
+  - strict current non-DPF contract overlay and frozen/effective/live default proof;
+  - promoted execution/persistence requirement text and rows without persisting
+    mutable freshness truth or claiming UI completion;
+  - corrected copy-on-write/no-clobber Save As requirement/traceability rows;
+  - updated QA manifest/checker/matrix/overlay tokens and owner-count proof;
   - map/link/traceability checks;
-  - summarized fast verification;
+  - zero-failure summarized fast verification;
   - automated and, when practical, manual disconnected Model Viewer acceptance.
 - Required review lenses:
   - independent architecture review;
   - independent security/data-integrity review;
   - independent UX acceptance review;
   - private-provenance and staged-scope audit.
-- Acceptance record: `none`.
+- Acceptance record: architecture/security/UX/final-doc reviewers; no P0-P3;
+  accepted.
 
 ## Research Completed Before Plan Approval
 
@@ -639,8 +650,25 @@ planning research.
 | L119 | T08 closure review closed the six transaction findings and retained one P2 strict `ProjectSolutionSaveResult` namespace-shape validation gap. | `/root/t08_reviewer`. |
 | L120 | T08 implementation applied shared strict namespace validation and exact type/control/whitespace/4,096-byte boundary coverage; expanded scoped evidence passed. | `/root/t08_implementer`. |
 | L121 | Accepted T08 after independent closure review found no P0-P3 issues; opened the individual T08 commit boundary. | `/root/t08_reviewer`. |
+| L122 | Created local individual T08 commit `5397bc4a`; staged-scope and private-provenance audits passed; no push. | Orchestrator commit boundary. |
+| L123 | Opened read-only T09 closeout/traceability/acceptance exploration at accepted HEAD `5397bc4a`, preserving the unrelated spec-index hunk. | `/root/t09_explorer`. |
+| L124 | T09 exploration found dead alternate viewer invalidation APIs, obsolete raw-cache fixtures, a missing direct disconnected-viewer acceptance, stale effective-catalog overlay, and exact requirements/traceability/map/publish closeout work. | `/root/t09_explorer`. |
+| L125 | Revised T09 around exact dead invalidation cleanup, direct bridge/service Model Viewer acceptance, strict current-catalog overlay, truthful requirement promotion, QA/traceability updates, and a zero-failure fast closeout. | `/root/t09_plan_reviewer`. |
+| L126 | Corrected T09 map/scope paths, removed stale API mandates throughout the plan, locked overlay/acceptance schemas, truthful finalization ordering, reconstructed freshness wording, and clean-fast-only boundary. | `/root/t09_plan_reviewer`. |
+| L127 | Independently accepted corrected T09 plan hash `50440961B6619001AB51F68686EF2ECA301555EE214BC1CD1C8AE2C19F06C4B6` with no P0-P2 findings. | `/root/t09_plan_reviewer`. |
+| L128 | Assigned T09 phase-A cleanup/acceptance/spec correction and clean-fast gate to `/root/t09_implementer`; requirement promotion/completed-plan registration remains gated on three independent reviews. | Orchestrator assignment. |
+| L129 | First T09 fast run passed 4,246 with two skips and found one deterministic stale `ProjectDocumentIOService` save-guard fixture in `tests/test_data_tree_ui.py`; implementation stopped before the out-of-scope edit. | `/root/t09_implementer`. |
+| L130 | Independently accepted the one-file T09 fixture scope addition; production construction already satisfies the save-guard invariant. | `/root/t09_plan_reviewer`. |
+| L131 | T09 phase A completed exact cleanup/overlay/direct acceptance/spec corrections and a clean fast gate of 4,472 passed with two skips; opened three independent closeout reviews before final promotion. | `/root/t09_implementer`. |
+| L132 | Architecture and security/data-integrity T09 reviews found no P0-P3 issues; UX review reopened one P2 because the direct acceptance stub echoed changed roots instead of deriving the disconnected closure/fact transition. | Three independent reviewers. |
+| L133 | T09 implementation replaced the tautological acceptance stub with real `ExecutionPlan` closure/fact updates, added a connected-viewer negative guard, and reran a clean terminal fast gate of 4,472 passed with two skips. | `/root/t09_implementer`. |
+| L134 | Architecture, security/data-integrity, and UX T09 reviews all closed with no P0-P3 findings; unlocked the gated final requirement promotion and completed-plan registration. | Three independent reviewers. |
+| L135 | T09 finalization promoted `REQ-EXEC-017`/`REQ-PERSIST-026`, kept `REQ-UI-052` planned, reduced planned owners to 19, marked/registered the plan completed, and passed final traceability/Markdown/route checks. | `/root/t09_implementer`. |
+| L136 | Final documentation review retained one P2 because `tests/test_markdown_hygiene.py` was changed but omitted from T09 scope; reconciled the exact file and relocked the final plan hash. | `/root/t09_architecture_reviewer`. |
+| L137 | Accepted T09 after clean fast verification, three independent closeout reviews, final promotion/registration checks, and final documentation closure found no P0-P3 issues. | Independent T09 reviewers. |
 
 ## Current Next Action
 
-Create the scoped individual T08 commit without pushing, then open T09 closeout
-exploration.
+Create the scoped individual T09 commit, audit all seven commits ahead of upstream,
+push `main` without force, and verify local/tracking/remote SHA parity while
+preserving the unrelated INDEX hunk and Physical Simulation plan.

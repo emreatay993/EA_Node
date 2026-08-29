@@ -942,11 +942,7 @@ class ViewerHostServiceTests(MainWindowShellTestBase):
         self._activate_inline(node_id)
         self._deactivate_inline(node_id)
 
-        self.bridge.project_workspace_run_required(
-            self.workspace_id,
-            reason="workspace_rerun",
-            run_id="run_replacement",
-        )
+        self.bridge.project_all_run_required(reason="workspace_rerun")
         self.app.processEvents()
         self.app.processEvents()
 
@@ -1357,11 +1353,7 @@ class ViewerHostServiceTests(MainWindowShellTestBase):
         self.assertIsNone(self.overlay_manager.overlay_widget(node_id, workspace_id=self.workspace_id))
         self.assertEqual(self.host_service.active_overlay_count, 0)
 
-        self.bridge.project_workspace_run_required(
-            self.workspace_id,
-            reason="workspace_rerun",
-            run_id="run_live",
-        )
+        self.bridge.project_all_run_required(reason="workspace_rerun")
         self.app.processEvents()
 
         self.assertIsNone(self.overlay_manager.overlay_widget(node_id, workspace_id=self.workspace_id))

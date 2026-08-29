@@ -1,0 +1,12 @@
+{
+  "schema_version": 1,
+  "frozen_sha256": "3CF91390E9E4C606B571ED3C907D7BF35647165F5358328F8FE9C18BF15C618F",
+  "property_default_patches": {
+    "model.viewer": {
+      "representation": {
+        "expected_default": "surface",
+        "replacement_default": "surface_with_edges"
+      }
+    }
+  }
+}

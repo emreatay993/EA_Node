@@ -1555,58 +1555,64 @@ PLANNED_REQUIREMENT_OWNERS = {
     "REQ-UI-058": "20_UI_UX",
     "REQ-NODE-036": "40_NODE_SDK",
     "REQ-NODE-037": "40_NODE_SDK",
-    "REQ-EXEC-017": "50_EXECUTION_ENGINE",
     "REQ-EXEC-018": "50_EXECUTION_ENGINE",
     "REQ-EXEC-019": "50_EXECUTION_ENGINE",
     "REQ-EXEC-020": "50_EXECUTION_ENGINE",
     "REQ-EXEC-021": "50_EXECUTION_ENGINE",
     "REQ-EXEC-022": "50_EXECUTION_ENGINE",
     "REQ-PERSIST-025": "60_PERSISTENCE",
-    "REQ-PERSIST-026": "60_PERSISTENCE",
     "REQ-INT-018": "70_INTEGRATIONS",
     "REQ-INT-019": "70_INTEGRATIONS",
 }
 
-PLANNED_CAPABILITY_GROUPS = (
+CAPABILITY_GROUPS = (
     (
         "SYN-OPP-0001",
         "Linked workflow instances",
         ("REQ-PERSIST-025", "REQ-UI-051"),
+        "PLANNED",
     ),
     (
         "SYN-OPP-0002",
         "Durable solution snapshots and incremental recomputation",
         ("REQ-EXEC-017", "REQ-PERSIST-026", "REQ-UI-052"),
+        "PARTIAL",
     ),
     (
         "SYN-OPP-0003",
         "Unified workflow interface semantics",
         ("REQ-NODE-036", "REQ-UI-053"),
+        "PLANNED",
     ),
     (
         "SYN-OPP-0004",
         "Dependency and provenance inspector",
         ("REQ-EXEC-018", "REQ-UI-054"),
+        "PLANNED",
     ),
     (
         "SYN-OPP-0005",
         "Reproducible debug bundles",
         ("REQ-EXEC-019", "REQ-UI-055"),
+        "PLANNED",
     ),
     (
         "SYN-OPP-0006",
         "Secure remote execution",
         ("REQ-EXEC-020", "REQ-INT-018", "REQ-UI-056"),
+        "PLANNED",
     ),
     (
         "SYN-OPP-0007",
         "Solver-neutral FEA process contracts",
         ("REQ-NODE-037", "REQ-EXEC-021", "REQ-INT-019", "REQ-UI-057"),
+        "PLANNED",
     ),
     (
         "SYN-OPP-0008",
         "Permissioned agent orchestration",
         ("REQ-ARCH-020", "REQ-EXEC-022", "REQ-UI-058"),
+        "PLANNED",
     ),
 )
 
@@ -1901,6 +1907,29 @@ TRACEABILITY_ROW_REQUIRED_TOKENS = {
 
 TRACEABILITY_ROW_REQUIRED_TOKENS.update(
     {
+        "REQ-EXEC-017": (
+            "solution_identity.py",
+            "solution_store.py",
+            "run_controller.py",
+            "test_shell_run_controller.py",
+        ),
+        "AC-REQ-EXEC-017-01": (
+            "test_disconnected_toggle_auto_run_preserves_current_viewer",
+            "run_verification.py --mode fast --summarize-output",
+            "4,472 passed, 2 skipped",
+        ),
+        "REQ-PERSIST-026": (
+            "solution_repository.py",
+            "document_io_service.py",
+            "mutable freshness",
+            "never durable truth",
+        ),
+        "AC-REQ-PERSIST-026-01": (
+            "test_solution_repository.py",
+            "test_project_save_as_flow.py",
+            "run_verification.py --mode fast --summarize-output",
+            "4,472 passed, 2 skipped",
+        ),
         "REQ-UI-065": (
             "plugin_authoring.py",
             "plugin_authoring_dialog.py",
@@ -1975,6 +2004,7 @@ TRACEABILITY_ROW_REQUIRED_TOKENS.update(
             "PLAN_COREX_NOVICE_PLUGIN_SDK.md",
             "COREX_NOVICE_PLUGIN_SDK_MIGRATION_INVENTORY.md",
             "pre_cutover_non_dpf_catalog.json",
+            "current_non_dpf_contract_overlay.json",
             "COREX_NOVICE_PLUGIN_SDK_QA_MATRIX.md",
         ),
         "AC-REQ-QA-055-01": (
@@ -2024,6 +2054,8 @@ COREX_NOVICE_PLUGIN_SDK_QA_MATRIX_REQUIRED_TOKENS = (
     "53 trusted internal exceptions",
     "805 DPF exclusions",
     "133 frozen non-DPF catalog rows",
+    "current_non_dpf_contract_overlay.json",
+    "surface_with_edges",
     "68 reserved built-in function entries",
     "## T01-T16 Accepted Commits",
     "bc58d7c7",

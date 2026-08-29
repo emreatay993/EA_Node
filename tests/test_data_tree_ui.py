@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import threading
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
@@ -249,6 +250,7 @@ def test_open_project_shows_migration_report_after_finalization_without_overwrit
     )
     events: list[str] = []
     service = object.__new__(ProjectDocumentIOService)
+    service._save_guard = threading.Lock()
     service._host = SimpleNamespace(
         serializer=SimpleNamespace(load=lambda _path: project),
         model=SimpleNamespace(project=SimpleNamespace(workspaces={})),

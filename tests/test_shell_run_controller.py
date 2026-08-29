@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import re
 import sys
 import time
@@ -12,10 +13,25 @@ from PyQt6.QtQuick import QQuickItem
 from PyQt6.QtTest import QTest
 from PyQt6.QtWidgets import QMessageBox
 
+from ea_node_editor.execution.execution_plan import ExecutionPlan
 from ea_node_editor.runtime_contracts.settled_results import SettledPortResult
 from ea_node_editor.execution.prepared_execution import InvalidationResult
-from ea_node_editor.execution.protocol import viewer_epoch_snapshot_digest
+from ea_node_editor.execution.protocol import (
+    CloseViewerSessionCommand,
+    OpenViewerSessionCommand,
+    ViewerSessionFailedEvent,
+    viewer_epoch_snapshot_digest,
+)
+from ea_node_editor.execution.viewer_backend_engineering import (
+    ENGINEERING_VIEWER_BACKEND_ID,
+)
 from ea_node_editor.runtime_contracts import DataTree
+from ea_node_editor.runtime_contracts.solution_records import (
+    NodeSolutionFact,
+    SolutionDisposition,
+    SolutionFreshness,
+    SolutionResidency,
+)
 from ea_node_editor.ui.icon_registry import icon_path
 from ea_node_editor.ui_qml.shell_inspector_bridge import ShellInspectorBridge
 from ea_node_editor.ui_qml.shell_library_bridge import ShellLibraryBridge
@@ -27,6 +43,7 @@ from tests.shell_isolation_runtime import format_child_output
 from tests.shell_isolation_runtime import run_shell_isolation_target
 from tests.shell_isolation_runtime import ShellIsolationTarget
 from tests.shell_isolation_runtime import ShellIsolationTargetTimeout
+from tests.typed_handle_support import dpf_worker_services
 
 _SHELL_TEST_RUNNER = (
     "import sys, unittest; "
@@ -45,7 +62,8 @@ def _value_outputs(**values: object) -> dict[str, SettledPortResult]:
 
 
 class _ViewerExecutionClientStub:
-    def __init__(self) -> None:
+    def __init__(self, registry) -> None:  # noqa: ANN001
+        self.registry = registry
         self.next_run_id = "run_live"
         self.start_calls: list[dict] = []
         self.pause_calls: list[str] = []
@@ -55,6 +73,8 @@ class _ViewerExecutionClientStub:
         self.update_calls: list[dict] = []
         self.close_calls: list[dict] = []
         self.invalidate_viewer_calls: list[tuple[str, tuple[str, ...] | None]] = []
+        self.solution_facts_by_workspace: dict[str, tuple[NodeSolutionFact, ...]] = {}
+        self.invalidate_calls: list[InvalidationResult] = []
         self._request_counter = 0
         self._solution_revisions: dict[str, int] = {}
 
@@ -63,9 +83,32 @@ class _ViewerExecutionClientStub:
         return f"{prefix}_{self._request_counter}"
 
     def prepare_execution(self, request):  # noqa: ANN001, ANN201
+        plan = ExecutionPlan(
+            request.runtime_snapshot.workspace(request.workspace_id), self.registry
+        )
+        facts = {
+            fact.node_id: fact
+            for fact in self.solution_facts_by_workspace.get(request.workspace_id, ())
+        }
+        requested = set(request.target_node_ids)
+        recompute_node_ids = tuple(
+            node_id
+            for node_id in plan.execution_order
+            if node_id in requested
+            and (
+                node_id not in facts
+                or facts[node_id].freshness is not SolutionFreshness.CURRENT
+            )
+        )
+        viewer_invalidation_node_ids = tuple(
+            node_id
+            for node_id in recompute_node_ids
+            if plan.node_specs[node_id].surface_family == "viewer"
+        )
         return SimpleNamespace(
             request=request,
-            recompute_node_ids=tuple(request.target_node_ids),
+            recompute_node_ids=recompute_node_ids,
+            viewer_invalidation_node_ids=viewer_invalidation_node_ids,
         )
 
     def dispatch_prepared(self, prepared) -> str:  # noqa: ANN001
@@ -82,13 +125,17 @@ class _ViewerExecutionClientStub:
                 "trigger_publications": dict(request.trigger_publications),
                 "trigger_captures": dict(request.trigger_captures),
                 "clicked_trigger_node_id": request.clicked_trigger_node_id,
+                "recompute_node_ids": tuple(prepared.recompute_node_ids),
+                "viewer_invalidation_node_ids": tuple(
+                    prepared.viewer_invalidation_node_ids
+                ),
             }
         )
         return self.next_run_id
 
     def solution_facts(self, project_id: str, workspace_id: str):  # noqa: ANN201
-        del project_id, workspace_id
-        return ()
+        del project_id
+        return self.solution_facts_by_workspace.get(workspace_id, ())
 
     def invalidate_solution(
         self,
@@ -98,20 +145,52 @@ class _ViewerExecutionClientStub:
         changed_root_node_ids,
         reason_code: str,
     ) -> InvalidationResult:
-        del runtime_snapshot
+        plan = ExecutionPlan(runtime_snapshot.workspace(workspace_id), self.registry)
+        closure = plan.affected_downstream_closure(tuple(changed_root_node_ids))
+        active_ids = {
+            node_id
+            for node_id in plan.execution_order
+            if plan.node_specs[node_id].runtime_behavior == "active"
+        }
+        removed = tuple(
+            fact.node_id
+            for fact in self.solution_facts_by_workspace.get(workspace_id, ())
+            if fact.node_id not in active_ids
+        )
         self._solution_revisions[workspace_id] = (
             self._solution_revisions.get(workspace_id, 0) + 1
         )
-        roots = tuple(changed_root_node_ids)
-        return InvalidationResult(
+        result = InvalidationResult(
             project_id=project_id,
             workspace_id=workspace_id,
             solution_revision=self._solution_revisions[workspace_id],
-            changed_root_node_ids=roots,
-            expired_node_ids=roots,
-            removed_node_ids=(),
+            changed_root_node_ids=tuple(changed_root_node_ids),
+            expired_node_ids=tuple(closure),
+            removed_node_ids=removed,
             reason_code=reason_code,
         )
+        updated_facts = []
+        for fact in self.solution_facts_by_workspace.get(workspace_id, ()):
+            if fact.node_id in removed:
+                continue
+            if fact.node_id in closure:
+                fact = NodeSolutionFact(
+                    project_id=fact.project_id,
+                    workspace_id=fact.workspace_id,
+                    node_id=fact.node_id,
+                    freshness=SolutionFreshness.EXPIRED,
+                    revision=fact.revision + 1,
+                    retained_record_id=fact.retained_record_id,
+                    retained_solution_key=fact.retained_solution_key,
+                    residency=fact.residency,
+                    expiration_reason_code=reason_code,
+                    expiration_root_node_ids=closure[fact.node_id],
+                    last_disposition=fact.last_disposition,
+                )
+            updated_facts.append(fact)
+        self.solution_facts_by_workspace[workspace_id] = tuple(updated_facts)
+        self.invalidate_calls.append(result)
+        return result
 
     def pause_run(self, run_id: str) -> None:
         self.pause_calls.append(str(run_id))
@@ -329,6 +408,372 @@ def _named_qquick_item(root: QObject, object_name: str) -> QQuickItem | None:
 
 
 class ShellRunControllerTests(MainWindowShellTestBase):
+    def test_disconnected_toggle_auto_run_preserves_current_viewer_until_separate_same_node_invalidation(
+        self,
+    ) -> None:
+        execution_client = _ViewerExecutionClientStub(self.window.registry)
+        self.window.execution_client = execution_client
+        self.window.run_controller.set_auto_run_enabled(False)
+        bridge = self.window.viewer_session_bridge
+        workspace_id = self.window.workspace_manager.active_workspace_id()
+        project_id = self.window.model.project.project_id
+
+        cad_id = self.window.scene.add_node_from_type(
+            "engineering.cad_import", x=40.0, y=40.0
+        )
+        viewer_id = self.window.scene.add_node_from_type(
+            "model.viewer", x=300.0, y=40.0
+        )
+        toggle_id = self.window.scene.add_node_from_type(
+            "data.boolean_toggle", x=40.0, y=260.0
+        )
+        self.window.scene.add_edge(cad_id, "scene", viewer_id, "scene")
+        self.app.processEvents()
+
+        viewer_fact = NodeSolutionFact(
+            project_id=project_id,
+            workspace_id=workspace_id,
+            node_id=viewer_id,
+            freshness=SolutionFreshness.CURRENT,
+            revision=0,
+            retained_record_id="record_viewer_current",
+            retained_solution_key="a" * 64,
+            residency=SolutionResidency.SESSION,
+            last_disposition=SolutionDisposition.RECOMPUTED,
+        )
+        toggle_fact = NodeSolutionFact(
+            project_id=project_id,
+            workspace_id=workspace_id,
+            node_id=toggle_id,
+            freshness=SolutionFreshness.CURRENT,
+            revision=0,
+            retained_record_id="record_toggle_current",
+            retained_solution_key="b" * 64,
+            residency=SolutionResidency.SESSION,
+            last_disposition=SolutionDisposition.RECOMPUTED,
+        )
+        execution_client.solution_facts_by_workspace[workspace_id] = (
+            viewer_fact,
+            toggle_fact,
+        )
+        self.window.execution_event.emit(
+            {
+                "type": "solution_state_changed",
+                "project_id": project_id,
+                "workspace_id": workspace_id,
+                "solution_revision": 0,
+                "expired_node_ids": [],
+                "removed_node_ids": [],
+                "reason_code": "settled",
+            }
+        )
+
+        session_id = "viewer_session_disconnected_acceptance"
+        session_payload = {
+            "scene": {"kind": "prepared_scene", "handle_id": "scene_current"}
+        }
+        transport = {
+            "kind": "engineering_scene",
+            "backend_id": ENGINEERING_VIEWER_BACKEND_ID,
+            "revision": 7,
+        }
+        summary = {
+            "cache_state": "live_ready",
+            "result_name": "prepared_scene",
+            "preview": {"source": "image://viewer-preview/current"},
+        }
+        session_id = bridge.open(
+            viewer_id,
+            {
+                "session_id": session_id,
+                "backend_id": ENGINEERING_VIEWER_BACKEND_ID,
+                "data_refs": session_payload,
+                "summary": summary,
+            },
+        )
+        open_call = execution_client.open_calls[-1]
+        self.window.execution_event.emit(
+            _viewer_opened_event(
+                request_id=open_call["request_id"],
+                workspace_id=workspace_id,
+                node_id=viewer_id,
+                session_id=session_id,
+                backend_id=ENGINEERING_VIEWER_BACKEND_ID,
+                data_refs=session_payload,
+                transport=transport,
+                transport_revision=7,
+                live_open_status="ready",
+                summary=summary,
+                options={"session_state": "open", "live_mode": "full"},
+            )
+        )
+        self.app.processEvents()
+
+        worker_services = dpf_worker_services()
+        service = worker_services.viewer_session_service
+        service.install_workspace_context(workspace_id=workspace_id)
+        service_opened = service.open_session(
+            OpenViewerSessionCommand(
+                request_id="service_open_current",
+                workspace_id=workspace_id,
+                node_id=viewer_id,
+                session_id=session_id,
+                backend_id=ENGINEERING_VIEWER_BACKEND_ID,
+                data_refs=session_payload,
+                transport=transport,
+                transport_revision=7,
+                live_open_status="ready",
+                summary=summary,
+                options={"session_state": "open", "live_mode": "full"},
+            )
+        )
+        self.assertEqual(service_opened.live_open_status, "ready")
+
+        bridge_before = bridge.session_state(viewer_id)
+        bridge_bytes = json.dumps(
+            bridge_before, sort_keys=True, separators=(",", ":")
+        ).encode("utf-8")
+        service_key = (workspace_id, session_id)
+        service_before = service._sessions[service_key].public_projection()  # noqa: SLF001
+        service_bytes = json.dumps(
+            service_before, sort_keys=True, separators=(",", ":")
+        ).encode("utf-8")
+        owner_scope = service._sessions[service_key].owner_scope  # noqa: SLF001
+        handle_counts = (
+            worker_services.handle_registry.active_handle_count,
+            worker_services.handle_registry.active_lease_count,
+        )
+        observed_events: list[dict] = []
+        self.window.execution_event.connect(
+            lambda event: observed_events.append(dict(event))
+        )
+
+        def assert_viewer_unchanged() -> None:
+            current_bridge = bridge.session_state(viewer_id)
+            self.assertEqual(
+                json.dumps(
+                    current_bridge, sort_keys=True, separators=(",", ":")
+                ).encode("utf-8"),
+                bridge_bytes,
+            )
+            self.assertEqual(current_bridge["phase"], "open")
+            self.assertEqual(current_bridge["live_open_status"], "ready")
+            self.assertEqual(current_bridge["transport_revision"], 7)
+            self.assertEqual(current_bridge["data_refs"], session_payload)
+            self.assertEqual(current_bridge["transport"], transport)
+            self.assertEqual(current_bridge["summary"]["preview"], summary["preview"])
+            current_service = service._sessions[service_key]  # noqa: SLF001
+            self.assertEqual(current_service.owner_scope, owner_scope)
+            self.assertEqual(
+                json.dumps(
+                    current_service.public_projection(),
+                    sort_keys=True,
+                    separators=(",", ":"),
+                ).encode("utf-8"),
+                service_bytes,
+            )
+            self.assertIs(
+                self.window.run_state.node_solution_facts_by_workspace_id[
+                    workspace_id
+                ][viewer_id].freshness,
+                SolutionFreshness.CURRENT,
+            )
+
+        self.window.run_controller.set_auto_run_enabled(True)
+        with patch.object(
+            service, "_release_owner_scope", wraps=service._release_owner_scope
+        ) as owner_release, patch.object(
+            service, "_release_live_transport", wraps=service._release_live_transport
+        ) as transport_release:
+            self.window.scene.set_node_property(toggle_id, "value", True)
+            self.app.processEvents()
+
+            self.assertEqual(
+                execution_client.start_calls[-1]["target_node_ids"], (toggle_id,)
+            )
+            self.assertEqual(
+                execution_client.invalidate_calls[-1].expired_node_ids,
+                (toggle_id,),
+            )
+            self.assertEqual(
+                execution_client.start_calls[-1]["recompute_node_ids"],
+                (toggle_id,),
+            )
+            self.assertEqual(
+                execution_client.start_calls[-1]["viewer_invalidation_node_ids"],
+                (),
+            )
+            solution_facts = self.window.run_state.node_solution_facts_by_workspace_id[
+                workspace_id
+            ]
+            self.assertIs(
+                solution_facts[toggle_id].freshness, SolutionFreshness.EXPIRED
+            )
+            self.assertIs(
+                solution_facts[viewer_id].freshness, SolutionFreshness.CURRENT
+            )
+            self.assertEqual(execution_client.invalidate_viewer_calls, [])
+
+            workspace_epoch, node_epoch = bridge._viewer_epochs(  # noqa: SLF001
+                workspace_id, viewer_id
+            )
+            self.assertEqual(node_epoch, 0)
+            empty_digest = viewer_epoch_snapshot_digest(
+                workspace_id=workspace_id,
+                node_ids=(),
+                workspace_epoch=workspace_epoch,
+                node_epochs=(),
+            )
+            self.assertTrue(
+                bridge.adopt_committed_invalidation(
+                    workspace_id=workspace_id,
+                    node_ids=(),
+                    workspace_epoch=workspace_epoch,
+                    node_epochs=(),
+                    snapshot_digest=empty_digest,
+                    reason="workspace_rerun",
+                    run_id="run_live",
+                )
+            )
+            self.assertEqual(
+                service.adopt_invalidation_snapshot(
+                    workspace_id=workspace_id,
+                    node_ids=(),
+                    workspace_epoch=workspace_epoch,
+                    node_epochs=(),
+                    snapshot_digest=empty_digest,
+                    reason="workspace_rerun",
+                ),
+                0,
+            )
+            assert_viewer_unchanged()
+
+            for event in (
+                {
+                    "type": "run_started",
+                    "run_id": "run_live",
+                    "workspace_id": workspace_id,
+                },
+                {
+                    "type": "node_started",
+                    "run_id": "run_live",
+                    "workspace_id": workspace_id,
+                    "node_id": toggle_id,
+                },
+                {
+                    "type": "node_settled",
+                    "status": "completed",
+                    "run_id": "run_live",
+                    "workspace_id": workspace_id,
+                    "node_id": toggle_id,
+                    "outputs": _value_outputs(boolean=True),
+                },
+                {
+                    "type": "run_completed",
+                    "run_id": "run_live",
+                    "workspace_id": workspace_id,
+                },
+            ):
+                self.window.execution_event.emit(event)
+                self.app.processEvents()
+                assert_viewer_unchanged()
+
+            owner_release.assert_not_called()
+            transport_release.assert_not_called()
+
+        self.assertFalse(
+            any(
+                event.get("type") == "node_started"
+                and event.get("node_id") == viewer_id
+                for event in observed_events
+            )
+        )
+        self.assertEqual(
+            (
+                worker_services.handle_registry.active_handle_count,
+                worker_services.handle_registry.active_lease_count,
+            ),
+            handle_counts,
+        )
+
+        runtime_snapshot = execution_client.start_calls[-1]["trigger"][
+            "runtime_snapshot"
+        ]
+        connected_result = execution_client.invalidate_solution(
+            project_id,
+            workspace_id,
+            runtime_snapshot,
+            (cad_id,),
+            "connected_upstream_changed",
+        )
+        connected_prepared = execution_client.prepare_execution(
+            SimpleNamespace(
+                runtime_snapshot=runtime_snapshot,
+                workspace_id=workspace_id,
+                target_node_ids=connected_result.expired_node_ids,
+            )
+        )
+        self.assertEqual(connected_result.expired_node_ids, (cad_id, viewer_id))
+        self.assertIn(viewer_id, connected_prepared.recompute_node_ids)
+        self.assertEqual(
+            connected_prepared.viewer_invalidation_node_ids, (viewer_id,)
+        )
+
+        node_epochs = ((viewer_id, node_epoch + 1),)
+        scoped_digest = viewer_epoch_snapshot_digest(
+            workspace_id=workspace_id,
+            node_ids=(viewer_id,),
+            workspace_epoch=workspace_epoch,
+            node_epochs=node_epochs,
+        )
+        self.assertTrue(
+            bridge.adopt_committed_invalidation(
+                workspace_id=workspace_id,
+                node_ids=(viewer_id,),
+                workspace_epoch=workspace_epoch,
+                node_epochs=node_epochs,
+                snapshot_digest=scoped_digest,
+                reason="same_node_changed",
+            )
+        )
+        self.assertEqual(
+            service.adopt_invalidation_snapshot(
+                workspace_id=workspace_id,
+                node_ids=(viewer_id,),
+                workspace_epoch=workspace_epoch,
+                node_epochs=node_epochs,
+                snapshot_digest=scoped_digest,
+                reason="same_node_changed",
+            ),
+            1,
+        )
+        self.window.execution_event.emit(
+            _viewer_opened_event(
+                request_id=open_call["request_id"],
+                workspace_id=workspace_id,
+                node_id=viewer_id,
+                session_id=session_id,
+                data_refs={"scene": "delayed"},
+                transport={"kind": "delayed"},
+                workspace_invalidation_epoch=workspace_epoch,
+                node_invalidation_epoch=node_epoch,
+            )
+        )
+        delayed_close = service.close_session(
+            CloseViewerSessionCommand(
+                request_id="delayed_close",
+                workspace_id=workspace_id,
+                node_id=viewer_id,
+                session_id=session_id,
+                workspace_invalidation_epoch=workspace_epoch,
+                node_invalidation_epoch=node_epoch,
+            )
+        )
+        self.app.processEvents()
+        self.assertEqual(bridge.session_state(viewer_id)["phase"], "blocked")
+        self.assertIsInstance(delayed_close, ViewerSessionFailedEvent)
+        self.assertIn("newer epoch", delayed_close.error)
+
     def test_node_execution_visualization_shell_events_drive_graph_node_chrome_states(self) -> None:
         workspace_id = self.window.workspace_manager.active_workspace_id()
         node_id = self.window.scene.add_node_from_type("core.logger", x=120.0, y=40.0)
@@ -1011,7 +1456,7 @@ class ShellRunControllerTests(MainWindowShellTestBase):
         self.assertEqual(dict(graph_canvas.property("failedNodeLookup")), {node_id: True})
 
     def test_viewer_session_bridge_context_property_exists_and_rerun_invalidates_current_workspace(self) -> None:
-        execution_client = _ViewerExecutionClientStub()
+        execution_client = _ViewerExecutionClientStub(self.window.registry)
         self.window.execution_client = execution_client
         self.window.run_controller.set_auto_run_enabled(False)
 
@@ -1074,7 +1519,7 @@ class ShellRunControllerTests(MainWindowShellTestBase):
         self.assertEqual(self.window.run_state.active_run_workspace_id, workspace_id)
 
     def test_successful_dispatch_invalidates_exact_viewers_without_host_reset(self) -> None:
-        execution_client = _ViewerExecutionClientStub()
+        execution_client = _ViewerExecutionClientStub(self.window.registry)
         self.window.execution_client = execution_client
         self.window.run_controller.set_auto_run_enabled(False)
         viewer_host_service = _ViewerHostServiceStub()
@@ -1144,7 +1589,7 @@ class ShellRunControllerTests(MainWindowShellTestBase):
         self.assertEqual(bridge.session_state(node_id)["phase"], "blocked")
 
     def test_failed_dispatch_leaves_viewer_host_and_epochs_untouched(self) -> None:
-        execution_client = _ViewerExecutionClientStub()
+        execution_client = _ViewerExecutionClientStub(self.window.registry)
         execution_client.next_run_id = ""
         self.window.execution_client = execution_client
         self.window.run_controller.set_auto_run_enabled(False)
@@ -1367,7 +1812,7 @@ class ShellRunControllerTests(MainWindowShellTestBase):
             )
 
     def test_fatal_run_failed_event_invalidates_viewer_sessions_as_worker_reset(self) -> None:
-        execution_client = _ViewerExecutionClientStub()
+        execution_client = _ViewerExecutionClientStub(self.window.registry)
         self.window.execution_client = execution_client
         self.window.run_controller.set_auto_run_enabled(False)
 
@@ -1596,7 +2041,7 @@ class ShellRunControllerTests(MainWindowShellTestBase):
         self.assertEqual(dict(failed_lookup), {failed_node_id: True})
         self.assertEqual(graph_canvas.property("failedNodeTitle"), "Exploding Script")
     def test_new_run_clears_failed_node_highlight_before_start(self) -> None:
-        execution_client = _ViewerExecutionClientStub()
+        execution_client = _ViewerExecutionClientStub(self.window.registry)
         self.window.execution_client = execution_client
         self.window.run_controller.set_auto_run_enabled(False)
 

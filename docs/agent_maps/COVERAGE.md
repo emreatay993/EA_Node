@@ -42,7 +42,7 @@ implementation studies are intentionally excluded.
 
 - Incremental execution freshness, invalidation closure, settlement acceptance, and reset notifications are execution-owned. Shell/QML retain only bounded record-ID-selected presentation caches, exact node cleanup, and the transport-only current/expired projection.
 - Durable solution selection/publication and project-save snapshot/adoption tokens remain execution-owned through strict backend/factory ports. Persistence implements immutable schema-1 generation merge/validation plus bounded exact-candidate GC. `ProjectDocumentIOService` alone coordinates guarded copy-on-write artifacts, images, solution candidate, canonical `.cxproj` publication, raw reopen, no-I/O runtime/live adoption, and post-success cleanup.
-- Viewer invalidation epochs are participant-local transport safety facts: prepared runs stage process/trusted/external snapshots plus an independent high-level/Bridge projection, worker preflight uses only the selected concrete view, and concrete responses translate to projection epochs only after local validation. Commit uses high-level active then child state-before-viewer locking, callback-free pinned delivery, all-or-none apply, and an irreversible gate-clearing finalizer. Failure remains byte-identical; only a state-free selected service may baseline-align its selected concrete workspace epoch. Project and generation replacement remain workspace-global.
+- Viewer invalidation epochs are participant-local transport safety facts: prepared runs stage process/trusted/external snapshots plus an independent high-level/Bridge projection, worker preflight uses only the selected concrete view, and concrete responses translate to projection epochs only after local validation. Context installation is separate from validation/adoption; the Bridge has one committed partial-run adoption path, and global reset/legacy-direct paths remain explicit. Commit uses high-level active then child state-before-viewer locking, callback-free pinned delivery, all-or-none apply, and an irreversible gate-clearing finalizer. Failure remains byte-identical; only a state-free selected service may baseline-align its selected concrete workspace epoch. Project and generation replacement remain workspace-global.
 - Tabular's seven executable declarations are owned by `addons/tabular_data/function_nodes.py`; dependency gating and bundle publication stay under the add-on catalog, while refs, preview, property editing, native preload, and execution helpers remain in their existing Tabular owners.
 - MARS's three executable declarations are owned by `addons/mars/function_nodes.py`; its catalog owns dependency gating, package provenance, and bundle publication while `nodes.py` and `runtime.py` retain job construction, JSONL execution, cancellation, and artifact publication.
 - Signal Plot declaration/execution is owned by `nodes/builtin_functions/plot_signal.py`,
@@ -81,8 +81,9 @@ implementation studies are intentionally excluded.
 - T17 documentation corrections use
   `tests/fixtures/node_catalog/t17_non_dpf_documentation_overlay.json` through
   `tests/non_dpf_catalog_fixture.py`; the unified Media Panel structural overlay
-  is applied afterward to form the 131-row current catalog, while the 133-node
-  pre-cutover fixture remains frozen. Closeout evidence lives in
+  and strict current-contract default overlay are applied afterward to form the
+  131-row current catalog, while the 133-node pre-cutover fixture remains frozen.
+  Closeout evidence lives in
   `docs/specs/perf/COREX_NOVICE_PLUGIN_SDK_QA_MATRIX.md`.
 - Core integrations contribute eight reserved function entries plus the trusted
   Path Pointer and Folder Explorer exceptions. SSH/SFTP contributes six reserved

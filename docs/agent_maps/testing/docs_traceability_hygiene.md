@@ -15,6 +15,7 @@ Use this for docs links, traceability matrix checks, markdown hygiene, dead-code
 - `tests/non_dpf_catalog_fixture.py`
 - `tests/fixtures/node_catalog/t17_non_dpf_documentation_overlay.json`
 - `tests/fixtures/node_catalog/unified_media_panel_structural_overlay.json`
+- `tests/fixtures/node_catalog/current_non_dpf_contract_overlay.json`
 - `docs/specs/requirements/TRACEABILITY_MATRIX.md`
 - `docs/PLUGIN_AUTHORING_GUIDE.md`
 - `docs/PLUGIN_MIGRATION_GUIDE.md`
@@ -44,8 +45,10 @@ Use this for docs links, traceability matrix checks, markdown hygiene, dead-code
   declaration fixtures under `tests/fixtures/`, not public docs.
 - Keep the frozen 133-node pre-cutover catalog immutable. Documentation-only
   corrections belong in the T17 overlay; structural current-catalog changes
-  belong in the unified Media Panel overlay applied afterward by the shared
-  loader. The current effective catalog has 131 rows.
+  belong in the unified Media Panel overlay. Apply the strict current-contract
+  default overlay afterward and before reuse classification. The current effective
+  catalog has 131 rows; frozen Model Viewer representation is `surface`, while
+  effective/live is `surface_with_edges`.
 - Register the novice SDK QA matrix from `docs/specs/INDEX.md`; its evidence must
   state outstanding acceptance gates rather than claim release acceptance.
 

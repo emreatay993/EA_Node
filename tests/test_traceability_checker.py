@@ -34,7 +34,12 @@ PROJECT_MANAGED_FILES_REQUIREMENT_TOKENS: dict[str, dict[str, tuple[str, ...]]] 
     },
     "docs/specs/requirements/20_UI_UX.md": {
         "REQ-UI-028": ("Project Files...", "temporary", "broken"),
-        "REQ-UI-029": ("Save As", "self-contained copy", "referenced temporary files"),
+        "REQ-UI-029": (
+            "Save As",
+            "self-contained",
+            "refuse to replace",
+            "reopened, verified, and adopted",
+        ),
         "REQ-UI-030": ("managed_copy", "external_link", "File Read", "Excel Read"),
         "REQ-UI-031": ("Process Run", "memory", "stored", "status chip"),
     },
@@ -53,8 +58,18 @@ PROJECT_MANAGED_FILES_REQUIREMENT_TOKENS: dict[str, dict[str, tuple[str, ...]]] 
     "docs/specs/requirements/60_PERSISTENCE.md": {
         "REQ-PERSIST-015": (".cxproj", "<project-stem>.data/workspaces", "in/", "out/", "tmp/"),
         "REQ-PERSIST-016": ("metadata.artifact_store", "saved://<artifact_id>", "temp://<artifact_id>"),
-        "REQ-PERSIST-017": ("tmp/", "Save", "prune orphaned saved files"),
-        "REQ-PERSIST-018": ("Save As", "self-contained copy", "promoting referenced temporary files"),
+        "REQ-PERSIST-017": (
+            "tmp/",
+            "copy-on-write",
+            "atomically replace only the currently bound `.cxproj`",
+            "bounded orphan cleanup",
+        ),
+        "REQ-PERSIST-018": (
+            "Save As",
+            "create-new/no-clobber",
+            "referenced saved and temporary artifacts",
+            "committed reopen",
+        ),
         "REQ-PERSIST-019": ("crash-only", "clean close", "temporary tmp data"),
     },
     "docs/specs/requirements/90_QA_ACCEPTANCE.md": {
@@ -3617,8 +3632,30 @@ class TraceabilityCheckerTests(unittest.TestCase):
         self.assertEqual([], self.checker.audit_repository(REPO_ROOT))
 
     def test_planned_requirement_registry_matches_current_repo(self) -> None:
-        self.assertEqual(21, len(self.manifest.PLANNED_REQUIREMENT_OWNERS))
+        self.assertEqual(19, len(self.manifest.PLANNED_REQUIREMENT_OWNERS))
+        self.assertEqual(
+            "PARTIAL",
+            next(
+                status
+                for opportunity_id, _title, _requirements, status in self.manifest.CAPABILITY_GROUPS
+                if opportunity_id == "SYN-OPP-0002"
+            ),
+        )
         self.assertEqual([], self.checker.audit_repository(REPO_ROOT))
+
+    def test_incremental_solution_plan_is_registered_complete(self) -> None:
+        plan = (
+            REPO_ROOT
+            / "docs/PLAN_COREX_INCREMENTAL_EXECUTION_AND_SOLUTION_SNAPSHOTS.md"
+        ).read_text(encoding="utf-8")
+        index = (REPO_ROOT / "docs/specs/INDEX.md").read_text(encoding="utf-8")
+        self.assertIn("Status: **COMPLETED — T01–T09 ACCEPTED**", plan)
+        self.assertIn(
+            "[COREX Incremental Execution And Solution Snapshots]"
+            "(../PLAN_COREX_INCREMENTAL_EXECUTION_AND_SOLUTION_SNAPSHOTS.md) — "
+            "`COMPLETED — T01–T09 ACCEPTED`",
+            index,
+        )
 
     def test_audit_repository_reports_missing_planned_row(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

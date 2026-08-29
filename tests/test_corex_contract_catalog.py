@@ -2,12 +2,14 @@ from __future__ import annotations
 
 from collections import Counter
 from collections.abc import Mapping
-from dataclasses import fields, is_dataclass
+from dataclasses import fields, is_dataclass, replace
 from enum import Enum
 import hashlib
 import json
 from pathlib import Path
 import re
+
+import pytest
 
 from ea_node_editor.addons.ansys_dpf.curated_catalog import (
     load_ansys_dpf_curated_plugin_descriptors,
@@ -28,7 +30,9 @@ from ea_node_editor.addons.tabular_data.metadata import TABULAR_DATA_ADDON_ID
 from ea_node_editor.nodes.bootstrap import build_builtin_registry
 from ea_node_editor.nodes.plugin_declaration import discover_plugin_declarations
 from ea_node_editor.nodes.registry import resolve_instance_ports, resolve_instance_spec
+from ea_node_editor.nodes.solution_provenance import trusted_solution_provenance_inputs
 from tests.non_dpf_catalog_fixture import (
+    CURRENT_CONTRACT_OVERLAY_PATH,
     FROZEN_CATALOG_PATH,
     FROZEN_CATALOG_SHA256,
     load_effective_non_dpf_catalog,
@@ -81,7 +85,13 @@ def _catalog_value(value: object) -> object:
 
 def _current_non_dpf_catalog() -> list[dict[str, object]]:
     tabular_specs = tuple(
-        declaration.spec
+        replace(
+            declaration.spec,
+            solution_provenance_inputs=trusted_solution_provenance_inputs(
+                TABULAR_DATA_ADDON_ID,
+                declaration.spec.type_id,
+            ),
+        )
         for declaration in discover_plugin_declarations(
             TABULAR_SOURCE,
             filename="tabular_data.py",
@@ -153,10 +163,79 @@ def test_frozen_non_dpf_catalog_plus_documentation_and_structural_overlays_match
         hashlib.sha256(FROZEN_CATALOG_PATH.read_bytes()).hexdigest().upper()
         == FROZEN_CATALOG_SHA256
     )
-    assert len(load_frozen_non_dpf_catalog()) == 133
+    frozen = load_frozen_non_dpf_catalog()
+    assert len(frozen) == 133
     effective = load_effective_non_dpf_catalog()
     assert len(effective) == 131
-    assert _current_non_dpf_catalog() == effective
+    current = _current_non_dpf_catalog()
+    assert current == effective
+
+    def representation_default(catalog: list[dict[str, object]]) -> object:
+        viewer = next(row for row in catalog if row["spec"]["type_id"] == "model.viewer")
+        return next(
+            item["default"]
+            for item in viewer["spec"]["properties"]
+            if item["key"] == "representation"
+        )
+
+    assert representation_default(frozen) == "surface"
+    assert representation_default(effective) == "surface_with_edges"
+    assert representation_default(current) == "surface_with_edges"
+
+
+def test_current_contract_overlay_rejects_extra_drift_duplicate_unknown_and_enum_invalid(
+    tmp_path: Path,
+) -> None:
+    base = json.loads(CURRENT_CONTRACT_OVERLAY_PATH.read_text(encoding="utf-8"))
+    invalid_payloads = {
+        "extra": {**base, "extra": True},
+        "drift": {
+            **base,
+            "property_default_patches": {
+                "model.viewer": {
+                    "representation": {
+                        "expected_default": "wireframe",
+                        "replacement_default": "surface_with_edges",
+                    }
+                }
+            },
+        },
+        "unknown": {
+            **base,
+            "property_default_patches": {
+                "model.unknown": base["property_default_patches"]["model.viewer"]
+            },
+        },
+        "enum_invalid": {
+            **base,
+            "property_default_patches": {
+                "model.viewer": {
+                    "representation": {
+                        "expected_default": "surface",
+                        "replacement_default": "invalid",
+                    }
+                }
+            },
+        },
+    }
+    invalid_texts = {
+        name: json.dumps(payload) for name, payload in invalid_payloads.items()
+    }
+    invalid_texts["duplicate"] = CURRENT_CONTRACT_OVERLAY_PATH.read_text(
+        encoding="utf-8"
+    ).replace(
+        '"schema_version": 1,',
+        '"schema_version": 1,\n  "schema_version": 1,',
+        1,
+    )
+
+    for name, text in invalid_texts.items():
+        overlay_path = tmp_path / f"{name}.json"
+        overlay_path.write_text(text, encoding="utf-8")
+        with pytest.raises(ValueError):
+            load_effective_non_dpf_catalog(
+                current_contract_overlay_path=overlay_path
+            )
 
 
 def test_solution_reuse_classification_matches_all_shipped_rows() -> None:

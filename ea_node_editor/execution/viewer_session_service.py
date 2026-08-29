@@ -49,7 +49,6 @@ if TYPE_CHECKING:
 _DEFAULT_OUTPUT_PROFILE = "memory"
 _SESSION_ID_PREFIX = "viewer_session_"
 _SESSION_INVALIDATION_REASON_RERUN = "workspace_rerun"
-_SESSION_INVALIDATION_REASON_PROJECT_REPLACED = "project_replaced"
 _MATERIALIZED_DATA_KEYS = frozenset({"dataset", "preview", "csv", "png", "vtu", "vtm"})
 _MATERIALIZE_TRANSIENT_OPTION_KEYS = frozenset({"temporary_root_parent", "force_recompute"})
 _CLOSE_TRANSIENT_OPTION_KEYS = frozenset({"reason", "release_handles"})
@@ -509,42 +508,6 @@ class ViewerSessionService:
         public_summary = _copy_mapping(summary) if summary is not None else record.public_summary()
         public_options = _copy_mapping(options) if options is not None else record.public_options()
         return public_summary, public_options
-
-    def prepare_workspace_context(
-        self,
-        *,
-        workspace_id: str,
-        project_path: str = "",
-        runtime_snapshot: RuntimeSnapshot | None = None,
-        runtime_snapshot_context: RuntimeSnapshotContext | None = None,
-        node_ids: Iterable[str] | None = (),
-    ) -> None:
-        normalized_workspace_id = self._normalize_required_string("workspace_id", workspace_id)
-        normalized_project_path = str(project_path).strip()
-        previous_context = self._workspace_contexts.get(normalized_workspace_id)
-        if (
-            previous_context is not None
-            and previous_context.project_path
-            and normalized_project_path
-            and previous_context.project_path != normalized_project_path
-        ):
-            self.invalidate_workspace(
-                normalized_workspace_id,
-                reason=_SESSION_INVALIDATION_REASON_PROJECT_REPLACED,
-                node_ids=None,
-            )
-        else:
-            self.invalidate_workspace(
-                normalized_workspace_id,
-                reason=_SESSION_INVALIDATION_REASON_RERUN,
-                node_ids=node_ids,
-            )
-        self.install_workspace_context(
-            workspace_id=normalized_workspace_id,
-            project_path=normalized_project_path,
-            runtime_snapshot=runtime_snapshot,
-            runtime_snapshot_context=runtime_snapshot_context,
-        )
 
     def install_workspace_context(
         self,

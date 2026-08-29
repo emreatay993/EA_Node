@@ -1384,15 +1384,6 @@ class RunControllerUnitTests(unittest.TestCase):
         )
         controller = RunController(host)  # type: ignore[arg-type]
         controller.set_auto_run_enabled(True)
-        host.run_state.cached_node_output_records_by_workspace_id[workspace_id] = {
-            node_id: {"run_old": {"stale": False, "stale_reason": ""}}
-            for node_id in (
-                source.node_id,
-                trigger.node_id,
-                after_trigger.node_id,
-                disabled_target.node_id,
-            )
-        }
         host.run_state.latest_trigger_inputs_by_workspace_id[workspace_id] = {
             trigger.node_id: _value_result("captured")
         }
@@ -1422,13 +1413,6 @@ class RunControllerUnitTests(unittest.TestCase):
             disabled_target.node_id,
             host.execution_client.start_calls[-1]["target_node_ids"],
         )
-        cached_records = host.run_state.cached_node_output_records_by_workspace_id[
-            workspace_id
-        ]
-        self.assertFalse(cached_records[source.node_id]["run_old"]["stale"])
-        self.assertFalse(cached_records[trigger.node_id]["run_old"]["stale"])
-        self.assertFalse(cached_records[after_trigger.node_id]["run_old"]["stale"])
-        self.assertFalse(cached_records[disabled_target.node_id]["run_old"]["stale"])
         self.assertNotIn(
             trigger.node_id,
             host.run_state.current_trigger_capture_node_ids_by_workspace_id.get(
@@ -1716,10 +1700,6 @@ class RunControllerUnitTests(unittest.TestCase):
                     0,
                 )
                 after_snapshot = host.model.active_workspace.capture_snapshot()
-                host.run_state.cached_node_output_records_by_workspace_id[
-                    workspace_id
-                ] = {node.node_id: {"run_old": {"stale": False, "stale_reason": ""}}}
-
                 controller.invalidate_solution_for_history_action(
                     workspace_id,
                     action_type,
@@ -1731,11 +1711,6 @@ class RunControllerUnitTests(unittest.TestCase):
                 self.assertEqual(
                     host.execution_client.start_calls[0]["target_node_ids"],
                     (node.node_id,),
-                )
-                self.assertFalse(
-                    host.run_state.cached_node_output_records_by_workspace_id[
-                        workspace_id
-                    ][node.node_id]["run_old"]["stale"]
                 )
 
     def test_auto_run_edge_enable_change_targets_the_consumer(self) -> None:

@@ -1,5 +1,7 @@
 # COREX Incremental Execution And Solution Snapshots
 
+Status: **COMPLETED — T01–T09 ACCEPTED**
+
 ## Summary
 
 This plan replaces workspace-wide rerun behavior with one execution-owned solution
@@ -20,8 +22,9 @@ experimental internal metadata. Node coloring, snapshot-management UI, and the
 future expired-node visual treatment are explicitly deferred. This plan delivers
 the authoritative backend fact that later UI work will consume.
 
-This plan implements the backend portions of `REQ-EXEC-017` and
-`REQ-PERSIST-026`. It prepares, but does not complete, `REQ-UI-052`.
+On clean T09 closeout, this plan completes and promotes backend requirements
+`REQ-EXEC-017` and `REQ-PERSIST-026`. `REQ-UI-052` remains planned because its
+expired-node visuals/actions are outside this implementation.
 
 ## Key Changes
 
@@ -1018,9 +1021,8 @@ durable key.
 
 The workflow-interface digest is a prerequisite, not optional wording. T02 defines
 its normalized execution-facing representation and revision owner. Records without
-a valid interface digest are ineligible for durable residency, and
-`REQ-EXEC-017`/`REQ-PERSIST-026` remain partial until the interface acceptance tests
-pass.
+a valid interface digest are ineligible for durable residency. T09 requirement
+promotion requires the interface acceptance tests and final clean verification.
 
 External provenance hashing is bounded by a versioned `ProvenanceHashPolicy`
 included in the execution policy digest:
@@ -1174,17 +1176,17 @@ without owning freshness.
 
 ### Viewer and live-resource scoping
 
-Replace blanket viewer invalidation in both processes:
+Prepared viewer invalidation has one committed path:
 
-- `RunController._invalidate_viewer_sessions_for_rerun(...)` receives the prepared
-  `recompute_node_ids` and projects run-required only for viewer nodes in that set.
-- `ViewerSessionBridge.project_workspace_run_required(...)` and
-  `invalidate_workspace_sessions(...)` accept an optional exact `node_ids`
-  filter. `None` retains full-reset behavior.
-- `ViewerSessionService.prepare_workspace_context(...)` and
-  `invalidate_workspace(...)` accept the same filter.
-- `worker_runner.py` passes only recomputed viewer IDs; it must stop using
-  unconditional `invalidate_existing=True` for partial/reuse-valid runs.
+- the execution client publishes `viewer_invalidation_committed` only after the
+  participant-local parent/worker transaction commits;
+- `ViewerSessionBridge.adopt_committed_invalidation(...)` is the sole partial-run
+  bridge projection; `project_all_run_required()` is global-reset-only;
+- worker ownership is separate `install_workspace_context(...)` plus snapshot
+  validation/adoption; legacy empty-preparation direct runs alone use global
+  `invalidate_workspace(...)`;
+- `worker_runner.py` derives exact recomputed viewer IDs and never performs blanket
+  invalidation for prepared partial/reuse-valid runs.
 
 Filtering alone is insufficient for in-flight requests. The bridge, execution
 client, and worker viewer service maintain a monotonic per-workspace/per-node viewer
@@ -2361,9 +2363,8 @@ container nodes or internalization commands.
   - `./venv/Scripts/python.exe ./scripts/check_agent_maps.py`;
   - `git diff --check`.
 - Non-goals: expired-node coloring, Run Expired action, inspector, persistence;
-  `_invalidate_viewer_sessions_for_rerun` filtering, viewer bridge/service/host,
-  transport release, and invalidation epochs remain T06. T05 preserves existing
-  blanket viewer preflight/run-required behavior while adapting dispatch only.
+  committed viewer bridge/service/host invalidation, transport release, and epochs
+  remain T06. T05 preserves existing viewer behavior while adapting dispatch only.
 - Packetization notes: `P05`; QML change is transport-only and stays in the same
   packet because it consumes the new single authority.
 
@@ -2422,11 +2423,10 @@ container nodes or internalization commands.
   - exact optional node filters on UI/worker viewer invalidators with one contract:
     `None` advances workspace epoch once and invalidates all; normalized empty is a
     strict invalidation no-op; non-empty deduplicates and affects exact nodes only;
-    string-as-iterable filters reject. `prepare_workspace_context` always installs
-    the newly validated runtime snapshot/context for an empty filter. Invalidation,
-    cleanup, signal, and transport mutation are skipped; epoch mutation is also
-    skipped except for the fresh-worker service-only baseline adoption defined
-    below;
+    string-as-iterable filters reject. Worker context installation occurs separately
+    through `install_workspace_context`; after committed empty adoption,
+    invalidation, cleanup, signal, and transport mutation are skipped, with only the
+    fresh-worker service baseline exception defined below;
   - partial run invalidates only recomputed viewers;
   - every viewer command/response carries nonnegative workspace/node epochs.
     Concrete clients and worker services validate transport-local epochs; the high-
@@ -2816,53 +2816,121 @@ container nodes or internalization commands.
 
 - Goal: Prove the clean cutover, remove obsolete paths, and register only accepted
   requirement evidence.
-- Preconditions: T01-T08 accepted; any pre-existing `docs/specs/INDEX.md` owner
-  diff has been reconciled or separately authorized and the ledger dirty baseline
-  has been updated before T09 starts.
+- Preconditions: T01-T08 accepted; existing unrelated `docs/specs/INDEX.md` owner
+  hunk remains unstaged and the T09 addition is staged separately.
 - Conservative write scope:
-  - obsolete cache/invalidation code and exact call sites
+  - `ea_node_editor/execution/viewer_session_service.py`
+  - `ea_node_editor/ui_qml/viewer_session_bridge.py`
+  - `ea_node_editor/ui/shell/controllers/run_controller.py`
+  - `tests/test_viewer_session_bridge.py`
+  - `tests/test_execution_viewer_service.py`
+  - `tests/test_viewer_host_service.py`
+  - `tests/test_shell_run_controller.py`
+  - `tests/test_run_controller_unit.py`
+  - `tests/test_data_tree_ui.py`
+  - `tests/test_corex_contract_catalog.py`
+  - `tests/test_traceability_checker.py`
+  - `tests/test_markdown_hygiene.py`
+  - `tests/non_dpf_catalog_fixture.py`
+  - `tests/fixtures/node_catalog/current_non_dpf_contract_overlay.json` (new)
+  - `docs/specs/requirements/20_UI_UX.md`
+  - `docs/specs/requirements/50_EXECUTION_ENGINE.md`
+  - `docs/specs/requirements/60_PERSISTENCE.md`
+  - `docs/specs/requirements/90_QA_ACCEPTANCE.md`
+  - `docs/specs/requirements/TRACEABILITY_MATRIX.md`
+  - `docs/specs/INDEX.md` (T09 hunks only)
+  - `docs/specs/perf/COREX_NOVICE_PLUGIN_SDK_QA_MATRIX.md`
+  - `scripts/verification_manifest.py`
+  - `scripts/check_traceability.py`
   - `docs/agent_maps/subsystems/execution.md`
-  - `docs/agent_maps/subsystems/persistence.md`
   - `docs/agent_maps/subsystems/nodes_registry_builtins.md`
-  - `docs/agent_maps/subsystems/supporting_runtime_assets.md`
-  - `docs/agent_maps/subsystems/ui_shell.md`
-  - `docs/agent_maps/subsystems/qml_shell_and_bridges.md`
   - `docs/agent_maps/subsystems/viewer_surfaces.md`
   - `docs/agent_maps/feature_routes/run_controller_selected_workspace_state.md`
-  - `docs/agent_maps/feature_routes/node_execution_visualization.md`
   - `docs/agent_maps/feature_routes/viewer_session_overlay_fullscreen.md`
-  - `docs/agent_maps/feature_routes/project_session_files_managed_artifacts.md`
-  - `docs/agent_maps/feature_routes/managed_artifacts_project_data.md`
-  - `docs/agent_maps/feature_routes/serialization_migration_legacy_rejection.md`
+  - `docs/agent_maps/testing/docs_traceability_hygiene.md`
   - `docs/agent_maps/COVERAGE.md`
-  - `docs/agent_route_index.md`, `docs/agent_route_index.json`,
-    `docs/source_test_file_index.md`, and `docs/qml_navigation_index.json`
-  - `docs/specs/requirements/20_UI_UX.md`,
-    `docs/specs/requirements/50_EXECUTION_ENGINE.md`,
-    `docs/specs/requirements/60_PERSISTENCE.md`,
-    `docs/specs/requirements/TRACEABILITY_MATRIX.md`, and `docs/specs/INDEX.md`
-  - retained QA evidence if requested by the implementation packet
+  - regenerated `docs/agent_route_index.md` and `docs/agent_route_index.json`
+  - `docs/PLAN_COREX_INCREMENTAL_EXECUTION_AND_SOLUTION_SNAPSHOTS.md`
+  - `docs/PLANS/COREX_INCREMENTAL_EXECUTION_TASK_LEDGER.md`
 - Deliverables:
+  - remove the three dead workspace/all-session bridge compatibility invalidators;
+    RunController global fallback calls `project_all_run_required` directly;
+  - remove the dead service API that combined context installation and invalidation;
+    retain explicit `install_workspace_context`, validation/adoption, and legacy-
+    only direct `invalidate_workspace` ownership;
+  - remove obsolete raw cache `stale/stale_reason` test setup/assertions without
+    deleting the fact-derived presentation projection;
   - zero duplicate scheduler/freshness authorities;
   - zero blanket partial-run viewer invalidators;
-  - updated exact maps/indexes listed in the write scope;
-  - `REQ-EXEC-017`/`REQ-PERSIST-026` status updated only to the level proven;
-  - `REQ-UI-052` remains planned because coloring/actions/inspector are deferred;
-  - independent architecture, security/data-integrity, and UX-acceptance reviews.
+  - zero references to the four removed APIs across production, tests, maps, and
+    this plan;
+  - one direct `ShellRunControllerTests` acceptance with graph
+    `engineering.cad_import.scene -> model.viewer.scene` plus disconnected
+    `data.boolean_toggle`; seed a fixed current/open/ready bridge viewer and real
+    worker-service session, toggle only through history/Auto, and apply the same
+    empty committed snapshot to both bridge/service. First assert exact target, no
+    viewer `node_started`/release, current fact, and byte-identical session/
+    transport/summary/preview through completion; then separately perform same-node
+    invalidation and prove delayed old-epoch response rejection;
+  - current-contract overlay at
+    `tests/fixtures/node_catalog/current_non_dpf_contract_overlay.json`, applied
+    after structural overlay and before reuse classification, with exact schema:
+
+    ```text
+    schema_version = 1
+    frozen_sha256 = 3CF91390E9E4C606B571ED3C907D7BF35647165F5358328F8FE9C18BF15C618F
+    property_default_patches
+      model.viewer
+        representation
+          expected_default = surface
+          replacement_default = surface_with_edges
+    ```
+
+    These are the only top-level/nested keys and sole patch. Reject extra keys,
+    drift, duplicates, unknown target, or out-of-enum replacement; frozen fixture
+    SHA and classification SHA stay unchanged;
+  - stale effective-catalog failures close with frozen=`surface` and effective/live
+    `surface_with_edges` proof;
+  - promote `REQ-EXEC-017` from planned only at final closeout after clean fast
+    verification and all three independent reviews;
+  - promote `REQ-PERSIST-026` at that same final closeout with exact wording:
+    immutable record identity/
+    integrity is durable, while mutable freshness/invalidation is reconstructed
+    against current graph/runtime and never persisted as durable truth;
+  - keep `REQ-UI-052` exactly planned/unimplemented;
+  - correct `REQ-UI-029`, `REQ-PERSIST-017`, and `REQ-PERSIST-018` plus acceptance
+    criteria: normal Save replaces only the bound `.cxproj`; Save As is self-
+    contained create-new/no-clobber; live path/binding changes only after committed
+    reopen/adoption; cleanup is bounded/post-adoption; remove deleted dialog/copy-
+    choice references;
+  - update `SYN-OPP-0002` to partial: backend/persistence accepted, UX planned;
+  - update capability-status manifest/checker/test ownership counts, add normal
+    traceability/proof rows for promoted requirements, update `REQ-QA-055` and
+    retained novice-SDK QA proof for the new overlay, without relabeling historical
+    full/package evidence;
+  - independent architecture, security/data-integrity, and UX-acceptance reviews;
+  - only after clean fast and all three reviews, mark this plan
+    `COMPLETED — T01–T09 ACCEPTED`, register it under Completed Implementation
+    Plans, promote the two requirements, and rerun exact traceability/Markdown checks.
 - Verification:
-  - rerun only focused suites invalidated by T09 cleanup itself;
+  - `./venv/Scripts/python.exe -m pytest tests/test_viewer_session_bridge.py tests/test_execution_viewer_service.py tests/test_viewer_host_service.py tests/test_shell_run_controller.py tests/test_run_controller_unit.py --ignore=venv -q`;
+  - `./venv/Scripts/python.exe -m pytest tests/test_novice_plugin_sdk_docs.py tests/test_non_dpf_node_documentation.py tests/test_corex_contract_catalog.py tests/test_node_title_icon_assets.py tests/test_builtin_function_migration.py tests/test_remaining_builtin_function_migration.py tests/test_architecture_boundaries.py tests/test_dead_code_hygiene.py --ignore=venv -q`;
+  - `./venv/Scripts/python.exe -m pytest tests/test_traceability_checker.py tests/test_markdown_hygiene.py tests/test_agent_route_index.py --ignore=venv -q`;
+  - `./venv/Scripts/python.exe -m pytest tests/test_data_tree_ui.py::test_open_project_shows_migration_report_after_finalization_without_overwriting_source -q`;
+  - regenerate only agent route indexes; source/test paths and QML components do not
+    change;
+  - `./venv/Scripts/python.exe ./scripts/check_agent_maps.py`;
   - `./venv/Scripts/python.exe ./scripts/check_traceability.py`;
   - `./venv/Scripts/python.exe ./scripts/check_markdown_links.py`;
-  - `./venv/Scripts/python.exe ./scripts/generate_source_test_file_index.py`;
-  - `./venv/Scripts/python.exe ./scripts/generate_qml_navigation_index.py`;
-  - `./venv/Scripts/python.exe ./scripts/generate_agent_route_index.py`;
-  - then
-    `./venv/Scripts/python.exe ./scripts/check_agent_maps.py`;
-  - `./venv/Scripts/python.exe ./scripts/run_verification.py --mode fast --summarize-output` because the cutover crosses execution, persistence, shell, and viewer boundaries;
-  - final display-attached manual acceptance of the disconnected Model Viewer
-    scenario if the environment is stable; focused automated proof remains required
-    regardless of manual availability.
-- Non-goals: UI coloring, new snapshot controls, unrelated cleanup.
+  - `./venv/Scripts/python.exe ./scripts/run_verification.py --mode fast --summarize-output`;
+  - every focused/check/map/traceability/Markdown/fast command exits zero; declared
+    skips are allowed, failing-test waivers are not;
+  - optional display-attached acceptance uses
+    `examples/engineering_viewer/engineering_viewer_capabilities.cxproj`; record
+    `NOT RUN` when display/GPU state is unstable because automation remains required.
+- Non-goals: UI coloring, new snapshot controls, persistence/save redesign,
+  overwrite policy changes, frozen catalogue edits, startup/full/package lanes,
+  unrelated cleanup, or the untracked Physical Simulation plan.
 - Packetization notes: `P09`; reviewers must be separate from all implementation
   owners. Any reviewer finding reopens the owning task, not a new catch-all patch.
 
@@ -2953,10 +3021,9 @@ test must assert all of the following, not merely absence of a QML label:
 
 ### Broad acceptance boundary
 
-Run focused suites during each task. After T09 only, run the repo fast verifier
-once with summarized output. Escalate to full verification only if implementation
-changes shell-wide composition/startup or the user explicitly requests release
-confidence.
+Run focused suites during each task. T09 stops at one clean summarized fast
+verifier. Any later release-confidence, full, startup, package, or installer lane is
+a separate scope.
 
 ## Assumptions
 

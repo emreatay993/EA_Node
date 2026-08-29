@@ -22,14 +22,14 @@ The locked execution baseline is dependency-driven DataTree flow. Active nodes e
 10. [QA + Acceptance](requirements/90_QA_ACCEPTANCE.md)
 11. [Traceability Matrix](requirements/TRACEABILITY_MATRIX.md)
 
-## Planned Capabilities — No Implementation Proof
+## Capability Roadmap Status
 
-These requirements are authoritative design intent, but they are not implemented, accepted, or released. Their exact planned-state records live in the [Traceability Matrix](requirements/TRACEABILITY_MATRIX.md).
+These rows summarize whole-capability status. `PARTIAL` means accepted backend and persistence requirements coexist with planned UX; it is not a release claim. Exact requirement-level implementation and planned-state records live in the [Traceability Matrix](requirements/TRACEABILITY_MATRIX.md).
 
-| Research opportunity | COREX capability | Planned requirements | Status |
+| Research opportunity | COREX capability | Requirements | Status |
 | --- | --- | --- | --- |
 | `SYN-OPP-0001` | Linked workflow instances | `REQ-PERSIST-025`, `REQ-UI-051` | `PLANNED` |
-| `SYN-OPP-0002` | Durable solution snapshots and incremental recomputation | `REQ-EXEC-017`, `REQ-PERSIST-026`, `REQ-UI-052` | `PLANNED` |
+| `SYN-OPP-0002` | Durable solution snapshots and incremental recomputation | `REQ-EXEC-017`, `REQ-PERSIST-026`, `REQ-UI-052` | `PARTIAL` |
 | `SYN-OPP-0003` | Unified workflow interface semantics | `REQ-NODE-036`, `REQ-UI-053` | `PLANNED` |
 | `SYN-OPP-0004` | Dependency and provenance inspector | `REQ-EXEC-018`, `REQ-UI-054` | `PLANNED` |
 | `SYN-OPP-0005` | Reproducible debug bundles | `REQ-EXEC-019`, `REQ-UI-055` | `PLANNED` |
@@ -46,6 +46,7 @@ T01–T17 are complete, and the locked 176-type snapshot is fully classified.
 
 ### Completed Implementation Plans
 
+- [COREX Incremental Execution And Solution Snapshots](../PLAN_COREX_INCREMENTAL_EXECUTION_AND_SOLUTION_SNAPSHOTS.md) — `COMPLETED — T01–T09 ACCEPTED`
 - [COREX Novice Function Plugin SDK](../PLAN_COREX_NOVICE_PLUGIN_SDK.md) — `COMPLETED — T01–T17; RETAINED QA EVIDENCE BELOW`
 - [COREX Application-Default External Python Runtime](../PLAN_COREX_EXTERNAL_PYTHON_RUNTIME.md) — `COMPLETED — T01–T05 ACCEPTED`
 - [COREX Unified Media Panel](../PLAN_COREX_UNIFIED_MEDIA_PANEL.md) — `COMPLETED — T01–T10 ACCEPTED`

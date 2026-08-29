@@ -70,14 +70,15 @@ class MarkdownHygieneTests(unittest.TestCase):
         )
         self.assertTrue(matrix_text.startswith("# Architecture Residual Refactor QA Matrix"))
 
-    def test_spec_index_registers_planned_capabilities_without_proof_links(self) -> None:
+    def test_spec_index_registers_capability_statuses_without_proof_links(self) -> None:
         text = (REPO_ROOT / "docs/specs/INDEX.md").read_text(encoding="utf-8-sig")
-        section = text.split("## Planned Capabilities — No Implementation Proof", 1)[1].split(
+        section = text.split("## Capability Roadmap Status", 1)[1].split(
             "\n## ", 1
         )[0]
         for opportunity_number in range(1, 9):
             self.assertIn(f"SYN-OPP-{opportunity_number:04d}", section)
         self.assertIn("`PLANNED`", section)
+        self.assertIn("`PARTIAL`", section)
         self.assertNotIn("QA_MATRIX", section)
         self.assertNotIn("Implementation Artifact", section)
 

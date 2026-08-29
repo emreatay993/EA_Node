@@ -1,6 +1,6 @@
 # COREX Novice Function Plugin SDK QA Matrix
 
-- Updated: `2026-08-26`
+- Updated: `2026-08-29`
 - Plan: `docs/PLAN_COREX_NOVICE_PLUGIN_SDK.md`
 - Current verdict: `PASS / T17 COMPLETE`
 - Release status: pre-release; full verification, clean Windows packaging, and independent final review passed.
@@ -21,9 +21,10 @@ Ansys DPF remains an unchanged private trusted family. Custom Workflows remain c
 | Private non-DPF boundary | 53 trusted internal exceptions | migration inventory and `tests/test_remaining_builtin_function_migration.py` |
 | DPF boundary | 805 DPF exclusions | migration inventory and `tests/test_remaining_builtin_function_migration.py` |
 | Non-DPF baseline | 133 frozen non-DPF catalog rows | `tests/fixtures/node_catalog/pre_cutover_non_dpf_catalog.json`, SHA-256 `3CF91390E9E4C606B571ED3C907D7BF35647165F5358328F8FE9C18BF15C618F` |
-| Current non-DPF catalog | 131 effective rows | frozen fixture plus `tests/fixtures/node_catalog/unified_media_panel_structural_overlay.json` |
+| Current non-DPF catalog | 131 effective rows | frozen fixture plus documentation, `tests/fixtures/node_catalog/unified_media_panel_structural_overlay.json`, then `tests/fixtures/node_catalog/current_non_dpf_contract_overlay.json` before reuse classification |
+| Current Model Viewer default | `surface_with_edges` | strict sole `model.viewer.representation` patch; frozen default remains `surface`; `tests/test_corex_contract_catalog.py` proves frozen/effective/live values and rejects drift, duplicates, unknown keys, extra keys, and out-of-enum replacements |
 
-The task evidence below is historical and intentionally retains the counts observed at each accepted commit; the table above is the current clean-break boundary.
+The task evidence below is historical and intentionally retains the counts observed at each accepted commit; the table above is the current clean-break boundary. Earlier full-verification and package results are not relabeled as current-contract-overlay evidence.
 
 The exact public export order is `node`, `input`, `output`, `text`, `text_area`, `number`, `switch`, `dropdown`, `slider`, `color`, `path`, `interval`, `list`, `Any`, `Image`, `Color`, `Interval`.
 

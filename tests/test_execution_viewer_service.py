@@ -1134,7 +1134,7 @@ class ViewerSessionServiceTests(unittest.TestCase):
     def test_materialize_routes_backend_specific_dpf_work_through_backend_helper(
         self,
     ) -> None:
-        self.service.prepare_workspace_context(
+        self.service.install_workspace_context(
             workspace_id="ws_main",
             project_path="viewer_backend_demo.cxproj",
         )
@@ -1597,9 +1597,13 @@ class ViewerSessionServiceTests(unittest.TestCase):
                 data_refs={"fields": fields_ref, "model": model_ref},
             )
         )
-        self.service.prepare_workspace_context(
-            workspace_id="ws_main",
+        self.service.invalidate_workspace(
+            "ws_main",
+            reason="workspace_rerun",
             node_ids=None,
+        )
+        self.service.install_workspace_context(
+            workspace_id="ws_main",
         )
 
         failed = self.service.materialize_data(
@@ -1651,11 +1655,10 @@ class ViewerSessionServiceTests(unittest.TestCase):
         )
 
         context_marker = object()
-        self.service.prepare_workspace_context(
+        self.service.install_workspace_context(
             workspace_id="ws_main",
             project_path="updated.cxproj",
             runtime_snapshot_context=context_marker,
-            node_ids=(),
         )
         self.assertIs(
             self.service._workspace_contexts["ws_main"].runtime_snapshot_context,  # noqa: SLF001

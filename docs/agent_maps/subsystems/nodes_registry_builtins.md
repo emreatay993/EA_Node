@@ -67,7 +67,7 @@ Use this for node definitions, registry validation, built-in node families, data
 - Keep public function entries non-constructible through `NodeRegistry.create()` so trusted in-process execution cannot acquire their callable.
 - Keep generation pruning explicit and protect both active and externally referenced digests; never overwrite a mismatched existing digest directory.
 - Keep package archives free of compatibility fields, dependency installers, descriptor overrides, nested Python packages, and executable validation hooks. Schema-1 rejection uses the migration pointer in `SCHEMA_1_UNSUPPORTED_MESSAGE`.
-- Preserve the normalized 133-node pre-cutover non-DPF baseline byte-for-byte in `tests/fixtures/node_catalog/pre_cutover_non_dpf_catalog.json`; apply the documentation overlay and then `unified_media_panel_structural_overlay.json` to obtain the 131-row current catalog, and keep the 78/53/805 migration classification aligned.
+- Preserve the normalized 133-node pre-cutover non-DPF baseline byte-for-byte in `tests/fixtures/node_catalog/pre_cutover_non_dpf_catalog.json`; apply the documentation overlay, `unified_media_panel_structural_overlay.json`, and then the strict sole-property `current_non_dpf_contract_overlay.json` before reuse classification to obtain the 131-row current catalog. The frozen Model Viewer representation remains `surface`, the effective/live default is `surface_with_edges`, and the 78/53/805 migration classification stays unchanged.
 - Keep canonical data-type IDs under the `COREX.*` namespace.
 - Keep source-product provenance, import adapters, comparison studies, and installed-product evidence outside the tracked repository.
 - Add no compatibility alias for removed internal contracts unless an active public format requires it.
@@ -101,6 +101,7 @@ Use this for node definitions, registry validation, built-in node families, data
 - `tests/test_novice_plugin_sdk_docs.py`
 - `tests/non_dpf_catalog_fixture.py`
 - `tests/fixtures/node_catalog/t17_non_dpf_documentation_overlay.json`
+- `tests/fixtures/node_catalog/current_non_dpf_contract_overlay.json`
 - `tests/test_non_dpf_node_documentation.py`
 
 ## Focused Verification

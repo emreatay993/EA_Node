@@ -1866,7 +1866,7 @@ class ViewerSessionBridgeUnitTests(unittest.TestCase):
         self.assertEqual(projected_state["data_refs"], {})
         self.assertEqual(projected_state["camera_state"], {"zoom": 1.4})
 
-    def test_project_workspace_run_required_projects_explicit_rerun_blocker(
+    def test_project_all_run_required_projects_explicit_rerun_blocker(
         self,
     ) -> None:
         self.host.scene.set_selected("node_viewer")
@@ -1900,18 +1900,13 @@ class ViewerSessionBridgeUnitTests(unittest.TestCase):
             self.bridge.set_embedded_interaction_active("node_viewer", True)
         )
 
-        self.bridge.project_workspace_run_required(
-            "ws_main",
-            reason="workspace_rerun",
-            run_id="run_live",
-        )
+        self.bridge.project_all_run_required(reason="workspace_rerun")
 
         blocked_state = self.bridge.session_state("node_viewer")
         self.assertEqual(blocked_state["phase"], "blocked")
         self.assertEqual(blocked_state["live_open_status"], "blocked")
         self.assertEqual(blocked_state["live_open_blocker"]["code"], "rerun_required")
         self.assertTrue(blocked_state["live_open_blocker"]["rerun_required"])
-        self.assertEqual(blocked_state["summary"]["run_id"], "run_live")
         self.assertEqual(
             blocked_state["summary"]["live_transport_release_reason"], "workspace_rerun"
         )
@@ -1930,33 +1925,47 @@ class ViewerSessionBridgeUnitTests(unittest.TestCase):
         viewer_b_before = copy.deepcopy(self.bridge.session_state("viewer_b"))
         stale_open_request = self.host.execution_client.open_calls[-2]["request_id"]
 
-        self.bridge.project_workspace_run_required(
-            "ws_main",
-            reason="workspace_rerun",
-            run_id="run_partial",
-            node_ids=("viewer_a", "viewer_a"),
+        workspace_epoch, node_epoch = self.bridge._viewer_epochs(  # noqa: SLF001
+            "ws_main", "viewer_a"
+        )
+        node_epochs = (("viewer_a", node_epoch + 1),)
+        self.assertTrue(
+            self.bridge.adopt_committed_invalidation(
+                workspace_id="ws_main",
+                node_ids=("viewer_a",),
+                workspace_epoch=workspace_epoch,
+                node_epochs=node_epochs,
+                snapshot_digest=viewer_epoch_snapshot_digest(
+                    workspace_id="ws_main",
+                    node_ids=("viewer_a",),
+                    workspace_epoch=workspace_epoch,
+                    node_epochs=node_epochs,
+                ),
+                reason="workspace_rerun",
+                run_id="run_partial",
+            )
         )
 
         self.assertEqual(self.bridge.session_state("viewer_b"), viewer_b_before)
         self.assertEqual(self.bridge.session_state("viewer_a")["phase"], "blocked")
-        self.assertEqual(
-            self.host.execution_client.invalidate_viewer_calls[-1],
-            ("ws_main", ("viewer_a",)),
-        )
+        self.assertEqual(self.host.execution_client.invalidate_viewer_calls, [])
         before_empty = copy.deepcopy(self.bridge.sessions_model)
-        invalidate_call_count = len(
-            self.host.execution_client.invalidate_viewer_calls
-        )
-        self.bridge.project_workspace_run_required(
-            "ws_main",
-            reason="workspace_rerun",
-            node_ids=(),
+        self.assertTrue(
+            self.bridge.adopt_committed_invalidation(
+                workspace_id="ws_main",
+                node_ids=(),
+                workspace_epoch=workspace_epoch,
+                node_epochs=(),
+                snapshot_digest=viewer_epoch_snapshot_digest(
+                    workspace_id="ws_main",
+                    node_ids=(),
+                    workspace_epoch=workspace_epoch,
+                    node_epochs=(),
+                ),
+                reason="workspace_rerun",
+            )
         )
         self.assertEqual(self.bridge.sessions_model, before_empty)
-        self.assertEqual(
-            len(self.host.execution_client.invalidate_viewer_calls),
-            invalidate_call_count,
-        )
 
         self.host.execution_event.emit(
             _viewer_opened_event(
@@ -1984,10 +1993,24 @@ class ViewerSessionBridgeUnitTests(unittest.TestCase):
             session_id=session_id,
             query_type="bounds",
         )
-        self.bridge.project_workspace_run_required(
-            "ws_main",
-            reason="workspace_rerun",
-            node_ids=("node_viewer",),
+        workspace_epoch, node_epoch = self.bridge._viewer_epochs(  # noqa: SLF001
+            "ws_main", "node_viewer"
+        )
+        node_epochs = (("node_viewer", node_epoch + 1),)
+        self.assertTrue(
+            self.bridge.adopt_committed_invalidation(
+                workspace_id="ws_main",
+                node_ids=("node_viewer",),
+                workspace_epoch=workspace_epoch,
+                node_epochs=node_epochs,
+                snapshot_digest=viewer_epoch_snapshot_digest(
+                    workspace_id="ws_main",
+                    node_ids=("node_viewer",),
+                    workspace_epoch=workspace_epoch,
+                    node_epochs=node_epochs,
+                ),
+                reason="workspace_rerun",
+            )
         )
         self.host.execution_event.emit(
             {
@@ -2095,11 +2118,7 @@ class ViewerSessionBridgeUnitTests(unittest.TestCase):
             self.bridge.set_embedded_interaction_active("node_viewer", True)
         )
 
-        self.bridge.project_workspace_run_required(
-            "ws_main",
-            reason="workspace_rerun",
-            run_id="run_live",
-        )
+        self.bridge.project_all_run_required(reason="workspace_rerun")
 
         runtime_session_payload = _viewer_opened_event(
             request_id="run_node_viewer",
