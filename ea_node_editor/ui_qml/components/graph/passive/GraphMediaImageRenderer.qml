@@ -30,7 +30,6 @@ GraphShared.GraphSurfaceBase {
     readonly property string requestedQualityTier: host ? String(host.requestedQualityTier || "full") : "full"
     readonly property string resolvedQualityTier: host ? String(host.resolvedQualityTier || "full") : "full"
     readonly property bool proxySurfaceRequested: host ? Boolean(host.proxySurfaceRequested) : false
-    chromeToggleAvailable: false
     readonly property bool imageTitleVisible: surfaceShowTitle
     readonly property bool imageFrameVisible: surfaceShowFrame
     readonly property bool imageContentOnlyActive: surfaceContentOnly

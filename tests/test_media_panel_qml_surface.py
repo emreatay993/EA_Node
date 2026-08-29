@@ -322,12 +322,57 @@ class MediaPanelQmlSurfaceTests(PassiveGraphSurfaceHostTestBase):
                     (str(node_id), str(key), str(value))
                 )
             )
+
+            def apply_committed_chrome(expected):
+                assert canvas.last_committed_node_id == "node_surface_host_test"
+                assert canvas.last_committed_properties == expected
+                payload["properties"] = {**payload["properties"], **expected}
+                assert host.setProperty("nodeData", dict(payload))
+                settle_events(4)
+
+            def assert_renderer_chrome(renderer, *, title, frame):
+                actual = (
+                    bool(renderer.property("surfaceShowTitle")),
+                    bool(renderer.property("surfaceShowFrame")),
+                    bool(renderer.property("surfaceContentOnly")),
+                )
+                assert actual == (title, frame, not (title or frame)), actual
+
             assert bool(surface.property("aspectRatioLocked"))
             assert bool(host.property("panelLikeSurface"))
             assert bool(host.property("suppressRunAction"))
             assert not bool(host.property("runnableNode"))
             assert abs(float(host.width()) - 340.0) < 0.01
             assert abs(float(host.height()) - 288.0) < 0.01
+            assert_renderer_chrome(image_renderer, title=True, frame=True)
+
+            QMetaObject.invokeMethod(
+                surface,
+                "dispatchSurfaceAction",
+                Q_ARG("QVariant", "toggle_frame"),
+            )
+            apply_committed_chrome({"show_title": True, "show_frame": False})
+            image_renderer = surface.property("loadedRenderer")
+            assert_renderer_chrome(image_renderer, title=True, frame=False)
+
+            QMetaObject.invokeMethod(
+                surface,
+                "dispatchSurfaceAction",
+                Q_ARG("QVariant", "toggle_frame"),
+            )
+            apply_committed_chrome({"show_title": True, "show_frame": True})
+            image_renderer = surface.property("loadedRenderer")
+            assert_renderer_chrome(image_renderer, title=True, frame=True)
+
+            QMetaObject.invokeMethod(
+                surface,
+                "dispatchSurfaceAction",
+                Q_ARG("QVariant", "toggle_content_only"),
+            )
+            apply_committed_chrome({"show_title": False, "show_frame": False})
+            image_renderer = surface.property("loadedRenderer")
+            assert_renderer_chrome(image_renderer, title=False, frame=False)
+
             image_renderer.setProperty("cropModeActive", True)
             settle_events(3)
             assert bool(surface.property("blocksHostInteraction"))
@@ -448,10 +493,21 @@ class MediaPanelQmlSurfaceTests(PassiveGraphSurfaceHostTestBase):
             assert bool(exposure_action["checked"])
             assert abs(float(host.width()) - 340.0) < 0.01
             assert abs(float(host.height()) - 288.0) < 0.01
+            assert_renderer_chrome(pdf_renderer, title=False, frame=False)
 
             canvas.set_resolution(resolution("video", image_url, exposed=True))
             video_renderer = wait_for_named(host, "graphNodeMediaVideoRenderer")
             assert bool(pdf_renderer.property("rendererReleased"))
+            assert_renderer_chrome(video_renderer, title=False, frame=False)
+
+            QMetaObject.invokeMethod(
+                surface,
+                "dispatchSurfaceAction",
+                Q_ARG("QVariant", "toggle_content_only"),
+            )
+            apply_committed_chrome({"show_title": True, "show_frame": True})
+            video_renderer = surface.property("loadedRenderer")
+            assert_renderer_chrome(video_renderer, title=True, frame=True)
 
             waiting_message = "Connected source is waiting for a run."
             canvas.set_resolution(

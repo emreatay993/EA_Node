@@ -13,7 +13,6 @@ import "GraphMediaPanelSourceUtils.js" as GraphMediaPanelSourceUtils
 
 GraphShared.GraphSurfaceBase {
     id: surface
-    chromeToggleAvailable: false
     objectName: "graphNodeMediaVideoRenderer"
     property var sourceResolution: ({})
     property bool rendererReleased: false

@@ -12,7 +12,6 @@ GraphShared.GraphSurfaceBase {
     property bool rendererReleased: false
     property bool refreshQueued: false
 
-    chromeToggleAvailable: false
     readonly property bool blocksHostInteraction: false
     readonly property var embeddedInteractiveRects: []
     readonly property bool aspectRatioLocked: false
