@@ -139,6 +139,8 @@ class ViewerControlBridgeTests(unittest.TestCase):
         self.shell = shell
 
     def test_node_scoped_options_include_new_render_and_orientation_values(self) -> None:
+        changed: list[str] = []
+        self.bridge.viewer_control_changed.connect(changed.append)
         self.assertTrue(self.bridge.set_viewer_option("node", "representation", "wireframe_visible_edges"))
         self.assertTrue(self.bridge.set_viewer_option("node", "show_attribute_colors", True))
         self.assertTrue(self.bridge.set_viewer_option("node", "show_orientation_triad", False))
@@ -162,6 +164,12 @@ class ViewerControlBridgeTests(unittest.TestCase):
         self.assertEqual(self.node.properties["overlay_opacity"], 0.2)
         self.assertIs(self.node.properties["parallel_projection"], True)
         self.assertEqual(len(self.session.sync_calls), 12)
+        colormap_sync = next(
+            call for call in self.session.sync_calls if call[1] == "colormap"
+        )
+        self.assertEqual(colormap_sync[:3], ("node", "colormap", "turbo"))
+        self.assertTrue(changed)
+        self.assertEqual(set(changed), {"node"})
 
     def test_selection_filter_is_runtime_only_and_tangent_angle_is_app_wide(self) -> None:
         self.assertTrue(self.bridge.set_viewer_option("node", "selection_filter", "CAD_FACE"))
@@ -238,6 +246,8 @@ class ViewerControlBridgeTests(unittest.TestCase):
         self.assertEqual(self.bridge.viewer_camera_bookmark_current_index("node"), 0)
         self.assertEqual(self.host.applied[-1], ("node", expected_rear))
         self.assertIs(self.node.properties["parallel_projection"], True)
+        self.assertFalse(self.bridge.apply_viewer_camera_bookmark("node", 99))
+        self.assertFalse(self.bridge.remove_viewer_camera_bookmark("node", 99))
 
         self.session.session_id = "replacement-session"
         self.session.sessions_changed.emit()

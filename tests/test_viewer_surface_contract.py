@@ -917,6 +917,8 @@ class ViewerSurfaceContractTests(unittest.TestCase):
             "shared-viewer-controls-runtime-contract",
             """
             from PyQt6.QtCore import (
+                Q_ARG,
+                QMetaObject,
                 QPointF,
                 QObject,
                 Qt,
@@ -1217,6 +1219,21 @@ class ViewerSurfaceContractTests(unittest.TestCase):
             assert int(tangent.property("from")) == 0
             assert int(tangent.property("to")) == 90
             assert int(tangent.property("value")) == 27
+            QMetaObject.invokeMethod(
+                selection,
+                "setSelectionFilter",
+                Q_ARG("QVariant", "cad_edge"),
+            )
+            QMetaObject.invokeMethod(
+                selection,
+                "setTangentAngle",
+                Q_ARG("QVariant", 42.0),
+            )
+            app.processEvents()
+            assert host.filter_calls == [
+                ("node_viewer_surface_contract", "cad_edge")
+            ], host.filter_calls
+            assert controls_bridge.angle_calls == [42.0], controls_bridge.angle_calls
 
             shaded = child("viewerRenderShadedButton")
             assert str(shaded.property("accessibleName")) == "Shaded"

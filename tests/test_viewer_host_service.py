@@ -1819,6 +1819,7 @@ class ViewerHostServiceTests(MainWindowShellTestBase):
         self.assertTrue(self.window.content_fullscreen_bridge.request_open_node(node_id))
         self.app.processEvents()
         key = (self.workspace_id, node_id)
+        self.assertEqual(self.host_service._fullscreen_hold_key, key)
         self.assertIn(key, self.bridge._viewer_presentation_holds)
 
         unrelated_id = self._add_viewer_node(x=620.0, y=90.0)
@@ -1840,6 +1841,7 @@ class ViewerHostServiceTests(MainWindowShellTestBase):
         self.window.content_fullscreen_bridge.request_close()
         self.app.processEvents()
 
+        self.assertIsNone(self.host_service._fullscreen_hold_key)
         self.assertNotIn(key, self.bridge._viewer_presentation_holds)
         self.assertEqual(self.host_service.retained_inline_viewer_node_id, "")
         self.assertEqual(len(binder.release_calls), 1)
@@ -1860,6 +1862,7 @@ class ViewerHostServiceTests(MainWindowShellTestBase):
         )
         self.app.processEvents()
         reset_key = (self.workspace_id, reset_node_id)
+        self.assertEqual(self.host_service._fullscreen_hold_key, reset_key)
         self.assertIn(reset_key, self.bridge._viewer_presentation_holds)
 
         self.host_service.reset(reason="test_reset")
