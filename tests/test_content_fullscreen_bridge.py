@@ -1946,8 +1946,35 @@ class ContentFullscreenBridgeTests(MainWindowShellTestBase):
         self.window.project_path = str(project_path)
         first_node_id, _first_state, _first_preview_ref = self._add_excalidraw_node()
         second_node_id, _second_state, _second_preview_ref = self._add_excalidraw_node()
+        self.window.scene.set_node_title(first_node_id, "First Board")
+        self.window.scene.set_node_title(second_node_id, "Second Board")
         workspace_id = self.window.workspace_manager.active_workspace_id()
+        workspace = self.window.model.project.workspaces[workspace_id]
         bridge = self._bridge()
+        factory = bridge._create_web_surface_artifact_service  # noqa: SLF001
+        self.assertIsNotNone(factory)
+        factory_calls: list[tuple[str, str, str, str, str]] = []
+
+        def recording_factory(
+            workspace_arg: str,
+            workspace_name: str,
+            node_id: str,
+            title: str,
+            node_type: str,
+        ):
+            factory_calls.append(
+                (workspace_arg, workspace_name, node_id, title, node_type)
+            )
+            assert factory is not None
+            return factory(
+                workspace_arg,
+                workspace_name,
+                node_id,
+                title,
+                node_type,
+            )
+
+        bridge._create_web_surface_artifact_service = recording_factory  # noqa: SLF001
 
         self.assertTrue(bridge.request_open_node(first_node_id))
         first_web_bridge = bridge.web_surface_bridge
@@ -1986,6 +2013,28 @@ class ContentFullscreenBridgeTests(MainWindowShellTestBase):
         first_ref = first_node.properties[EXCALIDRAW_PREVIEW_REF_PROPERTY]
         second_ref = second_node.properties[EXCALIDRAW_PREVIEW_REF_PROPERTY]
         self.assertNotEqual(first_ref["artifact_ref"], second_ref["artifact_ref"])
+        node_type = self.window.registry.get_spec(
+            EXCALIDRAW_BOARD_TYPE_ID
+        ).display_name
+        self.assertEqual(
+            factory_calls,
+            [
+                (
+                    workspace_id,
+                    workspace.name,
+                    first_node_id,
+                    "First Board",
+                    node_type,
+                ),
+                (
+                    workspace_id,
+                    workspace.name,
+                    second_node_id,
+                    "Second Board",
+                    node_type,
+                ),
+            ],
+        )
 
         store = ProjectArtifactStore.from_project_metadata(
             project_path=self.window.project_path,

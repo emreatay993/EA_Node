@@ -103,7 +103,7 @@ _ModelProvider = Callable[[], "GraphModel | None"]
 _RegistryProvider = Callable[[], "NodeRegistry | None"]
 _ActiveWorkspaceIdProvider = Callable[[], str]
 _ProjectContextProvider = Callable[[], tuple[str | None, dict[str, Any] | None]]
-_SaveFileDialog = Callable[[str, str, str, str], str]
+_SaveFileDialog = Callable[..., str]
 _TrimVideoReplace = Callable[
     [str, int, int, dict[str, Any]], Mapping[str, object] | None
 ]
@@ -118,8 +118,10 @@ _WebSurfaceArtifactServiceFactory = Callable[
 @dataclass(frozen=True, slots=True)
 class _FullscreenCandidate:
     workspace_id: str
+    workspace_name: str
     node: "NodeInstance"
     spec: "NodeTypeSpec"
+    title: str
     content_kind: str
     media_payload: dict[str, Any]
     viewer_payload: dict[str, Any]
@@ -549,9 +551,17 @@ class _FullscreenWebSurfaceBridge(WebSurfaceBridge):
         parent: QObject | None = None,
         *,
         preview_persist_callback: Callable[[dict[str, Any]], None] | None = None,
-        **kwargs: Any,
+        artifact_service: "WebSurfaceArtifactService",
+        artifact_scope: str,
     ) -> None:
-        super().__init__(initial_state, parent, **kwargs)
+        if artifact_service is None:
+            raise ValueError("Fullscreen Web artifact storage is required.")
+        super().__init__(
+            initial_state,
+            parent,
+            artifact_service=artifact_service,
+            artifact_scope=artifact_scope,
+        )
         self._preview_persist_callback = preview_persist_callback
 
     @pyqtSlot(result="QVariantMap")
@@ -588,7 +598,7 @@ class _FullscreenWebSurfaceBridge(WebSurfaceBridge):
     def artifact_ref_resolves(self, artifact_ref: str) -> bool:
         service = self._artifact_service
         if service is None:
-            return True
+            return False
         try:
             store = service.store
             resolved_path = store.resolve_staged_path(
@@ -703,8 +713,6 @@ class ContentFullscreenBridge(QObject):
             (self._execution_state_changed_signal, self._on_nodes_changed),
         )
         for signal, slot in connections:
-            if signal is None:
-                continue
             signal.connect(slot)
             self._lifecycle_connections.append((signal, slot))
 
@@ -845,8 +853,10 @@ class ContentFullscreenBridge(QObject):
         return _FullscreenResolution(
             _FullscreenCandidate(
                 workspace_id=workspace_id,
+                workspace_name=str(workspace.name or "").strip(),
                 node=node,
                 spec=spec,
+                title=str(node.title or spec.display_name),
                 content_kind=content_kind,
                 media_payload=media_payload,
                 viewer_payload=(
@@ -1669,8 +1679,7 @@ class ContentFullscreenBridge(QObject):
     ) -> None:
         if candidate.content_kind == "web_editor":
             bridge_changed = self._ensure_web_surface_bridge(
-                candidate.node.node_id,
-                candidate.workspace_id,
+                candidate,
                 candidate.web_editor_payload.get("excalidraw_state", {}),
             )
         else:
@@ -1688,7 +1697,7 @@ class ContentFullscreenBridge(QObject):
             node_id=candidate.node.node_id,
             workspace_id=candidate.workspace_id,
             content_kind=candidate.content_kind,
-            title=str(candidate.node.title or candidate.spec.display_name),
+            title=candidate.title,
             media_payload=media_payload,
             viewer_payload=candidate.viewer_payload,
             web_editor_payload=candidate.web_editor_payload,
@@ -1790,13 +1799,18 @@ class ContentFullscreenBridge(QObject):
     def _active_media_kind(self) -> str:
         return str(self._media_payload.get("media_kind", "") or "").strip()
 
-    def _ensure_web_surface_bridge(self, node_id: str, workspace_id: str, scene_state: object) -> bool:
+    def _ensure_web_surface_bridge(
+        self,
+        candidate: _FullscreenCandidate,
+        scene_state: object,
+    ) -> bool:
         if self._terminal:
             return False
-        normalized_node_id = str(node_id or "").strip()
-        artifact_scope = self._web_surface_artifact_scope(workspace_id, normalized_node_id)
-        node_type = self._web_surface_node_type(normalized_node_id)
-        workspace_name = self._workspace_name(workspace_id)
+        normalized_node_id = str(candidate.node.node_id or "").strip()
+        artifact_scope = self._web_surface_artifact_scope(
+            candidate.workspace_id,
+            normalized_node_id,
+        )
         normalized_state = copy.deepcopy(scene_state) if isinstance(scene_state, dict) else {}
         if (
             self._web_surface_bridge is not None
@@ -1810,12 +1824,14 @@ class ContentFullscreenBridge(QObject):
         if factory is None:
             return False
         artifact_service = factory(
-            workspace_id,
-            workspace_name,
+            candidate.workspace_id,
+            candidate.workspace_name,
             normalized_node_id,
-            self._title,
-            node_type,
+            candidate.title,
+            str(candidate.spec.display_name or candidate.node.type_id),
         )
+        if artifact_service is None:
+            raise RuntimeError("Fullscreen Web artifact storage is unavailable.")
         bridge = _FullscreenWebSurfaceBridge(
             normalized_state,
             parent=self,
@@ -1854,33 +1870,6 @@ class ContentFullscreenBridge(QObject):
             for part in (str(workspace_id or "").strip(), str(node_id or "").strip())
             if part
         )
-
-    def _workspace_name(self, workspace_id: str) -> str:
-        model = self._current_model()
-        project = getattr(model, "project", None)
-        workspaces = getattr(project, "workspaces", {}) if project is not None else {}
-        workspace = workspaces.get(str(workspace_id or "").strip()) if isinstance(workspaces, Mapping) else None
-        return str(getattr(workspace, "name", "") or "").strip()
-
-    def _web_surface_node_type(self, node_id: str) -> str:
-        model = self._current_model()
-        project = getattr(model, "project", None)
-        workspaces = getattr(project, "workspaces", {}) if project is not None else {}
-        workspace = workspaces.get(self._workspace_id) if isinstance(workspaces, Mapping) else None
-        nodes = getattr(workspace, "nodes", {}) if workspace is not None else {}
-        node = nodes.get(str(node_id or "").strip()) if isinstance(nodes, Mapping) else None
-        if node is None:
-            return "Web Surface"
-        registry_provider = self._registry_provider
-        registry = registry_provider() if registry_provider is not None else None
-        get_spec = getattr(registry, "get_spec", None)
-        if callable(get_spec):
-            try:
-                spec = get_spec(node.type_id)
-                return str(getattr(spec, "display_name", "") or node.type_id)
-            except Exception:  # noqa: BLE001
-                pass
-        return str(getattr(node, "type_id", "") or "Web Surface")
 
     def _persist_web_editor_state(self) -> None:
         bridge = self._web_surface_bridge
@@ -2020,7 +2009,7 @@ class ContentFullscreenBridge(QObject):
             return True
         bridge = self._web_surface_bridge
         if bridge is None:
-            return True
+            return False
         return bridge.artifact_ref_resolves(artifact_ref)
 
     def _fallback_preview_payload_for_close(self, preview_result: Any) -> dict[str, Any]:
@@ -2242,10 +2231,10 @@ class ContentFullscreenBridge(QObject):
         suggested_path = self._suggested_tabular_export_path(preview_kind, properties, default_suffix)
         return str(
             picker(
-                "Export Visible Rows",
-                suggested_path,
-                file_filter,
-                default_suffix,
+                title="Export Visible Rows",
+                suggested_path=suggested_path,
+                file_filter=file_filter,
+                default_suffix=default_suffix,
             )
             or ""
         ).strip()

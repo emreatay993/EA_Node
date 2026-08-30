@@ -14,7 +14,10 @@ from ea_node_editor.nodes.registry import NodeRegistry
 from ea_node_editor.nodes.node_specs import NodeTypeSpec
 from ea_node_editor.nodes.plugin_contracts import NodePlugin
 from ea_node_editor.ui_qml import content_fullscreen_bridge as bridge_module
-from ea_node_editor.ui_qml.content_fullscreen_bridge import ContentFullscreenBridge
+from ea_node_editor.ui_qml.content_fullscreen_bridge import (
+    ContentFullscreenBridge,
+    _FullscreenWebSurfaceBridge,
+)
 
 
 class _FakeSceneBridge(QObject):
@@ -134,6 +137,14 @@ class ContentFullscreenBridgeLifecycleTests(unittest.TestCase):
         self.assertFalse(self.bridge.open)
         self.assertEqual(self.bridge.node_id, "")
         self.assertEqual(self.bridge.last_error, "")
+
+    def test_fullscreen_web_bridge_rejects_missing_artifact_storage(self) -> None:
+        with self.assertRaisesRegex(ValueError, "artifact storage is required"):
+            _FullscreenWebSurfaceBridge(
+                {},
+                artifact_service=None,  # type: ignore[arg-type]
+                artifact_scope="ws:node",
+            )
 
     def test_nodes_changed_closes_when_active_node_disappears(self) -> None:
         node_id = self._add_open_web_node()

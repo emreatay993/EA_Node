@@ -90,19 +90,6 @@ def create_viewer_service_dependencies(
             dict(metadata) if isinstance(metadata, dict) else None,
         )
 
-    def save_file_dialog(
-        title: str,
-        suggested_path: str,
-        file_filter: str,
-        default_suffix: str,
-    ) -> str:
-        return presenters.shell_host_presenter.save_file_dialog(
-            title=title,
-            suggested_path=suggested_path,
-            file_filter=file_filter,
-            default_suffix=default_suffix,
-        )
-
     project_session = controllers.project_session_controller
 
     def create_web_surface_artifact_service(
@@ -113,8 +100,6 @@ def create_viewer_service_dependencies(
         node_type: str,
     ) -> WebSurfaceArtifactService:
         return WebSurfaceArtifactService(
-            project_path=lambda: project_context_provider()[0],
-            project_metadata=lambda: project_context_provider()[1],
             artifact_store=project_session.project_artifact_store,
             persist_artifact_store=project_session.replace_project_artifact_store,
             temporary_root_parent=primitives.session_store.staging_workspace_root,
@@ -136,7 +121,7 @@ def create_viewer_service_dependencies(
         run_state=state.run_state,
         execution_state_changed_signal=host.node_execution_state_changed,
         script_editor=primitives.script_editor,
-        save_file_dialog=save_file_dialog,
+        save_file_dialog=presenters.shell_host_presenter.save_file_dialog,
         trim_video_clip_replace=(
             presenters.graph_canvas_presenter.request_trim_video_clip_replace
         ),

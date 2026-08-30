@@ -432,6 +432,9 @@ class GraphArchitectureBoundaryTests(unittest.TestCase):
         relative_path = "ea_node_editor/ui_qml/content_fullscreen_bridge.py"
         source = (REPO_ROOT / relative_path).read_text(encoding="utf-8")
         bridge = class_node(parse_module(relative_path), "ContentFullscreenBridge")
+        web_bridge = class_node(
+            parse_module(relative_path), "_FullscreenWebSurfaceBridge"
+        )
         init = next(
             node
             for node in bridge.body
@@ -465,6 +468,23 @@ class GraphArchitectureBoundaryTests(unittest.TestCase):
         ):
             self.assertNotIn(retired, source)
 
+        web_init = next(
+            node
+            for node in web_bridge.body
+            if isinstance(node, ast.FunctionDef) and node.name == "__init__"
+        )
+        self.assertIsNone(web_init.args.kwarg)
+        self.assertEqual(
+            [argument.arg for argument in web_init.args.kwonlyargs],
+            [
+                "preview_persist_callback",
+                "artifact_service",
+                "artifact_scope",
+            ],
+        )
+        self.assertNotIn("def _workspace_name", source)
+        self.assertNotIn("def _web_surface_node_type", source)
+
         runtime_source = (
             REPO_ROOT / "ea_node_editor/ui/shell/composition/runtime_services.py"
         ).read_text(encoding="utf-8")
@@ -473,6 +493,12 @@ class GraphArchitectureBoundaryTests(unittest.TestCase):
             runtime_source,
         )
         self.assertNotIn("persist_project_metadata=", runtime_source)
+        self.assertNotIn("def save_file_dialog(", runtime_source)
+        artifact_factory = runtime_source.split(
+            "def create_web_surface_artifact_service(", 1
+        )[1].split("content_fullscreen_bridge =", 1)[0]
+        self.assertNotIn("project_path=", artifact_factory)
+        self.assertNotIn("project_metadata=", artifact_factory)
         for service_path in (
             "ea_node_editor/ui_qml/viewer_host_service.py",
             "ea_node_editor/ui_qml/plot_host_service.py",
