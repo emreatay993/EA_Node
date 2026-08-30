@@ -2182,9 +2182,12 @@ class ContentFullscreenBridge(QObject):
             return
         replace_metadata = getattr(project, "replace_metadata", None)
         if callable(replace_metadata):
-            replace_metadata(metadata)
+            changed = bool(replace_metadata(metadata))
         else:
+            changed = project.metadata != metadata
             project.metadata = copy.deepcopy(metadata)
+        if not changed:
+            return
         signal = getattr(shell_window, "project_meta_changed", None) if shell_window is not None else None
         emit = getattr(signal, "emit", None)
         if callable(emit):
@@ -2193,7 +2196,7 @@ class ContentFullscreenBridge(QObject):
     def _persist_project_artifact_store(self, store: Any) -> None:
         shell_window = self._shell_window
         controller = getattr(shell_window, "project_session_controller", None) if shell_window is not None else None
-        setter = getattr(controller, "_set_project_artifact_store", None)
+        setter = getattr(controller, "replace_project_artifact_store", None)
         if callable(setter):
             try:
                 setter(store)

@@ -7,6 +7,7 @@ from pathlib import Path
 from unittest import mock
 
 from ea_node_editor.graph.model import GraphModel
+from ea_node_editor.persistence.artifact_store import ProjectArtifactStore
 from ea_node_editor.persistence.serializer import ProjectDocumentSnapshot
 from ea_node_editor.persistence.session_store import RecentSessionEnvelope
 from ea_node_editor.ui.dialogs.project_files_dialog import ProjectFilesBrokenEntry
@@ -250,6 +251,42 @@ class _ProjectHostStub:
 
 
 class ProjectSessionControllerUnitTests(unittest.TestCase):
+    def test_replace_project_artifact_store_updates_metadata_revision_and_signal_once(
+        self,
+    ) -> None:
+        host = _ProjectHostStub()
+        host.model.project.metadata = {"custom": "preserve-me"}
+        controller = ProjectSessionController(host)  # type: ignore[arg-type]
+        store = ProjectArtifactStore(project_path=None, metadata=None)
+        before_revision = host.model.project.project_document_revision
+        self.assertFalse(hasattr(controller, "_set_project_artifact_store"))
+        self.assertFalse(
+            hasattr(
+                controller._project_files_service,  # noqa: SLF001
+                "_set_project_artifact_store",
+            )
+        )
+
+        self.assertTrue(controller.replace_project_artifact_store(store))
+        self.assertEqual(
+            host.model.project.project_document_revision,
+            before_revision + 1,
+        )
+        self.assertEqual(host.project_meta_changed.emit_calls, [()])
+        self.assertEqual(host.model.project.metadata["custom"], "preserve-me")
+        self.assertEqual(
+            host.model.project.metadata["artifact_store"],
+            store.metadata,
+        )
+
+        unchanged_revision = host.model.project.project_document_revision
+        self.assertFalse(controller.replace_project_artifact_store(store))
+        self.assertEqual(
+            host.model.project.project_document_revision,
+            unchanged_revision,
+        )
+        self.assertEqual(host.project_meta_changed.emit_calls, [()])
+
     def test_metadata_defaults_are_merged_without_dropping_existing_values(
         self,
     ) -> None:

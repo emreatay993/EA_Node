@@ -697,7 +697,7 @@ class ProjectDocumentIOService:
             for node_id, live_node in live_workspace.nodes.items():
                 live_node.properties = adopted_properties[(workspace_id, node_id)]
             live_workspace.dirty = False
-        self._project_files._set_project_artifact_store(
+        self._project_files.replace_project_artifact_store(
             adopted_artifact_store
         )
         self._host.project_path = str(target)

@@ -388,6 +388,46 @@ class GraphArchitectureBoundaryTests(unittest.TestCase):
         self.assertNotIn("ea_node_editor.persistence.serializer", imports)
         self.assertNotIn("ea_node_editor.persistence.project_codec", imports)
 
+    def test_project_artifact_store_replacement_uses_public_controller_boundary(
+        self,
+    ) -> None:
+        controller_tree = parse_module(
+            "ea_node_editor/ui/shell/controllers/project_session_controller.py"
+        )
+        project_files_tree = parse_module(
+            "ea_node_editor/ui/shell/controllers/"
+            "project_session_services_support/project_files_service.py"
+        )
+        controller_methods = {
+            node.name
+            for node in class_node(
+                controller_tree,
+                "ProjectSessionController",
+            ).body
+            if isinstance(node, ast.FunctionDef)
+        }
+        project_files_methods = {
+            node.name
+            for node in class_node(project_files_tree, "ProjectFilesService").body
+            if isinstance(node, ast.FunctionDef)
+        }
+
+        self.assertIn("replace_project_artifact_store", controller_methods)
+        self.assertIn("replace_project_artifact_store", project_files_methods)
+        self.assertNotIn("_set_project_artifact_store", controller_methods)
+        self.assertNotIn("_set_project_artifact_store", project_files_methods)
+
+        for relative_path in (
+            "ea_node_editor/ui/shell/controllers/workspace_navigation_controller.py",
+            "ea_node_editor/ui_qml/content_fullscreen_bridge.py",
+            "ea_node_editor/ui_qml/graph_scene_mutation_history.py",
+        ):
+            with self.subTest(path=relative_path):
+                self.assertNotIn(
+                    "_set_project_artifact_store",
+                    (REPO_ROOT / relative_path).read_text(encoding="utf-8"),
+                )
+
     def test_solution_repository_has_no_project_commit_and_t08_owns_prune_call(self) -> None:
         repository_source = (
             REPO_ROOT / "ea_node_editor" / "persistence" / "solution_repository.py"

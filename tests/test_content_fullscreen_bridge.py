@@ -1883,6 +1883,13 @@ class ContentFullscreenBridgeTests(MainWindowShellTestBase):
         self.assertTrue(bridge.request_open_node(node_id))
         web_bridge = bridge.web_surface_bridge
         self.assertIsInstance(web_bridge, WebSurfaceBridge)
+        before_revision = self.window.model.project.project_document_revision
+        metadata_events: list[int] = []
+        self.window.project_meta_changed.connect(
+            lambda: metadata_events.append(
+                self.window.model.project.project_document_revision
+            )
+        )
 
         preview_payload = b"\x89PNG\r\n\x1a\nfullscreen-preview"
         preview_hash = hashlib.sha256(preview_payload).hexdigest()
@@ -1900,6 +1907,11 @@ class ContentFullscreenBridgeTests(MainWindowShellTestBase):
         self.app.processEvents()
 
         self.assertFalse(bridge.open)
+        self.assertEqual(
+            self.window.model.project.project_document_revision,
+            before_revision + 1,
+        )
+        self.assertEqual(metadata_events, [before_revision + 1])
         node = self.window.model.project.workspaces[workspace_id].nodes[node_id]
         preview_ref = node.properties[EXCALIDRAW_PREVIEW_REF_PROPERTY]
         self.assertEqual(preview_ref["artifact_ref"], result["preview_ref"])

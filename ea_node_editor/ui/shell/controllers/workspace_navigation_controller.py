@@ -153,7 +153,7 @@ class WorkspaceNavigationController:
         self._host.workspace_manager.rename_workspace(normalized_workspace_id, normalized_name)
         project_session_controller = getattr(self._host, "project_session_controller", None)
         store_provider = getattr(project_session_controller, "project_artifact_store", None)
-        store_setter = getattr(project_session_controller, "_set_project_artifact_store", None)
+        store_setter = getattr(project_session_controller, "replace_project_artifact_store", None)
         if callable(store_provider) and callable(store_setter):
             store = store_provider()
             if store.rename_workspace_artifact_folder(

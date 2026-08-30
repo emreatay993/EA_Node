@@ -70,8 +70,11 @@ class ProjectSessionController:
     def project_artifact_store(self) -> ProjectArtifactStore:
         return self._project_files_service.project_artifact_store()
 
-    def _set_project_artifact_store(self, store: ProjectArtifactStore) -> None:
-        self._project_files_service._set_project_artifact_store(store)
+    def replace_project_artifact_store(self, store: ProjectArtifactStore) -> bool:
+        changed = self._project_files_service.replace_project_artifact_store(store)
+        if changed:
+            self._host.project_meta_changed.emit()
+        return changed
 
     def ensure_project_staging_root(self) -> Path:
         return self._project_files_service.ensure_project_staging_root()

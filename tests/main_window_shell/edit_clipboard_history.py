@@ -143,7 +143,7 @@ class MainWindowShellEditClipboardHistoryTests(SharedMainWindowShellTestBase):
                 }
             },
         )
-        self.window.project_session_controller._set_project_artifact_store(store)
+        self.window.project_session_controller.replace_project_artifact_store(store)
         node.properties["source"] = store.managed_ref("video")
         release_events: list[tuple[str, str]] = []
         meta_events: list[object] = []

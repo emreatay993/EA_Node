@@ -426,7 +426,7 @@ class GraphSceneMutationHistory:
         if callable(provider):
             try:
                 return provider(), getattr(
-                    controller, "_set_project_artifact_store", None
+                    controller, "replace_project_artifact_store", None
                 )
             except Exception:  # noqa: BLE001
                 pass
@@ -518,8 +518,8 @@ class GraphSceneMutationHistory:
             else:
                 updated_metadata = dict(metadata)
                 updated_metadata[PROJECT_ARTIFACT_STORE_METADATA_KEY] = store.metadata
-                project.replace_metadata(updated_metadata)
-            self._emit_project_meta_changed(host)
+                if project.replace_metadata(updated_metadata):
+                    self._emit_project_meta_changed(host)
         finally:
             self._emit_artifact_rename_signal(
                 host, "managedArtifactRenameReleaseFinished", node_id
