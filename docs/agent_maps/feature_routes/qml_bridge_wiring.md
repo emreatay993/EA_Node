@@ -6,6 +6,7 @@ Graph canvas toolbar mutations that bypass modal graph actions, including flow-e
 Text annotation style copy/paste is also exposed through `GraphCanvasCommandBridge` as an internal app/session clipboard, not the OS clipboard.
 Durable node link actions are split by owner: inspector rows/actions route through `ShellInspectorBridge`, while graph-canvas hover/open/delete actions route through `GraphCanvasCommandBridge` and the graph scene command source.
 Media Panel video-mode trim-save is bridge-owned too: inline QML calls `GraphCanvasCommandBridge`, fullscreen QML calls `ContentFullscreenBridge`, and both forward to `GraphCanvasPresenter`.
+`ContentFullscreenBridge` owns one active fullscreen lifecycle/payload and receives live providers and focused owner callbacks from `ui/shell/composition/runtime_services.py`. It has no `ShellWindow` reference, policy facade, dependency bag, compatibility alias, or separate QML API.
 Dynamic-port authoring follows `GraphNodePortsLayer.qml` / `GraphCanvasContextMenus.qml` -> `graph_canvas_command.scene_mutation_ops` -> `GraphSceneCommandBridge` -> `graph_scene_mutation.selection_and_scope_ops` -> `ValidatedGraphMutation`; QML never writes the hidden backing properties.
 Sensitive-property authoring follows graph/Inspector `SecretEditor.qml` -> dedicated `set/clear_*_secret` slots -> `GraphSceneMutationHistory` -> `selection_and_scope_ops`; generic property setters reject sensitive keys, so plaintext is DPAPI-protected before graph mutation or history capture.
 Optimization Setup-to-Pool authoring follows `GraphCanvasContextMenus.qml` -> `graph_canvas_command.scene_mutation_ops` -> `GraphSceneMutationHistory` -> graph-owned node-link mutation, so semantic links persist and undo/redo without a QML-only store.
@@ -24,6 +25,9 @@ Optimization Setup-to-Pool authoring follows `GraphCanvasContextMenus.qml` -> `g
 - `ea_node_editor/ui_qml/components/graph_canvas/GraphCanvasInteractionState.qml`
 - `ea_node_editor/ui/shell/controllers/mutation_ui_effects.py`
 - `ea_node_editor/ui_qml/content_fullscreen_bridge.py`
+- `ea_node_editor/ui/shell/composition/runtime_services.py`
+- `tests/test_content_fullscreen_bridge.py`
+- `tests/test_content_fullscreen_bridge_lifecycle.py`
 - `ea_node_editor/ui_qml/shell_context_bootstrap.py`
 - `ea_node_editor/ui/shell/context_bridges.py`
 - `tests/test_data_type_ui_projection.py`
@@ -34,11 +38,12 @@ Optimization Setup-to-Pool authoring follows `GraphCanvasContextMenus.qml` -> `g
 - Dedicated `set_node_secret` and `clear_node_secret` slots are part of the graph-scene bridge chain; Inspector wrappers forward to the same owner.
 - Drag compatibility follows `GraphSceneMutationPolicy.compatible_endpoint_snapshot(...)` -> `GraphScenePolicyBridge` -> `graph_canvas_state/scene_models_props.py` -> `GraphCanvasInteractionState.wireDragState`. The bridge publishes one fingerprinted endpoint identity snapshot per real gesture; it does not publish the catalog or compatibility graph.
 - Bridge slots/properties/signals may live in plain-Python mixin modules composed with QObject; `tests/test_bridge_mixin_meta_registration.py` permanently pins the PyQt6 meta-object registration guarantees (including double-decorated overload slots and property/notify pairs) that the mixin packages rely on.
+- Content fullscreen keeps the existing QML-visible slots, properties, signals, context name, and `ContentFullscreenOverlay.qml` contract unchanged. Python ownership is 42 direct methods plus two mounted methods; terminal/lazy-provider behavior is in the three direct lifecycle tests.
 
 ## Focused Verification
 ```powershell
 .\venv\Scripts\python.exe -m pytest tests/test_graph_canvas_split_bridges.py tests/main_window_shell/bridge_qml_boundaries.py tests/test_graph_scene_bridge_bind_regression.py --ignore=venv -q
-.\venv\Scripts\python.exe -m pytest tests/test_content_fullscreen_bridge.py --ignore=venv -q
+.\venv\Scripts\python.exe -m pytest tests/test_content_fullscreen_bridge.py tests/test_content_fullscreen_bridge_lifecycle.py --ignore=venv -q
 .\venv\Scripts\python.exe -m pytest tests/test_graph_canvas_surface_snapshot.py tests/test_bridge_mixin_meta_registration.py --ignore=venv -q
 .\venv\Scripts\python.exe -m pytest tests/test_data_type_ui_projection.py tests/test_graph_surface_input_controls.py -k "compatible_endpoint or ctrl_drag_reassigns" --ignore=venv -q
 ```

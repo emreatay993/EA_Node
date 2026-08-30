@@ -62,6 +62,7 @@ Use this for QML shell composition, Python-to-QML bridge wiring, shell bridge mo
 - `ConnectionQuickInsertOverlay.qml` owns both connection-origin and canvas-mode Quick Insert. `MainShell.qml` no longer mounts `CanvasInsertRadialMenu.qml`; keep the presenter state, shell bridge properties, and focus-loss close path aligned with the shared overlay.
 - Python compatibility flows query the active scene registry catalog; do not add a parallel QML type table or equality rule. Real drag snapshots flow through `GraphSceneMutationPolicy.compatible_endpoint_snapshot(...)` -> `GraphScenePolicyBridge` -> `graph_canvas_state/scene_models_props.py` -> the existing `GraphCanvasInteractionState.wireDragState`, where one generation-checked result is reused for the gesture. Quick Insert continues to query Python catalog compatibility and the primary/accepted union directly.
 - Fullscreen bridge methods that persist node surface state, including tabular selected columns, must stay aligned with their QML callers and focused bridge tests.
+- `ContentFullscreenBridge` owns one active fullscreen lifecycle and receives live providers plus focused callbacks from shell composition. It has no `ShellWindow` lookup, policy facade, compatibility alias, or second QML API. `ViewerHostService` and `PlotHostService` observe that exact bridge directly; terminal shutdown disconnects and does not persist after project close.
 - Keep shell context bootstrapping centralized.
 - Keep Run, Run Selected, runtime-only Auto/Manual/Pause state, active scope breadcrumbs, and the compact project file label together in `ShellRunToolbar.qml`. `ShellWorkspaceBridge` projects the selected workspace's live solution mode; `RunController` initializes it from the app-wide default, evaluates Auto on open, and owns Trigger click/capture requests.
 - Keep production view/workspace tab styling in `ShellLabeledTabStrip.qml`.
@@ -81,6 +82,7 @@ Use this for QML shell composition, Python-to-QML bridge wiring, shell bridge mo
 - `MainShell.qml` owns node-link pick mode. `WorkspaceCenterPane.qml` intercepts workspace tabs while picking, and `GraphCanvas.qml` reports picked nodes back to the inspector without auto-saving.
 - Regenerate `docs/qml_navigation_index.md` and `docs/qml_navigation_index.json` when QML files are added, renamed, or structurally changed so agents can route to QML owners by component name, filename alias, path, property, signal, function, or dynamic construct.
 - Prefer focused bridge boundary tests for QML/Python contract changes.
+- Content-fullscreen Python coverage is 42 direct methods plus two mounted wiring/QML methods in `tests/test_content_fullscreen_bridge.py`, with terminal/provider/laziness coverage in `tests/test_content_fullscreen_bridge_lifecycle.py`. Detailed viewer controls belong to viewer control/host/surface owner tests; shell lifecycle retains mount/visibility smoke only.
 - `ShellAddOnManagerBridge` owns transient managed-install progress; worker signals queue the latest runtime output line to `AddOnManagerPane.qml`, and thread cleanup clears it.
 
 - `GraphCanvasStateBridge` projects `node_solution_freshness_lookup` through `GraphCanvasExecutionFacts.nodeSolutionFreshnessLookup`; missing means never. This is transport-only—no badge, color, tooltip, animation, or action consumes it yet. The unchanged `freshRunNodeLookup` is derived from current solution facts for existing neutral chrome.
@@ -89,7 +91,7 @@ Use this for QML shell composition, Python-to-QML bridge wiring, shell bridge mo
 ```powershell
 .\venv\Scripts\python.exe -m pytest tests/test_script_editor_dock.py --ignore=venv -q
 .\venv\Scripts\python.exe -m pytest tests/main_window_shell/bridge_qml_boundaries.py tests/main_window_shell/test_qml_shell_roots.py --ignore=venv -q
-.\venv\Scripts\python.exe -m pytest tests/test_content_fullscreen_bridge.py --ignore=venv -q
+.\venv\Scripts\python.exe -m pytest tests/test_content_fullscreen_bridge.py tests/test_content_fullscreen_bridge_lifecycle.py --ignore=venv -q
 .\venv\Scripts\python.exe -m pytest tests/test_graph_canvas_split_bridges.py tests/test_graph_canvas_surface_snapshot.py --ignore=venv -q
 .\venv\Scripts\python.exe -m pytest tests/graph_track_b/qml_preference_bindings.py --ignore=venv -q
 .\venv\Scripts\python.exe -m pytest tests/test_data_type_ui_projection.py tests/test_graph_surface_input_controls.py -k "compatible_endpoint or ctrl_drag_reassigns" --ignore=venv -q

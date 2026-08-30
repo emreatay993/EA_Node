@@ -31,6 +31,9 @@ Use this for graph surface, QML bridge, passive host, inline input, pointer, mod
 - `tests/test_viewer_control_bridge.py`
 - `tests/test_viewer_host_service.py`
 - `tests/test_plot_detached_window.py`
+- `tests/test_content_fullscreen_bridge.py`
+- `tests/test_content_fullscreen_bridge_lifecycle.py`
+- `tests/test_shell_window_lifecycle.py`
 - `tests/test_corex_node_controls_visual.py`
 - `tests/fixtures/node_controls/signal_plot_style_node_controls.py`
 
@@ -66,6 +69,7 @@ Use this for graph surface, QML bridge, passive host, inline input, pointer, mod
   bookmarks/selections/query/export, and projection synchronization. Use
   `tests/test_viewer_host_service.py` for same-widget inline/detached/fullscreen
   ownership, fit/isolate routing, shortcuts, and cleanup.
+- Content-fullscreen Python ownership is 42 direct methods plus two mounted methods in `tests/test_content_fullscreen_bridge.py`; `tests/test_content_fullscreen_bridge_lifecycle.py` owns dynamic-provider replacement, required Web artifact storage, terminal no-persist shutdown, signal disconnection, late-work rejection, and lazy tabular reuse. Viewer option/selection/bookmark behavior moved to `tests/test_viewer_control_bridge.py`, same-widget holds/cleanup to `tests/test_viewer_host_service.py`, and executable quick-control/accessibility/shortcut behavior to `tests/test_viewer_surface_contract.py`. Real-shell lifecycle keeps only overlay/viewport/quick-control mount and visibility smoke.
 - Use `tests/test_viewer_session_bridge.py` for exact committed projection-snapshot adoption without double increment, direct/project/reset epoch advancement, late response/query/close rejection, and two-viewer projection preservation. Participant-local empty/`None`/scoped matrices, concrete-to-projection response translation, state-before-viewer barrier locking, no-reacquisition delivery, irreversible finalizer/gate cleanup, preflight rollback/buffering, selected-service equality, and worker cleanup stay in the execution client/headless/viewer suites.
 - Media Panel QML dispatch, renderer teardown, input-authority action gating, stable metrics, and fullscreen mode changes live in `tests/test_media_panel_qml_surface.py`. `tests/test_passive_image_nodes.py` retains provider and renderer-source lifecycle checks; use `tests/test_shell_window_lifecycle.py::test_content_fullscreen_overlay_owns_animated_image_playback` for real-shell fullscreen ownership.
 - Exact `GraphNodeHost.inVisibleViewport` geometry, fail-open/edge-contact behavior, live drag/resize, axis-aware retention margins, continuous pan look-ahead, stable host identity, far-behind teardown, per-frame burst coalescing, direction reversal, and strict-viewport emergency refresh belong in `tests/test_graph_canvas_viewport_virtualization.py` and `tests/graph_surface/passive_host_interaction_suite.py`. Keep exact work suspension assertions separate from buffered loader/delegate retention assertions.
@@ -83,6 +87,7 @@ $env:QT_QUICK_CONTROLS_STYLE = "Basic"
 .\venv\Scripts\python.exe -m pytest tests/test_graph_surface_input_contract.py tests/test_graph_surface_input_inline.py tests/test_passive_graph_surface_host.py tests/test_media_panel_qml_surface.py tests/test_passive_image_nodes.py --ignore=venv -q
 .\venv\Scripts\python.exe -m pytest tests/test_graph_canvas_viewport_virtualization.py --ignore=venv -q
 .\venv\Scripts\python.exe -m pytest tests/test_graph_canvas_split_bridges.py tests/test_graph_canvas_surface_snapshot.py --ignore=venv -q
+.\venv\Scripts\python.exe -m pytest tests/test_content_fullscreen_bridge.py tests/test_content_fullscreen_bridge_lifecycle.py --ignore=venv -q
 Remove-Item Env:QT_QPA_PLATFORM, Env:QT_QUICK_CONTROLS_STYLE -ErrorAction SilentlyContinue
 $env:QT_QPA_PLATFORM = "offscreen"
 .\venv\Scripts\python.exe -m pytest tests/test_viewer_control_bridge.py tests/test_viewer_host_service.py tests/test_viewer_surface_host.py tests/test_viewer_surface_contract.py --ignore=venv -q

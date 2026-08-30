@@ -36,6 +36,9 @@ Use this for execution viewer sessions, native overlay lifecycle, fullscreen con
 - `ea_node_editor/nodes/viewer_runtime_contracts.py`
 - `tests/test_viewer_session_bridge.py`
 - `tests/test_content_fullscreen_bridge.py`
+- `tests/test_content_fullscreen_bridge_lifecycle.py`
+- `tests/test_viewer_control_bridge.py`
+- `tests/test_viewer_host_service.py`
 - `tests/test_viewer_surface_contract.py`
 - `tests/test_execution_client.py`
 - `tests/test_execution_worker.py`
@@ -63,6 +66,8 @@ Use this for execution viewer sessions, native overlay lifecycle, fullscreen con
 - Every viewer command/response includes workspace and node invalidation epochs. Runs stage immutable participant-local process/trusted/external snapshots plus an independent high-level/Bridge projection after backend ensure/recycle. Worker context installation is separate from snapshot validation/adoption; the Bridge's sole partial-run projection is `adopt_committed_invalidation(...)`, while true global resets use `project_all_run_required(...)` and legacy direct worker runs keep service-global invalidation. Worker preflight validates only the selected concrete snapshot/digest, emits `run_preflight_accepted` first, and waits for the identity-bound parent commit; `viewer_invalidation_committed` carries the projection digest. The sealed commit follows high-level invalidation/active then child state-before-viewer lock order, sends a pre-encoded payload through a pinned transport without callbacks or lock reacquisition, and applies all local plans or none. Concrete responses validate locally and translate to projection epochs before callbacks. The irreversible post-delivery finalizer publishes adoption before draining buffered events and always clears its gate. Delivery failure/cancel/timeout/preflight failure leaves Bridge/client/service state unchanged; committed post-delivery failures retain invalidation. Only a fresh selected service may align its selected concrete workspace baseline. Project/load/reset remains workspace-global, with project load covering old and incoming workspace IDs.
 - Registry publication refuses active/pending viewer sessions and shares the execution admission guard with new viewer opens. Once idle, `ViewerSessionBridge.replace_data_types(...)` moves the bridge to the accepted frozen catalog in the same reversible shell transaction.
 - Viewer overlay camera capture is injected from `ui/shell/composition/runtime_services.py` through a cycle-safe late-bound `ViewerHostService` reference. Preview capture/cache remains host-owned; do not route it through the session bridge or restore raw `ShellWindow.viewer_host_service` discovery there.
+- The same composition root supplies `ContentFullscreenBridge` with live model, registry, active-workspace, and project-context providers plus its exact scene/viewer/run/script/dialog/trim/Web-artifact owners. The bridge stores no `ShellWindow`, policy service, aggregate dependency bag, or compatibility alias. Candidate workspace/name/node/title/type facts are frozen together for each open.
+- `ViewerHostService` and `PlotHostService` receive the content bridge directly, connect once during construction, retain that connection across reset, and disconnect at terminal shutdown. Neither discovers the bridge through `ShellWindow`.
 - Fullscreen and detached viewer content share
   `components/graph/viewer/ViewerQuickControls.qml` below the native viewport
   and `ViewerSidePanel.qml` on its right. The quick strip groups Render Mode,
@@ -95,6 +100,7 @@ Use this for execution viewer sessions, native overlay lifecycle, fullscreen con
   post-attach result remains pending and is never published as a ready overlay;
   a terminal refresh failure releases the bad attachment and preserves the real
   host error.
+- Content fullscreen terminal shutdown disconnects scene topology/node/workspace and execution notifications, drops queued tabular identities, destroys the active Web bridge without close/export persistence, rejects late work, and cannot recreate lazy providers. Normal user close still owns authored video/Web state persistence before terminal project/window teardown.
 - Detached windows hold their session live through viewer presentation holds:
   `ViewerHostService.open_detached_viewer` acquires
   `ViewerSessionBridge.add_viewer_presentation_hold(node_id)` (pending and
@@ -140,7 +146,7 @@ Use this for execution viewer sessions, native overlay lifecycle, fullscreen con
 ## Focused Verification
 ```powershell
 .\venv\Scripts\python.exe -m pytest tests/test_viewer_session_bridge.py tests/test_execution_viewer_service.py tests/test_viewer_control_bridge.py tests/test_viewer_host_service.py tests/test_viewer_preview_cache_provider.py tests/test_embedded_viewer_overlay_manager.py tests/test_viewer_surface_contract.py tests/test_viewer_surface_host.py tests/test_execution_viewer_protocol.py --ignore=venv -q
-.\venv\Scripts\python.exe -m pytest tests/test_content_fullscreen_bridge.py tests/test_media_panel_qml_surface.py --ignore=venv -q
+.\venv\Scripts\python.exe -m pytest tests/test_content_fullscreen_bridge.py tests/test_content_fullscreen_bridge_lifecycle.py tests/test_media_panel_qml_surface.py --ignore=venv -q
 .\venv\Scripts\python.exe -m pytest tests/test_shell_window_lifecycle.py -k content_fullscreen_overlay_renders_pdf_media --ignore=venv -q
 .\venv\Scripts\python.exe -m pytest tests/main_window_shell/shell_runtime_contracts.py -k content_fullscreen --ignore=venv -q
 ```

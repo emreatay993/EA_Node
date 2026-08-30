@@ -48,6 +48,7 @@ Use this for the active unified Media Panel, its derived image/PDF/video rendere
 - PDF inline preview owns page clamping through `pdf_preview_provider.py`; fullscreen uses `PdfDocument`/`PdfMultiPageView`. Graph mutation does not rewrite authored page values.
 - Video bookmarks, range, playback, capture, timestamp links, and trim live in `GraphMediaVideoRenderer.qml` and the fullscreen renderer. Replace revalidates Browse authority/local source; Copy and capture create populated input-hidden Media Panels.
 - Inline and fullscreen consume the same effective source. Fullscreen uses `content_kind="media"` with dynamic `media_payload.media_kind` and refreshes on execution, topology, exposure, node, or workspace changes.
+- Fullscreen receives the live `ShellRunState` and execution signal from composition rather than reading `ShellWindow`. Its direct bridge tests pin retained `NodeSolutionFact` selection and current-to-running refresh; media QML tests continue to own renderer/action behavior.
 - Mail remains `passive.media.mail_panel` with authored `source_path`, provider-generated HTML, render-only inline WebEngine, and separate fullscreen behavior.
 
 ## Creation And Persistence Rules

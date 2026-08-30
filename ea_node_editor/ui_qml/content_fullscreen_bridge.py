@@ -1,7 +1,7 @@
-# Purpose: QML<->Python bridge for content fullscreen — resolves the fullscreen
-#          candidate/scene bounds and drives the fullscreen overlay policy.
+# Purpose: QML<->Python bridge for one active content-fullscreen lifecycle and
+#          payload, using composition-supplied live owners instead of ShellWindow.
 # Map: feature_routes/qml_bridge_wiring
-# Tests: tests/test_content_fullscreen_bridge.py
+# Tests: tests/test_content_fullscreen_bridge.py, tests/test_content_fullscreen_bridge_lifecycle.py
 # Landmarks: ContentFullscreenBridge, _FullscreenWebSurfaceBridge
 from __future__ import annotations
 
