@@ -53,12 +53,20 @@ class _SessionBridgeStub(QObject):
             "summary": {"scene_fingerprint": "a" * 64},
         }
 
+    def query_session(self, **_kwargs: Any) -> dict[str, Any]:
+        return {
+            "supported": False,
+            "value": {},
+            "explanation": "The active viewer session is not ready.",
+        }
+
 
 class _ViewerHostStub:
     def __init__(self) -> None:
         self.camera_state: dict[str, Any] = {"zoom": 1.0, "parallel_projection": False}
         self.applied: list[tuple[str, dict[str, Any]]] = []
         self.selection_filters: list[tuple[str, str]] = []
+        self.activated: list[tuple[str, list[dict[str, str]]]] = []
         self.selection = {
             "scene_fingerprint": "a" * 64,
             "entities": [
@@ -85,6 +93,9 @@ class _ViewerHostStub:
         return dict(self.selection)
 
     def activate_viewer_selection(self, _node_id: str, _entities: list[dict[str, str]]) -> bool:
+        self.activated.append(
+            (_node_id, [dict(entity) for entity in _entities])
+        )
         return True
 
     def set_viewer_selection_filter(self, _node_id: str, _value: str) -> bool:
@@ -133,9 +144,24 @@ class ViewerControlBridgeTests(unittest.TestCase):
         self.assertTrue(self.bridge.set_viewer_option("node", "show_orientation_triad", False))
         self.assertTrue(self.bridge.set_viewer_option("node", "show_view_cube", False))
         self.assertTrue(self.bridge.set_viewer_option("node", "show_world_axes", True))
+        self.assertTrue(self.bridge.set_viewer_option("node", "colormap", "turbo"))
+        self.assertTrue(self.bridge.set_viewer_option("node", "show_scalar_bar", "false"))
+        self.assertTrue(self.bridge.set_viewer_option("node", "deform_scale", "-3"))
+        self.assertTrue(self.bridge.set_viewer_option("node", "representation", "wireframe"))
+        self.assertTrue(self.bridge.set_viewer_option("node", "primary_opacity", "1.5"))
+        self.assertTrue(self.bridge.set_viewer_option("node", "overlay_opacity", "0.2"))
+        self.assertTrue(self.bridge.set_viewer_option("node", "parallel_projection", True))
+        self.assertFalse(self.bridge.set_viewer_option("node", "path", "C:/other.rst"))
+        self.assertFalse(self.bridge.set_viewer_option("node", "unknown_key", 1))
         self.assertFalse(self.bridge.set_viewer_option("node", "unsupported", True))
-        self.assertEqual(self.node.properties["representation"], "wireframe_visible_edges")
-        self.assertEqual(len(self.session.sync_calls), 5)
+        self.assertEqual(self.node.properties["representation"], "wireframe")
+        self.assertEqual(self.node.properties["colormap"], "turbo")
+        self.assertIs(self.node.properties["show_scalar_bar"], False)
+        self.assertEqual(self.node.properties["deform_scale"], "off")
+        self.assertEqual(self.node.properties["primary_opacity"], 1.0)
+        self.assertEqual(self.node.properties["overlay_opacity"], 0.2)
+        self.assertIs(self.node.properties["parallel_projection"], True)
+        self.assertEqual(len(self.session.sync_calls), 12)
 
     def test_selection_filter_is_runtime_only_and_tangent_angle_is_app_wide(self) -> None:
         self.assertTrue(self.bridge.set_viewer_option("node", "selection_filter", "CAD_FACE"))
@@ -249,6 +275,11 @@ class ViewerControlBridgeTests(unittest.TestCase):
             ["part:1/face:2", "part:1/face:8"],
         )
         self.assertTrue(self.bridge.rename_viewer_selection("node", 0, "Critical faces"))
+        self.assertTrue(self.bridge.activate_viewer_selection("node", 0))
+        self.assertEqual(
+            self.host.activated,
+            [("node", saved["selections"][0]["entities"])],
+        )
         self.assertTrue(self.bridge.publish_viewer_selection("node", 0))
         self.assertEqual(
             self.bridge.viewer_saved_selections("node")["published_name"],
@@ -256,6 +287,10 @@ class ViewerControlBridgeTests(unittest.TestCase):
         )
         self.assertTrue(self.bridge.remove_viewer_selection("node", 0))
         self.assertEqual(self.bridge.viewer_saved_selections("node")["selections"], [])
+        self.assertTrue(self.bridge.viewer_query_available())
+        unavailable = self.bridge.query_viewer("node", "bounds", {})
+        self.assertFalse(unavailable["supported"])
+        self.assertIn("not ready", unavailable["explanation"])
 
     def test_stale_saved_selection_schema_cannot_break_viewer_controls(self) -> None:
         self.node.properties["saved_selections"] = {

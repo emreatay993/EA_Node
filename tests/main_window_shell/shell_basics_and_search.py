@@ -342,6 +342,15 @@ class MainWindowShellBasicsAndSearchTests(SharedMainWindowShellTestBase):
                 "Open connection quick insert for compatible nodes.",
             )
             self.assertEqual(entries[("Video fullscreen", "Space")], "Play or pause the video.")
+            for input_name in ("Space", "Left or Right", "Home", "R"):
+                with self.subTest(
+                    context="DPF viewer fullscreen",
+                    input=input_name,
+                ):
+                    self.assertIn(
+                        ("DPF viewer fullscreen", input_name),
+                        entries,
+                    )
         finally:
             dialog.close()
 

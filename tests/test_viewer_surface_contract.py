@@ -910,6 +910,342 @@ class ViewerSurfaceContractTests(unittest.TestCase):
             """,
         )
 
+    def test_shared_viewer_controls_execute_group_overflow_selection_and_fullscreen_shortcuts(
+        self,
+    ) -> None:
+        self._run_qml_probe(
+            "shared-viewer-controls-runtime-contract",
+            """
+            from PyQt6.QtCore import (
+                QPointF,
+                QObject,
+                Qt,
+                pyqtProperty,
+                pyqtSignal,
+                pyqtSlot,
+            )
+            from PyQt6.QtQuick import QQuickWindow
+            from PyQt6.QtTest import QTest
+
+            class OverlayThemeBridgeStub(QObject):
+                @pyqtProperty("QVariantMap", constant=True)
+                def palette(self):
+                    return {
+                        "accent": "#2F89FF",
+                        "accent_strong": "#187fc4",
+                        "app_bg": "#151821",
+                        "border": "#3a4355",
+                        "hover": "#33405c",
+                        "input_bg": "#18202d",
+                        "input_border": "#465066",
+                        "muted_fg": "#95a0b8",
+                        "panel_bg": "#1b1f2a",
+                        "panel_title_fg": "#eef3ff",
+                        "pressed": "#22304a",
+                        "tab_bg": "#252b33",
+                        "tab_fg": "#eef3ff",
+                        "tab_selected_fg": "#ffffff",
+                        "toolbar_bg": "#202635",
+                    }
+
+            class FullscreenBridgeStub(QObject):
+                content_fullscreen_changed = pyqtSignal()
+
+                @pyqtProperty(bool, notify=content_fullscreen_changed)
+                def open(self):
+                    return True
+
+                @pyqtProperty(str, notify=content_fullscreen_changed)
+                def node_id(self):
+                    return "node_viewer_surface_contract"
+
+                @pyqtProperty(str, notify=content_fullscreen_changed)
+                def content_kind(self):
+                    return "viewer"
+
+                @pyqtProperty(str, notify=content_fullscreen_changed)
+                def title(self):
+                    return "Engineering Viewer"
+
+                @pyqtProperty("QVariantMap", notify=content_fullscreen_changed)
+                def media_payload(self):
+                    return {}
+
+                @pyqtProperty("QVariantMap", notify=content_fullscreen_changed)
+                def viewer_payload(self):
+                    return {
+                        "title": "Engineering Viewer",
+                        "surface_spec": {},
+                    }
+
+                @pyqtProperty("QVariantMap", notify=content_fullscreen_changed)
+                def web_editor_payload(self):
+                    return {}
+
+                @pyqtProperty("QVariantMap", notify=content_fullscreen_changed)
+                def web_page_payload(self):
+                    return {}
+
+                @pyqtProperty("QVariantMap", notify=content_fullscreen_changed)
+                def plot_payload(self):
+                    return {}
+
+                @pyqtProperty("QVariantMap", notify=content_fullscreen_changed)
+                def tabular_payload(self):
+                    return {}
+
+                @pyqtProperty(QObject, notify=content_fullscreen_changed)
+                def web_surface_bridge(self):
+                    return None
+
+                @pyqtSlot()
+                def request_close(self):
+                    return None
+
+                @pyqtSlot(str, result=bool)
+                def request_toggle_for_node(self, _node_id):
+                    return True
+
+            supported_filters = [
+                {
+                    "id": value,
+                    "available": value != "fe_element",
+                    "unsupported_reason": (
+                        "No finite elements." if value == "fe_element" else ""
+                    ),
+                }
+                for value in (
+                    "cad_vertex",
+                    "cad_edge",
+                    "cad_face",
+                    "cad_body",
+                    "fe_node",
+                    "fe_element_face",
+                    "fe_element",
+                )
+            ]
+            session_state = {
+                "workspace_id": "ws_main",
+                "node_id": "node_viewer_surface_contract",
+                "session_id": "session::viewer-controls",
+                "phase": "open",
+                "playback_state": "paused",
+                "options": {
+                    "representation": "surface",
+                    "parallel_projection": False,
+                    "show_mesh_edges": False,
+                    "show_attribute_colors": False,
+                },
+                "summary": {
+                    "viewer_kind": "engineering_scene",
+                    "capabilities": {
+                        "playback": False,
+                        "supported_render_modes": [
+                            "wireframe",
+                            "wireframe_visible_edges",
+                            "surface",
+                            "surface_with_edges",
+                        ],
+                        "wireframe_visible_edges": True,
+                        "topological_edges": True,
+                        "mesh_edges": {
+                            "available": False,
+                            "reason": "No mesh layer.",
+                        },
+                        "attribute_colors": {
+                            "available": False,
+                            "reason": "No source colors.",
+                        },
+                        "projection": True,
+                        "fit_selection": True,
+                        "selection_isolate": True,
+                        "camera_bookmarks": True,
+                        "supported_selection_filters": supported_filters,
+                    },
+                },
+            }
+
+            class ViewerSessionBridgeStub(QObject):
+                sessions_changed = pyqtSignal()
+
+                @pyqtProperty("QVariantList", notify=sessions_changed)
+                def sessions_model(self):
+                    return [session_state]
+
+                @pyqtSlot(str, result="QVariantMap")
+                def session_state(self, _node_id):
+                    return session_state
+
+            class ViewerControlBridgeStub(QObject):
+                viewer_control_changed = pyqtSignal(str)
+                viewer_tangent_selection_angle_changed = pyqtSignal(float)
+
+                def __init__(self):
+                    super().__init__()
+                    self.cycle_calls = []
+                    self.angle_calls = []
+
+                @pyqtSlot(str, result="QVariantList")
+                def viewer_camera_bookmarks(self, _node_id):
+                    return [{"name": "Front"}, {"name": "Rear"}]
+
+                @pyqtSlot(str, result=int)
+                def viewer_camera_bookmark_current_index(self, _node_id):
+                    return 0
+
+                @pyqtSlot(str, int, result=bool)
+                def cycle_viewer_camera_bookmark(self, _node_id, delta):
+                    self.cycle_calls.append(int(delta))
+                    return True
+
+                @pyqtSlot(result=float)
+                def viewer_tangent_selection_angle_degrees(self):
+                    return 27.0
+
+                @pyqtSlot(float, result=bool)
+                def set_viewer_tangent_selection_angle_degrees(self, value):
+                    self.angle_calls.append(float(value))
+                    return True
+
+            class ViewerHostServiceStub(QObject):
+                revision_changed = pyqtSignal()
+
+                def __init__(self):
+                    super().__init__()
+                    self.filter_calls = []
+
+                @pyqtProperty(int, notify=revision_changed)
+                def viewer_overlay_revision(self):
+                    return 1
+
+                @pyqtSlot(str, result="QVariantMap")
+                def viewer_selection_snapshot(self, _node_id):
+                    return {
+                        "entities": [
+                            {
+                                "entity_kind": "cad_face",
+                                "entity_id": "part:1/face:2",
+                            }
+                        ],
+                        "isolate_active": True,
+                        "selection_filter": "cad_face",
+                    }
+
+                @pyqtSlot(str, str, result=bool)
+                def set_viewer_selection_filter(self, node_id, value):
+                    self.filter_calls.append((str(node_id), str(value)))
+                    return True
+
+                @pyqtSlot(str, result=bool)
+                def detached_viewer_active(self, _node_id):
+                    return False
+
+            theme = OverlayThemeBridgeStub()
+            bridge = FullscreenBridgeStub()
+            sessions = ViewerSessionBridgeStub()
+            controls_bridge = ViewerControlBridgeStub()
+            host = ViewerHostServiceStub()
+            engine.rootContext().setContextProperty("themeBridge", theme)
+            engine.rootContext().setContextProperty("viewerSessionBridge", sessions)
+            engine.rootContext().setContextProperty("viewerControlBridge", controls_bridge)
+            engine.rootContext().setContextProperty("viewerHostService", host)
+
+            overlay_path = repo_root / "ea_node_editor" / "ui_qml" / "ContentFullscreenOverlay.qml"
+            overlay = create_component(overlay_path, {"bridgeRef": bridge})
+            window = QQuickWindow()
+            window.setGeometry(0, 0, 380, 720)
+            overlay.setParentItem(window.contentItem())
+            overlay.setWidth(380)
+            overlay.setHeight(720)
+            window.show()
+            window.requestActivate()
+            overlay.forceActiveFocus()
+            app.processEvents()
+
+            def child(name):
+                item = overlay.findChild(QObject, name)
+                assert item is not None, name
+                return item
+
+            quick = child("viewerQuickControls")
+            ordered = [
+                child("viewerRenderWireframeButton"),
+                child("viewerFitAllButton"),
+                child("viewerProjectionButton"),
+                child("viewerDetachDockButton"),
+            ]
+            positions = [item.mapToItem(quick, QPointF()).x() for item in ordered]
+            assert positions == sorted(positions), positions
+
+            flickable = child("viewerQuickControlsFlickable")
+            right_chevron = child("viewerQuickControlsRightChevron")
+            left_chevron = child("viewerQuickControlsLeftChevron")
+            assert float(flickable.property("contentWidth")) > float(flickable.property("width"))
+            assert bool(right_chevron.property("visible"))
+            flickable.setProperty("contentX", 50.0)
+            app.processEvents()
+            assert bool(left_chevron.property("visible"))
+
+            assert int(quick.property("currentBookmarkIndex")) == 0
+            assert len(variant_list(quick.property("cameraBookmarks"))) == 2
+            for name in (
+                "viewerSavedViewsPopup",
+                "viewerSaveCurrentViewButton",
+                "viewerNextSavedViewButton",
+                "viewerPreviousSavedViewButton",
+            ):
+                child(name)
+            assert bool(quick.property("isolateActive"))
+            assert bool(child("viewerIsolateSelectionButton").property("selectedStyle"))
+
+            selection = child("viewerSelectionControls")
+            assert bool(selection.property("visible"))
+            supported_buttons = (
+                "viewerSelectCadVertexButton",
+                "viewerSelectCadEdgeButton",
+                "viewerSelectCadFaceButton",
+                "viewerSelectCadBodyButton",
+                "viewerSelectFeNodeButton",
+                "viewerSelectFeElementFaceButton",
+            )
+            assert all(bool(child(name).property("actionEnabled")) for name in supported_buttons)
+            unsupported = child("viewerSelectFeElementButton")
+            assert not bool(unsupported.property("actionEnabled"))
+            assert str(unsupported.property("tooltipText")) == "No finite elements."
+            assert abs(float(selection.property("tangentAngleDegrees")) - 27.0) < 0.001
+            tangent = child("viewerSelectionTangentAngleSpinBox")
+            assert int(tangent.property("from")) == 0
+            assert int(tangent.property("to")) == 90
+            assert int(tangent.property("value")) == 27
+
+            shaded = child("viewerRenderShadedButton")
+            assert str(shaded.property("accessibleName")) == "Shaded"
+            assert bool(shaded.property("checkable"))
+            assert int(shaded.property("buttonHeight")) == 34
+            assert bool(shaded.property("selectedStyle"))
+
+            viewport = child("contentFullscreenViewerViewport")
+            quick_top = quick.mapToItem(overlay, QPointF()).y()
+            viewport_bottom = (
+                viewport.mapToItem(overlay, QPointF()).y() + float(viewport.property("height"))
+            )
+            assert abs(quick_top - viewport_bottom) < 1.1, (quick_top, viewport_bottom)
+
+            overlay.forceActiveFocus()
+            app.processEvents()
+            QTest.keyClick(window, Qt.Key.Key_PageUp)
+            QTest.keyClick(window, Qt.Key.Key_PageDown)
+            app.processEvents()
+            assert controls_bridge.cycle_calls == [-1, 1], controls_bridge.cycle_calls
+
+            window.close()
+            overlay.setParentItem(None)
+            overlay.deleteLater()
+            window.deleteLater()
+            app.processEvents()
+            """,
+        )
+
     def test_graph_viewer_surface_fullscreen_action_routes_bridge(self) -> None:
         self._run_qml_probe(
             "viewer-content-fullscreen-action",

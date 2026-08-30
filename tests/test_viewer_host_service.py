@@ -1847,6 +1847,26 @@ class ViewerHostServiceTests(MainWindowShellTestBase):
             self.overlay_manager.overlay_widget(node_id, workspace_id=self.workspace_id)
         )
 
+        reset_node_id = self._add_dpf_viewer_node()
+        self._emit_viewer_event(
+            event_type="viewer_data_materialized",
+            node_id=reset_node_id,
+            session_id=f"session::{reset_node_id}",
+            live_mode="proxy",
+            cache_state="proxy_ready",
+        )
+        self.assertTrue(
+            self.window.content_fullscreen_bridge.request_open_node(reset_node_id)
+        )
+        self.app.processEvents()
+        reset_key = (self.workspace_id, reset_node_id)
+        self.assertIn(reset_key, self.bridge._viewer_presentation_holds)
+
+        self.host_service.reset(reason="test_reset")
+
+        self.assertIsNone(self.host_service._fullscreen_hold_key)
+        self.assertNotIn(reset_key, self.bridge._viewer_presentation_holds)
+
     def test_detached_viewer_reuses_widget_and_fullscreen_temporarily_takes_precedence(self) -> None:
         binder = _RecordingBinder()
         self.host_service.register_binder("tests.viewer_backend", binder)

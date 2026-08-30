@@ -263,9 +263,7 @@ class ContentFullscreenBridgeLifecycleTests(unittest.TestCase):
 
     def test_nodes_changed_closes_when_active_node_disappears(self) -> None:
         node_id = self._add_open_web_node()
-        workspace = self.current_model.project.workspaces[self.current_workspace_id]
-        workspace.nodes.pop(node_id)
-        self.scene.nodes_changed.emit()
+        self.scene.remove_workspace_node(node_id)
 
         self.assertFalse(self.bridge.open)
         self.assertEqual(self.bridge.node_id, "")
