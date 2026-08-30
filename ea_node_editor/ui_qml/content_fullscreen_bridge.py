@@ -1,5 +1,5 @@
 # Purpose: QML<->Python bridge for one active content-fullscreen lifecycle and
-#          payload, using composition-supplied live owners instead of ShellWindow.
+#          payload, using composition-supplied live owners instead of shell-host lookup.
 # Map: feature_routes/qml_bridge_wiring
 # Tests: tests/test_content_fullscreen_bridge.py, tests/test_content_fullscreen_bridge_lifecycle.py
 # Landmarks: ContentFullscreenBridge, _FullscreenWebSurfaceBridge
