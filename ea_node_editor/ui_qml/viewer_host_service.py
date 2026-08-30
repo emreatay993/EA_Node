@@ -32,6 +32,7 @@ from ea_node_editor.ui_qml.viewer_widget_binder import (
 
 if TYPE_CHECKING:
     from ea_node_editor.ui.shell.window import ShellWindow
+    from ea_node_editor.ui_qml.content_fullscreen_bridge import ContentFullscreenBridge
     from ea_node_editor.ui_qml.viewer_session_bridge import ViewerSessionBridge
 
 _OverlayKey = tuple[str, str]
@@ -517,6 +518,7 @@ class ViewerHostService(QObject):
         *,
         shell_window: "ShellWindow | None" = None,
         viewer_session_bridge: "ViewerSessionBridge | None" = None,
+        content_fullscreen_bridge: "ContentFullscreenBridge",
         overlay_manager: EmbeddedViewerOverlayManager | None = None,
         preview_cache_provider: ViewerPreviewCacheImageProvider | None = None,
     ) -> None:
@@ -525,7 +527,7 @@ class ViewerHostService(QObject):
         self._viewer_session_bridge = viewer_session_bridge
         self._overlay_manager = overlay_manager
         self._preview_cache_provider = preview_cache_provider
-        self._content_fullscreen_bridge: QObject | None = None
+        self._content_fullscreen_bridge: QObject | None = content_fullscreen_bridge
         self._binder_registry = ViewerWidgetBinderRegistry()
         self._binders_initialized = False
         self._binder_preferences_document: Any = None
@@ -547,7 +549,7 @@ class ViewerHostService(QObject):
         self._viewer_overlay_revision = 0
         self._owns_content_fullscreen_target = False
         self._presentation_service = _ViewerHostPresentationService(
-            content_fullscreen_bridge_provider=self._connect_content_fullscreen_bridge,
+            content_fullscreen_bridge_provider=lambda: self._content_fullscreen_bridge,
         )
         self._last_error = ""
         self._sync_queued = False
@@ -822,7 +824,7 @@ class ViewerHostService(QObject):
             return False
         self._pending_detached_sessions.pop(key, None)
         if self._content_fullscreen_key() == key:
-            bridge = self._connect_content_fullscreen_bridge()
+            bridge = self._content_fullscreen_bridge
             close = getattr(bridge, "request_close", None) if bridge is not None else None
             if callable(close):
                 close()
@@ -1458,7 +1460,6 @@ class ViewerHostService(QObject):
         if previous_overlay_manager is not None:
             self._set_viewer_content_fullscreen_target(previous_overlay_manager, None, force_clear=True)
             self._set_active_viewer_overlays(previous_overlay_manager, ())
-        self._connect_content_fullscreen_bridge()
         self._schedule_sync()
 
     def reset(self, *, reason: str = "") -> None:
@@ -1509,6 +1510,14 @@ class ViewerHostService(QObject):
         self._close_all_detached_windows(reason=reason or "shutdown")
         self._clear_pending_detached_sessions()
         self._clear_fullscreen_hold()
+        bridge = self._content_fullscreen_bridge
+        if bridge is not None:
+            try:
+                bridge.content_fullscreen_changed.disconnect(
+                    self._on_content_fullscreen_changed
+                )
+            except (TypeError, RuntimeError):
+                pass
         if self._engineering_binder is not None:
             self._engineering_binder.shutdown()
             self._engineering_binder = None
@@ -1528,19 +1537,12 @@ class ViewerHostService(QObject):
     def _connect_signals(self) -> None:
         self._connect_signal(self._viewer_session_bridge, "sessions_changed", self._schedule_sync)
         self._connect_signal(self._viewer_session_bridge, "active_workspace_changed", self._schedule_sync)
-        self._connect_content_fullscreen_bridge()
-
-    def _connect_content_fullscreen_bridge(self) -> QObject | None:
-        shell_window = self._shell_window
-        bridge = getattr(shell_window, "content_fullscreen_bridge", None) if shell_window is not None else None
-        if bridge is None:
-            return self._content_fullscreen_bridge
-        if bridge is self._content_fullscreen_bridge:
-            return bridge
-        self._content_fullscreen_bridge = bridge
-        self._connect_signal(bridge, "content_fullscreen_changed", self._on_content_fullscreen_changed)
+        bridge = self._content_fullscreen_bridge
+        if bridge is not None:
+            bridge.content_fullscreen_changed.connect(
+                self._on_content_fullscreen_changed
+            )
         self._sync_fullscreen_hold()
-        return bridge if isinstance(bridge, QObject) else None
 
     def _on_content_fullscreen_changed(self) -> None:
         self._sync_fullscreen_hold()
@@ -1562,7 +1564,7 @@ class ViewerHostService(QObject):
             window.setWindowTitle(title)
             window.update_controls(
                 node_id=snapshot.node_id,
-                fullscreen_bridge=self._connect_content_fullscreen_bridge(),
+                fullscreen_bridge=self._content_fullscreen_bridge,
             )
             return window
         engine = self._qml_engine()
@@ -1578,7 +1580,7 @@ class ViewerHostService(QObject):
         )
         window.update_controls(
             node_id=snapshot.node_id,
-            fullscreen_bridge=self._connect_content_fullscreen_bridge(),
+            fullscreen_bridge=self._content_fullscreen_bridge,
         )
         self._detached_windows[key] = window
         return window

@@ -23,6 +23,15 @@ class _FakeSceneBridge(QObject):
         self.nodes_model: list[dict[str, object]] = []
 
 
+class _FakeContentFullscreenBridge(QObject):
+    content_fullscreen_changed = pyqtSignal()
+    open = False
+    content_kind = ""
+    workspace_id = ""
+    node_id = ""
+    plot_payload: dict[str, object] = {}
+
+
 class _FakeOverlayManager:
     def __init__(self) -> None:
         self.content_fullscreen_target = None
@@ -136,8 +145,9 @@ def _service(
     binder: _FakePlotBinder,
 ) -> PlotHostService:
     service = PlotHostService(
-        shell_window=SimpleNamespace(content_fullscreen_bridge=None),
+        shell_window=SimpleNamespace(),
         scene_bridge=scene,
+        content_fullscreen_bridge=_FakeContentFullscreenBridge(),  # type: ignore[arg-type]
         overlay_manager=overlay_manager,  # type: ignore[arg-type]
     )
     service.register_binder("pyqtgraph", binder)

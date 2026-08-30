@@ -45,6 +45,7 @@ from ea_node_editor.ui_qml.plot_live_backend_resolution import resolve_plot_live
 
 if TYPE_CHECKING:
     from ea_node_editor.ui.shell.window import ShellWindow
+    from ea_node_editor.ui_qml.content_fullscreen_bridge import ContentFullscreenBridge
     from ea_node_editor.ui_qml.graph_scene_bridge import GraphSceneBridge
 
 _OverlayKey = tuple[str, str]
@@ -513,6 +514,7 @@ class PlotHostService(QObject):
         *,
         shell_window: "ShellWindow | None" = None,
         scene_bridge: "GraphSceneBridge | None" = None,
+        content_fullscreen_bridge: "ContentFullscreenBridge",
         overlay_manager: EmbeddedViewerOverlayManager | None = None,
         backend_registry: PlotBackendRegistry | None = None,
         preview_cache_provider: PlotPreviewCacheImageProvider | None = None,
@@ -521,7 +523,7 @@ class PlotHostService(QObject):
         self._shell_window = shell_window
         self._scene_bridge = scene_bridge
         self._overlay_manager = overlay_manager
-        self._content_fullscreen_bridge: QObject | None = None
+        self._content_fullscreen_bridge: QObject | None = content_fullscreen_bridge
         self._preview_cache_provider = preview_cache_provider
         self._backend_registry = backend_registry or create_default_plot_backend_registry()
         self._binder_registry = PlotWidgetBinderRegistry()
@@ -545,7 +547,7 @@ class PlotHostService(QObject):
         self._plot_content_fullscreen_target_key: _OverlayKey | None = None
         self._presentation_service = _PlotHostPresentationService(
             scene_bridge_provider=lambda: self._scene_bridge,
-            content_fullscreen_bridge_provider=self._connect_content_fullscreen_bridge,
+            content_fullscreen_bridge_provider=lambda: self._content_fullscreen_bridge,
             embedded_interaction_active_provider=self._embedded_interaction_active_for,
             backend_registry_provider=lambda: self._backend_registry,
         )
@@ -610,7 +612,6 @@ class PlotHostService(QObject):
         if previous_overlay_manager is not None:
             self._set_plot_content_fullscreen_target(previous_overlay_manager, None, force_clear=True)
             self._set_plot_active_overlays(previous_overlay_manager, ())
-        self._connect_content_fullscreen_bridge()
         self._schedule_sync()
 
     @pyqtSlot(str, bool)
@@ -970,6 +971,14 @@ class PlotHostService(QObject):
         if overlay_manager is not None:
             self._set_plot_content_fullscreen_target(overlay_manager, None, force_clear=True)
             self._set_plot_active_overlays(overlay_manager, ())
+        bridge = self._content_fullscreen_bridge
+        if bridge is not None:
+            try:
+                bridge.content_fullscreen_changed.disconnect(
+                    self._on_content_fullscreen_changed
+                )
+            except (TypeError, RuntimeError):
+                pass
         self._overlay_manager = None
         self._content_fullscreen_bridge = None
         self._scene_bridge = None
@@ -997,25 +1006,18 @@ class PlotHostService(QObject):
     def _connect_signals(self) -> None:
         self._connect_signal(self._scene_bridge, "nodes_changed", self._schedule_sync)
         self._connect_signal(self._scene_bridge, "workspace_changed", self._on_workspace_changed)
-        self._connect_content_fullscreen_bridge()
-
-    def _connect_content_fullscreen_bridge(self) -> QObject | None:
-        shell_window = self._shell_window
-        bridge = getattr(shell_window, "content_fullscreen_bridge", None) if shell_window is not None else None
-        if bridge is None:
-            return self._content_fullscreen_bridge
-        if bridge is self._content_fullscreen_bridge:
-            return bridge
-        self._content_fullscreen_bridge = bridge
-        self._connect_signal(bridge, "content_fullscreen_changed", self._on_content_fullscreen_changed)
-        return bridge if isinstance(bridge, QObject) else None
+        bridge = self._content_fullscreen_bridge
+        if bridge is not None:
+            bridge.content_fullscreen_changed.connect(
+                self._on_content_fullscreen_changed
+            )
 
     @pyqtSlot()
     def _on_content_fullscreen_changed(self) -> None:
         if self._shutdown:
             return
         overlay_manager = self._overlay_manager
-        bridge = self._connect_content_fullscreen_bridge()
+        bridge = self._content_fullscreen_bridge
         previous_key = self._plot_content_fullscreen_target_key
         next_key = self._presentation_service.content_fullscreen_overlay_key()
         fullscreen_open = bool(getattr(bridge, "open", False)) if bridge is not None else False

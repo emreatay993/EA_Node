@@ -2,7 +2,7 @@
 #          candidate/scene bounds and drives the fullscreen overlay policy.
 # Map: feature_routes/qml_bridge_wiring
 # Tests: tests/test_content_fullscreen_bridge.py
-# Landmarks: ContentFullscreenBridge, _ContentFullscreenPolicyService
+# Landmarks: ContentFullscreenBridge, _FullscreenWebSurfaceBridge
 from __future__ import annotations
 
 import base64
@@ -22,6 +22,7 @@ from PyQt6.QtCore import (
     QPointF,
     QRectF,
     Qt,
+    pyqtBoundSignal,
     pyqtProperty,
     pyqtSignal,
     pyqtSlot,
@@ -62,7 +63,6 @@ from ea_node_editor.nodes.file_dialog_filters import (
     TABULAR_TABLE_OUTPUT_FILES_FILTER,
 )
 from ea_node_editor.persistence.artifact_refs import parse_artifact_ref
-from ea_node_editor.settings import PROJECT_ARTIFACT_STORE_METADATA_KEY
 from ea_node_editor.ui.tabular_preview_provider import (
     TABULAR_PREVIEW_CONTENT_KIND,
     TABULAR_PREVIEW_FULLSCREEN_COLUMN_LIMIT,
@@ -70,7 +70,6 @@ from ea_node_editor.ui.tabular_preview_provider import (
     TabularPreviewProvider,
 )
 from ea_node_editor.ui.media_panel_source import resolve_media_panel_source
-from ea_node_editor.ui_qml.bridge_runtime import connect_signal as _connect_signal
 from ea_node_editor.ui_qml.graph_scene_payload import (
     PLOT_CONTENT_KIND,
     WEB_PAGE_CONTENT_KIND,
@@ -88,13 +87,32 @@ from ea_node_editor.web_host.bridge import WebSurfaceBridge
 from ea_node_editor.web_host.navigation_policy import decide_web_navigation
 
 if TYPE_CHECKING:
+    from ea_node_editor.graph.model import GraphModel
     from ea_node_editor.graph.workspace_state import WorkspaceData
     from ea_node_editor.graph.records import NodeInstance
     from ea_node_editor.nodes.registry import NodeRegistry
     from ea_node_editor.nodes.node_specs import NodeTypeSpec
-    from ea_node_editor.ui.shell.window import ShellWindow
+    from ea_node_editor.ui.shell.state import ShellRunState
     from ea_node_editor.ui_qml.graph_scene_bridge import GraphSceneBridge
+    from ea_node_editor.ui_qml.script_editor_model import ScriptEditorModel
     from ea_node_editor.ui_qml.viewer_session_bridge import ViewerSessionBridge
+    from ea_node_editor.web_host.bridge import WebSurfaceArtifactService
+
+
+_ModelProvider = Callable[[], "GraphModel | None"]
+_RegistryProvider = Callable[[], "NodeRegistry | None"]
+_ActiveWorkspaceIdProvider = Callable[[], str]
+_ProjectContextProvider = Callable[[], tuple[str | None, dict[str, Any] | None]]
+_SaveFileDialog = Callable[[str, str, str, str], str]
+_TrimVideoReplace = Callable[
+    [str, int, int, dict[str, Any]], Mapping[str, object] | None
+]
+_TrimVideoCopy = Callable[
+    [str, int, int, float, float, dict[str, Any]], Mapping[str, object] | None
+]
+_WebSurfaceArtifactServiceFactory = Callable[
+    [str, str, str, str, str], "WebSurfaceArtifactService"
+]
 
 
 @dataclass(frozen=True, slots=True)
@@ -567,48 +585,245 @@ class _FullscreenWebSurfaceBridge(WebSurfaceBridge):
             result["host_payload"] = payload_copy
         return result
 
+    def artifact_ref_resolves(self, artifact_ref: str) -> bool:
+        service = self._artifact_service
+        if service is None:
+            return True
+        try:
+            store = service.store
+            resolved_path = store.resolve_staged_path(
+                artifact_ref
+            ) or store.resolve_managed_path(artifact_ref)
+        except Exception:  # noqa: BLE001
+            return False
+        return bool(resolved_path is not None and resolved_path.exists())
 
-class _ContentFullscreenPolicyService:
+
+class ContentFullscreenBridge(QObject):
+    content_fullscreen_changed = pyqtSignal()
+    video_fullscreen_closed = pyqtSignal(str, "QVariantMap", name="videoFullscreenClosed")
+    tabular_window_ready = pyqtSignal(str, "QVariantMap", name="tabularWindowReady")
+
     def __init__(
         self,
+        parent: QObject | None = None,
         *,
-        shell_window_provider: Callable[[], "ShellWindow | None"],
-        scene_bridge_provider: Callable[[], "GraphSceneBridge | None"],
-        viewer_session_bridge_provider: Callable[[], "ViewerSessionBridge | None"],
-        tabular_preview_provider_provider: Callable[[], TabularPreviewProvider],
+        model_provider: _ModelProvider,
+        registry_provider: _RegistryProvider,
+        active_workspace_id_provider: _ActiveWorkspaceIdProvider,
+        project_context_provider: _ProjectContextProvider,
+        scene_bridge: "GraphSceneBridge",
+        viewer_session_bridge: "ViewerSessionBridge",
+        run_state: "ShellRunState",
+        execution_state_changed_signal: pyqtBoundSignal,
+        script_editor: "ScriptEditorModel",
+        save_file_dialog: _SaveFileDialog,
+        trim_video_clip_replace: _TrimVideoReplace,
+        trim_video_clip_copy: _TrimVideoCopy,
+        create_web_surface_artifact_service: _WebSurfaceArtifactServiceFactory,
     ) -> None:
-        self._shell_window_provider = shell_window_provider
-        self._scene_bridge_provider = scene_bridge_provider
-        self._viewer_session_bridge_provider = viewer_session_bridge_provider
-        self._tabular_preview_provider_provider = tabular_preview_provider_provider
+        super().__init__(parent)
+        self._model_provider: _ModelProvider | None = model_provider
+        self._registry_provider: _RegistryProvider | None = registry_provider
+        self._active_workspace_id_provider: _ActiveWorkspaceIdProvider | None = (
+            active_workspace_id_provider
+        )
+        self._project_context_provider: _ProjectContextProvider | None = (
+            project_context_provider
+        )
+        self._scene_bridge = scene_bridge
+        self._viewer_session_bridge = viewer_session_bridge
+        self._run_state: ShellRunState | None = run_state
+        self._execution_state_changed_signal: pyqtBoundSignal | None = (
+            execution_state_changed_signal
+        )
+        self._script_editor: ScriptEditorModel | None = script_editor
+        self._save_file_dialog: _SaveFileDialog | None = save_file_dialog
+        self._trim_video_clip_replace: _TrimVideoReplace | None = (
+            trim_video_clip_replace
+        )
+        self._trim_video_clip_copy: _TrimVideoCopy | None = trim_video_clip_copy
+        self._create_web_surface_artifact_service: (
+            _WebSurfaceArtifactServiceFactory | None
+        ) = create_web_surface_artifact_service
+        self._terminal = False
+        self._lifecycle_connections: list[tuple[pyqtBoundSignal, Callable[..., Any]]] = []
+        self._open = False
+        self._node_id = ""
+        self._workspace_id = ""
+        self._content_kind = ""
+        self._title = ""
+        self._media_payload: dict[str, Any] = {}
+        self._viewer_payload: dict[str, Any] = {}
+        self._web_editor_payload: dict[str, Any] = {}
+        self._web_page_payload: dict[str, Any] = {}
+        self._plot_payload: dict[str, Any] = {}
+        self._tabular_payload: dict[str, Any] = {}
+        self._web_surface_bridge: WebSurfaceBridge | None = None
+        self._web_surface_bridge_node_id = ""
+        self._web_surface_bridge_artifact_scope = ""
+        self._web_surface_bridge_initial_state: dict[str, Any] = {}
+        self._last_error = ""
+        self._tabular_preview_provider: TabularPreviewProvider | None = None
+        self._tabular_preview_worker_pool = None
+        self._pending_tabular_window_jobs: dict[str, dict] = {}
+        self._pending_tabular_payload_job = ""
+        self._pending_tabular_payload_node_id = ""
+        self._tabular_payload_request_counter = 0
+        self._tabular_window_request_counter = 0
+        self._latest_tabular_window_request_id = ""
+        self._connect_scene_lifecycle()
 
-    def resolve_candidate(self, node_id: str) -> _FullscreenResolution:
+    def _ensure_tabular_preview_provider(self) -> TabularPreviewProvider:
+        if self._terminal:
+            raise RuntimeError("Content fullscreen bridge is shut down.")
+        provider = self._tabular_preview_provider
+        if provider is None:
+            provider = TabularPreviewProvider(project_context_provider=self._project_context)
+            self._tabular_preview_provider = provider
+        return provider
+
+    def _ensure_tabular_preview_worker_pool(self):  # noqa: ANN202
+        if self._terminal:
+            raise RuntimeError("Content fullscreen bridge is shut down.")
+        pool = self._tabular_preview_worker_pool
+        if pool is None:
+            from ea_node_editor.ui.tabular_preview_async import TabularPreviewWorkerPool
+
+            pool = TabularPreviewWorkerPool(self)
+            pool.job_finished.connect(self._on_tabular_preview_job_finished)
+            self._tabular_preview_worker_pool = pool
+        return pool
+
+    def _connect_scene_lifecycle(self) -> None:
+        connections = (
+            (self._scene_bridge.workspace_changed, self._on_workspace_changed),
+            (self._scene_bridge.nodes_changed, self._on_nodes_changed),
+            (self._scene_bridge.edges_changed, self._on_nodes_changed),
+            (self._execution_state_changed_signal, self._on_nodes_changed),
+        )
+        for signal, slot in connections:
+            if signal is None:
+                continue
+            signal.connect(slot)
+            self._lifecycle_connections.append((signal, slot))
+
+    def shutdown(self) -> None:
+        if self._terminal:
+            return
+        self._terminal = True
+        for signal, slot in self._lifecycle_connections:
+            try:
+                signal.disconnect(slot)
+            except (TypeError, RuntimeError):
+                pass
+        self._lifecycle_connections.clear()
+        self._clear_tabular_preview_jobs()
+        bridge_changed = self._clear_web_surface_bridge()
+        self._set_state(
+            open_=False,
+            node_id="",
+            workspace_id="",
+            content_kind="",
+            title="",
+            media_payload={},
+            viewer_payload={},
+            web_editor_payload={},
+            web_page_payload={},
+            plot_payload={},
+            tabular_payload={},
+            last_error="",
+            web_surface_bridge_changed=bridge_changed,
+        )
+        pool = self._tabular_preview_worker_pool
+        self._tabular_preview_worker_pool = None
+        if pool is not None:
+            try:
+                pool.job_finished.disconnect(self._on_tabular_preview_job_finished)
+            except (TypeError, RuntimeError):
+                pass
+            pool.shutdown()
+        self._tabular_preview_provider = None
+        self._model_provider = None
+        self._registry_provider = None
+        self._active_workspace_id_provider = None
+        self._project_context_provider = None
+        self._execution_state_changed_signal = None
+        self._run_state = None
+        self._script_editor = None
+        self._save_file_dialog = None
+        self._trim_video_clip_replace = None
+        self._trim_video_clip_copy = None
+        self._create_web_surface_artifact_service = None
+        self._scene_bridge = None  # type: ignore[assignment]
+        self._viewer_session_bridge = None  # type: ignore[assignment]
+
+    def _clear_tabular_preview_jobs(self) -> None:
+        self._pending_tabular_window_jobs.clear()
+        self._pending_tabular_payload_job = ""
+        self._pending_tabular_payload_node_id = ""
+        self._latest_tabular_window_request_id = ""
+
+    def _resolve_candidate(self, node_id: str) -> _FullscreenResolution:
+        if self._terminal:
+            return _FullscreenResolution(None, "Content fullscreen is shut down.")
         normalized_node_id = str(node_id or "").strip()
         if not normalized_node_id:
-            return _FullscreenResolution(None, "A node must be selected for content fullscreen.")
-        workspace_result = self.active_workspace()
+            return _FullscreenResolution(
+                None, "A node must be selected for content fullscreen."
+            )
+        model_provider = self._model_provider
+        registry_provider = self._registry_provider
+        active_workspace_id_provider = self._active_workspace_id_provider
+        model = model_provider() if model_provider is not None else None
+        registry = registry_provider() if registry_provider is not None else None
+        manager_workspace_id = (
+            str(active_workspace_id_provider() or "").strip()
+            if active_workspace_id_provider is not None
+            else ""
+        )
+        workspace_result = self._active_workspace_from_snapshot(
+            model=model,
+            registry=registry,
+            manager_workspace_id=manager_workspace_id,
+        )
         if isinstance(workspace_result, str):
             return _FullscreenResolution(None, workspace_result)
-        workspace_id, workspace, registry = workspace_result
+        workspace_id, workspace, resolved_registry = workspace_result
         node = workspace.nodes.get(normalized_node_id)
         if node is None:
-            return _FullscreenResolution(None, "The selected node is no longer available.")
-        spec = self.node_spec(registry, node.type_id)
+            return _FullscreenResolution(
+                None, "The selected node is no longer available."
+            )
+        spec = self._node_spec(resolved_registry, node.type_id)
         if spec is None:
-            return _FullscreenResolution(None, "The selected node type is unavailable.")
-        content_kind = self.content_kind_for_node(node, spec)
+            return _FullscreenResolution(
+                None, "The selected node type is unavailable."
+            )
+        content_kind = self._content_kind_for_node(node, spec)
         if not content_kind:
-            return _FullscreenResolution(None, "The selected node does not support content fullscreen.")
-        if content_kind == "mail" and not str(node.properties.get("source_path", "") or "").strip():
-            return _FullscreenResolution(None, "Mail Panel needs a source path before it can open fullscreen.")
-        if content_kind == TABULAR_PREVIEW_CONTENT_KIND and not str(node.properties.get("path", "") or "").strip():
-            return _FullscreenResolution(None, "Tabular data nodes need a source path before they can open fullscreen.")
-        project_path, project_metadata = self.project_context()
+            return _FullscreenResolution(
+                None, "The selected node does not support content fullscreen."
+            )
+        if content_kind == "mail" and not str(
+            node.properties.get("source_path", "") or ""
+        ).strip():
+            return _FullscreenResolution(
+                None, "Mail Panel needs a source path before it can open fullscreen."
+            )
+        if content_kind == TABULAR_PREVIEW_CONTENT_KIND and not str(
+            node.properties.get("path", "") or ""
+        ).strip():
+            return _FullscreenResolution(
+                None,
+                "Tabular data nodes need a source path before they can open fullscreen.",
+            )
+        project_path, project_metadata = self._project_context()
         source_resolution = (
             resolve_media_panel_source(
                 node=node,
                 workspace=workspace,
-                run_state=getattr(self._shell_window_provider(), "run_state", None),
+                run_state=self._run_state,
                 project_path=project_path,
                 project_metadata=project_metadata,
             )
@@ -635,7 +850,7 @@ class _ContentFullscreenPolicyService:
                 content_kind=content_kind,
                 media_payload=media_payload,
                 viewer_payload=(
-                    self.build_viewer_payload(
+                    self._build_viewer_payload(
                         workspace_id=workspace_id,
                         node=node,
                         spec=spec,
@@ -668,13 +883,13 @@ class _ContentFullscreenPolicyService:
                         workspace_id=workspace_id,
                         node=node,
                         spec=spec,
-                        scene_payload=self.scene_node_payload(node.node_id),
+                        scene_payload=self._scene_node_payload(node.node_id),
                     )
                     if content_kind == PLOT_CONTENT_KIND
                     else {}
                 ),
                 tabular_payload=(
-                    self.build_tabular_payload(
+                    self._build_tabular_payload(
                         workspace_id=workspace_id,
                         node=node,
                         spec=spec,
@@ -686,42 +901,54 @@ class _ContentFullscreenPolicyService:
             "",
         )
 
-    def project_context(self) -> tuple[str | None, dict[str, Any] | None]:
-        shell_window = self._shell_window_provider()
-        project_path = str(getattr(shell_window, "project_path", "") or "").strip() or None
-        model = getattr(shell_window, "model", None) if shell_window is not None else None
-        project = getattr(model, "project", None)
-        metadata = getattr(project, "metadata", None)
-        return project_path, dict(metadata) if isinstance(metadata, dict) else None
+    def _active_workspace(
+        self,
+    ) -> tuple[str, "WorkspaceData", "NodeRegistry"] | str:
+        if self._terminal:
+            return "Content fullscreen is shut down."
+        model_provider = self._model_provider
+        registry_provider = self._registry_provider
+        active_workspace_id_provider = self._active_workspace_id_provider
+        return self._active_workspace_from_snapshot(
+            model=model_provider() if model_provider is not None else None,
+            registry=(
+                registry_provider() if registry_provider is not None else None
+            ),
+            manager_workspace_id=(
+                str(active_workspace_id_provider() or "").strip()
+                if active_workspace_id_provider is not None
+                else ""
+            ),
+        )
 
-    def active_workspace(self) -> tuple[str, "WorkspaceData", "NodeRegistry"] | str:
-        shell_window = self._shell_window_provider()
-        scene_bridge = self._scene_bridge_provider()
-        scene_workspace_id = str(getattr(scene_bridge, "workspace_id", "") or "").strip()
-        manager = getattr(shell_window, "workspace_manager", None) if shell_window is not None else None
-        manager_workspace_id = ""
-        if manager is not None:
-            active_workspace_id = getattr(manager, "active_workspace_id", None)
-            if callable(active_workspace_id):
-                manager_workspace_id = str(active_workspace_id() or "").strip()
-        if scene_workspace_id and manager_workspace_id and scene_workspace_id != manager_workspace_id:
+    def _active_workspace_from_snapshot(
+        self,
+        *,
+        model: "GraphModel | None",
+        registry: "NodeRegistry | None",
+        manager_workspace_id: str,
+    ) -> tuple[str, "WorkspaceData", "NodeRegistry"] | str:
+        scene_workspace_id = str(self._scene_bridge.workspace_id or "").strip()
+        if (
+            scene_workspace_id
+            and manager_workspace_id
+            and scene_workspace_id != manager_workspace_id
+        ):
             return "The active workspace state is ambiguous."
         workspace_id = scene_workspace_id or manager_workspace_id
         if not workspace_id:
             return "The active workspace state is ambiguous."
-        model = getattr(shell_window, "model", None) if shell_window is not None else None
-        registry = getattr(shell_window, "registry", None) if shell_window is not None else None
         if model is None or registry is None:
             return "The graph model is not ready."
-        project = getattr(model, "project", None)
-        workspaces = getattr(project, "workspaces", {}) if project is not None else {}
-        workspace = workspaces.get(workspace_id)
+        workspace = model.project.workspaces.get(workspace_id)
         if workspace is None:
             return "The active workspace state is ambiguous."
         return workspace_id, workspace, registry
 
     @staticmethod
-    def node_spec(registry: "NodeRegistry", type_id: str) -> "NodeTypeSpec | None":
+    def _node_spec(
+        registry: "NodeRegistry", type_id: str
+    ) -> "NodeTypeSpec | None":
         spec_or_none = getattr(registry, "spec_or_none", None)
         if callable(spec_or_none):
             return spec_or_none(type_id)
@@ -731,36 +958,41 @@ class _ContentFullscreenPolicyService:
             return None
 
     @staticmethod
-    def content_kind_for_node(node: "NodeInstance", spec: "NodeTypeSpec") -> str:
+    def _content_kind_for_node(
+        node: "NodeInstance", spec: "NodeTypeSpec"
+    ) -> str:
         if str(node.type_id) == TABULAR_DATA_INPUT_NODE_TYPE_ID:
             return TABULAR_PREVIEW_CONTENT_KIND
         if str(node.type_id) == MEDIA_PANEL_TYPE_ID:
             return "media"
-        content_kind = fullscreen_content_kind_for_node_type(type_id=node.type_id, spec=spec)
+        content_kind = fullscreen_content_kind_for_node_type(
+            type_id=node.type_id, spec=spec
+        )
         if content_kind:
             return content_kind
         if str(node.type_id) == "web.page_viewer":
             return WEB_PAGE_CONTENT_KIND
         if (
             str(getattr(spec, "surface_family", "") or "").strip() == "web"
-            and str(getattr(spec, "surface_variant", "") or "").strip() == "page_viewer"
+            and str(getattr(spec, "surface_variant", "") or "").strip()
+            == "page_viewer"
         ):
             return WEB_PAGE_CONTENT_KIND
         return ""
 
-    def build_viewer_payload(
+    def _build_viewer_payload(
         self,
         *,
         workspace_id: str,
         node: "NodeInstance",
         spec: "NodeTypeSpec",
     ) -> dict[str, Any]:
-        session_state = self.viewer_session_state(node.node_id)
+        session_state = self._viewer_session_state(node.node_id)
         options = session_state.get("options", {})
         options_payload = options if isinstance(options, dict) else {}
         summary = session_state.get("summary", {})
         summary_payload = summary if isinstance(summary, dict) else {}
-        payload = {
+        return {
             "workspace_id": str(workspace_id),
             "node_id": str(node.node_id),
             "type_id": str(node.type_id),
@@ -768,19 +1000,26 @@ class _ContentFullscreenPolicyService:
             "display_name": str(spec.display_name),
             "surface_family": str(spec.surface_family or ""),
             "surface_variant": str(spec.surface_variant or ""),
-            "surface_spec": surface_spec_payload_for_node_type(type_id=node.type_id, spec=spec),
+            "surface_spec": surface_spec_payload_for_node_type(
+                type_id=node.type_id, spec=spec
+            ),
             "properties": copy.deepcopy(node.properties),
             "session_state": session_state,
             "session_id": str(session_state.get("session_id", "") or ""),
             "phase": str(session_state.get("phase", "closed") or "closed"),
             "cache_state": str(session_state.get("cache_state", "") or ""),
-            "live_mode": str(session_state.get("live_mode", "") or options_payload.get("live_mode", "") or ""),
+            "live_mode": str(
+                session_state.get("live_mode", "")
+                or options_payload.get("live_mode", "")
+                or ""
+            ),
             "summary": copy.deepcopy(summary_payload),
-            "viewer_surface": self.scene_node_payload(node.node_id).get("viewer_surface", {}),
+            "viewer_surface": self._scene_node_payload(node.node_id).get(
+                "viewer_surface", {}
+            ),
         }
-        return payload
 
-    def build_tabular_payload(
+    def _build_tabular_payload(
         self,
         *,
         workspace_id: str,
@@ -788,11 +1027,13 @@ class _ContentFullscreenPolicyService:
         spec: "NodeTypeSpec",
     ) -> dict[str, Any]:
         properties = copy.deepcopy(node.properties)
-        table_view_state = normalize_tabular_table_view_state(properties.get(TABULAR_TABLE_VIEW_STATE_PROPERTY, {}))
+        table_view_state = normalize_tabular_table_view_state(
+            properties.get(TABULAR_TABLE_VIEW_STATE_PROPERTY, {})
+        )
         selected_columns = normalize_tabular_selected_columns(
             properties.get(TABULAR_SELECTED_COLUMNS_PROPERTY, [])
         )
-        preview_payload = self._tabular_preview_provider_provider().describe_preview(
+        preview_payload = self._ensure_tabular_preview_provider().describe_preview(
             properties,
             {
                 "row_limit": TABULAR_PREVIEW_FULLSCREEN_ROW_LIMIT,
@@ -800,7 +1041,9 @@ class _ContentFullscreenPolicyService:
             },
             mode="fullscreen",
         )
-        surface_spec = surface_spec_payload_for_node_type(type_id=node.type_id, spec=spec)
+        surface_spec = surface_spec_payload_for_node_type(
+            type_id=node.type_id, spec=spec
+        )
         surface_spec["fullscreen"] = {
             "supported": True,
             "content_kind": TABULAR_PREVIEW_CONTENT_KIND,
@@ -811,7 +1054,9 @@ class _ContentFullscreenPolicyService:
             "requires_bridge": True,
         }
         metadata = surface_spec.get("metadata")
-        surface_spec["metadata"] = copy.deepcopy(dict(metadata)) if isinstance(metadata, Mapping) else {}
+        surface_spec["metadata"] = (
+            copy.deepcopy(dict(metadata)) if isinstance(metadata, Mapping) else {}
+        )
         surface_spec["metadata"]["tabular_preview"] = True
         return {
             "workspace_id": str(workspace_id),
@@ -827,134 +1072,42 @@ class _ContentFullscreenPolicyService:
             TABULAR_SELECTED_COLUMNS_PROPERTY: selected_columns,
             "preview": preview_payload,
             "preview_state": str(preview_payload.get("state", "") or ""),
-            "preview_kind": str(preview_payload.get("preview_kind", "") or ""),
+            "preview_kind": str(
+                preview_payload.get("preview_kind", "") or ""
+            ),
         }
 
-    def viewer_session_state(self, node_id: str) -> dict[str, Any]:
-        bridge = self._viewer_session_bridge_provider()
-        session_state = getattr(bridge, "session_state", None) if bridge is not None else None
-        if not callable(session_state):
-            return {}
+    def _viewer_session_state(self, node_id: str) -> dict[str, Any]:
         try:
-            state = session_state(node_id)
+            state = self._viewer_session_bridge.session_state(node_id)
         except Exception:  # noqa: BLE001
             return {}
         return copy.deepcopy(state) if isinstance(state, dict) else {}
 
-    def scene_node_payload(self, node_id: str) -> dict[str, Any]:
-        scene_bridge = self._scene_bridge_provider()
-        if scene_bridge is None:
-            return {}
+    def _scene_node_payload(self, node_id: str) -> dict[str, Any]:
         try:
-            payloads = list(getattr(scene_bridge, "nodes_model", []) or [])
+            payloads = list(self._scene_bridge.nodes_model or [])
         except Exception:  # noqa: BLE001
             return {}
         normalized = str(node_id or "").strip()
         for payload in payloads:
-            if isinstance(payload, dict) and str(payload.get("node_id", "")).strip() == normalized:
+            if (
+                isinstance(payload, dict)
+                and str(payload.get("node_id", "")).strip() == normalized
+            ):
                 return copy.deepcopy(payload)
         return {}
 
-
-class ContentFullscreenBridge(QObject):
-    content_fullscreen_changed = pyqtSignal()
-    video_fullscreen_closed = pyqtSignal(str, "QVariantMap", name="videoFullscreenClosed")
-    tabular_window_ready = pyqtSignal(str, "QVariantMap", name="tabularWindowReady")
-
-    def __init__(
-        self,
-        parent: QObject | None = None,
-        *,
-        shell_window: "ShellWindow | None" = None,
-        scene_bridge: "GraphSceneBridge | None" = None,
-        viewer_session_bridge: "ViewerSessionBridge | None" = None,
-    ) -> None:
-        super().__init__(parent)
-        self._shell_window = shell_window
-        self._scene_bridge = scene_bridge
-        self._viewer_session_bridge = viewer_session_bridge
-        self._open = False
-        self._node_id = ""
-        self._workspace_id = ""
-        self._content_kind = ""
-        self._title = ""
-        self._media_payload: dict[str, Any] = {}
-        self._viewer_payload: dict[str, Any] = {}
-        self._web_editor_payload: dict[str, Any] = {}
-        self._web_page_payload: dict[str, Any] = {}
-        self._plot_payload: dict[str, Any] = {}
-        self._tabular_payload: dict[str, Any] = {}
-        self._web_surface_bridge: WebSurfaceBridge | None = None
-        self._web_surface_bridge_node_id = ""
-        self._web_surface_bridge_artifact_scope = ""
-        self._web_surface_bridge_initial_state: dict[str, Any] = {}
-        self._last_error = ""
-        self._tabular_preview_provider: TabularPreviewProvider | None = None
-        self._tabular_preview_worker_pool = None
-        self._pending_tabular_window_jobs: dict[str, dict] = {}
-        self._pending_tabular_payload_job = ""
-        self._pending_tabular_payload_node_id = ""
-        self._tabular_payload_request_counter = 0
-        self._tabular_window_request_counter = 0
-        self._latest_tabular_window_request_id = ""
-        self._policy_service = _ContentFullscreenPolicyService(
-            shell_window_provider=lambda: self._shell_window,
-            scene_bridge_provider=lambda: self._scene_bridge,
-            viewer_session_bridge_provider=lambda: self._viewer_session_bridge,
-            tabular_preview_provider_provider=self._ensure_tabular_preview_provider,
-        )
-        self._connect_scene_lifecycle()
-
-    def _ensure_tabular_preview_provider(self) -> TabularPreviewProvider:
-        provider = self._tabular_preview_provider
+    def _project_context(self) -> tuple[str | None, dict[str, Any] | None]:
+        provider = self._project_context_provider
         if provider is None:
-            provider = TabularPreviewProvider(project_context_provider=self._project_context)
-            self._tabular_preview_provider = provider
-        return provider
-
-    def _ensure_tabular_preview_worker_pool(self):  # noqa: ANN202
-        pool = self._tabular_preview_worker_pool
-        if pool is None:
-            from ea_node_editor.ui.tabular_preview_async import TabularPreviewWorkerPool
-
-            pool = TabularPreviewWorkerPool(self)
-            pool.job_finished.connect(self._on_tabular_preview_job_finished)
-            self._tabular_preview_worker_pool = pool
-        return pool
-
-    @property
-    def shell_window(self) -> "ShellWindow | None":
-        return self._shell_window
-
-    @property
-    def scene_bridge(self) -> "GraphSceneBridge | None":
-        return self._scene_bridge
-
-    @property
-    def viewer_session_bridge(self) -> "ViewerSessionBridge | None":
-        return self._viewer_session_bridge
-
-    def _connect_scene_lifecycle(self) -> None:
-        if self._scene_bridge is not None:
-            self._scene_bridge.workspace_changed.connect(self._on_workspace_changed)
-            self._scene_bridge.nodes_changed.connect(self._on_nodes_changed)
-            _connect_signal(self._scene_bridge, "edges_changed", self._on_nodes_changed)
-        execution_changed = getattr(
-            self._shell_window, "node_execution_state_changed", None
+            return None, None
+        project_path, metadata = provider()
+        normalized_path = str(project_path or "").strip() or None
+        normalized_metadata = (
+            copy.deepcopy(dict(metadata)) if isinstance(metadata, Mapping) else None
         )
-        if execution_changed is not None:
-            execution_changed.connect(self._on_nodes_changed)
-
-    def shutdown(self) -> None:
-        self._clear_tabular_preview_jobs()
-        if self._tabular_preview_worker_pool is not None:
-            self._tabular_preview_worker_pool.shutdown()
-
-    def _clear_tabular_preview_jobs(self) -> None:
-        self._pending_tabular_window_jobs.clear()
-        self._pending_tabular_payload_job = ""
-        self._pending_tabular_payload_node_id = ""
-        self._latest_tabular_window_request_id = ""
+        return normalized_path, normalized_metadata
 
     @pyqtProperty(bool, notify=content_fullscreen_changed)
     def open(self) -> bool:
@@ -1010,6 +1163,8 @@ class ContentFullscreenBridge(QObject):
 
     @pyqtSlot(str, result=bool)
     def request_open_node(self, node_id: str) -> bool:
+        if self._terminal:
+            return False
         resolution = self._resolve_candidate(node_id)
         if resolution.candidate is None:
             self._close_with_error(resolution.error)
@@ -1019,6 +1174,8 @@ class ContentFullscreenBridge(QObject):
 
     @pyqtSlot(str, "QVariantMap", result=bool)
     def request_open_node_with_state(self, node_id: str, state: dict[str, Any]) -> bool:
+        if self._terminal:
+            return False
         resolution = self._resolve_candidate(node_id)
         if resolution.candidate is None:
             self._close_with_error(resolution.error)
@@ -1028,6 +1185,8 @@ class ContentFullscreenBridge(QObject):
 
     @pyqtSlot(str, result=bool)
     def request_toggle_for_node(self, node_id: str) -> bool:
+        if self._terminal:
+            return False
         normalized = str(node_id or "").strip()
         if self._open and normalized and normalized == self._node_id:
             self.request_close()
@@ -1036,6 +1195,8 @@ class ContentFullscreenBridge(QObject):
 
     @pyqtSlot(str, "QVariantMap", result=bool)
     def request_toggle_for_node_with_state(self, node_id: str, state: dict[str, Any]) -> bool:
+        if self._terminal:
+            return False
         normalized = str(node_id or "").strip()
         if self._open and normalized and normalized == self._node_id:
             if self._active_media_kind() == "video":
@@ -1046,6 +1207,8 @@ class ContentFullscreenBridge(QObject):
 
     @pyqtSlot()
     def request_close(self) -> None:
+        if self._terminal:
+            return
         if self._open and self._content_kind == "web_editor":
             self._persist_web_editor_state()
         self._clear_tabular_preview_jobs()
@@ -1067,6 +1230,8 @@ class ContentFullscreenBridge(QObject):
 
     @pyqtSlot("QVariantMap", result=bool)
     def request_close_with_state(self, state: dict[str, Any]) -> bool:
+        if self._terminal:
+            return False
         if not self._open:
             self.request_close()
             return False
@@ -1084,7 +1249,8 @@ class ContentFullscreenBridge(QObject):
     def set_active_plot_option(self, key: str, value: Any) -> bool:
         option_key = str(key or "").strip()
         if (
-            not self._open
+            self._terminal
+            or not self._open
             or self._content_kind != PLOT_CONTENT_KIND
             or not self._node_id
             or option_key not in _PLOT_FULLSCREEN_OPTION_KEYS
@@ -1096,25 +1262,27 @@ class ContentFullscreenBridge(QObject):
         else:
             normalized_value = _normalized_plot_theme(value)
 
-        property_key = f"plot_option_{option_key}"
-        if not self._set_selected_node_property(property_key, normalized_value):
-            if not self._set_plot_options_direct(option_key, normalized_value):
-                return False
+        if not self._set_plot_options_direct(option_key, normalized_value):
+            return False
         self._refresh_active_plot_payload_option(option_key, normalized_value)
         self.content_fullscreen_changed.emit()
         return True
 
     @pyqtSlot("QVariantMap", result="QVariantMap")
     def request_trim_video_clip_replace(self, state: dict[str, Any]) -> dict[str, Any]:
-        if not self._open or self._active_media_kind() != "video" or not self._node_id:
+        if (
+            self._terminal
+            or not self._open
+            or self._active_media_kind() != "video"
+            or not self._node_id
+        ):
             return self._video_trim_bridge_error(
                 "fullscreen_unavailable",
                 "No fullscreen Media Panel in video mode is active.",
             )
         normalized_state = _normalized_video_fullscreen_state(state)
-        presenter = getattr(self._shell_window, "graph_canvas_presenter", None)
-        trim = getattr(presenter, "request_trim_video_clip_replace", None)
-        if not callable(trim):
+        trim = self._trim_video_clip_replace
+        if trim is None:
             return self._video_trim_bridge_error(
                 "mutation_unavailable",
                 "Graph canvas presenter cannot trim Media Panel video clips.",
@@ -1131,15 +1299,19 @@ class ContentFullscreenBridge(QObject):
 
     @pyqtSlot("QVariantMap", result="QVariantMap")
     def request_trim_video_clip_copy(self, state: dict[str, Any]) -> dict[str, Any]:
-        if not self._open or self._active_media_kind() != "video" or not self._node_id:
+        if (
+            self._terminal
+            or not self._open
+            or self._active_media_kind() != "video"
+            or not self._node_id
+        ):
             return self._video_trim_bridge_error(
                 "fullscreen_unavailable",
                 "No fullscreen Media Panel in video mode is active.",
             )
         normalized_state = _normalized_video_fullscreen_state(state)
-        presenter = getattr(self._shell_window, "graph_canvas_presenter", None)
-        trim = getattr(presenter, "request_trim_video_clip_copy", None)
-        if not callable(trim):
+        trim = self._trim_video_clip_copy
+        if trim is None:
             return self._video_trim_bridge_error(
                 "mutation_unavailable",
                 "Graph canvas presenter cannot trim Media Panel video clips.",
@@ -1192,10 +1364,12 @@ class ContentFullscreenBridge(QObject):
 
     @pyqtSlot(str, result=bool)
     def can_open_node(self, node_id: str) -> bool:
-        return self._resolve_candidate(node_id).candidate is not None
+        return not self._terminal and self._resolve_candidate(node_id).candidate is not None
 
     @pyqtSlot("QVariant")
     def finish_web_editor_close(self, preview_result: Any = None) -> None:
+        if self._terminal:
+            return
         if self._open and self._content_kind == "web_editor":
             preview_result = self._materialize_web_editor_preview_result(preview_result)
             self._persist_web_editor_state_from_preview_result(preview_result)
@@ -1289,7 +1463,7 @@ class ContentFullscreenBridge(QObject):
     def schedule_tabular_payload_refresh(self) -> None:
         """Rebuild the fullscreen tabular payload once the cache is warm."""
 
-        if not self._open or self._content_kind != "tabular":
+        if self._terminal or not self._open or self._content_kind != "tabular":
             return
         properties = self._current_tabular_node_properties()
         if isinstance(properties, str):
@@ -1314,6 +1488,8 @@ class ContentFullscreenBridge(QObject):
             self._pending_tabular_payload_node_id = node_id
 
     def _on_tabular_preview_job_finished(self, job_key: str, _error: str) -> None:
+        if self._terminal:
+            return
         if job_key == self._pending_tabular_payload_job:
             self._pending_tabular_payload_job = ""
             pending_node_id = self._pending_tabular_payload_node_id
@@ -1472,11 +1648,13 @@ class ContentFullscreenBridge(QObject):
         return page_count, min(page_count, max(1, current_page))
 
     def _on_workspace_changed(self, _workspace_id: str = "") -> None:
+        if self._terminal:
+            return
         if self._open:
             self.request_close()
 
     def _on_nodes_changed(self, *_args: object) -> None:
-        if not self._open:
+        if self._terminal or not self._open:
             return
         resolution = self._resolve_candidate(self._node_id)
         if resolution.candidate is None:
@@ -1529,15 +1707,14 @@ class ContentFullscreenBridge(QObject):
             self.schedule_tabular_payload_refresh()
 
     def _retarget_script_editor(self, node: "NodeInstance") -> None:
-        shell_window = self._shell_window
-        script_editor = getattr(shell_window, "script_editor", None) if shell_window is not None else None
-        if str(getattr(script_editor, "current_node_id", "") or "").strip() == str(
+        script_editor = self._script_editor
+        if script_editor is None:
+            return
+        if str(script_editor.current_node_id or "").strip() == str(
             node.node_id
         ).strip():
             return
-        set_node = getattr(script_editor, "set_node", None)
-        if callable(set_node):
-            set_node(node)
+        script_editor.set_node(node)
 
     def _close_with_error(self, error: str) -> None:
         self._set_state(
@@ -1614,6 +1791,8 @@ class ContentFullscreenBridge(QObject):
         return str(self._media_payload.get("media_kind", "") or "").strip()
 
     def _ensure_web_surface_bridge(self, node_id: str, workspace_id: str, scene_state: object) -> bool:
+        if self._terminal:
+            return False
         normalized_node_id = str(node_id or "").strip()
         artifact_scope = self._web_surface_artifact_scope(workspace_id, normalized_node_id)
         node_type = self._web_surface_node_type(normalized_node_id)
@@ -1627,22 +1806,22 @@ class ContentFullscreenBridge(QObject):
         ):
             return False
         self._clear_web_surface_bridge()
+        factory = self._create_web_surface_artifact_service
+        if factory is None:
+            return False
+        artifact_service = factory(
+            workspace_id,
+            workspace_name,
+            normalized_node_id,
+            self._title,
+            node_type,
+        )
         bridge = _FullscreenWebSurfaceBridge(
             normalized_state,
             parent=self,
             preview_persist_callback=self._persist_web_editor_preview_result,
-            project_path=self._current_project_path,
-            project_metadata=self._current_project_metadata,
-            artifact_store=self._current_project_artifact_store,
-            persist_project_metadata=self._persist_project_metadata,
-            persist_artifact_store=self._persist_project_artifact_store,
-            temporary_root_parent=self._temporary_root_parent,
+            artifact_service=artifact_service,
             artifact_scope=artifact_scope,
-            node_workspace_id=workspace_id,
-            node_workspace_name=workspace_name,
-            node_id=normalized_node_id,
-            node_title=self._title,
-            node_type=node_type,
         )
         bridge.state_changed.connect(self._persist_web_editor_state)
         self._web_surface_bridge = bridge
@@ -1677,16 +1856,14 @@ class ContentFullscreenBridge(QObject):
         )
 
     def _workspace_name(self, workspace_id: str) -> str:
-        shell_window = self._shell_window
-        model = getattr(shell_window, "model", None) if shell_window is not None else None
+        model = self._current_model()
         project = getattr(model, "project", None)
         workspaces = getattr(project, "workspaces", {}) if project is not None else {}
         workspace = workspaces.get(str(workspace_id or "").strip()) if isinstance(workspaces, Mapping) else None
         return str(getattr(workspace, "name", "") or "").strip()
 
     def _web_surface_node_type(self, node_id: str) -> str:
-        shell_window = self._shell_window
-        model = getattr(shell_window, "model", None) if shell_window is not None else None
+        model = self._current_model()
         project = getattr(model, "project", None)
         workspaces = getattr(project, "workspaces", {}) if project is not None else {}
         workspace = workspaces.get(self._workspace_id) if isinstance(workspaces, Mapping) else None
@@ -1694,7 +1871,8 @@ class ContentFullscreenBridge(QObject):
         node = nodes.get(str(node_id or "").strip()) if isinstance(nodes, Mapping) else None
         if node is None:
             return "Web Surface"
-        registry = getattr(shell_window, "registry", None) if shell_window is not None else None
+        registry_provider = self._registry_provider
+        registry = registry_provider() if registry_provider is not None else None
         get_spec = getattr(registry, "get_spec", None)
         if callable(get_spec):
             try:
@@ -1805,8 +1983,7 @@ class ContentFullscreenBridge(QObject):
     def _current_web_editor_node_properties(self) -> Mapping[str, Any]:
         if not self._node_id:
             return {}
-        shell_window = self._shell_window
-        model = getattr(shell_window, "model", None) if shell_window is not None else None
+        model = self._current_model()
         project = getattr(model, "project", None)
         workspaces = getattr(project, "workspaces", {}) if project is not None else {}
         workspace = workspaces.get(self._workspace_id) if isinstance(workspaces, Mapping) else None
@@ -1841,14 +2018,10 @@ class ContentFullscreenBridge(QObject):
         artifact_ref = self._artifact_ref_from_preview_ref_value(value)
         if not artifact_ref:
             return True
-        store = self._current_project_artifact_store()
-        if store is None:
+        bridge = self._web_surface_bridge
+        if bridge is None:
             return True
-        try:
-            resolved_path = store.resolve_staged_path(artifact_ref) or store.resolve_managed_path(artifact_ref)
-        except Exception:  # noqa: BLE001
-            return False
-        return bool(resolved_path is not None and resolved_path.exists())
+        return bridge.artifact_ref_resolves(artifact_ref)
 
     def _fallback_preview_payload_for_close(self, preview_result: Any) -> dict[str, Any]:
         scene_state = self._scene_state_from_export_result(preview_result)
@@ -1892,42 +2065,15 @@ class ContentFullscreenBridge(QObject):
         }
 
     def _set_node_property(self, node_id: str, key: str, value: Any) -> bool:
-        scene_bridge = self._scene_bridge
-        setter = getattr(scene_bridge, "set_node_property", None) if scene_bridge is not None else None
-        if not callable(setter):
-            command_bridge = getattr(scene_bridge, "command_bridge", None) if scene_bridge is not None else None
-            setter = getattr(command_bridge, "set_node_property", None) if command_bridge is not None else None
-        if not callable(setter):
+        if self._terminal:
             return False
         try:
-            setter(str(node_id or ""), str(key or ""), copy.deepcopy(value))
+            self._scene_bridge.set_node_property(
+                str(node_id or ""), str(key or ""), copy.deepcopy(value)
+            )
         except Exception:  # noqa: BLE001
             return False
         return True
-
-    def _set_selected_node_property(self, key: str, value: Any) -> bool:
-        shell_window = self._shell_window
-        setter = getattr(shell_window, "set_selected_node_property", None) if shell_window is not None else None
-        if not callable(setter):
-            return False
-        scene = getattr(shell_window, "scene", None)
-        selected_node_id = getattr(scene, "selected_node_id", None)
-        if callable(selected_node_id):
-            try:
-                if str(selected_node_id() or "").strip() != self._node_id:
-                    return False
-            except Exception:  # noqa: BLE001
-                return False
-        try:
-            setter(str(key or ""), copy.deepcopy(value))
-        except Exception:  # noqa: BLE001
-            return False
-        option_key = str(key or "").removeprefix("plot_option_")
-        properties = self._current_plot_node_properties()
-        if properties is None:
-            return True
-        options = properties.get("plot_options")
-        return isinstance(options, Mapping) and options.get(option_key) == value
 
     def _set_plot_options_direct(self, key: str, value: Any) -> bool:
         properties = self._current_plot_node_properties()
@@ -2084,10 +2230,8 @@ class ContentFullscreenBridge(QObject):
         return []
 
     def _pick_tabular_export_path(self, preview_kind: str, properties: Mapping[str, Any]) -> str:
-        shell_window = self._shell_window
-        presenter = getattr(shell_window, "shell_host_presenter", None) if shell_window is not None else None
-        picker = getattr(presenter, "save_file_dialog", None)
-        if not callable(picker):
+        picker = self._save_file_dialog
+        if self._terminal or picker is None:
             return ""
         default_suffix = ".csv"
         file_filter = (
@@ -2096,18 +2240,15 @@ class ContentFullscreenBridge(QObject):
             else TABULAR_TABLE_OUTPUT_FILES_FILTER
         )
         suggested_path = self._suggested_tabular_export_path(preview_kind, properties, default_suffix)
-        try:
-            return str(
-                picker(
-                    title="Export Visible Rows",
-                    suggested_path=suggested_path,
-                    file_filter=file_filter,
-                    default_suffix=default_suffix,
-                )
-                or ""
-            ).strip()
-        except TypeError:
-            return str(picker("Export Visible Rows", suggested_path, file_filter) or "").strip()
+        return str(
+            picker(
+                "Export Visible Rows",
+                suggested_path,
+                file_filter,
+                default_suffix,
+            )
+            or ""
+        ).strip()
 
     def _suggested_tabular_export_path(
         self,
@@ -2149,77 +2290,12 @@ class ContentFullscreenBridge(QObject):
         }
 
     def _current_project_path(self) -> str:
-        shell_window = self._shell_window
-        return str(getattr(shell_window, "project_path", "") or "").strip() if shell_window is not None else ""
+        project_path, _metadata = self._project_context()
+        return str(project_path or "").strip()
 
-    def _project_context(self) -> tuple[str | None, dict[str, Any] | None]:
-        metadata = self._current_project_metadata()
-        return self._current_project_path() or None, metadata
-
-    def _current_project_metadata(self) -> dict[str, Any] | None:
-        shell_window = self._shell_window
-        model = getattr(shell_window, "model", None) if shell_window is not None else None
-        project = getattr(model, "project", None)
-        metadata = getattr(project, "metadata", None)
-        return copy.deepcopy(dict(metadata)) if isinstance(metadata, dict) else None
-
-    def _current_project_artifact_store(self) -> Any:
-        shell_window = self._shell_window
-        controller = getattr(shell_window, "project_session_controller", None) if shell_window is not None else None
-        provider = getattr(controller, "project_artifact_store", None)
-        if not callable(provider):
-            return None
-        try:
-            return provider()
-        except Exception:  # noqa: BLE001
-            return None
-
-    def _persist_project_metadata(self, metadata: dict[str, Any]) -> None:
-        shell_window = self._shell_window
-        model = getattr(shell_window, "model", None) if shell_window is not None else None
-        project = getattr(model, "project", None)
-        if project is None or not isinstance(metadata, dict):
-            return
-        replace_metadata = getattr(project, "replace_metadata", None)
-        if callable(replace_metadata):
-            changed = bool(replace_metadata(metadata))
-        else:
-            changed = project.metadata != metadata
-            project.metadata = copy.deepcopy(metadata)
-        if not changed:
-            return
-        signal = getattr(shell_window, "project_meta_changed", None) if shell_window is not None else None
-        emit = getattr(signal, "emit", None)
-        if callable(emit):
-            emit()
-
-    def _persist_project_artifact_store(self, store: Any) -> None:
-        shell_window = self._shell_window
-        controller = getattr(shell_window, "project_session_controller", None) if shell_window is not None else None
-        setter = getattr(controller, "replace_project_artifact_store", None)
-        if callable(setter):
-            try:
-                setter(store)
-                return
-            except Exception:  # noqa: BLE001
-                pass
-        metadata = self._current_project_metadata() or {}
-        store_metadata = getattr(store, "metadata", None)
-        if isinstance(store_metadata, dict):
-            updated_metadata = dict(metadata)
-            updated_metadata[PROJECT_ARTIFACT_STORE_METADATA_KEY] = copy.deepcopy(store_metadata)
-            self._persist_project_metadata(updated_metadata)
-
-    def _temporary_root_parent(self) -> Any:
-        shell_window = self._shell_window
-        session_store = getattr(shell_window, "session_store", None) if shell_window is not None else None
-        provider = getattr(session_store, "staging_workspace_root", None)
-        if not callable(provider):
-            return None
-        try:
-            return provider()
-        except Exception:  # noqa: BLE001
-            return None
+    def _current_model(self) -> "GraphModel | None":
+        provider = self._model_provider
+        return provider() if provider is not None else None
 
     @staticmethod
     def _preview_ref_from_export_result(preview_result: Any) -> dict[str, Any]:
@@ -2288,39 +2364,6 @@ class ContentFullscreenBridge(QObject):
             if isinstance(scene_state, Mapping):
                 return scene_state
         return None
-
-    def _resolve_candidate(self, node_id: str) -> _FullscreenResolution:
-        return self._policy_service.resolve_candidate(node_id)
-
-    def _active_workspace(self) -> tuple[str, "WorkspaceData", "NodeRegistry"] | str:
-        return self._policy_service.active_workspace()
-
-    @staticmethod
-    def _node_spec(registry: "NodeRegistry", type_id: str) -> "NodeTypeSpec | None":
-        return _ContentFullscreenPolicyService.node_spec(registry, type_id)
-
-    @staticmethod
-    def _content_kind_for_node(node: "NodeInstance", spec: "NodeTypeSpec") -> str:
-        return _ContentFullscreenPolicyService.content_kind_for_node(node, spec)
-
-    def _build_viewer_payload(
-        self,
-        *,
-        workspace_id: str,
-        node: "NodeInstance",
-        spec: "NodeTypeSpec",
-    ) -> dict[str, Any]:
-        return self._policy_service.build_viewer_payload(
-            workspace_id=workspace_id,
-            node=node,
-            spec=spec,
-        )
-
-    def _viewer_session_state(self, node_id: str) -> dict[str, Any]:
-        return self._policy_service.viewer_session_state(node_id)
-
-    def _scene_node_payload(self, node_id: str) -> dict[str, Any]:
-        return self._policy_service.scene_node_payload(node_id)
 
 
 __all__ = ["ContentFullscreenBridge"]

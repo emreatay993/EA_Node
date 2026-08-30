@@ -85,7 +85,12 @@ class ShellWindowDependencyFactory:
         with phase("factory.presenters"):
             presenters = self.create_presenter_dependencies(state)
         with phase("factory.viewer_services"):
-            runtime = self.create_viewer_service_dependencies(primitives)
+            runtime = self.create_viewer_service_dependencies(
+                state,
+                primitives,
+                controllers,
+                presenters,
+            )
         with phase("factory.registry_replacement"):
             registry_replacement = self.create_registry_replacement_dependencies()
         with phase("factory.context_bridges"):
@@ -201,20 +206,25 @@ class ShellWindowDependencyFactory:
     ) -> ShellPresenterDependencies:
         return create_presenter_dependencies(self._host, state)
 
-    def create_runtime_dependencies(
-        self, primitives: ShellPrimitiveDependencies
-    ) -> ShellRuntimeDependencies:
-        return self.create_viewer_service_dependencies(primitives)
-
     def create_registry_replacement_dependencies(
         self,
     ) -> ShellRegistryReplacementDependencies:
         return create_registry_replacement_dependencies(self._host)
 
     def create_viewer_service_dependencies(
-        self, primitives: ShellPrimitiveDependencies
+        self,
+        state: ShellStateDependencies,
+        primitives: ShellPrimitiveDependencies,
+        controllers: ShellControllerDependencies,
+        presenters: ShellPresenterDependencies,
     ) -> ShellRuntimeDependencies:
-        return create_viewer_service_dependencies(self._host, primitives)
+        return create_viewer_service_dependencies(
+            self._host,
+            state,
+            primitives,
+            controllers,
+            presenters,
+        )
 
     def create_context_bridge_dependencies(
         self,

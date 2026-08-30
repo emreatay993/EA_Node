@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from ea_node_editor.ui_qml.content_fullscreen_bridge import ContentFullscreenBridge
 from ea_node_editor.ui_qml.jupyter_server_bridge import JupyterServerBridge
@@ -11,9 +11,17 @@ from ea_node_editor.ui_qml.plot_host_service import PlotHostService
 from ea_node_editor.ui_qml.viewer_host_service import ViewerHostService
 from ea_node_editor.ui_qml.viewer_control_bridge import ViewerControlBridge
 from ea_node_editor.ui_qml.viewer_session_bridge import ViewerSessionBridge
+from ea_node_editor.web_host.bridge import WebSurfaceArtifactService
 
 if TYPE_CHECKING:
+    from ea_node_editor.ui.shell.composition.controllers import (
+        ShellControllerDependencies,
+    )
+    from ea_node_editor.ui.shell.composition.presenters import (
+        ShellPresenterDependencies,
+    )
     from ea_node_editor.ui.shell.composition.primitives import ShellPrimitiveDependencies
+    from ea_node_editor.ui.shell.composition.state import ShellStateDependencies
     from ea_node_editor.ui.shell.window import ShellWindow
 
 
@@ -41,7 +49,10 @@ class ShellRuntimeDependencies:
 
 def create_viewer_service_dependencies(
     host: "ShellWindow",
+    state: "ShellStateDependencies",
     primitives: "ShellPrimitiveDependencies",
+    controllers: "ShellControllerDependencies",
+    presenters: "ShellPresenterDependencies",
 ) -> ShellRuntimeDependencies:
     viewer_host_service_ref: list[ViewerHostService | None] = [None]
 
@@ -61,16 +72,84 @@ def create_viewer_service_dependencies(
         data_types=primitives.registry.data_types,
         capture_overlay_camera_state=capture_overlay_camera_state,
     )
+
+    def model_provider():  # noqa: ANN202
+        return host.model
+
+    def registry_provider():  # noqa: ANN202
+        return host.registry
+
+    def active_workspace_id_provider() -> str:
+        return str(host.workspace_manager.active_workspace_id() or "")
+
+    def project_context_provider() -> tuple[str | None, dict[str, Any] | None]:
+        model = model_provider()
+        metadata = model.project.metadata
+        return (
+            str(state.project_session_state.project_path or "").strip() or None,
+            dict(metadata) if isinstance(metadata, dict) else None,
+        )
+
+    def save_file_dialog(
+        title: str,
+        suggested_path: str,
+        file_filter: str,
+        default_suffix: str,
+    ) -> str:
+        return presenters.shell_host_presenter.save_file_dialog(
+            title=title,
+            suggested_path=suggested_path,
+            file_filter=file_filter,
+            default_suffix=default_suffix,
+        )
+
+    project_session = controllers.project_session_controller
+
+    def create_web_surface_artifact_service(
+        node_workspace_id: str,
+        node_workspace_name: str,
+        node_id: str,
+        node_title: str,
+        node_type: str,
+    ) -> WebSurfaceArtifactService:
+        return WebSurfaceArtifactService(
+            project_path=lambda: project_context_provider()[0],
+            project_metadata=lambda: project_context_provider()[1],
+            artifact_store=project_session.project_artifact_store,
+            persist_artifact_store=project_session.replace_project_artifact_store,
+            temporary_root_parent=primitives.session_store.staging_workspace_root,
+            node_workspace_id=node_workspace_id,
+            node_workspace_name=node_workspace_name,
+            node_id=node_id,
+            node_title=node_title,
+            node_type=node_type,
+        )
+
     content_fullscreen_bridge = ContentFullscreenBridge(
         host,
-        shell_window=host,
+        model_provider=model_provider,
+        registry_provider=registry_provider,
+        active_workspace_id_provider=active_workspace_id_provider,
+        project_context_provider=project_context_provider,
         scene_bridge=primitives.scene,
         viewer_session_bridge=viewer_session_bridge,
+        run_state=state.run_state,
+        execution_state_changed_signal=host.node_execution_state_changed,
+        script_editor=primitives.script_editor,
+        save_file_dialog=save_file_dialog,
+        trim_video_clip_replace=(
+            presenters.graph_canvas_presenter.request_trim_video_clip_replace
+        ),
+        trim_video_clip_copy=(
+            presenters.graph_canvas_presenter.request_trim_video_clip_copy
+        ),
+        create_web_surface_artifact_service=create_web_surface_artifact_service,
     )
     viewer_host_service = ViewerHostService(
         host,
         shell_window=host,
         viewer_session_bridge=viewer_session_bridge,
+        content_fullscreen_bridge=content_fullscreen_bridge,
         preview_cache_provider=primitives._viewer_preview_cache_provider,
     )
     viewer_host_service_ref[0] = viewer_host_service
@@ -84,6 +163,7 @@ def create_viewer_service_dependencies(
         host,
         shell_window=host,
         scene_bridge=primitives.scene,
+        content_fullscreen_bridge=content_fullscreen_bridge,
         preview_cache_provider=primitives._plot_preview_cache_provider,
     )
     plot_auto_preview_service = PlotAutoPreviewService(

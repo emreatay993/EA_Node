@@ -20,11 +20,33 @@ from ea_node_editor.ui_qml.content_fullscreen_bridge import ContentFullscreenBri
 class _FakeSceneBridge(QObject):
     workspace_changed = pyqtSignal(str)
     nodes_changed = pyqtSignal()
+    edges_changed = pyqtSignal()
 
     def __init__(self, workspace_id: str) -> None:
         super().__init__()
         self.workspace_id = workspace_id
         self.nodes_model: list[dict[str, object]] = []
+
+    def set_node_property(self, node_id: str, key: str, value: object) -> None:
+        del node_id, key, value
+
+
+class _ExecutionSignalSource(QObject):
+    changed = pyqtSignal()
+
+
+class _ViewerSessionBridgeStub:
+    @staticmethod
+    def session_state(_node_id: str) -> dict[str, object]:
+        return {}
+
+
+class _ScriptEditorStub:
+    current_node_id = ""
+
+    @staticmethod
+    def set_node(_node: object) -> None:
+        return
 
 
 class _FakeWorkspaceManager:
@@ -65,12 +87,30 @@ class ContentFullscreenBridgeLifecycleTests(unittest.TestCase):
             _unused_factory,
         )
         self.scene = _FakeSceneBridge(self.workspace.workspace_id)
+        self.execution = _ExecutionSignalSource()
         self.shell = SimpleNamespace(
             model=self.model,
             registry=self.registry,
             workspace_manager=_FakeWorkspaceManager(self.workspace.workspace_id),
         )
-        self.bridge = ContentFullscreenBridge(shell_window=self.shell, scene_bridge=self.scene)
+        self.bridge = self._make_bridge()
+
+    def _make_bridge(self) -> ContentFullscreenBridge:
+        return ContentFullscreenBridge(
+            model_provider=lambda: self.model,
+            registry_provider=lambda: self.registry,
+            active_workspace_id_provider=self.shell.workspace_manager.active_workspace_id,
+            project_context_provider=lambda: (None, dict(self.model.project.metadata)),
+            scene_bridge=self.scene,  # type: ignore[arg-type]
+            viewer_session_bridge=_ViewerSessionBridgeStub(),  # type: ignore[arg-type]
+            run_state=SimpleNamespace(),  # type: ignore[arg-type]
+            execution_state_changed_signal=self.execution.changed,
+            script_editor=_ScriptEditorStub(),  # type: ignore[arg-type]
+            save_file_dialog=lambda *_args: "",
+            trim_video_clip_replace=lambda *_args: {},
+            trim_video_clip_copy=lambda *_args: {},
+            create_web_surface_artifact_service=lambda *_args: Mock(),
+        )
 
     def _add_open_web_node(self) -> str:
         node = self.model.add_node(
@@ -105,11 +145,85 @@ class ContentFullscreenBridgeLifecycleTests(unittest.TestCase):
         self.assertEqual(self.bridge.node_id, "")
         self.assertEqual(self.bridge.last_error, "")
 
+    def test_candidate_resolution_snapshots_dynamic_providers_once(self) -> None:
+        calls = {"model": 0, "registry": 0, "workspace": 0, "project": 0}
+        current = {"model": self.model, "registry": self.registry}
+
+        def model_provider():  # noqa: ANN202
+            calls["model"] += 1
+            return current["model"]
+
+        def registry_provider():  # noqa: ANN202
+            calls["registry"] += 1
+            return current["registry"]
+
+        def active_workspace_id_provider() -> str:
+            calls["workspace"] += 1
+            return self.workspace.workspace_id
+
+        def project_context_provider():  # noqa: ANN202
+            calls["project"] += 1
+            return None, dict(self.model.project.metadata)
+
+        bridge = ContentFullscreenBridge(
+            model_provider=model_provider,
+            registry_provider=registry_provider,
+            active_workspace_id_provider=active_workspace_id_provider,
+            project_context_provider=project_context_provider,
+            scene_bridge=self.scene,  # type: ignore[arg-type]
+            viewer_session_bridge=_ViewerSessionBridgeStub(),  # type: ignore[arg-type]
+            run_state=SimpleNamespace(),  # type: ignore[arg-type]
+            execution_state_changed_signal=self.execution.changed,
+            script_editor=_ScriptEditorStub(),  # type: ignore[arg-type]
+            save_file_dialog=lambda *_args: "",
+            trim_video_clip_replace=lambda *_args: {},
+            trim_video_clip_copy=lambda *_args: {},
+            create_web_surface_artifact_service=lambda *_args: Mock(),
+        )
+        node = self.model.add_node(
+            self.workspace.workspace_id,
+            WEB_PAGE_VIEWER_TYPE_ID,
+            "Web Page Viewer",
+            0.0,
+            0.0,
+            properties={"start_location": "https://example.com"},
+        )
+
+        self.assertTrue(bridge.request_open_node(node.node_id))
+        self.assertEqual(
+            calls,
+            {"model": 1, "registry": 1, "workspace": 1, "project": 1},
+        )
+
+        replacement_registry = NodeRegistry()
+        replacement_registry.register_descriptor(
+            NodeTypeSpec(
+                type_id=WEB_PAGE_VIEWER_TYPE_ID,
+                display_name="Web Page Viewer",
+                category_path=("Web",),
+                icon="globe",
+                ports=(),
+                properties=(),
+                runtime_behavior="passive",
+                surface_family="web",
+                surface_variant="page_viewer",
+            ),
+            _unused_factory,
+        )
+        current["registry"] = replacement_registry
+        bridge.request_close()
+
+        self.assertTrue(bridge.can_open_node(node.node_id))
+        self.assertEqual(
+            calls,
+            {"model": 2, "registry": 2, "workspace": 2, "project": 2},
+        )
+
     def test_tabular_provider_and_worker_pool_are_lazy_reused_and_shutdown_safely(self) -> None:
         fake_provider = Mock()
         fake_pool = Mock()
         fake_pool.job_finished = Mock()
-        bridge = ContentFullscreenBridge(shell_window=self.shell, scene_bridge=self.scene)
+        bridge = self._make_bridge()
 
         with (
             patch.object(bridge_module, "TabularPreviewProvider", return_value=fake_provider) as provider_factory,
@@ -133,8 +247,12 @@ class ContentFullscreenBridgeLifecycleTests(unittest.TestCase):
             fake_pool.job_finished.connect.assert_called_once_with(bridge._on_tabular_preview_job_finished)  # noqa: SLF001
             bridge.shutdown()
             fake_pool.shutdown.assert_called_once_with()
+            bridge.shutdown()
+            fake_pool.shutdown.assert_called_once_with()
+            with self.assertRaisesRegex(RuntimeError, "shut down"):
+                bridge._ensure_tabular_preview_provider()  # noqa: SLF001
 
-        unopened = ContentFullscreenBridge(shell_window=self.shell, scene_bridge=self.scene)
+        unopened = self._make_bridge()
         unopened.shutdown()
         self.assertIsNone(unopened._tabular_preview_provider)  # noqa: SLF001
         self.assertIsNone(unopened._tabular_preview_worker_pool)  # noqa: SLF001

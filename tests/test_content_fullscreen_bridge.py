@@ -6,6 +6,7 @@ import hashlib
 import json
 from pathlib import Path
 from typing import Any
+from unittest import mock
 
 from PyQt6.QtCore import QObject, QPointF, QMarginsF, QRectF, Qt, QUrl
 from PyQt6.QtGui import QImage, QPainter, QPageLayout, QPageSize, QPdfWriter
@@ -19,6 +20,7 @@ from ea_node_editor.runtime_contracts.solution_records import (
     SolutionResidency,
 )
 from ea_node_editor.runtime_contracts import DataTree
+from ea_node_editor.graph.project_state import ProjectData
 from ea_node_editor.nodes.builtins.ansys_dpf_common import DPF_VIEWER_NODE_TYPE_ID
 from ea_node_editor.nodes.builtins.core import PYTHON_SCRIPT_DEFAULT_SOURCE
 from ea_node_editor.nodes.builtins.ansys_dpf_viewer import DpfViewerNodePlugin
@@ -1893,14 +1895,23 @@ class ContentFullscreenBridgeTests(MainWindowShellTestBase):
 
         preview_payload = b"\x89PNG\r\n\x1a\nfullscreen-preview"
         preview_hash = hashlib.sha256(preview_payload).hexdigest()
-        result = web_bridge.export_preview(
-            {
-                "dataURL": _data_url("image/png", preview_payload),
-                "width": 640,
-                "height": 360,
-                "name": "fullscreen-preview.png",
-            }
-        )
+        project = self.window.model.project
+        replace_metadata_impl = ProjectData.replace_metadata
+        with mock.patch.object(
+            ProjectData,
+            "replace_metadata",
+            autospec=True,
+            side_effect=replace_metadata_impl,
+        ) as replace_metadata:
+            result = web_bridge.export_preview(
+                {
+                    "dataURL": _data_url("image/png", preview_payload),
+                    "width": 640,
+                    "height": 360,
+                    "name": "fullscreen-preview.png",
+                }
+            )
+            replace_metadata.assert_called_once()
 
         self.assertTrue(result["ok"])
         bridge.finish_web_editor_close(result)

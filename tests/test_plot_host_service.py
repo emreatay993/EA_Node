@@ -193,10 +193,11 @@ def _service(
     binder: _FakePlotBinder,
     preview_cache_provider: PlotPreviewCacheImageProvider | None = None,
 ) -> PlotHostService:
-    shell = SimpleNamespace(content_fullscreen_bridge=fullscreen_bridge) if fullscreen_bridge is not None else None
+    resolved_fullscreen_bridge = fullscreen_bridge or _FakeContentFullscreenBridge()
     service = PlotHostService(
-        shell_window=shell,
+        shell_window=SimpleNamespace(),
         scene_bridge=scene,
+        content_fullscreen_bridge=resolved_fullscreen_bridge,  # type: ignore[arg-type]
         overlay_manager=overlay_manager,  # type: ignore[arg-type]
         preview_cache_provider=preview_cache_provider,
     )
@@ -210,20 +211,37 @@ def _preview_image(color: str = "#2f81f7") -> QImage:
     return image
 
 
+def test_content_fullscreen_signal_connects_once_and_disconnects_on_shutdown() -> None:
+    bridge = _FakeContentFullscreenBridge()
+    service = PlotHostService(
+        scene_bridge=None,
+        content_fullscreen_bridge=bridge,  # type: ignore[arg-type]
+    )
+    assert bridge.receivers(bridge.content_fullscreen_changed) == 1
+    service.shutdown()
+    assert bridge.receivers(bridge.content_fullscreen_changed) == 0
+
+
 def test_binders_are_lazy_reused_and_custom_registration_survives_first_initialization(qapp) -> None:  # noqa: ANN001
     with (
         patch.object(plot_host_module, "MatplotlibPlotWidgetBinder") as matplotlib_binder,
         patch.object(plot_host_module, "PyQtGraphPlotWidgetBinder") as pyqtgraph_binder,
         patch.object(plot_host_module, "PyVistaPlotWidgetBinder") as pyvista_binder,
     ):
-        unopened = PlotHostService(scene_bridge=None)
+        unopened = PlotHostService(
+            scene_bridge=None,
+            content_fullscreen_bridge=_FakeContentFullscreenBridge(),  # type: ignore[arg-type]
+        )
         unopened.shutdown()
         assert unopened.binder_registry is unopened._binder_registry  # noqa: SLF001
         matplotlib_binder.assert_not_called()
         pyqtgraph_binder.assert_not_called()
         pyvista_binder.assert_not_called()
 
-        service = PlotHostService(scene_bridge=None)
+        service = PlotHostService(
+            scene_bridge=None,
+            content_fullscreen_bridge=_FakeContentFullscreenBridge(),  # type: ignore[arg-type]
+        )
         custom_binder = _FakePlotBinder()
         service.register_binder("tests.lazy.custom", custom_binder)
         matplotlib_binder.assert_not_called()

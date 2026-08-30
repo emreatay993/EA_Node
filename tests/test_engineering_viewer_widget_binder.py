@@ -11,6 +11,7 @@ from multiprocessing.shared_memory import SharedMemory
 from pathlib import Path
 from unittest.mock import patch
 
+from PyQt6.QtCore import QObject, pyqtSignal
 from PyQt6.QtGui import QImage
 from PyQt6.QtWidgets import QApplication, QWidget
 
@@ -28,6 +29,15 @@ from ea_node_editor.ui_qml.viewer_widget_binder import (
     ViewerWidgetNoBind,
     ViewerWidgetReleaseRequest,
 )
+
+
+class _FakeContentFullscreenBridge(QObject):
+    content_fullscreen_changed = pyqtSignal()
+    open = False
+    content_kind = ""
+    workspace_id = ""
+    node_id = ""
+    viewer_payload: dict[str, object] = {}
 
 
 class _FakeCamera:
@@ -1606,7 +1616,9 @@ class EngineeringViewerWidgetBinderTests(unittest.TestCase):
         self.assertAlmostEqual(actor.property.specular, 0.22)
 
     def test_viewer_host_registers_engineering_binder(self) -> None:
-        host = ViewerHostService()
+        host = ViewerHostService(
+            content_fullscreen_bridge=_FakeContentFullscreenBridge(),  # type: ignore[arg-type]
+        )
         try:
             binder = host.binder_registry.lookup(ENGINEERING_VIEWER_BACKEND_ID)
             self.assertIsInstance(binder, EngineeringViewerWidgetBinder)

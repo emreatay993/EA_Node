@@ -428,6 +428,58 @@ class GraphArchitectureBoundaryTests(unittest.TestCase):
                     (REPO_ROOT / relative_path).read_text(encoding="utf-8"),
                 )
 
+    def test_content_fullscreen_uses_only_explicit_owner_dependencies(self) -> None:
+        relative_path = "ea_node_editor/ui_qml/content_fullscreen_bridge.py"
+        source = (REPO_ROOT / relative_path).read_text(encoding="utf-8")
+        bridge = class_node(parse_module(relative_path), "ContentFullscreenBridge")
+        init = next(
+            node
+            for node in bridge.body
+            if isinstance(node, ast.FunctionDef) and node.name == "__init__"
+        )
+        self.assertEqual(
+            [argument.arg for argument in init.args.kwonlyargs],
+            [
+                "model_provider",
+                "registry_provider",
+                "active_workspace_id_provider",
+                "project_context_provider",
+                "scene_bridge",
+                "viewer_session_bridge",
+                "run_state",
+                "execution_state_changed_signal",
+                "script_editor",
+                "save_file_dialog",
+                "trim_video_clip_replace",
+                "trim_video_clip_copy",
+                "create_web_surface_artifact_service",
+            ],
+        )
+        for retired in (
+            "ShellWindow",
+            "shell_window",
+            "_shell_window",
+            "_ContentFullscreenPolicyService",
+            "_policy_service",
+            "_set_selected_node_property",
+        ):
+            self.assertNotIn(retired, source)
+
+        runtime_source = (
+            REPO_ROOT / "ea_node_editor/ui/shell/composition/runtime_services.py"
+        ).read_text(encoding="utf-8")
+        self.assertIn(
+            "persist_artifact_store=project_session.replace_project_artifact_store",
+            runtime_source,
+        )
+        self.assertNotIn("persist_project_metadata=", runtime_source)
+        for service_path in (
+            "ea_node_editor/ui_qml/viewer_host_service.py",
+            "ea_node_editor/ui_qml/plot_host_service.py",
+        ):
+            service_source = (REPO_ROOT / service_path).read_text(encoding="utf-8")
+            self.assertNotIn("_connect_content_fullscreen_bridge", service_source)
+
     def test_solution_repository_has_no_project_commit_and_t08_owns_prune_call(self) -> None:
         repository_source = (
             REPO_ROOT / "ea_node_editor" / "persistence" / "solution_repository.py"

@@ -6,7 +6,7 @@ from dataclasses import replace
 from typing import Any
 from unittest.mock import patch
 
-from PyQt6.QtCore import QEvent, QObject, QPointF, QRectF, QSize, Qt
+from PyQt6.QtCore import QEvent, QObject, QPointF, QRectF, QSize, Qt, pyqtSignal
 from PyQt6.QtGui import QColor, QImage, QKeyEvent
 from PyQt6.QtQuick import QQuickItem
 from PyQt6.QtWidgets import QApplication, QWidget
@@ -30,6 +30,15 @@ from ea_node_editor.ui_qml.viewer_host_service import (
 )
 from ea_node_editor.ui_qml.viewer_widget_binder import ViewerWidgetNoBind
 from tests.main_window_shell.base import MainWindowShellTestBase
+
+
+class _FakeContentFullscreenBridge(QObject):
+    content_fullscreen_changed = pyqtSignal()
+    open = False
+    content_kind = ""
+    workspace_id = ""
+    node_id = ""
+    viewer_payload: dict[str, object] = {}
 
 
 class _ViewerOverlayPlugin:
@@ -361,6 +370,17 @@ class _CameraStatsBinder(_RecordingBinder):
 
 
 class ViewerHostAttachRefreshUnitTests(unittest.TestCase):
+    def test_content_fullscreen_signal_connects_once_and_disconnects_on_shutdown(
+        self,
+    ) -> None:
+        bridge = _FakeContentFullscreenBridge()
+        host = ViewerHostService(
+            content_fullscreen_bridge=bridge,  # type: ignore[arg-type]
+        )
+        self.assertEqual(bridge.receivers(bridge.content_fullscreen_changed), 1)
+        host.shutdown()
+        self.assertEqual(bridge.receivers(bridge.content_fullscreen_changed), 0)
+
     def test_string_normalization_handles_missing_and_real_titles(self) -> None:
         self.assertEqual(_string(None), "")
         self.assertEqual(_string("   "), "")
@@ -374,7 +394,9 @@ class ViewerHostAttachRefreshUnitTests(unittest.TestCase):
                 pending.retry_when_ready = True
                 raise pending
 
-        host = ViewerHostService()
+        host = ViewerHostService(
+            content_fullscreen_bridge=_FakeContentFullscreenBridge(),  # type: ignore[arg-type]
+        )
         try:
             self.assertIsNone(
                 host._refresh_widget_after_presentation_attach(PendingBinder(), object())
@@ -389,7 +411,9 @@ class ViewerHostAttachRefreshUnitTests(unittest.TestCase):
             def refresh_after_attach(_widget) -> bool:  # noqa: ANN001
                 return False
 
-        host = ViewerHostService()
+        host = ViewerHostService(
+            content_fullscreen_bridge=_FakeContentFullscreenBridge(),  # type: ignore[arg-type]
+        )
         try:
             self.assertFalse(
                 host._refresh_widget_after_presentation_attach(FailedBinder(), object())
@@ -1000,12 +1024,16 @@ class ViewerHostServiceTests(MainWindowShellTestBase):
             "create_live_viewer_widget_binders",
             return_value=(),
         ) as binder_factory:
-            unopened = ViewerHostService()
+            unopened = ViewerHostService(
+                content_fullscreen_bridge=_FakeContentFullscreenBridge(),  # type: ignore[arg-type]
+            )
             unopened.shutdown()
             self.assertIs(unopened.binder_registry, unopened._binder_registry)  # noqa: SLF001
             binder_factory.assert_not_called()
 
-            service = ViewerHostService()
+            service = ViewerHostService(
+                content_fullscreen_bridge=_FakeContentFullscreenBridge(),  # type: ignore[arg-type]
+            )
             custom_binder = _RecordingBinder()
             service.register_binder("tests.lazy.custom", custom_binder)
             binder_factory.assert_not_called()

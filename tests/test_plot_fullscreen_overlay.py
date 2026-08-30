@@ -2,72 +2,45 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from types import SimpleNamespace
+
 from PyQt6.QtCore import QObject, pyqtSignal
 
-from ea_node_editor.addons.property_edit_adapters import PropertyEditAdapterContext
 from ea_node_editor.graph.model import GraphModel
 from ea_node_editor.nodes.bootstrap import build_default_registry
-from ea_node_editor.nodes.builtins.plot.property_edit_adapter import PlotPropertyEditAdapter
+from ea_node_editor.ui.shell.runtime_history import RuntimeGraphHistory
 from ea_node_editor.ui_qml.content_fullscreen_bridge import ContentFullscreenBridge
-from ea_node_editor.ui_qml.graph_scene_payload import GraphScenePayloadBuilder
+from ea_node_editor.ui_qml.graph_scene_bridge import GraphSceneBridge
 
 
-class _FakeSceneBridge(QObject):
-    workspace_changed = pyqtSignal(str)
-    nodes_changed = pyqtSignal()
-
-    def __init__(self, workspace_id: str) -> None:
-        super().__init__()
-        self.workspace_id = workspace_id
-        self.nodes_model: list[dict[str, object]] = []
+class _ExecutionSignalSource(QObject):
+    changed = pyqtSignal()
 
 
-class _FakeWorkspaceManager:
-    def __init__(self, workspace_id: str) -> None:
-        self._workspace_id = workspace_id
-
-    def active_workspace_id(self) -> str:
-        return self._workspace_id
+class _ViewerSessionBridgeStub:
+    @staticmethod
+    def session_state(_node_id: str) -> dict[str, object]:
+        return {}
 
 
-class _FakeSelectionScene:
-    def __init__(self, node_id: str) -> None:
-        self._node_id = node_id
+class _ScriptEditorStub:
+    current_node_id = ""
 
-    def selected_node_id(self) -> str:
-        return self._node_id
-
-
-class _FakePlotShell:
-    project_path = ""
-
-    def __init__(self, *, model: GraphModel, registry, workspace_id: str, node_id: str) -> None:  # noqa: ANN001
-        self.model = model
-        self.registry = registry
-        self.workspace_manager = _FakeWorkspaceManager(workspace_id)
-        self.scene = _FakeSelectionScene(node_id)
-        self.property_calls: list[tuple[str, object]] = []
-
-    def set_selected_node_property(self, key: str, value: object) -> None:
-        self.property_calls.append((key, value))
-        workspace = self.model.project.workspaces[self.workspace_manager.active_workspace_id()]
-        node = workspace.nodes[self.scene.selected_node_id()]
-        spec = self.registry.get_spec(node.type_id)
-        rewrite = PlotPropertyEditAdapter().rewrite_property_edit(
-            PropertyEditAdapterContext(
-                node=node,
-                spec=spec,
-                workspace_nodes=workspace.nodes,
-                workspace_edges=workspace.edges,
-            ),
-            key=key,
-            value=value,
-        )
-        if rewrite is not None:
-            node.properties[rewrite.key] = rewrite.value
+    @staticmethod
+    def set_node(_node: object) -> None:
+        return
 
 
-def _bridge_with_plot_node(*, render_in_canvas: bool = False) -> tuple[ContentFullscreenBridge, str]:
+def _bridge_with_plot_node(
+    *, render_in_canvas: bool = False
+) -> tuple[
+    ContentFullscreenBridge,
+    str,
+    str,
+    GraphModel,
+    str,
+    RuntimeGraphHistory,
+]:
     model = GraphModel()
     registry = build_default_registry()
     workspace_id = model.active_workspace.workspace_id
@@ -79,21 +52,42 @@ def _bridge_with_plot_node(*, render_in_canvas: bool = False) -> tuple[ContentFu
         0.0,
         properties={"render_in_canvas": render_in_canvas},
     )
-    scene = _FakeSceneBridge(workspace_id)
-    nodes_payload, _minimap_payload, _edges_payload = GraphScenePayloadBuilder().rebuild_models(
-        model=model,
-        registry=registry,
-        workspace_id=workspace_id,
-        scope_path=(),
-        graph_theme_bridge=None,
+    other = model.add_node(
+        workspace_id,
+        "plot.scatter",
+        "Other Scatter Plot",
+        40.0,
+        40.0,
+        properties={"plot_options": {"plot_theme": "light"}},
     )
-    scene.nodes_model = nodes_payload
-    shell = _FakePlotShell(model=model, registry=registry, workspace_id=workspace_id, node_id=node.node_id)
-    return ContentFullscreenBridge(shell_window=shell, scene_bridge=scene), node.node_id
+    history = RuntimeGraphHistory()
+    scene = GraphSceneBridge()
+    scene.bind_runtime_history(history)
+    scene.set_workspace(model, registry, workspace_id)
+    scene.select_node(other.node_id)
+    execution = _ExecutionSignalSource()
+    bridge = ContentFullscreenBridge(
+        model_provider=lambda: model,
+        registry_provider=lambda: registry,
+        active_workspace_id_provider=lambda: workspace_id,
+        project_context_provider=lambda: (None, dict(model.project.metadata)),
+        scene_bridge=scene,
+        viewer_session_bridge=_ViewerSessionBridgeStub(),  # type: ignore[arg-type]
+        run_state=SimpleNamespace(),  # type: ignore[arg-type]
+        execution_state_changed_signal=execution.changed,
+        script_editor=_ScriptEditorStub(),  # type: ignore[arg-type]
+        save_file_dialog=lambda *_args: "",
+        trim_video_clip_replace=lambda *_args: {},
+        trim_video_clip_copy=lambda *_args: {},
+        create_web_surface_artifact_service=lambda *_args: SimpleNamespace(),
+    )
+    return bridge, node.node_id, other.node_id, model, workspace_id, history
 
 
 def test_plot_fullscreen_bridge_opens_plot_payload_even_when_embedded_is_suppressed() -> None:
-    bridge, node_id = _bridge_with_plot_node(render_in_canvas=False)
+    bridge, node_id, _other_id, _model, _workspace_id, _history = (
+        _bridge_with_plot_node(render_in_canvas=False)
+    )
 
     assert bridge.request_open_node(node_id) is True
 
@@ -117,7 +111,9 @@ def test_plot_fullscreen_bridge_opens_plot_payload_even_when_embedded_is_suppres
 
 
 def test_plot_fullscreen_payload_refreshes_from_scene_node_payload() -> None:
-    bridge, node_id = _bridge_with_plot_node(render_in_canvas=True)
+    bridge, node_id, _other_id, _model, _workspace_id, _history = (
+        _bridge_with_plot_node(render_in_canvas=True)
+    )
 
     assert bridge.request_open_node(node_id) is True
 
@@ -129,19 +125,23 @@ def test_plot_fullscreen_payload_refreshes_from_scene_node_payload() -> None:
     assert bridge.plot_payload == {}
 
 
-def test_plot_fullscreen_bridge_updates_active_plot_options_through_selected_property_path() -> None:
-    bridge, node_id = _bridge_with_plot_node(render_in_canvas=True)
+def test_plot_fullscreen_bridge_updates_only_fullscreen_node_with_one_history_entry_per_change() -> None:
+    bridge, node_id, other_id, model, workspace_id, history = (
+        _bridge_with_plot_node(render_in_canvas=True)
+    )
+    workspace = model.project.workspaces[workspace_id]
+    before_history = history.undo_depth(workspace_id)
 
     assert bridge.request_open_node(node_id) is True
     assert bridge.set_active_plot_option("crosshair", True) is True
     assert bridge.set_active_plot_option("plot_theme", "dark") is True
 
-    shell = bridge.shell_window
-    assert shell is not None
-    assert shell.property_calls == [("plot_option_crosshair", True), ("plot_option_plot_theme", "dark")]
-    workspace = shell.model.project.workspaces[shell.workspace_manager.active_workspace_id()]
     assert workspace.nodes[node_id].properties["plot_options"]["crosshair"] is True
     assert workspace.nodes[node_id].properties["plot_options"]["plot_theme"] == "dark"
+    assert workspace.nodes[other_id].properties["plot_options"] == {
+        "plot_theme": "light"
+    }
+    assert history.undo_depth(workspace_id) == before_history + 2
     assert bridge.plot_payload["properties"]["plot_options"]["crosshair"] is True
     assert bridge.plot_payload["properties"]["plot_options"]["plot_theme"] == "dark"
 
