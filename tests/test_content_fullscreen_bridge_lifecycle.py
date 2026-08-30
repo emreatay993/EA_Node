@@ -199,6 +199,10 @@ class ContentFullscreenBridgeLifecycleTests(unittest.TestCase):
             )
 
         old_node_id = self._add_open_web_node()
+        self.assertEqual(
+            {key: len(values) for key, values in self.provider_calls.items()},
+            {"model": 1, "registry": 1, "workspace": 1, "project": 1},
+        )
         self.scene.workspace_changed.emit("ws-other")
         self.assertFalse(self.bridge.open)
         self.assertEqual(self.bridge.node_id, "")
@@ -236,7 +240,15 @@ class ContentFullscreenBridgeLifecycleTests(unittest.TestCase):
         )
 
         self.assertFalse(self.bridge.can_open_node(old_node_id))
+        self.assertEqual(
+            {key: len(values) for key, values in self.provider_calls.items()},
+            {"model": 2, "registry": 2, "workspace": 2, "project": 1},
+        )
         self.assertTrue(self.bridge.request_open_node(replacement_node.node_id))
+        self.assertEqual(
+            {key: len(values) for key, values in self.provider_calls.items()},
+            {"model": 3, "registry": 3, "workspace": 3, "project": 2},
+        )
         self.assertEqual(self.bridge.workspace_id, replacement_workspace.workspace_id)
         self.assertEqual(self.bridge.node_id, replacement_node.node_id)
         self.assertIs(self.provider_calls["model"][-1], replacement_model)

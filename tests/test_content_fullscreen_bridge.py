@@ -161,7 +161,6 @@ class _VideoTrimPresenterRecorder:
 class _FakeTabularWorkerPool:
     def __init__(self) -> None:
         self.scheduled: list[tuple[str, object]] = []
-        self.shutdown_called = False
         self.job_finished = mock.Mock()
 
     def schedule(self, job_key: str, fn) -> bool:  # noqa: ANN001
@@ -169,7 +168,7 @@ class _FakeTabularWorkerPool:
         return True
 
     def shutdown(self) -> None:
-        self.shutdown_called = True
+        return None
 
 
 class _SignalSource(QObject):
@@ -299,13 +298,6 @@ class _ContentFullscreenDirectTestCase(unittest.TestCase):
             self.registry.register(DpfViewerNodePlugin)
         return self.scene.add_node_from_type(
             DPF_VIEWER_NODE_TYPE_ID, x=120.0, y=80.0
-        )
-
-    def _add_engineering_viewer_node(self) -> str:
-        return self.scene.add_node_from_type(
-            ENGINEERING_VIEWER_NODE_TYPE_ID,
-            x=120.0,
-            y=80.0,
         )
 
     def _write_test_image(self, name: str) -> Path:
