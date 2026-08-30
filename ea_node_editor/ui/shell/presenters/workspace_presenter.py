@@ -23,6 +23,7 @@ from ea_node_editor.app_preferences import (
     normalize_node_elapsed_time_unit,
     normalize_node_elapsed_time_visibility,
     normalize_passive_node_library_display_mode,
+    normalize_plot_settings,
     normalize_property_pane_variant,
     normalize_selection_toolbar_minimal_menu_trigger,
     normalize_selection_toolbar_mode,
@@ -108,6 +109,26 @@ class ShellWorkspacePresenter(QObject):
     def graphics_tab_strip_density(self) -> str: return str(self._ui_state.tab_strip_density)
 
     @property
+    def graphics_show_grid(self) -> bool: return bool(self._ui_state.show_grid)
+
+    @property
+    def graphics_canvas_background_variant(self) -> str:
+        return str(self._ui_state.canvas_background_variant)
+
+    @property
+    def graphics_grid_style(self) -> str: return str(self._ui_state.grid_style)
+
+    @property
+    def graphics_show_minimap(self) -> bool: return bool(self._ui_state.show_minimap)
+
+    @property
+    def graphics_show_canvas_options_button(self) -> bool:
+        return bool(self._ui_state.show_canvas_options_button)
+
+    @property
+    def graphics_show_port_labels(self) -> bool: return bool(self._ui_state.show_port_labels)
+
+    @property
     def graphics_show_tooltips(self) -> bool:
         return self.tooltip_category_enabled(TOOLTIP_CATEGORY_GENERAL)
 
@@ -177,6 +198,18 @@ class ShellWorkspacePresenter(QObject):
         return str(self._ui_state.node_comment_editor_default)
 
     @property
+    def graphics_node_shadow(self) -> bool: return bool(self._ui_state.node_shadow)
+
+    @property
+    def graphics_shadow_strength(self) -> int: return int(self._ui_state.shadow_strength)
+
+    @property
+    def graphics_shadow_softness(self) -> int: return int(self._ui_state.shadow_softness)
+
+    @property
+    def graphics_shadow_offset(self) -> int: return int(self._ui_state.shadow_offset)
+
+    @property
     def graphics_expand_collision_avoidance(self) -> dict[str, Any]:
         return copy.deepcopy(self._expand_collision_avoidance)
 
@@ -238,6 +271,14 @@ class ShellWorkspacePresenter(QObject):
     @property
     def graphics_folder_explorer_column_widths(self) -> dict[str, int]:
         return copy.deepcopy(self._ui_state.folder_explorer_column_widths)
+
+    @property
+    def graphics_lightweight_canvas(self) -> bool:
+        return bool(self._ui_state.lightweight_canvas)
+
+    @property
+    def graphics_plot_default_backend_per_type(self) -> dict[str, str]:
+        return copy.deepcopy(self._ui_state.plot_default_backend_per_type)
 
     @property
     def active_theme_id(self) -> str: return str(self._ui_state.active_theme_id)
@@ -335,10 +376,121 @@ class ShellWorkspacePresenter(QObject):
     def request_toggle_auto_run(self) -> None: self._host.run_controller.toggle_auto_run()
     def show_workflow_settings_dialog(self, _checked: bool = False) -> None: self._host.project_session_controller.show_workflow_settings_dialog()
     def set_script_editor_panel_visible(self, checked: bool | None = None) -> None: self._host.project_session_controller.set_script_editor_panel_visible(checked)
-    def set_graphics_floating_toolbar_style(self, style: str) -> None: self._host.set_graphics_floating_toolbar_style(style)
-    def set_graphics_floating_toolbar_size(self, size: str) -> None: self._host.set_graphics_floating_toolbar_size(size)
-    def set_graphics_selection_toolbar_mode(self, mode: str) -> None: self._host.set_graphics_selection_toolbar_mode(mode)
-    def set_graphics_selection_toolbar_minimal_menu_trigger(self, trigger: str) -> None: self._host.set_graphics_selection_toolbar_minimal_menu_trigger(trigger)
+    def _update_graphics_settings(self, updates: dict[str, Any]) -> None:
+        self._host.app_preferences_controller.update_graphics_settings(
+            updates,
+            host=self._host,
+        )
+
+    def set_graphics_show_grid(self, show_grid: bool) -> None:
+        self._update_graphics_settings({"canvas": {"show_grid": bool(show_grid)}})
+
+    def set_graphics_canvas_background_variant(self, variant: str) -> None:
+        self._update_graphics_settings({"canvas": {"background_variant": str(variant)}})
+
+    def set_graphics_grid_style(self, style: str) -> None:
+        self._update_graphics_settings({"canvas": {"grid_style": str(style)}})
+
+    def set_graphics_show_port_labels(self, show_port_labels: bool) -> None:
+        self._update_graphics_settings(
+            {"canvas": {"show_port_labels": bool(show_port_labels)}}
+        )
+
+    def set_graphics_node_elapsed_time_unit(self, unit: str) -> None:
+        self._update_graphics_settings({"canvas": {"node_elapsed_time_unit": str(unit)}})
+
+    def set_graphics_node_elapsed_time_visibility(self, visibility: str) -> None:
+        self._update_graphics_settings(
+            {"canvas": {"node_elapsed_time_visibility": str(visibility)}}
+        )
+
+    def set_graphics_node_comment_editor_default(self, value: str) -> None:
+        self._host.app_preferences_controller.set_graphics_node_comment_editor_default(
+            value,
+            host=self._host,
+        )
+
+    def set_graphics_node_shadow(self, enabled: bool) -> None:
+        self._update_graphics_settings({"canvas": {"node_shadow": bool(enabled)}})
+
+    def set_graphics_floating_toolbar_style(self, style: str) -> None:
+        self._host.app_preferences_controller.set_graphics_floating_toolbar_style(
+            style,
+            host=self._host,
+        )
+
+    def set_graphics_floating_toolbar_size(self, size: str) -> None:
+        self._host.app_preferences_controller.set_graphics_floating_toolbar_size(
+            size,
+            host=self._host,
+        )
+
+    def set_graphics_selection_toolbar_mode(self, mode: str) -> None:
+        self._host.app_preferences_controller.set_graphics_selection_toolbar_mode(
+            mode,
+            host=self._host,
+        )
+
+    def set_graphics_selection_toolbar_minimal_menu_trigger(self, trigger: str) -> None:
+        self._host.app_preferences_controller.set_graphics_selection_toolbar_minimal_menu_trigger(
+            trigger,
+            host=self._host,
+        )
+
+    def set_folder_explorer_column_widths(self, widths: dict[str, object]) -> None:
+        self._update_graphics_settings(
+            {"folder_explorer": {"column_widths": dict(widths or {})}}
+        )
+
+    def record_recent_text_color(self, color: str) -> None:
+        self._host.app_preferences_controller.record_recent_text_color(
+            color,
+            host=self._host,
+        )
+
+    def set_graphics_shell_theme(self, theme_id: str) -> None:
+        self._update_graphics_settings({"theme": {"theme_id": str(theme_id)}})
+
+    def set_graphics_graph_follow_shell_theme(self, follow_shell_theme: bool) -> None:
+        self._update_graphics_settings(
+            {"graph_theme": {"follow_shell_theme": bool(follow_shell_theme)}}
+        )
+
+    def set_graphics_graph_theme(self, theme_id: str) -> None:
+        self._update_graphics_settings(
+            {
+                "graph_theme": {
+                    "follow_shell_theme": False,
+                    "selected_theme_id": str(theme_id),
+                }
+            }
+        )
+
+    def set_graphics_tooltip_categories(self, categories: Any) -> None:
+        self._host.app_preferences_controller.set_graphics_tooltip_categories(
+            categories,
+            host=self._host,
+        )
+
+    def set_graphics_tooltip_category_enabled(
+        self,
+        category: object,
+        enabled: bool,
+    ) -> None:
+        self._host.app_preferences_controller.set_graphics_tooltip_category_enabled(
+            category,
+            enabled,
+            host=self._host,
+        )
+
+    def set_graphics_expand_collision_avoidance(self, settings: Any) -> None:
+        self._host.app_preferences_controller.set_graphics_expand_collision_avoidance(
+            settings,
+            host=self._host,
+        )
+
+    def request_open_graphics_settings(self) -> None:
+        self._host.shell_host_presenter.show_graphics_settings_dialog()
 
     def request_open_scope_breadcrumb(self, node_id: str) -> bool:
         normalized_node_id = str(node_id).strip()
@@ -399,6 +551,16 @@ class ShellWorkspacePresenter(QObject):
         media_panel = graphics.get("media_panel") if isinstance(graphics, dict) else None
         folder_explorer = graphics.get("folder_explorer", {}) if isinstance(graphics, dict) else {}
         graph_theme = graphics.get("graph_theme", {}) if isinstance(graphics, dict) else {}
+        plot_settings = (
+            normalize_plot_settings(graphics.get("plot"))
+            if isinstance(graphics, dict) and "plot" in graphics
+            else {
+                "lightweight_canvas": self._ui_state.lightweight_canvas,
+                "plot_default_backend_per_type": copy.deepcopy(
+                    self._ui_state.plot_default_backend_per_type
+                ),
+            }
+        )
 
         changed = False
         show_grid = bool(canvas.get("show_grid", self._ui_state.show_grid))
@@ -462,6 +624,10 @@ class ShellWorkspacePresenter(QObject):
             normalize_folder_explorer_column_widths(folder_explorer.get("column_widths"))
             if isinstance(folder_explorer, dict) and "column_widths" in folder_explorer
             else copy.deepcopy(self._ui_state.folder_explorer_column_widths)
+        )
+        lightweight_canvas = bool(plot_settings["lightweight_canvas"])
+        plot_default_backend_per_type = dict(
+            plot_settings["plot_default_backend_per_type"]
         )
         show_minimap = bool(canvas.get("show_minimap", self._ui_state.show_minimap))
         show_canvas_options_button = bool(
@@ -634,6 +800,14 @@ class ShellWorkspacePresenter(QObject):
         if self._ui_state.folder_explorer_column_widths != folder_explorer_column_widths:
             self._ui_state.folder_explorer_column_widths = copy.deepcopy(folder_explorer_column_widths)
             changed = True
+        if self._ui_state.lightweight_canvas != lightweight_canvas:
+            self._ui_state.lightweight_canvas = lightweight_canvas
+            changed = True
+        if self._ui_state.plot_default_backend_per_type != plot_default_backend_per_type:
+            self._ui_state.plot_default_backend_per_type = copy.deepcopy(
+                plot_default_backend_per_type
+            )
+            changed = True
         if self._ui_state.show_minimap != show_minimap:
             self._ui_state.show_minimap = show_minimap
             changed = True
@@ -767,6 +941,10 @@ class ShellWorkspacePresenter(QObject):
             "media_panel": self.graphics_media_panel_defaults,
             "folder_explorer": {
                 "column_widths": self.graphics_folder_explorer_column_widths,
+            },
+            "plot": {
+                "lightweight_canvas": self.graphics_lightweight_canvas,
+                "plot_default_backend_per_type": self.graphics_plot_default_backend_per_type,
             },
             "graph_theme": {
                 "follow_shell_theme": bool(follow_shell_theme),

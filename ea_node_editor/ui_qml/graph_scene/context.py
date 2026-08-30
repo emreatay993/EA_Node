@@ -120,14 +120,26 @@ class _GraphSceneContext:
         return self._bridge.graphics_show_port_labels
 
     @property
+    def graphics_graph_label_pixel_size(self) -> int:
+        return self._bridge.graphics_graph_label_pixel_size
+
+    @property
+    def graphics_node_title_icon_pixel_size(self) -> int:
+        return self._bridge.graphics_node_title_icon_pixel_size
+
+    @property
+    def graphics_lightweight_canvas(self) -> bool:
+        return self._bridge.graphics_lightweight_canvas
+
+    @property
     def graphics_expand_collision_avoidance(self) -> dict[str, Any]:
-        source = self._bridge._graphics_preference_source()
+        source = self._bridge._graphics_preferences_source
         value = None if source is None else getattr(source, "graphics_expand_collision_avoidance", None)
         return normalize_expand_collision_avoidance_settings(value)
 
     @property
     def graphics_media_panel_defaults(self) -> dict[str, bool]:
-        source = self._bridge._graphics_preference_source()
+        source = self._bridge._graphics_preferences_source
         value = (
             None
             if source is None
@@ -524,6 +536,9 @@ class _GraphSceneContext:
                 node_ids=visible_added_node_ids,
                 graph_theme_bridge=self.graph_theme_bridge,
                 show_port_labels=self.graphics_show_port_labels,
+                graph_label_pixel_size=self.graphics_graph_label_pixel_size,
+                graph_node_icon_pixel_size=self.graphics_node_title_icon_pixel_size,
+                lightweight_canvas=self.graphics_lightweight_canvas,
                 port_connection_counts=port_connection_counts,
             )
         )
@@ -849,6 +864,9 @@ class _GraphSceneContext:
                 comment_peek_node_id=self._validated_comment_peek_node_id(),
                 graph_theme_bridge=self.graph_theme_bridge,
                 show_port_labels=self.graphics_show_port_labels,
+                graph_label_pixel_size=self.graphics_graph_label_pixel_size,
+                graph_node_icon_pixel_size=self.graphics_node_title_icon_pixel_size,
+                lightweight_canvas=self.graphics_lightweight_canvas,
             )
         finally:
             self._payload_builder.set_mutation_timing_enabled(False)

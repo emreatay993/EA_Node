@@ -864,6 +864,9 @@ def set_node_settings_group_expanded(
                     node_ids={normalized_node_id},
                     graph_theme_bridge=self._scene_context.graph_theme_bridge,
                     show_port_labels=self._scene_context.graphics_show_port_labels,
+                    graph_label_pixel_size=self._scene_context.graphics_graph_label_pixel_size,
+                    graph_node_icon_pixel_size=self._scene_context.graphics_node_title_icon_pixel_size,
+                    lightweight_canvas=self._scene_context.graphics_lightweight_canvas,
                 )
             )
         except Exception:  # noqa: BLE001

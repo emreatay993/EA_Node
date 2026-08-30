@@ -102,6 +102,7 @@ class PayloadBuildContext:
     show_port_labels: bool
     graph_label_pixel_size: int
     graph_node_icon_pixel_size: int
+    lightweight_canvas: bool
     boundary_adapters: GraphBoundaryAdapters
     previous_payload: Mapping[str, Any] | None = None
     changed_fields: frozenset[str] | None = None
@@ -1086,6 +1087,7 @@ class _GraphSceneNodePayloadFactory:
         show_port_labels: bool = True,
         graph_label_pixel_size: int = DEFAULT_GRAPH_LABEL_PIXEL_SIZE,
         graph_node_icon_pixel_size: int = DEFAULT_GRAPH_LABEL_PIXEL_SIZE,
+        lightweight_canvas: bool = False,
         previous_payload: Mapping[str, Any] | None = None,
         changed_fields: set[str] | frozenset[str] | tuple[str, ...] | None = None,
         presentation_facts: _NodePresentationFacts | None = None,
@@ -1268,6 +1270,7 @@ class _GraphSceneNodePayloadFactory:
             show_port_labels=show_port_labels,
             graph_label_pixel_size=graph_label_pixel_size,
             graph_node_icon_pixel_size=graph_node_icon_pixel_size,
+            lightweight_canvas=bool(lightweight_canvas),
             boundary_adapters=self._boundary_adapters,
             previous_payload=previous_payload,
             changed_fields=(

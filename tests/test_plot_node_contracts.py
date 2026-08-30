@@ -171,6 +171,7 @@ def _plot_scene_payload(
         workspace_id=workspace_id,
         scope_path=(),
         graph_theme_bridge=_PlotGraphThemeBridge(lightweight_canvas=lightweight_canvas),
+        lightweight_canvas=lightweight_canvas,
     )
     return next(item for item in nodes_payload if item["node_id"] == node.node_id)
 

@@ -493,11 +493,8 @@ class GraphSceneBridgeBase(QObject):
 
     def __init__(self, parent: QObject | None = None) -> None:
         super().__init__(parent)
-        self._graphics_preference_signal_source: object | None = None
-        self._scene_payload_graphics_preferences: tuple[bool, int, int, str] | None = (
-            None
-        )
-        self._bind_graphics_preference_signal_source()
+        self._graphics_preferences_source: object | None = None
+        self._scene_payload_graphics_preferences: tuple[bool, int, int, bool] | None = None
         self._mutation_timing_enabled = False
         self._mutation_timing_records: list[dict[str, Any]] = []
         self._active_mutation_timing_record: dict[str, Any] | None = None
@@ -523,35 +520,39 @@ class GraphSceneBridgeBase(QObject):
             ),
         }
 
-    def _graphics_preference_source(self) -> object | None:
-        host = self.parent()
-        if host is None:
-            return None
-        presenter = getattr(host, "graph_canvas_presenter", None)
-        return presenter if presenter is not None else host
-
-    def _bind_graphics_preference_signal_source(self) -> None:
-        source = self._graphics_preference_source()
-        if self._graphics_preference_signal_source is source:
-            return
-        if self._graphics_preference_signal_source is not None:
+    def bind_graphics_preferences_source(self, source: object | None) -> bool:
+        if source is not None:
+            signal = getattr(source, "graphics_preferences_changed", None)
+            if not callable(getattr(signal, "connect", None)) or not callable(
+                getattr(signal, "disconnect", None)
+            ):
+                raise TypeError(
+                    "graphics preferences source must expose graphics_preferences_changed"
+                )
+        if self._graphics_preferences_source is source:
+            return False
+        previous_source = self._graphics_preferences_source
+        if previous_source is not None:
             try:
-                self._graphics_preference_signal_source.graphics_preferences_changed.disconnect(
+                previous_source.graphics_preferences_changed.disconnect(
                     self._on_graphics_preferences_changed
                 )
             except (AttributeError, RuntimeError, TypeError):
                 pass
-        self._graphics_preference_signal_source = source
-        if self._graphics_preference_signal_source is not None:
-            try:
-                self._graphics_preference_signal_source.graphics_preferences_changed.connect(
-                    self._on_graphics_preferences_changed
-                )
-            except AttributeError:
-                self._graphics_preference_signal_source = None
+        self._graphics_preferences_source = source
+        if source is not None:
+            source.graphics_preferences_changed.connect(
+                self._on_graphics_preferences_changed
+            )
+        current_preferences = self._current_scene_payload_graphics_preferences()
+        changed = self._scene_payload_graphics_preferences != current_preferences
+        self._scene_payload_graphics_preferences = current_preferences
+        if changed and getattr(self, "_model", None) is not None:
+            self._scene_context.rebuild_models()
+        return True
 
-    def _current_scene_payload_graphics_preferences(self) -> tuple[bool, int, int]:
-        source = self._graphics_preference_source()
+    def _current_scene_payload_graphics_preferences(self) -> tuple[bool, int, int, bool]:
+        source = self._graphics_preferences_source
         if source is None:
             return (
                 True,
@@ -559,6 +560,7 @@ class GraphSceneBridgeBase(QObject):
                 effective_graph_node_icon_pixel_size(
                     DEFAULT_GRAPH_LABEL_PIXEL_SIZE, None
                 ),
+                False,
             )
         graph_label_pixel_size = normalize_graph_label_pixel_size(
             getattr(
@@ -589,12 +591,21 @@ class GraphSceneBridgeBase(QObject):
             bool(getattr(source, "graphics_show_port_labels", True)),
             graph_label_pixel_size,
             int(node_icon_pixel_size),
+            bool(getattr(source, "graphics_lightweight_canvas", False)),
         )
 
     def _remember_scene_payload_graphics_preferences(self) -> None:
         self._scene_payload_graphics_preferences = (
             self._current_scene_payload_graphics_preferences()
         )
+
+    def _effective_scene_payload_graphics_preferences(
+        self,
+    ) -> tuple[bool, int, int, bool]:
+        if self._scene_payload_graphics_preferences is None:
+            self._remember_scene_payload_graphics_preferences()
+        assert self._scene_payload_graphics_preferences is not None
+        return self._scene_payload_graphics_preferences
 
     def _active_view_filter_state(self) -> tuple[str, bool]:
         workspace = self._workspace_or_none()
@@ -635,6 +646,9 @@ class GraphSceneBridgeBase(QObject):
             comment_peek_node_id=comment_peek_node_id,
             graph_theme_bridge=self._scene_context.graph_theme_bridge,
             show_port_labels=self._scene_context.graphics_show_port_labels,
+            graph_label_pixel_size=self._scene_context.graphics_graph_label_pixel_size,
+            graph_node_icon_pixel_size=self._scene_context.graphics_node_title_icon_pixel_size,
+            lightweight_canvas=self._scene_context.graphics_lightweight_canvas,
         )
         self._payload_cache.update(
             nodes=nodes_payload,
@@ -648,10 +662,19 @@ class GraphSceneBridgeBase(QObject):
 
     @property
     def graphics_show_port_labels(self) -> bool:
-        source = self._graphics_preference_source()
-        if source is None:
-            return True
-        return bool(getattr(source, "graphics_show_port_labels", True))
+        return self._effective_scene_payload_graphics_preferences()[0]
+
+    @property
+    def graphics_graph_label_pixel_size(self) -> int:
+        return self._effective_scene_payload_graphics_preferences()[1]
+
+    @property
+    def graphics_node_title_icon_pixel_size(self) -> int:
+        return self._effective_scene_payload_graphics_preferences()[2]
+
+    @property
+    def graphics_lightweight_canvas(self) -> bool:
+        return self._effective_scene_payload_graphics_preferences()[3]
 
     @property
     def _workspace_id(self) -> str:
@@ -1044,7 +1067,6 @@ class GraphSceneBridgeBase(QObject):
     def bind_graph_theme_bridge(
         self, graph_theme_bridge: GraphThemeBridge | None
     ) -> None:
-        self._bind_graphics_preference_signal_source()
         if self._graph_theme_bridge is graph_theme_bridge:
             return
         if self._graph_theme_bridge is not None:

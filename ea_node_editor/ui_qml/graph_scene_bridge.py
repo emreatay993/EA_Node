@@ -139,6 +139,9 @@ class GraphSceneBridge(GraphSceneBridgeBase):
             library_payload=payload,
             graph_theme_bridge=self._graph_theme_bridge,
             show_port_labels=self.graphics_show_port_labels,
+            graph_label_pixel_size=self.graphics_graph_label_pixel_size,
+            graph_node_icon_pixel_size=self.graphics_node_title_icon_pixel_size,
+            lightweight_canvas=self.graphics_lightweight_canvas,
         )
 
 

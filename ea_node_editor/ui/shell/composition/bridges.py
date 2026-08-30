@@ -102,9 +102,13 @@ def create_context_bridge_dependencies(
     graph_canvas_command_bridge = GraphCanvasCommandBridge(
         host,
         canvas_source=presenters.graph_canvas_presenter,
+        graphics_source=presenters.shell_workspace_presenter,
         host_source=presenters.graph_canvas_host_presenter,
         scene_bridge=primitives.scene,
         view_bridge=primitives.view,
+    )
+    primitives.scene.bind_graphics_preferences_source(
+        presenters.shell_workspace_presenter
     )
     shell_context_bridges = ShellContextBridges(
         shell_library_bridge=ShellLibraryBridge(

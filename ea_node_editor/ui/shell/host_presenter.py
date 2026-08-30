@@ -794,19 +794,6 @@ class ShellHostPresenter(QObject):
         scene.refresh_workspace_from_model(workspace_id)
 
     def apply_graphics_preferences(self, graphics: Any) -> dict[str, Any]:
-        previous_show_port_labels = bool(
-            getattr(getattr(self._host, "workspace_ui_state", None), "show_port_labels", True)
-        )
-        previous_graph_label_pixel_size = int(
-            getattr(getattr(self._host, "workspace_ui_state", None), "graph_label_pixel_size", 10)
-        )
-        previous_node_title_icon_pixel_size = int(
-            getattr(
-                getattr(self._host, "workspace_ui_state", None),
-                "node_title_icon_pixel_size",
-                previous_graph_label_pixel_size,
-            )
-        )
         previous_passive_node_library_display_mode = str(
             getattr(
                 getattr(self._host, "workspace_ui_state", None),
@@ -817,16 +804,14 @@ class ShellHostPresenter(QObject):
         resolved = self._host.shell_workspace_presenter.apply_graphics_preferences(graphics)
         canvas = resolved.get("canvas", {}) if isinstance(resolved, dict) else {}
         shell = resolved.get("shell", {}) if isinstance(resolved, dict) else {}
-        typography = resolved.get("typography", {}) if isinstance(resolved, dict) else {}
-        current_show_port_labels = bool(canvas.get("show_port_labels", previous_show_port_labels))
+        current_show_port_labels = bool(
+            canvas.get(
+                "show_port_labels",
+                self._host.shell_workspace_presenter.graphics_show_port_labels,
+            )
+        )
         tooltip_categories = normalize_tooltip_category_preferences(shell.get("tooltip_categories"))
         current_general_tooltips = bool(tooltip_categories[TOOLTIP_CATEGORY_GENERAL])
-        current_graph_label_pixel_size = int(
-            typography.get("graph_label_pixel_size", previous_graph_label_pixel_size)
-        )
-        current_node_title_icon_pixel_size = int(
-            self._host.shell_workspace_presenter.graphics_node_title_icon_pixel_size
-        )
         current_passive_node_library_display_mode = str(
             shell.get(
                 "passive_node_library_display_mode",
@@ -838,12 +823,6 @@ class ShellHostPresenter(QObject):
         tooltip_manager = getattr(self._host, "tooltip_manager", None)
         if tooltip_manager is not None:
             tooltip_manager.set_tooltip_categories(tooltip_categories)
-        if (
-            previous_show_port_labels != current_show_port_labels
-            or previous_graph_label_pixel_size != current_graph_label_pixel_size
-            or previous_node_title_icon_pixel_size != current_node_title_icon_pixel_size
-        ):
-            self.refresh_active_workspace_scene_payload()
         if previous_passive_node_library_display_mode != current_passive_node_library_display_mode:
             self._host.node_library_changed.emit()
         return resolved

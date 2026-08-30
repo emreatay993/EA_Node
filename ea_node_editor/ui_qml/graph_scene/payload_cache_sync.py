@@ -18,6 +18,7 @@ from ea_node_editor.graph.group_backdrop_geometry import (
 )
 from ea_node_editor.graph.effective_ports import is_subnode_shell_type
 from ea_node_editor.graph.hierarchy import node_scope_path
+from ea_node_editor.settings import DEFAULT_GRAPH_LABEL_PIXEL_SIZE
 from ea_node_editor.ui_qml.graph_scene_payload.backdrop_partitioner import _GraphSceneBackdropPartitioner
 
 _EDGE_ENDPOINT_FIELDS = (
@@ -37,6 +38,26 @@ class ScenePayloadCacheSync:
 
     def __init__(self, context: "_GraphSceneContext") -> None:
         self._context = context
+
+    def _graphics_payload_facts(self) -> tuple[bool, int, int, bool]:
+        return (
+            bool(getattr(self._context, "graphics_show_port_labels", True)),
+            int(
+                getattr(
+                    self._context,
+                    "graphics_graph_label_pixel_size",
+                    DEFAULT_GRAPH_LABEL_PIXEL_SIZE,
+                )
+            ),
+            int(
+                getattr(
+                    self._context,
+                    "graphics_node_title_icon_pixel_size",
+                    DEFAULT_GRAPH_LABEL_PIXEL_SIZE,
+                )
+            ),
+            bool(getattr(self._context, "graphics_lightweight_canvas", False)),
+        )
 
     def payload_cache_matches_active_view(self) -> bool:
         cache = self._context._bridge._payload_cache
@@ -492,6 +513,9 @@ class ScenePayloadCacheSync:
             collection = cache.nodes if collection_name == "nodes" else cache.backdrop_nodes
             previous_payloads_by_id[node_id] = collection[index]
 
+        show_port_labels, label_size, icon_size, lightweight_canvas = (
+            self._graphics_payload_facts()
+        )
         nodes_payload, backdrop_nodes_payload, minimap_nodes_payload = (
             self._context._payload_builder.build_node_payloads_for_ids(
                 model=self._context.model,
@@ -500,7 +524,10 @@ class ScenePayloadCacheSync:
                 scope_path=self._context.scope_path,
                 node_ids=node_ids,
                 graph_theme_bridge=self._context.graph_theme_bridge,
-                show_port_labels=self._context.graphics_show_port_labels,
+                show_port_labels=show_port_labels,
+                graph_label_pixel_size=label_size,
+                graph_node_icon_pixel_size=icon_size,
+                lightweight_canvas=lightweight_canvas,
                 port_connection_counts=self._cached_port_connection_counts_for_nodes(node_ids),
                 previous_payloads_by_id=previous_payloads_by_id,
                 changed_fields_by_node_id=changed_fields_by_node_id,
@@ -543,6 +570,9 @@ class ScenePayloadCacheSync:
     def replace_cached_connection_node_payloads(self, node_ids: set[str]) -> list[dict[str, Any]] | None:
         """Returns ``None`` on a stale location-index slot (see
         :meth:`replace_cached_node_position_payloads`)."""
+        show_port_labels, label_size, icon_size, lightweight_canvas = (
+            self._graphics_payload_facts()
+        )
         payload_updates = self._context._payload_builder.build_node_connection_payloads_for_ids(
             model=self._context.model,
             registry=self._context.registry,
@@ -550,7 +580,10 @@ class ScenePayloadCacheSync:
             scope_path=self._context.scope_path,
             node_ids=node_ids,
             graph_theme_bridge=self._context.graph_theme_bridge,
-            show_port_labels=self._context.graphics_show_port_labels,
+            show_port_labels=show_port_labels,
+            graph_label_pixel_size=label_size,
+            graph_node_icon_pixel_size=icon_size,
+            lightweight_canvas=lightweight_canvas,
             port_connection_counts=self._cached_port_connection_counts_for_nodes(node_ids),
         )
         if not payload_updates:
@@ -659,6 +692,9 @@ class ScenePayloadCacheSync:
             if updated_payloads is None:
                 used_builder_fallback = True
                 self._context.record_mutation_counter("cached_edge_payload_fallback", reason="targeted_builder")
+                show_port_labels, label_size, icon_size, lightweight_canvas = (
+                    self._graphics_payload_facts()
+                )
                 updated_payloads = self._context._payload_builder.build_edge_payloads_for_ids(
                     model=self._context.model,
                     registry=self._context.registry,
@@ -667,7 +703,10 @@ class ScenePayloadCacheSync:
                     edge_ids=normalized_edge_ids,
                     graph_theme_bridge=self._context.graph_theme_bridge,
                     comment_peek_node_id=self._context._validated_comment_peek_node_id(),
-                    show_port_labels=self._context.graphics_show_port_labels,
+                    show_port_labels=show_port_labels,
+                    graph_label_pixel_size=label_size,
+                    graph_node_icon_pixel_size=icon_size,
+                    lightweight_canvas=lightweight_canvas,
                 )
 
         fallback_reason = ""
@@ -795,6 +834,9 @@ class ScenePayloadCacheSync:
         if not cache.indexes_valid:
             cache.rebuild_indexes()
 
+        show_port_labels, label_size, icon_size, lightweight_canvas = (
+            self._graphics_payload_facts()
+        )
         return self._context._payload_builder.build_unobscured_edge_payloads_for_ids(
             model=self._context.model,
             registry=registry,
@@ -802,7 +844,10 @@ class ScenePayloadCacheSync:
             scope_path=self._context.scope_path,
             edge_ids=edge_ids,
             graph_theme_bridge=self._context.graph_theme_bridge,
-            show_port_labels=self._context.graphics_show_port_labels,
+            show_port_labels=show_port_labels,
+            graph_label_pixel_size=label_size,
+            graph_node_icon_pixel_size=icon_size,
+            lightweight_canvas=lightweight_canvas,
         )
 
     def replace_cached_node_payload(self, node_id: str, node: NodeInstance) -> list[dict[str, Any]] | None:

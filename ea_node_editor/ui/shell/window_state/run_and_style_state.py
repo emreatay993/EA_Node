@@ -43,15 +43,15 @@ class ShellWindowRunAndStyleStateMixin:
 
     @pyqtSlot(bool)
     def set_graphics_show_port_labels(self: "ShellWindow", show_port_labels: bool) -> None:
-        self.app_preferences_controller.set_graphics_show_port_labels(show_port_labels, host=self)
+        self.shell_workspace_presenter.set_graphics_show_port_labels(show_port_labels)
 
     @pyqtSlot("QVariantMap")
     def set_graphics_tooltip_categories(self: "ShellWindow", categories: dict[str, Any]) -> None:
-        self.app_preferences_controller.set_graphics_tooltip_categories(categories, host=self)
+        self.shell_workspace_presenter.set_graphics_tooltip_categories(categories)
 
     @pyqtSlot(str, bool)
     def set_graphics_tooltip_category_enabled(self: "ShellWindow", category: str, enabled: bool) -> None:
-        self.app_preferences_controller.set_graphics_tooltip_category_enabled(category, enabled, host=self)
+        self.shell_workspace_presenter.set_graphics_tooltip_category_enabled(category, enabled)
 
     @pyqtSlot(str, result=bool)
     def tooltip_category_enabled(self: "ShellWindow", category: str) -> bool:
@@ -68,29 +68,26 @@ class ShellWindowRunAndStyleStateMixin:
 
     @pyqtSlot(str)
     def set_graphics_floating_toolbar_style(self: "ShellWindow", style: str) -> None:
-        self.app_preferences_controller.set_graphics_floating_toolbar_style(style, host=self)
+        self.shell_workspace_presenter.set_graphics_floating_toolbar_style(style)
 
     @pyqtSlot(str)
     def set_graphics_floating_toolbar_size(self: "ShellWindow", size: str) -> None:
-        self.app_preferences_controller.set_graphics_floating_toolbar_size(size, host=self)
+        self.shell_workspace_presenter.set_graphics_floating_toolbar_size(size)
 
     @pyqtSlot(str)
     def set_graphics_selection_toolbar_mode(self: "ShellWindow", mode: str) -> None:
-        self.app_preferences_controller.set_graphics_selection_toolbar_mode(mode, host=self)
+        self.shell_workspace_presenter.set_graphics_selection_toolbar_mode(mode)
 
     @pyqtSlot(str)
     def set_graphics_selection_toolbar_minimal_menu_trigger(
         self: "ShellWindow",
         trigger: str,
     ) -> None:
-        self.app_preferences_controller.set_graphics_selection_toolbar_minimal_menu_trigger(
-            trigger,
-            host=self,
-        )
+        self.shell_workspace_presenter.set_graphics_selection_toolbar_minimal_menu_trigger(trigger)
 
     @pyqtSlot("QVariantMap")
     def set_graphics_expand_collision_avoidance(self: "ShellWindow", settings: dict[str, Any]) -> None:
-        self.app_preferences_controller.set_graphics_expand_collision_avoidance(settings, host=self)
+        self.shell_workspace_presenter.set_graphics_expand_collision_avoidance(settings)
 
     def _normalize_node_execution_workspace_id(self: "ShellWindow", workspace_id: str) -> str:
         return self.run_controller.normalize_node_execution_workspace_id(workspace_id)

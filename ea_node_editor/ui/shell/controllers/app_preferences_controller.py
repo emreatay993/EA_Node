@@ -149,7 +149,6 @@ class AppPreferencesController:
 
     def set_graphics_settings(self, graphics: Any, *, host: ShellWindow | None = None) -> dict[str, Any]:
         document = self._ensure_document()
-        previous_plot_settings = normalize_graphics_settings(document.get("graphics")).get("plot", {})
         document["graphics"] = normalize_graphics_settings(
             self._preserve_current_tooltip_categories(graphics, document.get("graphics"))
         )
@@ -157,9 +156,6 @@ class AppPreferencesController:
         resolved = self.graphics_settings()
         if host is not None:
             host.apply_graphics_preferences(resolved)
-            if previous_plot_settings != resolved.get("plot", {}):
-                _emit_graphics_preferences_changed(host)
-                _refresh_active_workspace_scene_payload(host)
         return resolved
 
     def update_graphics_settings(self, updates: Any, *, host: ShellWindow | None = None) -> dict[str, Any]:
@@ -527,19 +523,6 @@ def _theme_identity(theme: Any) -> Any:
     if isinstance(theme, Mapping):
         return theme.get("theme_id")
     return getattr(theme, "theme_id", theme)
-
-
-def _emit_graphics_preferences_changed(host: Any) -> None:
-    signal = getattr(host, "graphics_preferences_changed", None)
-    emit = getattr(signal, "emit", None)
-    if callable(emit):
-        emit()
-
-
-def _refresh_active_workspace_scene_payload(host: Any) -> None:
-    refresh = getattr(host, "_refresh_active_workspace_scene_payload", None)
-    if callable(refresh):
-        refresh()
 
 
 __all__ = [

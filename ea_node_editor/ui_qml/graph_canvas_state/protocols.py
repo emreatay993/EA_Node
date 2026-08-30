@@ -10,14 +10,30 @@ if TYPE_CHECKING:
 
 
 class _GraphCanvasStateSource(Protocol):
-    graphics_preferences_changed: _SignalLike
     snap_to_grid_changed: _SignalLike
     graphics_minimap_expanded: bool
+    selected_run_preview_before_run: bool
+    snap_to_grid_enabled: bool
+    snap_grid_size: float
+
+
+class _GraphCanvasProjectSource(Protocol):
+    model: object
+    project_path: str
+
+
+class _GraphCanvasGraphicsSource(Protocol):
+    graphics_preferences_changed: _SignalLike
     graphics_show_grid: bool
     graphics_canvas_background_variant: str
     graphics_grid_style: str
     graphics_edge_crossing_style: str
     graphics_graph_label_pixel_size: int
+    graphics_tooltip_categories: dict[str, bool]
+    graphics_tooltip_category_visibility: dict[str, bool]
+    graphics_expand_collision_avoidance: dict[str, Any]
+    graphics_lightweight_canvas: bool
+    graphics_plot_default_backend_per_type: dict[str, str]
     graphics_graph_node_icon_pixel_size_override: int | None
     graphics_node_title_icon_pixel_size: int
     graphics_recent_text_colors: list[str]
@@ -34,48 +50,17 @@ class _GraphCanvasStateSource(Protocol):
     graphics_node_elapsed_time_unit: str
     graphics_node_elapsed_time_visibility: str
     graphics_node_comment_editor_default: str
-    selected_run_preview_before_run: bool
-    graphics_tooltip_categories: dict[str, bool]
-    graphics_tooltip_category_visibility: dict[str, bool]
     graphics_node_shadow: bool
     graphics_shadow_strength: int
     graphics_shadow_softness: int
     graphics_shadow_offset: int
     graphics_status_bar_layout: str
     graphics_show_fps_telemetry: bool
+    graphics_floating_toolbar_style: str
+    graphics_floating_toolbar_size: str
     graphics_node_floating_toolbar_opens_on_hover: bool
     graphics_selection_toolbar_mode: str
     graphics_selection_toolbar_minimal_menu_trigger: str
-    graphics_expand_collision_avoidance: dict[str, Any]
-    graphics_lightweight_canvas: bool
-    graphics_plot_default_backend_per_type: dict[str, str]
-    active_theme_id: str
-    graphics_graph_follow_shell_theme: bool
-    graphics_selected_graph_theme_id: str
-    snap_to_grid_enabled: bool
-    snap_grid_size: float
-
-
-class _GraphCanvasProjectSource(Protocol):
-    model: object
-    project_path: str
-
-
-class _GraphCanvasGraphicsSource(Protocol):
-    graphics_tooltip_categories: dict[str, bool]
-    graphics_tooltip_category_visibility: dict[str, bool]
-    graphics_expand_collision_avoidance: dict[str, Any]
-    graphics_lightweight_canvas: bool
-    graphics_plot_default_backend_per_type: dict[str, str]
-    graphics_graph_node_icon_pixel_size_override: int | None
-    graphics_node_title_icon_pixel_size: int
-    graphics_recent_text_colors: list[str]
-    graphics_media_panel_defaults: dict[str, bool]
-    graphics_media_panel_default_show_title: bool
-    graphics_media_panel_default_show_frame: bool
-    graphics_media_panel_autoplay_animations: bool
-    graphics_media_panel_source_input_exposed: bool
-    graphics_folder_explorer_column_widths: dict[str, int]
     active_theme_id: str
     graphics_graph_follow_shell_theme: bool
     graphics_selected_graph_theme_id: str

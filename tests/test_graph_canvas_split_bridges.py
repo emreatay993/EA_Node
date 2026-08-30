@@ -105,23 +105,53 @@ class _GraphCanvasShellHostStub(QObject):
         self.graphics_show_grid = True
         self.graphics_canvas_background_variant = "theme"
         self.graphics_grid_style = "lines"
+        self.graphics_edge_crossing_style = "none"
+        self.graphics_graph_label_pixel_size = 10
+        self.graphics_graph_node_icon_pixel_size_override = None
+        self.graphics_node_title_icon_pixel_size = 10
+        self.graphics_recent_text_colors: list[str] = []
+        self.graphics_media_panel_defaults = {
+            "show_title": True,
+            "show_frame": True,
+            "autoplay_animations": True,
+            "source_input_exposed": True,
+        }
+        self.graphics_media_panel_default_show_title = True
+        self.graphics_media_panel_default_show_frame = True
+        self.graphics_media_panel_autoplay_animations = True
+        self.graphics_media_panel_source_input_exposed = True
         self.graphics_show_minimap = True
         self.graphics_show_canvas_options_button = True
         self.graphics_show_port_labels = True
         self.graphics_node_elapsed_time_unit = "seconds"
         self.graphics_node_elapsed_time_visibility = "always"
         self.graphics_node_comment_editor_default = "canvas_popover"
+        self.graphics_notched_ports = True
         self.graphics_node_floating_toolbar_opens_on_hover = False
         self.selected_run_preview_before_run = True
         self.graphics_show_tooltips = True
         self.graphics_tooltip_categories = default_tooltip_category_preferences()
+        self.graphics_tooltip_category_visibility = {
+            **self.graphics_tooltip_categories,
+            "critical": True,
+        }
         self.graphics_folder_explorer_column_widths: dict[str, int] = {}
         self.graphics_node_shadow = True
         self.graphics_shadow_strength = 70
         self.graphics_shadow_softness = 50
         self.graphics_shadow_offset = 4
+        self.graphics_status_bar_layout = "option_1"
+        self.graphics_show_fps_telemetry = True
+        self.graphics_floating_toolbar_style = "compact_pill"
+        self.graphics_floating_toolbar_size = "small"
         self.graphics_selection_toolbar_mode = "minimal_ghost_menu"
         self.graphics_selection_toolbar_minimal_menu_trigger = "click_affordance"
+        self.graphics_expand_collision_avoidance = {"enabled": True}
+        self.graphics_lightweight_canvas = False
+        self.graphics_plot_default_backend_per_type: dict[str, str] = {}
+        self.active_theme_id = "stitch_dark"
+        self.graphics_graph_follow_shell_theme = False
+        self.graphics_selected_graph_theme_id = "graph_stitch_dark"
         self.snap_to_grid_enabled = True
         self.snap_grid_size = 24.0
         self.run_state = ShellRunState()
@@ -245,6 +275,9 @@ class _GraphCanvasShellHostStub(QObject):
             str(trigger),
         )
 
+    def tooltip_category_enabled(self, category: str) -> bool:
+        return bool(self.graphics_tooltip_category_visibility.get(str(category), False))
+
     def __getattr__(self, name: str):  # noqa: ANN204
         if name.startswith(
             (
@@ -252,6 +285,7 @@ class _GraphCanvasShellHostStub(QObject):
                 "clear_",
                 "internalize_",
                 "pick_",
+                "record_",
                 "request_",
                 "set_",
                 "video_",
@@ -743,6 +777,49 @@ class GraphCanvasSplitBridgeTests(unittest.TestCase):
             ],
         )
 
+    def test_graphics_commands_use_their_declared_owner(self) -> None:
+        canvas = _GraphCanvasShellHostStub()
+        graphics = _GraphCanvasShellHostStub()
+        bridge = GraphCanvasCommandBridge(
+            canvas_source=canvas,
+            graphics_source=graphics,
+        )
+        cases = (
+            (canvas, "set_snap_to_grid_enabled", (False,)),
+            (canvas, "set_graphics_minimap_expanded", (False,)),
+            (canvas, "set_selected_run_preview_before_run", (False,)),
+            (graphics, "set_graphics_show_grid", (False,)),
+            (graphics, "set_graphics_canvas_background_variant", ("white",)),
+            (graphics, "set_graphics_grid_style", ("points",)),
+            (graphics, "set_graphics_show_port_labels", (False,)),
+            (graphics, "set_graphics_node_elapsed_time_unit", ("milliseconds",)),
+            (graphics, "set_graphics_node_elapsed_time_visibility", ("during_run",)),
+            (graphics, "set_graphics_node_comment_editor_default", ("inspector",)),
+            (graphics, "set_graphics_node_shadow", (False,)),
+            (graphics, "set_graphics_floating_toolbar_style", ("segmented_bar",)),
+            (graphics, "set_graphics_floating_toolbar_size", ("large",)),
+            (graphics, "set_graphics_selection_toolbar_mode", ("side_rail",)),
+            (graphics, "set_graphics_selection_toolbar_minimal_menu_trigger", ("right_click",)),
+            (graphics, "set_folder_explorer_column_widths", ({"name": 240},)),
+            (graphics, "record_recent_text_color", ("#112233",)),
+            (graphics, "set_graphics_shell_theme", ("stitch_light",)),
+            (graphics, "set_graphics_graph_follow_shell_theme", (False,)),
+            (graphics, "set_graphics_graph_theme", ("graph_stitch_light",)),
+            (graphics, "request_open_graphics_settings", ()),
+        )
+
+        for _owner, method_name, args in cases:
+            getattr(bridge, method_name)(*args)
+
+        self.assertEqual(
+            [name for name, _args in canvas.calls],
+            [name for owner, name, _args in cases if owner is canvas],
+        )
+        self.assertEqual(
+            [name for name, _args in graphics.calls],
+            [name for owner, name, _args in cases if owner is graphics],
+        )
+
     def test_command_bridge_exposes_tabular_preview_slot_for_qml_inline_surfaces(self) -> None:
         host_source = _GraphCanvasShellHostStub()
         bridge = GraphCanvasCommandBridge(host_source=host_source)
@@ -846,6 +923,23 @@ class GraphCanvasSplitBridgeTests(unittest.TestCase):
 
     def test_split_canvas_bridges_use_explicit_sources_without_legacy_wrapper(self) -> None:
         host = _GraphCanvasShellHostStub()
+        graphics = _GraphCanvasShellHostStub()
+        for name, value in vars(graphics).items():
+            if not name.startswith("graphics_") or name == "graphics_minimap_expanded":
+                continue
+            if isinstance(value, bool):
+                setattr(host, name, not value)
+            elif isinstance(value, int):
+                setattr(host, name, value + 7)
+            elif isinstance(value, str):
+                setattr(host, name, "canvas-owned-sentinel")
+            elif isinstance(value, list):
+                setattr(host, name, ["#010203"])
+            elif isinstance(value, dict):
+                setattr(host, name, {"canvas-owned-sentinel": True})
+            elif value is None:
+                setattr(host, name, 12)
+        graphics.selected_run_preview_before_run = False
         host_source = _GraphCanvasShellHostStub()
         scene = _GraphCanvasSceneBridgeStub()
         view = _GraphCanvasViewBridgeStub()
@@ -853,6 +947,7 @@ class GraphCanvasSplitBridgeTests(unittest.TestCase):
             host,
             shell_window=host,
             canvas_source=host,
+            graphics_source=graphics,
             scene_bridge=scene,
             view_bridge=view,
         )
@@ -860,6 +955,7 @@ class GraphCanvasSplitBridgeTests(unittest.TestCase):
             host,
             shell_window=host,
             canvas_source=host,
+            graphics_source=graphics,
             host_source=host_source,
             scene_bridge=scene,
             view_bridge=view,
@@ -870,6 +966,7 @@ class GraphCanvasSplitBridgeTests(unittest.TestCase):
         self.assertIs(state_bridge.view_bridge, view)
         self.assertIsNone(command_bridge.shell_window)
         self.assertIs(command_bridge.canvas_source, host)
+        self.assertIs(command_bridge.graphics_source, graphics)
         self.assertIs(command_bridge.host_source, host_source)
         self.assertIs(command_bridge.scene_bridge, scene)
         self.assertIs(command_bridge.view_bridge, view)
@@ -896,6 +993,14 @@ class GraphCanvasSplitBridgeTests(unittest.TestCase):
             state_bridge.graphics_selection_toolbar_minimal_menu_trigger,
             "click_affordance",
         )
+        self.assertFalse(state_bridge.graphics_lightweight_canvas)
+        self.assertEqual(state_bridge.active_theme_id, "stitch_dark")
+        self.assertFalse(state_bridge.graphics_graph_follow_shell_theme)
+        self.assertEqual(
+            state_bridge.graphics_selected_graph_theme_id,
+            "graph_stitch_dark",
+        )
+        self.assertTrue(state_bridge.selected_run_preview_before_run)
         self.assertTrue(state_bridge.snap_to_grid_enabled)
         self.assertEqual(state_bridge.snap_grid_size, 24.0)
         self.assertEqual(state_bridge.center_x, 18.5)
@@ -906,7 +1011,7 @@ class GraphCanvasSplitBridgeTests(unittest.TestCase):
         self.assertEqual(state_bridge.selected_node_ids, scene.selected_node_ids)
         self.assertEqual(state_bridge.selected_node_lookup, scene.selected_node_lookup)
 
-        host.graphics_notched_ports = False
+        graphics.graphics_notched_ports = False
         self.assertFalse(state_bridge.graphics_notched_ports)
 
         command_bridge.set_graphics_minimap_expanded(False)
@@ -919,7 +1024,7 @@ class GraphCanvasSplitBridgeTests(unittest.TestCase):
         self.assertEqual(state_bridge.graphics_node_elapsed_time_unit, "milliseconds")
         self.assertEqual(state_bridge.graphics_node_elapsed_time_visibility, "during_run")
         self.assertEqual(state_bridge.graphics_node_comment_editor_default, "inspector")
-        host.graphics_node_floating_toolbar_opens_on_hover = True
+        graphics.graphics_node_floating_toolbar_opens_on_hover = True
         self.assertTrue(state_bridge.graphics_node_floating_toolbar_opens_on_hover)
         self.assertEqual(state_bridge.graphics_canvas_background_variant, "white")
         command_bridge.set_folder_explorer_column_widths({"name": 240})
@@ -1059,14 +1164,6 @@ class GraphCanvasSplitBridgeTests(unittest.TestCase):
             host.calls,
             [
                 ("set_graphics_minimap_expanded", (False,)),
-                ("set_graphics_canvas_background_variant", ("white",)),
-                ("set_graphics_show_port_labels", (False,)),
-                ("set_graphics_node_elapsed_time_unit", ("milliseconds",)),
-                ("set_graphics_node_elapsed_time_visibility", ("during_run",)),
-                ("set_graphics_node_comment_editor_default", ("inspector",)),
-                ("set_folder_explorer_column_widths", ({"name": 240},)),
-                ("set_graphics_selection_toolbar_mode", ("side_rail",)),
-                ("set_graphics_selection_toolbar_minimal_menu_trigger", ("right_click",)),
                 ("request_open_subnode_scope", ("subnode-1",)),
                 ("browse_node_property_path", ("node-1", "source_path", "C:/temp/current.txt")),
                 ("internalize_node_property_path", ("node-1", "source_path", "C:/temp/current.txt")),
@@ -1104,6 +1201,19 @@ class GraphCanvasSplitBridgeTests(unittest.TestCase):
                     ),
                 ),
                 ("request_connect_ports", ("node-1", "value", "node-2", "payload", False)),
+            ],
+        )
+        self.assertEqual(
+            graphics.calls,
+            [
+                ("set_graphics_canvas_background_variant", ("white",)),
+                ("set_graphics_show_port_labels", (False,)),
+                ("set_graphics_node_elapsed_time_unit", ("milliseconds",)),
+                ("set_graphics_node_elapsed_time_visibility", ("during_run",)),
+                ("set_graphics_node_comment_editor_default", ("inspector",)),
+                ("set_folder_explorer_column_widths", ({"name": 240},)),
+                ("set_graphics_selection_toolbar_mode", ("side_rail",)),
+                ("set_graphics_selection_toolbar_minimal_menu_trigger", ("right_click",)),
             ],
         )
         self.assertEqual(host_source.calls, [])
@@ -1232,7 +1342,7 @@ class GraphCanvasSplitBridgeTests(unittest.TestCase):
         )
         self.assertEqual(view.calls, [("center_on_scene_point", (96.0, 144.0))])
 
-    def test_canvas_tooltip_projections_are_computed_once_per_preferences_revision(self) -> None:
+    def test_canvas_tooltip_projections_reuse_graphics_source_cache(self) -> None:
         host = _GraphCanvasShellHostStub()
         canvas_source = _GraphCanvasTooltipCanvasSourceStub()
         state_bridge = GraphCanvasStateBridge(
@@ -1264,15 +1374,16 @@ class GraphCanvasSplitBridgeTests(unittest.TestCase):
             _ = state_bridge.graphics_tooltip_category_visibility
             _ = state_bridge.graphics_tooltip_category_visibility
             self.assertTrue(state_bridge.tooltip_category_enabled("general"))
-            self.assertEqual(normalize_categories.call_count, 1)
-            self.assertEqual(project_visibility.call_count, 1)
+            self.assertEqual(normalize_categories.call_count, 0)
+            self.assertEqual(project_visibility.call_count, 0)
 
             host.graphics_tooltip_categories["general"] = False
-            canvas_source.graphics_preferences_changed.emit()
+            host.graphics_tooltip_category_visibility["general"] = False
+            host.graphics_preferences_changed.emit()
 
             self.assertFalse(state_bridge.tooltip_category_enabled("general"))
-            self.assertEqual(normalize_categories.call_count, 2)
-            self.assertEqual(project_visibility.call_count, 2)
+            self.assertEqual(normalize_categories.call_count, 0)
+            self.assertEqual(project_visibility.call_count, 0)
 
     def test_graph_typography_state_bridge_baseline_without_legacy_wrapper(self) -> None:
         host = _GraphCanvasShellHostStub()

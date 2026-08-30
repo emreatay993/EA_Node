@@ -26,19 +26,19 @@ class GraphicsSettingsOps:
 
     @pyqtSlot(bool)
     def set_graphics_show_grid(self, show_grid: bool) -> None:
-        _invoke(self._canvas_source, "set_graphics_show_grid", bool(show_grid))
+        _invoke(self._graphics_source, "set_graphics_show_grid", bool(show_grid))
 
     @pyqtSlot(str)
     def set_graphics_canvas_background_variant(self, variant: str) -> None:
-        _invoke(self._canvas_source, "set_graphics_canvas_background_variant", variant)
+        _invoke(self._graphics_source, "set_graphics_canvas_background_variant", variant)
 
     @pyqtSlot(str)
     def set_graphics_grid_style(self, style: str) -> None:
-        _invoke(self._canvas_source, "set_graphics_grid_style", style)
+        _invoke(self._graphics_source, "set_graphics_grid_style", style)
 
     @pyqtSlot(bool)
     def set_graphics_show_port_labels(self, show_port_labels: bool) -> None:
-        _invoke(self._canvas_source, "set_graphics_show_port_labels", bool(show_port_labels))
+        _invoke(self._graphics_source, "set_graphics_show_port_labels", bool(show_port_labels))
 
     @pyqtSlot(bool)
     def set_selected_run_preview_before_run(self, enabled: bool) -> None:
@@ -46,24 +46,24 @@ class GraphicsSettingsOps:
 
     @pyqtSlot(bool)
     def set_graphics_node_shadow(self, enabled: bool) -> None:
-        _invoke(self._canvas_source, "set_graphics_node_shadow", bool(enabled))
+        _invoke(self._graphics_source, "set_graphics_node_shadow", bool(enabled))
 
     @pyqtSlot(str)
     def set_graphics_floating_toolbar_style(self, style: str) -> None:
-        _invoke(self._canvas_source, "set_graphics_floating_toolbar_style", style)
+        _invoke(self._graphics_source, "set_graphics_floating_toolbar_style", style)
 
     @pyqtSlot(str)
     def set_graphics_floating_toolbar_size(self, size: str) -> None:
-        _invoke(self._canvas_source, "set_graphics_floating_toolbar_size", size)
+        _invoke(self._graphics_source, "set_graphics_floating_toolbar_size", size)
 
     @pyqtSlot(str)
     def set_graphics_selection_toolbar_mode(self, mode: str) -> None:
-        _invoke(self._canvas_source, "set_graphics_selection_toolbar_mode", mode)
+        _invoke(self._graphics_source, "set_graphics_selection_toolbar_mode", mode)
 
     @pyqtSlot(str)
     def set_graphics_selection_toolbar_minimal_menu_trigger(self, trigger: str) -> None:
         _invoke(
-            self._canvas_source,
+            self._graphics_source,
             "set_graphics_selection_toolbar_minimal_menu_trigger",
             trigger,
         )
@@ -72,39 +72,39 @@ class GraphicsSettingsOps:
     def set_folder_explorer_column_widths(self, widths: dict[str, Any]) -> None:
         payload = _variant_value(widths)
         _invoke(
-            self._canvas_source,
+            self._graphics_source,
             "set_folder_explorer_column_widths",
             dict(payload) if isinstance(payload, Mapping) else {},
         )
 
     @pyqtSlot(str)
     def record_recent_text_color(self, color: str) -> None:
-        _invoke(self._canvas_source, "record_recent_text_color", str(color or ""))
+        _invoke(self._graphics_source, "record_recent_text_color", str(color or ""))
 
     @pyqtSlot(str)
     def set_graphics_shell_theme(self, theme_id: str) -> None:
-        _invoke(self._canvas_source, "set_graphics_shell_theme", theme_id)
+        _invoke(self._graphics_source, "set_graphics_shell_theme", theme_id)
 
     @pyqtSlot(bool)
     def set_graphics_graph_follow_shell_theme(self, follow_shell_theme: bool) -> None:
-        _invoke(self._canvas_source, "set_graphics_graph_follow_shell_theme", bool(follow_shell_theme))
+        _invoke(self._graphics_source, "set_graphics_graph_follow_shell_theme", bool(follow_shell_theme))
 
     @pyqtSlot(str)
     def set_graphics_graph_theme(self, theme_id: str) -> None:
-        _invoke(self._canvas_source, "set_graphics_graph_theme", theme_id)
+        _invoke(self._graphics_source, "set_graphics_graph_theme", theme_id)
 
     @pyqtSlot(str)
     def set_graphics_node_elapsed_time_unit(self, unit: str) -> None:
-        _invoke(self._canvas_source, "set_graphics_node_elapsed_time_unit", unit)
+        _invoke(self._graphics_source, "set_graphics_node_elapsed_time_unit", unit)
 
     @pyqtSlot(str)
     def set_graphics_node_elapsed_time_visibility(self, visibility: str) -> None:
-        _invoke(self._canvas_source, "set_graphics_node_elapsed_time_visibility", visibility)
+        _invoke(self._graphics_source, "set_graphics_node_elapsed_time_visibility", visibility)
 
     @pyqtSlot(str)
     def set_graphics_node_comment_editor_default(self, value: str) -> None:
-        _invoke(self._canvas_source, "set_graphics_node_comment_editor_default", value)
+        _invoke(self._graphics_source, "set_graphics_node_comment_editor_default", value)
 
     @pyqtSlot()
     def request_open_graphics_settings(self) -> None:
-        _invoke(self._canvas_source, "request_open_graphics_settings")
+        _invoke(self._graphics_source, "request_open_graphics_settings")

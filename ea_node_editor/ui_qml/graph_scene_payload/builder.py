@@ -18,9 +18,14 @@ from ea_node_editor.graph.hierarchy import is_node_in_scope, node_scope_path, sc
 from ea_node_editor.graph.model import GraphModel
 from ea_node_editor.graph.records import NodeInstance
 from ea_node_editor.graph.workspace_state import WorkspaceData
+from ea_node_editor.app_preferences import (
+    effective_graph_node_icon_pixel_size,
+    normalize_graph_label_pixel_size,
+)
 from ea_node_editor.nodes.plugin_contracts import PluginProvenance
 from ea_node_editor.nodes.registry import NodeRegistry
 from ea_node_editor.runtime_contracts import GRAPH_DATA_TYPE_ID
+from ea_node_editor.settings import DEFAULT_GRAPH_LABEL_PIXEL_SIZE
 from ea_node_editor.nodes.node_specs import NodeTypeSpec, PortSpec
 from ea_node_editor.ui.graph_theme import (
     GraphThemeDefinition,
@@ -44,8 +49,6 @@ from ea_node_editor.ui_qml.graph_scene_payload.normalize import (
 )
 from ea_node_editor.ui_qml.graph_scene_payload.theme_inputs import (
     _GraphSceneThemeResolver,
-    _graph_label_pixel_size,
-    _graph_node_icon_pixel_size,
 )
 
 
@@ -57,6 +60,17 @@ class GraphScenePayloadBuilder:
         self._backdrop_partitioner = _GraphSceneBackdropPartitioner(self._node_payload_factory)
         self._mutation_timing_enabled = False
         self._last_mutation_phase_timings_ms: dict[str, float] = {}
+
+    @staticmethod
+    def _presentation_sizes(
+        graph_label_pixel_size: object,
+        graph_node_icon_pixel_size: object | None,
+    ) -> tuple[int, int]:
+        label_size = normalize_graph_label_pixel_size(graph_label_pixel_size)
+        return label_size, effective_graph_node_icon_pixel_size(
+            label_size,
+            graph_node_icon_pixel_size,
+        )
 
     def set_mutation_timing_enabled(self, enabled: bool) -> None:
         self._mutation_timing_enabled = bool(enabled)
@@ -140,6 +154,9 @@ class GraphScenePayloadBuilder:
         library_payload: Mapping[str, Any],
         graph_theme_bridge: GraphThemeBridge | None,
         show_port_labels: bool = True,
+        graph_label_pixel_size: int = DEFAULT_GRAPH_LABEL_PIXEL_SIZE,
+        graph_node_icon_pixel_size: int | None = None,
+        lightweight_canvas: bool = False,
     ) -> dict[str, Any]:
         type_id = str(library_payload.get("type_id", "") or "").strip()
         if not type_id:
@@ -169,10 +186,9 @@ class GraphScenePayloadBuilder:
             spec = registry.resolve_spec(type_id, preview_node.properties)
         workspace_nodes = ChainMap({preview_node.node_id: preview_node}, workspace.nodes)
         hide_optional_ports = _GraphSceneBackdropPartitioner.active_view_hide_optional_ports(workspace)
-        graph_label_pixel_size = _graph_label_pixel_size(graph_theme_bridge)
-        graph_node_icon_pixel_size = _graph_node_icon_pixel_size(
-            graph_theme_bridge,
-            graph_label_pixel_size=graph_label_pixel_size,
+        graph_label_pixel_size, graph_node_icon_pixel_size = self._presentation_sizes(
+            graph_label_pixel_size,
+            graph_node_icon_pixel_size,
         )
         presentation_facts = self._node_payload_factory.build_presentation_facts(
             node=preview_node,
@@ -204,6 +220,7 @@ class GraphScenePayloadBuilder:
             show_port_labels=show_port_labels,
             graph_label_pixel_size=graph_label_pixel_size,
             graph_node_icon_pixel_size=graph_node_icon_pixel_size,
+            lightweight_canvas=lightweight_canvas,
             presentation_facts=presentation_facts,
             data_type_projection=data_type_projection,
         )
@@ -218,6 +235,9 @@ class GraphScenePayloadBuilder:
         node_ids: set[str],
         graph_theme_bridge: GraphThemeBridge | None,
         show_port_labels: bool = True,
+        graph_label_pixel_size: int = DEFAULT_GRAPH_LABEL_PIXEL_SIZE,
+        graph_node_icon_pixel_size: int | None = None,
+        lightweight_canvas: bool = False,
         port_connection_counts: Mapping[tuple[str, str], int] | None = None,
     ) -> tuple[list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]]]:
         if model is None or registry is None or not workspace_id or not node_ids:
@@ -243,10 +263,9 @@ class GraphScenePayloadBuilder:
                 workspace_edges
             )
         )
-        graph_label_pixel_size = _graph_label_pixel_size(graph_theme_bridge)
-        graph_node_icon_pixel_size = _graph_node_icon_pixel_size(
-            graph_theme_bridge,
-            graph_label_pixel_size=graph_label_pixel_size,
+        graph_label_pixel_size, graph_node_icon_pixel_size = self._presentation_sizes(
+            graph_label_pixel_size,
+            graph_node_icon_pixel_size,
         )
         workspace_nodes = ChainMap({}, workspace.nodes)
         hide_optional_ports = _GraphSceneBackdropPartitioner.active_view_hide_optional_ports(workspace)
@@ -292,6 +311,7 @@ class GraphScenePayloadBuilder:
                 show_port_labels=show_port_labels,
                 graph_label_pixel_size=graph_label_pixel_size,
                 graph_node_icon_pixel_size=graph_node_icon_pixel_size,
+                lightweight_canvas=lightweight_canvas,
                 presentation_facts=presentation_facts,
                 data_type_projection=data_type_projection,
             )
@@ -331,6 +351,9 @@ class GraphScenePayloadBuilder:
         node_ids: set[str],
         graph_theme_bridge: GraphThemeBridge | None,
         show_port_labels: bool = True,
+        graph_label_pixel_size: int = DEFAULT_GRAPH_LABEL_PIXEL_SIZE,
+        graph_node_icon_pixel_size: int | None = None,
+        lightweight_canvas: bool = False,
         port_connection_counts: Mapping[tuple[str, str], int] | None = None,
     ) -> dict[str, dict[str, Any]]:
         if model is None or registry is None or not workspace_id or not node_ids:
@@ -347,10 +370,9 @@ class GraphScenePayloadBuilder:
             port_connection_counts = dict(port_connection_counts)
         workspace_nodes = dict(workspace.nodes)
         hide_optional_ports = _GraphSceneBackdropPartitioner.active_view_hide_optional_ports(workspace)
-        graph_label_pixel_size = _graph_label_pixel_size(graph_theme_bridge)
-        graph_node_icon_pixel_size = _graph_node_icon_pixel_size(
-            graph_theme_bridge,
-            graph_label_pixel_size=graph_label_pixel_size,
+        graph_label_pixel_size, graph_node_icon_pixel_size = self._presentation_sizes(
+            graph_label_pixel_size,
+            graph_node_icon_pixel_size,
         )
         graph_theme = self.active_graph_theme(graph_theme_bridge)
         data_type_projection = build_data_type_ui_projection(registry.data_types)
@@ -381,6 +403,7 @@ class GraphScenePayloadBuilder:
                 show_port_labels=show_port_labels,
                 graph_label_pixel_size=graph_label_pixel_size,
                 graph_node_icon_pixel_size=graph_node_icon_pixel_size,
+                lightweight_canvas=lightweight_canvas,
                 data_type_projection=data_type_projection,
             )
             payloads[node_id] = {
@@ -402,6 +425,7 @@ class GraphScenePayloadBuilder:
                 spec=spec,
                 workspace=workspace,
                 graph_theme_bridge=graph_theme_bridge,
+                lightweight_canvas=lightweight_canvas,
             )
         return payloads
 
@@ -415,6 +439,9 @@ class GraphScenePayloadBuilder:
         node_ids: set[str],
         graph_theme_bridge: GraphThemeBridge | None,
         show_port_labels: bool = True,
+        graph_label_pixel_size: int = DEFAULT_GRAPH_LABEL_PIXEL_SIZE,
+        graph_node_icon_pixel_size: int | None = None,
+        lightweight_canvas: bool = False,
         port_connection_counts: Mapping[tuple[str, str], int] | None = None,
         previous_payloads_by_id: Mapping[str, Mapping[str, Any]] | None = None,
         changed_fields_by_node_id: Mapping[str, set[str] | frozenset[str] | tuple[str, ...] | None] | None = None,
@@ -446,10 +473,9 @@ class GraphScenePayloadBuilder:
         )
         workspace_nodes = dict(workspace.nodes)
         hide_optional_ports = _GraphSceneBackdropPartitioner.active_view_hide_optional_ports(workspace)
-        graph_label_pixel_size = _graph_label_pixel_size(graph_theme_bridge)
-        graph_node_icon_pixel_size = _graph_node_icon_pixel_size(
-            graph_theme_bridge,
-            graph_label_pixel_size=graph_label_pixel_size,
+        graph_label_pixel_size, graph_node_icon_pixel_size = self._presentation_sizes(
+            graph_label_pixel_size,
+            graph_node_icon_pixel_size,
         )
         graph_theme = self.active_graph_theme(graph_theme_bridge)
         data_type_projection = build_data_type_ui_projection(registry.data_types)
@@ -497,6 +523,7 @@ class GraphScenePayloadBuilder:
                 show_port_labels=show_port_labels,
                 graph_label_pixel_size=graph_label_pixel_size,
                 graph_node_icon_pixel_size=graph_node_icon_pixel_size,
+                lightweight_canvas=lightweight_canvas,
                 previous_payload=(
                     previous_payloads_by_id.get(node_id)
                     if previous_payloads_by_id is not None
@@ -547,6 +574,9 @@ class GraphScenePayloadBuilder:
         graph_theme_bridge: GraphThemeBridge | None,
         comment_peek_node_id: str = "",
         show_port_labels: bool = True,
+        graph_label_pixel_size: int = DEFAULT_GRAPH_LABEL_PIXEL_SIZE,
+        graph_node_icon_pixel_size: int | None = None,
+        lightweight_canvas: bool = False,
     ) -> list[dict[str, Any]]:
         return self._build_edge_payloads_for_ids(
             model=model,
@@ -557,6 +587,9 @@ class GraphScenePayloadBuilder:
             graph_theme_bridge=graph_theme_bridge,
             comment_peek_node_id=comment_peek_node_id,
             show_port_labels=show_port_labels,
+            graph_label_pixel_size=graph_label_pixel_size,
+            graph_node_icon_pixel_size=graph_node_icon_pixel_size,
+            lightweight_canvas=lightweight_canvas,
             assume_unobscured=False,
         )
 
@@ -570,6 +603,9 @@ class GraphScenePayloadBuilder:
         edge_ids: set[str],
         graph_theme_bridge: GraphThemeBridge | None,
         show_port_labels: bool = True,
+        graph_label_pixel_size: int = DEFAULT_GRAPH_LABEL_PIXEL_SIZE,
+        graph_node_icon_pixel_size: int | None = None,
+        lightweight_canvas: bool = False,
     ) -> list[dict[str, Any]]:
         return self._build_edge_payloads_for_ids(
             model=model,
@@ -579,6 +615,9 @@ class GraphScenePayloadBuilder:
             edge_ids=edge_ids,
             graph_theme_bridge=graph_theme_bridge,
             show_port_labels=show_port_labels,
+            graph_label_pixel_size=graph_label_pixel_size,
+            graph_node_icon_pixel_size=graph_node_icon_pixel_size,
+            lightweight_canvas=lightweight_canvas,
             assume_unobscured=True,
         )
 
@@ -593,6 +632,9 @@ class GraphScenePayloadBuilder:
         graph_theme_bridge: GraphThemeBridge | None,
         comment_peek_node_id: str = "",
         show_port_labels: bool = True,
+        graph_label_pixel_size: int = DEFAULT_GRAPH_LABEL_PIXEL_SIZE,
+        graph_node_icon_pixel_size: int | None = None,
+        lightweight_canvas: bool = False,
         assume_unobscured: bool,
     ) -> list[dict[str, Any]]:
         requested_edge_ids = {str(edge_id).strip() for edge_id in edge_ids if str(edge_id).strip()}
@@ -602,10 +644,9 @@ class GraphScenePayloadBuilder:
         if workspace is None:
             return []
 
-        graph_label_pixel_size = _graph_label_pixel_size(graph_theme_bridge)
-        graph_node_icon_pixel_size = _graph_node_icon_pixel_size(
-            graph_theme_bridge,
-            graph_label_pixel_size=graph_label_pixel_size,
+        graph_label_pixel_size, graph_node_icon_pixel_size = self._presentation_sizes(
+            graph_label_pixel_size,
+            graph_node_icon_pixel_size,
         )
         workspace_edges = scope_edges(workspace, scope_path)
         if assume_unobscured:
@@ -777,6 +818,9 @@ class GraphScenePayloadBuilder:
         graph_theme_bridge: GraphThemeBridge | None,
         comment_peek_node_id: str = "",
         show_port_labels: bool = True,
+        graph_label_pixel_size: int = DEFAULT_GRAPH_LABEL_PIXEL_SIZE,
+        graph_node_icon_pixel_size: int | None = None,
+        lightweight_canvas: bool = False,
     ) -> tuple[list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]]]:
         nodes_payload, _backdrop_nodes_payload, minimap_nodes_payload, edges_payload = self.rebuild_partitioned_models(
             model=model,
@@ -786,6 +830,9 @@ class GraphScenePayloadBuilder:
             comment_peek_node_id=comment_peek_node_id,
             graph_theme_bridge=graph_theme_bridge,
             show_port_labels=show_port_labels,
+            graph_label_pixel_size=graph_label_pixel_size,
+            graph_node_icon_pixel_size=graph_node_icon_pixel_size,
+            lightweight_canvas=lightweight_canvas,
         )
         return nodes_payload, minimap_nodes_payload, edges_payload
 
@@ -799,16 +846,18 @@ class GraphScenePayloadBuilder:
         graph_theme_bridge: GraphThemeBridge | None,
         comment_peek_node_id: str = "",
         show_port_labels: bool = True,
+        graph_label_pixel_size: int = DEFAULT_GRAPH_LABEL_PIXEL_SIZE,
+        graph_node_icon_pixel_size: int | None = None,
+        lightweight_canvas: bool = False,
     ) -> tuple[list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]]]:
         self._last_mutation_phase_timings_ms = {}
         if model is None or registry is None or not workspace_id:
             return [], [], [], []
 
         workspace = model.project.workspaces[workspace_id]
-        graph_label_pixel_size = _graph_label_pixel_size(graph_theme_bridge)
-        graph_node_icon_pixel_size = _graph_node_icon_pixel_size(
-            graph_theme_bridge,
-            graph_label_pixel_size=graph_label_pixel_size,
+        graph_label_pixel_size, graph_node_icon_pixel_size = self._presentation_sizes(
+            graph_label_pixel_size,
+            graph_node_icon_pixel_size,
         )
         payloads = self._backdrop_partitioner.build_payload_models(
             workspace=workspace,
@@ -819,6 +868,7 @@ class GraphScenePayloadBuilder:
             graph_theme_bridge=graph_theme_bridge,
             graph_label_pixel_size=graph_label_pixel_size,
             graph_node_icon_pixel_size=graph_node_icon_pixel_size,
+            lightweight_canvas=lightweight_canvas,
             show_port_labels=show_port_labels,
         )
         self._last_mutation_phase_timings_ms = self._backdrop_partitioner.mutation_phase_timings_ms()

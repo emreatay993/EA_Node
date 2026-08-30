@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from functools import partial
 import time
 from typing import TYPE_CHECKING, Any, Callable
 
@@ -41,8 +40,10 @@ from ea_node_editor.ui.shell.runtime_history import (
     ACTION_DELETE_SELECTED,
     ACTION_MOVE_NODE,
 )
-from ea_node_editor.ui_qml.graph_scene_payload.theme_inputs import _graph_label_pixel_size
-from ea_node_editor.ui_qml.graph_surface_metrics import node_surface_metrics
+from ea_node_editor.ui_qml.graph_surface_metrics import (
+    node_surface_metrics,
+    resolved_node_surface_size,
+)
 
 if TYPE_CHECKING:
     from ea_node_editor.nodes.node_specs import NodeTypeSpec
@@ -319,9 +320,7 @@ class GraphSceneMutationHistory:
         )
         old_min_width = 0.0
         old_effective_width = 0.0
-        graph_label_pixel_size = _graph_label_pixel_size(
-            self._scene_context.graph_theme_bridge
-        )
+        graph_label_pixel_size = self._scene_context.graphics_graph_label_pixel_size
         if compact_pill:
             old_metrics = node_surface_metrics(
                 node,
@@ -624,16 +623,28 @@ class GraphSceneMutationHistory:
             workspace=workspace,
             node_ids=selected_node_ids,
             spec_lookup=registry.get_spec,
-            size_resolver=partial(
-                self._boundary_adapters.node_size,
-                show_port_labels=self._scene_context.graphics_show_port_labels,
-            ),
+            size_resolver=self._scene_node_size,
         )
 
     @staticmethod
     def _snap_coordinate(value: float, grid_size: float) -> float:
         return snap_coordinate(
             value, grid_size, default_step=_alignment_ops.SNAP_GRID_SIZE
+        )
+
+    def _scene_node_size(
+        self,
+        node: NodeInstance,
+        spec: NodeTypeSpec,
+        workspace_nodes: dict[str, NodeInstance] | None = None,
+    ) -> tuple[float, float]:
+        return resolved_node_surface_size(
+            node,
+            spec,
+            workspace_nodes,
+            show_port_labels=self._scene_context.graphics_show_port_labels,
+            graph_label_pixel_size=self._scene_context.graphics_graph_label_pixel_size,
+            graph_node_icon_pixel_size=self._scene_context.graphics_node_title_icon_pixel_size,
         )
 
     def _apply_layout_updates(
@@ -691,10 +702,7 @@ class GraphSceneMutationHistory:
         bounds = graph_fragment_bounds(
             nodes_payload=nodes_payload,
             registry=registry,
-            size_resolver=partial(
-                self._boundary_adapters.node_size,
-                show_port_labels=self._scene_context.graphics_show_port_labels,
-            ),
+            size_resolver=self._scene_node_size,
         )
         return (
             None

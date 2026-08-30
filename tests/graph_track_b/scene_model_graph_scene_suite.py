@@ -70,7 +70,9 @@ from tests.graph_track_b.theme_support import (
 
 
 class _GraphLabelSizeHost(QObject):
-    @pyqtProperty(int, constant=True)
+    graphics_preferences_changed = pyqtSignal()
+
+    @pyqtProperty(int, notify=graphics_preferences_changed)
     def graphics_graph_label_pixel_size(self) -> int:
         return 16
 
@@ -255,7 +257,8 @@ class GraphSceneBridgeTrackBTests(unittest.TestCase):
         self.model = GraphModel()
         self.workspace_id = self.model.active_workspace.workspace_id
         self.preference_bridge = _GraphCanvasPreferenceBridge()
-        self.scene = GraphSceneBridge(self.preference_bridge)
+        self.scene = GraphSceneBridge()
+        self.scene.bind_graphics_preferences_source(self.preference_bridge)
         self.scene.set_workspace(self.model, self.registry, self.workspace_id)
         self.view = ViewportBridge()
         self.view.set_viewport_size(1280.0, 720.0)
@@ -2569,6 +2572,7 @@ class GraphSceneBridgeTrackBTests(unittest.TestCase):
         self.scene.bind_runtime_history(history)
         typography_host = _GraphLabelSizeHost()
         graph_theme_bridge = GraphThemeBridge(parent=typography_host)
+        self.scene.bind_graphics_preferences_source(typography_host)
         self.scene.bind_graph_theme_bridge(graph_theme_bridge)
         workspace = self.model.project.workspaces[self.workspace_id]
         long_title = "Compact Pill Label Sized With Non Default Graph Typography"

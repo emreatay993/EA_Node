@@ -96,8 +96,6 @@ class GraphCanvasStateBridge(
         self._project_source = project_source
         self._scene_state_source = _resolve_scene_state_source(scene_bridge)
         self._scene_policy_source = _resolve_scene_policy_source(scene_bridge)
-        self._tooltip_categories_cache: dict[str, bool] | None = None
-        self._tooltip_category_visibility_cache: dict[str, bool] | None = None
         self._node_model_revision = 0
         self._visible_node_index = GraphCanvasViewportIndex()
         self._visible_backdrop_index = GraphCanvasViewportIndex()
@@ -136,7 +134,7 @@ class GraphCanvasStateBridge(
         self._locked_node_status_notify_pending = False
 
         _connect_signal(
-            self._canvas_source,
+            self._graphics_source,
             "graphics_preferences_changed",
             self._handle_graphics_preferences_changed,
         )

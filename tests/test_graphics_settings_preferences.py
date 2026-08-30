@@ -22,7 +22,6 @@ from ea_node_editor.ui.shell.controllers.app_preferences_controller import (
     AppPreferencesController,
     AppPreferencesStore,
 )
-from ea_node_editor.ui.shell.presenters.graph_canvas_presenter import GraphCanvasPresenter
 from ea_node_editor.ui.shell.presenters import workspace_presenter as workspace_presenter_module
 from ea_node_editor.ui.shell.presenters.state import build_default_shell_workspace_ui_state
 from ea_node_editor.ui.shell.presenters.workspace_presenter import ShellWorkspacePresenter
@@ -595,15 +594,8 @@ class GraphicsSettingsPreferencesTests(unittest.TestCase):
         reloaded = AppPreferencesController(store=self._store).load()
         self.assertEqual(reloaded, persisted)
 
-    def test_media_panel_preferences_reach_shell_and_graph_canvas_presenters(self) -> None:
+    def test_media_panel_preferences_reach_workspace_presenter(self) -> None:
         host = _RuntimeTooltipHost(self._controller)
-        graph_canvas_presenter = GraphCanvasPresenter(
-            host,
-            workspace_presenter=host.shell_workspace_presenter,
-            library_presenter=SimpleNamespace(),
-            inspector_presenter=SimpleNamespace(),
-        )
-        host.graph_canvas_presenter = graph_canvas_presenter
 
         self._controller.set_graphics_settings(
             {
@@ -626,29 +618,16 @@ class GraphicsSettingsPreferencesTests(unittest.TestCase):
                 "source_input_exposed": False,
             },
         )
-        self.assertEqual(
-            graph_canvas_presenter.graphics_media_panel_defaults,
-            host.shell_workspace_presenter.graphics_media_panel_defaults,
-        )
-
-    def test_folder_explorer_column_widths_persist_through_graph_canvas_presenter(self) -> None:
+    def test_folder_explorer_column_widths_persist_through_workspace_presenter(self) -> None:
         host = _RuntimeTooltipHost(self._controller)
-        graph_canvas_presenter = GraphCanvasPresenter(
-            host,
-            workspace_presenter=host.shell_workspace_presenter,
-            library_presenter=SimpleNamespace(),
-            inspector_presenter=SimpleNamespace(),
-        )
-        host.graph_canvas_presenter = graph_canvas_presenter
 
-        graph_canvas_presenter.set_folder_explorer_column_widths(
+        host.shell_workspace_presenter.set_folder_explorer_column_widths(
             {"name": 260, "modified": 180, "type": "bad", "size": 1400}
         )
 
         expected = {"name": 260, "modified": 180, "size": 1200}
         self.assertEqual(host.workspace_ui_state.folder_explorer_column_widths, expected)
         self.assertEqual(host.shell_workspace_presenter.graphics_folder_explorer_column_widths, expected)
-        self.assertEqual(graph_canvas_presenter.graphics_folder_explorer_column_widths, expected)
         self.assertEqual(
             shell_context_properties._qt_graphics_folder_explorer_column_widths(host),
             expected,
@@ -673,49 +652,34 @@ class GraphicsSettingsPreferencesTests(unittest.TestCase):
         persisted = json.loads(self._preferences_path.read_text(encoding="utf-8"))
         self.assertEqual(persisted["graphics"]["shell"]["panel_collapsed"], expected)
 
-    def test_recent_text_colors_persist_through_graph_canvas_presenter(self) -> None:
+    def test_recent_text_colors_persist_through_workspace_presenter(self) -> None:
         host = _RuntimeTooltipHost(self._controller)
-        graph_canvas_presenter = GraphCanvasPresenter(
-            host,
-            workspace_presenter=host.shell_workspace_presenter,
-            library_presenter=SimpleNamespace(),
-            inspector_presenter=SimpleNamespace(),
-        )
-        host.graph_canvas_presenter = graph_canvas_presenter
 
-        graph_canvas_presenter.record_recent_text_color("#112233")
-        graph_canvas_presenter.record_recent_text_color("bad")
-        graph_canvas_presenter.record_recent_text_color("#aabbcc")
-        graph_canvas_presenter.record_recent_text_color("#112233")
+        host.shell_workspace_presenter.record_recent_text_color("#112233")
+        host.shell_workspace_presenter.record_recent_text_color("bad")
+        host.shell_workspace_presenter.record_recent_text_color("#aabbcc")
+        host.shell_workspace_presenter.record_recent_text_color("#112233")
 
         expected = ["#112233", "#AABBCC"]
         self.assertEqual(host.workspace_ui_state.recent_text_colors, expected)
         self.assertEqual(host.shell_workspace_presenter.graphics_recent_text_colors, expected)
-        self.assertEqual(graph_canvas_presenter.graphics_recent_text_colors, expected)
         persisted = json.loads(self._preferences_path.read_text(encoding="utf-8"))
         self.assertEqual(persisted["graphics"]["typography"]["recent_text_colors"], expected)
 
-    def test_selection_toolbar_preferences_persist_through_graph_canvas_presenter(self) -> None:
+    def test_selection_toolbar_preferences_persist_through_workspace_presenter(self) -> None:
         host = _RuntimeTooltipHost(self._controller)
-        graph_canvas_presenter = GraphCanvasPresenter(
-            host,
-            workspace_presenter=host.shell_workspace_presenter,
-            library_presenter=SimpleNamespace(),
-            inspector_presenter=SimpleNamespace(),
-        )
-        host.graph_canvas_presenter = graph_canvas_presenter
 
-        graph_canvas_presenter.set_graphics_selection_toolbar_mode(" SIDE_RAIL ")
-        graph_canvas_presenter.set_graphics_selection_toolbar_minimal_menu_trigger(" RIGHT_CLICK ")
+        host.shell_workspace_presenter.set_graphics_selection_toolbar_mode(" SIDE_RAIL ")
+        host.shell_workspace_presenter.set_graphics_selection_toolbar_minimal_menu_trigger(" RIGHT_CLICK ")
 
         self.assertEqual(host.workspace_ui_state.selection_toolbar_mode, "side_rail")
         self.assertEqual(
             host.workspace_ui_state.selection_toolbar_minimal_menu_trigger,
             "right_click",
         )
-        self.assertEqual(graph_canvas_presenter.graphics_selection_toolbar_mode, "side_rail")
+        self.assertEqual(host.shell_workspace_presenter.graphics_selection_toolbar_mode, "side_rail")
         self.assertEqual(
-            graph_canvas_presenter.graphics_selection_toolbar_minimal_menu_trigger,
+            host.shell_workspace_presenter.graphics_selection_toolbar_minimal_menu_trigger,
             "right_click",
         )
         self.assertEqual(
@@ -733,15 +697,8 @@ class GraphicsSettingsPreferencesTests(unittest.TestCase):
             "right_click",
         )
 
-    def test_node_floating_toolbar_hover_preference_reaches_graph_canvas_presenter(self) -> None:
+    def test_node_floating_toolbar_hover_preference_reaches_workspace_presenter(self) -> None:
         host = _RuntimeTooltipHost(self._controller)
-        graph_canvas_presenter = GraphCanvasPresenter(
-            host,
-            workspace_presenter=host.shell_workspace_presenter,
-            library_presenter=SimpleNamespace(),
-            inspector_presenter=SimpleNamespace(),
-        )
-        host.graph_canvas_presenter = graph_canvas_presenter
 
         self._controller.set_graphics_settings(
             {"canvas": {"node_floating_toolbar_opens_on_hover": True}},
@@ -752,21 +709,11 @@ class GraphicsSettingsPreferencesTests(unittest.TestCase):
         self.assertTrue(
             host.shell_workspace_presenter.graphics_node_floating_toolbar_opens_on_hover
         )
-        self.assertTrue(
-            graph_canvas_presenter.graphics_node_floating_toolbar_opens_on_hover
-        )
         persisted = json.loads(self._preferences_path.read_text(encoding="utf-8"))
         self.assertTrue(persisted["graphics"]["canvas"]["node_floating_toolbar_opens_on_hover"])
 
     def test_notched_ports_preference_reaches_shell_and_graph_canvas_state(self) -> None:
         host = _RuntimeTooltipHost(self._controller)
-        graph_canvas_presenter = GraphCanvasPresenter(
-            host,
-            workspace_presenter=host.shell_workspace_presenter,
-            library_presenter=SimpleNamespace(),
-            inspector_presenter=SimpleNamespace(),
-        )
-        host.graph_canvas_presenter = graph_canvas_presenter
 
         self.assertTrue(host.workspace_ui_state.notched_ports)
         self._controller.set_graphics_settings(
@@ -776,7 +723,6 @@ class GraphicsSettingsPreferencesTests(unittest.TestCase):
 
         self.assertFalse(host.workspace_ui_state.notched_ports)
         self.assertFalse(host.shell_workspace_presenter.graphics_notched_ports)
-        self.assertFalse(graph_canvas_presenter.graphics_notched_ports)
         self.assertFalse(shell_context_properties._qt_graphics_notched_ports(host))
         persisted = json.loads(self._preferences_path.read_text(encoding="utf-8"))
         self.assertFalse(persisted["graphics"]["canvas"]["notched_ports"])
@@ -1163,6 +1109,7 @@ class GraphicsSettingsPreferencesTests(unittest.TestCase):
         self.assertEqual(persisted["graphics"]["plot"], graphics["plot"])
 
         host = _RuntimeTooltipHost(self._controller)
+        self._controller.load_into_host(host)
         seen = {"graphics": 0}
         host.graphics_preferences_changed.connect(
             lambda: seen.__setitem__("graphics", seen["graphics"] + 1)
@@ -1172,7 +1119,7 @@ class GraphicsSettingsPreferencesTests(unittest.TestCase):
 
         self.assertFalse(updated["plot"]["lightweight_canvas"])
         self.assertEqual(seen["graphics"], 1)
-        self.assertEqual(host._scene_refresh_count, 1)
+        self.assertEqual(host._scene_refresh_count, 0)
 
     def test_plot_default_backend_normalizer_uses_registry_capabilities(self) -> None:
         normalized = normalize_plot_default_backend_per_type(

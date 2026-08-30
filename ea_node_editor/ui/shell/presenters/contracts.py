@@ -54,14 +54,6 @@ class _ShellWorkspacePresenterHostProtocol(Protocol):
     graph_theme_bridge: Any
     app_preferences_controller: Any
 
-    def set_graphics_floating_toolbar_style(self, style: str) -> None: ...
-
-    def set_graphics_floating_toolbar_size(self, size: str) -> None: ...
-
-    def set_graphics_selection_toolbar_mode(self, mode: str) -> None: ...
-
-    def set_graphics_selection_toolbar_minimal_menu_trigger(self, trigger: str) -> None: ...
-
 
 class _ShellInspectorPresenterHostProtocol(Protocol):
     selected_node_changed: _SignalLike
@@ -92,7 +84,6 @@ class _GraphCanvasPresenterHostProtocol(Protocol):
     graphics_preferences_changed: _SignalLike
     snap_to_grid_changed: _SignalLike
     search_scope_state: Any
-    workspace_ui_state: Any
     _SNAP_GRID_SIZE: float
     search_scope_controller: Any
     app_preferences_controller: Any
@@ -113,9 +104,6 @@ class _GraphCanvasPresenterHostProtocol(Protocol):
     def show_graph_hint(self, message: str, timeout_ms: int = 3600) -> None: ...
 
     def clear_graph_hint(self) -> None: ...
-
-    def show_graphics_settings_dialog(self) -> None: ...
-
 
 class _GraphCanvasHostPresenterHostProtocol(Protocol):
     search_scope_controller: Any

@@ -33,9 +33,29 @@ LOGGER_TYPE_ID = "core.logger"
 
 
 class _ExpandCollisionPreferenceSource(QObject):
+    graphics_preferences_changed = pyqtSignal()
+
     def __init__(self, settings: dict[str, object]) -> None:
         super().__init__()
         self.graphics_expand_collision_avoidance = dict(settings)
+
+
+class _SceneGraphicsPreferenceSource(QObject):
+    graphics_preferences_changed = pyqtSignal()
+
+    def __init__(
+        self,
+        *,
+        show_port_labels: bool = True,
+        graph_label_pixel_size: int = 10,
+        node_title_icon_pixel_size: int = 10,
+        lightweight_canvas: bool = False,
+    ) -> None:
+        super().__init__()
+        self.graphics_show_port_labels = bool(show_port_labels)
+        self.graphics_graph_label_pixel_size = int(graph_label_pixel_size)
+        self.graphics_node_title_icon_pixel_size = int(node_title_icon_pixel_size)
+        self.graphics_lightweight_canvas = bool(lightweight_canvas)
 
 
 class _CountingRuntimeGraphHistory(RuntimeGraphHistory):
@@ -305,6 +325,57 @@ class GraphSceneCommandBridgeContractTests(unittest.TestCase):
 
 
 class GraphSceneBridgeBindRegressionTests(unittest.TestCase):
+    def test_graphics_preferences_source_binding_lifecycle_and_fingerprint(self) -> None:
+        registry = build_default_registry()
+        model = GraphModel()
+        workspace_id = model.active_workspace.workspace_id
+        scene = GraphSceneBridge()
+        scene.set_workspace(model, registry, workspace_id)
+        source = _SceneGraphicsPreferenceSource()
+        replacement = _SceneGraphicsPreferenceSource(
+            show_port_labels=False,
+            graph_label_pixel_size=14,
+            node_title_icon_pixel_size=12,
+            lightweight_canvas=True,
+        )
+        rebuilds: list[str] = []
+        original_rebuild = scene._scene_context.rebuild_models
+
+        def _record_rebuild() -> None:
+            rebuilds.append("rebuild")
+            original_rebuild()
+
+        scene._scene_context.rebuild_models = _record_rebuild
+        try:
+            self.assertTrue(scene.bind_graphics_preferences_source(source))
+            self.assertEqual(rebuilds, [])
+            self.assertFalse(scene.bind_graphics_preferences_source(source))
+            with self.assertRaises(TypeError):
+                scene.bind_graphics_preferences_source(object())
+
+            source.graphics_show_port_labels = False
+            source.graphics_preferences_changed.emit()
+            self.assertEqual(rebuilds, ["rebuild"])
+
+            self.assertTrue(scene.bind_graphics_preferences_source(replacement))
+            self.assertEqual(rebuilds, ["rebuild", "rebuild"])
+            self.assertEqual(
+                scene._scene_payload_graphics_preferences,
+                (False, 14, 12, True),
+            )
+
+            source.graphics_show_port_labels = True
+            source.graphics_preferences_changed.emit()
+            self.assertEqual(rebuilds, ["rebuild", "rebuild"])
+
+            self.assertTrue(scene.bind_graphics_preferences_source(None))
+            self.assertEqual(rebuilds, ["rebuild", "rebuild", "rebuild"])
+            replacement.graphics_show_port_labels = True
+            replacement.graphics_preferences_changed.emit()
+            self.assertEqual(rebuilds, ["rebuild", "rebuild", "rebuild"])
+        finally:
+            scene._scene_context.rebuild_models = original_rebuild
+
     def test_scene_registry_replace_never_normalizes_open_graph_data(self) -> None:
         active_registry = build_default_registry()
         replacement_registry = NodeRegistry()
@@ -1320,7 +1391,8 @@ class GraphSceneBridgeBindRegressionTests(unittest.TestCase):
         model = GraphModel()
         workspace_id = model.active_workspace.workspace_id
         preferences = _ExpandCollisionPreferenceSource({"enabled": False})
-        scene = GraphSceneBridge(preferences)
+        scene = GraphSceneBridge()
+        scene.bind_graphics_preferences_source(preferences)
         scene.set_workspace(model, registry, workspace_id)
         source_id = scene.add_node_from_type("core.constant", 0.0, 0.0)
         node_id = scene.add_node_from_type("core.python_script", 320.0, 40.0)
@@ -1765,7 +1837,8 @@ class GraphSceneBridgeBindRegressionTests(unittest.TestCase):
         model = GraphModel()
         workspace_id = model.active_workspace.workspace_id
         preferences = _ExpandCollisionPreferenceSource({"enabled": False})
-        scene = GraphSceneBridge(preferences)
+        scene = GraphSceneBridge()
+        scene.bind_graphics_preferences_source(preferences)
         scene.set_workspace(model, registry, workspace_id)
 
         expanding_id = scene.add_node_from_type(LOGGER_TYPE_ID, 100.0, 100.0)
@@ -1820,7 +1893,8 @@ class GraphSceneBridgeBindRegressionTests(unittest.TestCase):
         model = GraphModel()
         workspace_id = model.active_workspace.workspace_id
         preferences = _ExpandCollisionPreferenceSource(settings)
-        scene = GraphSceneBridge(preferences)
+        scene = GraphSceneBridge()
+        scene.bind_graphics_preferences_source(preferences)
         scene.set_workspace(model, registry, workspace_id)
 
         expanding_id = scene.add_node_from_type(GROUP_BACKDROP_TYPE_ID, 100.0, 100.0)

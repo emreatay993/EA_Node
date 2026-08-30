@@ -19,9 +19,6 @@ from ea_node_editor.graph.workspace_state import WorkspaceData
 from ea_node_editor.nodes.builtins.plot.generic import PLOT_NODE_DEFINITION_BY_TYPE_ID
 from ea_node_editor.nodes.node_specs import NodeTypeSpec
 from ea_node_editor.ui_qml.graph_scene_payload.normalize import _bool_property
-from ea_node_editor.ui_qml.graph_scene_payload.theme_inputs import (
-    _graphics_lightweight_canvas,
-)
 from ea_node_editor.ui_qml.plot_live_backend_resolution import builtin_plot_live_backend_id
 
 if TYPE_CHECKING:
@@ -71,7 +68,7 @@ def _plot_embedded_render_policy(
     *,
     node: Any,
     spec: NodeTypeSpec,
-    graph_theme_bridge: GraphThemeBridge | None,
+    lightweight_canvas: bool,
 ) -> dict[str, Any] | None:
     plot_type = _plot_type_from_node_payload(node=node, spec=spec)
     if not plot_type:
@@ -86,7 +83,7 @@ def _plot_embedded_render_policy(
         properties.get("render_in_canvas") if isinstance(properties, Mapping) else None,
         True,
     )
-    lightweight_canvas = _graphics_lightweight_canvas(graph_theme_bridge)
+    lightweight_canvas = bool(lightweight_canvas)
     suppressed_by = []
     if not render_in_canvas:
         suppressed_by.append("render_in_canvas")
@@ -395,13 +392,14 @@ def apply_plot_surface_payload(
     spec: NodeTypeSpec,
     workspace: WorkspaceData,
     graph_theme_bridge: GraphThemeBridge | None,
+    lightweight_canvas: bool = False,
     previous_payload: Mapping[str, Any] | None = None,
     changed_fields: frozenset[str] | None = None,
 ) -> None:
     plot_policy = _plot_embedded_render_policy(
         node=node,
         spec=spec,
-        graph_theme_bridge=graph_theme_bridge,
+        lightweight_canvas=lightweight_canvas,
     )
     if plot_policy is None:
         return
@@ -430,6 +428,7 @@ def contribute(payload: dict[str, Any], ctx: "PayloadBuildContext") -> None:
         spec=ctx.spec,
         workspace=ctx.workspace,
         graph_theme_bridge=ctx.graph_theme_bridge,
+        lightweight_canvas=ctx.lightweight_canvas,
         previous_payload=ctx.previous_payload,
         changed_fields=ctx.changed_fields,
     )

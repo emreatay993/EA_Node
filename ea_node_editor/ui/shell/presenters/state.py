@@ -19,6 +19,7 @@ from ea_node_editor.app_preferences import (
     normalize_node_elapsed_time_unit,
     normalize_node_elapsed_time_visibility,
     normalize_passive_node_library_display_mode,
+    normalize_plot_settings,
     normalize_property_pane_variant,
     normalize_selection_toolbar_minimal_menu_trigger,
     normalize_selection_toolbar_mode,
@@ -75,6 +76,8 @@ class ShellWorkspaceUiState:
     media_panel_autoplay_animations: bool
     media_panel_source_input_exposed: bool
     folder_explorer_column_widths: dict[str, int]
+    lightweight_canvas: bool
+    plot_default_backend_per_type: dict[str, str]
 
 
 def build_default_shell_workspace_ui_state(
@@ -90,6 +93,9 @@ def build_default_shell_workspace_ui_state(
         else {}
     )
     folder_explorer = graphics_settings.get("folder_explorer", {}) if isinstance(graphics_settings, dict) else {}
+    plot_settings = normalize_plot_settings(
+        graphics_settings.get("plot") if isinstance(graphics_settings, dict) else None
+    )
     media_panel_settings = normalize_media_panel_settings(media_panel)
     tooltip_categories = normalize_tooltip_category_preferences(shell.get("tooltip_categories"))
     graph_label_pixel_size = normalize_graph_label_pixel_size(
@@ -220,6 +226,10 @@ def build_default_shell_workspace_ui_state(
         ),
         folder_explorer_column_widths=normalize_folder_explorer_column_widths(
             folder_explorer.get("column_widths") if isinstance(folder_explorer, dict) else None
+        ),
+        lightweight_canvas=bool(plot_settings["lightweight_canvas"]),
+        plot_default_backend_per_type=dict(
+            plot_settings["plot_default_backend_per_type"]
         ),
     )
 

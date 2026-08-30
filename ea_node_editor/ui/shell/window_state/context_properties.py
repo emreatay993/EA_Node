@@ -126,11 +126,11 @@ def _qt_addon_manager_request_serial(self: "ShellWindow") -> int:
 
 
 def _qt_graphics_show_grid(self: "ShellWindow") -> bool:
-    return self.graph_canvas_presenter.graphics_show_grid
+    return self.shell_workspace_presenter.graphics_show_grid
 
 
 def _qt_graphics_grid_style(self: "ShellWindow") -> str:
-    return self.graph_canvas_presenter.graphics_grid_style
+    return self.shell_workspace_presenter.graphics_grid_style
 
 
 def _qt_graphics_edge_crossing_style(self: "ShellWindow") -> str:
@@ -138,7 +138,7 @@ def _qt_graphics_edge_crossing_style(self: "ShellWindow") -> str:
 
 
 def _qt_graphics_graph_label_pixel_size(self: "ShellWindow") -> int:
-    return self.graph_canvas_presenter.graphics_graph_label_pixel_size
+    return self.shell_workspace_presenter.graphics_graph_label_pixel_size
 
 
 def _qt_graphics_graph_node_icon_pixel_size_override(self: "ShellWindow") -> int | None:
@@ -150,27 +150,27 @@ def _qt_graphics_node_title_icon_pixel_size(self: "ShellWindow") -> int:
 
 
 def _qt_graphics_show_minimap(self: "ShellWindow") -> bool:
-    return self.graph_canvas_presenter.graphics_show_minimap
+    return self.shell_workspace_presenter.graphics_show_minimap
 
 
 def _qt_graphics_show_canvas_options_button(self: "ShellWindow") -> bool:
-    return self.graph_canvas_presenter.graphics_show_canvas_options_button
+    return self.shell_workspace_presenter.graphics_show_canvas_options_button
 
 
 def _qt_graphics_show_port_labels(self: "ShellWindow") -> bool:
-    return self.graph_canvas_presenter.graphics_show_port_labels
+    return self.shell_workspace_presenter.graphics_show_port_labels
 
 
 def _qt_graphics_notched_ports(self: "ShellWindow") -> bool:
-    return self.graph_canvas_presenter.graphics_notched_ports
+    return self.shell_workspace_presenter.graphics_notched_ports
 
 
 def _qt_graphics_node_elapsed_time_unit(self: "ShellWindow") -> str:
-    return self.graph_canvas_presenter.graphics_node_elapsed_time_unit
+    return self.shell_workspace_presenter.graphics_node_elapsed_time_unit
 
 
 def _qt_graphics_node_elapsed_time_visibility(self: "ShellWindow") -> str:
-    return self.graph_canvas_presenter.graphics_node_elapsed_time_visibility
+    return self.shell_workspace_presenter.graphics_node_elapsed_time_visibility
 
 
 def _qt_graphics_show_tooltips(self: "ShellWindow") -> bool:
@@ -190,19 +190,19 @@ def _qt_graphics_minimap_expanded(self: "ShellWindow") -> bool:
 
 
 def _qt_graphics_node_shadow(self: "ShellWindow") -> bool:
-    return self.graph_canvas_presenter.graphics_node_shadow
+    return self.shell_workspace_presenter.graphics_node_shadow
 
 
 def _qt_graphics_shadow_strength(self: "ShellWindow") -> int:
-    return self.graph_canvas_presenter.graphics_shadow_strength
+    return self.shell_workspace_presenter.graphics_shadow_strength
 
 
 def _qt_graphics_shadow_softness(self: "ShellWindow") -> int:
-    return self.graph_canvas_presenter.graphics_shadow_softness
+    return self.shell_workspace_presenter.graphics_shadow_softness
 
 
 def _qt_graphics_shadow_offset(self: "ShellWindow") -> int:
-    return self.graph_canvas_presenter.graphics_shadow_offset
+    return self.shell_workspace_presenter.graphics_shadow_offset
 
 
 def _qt_graphics_status_bar_layout(self: "ShellWindow") -> str:
@@ -230,7 +230,7 @@ def _qt_graphics_selection_toolbar_minimal_menu_trigger(self: "ShellWindow") -> 
 
 
 def _qt_graphics_folder_explorer_column_widths(self: "ShellWindow") -> dict[str, int]:
-    return self.graph_canvas_presenter.graphics_folder_explorer_column_widths
+    return self.shell_workspace_presenter.graphics_folder_explorer_column_widths
 
 
 def _qt_graphics_tab_strip_density(self: "ShellWindow") -> str:

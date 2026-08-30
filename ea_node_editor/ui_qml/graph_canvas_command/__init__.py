@@ -28,6 +28,7 @@ from ea_node_editor.ui_qml.graph_canvas_command.media_video_ops import MediaVide
 from ea_node_editor.ui_qml.graph_canvas_command.node_creation_ops import NodeCreationOps
 from ea_node_editor.ui_qml.graph_canvas_command.protocols import (
     _GraphCanvasCommandSource,
+    _GraphCanvasGraphicsCommandSource,
     _GraphCanvasHostSource,
     _GraphCanvasSceneCommandSource,
     _GraphCanvasScenePolicySource,
@@ -79,6 +80,7 @@ class GraphCanvasCommandBridge(
         *,
         shell_window: object | None = None,
         canvas_source: _GraphCanvasCommandSource | None = None,
+        graphics_source: _GraphCanvasGraphicsCommandSource | None = None,
         host_source: _GraphCanvasHostSource | None = None,
         scene_bridge: "GraphSceneBridge | None" = None,
         view_bridge: "ViewportBridge | None" = None,
@@ -92,6 +94,7 @@ class GraphCanvasCommandBridge(
         self._scene_bridge = scene_bridge
         self._view_bridge = view_bridge
         self._canvas_source = canvas_source
+        self._graphics_source = graphics_source
         self._host_source = host_source
         self._scene_command_source = _resolve_scene_command_source(scene_bridge)
         self._scene_policy_source = _resolve_scene_policy_source(scene_bridge)
@@ -108,6 +111,10 @@ class GraphCanvasCommandBridge(
     @property
     def canvas_source(self) -> _GraphCanvasCommandSource | None:
         return self._canvas_source
+
+    @property
+    def graphics_source(self) -> _GraphCanvasGraphicsCommandSource | None:
+        return self._graphics_source
 
     @property
     def host_source(self) -> _GraphCanvasHostSource | None:

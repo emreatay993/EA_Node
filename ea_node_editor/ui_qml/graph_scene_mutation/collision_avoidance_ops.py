@@ -17,6 +17,7 @@ from ea_node_editor.graph.transform_layout_ops import (
     LayoutNodeBounds,
     build_expand_collision_avoidance_position_updates,
 )
+from ea_node_editor.ui_qml.graph_surface_metrics import resolved_node_surface_size
 
 if TYPE_CHECKING:
     from ea_node_editor.nodes.node_specs import NodeTypeSpec
@@ -379,6 +380,9 @@ def _current_presentation_bounds(self, node_id: str) -> LayoutNodeBounds | None:
             node_ids={node_id},
             graph_theme_bridge=context.graph_theme_bridge,
             show_port_labels=context.graphics_show_port_labels,
+            graph_label_pixel_size=context.graphics_graph_label_pixel_size,
+            graph_node_icon_pixel_size=context.graphics_node_title_icon_pixel_size,
+            lightweight_canvas=context.graphics_lightweight_canvas,
         )
     except Exception:  # noqa: BLE001
         return None
@@ -464,11 +468,13 @@ def _node_layout_bounds(
         original_node = scoped_nodes.get(node.node_id, _MISSING)
     scoped_nodes[node.node_id] = probe
     try:
-        width, height = self._boundary_adapters.node_size(
+        width, height = resolved_node_surface_size(
             probe,
             spec,
             scoped_nodes,
             show_port_labels=self._scene_context.graphics_show_port_labels,
+            graph_label_pixel_size=self._scene_context.graphics_graph_label_pixel_size,
+            graph_node_icon_pixel_size=self._scene_context.graphics_node_title_icon_pixel_size,
         )
     except Exception:  # noqa: BLE001
         return None

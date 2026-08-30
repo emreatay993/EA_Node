@@ -77,6 +77,7 @@ class _GraphSceneBackdropPartitioner:
         comment_peek_node_id: str = "",
         graph_label_pixel_size: int = DEFAULT_GRAPH_LABEL_PIXEL_SIZE,
         graph_node_icon_pixel_size: int = DEFAULT_GRAPH_LABEL_PIXEL_SIZE,
+        lightweight_canvas: bool = False,
         show_port_labels: bool = True,
     ) -> tuple[list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]]]:
         visible_node_ids = scope_node_ids(workspace, scope_path)
@@ -146,6 +147,7 @@ class _GraphSceneBackdropPartitioner:
                 show_port_labels=show_port_labels,
                 graph_label_pixel_size=graph_label_pixel_size,
                 graph_node_icon_pixel_size=graph_node_icon_pixel_size,
+                lightweight_canvas=lightweight_canvas,
                 presentation_facts=presentation_facts,
                 data_type_projection=data_type_projection,
             )

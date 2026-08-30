@@ -165,7 +165,6 @@ def _mapping(value: Any) -> dict[str, Any]:
 
 
 class GraphCanvasPresenter(QObject):
-    graphics_preferences_changed = pyqtSignal()
     snap_to_grid_changed = pyqtSignal()
 
     def __init__(
@@ -183,7 +182,6 @@ class GraphCanvasPresenter(QObject):
         self._library_presenter = library_presenter
         self._inspector_presenter = inspector_presenter
         self._video_trim_jobs: dict[str, tuple[QThread, VideoTrimWorker, _VideoTrimContext]] = {}
-        host.graphics_preferences_changed.connect(self.graphics_preferences_changed.emit)
         host.snap_to_grid_changed.connect(self.snap_to_grid_changed.emit)
 
     def trigger_node(self, node_id: str) -> bool:
@@ -197,133 +195,8 @@ class GraphCanvasPresenter(QObject):
     def graphics_minimap_expanded(self) -> bool: return bool(self._host.search_scope_state.graphics_minimap_expanded)
 
     @property
-    def graphics_show_grid(self) -> bool: return bool(self._host.workspace_ui_state.show_grid)
-
-    @property
-    def graphics_canvas_background_variant(self) -> str:
-        return str(self._host.workspace_ui_state.canvas_background_variant)
-
-    @property
-    def graphics_grid_style(self) -> str: return str(self._host.workspace_ui_state.grid_style)
-
-    @property
-    def graphics_show_minimap(self) -> bool: return bool(self._host.workspace_ui_state.show_minimap)
-
-    @property
-    def graphics_show_canvas_options_button(self) -> bool:
-        return bool(self._host.workspace_ui_state.show_canvas_options_button)
-
-    @property
-    def graphics_node_elapsed_time_unit(self) -> str:
-        return str(self._host.workspace_ui_state.node_elapsed_time_unit)
-
-    @property
-    def graphics_node_elapsed_time_visibility(self) -> str:
-        return str(self._host.workspace_ui_state.node_elapsed_time_visibility)
-
-    @property
-    def graphics_node_comment_editor_default(self) -> str:
-        return str(self._host.workspace_ui_state.node_comment_editor_default)
-
-    @property
-    def graphics_edge_crossing_style(self) -> str: return str(self._host.workspace_ui_state.edge_crossing_style)
-
-    @property
-    def graphics_graph_label_pixel_size(self) -> int:
-        return int(self._host.workspace_ui_state.graph_label_pixel_size)
-
-    @property
-    def graphics_graph_node_icon_pixel_size_override(self) -> int | None:
-        return self._host.workspace_ui_state.graph_node_icon_pixel_size_override
-
-    @property
-    def graphics_node_title_icon_pixel_size(self) -> int:
-        return int(self._host.workspace_ui_state.node_title_icon_pixel_size)
-
-    @property
-    def graphics_media_panel_defaults(self) -> dict[str, bool]:
-        return {
-            "show_title": bool(self._host.workspace_ui_state.media_panel_default_show_title),
-            "show_frame": bool(self._host.workspace_ui_state.media_panel_default_show_frame),
-            "autoplay_animations": bool(
-                self._host.workspace_ui_state.media_panel_autoplay_animations
-            ),
-            "source_input_exposed": bool(
-                self._host.workspace_ui_state.media_panel_source_input_exposed
-            ),
-        }
-
-    @property
-    def graphics_media_panel_default_show_title(self) -> bool:
-        return bool(self._host.workspace_ui_state.media_panel_default_show_title)
-
-    @property
-    def graphics_media_panel_default_show_frame(self) -> bool:
-        return bool(self._host.workspace_ui_state.media_panel_default_show_frame)
-
-    @property
-    def graphics_media_panel_autoplay_animations(self) -> bool:
-        return bool(self._host.workspace_ui_state.media_panel_autoplay_animations)
-
-    @property
-    def graphics_media_panel_source_input_exposed(self) -> bool:
-        return bool(self._host.workspace_ui_state.media_panel_source_input_exposed)
-
-    @property
-    def graphics_folder_explorer_column_widths(self) -> dict[str, int]:
-        return dict(self._host.workspace_ui_state.folder_explorer_column_widths)
-
-    @property
-    def graphics_show_port_labels(self) -> bool: return bool(self._host.workspace_ui_state.show_port_labels)
-
-    @property
-    def graphics_notched_ports(self) -> bool: return bool(self._host.workspace_ui_state.notched_ports)
-
-    @property
     def selected_run_preview_before_run(self) -> bool:
         return bool(self._host.app_preferences_controller.selected_run_preview_before_run())
-
-    @property
-    def graphics_node_shadow(self) -> bool: return bool(self._host.workspace_ui_state.node_shadow)
-
-    @property
-    def graphics_shadow_strength(self) -> int: return int(self._host.workspace_ui_state.shadow_strength)
-
-    @property
-    def graphics_shadow_softness(self) -> int: return int(self._host.workspace_ui_state.shadow_softness)
-
-    @property
-    def graphics_shadow_offset(self) -> int: return int(self._host.workspace_ui_state.shadow_offset)
-
-    @property
-    def graphics_status_bar_layout(self) -> str: return str(self._host.workspace_ui_state.status_bar_layout)
-
-    @property
-    def graphics_show_fps_telemetry(self) -> bool: return bool(self._host.workspace_ui_state.show_fps_telemetry)
-
-    @property
-    def graphics_floating_toolbar_style(self) -> str:
-        return str(self._host.workspace_ui_state.floating_toolbar_style)
-
-    @property
-    def graphics_floating_toolbar_size(self) -> str:
-        return str(self._host.workspace_ui_state.floating_toolbar_size)
-
-    @property
-    def graphics_node_floating_toolbar_opens_on_hover(self) -> bool:
-        return bool(self._host.workspace_ui_state.node_floating_toolbar_opens_on_hover)
-
-    @property
-    def graphics_selection_toolbar_mode(self) -> str:
-        return str(self._host.workspace_ui_state.selection_toolbar_mode)
-
-    @property
-    def graphics_selection_toolbar_minimal_menu_trigger(self) -> str:
-        return str(self._host.workspace_ui_state.selection_toolbar_minimal_menu_trigger)
-
-    @property
-    def graphics_recent_text_colors(self) -> list[str]:
-        return list(self._host.workspace_ui_state.recent_text_colors)
 
     @property
     def snap_to_grid_enabled(self) -> bool: return bool(self._host.search_scope_state.snap_to_grid_enabled)
@@ -341,121 +214,11 @@ class GraphCanvasPresenter(QObject):
     def set_graphics_minimap_expanded(self, expanded: bool) -> None:
         self._host.search_scope_controller.set_graphics_minimap_expanded(expanded)
 
-    def set_graphics_show_port_labels(self, show_port_labels: bool) -> None:
-        self._host.app_preferences_controller.update_graphics_settings(
-            {"canvas": {"show_port_labels": bool(show_port_labels)}},
-            host=self._host,
-        )
-
-    def set_graphics_node_elapsed_time_unit(self, unit: str) -> None:
-        self._host.app_preferences_controller.update_graphics_settings(
-            {"canvas": {"node_elapsed_time_unit": str(unit)}},
-            host=self._host,
-        )
-
-    def set_graphics_node_elapsed_time_visibility(self, visibility: str) -> None:
-        self._host.app_preferences_controller.update_graphics_settings(
-            {"canvas": {"node_elapsed_time_visibility": str(visibility)}},
-            host=self._host,
-        )
-
-    def set_graphics_node_comment_editor_default(self, value: str) -> None:
-        self._host.app_preferences_controller.update_graphics_settings(
-            {"canvas": {"node_comment_editor_default": str(value)}},
-            host=self._host,
-        )
-
     def set_selected_run_preview_before_run(self, enabled: bool) -> None:
         previous = self.selected_run_preview_before_run
         current = self._host.app_preferences_controller.set_selected_run_preview_before_run(enabled)
         if current != previous:
             self._host.graphics_preferences_changed.emit()
-
-    def set_graphics_show_grid(self, show_grid: bool) -> None:
-        self._host.app_preferences_controller.update_graphics_settings(
-            {"canvas": {"show_grid": bool(show_grid)}},
-            host=self._host,
-        )
-
-    def set_graphics_canvas_background_variant(self, variant: str) -> None:
-        self._host.app_preferences_controller.update_graphics_settings(
-            {"canvas": {"background_variant": str(variant)}},
-            host=self._host,
-        )
-
-    def set_graphics_grid_style(self, style: str) -> None:
-        self._host.app_preferences_controller.update_graphics_settings(
-            {"canvas": {"grid_style": str(style)}},
-            host=self._host,
-        )
-
-    def set_graphics_node_shadow(self, enabled: bool) -> None:
-        self._host.app_preferences_controller.update_graphics_settings(
-            {"canvas": {"node_shadow": bool(enabled)}},
-            host=self._host,
-        )
-
-    def set_graphics_floating_toolbar_style(self, style: str) -> None:
-        self._host.app_preferences_controller.update_graphics_settings(
-            {"canvas": {"floating_toolbar_style": str(style)}},
-            host=self._host,
-        )
-
-    def set_graphics_floating_toolbar_size(self, size: str) -> None:
-        self._host.app_preferences_controller.update_graphics_settings(
-            {"canvas": {"floating_toolbar_size": str(size)}},
-            host=self._host,
-        )
-
-    def set_graphics_selection_toolbar_mode(self, mode: str) -> None:
-        self._host.app_preferences_controller.update_graphics_settings(
-            {"canvas": {"selection_toolbar_mode": str(mode)}},
-            host=self._host,
-        )
-
-    def set_graphics_selection_toolbar_minimal_menu_trigger(self, trigger: str) -> None:
-        self._host.app_preferences_controller.update_graphics_settings(
-            {"canvas": {"selection_toolbar_minimal_menu_trigger": str(trigger)}},
-            host=self._host,
-        )
-
-    def set_folder_explorer_column_widths(self, widths: dict[str, object]) -> None:
-        self._host.app_preferences_controller.update_graphics_settings(
-            {"folder_explorer": {"column_widths": dict(widths or {})}},
-            host=self._host,
-        )
-
-    def record_recent_text_color(self, color: str) -> None:
-        self._host.app_preferences_controller.record_recent_text_color(
-            color,
-            host=self._host,
-        )
-
-    def set_graphics_shell_theme(self, theme_id: str) -> None:
-        self._host.app_preferences_controller.update_graphics_settings(
-            {"theme": {"theme_id": str(theme_id)}},
-            host=self._host,
-        )
-
-    def set_graphics_graph_follow_shell_theme(self, follow_shell_theme: bool) -> None:
-        self._host.app_preferences_controller.update_graphics_settings(
-            {"graph_theme": {"follow_shell_theme": bool(follow_shell_theme)}},
-            host=self._host,
-        )
-
-    def set_graphics_graph_theme(self, theme_id: str) -> None:
-        self._host.app_preferences_controller.update_graphics_settings(
-            {
-                "graph_theme": {
-                    "follow_shell_theme": False,
-                    "selected_theme_id": str(theme_id),
-                }
-            },
-            host=self._host,
-        )
-
-    def request_open_graphics_settings(self) -> None:
-        self._host.show_graphics_settings_dialog()
 
     def request_open_subnode_scope(self, node_id: str) -> bool:
         normalized_node_id = str(node_id).strip()

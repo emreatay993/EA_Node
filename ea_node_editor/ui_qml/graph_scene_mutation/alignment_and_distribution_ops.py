@@ -13,11 +13,10 @@ from ea_node_editor.graph.transforms import (
 from ea_node_editor.ui.shell.runtime_history import ACTION_MOVE_NODE, ACTION_RESIZE_NODE
 from ea_node_editor.ui_qml.graph_geometry.anchors import flowchart_port_side
 from ea_node_editor.ui_qml.graph_geometry.route_endpoints import port_scene_pos
-from ea_node_editor.ui_qml.graph_scene_payload.theme_inputs import (
-    _graph_label_pixel_size,
-    _graph_node_icon_pixel_size,
+from ea_node_editor.ui_qml.graph_surface_metrics import (
+    node_surface_metrics,
+    resolved_node_surface_size,
 )
-from ea_node_editor.ui_qml.graph_surface_metrics import node_surface_metrics
 
 SNAP_GRID_SIZE = 20.0
 _HORIZONTAL_PORT_SIDES = frozenset({"left", "right"})
@@ -55,6 +54,9 @@ def _minimum_node_size(self, node) -> tuple[float, float]:  # noqa: ANN001
             node_ids={str(node.node_id)},
             graph_theme_bridge=self._scene_context.graph_theme_bridge,
             show_port_labels=self._scene_context.graphics_show_port_labels,
+            graph_label_pixel_size=self._scene_context.graphics_graph_label_pixel_size,
+            graph_node_icon_pixel_size=self._scene_context.graphics_node_title_icon_pixel_size,
+            lightweight_canvas=self._scene_context.graphics_lightweight_canvas,
         ).get(str(node.node_id))
     surface_metrics = payload.get("surface_metrics", {}) if isinstance(payload, dict) else {}
     try:
@@ -65,6 +67,8 @@ def _minimum_node_size(self, node) -> tuple[float, float]:  # noqa: ANN001
             spec,
             workspace.nodes,
             show_port_labels=self._scene_context.graphics_show_port_labels,
+            graph_label_pixel_size=self._scene_context.graphics_graph_label_pixel_size,
+            graph_node_icon_pixel_size=self._scene_context.graphics_node_title_icon_pixel_size,
         )
         return float(metrics.min_width), float(metrics.min_height)
 
@@ -207,11 +211,13 @@ def move_nodes_by_delta(self, node_ids: list[Any], dx: float, dy: float) -> bool
 
 
 def _effective_node_size(self, workspace, node, spec) -> tuple[float, float]:  # noqa: ANN001
-    width, height = self._boundary_adapters.node_size(
+    width, height = resolved_node_surface_size(
         node,
         spec,
         workspace.nodes,
         show_port_labels=self._scene_context.graphics_show_port_labels,
+        graph_label_pixel_size=self._scene_context.graphics_graph_label_pixel_size,
+        graph_node_icon_pixel_size=self._scene_context.graphics_node_title_icon_pixel_size,
     )
     return float(width), float(height)
 
@@ -373,11 +379,8 @@ def _straighten_connection_constraints(
     registry = self._scene_context.registry
     if registry is None:
         return []
-    graph_label_pixel_size = _graph_label_pixel_size(self._scene_context.graph_theme_bridge)
-    graph_node_icon_pixel_size = _graph_node_icon_pixel_size(
-        self._scene_context.graph_theme_bridge,
-        graph_label_pixel_size=graph_label_pixel_size,
-    )
+    graph_label_pixel_size = self._scene_context.graphics_graph_label_pixel_size
+    graph_node_icon_pixel_size = self._scene_context.graphics_node_title_icon_pixel_size
     constraints: list[PortAlignmentConstraint] = []
     for edge in workspace.edges.values():
         if edge.source_node_id not in selected_node_ids or edge.target_node_id not in selected_node_ids:
