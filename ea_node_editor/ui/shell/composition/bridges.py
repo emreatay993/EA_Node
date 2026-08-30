@@ -7,7 +7,6 @@ from PyQt6.QtCore import QObject, pyqtProperty, pyqtSignal, pyqtSlot
 
 from ea_node_editor.help.help_bridge import HelpBridge
 from ea_node_editor.ui.shell.context_bridges import ShellContextBridges
-from ea_node_editor.ui_qml.graph_canvas_bridge import GraphCanvasBridge
 from ea_node_editor.ui_qml.graph_canvas_command import GraphCanvasCommandBridge
 from ea_node_editor.ui_qml.graph_canvas_state import GraphCanvasStateBridge
 from ea_node_editor.ui_qml.shell_inspector_bridge import ShellInspectorBridge
@@ -72,7 +71,6 @@ class ShellContextBridgeDependencies:
     addon_manager_bridge: AddonManagerBridge
     graph_canvas_state_bridge: GraphCanvasStateBridge
     graph_canvas_command_bridge: GraphCanvasCommandBridge
-    graph_canvas_bridge: GraphCanvasBridge
     help_bridge: HelpBridge
 
     def attach(self, host: "ShellWindow") -> None:
@@ -82,7 +80,6 @@ class ShellContextBridgeDependencies:
         host.addon_manager_bridge = self.addon_manager_bridge
         host.graph_canvas_state_bridge = self.graph_canvas_state_bridge
         host.graph_canvas_command_bridge = self.graph_canvas_command_bridge
-        host.graph_canvas_bridge = self.graph_canvas_bridge
         host.help_bridge = self.help_bridge
 
 
@@ -130,14 +127,6 @@ def create_context_bridge_dependencies(
         ),
         graph_canvas_state_bridge=graph_canvas_state_bridge,
         graph_canvas_command_bridge=graph_canvas_command_bridge,
-        graph_canvas_bridge=GraphCanvasBridge(
-            host,
-            shell_window=host,
-            scene_bridge=primitives.scene,
-            view_bridge=primitives.view,
-            state_bridge=graph_canvas_state_bridge,
-            command_bridge=graph_canvas_command_bridge,
-        ),
     )
     help_bridge = HelpBridge(host, shell_window=host)
     addon_manager_bridge = AddonManagerBridge(
@@ -153,7 +142,6 @@ def create_context_bridge_dependencies(
         addon_manager_bridge=addon_manager_bridge,
         graph_canvas_state_bridge=graph_canvas_state_bridge,
         graph_canvas_command_bridge=graph_canvas_command_bridge,
-        graph_canvas_bridge=shell_context_bridges.graph_canvas_bridge,
         help_bridge=help_bridge,
     )
 

@@ -2,10 +2,13 @@ from __future__ import annotations
 
 import ast
 import re
+import unittest
 from dataclasses import fields
 from tempfile import TemporaryDirectory
 from pathlib import Path
+from unittest import mock
 
+from ea_node_editor.ui.shell.controllers.graph_action_controller import GraphActionController
 from ea_node_editor.ui.shell.graph_action_contracts import (
     GRAPH_ACTION_IDS,
     GRAPH_ACTION_SPECS,
@@ -19,6 +22,7 @@ from ea_node_editor.ui.shell.graph_action_contracts import (
 from ea_node_editor.platform_paths import default_user_desktop_path
 from ea_node_editor.ui.folder_explorer import FolderExplorerFilesystemService
 from ea_node_editor.ui_qml.graph_canvas_command import GraphCanvasCommandBridge
+from ea_node_editor.ui_qml.graph_action_bridge import GraphActionBridge
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -170,6 +174,329 @@ FOLDER_EXPLORER_ACTION_PAYLOAD_KEYS = {
     GraphActionId.FOLDER_EXPLORER_PROPERTIES: ("node_id", "path"),
     GraphActionId.FOLDER_EXPLORER_SEND_TO_COREX_PATH_POINTER: ("node_id", "path"),
 }
+
+
+class _GraphActionSource:
+    def __init__(self) -> None:
+        self.calls: list[tuple[str, tuple[object, ...]]] = []
+        self.nodes_model = [
+            {
+                "node_id": "locked-node",
+                "addon_id": "addon.from-node",
+                "locked_state": {"focus_addon_id": "addon.from-lock"},
+            }
+        ]
+
+    def _record(self, name: str, *args: object) -> bool:
+        self.calls.append((name, args))
+        return True
+
+    def copy_selected_nodes_to_clipboard(self) -> bool:
+        return self._record("copy_selected_nodes_to_clipboard")
+
+    def align_selection_left(self) -> bool:
+        return self._record("align_selection_left")
+
+    def set_selection_same_type_width(self, node_ids: tuple[str, ...]) -> bool:
+        return self._record("set_selection_same_type_width", node_ids)
+
+    def set_selection_same_type_height(self, node_ids: tuple[str, ...]) -> bool:
+        return self._record("set_selection_same_type_height", node_ids)
+
+    def straighten_selection_connections(self) -> bool:
+        return self._record("straighten_selection_connections")
+
+    def request_delete_selected_graph_items(self, edge_ids: list[object]) -> bool:
+        return self._record("request_delete_selected_graph_items", edge_ids)
+
+    def request_open_subnode_scope(self, node_id: str) -> bool:
+        return self._record("request_open_subnode_scope", node_id)
+
+    def request_publish_custom_workflow_from_node(self, node_id: str) -> bool:
+        return self._record("request_publish_custom_workflow_from_node", node_id)
+
+    def open_comment_peek(self, node_id: str) -> bool:
+        return self._record("open_comment_peek", node_id)
+
+    def close_comment_peek(self) -> bool:
+        return self._record("close_comment_peek")
+
+    def requestOpen(self, focus_addon_id: str) -> None:  # noqa: N802
+        self.calls.append(("requestOpen", (focus_addon_id,)))
+
+    def request_edit_flow_edge_style(self, edge_id: str) -> bool:
+        return self._record("request_edit_flow_edge_style", edge_id)
+
+    def request_remove_edge(self, edge_id: str) -> bool:
+        return self._record("request_remove_edge", edge_id)
+
+    def request_propagate_passive_node_style(self, node_id: str) -> bool:
+        return self._record("request_propagate_passive_node_style", node_id)
+
+    def run_selected_nodes(self, node_ids=None) -> bool:  # noqa: ANN001
+        return self._record("run_selected_nodes", tuple(node_ids or ()))
+
+    def preview_selected_run(self, node_ids=None) -> bool:  # noqa: ANN001
+        return self._record("preview_selected_run", tuple(node_ids or ()))
+
+    def open_selected_run_settings(self) -> bool:
+        return self._record("open_selected_run_settings")
+
+    def confirm_selected_run_preview(self) -> bool:
+        return self._record("confirm_selected_run_preview")
+
+    def clear_selected_run_preview(self) -> bool:
+        return self._record("clear_selected_run_preview")
+
+
+class _CommentPeekScene:
+    def __init__(self) -> None:
+        self.calls: list[tuple[str, tuple[object, ...]]] = []
+        self.active_comment_peek_node_id = ""
+
+    def can_open_comment_peek(self, node_id: str) -> bool:
+        self.calls.append(("can_open_comment_peek", (node_id,)))
+        return node_id == "comment-1"
+
+    def open_comment_peek(self, node_id: str) -> bool:
+        self.calls.append(("open_comment_peek", (node_id,)))
+        if node_id != "comment-1":
+            return False
+        self.active_comment_peek_node_id = node_id
+        return True
+
+    def close_comment_peek(self) -> bool:
+        self.calls.append(("close_comment_peek", ()))
+        if not self.active_comment_peek_node_id:
+            return False
+        self.active_comment_peek_node_id = ""
+        return True
+
+
+class GraphActionBridgeDelegationTests(unittest.TestCase):
+    def test_graph_action_controller_delegates_representative_action_families(self) -> None:
+        workspace = _GraphActionSource()
+        canvas_presenter = _GraphActionSource()
+        host_presenter = _GraphActionSource()
+        library_presenter = _GraphActionSource()
+        scene = _GraphActionSource()
+        addon_manager = _GraphActionSource()
+        controller = GraphActionController(
+            workspace_library_controller=workspace,
+            graph_canvas_presenter=canvas_presenter,
+            graph_canvas_host_presenter=host_presenter,
+            shell_library_presenter=library_presenter,
+            scene_bridge=scene,
+            addon_manager_bridge=addon_manager,
+        )
+
+        self.assertFalse(hasattr(controller, "shell_window"))
+        self.assertFalse(hasattr(controller, "_shell_window"))
+        self.assertTrue(controller.trigger(GraphActionId.COPY_SELECTION.value))
+        self.assertTrue(controller.trigger(GraphActionId.ALIGN_SELECTION_LEFT.value))
+        self.assertTrue(
+            controller.trigger(
+                GraphActionId.SET_SELECTION_SAME_TYPE_WIDTH.value,
+                {"node_ids": ["node-1", "node-2"]},
+            )
+        )
+        self.assertTrue(
+            controller.trigger(
+                GraphActionId.SET_SELECTION_SAME_TYPE_HEIGHT.value,
+                {"node_ids": ["node-3", "node-4"]},
+            )
+        )
+        self.assertTrue(controller.trigger(GraphActionId.STRAIGHTEN_SELECTION_CONNECTIONS.value))
+        self.assertTrue(controller.trigger(GraphActionId.DELETE_SELECTION.value, {"edge_ids": ["edge-1"]}))
+        self.assertTrue(controller.trigger(GraphActionId.OPEN_SUBNODE_SCOPE.value, {"node_id": "node-1"}))
+        self.assertTrue(
+            controller.trigger(GraphActionId.PUBLISH_CUSTOM_WORKFLOW_FROM_NODE.value, {"node_id": "node-2"})
+        )
+        self.assertTrue(controller.trigger(GraphActionId.OPEN_COMMENT_PEEK.value, {"node_id": "comment-1"}))
+        self.assertTrue(controller.trigger(GraphActionId.CLOSE_COMMENT_PEEK.value))
+        self.assertTrue(controller.trigger(GraphActionId.OPEN_ADDON_MANAGER_FOR_NODE.value, {"node_id": "locked-node"}))
+        self.assertTrue(controller.trigger(GraphActionId.REMOVE_EDGE.value, {"edge_id": "edge-1"}))
+        self.assertTrue(
+            controller.trigger(GraphActionId.PROPAGATE_PASSIVE_NODE_STYLE.value, {"node_id": "node-3"})
+        )
+
+        self.assertEqual(
+            workspace.calls,
+            [
+                ("copy_selected_nodes_to_clipboard", ()),
+                ("align_selection_left", ()),
+                ("set_selection_same_type_width", (("node-1", "node-2"),)),
+                ("set_selection_same_type_height", (("node-3", "node-4"),)),
+                ("straighten_selection_connections", ()),
+            ],
+        )
+        self.assertEqual(
+            canvas_presenter.calls,
+            [("request_open_subnode_scope", ("node-1",))],
+        )
+        self.assertEqual(
+            host_presenter.calls,
+            [
+                ("request_delete_selected_graph_items", (["edge-1"],)),
+                ("request_remove_edge", ("edge-1",)),
+                ("request_propagate_passive_node_style", ("node-3",)),
+            ],
+        )
+        self.assertEqual(
+            library_presenter.calls,
+            [("request_publish_custom_workflow_from_node", ("node-2",))],
+        )
+        self.assertEqual(
+            scene.calls,
+            [
+                ("open_comment_peek", ("comment-1",)),
+                ("close_comment_peek", ()),
+            ],
+        )
+        self.assertEqual(addon_manager.calls, [("requestOpen", ("addon.from-lock",))])
+
+    def test_graph_action_controller_routes_selected_run_actions(self) -> None:
+        run_controller = _GraphActionSource()
+        controller = GraphActionController(run_controller=run_controller)
+
+        self.assertTrue(controller.trigger(GraphActionId.RUN_SELECTED.value, {"node_id": "node-1"}))
+        self.assertTrue(controller.trigger(GraphActionId.PREVIEW_SELECTED_RUN.value, {"node_id": "node-3"}))
+        self.assertTrue(controller.trigger(GraphActionId.OPEN_SELECTED_RUN_SETTINGS.value))
+        self.assertTrue(controller.trigger(GraphActionId.CONFIRM_SELECTED_RUN_PREVIEW.value))
+        self.assertTrue(controller.trigger(GraphActionId.CLEAR_SELECTED_RUN_PREVIEW.value))
+
+        self.assertEqual(
+            run_controller.calls,
+            [
+                ("run_selected_nodes", (("node-1",),)),
+                ("preview_selected_run", (("node-3",),)),
+                ("open_selected_run_settings", ()),
+                ("confirm_selected_run_preview", ()),
+                ("clear_selected_run_preview", ()),
+            ],
+        )
+
+    def test_graph_action_controller_opens_node_path_via_platform_helpers(self) -> None:
+        import ea_node_editor.ui.shell.controllers.graph_action_controller as controller_module
+
+        class _PathPointerScene:
+            nodes_model = [
+                {
+                    "node_id": "pp-1",
+                    "type_id": "io.path_pointer",
+                    "properties": {"path": "C:/tmp/file.txt", "mode": "file"},
+                }
+            ]
+
+        class _HintPresenter:
+            def __init__(self) -> None:
+                self.hints: list[tuple[str, int]] = []
+
+            def show_graph_hint(self, message: str, timeout_ms: int = 3600) -> None:
+                self.hints.append((message, timeout_ms))
+
+        presenter = _HintPresenter()
+        controller = GraphActionController(scene_bridge=_PathPointerScene(), graph_canvas_presenter=presenter)
+
+        default_calls: list[str] = []
+        chooser_calls: list[str] = []
+        with mock.patch.object(
+            controller_module,
+            "open_path_with_default_handler",
+            lambda path: default_calls.append(path) or True,
+        ), mock.patch.object(
+            controller_module,
+            "open_path_with_app_chooser",
+            lambda path: chooser_calls.append(path) or True,
+        ):
+            self.assertTrue(controller.trigger(GraphActionId.OPEN_NODE_PATH.value, {"node_id": "pp-1"}))
+            self.assertTrue(controller.trigger(GraphActionId.OPEN_NODE_PATH_WITH.value, {"node_id": "pp-1"}))
+
+        self.assertEqual(default_calls, ["C:/tmp/file.txt"])
+        self.assertEqual(chooser_calls, ["C:/tmp/file.txt"])
+        self.assertEqual(presenter.hints, [])
+
+    def test_graph_action_controller_open_node_path_hints_when_path_missing(self) -> None:
+        import ea_node_editor.ui.shell.controllers.graph_action_controller as controller_module
+
+        class _EmptyPathPointerScene:
+            nodes_model = [
+                {"node_id": "pp-1", "type_id": "io.path_pointer", "properties": {"path": ""}}
+            ]
+
+        class _HintPresenter:
+            def __init__(self) -> None:
+                self.hints: list[tuple[str, int]] = []
+
+            def show_graph_hint(self, message: str, timeout_ms: int = 3600) -> None:
+                self.hints.append((message, timeout_ms))
+
+        presenter = _HintPresenter()
+        controller = GraphActionController(scene_bridge=_EmptyPathPointerScene(), graph_canvas_presenter=presenter)
+
+        opener_calls: list[str] = []
+        with mock.patch.object(
+            controller_module,
+            "open_path_with_default_handler",
+            lambda path: opener_calls.append(path) or True,
+        ):
+            self.assertFalse(controller.trigger(GraphActionId.OPEN_NODE_PATH.value, {"node_id": "pp-1"}))
+
+        self.assertEqual(opener_calls, [])
+        self.assertEqual(len(presenter.hints), 1)
+        self.assertIn("No path", presenter.hints[0][0])
+
+    def test_graph_action_bridge_exposes_contract_metadata_and_rejects_bad_payloads(self) -> None:
+        host_presenter = _GraphActionSource()
+        controller = GraphActionController(graph_canvas_host_presenter=host_presenter)
+        bridge = GraphActionBridge(controller=controller)
+
+        self.assertIn(GraphActionId.REMOVE_EDGE.value, bridge.actionIds)
+        self.assertEqual(
+            bridge.action_metadata(GraphActionId.EDIT_FLOW_EDGE_STYLE.value)["actionId"],
+            GraphActionId.EDIT_FLOW_EDGE_STYLE.value,
+        )
+        self.assertEqual(bridge.action_metadata("edit_flow_edge"), {})
+        self.assertEqual(
+            bridge.action_metadata(GraphActionId.REMOVE_EDGE.value)["requiredPayloadKeys"],
+            ["edge_id"],
+        )
+        self.assertTrue(bridge.trigger_graph_action("edit_flow_edge_style", {"edge_id": "edge-2"}))
+        self.assertFalse(bridge.trigger_graph_action("edit_flow_edge_style", {"edge_id": ""}))
+        self.assertFalse(bridge.trigger_graph_action("edit_flow_edge_style", {"edge_id": 123}))
+        self.assertFalse(bridge.trigger_graph_action("not_a_graph_action", {}))
+        self.assertEqual(
+            host_presenter.calls,
+            [("request_edit_flow_edge_style", ("edge-2",))],
+        )
+
+    def test_comment_peek_opens_via_graph_action_and_uses_command_bridge_helpers(self) -> None:
+        scene = _CommentPeekScene()
+        command_bridge = GraphCanvasCommandBridge(scene_bridge=scene)
+        action_bridge = GraphActionBridge(
+            controller=GraphActionController(scene_bridge=scene),
+        )
+
+        self.assertTrue(command_bridge.can_open_comment_peek("comment-1"))
+        self.assertFalse(command_bridge.can_open_comment_peek("logger-1"))
+        self.assertTrue(
+            action_bridge.trigger_graph_action(
+                GraphActionId.OPEN_COMMENT_PEEK.value,
+                {"node_id": "comment-1"},
+            )
+        )
+        self.assertEqual(command_bridge.active_comment_peek_node_id(), "comment-1")
+        self.assertTrue(command_bridge.request_close_comment_peek())
+        self.assertEqual(command_bridge.active_comment_peek_node_id(), "")
+        self.assertEqual(
+            scene.calls,
+            [
+                ("can_open_comment_peek", ("comment-1",)),
+                ("can_open_comment_peek", ("logger-1",)),
+                ("open_comment_peek", ("comment-1",)),
+                ("close_comment_peek", ()),
+            ],
+        )
 
 
 class _FolderExplorerConfirmationProbe:

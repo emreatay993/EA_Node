@@ -23,6 +23,7 @@ from PyQt6.QtQuickWidgets import QQuickWidget
 from PyQt6.QtWidgets import QApplication, QWidget
 import pytest
 
+from ea_node_editor.execution.prepared_execution import InvalidationResult
 from ea_node_editor.graph.model import GraphModel
 from ea_node_editor.nodes.builtins.media_panel import MEDIA_PANEL_TYPE_ID
 from ea_node_editor.ui.shell import composition as shell_composition
@@ -53,6 +54,7 @@ from tests.qt_wait import wait_for_condition_or_raise
 class _ShellTestExecutionClient:
     def __init__(self, _registry: object | None = None) -> None:
         self._callbacks: list[object] = []
+        self._solution_revision = 0
 
     def subscribe(self, callback) -> None:  # noqa: ANN001
         self._callbacks.append(callback)
@@ -70,6 +72,26 @@ class _ShellTestExecutionClient:
         clicked_trigger_node_id: str = "",
     ) -> str:
         return ""
+
+    def invalidate_solution(
+        self,
+        project_id: str,
+        workspace_id: str,
+        _runtime_snapshot,
+        changed_root_node_ids,
+        reason_code: str,
+    ) -> InvalidationResult:
+        changed_node_ids = tuple(changed_root_node_ids)
+        self._solution_revision += 1
+        return InvalidationResult(
+            project_id=project_id,
+            workspace_id=workspace_id,
+            solution_revision=self._solution_revision,
+            changed_root_node_ids=changed_node_ids,
+            expired_node_ids=changed_node_ids,
+            removed_node_ids=(),
+            reason_code=reason_code,
+        )
 
     def shutdown(self) -> None:
         self._callbacks.clear()

@@ -175,9 +175,6 @@ Item {
         function onCanvasCommandBridgeChanged() {
             surface.refreshPreview();
         }
-        function onGraphCanvasFacadeChanged() {
-            surface.refreshPreview();
-        }
     }
 
     function refreshPreview() {

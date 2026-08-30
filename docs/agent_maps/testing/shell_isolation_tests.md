@@ -11,7 +11,7 @@ Use this for shell-backed workflows that need process isolation, shell target ca
 
 ## Common Changes
 - Add shell-backed targets to manifest-owned shell isolation catalogs.
-- Keep the final 47-target catalog's split edit/clipboard (18/10/8), seven drop/connect (4/3/7/7/2/1/4), split Media Panel shell coverage (8/10 and 3/2), seven shell-basics, two bridge-local, and split view/library/inspector (7/7/13/14/13) shards disjoint, ordered, and serial inside each child process; pytest nodeid lists pass `-n 0`.
+- Keep the verified 51-target catalog's split edit/clipboard (18/10/8), seven drop/connect (4/3/7/7/2/1/4), split Media Panel shell coverage (9/10 and 3/2), seven shell-basics, two bridge-local, and split view/library/inspector (7/7/13/14/13) shards disjoint, ordered, and serial inside each child process; pytest nodeid lists pass `-n 0`. The retired `GraphCanvasBridgeTests` nodeid left the existing `main_window__bridge_local_pack__contracts_and_library_qml` pack; the pack itself and the 51-target registry remain.
 - Keep the outer full shell-isolation phase at its manifest-owned four-worker cap; each child stays serial.
 - Keep catalog-owned Media Panel and graph-host targets free of nested subprocess proxy classes and `load_tests` wrappers.
 - Keep shell-isolated direct `unittest` commands as focused manual reruns only.

@@ -8,9 +8,9 @@
     "qml_files": 170,
     "repeater_constructs": 98,
     "loader_constructs": 24,
-    "signal_handlers": 880,
+    "signal_handlers": 879,
     "connections": 47,
-    "property_bindings": 7593,
+    "property_bindings": 7592,
     "local_component_refs": 270
   },
   "entries": [
@@ -45807,10 +45807,6 @@
       "property_bindings": [
         {
           "kind": "binding",
-          "name": "chromeToggleAvailable"
-        },
-        {
-          "kind": "binding",
           "name": "implicitHeight",
           "targets": [
             "host",
@@ -49015,6 +49011,10 @@
           "name": "previewSourceUrl"
         },
         {
+          "kind": "real",
+          "name": "previewRenderScale"
+        },
+        {
           "kind": "string",
           "name": "previewState"
         },
@@ -49115,10 +49115,6 @@
       ],
       "connections": [],
       "property_bindings": [
-        {
-          "kind": "binding",
-          "name": "chromeToggleAvailable"
-        },
         {
           "kind": "binding",
           "name": "implicitHeight",
@@ -49398,6 +49394,26 @@
         },
         {
           "kind": "binding",
+          "name": "sourceSize.width",
+          "targets": [
+            "Math.max",
+            "Math.ceil",
+            "width",
+            "renderer.previewRenderScale"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "sourceSize.height",
+          "targets": [
+            "Math.max",
+            "Math.ceil",
+            "height",
+            "renderer.previewRenderScale"
+          ]
+        },
+        {
+          "kind": "binding",
           "name": "visible",
           "targets": [
             "renderer.previewState"
@@ -49518,6 +49534,12 @@
           "kind": "property",
           "name": "previewSourceUrl",
           "detail": "string"
+        },
+        {
+          "anchor": "GraphMediaPdfRendererPropertyPreviewRenderScale",
+          "kind": "property",
+          "name": "previewRenderScale",
+          "detail": "real"
         },
         {
           "anchor": "GraphMediaPdfRendererPropertyPreviewState",
@@ -51612,10 +51634,6 @@
         }
       ],
       "property_bindings": [
-        {
-          "kind": "binding",
-          "name": "chromeToggleAvailable"
-        },
         {
           "kind": "binding",
           "name": "implicitHeight",
@@ -74904,9 +74922,6 @@
           "name": "onCanvasCommandBridgeChanged"
         },
         {
-          "name": "onGraphCanvasFacadeChanged"
-        },
-        {
           "name": "refreshPreview"
         },
         {
@@ -75705,11 +75720,6 @@
           "anchor": "GraphTabularPreviewSurfaceFunctionOnCanvasCommandBridgeChanged",
           "kind": "function",
           "name": "onCanvasCommandBridgeChanged"
-        },
-        {
-          "anchor": "GraphTabularPreviewSurfaceFunctionOnGraphCanvasFacadeChanged",
-          "kind": "function",
-          "name": "onGraphCanvasFacadeChanged"
         },
         {
           "anchor": "GraphTabularPreviewSurfaceFunctionRefreshPreview",
@@ -101391,9 +101401,6 @@
           "name": "root"
         },
         {
-          "name": "graphCanvasFacadeAdapter"
-        },
-        {
           "name": "executionFactsObject"
         },
         {
@@ -101504,10 +101511,6 @@
       "properties": [
         {
           "kind": "var",
-          "name": "graphCanvasFacade"
-        },
-        {
-          "kind": "var",
           "name": "graphActionBridge"
         },
         {
@@ -101540,10 +101543,6 @@
         },
         {
           "kind": "var",
-          "name": "canvasFacadeRef"
-        },
-        {
-          "kind": "var",
           "name": "graphActionBridgeRef"
         },
         {
@@ -101557,14 +101556,6 @@
         {
           "kind": "var",
           "name": "canvasViewBridgeRef"
-        },
-        {
-          "kind": "var",
-          "name": "_canvasStateBridgeRef"
-        },
-        {
-          "kind": "var",
-          "name": "_canvasViewStateBridgeRef"
         },
         {
           "kind": "var",
@@ -101875,26 +101866,6 @@
           "name": "prefs"
         },
         {
-          "kind": "var",
-          "name": "state"
-        },
-        {
-          "kind": "var",
-          "name": "commands"
-        },
-        {
-          "kind": "var",
-          "name": "viewport"
-        },
-        {
-          "kind": "var",
-          "name": "mutation"
-        },
-        {
-          "kind": "var",
-          "name": "lifecycle"
-        },
-        {
           "kind": "alias",
           "name": "hoveredPort"
         },
@@ -102077,9 +102048,6 @@
         }
       ],
       "functions": [
-        {
-          "name": "_facadeService"
-        },
         {
           "name": "_validSceneRectPayload"
         },
@@ -102596,9 +102564,6 @@
       ],
       "instantiated_components": [
         {
-          "name": "QtObject"
-        },
-        {
           "name": "GraphCanvasComponents.GraphCanvasExecutionFacts"
         },
         {
@@ -102713,10 +102678,6 @@
         {
           "kind": "handler",
           "name": "onCanvasViewBridgeChanged"
-        },
-        {
-          "kind": "handler",
-          "name": "onGraphCanvasFacadeChanged"
         },
         {
           "kind": "handler",
@@ -103343,12 +103304,6 @@
       ],
       "symbol_anchors": [
         {
-          "anchor": "GraphCanvasPropertyGraphCanvasFacade",
-          "kind": "property",
-          "name": "graphCanvasFacade",
-          "detail": "var"
-        },
-        {
           "anchor": "GraphCanvasPropertyGraphActionBridge",
           "kind": "property",
           "name": "graphActionBridge",
@@ -103397,12 +103352,6 @@
           "detail": "var"
         },
         {
-          "anchor": "GraphCanvasPropertyCanvasFacadeRef",
-          "kind": "property",
-          "name": "canvasFacadeRef",
-          "detail": "var"
-        },
-        {
           "anchor": "GraphCanvasPropertyGraphActionBridgeRef",
           "kind": "property",
           "name": "graphActionBridgeRef",
@@ -103424,18 +103373,6 @@
           "anchor": "GraphCanvasPropertyCanvasViewBridgeRef",
           "kind": "property",
           "name": "canvasViewBridgeRef",
-          "detail": "var"
-        },
-        {
-          "anchor": "GraphCanvasPropertyCanvasStateBridgeRef2",
-          "kind": "property",
-          "name": "_canvasStateBridgeRef",
-          "detail": "var"
-        },
-        {
-          "anchor": "GraphCanvasPropertyCanvasViewStateBridgeRef",
-          "kind": "property",
-          "name": "_canvasViewStateBridgeRef",
           "detail": "var"
         },
         {
@@ -103901,36 +103838,6 @@
           "detail": "var"
         },
         {
-          "anchor": "GraphCanvasPropertyState",
-          "kind": "property",
-          "name": "state",
-          "detail": "var"
-        },
-        {
-          "anchor": "GraphCanvasPropertyCommands",
-          "kind": "property",
-          "name": "commands",
-          "detail": "var"
-        },
-        {
-          "anchor": "GraphCanvasPropertyViewport",
-          "kind": "property",
-          "name": "viewport",
-          "detail": "var"
-        },
-        {
-          "anchor": "GraphCanvasPropertyMutation",
-          "kind": "property",
-          "name": "mutation",
-          "detail": "var"
-        },
-        {
-          "anchor": "GraphCanvasPropertyLifecycle",
-          "kind": "property",
-          "name": "lifecycle",
-          "detail": "var"
-        },
-        {
           "anchor": "GraphCanvasPropertyHoveredPort",
           "kind": "property",
           "name": "hoveredPort",
@@ -104200,11 +104107,6 @@
           "anchor": "GraphCanvasSignalCanvasBasePngExportFinished",
           "kind": "signal",
           "name": "canvasBasePngExportFinished"
-        },
-        {
-          "anchor": "GraphCanvasFunctionFacadeService",
-          "kind": "function",
-          "name": "_facadeService"
         },
         {
           "anchor": "GraphCanvasFunctionValidSceneRectPayload",
@@ -105115,11 +105017,6 @@
           "anchor": "GraphCanvasHandlerOnCanvasViewBridgeChanged",
           "kind": "handler",
           "name": "onCanvasViewBridgeChanged"
-        },
-        {
-          "anchor": "GraphCanvasHandlerOnGraphCanvasFacadeChanged",
-          "kind": "handler",
-          "name": "onGraphCanvasFacadeChanged"
         },
         {
           "anchor": "GraphCanvasHandlerOnSceneBridgeChanged",

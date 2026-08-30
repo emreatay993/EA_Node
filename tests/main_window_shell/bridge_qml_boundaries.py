@@ -1314,7 +1314,6 @@ class GraphCanvasQmlBoundaryTests(unittest.TestCase):
             "property var canvasBridge: null",
             "readonly property var canvasBridgeRef",
             "property var mainWindowBridge",
-            "property var sceneBridge: root.canvasStateBridgeRef",
             "property var viewBridge: root.canvasStateBridgeRef",
             "readonly property var _canvasViewStateBridgeRef: root.canvasStateBridgeRef",
             "readonly property var _canvasViewCommandBridgeRef: root.canvasCommandBridgeRef",
@@ -1367,6 +1366,12 @@ class GraphCanvasQmlBoundaryTests(unittest.TestCase):
             "readonly property var _canvasSceneCommandBridgeRef",
             "readonly property var _canvasViewCommandBridgeRef",
             "shellCommandBridge: root._canvasShellCommandBridgeRef",
+            "graphCanvasFacade",
+            "canvasFacadeRef",
+            "_facadeService",
+            "graphCanvasFacadeAdapter",
+            "_canvasStateBridgeRef",
+            "_canvasViewStateBridgeRef",
         )
         present_snippets = (
             "property var canvasStateBridge: null",
@@ -1375,14 +1380,12 @@ class GraphCanvasQmlBoundaryTests(unittest.TestCase):
             "readonly property var _canvasViewportBridge: root.canvasViewBridge",
             "root.canvasStateBridge.viewport_bridge",
             "root.canvasCommandBridge.viewport_bridge",
-            "readonly property var canvasStateBridgeRef",
-            "readonly property var canvasCommandBridgeRef",
-            "readonly property var canvasViewBridgeRef",
-            "readonly property var _canvasStateBridgeRef",
-            "readonly property var _canvasViewStateBridgeRef",
+            "readonly property var canvasStateBridgeRef: root.canvasStateBridge || null",
+            "readonly property var canvasCommandBridgeRef: root.canvasCommandBridge || null",
+            "readonly property var canvasViewBridgeRef: root._canvasViewportBridge",
             "readonly property var sceneStateBridge: root.canvasStateBridgeRef",
-            'readonly property var sceneCommandBridge: root._facadeService("mutation")',
-            'readonly property var sceneBridge: root._facadeService("lifecycle")',
+            "readonly property var sceneCommandBridge: root.canvasCommandBridgeRef",
+            "readonly property var sceneBridge: root.canvasStateBridgeRef",
             "readonly property var viewBridge: root.canvasViewBridgeRef",
             "readonly property bool showGrid: preferenceFactsObject.showGrid",
             "GraphCanvasComponents.GraphCanvasInteractionState {",
@@ -1791,7 +1794,7 @@ class GraphCanvasQmlBoundaryTests(unittest.TestCase):
                 ):
                     self.assertIn(snippet, qml_text)
 
-    def test_graph_canvas_bridge_sources_expose_tooltip_category_policy_contract(
+    def test_graph_canvas_state_sources_expose_tooltip_category_policy_contract(
         self,
     ) -> None:
         expectations = {
@@ -1800,11 +1803,6 @@ class GraphCanvasQmlBoundaryTests(unittest.TestCase):
                 "def graphics_tooltip_category_visibility(self) -> dict[str, bool]:",
                 "def tooltip_category_enabled(self, category: str) -> bool:",
                 "TOOLTIP_CATEGORY_NAMES",
-            ),
-            "ea_node_editor/ui_qml/graph_canvas_bridge.py": (
-                "def graphics_tooltip_categories(self) -> dict[str, bool]:",
-                "def graphics_tooltip_category_visibility(self) -> dict[str, bool]:",
-                "def tooltip_category_enabled(self, category: str) -> bool:",
             ),
             "ea_node_editor/ui/shell/window.py": (
                 "graphics_tooltip_categories = pyqtProperty(",

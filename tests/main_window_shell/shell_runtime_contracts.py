@@ -158,7 +158,6 @@ class MainWindowShellContextBootstrapTests(SharedMainWindowShellTestBase):
             "viewBridge",
             "consoleBridge",
             "workspaceTabsBridge",
-            "graphCanvasBridge",
         ):
             with self.subTest(name=name, expectation="removed"):
                 self.assertIsNone(context.contextProperty(name))

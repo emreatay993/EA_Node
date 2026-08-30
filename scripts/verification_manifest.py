@@ -463,8 +463,8 @@ COREX_NO_LEGACY_GUARDRAIL_INVENTORY = (
         category="graph_canvas_bridge_edge_adapter",
         owner_packet="P02",
         path="ea_node_editor/ui_qml/graph_canvas_bridge.py",
-        names=("GraphCanvasBridge",),
-        expectation=COREX_NO_LEGACY_GUARDRAIL_PRESENT,
+        names=(),
+        expectation=COREX_NO_LEGACY_GUARDRAIL_PATH_ABSENT,
     ),
     NoLegacyGuardrailSurface(
         category="graph_canvas_qml_compat_aliases",
@@ -475,6 +475,12 @@ COREX_NO_LEGACY_GUARDRAIL_INVENTORY = (
             "_canvasSceneCompatRef",
             "_canvasViewCompatRef",
             "_canvasCompatBridgeRef",
+            "graphCanvasFacade",
+            "canvasFacadeRef",
+            "_facadeService",
+            "graphCanvasFacadeAdapter",
+            "_canvasStateBridgeRef",
+            "_canvasViewStateBridgeRef",
         ),
         expectation=COREX_NO_LEGACY_GUARDRAIL_ABSENT,
     ),
@@ -686,6 +692,7 @@ GUI_SERIAL_PYTEST_TARGETS = (
         "test_docx_rendering_comparison_single_renderer_smoke"
     ),
     "tests/test_viewer_surface_contract.py",
+    "tests/test_flow_edge_labels.py",
 )
 
 VERIFICATION_TEST_PATH_SPECS = (
@@ -904,7 +911,7 @@ SHELL_ISOLATION_OWNERSHIP_SPECS = (
         coverage_kind="class_targets",
         excluded_names=(
             "MainWindowShellContextBootstrapTests",
-            "MainWindowGraphCanvasBridgeTests",
+            "MainWindowGraphCanvasSplitBridgeTests",
             "ShellWorkspaceBridgeQmlBoundaryTests",
             "GraphCanvasQmlBoundaryTests",
             "MainWindowNodeExecutionCanvasTests",
@@ -917,11 +924,9 @@ SHELL_ISOLATION_OWNERSHIP_SPECS = (
         covered_names=(
             "ShellLibraryBridgeTests",
             "ShellInspectorBridgeTests",
-            "GraphCanvasBridgeTests",
             "ShellWorkspaceBridgeTests",
         ),
         excluded_names=(
-            "MainWindowGraphCanvasBridgeTests",
             "SharedUiSupportBoundaryTests",
         ),
     ),
@@ -1055,7 +1060,7 @@ SHELL_ISOLATION_OWNERSHIP_SPECS = (
             "test_recovery_prompt_accept_recovers_unsaved_temp_staged_refs",
             "test_session_restore_keeps_saved_project_recent_but_starts_empty",
             "test_clean_close_discards_staged_scratch_and_clears_unsaved_root_hint",
-            "test_explicit_save_promotes_referenced_staged_refs_and_prunes_orphans",
+            "test_explicit_save_promotes_referenced_staged_refs",
             "test_explicit_save_promotes_locked_staged_ref_with_copy_fallback",
             "test_save_as_default_copy_switches_project_path_and_excludes_staging",
             "test_new_project_uses_navigation_controller_surface_without_workspace_library_facade",

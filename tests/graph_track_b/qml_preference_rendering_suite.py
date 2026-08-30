@@ -80,7 +80,7 @@ class GraphCanvasQmlPreferenceRenderingTests(GraphCanvasQmlPreferenceTestBase):
 
         self.assertIn('import "graph_canvas/GraphCanvasRootApi.js" as GraphCanvasRootApi', graph_canvas_text)
         self.assertIn("GraphCanvasComponents.GraphCanvasRootLayers {", graph_canvas_text)
-        self.assertIn('readonly property var canvasStateBridgeRef: root._facadeService("state")', graph_canvas_text)
+        self.assertIn("readonly property var canvasStateBridgeRef: root.canvasStateBridge || null", graph_canvas_text)
         self.assertIn("GraphCanvasGridTiled {", background_text)
         self.assertIn("function snapToGridValue(canvasStateBridge, value) {", root_api_text)
 

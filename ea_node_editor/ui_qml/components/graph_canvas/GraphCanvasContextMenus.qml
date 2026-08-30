@@ -13,7 +13,7 @@ Item {
     property var helpBridge: null
     readonly property var shellContextRef: typeof shellContext !== "undefined" ? shellContext : null
     readonly property var themeBridgeRef: root.shellContextRef ? root.shellContextRef.themeBridge : null
-    readonly property var viewBridgeRef: root.canvasItem ? root.canvasItem._canvasViewStateBridgeRef : null
+    readonly property var viewBridgeRef: root.canvasItem ? root.canvasItem.canvasViewBridgeRef : null
     readonly property real viewCenterX: root.viewBridgeRef ? Number(root.viewBridgeRef.center_x) : 0.0
     readonly property real viewCenterY: root.viewBridgeRef ? Number(root.viewBridgeRef.center_y) : 0.0
     readonly property real viewZoom: root.viewBridgeRef ? Number(root.viewBridgeRef.zoom_value) : 1.0
@@ -758,7 +758,7 @@ Item {
         readonly property bool canStraightenConnections: selectionContextPopup._hasInternalConnection()
         readonly property bool canSetSameTypeWidth: selectionContextPopup._hasSameTypeBucketForDimension("width")
         readonly property bool canSetSameTypeHeight: selectionContextPopup._hasSameTypeBucketForDimension("height")
-        readonly property var _viewBridge: root.canvasItem ? root.canvasItem._canvasViewStateBridgeRef : null
+        readonly property var _viewBridge: root.canvasItem ? root.canvasItem.canvasViewBridgeRef : null
         readonly property real _viewCenterX: selectionContextPopup._viewBridge ? Number(selectionContextPopup._viewBridge.center_x) : 0.0
         readonly property real _viewCenterY: selectionContextPopup._viewBridge ? Number(selectionContextPopup._viewBridge.center_y) : 0.0
         readonly property real _viewZoom: selectionContextPopup._viewBridge ? Number(selectionContextPopup._viewBridge.zoom_value) : 1.0

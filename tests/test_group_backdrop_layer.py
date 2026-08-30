@@ -12,7 +12,6 @@ from PyQt6.QtWidgets import QApplication
 
 from ea_node_editor.graph.model import GraphModel
 from ea_node_editor.nodes.bootstrap import build_default_registry
-from ea_node_editor.ui_qml.graph_canvas_bridge import GraphCanvasBridge
 from ea_node_editor.ui_qml.graph_canvas_command import GraphCanvasCommandBridge
 from ea_node_editor.ui_qml.graph_canvas_state import GraphCanvasStateBridge
 from ea_node_editor.ui_qml.graph_scene_bridge import GraphSceneBridge
@@ -139,17 +138,10 @@ class GroupBackdropLayerTests(unittest.TestCase):
 
         state_bridge = GraphCanvasStateBridge(scene_bridge=self.scene, view_bridge=self.view)
         command_bridge = GraphCanvasCommandBridge(scene_bridge=self.scene, view_bridge=self.view)
-        compat_bridge = GraphCanvasBridge(
-            scene_bridge=self.scene,
-            view_bridge=self.view,
-            state_bridge=state_bridge,
-            command_bridge=command_bridge,
-        )
 
         engine = QQmlEngine()
         engine.rootContext().setContextProperty("themeBridge", ThemeBridge(theme_id="stitch_dark"))
         engine.rootContext().setContextProperty("graphThemeBridge", GraphThemeBridge(theme_id="graph_stitch_dark"))
-        engine.rootContext().setContextProperty("graphCanvasBridge", compat_bridge)
 
         component = QQmlComponent(
             engine,
@@ -210,7 +202,7 @@ class GroupBackdropLayerTests(unittest.TestCase):
         self.assertTrue(bool(logger_host.property("showShadow")))
         self.assertFalse(bool(backdrop_host.property("_backgroundShadowVisible")))
         self.assertFalse(bool(backdrop_host.property("_shadowVisible")))
-        self.assertEqual(compat_bridge.backdrop_nodes_model, self.scene.backdrop_nodes_model)
+        self.assertEqual(state_bridge.backdrop_nodes_model, self.scene.backdrop_nodes_model)
         self.assertIsNotNone(backdrop_host.findChild(QObject, "graphNodeHeaderLayer"))
         self.assertIsNotNone(backdrop_host.findChild(QObject, "graphNodeResizeHandle"))
         self.assertEqual(backdrop_input_host.parentItem().objectName(), "graphCanvasBackdropInputLayer")

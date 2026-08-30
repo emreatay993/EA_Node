@@ -19,9 +19,7 @@ Rectangle {
         ? root.sceneStateBridge
         : (root.canvasItem && root.canvasItem.canvasStateBridgeRef
             ? root.canvasItem.canvasStateBridgeRef
-            : (root.canvasItem && root.canvasItem._canvasStateBridgeRef
-                ? root.canvasItem._canvasStateBridgeRef
-                : null))
+            : null)
     readonly property bool isExpanded: root.canvasItem ? root.canvasItem.minimapExpanded : false
     readonly property bool minimapContentVisible: root.isExpanded
     readonly property color chromeColor: Qt.alpha(themePalette.panel_bg, 0.64)

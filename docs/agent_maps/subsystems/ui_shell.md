@@ -29,6 +29,7 @@ Use this for shell-backed workflows, controllers, presenters, context bridges, a
 - Node-package export candidates in `workspace_io_ops.py` come from registry specs plus private provenance. The shell forwards only explicit schema-2 source/asset members and metadata to `package_manager.py`; it does not pass descriptors, dependencies, or executable validation records.
 - Keep shell-isolated behavior covered by shell tests instead of broad app startup checks only.
 - Treat the `composition/` package and bridge installation as high-risk.
+- `composition/bridges.py` constructs and attaches `GraphCanvasStateBridge` and `GraphCanvasCommandBridge` directly with their existing host parent and scene/view/presenter collaborators. `ViewportBridge` remains primitive-owned; the shell has no aggregate `graph_canvas_bridge` field.
 - `composition/services.py` owns the `ShellServices` aggregate; a new shell-owned dependency enters through its domain module's dataclass + `create_*` function before it is exposed to `ShellWindow` or QML (see Recipes below).
 - Shell-created QML image providers should be constructed in `composition/primitives.py` and registered through `shell_context_bootstrap.py` via `composition/qml_context.py`.
 - Workspace view lifecycle calls route through `GraphModel.workspace_view_mutations(...)`; do not depend on the retired graph workspace mutation service factory.

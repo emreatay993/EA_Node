@@ -1140,6 +1140,60 @@ class ExecutionWorkerTests(unittest.TestCase):
         self.assertIsNot(first.plan, second.plan)
         self.assertEqual(compile_mock.call_count, 1)
 
+    def test_prepared_worker_plans_share_the_compiled_workspace(self) -> None:
+        model = GraphModel()
+        workspace = model.active_workspace
+        passive = model.add_node(
+            workspace.workspace_id,
+            "passive.flowchart.process",
+            "Passive",
+            0,
+            0,
+        )
+        logger = model.add_node(
+            workspace.workspace_id,
+            "core.logger",
+            "Logger",
+            200,
+            0,
+        )
+        registry = build_default_registry()
+        runtime_snapshot = self._runtime_snapshot(model, registry=registry)
+        command = _catalog_start_run_command(
+            {
+                "run_id": "run_compiled_plan_agreement",
+                "workspace_id": workspace.workspace_id,
+                "runtime_snapshot": runtime_snapshot,
+                "target_node_ids": [logger.node_id],
+            },
+            catalog=registry.data_types,
+            registry=registry,
+        )
+
+        prepared = prepare_runtime(command, cache=RuntimePreparationCache())
+        selected_plan = ExecutionPlan(
+            prepared.workspace,
+            prepared.registry,
+            target_node_ids=(logger.node_id,),
+        )
+        interface_plan = ExecutionPlan(prepared.workspace, prepared.registry)
+        authored_interface = ExecutionPlan(
+            runtime_snapshot.workspace(workspace.workspace_id),
+            prepared.registry,
+        )
+
+        self.assertIs(prepared.plan.workspace, prepared.workspace)
+        self.assertNotIn(passive.node_id, prepared.workspace.nodes_by_id)
+        self.assertEqual(prepared.plan.fingerprint, selected_plan.fingerprint)
+        self.assertEqual(
+            interface_plan.workflow_interface_digest,
+            selected_plan.workflow_interface_digest,
+        )
+        self.assertNotEqual(
+            authored_interface.workflow_interface_digest,
+            interface_plan.workflow_interface_digest,
+        )
+
     def test_prepare_runtime_uses_one_full_cached_catalog_for_all_node_types(
         self,
     ) -> None:
@@ -3062,6 +3116,10 @@ def run(ctx):
             "viewer_node_ids != command.viewer_invalidation_node_ids", source
         )
         self.assertIn("validate_invalidation_snapshot", source)
+        self.assertIn("interface_plan = ExecutionPlan(\n            prepared.workspace,", source)
+        self.assertNotIn(
+            "prepared.runtime_snapshot.workspace(command.workspace_id)", source
+        )
         self.assertIn("adopt_invalidation_snapshot", source)
         self.assertIn("emit_run_preflight_accepted", source)
         self.assertNotIn("invalidate_existing=True", source)

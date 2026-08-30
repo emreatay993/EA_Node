@@ -28,6 +28,7 @@ from ea_node_editor.execution.backends import (
     ExecutionBackendPolicy,
 )
 from ea_node_editor.execution.client import ExecutionBackendClient
+from ea_node_editor.execution.compiler import compile_runtime_snapshot
 from ea_node_editor.execution.execution_plan import ExecutionPlan
 from ea_node_editor.execution.prepared_execution import (
     MAX_ACCEPTED_NODE_PAYLOADS_PER_PREPARATION,
@@ -508,7 +509,11 @@ class CorexRuntime:
                     generation_snapshot,
                     environment_digest=preview_environment_digest,
                 )
-            workspace = runtime_snapshot.workspace(prepared_request.workspace_id)
+            workspace = compile_runtime_snapshot(
+                runtime_snapshot,
+                workspace_id=prepared_request.workspace_id,
+                registry=candidate_registry,
+            )
             plan = ExecutionPlan(
                 workspace,
                 candidate_registry,
@@ -1254,8 +1259,13 @@ class CorexRuntime:
             != prepared.runtime_snapshot_fingerprint
         ):
             raise ValueError("prepared_runtime_snapshot_changed")
+        workspace = compile_runtime_snapshot(
+            snapshot,
+            workspace_id=envelope.workspace_id,
+            registry=registry,
+        )
         plan = ExecutionPlan(
-            snapshot.workspace(envelope.workspace_id),
+            workspace,
             registry,
             target_node_ids=envelope.target_node_ids,
             clicked_trigger_node_id=envelope.clicked_trigger_node_id,
@@ -1285,9 +1295,13 @@ class CorexRuntime:
             )
             if snapshot is None or snapshot.project_id != str(project_id).strip():
                 raise ValueError("runtime snapshot project does not match project_id")
-            workspace = snapshot.workspace(str(workspace_id).strip())
+            workspace = compile_runtime_snapshot(
+                snapshot,
+                workspace_id=str(workspace_id).strip(),
+                registry=registry,
+            )
             self._solution_store.ensure_project(str(project_id).strip())
-            plan = ExecutionPlan(workspace, registry)
+            plan = ExecutionPlan.for_invalidation(workspace, registry)
             result, released_leases = self._solution_store.invalidate(
                 project_id=str(project_id).strip(),
                 workspace_id=workspace.workspace_id,

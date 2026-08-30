@@ -181,7 +181,6 @@ class MainWindowShellContextBootstrapTests(SharedMainWindowShellTestBase):
             "viewBridge",
             "consoleBridge",
             "workspaceTabsBridge",
-            "graphCanvasBridge",
         ):
             with self.subTest(name=name, expectation="removed"):
                 self.assertIsNone(context.contextProperty(name))
@@ -506,9 +505,7 @@ class MainWindowBridgeContractPacketBoundaryTests(unittest.TestCase):
         for relative_path in (
             "bridge_support.py",
             "bridge_contracts_library_and_inspector.py",
-            "bridge_contracts_graph_canvas.py",
             "bridge_contracts_workspace_and_console.py",
-            "bridge_contracts_main_window.py",
         ):
             with self.subTest(path=relative_path):
                 self.assertTrue((package_root / relative_path).is_file())
@@ -522,10 +519,6 @@ class MainWindowBridgeContractPacketBoundaryTests(unittest.TestCase):
             "tests.main_window_shell.bridge_contracts_library_and_inspector",
         )
         self.assertEqual(
-            module.GraphCanvasBridgeTests.__module__,
-            "tests.main_window_shell.bridge_contracts_graph_canvas",
-        )
-        self.assertEqual(
             module.ShellWorkspaceBridgeTests.__module__,
             "tests.main_window_shell.bridge_contracts_workspace_and_console",
         )
@@ -534,16 +527,12 @@ class MainWindowBridgeContractPacketBoundaryTests(unittest.TestCase):
             "tests.main_window_shell.bridge_contracts_workspace_and_console",
         )
         self.assertEqual(
-            module.MainWindowGraphCanvasBridgeTests.__module__,
-            "tests.main_window_shell.bridge_contracts_main_window",
-        )
-        self.assertEqual(
             module._named_child_items.__module__,
             "tests.main_window_shell.bridge_support",
         )
 
 
-class MainWindowGraphCanvasBridgeTests(SharedMainWindowShellTestBase):
+class MainWindowGraphCanvasSplitBridgeTests(SharedMainWindowShellTestBase):
     def test_qml_context_registers_action_state_command_and_view_canvas_bridges(self) -> None:
         context = self.window.quick_widget.rootContext()
         graph_action_bridge = context.contextProperty("graphActionBridge")
@@ -572,8 +561,6 @@ class MainWindowGraphCanvasBridgeTests(SharedMainWindowShellTestBase):
         self.assertIs(graph_canvas_command_bridge.view_bridge, self.window.view)
         self.assertIs(graph_canvas_view_bridge, self.window.view)
         self.assertIs(graph_canvas_view_bridge.parent(), self.window)
-
-        self.assertIsNone(context.contextProperty("graphCanvasBridge"))
 
     def test_shell_window_keeps_graph_canvas_state_command_bridges_in_services_bundle(self) -> None:
         bridges = self.window.shell_services.context_bridges.shell_context_bridges
@@ -1109,7 +1096,6 @@ class GraphCanvasQmlBoundaryTests(unittest.TestCase):
             "property var canvasBridge: null",
             "readonly property var canvasBridgeRef",
             "property var mainWindowBridge",
-            "property var sceneBridge: root.canvasStateBridgeRef",
             "property var viewBridge: root.canvasStateBridgeRef",
             "readonly property var _canvasViewStateBridgeRef: root.canvasStateBridgeRef",
             "readonly property var _canvasViewCommandBridgeRef: root.canvasCommandBridgeRef",
@@ -1162,6 +1148,12 @@ class GraphCanvasQmlBoundaryTests(unittest.TestCase):
             "readonly property var _canvasSceneCommandBridgeRef",
             "readonly property var _canvasViewCommandBridgeRef",
             "shellCommandBridge: root._canvasShellCommandBridgeRef",
+            "graphCanvasFacade",
+            "canvasFacadeRef",
+            "_facadeService",
+            "graphCanvasFacadeAdapter",
+            "_canvasStateBridgeRef",
+            "_canvasViewStateBridgeRef",
         )
         present_snippets = (
             "property var canvasStateBridge: null",
@@ -1170,17 +1162,15 @@ class GraphCanvasQmlBoundaryTests(unittest.TestCase):
             "property var canvasViewBridge: null",
             "readonly property var _canvasViewportBridge: root.canvasViewBridge",
             "readonly property var graphActionBridgeRef",
-            "readonly property var canvasStateBridgeRef",
-            "readonly property var canvasCommandBridgeRef",
-            "readonly property var canvasViewBridgeRef",
-            "readonly property var _canvasStateBridgeRef",
-            "readonly property var _canvasViewStateBridgeRef",
+            "readonly property var canvasStateBridgeRef: root.canvasStateBridge || null",
+            "readonly property var canvasCommandBridgeRef: root.canvasCommandBridge || null",
+            "readonly property var canvasViewBridgeRef: root._canvasViewportBridge",
             "readonly property var graphActionBridgeRef: root.graphActionBridge || null",
-            "readonly property var sceneBridge: root._facadeService(\"lifecycle\")",
+            "readonly property var sceneBridge: root.canvasStateBridgeRef",
             "readonly property var viewBridge: root.canvasViewBridgeRef",
             "readonly property bool showGrid: preferenceFactsObject.showGrid",
             "readonly property var sceneStateBridge: root.canvasStateBridgeRef",
-            "readonly property var sceneCommandBridge: root._facadeService(\"mutation\")",
+            "readonly property var sceneCommandBridge: root.canvasCommandBridgeRef",
             "GraphCanvasComponents.GraphCanvasInteractionState {",
             "GraphCanvasComponents.GraphCanvasSceneState {",
             "GraphCanvasComponents.GraphCanvasNodeSurfaceBridge {",

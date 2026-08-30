@@ -20,7 +20,7 @@ from ea_node_editor.graph.record_payloads import (
 )
 from ea_node_editor.nodes.bootstrap import build_default_registry
 from ea_node_editor.ui.shell.runtime_history import RuntimeGraphHistory
-from ea_node_editor.ui_qml.graph_canvas_bridge import GraphCanvasBridge
+from ea_node_editor.ui_qml.graph_canvas_command import GraphCanvasCommandBridge
 from ea_node_editor.ui_qml.graph_scene_bridge import GraphSceneBridge
 
 _REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -30,14 +30,14 @@ def _scene_fixture() -> tuple[
     GraphModel,
     str,
     GraphSceneBridge,
-    GraphCanvasBridge,
+    GraphCanvasCommandBridge,
 ]:
     registry = build_default_registry()
     model = GraphModel()
     workspace_id = model.active_workspace.workspace_id
     scene = GraphSceneBridge()
     scene.set_workspace(model, registry, workspace_id)
-    return model, workspace_id, scene, GraphCanvasBridge(scene_bridge=scene)
+    return model, workspace_id, scene, GraphCanvasCommandBridge(scene_bridge=scene)
 
 
 def test_parameter_setup_pool_links_move_atomically_and_preserve_payload_order(

@@ -1,13 +1,13 @@
 # Graph Canvas Feature Recipes
 
 ## Purpose
-Step-by-step recipes for the three most common graph-canvas feature classes after the 2026-06 canvas-pipeline decomposition. Each recipe lists the exact files to edit; if you find yourself editing a file not listed here for one of these feature classes, you are probably re-introducing a pass-through (see `tests/test_qml_drill_budget.py` and the frozen-surface snapshot in `tests/test_graph_canvas_bridge_surface_snapshot.py`).
+Step-by-step recipes for the three most common graph-canvas feature classes after the 2026-06 canvas-pipeline decomposition. Each recipe lists the exact files to edit; if you find yourself editing a file not listed here for one of these feature classes, you are probably re-introducing a pass-through (see `tests/test_qml_drill_budget.py` and the frozen-surface snapshot in `tests/test_graph_canvas_surface_snapshot.py`).
 
-These feature classes require **zero edits** to: `GraphCanvas.qml`, `GraphNodeHost.qml`, `GraphCanvasNodeDelegate.qml`, `graph_canvas_bridge.py`, `graph_scene_bridge.py`, `shell_context_bootstrap.py`.
+These feature classes require **zero edits** to: `GraphCanvas.qml`, `GraphNodeHost.qml`, `GraphCanvasNodeDelegate.qml`, `graph_scene_bridge.py`, `shell_context_bootstrap.py`. `GraphCanvas.qml` already composes the focused state, command, and viewport owners directly.
 
 ## Start Here
 - `ea_node_editor/ui_qml/components/graph_canvas/GraphCanvasPreferenceFacts.qml`
-- `tests/test_graph_canvas_bridge_surface_snapshot.py`
+- `tests/test_graph_canvas_surface_snapshot.py`
 - `tests/test_qml_drill_budget.py`
 - `tests/test_graph_canvas_command_ops_modules.py`
 - `tests/test_bridge_mixin_meta_registration.py`
@@ -57,14 +57,14 @@ ea_node_editor/ui_qml/components/graph/GraphNodeChromeBackground.qml
 ```
 
 ## Guard rails
-- `tests/test_graph_canvas_bridge_surface_snapshot.py` — the QML-visible bridge surface is frozen (additions allowed, removals/renames fail; regenerate with `--write`).
+- `tests/test_graph_canvas_surface_snapshot.py` — the QML-visible focused-owner surface is frozen (additions allowed, removals/renames fail; regenerate with `--write`).
 - `tests/test_qml_drill_budget.py` — two-way ratchet on pass-through drilling (`canvasItem.` in `GraphNodeHost.qml`, `rootBindings.` in `GraphCanvas.qml` pinned at 0).
 - `tests/test_graph_canvas_command_ops_modules.py` — every command-mixin slot must register on the composed bridge; no cross-domain name collisions.
 - `tests/test_bridge_mixin_meta_registration.py` — pins the PyQt6 mixin meta-object guarantees the bridge packages rely on.
 
 ## Focused Verification
 ```powershell
-.\venv\Scripts\python.exe -m pytest tests/test_graph_canvas_bridge_surface_snapshot.py tests/test_qml_drill_budget.py tests/test_graph_canvas_command_ops_modules.py tests/test_bridge_mixin_meta_registration.py --ignore=venv -q
+.\venv\Scripts\python.exe -m pytest tests/test_graph_canvas_surface_snapshot.py tests/test_qml_drill_budget.py tests/test_graph_canvas_command_ops_modules.py tests/test_bridge_mixin_meta_registration.py --ignore=venv -q
 ```
 
 ## Breadcrumbs

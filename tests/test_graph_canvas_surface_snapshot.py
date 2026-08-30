@@ -1,4 +1,4 @@
-"""Frozen QML-visible meta-object surface for the graph-canvas bridge family.
+"""Frozen QML-visible meta-object surface for the graph-canvas owner family.
 
 Campaign invariant for the graph-canvas pipeline decomposition: every slot
 signature, property (name/type/notify), and signal that QML can see on the
@@ -6,14 +6,14 @@ bridge classes is frozen. Additions are allowed; removals and renames fail
 this test. This is what keeps the Python-side restructuring (payload package,
 command/state mixin packages) provably invisible to QML.
 
-The snapshot is committed at tests/fixtures/graph_canvas_bridge_surface_snapshot.json.
+The snapshot is committed at tests/fixtures/graph_canvas_surface_snapshot.json.
 
 Maintenance:
 - Regenerate after an intentional surface addition:
-    .\\venv\\Scripts\\python.exe -m tests.test_graph_canvas_bridge_surface_snapshot --write
+    .\\venv\\Scripts\\python.exe -m tests.test_graph_canvas_surface_snapshot --write
 - Verify the surface is byte-identical to the committed snapshot (used as the
   P3/P4 mixin-phase gate, stricter than the test itself):
-    .\\venv\\Scripts\\python.exe -m tests.test_graph_canvas_bridge_surface_snapshot --check-exact
+    .\\venv\\Scripts\\python.exe -m tests.test_graph_canvas_surface_snapshot --check-exact
 
 Introspection is instantiate-free: it reads ``staticMetaObject`` so no bridge
 dependencies, QApplication, or QML engine are required.
@@ -28,7 +28,6 @@ from pathlib import Path
 
 from PyQt6.QtCore import QMetaMethod, QObject
 
-from ea_node_editor.ui_qml.graph_canvas_bridge import GraphCanvasBridge
 from ea_node_editor.ui_qml.graph_canvas_command import GraphCanvasCommandBridge
 from ea_node_editor.ui_qml.graph_canvas_state import GraphCanvasStateBridge
 from ea_node_editor.ui_qml.graph_scene import (
@@ -41,11 +40,10 @@ from ea_node_editor.ui_qml.shell_context_bootstrap import ShellContextBundle
 from ea_node_editor.ui_qml.viewport_bridge import ViewportBridge
 
 SNAPSHOT_PATH = (
-    Path(__file__).resolve().parent / "fixtures" / "graph_canvas_bridge_surface_snapshot.json"
+    Path(__file__).resolve().parent / "fixtures" / "graph_canvas_surface_snapshot.json"
 )
 
 BRIDGE_CLASSES: dict[str, type[QObject]] = {
-    "GraphCanvasBridge": GraphCanvasBridge,
     "GraphCanvasCommandBridge": GraphCanvasCommandBridge,
     "GraphCanvasStateBridge": GraphCanvasStateBridge,
     "GraphSceneBridge": GraphSceneBridge,
@@ -119,7 +117,7 @@ def load_committed_snapshot() -> dict[str, dict[str, list[str]]]:
     return json.loads(SNAPSHOT_PATH.read_text(encoding="utf-8"))
 
 
-class GraphCanvasBridgeSurfaceSnapshotTests(unittest.TestCase):
+class GraphCanvasSurfaceSnapshotTests(unittest.TestCase):
     """Removals/renames from the QML-visible bridge surface are forbidden."""
 
     @classmethod
@@ -151,7 +149,7 @@ class GraphCanvasBridgeSurfaceSnapshotTests(unittest.TestCase):
             "QML-visible bridge surface entries were removed or renamed (campaign "
             "invariant: additions allowed, removals/renames forbidden). If a removal "
             "is intentional and QML callers were swept, regenerate the snapshot with: "
-            "python -m tests.test_graph_canvas_bridge_surface_snapshot --write\n"
+            "python -m tests.test_graph_canvas_surface_snapshot --write\n"
             + "\n".join(problems),
         )
 

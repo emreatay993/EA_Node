@@ -52,6 +52,7 @@ implementation studies are intentionally excluded.
   list/group/control geometry belongs to Surface Input; payload and settings-band
   calculation belongs to Graph Scene Payload.
 - Active-data wire behavior is owned jointly by graph mutation/history, graph-scene projection, graph-canvas input and action routing, and the retained/canvas edge renderers; passive-only and `flow` edges remain under their existing routes.
+- Graph-canvas QML composition is direct: `GraphCanvasStateBridge` owns canvas facts, `GraphCanvasCommandBridge` owns mutations and actions, `ViewportBridge` owns view facts and commands, and `GraphCanvas.qml` binds those focused owners without an aggregate facade or compatibility aliases.
 - Exact feature-map citations own QML components when present; the broader QML
   or graph-canvas subsystem remains the fallback only when no feature map cites
   that exact component path.

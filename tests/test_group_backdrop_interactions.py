@@ -14,7 +14,6 @@ from PyQt6.QtWidgets import QApplication
 from ea_node_editor.graph.model import GraphModel
 from ea_node_editor.nodes.bootstrap import build_default_registry
 from ea_node_editor.ui.shell.runtime_history import RuntimeGraphHistory
-from ea_node_editor.ui_qml.graph_canvas_bridge import GraphCanvasBridge
 from ea_node_editor.ui_qml.graph_canvas_command import GraphCanvasCommandBridge
 from ea_node_editor.ui_qml.graph_canvas_state import GraphCanvasStateBridge
 from ea_node_editor.ui_qml.graph_scene_bridge import GraphSceneBridge
@@ -136,19 +135,12 @@ class GroupBackdropInteractionTests(unittest.TestCase):
     def _create_canvas(self) -> tuple[QObject, QQuickWindow]:
         state_bridge = GraphCanvasStateBridge(scene_bridge=self.scene, view_bridge=self.view)
         command_bridge = GraphCanvasCommandBridge(scene_bridge=self.scene, view_bridge=self.view)
-        compat_bridge = GraphCanvasBridge(
-            scene_bridge=self.scene,
-            view_bridge=self.view,
-            state_bridge=state_bridge,
-            command_bridge=command_bridge,
-        )
 
         engine = QQmlEngine()
         engine.rootContext().setContextProperty("themeBridge", ThemeBridge(theme_id="stitch_dark"))
         engine.rootContext().setContextProperty("graphThemeBridge", GraphThemeBridge(theme_id="graph_stitch_dark"))
-        engine.rootContext().setContextProperty("graphCanvasBridge", compat_bridge)
         self.addCleanup(engine.deleteLater)
-        self._canvas_refs.extend([state_bridge, command_bridge, compat_bridge, engine])
+        self._canvas_refs.extend([state_bridge, command_bridge, engine])
 
         component = QQmlComponent(
             engine,

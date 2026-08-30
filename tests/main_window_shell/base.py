@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import gc
+import os
+from pathlib import Path
 from types import SimpleNamespace
 import unittest
 from unittest.mock import patch
@@ -9,9 +11,18 @@ from PyQt6.QtCore import QEvent, QObject, Qt
 from PyQt6.QtGui import QKeySequence
 from PyQt6.QtWidgets import QApplication, QWidget
 
-from ea_node_editor.runtime_contracts import GRAPH_DATA_TYPE_ID
+from ea_node_editor.execution.compiler import compile_runtime_snapshot
 from ea_node_editor.execution.execution_plan import ExecutionPlan
 from ea_node_editor.execution.prepared_execution import InvalidationResult
+from ea_node_editor.execution.solution_store import (
+    ProjectSolutionAdoptionResult,
+    ProjectSolutionCandidateResult,
+    ProjectSolutionGcResult,
+    ProjectSolutionSaveResult,
+    ProjectSolutionSaveSnapshot,
+    project_solution_snapshot_token,
+)
+from ea_node_editor.runtime_contracts import GRAPH_DATA_TYPE_ID
 from ea_node_editor.telemetry.frame_rate import FrameRateSampler
 from ea_node_editor.ui.shell.window import ShellWindow
 from scripts import verification_manifest as manifest
@@ -23,6 +34,9 @@ class _ShellTestExecutionClient:
         self._callbacks: list[object] = []
         self._registry = registry
         self._solution_revisions: dict[str, int] = {}
+        self._solution_node_ids_by_workspace: dict[str, set[str]] = {}
+        self._project_solution_binding_revision = 0
+        self._project_solution_save_contexts: dict[str, dict[str, object]] = {}
 
     def subscribe(self, callback) -> None:  # noqa: ANN001
         self._callbacks.append(callback)
@@ -47,8 +61,25 @@ class _ShellTestExecutionClient:
         changed_root_node_ids,
         reason_code: str,
     ) -> InvalidationResult:
-        plan = ExecutionPlan(runtime_snapshot.workspace(workspace_id), self._registry)
+        workspace = compile_runtime_snapshot(
+            runtime_snapshot,
+            workspace_id=workspace_id,
+            registry=self._registry,
+        )
+        plan = ExecutionPlan.for_invalidation(workspace, self._registry)
         closure = plan.affected_downstream_closure(tuple(changed_root_node_ids))
+        known_node_ids = self._solution_node_ids_by_workspace.setdefault(
+            workspace_id,
+            set(),
+        )
+        active_node_ids = {
+            node_id
+            for node_id in plan.execution_order
+            if plan.node_specs[node_id].runtime_behavior == "active"
+        }
+        removed_node_ids = tuple(sorted(known_node_ids.difference(active_node_ids)))
+        known_node_ids.difference_update(removed_node_ids)
+        known_node_ids.update(closure)
         self._solution_revisions[workspace_id] = (
             self._solution_revisions.get(workspace_id, 0) + 1
         )
@@ -58,9 +89,235 @@ class _ShellTestExecutionClient:
             solution_revision=self._solution_revisions[workspace_id],
             changed_root_node_ids=tuple(changed_root_node_ids),
             expired_node_ids=tuple(closure),
-            removed_node_ids=(),
+            removed_node_ids=removed_node_ids,
             reason_code=reason_code,
         )
+
+    def capture_project_solution_save(
+        self,
+        project_id: str,
+        source_project_path: str,
+        retained_owner_ids,
+        source_artifact_context,
+    ) -> ProjectSolutionSaveSnapshot:
+        if self._registry is None:
+            raise ValueError("project_solution_save_source_invalid")
+        context_digest = getattr(
+            source_artifact_context,
+            "project_save_context_digest",
+            None,
+        )
+        if not callable(context_digest):
+            raise ValueError("project_solution_save_source_invalid")
+        normalized_project_id = str(project_id).strip()
+        normalized_source_path = (
+            os.path.normcase(os.path.abspath(source_project_path))
+            if str(source_project_path).strip()
+            else ""
+        )
+        if normalized_source_path and not os.path.exists(normalized_source_path):
+            Path(normalized_source_path).touch()
+        owners = tuple(sorted(set(retained_owner_ids)))
+        snapshot = ProjectSolutionSaveSnapshot.create(
+            project_id=normalized_project_id,
+            source_project_path=normalized_source_path,
+            solution_namespace_id=f"shell-test:{normalized_project_id}",
+            binding_revision=self._project_solution_binding_revision,
+            registry_contract_fingerprint=(
+                self._registry.contract_fingerprint()
+            ),
+            source_artifact_context_digest=context_digest(),
+            source_generation_id="",
+            source_manifest_set_digest="",
+            retained_owner_ids=owners,
+            supplemental_records=(),
+            required_managed_artifact_ids=(),
+            estimated_copy_bytes=0,
+        )
+        self._project_solution_save_contexts[snapshot.snapshot_token] = {
+            "snapshot": snapshot,
+            "binding_revision": self._project_solution_binding_revision,
+            "state": "captured",
+            "destination_project_path": "",
+            "result": None,
+        }
+        return snapshot
+
+    def project_solution_save_snapshot_is_current(self, snapshot_token: str) -> bool:
+        context = self._project_solution_save_contexts.get(
+            str(snapshot_token).strip()
+        )
+        if context is None:
+            return False
+        snapshot = context["snapshot"]
+        return bool(
+            isinstance(snapshot, ProjectSolutionSaveSnapshot)
+            and project_solution_snapshot_token(snapshot)
+            == snapshot.snapshot_token
+            and context["binding_revision"]
+            == self._project_solution_binding_revision
+            and context["state"] in {"captured", "staged", "candidate"}
+        )
+
+    def stage_project_solution_save(
+        self,
+        snapshot: ProjectSolutionSaveSnapshot,
+        destination_project_path: str,
+        _destination_artifact_context,
+    ) -> ProjectSolutionSaveResult:
+        context = self._project_solution_save_contexts.get(
+            snapshot.snapshot_token
+        )
+        if (
+            context is None
+            or context["snapshot"] != snapshot
+            or context["state"] != "captured"
+            or not self.project_solution_save_snapshot_is_current(
+                snapshot.snapshot_token
+            )
+        ):
+            return ProjectSolutionSaveResult(
+                snapshot_token=snapshot.snapshot_token,
+                solution_namespace_id=snapshot.solution_namespace_id,
+                reason_code="project_solution_save_snapshot_stale",
+                diagnostic="The project solution snapshot changed before staging.",
+            )
+        candidate_generation_id = snapshot.snapshot_token[:32]
+        candidate_manifest_set_digest = snapshot.snapshot_token
+        result = ProjectSolutionSaveResult(
+            snapshot_token=snapshot.snapshot_token,
+            solution_namespace_id=snapshot.solution_namespace_id,
+            candidate_generation_id=candidate_generation_id,
+            candidate_manifest_set_digest=candidate_manifest_set_digest,
+            initially_protected_generations=(
+                (candidate_generation_id, candidate_manifest_set_digest),
+            ),
+            estimated_copy_bytes=0,
+            staged_new_bytes=0,
+        )
+        context["destination_project_path"] = os.path.normcase(
+            os.path.abspath(destination_project_path)
+        )
+        context["result"] = result
+        context["state"] = "staged"
+        return result
+
+    def prepare_project_solution_adoption(
+        self,
+        result: ProjectSolutionSaveResult,
+        project_id: str,
+        destination_project_path: str,
+        metadata_solution_store: object,
+        _destination_artifact_context: object,
+    ) -> ProjectSolutionCandidateResult:
+        context = self._project_solution_save_contexts.get(result.snapshot_token)
+        snapshot = context["snapshot"] if context is not None else None
+        valid = bool(
+            context is not None
+            and isinstance(snapshot, ProjectSolutionSaveSnapshot)
+            and context["state"] == "staged"
+            and context["result"] == result
+            and self.project_solution_save_snapshot_is_current(
+                result.snapshot_token
+            )
+            and snapshot.project_id == str(project_id).strip()
+            and context["destination_project_path"]
+            == os.path.normcase(os.path.abspath(destination_project_path))
+            and result.metadata_solution_store == metadata_solution_store
+        )
+        if not valid:
+            return ProjectSolutionCandidateResult(
+                False,
+                "project_solution_candidate_snapshot_stale",
+                "The project solution snapshot changed before candidate reopen.",
+            )
+        context["state"] = "candidate"
+        return ProjectSolutionCandidateResult(
+            True,
+            "project_solution_candidate_prepared",
+        )
+
+    def adopt_project_solution_save(
+        self,
+        result: ProjectSolutionSaveResult,
+        project_id: str,
+        destination_project_path: str,
+        metadata_solution_store: object,
+        _destination_artifact_context: object,
+    ) -> ProjectSolutionAdoptionResult:
+        context = self._project_solution_save_contexts.get(result.snapshot_token)
+        snapshot = context["snapshot"] if context is not None else None
+        if (
+            context is None
+            or not isinstance(snapshot, ProjectSolutionSaveSnapshot)
+            or context["state"] != "candidate"
+            or context["binding_revision"]
+            != self._project_solution_binding_revision
+        ):
+            return ProjectSolutionAdoptionResult(
+                False,
+                "project_solution_adoption_snapshot_stale",
+                "The project solution snapshot changed before adoption.",
+            )
+        if (
+            snapshot.project_id != str(project_id).strip()
+            or context["destination_project_path"]
+            != os.path.normcase(os.path.abspath(destination_project_path))
+            or result.solution_namespace_id != snapshot.solution_namespace_id
+        ):
+            return ProjectSolutionAdoptionResult(
+                False,
+                "project_solution_adoption_namespace_mismatch",
+                "The project solution namespace changed before adoption.",
+            )
+        if context["result"] != result or (
+            result.metadata_solution_store != metadata_solution_store
+        ):
+            return ProjectSolutionAdoptionResult(
+                False,
+                "project_solution_adoption_candidate_invalid",
+                "The prepared project solution candidate is invalid.",
+            )
+        context["state"] = "adopted"
+        self._project_solution_binding_revision += 1
+        context["binding_revision"] = self._project_solution_binding_revision
+        return ProjectSolutionAdoptionResult(
+            True,
+            "project_solution_adopted",
+        )
+
+    def cancel_project_solution_save(self, snapshot_token: str) -> None:
+        self._project_solution_save_contexts.pop(str(snapshot_token).strip(), None)
+
+    def collect_project_solution_garbage(
+        self,
+        result: ProjectSolutionSaveResult,
+        *,
+        protect_previous_generation: bool,
+        limit: int = 10_000,
+    ) -> ProjectSolutionGcResult:
+        del limit
+        context = self._project_solution_save_contexts.get(result.snapshot_token)
+        if (
+            context is None
+            or context["state"] != "adopted"
+            or context["result"] != result
+        ):
+            return ProjectSolutionGcResult(
+                (),
+                (),
+                False,
+                "project_solution_gc_skipped_invalid",
+            )
+        gc_result = ProjectSolutionGcResult(
+            (),
+            (),
+            False,
+            "project_solution_gc_completed",
+        )
+        if not protect_previous_generation:
+            self._project_solution_save_contexts.pop(result.snapshot_token, None)
+        return gc_result
 
     def pause_run(self, run_id: str) -> None:
         return None
@@ -73,6 +330,9 @@ class _ShellTestExecutionClient:
 
     def shutdown(self) -> None:
         self._callbacks.clear()
+        self._solution_node_ids_by_workspace.clear()
+        self._project_solution_binding_revision += 1
+        self._project_solution_save_contexts.clear()
 
 
 def _action_shortcuts(action) -> set[str]:  # noqa: ANN001

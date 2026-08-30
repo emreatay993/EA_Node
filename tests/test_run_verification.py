@@ -304,6 +304,7 @@ class RunVerificationTests(unittest.TestCase):
                 "test_docx_rendering_comparison_single_renderer_smoke"
             ),
             "tests/test_viewer_surface_contract.py",
+            "tests/test_flow_edge_labels.py",
         )
         self.assertEqual(expected_targets, self.manifest.GUI_SERIAL_PYTEST_TARGETS)
         self.assertEqual(expected_targets, self.manifest.gui_serial_pytest_targets())

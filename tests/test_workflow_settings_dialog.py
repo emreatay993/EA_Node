@@ -328,8 +328,8 @@ class WorkflowSettingsDialogTests(unittest.TestCase):
                         ),
                         patch.object(
                             window.execution_client,
-                            "start_run",
-                        ) as start_run,
+                            "dispatch_prepared",
+                        ) as dispatch_prepared,
                     ):
                         window.show_workflow_settings_dialog()
                     settings = window.model.project.metadata["workflow_settings"]
@@ -340,7 +340,7 @@ class WorkflowSettingsDialogTests(unittest.TestCase):
                         window.app_preferences_controller.default_python_executable(),
                         r"C:\app-sentinel\python.exe",
                     )
-                    start_run.assert_not_called()
+                    dispatch_prepared.assert_not_called()
                     document = window.serializer.to_persistent_document(window.model.project)
                     self.assertEqual(document["schema_version"], SCHEMA_VERSION)
                     self.assertIn("workflow_settings", document["metadata"])

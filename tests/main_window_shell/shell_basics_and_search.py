@@ -1880,10 +1880,14 @@ class MainWindowShellBasicsAndSearchTests(SharedMainWindowShellTestBase):
         self.assertFalse(self.window.connection_quick_insert_open)
         self.assertFalse(bool(quick_insert_overlay.property("visible")))
 
-        with patch.object(self.window.execution_client, "start_run", return_value="run_test") as start_run:
+        with patch.object(
+            self.window.execution_client,
+            "dispatch_prepared",
+            return_value="run_test",
+        ) as dispatch_prepared:
             self.window.action_run.trigger()
             self.app.processEvents()
-            start_run.assert_called_once()
+            dispatch_prepared.assert_called_once()
         self.assertFalse(self.window.action_run.isEnabled())
         self.assertTrue(self.window.action_pause.isEnabled())
         self.assertTrue(self.window.action_stop.isEnabled())

@@ -84,3 +84,23 @@ Ready for manual testing after the final closeout commands pass.
 - Shell-backed Qt/QML suites still require fresh-process execution on Windows because repeated `ShellWindow()` construction in one interpreter remains unreliable.
 - Historical matrices can contain archive wording for prior compatibility cleanup windows; this matrix and P14 traceability checks are the active no-legacy baseline.
 - Pre-current project schemas require offline conversion before normal app load.
+
+## 2026-08-29 Current-State Addendum
+
+This addendum updates current architecture authority only. Every historical packet row, commit, command, and outcome above remains verbatim evidence for its original window.
+
+| Current surface | Current authority and evidence |
+| --- | --- |
+| Graph-canvas Python/QML ownership | `GraphCanvasStateBridge` owns state projections, `GraphCanvasCommandBridge` owns commands and batch rewiring, `ViewportBridge` owns view facts/commands, and `GraphCanvas.qml` composes them directly. The aggregate `graph_canvas_bridge.py`, QML facade adapter, and private facade aliases are absent. |
+| Direct bridge tests | `tests/test_graph_canvas_split_bridges.py` collects exactly 15 direct-owner tests; graph-scene, graph-action, and graphics-preference cases live with their current owners. |
+| Frozen QML-visible surface | `tests/test_graph_canvas_surface_snapshot.py` checks `tests/fixtures/graph_canvas_surface_snapshot.json`; the retired aggregate class is not part of `BRIDGE_CLASSES`. |
+| No-legacy guardrail | `scripts/verification_manifest.py` requires `ea_node_editor/ui_qml/graph_canvas_bridge.py` to be path-absent and forbids the six removed QML facade names in `GraphCanvas.qml`. |
+| Shell-isolation catalog | The registry has 51 targets. The retired `GraphCanvasBridgeTests` nodeid left the existing `main_window__bridge_local_pack__contracts_and_library_qml` pack; the pack itself remains. |
+| Focused retirement proof | T02 passed 157 tests plus 63 subtests, with exactly 15 moved-root tests collected. T03 passed 165 tests plus 671 subtests; the focused meta/drill follow-up passed 22 tests and the renamed snapshot matched exactly. |
+| Cycle-safe invalidation ownership | `CorexRuntime` compiles and reuses the phase workspace, while `ExecutionPlan.for_invalidation` falls back to compiled declaration order only for invalidation topology cycles. Ordinary prepare and prepared worker validation remain cycle-rejecting. |
+| Shared shell save fake | `tests/main_window_shell/base.py` implements the current solution-store DTO protocol for capture, currency checks, staging, adoption preparation/adoption, cancellation, and garbage collection with per-token context and binding-revision tracking. |
+| Undo replay direction | `WorkspaceEditOps.undo` supplies downstream effects with a transient reversed `HistoryEntry` (`after` to `before`); the canonical forward entry remains unchanged for redo. |
+| Flow-edge GUI ownership | `tests/test_flow_edge_labels.py` is deselected from the six-worker `gui.pytest` lane and runs in `gui.serial.pytest`, keeping its nested Qt subprocess probes serial without changing timeouts. |
+| Native relative performance | The final Windows/D3D11 medians remained within the accepted 5% caps: load `151.733 ms <= 170.785 ms`, combined pan/zoom `88.205 ms <= 92.328 ms`, and node-drag control `27.893 ms <= 28.180 ms`. |
+| Final full verification | `artifacts/verification_logs/20260830_030957` records fast `4284 passed, 2 skipped`; fast serial `225 passed`; QML QuickTest `PASS`; GUI `597 passed, 1 skipped`; GUI serial `38 passed, 1 skipped`; slow `56 passed`; and shell isolation `58 passed`. |
+| Current authority integrity | The execution agent map and generated route indexes are exact. Protected user work in `docs/specs/INDEX.md` and `docs/PLAN_COREX_Physical_Simulation_Backend.md` remains untouched. |

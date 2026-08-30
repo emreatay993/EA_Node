@@ -74,7 +74,7 @@ Design intent:
 - `graphCanvasViewBridge` (the `ViewportBridge` context property) owns camera/view state consumed directly by `GraphCanvas.qml` and `GraphCanvasRootLayers.qml`.
 - `graphCanvasCommandBridge` owns scene/view mutations, property-browse requests, drop/connect flows, and connection quick-insert requests flowing back into `ShellWindow`; scope-open flows prefer `GraphActionBridge` and keep the command bridge as the low-level fallback.
 - `GraphCanvas.qml` still exposes the stable root contract methods used by shell/drop workflows (`toggleMinimapExpanded()`, `clearLibraryDropPreview()`, `updateLibraryDropPreview()`, `isPointInCanvas()`, `performLibraryDrop()`).
-- `ShellWindow.graph_canvas_bridge` is a host-only edge adapter for construction and test seams. Packet-owned QML receives focused state, command, view, and action bridges directly instead of an aggregate canvas context property.
+- `GraphCanvas.qml` composes `GraphCanvasStateBridge`, `GraphCanvasCommandBridge`, and `ViewportBridge` directly through `canvasStateBridgeRef`, `canvasCommandBridgeRef`, and `_canvasViewportBridge`; there is no aggregate canvas bridge, adapter, or context property.
 - `GraphSceneBridge` remains the stable public scene contract for node/edge payloads and QML-invokable scene slots, but internal responsibility is split behind helper seams in `GraphSceneScopeSelection`, `GraphSceneMutationHistory`, and `GraphScenePayloadBuilder`.
 - `ThemeBridge` continues to own shell/canvas chrome tokens, while `graphThemeBridge` owns node/edge theming so shell-theme and graph-theme responsibilities stay separate.
 - Packet-owned QML should bind to the focused bridges above rather than introducing new raw host globals or reviving retired compatibility context properties.
@@ -592,7 +592,7 @@ sequenceDiagram
 - serializer/session store (`JsonProjectSerializer`, `SessionAutosaveStore`),
 - `GraphModel` + `WorkspaceManager` + `RuntimeGraphHistory`,
 - controller layer (`AppPreferencesController`, `WorkspaceLibraryController`, `ProjectSessionController`, `RunController`),
-- QML bridges/models (`ThemeBridge`, `GraphThemeBridge`, `GraphSceneBridge`, `ViewportBridge`, `ShellLibraryBridge`, `ShellWorkspaceBridge`, `ShellInspectorBridge`, `AddOnManagerBridge`, `GraphCanvasStateBridge`, `GraphCanvasCommandBridge`, `GraphActionBridge`, content/viewer/script/status/help surfaces, plus the host-only `GraphCanvasBridge` edge adapter),
+- QML bridges/models (`ThemeBridge`, `GraphThemeBridge`, `GraphSceneBridge`, `ViewportBridge`, `ShellLibraryBridge`, `ShellWorkspaceBridge`, `ShellInspectorBridge`, `AddOnManagerBridge`, `GraphCanvasStateBridge`, `GraphCanvasCommandBridge`, `GraphActionBridge`, and content/viewer/script/status/help surfaces),
 - execution client (`ProcessExecutionClient`) and event subscription.
 6. Graphics preferences are loaded into `ShellWindow`, updating runtime grid/minimap/snap, shell-theme, and graph-theme state before the shell is shown.
 7. QML shell is loaded (`ui_qml/MainShell.qml`) with the focused context-property set from `ea_node_editor.ui.shell.composition` and a composed `GraphCanvas` surface.
@@ -733,8 +733,8 @@ sequenceDiagram
 9. Bridge-first QML shell boundary
 - Current QML binds to focused shell/canvas bridges, with `graphCanvasViewBridge`, add-on/script/viewer surfaces, status models, and help exposed as first-class context properties rather than raw host globals.
 
-10. Frozen graph-canvas bridge surface with per-domain packages
-- The QML-visible meta-object surface of the graph-canvas bridge family is snapshot-frozen (`tests/test_graph_canvas_bridge_surface_snapshot.py`); additions are allowed, removals/renames fail. `GraphCanvasCommandBridge` and `GraphCanvasStateBridge` are composed from per-domain mixin packages (`ui_qml/graph_canvas_command/`, `ui_qml/graph_canvas_state/`), payload construction is per-kind under `ui_qml/graph_scene_payload/kinds/`, and payload-cache mutation lives in `ui_qml/graph_scene/payload_cache_sync.py`.
+10. Frozen graph-canvas owner surface with per-domain packages
+- The QML-visible meta-object surface of the focused graph-canvas owners is snapshot-frozen (`tests/test_graph_canvas_surface_snapshot.py` against `tests/fixtures/graph_canvas_surface_snapshot.json`); additions are allowed, removals/renames fail. `GraphCanvasCommandBridge` and `GraphCanvasStateBridge` are composed from per-domain mixin packages (`ui_qml/graph_canvas_command/`, `ui_qml/graph_canvas_state/`), `ViewportBridge` owns view facts and commands, payload construction is per-kind under `ui_qml/graph_scene_payload/kinds/`, and payload-cache mutation lives in `ui_qml/graph_scene/payload_cache_sync.py`.
 
 11. Facts-by-reference canvas QML (no pass-through drilling)
 - Canvas-level facts reach QML consumers through shared facts objects (`GraphCanvasExecutionFacts`/`GraphCanvasPreferenceFacts`) and the surface accessor base (`GraphSurfaceBase.qml`), not via per-item property re-drilling; `tests/test_qml_drill_budget.py` ratchets this. Common feature recipes: `docs/agent_maps/feature_routes/graph_canvas_feature_recipes.md`.
@@ -751,7 +751,7 @@ sequenceDiagram
 - `ea_node_editor/ui/shell/window.py`: QMainWindow/QML facade and slot surface.
 - `ea_node_editor/ui/shell/controllers/`: app-preferences, run, project-session, and workspace-library orchestration + ops.
 - `ea_node_editor/ui/shell/window_search_scope_state.py`: graph search/scope camera/snap state helpers.
-- `ea_node_editor/ui_qml/`: QML shell/canvas UI, focused shell boundary facades, graph-scene helper seams, and Python bridge/state models.
+- `ea_node_editor/ui_qml/`: QML shell/canvas UI, focused shell boundary bridges, graph-scene helper seams, and Python bridge/state models.
 - `ea_node_editor/ui_qml/components/shell/`: modular shell composition components extracted from `MainShell.qml`.
 - `ea_node_editor/ui_qml/components/shell/ConnectionQuickInsertOverlay.qml`: registry-aware quick insert overlay.
 - `ea_node_editor/ui_qml/components/graph_canvas/`: modular GraphCanvas layers/overlays/helpers.
@@ -778,7 +778,7 @@ sequenceDiagram
 - Change run orchestration/UI reaction: `ea_node_editor/ui/shell/controllers/run_controller.py`.
 - Change project/session/autosave orchestration: `ea_node_editor/ui/shell/controllers/project_session_controller.py` and `ea_node_editor/persistence/session_store.py`.
 - Change workspace/view/library/search behavior: `ea_node_editor/ui/shell/controllers/workspace_library_controller.py` and helper ops.
-- Change shell-to-QML boundary ownership: `ea_node_editor/ui_qml/{shell_context_bootstrap.py,shell_library_bridge.py,shell_workspace_bridge.py,shell_inspector_bridge.py,shell_addon_manager_bridge.py,graph_canvas_state/,graph_canvas_command/,viewport_bridge.py,content_fullscreen_bridge.py,viewer_session_bridge.py,viewer_host_service.py,graph_canvas_bridge.py}` plus the corresponding `ui_qml/components/shell/*` consumers.
+- Change shell-to-QML boundary ownership: `ea_node_editor/ui_qml/{shell_context_bootstrap.py,shell_library_bridge.py,shell_workspace_bridge.py,shell_inspector_bridge.py,shell_addon_manager_bridge.py,graph_canvas_state/,graph_canvas_command/,viewport_bridge.py,content_fullscreen_bridge.py,viewer_session_bridge.py,viewer_host_service.py}`, `ea_node_editor/ui_qml/components/GraphCanvas.qml`, plus the corresponding `ui_qml/components/shell/*` consumers.
 - Change graph-scene internal boundary ownership: `ea_node_editor/ui_qml/{graph_scene_bridge.py,graph_scene_scope_selection.py,graph_scene_mutation_history.py,graph_scene_payload/}`.
 - Change shell QML composition layout: `ea_node_editor/ui_qml/MainShell.qml` and `ea_node_editor/ui_qml/components/shell/*`.
 - Change quick insert result ranking/filtering or inline property payload generation: `ea_node_editor/ui/shell/window.py` and `ea_node_editor/ui/shell/window_library_inspector.py`.

@@ -4,12 +4,17 @@ import copy
 import importlib
 import unittest
 from pathlib import Path
+from tempfile import TemporaryDirectory
+from types import SimpleNamespace
 from unittest.mock import patch
 
-from PyQt6.QtCore import QObject
+from PyQt6.QtCore import QObject, QPointF, pyqtSignal
 
 from ea_node_editor.graph.model import GraphModel
+from ea_node_editor.graph.records import NodeLinkRecord
 from ea_node_editor.nodes.bootstrap import build_default_registry
+from ea_node_editor.nodes.builtins.media_panel import MEDIA_PANEL_TYPE_ID
+from ea_node_editor.nodes.builtins.passive_annotation import PASSIVE_ANNOTATION_TEXT_TYPE_ID
 from ea_node_editor.nodes.registry import NodeRegistry
 from ea_node_editor.ui.shell.runtime_history import (
     ACTION_ADD_EDGE,
@@ -17,9 +22,9 @@ from ea_node_editor.ui.shell.runtime_history import (
     ACTION_RENAME_NODE,
     RuntimeGraphHistory,
 )
-from ea_node_editor.ui_qml.graph_canvas_bridge import GraphCanvasBridge
 from ea_node_editor.ui_qml.graph_canvas_command import GraphCanvasCommandBridge
 from ea_node_editor.ui_qml.graph_canvas_state import GraphCanvasStateBridge
+from ea_node_editor.ui_qml.graph_scene.command_bridge import GraphSceneCommandBridge
 from ea_node_editor.ui_qml.graph_scene_bridge import GraphSceneBridge
 
 _REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -67,6 +72,236 @@ class _EdgeRewireCanvasSource:
             )
         )
         return True
+
+
+class _SceneBridgeForNodeLinkTests(QObject):
+    pending_surface_action_changed = pyqtSignal()
+
+    def __init__(self, model: GraphModel, workspace_id: str) -> None:
+        super().__init__()
+        self._model = model
+        self._workspace_id = workspace_id
+
+
+class _AuthoringBoundaryForNodeLinkTests:
+    def __init__(self, model: GraphModel, workspace_id: str) -> None:
+        self.model = model
+        self.workspace_id = workspace_id
+        self.focus_calls: list[str] = []
+        self.property_calls: list[tuple[str, str, object]] = []
+
+    def focus_node(self, node_id: str) -> QPointF:
+        self.focus_calls.append(str(node_id))
+        return QPointF(10.0, 20.0)
+
+    def set_node_property(self, node_id: str, key: str, value: object) -> None:
+        self.property_calls.append((str(node_id), str(key), value))
+        self.model.set_node_property(self.workspace_id, str(node_id), str(key), value)
+
+
+class _BatchEdgeAuthoringBoundary:
+    def __init__(self) -> None:
+        self.calls: list[tuple[str, tuple[object, ...]]] = []
+        self.rewire_result = True
+        self.display_mode_result = True
+
+    def request_rewire_edges(
+        self,
+        edge_ids: list[object],
+        endpoint: str,
+        node_id: str,
+        port_key: str,
+        copy_requested: bool,
+        append_requested: bool,
+    ) -> bool:
+        self.calls.append(
+            (
+                "request_rewire_edges",
+                (
+                    list(edge_ids),
+                    endpoint,
+                    node_id,
+                    port_key,
+                    copy_requested,
+                    append_requested,
+                ),
+            )
+        )
+        return self.rewire_result
+
+    def set_edges_display_mode(self, edge_ids: list[object], mode: str) -> bool:
+        self.calls.append(("set_edges_display_mode", (list(edge_ids), mode)))
+        return self.display_mode_result
+
+
+class GraphSceneCommandBridgeContractTests(unittest.TestCase):
+    def test_scene_command_bridge_rejects_cross_workspace_node_link(self) -> None:
+        model = GraphModel()
+        workspace = model.active_workspace
+        source = model.add_node(
+            workspace.workspace_id,
+            "core.logger",
+            "Source",
+            40.0,
+            60.0,
+        )
+        workspace.nodes[source.node_id].links.append(
+            NodeLinkRecord(
+                link_id="link-cross-node",
+                kind="node",
+                title="Target",
+                target="node-target",
+                target_workspace_id="workspace-target",
+                target_node_id="node-target",
+            )
+        )
+        authoring = _AuthoringBoundaryForNodeLinkTests(model, workspace.workspace_id)
+        bridge = GraphSceneCommandBridge(
+            _SceneBridgeForNodeLinkTests(model, workspace.workspace_id),
+            scope_selection=SimpleNamespace(),
+            authoring_boundary=authoring,
+            pending_surface_action=SimpleNamespace(node_id=""),
+        )
+
+        self.assertFalse(bridge.open_node_link(source.node_id, "link-cross-node"))
+        self.assertEqual(authoring.focus_calls, [])
+
+    def test_scene_command_bridge_opens_video_timestamp_node_link_and_updates_position(self) -> None:
+        with TemporaryDirectory() as temporary_directory:
+            video_path = Path(temporary_directory) / "clip.mp4"
+            video_path.write_bytes(b"video")
+            model = GraphModel()
+            workspace = model.active_workspace
+            video = model.add_node(
+                workspace.workspace_id,
+                MEDIA_PANEL_TYPE_ID,
+                "Media Panel",
+                40.0,
+                60.0,
+                properties={"source": str(video_path), "position_ms": 0},
+                exposed_ports={"source": False},
+            )
+            note = model.add_node(
+                workspace.workspace_id,
+                PASSIVE_ANNOTATION_TEXT_TYPE_ID,
+                "Video note",
+                240.0,
+                60.0,
+            )
+            workspace.nodes[note.node_id].links.append(
+                NodeLinkRecord(
+                    link_id="link-video-time",
+                    kind="node",
+                    title="Video 0:07",
+                    target=video.node_id,
+                    subtitle="video_position_ms=7777",
+                )
+            )
+            authoring = _AuthoringBoundaryForNodeLinkTests(model, workspace.workspace_id)
+            bridge = GraphSceneCommandBridge(
+                _SceneBridgeForNodeLinkTests(model, workspace.workspace_id),
+                scope_selection=SimpleNamespace(),
+                authoring_boundary=authoring,
+                pending_surface_action=SimpleNamespace(node_id=""),
+            )
+
+            self.assertTrue(bridge.open_node_link(note.node_id, "link-video-time"))
+            self.assertEqual(authoring.property_calls, [(video.node_id, "position_ms", 7777)])
+            self.assertEqual(authoring.focus_calls, [video.node_id])
+            self.assertEqual(workspace.nodes[video.node_id].properties["position_ms"], 7777)
+
+    def test_scene_command_bridge_focuses_nonready_media_timestamp_target_without_seeking(self) -> None:
+        model = GraphModel()
+        workspace = model.active_workspace
+        media = model.add_node(
+            workspace.workspace_id,
+            MEDIA_PANEL_TYPE_ID,
+            "Media Panel",
+            40.0,
+            60.0,
+            properties={"source": "C:/dormant/clip.mp4", "position_ms": 0},
+            exposed_ports={"source": True},
+        )
+        note = model.add_node(
+            workspace.workspace_id,
+            PASSIVE_ANNOTATION_TEXT_TYPE_ID,
+            "Video note",
+            240.0,
+            60.0,
+        )
+        workspace.nodes[note.node_id].links.append(
+            NodeLinkRecord(
+                link_id="link-video-time",
+                kind="node",
+                title="Video 0:07",
+                target=media.node_id,
+                subtitle="video_position_ms=7777",
+            )
+        )
+        authoring = _AuthoringBoundaryForNodeLinkTests(model, workspace.workspace_id)
+        bridge = GraphSceneCommandBridge(
+            _SceneBridgeForNodeLinkTests(model, workspace.workspace_id),
+            scope_selection=SimpleNamespace(),
+            authoring_boundary=authoring,
+            pending_surface_action=SimpleNamespace(node_id=""),
+        )
+
+        self.assertTrue(bridge.open_node_link(note.node_id, "link-video-time"))
+        self.assertEqual(authoring.property_calls, [])
+        self.assertEqual(authoring.focus_calls, [media.node_id])
+        self.assertEqual(workspace.nodes[media.node_id].properties["position_ms"], 0)
+
+    def test_scene_command_bridge_forwards_batch_rewire_and_display_mode_results(self) -> None:
+        scene = _SceneBridgeForNodeLinkTests(GraphModel(), "workspace-1")
+        authoring = _BatchEdgeAuthoringBoundary()
+        bridge = GraphSceneCommandBridge(
+            scene,
+            scope_selection=SimpleNamespace(),
+            authoring_boundary=authoring,
+            pending_surface_action=SimpleNamespace(node_id=""),
+        )
+
+        self.assertTrue(
+            bridge.request_rewire_edges(
+                ["edge-2", "edge-1"],
+                "target",
+                "sink-node",
+                "payload",
+                True,
+                True,
+            )
+        )
+        self.assertTrue(bridge.set_edges_display_mode(["edge-1", "edge-2"], "faint"))
+        authoring.rewire_result = False
+        authoring.display_mode_result = False
+        self.assertFalse(
+            bridge.request_rewire_edges(
+                ["edge-1"], "source", "", "", False, False
+            )
+        )
+        self.assertFalse(bridge.set_edges_display_mode(["edge-1"], "hidden"))
+        self.assertEqual(
+            authoring.calls,
+            [
+                (
+                    "request_rewire_edges",
+                    (
+                        ["edge-2", "edge-1"],
+                        "target",
+                        "sink-node",
+                        "payload",
+                        True,
+                        True,
+                    ),
+                ),
+                ("set_edges_display_mode", (["edge-1", "edge-2"], "faint")),
+                (
+                    "request_rewire_edges",
+                    (["edge-1"], "source", "", "", False, False),
+                ),
+                ("set_edges_display_mode", (["edge-1"], "hidden")),
+            ],
+        )
 
 
 class GraphSceneBridgeBindRegressionTests(unittest.TestCase):
@@ -414,10 +649,9 @@ class GraphSceneBridgeBindRegressionTests(unittest.TestCase):
     def test_canvas_batch_rewire_request_forwards_all_arguments(self) -> None:
         source = _EdgeRewireCanvasSource()
         command_bridge = GraphCanvasCommandBridge(canvas_source=source)
-        facade = GraphCanvasBridge(command_bridge=command_bridge)
 
         self.assertTrue(
-            facade.request_rewire_edges(
+            command_bridge.request_rewire_edges(
                 ["edge-a", "edge-b"], "target", "node", "port", True, True
             )
         )
@@ -425,13 +659,12 @@ class GraphSceneBridgeBindRegressionTests(unittest.TestCase):
             source.calls,
             [(["edge-a", "edge-b"], "target", "node", "port", True, True)],
         )
-        for meta in (command_bridge.metaObject(), facade.metaObject()):
-            self.assertLess(
-                meta.indexOfMethod(
-                    b"request_move_edge_endpoint(QString,QString,QString,QString,bool)"
-                ),
-                0,
-            )
+        self.assertLess(
+            command_bridge.metaObject().indexOfMethod(
+                b"request_move_edge_endpoint(QString,QString,QString,QString,bool)"
+            ),
+            0,
+        )
 
     def test_mutation_history_routes_to_direct_graph_operation_boundaries(self) -> None:
         helper_text = (
@@ -547,9 +780,6 @@ class GraphSceneBridgeBindRegressionTests(unittest.TestCase):
                 (_REPO_ROOT / "ea_node_editor" / "ui_qml" / "graph_canvas_command").glob("*.py")
             )
         )
-        facade_text = (
-            _REPO_ROOT / "ea_node_editor" / "ui_qml" / "graph_canvas_bridge.py"
-        ).read_text(encoding="utf-8")
         canvas_text = (
             _REPO_ROOT / "ea_node_editor" / "ui_qml" / "components" / "GraphCanvas.qml"
         ).read_text(encoding="utf-8")
@@ -571,18 +801,11 @@ class GraphSceneBridgeBindRegressionTests(unittest.TestCase):
         self.assertIn("def _resolve_scene_policy_source(scene_bridge: object | None)", state_text)
         self.assertIn("def _resolve_scene_command_source(scene_bridge: object | None)", command_text)
         self.assertIn("def _resolve_scene_policy_source(scene_bridge: object | None)", command_text)
-        self.assertIn("property var graphCanvasFacade: null", canvas_text)
-        self.assertIn("readonly property var canvasFacadeRef: root.graphCanvasFacade || graphCanvasFacadeAdapter", canvas_text)
-        self.assertIn("readonly property var state: root.canvasStateBridge", canvas_text)
-        self.assertIn("readonly property var commands: root.canvasCommandBridge", canvas_text)
-        self.assertIn("readonly property var viewport: root._canvasViewportBridge", canvas_text)
-        self.assertIn("readonly property var mutation: root.canvasCommandBridge", canvas_text)
-        self.assertIn("readonly property var lifecycle: root.canvasStateBridge", canvas_text)
-        self.assertIn('readonly property var canvasStateBridgeRef: root._facadeService("state")', canvas_text)
-        self.assertIn('readonly property var canvasCommandBridgeRef: root._facadeService("commands")', canvas_text)
-        self.assertIn('readonly property var canvasViewBridgeRef: root._facadeService("viewport")', canvas_text)
-        self.assertIn('readonly property var sceneCommandBridge: root._facadeService("mutation")', canvas_text)
-        self.assertIn('readonly property var sceneBridge: root._facadeService("lifecycle")', canvas_text)
+        self.assertIn("readonly property var canvasStateBridgeRef: root.canvasStateBridge || null", canvas_text)
+        self.assertIn("readonly property var canvasCommandBridgeRef: root.canvasCommandBridge || null", canvas_text)
+        self.assertIn("readonly property var canvasViewBridgeRef: root._canvasViewportBridge", canvas_text)
+        self.assertIn("readonly property var sceneCommandBridge: root.canvasCommandBridgeRef", canvas_text)
+        self.assertIn("readonly property var sceneBridge: root.canvasStateBridgeRef", canvas_text)
         self.assertIn("readonly property var sceneStateBridge: root.canvasStateBridgeRef", canvas_text)
         self.assertIn("readonly property var graphActionBridgeRef: root.graphActionBridge || null", canvas_text)
         self.assertIn("sceneBridge: root.sceneStateBridge", canvas_text)
@@ -619,16 +842,10 @@ class GraphSceneBridgeBindRegressionTests(unittest.TestCase):
         ):
             with self.subTest(retired_snippet=retired_snippet):
                 self.assertNotIn(retired_snippet, command_text)
-                self.assertNotIn(retired_snippet, facade_text)
 
         scene = GraphSceneBridge()
         canvas_state_bridge = GraphCanvasStateBridge(scene_bridge=scene)
         canvas_command_bridge = GraphCanvasCommandBridge(scene_bridge=scene)
-        canvas_facade = GraphCanvasBridge(
-            scene_bridge=scene,
-            state_bridge=canvas_state_bridge,
-            command_bridge=canvas_command_bridge,
-        )
 
         self.assertIs(canvas_state_bridge.scene_bridge, scene)
         self.assertIs(canvas_state_bridge.scene_state_source, scene.state_bridge)
@@ -636,10 +853,6 @@ class GraphSceneBridgeBindRegressionTests(unittest.TestCase):
         self.assertIs(canvas_command_bridge.scene_bridge, scene)
         self.assertIs(canvas_command_bridge.scene_command_source, scene.command_bridge)
         self.assertIs(canvas_command_bridge.scene_policy_source, scene.policy_bridge)
-        self.assertIs(canvas_facade.state, canvas_state_bridge)
-        self.assertIs(canvas_facade.commands, canvas_command_bridge)
-        self.assertIs(canvas_facade.mutation, canvas_command_bridge)
-        self.assertIs(canvas_facade.lifecycle, canvas_state_bridge)
         command_meta = canvas_command_bridge.metaObject()
         for signature in (
             b"request_open_subnode_scope(QString)",
@@ -1179,11 +1392,6 @@ class GraphSceneBridgeBindRegressionTests(unittest.TestCase):
         logger_id = scene.add_node_from_type("core.python_script", 320.0, 40.0)
         end_id = scene.add_node_from_type("core.trigger", 640.0, 0.0)
         state_bridge = GraphCanvasStateBridge(scene_bridge=scene)
-        canvas_facade = GraphCanvasBridge(
-            scene_bridge=scene,
-            state_bridge=state_bridge,
-            command_bridge=GraphCanvasCommandBridge(scene_bridge=scene),
-        )
         scene.bind_runtime_history(RuntimeGraphHistory())
         state_bridge.force_visible_scene_models_exact()
         self.assertEqual(len(scene.nodes_model), 3)
@@ -1226,7 +1434,6 @@ class GraphSceneBridgeBindRegressionTests(unittest.TestCase):
         self.assertEqual(added_entry["payload"]["source_node_id"], source_id)
         self.assertEqual(added_entry["payload"]["target_node_id"], logger_id)
         self.assertEqual(state_bridge.edge_delta_payload["sequence"], add_delta["sequence"])
-        self.assertEqual(canvas_facade.edge_delta_payload["sequence"], add_delta["sequence"])
 
         _, remove_sample, remove_delta = _sample_for("remove_edge", lambda: scene.remove_edge(edge_id))
 

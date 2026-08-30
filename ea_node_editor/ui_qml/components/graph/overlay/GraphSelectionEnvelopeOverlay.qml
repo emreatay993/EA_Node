@@ -66,8 +66,6 @@ Item {
     function _canvasStateBridge() {
         if (root.canvasItem && root.canvasItem.canvasStateBridgeRef)
             return root.canvasItem.canvasStateBridgeRef;
-        if (root.canvasItem && root.canvasItem._canvasStateBridgeRef)
-            return root.canvasItem._canvasStateBridgeRef;
         return null;
     }
 

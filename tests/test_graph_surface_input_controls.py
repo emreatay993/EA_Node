@@ -2410,7 +2410,6 @@ class GraphSurfaceCanvasInteractionTests(GraphSurfaceInputContractTestBase):
                         property bool prefs: false
                         property var executionFacts: null
                         property var canvasStateBridgeRef: null
-                        property var _canvasStateBridgeRef: null
                         property string edgeContextEdgeId: "active_edge"
                         property var selectedEdgeIds: ["active_edge", "passive_edge", "flow_edge"]
                         property real contextMenuX: 180
@@ -2713,7 +2712,7 @@ class GraphSurfaceLockedNodeCanvasRoutingTests(GraphSurfaceInputContractTestBase
                         property string surfaceActions: ""
                         property string hostLookupNodeId: ""
                         property var sceneCommandBridge: settingsBridge
-                        property var _canvasViewStateBridgeRef: lowZoomView
+                        property var canvasViewBridgeRef: lowZoomView
 
                         QtObject {
                             id: lowZoomView
@@ -3115,7 +3114,7 @@ class GraphSurfaceLockedNodeCanvasRoutingTests(GraphSurfaceInputContractTestBase
                         property bool selectionContextSceneAnchorActive: false
                         property real selectionContextSceneAnchorX: contextMenuSceneAnchorX
                         property real selectionContextSceneAnchorY: contextMenuSceneAnchorY
-                        property var _canvasViewStateBridgeRef: viewBridge
+                        property var canvasViewBridgeRef: viewBridge
                         property var canvasStateBridgeRef: null
                         property var selectedEdgeIds: []
                         property var edgePayload: [
@@ -3227,7 +3226,7 @@ class GraphSurfaceLockedNodeCanvasRoutingTests(GraphSurfaceInputContractTestBase
             ):
                 assert_popup_position(label, popup, 100, 50, 1.25)
 
-            view_bridge = canvas_item.property("_canvasViewStateBridgeRef")
+            view_bridge = canvas_item.property("canvasViewBridgeRef")
             view_bridge.setProperty("center_x", 120)
             view_bridge.setProperty("center_y", 80)
             view_bridge.setProperty("zoom_value", 0.5)

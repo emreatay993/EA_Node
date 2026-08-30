@@ -24,6 +24,8 @@ from ea_node_editor.execution.client import (
     ViewerInvalidationReservation,
     _ViewerInvalidationSnapshot,
 )
+from ea_node_editor.execution.compiler import compile_runtime_snapshot
+from ea_node_editor.execution.execution_plan import ExecutionPlan
 from ea_node_editor.execution.protocol import (
     CancelRunPreflightCommand,
     CommitRunPreflightCommand,
@@ -44,6 +46,7 @@ from ea_node_editor.execution.solution_store import (
     DurablePayloadResult,
     DurableStageResult,
 )
+from ea_node_editor.execution.solution_identity import canonical_digest
 from ea_node_editor.execution.worker_runner import WorkflowRunner
 from ea_node_editor.execution.worker_services import WorkerServices
 from ea_node_editor.graph.model import GraphModel
@@ -1281,6 +1284,211 @@ def test_first_unsaved_invalidation_initializes_a_blank_solution_session() -> No
     assert runtime.solution_record(record_id) is None
 
 
+@pytest.mark.parametrize("cycle_kind", ("self", "multi"))
+def test_cycle_safe_invalidation_precedes_ordinary_prepare_rejection(
+    cycle_kind: str,
+) -> None:
+    registry = build_default_registry()
+    model = GraphModel()
+    workspace = model.active_workspace
+    first = model.add_node(
+        workspace.workspace_id, "core.python_script", "First", 0, 0
+    )
+    cycle_node_ids = {first.node_id}
+    if cycle_kind == "self":
+        model.add_edge(
+            workspace.workspace_id,
+            first.node_id,
+            "result",
+            first.node_id,
+            "payload",
+        )
+    else:
+        second = model.add_node(
+            workspace.workspace_id, "core.python_script", "Second", 200, 0
+        )
+        model.add_edge(
+            workspace.workspace_id,
+            first.node_id,
+            "result",
+            second.node_id,
+            "payload",
+        )
+        model.add_edge(
+            workspace.workspace_id,
+            second.node_id,
+            "result",
+            first.node_id,
+            "payload",
+        )
+        cycle_node_ids.add(second.node_id)
+    snapshot = build_runtime_snapshot(
+        model.project,
+        workspace_id=workspace.workspace_id,
+        registry=registry,
+    )
+    compiled = compile_runtime_snapshot(
+        snapshot,
+        workspace_id=workspace.workspace_id,
+        registry=registry,
+    )
+    expected_expired = tuple(
+        node.node_id for node in compiled.nodes if node.node_id in cycle_node_ids
+    )
+    runtime = CorexRuntime(client=_PreparedClient(), registry=registry)
+    try:
+        invalidated = runtime.invalidate_solution(
+            model.project.project_id,
+            workspace.workspace_id,
+            snapshot,
+            (first.node_id,),
+            "graph_changed",
+        )
+        assert invalidated.expired_node_ids == expected_expired
+        with pytest.raises(ValueError, match="Cycle detected among nodes:"):
+            runtime.prepare_execution(
+                ExecutionRequest(
+                    runtime_snapshot=snapshot,
+                    workspace_id=workspace.workspace_id,
+                )
+            )
+    finally:
+        runtime.shutdown()
+
+
+def test_passive_flow_cycle_compiles_out_of_invalidation_and_preparation() -> None:
+    registry = build_default_registry()
+    model = GraphModel()
+    workspace = model.active_workspace
+    first = model.add_node(
+        workspace.workspace_id,
+        "passive.flowchart.process",
+        "First",
+        0,
+        0,
+    )
+    second = model.add_node(
+        workspace.workspace_id,
+        "passive.flowchart.process",
+        "Second",
+        200,
+        0,
+    )
+    active = model.add_node(
+        workspace.workspace_id, "core.constant", "Active", 0, 200
+    )
+    model.add_edge(
+        workspace.workspace_id,
+        first.node_id,
+        "right",
+        second.node_id,
+        "left",
+    )
+    model.add_edge(
+        workspace.workspace_id,
+        second.node_id,
+        "right",
+        first.node_id,
+        "left",
+    )
+    snapshot = build_runtime_snapshot(
+        model.project,
+        workspace_id=workspace.workspace_id,
+        registry=registry,
+    )
+    runtime = CorexRuntime(client=_PreparedClient(), registry=registry)
+    try:
+        invalidated = runtime.invalidate_solution(
+            model.project.project_id,
+            workspace.workspace_id,
+            snapshot,
+            (active.node_id,),
+            "graph_changed",
+        )
+        assert invalidated.expired_node_ids == (active.node_id,)
+        filtered = runtime.prepare_execution(
+            ExecutionRequest(
+                runtime_snapshot=snapshot,
+                workspace_id=workspace.workspace_id,
+                target_node_ids=(first.node_id,),
+            )
+        )
+        assert filtered.dispatch_envelope.target_node_ids == (first.node_id,)
+        assert filtered.node_decisions == ()
+        runtime.solution_store.discard_preparation(
+            filtered.preparation_id,
+            "test_probe",
+        )
+        prepared = runtime.prepare_execution(
+            ExecutionRequest(
+                runtime_snapshot=snapshot,
+                workspace_id=workspace.workspace_id,
+            )
+        )
+        assert tuple(item.node_id for item in prepared.node_decisions) == (
+            active.node_id,
+        )
+    finally:
+        runtime.shutdown()
+
+
+def test_headless_boundaries_compile_once_and_preserve_authored_snapshot() -> None:
+    import ea_node_editor.execution.headless_runtime as runtime_module
+
+    runtime, _client, registry, model, workspace, node, snapshot = (
+        _runtime_with_constant()
+    )
+    compiled = compile_runtime_snapshot(
+        snapshot,
+        workspace_id=workspace.workspace_id,
+        registry=registry,
+    )
+    selected_plan = ExecutionPlan(
+        compiled,
+        registry,
+        target_node_ids=(node.node_id,),
+    )
+    interface_plan = ExecutionPlan(compiled, registry)
+    try:
+        with patch.object(
+            runtime_module,
+            "compile_runtime_snapshot",
+            wraps=compile_runtime_snapshot,
+        ) as compile_mock:
+            prepared = runtime.prepare_execution(
+                ExecutionRequest(
+                    runtime_snapshot=snapshot,
+                    workspace_id=workspace.workspace_id,
+                    target_node_ids=(node.node_id,),
+                )
+            )
+            assert compile_mock.call_count == 1
+            assert prepared.execution_plan_fingerprint == selected_plan.fingerprint
+            assert prepared.workflow_interface_digest == (
+                interface_plan.workflow_interface_digest
+            )
+            assert prepared.dispatch_envelope.decode_runtime_snapshot(
+                catalog=registry.data_types
+            ) == snapshot
+            assert prepared.runtime_snapshot_fingerprint == canonical_digest(
+                snapshot.to_document(catalog=registry.data_types)
+            )
+
+            assert runtime.dispatch_prepared(prepared) == "run_1"
+            assert compile_mock.call_count == 2
+            invalidated = runtime.invalidate_solution(
+                model.project.project_id,
+                workspace.workspace_id,
+                snapshot,
+                (node.node_id,),
+                "graph_changed",
+            )
+            assert invalidated.expired_node_ids == (node.node_id,)
+            assert compile_mock.call_count == 3
+    finally:
+        runtime.shutdown()
+
+
 def test_prepared_reuse_consumes_the_preparation() -> None:
     runtime, client, _registry, _model, workspace, node, snapshot = (
         _runtime_with_constant()
@@ -1515,14 +1723,18 @@ def test_invalidation_holds_lifecycle_through_plan_and_store(
     release_plan = threading.Event()
     reset_finished = threading.Event()
     errors: list[BaseException] = []
-    real_plan = runtime_module.ExecutionPlan
+    real_plan = runtime_module.ExecutionPlan.for_invalidation
 
-    def blocking_plan(*args, **kwargs):  # noqa: ANN002, ANN003, ANN202
+    def blocking_plan(_cls, *args, **kwargs):  # noqa: ANN002, ANN003, ANN202
         entered_plan.set()
         assert release_plan.wait(5.0)
         return real_plan(*args, **kwargs)
 
-    monkeypatch.setattr(runtime_module, "ExecutionPlan", blocking_plan)
+    monkeypatch.setattr(
+        runtime_module.ExecutionPlan,
+        "for_invalidation",
+        classmethod(blocking_plan),
+    )
 
     def invalidate() -> None:
         try:

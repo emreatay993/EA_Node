@@ -9,6 +9,8 @@ Use this for graph surface, QML bridge, passive host, inline input, pointer, mod
 - `tests/qml_quick/tst_secret_editor.qml`
 - `tests/graph_surface/`
 - `tests/graph_track_b/`
+- `tests/test_graph_canvas_split_bridges.py`
+- `tests/test_graph_canvas_surface_snapshot.py`
 - `tests/test_graph_surface_input_contract.py`
 - `tests/test_graph_surface_input_controls.py`
 - `tests/test_graph_surface_input_inline.py`
@@ -34,6 +36,7 @@ Use this for graph surface, QML bridge, passive host, inline input, pointer, mod
 
 ## Common Changes
 - Use graph surface suites for QML node surface and input-contract changes.
+- `tests/test_graph_canvas_split_bridges.py` owns the direct state/command bridge contract, while `tests/test_graph_canvas_surface_snapshot.py` freezes the surviving focused-owner meta-object surface against `tests/fixtures/graph_canvas_surface_snapshot.json`.
 - Keep Boolean Toggle pill geometry and click-to-property commits in `tests/test_boolean_toggle_surface.py`; its node/runtime contract stays in `tests/test_boolean_toggle_node.py`.
 - Keep Select pill geometry, shared Help tooltip, elapsed suppression, dropdown commits, settings draft operations, header/row selection, protected delete, both reorder directions, Cancel/close behavior, and atomic undoable OK persistence in `tests/test_select_surface.py`; its metadata, normalization, runtime, exposed Text Tree output, and persistence contract stays in `tests/test_select_node.py`.
 - Keep Trigger pill geometry (both port dots at pill mid-height), rename-following button label, shared Help tooltip on button and pill hover, elapsed suppression, and `triggerNodeRequested` click routing in `tests/test_trigger_surface.py`; its spec copy, surface contract, and size-resolver clamps stay in `tests/test_trigger_node.py`, with sample-and-hold runtime behavior in `tests/test_dataflow_execution_runtime.py`.
@@ -79,6 +82,7 @@ $env:QT_QUICK_CONTROLS_STYLE = "Basic"
 & (Join-Path $env:QT_ROOT "bin\qmltestrunner.exe") -input tests/qml_quick/tst_graph_surface_controls.qml -eventdelay 0 -keydelay 0 -mousedelay 0 -o -,txt
 .\venv\Scripts\python.exe -m pytest tests/test_graph_surface_input_contract.py tests/test_graph_surface_input_inline.py tests/test_passive_graph_surface_host.py tests/test_media_panel_qml_surface.py tests/test_passive_image_nodes.py --ignore=venv -q
 .\venv\Scripts\python.exe -m pytest tests/test_graph_canvas_viewport_virtualization.py --ignore=venv -q
+.\venv\Scripts\python.exe -m pytest tests/test_graph_canvas_split_bridges.py tests/test_graph_canvas_surface_snapshot.py --ignore=venv -q
 Remove-Item Env:QT_QPA_PLATFORM, Env:QT_QUICK_CONTROLS_STYLE -ErrorAction SilentlyContinue
 $env:QT_QPA_PLATFORM = "offscreen"
 .\venv\Scripts\python.exe -m pytest tests/test_viewer_control_bridge.py tests/test_viewer_host_service.py tests/test_viewer_surface_host.py tests/test_viewer_surface_contract.py --ignore=venv -q

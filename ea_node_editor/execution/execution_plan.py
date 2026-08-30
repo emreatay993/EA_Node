@@ -26,8 +26,46 @@ _FINGERPRINT_SCHEMA_VERSION = 1
 WORKFLOW_INTERFACE_REVISION = 1
 
 
+class _ExecutionCycleError(ValueError):
+    pass
+
+
 class ExecutionPlan:
     def __init__(
+        self,
+        workspace: RuntimeWorkspace,
+        registry: Any,
+        *,
+        target_node_ids: tuple[str, ...] = (),
+        clicked_trigger_node_id: str = "",
+        trigger_capture_node_ids: tuple[str, ...] = (),
+    ) -> None:
+        try:
+            self._initialize(
+                workspace,
+                registry,
+                target_node_ids=target_node_ids,
+                clicked_trigger_node_id=clicked_trigger_node_id,
+                trigger_capture_node_ids=trigger_capture_node_ids,
+            )
+        except _ExecutionCycleError as exc:
+            raise ValueError(str(exc)) from None
+
+    @classmethod
+    def for_invalidation(
+        cls,
+        workspace: RuntimeWorkspace,
+        registry: Any,
+    ) -> "ExecutionPlan":
+        plan = cls.__new__(cls)
+        try:
+            plan._initialize(workspace, registry)
+        except _ExecutionCycleError:
+            plan.execution_order = plan._compiled_declaration_order()
+            plan._finalize()
+        return plan
+
+    def _initialize(
         self,
         workspace: RuntimeWorkspace,
         registry: Any,
@@ -49,8 +87,12 @@ class ExecutionPlan:
             for node_id in dict.fromkeys(
                 str(node_id or "").strip() for node_id in target_node_ids
             )
-            if node_id and node_id in self.nodes
+            if node_id
         )
+        self._resolved_target_nodes = tuple(
+            node_id for node_id in self.target_nodes if node_id in self.nodes
+        )
+        self._has_explicit_target_filter = bool(self.target_nodes)
         from ea_node_editor.nodes.python_script_declaration import (
             PythonScriptDeclarationError,
         )
@@ -95,9 +137,19 @@ class ExecutionPlan:
         self._hidden_ordering_pairs = self._decode_hidden_ordering_pairs()
         self.scheduled_node_ids = self._build_scheduled_nodes()
         self.execution_order = self._topological_order()
+        self._finalize()
+
+    def _finalize(self) -> None:
         self.workflow_interface_revision = WORKFLOW_INTERFACE_REVISION
         self.workflow_interface_digest = self._workflow_interface_digest()
         self.fingerprint = self._topology_fingerprint()
+
+    def _compiled_declaration_order(self) -> tuple[str, ...]:
+        return tuple(
+            node.node_id
+            for node in self.workspace.nodes
+            if node.node_id in self.scheduled_node_ids
+        )
 
     def _materialize_nodes(self) -> dict[str, Any]:
         from ea_node_editor.graph.record_payloads import node_instance_from_mapping
@@ -200,9 +252,9 @@ class ExecutionPlan:
         return node is not None and node.type_id == _TRIGGER_TYPE_ID
 
     def _build_scheduled_nodes(self) -> set[str]:
-        if not self.target_nodes:
+        if not self._has_explicit_target_filter:
             return set(self.nodes)
-        targets = set(self.target_nodes)
+        targets = set(self._resolved_target_nodes)
         explicit_targets = set(targets)
         if self.clicked_trigger_node_id in self.nodes:
             targets.add(self.clicked_trigger_node_id)
@@ -328,7 +380,9 @@ class ExecutionPlan:
             cyclic = sorted(
                 node_id for node_id, count in incoming_count.items() if count > 0
             )
-            raise ValueError(f"Cycle detected among nodes: {', '.join(cyclic)}")
+            raise _ExecutionCycleError(
+                f"Cycle detected among nodes: {', '.join(cyclic)}"
+            )
         return tuple(ordered)
 
     def input_ports(self, node_id: str) -> tuple[Any, ...]:

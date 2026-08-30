@@ -6,7 +6,7 @@ from pathlib import Path
 from PyQt6.QtCore import QPoint, QPointF, Qt, pyqtProperty, pyqtSignal, pyqtSlot
 from PyQt6.QtGui import QWheelEvent
 from PyQt6.QtQuick import QQuickWindow
-from PyQt6.QtTest import QTest
+from PyQt6.QtTest import QSignalSpy, QTest
 
 from ea_node_editor.nodes import decorators as _node_decorators
 from ea_node_editor.nodes.bootstrap import build_default_registry
@@ -569,6 +569,9 @@ class GraphCanvasFrameCoalescingTests(GraphCanvasQmlPreferenceTestBase):
         start_y = float(self.view.center_y)
         raw_before = int(scheduler.property("rawPanInputEventCount"))
         flushed_before = int(scheduler.property("flushedPanUpdateCount"))
+        pan_flush_spy = QSignalSpy(
+            getattr(scheduler, "flushedPanUpdateCountChanged")
+        )
 
         deltas = [(3.0, -2.0), (4.5, 1.5), (-1.0, 5.0), (2.5, -3.0)]
         for dx, dy in deltas:
@@ -579,11 +582,9 @@ class GraphCanvasFrameCoalescingTests(GraphCanvasQmlPreferenceTestBase):
         self.assertAlmostEqual(float(self.view.center_x), start_x + sum(dx for dx, _ in deltas), places=6)
         self.assertAlmostEqual(float(self.view.center_y), start_y + sum(dy for _, dy in deltas), places=6)
 
-        wait_for_condition_or_raise(
-            lambda: int(scheduler.property("flushedPanUpdateCount")) == flushed_before + 1,
-            timeout_ms=500,
-            app=self.app,
-            timeout_message="Timed out waiting for coalesced pan flush.",
+        self.assertTrue(
+            pan_flush_spy.wait(500),
+            "Timed out waiting for coalesced pan flush.",
         )
 
         self.assertAlmostEqual(float(self.view.center_x), start_x + sum(dx for dx, _ in deltas), places=6)
@@ -598,6 +599,9 @@ class GraphCanvasFrameCoalescingTests(GraphCanvasQmlPreferenceTestBase):
         scene_before_y = float(self.canvas.screenToSceneY(cursor_y))
         raw_before = int(scheduler.property("rawZoomInputEventCount"))
         flushed_before = int(scheduler.property("flushedZoomUpdateCount"))
+        zoom_flush_spy = QSignalSpy(
+            getattr(scheduler, "flushedZoomUpdateCountChanged")
+        )
 
         for _ in range(3):
             self.assertTrue(scheduler.queueWheelZoom(self.canvas, self.view, 120.0, cursor_x, cursor_y))
@@ -608,11 +612,9 @@ class GraphCanvasFrameCoalescingTests(GraphCanvasQmlPreferenceTestBase):
         self.assertAlmostEqual(float(self.canvas.screenToSceneX(cursor_x)), scene_before_x, places=5)
         self.assertAlmostEqual(float(self.canvas.screenToSceneY(cursor_y)), scene_before_y, places=5)
 
-        wait_for_condition_or_raise(
-            lambda: int(scheduler.property("flushedZoomUpdateCount")) == flushed_before + 1,
-            timeout_ms=500,
-            app=self.app,
-            timeout_message="Timed out waiting for coalesced wheel zoom flush.",
+        self.assertTrue(
+            zoom_flush_spy.wait(500),
+            "Timed out waiting for coalesced wheel zoom flush.",
         )
 
         self.assertAlmostEqual(float(self.view.zoom_value), 1.15 ** 3, places=6)

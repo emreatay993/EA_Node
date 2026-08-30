@@ -8,19 +8,14 @@ from ea_node_editor.ui.shell.runtime_clipboard import (
     build_graph_fragment_payload,
     serialize_graph_fragment_payload,
 )
-from ea_node_editor.ui_qml.graph_canvas_bridge import GraphCanvasBridge
 from ea_node_editor.ui_qml.graph_canvas_command import GraphCanvasCommandBridge
 from ea_node_editor.ui_qml.graph_canvas_state import GraphCanvasStateBridge
 from ea_node_editor.ui_qml.shell_inspector_bridge import ShellInspectorBridge
 from ea_node_editor.ui_qml.shell_library_bridge import ShellLibraryBridge
 from ea_node_editor.ui_qml.shell_workspace_bridge import ShellWorkspaceBridge
-from tests.main_window_shell.bridge_contracts_graph_canvas import GraphCanvasBridgeTests
 from tests.main_window_shell.bridge_contracts_library_and_inspector import (
     ShellInspectorBridgeTests,
     ShellLibraryBridgeTests,
-)
-from tests.main_window_shell.bridge_contracts_main_window import (
-    MainWindowGraphCanvasBridgeTests,
 )
 from tests.main_window_shell.bridge_contracts_workspace_and_console import (
     SharedUiSupportBoundaryTests,
@@ -38,11 +33,8 @@ pytestmark = pytest.mark.xdist_group("p03_bridge_contracts")
 
 __all__ = [
     "FrameRateSampler",
-    "GraphCanvasBridge",
-    "GraphCanvasBridgeTests",
     "GraphCanvasCommandBridge",
     "GraphCanvasStateBridge",
-    "MainWindowGraphCanvasBridgeTests",
     "QObject",
     "SharedUiSupportBoundaryTests",
     "ShellInspectorBridge",

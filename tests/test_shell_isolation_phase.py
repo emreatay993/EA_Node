@@ -18,16 +18,12 @@ from tests.shell_isolation_runtime import shell_lifecycle_contract
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 _REEXPORTED_SHELL_SOURCE_PATHS = {
-    "tests/main_window_shell/bridge_contracts_graph_canvas.py",
     "tests/main_window_shell/bridge_contracts_library_and_inspector.py",
-    "tests/main_window_shell/bridge_contracts_main_window.py",
     "tests/main_window_shell/bridge_contracts_workspace_and_console.py",
     "tests/main_window_shell/bridge_support.py",
 }
 _REEXPORTED_TEST_CLASSES_BY_PATH = {
     "tests/main_window_shell/bridge_contracts.py": (
-        "GraphCanvasBridgeTests",
-        "MainWindowGraphCanvasBridgeTests",
         "SharedUiSupportBoundaryTests",
         "ShellInspectorBridgeTests",
         "ShellLibraryBridgeTests",
@@ -52,7 +48,8 @@ _LOCAL_EXCLUDED_TEST_CLASSES_BY_PATH = {
 }
 _LOCAL_EXCLUDED_TEST_METHODS_BY_OWNER = {
     ("tests/test_shell_run_controller.py", "ShellRunControllerTests"): (
-        "test_failed_start_restores_live_viewer_host_after_preflight_reset",
+        "test_disconnected_toggle_auto_run_preserves_current_viewer_until_separate_same_node_invalidation",
+        "test_failed_dispatch_leaves_viewer_host_and_epochs_untouched",
         "test_fatal_run_failed_event_invalidates_viewer_sessions_as_worker_reset",
         "test_graph_typography_host_chrome_shell_events_apply_shared_roles_and_preserve_elapsed_footer_semantics",
         "test_node_execution_visualization_failure_priority_overrides_completed_chrome",
@@ -63,10 +60,10 @@ _LOCAL_EXCLUDED_TEST_METHODS_BY_OWNER = {
         "test_warning_node_settled_event_marks_golden_chrome_and_logs_without_failure_focus",
         "test_persistent_node_elapsed_footer_failure_priority_hides_failed_running_live_timer",
         "test_persistent_node_elapsed_footer_shell_events_render_live_then_cached_until_invalidation",
-        "test_rerun_preflight_resets_live_viewer_host_before_worker_start",
         "test_selected_workspace_toolbar_buttons_follow_run_owner_state_and_warning_path",
         "test_shell_context_bridge_explicit_sources_wrap_shell_window_with_focused_sources",
         "test_viewer_session_bridge_context_property_exists_and_rerun_invalidates_current_workspace",
+        "test_successful_dispatch_invalidates_exact_viewers_without_host_reset",
     ),
 }
 _LOCAL_RETIRED_TEST_METHODS_BY_OWNER = {
@@ -413,7 +410,6 @@ def test_main_window_split_targets_are_complete_and_disjoint() -> None:
         "tests/main_window_shell/shell_runtime_contracts.py::FrameRateSamplerTests",
         "tests/main_window_shell/bridge_contracts.py::ShellLibraryBridgeTests",
         "tests/main_window_shell/bridge_contracts.py::ShellInspectorBridgeTests",
-        "tests/main_window_shell/bridge_contracts.py::GraphCanvasBridgeTests",
         "tests/main_window_shell/bridge_contracts.py::ShellWorkspaceBridgeTests",
         "tests/main_window_shell/bridge_qml_boundaries.py::ShellLibraryBridgeQmlBoundaryTests",
         "tests/main_window_shell/bridge_qml_boundaries.py::ShellInspectorBridgeQmlBoundaryTests",

@@ -7,6 +7,7 @@ from unittest import mock
 from types import SimpleNamespace
 
 from ea_node_editor.execution.backends import EXTERNAL_SUBPROCESS_BACKEND
+from ea_node_editor.execution.compiler import compile_runtime_snapshot
 from ea_node_editor.execution.execution_plan import ExecutionPlan
 from ea_node_editor.execution.prepared_execution import InvalidationResult
 from ea_node_editor.execution.protocol import (
@@ -233,7 +234,12 @@ class _ExecutionClientStub:
         changed_root_node_ids,
         reason_code: str,
     ) -> InvalidationResult:
-        plan = ExecutionPlan(runtime_snapshot.workspace(workspace_id), self.registry)
+        workspace = compile_runtime_snapshot(
+            runtime_snapshot,
+            workspace_id=workspace_id,
+            registry=self.registry,
+        )
+        plan = ExecutionPlan.for_invalidation(workspace, self.registry)
         closure = plan.affected_downstream_closure(tuple(changed_root_node_ids))
         active_ids = {
             node_id

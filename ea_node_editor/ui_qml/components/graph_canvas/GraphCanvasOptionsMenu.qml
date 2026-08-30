@@ -96,10 +96,8 @@ Item {
         ? "Inspector"
         : "Canvas popover"
     readonly property string shellThemeLabel: root.activeShellThemeId === "stitch_light" ? "Light" : "Dark"
-    readonly property var tooltipPolicyBridge: root.canvasItem
-        ? (root.canvasItem.canvasStateBridgeRef
-            ? root.canvasItem.canvasStateBridgeRef
-            : (root.canvasItem._canvasStateBridgeRef ? root.canvasItem._canvasStateBridgeRef : null))
+    readonly property var tooltipPolicyBridge: root.canvasItem && root.canvasItem.canvasStateBridgeRef
+        ? root.canvasItem.canvasStateBridgeRef
         : null
     width: root.panelW + (root.hasActiveSubmenu ? root.menuGap + root.submenuW : 0)
     height: Math.max(mainPanel.height, activeSubmenuHeight())

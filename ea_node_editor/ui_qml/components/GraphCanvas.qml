@@ -12,7 +12,6 @@ Item {
     signal nodeLinkTargetPickCancelled()
     signal canvasBasePngExportFinished(var result)
 
-    property var graphCanvasFacade: null
     property var graphActionBridge: null
     property var canvasStateBridge: null
     property var canvasCommandBridge: null
@@ -26,29 +25,19 @@ Item {
             : (root.canvasCommandBridge && root.canvasCommandBridge.viewport_bridge
                 ? root.canvasCommandBridge.viewport_bridge
                 : null))
-    readonly property var canvasFacadeRef: root.graphCanvasFacade || graphCanvasFacadeAdapter
     readonly property var graphActionBridgeRef: root.graphActionBridge || null
-    readonly property var canvasStateBridgeRef: root._facadeService("state")
-    readonly property var canvasCommandBridgeRef: root._facadeService("commands")
-    readonly property var canvasViewBridgeRef: root._facadeService("viewport")
-    readonly property var _canvasStateBridgeRef: root.canvasStateBridgeRef
-    readonly property var _canvasViewStateBridgeRef: root.canvasViewBridgeRef
+    readonly property var canvasStateBridgeRef: root.canvasStateBridge || null
+    readonly property var canvasCommandBridgeRef: root.canvasCommandBridge || null
+    readonly property var canvasViewBridgeRef: root._canvasViewportBridge
     readonly property var sceneStateBridge: root.canvasStateBridgeRef
-    readonly property var sceneCommandBridge: root._facadeService("mutation")
-    readonly property var sceneBridge: root._facadeService("lifecycle")
+    readonly property var sceneCommandBridge: root.canvasCommandBridgeRef
+    readonly property var sceneBridge: root.canvasStateBridgeRef
     readonly property var viewBridge: root.canvasViewBridgeRef
     readonly property bool interactWithLockedObjects: root.sceneStateBridge
         && root.sceneStateBridge.interact_with_locked_objects !== undefined
         ? Boolean(root.sceneStateBridge.interact_with_locked_objects)
         : false
 
-    function _facadeService(name) {
-        var facade = root.canvasFacadeRef;
-        if (!facade)
-            return null;
-        var service = facade[name];
-        return service ? service : null;
-    }
     function _validSceneRectPayload(payload) {
         return payload
             && isFinite(Number(payload.width))
@@ -207,14 +196,6 @@ Item {
         : "#2F89FF"
     readonly property var executionFacts: executionFactsObject
     readonly property var prefs: preferenceFactsObject
-    QtObject {
-        id: graphCanvasFacadeAdapter
-        readonly property var state: root.canvasStateBridge
-        readonly property var commands: root.canvasCommandBridge
-        readonly property var viewport: root._canvasViewportBridge
-        readonly property var mutation: root.canvasCommandBridge
-        readonly property var lifecycle: root.canvasStateBridge
-    }
     GraphCanvasComponents.GraphCanvasExecutionFacts {
         id: executionFactsObject
         stateBridge: root.canvasStateBridgeRef
@@ -1126,7 +1107,6 @@ Item {
         root._resetCanvasSceneState()
         viewportController.scheduleViewportSizeUpdate()
     }
-    onGraphCanvasFacadeChanged: root._resetCanvasSceneState()
     onSceneBridgeChanged: root._resetCanvasSceneState()
     onWidthChanged: viewportController.scheduleViewportSizeUpdate()
     onHeightChanged: viewportController.scheduleViewportSizeUpdate()

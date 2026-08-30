@@ -25,9 +25,6 @@ _LEGACY_PYTEST_NODEID_ALIASES = {
     "tests/test_main_window_shell.py::ShellInspectorBridgeTests": (
         "tests/main_window_shell/bridge_contracts.py::ShellInspectorBridgeTests"
     ),
-    "tests/test_main_window_shell.py::GraphCanvasBridgeTests": (
-        "tests/main_window_shell/bridge_contracts.py::GraphCanvasBridgeTests"
-    ),
     "tests/test_main_window_shell.py::ShellWorkspaceBridgeTests": (
         "tests/main_window_shell/bridge_contracts.py::ShellWorkspaceBridgeTests"
     ),

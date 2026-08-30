@@ -55,7 +55,7 @@ Remove-Item Env:QT_QPA_PLATFORM, Env:QT_QUICK_CONTROLS_STYLE -ErrorAction Silent
 .\venv\Scripts\python.exe -m pytest tests/test_flow_edge_labels.py -k "toolbar or label" --ignore=venv -q
 .\venv\Scripts\python.exe -m pytest tests/test_passive_graph_surface_host.py -k timestamp --ignore=venv -q
 .\venv\Scripts\python.exe -m pytest tests/test_panel_surface.py --ignore=venv -q
-.\venv\Scripts\python.exe -m pytest tests/main_window_shell/bridge_contracts_graph_canvas.py --ignore=venv -q
+.\venv\Scripts\python.exe -m pytest tests/test_graph_canvas_split_bridges.py --ignore=venv -q
 ```
 
 ## Breadcrumbs

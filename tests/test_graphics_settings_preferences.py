@@ -6,6 +6,7 @@ import tempfile
 import unittest
 from pathlib import Path
 from types import SimpleNamespace
+from unittest import mock
 
 from ea_node_editor.app_preferences import (
     effective_graph_node_icon_pixel_size,
@@ -22,6 +23,7 @@ from ea_node_editor.ui.shell.controllers.app_preferences_controller import (
     AppPreferencesStore,
 )
 from ea_node_editor.ui.shell.presenters.graph_canvas_presenter import GraphCanvasPresenter
+from ea_node_editor.ui.shell.presenters import workspace_presenter as workspace_presenter_module
 from ea_node_editor.ui.shell.presenters.state import build_default_shell_workspace_ui_state
 from ea_node_editor.ui.shell.presenters.workspace_presenter import ShellWorkspacePresenter
 from ea_node_editor.ui.shell.tooltip_manager import TooltipManager
@@ -30,6 +32,7 @@ from ea_node_editor.ui.shell.tooltip_policy import (
     TOOLTIP_CATEGORY_CRITICAL,
     TOOLTIP_CATEGORY_GENERAL,
     TOOLTIP_CATEGORY_INACTIVE,
+    TOOLTIP_CATEGORY_NAMES,
     TOOLTIP_CATEGORY_TUTORIAL,
     TOOLTIP_CATEGORY_WARNING,
     default_tooltip_category_preferences,
@@ -178,6 +181,147 @@ class GraphicsSettingsPreferencesTests(unittest.TestCase):
 
     def tearDown(self) -> None:
         self._temp_dir.cleanup()
+
+    def test_graph_typography_bridge_workspace_presenter_snapshots_graph_label_pixel_size(self) -> None:
+        host = _RuntimeTooltipHost()
+        presenter = host.shell_workspace_presenter
+        seen = {"graphics_preferences_changed": 0}
+        presenter.graphics_preferences_changed.connect(
+            lambda: seen.__setitem__(
+                "graphics_preferences_changed",
+                seen["graphics_preferences_changed"] + 1,
+            )
+        )
+
+        resolved = presenter.apply_graphics_preferences(
+            {"typography": {"graph_label_pixel_size": 17}},
+        )
+
+        self.assertEqual(
+            resolved["typography"]["graph_label_pixel_size"],
+            17,
+        )
+        self.assertEqual(host.workspace_ui_state.graph_label_pixel_size, 17)
+        self.assertEqual(presenter.graphics_graph_label_pixel_size, 17)
+        self.assertEqual(seen["graphics_preferences_changed"], 1)
+
+    def test_tooltip_category_bridge_workspace_presenter_projects_effective_visibility(self) -> None:
+        host = _RuntimeTooltipHost()
+        presenter = host.shell_workspace_presenter
+        seen = {"graphics_preferences_changed": 0}
+        presenter.graphics_preferences_changed.connect(
+            lambda: seen.__setitem__(
+                "graphics_preferences_changed",
+                seen["graphics_preferences_changed"] + 1,
+            )
+        )
+
+        resolved = presenter.apply_graphics_preferences(
+            {
+                "shell": {
+                    "tooltip_categories": {
+                        "general": False,
+                        "advanced": True,
+                        "warning": False,
+                        "critical": False,
+                        "unknown": True,
+                    },
+                }
+            },
+        )
+
+        self.assertEqual(
+            resolved["shell"]["tooltip_categories"],
+            {
+                "general": False,
+                "tutorial": True,
+                "advanced": True,
+                "warning": False,
+                "inactive": True,
+            },
+        )
+        self.assertFalse(presenter.graphics_show_tooltips)
+        self.assertTrue(presenter.graphics_tooltip_categories[TOOLTIP_CATEGORY_ADVANCED])
+        self.assertTrue(presenter.tooltip_category_enabled(TOOLTIP_CATEGORY_ADVANCED))
+        self.assertFalse(presenter.tooltip_category_enabled(TOOLTIP_CATEGORY_WARNING))
+        self.assertTrue(presenter.tooltip_category_enabled("critical"))
+        self.assertEqual(
+            presenter.graphics_tooltip_category_visibility,
+            {
+                "general": False,
+                "tutorial": True,
+                "advanced": True,
+                "warning": False,
+                "inactive": True,
+                "critical": True,
+            },
+        )
+        self.assertEqual(seen["graphics_preferences_changed"], 1)
+
+    def test_workspace_tooltip_projections_are_computed_once_per_preferences_revision(self) -> None:
+        host = _RuntimeTooltipHost()
+        presenter = host.shell_workspace_presenter
+        original_policy = workspace_presenter_module.tooltip_category_effectively_visible
+
+        with mock.patch.object(
+            workspace_presenter_module,
+            "tooltip_category_effectively_visible",
+            wraps=original_policy,
+        ) as project_visibility:
+            categories = presenter.graphics_tooltip_categories
+            categories["general"] = False
+            self.assertTrue(presenter.graphics_tooltip_categories["general"])
+            _ = presenter.graphics_tooltip_category_visibility
+            _ = presenter.graphics_tooltip_category_visibility
+            self.assertTrue(presenter.tooltip_category_enabled("general"))
+            self.assertEqual(project_visibility.call_count, len(TOOLTIP_CATEGORY_NAMES))
+
+            host.workspace_ui_state.graphics_tooltip_categories["general"] = False
+            host.graphics_preferences_changed.emit()
+
+            self.assertFalse(presenter.tooltip_category_enabled("general"))
+            self.assertEqual(project_visibility.call_count, 2 * len(TOOLTIP_CATEGORY_NAMES))
+
+    def test_graph_node_icon_size_bridge_workspace_presenter_projects_nullable_override_and_effective_size(self) -> None:
+        host = _RuntimeTooltipHost()
+        presenter = host.shell_workspace_presenter
+        seen = {"graphics_preferences_changed": 0}
+        presenter.graphics_preferences_changed.connect(
+            lambda: seen.__setitem__(
+                "graphics_preferences_changed",
+                seen["graphics_preferences_changed"] + 1,
+            )
+        )
+
+        resolved = presenter.apply_graphics_preferences(
+            {
+                "typography": {
+                    "graph_label_pixel_size": 16,
+                    "graph_node_icon_pixel_size_override": None,
+                }
+            },
+        )
+
+        self.assertEqual(resolved["typography"]["graph_label_pixel_size"], 16)
+        self.assertIsNone(resolved["typography"]["graph_node_icon_pixel_size_override"])
+        self.assertEqual(host.workspace_ui_state.node_title_icon_pixel_size, 16)
+        self.assertEqual(presenter.graphics_node_title_icon_pixel_size, 16)
+        self.assertEqual(seen["graphics_preferences_changed"], 1)
+
+        resolved = presenter.apply_graphics_preferences(
+            {
+                "typography": {
+                    "graph_label_pixel_size": 16,
+                    "graph_node_icon_pixel_size_override": 3,
+                }
+            },
+        )
+
+        self.assertEqual(resolved["typography"]["graph_node_icon_pixel_size_override"], 8)
+        self.assertEqual(host.workspace_ui_state.node_title_icon_pixel_size, 8)
+        self.assertEqual(presenter.graphics_graph_node_icon_pixel_size_override, 8)
+        self.assertEqual(presenter.graphics_node_title_icon_pixel_size, 8)
+        self.assertEqual(seen["graphics_preferences_changed"], 2)
 
     def test_missing_file_loads_locked_defaults(self) -> None:
         document = self._controller.load()

@@ -40,6 +40,7 @@ from ea_node_editor.ui.shell.runtime_clipboard import (
     parse_graph_fragment_payload,
     serialize_graph_fragment_payload,
 )
+from ea_node_editor.ui.shell.runtime_history import HistoryEntry
 
 if TYPE_CHECKING:
     from ea_node_editor.nodes.node_specs import NodeTypeSpec
@@ -874,7 +875,12 @@ class WorkspaceEditOps:
         entry = self._host.runtime_history.undo_workspace(workspace_id, workspace)
         if entry is None:
             return False
-        self._effects.after_history_replayed(workspace_id, entry)
+        replayed_entry = HistoryEntry(
+            action_type=entry.action_type,
+            before=entry.after,
+            after=entry.before,
+        )
+        self._effects.after_history_replayed(workspace_id, replayed_entry)
         return True
 
     def redo(self) -> bool:

@@ -1790,7 +1790,7 @@ class WorkflowRunner:
         if self._plan.fingerprint != command.execution_plan_fingerprint:
             raise ValueError("prepared execution plan fingerprint changed")
         interface_plan = ExecutionPlan(
-            prepared.runtime_snapshot.workspace(command.workspace_id),
+            prepared.workspace,
             registry,
         )
         if (

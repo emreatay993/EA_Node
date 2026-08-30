@@ -11,10 +11,11 @@ Sensitive-property authoring follows graph/Inspector `SecretEditor.qml` -> dedic
 Optimization Setup-to-Pool authoring follows `GraphCanvasContextMenus.qml` -> `graph_canvas_command.scene_mutation_ops` -> `GraphSceneMutationHistory` -> graph-owned node-link mutation, so semantic links persist and undo/redo without a QML-only store.
 
 ## Start Here
-- `ea_node_editor/ui_qml/graph_canvas_bridge.py`
+- `ea_node_editor/ui_qml/components/GraphCanvas.qml` — directly composes the focused state, command, and viewport owners; no aggregate facade or adapter.
 - `ea_node_editor/ui_qml/graph_canvas_state/` — state bridge package. The composition root (`__init__.py`) owns construction + source resolution ONLY; a new QML-visible canvas fact is one `@pyqtProperty` in the matching projection mixin (`graphics_preferences_props`, `execution_state_props`, `scene_models_props`, `view_state_props`) — each property must live with its notify signal's mixin. Viewport-virtualization logic (hysteresis/bucketing/delta sync and the `visible_*` projections) lives in `visible_scene_service.py`.
 - Solution-state notifications reuse `ShellWindow.node_execution_state_changed` -> `GraphCanvasStateBridge.node_execution_state_changed`/`port_flow_state_changed`. `ExecutionStateProps.node_solution_freshness_lookup` feeds `GraphCanvasExecutionFacts.nodeSolutionFreshnessLookup`; keep this generic fact off the canvas-root compatibility property list and out of styling until the deferred UI task.
 - `ea_node_editor/ui_qml/graph_canvas_command/` — command bridge package. The composition root (`__init__.py`) owns construction + source resolution ONLY; a new canvas command is one `@pyqtSlot` in the matching per-domain ops module (`graphics_settings_ops`, `viewport_ops`, `scene_mutation_ops`, `media_video_ops`, `node_creation_ops`, `annotation_style_ops`, `canvas_host_ops`, `folder_explorer_ops`) plus its protocol entry (same file or `protocols.py`). `tests/test_graph_canvas_command_ops_modules.py` guards mixin slot registration and cross-domain name collisions.
+- `ea_node_editor/ui_qml/viewport_bridge.py` — authoritative pan, zoom, viewport-size, centering, and visible-scene owner used by `GraphCanvas.qml` through `_canvasViewportBridge`.
 - `ea_node_editor/ui_qml/graph_scene_bridge.py`
 - `ea_node_editor/ui_qml/graph_scene/policy_bridge.py`
 - `ea_node_editor/ui_qml/graph_scene_mutation_history.py`
@@ -28,7 +29,7 @@ Optimization Setup-to-Pool authoring follows `GraphCanvasContextMenus.qml` -> `g
 - `tests/test_data_type_ui_projection.py`
 
 ## Frozen QML-Visible Surface
-- The QML-visible meta-object surface of the graph-canvas bridge family (slots, properties, signals on `GraphCanvasBridge`, `GraphCanvasStateBridge`, `GraphCanvasCommandBridge`, `ViewportBridge`, the graph-scene read/command/policy bridges, `GraphSceneBridge`, and `ShellContextBundle`) is snapshot-frozen by `tests/test_graph_canvas_bridge_surface_snapshot.py` against `tests/fixtures/graph_canvas_bridge_surface_snapshot.json`. Additions are allowed (regenerate with `--write`); removals/renames fail.
+- The QML-visible meta-object surface of the focused graph-canvas owner family (slots, properties, and signals on `GraphCanvasStateBridge`, `GraphCanvasCommandBridge`, `ViewportBridge`, the graph-scene read/command/policy bridges, `GraphSceneBridge`, and `ShellContextBundle`) is snapshot-frozen by `tests/test_graph_canvas_surface_snapshot.py` against `tests/fixtures/graph_canvas_surface_snapshot.json`. Additions are allowed (regenerate with `--write`); removals/renames fail.
 - The snapshot includes `insert_dynamic_port`, `remove_dynamic_port`, and `rename_dynamic_port` on the graph command/scene chain.
 - Dedicated `set_node_secret` and `clear_node_secret` slots are part of the graph-scene bridge chain; Inspector wrappers forward to the same owner.
 - Drag compatibility follows `GraphSceneMutationPolicy.compatible_endpoint_snapshot(...)` -> `GraphScenePolicyBridge` -> `graph_canvas_state/scene_models_props.py` -> `GraphCanvasInteractionState.wireDragState`. The bridge publishes one fingerprinted endpoint identity snapshot per real gesture; it does not publish the catalog or compatibility graph.
@@ -36,9 +37,9 @@ Optimization Setup-to-Pool authoring follows `GraphCanvasContextMenus.qml` -> `g
 
 ## Focused Verification
 ```powershell
-.\venv\Scripts\python.exe -m pytest tests/main_window_shell/bridge_contracts_graph_canvas.py tests/main_window_shell/bridge_qml_boundaries.py tests/test_graph_scene_bridge_bind_regression.py --ignore=venv -q
+.\venv\Scripts\python.exe -m pytest tests/test_graph_canvas_split_bridges.py tests/main_window_shell/bridge_qml_boundaries.py tests/test_graph_scene_bridge_bind_regression.py --ignore=venv -q
 .\venv\Scripts\python.exe -m pytest tests/test_content_fullscreen_bridge.py --ignore=venv -q
-.\venv\Scripts\python.exe -m pytest tests/test_graph_canvas_bridge_surface_snapshot.py tests/test_bridge_mixin_meta_registration.py --ignore=venv -q
+.\venv\Scripts\python.exe -m pytest tests/test_graph_canvas_surface_snapshot.py tests/test_bridge_mixin_meta_registration.py --ignore=venv -q
 .\venv\Scripts\python.exe -m pytest tests/test_data_type_ui_projection.py tests/test_graph_surface_input_controls.py -k "compatible_endpoint or ctrl_drag_reassigns" --ignore=venv -q
 ```
 

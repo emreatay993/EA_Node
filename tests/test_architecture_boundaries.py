@@ -231,7 +231,7 @@ class GraphArchitectureBoundaryTests(unittest.TestCase):
             )
         )
 
-    def test_canvas_facade_and_effective_port_policy_have_single_authority(self) -> None:
+    def test_canvas_bridge_owners_and_effective_port_policy_have_single_authority(self) -> None:
         canvas_text = (REPO_ROOT / "ea_node_editor/ui_qml/components/GraphCanvas.qml").read_text(encoding="utf-8")
         mutation_history_text = (
             REPO_ROOT / "ea_node_editor/ui_qml/graph_scene_mutation_history.py"
@@ -239,11 +239,21 @@ class GraphArchitectureBoundaryTests(unittest.TestCase):
         mutation_policy_tree = parse_module("ea_node_editor/ui_qml/graph_scene_mutation/policy.py")
         policy_bridge_tree = parse_module("ea_node_editor/ui_qml/graph_scene/policy_bridge.py")
 
-        self.assertIn("property var graphCanvasFacade: null", canvas_text)
-        for service_name in ("state", "commands", "viewport", "mutation", "lifecycle"):
-            with self.subTest(service=service_name):
-                self.assertIn(f'root._facadeService("{service_name}")', canvas_text)
-        self.assertIn("readonly property var canvasFacadeRef: root.graphCanvasFacade || graphCanvasFacadeAdapter", canvas_text)
+        self.assertIn("readonly property var canvasStateBridgeRef: root.canvasStateBridge || null", canvas_text)
+        self.assertIn("readonly property var canvasCommandBridgeRef: root.canvasCommandBridge || null", canvas_text)
+        self.assertIn("readonly property var canvasViewBridgeRef: root._canvasViewportBridge", canvas_text)
+        self.assertIn("readonly property var sceneCommandBridge: root.canvasCommandBridgeRef", canvas_text)
+        self.assertIn("readonly property var sceneBridge: root.canvasStateBridgeRef", canvas_text)
+        for retired_name in (
+            "graphCanvasFacade",
+            "canvasFacadeRef",
+            "_facadeService",
+            "graphCanvasFacadeAdapter",
+            "_canvasStateBridgeRef",
+            "_canvasViewStateBridgeRef",
+        ):
+            with self.subTest(retired_name=retired_name):
+                self.assertNotIn(retired_name, canvas_text)
         self.assertNotIn("_viewportBridgeFrom", canvas_text)
 
         self.assertEqual(

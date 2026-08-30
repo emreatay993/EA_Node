@@ -2,6 +2,9 @@ from __future__ import annotations
 
 from dataclasses import replace
 
+import pytest
+
+from ea_node_editor.execution.compiler import compile_runtime_snapshot
 from ea_node_editor.execution.execution_plan import ExecutionPlan
 from ea_node_editor.execution.runtime_snapshot import build_runtime_snapshot
 from ea_node_editor.graph.model import GraphModel
@@ -15,6 +18,19 @@ def _workspace(model: GraphModel, registry):  # noqa: ANN001
         workspace_id=workspace_id,
         registry=registry,
     ).workspace(workspace_id)
+
+
+def _compiled_workspace(model: GraphModel, registry):  # noqa: ANN001
+    workspace_id = model.active_workspace.workspace_id
+    return compile_runtime_snapshot(
+        build_runtime_snapshot(
+            model.project,
+            workspace_id=workspace_id,
+            registry=registry,
+        ),
+        workspace_id=workspace_id,
+        registry=registry,
+    )
 
 
 def _decorated_script(output_key: str) -> str:
@@ -355,3 +371,94 @@ def test_affected_downstream_closure_uses_enabled_hidden_and_trigger_boundaries(
     assert plan.affected_downstream_closure((trigger.node_id,)) == {
         trigger.node_id: (trigger.node_id,)
     }
+    assert plan.affected_downstream_closure(()) == {}
+
+
+def test_invalidation_plan_falls_back_to_compiled_declaration_order_for_cycle() -> None:
+    model = GraphModel()
+    workspace = model.active_workspace
+    registry = build_default_registry()
+    first = model.add_node(
+        workspace.workspace_id, "core.python_script", "First", 0, 0
+    )
+    second = model.add_node(
+        workspace.workspace_id, "core.python_script", "Second", 200, 0
+    )
+    model.add_edge(
+        workspace.workspace_id,
+        first.node_id,
+        "result",
+        second.node_id,
+        "payload",
+    )
+    model.add_edge(
+        workspace.workspace_id,
+        second.node_id,
+        "result",
+        first.node_id,
+        "payload",
+    )
+    compiled = _compiled_workspace(model, registry)
+
+    with pytest.raises(ValueError, match="Cycle detected among nodes:"):
+        ExecutionPlan(compiled, registry)
+
+    plan = ExecutionPlan.for_invalidation(compiled, registry)
+
+    assert plan.execution_order == tuple(node.node_id for node in compiled.nodes)
+    assert plan.affected_downstream_closure((first.node_id,)) == {
+        first.node_id: (first.node_id,),
+        second.node_id: (first.node_id,),
+    }
+
+
+def test_compiled_out_filtered_targets_schedule_nothing_and_reject_invalidation_roots() -> None:
+    model = GraphModel()
+    workspace = model.active_workspace
+    registry = build_default_registry()
+    first = model.add_node(
+        workspace.workspace_id,
+        "passive.flowchart.process",
+        "First",
+        0,
+        0,
+    )
+    second = model.add_node(
+        workspace.workspace_id,
+        "passive.flowchart.process",
+        "Second",
+        200,
+        0,
+    )
+    model.add_edge(
+        workspace.workspace_id,
+        first.node_id,
+        "right",
+        second.node_id,
+        "left",
+    )
+    model.add_edge(
+        workspace.workspace_id,
+        second.node_id,
+        "right",
+        first.node_id,
+        "left",
+    )
+    compiled = _compiled_workspace(model, registry)
+
+    assert compiled.nodes == ()
+    assert compiled.edges == ()
+    plan = ExecutionPlan(
+        compiled,
+        registry,
+        target_node_ids=(first.node_id,),
+    )
+    assert plan.target_nodes == (first.node_id,)
+    assert plan.scheduled_node_ids == set()
+    assert plan.execution_order == ()
+
+    invalidation_plan = ExecutionPlan.for_invalidation(compiled, registry)
+    with pytest.raises(ValueError, match="Unknown invalidation root node"):
+        invalidation_plan.affected_downstream_closure((first.node_id,))
+    with pytest.raises(ValueError, match="Unknown invalidation root node"):
+        invalidation_plan.affected_downstream_closure(("missing",))

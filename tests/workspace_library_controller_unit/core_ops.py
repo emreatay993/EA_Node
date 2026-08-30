@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from ea_node_editor.ui.shell.runtime_history import HistoryEntry
+
 from tests.workspace_library_controller_unit.support import *  # noqa: F401,F403
 
 
@@ -28,6 +30,17 @@ class WorkspaceLibraryControllerCoreOpsTests(WorkspaceLibraryControllerUnitTestB
 
     def test_undo_delegates_to_runtime_history_and_refreshes_scene(self) -> None:
         host = _UndoRedoHostStub()
+        workspace = host.model.active_workspace
+        before = workspace.capture_snapshot()
+        workspace.active_view_state().zoom = 1.25
+        after = workspace.capture_snapshot()
+        entry = HistoryEntry(
+            action_type="move_node",
+            before=before,
+            after=after,
+        )
+        host.runtime_history.undo_return = entry
+        host.runtime_history.redo_return = entry
         controller = WorkspaceLibraryController(host)  # type: ignore[arg-type]
         refreshed = {"value": False}
 
@@ -38,13 +51,39 @@ class WorkspaceLibraryControllerCoreOpsTests(WorkspaceLibraryControllerUnitTestB
             _mark_refreshed  # type: ignore[method-assign]
         )
 
-        undone = controller.undo()
+        effects = controller.workspace_graph_edit_controller.mutation_ui_effects
+        with patch.object(
+            effects,
+            "after_history_replayed",
+            wraps=effects.after_history_replayed,
+        ) as after_history_replayed:
+            undone = controller.undo()
 
-        workspace_id = host.workspace_manager.active_workspace_id()
-        self.assertTrue(undone)
-        self.assertEqual(host.runtime_history.undo_calls, [workspace_id])
-        self.assertEqual(host.scene.refreshed_workspaces, [workspace_id])
-        self.assertTrue(refreshed["value"])
+            workspace_id = host.workspace_manager.active_workspace_id()
+            self.assertTrue(undone)
+            self.assertEqual(host.runtime_history.undo_calls, [workspace_id])
+            self.assertEqual(host.scene.refreshed_workspaces, [workspace_id])
+            self.assertTrue(refreshed["value"])
+            after_history_replayed.assert_called_once()
+            replayed_workspace_id, replayed_entry = (
+                after_history_replayed.call_args.args
+            )
+            self.assertEqual(replayed_workspace_id, workspace_id)
+            self.assertIsNot(replayed_entry, entry)
+            self.assertEqual(replayed_entry.action_type, entry.action_type)
+            self.assertIs(replayed_entry.before, entry.after)
+            self.assertIs(replayed_entry.after, entry.before)
+            self.assertIs(entry.before, before)
+            self.assertIs(entry.after, after)
+
+            after_history_replayed.reset_mock()
+            redone = controller.redo()
+
+            self.assertTrue(redone)
+            self.assertEqual(host.runtime_history.redo_calls, [workspace_id])
+            after_history_replayed.assert_called_once_with(workspace_id, entry)
+            self.assertIs(entry.before, before)
+            self.assertIs(entry.after, after)
 
     def test_redo_returns_false_when_runtime_history_has_no_entry(self) -> None:
         host = _UndoRedoHostStub()

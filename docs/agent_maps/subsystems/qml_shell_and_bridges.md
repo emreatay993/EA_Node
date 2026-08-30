@@ -30,7 +30,10 @@ Use this for QML shell composition, Python-to-QML bridge wiring, shell bridge mo
 - `ea_node_editor/ui_qml/shell_inspector_bridge.py`
 - `ea_node_editor/ui_qml/script_editor_model.py`
 - `tests/test_script_editor_dock.py`
+- `ea_node_editor/ui_qml/components/GraphCanvas.qml`
 - `ea_node_editor/ui_qml/graph_canvas_state/`
+- `ea_node_editor/ui_qml/graph_canvas_command/`
+- `ea_node_editor/ui_qml/viewport_bridge.py`
 - `ea_node_editor/ui_qml/graph_scene_mutation/policy.py`
 - `ea_node_editor/ui_qml/graph_scene/policy_bridge.py`
 - `ea_node_editor/ui_qml/components/graph_canvas/GraphCanvasInteractionState.qml`
@@ -51,6 +54,7 @@ Use this for QML shell composition, Python-to-QML bridge wiring, shell bridge mo
 
 ## Common Changes
 - Add Python bridge APIs and QML bindings together.
+- `GraphCanvas.qml` composes `GraphCanvasStateBridge`, `GraphCanvasCommandBridge`, and `ViewportBridge` directly through `canvasStateBridgeRef`, `canvasCommandBridgeRef`, and `_canvasViewportBridge`; do not restore an aggregate graph-canvas bridge or private facade aliases.
 - Keep `ShellLibraryBridge` and `NodeLibraryPane.qml` aligned when node-library row models or passive display modes change.
 - Keep `ShellLibraryBridge`, `NodeBrowserOverlay.qml`, `ConnectionQuickInsertOverlay.qml`, and `window_actions.py` aligned. The typed `node_browser_requested(str, float, float)` signal carries explicit detailed-browser requests into `MainShell.openNodeBrowser(...)`; Ctrl+B instead opens canvas-mode Quick Insert at the viewport center.
 - Shared QML dialog chrome, fields, focus, and actions live in `components/common/DialogSurface.qml`, `DialogTextField.qml`, and `DialogButton.qml`. They are app-theme surfaces used by Node Browser, Number Slider settings, Timestamp, and Web Address only; do not route menus, command palettes, inline graph controls, panes, or fullscreen overlays through them.
@@ -86,6 +90,7 @@ Use this for QML shell composition, Python-to-QML bridge wiring, shell bridge mo
 .\venv\Scripts\python.exe -m pytest tests/test_script_editor_dock.py --ignore=venv -q
 .\venv\Scripts\python.exe -m pytest tests/main_window_shell/bridge_qml_boundaries.py tests/main_window_shell/test_qml_shell_roots.py --ignore=venv -q
 .\venv\Scripts\python.exe -m pytest tests/test_content_fullscreen_bridge.py --ignore=venv -q
+.\venv\Scripts\python.exe -m pytest tests/test_graph_canvas_split_bridges.py tests/test_graph_canvas_surface_snapshot.py --ignore=venv -q
 .\venv\Scripts\python.exe -m pytest tests/graph_track_b/qml_preference_bindings.py --ignore=venv -q
 .\venv\Scripts\python.exe -m pytest tests/test_data_type_ui_projection.py tests/test_graph_surface_input_controls.py -k "compatible_endpoint or ctrl_drag_reassigns" --ignore=venv -q
 .\venv\Scripts\python.exe -m pytest tests/test_run_controller_unit.py tests/main_window_shell/bridge_qml_boundaries.py -k "solution_mode or trigger or run_selected" --ignore=venv -q
