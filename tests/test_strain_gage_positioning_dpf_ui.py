@@ -9,6 +9,7 @@ import pytest
 pv = pytest.importorskip("pyvista")
 pytest.importorskip("PyQt6")
 pytest.importorskip("pyvistaqt")
+from PyQt6.QtWidgets import QApplication  # noqa: E402
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 SG_ROOT = REPO_ROOT / "scripts" / "Strain_Gage_Positioning" / "modular_version"
@@ -17,6 +18,7 @@ if str(SG_ROOT) not in sys.path:
 
 from app import dpf_loader  # noqa: E402
 from app import main_window  # noqa: E402
+from app.dpf_dialog import DpfImportDialog  # noqa: E402
 from app.ui_tools import (  # noqa: E402
     ContourHoverUI,
     PLACEMENT_COLUMNS,
@@ -30,6 +32,10 @@ from app.ui_tools import (  # noqa: E402
 BENCHMARK_RST = Path(
     r"C:\Users\emre_\OneDrive\Desktop\J\ANSYS\Benchmark"
     r"\ENFO_conversion\enfo_conversion_example_files\dp0\SYS-6\MECH\file.rst"
+)
+LOAD_RECONSTRUCTION_RST = Path(
+    r"C:\Users\emre_\OneDrive\Desktop\J\ANSYS\Benchmark"
+    r"\load_reconstruction_v0_files\dp0\SYS-15\MECH\file.rst"
 )
 
 
@@ -68,6 +74,25 @@ def _candidate_df():
 def test_rst_set_summary_does_not_dump_many_sets():
     assert main_window._format_rst_set_summary(range(1, 74)) == "sets 1-73 (73 sets)"
     assert main_window._format_rst_set_summary([1, 2, 5, 9, 12, 20, 30]) == "sets 1,2,5,...30 (7 sets)"
+
+
+def test_dpf_dialog_can_ignore_evaluation_only_shell_results():
+    app = QApplication.instance() or QApplication([])
+    dialog = DpfImportDialog(
+        "file.rst",
+        {
+            "n_sets": 3,
+            "n_nodes": 100,
+            "stress_evaluation_shell_count": 1,
+        },
+    )
+
+    assert dialog.chk_ignore_evaluation_shells.isEnabled()
+    assert not dialog.get_selection()[3]
+    dialog.chk_ignore_evaluation_shells.setChecked(True)
+    assert dialog.get_selection()[3]
+    dialog.close()
+    assert app is not None
 
 
 class _FakeCamera:
@@ -548,3 +573,52 @@ def test_benchmark_named_selection_surface_has_normals():
     assert np.allclose(norms, 1.0, atol=1.0e-6)
     assert np.unique(surface.point_data["DPFNodeId"]).size == surface.n_points
     assert main_window._rst_surface_result_indices(nodes, surface).size == surface.n_points
+
+
+@pytest.mark.skipif(
+    not LOAD_RECONSTRUCTION_RST.exists(), reason="load-reconstruction .rst is not available"
+)
+@pytest.mark.skipif(not dpf_loader.dpf_available(), reason="ansys-dpf-core is not available")
+def test_load_reconstruction_merges_shell_elshape_strain():
+    assert dpf_loader.inspect_rst(LOAD_RECONSTRUCTION_RST)[
+        "stress_evaluation_shell_count"
+    ] == 1
+    nodes, _coords, strain_tensors = dpf_loader.load_rst_strain(
+        LOAD_RECONSTRUCTION_RST, [1]
+    )
+    shell_node_ids = np.array([12620, 12621, 12622, 12623])
+    shell_rows = dpf_loader._indices_for_ids(nodes, shell_node_ids)
+
+    assert shell_rows.size == shell_node_ids.size
+    np.testing.assert_allclose(
+        strain_tensors[0][shell_rows, 0], -333.33332976326346, rtol=1.0e-12
+    )
+    np.testing.assert_allclose(
+        strain_tensors[0][shell_rows, 1], 343.4343379922212, rtol=1.0e-12
+    )
+
+    surface_info = dpf_loader.load_rst_surface_mesh(LOAD_RECONSTRUCTION_RST)
+    assert main_window._rst_surface_result_indices(
+        nodes, surface_info["surface"]
+    ).size == surface_info["surface"].n_points
+
+    ignored_nodes, _ignored_coords, _ignored_tensors = dpf_loader.load_rst_strain(
+        LOAD_RECONSTRUCTION_RST,
+        [1],
+        ignore_stress_evaluation_shells=True,
+    )
+    assert np.intersect1d(ignored_nodes, shell_node_ids).size == 0
+    ignored_surface_info = dpf_loader.load_rst_surface_mesh(
+        LOAD_RECONSTRUCTION_RST,
+        ignore_stress_evaluation_shells=True,
+        result_node_ids=ignored_nodes,
+    )
+    assert ignored_surface_info[
+        "ignored_stress_evaluation_shell_element_ids"
+    ].tolist() == [4123]
+    assert 4123 not in np.asarray(
+        ignored_surface_info["surface"].cell_data["DPFElementId"], dtype=int
+    )
+    assert main_window._rst_surface_result_indices(
+        ignored_nodes, ignored_surface_info["surface"]
+    ).size == ignored_surface_info["surface"].n_points

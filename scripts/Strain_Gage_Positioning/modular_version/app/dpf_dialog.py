@@ -39,6 +39,9 @@ class DpfImportDialog(QDialog):
         times = self._meta.get("times", []) or []
         unit = self._meta.get("unit", "") or "?"
         n_nodes = int(self._meta.get("n_nodes", 0) or 0)
+        evaluation_shell_count = int(
+            self._meta.get("stress_evaluation_shell_count", 0) or 0
+        )
         names = list(self._meta.get("named_selections", []) or [])
 
         info = QGroupBox("Result File")
@@ -90,6 +93,18 @@ class DpfImportDialog(QDialog):
         )
         form.addRow("", self.chk_rotate)
 
+        self.chk_ignore_evaluation_shells = QCheckBox(
+            "Ignore stress/strain-evaluation-only SHELL181 results"
+        )
+        self.chk_ignore_evaluation_shells.setChecked(False)
+        self.chk_ignore_evaluation_shells.setEnabled(evaluation_shell_count > 0)
+        self.chk_ignore_evaluation_shells.setToolTip(
+            "Exclude strain from SHELL181 elements whose KEYOPT(1)=2, and remove "
+            "their unsupported faces from the contour. The RST contains {0} such "
+            "element(s).".format(evaluation_shell_count)
+        )
+        form.addRow("", self.chk_ignore_evaluation_shells)
+
         layout.addLayout(form)
 
         buttons = QDialogButtonBox(
@@ -100,8 +115,13 @@ class DpfImportDialog(QDialog):
         layout.addWidget(buttons)
 
     def get_selection(self):
-        """Return ``(named_selection_or_None, set_ids_text, rotate_to_global)``."""
+        """Return named selection, set text, rotation, and shell-ignore choice."""
         ns = self.combo_ns.currentText()
         if ns == self.WHOLE_MODEL:
             ns = None
-        return ns, self.edit_sets.text().strip(), self.chk_rotate.isChecked()
+        return (
+            ns,
+            self.edit_sets.text().strip(),
+            self.chk_rotate.isChecked(),
+            self.chk_ignore_evaluation_shells.isChecked(),
+        )

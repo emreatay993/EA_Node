@@ -253,7 +253,7 @@ class MainWindow(QMainWindow):
         dialog = DpfImportDialog(rst_path, meta, self)
         if dialog.exec() != DpfImportDialog.DialogCode.Accepted:
             return
-        named_selection, set_text, rotate = dialog.get_selection()
+        named_selection, set_text, rotate, ignore_evaluation_shells = dialog.get_selection()
         set_ids = dpf_loader.parse_set_ids(set_text, meta.get("n_sets", 1))
 
         # Extract the dataset (potentially slow on large models).
@@ -261,9 +261,14 @@ class MainWindow(QMainWindow):
         try:
             nodes, coords, strain_tensors = dpf_loader.load_rst_strain(
                 rst_path, set_ids, named_selection=named_selection,
-                rotate_to_global=rotate)
+                rotate_to_global=rotate,
+                ignore_stress_evaluation_shells=ignore_evaluation_shells)
             surface_mesh = dpf_loader.load_rst_surface_mesh(
-                rst_path, named_selection=named_selection)
+                rst_path,
+                named_selection=named_selection,
+                ignore_stress_evaluation_shells=ignore_evaluation_shells,
+                result_node_ids=nodes if ignore_evaluation_shells else None,
+            )
             surface_mesh["result_indices"] = _rst_surface_result_indices(
                 nodes, surface_mesh["surface"]
             )
@@ -279,8 +284,10 @@ class MainWindow(QMainWindow):
         self.rst_named_selection = named_selection
         self.input_file = None  # .rst dataset supersedes any text file
         ns_label = named_selection if named_selection else "whole model"
+        shell_label = " - evaluation shells ignored" if ignore_evaluation_shells else ""
         self.input_panel.set_file_label(
-            f"{Path(rst_path).name} - {ns_label} - {_format_rst_set_summary(set_ids)} - {len(nodes):,} nodes")
+            f"{Path(rst_path).name} - {ns_label}{shell_label} - "
+            f"{_format_rst_set_summary(set_ids)} - {len(nodes):,} nodes")
         self.visualization_panel.set_surface_placement_enabled(True)
         self.last_results = {}  # Invalidate cache
         self.display_rst_surface_preview(preserve_camera=False)
