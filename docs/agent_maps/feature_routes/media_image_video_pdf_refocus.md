@@ -52,7 +52,7 @@ Use this for the active unified Media Panel, its derived image/PDF/video rendere
 - Mail remains `passive.media.mail_panel` with authored `source_path`, provider-generated HTML, render-only inline WebEngine, and separate fullscreen behavior.
 
 ## Creation And Persistence Rules
-- Blank insertion uses app preference `graphics.media_panel.source_input_exposed`; explicit connect forces Source exposed; OS paste/drop, frame capture, and trim Copy force it hidden.
+- Blank insertion reads app preference `graphics.media_panel.source_input_exposed` from the `ShellWorkspacePresenter` explicitly bound to `GraphSceneBridge`; explicit connect forces Source exposed; OS paste/drop, frame capture, and trim Copy force it hidden. `GraphCanvasPresenter` is not a Media Panel preference source.
 - Project load, fragment paste, custom workflows, undo, and redo preserve serialized exposure exactly. Property overrides never imply exposure.
 - The three pre-cutover media identities have no aliases or project migration. The frozen 133-row catalogue is historical; the structural overlay yields the 131-row current catalogue.
 

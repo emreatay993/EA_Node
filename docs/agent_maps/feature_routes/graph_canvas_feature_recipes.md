@@ -26,11 +26,13 @@ ea_node_editor/ui_qml/graph_canvas_state/execution_state_props.py
 ea_node_editor/ui_qml/components/graph/passive/GraphMediaVideoRenderer.qml
 ```
 
-## Recipe B — New canvas preference (canvas + options menu)
+## Recipe B — New persisted canvas preference (canvas + options menu)
+
+`AppPreferencesController` owns storage/normalization, `ShellWorkspacePresenter` owns the runtime projection and mutation, and composition supplies it as the explicit graphics source for both graph-canvas bridges and `GraphSceneBridge`. Keep session-only snap, minimap-expanded, and selected-run-preview behavior on `GraphCanvasPresenter`.
 
 Files (4 canvas-pipeline files; storage/presenter outside the pipeline unchanged):
-1. `ea_node_editor/ui_qml/graph_canvas_command/graphics_settings_ops.py` — one `@pyqtSlot` forward.
-2. `ea_node_editor/ui_qml/graph_canvas_state/graphics_preferences_props.py` — one `@pyqtProperty` (notify `graphics_preferences_changed`).
+1. `ea_node_editor/ui_qml/graph_canvas_command/graphics_settings_ops.py` — one `@pyqtSlot` forward to the graphics source.
+2. `ea_node_editor/ui_qml/graph_canvas_state/graphics_preferences_props.py` — one `@pyqtProperty` from the graphics source (notify `graphics_preferences_changed`).
 3. `ea_node_editor/ui_qml/components/graph_canvas/GraphCanvasPreferenceFacts.qml` — one readonly fact.
 4. The consumer (e.g. a `GraphCanvasOptionsMenu.qml` row) — read `root.canvasPrefs.<fact>`.
 

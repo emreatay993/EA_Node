@@ -19,6 +19,7 @@ Use this for app-wide settings, graphics preferences, solution-mode defaults, se
 
 ## Common Changes
 - Keep app graphics/preferences outside project documents unless a current spec requires otherwise.
+- `AppPreferencesController` is the v8 persistence and normalization owner. `ShellWorkspacePresenter` is the sole runtime owner for persisted `graphics.*` projections, mutations, notifications, and tooltip/category caches; composition passes it explicitly to the graph-canvas bridges and scene. `GraphCanvasPresenter` keeps canvas/session operations only.
 - Route preference dialogs through shell controllers and PyQt dialog code.
 - Keep path resolution centralized in `platform_paths.py`.
 - Keep OS launch of files/folders centralized in `platform_open.py` (`open_path_with_default_handler` for "Open", `open_path_with_app_chooser` for "Open with..."); the folder-explorer open actions and the Path Pointer toolbar open actions route through it instead of inlining `os.startfile`/`QDesktopServices`/`rundll32` shell logic.
@@ -35,7 +36,7 @@ Use this for app-wide settings, graphics preferences, solution-mode defaults, se
 - Keep `selected_run.preview_before_run` in app preferences; both the graph canvas options menu and `SelectedRunSettingsDialog` project it. Runtime output caches remain session-only shell state and must not be serialized into app preferences or project `.cxproj` files.
 - Keep `graphics.canvas.node_comment_editor_default` in app preferences; the graph canvas options menu and Graphics Settings dialog choose whether node comment badge clicks open the canvas popover or Inspector editor, and this must not be serialized into project `.cxproj` files.
 - Keep default-off `graphics.canvas.node_floating_toolbar_opens_on_hover` in app preferences; Graphics Settings exposes the legacy hover reveal while singleton selection remains the default QML behavior, and this must not enter project `.cxproj` files.
-- Keep Media Panel blank-creation defaults under `graphics.media_panel`; only future blank library/radial/direct insertions read `source_input_exposed`. Seeded media and explicit-connect creation supply explicit exposure overrides, while serialized project/fragment/history paths preserve node state.
+- Keep Media Panel blank-creation defaults under `graphics.media_panel`; only future blank library/radial/direct insertions read `source_input_exposed` from the workspace graphics projection bound to `GraphSceneBridge`. Seeded media and explicit-connect creation supply explicit exposure overrides, while serialized project/fragment/history paths preserve node state.
 
 ## Focused Verification
 ```powershell
@@ -52,4 +53,4 @@ Use this for app-wide settings, graphics preferences, solution-mode defaults, se
 - [Assets, Icons, Title Icons, And Theme Assets](assets_icons_theme.md)
 
 ## Update Triggers
-Update when app settings storage/migrations, the application-default Python executable, platform paths, plugin-generation paths, OS file/folder open helpers, preferences controllers, learned node-library usage, solution-mode or selected-run defaults, node comment editor defaults, node floating-toolbar hover preference, plot defaults, or graphics settings routing changes.
+Update when app settings storage/migrations, graphics runtime-owner routing, the application-default Python executable, platform paths, plugin-generation paths, OS file/folder open helpers, preferences controllers, learned node-library usage, solution-mode or selected-run defaults, node comment editor defaults, node floating-toolbar hover preference, plot defaults, or graphics settings routing changes.

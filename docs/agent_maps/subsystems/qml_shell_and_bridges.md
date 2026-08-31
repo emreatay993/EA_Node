@@ -55,6 +55,7 @@ Use this for QML shell composition, Python-to-QML bridge wiring, shell bridge mo
 ## Common Changes
 - Add Python bridge APIs and QML bindings together.
 - `GraphCanvas.qml` composes `GraphCanvasStateBridge`, `GraphCanvasCommandBridge`, and `ViewportBridge` directly through `canvasStateBridgeRef`, `canvasCommandBridgeRef`, and `_canvasViewportBridge`; do not restore an aggregate graph-canvas bridge or private facade aliases.
+- Production composition supplies `ShellWorkspacePresenter` as the explicit persisted-graphics source for both graph-canvas bridges and `GraphSceneBridge`; it supplies `GraphCanvasPresenter` only for minimap-expanded, selected-run preview, snap enabled, and snap size. Persisted graphics must not fall back through the canvas source.
 - Keep `ShellLibraryBridge` and `NodeLibraryPane.qml` aligned when node-library row models or passive display modes change.
 - Keep `ShellLibraryBridge`, `NodeBrowserOverlay.qml`, `ConnectionQuickInsertOverlay.qml`, and `window_actions.py` aligned. The typed `node_browser_requested(str, float, float)` signal carries explicit detailed-browser requests into `MainShell.openNodeBrowser(...)`; Ctrl+B instead opens canvas-mode Quick Insert at the viewport center.
 - Shared QML dialog chrome, fields, focus, and actions live in `components/common/DialogSurface.qml`, `DialogTextField.qml`, and `DialogButton.qml`. They are app-theme surfaces used by Node Browser, Number Slider settings, Timestamp, and Web Address only; do not route menus, command palettes, inline graph controls, panes, or fullscreen overlays through them.
@@ -106,7 +107,7 @@ $env:QT_QPA_PLATFORM='offscreen'; .\venv\Scripts\python.exe -m pytest tests/test
 - [SSH/SFTP Nodes](../feature_routes/ssh_sftp_nodes.md)
 
 ## Update Triggers
-Update when bridge properties, compatible-endpoint snapshot wiring, invokable methods, script-editor Apply/run synchronization, solution-mode/Trigger or run-control projection, Node Browser/canvas Quick Insert bindings, shared QML dialog styling, Inspector declarative property controls, inspector node link/comment bindings, fullscreen content bridge APIs, view/workspace tab rendering or tab actions, shell pane collapse persistence, bottom-console tab/scroll/resize behavior, QML image providers, QML context setup, QML shell roots, generated QML navigation coverage, graph-canvas preference projections, or plot host detached-window/preview-cache APIs change.
+Update when bridge properties, graphics/canvas source ownership, scene graphics binding/fingerprint, compatible-endpoint snapshot wiring, invokable methods, script-editor Apply/run synchronization, solution-mode/Trigger or run-control projection, Node Browser/canvas Quick Insert bindings, shared QML dialog styling, Inspector declarative property controls, inspector node link/comment bindings, fullscreen content bridge APIs, view/workspace tab rendering or tab actions, shell pane collapse persistence, bottom-console tab/scroll/resize behavior, QML image providers, QML context setup, QML shell roots, generated QML navigation coverage, graph-canvas preference projections, or plot host detached-window/preview-cache APIs change.
 
 ## 2026-05-31 Shell Services Bundle Update
 
