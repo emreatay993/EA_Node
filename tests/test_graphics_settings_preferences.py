@@ -26,6 +26,7 @@ from ea_node_editor.ui.shell.controllers.app_preferences_controller import (
 )
 from ea_node_editor.ui.shell.host_presenter import ShellHostPresenter
 from ea_node_editor.ui.shell.presenters import workspace_presenter as workspace_presenter_module
+from ea_node_editor.ui.shell.presenters.graph_canvas_presenter import GraphCanvasPresenter
 from ea_node_editor.ui.shell.presenters.state import build_default_shell_workspace_ui_state
 from ea_node_editor.ui.shell.presenters.workspace_presenter import ShellWorkspacePresenter
 from ea_node_editor.ui.shell.tooltip_manager import TooltipManager
@@ -43,6 +44,7 @@ from ea_node_editor.ui.shell.tooltip_policy import (
 from ea_node_editor.ui.shell.window_state import context_properties as shell_context_properties
 from ea_node_editor.ui.shell.window_state import run_and_style_state as shell_run_and_style_state
 from ea_node_editor.ui_qml.graph_scene_bridge import GraphSceneBridge
+from ea_node_editor.ui_qml.graph_canvas_state import GraphCanvasStateBridge
 from ea_node_editor.ui_qml.graph_theme_bridge import GraphThemeBridge
 
 
@@ -67,11 +69,28 @@ class _Signal:
 
 
 class _SearchScopeController:
-    def __init__(self, state: SimpleNamespace) -> None:
+    def __init__(self, state: SimpleNamespace, host: object) -> None:
         self._state = state
+        self._host = host
 
     def set_snap_to_grid_enabled(self, enabled: bool, *, persist: bool = True) -> None:  # noqa: ARG002
-        self._state.snap_to_grid_enabled = bool(enabled)
+        normalized = bool(enabled)
+        if self._state.snap_to_grid_enabled == normalized:
+            return
+        self._state.snap_to_grid_enabled = normalized
+        self._host.snap_to_grid_changed.emit()
+
+    def set_graphics_minimap_expanded(
+        self,
+        expanded: bool,
+        *,
+        persist: bool = True,  # noqa: ARG002
+    ) -> None:
+        normalized = bool(expanded)
+        if self._state.graphics_minimap_expanded == normalized:
+            return
+        self._state.graphics_minimap_expanded = normalized
+        self._host.graphics_preferences_changed.emit()
 
 
 class _ShellHostPresenter:
@@ -128,7 +147,10 @@ class _RuntimeTooltipHost:
             graphics_minimap_expanded=bool(DEFAULT_GRAPHICS_SETTINGS["canvas"]["minimap_expanded"]),
             snap_to_grid_enabled=bool(DEFAULT_GRAPHICS_SETTINGS["interaction"]["snap_to_grid"]),
         )
-        self.search_scope_controller = _SearchScopeController(self.search_scope_state)
+        self.search_scope_controller = _SearchScopeController(
+            self.search_scope_state,
+            self,
+        )
         self.shell_host_presenter = _ShellHostPresenter(self)
         self.shell_inspector_presenter = SimpleNamespace(
             set_property_pane_variant=lambda variant: None,
@@ -338,6 +360,206 @@ class GraphicsSettingsPreferencesTests(unittest.TestCase):
         self.assertEqual(
             plot_payload["plot_surface"]["embedded_rendering_suppressed_by"],
             ["lightweight_canvas"],
+        )
+
+    def test_graphics_preference_fanout_matrix(self) -> None:
+        count_names = (
+            "host_graphics",
+            "workspace_graphics",
+            "state_graphics",
+            "host_snap",
+            "state_snap",
+            "scene_nodes",
+            "scene_edges",
+        )
+
+        def build_harness(case_name: str) -> SimpleNamespace:
+            preferences_path = self._preferences_path.with_name(f"{case_name}.json")
+            controller = AppPreferencesController(
+                store=AppPreferencesStore(
+                    path_provider=lambda path=preferences_path: path
+                )
+            )
+            host = _RuntimeTooltipHost(controller)
+            model = GraphModel()
+            registry = build_default_registry()
+            workspace_id = model.active_workspace.workspace_id
+            scene = GraphSceneBridge()
+            host.model = model
+            host.scene = scene
+            scene.bind_graphics_preferences_source(host.shell_workspace_presenter)
+            scene.set_workspace(model, registry, workspace_id)
+            scene.add_node_from_type("core.logger", 40.0, 60.0)
+            canvas = GraphCanvasPresenter(
+                host,  # type: ignore[arg-type]
+                workspace_presenter=host.shell_workspace_presenter,
+                library_presenter=SimpleNamespace(),  # type: ignore[arg-type]
+                inspector_presenter=SimpleNamespace(),  # type: ignore[arg-type]
+            )
+            state = GraphCanvasStateBridge(
+                canvas_source=canvas,
+                graphics_source=host.shell_workspace_presenter,
+                scene_bridge=scene,
+            )
+            counts = dict.fromkeys(count_names, 0)
+            for name, signal in (
+                ("host_graphics", host.graphics_preferences_changed),
+                (
+                    "workspace_graphics",
+                    host.shell_workspace_presenter.graphics_preferences_changed,
+                ),
+                ("state_graphics", state.graphics_preferences_changed),
+                ("host_snap", host.snap_to_grid_changed),
+                ("state_snap", state.snap_to_grid_changed),
+                ("scene_nodes", scene.nodes_changed),
+                ("scene_edges", scene.edges_changed),
+            ):
+                signal.connect(
+                    lambda name=name: counts.__setitem__(name, counts[name] + 1)
+                )
+            return SimpleNamespace(
+                controller=controller,
+                host=host,
+                presenter=host.shell_workspace_presenter,
+                canvas=canvas,
+                state=state,
+                scene=scene,
+                counts=counts,
+            )
+
+        cases = (
+            (
+                "identical_reapply",
+                lambda harness: None,
+                lambda harness: harness.presenter.apply_graphics_preferences(
+                    copy.deepcopy(DEFAULT_GRAPHICS_SETTINGS)
+                ),
+                (0, 0, 0, 0, 0, 0, 0),
+            ),
+            (
+                "ordinary_persisted",
+                lambda harness: None,
+                lambda harness: harness.presenter.apply_graphics_preferences(
+                    {"canvas": {"show_grid": False}}
+                ),
+                (1, 1, 1, 0, 0, 0, 0),
+            ),
+            (
+                "tooltip_category",
+                lambda harness: None,
+                lambda harness: harness.presenter.apply_graphics_preferences(
+                    {"shell": {"tooltip_categories": {"general": False}}}
+                ),
+                (1, 1, 1, 0, 0, 0, 0),
+            ),
+            (
+                "effective_icon_change",
+                lambda harness: None,
+                lambda harness: harness.presenter.apply_graphics_preferences(
+                    {"typography": {"graph_node_icon_pixel_size_override": 12}}
+                ),
+                (1, 1, 1, 0, 0, 1, 1),
+            ),
+            (
+                "unchanged_effective_icon",
+                lambda harness: None,
+                lambda harness: harness.presenter.apply_graphics_preferences(
+                    {"typography": {"graph_node_icon_pixel_size_override": 10}}
+                ),
+                (1, 1, 1, 0, 0, 0, 0),
+            ),
+            (
+                "lightweight_canvas",
+                lambda harness: None,
+                lambda harness: harness.presenter.apply_graphics_preferences(
+                    {"plot": {"lightweight_canvas": True}}
+                ),
+                (1, 1, 1, 0, 0, 1, 1),
+            ),
+            (
+                "backend_default_only",
+                lambda harness: setattr(
+                    harness.host.workspace_ui_state,
+                    "plot_default_backend_per_type",
+                    {"line": "different"},
+                ),
+                lambda harness: harness.presenter.apply_graphics_preferences(
+                    copy.deepcopy(DEFAULT_GRAPHICS_SETTINGS)
+                ),
+                (1, 1, 1, 0, 0, 0, 0),
+            ),
+            (
+                "media_default",
+                lambda harness: None,
+                lambda harness: harness.presenter.apply_graphics_preferences(
+                    {"media_panel": {"show_title": False}}
+                ),
+                (1, 1, 1, 0, 0, 0, 0),
+            ),
+            (
+                "minimap_expanded",
+                lambda harness: None,
+                lambda harness: harness.canvas.set_graphics_minimap_expanded(False),
+                (1, 1, 1, 0, 0, 0, 0),
+            ),
+            (
+                "selected_run_preview",
+                lambda harness: None,
+                lambda harness: harness.canvas.set_selected_run_preview_before_run(False),
+                (1, 1, 1, 0, 0, 0, 0),
+            ),
+            (
+                "snap_to_grid",
+                lambda harness: None,
+                lambda harness: harness.canvas.set_snap_to_grid_enabled(True),
+                (0, 0, 0, 1, 1, 0, 0),
+            ),
+        )
+
+        for case_name, prepare, mutate, expected in cases:
+            with self.subTest(case=case_name):
+                harness = build_harness(case_name)
+                prepare(harness)
+                mutate(harness)
+                self.assertEqual(
+                    tuple(harness.counts[name] for name in count_names),
+                    expected,
+                )
+
+        class _RejectedGraphicsSettingsDialog:
+            DialogCode = SimpleNamespace(Accepted=1)
+
+            def __init__(self, **_kwargs) -> None:
+                pass
+
+            def exec(self) -> int:
+                return 0
+
+        harness = build_harness("graphics_dialog_cancel")
+        harness.host.graphics_show_tooltips = (
+            harness.presenter.graphics_show_tooltips
+        )
+        shell_presenter = SimpleNamespace(
+            _host=harness.host,
+            active_renderer_label=lambda: "Unavailable",
+            edit_graph_theme_settings=lambda _settings: None,
+        )
+        with (
+            mock.patch(
+                "ea_node_editor.ui.dialogs.GraphicsSettingsDialog",
+                _RejectedGraphicsSettingsDialog,
+            ),
+            mock.patch.object(
+                harness.controller,
+                "set_graphics_settings",
+                wraps=harness.controller.set_graphics_settings,
+            ) as set_graphics_settings,
+        ):
+            ShellHostPresenter.show_graphics_settings_dialog(shell_presenter)
+        self.assertEqual(set_graphics_settings.call_count, 0)
+        self.assertEqual(
+            tuple(harness.counts[name] for name in count_names),
+            (0, 0, 0, 0, 0, 0, 0),
         )
 
     def test_workspace_tooltip_projections_are_computed_once_per_preferences_revision(self) -> None:

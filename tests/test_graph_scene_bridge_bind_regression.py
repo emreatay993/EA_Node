@@ -376,6 +376,48 @@ class GraphSceneBridgeBindRegressionTests(unittest.TestCase):
         finally:
             scene._scene_context.rebuild_models = original_rebuild
 
+    def test_library_drop_preview_forwards_all_graphics_payload_facts(self) -> None:
+        source = _SceneGraphicsPreferenceSource(
+            show_port_labels=False,
+            graph_label_pixel_size=16,
+            node_title_icon_pixel_size=12,
+            lightweight_canvas=True,
+        )
+        model = GraphModel()
+        registry = build_default_registry()
+        scene = GraphSceneBridge()
+        scene.bind_graphics_preferences_source(source)
+        scene.set_workspace(model, registry, model.active_workspace.workspace_id)
+        original_build = scene._payload_builder.build_library_preview_node_payload
+
+        with patch.object(
+            scene._payload_builder,
+            "build_library_preview_node_payload",
+            wraps=original_build,
+        ) as build_preview:
+            payload = scene.library_drop_preview_payload(
+                {"type_id": "core.logger", "display_name": "Logger"}
+            )
+
+        self.assertEqual(payload["type_id"], "core.logger")
+        self.assertEqual(
+            {
+                name: build_preview.call_args.kwargs[name]
+                for name in (
+                    "show_port_labels",
+                    "graph_label_pixel_size",
+                    "graph_node_icon_pixel_size",
+                    "lightweight_canvas",
+                )
+            },
+            {
+                "show_port_labels": False,
+                "graph_label_pixel_size": 16,
+                "graph_node_icon_pixel_size": 12,
+                "lightweight_canvas": True,
+            },
+        )
+
     def test_scene_registry_replace_never_normalizes_open_graph_data(self) -> None:
         active_registry = build_default_registry()
         replacement_registry = NodeRegistry()

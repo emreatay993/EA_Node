@@ -103,17 +103,48 @@ class MediaPanelCreationPreferenceTests(unittest.TestCase):
         self.assertTrue(workspace.nodes[second_id].properties["show_title"])
         self.assertTrue(workspace.nodes[second_id].properties["show_frame"])
 
+    def test_seeded_media_panel_keeps_authored_chrome_under_conflicting_defaults(
+        self,
+    ) -> None:
+        registry = build_default_registry()
+        model = GraphModel()
+        workspace_id = model.active_workspace.workspace_id
+        node = model.add_node(
+            workspace_id,
+            MEDIA_PANEL_TYPE_ID,
+            "Media Panel",
+            10.0,
+            20.0,
+            properties={"show_title": True, "show_frame": False},
+        )
+        host = _SceneHost(False, show_title=False, show_frame=True)
+        scene = GraphSceneBridge(parent=host)
+        scene.bind_graphics_preferences_source(host.shell_workspace_presenter)
+
+        scene.set_workspace(model, registry, workspace_id)
+
+        self.assertTrue(node.properties["show_title"])
+        self.assertFalse(node.properties["show_frame"])
+
     def test_explicit_override_wins_and_does_not_infer_from_authored_source(
         self,
     ) -> None:
-        model, scene, _host = _bound_scene(False)
+        model, scene, _host = _bound_scene(
+            False,
+            show_title=False,
+            show_frame=True,
+        )
         authored_id = scene.create_node_from_type(
             type_id=MEDIA_PANEL_TYPE_ID,
             x=10.0,
             y=20.0,
             parent_node_id=None,
             select_node=False,
-            property_overrides={"source": "example.png"},
+            property_overrides={
+                "source": "example.png",
+                "show_title": True,
+                "show_frame": False,
+            },
         )
         connected_id = scene.create_node_from_type(
             type_id=MEDIA_PANEL_TYPE_ID,
@@ -126,6 +157,8 @@ class MediaPanelCreationPreferenceTests(unittest.TestCase):
 
         workspace = model.active_workspace
         self.assertFalse(workspace.nodes[authored_id].exposed_ports["source"])
+        self.assertTrue(workspace.nodes[authored_id].properties["show_title"])
+        self.assertFalse(workspace.nodes[authored_id].properties["show_frame"])
         self.assertTrue(workspace.nodes[connected_id].exposed_ports["source"])
 
     def test_exposure_override_rejects_unknown_port_before_creation(self) -> None:
@@ -144,13 +177,18 @@ class MediaPanelCreationPreferenceTests(unittest.TestCase):
         self.assertEqual(model.active_workspace.nodes, {})
 
     def test_project_round_trip_preserves_serialized_source_exposure(self) -> None:
-        model, scene, _host = _bound_scene(True)
+        model, scene, _host = _bound_scene(
+            True,
+            show_title=False,
+            show_frame=True,
+        )
         node_id = scene.create_node_from_type(
             type_id=MEDIA_PANEL_TYPE_ID,
             x=10.0,
             y=20.0,
             parent_node_id=None,
             select_node=False,
+            property_overrides={"show_title": True, "show_frame": False},
             exposed_port_overrides={"source": False},
         )
         registry = build_default_registry()
@@ -162,6 +200,37 @@ class MediaPanelCreationPreferenceTests(unittest.TestCase):
             node_id
         ]
         self.assertFalse(loaded_node.exposed_ports["source"])
+        self.assertTrue(loaded_node.properties["show_title"])
+        self.assertFalse(loaded_node.properties["show_frame"])
+
+    def test_pasted_media_panel_keeps_authored_chrome_under_conflicting_defaults(
+        self,
+    ) -> None:
+        model, scene, _host = _bound_scene(
+            False,
+            show_title=False,
+            show_frame=True,
+        )
+        original_id = scene.create_node_from_type(
+            type_id=MEDIA_PANEL_TYPE_ID,
+            x=10.0,
+            y=20.0,
+            parent_node_id=None,
+            select_node=False,
+            property_overrides={"show_title": True, "show_frame": False},
+        )
+        scene.select_node(original_id, False)
+        fragment = scene.serialize_selected_subgraph_fragment()
+        self.assertIsNotNone(fragment)
+        before_ids = set(model.active_workspace.nodes)
+
+        self.assertTrue(scene.paste_subgraph_fragment(fragment, 300.0, 240.0))
+
+        pasted_ids = set(model.active_workspace.nodes) - before_ids
+        self.assertEqual(len(pasted_ids), 1)
+        pasted = model.active_workspace.nodes[pasted_ids.pop()]
+        self.assertTrue(pasted.properties["show_title"])
+        self.assertFalse(pasted.properties["show_frame"])
 
     def test_explicit_drop_connect_forces_source_exposure(self) -> None:
         workspace = GraphModel().active_workspace

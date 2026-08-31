@@ -12,6 +12,13 @@ from ea_node_editor.ui_qml.graph_scene_scope_selection import GraphSceneScopeSel
 from ea_node_editor.ui_qml.graph_scene_payload import GraphScenePayloadBuilder
 from ea_node_editor.ui_qml.graph_scene_payload.backdrop_partitioner import _GraphSceneBackdropPartitioner
 
+_EXPECTED_GRAPHICS_PAYLOAD_FACTS = {
+    "show_port_labels": False,
+    "graph_label_pixel_size": 16,
+    "graph_node_icon_pixel_size": 12,
+    "lightweight_canvas": True,
+}
+
 
 def _edge_payload(
     edge_id: str,
@@ -75,6 +82,7 @@ class _FakePayloadBuilder:
             "inline_properties": [{"key": "status", "value": "ready"}],
         }
         self.last_build_node_kwargs = {}
+        self.last_build_connection_kwargs = {}
 
     def build_node_payloads_for_ids(self, **kwargs):
         self.last_build_node_kwargs = dict(kwargs)
@@ -84,7 +92,8 @@ class _FakePayloadBuilder:
             [self.minimap_payload],
         )
 
-    def build_node_connection_payloads_for_ids(self, **_kwargs):
+    def build_node_connection_payloads_for_ids(self, **kwargs):
+        self.last_build_connection_kwargs = dict(kwargs)
         return {"n1": self.connection_update}
 
 
@@ -103,7 +112,10 @@ class _FakeContext:
         self.workspace_id = "ws"
         self.scope_path = ()
         self.graph_theme_bridge = None
-        self.graphics_show_port_labels = True
+        self.graphics_show_port_labels = False
+        self.graphics_graph_label_pixel_size = 16
+        self.graphics_node_title_icon_pixel_size = 12
+        self.graphics_lightweight_canvas = True
         self.mutation_counters: list[tuple[str, int, str]] = []
 
     def workspace_or_none(self):
@@ -242,6 +254,13 @@ class GraphScenePayloadCacheSyncTests(unittest.TestCase):
             payload_builder.last_build_node_kwargs["changed_fields_by_node_id"],
             {"n1": {"node.title"}},
         )
+        self.assertEqual(
+            {
+                name: payload_builder.last_build_node_kwargs[name]
+                for name in _EXPECTED_GRAPHICS_PAYLOAD_FACTS
+            },
+            _EXPECTED_GRAPHICS_PAYLOAD_FACTS,
+        )
         self.assertEqual(cache.nodes[0]["title"], "updated")
         self.assertIs(cache.nodes[0], payload_builder.node_payload)
         self.assertIs(cache.minimap_nodes[0], payload_builder.minimap_payload)
@@ -278,6 +297,13 @@ class GraphScenePayloadCacheSyncTests(unittest.TestCase):
         self.assertEqual(cache.nodes[0]["ports"], [{"key": "result"}])
         self.assertIsNot(cache.nodes[0]["ports"], payload_builder.connection_update["ports"])
         self.assertIsNot(cache.nodes[0]["inline_properties"], payload_builder.connection_update["inline_properties"])
+        self.assertEqual(
+            {
+                name: payload_builder.last_build_connection_kwargs[name]
+                for name in _EXPECTED_GRAPHICS_PAYLOAD_FACTS
+            },
+            _EXPECTED_GRAPHICS_PAYLOAD_FACTS,
+        )
 
     def test_targeted_node_payload_replacement_rebuilds_current_port_projection(self) -> None:
         node = SimpleNamespace(title="Renamed", properties={"title": "Renamed"}, links=[], comments=[])

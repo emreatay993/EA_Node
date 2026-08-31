@@ -16,6 +16,7 @@ from ea_node_editor.runtime_contracts.solution_records import (
     SolutionResidency,
 )
 from ea_node_editor.ui.shell.state import ShellRunState
+from ea_node_editor.settings import DEFAULT_GRAPHICS_SETTINGS
 from ea_node_editor.ui.shell.tooltip_policy import (
     default_tooltip_category_preferences,
 )
@@ -940,6 +941,12 @@ class GraphCanvasSplitBridgeTests(unittest.TestCase):
             elif value is None:
                 setattr(host, name, 12)
         graphics.selected_run_preview_before_run = False
+        graphics.graphics_minimap_expanded = False
+        graphics.snap_to_grid_enabled = False
+        graphics.snap_grid_size = 99.0
+        graphics.graphics_plot_default_backend_per_type = dict(
+            DEFAULT_GRAPHICS_SETTINGS["plot"]["plot_default_backend_per_type"]
+        )
         host_source = _GraphCanvasShellHostStub()
         scene = _GraphCanvasSceneBridgeStub()
         view = _GraphCanvasViewBridgeStub()
@@ -970,39 +977,87 @@ class GraphCanvasSplitBridgeTests(unittest.TestCase):
         self.assertIs(command_bridge.host_source, host_source)
         self.assertIs(command_bridge.scene_bridge, scene)
         self.assertIs(command_bridge.view_bridge, view)
-        self.assertTrue(state_bridge.graphics_minimap_expanded)
-        self.assertTrue(state_bridge.graphics_show_grid)
-        self.assertEqual(state_bridge.graphics_canvas_background_variant, "theme")
-        self.assertTrue(state_bridge.graphics_show_minimap)
-        self.assertTrue(state_bridge.graphics_show_canvas_options_button)
-        self.assertTrue(state_bridge.graphics_show_port_labels)
-        self.assertTrue(state_bridge.graphics_notched_ports)
-        self.assertEqual(state_bridge.graphics_node_elapsed_time_unit, "seconds")
-        self.assertEqual(state_bridge.graphics_node_elapsed_time_visibility, "always")
-        self.assertEqual(state_bridge.graphics_node_comment_editor_default, "canvas_popover")
-        self.assertFalse(state_bridge.graphics_node_floating_toolbar_opens_on_hover)
-        self.assertEqual(state_bridge.graphics_folder_explorer_column_widths, {})
-        self.assertTrue(state_bridge.graphics_node_shadow)
-        self.assertEqual(state_bridge.graphics_shadow_strength, 70)
-        self.assertEqual(state_bridge.graphics_shadow_softness, 50)
-        self.assertEqual(state_bridge.graphics_shadow_offset, 4)
-        self.assertEqual(state_bridge.graphics_status_bar_layout, "option_1")
-        self.assertTrue(state_bridge.graphics_show_fps_telemetry)
-        self.assertEqual(state_bridge.graphics_selection_toolbar_mode, "minimal_ghost_menu")
-        self.assertEqual(
-            state_bridge.graphics_selection_toolbar_minimal_menu_trigger,
-            "click_affordance",
+        graphics_expectations = {
+            "graphics_show_grid": True,
+            "graphics_canvas_background_variant": "theme",
+            "graphics_grid_style": "lines",
+            "graphics_edge_crossing_style": "none",
+            "graphics_graph_label_pixel_size": 10,
+            "graphics_graph_node_icon_pixel_size_override": None,
+            "graphics_node_title_icon_pixel_size": 10,
+            "graphics_recent_text_colors": [],
+            "graphics_media_panel_defaults": {
+                "show_title": True,
+                "show_frame": True,
+                "autoplay_animations": True,
+                "source_input_exposed": True,
+            },
+            "graphics_media_panel_default_show_title": True,
+            "graphics_media_panel_default_show_frame": True,
+            "graphics_media_panel_autoplay_animations": True,
+            "graphics_media_panel_source_input_exposed": True,
+            "graphics_folder_explorer_column_widths": {},
+            "graphics_show_minimap": True,
+            "graphics_show_canvas_options_button": True,
+            "graphics_show_port_labels": True,
+            "graphics_notched_ports": True,
+            "graphics_node_elapsed_time_unit": "seconds",
+            "graphics_node_elapsed_time_visibility": "always",
+            "graphics_node_comment_editor_default": "canvas_popover",
+            "graphics_show_tooltips": True,
+            "graphics_tooltip_categories": default_tooltip_category_preferences(),
+            "graphics_tooltip_category_visibility": {
+                **default_tooltip_category_preferences(),
+                "critical": True,
+            },
+            "graphics_node_shadow": True,
+            "graphics_shadow_strength": 70,
+            "graphics_shadow_softness": 50,
+            "graphics_shadow_offset": 4,
+            "graphics_status_bar_layout": "option_1",
+            "graphics_show_fps_telemetry": True,
+            "graphics_floating_toolbar_style": "compact_pill",
+            "graphics_floating_toolbar_size": "small",
+            "graphics_node_floating_toolbar_opens_on_hover": False,
+            "graphics_selection_toolbar_mode": "minimal_ghost_menu",
+            "graphics_selection_toolbar_minimal_menu_trigger": "click_affordance",
+            "graphics_expand_collision_avoidance": {"enabled": True},
+            "graphics_lightweight_canvas": False,
+            "graphics_plot_default_backend_per_type": dict(
+                DEFAULT_GRAPHICS_SETTINGS["plot"]["plot_default_backend_per_type"]
+            ),
+            "active_theme_id": "stitch_dark",
+            "graphics_graph_follow_shell_theme": False,
+            "graphics_selected_graph_theme_id": "graph_stitch_dark",
+        }
+        canvas_expectations = {
+            "graphics_minimap_expanded": True,
+            "selected_run_preview_before_run": True,
+            "snap_to_grid_enabled": True,
+            "snap_grid_size": 24.0,
+        }
+        self.assertEqual(len(graphics_expectations), 41)
+        self.assertEqual(len(canvas_expectations), 4)
+        for name, expected in (*graphics_expectations.items(), *canvas_expectations.items()):
+            with self.subTest(property_name=name):
+                self.assertEqual(getattr(state_bridge, name), expected)
+
+        notifications = {"graphics": 0, "snap": 0}
+        state_bridge.graphics_preferences_changed.connect(
+            lambda: notifications.__setitem__(
+                "graphics", notifications["graphics"] + 1
+            )
         )
-        self.assertFalse(state_bridge.graphics_lightweight_canvas)
-        self.assertEqual(state_bridge.active_theme_id, "stitch_dark")
-        self.assertFalse(state_bridge.graphics_graph_follow_shell_theme)
-        self.assertEqual(
-            state_bridge.graphics_selected_graph_theme_id,
-            "graph_stitch_dark",
+        state_bridge.snap_to_grid_changed.connect(
+            lambda: notifications.__setitem__("snap", notifications["snap"] + 1)
         )
-        self.assertTrue(state_bridge.selected_run_preview_before_run)
-        self.assertTrue(state_bridge.snap_to_grid_enabled)
-        self.assertEqual(state_bridge.snap_grid_size, 24.0)
+        graphics.graphics_preferences_changed.emit()
+        self.assertEqual(notifications, {"graphics": 1, "snap": 0})
+        host.snap_to_grid_changed.emit()
+        self.assertEqual(notifications, {"graphics": 1, "snap": 1})
+        host.graphics_preferences_changed.emit()
+        graphics.snap_to_grid_changed.emit()
+        self.assertEqual(notifications, {"graphics": 1, "snap": 1})
         self.assertEqual(state_bridge.center_x, 18.5)
         self.assertEqual(state_bridge.center_y, -42.0)
         self.assertEqual(state_bridge.zoom_value, 1.75)

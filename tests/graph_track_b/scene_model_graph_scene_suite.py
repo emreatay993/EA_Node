@@ -198,6 +198,9 @@ class _GraphCanvasPreferenceBridge(QObject):
         self._graphics_show_minimap = True
         self._graphics_minimap_expanded = True
         self._graphics_show_port_labels = True
+        self._graphics_graph_label_pixel_size = 10
+        self._graphics_node_title_icon_pixel_size = 10
+        self._graphics_lightweight_canvas = False
         self._snap_to_grid_enabled = False
         self.minimap_update_history: list[bool] = []
 
@@ -225,6 +228,18 @@ class _GraphCanvasPreferenceBridge(QObject):
     def graphics_show_port_labels(self) -> bool:
         return bool(self._graphics_show_port_labels)
 
+    @pyqtProperty(int, notify=graphics_preferences_changed)
+    def graphics_graph_label_pixel_size(self) -> int:
+        return int(self._graphics_graph_label_pixel_size)
+
+    @pyqtProperty(int, notify=graphics_preferences_changed)
+    def graphics_node_title_icon_pixel_size(self) -> int:
+        return int(self._graphics_node_title_icon_pixel_size)
+
+    @pyqtProperty(bool, notify=graphics_preferences_changed)
+    def graphics_lightweight_canvas(self) -> bool:
+        return bool(self._graphics_lightweight_canvas)
+
     @pyqtProperty(float, constant=True)
     def snap_grid_size(self) -> float:
         return 20.0
@@ -234,6 +249,22 @@ class _GraphCanvasPreferenceBridge(QObject):
         if self._graphics_show_port_labels == normalized:
             return
         self._graphics_show_port_labels = normalized
+        self.graphics_preferences_changed.emit()
+
+    def set_payload_graphics_facts(
+        self,
+        *,
+        show_port_labels: bool,
+        graph_label_pixel_size: int,
+        node_title_icon_pixel_size: int,
+        lightweight_canvas: bool,
+    ) -> None:
+        self._graphics_show_port_labels = bool(show_port_labels)
+        self._graphics_graph_label_pixel_size = int(graph_label_pixel_size)
+        self._graphics_node_title_icon_pixel_size = int(
+            node_title_icon_pixel_size
+        )
+        self._graphics_lightweight_canvas = bool(lightweight_canvas)
         self.graphics_preferences_changed.emit()
 
     @pyqtSlot(bool)
@@ -492,6 +523,57 @@ class GraphSceneBridgeTrackBTests(unittest.TestCase):
         self.assertEqual([item["id"] for item in payload["links"]], ["link-node"])
         self.assertEqual(payload["link_count"], 1)
         self.assertEqual(workspace.nodes[node_id].properties["message"], "Project docs")
+
+    def test_targeted_payload_routes_forward_all_graphics_facts(self) -> None:
+        source_id = self.scene.add_node_from_type("core.constant", 20.0, 30.0)
+        target_id = self.scene.add_node_from_type("core.python_script", 320.0, 30.0)
+        self.preference_bridge.set_payload_graphics_facts(
+            show_port_labels=False,
+            graph_label_pixel_size=16,
+            node_title_icon_pixel_size=12,
+            lightweight_canvas=True,
+        )
+        expected = {
+            "show_port_labels": False,
+            "graph_label_pixel_size": 16,
+            "graph_node_icon_pixel_size": 12,
+            "lightweight_canvas": True,
+        }
+        builder = self.scene._payload_builder
+
+        with patch.object(
+            builder,
+            "build_node_payloads_for_ids",
+            wraps=builder.build_node_payloads_for_ids,
+        ) as build_node_payloads:
+            self.assertEqual(
+                self.scene.upsert_node_link(
+                    source_id,
+                    "link-docs",
+                    "url",
+                    "Project docs",
+                    "https://example.com/docs",
+                    "Reference",
+                ),
+                "link-docs",
+            )
+        with patch.object(
+            builder,
+            "build_node_connection_payloads_for_ids",
+            wraps=builder.build_node_connection_payloads_for_ids,
+        ) as build_connection_payloads:
+            self.scene.add_edge(source_id, "value", target_id, "payload")
+
+        for route, call in (
+            ("full_node", build_node_payloads.call_args),
+            ("connection", build_connection_payloads.call_args),
+        ):
+            with self.subTest(route=route):
+                self.assertIsNotNone(call)
+                self.assertEqual(
+                    {name: call.kwargs[name] for name in expected},
+                    expected,
+                )
 
     def test_node_comment_mutations_publish_targeted_node_payload_and_persist(self) -> None:
         history = RuntimeGraphHistory()
