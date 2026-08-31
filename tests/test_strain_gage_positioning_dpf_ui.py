@@ -17,6 +17,7 @@ if str(SG_ROOT) not in sys.path:
     sys.path.insert(0, str(SG_ROOT))
 
 from app import dpf_loader  # noqa: E402
+from app import ansys_overlay  # noqa: E402
 from app import main_window  # noqa: E402
 from app.analysis_engine import AnalysisEngine  # noqa: E402
 from app.dpf_dialog import DpfImportDialog  # noqa: E402
@@ -130,22 +131,91 @@ def test_dpf_dialog_can_ignore_evaluation_only_shell_results():
     assert app is not None
 
 
+class _FakeLookupTable:
+    def __init__(self, n_values=9):
+        self.values = np.tile(
+            np.array([[10, 20, 30, 255]], dtype=np.uint8), (max(n_values, 1), 1)
+        )
+
+    def GetUseBelowRangeColor(self):
+        return True
+
+    def GetBelowRangeColor(self):
+        return (0.5, 0.5, 0.5, 1.0)
+
+    def GetUseAboveRangeColor(self):
+        return True
+
+    def GetAboveRangeColor(self):
+        return (0.5, 0.0, 0.5, 1.0)
+
+
+class _FakeActor(str):
+    """Compares equal to its name, but carries a mapper like a real actor."""
+
+    def __new__(cls, name, lookup_table=None):
+        actor = super().__new__(cls, name)
+        actor.mapper = SimpleNamespace(lookup_table=lookup_table)
+        return actor
+
+
+class _StubRenderWindow:
+    def GetSize(self):
+        return (1000, 800)
+
+
+class _StubPlotter:
+    """Enough plotter for the overlay geometry, with no render window."""
+
+    def __init__(self):
+        self.render_window = _StubRenderWindow()
+        self.actors = {}
+
+    def add_actor(self, actor, name=None, **_kwargs):
+        self.actors[name] = actor
+        return actor, None
+
+    def remove_actor(self, actor, **_kwargs):
+        for key, value in list(self.actors.items()):
+            if value is actor:
+                del self.actors[key]
+
+
 class _FakeCamera:
+    def __init__(self, generation=0):
+        self.generation = generation
+
     def copy(self):
-        return "camera-copy"
+        # Returns another camera, so repeated preserve_camera redraws work
+        # the way they do against a real plotter.
+        return _FakeCamera(self.generation + 1)
 
 
 class _FakePlotter:
     def __init__(self):
         self.camera = _FakeCamera()
         self.add_mesh_calls = []
+        self.add_actor_calls = []
+        self.removed_actors = []
         self.clear_count = 0
         self.reset_count = 0
         self.render_count = 0
 
     def add_mesh(self, *args, **kwargs):
         self.add_mesh_calls.append((args, kwargs))
-        return "actor-{0}".format(len(self.add_mesh_calls))
+        return _FakeActor(
+            "actor-{0}".format(len(self.add_mesh_calls)),
+            _FakeLookupTable(int(kwargs.get("n_colors", 256))),
+        )
+
+    def add_actor(self, actor, **kwargs):
+        # Overlay actors must never land in add_mesh_calls, so the contour
+        # assertions can keep indexing that list positionally.
+        self.add_actor_calls.append((actor, kwargs))
+        return actor, None
+
+    def remove_actor(self, actor, **_kwargs):
+        self.removed_actors.append(actor)
 
     def clear(self):
         self.clear_count += 1
@@ -167,7 +237,8 @@ class _FakeVisualizationPanel:
         self._settings = {
             "cloud_point_size": 8.0,
             "candidate_point_size": 12.0,
-            "label_font_size": 10,
+            "label_font_size": 11,
+            "n_bands": 9,
             "clim_min": 1.0,
             "clim_max": 3.0,
             "below_color": "gray",
@@ -214,6 +285,45 @@ class _FakeGagePlacementTool:
         self.visibility.append((show_normals, show_axes))
 
 
+class _FakeResultHeader:
+    def __init__(self):
+        self.infos = []
+        self.clear_count = 0
+
+    def set_info(self, title, lines):
+        self.infos.append((title, list(lines)))
+
+    def bottom_y(self):
+        return 0.9
+
+    def clear(self):
+        self.clear_count += 1
+
+
+class _FakeResultLegend:
+    def __init__(self):
+        self.contexts = []
+        self.clear_count = 0
+
+    def set_context(self, colors, clim, n_bands, **kwargs):
+        self.contexts.append((colors, clim, n_bands, kwargs))
+
+    def clear(self):
+        self.clear_count += 1
+
+
+class _FakeResultAnnotations:
+    def __init__(self):
+        self.point_sets = []
+        self.clear_count = 0
+
+    def set_points(self, points, texts, font_size=None):
+        self.point_sets.append((points, list(texts), font_size))
+
+    def clear(self):
+        self.clear_count += 1
+
+
 class _FakeContourHoverTool:
     def __init__(self):
         self.contexts = []
@@ -227,10 +337,35 @@ class _FakeContourHoverTool:
 
 
 class _FakeTextProperty:
+    def __init__(self):
+        self.font_size = None
+        self.framed = False
+
     def SetBackgroundColor(self, *_):
         pass
 
     def SetBackgroundOpacity(self, *_):
+        pass
+
+    def SetFontSize(self, size):
+        self.font_size = size
+
+    def SetFontFamilyToArial(self):
+        pass
+
+    def SetBold(self, *_):
+        pass
+
+    def SetShadow(self, *_):
+        pass
+
+    def FrameOn(self):
+        self.framed = True
+
+    def SetFrameColor(self, *_):
+        pass
+
+    def SetFrameWidth(self, *_):
         pass
 
 
@@ -342,6 +477,9 @@ def _preview_window(surface=None):
         visualization_panel=_FakeVisualizationPanel(plotter),
         gage_placement_tool=_FakeGagePlacementTool(),
         contour_hover_tool=_FakeContourHoverTool(),
+        result_header=_FakeResultHeader(),
+        result_legend=_FakeResultLegend(),
+        result_annotations=_FakeResultAnnotations(),
         last_results={},
         preloaded_dataset=("old",),
         input_file=None,
@@ -350,7 +488,11 @@ def _preview_window(surface=None):
         project_dir=str(REPO_ROOT),
         display_in_strain=False,
         control_panel=SimpleNamespace(
-            get_parameters=lambda: {"strategy": "Max Quality (Greedy Search)"}
+            get_parameters=lambda: {
+                "strategy": "Max Quality (Greedy Search)",
+                "measurement_mode": "Rosette",
+                "quality_mode": "Signal-Noise Ratio: |e|/(s+1e-12)",
+            }
         ),
     )
     window.clear_visualization = (
@@ -361,6 +503,16 @@ def _preview_window(surface=None):
     window.display_rst_surface_preview = (
         lambda preserve_camera=False: main_window.MainWindow.display_rst_surface_preview(
             window, preserve_camera=preserve_camera
+        )
+    )
+    window._result_header_info = (
+        lambda contour_label: main_window.MainWindow._result_header_info(
+            window, contour_label
+        )
+    )
+    window.update_result_overlay = (
+        lambda actor, scalars, viz_settings, contour_label: main_window.MainWindow.update_result_overlay(
+            window, actor, scalars, viz_settings, contour_label
         )
     )
     window._add_rst_surface_mesh = (
@@ -557,7 +709,13 @@ def test_rst_results_render_one_interpolated_surface_contour():
     assert args[0] is surface
     assert surface.point_data["Scalars"].tolist() == [3.0, 1.0, 2.0]
     assert kwargs["scalars"] == "Scalars"
-    assert kwargs["cmap"] == "jet"
+    assert kwargs["cmap"].name == "ansys_rainbow"
+    # Saturated blue to saturated red, without the dark ends jet has.
+    assert ansys_overlay.ANSYS_RAINBOW_COLORS[0] == "#0000FF"
+    assert ansys_overlay.ANSYS_RAINBOW_COLORS[-1] == "#FF0000"
+    assert kwargs["n_colors"] == 9
+    assert kwargs["show_scalar_bar"] is False
+    assert "scalar_bar_args" not in kwargs
     assert kwargs["clim"] == (1.0, 3.0)
     assert kwargs["below_color"] == "gray"
     assert kwargs["above_color"] == "purple"
@@ -567,7 +725,7 @@ def test_rst_results_render_one_interpolated_surface_contour():
     assert "render_points_as_spheres" not in kwargs
     assert window.contour_hover_tool.contexts[-1] == (
         "actor-1", surface, "Scalars",
-        "Microstrain (με) — Set 2 — time/frequency 0.2"
+        "Microstrain — Set 2 — time/frequency 0.2"
     )
 
     window.visualization_panel._settings["show_surface_edges"] = False
@@ -699,3 +857,144 @@ def test_load_reconstruction_merges_shell_elshape_strain():
     assert main_window._rst_surface_result_indices(
         ignored_nodes, ignored_surface_info["surface"]
     ).size == ignored_surface_info["surface"].n_points
+
+
+def test_ansys_number_format_strips_exponent_padding():
+    fmt = ansys_overlay.format_ansys_number
+    # Mechanical prints 1.3006e-5, not the zero-padded 1.3006e-05 Python emits.
+    assert fmt(1.3006e-05) == "1.3006e-5"
+    assert fmt(0.0) == "0"
+    assert fmt(0.01701) == "0.01701"
+    assert fmt(0.0094497) == "0.0094497"
+    assert fmt(-2.5e-12) == "-2.5e-12"
+    assert fmt(float("nan")) == "nan"
+
+
+def test_band_boundaries_label_edges_not_centres():
+    values = ansys_overlay.band_boundaries(0.0, 0.01701, 9)
+    # Nine colour bands carry ten numbers, stepping by max/9 exactly as the
+    # Mechanical legend does.
+    assert len(values) == 10
+    assert values[0] == 0.0
+    assert values[-1] == 0.01701
+    assert np.allclose(np.diff(values), 0.01701 / 9.0)
+
+
+def test_band_boundaries_survive_degenerate_limits():
+    assert ansys_overlay.band_boundaries(2.0, 2.0, 9)[-1] > 2.0
+    assert len(ansys_overlay.band_boundaries(float("nan"), 1.0, 4)) == 5
+
+
+def test_legend_labels_boundaries_and_hit_tests_max_and_min():
+    plotter = _StubPlotter()
+    legend = ansys_overlay.AnsysLegend(plotter)
+    colors = np.tile(np.array([[0, 0, 255]], dtype=np.uint8), (9, 1))
+    legend.set_context(colors, (0.0, 0.01701), 9, top_y=0.9)
+
+    labels = [
+        plotter.actors[name].GetInput()
+        for name in plotter.actors
+        if name.startswith("ansys_legend_label")
+    ]
+    assert len(labels) == 10
+    assert any(text.endswith(" Max") for text in labels)
+    assert any(text.endswith(" Min") for text in labels)
+    assert "ansys_legend_bands" in plotter.actors
+    assert "ansys_legend_outline" in plotter.actors
+
+    # The top label sits at the top of the bar. hit_test works in VTK
+    # bottom-left-origin render-window pixels, not Qt coordinates.
+    y_top = (0.9 - ansys_overlay.LEGEND_GAP_BELOW_HEADER) * 800
+    x_label = (
+        ansys_overlay.LEGEND_X
+        + ansys_overlay.LEGEND_BAR_WIDTH
+        + ansys_overlay.LEGEND_LABEL_GAP
+    ) * 1000 + 5
+    assert legend.hit_test(x_label, y_top) == "max"
+    assert legend.hit_test(x_label, y_top - ansys_overlay.LEGEND_HEIGHT * 800) == "min"
+    assert legend.hit_test(900, 400) is None
+
+    legend.clear()
+    assert plotter.actors == {}
+    assert legend.hit_test(x_label, y_top) is None
+
+
+def test_legend_thins_labels_when_bands_get_shorter_than_the_text():
+    plotter = _StubPlotter()
+    legend = ansys_overlay.AnsysLegend(plotter)
+    colors = np.tile(np.array([[0, 0, 255]], dtype=np.uint8), (24, 1))
+    legend.set_context(colors, (0.0, 1.0), 24, top_y=0.9)
+
+    texts = [
+        plotter.actors[name].GetInput()
+        for name in plotter.actors
+        if name.startswith("ansys_legend_label")
+    ]
+    assert len(texts) < 25
+    # Whatever gets thinned out, the extremes always stay labelled.
+    assert any(text.endswith(" Max") for text in texts)
+    assert any(text.endswith(" Min") for text in texts)
+
+
+def test_result_overlay_feeds_header_legend_and_compact_callouts():
+    surface = _triangle_surface()
+    window = _preview_window(surface)
+    window.rst_surface_mesh["result_indices"] = np.array([2, 0, 1])
+    candidates = pd.DataFrame(
+        {
+            "X": [0.0, 1.0],
+            "Y": [0.0, 0.0],
+            "Z": [0.0, 0.0],
+            "Quality": [4.0, 2.0],
+        }
+    )
+
+    main_window.MainWindow.display_strain_with_candidates(
+        window,
+        surface.points,
+        np.array([0.5, 2.0, 5.0]),
+        candidates,
+        preserve_camera=False,
+        contour_label="Set 2",
+    )
+
+    title, lines = window.result_header.infos[-1]
+    assert title == "A: NS"
+    assert lines[0] == "Equivalent (von Mises) Elastic Strain"
+    assert lines[1] == "Type: Rosette - Signal-Noise Ratio"
+    assert lines[2] == "Unit: microstrain"
+    assert "Set 2" in lines
+
+    colors, clim, n_bands, kwargs = window.result_legend.contexts[-1]
+    assert n_bands == 9
+    assert colors.shape == (9, 3)
+    assert clim == (1.0, 3.0)
+    # Data runs 0.5 to 5.0 against limits of 1.0 to 3.0, so both out-of-range
+    # swatches belong on the legend.
+    assert kwargs["clipped_below"] is True
+    assert kwargs["clipped_above"] is True
+    assert kwargs["below_color"] == (128, 128, 128)
+    assert kwargs["above_color"] == (128, 0, 128)
+
+    points, labels, font_size = window.result_annotations.point_sets[-1]
+    assert labels == ["P1  Q 100%", "P2  Q 50%"]
+    assert font_size == 11
+    assert points.shape == (2, 3)
+
+
+def test_display_clears_overlay_before_each_redraw():
+    surface = _triangle_surface()
+    window = _preview_window(surface)
+    window.rst_surface_mesh["result_indices"] = np.array([2, 0, 1])
+    for _ in range(3):
+        main_window.MainWindow.display_strain_with_candidates(
+            window,
+            surface.points,
+            np.array([1.0, 2.0, 3.0]),
+            pd.DataFrame(),
+            preserve_camera=True,
+        )
+    # Every redraw tears the overlay down first, so nothing accumulates.
+    assert window.result_header.clear_count == 3
+    assert window.result_annotations.clear_count == 3
+    assert len(window.result_legend.contexts) == 3

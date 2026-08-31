@@ -1,5 +1,6 @@
 import os
 import sys
+from datetime import datetime
 os.environ.setdefault("QT_API", "pyqt6")
 
 import pandas as pd
@@ -16,6 +17,11 @@ from pyvistaqt import MainWindow as PyVistaMainWindow
 
 from .ui_components import ControlPanel, VisualizationPanel, InputDataPanel
 from .ui_tools import ContourHoverUI, DistanceMeasureUI, GagePlacementUI, PLACEMENT_COLUMNS
+from .ansys_overlay import (
+    DEFAULT_BANDS, AnsysAnnotations, AnsysLegend, AnsysLegendInteractor,
+    AnsysResultHeader, ansys_rainbow_colormap, format_ansys_number,
+    lookup_table_band_colors, lookup_table_range_colors,
+)
 from .analysis_engine import AnalysisEngine
 from .dpf_dialog import DpfImportDialog
 from . import dpf_loader
@@ -173,6 +179,22 @@ class MainWindow(QMainWindow):
         self.gage_placement_tool = GagePlacementUI(
             self.visualization_panel.vtk_widget,
             on_changed=self.export_gage_placements,
+        )
+
+        # Ansys-Mechanical-style viewport furniture: the top-left information
+        # block, the vertical banded legend beneath it, and the draggable
+        # callouts on the candidate points.
+        plotter = self.visualization_panel.vtk_widget
+        self.result_header = AnsysResultHeader(plotter)
+        self.result_legend = AnsysLegend(plotter)
+        self.result_annotations = AnsysAnnotations(plotter)
+        self.legend_interactor = AnsysLegendInteractor(
+            plotter,
+            self.result_legend,
+            on_get_limits=self.get_legend_limits,
+            on_set_limits=self.apply_legend_limits,
+            on_set_bands=self.apply_legend_band_count,
+            on_reset_range=self.reset_legend_range,
         )
 
         # Create other UI elements like menus and docks
@@ -443,6 +465,9 @@ class MainWindow(QMainWindow):
         plotter = self.visualization_panel.vtk_widget
         camera = plotter.camera.copy() if preserve_camera else None
         self.contour_hover_tool.clear_context()
+        self.result_header.clear()
+        self.result_legend.clear()
+        self.result_annotations.clear()
         plotter.clear()
         if camera:
             plotter.camera = camera
@@ -497,6 +522,91 @@ class MainWindow(QMainWindow):
                 float(np.min(scalars)), float(np.max(scalars))
             )
 
+    def get_legend_limits(self):
+        """Current legend limits, for the legend value editor and context menu."""
+        panel = self.visualization_panel
+        return (panel.dspin_below_limit.value(), panel.dspin_above_limit.value())
+
+    def apply_legend_limits(self, min_val, max_val):
+        """Write new legend limits and redraw.
+
+        ``set_legend_limits`` deliberately blocks the spin-box signals so the
+        draw path can push the data range back into the UI without recursing,
+        which means the redraw has to be requested explicitly here.
+        """
+        self.visualization_panel.set_legend_limits(float(min_val), float(max_val))
+        self.refresh_visualization()
+
+    def apply_legend_band_count(self, count):
+        # setValue emits valueChanged -> visualization_settings_changed -> redraw.
+        self.visualization_panel.set_legend_band_count(int(count))
+
+    def reset_legend_range(self):
+        """Rescale the legend to the contoured data range."""
+        if not self.last_results:
+            return
+        contour_scalars, _label = self._selected_contour_data()
+        self._set_contour_legend_limits(contour_scalars)
+        self.refresh_visualization()
+
+    def _result_header_info(self, contour_label):
+        """Assemble the Mechanical-style top-left block for the current result."""
+        params = self.control_panel.get_parameters()
+        mode = str(params["measurement_mode"])
+        # Rosette mode contours von Mises equivalent strain; Uniaxial contours
+        # the largest normal strain over the swept gage angles (AnalysisEngine).
+        quantity = (
+            "Equivalent (von Mises) Elastic Strain"
+            if mode == "Rosette"
+            else "Maximum Normal Elastic Strain"
+        )
+        metric = str(params["quality_mode"]).split(":")[0].strip()
+        unit = "mm/mm" if self.display_in_strain else "microstrain"
+        lines = [
+            quantity,
+            "Type: {0} - {1}".format(mode, metric),
+            "Unit: {0}".format(unit),
+        ]
+        if contour_label:
+            lines.append(str(contour_label))
+        lines.append(datetime.now().strftime("%Y-%m-%d %H:%M"))
+        scoping = self.rst_named_selection or "Whole Model"
+        return "A: {0}".format(scoping), lines
+
+    def update_result_overlay(self, contour_actor, scalars, viz_settings, contour_label):
+        """Rebuild the header block and banded legend for the current frame.
+
+        The band colours are read back off the mapper's lookup table rather than
+        recomputed from the colormap name, so the legend always shows exactly the
+        colours the surface was rendered with.
+        """
+        title, lines = self._result_header_info(contour_label)
+        self.result_header.set_info(title, lines)
+
+        try:
+            lookup_table = contour_actor.mapper.lookup_table
+        except Exception:
+            lookup_table = None
+        if lookup_table is None:
+            self.result_legend.clear()
+            return
+
+        n_bands = int(viz_settings.get('n_bands', DEFAULT_BANDS))
+        clim = (float(viz_settings['clim_min']), float(viz_settings['clim_max']))
+        values = np.asarray(scalars, dtype=float).reshape(-1)
+        finite = values[np.isfinite(values)]
+        below_color, above_color = lookup_table_range_colors(lookup_table)
+        self.result_legend.set_context(
+            lookup_table_band_colors(lookup_table, n_bands),
+            clim,
+            n_bands,
+            top_y=self.result_header.bottom_y(),
+            below_color=below_color,
+            above_color=above_color,
+            clipped_below=bool(finite.size and finite.min() < clim[0]),
+            clipped_above=bool(finite.size and finite.max() > clim[1]),
+        )
+
     def on_contour_selection_changed(self):
         if not self.last_results:
             return
@@ -540,7 +650,8 @@ class MainWindow(QMainWindow):
         self.clear_visualization(preserve_camera=preserve_camera)
         plotter = self.visualization_panel.vtk_widget
         viz_settings = self.visualization_panel.get_settings()
-        scalar_title = "Strain (mm/mm)" if self.display_in_strain else "Microstrain (με)"
+        n_bands = int(viz_settings.get('n_bands', DEFAULT_BANDS))
+        scalar_title = "Strain (mm/mm)" if self.display_in_strain else "Microstrain"
         if contour_label:
             scalar_title += " — " + str(contour_label)
 
@@ -562,7 +673,8 @@ class MainWindow(QMainWindow):
             contour_actor = plotter.add_mesh(
                 surface,
                 scalars="Scalars",
-                cmap="jet",
+                cmap=ansys_rainbow_colormap(),
+                n_colors=n_bands,
                 clim=(viz_settings['clim_min'], viz_settings['clim_max']),
                 below_color=viz_settings['below_color'],
                 above_color=viz_settings['above_color'],
@@ -571,7 +683,7 @@ class MainWindow(QMainWindow):
                 edge_color="dimgray",
                 interpolate_before_map=True,
                 pickable=True,
-                scalar_bar_args={'title': scalar_title},
+                show_scalar_bar=False,
             )
             self.contour_hover_tool.set_context(
                 contour_actor, surface, "Scalars", scalar_title
@@ -579,14 +691,16 @@ class MainWindow(QMainWindow):
         else:
             cloud = pv.PolyData(coords)
             cloud["Scalars"] = np.asarray(scalars, dtype=float)
-            plotter.add_mesh(
-                cloud, scalars="Scalars", cmap="jet",
+            contour_actor = plotter.add_mesh(
+                cloud, scalars="Scalars",
+                cmap=ansys_rainbow_colormap(),
+                n_colors=n_bands,
                 point_size=viz_settings['cloud_point_size'],
                 render_points_as_spheres=True,
                 clim=(viz_settings['clim_min'], viz_settings['clim_max']),
                 below_color=viz_settings['below_color'],
                 above_color=viz_settings['above_color'],
-                scalar_bar_args={'title': scalar_title}
+                show_scalar_bar=False,
             )
 
         if not candidates_df.empty:
@@ -598,19 +712,30 @@ class MainWindow(QMainWindow):
             strategy = self.control_panel.get_parameters()["strategy"]
             if "Gradient" in strategy:
                 values = candidates_df['Local_Std'].values
-                labels = [f"P{i + 1}\nStd: {v:.2e}" for i, v in enumerate(values)]
+                labels = [
+                    "P{0}  Std {1}".format(i + 1, format_ansys_number(v, 3))
+                    for i, v in enumerate(values)
+                ]
             else:
                 values = candidates_df['Quality'].values
                 max_val = values.max() if len(values) > 0 and values.max() > 0 else 1.0
-                labels = [f"P{i + 1}\nQ: {v / max_val * 100:.1f}%" for i, v in enumerate(values)]
+                labels = [
+                    "P{0}  Q {1:.0f}%".format(i + 1, v / max_val * 100)
+                    for i, v in enumerate(values)
+                ]
 
-            plotter.add_point_labels(candidate_points, labels,
-                                     font_size=viz_settings['label_font_size'],
-                                     shape_color="#E9E1D4", always_visible=True, shadow=True)
+            self.result_annotations.set_points(
+                candidates_df[['X', 'Y', 'Z']].values,
+                labels,
+                font_size=viz_settings['label_font_size'],
+            )
 
         self.gage_placement_tool.set_visibility(
             show_normals=viz_settings.get('show_surface_normals', True),
             show_axes=viz_settings.get('show_gage_axes', True),
+        )
+        self.update_result_overlay(
+            contour_actor, scalars, viz_settings, contour_label
         )
 
         if not preserve_camera: plotter.reset_camera()
@@ -741,5 +866,7 @@ class MainWindow(QMainWindow):
     def closeEvent(self, event):
         """Ensure the application and any VTK elements close cleanly."""
         self.contour_hover_tool.close()
+        self.legend_interactor.close()
+        self.result_annotations.close()
         self.visualization_panel.vtk_widget.close()
         event.accept()

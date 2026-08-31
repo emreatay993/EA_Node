@@ -8,6 +8,10 @@ import numpy as np
 import pyvista as pv
 import vtk
 
+from .ansys_overlay import (
+    ANNOTATION_BORDER, ANNOTATION_FILL, DEFAULT_ANNOTATION_FONT_SIZE,
+)
+
 
 PLACEMENT_COLUMNS = [
     "Gage", "Source", "Named_Selection", "Node",
@@ -191,14 +195,24 @@ class ContourHoverUI:
         self.tooltip_actor = self.pl.add_text(
             "",
             position=(0, 0),
-            font_size=10,
+            font_size=DEFAULT_ANNOTATION_FONT_SIZE,
             color="black",
             name="contour_hover_tooltip",
             render=False,
         )
         text_property = self.tooltip_actor.GetTextProperty()
-        text_property.SetBackgroundColor(1.0, 1.0, 1.0)
-        text_property.SetBackgroundOpacity(0.82)
+        # PyVista doubles font_size when `position` is a tuple, so the real
+        # size has to be set back afterwards -- otherwise this box renders at
+        # twice the size of the callouts sitting next to it.
+        text_property.SetFontSize(DEFAULT_ANNOTATION_FONT_SIZE)
+        text_property.SetFontFamilyToArial()
+        text_property.SetBold(False)
+        text_property.SetShadow(False)
+        text_property.SetBackgroundColor(*ANNOTATION_FILL)
+        text_property.SetBackgroundOpacity(1.0)
+        text_property.FrameOn()
+        text_property.SetFrameColor(*ANNOTATION_BORDER)
+        text_property.SetFrameWidth(1)
         self.tooltip_actor.SetPickable(False)
         self.tooltip_actor.SetVisibility(False)
 
@@ -479,7 +493,8 @@ class DistanceMeasureUI:
 
     def _add_point_label(self, p, text):
         return self.pl.add_point_labels(
-            [p], [text], point_size=0, font_size=20, shape=None, show_points=False, pickable=False)
+            [p], [text], point_size=0, font_size=DEFAULT_ANNOTATION_FONT_SIZE,
+            shape=None, show_points=False, pickable=False, bold=False)
 
     def _add_line_and_text(self, p1, p2):
         line = pv.Line(p1, p2, resolution=1)
@@ -491,14 +506,16 @@ class DistanceMeasureUI:
         self.actor_text = self.pl.add_point_labels(
             points=[mid],
             labels=[label],
-            font_size=24,
-            shape='rounded_rect',
-            shape_color='green',
-            shape_opacity=0.8,
+            font_size=DEFAULT_ANNOTATION_FONT_SIZE + 1,
+            shape='rect',
+            shape_color=ANNOTATION_FILL,
+            shape_opacity=1.0,
             point_size=0,
             show_points=False,
             pickable=False,
-            shadow=True,
+            bold=False,
+            shadow=False,
+            margin=2,
             always_visible=True
         )
 

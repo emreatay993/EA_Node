@@ -368,7 +368,17 @@ Select how the per-node strain metric is computed across multiple load cases for
 
 CLOUD_POINT_SIZE = "Controls the rendered size of the individual points in the main data cloud."
 CANDIDATE_POINT_SIZE = "Controls the rendered size of the highlighted magenta points, making the final candidates easier to see."
-LABEL_FONT_SIZE = "Controls the font size of the text labels ('P1', 'P2', etc.) attached to the candidate points."
+LABEL_FONT_SIZE = ("Font size of the candidate callouts ('P1  Q 100%'). These are drawn in the "
+                   "Ansys Mechanical style: a small pale box joined to its point by a leader line, "
+                   "which you can drag to a clearer spot.")
+LEGEND_BAND_COUNT = """
+<b>Contour Bands</b><br><br>
+Number of discrete colour bands, matching Mechanical's contour band count
+(default <b>9</b>). This drives both the legend and the shading on the model,
+so the geometry shows sharp banded contours rather than a smooth gradient.<br><br>
+The legend prints one value per band <i>boundary</i>, so N bands carry N+1
+numbers. Labels thin out automatically when the bands get shorter than the text.
+"""
 CONTOUR_SELECTION = """
 <b>Contour Sets / Time Points</b><br/><br/>
 Choose independently which loaded result sets feed the contour and hover value.

@@ -7,6 +7,9 @@ from PyQt6.QtWidgets import (QGroupBox, QVBoxLayout, QGridLayout, QLabel,
                              QWidget, QHBoxLayout, QCheckBox, QLineEdit)
 from PyQt6.QtCore import Qt, pyqtSignal
 from . import tooltips as tips
+from .ansys_overlay import (
+    DEFAULT_ANNOTATION_FONT_SIZE, DEFAULT_BANDS, MAX_BANDS, MIN_BANDS,
+)
 
 # pyvistaqt is a required dependency for the VisualizationPanel
 try:
@@ -355,13 +358,13 @@ class VisualizationPanel(QWidget):
         self.dspin_candidate_point_size.setRange(1.0, 50.0)
         self.dspin_candidate_point_size.setValue(20.0)
         self.spin_label_font_size = QSpinBox()
-        self.spin_label_font_size.setRange(8, 72)
-        self.spin_label_font_size.setValue(20)
+        self.spin_label_font_size.setRange(6, 24)
+        self.spin_label_font_size.setValue(DEFAULT_ANNOTATION_FONT_SIZE)
         graphical_layout.addWidget(QLabel("Cloud Size:"))
         graphical_layout.addWidget(self.dspin_cloud_point_size)
         graphical_layout.addWidget(QLabel("Candidate Size:"))
         graphical_layout.addWidget(self.dspin_candidate_point_size)
-        graphical_layout.addWidget(QLabel("Label Size:"))
+        graphical_layout.addWidget(QLabel("Annotation Size:"))
         graphical_layout.addWidget(self.spin_label_font_size)
         graphical_layout.addStretch(1)
 
@@ -396,6 +399,9 @@ class VisualizationPanel(QWidget):
         self.combo_above_color.addItems(["Purple", "White"])
         self.combo_below_color = QComboBox()
         self.combo_below_color.addItems(["Gray", "White"])
+        self.spin_legend_bands = QSpinBox()
+        self.spin_legend_bands.setRange(MIN_BANDS, MAX_BANDS)
+        self.spin_legend_bands.setValue(DEFAULT_BANDS)
         legend_layout.addWidget(QLabel("Upper Limit:"))
         legend_layout.addWidget(self.dspin_above_limit)
         legend_layout.addWidget(QLabel("Lower Limit:"))
@@ -404,6 +410,8 @@ class VisualizationPanel(QWidget):
         legend_layout.addWidget(self.combo_above_color)
         legend_layout.addWidget(QLabel("Below Color:"))
         legend_layout.addWidget(self.combo_below_color)
+        legend_layout.addWidget(QLabel("Bands:"))
+        legend_layout.addWidget(self.spin_legend_bands)
         legend_layout.addStretch(1)
 
         self.surface_group = QGroupBox("Surface Placement")
@@ -439,8 +447,12 @@ class VisualizationPanel(QWidget):
 
         # PyVista Interactor
         self.vtk_widget = QtInteractor(self)
-        # Show orientation (camera) widget in the corner
-        self.vtk_widget.show_axes()
+        # Orientation triad bottom-right, matching Mechanical and keeping the
+        # left edge free for the header block and legend column.
+        try:
+            self.vtk_widget.add_axes(viewport=(0.86, 0.0, 1.0, 0.16))
+        except Exception:
+            self.vtk_widget.show_axes()
 
 
     def _setup_layout(self):
@@ -462,6 +474,7 @@ class VisualizationPanel(QWidget):
         self.edit_contour_sets.setToolTip(tips.CONTOUR_SELECTION)
         self.combo_contour_aggregation.setToolTip(tips.CONTOUR_SELECTION)
         self.legend_group.setToolTip(tips.LEGEND_CONTROLS)
+        self.spin_legend_bands.setToolTip(tips.LEGEND_BAND_COUNT)
         self.chk_show_surface_edges.setToolTip(tips.SHOW_SURFACE_EDGES)
         self.dspin_surface_mesh_opacity.setToolTip(tips.SURFACE_OPACITY)
         self.chk_show_surface_normals.setToolTip(tips.SHOW_SURFACE_NORMALS)
@@ -474,6 +487,7 @@ class VisualizationPanel(QWidget):
         """Connects widget signals to this panel's output signal."""
         for widget in [self.dspin_cloud_point_size, self.dspin_candidate_point_size,
                        self.spin_label_font_size, self.dspin_above_limit, self.dspin_below_limit,
+                       self.spin_legend_bands,
                        self.dspin_surface_mesh_opacity, self.combo_above_color, self.combo_below_color,
                        self.chk_show_surface_edges, self.chk_show_surface_normals,
                        self.chk_show_gage_axes]:
@@ -496,6 +510,7 @@ class VisualizationPanel(QWidget):
             'cloud_point_size': self.dspin_cloud_point_size.value(),
             'candidate_point_size': self.dspin_candidate_point_size.value(),
             'label_font_size': self.spin_label_font_size.value(),
+            'n_bands': self.spin_legend_bands.value(),
             'clim_min': self.dspin_below_limit.value(),
             'clim_max': self.dspin_above_limit.value(),
             'below_color': self.combo_below_color.currentText().lower(),
@@ -543,6 +558,10 @@ class VisualizationPanel(QWidget):
             self.combo_contour_aggregation.currentText(),
             list(getattr(self, "_contour_entries", [])),
         )
+
+    def set_legend_band_count(self, count):
+        """Set the contour band count; the valueChanged signal redraws the view."""
+        self.spin_legend_bands.setValue(int(count))
 
     def set_legend_limits(self, min_val, max_val):
         """Sets the values for the legend limit spinboxes."""
