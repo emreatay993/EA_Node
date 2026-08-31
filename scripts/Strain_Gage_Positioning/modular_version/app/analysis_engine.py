@@ -42,7 +42,9 @@ class AnalysisEngine(QObject):
     """
     # Signal emitted on successful completion of a full analysis run.
     # Carries the final data needed for visualization and reporting.
-    analysis_complete = pyqtSignal(object, object, object)  # coords, scalars, candidates_df
+    analysis_complete = pyqtSignal(
+        object, object, object, object
+    )  # coords, aggregate_scalars, case_scalars, candidates_df
 
     # Signal emitted when the K-Means preview step is ready.
     # Carries the coordinates and the cluster labels for visualization.
@@ -93,7 +95,9 @@ class AnalysisEngine(QObject):
                 return  # Stop execution here until user clicks "Continue"
 
             # Proceed with the full analysis for all other cases
-            agg_quality_df, current_scalars = self._compute_quality(nodes, coords, strain_tensors)
+            agg_quality_df, current_scalars, case_scalars = self._compute_quality(
+                nodes, coords, strain_tensors
+            )
 
             candidates_df = self._select_candidates(agg_quality_df, coords)
 
@@ -107,7 +111,9 @@ class AnalysisEngine(QObject):
             except Exception:
                 pass
 
-            self.analysis_complete.emit(coords, current_scalars, candidates_df)
+            self.analysis_complete.emit(
+                coords, current_scalars, case_scalars, candidates_df
+            )
 
         except Exception as e:
             import traceback
@@ -118,11 +124,12 @@ class AnalysisEngine(QObject):
         """Private helper to run the core strain and quality computations."""
         quality_dfs = []
         threshold_metric = None
+        case_scalars = {}
 
         if self.params["measurement_mode"] == "Rosette":
             angles = [0]
             strains_list = []
-            for tensor in strain_tensors.values():
+            for case_idx, tensor in strain_tensors.items():
                 # All internal calculations use microstrain
                 strain_data = tensor
                 # von Mises equivalent strain calculation
@@ -131,6 +138,7 @@ class AnalysisEngine(QObject):
                                 strain_data[:, 2] ** 2)
                 )
                 strains_list.append(vm_strains)
+                case_scalars[case_idx] = vm_strains
                 df = computation.compute_quality_metrics(
                     nodes, coords, vm_strains.reshape(-1, 1), angles,
                     self.params["quality_mode"], self.params["uniformity_radius"]
@@ -151,10 +159,11 @@ class AnalysisEngine(QObject):
             interval = 15
             angles = [0] + list(range(interval, 180, interval))
             strains_list = []
-            for tensor in strain_tensors.values():
+            for case_idx, tensor in strain_tensors.items():
                 strain_data = tensor
                 strains_i = computation.compute_normal_strains(strain_data, angles)
                 strains_list.append(strains_i)
+                case_scalars[case_idx] = np.max(np.abs(strains_i), axis=1)
                 df = computation.compute_quality_metrics(
                     nodes, coords, strains_i, angles,
                     self.params["quality_mode"], self.params["uniformity_radius"]
@@ -185,7 +194,7 @@ class AnalysisEngine(QObject):
             if not np.all(mask):
                 agg_quality_df = agg_quality_df.loc[mask].reset_index(drop=True)
 
-        return agg_quality_df, current_scalars
+        return agg_quality_df, current_scalars, case_scalars
 
     def _select_candidates(self, agg_quality_df, coords):
         """Private helper to dispatch to the correct selection strategy."""

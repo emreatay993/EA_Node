@@ -36,6 +36,56 @@ def _format_rst_set_summary(set_ids):
     return f"sets {shown},...{ids[-1]} ({len(ids)} sets)"
 
 
+def _format_rst_contour_entry(set_id, times):
+    label = "Set {0}".format(int(set_id))
+    index = int(set_id) - 1
+    if 0 <= index < len(times):
+        label += " — time/frequency {0:g}".format(float(times[index]))
+    return label
+
+
+def _parse_contour_set_ids(text, available_ids):
+    available_ids = [int(set_id) for set_id in available_ids]
+    if not available_ids:
+        raise ValueError("No result sets are available for contouring.")
+    value = str(text or "").strip().lower()
+    if value in ("", "all", "*"):
+        return available_ids
+
+    def _set_id(token):
+        token = token.strip()
+        return available_ids[-1] if token == "last" else int(token)
+
+    requested = []
+    try:
+        for part in value.replace(";", ",").split(","):
+            part = part.strip()
+            if not part:
+                continue
+            if "-" in part and not part.startswith("-"):
+                start_text, stop_text = part.split("-", 1)
+                start, stop = _set_id(start_text), _set_id(stop_text)
+                step = 1 if stop >= start else -1
+                requested.extend(range(start, stop + step, step))
+            else:
+                requested.append(_set_id(part))
+    except (TypeError, ValueError):
+        raise ValueError(
+            "Contour sets must use values such as all, last, 2, 1,3,5, or 2-6."
+        )
+
+    requested = list(dict.fromkeys(requested))
+    unavailable = [set_id for set_id in requested if set_id not in available_ids]
+    if not requested or unavailable:
+        raise ValueError(
+            "Contour set(s) {0} were not loaded. Available sets: {1}.".format(
+                ", ".join(str(set_id) for set_id in unavailable or requested),
+                ", ".join(str(set_id) for set_id in available_ids),
+            )
+        )
+    return requested
+
+
 def _rst_surface_result_indices(result_node_ids, surface):
     """Map each RST surface point to its solver-node result row."""
     if "DPFNodeId" not in surface.point_data:
@@ -88,6 +138,7 @@ class MainWindow(QMainWindow):
         self.preloaded_dataset = None
         self.rst_surface_mesh = None
         self.rst_named_selection = None
+        self.contour_case_entries = []
 
         # --- UI Setup ---
         self._setup_ui()
@@ -189,6 +240,9 @@ class MainWindow(QMainWindow):
 
         # --- Visualization Panel (View) -> MainWindow (Controller) ---
         self.visualization_panel.visualization_settings_changed.connect(self.refresh_visualization)
+        self.visualization_panel.contour_selection_changed.connect(
+            self.on_contour_selection_changed
+        )
 
     def set_project_directory(self):
         directory = QFileDialog.getExistingDirectory(self, "Select Project Directory", self.project_dir)
@@ -212,6 +266,8 @@ class MainWindow(QMainWindow):
             self.preloaded_dataset = None  # Text file supersedes any prior .rst import
             self.rst_surface_mesh = None
             self.rst_named_selection = None
+            self.contour_case_entries = []
+            self.visualization_panel.configure_contour_sets([], reset=True)
             self.visualization_panel.set_surface_placement_enabled(False)
             self.gage_placement_tool.set_context(None, None)
             self.last_results = {}  # Invalidate cache
@@ -282,6 +338,10 @@ class MainWindow(QMainWindow):
         self.preloaded_dataset = (nodes, coords, strain_tensors)
         self.rst_surface_mesh = surface_mesh
         self.rst_named_selection = named_selection
+        times = list(meta.get("times", []) or [])
+        self.contour_case_entries = [
+            (set_id, _format_rst_contour_entry(set_id, times)) for set_id in set_ids
+        ]
         self.input_file = None  # .rst dataset supersedes any text file
         ns_label = named_selection if named_selection else "whole model"
         shell_label = " - evaluation shells ignored" if ignore_evaluation_shells else ""
@@ -290,6 +350,11 @@ class MainWindow(QMainWindow):
             f"{_format_rst_set_summary(set_ids)} - {len(nodes):,} nodes")
         self.visualization_panel.set_surface_placement_enabled(True)
         self.last_results = {}  # Invalidate cache
+        self.visualization_panel.configure_contour_sets(
+            self.contour_case_entries,
+            default_aggregation=self.control_panel.get_parameters()["agg_method"],
+            reset=True,
+        )
         self.display_rst_surface_preview(preserve_camera=False)
 
     def toggle_display_mode(self, checked):
@@ -318,7 +383,7 @@ class MainWindow(QMainWindow):
         QCoreApplication.processEvents()  # Allow UI to update before long computation
         self.engine_thread.run()
 
-    def on_analysis_complete(self, coords, scalars, candidates_df):
+    def on_analysis_complete(self, coords, scalars, case_scalars, candidates_df):
         """Slot to receive results from the engine and update the view."""
         self.control_panel.set_button_state_ready()
 
@@ -330,17 +395,37 @@ class MainWindow(QMainWindow):
 
         # Decide whether to preserve camera based on whether we have a prior scene
         preserve_camera = bool(self.last_results)
-        self.last_results = {'coords': coords, 'scalars': scalars, 'candidates_df': candidates_df}
+        self.last_results = {
+            'coords': coords,
+            'scalars': scalars,
+            'case_scalars': dict(case_scalars),
+            'candidates_df': candidates_df,
+        }
+        if len(self.contour_case_entries) != len(case_scalars):
+            self.contour_case_entries = [
+                (index + 1, "Load case {0}".format(index + 1))
+                for index in range(len(case_scalars))
+            ]
+            self.visualization_panel.configure_contour_sets(
+                self.contour_case_entries,
+                default_aggregation=self.control_panel.get_parameters()["agg_method"],
+                reset=True,
+            )
         self.gage_placement_tool.set_context(
             self.rst_surface_mesh, candidates_df, self.rst_named_selection
         )
 
-        # Update legend limits from current data so clim matches the dataset
-        if len(scalars) > 0:
-            self.visualization_panel.set_legend_limits(float(np.min(scalars)), float(np.max(scalars)))
+        contour_scalars, contour_label = self._selected_contour_data()
+        self._set_contour_legend_limits(contour_scalars)
 
         # Draw directly, resetting camera on the first render to fit the data bounds
-        self.display_strain_with_candidates(coords, scalars, candidates_df, preserve_camera=preserve_camera)
+        self.display_strain_with_candidates(
+            coords,
+            contour_scalars,
+            candidates_df,
+            preserve_camera=preserve_camera,
+            contour_label=contour_label,
+        )
 
         self.update_candidate_table(output_path)
 
@@ -371,11 +456,63 @@ class MainWindow(QMainWindow):
                 self.display_rst_surface_preview(preserve_camera=True)
             return
 
+        contour_scalars, contour_label = self._selected_contour_data()
         self.display_strain_with_candidates(
             self.last_results['coords'],
-            self.last_results['scalars'],
+            contour_scalars,
             self.last_results['candidates_df'],
-            preserve_camera=True
+            preserve_camera=True,
+            contour_label=contour_label,
+        )
+
+    def _selected_contour_data(self):
+        set_text, aggregation, entries = self.visualization_panel.get_contour_selection()
+        available_ids = [set_id for set_id, _label in entries]
+        selected_ids = _parse_contour_set_ids(set_text, available_ids)
+        case_scalars = self.last_results.get('case_scalars', {})
+        arrays_by_set = {
+            set_id: np.asarray(case_scalars[index], dtype=float)
+            for index, (set_id, _label) in enumerate(entries)
+        }
+        selected_arrays = [arrays_by_set[set_id] for set_id in selected_ids]
+        if len(selected_arrays) == 1:
+            scalars = selected_arrays[0]
+            label = dict(entries)[selected_ids[0]]
+        else:
+            stack = np.column_stack(selected_arrays)
+            scalars = (
+                np.max(stack, axis=1)
+                if aggregation == "Max"
+                else np.mean(stack, axis=1)
+            )
+            label = "{0} of sets {1}".format(
+                aggregation,
+                ",".join(str(set_id) for set_id in selected_ids),
+            )
+        return scalars, label
+
+    def _set_contour_legend_limits(self, scalars):
+        if len(scalars) > 0:
+            self.visualization_panel.set_legend_limits(
+                float(np.min(scalars)), float(np.max(scalars))
+            )
+
+    def on_contour_selection_changed(self):
+        if not self.last_results:
+            return
+        try:
+            contour_scalars, contour_label = self._selected_contour_data()
+        except ValueError as exc:
+            QMessageBox.warning(self, "Contour Selection", str(exc))
+            self.visualization_panel.edit_contour_sets.setText("all")
+            contour_scalars, contour_label = self._selected_contour_data()
+        self._set_contour_legend_limits(contour_scalars)
+        self.display_strain_with_candidates(
+            self.last_results['coords'],
+            contour_scalars,
+            self.last_results['candidates_df'],
+            preserve_camera=True,
+            contour_label=contour_label,
         )
 
     def display_rst_surface_preview(self, preserve_camera=False):
@@ -396,11 +533,16 @@ class MainWindow(QMainWindow):
             pickable=True,
         )
 
-    def display_strain_with_candidates(self, coords, scalars, candidates_df, preserve_camera=False):
+    def display_strain_with_candidates(
+        self, coords, scalars, candidates_df, preserve_camera=False,
+        contour_label=None,
+    ):
         self.clear_visualization(preserve_camera=preserve_camera)
         plotter = self.visualization_panel.vtk_widget
         viz_settings = self.visualization_panel.get_settings()
         scalar_title = "Strain (mm/mm)" if self.display_in_strain else "Microstrain (με)"
+        if contour_label:
+            scalar_title += " — " + str(contour_label)
 
         if self.rst_surface_mesh and self.rst_surface_mesh.get("surface") is not None:
             surface = self.rst_surface_mesh["surface"]

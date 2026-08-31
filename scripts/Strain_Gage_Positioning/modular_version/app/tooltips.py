@@ -369,6 +369,13 @@ Select how the per-node strain metric is computed across multiple load cases for
 CLOUD_POINT_SIZE = "Controls the rendered size of the individual points in the main data cloud."
 CANDIDATE_POINT_SIZE = "Controls the rendered size of the highlighted magenta points, making the final candidates easier to see."
 LABEL_FONT_SIZE = "Controls the font size of the text labels ('P1', 'P2', etc.) attached to the candidate points."
+CONTOUR_SELECTION = """
+<b>Contour Sets / Time Points</b><br/><br/>
+Choose independently which loaded result sets feed the contour and hover value.
+Use <b>all</b>, <b>last</b>, one set such as <b>2</b>, a list such as
+<b>1,3,5</b>, or a range such as <b>2-6</b>. Max/Average applies only to the
+chosen contour sets and does not change strain-gage candidate selection.
+"""
 LEGEND_CONTROLS = """
 <b>Legend Color and Range Controls</b><br><br>
 These controls allow you to manually adjust the color mapping for the 3D visualization.

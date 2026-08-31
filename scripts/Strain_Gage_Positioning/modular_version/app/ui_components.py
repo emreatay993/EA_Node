@@ -4,7 +4,7 @@ os.environ.setdefault("QT_API", "pyqt6")
 import numpy as np
 from PyQt6.QtWidgets import (QGroupBox, QVBoxLayout, QGridLayout, QLabel,
                              QPushButton, QComboBox, QSpinBox, QDoubleSpinBox,
-                             QWidget, QHBoxLayout, QCheckBox)
+                             QWidget, QHBoxLayout, QCheckBox, QLineEdit)
 from PyQt6.QtCore import Qt, pyqtSignal
 from . import tooltips as tips
 
@@ -331,6 +331,7 @@ class VisualizationPanel(QWidget):
     graphical settings are changed, allowing the Controller to refresh the view.
     """
     visualization_settings_changed = pyqtSignal()
+    contour_selection_changed = pyqtSignal()
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -363,6 +364,22 @@ class VisualizationPanel(QWidget):
         graphical_layout.addWidget(QLabel("Label Size:"))
         graphical_layout.addWidget(self.spin_label_font_size)
         graphical_layout.addStretch(1)
+
+        self.contour_group = QGroupBox("Contour Controls")
+        self.contour_group.setStyleSheet(group_box_style)
+        contour_layout = QHBoxLayout(self.contour_group)
+        self.edit_contour_sets = QLineEdit("all")
+        self.edit_contour_sets.setEnabled(False)
+        self.combo_contour_aggregation = QComboBox()
+        self.combo_contour_aggregation.addItems(["Max", "Average"])
+        self.combo_contour_aggregation.setEnabled(False)
+        self.lbl_contour_sets = QLabel("No result sets loaded")
+        contour_layout.addWidget(QLabel("Sets/time points:"))
+        contour_layout.addWidget(self.edit_contour_sets)
+        contour_layout.addWidget(QLabel("Aggregation:"))
+        contour_layout.addWidget(self.combo_contour_aggregation)
+        contour_layout.addWidget(self.lbl_contour_sets)
+        contour_layout.addStretch(1)
 
         self.legend_group = QGroupBox("Legend Controls")
         self.legend_group.setStyleSheet(group_box_style)
@@ -431,6 +448,7 @@ class VisualizationPanel(QWidget):
         layout = QVBoxLayout(self)
         layout.setContentsMargins(5, 5, 5, 5)
         layout.addWidget(self.graphical_group)
+        layout.addWidget(self.contour_group)
         layout.addWidget(self.legend_group)
         layout.addWidget(self.surface_group)
         layout.addWidget(self.vtk_widget.interactor)
@@ -440,6 +458,9 @@ class VisualizationPanel(QWidget):
         self.dspin_cloud_point_size.setToolTip(tips.CLOUD_POINT_SIZE)
         self.dspin_candidate_point_size.setToolTip(tips.CANDIDATE_POINT_SIZE)
         self.spin_label_font_size.setToolTip(tips.LABEL_FONT_SIZE)
+        self.contour_group.setToolTip(tips.CONTOUR_SELECTION)
+        self.edit_contour_sets.setToolTip(tips.CONTOUR_SELECTION)
+        self.combo_contour_aggregation.setToolTip(tips.CONTOUR_SELECTION)
         self.legend_group.setToolTip(tips.LEGEND_CONTROLS)
         self.chk_show_surface_edges.setToolTip(tips.SHOW_SURFACE_EDGES)
         self.dspin_surface_mesh_opacity.setToolTip(tips.SURFACE_OPACITY)
@@ -462,6 +483,12 @@ class VisualizationPanel(QWidget):
                 widget.toggled.connect(self.visualization_settings_changed.emit)
             else:
                 widget.currentIndexChanged.connect(self.visualization_settings_changed.emit)
+        self.edit_contour_sets.editingFinished.connect(
+            self.contour_selection_changed.emit
+        )
+        self.combo_contour_aggregation.currentIndexChanged.connect(
+            self.contour_selection_changed.emit
+        )
 
     def get_settings(self):
         """Gathers all visualization settings into a dictionary."""
@@ -490,6 +517,32 @@ class VisualizationPanel(QWidget):
             self.btn_export_gage_placements,
         ]:
             widget.setEnabled(bool(enabled))
+
+    def configure_contour_sets(self, entries, default_aggregation="Max", reset=False):
+        """Configure loaded ``(set_id, label)`` entries for contour selection."""
+        entries = list(entries or [])
+        self._contour_entries = entries
+        enabled = bool(entries)
+        self.edit_contour_sets.setEnabled(enabled)
+        self.combo_contour_aggregation.setEnabled(enabled)
+        if reset:
+            self.edit_contour_sets.blockSignals(True)
+            self.combo_contour_aggregation.blockSignals(True)
+            self.edit_contour_sets.setText("all")
+            self.combo_contour_aggregation.setCurrentText(str(default_aggregation))
+            self.edit_contour_sets.blockSignals(False)
+            self.combo_contour_aggregation.blockSignals(False)
+        summary = "Loaded: " + ", ".join(str(set_id) for set_id, _ in entries) if entries else "No result sets loaded"
+        details = "\n".join(label for _, label in entries)
+        self.lbl_contour_sets.setText(summary)
+        self.lbl_contour_sets.setToolTip(details)
+
+    def get_contour_selection(self):
+        return (
+            self.edit_contour_sets.text().strip(),
+            self.combo_contour_aggregation.currentText(),
+            list(getattr(self, "_contour_entries", [])),
+        )
 
     def set_legend_limits(self, min_val, max_val):
         """Sets the values for the legend limit spinboxes."""

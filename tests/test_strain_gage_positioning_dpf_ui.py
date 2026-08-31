@@ -18,6 +18,7 @@ if str(SG_ROOT) not in sys.path:
 
 from app import dpf_loader  # noqa: E402
 from app import main_window  # noqa: E402
+from app.analysis_engine import AnalysisEngine  # noqa: E402
 from app.dpf_dialog import DpfImportDialog  # noqa: E402
 from app.ui_tools import (  # noqa: E402
     ContourHoverUI,
@@ -76,6 +77,40 @@ def test_rst_set_summary_does_not_dump_many_sets():
     assert main_window._format_rst_set_summary([1, 2, 5, 9, 12, 20, 30]) == "sets 1,2,5,...30 (7 sets)"
 
 
+def test_contour_set_parser_supports_single_ranges_and_loaded_subsets():
+    available = [1, 2, 3, 5]
+
+    assert main_window._parse_contour_set_ids("all", available) == available
+    assert main_window._parse_contour_set_ids("last", available) == [5]
+    assert main_window._parse_contour_set_ids("3", available) == [3]
+    assert main_window._parse_contour_set_ids("1-3,5", available) == available
+    with pytest.raises(ValueError, match="not loaded"):
+        main_window._parse_contour_set_ids("2-5", available)
+
+
+def test_analysis_keeps_each_case_scalar_for_contour_selection():
+    params = {
+        "measurement_mode": "Rosette",
+        "quality_mode": "Default: |ε|/(1+σ)",
+        "uniformity_radius": 2.0,
+        "agg_method": "Max",
+        "strain_threshold_enabled": False,
+    }
+    engine = AnalysisEngine(None, params, False)
+    nodes = np.array([1, 2])
+    coords = np.array([[0.0, 0.0, 0.0], [1.0, 0.0, 0.0]])
+    tensors = {
+        0: np.array([[1.0, 0.0, 0.0], [2.0, 0.0, 0.0]]),
+        1: np.array([[3.0, 0.0, 0.0], [0.5, 0.0, 0.0]]),
+    }
+
+    _quality, aggregate, cases = engine._compute_quality(nodes, coords, tensors)
+
+    np.testing.assert_allclose(cases[0], [1.0, 2.0])
+    np.testing.assert_allclose(cases[1], [3.0, 0.5])
+    np.testing.assert_allclose(aggregate, [3.0, 2.0])
+
+
 def test_dpf_dialog_can_ignore_evaluation_only_shell_results():
     app = QApplication.instance() or QApplication([])
     dialog = DpfImportDialog(
@@ -126,6 +161,9 @@ class _FakeVisualizationPanel:
     def __init__(self, plotter):
         self.vtk_widget = plotter
         self.enabled_values = []
+        self.contour_entries = []
+        self.contour_text = "all"
+        self.contour_aggregation = "Max"
         self._settings = {
             "cloud_point_size": 8.0,
             "candidate_point_size": 12.0,
@@ -145,6 +183,15 @@ class _FakeVisualizationPanel:
 
     def set_surface_placement_enabled(self, value):
         self.enabled_values.append(bool(value))
+
+    def configure_contour_sets(self, entries, default_aggregation="Max", reset=False):
+        self.contour_entries = list(entries or [])
+        if reset:
+            self.contour_text = "all"
+            self.contour_aggregation = default_aggregation
+
+    def get_contour_selection(self):
+        return self.contour_text, self.contour_aggregation, list(self.contour_entries)
 
 
 class _FakeInputPanel:
@@ -322,6 +369,34 @@ def _preview_window(surface=None):
     return window
 
 
+def test_contour_selection_is_independent_from_positioning_aggregate():
+    window = _preview_window()
+    window.visualization_panel.configure_contour_sets([
+        (1, "Set 1 — time/frequency 0.1"),
+        (2, "Set 2 — time/frequency 0.2"),
+        (3, "Set 3 — time/frequency 0.3"),
+    ])
+    window.last_results = {
+        "scalars": np.array([30.0, 30.0]),
+        "case_scalars": {
+            0: np.array([1.0, 2.0]),
+            1: np.array([10.0, 20.0]),
+            2: np.array([100.0, 200.0]),
+        },
+    }
+
+    window.visualization_panel.contour_text = "2"
+    scalars, label = main_window.MainWindow._selected_contour_data(window)
+    np.testing.assert_allclose(scalars, [10.0, 20.0])
+    assert label == "Set 2 — time/frequency 0.2"
+
+    window.visualization_panel.contour_text = "1-2"
+    window.visualization_panel.contour_aggregation = "Average"
+    scalars, label = main_window.MainWindow._selected_contour_data(window)
+    np.testing.assert_allclose(scalars, [5.5, 11.0])
+    assert label == "Average of sets 1,2"
+
+
 def test_rst_surface_result_indices_follow_solver_node_ids():
     surface = _triangle_surface()
 
@@ -474,6 +549,7 @@ def test_rst_results_render_one_interpolated_surface_contour():
         np.array([1.0, 2.0, 3.0]),
         pd.DataFrame(),
         preserve_camera=False,
+        contour_label="Set 2 — time/frequency 0.2",
     )
 
     assert len(plotter.add_mesh_calls) == 1
@@ -490,7 +566,8 @@ def test_rst_results_render_one_interpolated_surface_contour():
     assert kwargs["interpolate_before_map"] is True
     assert "render_points_as_spheres" not in kwargs
     assert window.contour_hover_tool.contexts[-1] == (
-        "actor-1", surface, "Scalars", "Microstrain (με)"
+        "actor-1", surface, "Scalars",
+        "Microstrain (με) — Set 2 — time/frequency 0.2"
     )
 
     window.visualization_panel._settings["show_surface_edges"] = False
