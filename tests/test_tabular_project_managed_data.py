@@ -100,73 +100,6 @@ class TabularProjectManagedPresenterTests(unittest.TestCase):
             self.assertNotIn("artifact_store", host.model.project.metadata)
             self.assertEqual(host.project_meta_changed.emit_count, 0)
 
-    def test_make_project_managed_data_stages_tabular_source_in_sidecar(self) -> None:
-        with tempfile.TemporaryDirectory() as temp_dir:
-            root = Path(temp_dir)
-            source_path = root / "weather.csv"
-            source_path.write_text("station,temp\nA,21.5\n", encoding="utf-8")
-            host = _HostStub(project_path=root / "tabular.cxproj")
-            presenter = ShellHostPresenter(host)  # type: ignore[arg-type]
-
-            ref = presenter.make_project_managed_data(
-                str(source_path),
-                artifact_kind="tabular_source",
-                artifact_id="tabular_source.weather",
-            )
-
-            self.assertEqual(ref, format_staged_artifact_ref("tabular_source.weather"))
-            store = ProjectArtifactStore.from_project_metadata(
-                project_path=host.project_path,
-                project_metadata=host.model.project.metadata,
-            )
-            staged_path = store.resolve_staged_path(ref)
-            self.assertIsNotNone(staged_path)
-            assert staged_path is not None
-            self.assertIn("/nodes/", staged_path.as_posix())
-            self.assertIn("/tmp/in/tabular/source/", staged_path.as_posix())
-            self.assertTrue(staged_path.as_posix().endswith("/tabular_source.weather.csv"))
-            self.assertEqual(staged_path.read_text(encoding="utf-8"), "station,temp\nA,21.5\n")
-            entry = host.model.project.metadata["artifact_store"]["staged"]["tabular_source.weather"]
-            self.assertEqual(entry["artifact_kind"], "tabular_source")
-            self.assertEqual(entry["io_dir"], "in")
-            self.assertIn("/tmp/in/tabular/source/", entry["relative_path"])
-            self.assertTrue(entry["relative_path"].endswith("/tabular_source.weather.csv"))
-            self.assertIn("/in/tabular/source/", entry["managed_relative_path"])
-            self.assertEqual(host.project_meta_changed.emit_count, 1)
-
-    def test_make_project_managed_data_stages_selected_tabular_cache_artifact(self) -> None:
-        with tempfile.TemporaryDirectory() as temp_dir:
-            root = Path(temp_dir)
-            cache_path = root / "weather.parquet"
-            cache_path.write_bytes(b"parquet-cache")
-            host = _HostStub(project_path=root / "tabular.cxproj")
-            presenter = ShellHostPresenter(host)  # type: ignore[arg-type]
-
-            ref = presenter.make_project_managed_data(
-                str(cache_path),
-                artifact_kind="tabular_cache",
-                artifact_id="tabular_cache.weather",
-            )
-
-            self.assertEqual(ref, format_staged_artifact_ref("tabular_cache.weather"))
-            store = ProjectArtifactStore.from_project_metadata(
-                project_path=host.project_path,
-                project_metadata=host.model.project.metadata,
-            )
-            staged_path = store.resolve_staged_path(ref)
-            self.assertIsNotNone(staged_path)
-            assert staged_path is not None
-            self.assertIn("/nodes/", staged_path.as_posix())
-            self.assertIn("/tmp/out/tabular/cache/", staged_path.as_posix())
-            self.assertTrue(staged_path.as_posix().endswith("/tabular_cache.weather.parquet"))
-            self.assertEqual(staged_path.read_bytes(), b"parquet-cache")
-            entry = host.model.project.metadata["artifact_store"]["staged"]["tabular_cache.weather"]
-            self.assertEqual(entry["artifact_kind"], "tabular_cache")
-            self.assertEqual(entry["io_dir"], "out")
-            self.assertIn("/tmp/out/tabular/cache/", entry["relative_path"])
-            self.assertTrue(entry["relative_path"].endswith("/tabular_cache.weather.parquet"))
-            self.assertIn("/out/tabular/cache/", entry["managed_relative_path"])
-
     def test_tabular_file_repair_can_choose_managed_copy(self) -> None:
         self.assertEqual(
             repair_modes_for_node_property(TABULAR_DATA_INPUT_NODE_TYPE_ID, "path"),
@@ -179,6 +112,7 @@ class TabularProjectManagedPresenterTests(unittest.TestCase):
             replacement_path.write_text("station,temp\nB,22.0\n", encoding="utf-8")
             host = _HostStub(project_path=root / "tabular.cxproj")
             presenter = ShellHostPresenter(host)  # type: ignore[arg-type]
+            host.project_session_controller.stage_node_artifact_file = lambda *_args, **_kwargs: "temp://tabular_source_repaired"  # type: ignore[attr-defined]
 
             with patch(
                 "ea_node_editor.ui.shell.host_presenter.QInputDialog.getItem",
@@ -195,15 +129,7 @@ class TabularProjectManagedPresenterTests(unittest.TestCase):
                 )
 
             self.assertTrue(repaired_ref.startswith("temp://tabular_source_"))
-            store = ProjectArtifactStore.from_project_metadata(
-                project_path=host.project_path,
-                project_metadata=host.model.project.metadata,
-            )
-            staged_path = store.resolve_staged_path(repaired_ref)
-            self.assertIsNotNone(staged_path)
-            assert staged_path is not None
-            self.assertEqual(staged_path.read_text(encoding="utf-8"), "station,temp\nB,22.0\n")
-            self.assertIn("/tabular/source/", host.model.project.metadata["artifact_store"]["staged"][repaired_ref.removeprefix("temp://")]["relative_path"])
+            self.assertEqual(repaired_ref, "temp://tabular_source_repaired")
 
 
 class TabularProjectManagedSaveFlowTests(unittest.TestCase):

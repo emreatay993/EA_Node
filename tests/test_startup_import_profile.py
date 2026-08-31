@@ -66,6 +66,31 @@ print(json.dumps({
 
         self.assertLessEqual(statistics.median(samples), 1000.0)
 
+    def test_project_file_owners_keep_notebook_dependencies_lazy(self) -> None:
+        script = """
+import json
+import sys
+
+import ea_node_editor.ui.shell.controllers.project_session_controller
+import ea_node_editor.ui.shell.controllers.project_session_services_support.project_files_service
+import ea_node_editor.ui.shell.host_presenter
+
+print(json.dumps({
+    "nbformat_loaded": "nbformat" in sys.modules,
+    "notebook_files_loaded": "ea_node_editor.jupyter_host.notebook_files" in sys.modules,
+}))
+"""
+        result = self._run_python(script)
+
+        self.assertEqual(result.returncode, 0, msg=result.stderr or result.stdout)
+        self.assertEqual(
+            json.loads(result.stdout),
+            {
+                "nbformat_loaded": False,
+                "notebook_files_loaded": False,
+            },
+        )
+
     def test_both_qml_hosts_report_set_source_phase(self) -> None:
         script = """
 import json

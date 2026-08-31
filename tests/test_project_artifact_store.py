@@ -173,12 +173,16 @@ class ProjectArtifactStoreTests(unittest.TestCase):
                 / "run.txt",
             )
 
-    def test_commit_referenced_artifacts_promotes_tmp_out_to_out(self) -> None:
+    def test_stage_project_save_copies_tmp_out_to_destination_store(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
-            project_path = Path(temp_dir) / "demo.cxproj"
-            store = ProjectArtifactStore(project_path=project_path, metadata=None)
-            root = store.ensure_staging_root()
-            paths = store.node_artifact_paths(
+            source_project_path = Path(temp_dir) / "source.cxproj"
+            destination_project_path = Path(temp_dir) / "destination.cxproj"
+            source_store = ProjectArtifactStore(
+                project_path=source_project_path,
+                metadata=None,
+            )
+            root = source_store.ensure_staging_root()
+            paths = source_store.node_artifact_paths(
                 artifact_id="generated.ws.node.stdout",
                 workspace_id="ws",
                 node_id="node",
@@ -192,7 +196,7 @@ class ProjectArtifactStoreTests(unittest.TestCase):
             staged_path.parent.mkdir(parents=True, exist_ok=True)
             staged_path.write_text("payload", encoding="utf-8")
             runtime_ref = register_staged_artifact(
-                store=store,
+                store=source_store,
                 artifact_id="generated.ws.node.stdout",
                 payload_path=staged_path,
                 relative_path=paths.staged_relative_path,
@@ -204,69 +208,49 @@ class ProjectArtifactStoreTests(unittest.TestCase):
                 entry_metadata=paths.metadata,
             )
 
-            result = store.commit_referenced_artifacts(referenced_staged_ids={"generated.ws.node.stdout"})
+            stage = source_store.stage_project_save(
+                destination_project_path=destination_project_path,
+                workspaces={
+                    "ws": SimpleNamespace(
+                        workspace_id="ws",
+                        name="Workspace",
+                        nodes={},
+                    )
+                },
+                referenced_staged_ids={"generated.ws.node.stdout"},
+            )
+            destination_store = stage.destination_store
 
-            managed_path = root.joinpath(*PurePosixPath(paths.managed_relative_path).parts)
+            managed_path = destination_store.resolve_managed_path(
+                "generated.ws.node.stdout"
+            )
+            self.assertIsNotNone(managed_path)
+            if managed_path is None:
+                self.fail("copy-on-write stage did not register the managed artifact")
             self.assertEqual(
-                result.ref_replacements,
+                stage.ref_replacements,
                 {"temp://generated.ws.node.stdout": "saved://generated.ws.node.stdout"},
             )
-            self.assertEqual(result.promoted_artifact_ids, ("generated.ws.node.stdout",))
+            self.assertEqual(stage.promoted_artifact_ids, ("generated.ws.node.stdout",))
             self.assertEqual(managed_path.read_text(encoding="utf-8"), "payload")
-            self.assertFalse(staged_path.exists())
+            self.assertTrue(staged_path.exists())
+            self.assertEqual(staged_path.read_text(encoding="utf-8"), "payload")
             self.assertEqual(
-                store.metadata["artifacts"]["generated.ws.node.stdout"]["relative_path"],
+                destination_store.metadata["artifacts"]["generated.ws.node.stdout"]["relative_path"],
                 paths.managed_relative_path,
             )
             self.assertEqual(
-                store.metadata["artifacts"]["generated.ws.node.stdout"]["slot"],
+                destination_store.metadata["artifacts"]["generated.ws.node.stdout"]["slot"],
                 "ws:node:stdout",
             )
             self.assertEqual(
-                store.metadata["artifacts"]["generated.ws.node.stdout"][
+                destination_store.metadata["artifacts"]["generated.ws.node.stdout"][
                     "runtime_artifact"
                 ],
                 runtime_ref.to_descriptor(),
             )
-            self.assertEqual(store.metadata["staged"], {})
-
-    def test_commit_referenced_artifacts_copies_locked_staged_file_when_move_is_denied(self) -> None:
-        with tempfile.TemporaryDirectory() as temp_dir:
-            project_path = Path(temp_dir) / "demo.cxproj"
-            store = ProjectArtifactStore(project_path=project_path, metadata=None)
-            root = store.ensure_staging_root()
-            paths = store.node_artifact_paths(
-                artifact_id="video_source",
-                workspace_id="ws",
-                node_id="video",
-                node_title="Video Panel",
-                node_type="Video Panel",
-                io_dir="in",
-                subdirectory="media",
-                filename="clip.mp4",
-            )
-            staged_path = root.joinpath(*PurePosixPath(paths.staged_relative_path).parts)
-            staged_path.parent.mkdir(parents=True, exist_ok=True)
-            staged_path.write_bytes(b"mp4 payload")
-            store.register_staged_entry("video_source", relative_path=paths.staged_relative_path, extra=paths.metadata)
-
-            with (
-                patch(
-                    "ea_node_editor.persistence.artifact_store._move_or_replace_path",
-                    side_effect=PermissionError("source is locked"),
-                ),
-                patch("ea_node_editor.persistence.artifact_store._delete_path", return_value=False),
-                patch("ea_node_editor.persistence.artifact_store.shutil.rmtree", return_value=None),
-            ):
-                result = store.commit_referenced_artifacts(referenced_staged_ids={"video_source"})
-
-            managed_path = root.joinpath(*PurePosixPath(paths.managed_relative_path).parts)
-            self.assertEqual(result.ref_replacements, {"temp://video_source": "saved://video_source"})
-            self.assertEqual(result.promoted_artifact_ids, ("video_source",))
-            self.assertEqual(managed_path.read_bytes(), b"mp4 payload")
-            self.assertTrue(staged_path.exists())
-            self.assertEqual(store.metadata["artifacts"]["video_source"]["relative_path"], paths.managed_relative_path)
-            self.assertEqual(store.metadata["staged"], {})
+            self.assertEqual(destination_store.metadata["staged"], {})
+            self.assertIn("generated.ws.node.stdout", source_store.metadata["staged"])
 
     def test_discard_staged_payloads_deletes_only_tmp_payloads_for_saved_project(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

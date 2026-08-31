@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 import copy
+from collections.abc import Callable
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -81,11 +82,13 @@ class JupyterServerBridge(QObject):
         *,
         shell_window: "ShellWindow | None" = None,
         python_executable: str = "",
+        create_blank_notebook_artifact: Callable[..., str] | None = None,
     ) -> None:
         super().__init__(parent)
         self.setObjectName("jupyterServerBridge")
         self._shell_window = shell_window
         self._python_executable = str(python_executable or "")
+        self._create_blank_notebook_artifact = create_blank_notebook_artifact
         self._thread_pool: QThreadPool | None = None
         self._max_threads = 2
         self._shutdown = False
@@ -142,8 +145,7 @@ class JupyterServerBridge(QObject):
     @pyqtSlot(str, str)
     def createBlankNotebook(self, node_id: str, kernel_name: str) -> None:
         node = str(node_id or "")
-        presenter = getattr(self._shell_window, "shell_host_presenter", None)
-        creator = getattr(presenter, "create_blank_managed_notebook", None)
+        creator = self._create_blank_notebook_artifact
         if not callable(creator):
             self.serverFailed.emit(node, "Open or save a project before creating a notebook.")
             return

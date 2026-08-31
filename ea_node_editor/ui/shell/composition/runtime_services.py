@@ -176,6 +176,7 @@ def create_viewer_service_dependencies(
     jupyter_server_bridge = JupyterServerBridge(
         host,
         shell_window=host,
+        create_blank_notebook_artifact=project_session.create_blank_notebook_artifact,
     )
     return ShellRuntimeDependencies(
         content_fullscreen_bridge=content_fullscreen_bridge,

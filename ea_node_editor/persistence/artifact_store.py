@@ -1,3 +1,8 @@
+# Purpose: Own project sidecar artifact metadata, safe paths, copy-on-write save staging, and cleanup.
+# Map: feature_routes/managed_artifacts_project_data.md
+# Tests: tests/test_project_artifact_store.py, tests/test_project_file_staging.py
+# Landmarks: ProjectArtifactStore; stage_project_save; collect_project_save_garbage
+
 from __future__ import annotations
 
 import copy
@@ -346,36 +351,6 @@ def _merge_move_path(source: Path, destination: Path, *, strict: bool = False) -
     if strict:
         _verify_strict_moved(source, destination)
     return True
-
-
-def _move_or_replace_path(source: Path, destination: Path) -> None:
-    shutil.move(str(source), str(destination))
-
-
-def _promote_staged_payload(
-    source: Path,
-    destination: Path,
-    *,
-    stop_roots: tuple[Path, ...],
-) -> bool:
-    if not source.exists():
-        return False
-    if source == destination:
-        return destination.exists()
-
-    destination.parent.mkdir(parents=True, exist_ok=True)
-    try:
-        _move_or_replace_path(source, destination)
-    except PermissionError:
-        if not source.is_file():
-            raise
-        shutil.copy2(source, destination)
-        if _delete_path(source):
-            _prune_empty_ancestors(source.parent, stop_roots=stop_roots)
-        return destination.exists()
-
-    _prune_empty_ancestors(source.parent, stop_roots=stop_roots)
-    return destination.exists()
 
 
 def _metadata_entry_relative_path(
@@ -1122,14 +1097,6 @@ class ArtifactStoreState:
         if self.staging_root is not None:
             payload["staging_root"] = self.staging_root.to_metadata_entry()
         return payload
-
-
-@dataclass(frozen=True, slots=True)
-class SavePromotionResult:
-    ref_replacements: dict[str, str] = field(default_factory=dict)
-    promoted_artifact_ids: tuple[str, ...] = ()
-    pruned_artifact_ids: tuple[str, ...] = ()
-    discarded_staged_ids: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -2039,107 +2006,6 @@ class ProjectArtifactStore:
             self._state = replace(self._state, artifacts=artifacts, staged=staged)
         return changed
 
-    def commit_referenced_artifacts(
-        self,
-        *,
-        referenced_managed_ids: Iterable[object] = (),
-        referenced_staged_ids: Iterable[object] = (),
-    ) -> SavePromotionResult:
-        layout = self.layout
-        if layout is None:
-            raise ValueError("project_path is required to promote staged artifacts")
-
-        protected_managed_ids = {
-            artifact_id
-            for artifact_id in (coerce_managed_artifact_id(value) for value in referenced_managed_ids)
-            if artifact_id
-        }
-        referenced_stage_ids = {
-            artifact_id
-            for artifact_id in (coerce_staged_artifact_id(value) for value in referenced_staged_ids)
-            if artifact_id
-        }
-        protected_managed_ids.update(referenced_stage_ids)
-
-        promoted_ids: list[str] = []
-        pruned_ids: list[str] = []
-        discarded_ids: list[str] = []
-        ref_replacements: dict[str, str] = {}
-        stop_roots = self._cleanup_stop_roots()
-        staged = dict(self._state.staged)
-        artifacts = dict(self._state.artifacts)
-
-        for root in (layout.sidecar_root, layout.workspaces_root):
-            root.mkdir(parents=True, exist_ok=True)
-
-        for artifact_id, staged_entry in list(staged.items()):
-            source_path = staged_entry.absolute_path(layout, self._state.staging_root)
-            if artifact_id not in referenced_stage_ids:
-                if self._delete_staged_entry_payload(staged_entry, stop_roots=stop_roots):
-                    discarded_ids.append(artifact_id)
-                staged.pop(artifact_id, None)
-                continue
-            if source_path is None or not source_path.exists():
-                continue
-
-            relative_path = self._managed_relative_path_for_staged_entry(
-                artifact_id,
-                staged_entry,
-                source_path=source_path,
-            )
-            destination_path = layout.absolute_path_for_relative(relative_path)
-            existing_entry = artifacts.get(artifact_id)
-            existing_path = existing_entry.absolute_path(layout) if existing_entry is not None else None
-            destination_path.parent.mkdir(parents=True, exist_ok=True)
-
-            if existing_path is not None and existing_path != destination_path and _delete_path(existing_path):
-                _prune_empty_ancestors(existing_path.parent, stop_roots=stop_roots)
-            if destination_path.exists() and destination_path != source_path:
-                _delete_path(destination_path)
-            if source_path != destination_path:
-                promoted = _promote_staged_payload(
-                    source_path,
-                    destination_path,
-                    stop_roots=stop_roots,
-                )
-                if not promoted:
-                    continue
-
-            artifacts[artifact_id] = ManagedArtifactEntry(
-                artifact_id=artifact_id,
-                relative_path=relative_path,
-                extra=self._managed_extra_from_staged_entry(staged_entry),
-            )
-            staged.pop(artifact_id, None)
-            protected_managed_ids.add(artifact_id)
-            promoted_ids.append(artifact_id)
-            ref_replacements[self.staged_ref(artifact_id)] = self.managed_ref(artifact_id)
-
-        for artifact_id, managed_entry in list(artifacts.items()):
-            if artifact_id in protected_managed_ids:
-                continue
-            managed_path = managed_entry.absolute_path(layout)
-            if _delete_path(managed_path):
-                _prune_empty_ancestors(managed_path.parent, stop_roots=stop_roots)
-            artifacts.pop(artifact_id, None)
-            pruned_ids.append(artifact_id)
-
-        if not staged and self._state.staging_root is not None:
-            shutil.rmtree(self._state.staging_root.as_path(), ignore_errors=True)
-        staging_root = self._state.staging_root if staged else None
-        self._state = replace(
-            self._state,
-            artifacts=artifacts,
-            staged=staged,
-            staging_root=staging_root,
-        )
-        return SavePromotionResult(
-            ref_replacements=ref_replacements,
-            promoted_artifact_ids=tuple(sorted(promoted_ids)),
-            pruned_artifact_ids=tuple(sorted(pruned_ids)),
-            discarded_staged_ids=tuple(sorted(discarded_ids)),
-        )
-
     def stage_project_save(
         self,
         *,
@@ -2391,20 +2257,6 @@ class ProjectArtifactStore:
         if self._state.staging_root is not None:
             roots.append(self._state.staging_root.as_path())
         return tuple(roots)
-
-    def _delete_staged_entry_payload(
-        self,
-        entry: StagedArtifactEntry,
-        *,
-        stop_roots: tuple[Path, ...],
-    ) -> bool:
-        staged_path = entry.absolute_path(self.layout, self._state.staging_root)
-        if staged_path is None:
-            return False
-        removed = _delete_path(staged_path)
-        if removed:
-            _prune_empty_ancestors(staged_path.parent, stop_roots=stop_roots)
-        return removed
 
     def _workspace_scoped_managed_entry(
         self,

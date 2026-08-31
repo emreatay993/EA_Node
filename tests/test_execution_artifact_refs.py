@@ -94,19 +94,23 @@ def _register_staged_fixture(
     return payload_path, runtime_ref
 
 
-def _promote_managed_fixture(
+def _stage_managed_fixture(
     *,
     temporary_root_parent: str | Path,
 ) -> tuple[ProjectArtifactStore, RuntimeArtifactService, RuntimeArtifactRef]:
+    source_project_path = Path(temporary_root_parent) / "source.cxproj"
     project_path = Path(temporary_root_parent) / "artifact.cxproj"
-    store = ProjectArtifactStore(project_path=project_path, metadata=None)
+    source_store = ProjectArtifactStore(project_path=source_project_path, metadata=None)
     _payload_path, staged_ref = _register_staged_fixture(
-        store,
+        source_store,
         temporary_root_parent=temporary_root_parent,
     )
-    store.commit_referenced_artifacts(
+    stage = source_store.stage_project_save(
+        destination_project_path=project_path,
+        workspaces={},
         referenced_staged_ids={staged_ref.artifact_id},
     )
+    store = stage.destination_store
     entry = store.managed_entry(staged_ref.artifact_id)
     if entry is None:
         raise AssertionError("promoted artifact entry is missing")
@@ -1076,13 +1080,16 @@ class ExecutionArtifactRefProtocolTests(unittest.TestCase):
             )
             self.assertEqual(service.resolve_path(staged_ref), payload_path)
 
-            promotion = store.commit_referenced_artifacts(
+            stage = store.stage_project_save(
+                destination_project_path=Path(temp_dir) / "published.cxproj",
+                workspaces={},
                 referenced_staged_ids={staged_ref.artifact_id},
             )
             self.assertEqual(
-                promotion.ref_replacements,
+                stage.ref_replacements,
                 {staged_ref.ref: f"saved://{staged_ref.artifact_id}"},
             )
+            destination_store = stage.destination_store
             managed_ref = RuntimeArtifactRef.managed(
                 staged_ref.artifact_id,
                 data_type_id=staged_ref.data_type_id,
@@ -1093,7 +1100,7 @@ class ExecutionArtifactRefProtocolTests(unittest.TestCase):
                 provenance=staged_ref.provenance,
                 metadata=staged_ref.metadata,
             )
-            managed_entry = store.managed_entry(managed_ref.artifact_id)
+            managed_entry = destination_store.managed_entry(managed_ref.artifact_id)
             self.assertIsNotNone(managed_entry)
             if managed_entry is None:
                 self.fail("promoted artifact entry is missing")
@@ -1101,21 +1108,30 @@ class ExecutionArtifactRefProtocolTests(unittest.TestCase):
                 managed_entry.extra["runtime_artifact"],
                 managed_ref.to_descriptor(),
             )
+            destination_service = RuntimeArtifactService(
+                runtime_context=RuntimeSnapshotContext.from_snapshot(
+                    None,
+                    project_path=str(destination_store.project_path),
+                    artifact_store=destination_store,
+                ),
+                data_types=_DATA_TYPES,
+            )
             self.assertEqual(
-                service.resolve_path(managed_ref),
-                store.resolve_managed_path(managed_ref.artifact_id),
+                destination_service.resolve_path(managed_ref),
+                destination_store.resolve_managed_path(managed_ref.artifact_id),
             )
             with self.assertRaisesRegex(
                 FileNotFoundError,
                 "not registered in the active store",
             ):
-                service.resolve_path(staged_ref)
+                destination_service.resolve_path(staged_ref)
+            self.assertEqual(service.resolve_path(staged_ref), payload_path)
 
     def test_runtime_artifact_service_materializes_registered_saved_ref(
         self,
     ) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
-            store, service, managed_ref = _promote_managed_fixture(
+            store, service, managed_ref = _stage_managed_fixture(
                 temporary_root_parent=temp_dir,
             )
 
@@ -1131,7 +1147,7 @@ class ExecutionArtifactRefProtocolTests(unittest.TestCase):
         self,
     ) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
-            store, service, managed_ref = _promote_managed_fixture(
+            store, service, managed_ref = _stage_managed_fixture(
                 temporary_root_parent=temp_dir,
             )
             raw_ref = managed_ref.ref
@@ -1251,7 +1267,7 @@ class ExecutionArtifactRefProtocolTests(unittest.TestCase):
         self,
     ) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
-            store, service, managed_ref = _promote_managed_fixture(
+            store, service, managed_ref = _stage_managed_fixture(
                 temporary_root_parent=temp_dir,
             )
             raw_property = {
@@ -1377,7 +1393,7 @@ class ExecutionArtifactRefProtocolTests(unittest.TestCase):
         self,
     ) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
-            store, service, managed_ref = _promote_managed_fixture(
+            store, service, managed_ref = _stage_managed_fixture(
                 temporary_root_parent=temp_dir,
             )
             node_id = "node"
@@ -1493,7 +1509,7 @@ class ExecutionArtifactRefProtocolTests(unittest.TestCase):
         self,
     ) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
-            store, service, managed_ref = _promote_managed_fixture(
+            store, service, managed_ref = _stage_managed_fixture(
                 temporary_root_parent=temp_dir,
             )
             node_id = "trigger"
@@ -1564,7 +1580,7 @@ class ExecutionArtifactRefProtocolTests(unittest.TestCase):
         self,
     ) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
-            _store, service, managed_ref = _promote_managed_fixture(
+            _store, service, managed_ref = _stage_managed_fixture(
                 temporary_root_parent=temp_dir,
             )
             trigger_id = "trigger"

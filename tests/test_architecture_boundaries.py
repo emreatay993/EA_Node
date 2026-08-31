@@ -414,6 +414,13 @@ class GraphArchitectureBoundaryTests(unittest.TestCase):
 
         self.assertIn("replace_project_artifact_store", controller_methods)
         self.assertIn("replace_project_artifact_store", project_files_methods)
+        staging_methods = {
+            "stage_node_artifact_file",
+            "stage_node_artifact_bytes",
+            "create_blank_notebook_artifact",
+        }
+        self.assertTrue(staging_methods <= controller_methods)
+        self.assertTrue(staging_methods <= project_files_methods)
         self.assertNotIn("_set_project_artifact_store", controller_methods)
         self.assertNotIn("_set_project_artifact_store", project_files_methods)
 
@@ -427,6 +434,99 @@ class GraphArchitectureBoundaryTests(unittest.TestCase):
                     "_set_project_artifact_store",
                     (REPO_ROOT / relative_path).read_text(encoding="utf-8"),
                 )
+
+    def test_project_file_staging_callers_use_the_controller_owned_service(self) -> None:
+        host_presenter_path = "ea_node_editor/ui/shell/host_presenter.py"
+        host_presenter_tree = parse_module(host_presenter_path)
+        host_presenter_source = (REPO_ROOT / host_presenter_path).read_text(
+            encoding="utf-8"
+        )
+        host_presenter_methods = {
+            node.name
+            for node in class_node(host_presenter_tree, "ShellHostPresenter").body
+            if isinstance(node, ast.FunctionDef)
+        }
+        self.assertFalse(
+            {
+                "create_blank_managed_notebook",
+                "make_project_managed_data",
+                "stage_clipboard_paste_bytes",
+                "_node_artifact_context",
+                "_persist_project_artifact_store",
+                "_import_source_as_managed_copy",
+            }
+            & host_presenter_methods
+        )
+        for forbidden in (
+            "PROJECT_ARTIFACT_STORE_METADATA_KEY",
+            "register_staged_entry(",
+            "ensure_project_staging_root(",
+            "node_artifact_paths(",
+            "shutil.copy2(",
+            ".write_bytes(",
+            "create_blank_notebook(",
+        ):
+            with self.subTest(host_presenter_forbidden=forbidden):
+                self.assertNotIn(forbidden, host_presenter_source)
+
+        workspace_edit_tree = parse_module(
+            "ea_node_editor/ui/shell/controllers/workspace_edit_ops.py"
+        )
+        clipboard_stage = ast.unparse(
+            method_node(
+                workspace_edit_tree,
+                "WorkspaceEditOps",
+                "_stage_clipboard_artifact",
+            )
+        )
+        self.assertIn("project_session_controller", clipboard_stage)
+        self.assertIn("stage_node_artifact_bytes", clipboard_stage)
+        self.assertNotIn("shell_host_presenter", clipboard_stage)
+
+        graph_canvas_tree = parse_module(
+            "ea_node_editor/ui/shell/presenters/graph_canvas_presenter.py"
+        )
+        for method_name in (
+            "_stage_image_crop",
+            "_stage_video_frame_capture",
+            "_stage_video_clip",
+        ):
+            method_source = ast.unparse(
+                method_node(
+                    graph_canvas_tree,
+                    "GraphCanvasPresenter",
+                    method_name,
+                )
+            )
+            with self.subTest(graph_canvas_method=method_name):
+                self.assertIn("project_session_controller", method_source)
+                self.assertIn("stage_node_artifact_bytes", method_source)
+                self.assertNotIn("shell_host_presenter", method_source)
+
+        jupyter_path = "ea_node_editor/ui_qml/jupyter_server_bridge.py"
+        jupyter_tree = parse_module(jupyter_path)
+        jupyter_init = method_node(jupyter_tree, "JupyterServerBridge", "__init__")
+        self.assertIn(
+            "create_blank_notebook_artifact",
+            function_args(jupyter_init),
+        )
+        create_blank_source = ast.unparse(
+            method_node(
+                jupyter_tree,
+                "JupyterServerBridge",
+                "createBlankNotebook",
+            )
+        )
+        self.assertIn("self._create_blank_notebook_artifact", create_blank_source)
+        self.assertNotIn("shell_host_presenter", create_blank_source)
+        runtime_source = (
+            REPO_ROOT / "ea_node_editor/ui/shell/composition/runtime_services.py"
+        ).read_text(encoding="utf-8")
+        self.assertIn(
+            "create_blank_notebook_artifact="
+            "project_session.create_blank_notebook_artifact",
+            runtime_source,
+        )
 
     def test_content_fullscreen_uses_only_explicit_owner_dependencies(self) -> None:
         relative_path = "ea_node_editor/ui_qml/content_fullscreen_bridge.py"
@@ -528,6 +628,9 @@ class GraphArchitectureBoundaryTests(unittest.TestCase):
         )
 
     def test_production_save_path_uses_only_copy_on_write_staging(self) -> None:
+        artifact_store_source = (
+            REPO_ROOT / "ea_node_editor" / "persistence" / "artifact_store.py"
+        ).read_text(encoding="utf-8")
         document_io_source = (
             REPO_ROOT
             / "ea_node_editor"
@@ -545,6 +648,16 @@ class GraphArchitectureBoundaryTests(unittest.TestCase):
         self.assertNotIn(".commit_referenced_artifacts(", save_source)
         self.assertNotIn(".save_document(", save_source)
         self.assertNotIn("project_save_as_dialog", document_io_source)
+        self.assertIn("def stage_project_save(", artifact_store_source)
+        for retired_symbol in (
+            "SavePromotionResult",
+            "_move_or_replace_path",
+            "_promote_staged_payload",
+            "_delete_staged_entry_payload",
+            "commit_referenced_artifacts",
+        ):
+            with self.subTest(symbol=retired_symbol):
+                self.assertNotIn(retired_symbol, artifact_store_source)
 
     def test_runtime_contracts_do_not_import_execution_implementation(self) -> None:
         contract_root = REPO_ROOT / "ea_node_editor" / "runtime_contracts"

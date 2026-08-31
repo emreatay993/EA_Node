@@ -94,6 +94,7 @@ class _GraphCanvasPresenterHostProtocol(Protocol):
     workspace_manager: Any
     quick_widget: Any
     shell_host_presenter: Any
+    project_session_controller: Any
     viewer_host_service: Any
     plot_host_service: Any
     embedded_viewer_overlay_manager: Any

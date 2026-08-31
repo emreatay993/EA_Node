@@ -1,15 +1,17 @@
+# Purpose: Own native shell dialogs, import policy, preferences, and presentation actions.
+# Map: subsystems/ui_shell.md
+# Tests: tests/test_shell_project_session_controller.py, tests/test_tabular_project_managed_data.py
+# Landmarks: ShellHostPresenter; property path dialogs; graphics preferences; passive-style actions
+
 from __future__ import annotations
 
 import copy
-import hashlib
 import json
-import shutil
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 import weakref
-from uuid import uuid4
 
 from PyQt6.QtCore import QObject, Qt
 from PyQt6.QtGui import QColor, QCursor
@@ -23,13 +25,10 @@ from ea_node_editor.graph.file_issue_state import (
     preferred_repair_mode_for_value,
     repair_modes_for_node_property,
 )
-from ea_node_editor.jupyter_host.notebook_files import create_blank_notebook
 from ea_node_editor.persistence.artifact_resolution import ProjectArtifactResolver
 from ea_node_editor.settings import (
     DEFAULT_GRAPHICS_SETTINGS,
-    PROJECT_ARTIFACT_STORE_METADATA_KEY,
     PROJECT_NODE_INPUTS_DIRNAME,
-    PROJECT_NODE_OUTPUTS_DIRNAME,
 )
 from ea_node_editor.telemetry.status_service import EngineState, ShellStatusService
 from ea_node_editor.ui.media_preview_provider import set_media_preview_project_context_provider
@@ -126,19 +125,6 @@ _JUPYTER_NOTEBOOK_IMPORT_TARGET = _ProjectManagedImportTarget(
     "jupyter_notebook",
     {"artifact_kind": "jupyter_notebook"},
 )
-_TABULAR_CACHE_IMPORT_TARGET = _ProjectManagedImportTarget(
-    PROJECT_NODE_OUTPUTS_DIRNAME,
-    "tabular/cache",
-    "tabular_cache",
-    {"artifact_kind": "tabular_cache"},
-)
-_TABULAR_IMPORT_TARGETS = {
-    "tabular_source": _TABULAR_SOURCE_IMPORT_TARGET,
-    "source": _TABULAR_SOURCE_IMPORT_TARGET,
-    "tabular_cache": _TABULAR_CACHE_IMPORT_TARGET,
-    "cache": _TABULAR_CACHE_IMPORT_TARGET,
-    "artifact": _TABULAR_CACHE_IMPORT_TARGET,
-}
 _RENDERER_LABELS = {
     QSGRendererInterface.GraphicsApi.Direct3D11Rhi: "Direct3D 11",
     QSGRendererInterface.GraphicsApi.Direct3D12: "Direct3D 12",
@@ -249,7 +235,7 @@ class ShellHostPresenter(QObject):
             and self._host.app_preferences_controller.source_import_mode() == EXTERNAL_LINK_MODE
         ):
             return normalized_path
-        managed_ref = self._import_source_as_managed_copy(
+        managed_ref = self._stage_property_source_file(
             property_label=property_label,
             current_path=current_path,
             selected_path=normalized_path,
@@ -281,7 +267,7 @@ class ShellHostPresenter(QObject):
         source_path = resolution.absolute_path
         if source_path is None or not source_path.exists() or not source_path.is_file():
             return ""
-        return self._import_source_as_managed_copy(
+        return self._stage_property_source_file(
             property_label=property_label,
             current_path=normalized_current,
             selected_path=str(source_path),
@@ -405,7 +391,7 @@ class ShellHostPresenter(QObject):
         if selected_mode == EXTERNAL_LINK_MODE:
             return normalized_selected_path
 
-        managed_ref = self._import_source_as_managed_copy(
+        managed_ref = self._stage_property_source_file(
             property_label=normalized_label,
             current_path=normalized_current_path,
             selected_path=normalized_selected_path,
@@ -451,7 +437,7 @@ class ShellHostPresenter(QObject):
         accepted = dialog.exec() == QDialog.DialogCode.Accepted
         return prompt_field.text(), accepted
 
-    def _import_source_as_managed_copy(
+    def _stage_property_source_file(
         self,
         *,
         property_label: str,
@@ -474,81 +460,19 @@ class ShellHostPresenter(QObject):
         source_path = self._resolve_source_file_path(selected_path)
         if source_path is None:
             return ""
-        if not source_path.exists() or not source_path.is_file():
-            return ""
 
-        artifact_id = self._current_source_artifact_id(current_path) or f"{import_target.artifact_prefix}_{uuid4().hex}"
-        workspace_id, workspace_name, resolved_node_id, resolved_node_title, resolved_node_type = self._node_artifact_context(
+        return self._host.project_session_controller.stage_node_artifact_file(
+            source_path,
+            artifact_prefix=import_target.artifact_prefix,
+            io_dir=import_target.io_dir,
+            artifact_id=self._current_source_artifact_id(current_path),
+            subdirectory=import_target.subdirectory,
+            filename=source_path.name,
+            entry_metadata=import_target.extra,
             node_id=node_id,
             node_title=node_title,
             node_type=node_type or node_type_id,
         )
-
-        staging_root = self._host.project_session_controller.ensure_project_staging_root()
-        store = self._host.project_session_controller.project_artifact_store()
-        artifact_paths = store.node_artifact_paths(
-            artifact_id=artifact_id,
-            workspace_id=workspace_id,
-            workspace_name=workspace_name,
-            node_id=resolved_node_id,
-            node_title=resolved_node_title,
-            node_type=resolved_node_type,
-            io_dir=import_target.io_dir,
-            subdirectory=import_target.subdirectory,
-            filename=source_path.name,
-        )
-        destination_path = staging_root.joinpath(*Path(artifact_paths.staged_relative_path).parts)
-        destination_path.parent.mkdir(parents=True, exist_ok=True)
-        if source_path.resolve() != destination_path.resolve():
-            shutil.copy2(source_path, destination_path)
-
-        store.register_staged_entry(
-            artifact_id,
-            relative_path=artifact_paths.staged_relative_path,
-            extra={**dict(import_target.extra), **artifact_paths.metadata},
-        )
-        self._persist_project_artifact_store(store)
-        return store.staged_ref(artifact_id)
-
-    def create_blank_managed_notebook(self, node_id: str = "", *, kernel_name: str = "") -> str:
-        """Stage a fresh blank ``.ipynb`` for a Jupyter node and return its staged ref.
-
-        Mirrors ``_import_source_as_managed_copy`` but writes a new notebook
-        instead of copying a picked source, so create-new rides the same
-        project-managed artifact pipeline (and Save/Save-As promotion) as
-        open-existing.
-        """
-        import_target = _JUPYTER_NOTEBOOK_IMPORT_TARGET
-        artifact_id = f"{import_target.artifact_prefix}_{uuid4().hex}"
-        workspace_id, workspace_name, resolved_node_id, resolved_node_title, resolved_node_type = (
-            self._node_artifact_context(
-                node_id=node_id,
-                node_type=_JUPYTER_NOTEBOOK_NODE_TYPE_ID,
-            )
-        )
-        staging_root = self._host.project_session_controller.ensure_project_staging_root()
-        store = self._host.project_session_controller.project_artifact_store()
-        artifact_paths = store.node_artifact_paths(
-            artifact_id=artifact_id,
-            workspace_id=workspace_id,
-            workspace_name=workspace_name,
-            node_id=resolved_node_id,
-            node_title=resolved_node_title,
-            node_type=resolved_node_type,
-            io_dir=import_target.io_dir,
-            subdirectory=import_target.subdirectory,
-            filename="notebook.ipynb",
-        )
-        destination_path = staging_root.joinpath(*Path(artifact_paths.staged_relative_path).parts)
-        destination_path.parent.mkdir(parents=True, exist_ok=True)
-        create_blank_notebook(destination_path, kernel_name=kernel_name)
-        store.register_staged_entry(
-            artifact_id,
-            relative_path=artifact_paths.staged_relative_path,
-            extra={**dict(import_target.extra), **artifact_paths.metadata},
-        )
-        self._persist_project_artifact_store(store)
-        return store.staged_ref(artifact_id)
 
     @staticmethod
     def _source_import_target(
@@ -579,169 +503,9 @@ class ShellHostPresenter(QObject):
             return _JUPYTER_NOTEBOOK_IMPORT_TARGET
         return _SOURCE_IMPORT_TARGETS.get(str(property_label or "").strip().lower())
 
-    def make_project_managed_data(
-        self,
-        current_path: str,
-        *,
-        artifact_kind: str = "tabular_source",
-        artifact_id: str = "",
-        selected_path: str = "",
-        node_id: str = "",
-        node_title: str = "",
-        node_type: str = "",
-    ) -> str:
-        normalized_current = str(current_path or "").strip()
-        normalized_selected = str(selected_path or "").strip()
-        if not normalized_current and not normalized_selected:
-            return ""
-        if not normalized_selected:
-            resolution = self._project_artifact_resolver().resolve(normalized_current)
-            if resolution.kind == "managed":
-                return normalized_current
-            if resolution.kind == "staged":
-                return normalized_current
-        target = _TABULAR_IMPORT_TARGETS.get(str(artifact_kind or "").strip().lower())
-        if target is None:
-            return ""
-        source_value = normalized_selected or normalized_current
-        source_path = self._resolve_source_file_path(source_value)
-        if source_path is None or not source_path.exists() or not source_path.is_file():
-            return ""
-        normalized_artifact_id = str(artifact_id or "").strip() or self._current_source_artifact_id(normalized_current)
-        if not normalized_artifact_id:
-            normalized_artifact_id = f"{target.artifact_prefix}_{uuid4().hex}"
-        workspace_id, workspace_name, resolved_node_id, resolved_node_title, resolved_node_type = self._node_artifact_context(
-            node_id=node_id,
-            node_title=node_title,
-            node_type=node_type,
-        )
-        staging_root = self._host.project_session_controller.ensure_project_staging_root()
-        store = self._host.project_session_controller.project_artifact_store()
-        artifact_paths = store.node_artifact_paths(
-            artifact_id=normalized_artifact_id,
-            workspace_id=workspace_id,
-            workspace_name=workspace_name,
-            node_id=resolved_node_id,
-            node_title=resolved_node_title,
-            node_type=resolved_node_type,
-            io_dir=target.io_dir,
-            subdirectory=target.subdirectory,
-            filename=f"{normalized_artifact_id}{source_path.suffix}",
-        )
-        destination_path = staging_root.joinpath(*Path(artifact_paths.staged_relative_path).parts)
-        destination_path.parent.mkdir(parents=True, exist_ok=True)
-        if source_path.resolve() != destination_path.resolve():
-            shutil.copy2(source_path, destination_path)
-
-        store.register_staged_entry(
-            normalized_artifact_id,
-            relative_path=artifact_paths.staged_relative_path,
-            extra={**dict(target.extra), **artifact_paths.metadata},
-        )
-        self._persist_project_artifact_store(store)
-        return store.staged_ref(normalized_artifact_id)
-
-    def stage_clipboard_paste_bytes(
-        self,
-        *,
-        data: bytes,
-        filename: str,
-        mime_type: str,
-        artifact_prefix: str,
-        subdirectory: str,
-        artifact_kind: str,
-        node_id: str,
-        node_title: str,
-        node_type: str,
-    ) -> str:
-        raw_data = bytes(data or b"")
-        if not raw_data:
-            return ""
-
-        artifact_id = f"{str(artifact_prefix or 'clipboard').strip() or 'clipboard'}_{uuid4().hex}"
-        workspace_id, workspace_name, resolved_node_id, resolved_node_title, resolved_node_type = self._node_artifact_context(
-            node_id=node_id,
-            node_title=node_title,
-            node_type=node_type,
-        )
-        staging_root = self._host.project_session_controller.ensure_project_staging_root()
-        store = self._host.project_session_controller.project_artifact_store()
-        artifact_paths = store.node_artifact_paths(
-            artifact_id=artifact_id,
-            workspace_id=workspace_id,
-            workspace_name=workspace_name,
-            node_id=resolved_node_id,
-            node_title=resolved_node_title,
-            node_type=resolved_node_type,
-            io_dir=PROJECT_NODE_INPUTS_DIRNAME,
-            subdirectory=subdirectory or "clipboard",
-            filename=filename or artifact_id,
-        )
-        destination_path = staging_root.joinpath(*Path(artifact_paths.staged_relative_path).parts)
-        destination_path.parent.mkdir(parents=True, exist_ok=True)
-        destination_path.write_bytes(raw_data)
-
-        extra = {
-            **artifact_paths.metadata,
-            "artifact_kind": str(artifact_kind or "clipboard_source"),
-            "mime_type": str(mime_type or "").strip(),
-            "size": len(raw_data),
-            "sha256": hashlib.sha256(raw_data).hexdigest(),
-        }
-        store.register_staged_entry(
-            artifact_id,
-            relative_path=artifact_paths.staged_relative_path,
-            extra=extra,
-        )
-        self._persist_project_artifact_store(store)
-        return store.staged_ref(artifact_id)
-
     def _current_source_artifact_id(self, current_path: str) -> str:
         resolution = self._project_artifact_resolver().resolve(current_path)
         return str(resolution.artifact_id or "").strip()
-
-    def _node_artifact_context(
-        self,
-        *,
-        node_id: str = "",
-        node_title: str = "",
-        node_type: str = "",
-    ) -> tuple[str, str, str, str, str]:
-        workspace_id = str(self._host.workspace_manager.active_workspace_id() or "").strip()
-        workspace = self._host.model.project.workspaces.get(workspace_id)
-        workspace_name = str(getattr(workspace, "name", "") or "").strip()
-        resolved_node_id = str(node_id or "").strip()
-        if not resolved_node_id:
-            selected_node_id = getattr(self._host.scene, "selected_node_id", lambda: "")()
-            resolved_node_id = str(selected_node_id or "").strip()
-        node = workspace.nodes.get(resolved_node_id) if workspace is not None and resolved_node_id else None
-        resolved_title = str(node_title or "").strip() or str(getattr(node, "title", "") or "").strip()
-        resolved_type = str(node_type or "").strip()
-        if node is not None and not resolved_type:
-            try:
-                spec = self._host.registry.get_spec(node.type_id)
-                resolved_type = str(getattr(spec, "display_name", "") or node.type_id)
-            except Exception:  # noqa: BLE001
-                resolved_type = str(node.type_id)
-        if not resolved_node_id:
-            resolved_node_id = "project"
-        if not resolved_title:
-            resolved_title = "Project"
-        if not resolved_type:
-            resolved_type = "Project"
-        return workspace_id, workspace_name, resolved_node_id, resolved_title, resolved_type
-
-    def _persist_project_artifact_store(self, store) -> None:  # noqa: ANN001
-        project = self._host.model.project
-        metadata = project.metadata if isinstance(project.metadata, dict) else {}
-        updated_metadata = dict(metadata)
-        updated_metadata[PROJECT_ARTIFACT_STORE_METADATA_KEY] = store.metadata
-        replace_metadata = getattr(project, "replace_metadata", None)
-        if callable(replace_metadata):
-            replace_metadata(updated_metadata)
-        else:
-            project.metadata = updated_metadata
-        self._host.project_meta_changed.emit()
 
     def apply_graph_cursor(self, cursor_shape: Qt.CursorShape) -> None:
         if getattr(self._host, "quick_widget", None) is None:

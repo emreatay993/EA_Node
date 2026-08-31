@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import copy
 import gc
+import hashlib
 import os
 from pathlib import Path
 from unittest.mock import patch
@@ -10,7 +11,7 @@ from PyQt6.QtCore import QMetaObject, QPoint, QPointF, Qt, Q_ARG
 from PyQt6.QtGui import QColor, QImage
 from PyQt6.QtQml import QJSValue
 from PyQt6.QtQuick import QQuickItem
-from PyQt6.QtTest import QTest
+from PyQt6.QtTest import QSignalSpy, QTest
 
 from ea_node_editor.ui.shell.presenters import graph_canvas_presenter as graph_canvas_presenter_module
 from ea_node_editor.ui.video_trim import VideoTrimResult
@@ -556,6 +557,7 @@ class MainWindowShellPassiveImageNodesTests(SharedMainWindowShellTestBase):
         self.app.processEvents()
 
         workspace = self.window.model.project.workspaces[workspace_id]
+        metadata_spy = QSignalSpy(self.window.project_meta_changed)
         result = self.window.graph_canvas_presenter.request_save_image_crop_replace(
             node_id,
             {"x": 0.25, "y": 0.25, "width": 0.5, "height": 0.5},
@@ -569,16 +571,27 @@ class MainWindowShellPassiveImageNodesTests(SharedMainWindowShellTestBase):
         self.assertAlmostEqual(float(node.properties["crop_w"]), 1.0)
         self.assertAlmostEqual(float(node.properties["crop_h"]), 1.0)
 
-        staged_path = self.window.project_session_controller.project_artifact_store().resolve_staged_path(
-            node.properties["source"]
-        )
+        store = self.window.project_session_controller.project_artifact_store()
+        staged_entry = store.staged_entry(node.properties["source"])
+        staged_path = store.resolve_staged_path(node.properties["source"])
+        self.assertIsNotNone(staged_entry)
         self.assertIsNotNone(staged_path)
-        assert staged_path is not None
+        assert staged_entry is not None and staged_path is not None
+        staged_bytes = staged_path.read_bytes()
         self.assertEqual(staged_path.suffix.lower(), ".png")
         cropped = QImage(str(staged_path))
         self.assertFalse(cropped.isNull())
         self.assertEqual(cropped.width(), 20)
         self.assertEqual(cropped.height(), 10)
+        self.assertEqual(staged_entry.extra["artifact_kind"], "image_crop_source")
+        self.assertEqual(staged_entry.extra["mime_type"], "image/png")
+        self.assertEqual(staged_entry.extra["size"], len(staged_bytes))
+        self.assertEqual(
+            staged_entry.extra["sha256"],
+            hashlib.sha256(staged_bytes).hexdigest(),
+        )
+        self.assertEqual(staged_entry.extra["node_id"], node_id)
+        self.assertEqual(len(metadata_spy), 1)
 
     def test_media_panel_video_frame_and_timestamp_actions_use_current_video_mode(self) -> None:
         workspace_id = self.window.workspace_manager.active_workspace_id()
@@ -597,6 +610,7 @@ class MainWindowShellPassiveImageNodesTests(SharedMainWindowShellTestBase):
         frame = QImage(24, 12, QImage.Format.Format_ARGB32)
         frame.fill(QColor("#ba4d68"))
         self.assertTrue(frame.save(str(frame_path), "PNG"))
+        metadata_spy = QSignalSpy(self.window.project_meta_changed)
 
         frame_result = self.window.graph_canvas_presenter.request_create_video_frame_image_node(
             video_node_id,
@@ -619,12 +633,29 @@ class MainWindowShellPassiveImageNodesTests(SharedMainWindowShellTestBase):
         self.assertTrue(frame_result["success"])
         self.assertEqual(frame_node.type_id, "media.panel")
         self.assertFalse(frame_node.exposed_ports["source"])
-        self.assertTrue(str(frame_node.properties["source"]).startswith("temp://"))
+        frame_ref = str(frame_node.properties["source"])
+        self.assertTrue(frame_ref.startswith("temp://"))
+        store = self.window.project_session_controller.project_artifact_store()
+        frame_entry = store.staged_entry(frame_ref)
+        staged_frame_path = store.resolve_staged_path(frame_ref)
+        self.assertIsNotNone(frame_entry)
+        self.assertIsNotNone(staged_frame_path)
+        assert frame_entry is not None and staged_frame_path is not None
+        staged_frame_bytes = staged_frame_path.read_bytes()
+        self.assertEqual(frame_entry.extra["artifact_kind"], "video_frame_capture")
+        self.assertEqual(frame_entry.extra["mime_type"], "image/png")
+        self.assertEqual(frame_entry.extra["size"], len(staged_frame_bytes))
+        self.assertEqual(
+            frame_entry.extra["sha256"],
+            hashlib.sha256(staged_frame_bytes).hexdigest(),
+        )
+        self.assertEqual(frame_entry.extra["node_id"], frame_node.node_id)
         self.assertTrue(timestamp_result["success"])
         note = workspace.nodes[str(timestamp_result["created_node_id"])]
         self.assertEqual(note.type_id, "passive.annotation.text")
         self.assertEqual(note.links[0].target_node_id, video_node_id)
         self.assertEqual(note.links[0].subtitle, "video_position_ms=1200")
+        self.assertEqual(len(metadata_spy), 1)
 
     def test_media_panel_frame_staging_failure_rolls_back_created_node_and_history(self) -> None:
         workspace_id = self.window.workspace_manager.active_workspace_id()
@@ -741,6 +772,7 @@ class MainWindowShellPassiveImageNodesTests(SharedMainWindowShellTestBase):
         self.assertEqual(self.window.runtime_history.undo_depth(workspace_id), 0)
         self.assertEqual(self.window.runtime_history.redo_depth(workspace_id), 0)
 
+        metadata_spy = QSignalSpy(self.window.project_meta_changed)
         success = self.window.graph_canvas_presenter._complete_video_trim_copy(
             context,
             VideoTrimResult(success=True, data=b"trimmed", mode_used="fast_copy"),
@@ -749,7 +781,25 @@ class MainWindowShellPassiveImageNodesTests(SharedMainWindowShellTestBase):
         self.assertTrue(success["success"])
         self.assertEqual(copied.type_id, "media.panel")
         self.assertFalse(copied.exposed_ports["source"])
-        self.assertTrue(str(copied.properties["source"]).startswith("temp://"))
+        copied_ref = str(copied.properties["source"])
+        self.assertTrue(copied_ref.startswith("temp://"))
+        store = self.window.project_session_controller.project_artifact_store()
+        copied_entry = store.staged_entry(copied_ref)
+        copied_path = store.resolve_staged_path(copied_ref)
+        self.assertIsNotNone(copied_entry)
+        self.assertIsNotNone(copied_path)
+        assert copied_entry is not None and copied_path is not None
+        copied_bytes = copied_path.read_bytes()
+        self.assertEqual(copied_bytes, b"trimmed")
+        self.assertEqual(copied_entry.extra["artifact_kind"], "video_clip_source")
+        self.assertEqual(copied_entry.extra["mime_type"], "video/mp4")
+        self.assertEqual(copied_entry.extra["size"], len(copied_bytes))
+        self.assertEqual(
+            copied_entry.extra["sha256"],
+            hashlib.sha256(copied_bytes).hexdigest(),
+        )
+        self.assertEqual(copied_entry.extra["node_id"], copied.node_id)
+        self.assertEqual(len(metadata_spy), 1)
         self.assertEqual(self.window.runtime_history.undo_depth(workspace_id), 1)
 
     def test_media_panel_video_trim_copy_rejects_remote_effective_source(self) -> None:

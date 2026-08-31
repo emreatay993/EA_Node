@@ -1,6 +1,10 @@
+# Purpose: Facade project-session actions and the public staged-artifact API.
+# Map: feature_routes/project_session_files_managed_artifacts.md
+# Tests: tests/test_project_file_staging.py, tests/test_project_session_controller_unit.py
+
 from __future__ import annotations
 
-from collections.abc import Iterable
+from collections.abc import Iterable, Mapping
 from pathlib import Path
 from typing import Any
 
@@ -81,6 +85,81 @@ class ProjectSessionController:
 
     def discard_staged_scratch_data(self) -> None:
         self._project_files_service.discard_staged_scratch_data()
+
+    def stage_node_artifact_file(
+        self,
+        source_path: str | Path,
+        *,
+        artifact_prefix: str,
+        io_dir: str,
+        artifact_id: str = "",
+        subdirectory: str = "",
+        filename: str = "",
+        entry_metadata: Mapping[str, Any] | None = None,
+        node_id: str = "",
+        node_title: str = "",
+        node_type: str = "",
+    ) -> str:
+        ref = self._project_files_service.stage_node_artifact_file(
+            source_path,
+            artifact_prefix=artifact_prefix,
+            io_dir=io_dir,
+            artifact_id=artifact_id,
+            subdirectory=subdirectory,
+            filename=filename,
+            entry_metadata=entry_metadata,
+            node_id=node_id,
+            node_title=node_title,
+            node_type=node_type,
+        )
+        if ref:
+            self._host.project_meta_changed.emit()
+        return ref
+
+    def stage_node_artifact_bytes(
+        self,
+        data: bytes,
+        *,
+        filename: str,
+        mime_type: str,
+        artifact_prefix: str,
+        subdirectory: str,
+        artifact_kind: str,
+        node_id: str = "",
+        node_title: str = "",
+        node_type: str = "",
+    ) -> str:
+        try:
+            ref = self._project_files_service.stage_node_artifact_bytes(
+                data,
+                filename=filename,
+                mime_type=mime_type,
+                artifact_prefix=artifact_prefix,
+                subdirectory=subdirectory,
+                artifact_kind=artifact_kind,
+                node_id=node_id,
+                node_title=node_title,
+                node_type=node_type,
+            )
+        except (OSError, RuntimeError, TypeError, ValueError):
+            return ""
+        if ref:
+            self._host.project_meta_changed.emit()
+        return ref
+
+    def create_blank_notebook_artifact(
+        self,
+        node_id: str = "",
+        *,
+        kernel_name: str = "",
+    ) -> str:
+        ref = self._project_files_service.create_blank_notebook_artifact(
+            node_id,
+            kernel_name=kernel_name,
+        )
+        if ref:
+            self._host.project_meta_changed.emit()
+        return ref
 
     def ensure_project_metadata_defaults(self) -> None:
         self._document_service.ensure_project_metadata_defaults()

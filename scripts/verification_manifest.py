@@ -1061,7 +1061,6 @@ SHELL_ISOLATION_OWNERSHIP_SPECS = (
             "test_session_restore_keeps_saved_project_recent_but_starts_empty",
             "test_clean_close_discards_staged_scratch_and_clears_unsaved_root_hint",
             "test_explicit_save_promotes_referenced_staged_refs",
-            "test_explicit_save_promotes_locked_staged_ref_with_copy_fallback",
             "test_save_as_default_copy_switches_project_path_and_excludes_staging",
             "test_new_project_uses_navigation_controller_surface_without_workspace_library_facade",
             "test_project_files_menu_action_triggers_dialog",

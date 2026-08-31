@@ -1235,21 +1235,22 @@ def test_durable_value_gate_verifies_managed_artifact_content_integrity(
         owner_id="tests",
     )
     catalog.freeze()
+    source_project_path = tmp_path / "source.cxproj"
     project_path = tmp_path / "artifact.cxproj"
-    store = ProjectArtifactStore(project_path=project_path, metadata=None)
-    store.ensure_staging_root(temporary_root_parent=tmp_path)
-    paths = store.node_artifact_paths(
+    source_store = ProjectArtifactStore(project_path=source_project_path, metadata=None)
+    source_store.ensure_staging_root(temporary_root_parent=tmp_path)
+    paths = source_store.node_artifact_paths(
         artifact_id="durable-artifact",
         workspace_id="workspace",
         node_id="node",
         io_dir="out",
         filename="payload.bin",
     )
-    payload_path = store.staged_target_path(paths.staged_relative_path)
+    payload_path = source_store.staged_target_path(paths.staged_relative_path)
     payload_path.parent.mkdir(parents=True, exist_ok=True)
     payload_path.write_bytes(b"portable")
     staged = register_staged_artifact(
-        store=store,
+        store=source_store,
         artifact_id="durable-artifact",
         payload_path=payload_path,
         relative_path=paths.staged_relative_path,
@@ -1260,9 +1261,12 @@ def test_durable_value_gate_verifies_managed_artifact_content_integrity(
         provenance="corex.test",
         entry_metadata=paths.metadata,
     )
-    store.commit_referenced_artifacts(
+    stage = source_store.stage_project_save(
+        destination_project_path=project_path,
+        workspaces={},
         referenced_staged_ids={staged.artifact_id},
     )
+    store = stage.destination_store
     managed = RuntimeArtifactRef.managed(
         staged.artifact_id,
         data_type_id=staged.data_type_id,

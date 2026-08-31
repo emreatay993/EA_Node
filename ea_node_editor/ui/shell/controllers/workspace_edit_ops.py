@@ -832,16 +832,10 @@ class WorkspaceEditOps:
         artifact = item.artifact
         if artifact is None:
             return ""
-        presenter = getattr(self._host, "shell_host_presenter", None)
-        stage = getattr(presenter, "stage_clipboard_paste_bytes", None)
+        controller = getattr(self._host, "project_session_controller", None)
+        stage = getattr(controller, "stage_node_artifact_bytes", None)
         if not callable(stage):
             return ""
-        node_type = str(node.type_id)
-        try:
-            spec = self._host.registry.get_spec(node.type_id)
-            node_type = str(getattr(spec, "display_name", "") or node.type_id)
-        except (KeyError, AttributeError):
-            pass
         try:
             return str(
                 stage(
@@ -852,8 +846,6 @@ class WorkspaceEditOps:
                     subdirectory=artifact.subdirectory,
                     artifact_kind=artifact.artifact_kind,
                     node_id=node.node_id,
-                    node_title=node.title,
-                    node_type=node_type,
                 )
                 or ""
             )

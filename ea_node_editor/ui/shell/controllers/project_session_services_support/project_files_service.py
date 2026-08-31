@@ -1,11 +1,24 @@
+# Purpose: Own project-file inspection, synchronous staged payload writes, and metadata publication.
+# Map: feature_routes/project_session_files_managed_artifacts.md
+# Tests: tests/test_project_file_staging.py, tests/test_project_session_controller_unit.py
+
 from __future__ import annotations
 
+import hashlib
+import shutil
+from collections.abc import Callable, Mapping
 from pathlib import Path
+from typing import Any
+from uuid import uuid4
 
 from ea_node_editor.graph.file_issue_state import collect_workspace_file_issue_map
 from ea_node_editor.graph.project_state import ProjectData
 from ea_node_editor.persistence.artifact_store import ProjectArtifactStore
-from ea_node_editor.settings import PROJECT_ARTIFACT_STORE_METADATA_KEY, PROJECT_MANAGED_WORKSPACES_DIRNAME
+from ea_node_editor.settings import (
+    PROJECT_ARTIFACT_STORE_METADATA_KEY,
+    PROJECT_MANAGED_WORKSPACES_DIRNAME,
+    PROJECT_NODE_INPUTS_DIRNAME,
+)
 from ea_node_editor.ui.dialogs.project_files_dialog import (
     ProjectFilesBrokenEntry,
     ProjectFilesDialog,
@@ -66,6 +79,202 @@ class ProjectFilesService:
         store = self.project_artifact_store()
         store.discard_staged_payloads()
         self.replace_project_artifact_store(store)
+
+    def stage_node_artifact_file(
+        self,
+        source_path: str | Path,
+        *,
+        artifact_prefix: str,
+        io_dir: str,
+        artifact_id: str = "",
+        subdirectory: str = "",
+        filename: str = "",
+        entry_metadata: Mapping[str, Any] | None = None,
+        node_id: str = "",
+        node_title: str = "",
+        node_type: str = "",
+    ) -> str:
+        source = Path(source_path).expanduser()
+        if not source.is_file():
+            return ""
+        normalized_id = str(artifact_id or "").strip() or (
+            f"{str(artifact_prefix or 'artifact').strip() or 'artifact'}_{uuid4().hex}"
+        )
+
+        def copy_source(destination: Path) -> None:
+            if source.resolve() != destination.resolve():
+                shutil.copy2(source, destination)
+
+        return self._stage_node_artifact(
+            artifact_id=normalized_id,
+            io_dir=io_dir,
+            subdirectory=subdirectory,
+            filename=filename or source.name,
+            entry_metadata=entry_metadata,
+            node_id=node_id,
+            node_title=node_title,
+            node_type=node_type,
+            writer=copy_source,
+        )
+
+    def stage_node_artifact_bytes(
+        self,
+        data: bytes,
+        *,
+        filename: str,
+        mime_type: str,
+        artifact_prefix: str,
+        subdirectory: str,
+        artifact_kind: str,
+        node_id: str = "",
+        node_title: str = "",
+        node_type: str = "",
+    ) -> str:
+        raw_data = bytes(data or b"")
+        if not raw_data:
+            return ""
+        normalized_prefix = str(artifact_prefix or "clipboard").strip() or "clipboard"
+        artifact_id = f"{normalized_prefix}_{uuid4().hex}"
+        return self._stage_node_artifact(
+            artifact_id=artifact_id,
+            io_dir=PROJECT_NODE_INPUTS_DIRNAME,
+            subdirectory=subdirectory or "clipboard",
+            filename=filename or artifact_id,
+            entry_metadata={
+                "artifact_kind": str(artifact_kind or "clipboard_source"),
+                "mime_type": str(mime_type or "").strip(),
+                "size": len(raw_data),
+                "sha256": hashlib.sha256(raw_data).hexdigest(),
+            },
+            node_id=node_id,
+            node_title=node_title,
+            node_type=node_type,
+            writer=lambda destination: destination.write_bytes(raw_data),
+        )
+
+    def create_blank_notebook_artifact(
+        self,
+        node_id: str = "",
+        *,
+        kernel_name: str = "",
+    ) -> str:
+        artifact_id = f"jupyter_notebook_{uuid4().hex}"
+
+        def write_notebook(destination: Path) -> None:
+            from ea_node_editor.jupyter_host.notebook_files import create_blank_notebook
+
+            create_blank_notebook(destination, kernel_name=kernel_name)
+
+        return self._stage_node_artifact(
+            artifact_id=artifact_id,
+            io_dir=PROJECT_NODE_INPUTS_DIRNAME,
+            subdirectory="jupyter/notebooks",
+            filename="notebook.ipynb",
+            entry_metadata={"artifact_kind": "jupyter_notebook"},
+            node_id=node_id,
+            node_title="",
+            node_type="code.jupyter_notebook",
+            writer=write_notebook,
+        )
+
+    def _stage_node_artifact(
+        self,
+        *,
+        artifact_id: str,
+        io_dir: str,
+        subdirectory: str,
+        filename: str,
+        entry_metadata: Mapping[str, Any] | None,
+        node_id: str,
+        node_title: str,
+        node_type: str,
+        writer: Callable[[Path], None],
+    ) -> str:
+        store = self.project_artifact_store()
+        staging_root = store.ensure_staging_root(
+            temporary_root_parent=self._host.session_store.staging_workspace_root(),
+        )
+        workspace_id, workspace_name, resolved_node_id, resolved_title, resolved_type = (
+            self._node_artifact_context(
+                node_id=node_id,
+                node_title=node_title,
+                node_type=node_type,
+            )
+        )
+        paths = store.node_artifact_paths(
+            artifact_id=artifact_id,
+            workspace_id=workspace_id,
+            workspace_name=workspace_name,
+            node_id=resolved_node_id,
+            node_title=resolved_title,
+            node_type=resolved_type,
+            io_dir=io_dir,
+            subdirectory=subdirectory,
+            filename=filename,
+        )
+        destination = store.staged_target_path(paths.staged_relative_path)
+        destination_existed = destination.exists()
+        try:
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            writer(destination)
+            store.register_staged_entry(
+                artifact_id,
+                relative_path=paths.staged_relative_path,
+                extra={**dict(entry_metadata or {}), **paths.metadata},
+            )
+            if not self.replace_project_artifact_store(store):
+                self._host.model.project.touch_metadata()
+        except Exception:
+            if not destination_existed:
+                self._discard_new_staged_candidate(destination, staging_root)
+            raise
+        return store.staged_ref(artifact_id)
+
+    def _node_artifact_context(
+        self,
+        *,
+        node_id: str = "",
+        node_title: str = "",
+        node_type: str = "",
+    ) -> tuple[str, str, str, str, str]:
+        workspace_id = str(self._host.workspace_manager.active_workspace_id() or "").strip()
+        workspace = self._host.model.project.workspaces.get(workspace_id)
+        workspace_name = str(getattr(workspace, "name", "") or "").strip()
+        resolved_node_id = str(node_id or "").strip()
+        if not resolved_node_id:
+            selected_node_id = getattr(self._host.scene, "selected_node_id", lambda: "")()
+            resolved_node_id = str(selected_node_id or "").strip()
+        node = workspace.nodes.get(resolved_node_id) if workspace is not None and resolved_node_id else None
+        resolved_title = str(node_title or "").strip() or str(getattr(node, "title", "") or "").strip()
+        resolved_type = str(node_type or "").strip()
+        if node is not None and not resolved_type:
+            try:
+                spec = self._host.registry.get_spec(node.type_id)
+                resolved_type = str(getattr(spec, "display_name", "") or node.type_id)
+            except Exception:  # noqa: BLE001 - use the stored node type as the stable fallback
+                resolved_type = str(node.type_id)
+        return (
+            workspace_id,
+            workspace_name,
+            resolved_node_id or "project",
+            resolved_title or "Project",
+            resolved_type or "Project",
+        )
+
+    @staticmethod
+    def _discard_new_staged_candidate(destination: Path, staging_root: Path) -> None:
+        try:
+            if destination.is_file():
+                destination.unlink()
+        except OSError:
+            return
+        parent = destination.parent
+        while parent != staging_root:
+            try:
+                parent.rmdir()
+            except OSError:
+                break
+            parent = parent.parent
 
     def build_project_files_snapshot(
         self,

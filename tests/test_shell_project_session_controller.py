@@ -1009,67 +1009,6 @@ class _ShellProjectSessionControllerScenarios(MainWindowShellTestBase):
             artifact_store["artifacts"]["pending_output"]["slot"], "process_run.stdout"
         )
 
-    def test_explicit_save_promotes_locked_staged_ref_with_copy_fallback(self) -> None:
-        workspace_id = self.window.workspace_manager.active_workspace_id()
-        node_id, _staged_ref, _staged_path = self._attach_unsaved_staged_output()
-        save_target = Path(self._temp_dir.name) / "projects" / "locked_video_project"
-        save_target.parent.mkdir(parents=True, exist_ok=True)
-        saved_path = save_target.with_suffix(".cxproj")
-        sidecar_root = saved_path.with_name("locked_video_project.data")
-        managed_path = self._workspace_path(
-            sidecar_root, "nodes/Image Panel [11111111]/out/outputs/run.txt"
-        )
-
-        self._install_solution_save_runtime()
-        with (
-            patch.object(
-                self.window.project_session_controller._project_files_service,
-                "prompt_project_files_action",
-                return_value=True,
-            ),
-            patch(
-                "PyQt6.QtWidgets.QFileDialog.getSaveFileName",
-                return_value=(str(save_target), "COREX Project (*.cxproj)"),
-            ),
-            patch(
-                "ea_node_editor.persistence.artifact_store._move_or_replace_path",
-                side_effect=PermissionError("source is locked"),
-            ),
-            patch("PyQt6.QtWidgets.QMessageBox.warning"),
-        ):
-            result = self.window.project_session_controller.save_project()
-        self.assertEqual(result.status, "saved", result.reason_code)
-        self.app.processEvents()
-
-        workspace = self.window.model.project.workspaces[workspace_id]
-        saved_doc = json.loads(saved_path.read_text(encoding="utf-8"))
-        workspace_doc = next(
-            item
-            for item in saved_doc["workspaces"]
-            if item["workspace_id"] == workspace_id
-        )
-        saved_node = next(
-            item for item in workspace_doc["nodes"] if item["node_id"] == node_id
-        )
-
-        self.assertEqual(
-            workspace.nodes[node_id].properties["source"],
-            format_managed_artifact_ref("pending_output"),
-        )
-        self.assertEqual(
-            saved_node["properties"]["source"],
-            format_managed_artifact_ref("pending_output"),
-        )
-        self.assertEqual(managed_path.read_text(encoding="utf-8"), "staged output")
-        artifact_store = saved_doc["metadata"]["artifact_store"]
-        self.assertEqual(artifact_store["staged"], {})
-        self.assertEqual(
-            artifact_store["artifacts"]["pending_output"]["relative_path"],
-            self._workspace_relative(
-                "nodes/Image Panel [11111111]/out/outputs/run.txt"
-            ),
-        )
-
     def test_save_as_default_copy_switches_project_path_and_excludes_staging(
         self,
     ) -> None:
@@ -1581,11 +1520,6 @@ class ShellProjectSessionControllerTests(unittest.TestCase):
     def test_explicit_save_promotes_referenced_staged_refs(self) -> None:
         self._run_scenario(
             "test_explicit_save_promotes_referenced_staged_refs"
-        )
-
-    def test_explicit_save_promotes_locked_staged_ref_with_copy_fallback(self) -> None:
-        self._run_scenario(
-            "test_explicit_save_promotes_locked_staged_ref_with_copy_fallback"
         )
 
     def test_save_as_default_copy_switches_project_path_and_excludes_staging(

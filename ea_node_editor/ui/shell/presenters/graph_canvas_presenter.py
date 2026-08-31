@@ -1024,16 +1024,10 @@ class GraphCanvasPresenter(QObject):
         return properties
 
     def _stage_image_crop(self, image_data: bytes, node) -> str:  # noqa: ANN001
-        presenter = getattr(self._host, "shell_host_presenter", None)
-        stage = getattr(presenter, "stage_clipboard_paste_bytes", None)
+        controller = getattr(self._host, "project_session_controller", None)
+        stage = getattr(controller, "stage_node_artifact_bytes", None)
         if not callable(stage):
             return ""
-        node_type = str(node.type_id)
-        try:
-            spec = self._host.registry.get_spec(node.type_id)
-            node_type = str(getattr(spec, "display_name", "") or node.type_id)
-        except (KeyError, AttributeError):
-            pass
         try:
             return str(
                 stage(
@@ -1044,8 +1038,6 @@ class GraphCanvasPresenter(QObject):
                     subdirectory="media",
                     artifact_kind="image_crop_source",
                     node_id=node.node_id,
-                    node_title=node.title,
-                    node_type=node_type,
                 )
                 or ""
             )
@@ -1053,16 +1045,10 @@ class GraphCanvasPresenter(QObject):
             return ""
 
     def _stage_video_frame_capture(self, frame_data: bytes, node, position_ms: int) -> str:  # noqa: ANN001
-        presenter = getattr(self._host, "shell_host_presenter", None)
-        stage = getattr(presenter, "stage_clipboard_paste_bytes", None)
+        controller = getattr(self._host, "project_session_controller", None)
+        stage = getattr(controller, "stage_node_artifact_bytes", None)
         if not callable(stage):
             return ""
-        node_type = str(node.type_id)
-        try:
-            spec = self._host.registry.get_spec(node.type_id)
-            node_type = str(getattr(spec, "display_name", "") or node.type_id)
-        except (KeyError, AttributeError):
-            pass
         try:
             return str(
                 stage(
@@ -1073,8 +1059,6 @@ class GraphCanvasPresenter(QObject):
                     subdirectory="media",
                     artifact_kind="video_frame_capture",
                     node_id=node.node_id,
-                    node_title=node.title,
-                    node_type=node_type,
                 )
                 or ""
             )
@@ -1082,16 +1066,10 @@ class GraphCanvasPresenter(QObject):
             return ""
 
     def _stage_video_clip(self, video_data: bytes, node, start_ms: int, end_ms: int) -> str:  # noqa: ANN001
-        presenter = getattr(self._host, "shell_host_presenter", None)
-        stage = getattr(presenter, "stage_clipboard_paste_bytes", None)
+        controller = getattr(self._host, "project_session_controller", None)
+        stage = getattr(controller, "stage_node_artifact_bytes", None)
         if not callable(stage):
             return ""
-        node_type = str(node.type_id)
-        try:
-            spec = self._host.registry.get_spec(node.type_id)
-            node_type = str(getattr(spec, "display_name", "") or node.type_id)
-        except (KeyError, AttributeError):
-            pass
         try:
             return str(
                 stage(
@@ -1102,8 +1080,6 @@ class GraphCanvasPresenter(QObject):
                     subdirectory="media",
                     artifact_kind="video_clip_source",
                     node_id=node.node_id,
-                    node_title=node.title,
-                    node_type=node_type,
                 )
                 or ""
             )
