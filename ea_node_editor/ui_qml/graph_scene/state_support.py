@@ -1083,8 +1083,8 @@ class GraphSceneBridgeBase(QObject):
         self._remember_scene_payload_graphics_preferences()
 
     def _on_graph_theme_changed(self) -> None:
-        self._scene_context.rebuild_models()
         self._remember_scene_payload_graphics_preferences()
+        self._scene_context.rebuild_models()
 
     def _on_graphics_preferences_changed(self) -> None:
         current_preferences = self._current_scene_payload_graphics_preferences()

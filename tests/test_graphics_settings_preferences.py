@@ -8,6 +8,8 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest import mock
 
+from ea_node_editor.graph.model import GraphModel
+from ea_node_editor.nodes.bootstrap import build_default_registry
 from ea_node_editor.app_preferences import (
     effective_graph_node_icon_pixel_size,
     normalize_plot_default_backend_per_type,
@@ -22,6 +24,7 @@ from ea_node_editor.ui.shell.controllers.app_preferences_controller import (
     AppPreferencesController,
     AppPreferencesStore,
 )
+from ea_node_editor.ui.shell.host_presenter import ShellHostPresenter
 from ea_node_editor.ui.shell.presenters import workspace_presenter as workspace_presenter_module
 from ea_node_editor.ui.shell.presenters.state import build_default_shell_workspace_ui_state
 from ea_node_editor.ui.shell.presenters.workspace_presenter import ShellWorkspacePresenter
@@ -39,6 +42,8 @@ from ea_node_editor.ui.shell.tooltip_policy import (
 )
 from ea_node_editor.ui.shell.window_state import context_properties as shell_context_properties
 from ea_node_editor.ui.shell.window_state import run_and_style_state as shell_run_and_style_state
+from ea_node_editor.ui_qml.graph_scene_bridge import GraphSceneBridge
+from ea_node_editor.ui_qml.graph_theme_bridge import GraphThemeBridge
 
 
 class _RecordingHost:
@@ -89,7 +94,6 @@ class _ShellHostPresenter:
         shell = resolved.get("shell", {}) if isinstance(resolved, dict) else {}
         categories = normalize_tooltip_category_preferences(shell.get("tooltip_categories"))
         host._sync_general_help_tooltips_action(categories[TOOLTIP_CATEGORY_GENERAL])
-        host.tooltip_manager.set_tooltip_categories(categories)
         return resolved
 
 
@@ -256,6 +260,85 @@ class GraphicsSettingsPreferencesTests(unittest.TestCase):
             },
         )
         self.assertEqual(seen["graphics_preferences_changed"], 1)
+
+    def test_shell_graphics_apply_writes_tooltip_manager_once(self) -> None:
+        host = _RuntimeTooltipHost()
+        shell_presenter = SimpleNamespace(
+            _host=host,
+            sync_graphics_show_port_labels_action=lambda _enabled: None,
+            sync_general_help_tooltips_action=lambda _enabled: None,
+        )
+        categories = {
+            **default_tooltip_category_preferences(),
+            TOOLTIP_CATEGORY_GENERAL: False,
+        }
+
+        with mock.patch.object(
+            host.tooltip_manager,
+            "set_tooltip_categories",
+            wraps=host.tooltip_manager.set_tooltip_categories,
+        ) as set_categories:
+            ShellHostPresenter.apply_graphics_preferences(
+                shell_presenter,
+                {"shell": {"tooltip_categories": categories}},
+            )
+
+        self.assertEqual(set_categories.call_count, 1)
+        self.assertFalse(
+            host.tooltip_manager.category_tooltips_enabled(
+                TOOLTIP_CATEGORY_GENERAL
+            )
+        )
+
+    def test_combined_theme_and_payload_preferences_rebuild_once_with_final_facts(
+        self,
+    ) -> None:
+        host = _RuntimeTooltipHost()
+        host.graph_theme_bridge = GraphThemeBridge()
+        model = GraphModel()
+        registry = build_default_registry()
+        workspace_id = model.active_workspace.workspace_id
+        scene = GraphSceneBridge()
+        host.model = model
+        host.scene = scene
+        scene.set_workspace(model, registry, workspace_id)
+        scene.bind_graphics_preferences_source(host.shell_workspace_presenter)
+        scene.bind_graph_theme_bridge(host.graph_theme_bridge)
+        plot_node_id = scene.add_node_from_type("plot.scatter", 40.0, 60.0)
+        nodes_changed: list[str] = []
+        edges_changed: list[str] = []
+        scene.nodes_changed.connect(lambda: nodes_changed.append("nodes"))
+        scene.edges_changed.connect(lambda: edges_changed.append("edges"))
+        graphics = copy.deepcopy(DEFAULT_GRAPHICS_SETTINGS)
+        graphics["canvas"]["show_port_labels"] = False
+        graphics["typography"]["graph_label_pixel_size"] = 16
+        graphics["typography"]["graph_node_icon_pixel_size_override"] = 12
+        graphics["plot"]["lightweight_canvas"] = True
+        graphics["graph_theme"] = {
+            "follow_shell_theme": False,
+            "selected_theme_id": "graph_stitch_light",
+            "custom_themes": [],
+        }
+
+        host.shell_workspace_presenter.apply_graphics_preferences(graphics)
+
+        self.assertEqual(nodes_changed, ["nodes"])
+        self.assertEqual(edges_changed, ["edges"])
+        self.assertEqual(
+            scene._scene_payload_graphics_preferences,
+            (False, 16, 12, True),
+        )
+        self.assertEqual(host.graph_theme_bridge.theme_id, "graph_stitch_light")
+        plot_payload = next(
+            payload
+            for payload in scene.nodes_model
+            if payload["node_id"] == plot_node_id
+        )
+        self.assertTrue(plot_payload["plot_surface"]["lightweight_canvas"])
+        self.assertEqual(
+            plot_payload["plot_surface"]["embedded_rendering_suppressed_by"],
+            ["lightweight_canvas"],
+        )
 
     def test_workspace_tooltip_projections_are_computed_once_per_preferences_revision(self) -> None:
         host = _RuntimeTooltipHost()

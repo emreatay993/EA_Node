@@ -44,13 +44,6 @@ def source_attr(source: object | None, name: str, default: Any) -> Any:
     return getattr(source, name, default)
 
 
-def source_attr_chain(name: str, default: Any, *sources: object | None) -> Any:
-    for source in sources:
-        if source is not None and hasattr(source, name):
-            return getattr(source, name)
-    return default
-
-
 def invoke_available(source: object | None, name: str, *args) -> bool:
     callback = getattr(source, name, None) if source is not None else None
     if not callable(callback):

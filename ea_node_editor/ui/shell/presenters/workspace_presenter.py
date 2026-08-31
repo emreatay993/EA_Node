@@ -713,10 +713,6 @@ class ShellWorkspacePresenter(QObject):
             "custom_themes": custom_graph_themes,
         }
         previous_graph_theme_id = self._host.graph_theme_bridge.theme_id
-        self._host.graph_theme_bridge.apply_settings(
-            shell_theme_id=active_theme_id,
-            graph_theme_settings=normalized_graph_theme,
-        )
 
         if self._ui_state.show_grid != show_grid:
             self._ui_state.show_grid = show_grid
@@ -875,6 +871,10 @@ class ShellWorkspacePresenter(QObject):
         if self._ui_state.active_theme_id != active_theme_id:
             self._ui_state.active_theme_id = active_theme_id
             changed = True
+        self._host.graph_theme_bridge.apply_settings(
+            shell_theme_id=active_theme_id,
+            graph_theme_settings=normalized_graph_theme,
+        )
         if previous_graph_theme_id != self._host.graph_theme_bridge.theme_id:
             changed = True
 

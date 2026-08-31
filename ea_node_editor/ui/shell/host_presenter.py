@@ -820,9 +820,6 @@ class ShellHostPresenter(QObject):
         )
         self.sync_graphics_show_port_labels_action(current_show_port_labels)
         self.sync_general_help_tooltips_action(current_general_tooltips)
-        tooltip_manager = getattr(self._host, "tooltip_manager", None)
-        if tooltip_manager is not None:
-            tooltip_manager.set_tooltip_categories(tooltip_categories)
         if previous_passive_node_library_display_mode != current_passive_node_library_display_mode:
             self._host.node_library_changed.emit()
         return resolved
