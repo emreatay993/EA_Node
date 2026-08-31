@@ -15,6 +15,15 @@ from PyQt6.QtWidgets import QApplication
 from ea_node_editor.addons.tabular_data import loader_cache_service as tabular_loader_module
 from ea_node_editor.ui import app_icon as app_icon_module
 from ea_node_editor.ui import splash as splash_module
+from ea_node_editor.ui.mail_preview_provider import (
+    set_mail_preview_project_context_provider,
+)
+from ea_node_editor.ui.media_preview_provider import (
+    set_media_preview_project_context_provider,
+)
+from ea_node_editor.ui.pdf_preview_provider import (
+    set_pdf_preview_project_context_provider,
+)
 from ea_node_editor.ui.theme import styles as theme_styles_module
 
 
@@ -158,6 +167,9 @@ class AppBootstrapTests(unittest.TestCase):
         self.app = QApplication.instance() or QApplication([])
 
     def tearDown(self) -> None:
+        set_media_preview_project_context_provider(None)
+        set_mail_preview_project_context_provider(None)
+        set_pdf_preview_project_context_provider(None)
         self.app.sendPostedEvents()
         self.app.processEvents()
 
