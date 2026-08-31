@@ -10,17 +10,20 @@ Use this for workspace-scoped node project files, saved/temporary artifact refs,
 - `ea_node_editor/persistence/solution_repository.py`
 - `ea_node_editor/persistence/project_codec.py`
 - `ea_node_editor/persistence/file_issues.py`
+- `ea_node_editor/ui/shell/controllers/project_session_controller.py`
+- `ea_node_editor/ui/shell/controllers/project_session_services_support/project_files_service.py`
 - `ea_node_editor/ui/shell/host_presenter.py`
 - `ea_node_editor/ui/dialogs/project_files_dialog.py`
 - `tests/test_project_artifact_store.py`
 - `tests/test_project_artifact_resolution.py`
+- `tests/test_project_file_staging.py`
 
 ## Notes
 - The OS sidecar layout is `<project>.data/workspaces/<Workspace [hash]>/nodes/<Node [hash]>/{in,out,tmp}/...`; the workspace hash is stable from `workspace_id`, while the readable prefix follows workspace renames.
 - `ProjectArtifactStore.migrate_workspace_artifact_folders(...)` remains for explicit legacy/non-save callers. Production Save/Save As uses `stage_project_save(...)`: legacy metadata is rewritten in the candidate and registered payloads are copied to verified immutable workspace-scoped targets without moving source bytes.
-- Raw clipboard media imports are node-first staged artifacts: shell code writes bytes under the node temp input path, registers MIME/size/hash metadata, stores a `temp://` ref on the media or web node, and relies on the normal save path to promote referenced artifacts to `saved://`.
+- Raw clipboard/media imports are node-first staged artifacts: `WorkspaceEditOps` and `GraphCanvasPresenter` call the public project-session controller, while `ProjectFilesService` writes under the node temp input path, registers MIME/size/hash metadata, and returns the `temp://` ref. The normal copy-on-write save candidate rewrites referenced refs to `saved://`; it never destructively promotes source bytes.
 - Project review deck evidence discovery is ref-first: include only referenced managed/staged artifact entries, resolve paths through `ProjectArtifactStore`/`ProjectArtifactResolver`, and treat stale sidecar files or unsupported extensions as warnings instead of slides.
-- Artifact-store metadata writes should flow through `ProjectData.replace_metadata(...)` via project session services, shell presenters, or bridge fallback helpers so no-change autosave can rely on the project document epoch instead of serializing the whole document.
+- Artifact-store metadata writes flow through `ProjectData.replace_metadata(...)`: `ProjectFilesService` performs one successful staging publication and `ProjectSessionController` emits its one public success signal. Shell presenters retain dialog/import policy rather than metadata writes; the existing fullscreen Web service continues to use the controller callback supplied by composition.
 - Runtime artifact resolution validates catalog identity, active-store descriptor/target ownership, and current file or directory integrity under the trusted store root.
 - `ProjectArtifactStore.inspect_durable_artifact(...)` is the callback-free durable inspection route: it accepts only an exact managed runtime ref, compares the owned entry and descriptor fields directly, then runs bounded no-follow content integrity. It never invokes catalog validators or methods on the value.
 - Durable solution output may retain a managed `RuntimeArtifactRef` only when the shared runtime-value gate reuses that same trusted resolution/content-integrity path. Staged refs, raw `saved://`/`temp://` strings, private paths, handles, and invalid descriptor/content bindings remain session-only and write no durable result bytes.
@@ -30,7 +33,7 @@ Use this for workspace-scoped node project files, saved/temporary artifact refs,
 - Cleanup remains best effort after prevalidation: a locked file can leave untracked residue, and a same-user post-`lstat` path-swap window remains. Closing that window requires Windows handle-relative deletion rather than path-based removal.
 ## Focused Verification
 ```powershell
-.\venv\Scripts\python.exe -m pytest tests/test_project_artifact_store.py tests/test_solution_repository.py -q
+.\venv\Scripts\python.exe -m pytest tests/test_project_artifact_store.py tests/test_project_file_staging.py tests/test_typed_runtime_values.py tests/test_architecture_boundaries.py --ignore=venv -q
 ```
 
 ## Breadcrumbs
