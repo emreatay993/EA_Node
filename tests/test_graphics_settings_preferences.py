@@ -327,6 +327,22 @@ class GraphicsSettingsPreferencesTests(unittest.TestCase):
         scene.bind_graphics_preferences_source(host.shell_workspace_presenter)
         scene.bind_graph_theme_bridge(host.graph_theme_bridge)
         plot_node_id = scene.add_node_from_type("plot.scatter", 40.0, 60.0)
+        state_bridge = GraphCanvasStateBridge(
+            graphics_source=host.shell_workspace_presenter,
+            scene_bridge=scene,
+        )
+        notifications = {"host": 0, "workspace": 0, "state": 0}
+        host.graphics_preferences_changed.connect(
+            lambda: notifications.__setitem__("host", notifications["host"] + 1)
+        )
+        host.shell_workspace_presenter.graphics_preferences_changed.connect(
+            lambda: notifications.__setitem__(
+                "workspace", notifications["workspace"] + 1
+            )
+        )
+        state_bridge.graphics_preferences_changed.connect(
+            lambda: notifications.__setitem__("state", notifications["state"] + 1)
+        )
         nodes_changed: list[str] = []
         edges_changed: list[str] = []
         scene.nodes_changed.connect(lambda: nodes_changed.append("nodes"))
@@ -344,6 +360,10 @@ class GraphicsSettingsPreferencesTests(unittest.TestCase):
 
         host.shell_workspace_presenter.apply_graphics_preferences(graphics)
 
+        self.assertEqual(
+            notifications,
+            {"host": 1, "workspace": 1, "state": 1},
+        )
         self.assertEqual(nodes_changed, ["nodes"])
         self.assertEqual(edges_changed, ["edges"])
         self.assertEqual(

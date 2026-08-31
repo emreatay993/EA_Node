@@ -947,6 +947,7 @@ class GraphCanvasSplitBridgeTests(unittest.TestCase):
         graphics.graphics_plot_default_backend_per_type = dict(
             DEFAULT_GRAPHICS_SETTINGS["plot"]["plot_default_backend_per_type"]
         )
+        host.active_theme_id = "canvas-owned-sentinel"
         host_source = _GraphCanvasShellHostStub()
         scene = _GraphCanvasSceneBridgeStub()
         view = _GraphCanvasViewBridgeStub()
