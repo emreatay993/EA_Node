@@ -149,6 +149,13 @@ class GraphThemeShellTests(SharedMainWindowShellTestBase):
         self.assertTrue(edges_payload[edge_id]["data_type_warning"])
         self.assertEqual(edges_payload[edge_id]["color"], GRAPH_STITCH_DARK_EDGE_TOKENS_V1.warning_stroke)
 
+        rebuilds = {"nodes": 0, "edges": 0}
+        self.window.scene.nodes_changed.connect(
+            lambda: rebuilds.__setitem__("nodes", rebuilds["nodes"] + 1)
+        )
+        self.window.scene.edges_changed.connect(
+            lambda: rebuilds.__setitem__("edges", rebuilds["edges"] + 1)
+        )
         self._set_graphics(
             theme_id="stitch_dark",
             graph_theme={
@@ -159,6 +166,7 @@ class GraphThemeShellTests(SharedMainWindowShellTestBase):
         )
 
         self.assertEqual(self.window.graph_theme_bridge.theme_id, "graph_stitch_light")
+        self.assertEqual(rebuilds, {"nodes": 1, "edges": 1})
         nodes_payload = {item["node_id"]: item for item in self.window.scene.nodes_model}
         edges_payload = {item["edge_id"]: item for item in self.window.scene.edges_model}
         self.assertNotIn("accent", nodes_payload[standalone_id])

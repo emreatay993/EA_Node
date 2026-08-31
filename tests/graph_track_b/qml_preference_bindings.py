@@ -342,7 +342,7 @@ class GraphCanvasQmlPreferenceBindingTests(
         preference_bridge = _GraphCanvasTypographyPreferenceBridge()
         state_bridge = GraphCanvasStateBridge(
             shell_window=preference_bridge,  # type: ignore[arg-type]
-            canvas_source=preference_bridge,  # type: ignore[arg-type]
+            canvas_source=_rendering_suite._GraphCanvasSessionBridge(preference_bridge),  # type: ignore[arg-type]
             graphics_source=preference_bridge,  # type: ignore[arg-type]
             view_bridge=self.view,
         )
@@ -370,7 +370,7 @@ class GraphCanvasQmlPreferenceBindingTests(
         preference_bridge = _GraphCanvasTypographyPreferenceBridge()
         state_bridge = GraphCanvasStateBridge(
             shell_window=preference_bridge,  # type: ignore[arg-type]
-            canvas_source=preference_bridge,  # type: ignore[arg-type]
+            canvas_source=_rendering_suite._GraphCanvasSessionBridge(preference_bridge),  # type: ignore[arg-type]
             graphics_source=preference_bridge,  # type: ignore[arg-type]
             view_bridge=self.view,
         )
@@ -406,7 +406,7 @@ class GraphCanvasQmlPreferenceBindingTests(
         preference_bridge = _GraphCanvasTypographyPreferenceBridge()
         state_bridge = GraphCanvasStateBridge(
             shell_window=preference_bridge,  # type: ignore[arg-type]
-            canvas_source=preference_bridge,  # type: ignore[arg-type]
+            canvas_source=_rendering_suite._GraphCanvasSessionBridge(preference_bridge),  # type: ignore[arg-type]
             graphics_source=preference_bridge,  # type: ignore[arg-type]
             view_bridge=self.view,
         )
@@ -662,6 +662,8 @@ class GraphCanvasQmlPreferenceBindingTests(
         canvas_state_bridge = CanvasStateBridgeStub(self.bridge, self.view)
         canvas_command_bridge = _rendering_suite.GraphCanvasCommandBridge(
             shell_window=self.bridge,  # type: ignore[arg-type]
+            canvas_source=self.canvas_source,  # type: ignore[arg-type]
+            graphics_source=self.bridge,  # type: ignore[arg-type]
             view_bridge=self.view,
         )
         self.addCleanup(self.app.processEvents)
@@ -854,7 +856,7 @@ class GraphCanvasQmlPreferenceBindingTests(
         preference_bridge = _GraphCanvasTypographyPreferenceBridge()
         state_bridge = GraphCanvasStateBridge(
             shell_window=preference_bridge,  # type: ignore[arg-type]
-            canvas_source=preference_bridge,  # type: ignore[arg-type]
+            canvas_source=_rendering_suite._GraphCanvasSessionBridge(preference_bridge),  # type: ignore[arg-type]
             graphics_source=preference_bridge,  # type: ignore[arg-type]
             view_bridge=self.view,
         )
@@ -933,7 +935,7 @@ class GraphCanvasQmlPreferenceBindingTests(
         preference_bridge = _GraphCanvasTypographyPreferenceBridge()
         state_bridge = GraphCanvasStateBridge(
             shell_window=preference_bridge,  # type: ignore[arg-type]
-            canvas_source=preference_bridge,  # type: ignore[arg-type]
+            canvas_source=_rendering_suite._GraphCanvasSessionBridge(preference_bridge),  # type: ignore[arg-type]
             graphics_source=preference_bridge,  # type: ignore[arg-type]
             view_bridge=self.view,
         )
@@ -973,7 +975,7 @@ class GraphCanvasQmlPreferenceBindingTests(
         preference_bridge = _GraphCanvasTypographyPreferenceBridge()
         state_bridge = GraphCanvasStateBridge(
             shell_window=preference_bridge,  # type: ignore[arg-type]
-            canvas_source=preference_bridge,  # type: ignore[arg-type]
+            canvas_source=_rendering_suite._GraphCanvasSessionBridge(preference_bridge),  # type: ignore[arg-type]
             graphics_source=preference_bridge,  # type: ignore[arg-type]
             view_bridge=self.view,
         )
@@ -1057,7 +1059,7 @@ class GraphCanvasQmlPreferenceBindingTests(
         preference_bridge = _GraphCanvasTypographyPreferenceBridge()
         state_bridge = GraphCanvasStateBridge(
             shell_window=preference_bridge,  # type: ignore[arg-type]
-            canvas_source=preference_bridge,  # type: ignore[arg-type]
+            canvas_source=_rendering_suite._GraphCanvasSessionBridge(preference_bridge),  # type: ignore[arg-type]
             graphics_source=preference_bridge,  # type: ignore[arg-type]
             view_bridge=self.view,
         )
@@ -1118,6 +1120,7 @@ class GraphCanvasQmlPreferenceBindingTests(
     ) -> None:
         preference_bridge = _GraphCanvasTypographyPreferenceBridge()
         scene = GraphSceneBridge(preference_bridge)
+        scene.bind_graphics_preferences_source(preference_bridge)
         graph_theme_bridge = GraphThemeBridge(preference_bridge, theme_id="graph_stitch_dark")
         scene.bind_graph_theme_bridge(graph_theme_bridge)
         self.addCleanup(self.app.processEvents)
@@ -1366,6 +1369,8 @@ class GraphCanvasQmlPreferenceBindingTests(
         canvas_state_bridge = CanvasStateBridgeStub(preference_bridge, self.view)
         canvas_command_bridge = _rendering_suite.GraphCanvasCommandBridge(
             shell_window=self.bridge,  # type: ignore[arg-type]
+            canvas_source=self.canvas_source,  # type: ignore[arg-type]
+            graphics_source=preference_bridge,  # type: ignore[arg-type]
             view_bridge=self.view,
         )
         self.addCleanup(self.app.processEvents)

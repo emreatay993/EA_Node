@@ -353,6 +353,7 @@ class GraphCanvasFrameCoalescingTests(GraphCanvasQmlPreferenceTestBase):
         registry = build_default_registry()
         workspace_id = model.active_workspace.workspace_id
         scene = GraphSceneBridge()
+        scene.bind_graphics_preferences_source(self.bridge)
         scene.set_workspace(model, registry, workspace_id)
         viewer_id = scene.add_node_from_type("model.viewer", -180.0, -100.0)
         other_id = scene.add_node_from_type("core.logger", 260.0, -80.0)
@@ -362,14 +363,15 @@ class GraphCanvasFrameCoalescingTests(GraphCanvasQmlPreferenceTestBase):
         view.set_viewport_size(1280.0, 720.0)
         state_bridge = GraphCanvasStateBridge(
             shell_window=self.bridge,
-            canvas_source=self.bridge,
+            canvas_source=self.canvas_source,
             graphics_source=self.bridge,
             scene_bridge=scene,
             view_bridge=view,
         )
         command_bridge = GraphCanvasCommandBridge(
             shell_window=self.bridge,
-            canvas_source=self.bridge,
+            canvas_source=self.canvas_source,
+            graphics_source=self.bridge,
             scene_bridge=scene,
             view_bridge=view,
         )

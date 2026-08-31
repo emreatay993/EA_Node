@@ -36,6 +36,19 @@ def _alpha_color_name(value: str, alpha: float) -> str:
     return _color_name(color, include_alpha=True)
 
 
+def _capture_graphics_fanout(window) -> dict[str, int]:  # noqa: ANN001
+    events = {"host": 0, "workspace": 0, "state": 0, "nodes": 0, "edges": 0}
+    for name, signal in (
+        ("host", window.graphics_preferences_changed),
+        ("workspace", window.shell_workspace_presenter.graphics_preferences_changed),
+        ("state", window.graph_canvas_state_bridge.graphics_preferences_changed),
+        ("nodes", window.scene.nodes_changed),
+        ("edges", window.scene.edges_changed),
+    ):
+        signal.connect(lambda name=name: events.__setitem__(name, events[name] + 1))
+    return events
+
+
 @contextmanager
 def _patched_graphics_settings_dialog(dialog_type):
     with ExitStack() as stack:
@@ -897,23 +910,21 @@ class MainWindowShellBasicsAndSearchTests(SharedMainWindowShellTestBase):
         self.assertEqual(persisted["graphics"]["typography"]["graph_label_pixel_size"], 16)
 
     def test_graph_label_pixel_size_preference_change_rebuilds_active_scene_payload(self) -> None:
-        workspace_id = self.window.workspace_manager.active_workspace_id()
+        events = _capture_graphics_fanout(self.window)
 
-        with patch.object(self.window.scene, "refresh_workspace_from_model") as refresh_workspace:
-            self.window.app_preferences_controller.update_graphics_settings(
-                {"typography": {"graph_label_pixel_size": 16}},
-                host=self.window,
-            )
-            self.app.processEvents()
-        refresh_workspace.assert_called_once_with(workspace_id)
+        self.window.app_preferences_controller.update_graphics_settings(
+            {"typography": {"graph_label_pixel_size": 16}},
+            host=self.window,
+        )
+        self.app.processEvents()
+        self.assertEqual(events, {"host": 1, "workspace": 1, "state": 1, "nodes": 1, "edges": 1})
 
-        with patch.object(self.window.scene, "refresh_workspace_from_model") as refresh_workspace:
-            self.window.app_preferences_controller.update_graphics_settings(
-                {"typography": {"graph_label_pixel_size": 10}},
-                host=self.window,
-            )
-            self.app.processEvents()
-        refresh_workspace.assert_called_once_with(workspace_id)
+        self.window.app_preferences_controller.update_graphics_settings(
+            {"typography": {"graph_label_pixel_size": 10}},
+            host=self.window,
+        )
+        self.app.processEvents()
+        self.assertEqual(events, {"host": 2, "workspace": 2, "state": 2, "nodes": 2, "edges": 2})
 
     def test_graph_typography_preference_change_rebuilds_standard_node_widths_without_manual_scene_refresh(
         self,
@@ -981,33 +992,31 @@ class MainWindowShellBasicsAndSearchTests(SharedMainWindowShellTestBase):
         self.assertFalse(self.window.action_show_port_labels.isChecked())
 
     def test_port_label_preference_change_rebuilds_active_scene_payload(self) -> None:
-        workspace_id = self.window.workspace_manager.active_workspace_id()
+        events = _capture_graphics_fanout(self.window)
 
-        with patch.object(self.window.scene, "refresh_workspace_from_model") as refresh_workspace:
-            self.window.action_show_port_labels.trigger()
-            self.app.processEvents()
-        refresh_workspace.assert_called_once_with(workspace_id)
+        self.window.action_show_port_labels.trigger()
+        self.app.processEvents()
+        self.assertEqual(events, {"host": 1, "workspace": 1, "state": 1, "nodes": 1, "edges": 1})
 
-        with patch.object(self.window.scene, "refresh_workspace_from_model") as refresh_workspace:
-            self.window.app_preferences_controller.set_graphics_settings(
-                {
-                    "canvas": {
-                        "show_grid": True,
-                        "show_minimap": True,
-                        "show_port_labels": True,
-                        "minimap_expanded": True,
-                    },
-                    "interaction": {
-                        "snap_to_grid": False,
-                    },
-                    "theme": {
-                        "theme_id": "stitch_dark",
-                    },
+        self.window.app_preferences_controller.set_graphics_settings(
+            {
+                "canvas": {
+                    "show_grid": True,
+                    "show_minimap": True,
+                    "show_port_labels": True,
+                    "minimap_expanded": True,
                 },
-                host=self.window,
-            )
-            self.app.processEvents()
-        refresh_workspace.assert_called_once_with(workspace_id)
+                "interaction": {
+                    "snap_to_grid": False,
+                },
+                "theme": {
+                    "theme_id": "stitch_dark",
+                },
+            },
+            host=self.window,
+        )
+        self.app.processEvents()
+        self.assertEqual(events, {"host": 2, "workspace": 2, "state": 2, "nodes": 2, "edges": 2})
 
     def test_qml_shell_and_bridges_are_present(self) -> None:
         self.assertIsNotNone(self.window.quick_widget)
@@ -1667,7 +1676,10 @@ class MainWindowShellBasicsAndSearchTests(SharedMainWindowShellTestBase):
         self.app.processEvents()
 
         self.assertEqual(self.window.graphics_status_bar_layout, "option_2")
-        self.assertEqual(self.window.graph_canvas_presenter.graphics_status_bar_layout, "option_2")
+        self.assertEqual(
+            self.window.shell_workspace_presenter.graphics_status_bar_layout,
+            "option_2",
+        )
         self.assertEqual(self.window.graph_canvas_state_bridge.graphics_status_bar_layout, "option_2")
         self.assertFalse(self.window.graphics_show_fps_telemetry)
         persisted = json.loads(self._app_preferences_path.read_text(encoding="utf-8"))

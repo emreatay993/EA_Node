@@ -237,9 +237,17 @@ class MainWindowShellContextBootstrapTests(SharedMainWindowShellTestBase):
         self.assertIs(graph_canvas_command_bridge.parent(), self.window)
         self.assertIsNone(graph_canvas_command_bridge.shell_window)
         self.assertIs(graph_canvas_command_bridge.canvas_source, self.window.graph_canvas_presenter)
+        self.assertIs(
+            graph_canvas_command_bridge.graphics_source,
+            self.window.shell_workspace_presenter,
+        )
         self.assertIs(graph_canvas_command_bridge.host_source, self.window.graph_canvas_host_presenter)
         self.assertIs(graph_canvas_command_bridge.scene_bridge, self.window.scene)
         self.assertIs(graph_canvas_command_bridge.view_bridge, self.window.view)
+        self.assertIs(
+            self.window.scene._graphics_preferences_source,
+            self.window.shell_workspace_presenter,
+        )
 
         graph_canvas_view_bridge = context.contextProperty("graphCanvasViewBridge")
         self.assertIs(graph_canvas_view_bridge, self.window.view)
@@ -556,9 +564,17 @@ class MainWindowGraphCanvasSplitBridgeTests(SharedMainWindowShellTestBase):
         self.assertIs(graph_canvas_command_bridge.parent(), self.window)
         self.assertIsNone(graph_canvas_command_bridge.shell_window)
         self.assertIs(graph_canvas_command_bridge.canvas_source, self.window.graph_canvas_presenter)
+        self.assertIs(
+            graph_canvas_command_bridge.graphics_source,
+            self.window.shell_workspace_presenter,
+        )
         self.assertIs(graph_canvas_command_bridge.host_source, self.window.graph_canvas_host_presenter)
         self.assertIs(graph_canvas_command_bridge.scene_bridge, self.window.scene)
         self.assertIs(graph_canvas_command_bridge.view_bridge, self.window.view)
+        self.assertIs(
+            self.window.scene._graphics_preferences_source,
+            self.window.shell_workspace_presenter,
+        )
         self.assertIs(graph_canvas_view_bridge, self.window.view)
         self.assertIs(graph_canvas_view_bridge.parent(), self.window)
 
@@ -701,7 +717,6 @@ class MainWindowGraphTypographyBridgeTests(SharedMainWindowShellTestBase):
         )
         self.assertEqual(self.window.workspace_ui_state.graph_label_pixel_size, 10)
         self.assertEqual(self.window.shell_workspace_presenter.graphics_graph_label_pixel_size, 10)
-        self.assertEqual(self.window.graph_canvas_presenter.graphics_graph_label_pixel_size, 10)
         self.assertEqual(self.window.graphics_graph_label_pixel_size, 10)
         self.assertEqual(graph_canvas_state_bridge.graphics_graph_label_pixel_size, 10)
 
@@ -718,7 +733,6 @@ class MainWindowGraphTypographyBridgeTests(SharedMainWindowShellTestBase):
         )
         self.assertEqual(self.window.workspace_ui_state.graph_label_pixel_size, 16)
         self.assertEqual(self.window.shell_workspace_presenter.graphics_graph_label_pixel_size, 16)
-        self.assertEqual(self.window.graph_canvas_presenter.graphics_graph_label_pixel_size, 16)
         self.assertEqual(self.window.graphics_graph_label_pixel_size, 16)
         self.assertEqual(graph_canvas_state_bridge.graphics_graph_label_pixel_size, 16)
         self.assertEqual(

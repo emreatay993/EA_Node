@@ -55,7 +55,7 @@ class _SceneHost(QObject):
         show_frame: bool = True,
     ) -> None:
         super().__init__()
-        self.graph_canvas_presenter = _PreferenceSource(
+        self.shell_workspace_presenter = _PreferenceSource(
             source_input_exposed,
             show_title=show_title,
             show_frame=show_frame,
@@ -77,6 +77,7 @@ def _bound_scene(
         show_frame=show_frame,
     )
     scene = GraphSceneBridge(parent=host)
+    scene.bind_graphics_preferences_source(host.shell_workspace_presenter)
     scene.set_workspace(model, registry, model.active_workspace.workspace_id)
     return model, scene, host
 
@@ -88,10 +89,10 @@ class MediaPanelCreationPreferenceTests(unittest.TestCase):
         model, scene, host = _bound_scene(False, show_title=False, show_frame=False)
         first_id = scene.add_node_from_type(MEDIA_PANEL_TYPE_ID, 10.0, 20.0)
 
-        host.graph_canvas_presenter.source_input_exposed = True
-        host.graph_canvas_presenter.show_title = True
-        host.graph_canvas_presenter.show_frame = True
-        host.graph_canvas_presenter.graphics_preferences_changed.emit()
+        host.shell_workspace_presenter.source_input_exposed = True
+        host.shell_workspace_presenter.show_title = True
+        host.shell_workspace_presenter.show_frame = True
+        host.shell_workspace_presenter.graphics_preferences_changed.emit()
         second_id = scene.add_node_from_type(MEDIA_PANEL_TYPE_ID, 30.0, 40.0)
 
         workspace = model.active_workspace

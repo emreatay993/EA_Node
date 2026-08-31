@@ -17,8 +17,8 @@ from ea_node_editor.nodes.node_specs import (
     PortSpec,
     PropertySpec,
 )
-from ea_node_editor.ui.shell.presenters.graph_canvas_presenter import GraphCanvasPresenter
 from ea_node_editor.ui.shell.presenters.state import build_default_shell_workspace_ui_state
+from ea_node_editor.ui.shell.presenters.workspace_presenter import ShellWorkspacePresenter
 from ea_node_editor.ui_qml.graph_scene_bridge import GraphSceneBridge
 from ea_node_editor.ui_qml.graph_scene_payload import GraphScenePayloadBuilder
 from ea_node_editor.ui_qml.graph_geometry.standard_metrics import (
@@ -712,6 +712,8 @@ class GraphSurfaceInlineMetricTypographyTests(unittest.TestCase):
             workspace_id=workspace_id,
             scope_path=(),
             graph_theme_bridge=_ThemeBridge(_ThemeSource()),
+            graph_label_pixel_size=16,
+            graph_node_icon_pixel_size=50,
         )
 
         self.assertEqual(len(backdrop_nodes_payload), 0)
@@ -748,6 +750,8 @@ class GraphSurfaceInlineMetricTypographyTests(unittest.TestCase):
             workspace_id=workspace_id,
             scope_path=(),
             graph_theme_bridge=_ThemeBridge(_ThemeSource()),
+            graph_label_pixel_size=16,
+            graph_node_icon_pixel_size=50,
         )
 
         self.assertEqual(len(backdrop_nodes_payload), 0)
@@ -788,6 +792,8 @@ class GraphSurfaceInlineMetricTypographyTests(unittest.TestCase):
             workspace_id=workspace_id,
             scope_path=(),
             graph_theme_bridge=_ThemeBridge(_ThemeSource()),
+            graph_label_pixel_size=16,
+            graph_node_icon_pixel_size=50,
         )
 
         self.assertEqual(len(backdrop_nodes_payload), 0)
@@ -802,24 +808,12 @@ class GraphSurfaceInlineMetricTypographyTests(unittest.TestCase):
         self.assertEqual(payload["viewer_surface"]["live_rect"]["height"], 176.0)
         self.assertEqual(payload["height"], 316.0)
 
-    def test_scene_payload_builder_reads_title_icon_size_from_graph_canvas_presenter(self) -> None:
-        class _SearchScopeState:
-            graphics_minimap_expanded = True
-            snap_to_grid_enabled = False
-
-        class _SearchScopeController:
-            def set_snap_to_grid_enabled(self, enabled: bool) -> None:
-                self.snap_to_grid_enabled = bool(enabled)
-
-            def set_graphics_minimap_expanded(self, expanded: bool) -> None:
-                self.graphics_minimap_expanded = bool(expanded)
-
-            def navigate_scope(self, callback):
-                return callback()
-
+    def test_scene_payload_builder_reads_title_icon_size_from_workspace_presenter(self) -> None:
         class _Host(QObject):
+            project_meta_changed = pyqtSignal()
+            workspace_state_changed = pyqtSignal()
             graphics_preferences_changed = pyqtSignal()
-            snap_to_grid_changed = pyqtSignal()
+            run_controls_changed = pyqtSignal()
 
             def __init__(self) -> None:
                 super().__init__()
@@ -831,23 +825,6 @@ class GraphSurfaceInlineMetricTypographyTests(unittest.TestCase):
                         }
                     }
                 )
-                self.search_scope_state = _SearchScopeState()
-                self.search_scope_controller = _SearchScopeController()
-                self.app_preferences_controller = object()
-                self.scene = object()
-                self.workspace_library_controller = object()
-                self.graph_canvas_presenter = GraphCanvasPresenter(
-                    self,
-                    workspace_presenter=object(),
-                    library_presenter=object(),
-                    inspector_presenter=object(),
-                )
-
-            def show_graph_hint(self, message: str, timeout_ms: int = 3600) -> None:
-                del message, timeout_ms
-
-            def clear_graph_hint(self) -> None:
-                return
 
         class _ThemeBridge:
             theme = "stitch_dark"
@@ -859,6 +836,7 @@ class GraphSurfaceInlineMetricTypographyTests(unittest.TestCase):
                 return self._parent
 
         host = _Host()
+        workspace_presenter = ShellWorkspacePresenter(host)  # type: ignore[arg-type]
         model = GraphModel()
         registry = build_default_registry()
         workspace_id = model.active_workspace.workspace_id
@@ -871,11 +849,13 @@ class GraphSurfaceInlineMetricTypographyTests(unittest.TestCase):
             workspace_id=workspace_id,
             scope_path=(),
             graph_theme_bridge=_ThemeBridge(host),
+            graph_label_pixel_size=workspace_presenter.graphics_graph_label_pixel_size,
+            graph_node_icon_pixel_size=workspace_presenter.graphics_node_title_icon_pixel_size,
         )
 
         self.assertEqual(len(nodes_payload), 1)
         payload = nodes_payload[0]
-        self.assertEqual(host.graph_canvas_presenter.graphics_node_title_icon_pixel_size, 50)
+        self.assertEqual(workspace_presenter.graphics_node_title_icon_pixel_size, 50)
         self.assertEqual(payload["surface_metrics"]["header_height"], 50.0)
         self.assertEqual(payload["surface_metrics"]["title_height"], 50.0)
         self.assertEqual(payload["surface_metrics"]["body_top"], 56.0)
@@ -922,6 +902,8 @@ class GraphSurfaceInlineMetricTypographyTests(unittest.TestCase):
             scope_path=(),
             node_ids={node.node_id},
             graph_theme_bridge=_ThemeBridge(_ThemeSource()),
+            graph_label_pixel_size=16,
+            graph_node_icon_pixel_size=50,
         )
 
         self.assertIn(node.node_id, payloads)
@@ -1083,7 +1065,6 @@ class GraphSurfaceInlineMetricTypographyTests(unittest.TestCase):
 
             def __init__(self) -> None:
                 super().__init__()
-                self.graph_canvas_presenter = None
                 self.graphics_graph_label_pixel_size = 16
                 self.graphics_graph_node_icon_pixel_size_override = None
                 self.graphics_node_title_icon_pixel_size = 16
@@ -1096,6 +1077,7 @@ class GraphSurfaceInlineMetricTypographyTests(unittest.TestCase):
 
         host = _SceneHost()
         scene = GraphSceneBridge(host)
+        scene.bind_graphics_preferences_source(host)
         scene.bind_graph_theme_bridge(GraphThemeBridge(host, theme_id="stitch_dark"))
         scene.set_workspace(model, registry, workspace_id)
 

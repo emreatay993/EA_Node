@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import unittest
-from types import SimpleNamespace
 from pathlib import Path
 
 from ea_node_editor.graph.model import GraphModel
@@ -17,14 +16,12 @@ from tests.graph_surface_pointer_regression import (
 class _PlotGraphThemeBridge:
     theme = "graph_stitch_dark"
 
-    def __init__(self, *, lightweight_canvas: bool = False) -> None:
-        self._parent = SimpleNamespace(graphics_lightweight_canvas=bool(lightweight_canvas))
 
-    def parent(self) -> object:
-        return self._parent
-
-
-def _plot_scene_payload(*, properties: dict[str, object] | None = None) -> dict[str, object]:
+def _plot_scene_payload(
+    *,
+    properties: dict[str, object] | None = None,
+    lightweight_canvas: bool = False,
+) -> dict[str, object]:
     model = GraphModel()
     registry = build_default_registry()
     workspace_id = model.active_workspace.workspace_id
@@ -42,6 +39,7 @@ def _plot_scene_payload(*, properties: dict[str, object] | None = None) -> dict[
         workspace_id=workspace_id,
         scope_path=(),
         graph_theme_bridge=_PlotGraphThemeBridge(),
+        lightweight_canvas=lightweight_canvas,
     )
     return next(item for item in nodes_payload if item["node_id"] == node.node_id)
 

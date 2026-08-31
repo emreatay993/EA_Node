@@ -17,6 +17,7 @@ from tests.graph_track_b.qml_support import (
     _GRAPH_CANVAS_QML_PATH,
     _NODE_CARD_QML_PATH,
     _GraphCanvasPreferenceBridge,
+    _GraphCanvasSessionBridge,
     build_default_registry,
     _build_edge_crossing_pipe_registry,
     _named_child_items,
@@ -52,7 +53,7 @@ class GraphCanvasQmlPreferenceRenderingTests(GraphCanvasQmlPreferenceTestBase):
 
         self.bridge.set_graphics_show_grid_value(False)
         self.bridge.set_graphics_show_minimap_value(False)
-        self.bridge.set_graphics_minimap_expanded_value(False)
+        self.canvas_source.set_graphics_minimap_expanded_value(False)
         self.bridge.set_graphics_show_port_labels_value(False)
         self.bridge.set_graphics_node_elapsed_time_unit_value("milliseconds")
         self.bridge.set_graphics_edge_crossing_style_value("gap_break")
@@ -329,15 +330,20 @@ class GraphCanvasQmlPreferenceRenderingTests(GraphCanvasQmlPreferenceTestBase):
             graphics_preferences_changed = pyqtSignal()
             scene_nodes_changed = pyqtSignal()
 
-            def __init__(self, preference_bridge: _GraphCanvasPreferenceBridge) -> None:
+            def __init__(
+                self,
+                preference_bridge: _GraphCanvasPreferenceBridge,
+                canvas_source: object,
+            ) -> None:
                 super().__init__()
                 self._preference_bridge = preference_bridge
+                self._canvas_source = canvas_source
                 self._nodes_model = [dict(node_payload)]
                 self._preference_bridge.graphics_preferences_changed.connect(self.graphics_preferences_changed.emit)
 
             @pyqtProperty(bool, notify=graphics_preferences_changed)
             def graphics_minimap_expanded(self) -> bool:
-                return bool(self._preference_bridge.graphics_minimap_expanded)
+                return bool(self._canvas_source.graphics_minimap_expanded)
 
             @pyqtProperty(bool, notify=graphics_preferences_changed)
             def graphics_show_grid(self) -> bool:
@@ -382,9 +388,11 @@ class GraphCanvasQmlPreferenceRenderingTests(GraphCanvasQmlPreferenceTestBase):
         self.canvas.deleteLater()
         self.app.processEvents()
 
-        canvas_state_bridge = CanvasStateBridgeStub(self.bridge)
+        canvas_state_bridge = CanvasStateBridgeStub(self.bridge, self.canvas_source)
         canvas_command_bridge = GraphCanvasCommandBridge(
             shell_window=self.bridge,  # type: ignore[arg-type]
+            canvas_source=self.canvas_source,  # type: ignore[arg-type]
+            graphics_source=self.bridge,  # type: ignore[arg-type]
             view_bridge=self.view,
         )
         self.canvas = self._create_canvas(
@@ -695,6 +703,8 @@ class GraphCanvasQmlPreferenceRenderingTests(GraphCanvasQmlPreferenceTestBase):
         canvas_state_bridge = CanvasStateBridgeStub(preference_bridge)
         canvas_command_bridge = GraphCanvasCommandBridge(
             shell_window=self.bridge,  # type: ignore[arg-type]
+            canvas_source=self.canvas_source,  # type: ignore[arg-type]
+            graphics_source=preference_bridge,  # type: ignore[arg-type]
             view_bridge=self.view,
         )
         self.canvas = self._create_canvas(
@@ -826,10 +836,12 @@ class GraphCanvasQmlPreferenceRenderingTests(GraphCanvasQmlPreferenceTestBase):
             def __init__(
                 self,
                 preference_bridge: _GraphCanvasPreferenceBridge,
+                canvas_source: object,
                 view_bridge: ViewportBridge,
             ) -> None:
                 super().__init__()
                 self._preference_bridge = preference_bridge
+                self._canvas_source = canvas_source
                 self._view_bridge = view_bridge
                 self._nodes_model = [dict(node_payload)]
                 self._running_node_lookup: dict[str, bool] = {}
@@ -849,7 +861,7 @@ class GraphCanvasQmlPreferenceRenderingTests(GraphCanvasQmlPreferenceTestBase):
 
             @pyqtProperty(bool, notify=graphics_preferences_changed)
             def graphics_minimap_expanded(self) -> bool:
-                return bool(self._preference_bridge.graphics_minimap_expanded)
+                return bool(self._canvas_source.graphics_minimap_expanded)
 
             @pyqtProperty(bool, notify=graphics_preferences_changed)
             def graphics_show_grid(self) -> bool:
@@ -985,9 +997,15 @@ class GraphCanvasQmlPreferenceRenderingTests(GraphCanvasQmlPreferenceTestBase):
         self.canvas.deleteLater()
         self.app.processEvents()
 
-        canvas_state_bridge = CanvasStateBridgeStub(self.bridge, self.view)
+        canvas_state_bridge = CanvasStateBridgeStub(
+            self.bridge,
+            self.canvas_source,
+            self.view,
+        )
         canvas_command_bridge = GraphCanvasCommandBridge(
             shell_window=self.bridge,  # type: ignore[arg-type]
+            canvas_source=self.canvas_source,  # type: ignore[arg-type]
+            graphics_source=self.bridge,  # type: ignore[arg-type]
             view_bridge=self.view,
         )
         self.canvas = self._create_canvas(
@@ -1190,7 +1208,7 @@ class GraphCanvasQmlPreferenceRenderingTests(GraphCanvasQmlPreferenceTestBase):
         self.assertEqual(_color_name(output_port_dot.property("color")), output_port_fill)
 
     def test_toggle_minimap_expanded_routes_through_bridge_slot(self) -> None:
-        self.assertEqual(self.bridge.minimap_update_history, [])
+        self.assertEqual(self.canvas_source.minimap_update_history, [])
         self.assertTrue(bool(self.canvas.property("minimapExpanded")))
 
         QMetaObject.invokeMethod(
@@ -1200,8 +1218,8 @@ class GraphCanvasQmlPreferenceRenderingTests(GraphCanvasQmlPreferenceTestBase):
         )
         self.app.processEvents()
 
-        self.assertEqual(self.bridge.minimap_update_history, [False])
-        self.assertFalse(self.bridge.graphics_minimap_expanded)
+        self.assertEqual(self.canvas_source.minimap_update_history, [False])
+        self.assertFalse(self.canvas_source.graphics_minimap_expanded)
         self.assertFalse(bool(self.canvas.property("minimapExpanded")))
 
     def test_canvas_qml_theme_surfaces_follow_runtime_theme_changes(self) -> None:
@@ -1330,6 +1348,7 @@ class GraphCanvasQmlPreferenceRenderingTests(GraphCanvasQmlPreferenceTestBase):
         model = GraphModel()
         workspace = model.active_workspace
         scene = GraphSceneBridge()
+        scene.bind_graphics_preferences_source(self.bridge)
         scene.set_workspace(model, registry, workspace.workspace_id)
         node_id = scene.add_node_from_type("plot.signal", 120.0, 120.0)
         node = workspace.nodes[node_id]
@@ -1340,14 +1359,15 @@ class GraphCanvasQmlPreferenceRenderingTests(GraphCanvasQmlPreferenceTestBase):
         self.app.processEvents()
         state_bridge = GraphCanvasStateBridge(
             shell_window=self.bridge,  # type: ignore[arg-type]
-            canvas_source=self.bridge,  # type: ignore[arg-type]
+            canvas_source=self.canvas_source,  # type: ignore[arg-type]
             graphics_source=self.bridge,  # type: ignore[arg-type]
             scene_bridge=scene,
             view_bridge=self.view,
         )
         command_bridge = GraphCanvasCommandBridge(
             shell_window=self.bridge,  # type: ignore[arg-type]
-            canvas_source=self.bridge,  # type: ignore[arg-type]
+            canvas_source=self.canvas_source,  # type: ignore[arg-type]
+            graphics_source=self.bridge,  # type: ignore[arg-type]
             scene_bridge=scene,
             view_bridge=self.view,
         )
@@ -1622,6 +1642,7 @@ class GraphCanvasQmlPreferenceRenderingTests(GraphCanvasQmlPreferenceTestBase):
 
         model = GraphModel()
         scene = GraphSceneBridge()
+        scene.bind_graphics_preferences_source(self.bridge)
         scene.set_workspace(
             model,
             _build_edge_crossing_pipe_registry(),
@@ -1773,6 +1794,7 @@ class GraphCanvasQmlPreferenceRenderingTests(GraphCanvasQmlPreferenceTestBase):
     def test_passive_selected_glow_without_style_uses_graph_theme_selected_color(self) -> None:
         model = GraphModel()
         scene = GraphSceneBridge()
+        scene.bind_graphics_preferences_source(self.bridge)
         scene.set_workspace(
             model,
             _build_edge_crossing_pipe_registry(),
@@ -1786,14 +1808,15 @@ class GraphCanvasQmlPreferenceRenderingTests(GraphCanvasQmlPreferenceTestBase):
 
         canvas_state_bridge = GraphCanvasStateBridge(
             shell_window=self.bridge,  # type: ignore[arg-type]
-            canvas_source=self.bridge,  # type: ignore[arg-type]
+            canvas_source=self.canvas_source,  # type: ignore[arg-type]
             graphics_source=self.bridge,  # type: ignore[arg-type]
             scene_bridge=scene,
             view_bridge=self.view,
         )
         canvas_command_bridge = GraphCanvasCommandBridge(
             shell_window=self.bridge,  # type: ignore[arg-type]
-            canvas_source=self.bridge,  # type: ignore[arg-type]
+            canvas_source=self.canvas_source,  # type: ignore[arg-type]
+            graphics_source=self.bridge,  # type: ignore[arg-type]
             scene_bridge=scene,
             view_bridge=self.view,
         )
@@ -1857,6 +1880,7 @@ class GraphCanvasQmlPreferenceRenderingTests(GraphCanvasQmlPreferenceTestBase):
     def test_styled_passive_selected_glow_uses_graph_theme_selected_color(self) -> None:
         model = GraphModel()
         scene = GraphSceneBridge()
+        scene.bind_graphics_preferences_source(self.bridge)
         scene.set_workspace(
             model,
             _build_edge_crossing_pipe_registry(),
@@ -1882,14 +1906,15 @@ class GraphCanvasQmlPreferenceRenderingTests(GraphCanvasQmlPreferenceTestBase):
 
         canvas_state_bridge = GraphCanvasStateBridge(
             shell_window=self.bridge,  # type: ignore[arg-type]
-            canvas_source=self.bridge,  # type: ignore[arg-type]
+            canvas_source=self.canvas_source,  # type: ignore[arg-type]
             graphics_source=self.bridge,  # type: ignore[arg-type]
             scene_bridge=scene,
             view_bridge=self.view,
         )
         canvas_command_bridge = GraphCanvasCommandBridge(
             shell_window=self.bridge,  # type: ignore[arg-type]
-            canvas_source=self.bridge,  # type: ignore[arg-type]
+            canvas_source=self.canvas_source,  # type: ignore[arg-type]
+            graphics_source=self.bridge,  # type: ignore[arg-type]
             scene_bridge=scene,
             view_bridge=self.view,
         )
@@ -1949,6 +1974,7 @@ class GraphCanvasQmlPreferenceRenderingTests(GraphCanvasQmlPreferenceTestBase):
     def test_flowchart_selected_glow_uses_graph_theme_selected_color(self) -> None:
         model = GraphModel()
         scene = GraphSceneBridge()
+        scene.bind_graphics_preferences_source(self.bridge)
         scene.set_workspace(
             model,
             _build_edge_crossing_pipe_registry(),
@@ -1971,14 +1997,15 @@ class GraphCanvasQmlPreferenceRenderingTests(GraphCanvasQmlPreferenceTestBase):
 
         canvas_state_bridge = GraphCanvasStateBridge(
             shell_window=self.bridge,  # type: ignore[arg-type]
-            canvas_source=self.bridge,  # type: ignore[arg-type]
+            canvas_source=self.canvas_source,  # type: ignore[arg-type]
             graphics_source=self.bridge,  # type: ignore[arg-type]
             scene_bridge=scene,
             view_bridge=self.view,
         )
         canvas_command_bridge = GraphCanvasCommandBridge(
             shell_window=self.bridge,  # type: ignore[arg-type]
-            canvas_source=self.bridge,  # type: ignore[arg-type]
+            canvas_source=self.canvas_source,  # type: ignore[arg-type]
+            graphics_source=self.bridge,  # type: ignore[arg-type]
             scene_bridge=scene,
             view_bridge=self.view,
         )

@@ -201,9 +201,17 @@ class MainWindowShellContextBootstrapTests(SharedMainWindowShellTestBase):
         self.assertIs(graph_canvas_command_bridge.parent(), self.window)
         self.assertIsNone(graph_canvas_command_bridge.shell_window)
         self.assertIs(graph_canvas_command_bridge.canvas_source, self.window.graph_canvas_presenter)
+        self.assertIs(
+            graph_canvas_command_bridge.graphics_source,
+            self.window.shell_workspace_presenter,
+        )
         self.assertIs(graph_canvas_command_bridge.host_source, self.window.graph_canvas_host_presenter)
         self.assertIs(graph_canvas_command_bridge.scene_bridge, self.window.scene)
         self.assertIs(graph_canvas_command_bridge.view_bridge, self.window.view)
+        self.assertIs(
+            self.window.scene._graphics_preferences_source,
+            self.window.shell_workspace_presenter,
+        )
 
         content_fullscreen_bridge = context.contextProperty("contentFullscreenBridge")
         self.assertIsInstance(content_fullscreen_bridge, ContentFullscreenBridge)

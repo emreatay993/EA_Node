@@ -97,7 +97,6 @@ def _build_edge_crossing_pipe_registry() -> NodeRegistry:
 
 class _GraphCanvasPreferenceBridge(QObject):
     graphics_preferences_changed = pyqtSignal()
-    snap_to_grid_changed = pyqtSignal()
 
     def __init__(self) -> None:
         super().__init__()
@@ -105,13 +104,10 @@ class _GraphCanvasPreferenceBridge(QObject):
         self._graphics_grid_style = "lines"
         self._graphics_show_minimap = True
         self._graphics_show_canvas_options_button = True
-        self._graphics_minimap_expanded = True
         self._graphics_show_port_labels = True
         self._graphics_node_elapsed_time_unit = "seconds"
         self._graphics_node_elapsed_time_visibility = "always"
         self._graphics_node_floating_toolbar_opens_on_hover = False
-        self._snap_to_grid_enabled = False
-        self.minimap_update_history: list[bool] = []
 
     @pyqtProperty(bool, notify=graphics_preferences_changed)
     def graphics_show_grid(self) -> bool:
@@ -130,14 +126,6 @@ class _GraphCanvasPreferenceBridge(QObject):
         return bool(self._graphics_show_canvas_options_button)
 
     @pyqtProperty(bool, notify=graphics_preferences_changed)
-    def graphics_minimap_expanded(self) -> bool:
-        return bool(self._graphics_minimap_expanded)
-
-    @pyqtProperty(bool, notify=snap_to_grid_changed)
-    def snap_to_grid_enabled(self) -> bool:
-        return bool(self._snap_to_grid_enabled)
-
-    @pyqtProperty(bool, notify=graphics_preferences_changed)
     def graphics_show_port_labels(self) -> bool:
         return bool(self._graphics_show_port_labels)
 
@@ -152,10 +140,6 @@ class _GraphCanvasPreferenceBridge(QObject):
     @pyqtProperty(bool, notify=graphics_preferences_changed)
     def graphics_node_floating_toolbar_opens_on_hover(self) -> bool:
         return bool(self._graphics_node_floating_toolbar_opens_on_hover)
-
-    @pyqtProperty(float, constant=True)
-    def snap_grid_size(self) -> float:
-        return 20.0
 
     def set_graphics_show_grid_value(self, value: bool) -> None:
         normalized = bool(value)
@@ -185,13 +169,6 @@ class _GraphCanvasPreferenceBridge(QObject):
         if self._graphics_show_canvas_options_button == normalized:
             return
         self._graphics_show_canvas_options_button = normalized
-        self.graphics_preferences_changed.emit()
-
-    def set_graphics_minimap_expanded_value(self, value: bool) -> None:
-        normalized = bool(value)
-        if self._graphics_minimap_expanded == normalized:
-            return
-        self._graphics_minimap_expanded = normalized
         self.graphics_preferences_changed.emit()
 
     def set_graphics_show_port_labels_value(self, value: bool) -> None:
@@ -224,23 +201,6 @@ class _GraphCanvasPreferenceBridge(QObject):
 
     def set_graphics_node_elapsed_time_visibility(self, value: str) -> None:
         self.set_graphics_node_elapsed_time_visibility_value(value)
-
-    def set_snap_to_grid_enabled_value(self, value: bool) -> None:
-        normalized = bool(value)
-        if self._snap_to_grid_enabled == normalized:
-            return
-        self._snap_to_grid_enabled = normalized
-        self.snap_to_grid_changed.emit()
-
-    @pyqtSlot(bool)
-    def set_graphics_minimap_expanded(self, expanded: bool) -> None:
-        normalized = bool(expanded)
-        self.minimap_update_history.append(normalized)
-        if self._graphics_minimap_expanded == normalized:
-            return
-        self._graphics_minimap_expanded = normalized
-        self.graphics_preferences_changed.emit()
-
 
 class _GraphCanvasRenderingPreferenceBridge(_GraphCanvasPreferenceBridge):
     def __init__(self) -> None:
@@ -286,6 +246,48 @@ class _GraphCanvasRenderingPreferenceBridge(_GraphCanvasPreferenceBridge):
             return
         self._graphics_edge_crossing_style = normalized
         self.graphics_preferences_changed.emit()
+
+
+class _GraphCanvasSessionBridge(QObject):
+    snap_to_grid_changed = pyqtSignal()
+    snap_grid_size = 20.0
+
+    def __init__(self, graphics_source: _GraphCanvasPreferenceBridge) -> None:
+        super().__init__()
+        self._graphics_source = graphics_source
+        self.graphics_minimap_expanded = True
+        self.selected_run_preview_before_run = False
+        self.snap_to_grid_enabled = False
+        self.minimap_update_history: list[bool] = []
+
+    def set_graphics_minimap_expanded_value(self, value: bool) -> None:
+        self.set_graphics_minimap_expanded(value)
+
+    def set_snap_to_grid_enabled_value(self, value: bool) -> None:
+        self.set_snap_to_grid_enabled(value)
+
+    def set_snap_to_grid_enabled(self, value: bool) -> None:
+        normalized = bool(value)
+        if self.snap_to_grid_enabled == normalized:
+            return
+        self.snap_to_grid_enabled = normalized
+        self.snap_to_grid_changed.emit()
+
+    @pyqtSlot(bool)
+    def set_graphics_minimap_expanded(self, expanded: bool) -> None:
+        normalized = bool(expanded)
+        self.minimap_update_history.append(normalized)
+        if self.graphics_minimap_expanded == normalized:
+            return
+        self.graphics_minimap_expanded = normalized
+        self._graphics_source.graphics_preferences_changed.emit()
+
+    def set_selected_run_preview_before_run(self, enabled: bool) -> None:
+        normalized = bool(enabled)
+        if self.selected_run_preview_before_run == normalized:
+            return
+        self.selected_run_preview_before_run = normalized
+        self._graphics_source.graphics_preferences_changed.emit()
 
 class _GraphCanvasShellContext(QObject):
     def __init__(self, theme_bridge: ThemeBridge, graph_theme_bridge: GraphThemeBridge) -> None:
@@ -355,17 +357,19 @@ class GraphCanvasQmlPreferenceTestBase(unittest.TestCase):
             errors = _qml_error_text(self.component.errors())
             self.fail(f"Failed to load GraphCanvas.qml:\n{errors}")
         self.bridge = _GraphCanvasRenderingPreferenceBridge()
+        self.canvas_source = _GraphCanvasSessionBridge(self.bridge)
         self.view = ViewportBridge()
         self.view.set_viewport_size(1280.0, 720.0)
         self.canvas_state_bridge = GraphCanvasStateBridge(
             shell_window=self.bridge,  # type: ignore[arg-type]
-            canvas_source=self.bridge,  # type: ignore[arg-type]
+            canvas_source=self.canvas_source,  # type: ignore[arg-type]
             graphics_source=self.bridge,  # type: ignore[arg-type]
             view_bridge=self.view,
         )
         self.canvas_command_bridge = GraphCanvasCommandBridge(
             shell_window=self.bridge,  # type: ignore[arg-type]
-            canvas_source=self.bridge,  # type: ignore[arg-type]
+            canvas_source=self.canvas_source,  # type: ignore[arg-type]
+            graphics_source=self.bridge,  # type: ignore[arg-type]
             view_bridge=self.view,
         )
         self.canvas = self._create_canvas(
@@ -461,6 +465,7 @@ __all__ = [
     "_NODE_CARD_QML_PATH",
     "_GraphCanvasRenderingPreferenceBridge",
     "_GraphCanvasPreferenceBridge",
+    "_GraphCanvasSessionBridge",
     "_build_edge_crossing_pipe_registry",
     "_named_child_items",
     "build_graph_canvas_qml_preference_subprocess_suite",
