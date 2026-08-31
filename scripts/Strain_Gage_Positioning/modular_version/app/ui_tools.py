@@ -2,8 +2,11 @@
 """
 Contains reusable UI tool classes that can be attached to a PyVista plotter.
 """
+import time
+
 import numpy as np
 import pyvista as pv
+import vtk
 
 
 PLACEMENT_COLUMNS = [
@@ -155,6 +158,166 @@ def build_gage_placements(candidates_df, surface, named_selection=None, override
         }
         records.append(record)
     return records
+
+
+class ContourHoverUI:
+    """Cursor tooltip for interpolated values on one active contour actor."""
+
+    def __init__(self, plotter: pv.Plotter):
+        self.pl = plotter
+        self.surface = None
+        self.actor = None
+        self.scalar_name = ""
+        self.scalar_label = ""
+        self.tooltip_actor = None
+        self._tooltip_visible = False
+        self._last_hover_time = 0.0
+        self.picker = vtk.vtkCellPicker()
+        self.picker.SetTolerance(0.005)
+        self.picker.PickFromListOn()
+        self.observer_id = self.pl.iren.add_observer(
+            "MouseMoveEvent", self._on_mouse_move
+        )
+
+    def set_context(self, actor, surface, scalar_name, scalar_label):
+        self.clear_context()
+        if surface is None or scalar_name not in surface.point_data:
+            raise ValueError("The active contour does not contain the requested point scalar.")
+        self.actor = actor
+        self.surface = surface
+        self.scalar_name = str(scalar_name)
+        self.scalar_label = str(scalar_label)
+        self.picker.AddPickList(actor)
+        self.tooltip_actor = self.pl.add_text(
+            "",
+            position=(0, 0),
+            font_size=10,
+            color="black",
+            name="contour_hover_tooltip",
+            render=False,
+        )
+        text_property = self.tooltip_actor.GetTextProperty()
+        text_property.SetBackgroundColor(1.0, 1.0, 1.0)
+        text_property.SetBackgroundOpacity(0.82)
+        self.tooltip_actor.SetPickable(False)
+        self.tooltip_actor.SetVisibility(False)
+
+    def clear_context(self):
+        self.picker.InitializePickList()
+        self.surface = None
+        self.actor = None
+        self.scalar_name = ""
+        self.scalar_label = ""
+        self._tooltip_visible = False
+        if self.tooltip_actor is not None:
+            try:
+                self.pl.remove_actor(self.tooltip_actor, render=False)
+            except Exception:
+                pass
+        self.tooltip_actor = None
+
+    def close(self):
+        self.clear_context()
+        if self.observer_id is not None:
+            try:
+                self.pl.iren.remove_observer(self.observer_id)
+            except Exception:
+                pass
+            self.observer_id = None
+
+    @staticmethod
+    def interpolate_scalar(surface, cell_id, point, scalar_name):
+        if surface is None or scalar_name not in surface.point_data:
+            return None
+        if cell_id < 0 or cell_id >= int(surface.n_cells):
+            return None
+
+        cell = surface.GetCell(int(cell_id))
+        point_count = int(cell.GetNumberOfPoints())
+        if point_count == 0:
+            return None
+
+        closest_point = [0.0, 0.0, 0.0]
+        sub_id = vtk.mutable(0)
+        parametric_coords = [0.0, 0.0, 0.0]
+        distance_squared = vtk.mutable(0.0)
+        weights = [0.0] * point_count
+        status = cell.EvaluatePosition(
+            np.asarray(point, dtype=float).reshape(3),
+            closest_point,
+            sub_id,
+            parametric_coords,
+            distance_squared,
+            weights,
+        )
+        if status < 0:
+            return None
+
+        point_ids = [cell.GetPointId(i) for i in range(point_count)]
+        point_values = np.asarray(surface.point_data[scalar_name], dtype=float)
+        value = float(np.dot(weights, point_values[point_ids]))
+        return value if np.isfinite(value) else None
+
+    def _on_mouse_move(self, interactor, _event):
+        if self.surface is None or self.actor is None or self.tooltip_actor is None:
+            return
+        now = time.monotonic()
+        if now - self._last_hover_time < 1.0 / 30.0:
+            return
+        self._last_hover_time = now
+
+        try:
+            x, y = interactor.GetEventPosition()
+            picked = self.picker.Pick(x, y, 0, self.pl.renderer)
+            cell_id = self.picker.GetCellId()
+            point = np.asarray(self.picker.GetPickPosition(), dtype=float)
+            value = (
+                self.interpolate_scalar(
+                    self.surface, cell_id, point, self.scalar_name
+                )
+                if picked
+                else None
+            )
+            if value is None:
+                if self._hide_tooltip():
+                    interactor.GetRenderWindow().Render()
+                return
+
+            self.tooltip_actor.SetInput(
+                "{0}: {1:.6g}\nX/Y/Z [mm]: {2:.6g}, {3:.6g}, {4:.6g}".format(
+                    self.scalar_label, value, point[0], point[1], point[2]
+                )
+            )
+            self.tooltip_actor.SetVisibility(True)
+            self._tooltip_visible = True
+            render_window = interactor.GetRenderWindow()
+            width, height = render_window.GetSize()
+            text_size = [0.0, 0.0]
+            self.tooltip_actor.GetSize(self.pl.renderer, text_size)
+            tooltip_x = x + 12
+            tooltip_y = y + 12
+            if tooltip_x + text_size[0] > width:
+                tooltip_x = x - text_size[0] - 12
+            if tooltip_y + text_size[1] > height:
+                tooltip_y = y - text_size[1] - 12
+            self.tooltip_actor.SetDisplayPosition(
+                max(0, int(tooltip_x)), max(0, int(tooltip_y))
+            )
+            render_window.Render()
+        except Exception:
+            if self._hide_tooltip():
+                try:
+                    interactor.GetRenderWindow().Render()
+                except Exception:
+                    pass
+
+    def _hide_tooltip(self):
+        if self.tooltip_actor is None or not self._tooltip_visible:
+            return False
+        self.tooltip_actor.SetInput("")
+        self.tooltip_actor.SetVisibility(False)
+        self._tooltip_visible = False
+        return True
 
 
 class DistanceMeasureUI:

@@ -15,7 +15,7 @@ from PyQt6.QtCore import Qt, QCoreApplication
 from pyvistaqt import MainWindow as PyVistaMainWindow
 
 from .ui_components import ControlPanel, VisualizationPanel, InputDataPanel
-from .ui_tools import DistanceMeasureUI, GagePlacementUI, PLACEMENT_COLUMNS
+from .ui_tools import ContourHoverUI, DistanceMeasureUI, GagePlacementUI, PLACEMENT_COLUMNS
 from .analysis_engine import AnalysisEngine
 from .dpf_dialog import DpfImportDialog
 from . import dpf_loader
@@ -34,6 +34,33 @@ def _format_rst_set_summary(set_ids):
         return f"sets {ids[0]}-{ids[-1]} ({len(ids)} sets)"
     shown = ",".join(str(s) for s in ids[:3])
     return f"sets {shown},...{ids[-1]} ({len(ids)} sets)"
+
+
+def _rst_surface_result_indices(result_node_ids, surface):
+    """Map each RST surface point to its solver-node result row."""
+    if "DPFNodeId" not in surface.point_data:
+        raise ValueError("The extracted RST surface does not contain DPFNodeId data.")
+
+    result_node_ids = np.asarray(result_node_ids, dtype=np.int64).reshape(-1)
+    surface_node_ids = np.asarray(surface.point_data["DPFNodeId"], dtype=np.int64).reshape(-1)
+    if surface_node_ids.size != int(surface.n_points):
+        raise ValueError("RST surface node IDs do not match the surface point count.")
+    if np.unique(result_node_ids).size != result_node_ids.size:
+        raise ValueError("RST result node IDs must be unique.")
+    if np.unique(surface_node_ids).size != surface_node_ids.size:
+        raise ValueError("RST surface node IDs must be unique.")
+
+    result_indices = dpf_loader._indices_for_ids(result_node_ids, surface_node_ids)
+    if result_indices.size != surface_node_ids.size:
+        missing = np.setdiff1d(surface_node_ids, result_node_ids)
+        example = ", ".join(str(int(node_id)) for node_id in missing[:5])
+        raise ValueError(
+            "{0} RST surface node(s) have no strain result{1}.".format(
+                missing.size,
+                " (for example: {0})".format(example) if example else "",
+            )
+        )
+    return result_indices
 
 
 class MainWindow(QMainWindow):
@@ -91,6 +118,7 @@ class MainWindow(QMainWindow):
 
         # Attach the distance measurement UI tool to the plotter
         self.distance_tool = DistanceMeasureUI(self.visualization_panel.vtk_widget, units="mm")
+        self.contour_hover_tool = ContourHoverUI(self.visualization_panel.vtk_widget)
         self.gage_placement_tool = GagePlacementUI(
             self.visualization_panel.vtk_widget,
             on_changed=self.export_gage_placements,
@@ -236,6 +264,9 @@ class MainWindow(QMainWindow):
                 rotate_to_global=rotate)
             surface_mesh = dpf_loader.load_rst_surface_mesh(
                 rst_path, named_selection=named_selection)
+            surface_mesh["result_indices"] = _rst_surface_result_indices(
+                nodes, surface_mesh["surface"]
+            )
         except Exception as e:
             QApplication.restoreOverrideCursor()
             QMessageBox.critical(self, "Extraction Failed",
@@ -319,6 +350,7 @@ class MainWindow(QMainWindow):
     def clear_visualization(self, preserve_camera=False):
         plotter = self.visualization_panel.vtk_widget
         camera = plotter.camera.copy() if preserve_camera else None
+        self.contour_hover_tool.clear_context()
         plotter.clear()
         if camera:
             plotter.camera = camera
@@ -342,22 +374,17 @@ class MainWindow(QMainWindow):
     def display_rst_surface_preview(self, preserve_camera=False):
         self.clear_visualization(preserve_camera=preserve_camera)
         plotter = self.visualization_panel.vtk_widget
-        viz_settings = self.visualization_panel.get_settings()
-        if (
-            viz_settings.get('show_surface_mesh')
-            and self.rst_surface_mesh
-            and self.rst_surface_mesh.get("surface") is not None
-        ):
+        if self.rst_surface_mesh and self.rst_surface_mesh.get("surface") is not None:
             self._add_rst_surface_mesh(plotter)
         plotter.render()
 
     def _add_rst_surface_mesh(self, plotter):
-        opacity = self.visualization_panel.get_settings().get("surface_mesh_opacity", 1.0)
+        settings = self.visualization_panel.get_settings()
         plotter.add_mesh(
             self.rst_surface_mesh["surface"],
             color="lightgray",
-            opacity=opacity,
-            show_edges=True,
+            opacity=settings.get("surface_mesh_opacity", 1.0),
+            show_edges=settings.get("show_surface_edges", True),
             edge_color="dimgray",
             pickable=True,
         )
@@ -366,27 +393,52 @@ class MainWindow(QMainWindow):
         self.clear_visualization(preserve_camera=preserve_camera)
         plotter = self.visualization_panel.vtk_widget
         viz_settings = self.visualization_panel.get_settings()
-
-        if (
-            viz_settings.get('show_surface_mesh')
-            and self.rst_surface_mesh
-            and self.rst_surface_mesh.get("surface") is not None
-        ):
-            self._add_rst_surface_mesh(plotter)
-
-        cloud = pv.PolyData(coords)
-        cloud["Scalars"] = scalars
         scalar_title = "Strain (mm/mm)" if self.display_in_strain else "Microstrain (με)"
 
-        plotter.add_mesh(
-            cloud, scalars="Scalars", cmap="jet",
-            point_size=viz_settings['cloud_point_size'],
-            render_points_as_spheres=True,
-            clim=(viz_settings['clim_min'], viz_settings['clim_max']),
-            below_color=viz_settings['below_color'],
-            above_color=viz_settings['above_color'],
-            scalar_bar_args={'title': scalar_title}
-        )
+        if self.rst_surface_mesh and self.rst_surface_mesh.get("surface") is not None:
+            surface = self.rst_surface_mesh["surface"]
+            result_indices = np.asarray(
+                self.rst_surface_mesh.get("result_indices", []), dtype=int
+            )
+            scalar_values = np.asarray(scalars, dtype=float).reshape(-1)
+            if (
+                result_indices.size != int(surface.n_points)
+                or np.any(result_indices < 0)
+                or np.any(result_indices >= scalar_values.size)
+            ):
+                raise ValueError("The cached RST surface-to-result mapping is invalid.")
+
+            surface.point_data["Scalars"] = scalar_values[result_indices]
+            surface.set_active_scalars("Scalars")
+            contour_actor = plotter.add_mesh(
+                surface,
+                scalars="Scalars",
+                cmap="jet",
+                clim=(viz_settings['clim_min'], viz_settings['clim_max']),
+                below_color=viz_settings['below_color'],
+                above_color=viz_settings['above_color'],
+                opacity=viz_settings['surface_mesh_opacity'],
+                show_edges=viz_settings['show_surface_edges'],
+                edge_color="dimgray",
+                interpolate_before_map=True,
+                pickable=True,
+                scalar_bar_args={'title': scalar_title},
+            )
+            self.contour_hover_tool.set_context(
+                contour_actor, surface, "Scalars", scalar_title
+            )
+        else:
+            cloud = pv.PolyData(coords)
+            cloud["Scalars"] = np.asarray(scalars, dtype=float)
+            plotter.add_mesh(
+                cloud, scalars="Scalars", cmap="jet",
+                point_size=viz_settings['cloud_point_size'],
+                render_points_as_spheres=True,
+                clim=(viz_settings['clim_min'], viz_settings['clim_max']),
+                below_color=viz_settings['below_color'],
+                above_color=viz_settings['above_color'],
+                scalar_bar_args={'title': scalar_title}
+            )
 
         if not candidates_df.empty:
             candidate_points = pv.PolyData(candidates_df[['X', 'Y', 'Z']].values)
@@ -539,5 +591,6 @@ class MainWindow(QMainWindow):
 
     def closeEvent(self, event):
         """Ensure the application and any VTK elements close cleanly."""
+        self.contour_hover_tool.close()
         self.visualization_panel.vtk_widget.close()
         event.accept()

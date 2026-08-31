@@ -392,8 +392,8 @@ class VisualizationPanel(QWidget):
         self.surface_group = QGroupBox("Surface Placement")
         self.surface_group.setStyleSheet(group_box_style)
         surface_layout = QHBoxLayout(self.surface_group)
-        self.chk_show_surface_mesh = QCheckBox("Mesh")
-        self.chk_show_surface_mesh.setChecked(True)
+        self.chk_show_surface_edges = QCheckBox("Mesh edges")
+        self.chk_show_surface_edges.setChecked(True)
         self.dspin_surface_mesh_opacity = QDoubleSpinBox()
         self.dspin_surface_mesh_opacity.setRange(0.0, 1.0)
         self.dspin_surface_mesh_opacity.setDecimals(2)
@@ -406,8 +406,8 @@ class VisualizationPanel(QWidget):
         self.chk_override_gage_direction = QCheckBox("Override direction")
         self.btn_clear_gage_overrides = QPushButton("Clear overrides")
         self.btn_export_gage_placements = QPushButton("Export placements")
-        surface_layout.addWidget(self.chk_show_surface_mesh)
-        surface_layout.addWidget(QLabel("Mesh Opacity:"))
+        surface_layout.addWidget(self.chk_show_surface_edges)
+        surface_layout.addWidget(QLabel("Surface Opacity:"))
         surface_layout.addWidget(self.dspin_surface_mesh_opacity)
         for widget in [
             self.chk_show_surface_normals,
@@ -441,8 +441,8 @@ class VisualizationPanel(QWidget):
         self.dspin_candidate_point_size.setToolTip(tips.CANDIDATE_POINT_SIZE)
         self.spin_label_font_size.setToolTip(tips.LABEL_FONT_SIZE)
         self.legend_group.setToolTip(tips.LEGEND_CONTROLS)
-        self.chk_show_surface_mesh.setToolTip(tips.SHOW_SELECTED_SURFACE_MESH)
-        self.dspin_surface_mesh_opacity.setToolTip(tips.SURFACE_MESH_OPACITY)
+        self.chk_show_surface_edges.setToolTip(tips.SHOW_SURFACE_EDGES)
+        self.dspin_surface_mesh_opacity.setToolTip(tips.SURFACE_OPACITY)
         self.chk_show_surface_normals.setToolTip(tips.SHOW_SURFACE_NORMALS)
         self.chk_show_gage_axes.setToolTip(tips.SHOW_GAGE_AXES)
         self.chk_override_gage_direction.setToolTip(tips.OVERRIDE_GAGE_DIRECTION)
@@ -454,7 +454,7 @@ class VisualizationPanel(QWidget):
         for widget in [self.dspin_cloud_point_size, self.dspin_candidate_point_size,
                        self.spin_label_font_size, self.dspin_above_limit, self.dspin_below_limit,
                        self.dspin_surface_mesh_opacity, self.combo_above_color, self.combo_below_color,
-                       self.chk_show_surface_mesh, self.chk_show_surface_normals,
+                       self.chk_show_surface_edges, self.chk_show_surface_normals,
                        self.chk_show_gage_axes]:
             if isinstance(widget, (QSpinBox, QDoubleSpinBox)):
                 widget.valueChanged.connect(self.visualization_settings_changed.emit)
@@ -473,7 +473,7 @@ class VisualizationPanel(QWidget):
             'clim_max': self.dspin_above_limit.value(),
             'below_color': self.combo_below_color.currentText().lower(),
             'above_color': self.combo_above_color.currentText().lower(),
-            'show_surface_mesh': self.chk_show_surface_mesh.isChecked(),
+            'show_surface_edges': self.chk_show_surface_edges.isChecked(),
             'surface_mesh_opacity': self.dspin_surface_mesh_opacity.value(),
             'show_surface_normals': self.chk_show_surface_normals.isChecked(),
             'show_gage_axes': self.chk_show_gage_axes.isChecked(),
@@ -481,7 +481,7 @@ class VisualizationPanel(QWidget):
 
     def set_surface_placement_enabled(self, enabled):
         for widget in [
-            self.chk_show_surface_mesh,
+            self.chk_show_surface_edges,
             self.dspin_surface_mesh_opacity,
             self.chk_show_surface_normals,
             self.chk_show_gage_axes,

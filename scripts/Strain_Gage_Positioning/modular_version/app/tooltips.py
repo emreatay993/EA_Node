@@ -376,12 +376,12 @@ This can be very useful for highlighting specific data ranges or improving visua
 - <b>Upper/Lower Limit:</b> Sets the data values that map to the top (red) and bottom (blue)
   of the 'jet' color scale. Any value above the upper limit or below the lower limit will be
   clamped to the specified color.<br>
-- <b>Above/Below Color:</b> Sets the color to be used for points whose values fall outside
+- <b>Above/Below Color:</b> Sets the color to be used where values fall outside
   the defined upper and lower limits.
 """
 
-SHOW_SELECTED_SURFACE_MESH = "Shows the selected .rst named-selection surface mesh behind the strain points."
-SURFACE_MESH_OPACITY = "Controls how solid the selected surface mesh appears. Lower values are more transparent."
+SHOW_SURFACE_EDGES = "Shows element edges over the filled .rst result contour without hiding the contour itself."
+SURFACE_OPACITY = "Controls how solid the .rst surface contour appears. Lower values are more transparent."
 SHOW_SURFACE_NORMALS = "Shows the local surface normal at each selected gage placement."
 SHOW_GAGE_AXES = "Shows the computed local X/Y axes for each selected gage placement."
 OVERRIDE_GAGE_DIRECTION = "Enables two-click gage direction override: click the origin, then click the local X direction point."

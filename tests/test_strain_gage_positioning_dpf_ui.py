@@ -18,6 +18,7 @@ if str(SG_ROOT) not in sys.path:
 from app import dpf_loader  # noqa: E402
 from app import main_window  # noqa: E402
 from app.ui_tools import (  # noqa: E402
+    ContourHoverUI,
     PLACEMENT_COLUMNS,
     build_gage_placements,
     project_to_tangent,
@@ -40,6 +41,15 @@ def _plane_surface():
         j_size=2.0,
     )
     return surface.compute_normals(point_normals=True, cell_normals=True, inplace=False)
+
+
+def _triangle_surface(node_ids=(30, 10, 20)):
+    surface = pv.PolyData(
+        np.array([[0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]]),
+        np.array([3, 0, 1, 2]),
+    )
+    surface.point_data["DPFNodeId"] = np.asarray(node_ids, dtype=int)
+    return surface
 
 
 def _candidate_df():
@@ -75,6 +85,7 @@ class _FakePlotter:
 
     def add_mesh(self, *args, **kwargs):
         self.add_mesh_calls.append((args, kwargs))
+        return "actor-{0}".format(len(self.add_mesh_calls))
 
     def clear(self):
         self.clear_count += 1
@@ -91,7 +102,14 @@ class _FakeVisualizationPanel:
         self.vtk_widget = plotter
         self.enabled_values = []
         self._settings = {
-            "show_surface_mesh": True,
+            "cloud_point_size": 8.0,
+            "candidate_point_size": 12.0,
+            "label_font_size": 10,
+            "clim_min": 1.0,
+            "clim_max": 3.0,
+            "below_color": "gray",
+            "above_color": "purple",
+            "show_surface_edges": True,
             "surface_mesh_opacity": 0.42,
             "show_surface_normals": True,
             "show_gage_axes": True,
@@ -115,23 +133,153 @@ class _FakeInputPanel:
 class _FakeGagePlacementTool:
     def __init__(self):
         self.contexts = []
+        self.visibility = []
 
-    def set_context(self, surface_info, candidates_df):
-        self.contexts.append((surface_info, candidates_df))
+    def set_context(self, surface_info, candidates_df, named_selection=None):
+        self.contexts.append((surface_info, candidates_df, named_selection))
+
+    def set_visibility(self, show_normals=True, show_axes=True):
+        self.visibility.append((show_normals, show_axes))
+
+
+class _FakeContourHoverTool:
+    def __init__(self):
+        self.contexts = []
+        self.clear_count = 0
+
+    def set_context(self, *context):
+        self.contexts.append(context)
+
+    def clear_context(self):
+        self.clear_count += 1
+
+
+class _FakeTextProperty:
+    def SetBackgroundColor(self, *_):
+        pass
+
+    def SetBackgroundOpacity(self, *_):
+        pass
+
+
+class _FakeTextActor:
+    def __init__(self):
+        self.text = ""
+        self.visible = False
+        self.position = (0, 0)
+        self.text_property = _FakeTextProperty()
+
+    def GetTextProperty(self):
+        return self.text_property
+
+    def SetInput(self, text):
+        self.text = text
+
+    def SetPickable(self, *_):
+        pass
+
+    def SetVisibility(self, visible):
+        self.visible = bool(visible)
+
+    def GetSize(self, _renderer, size):
+        size[:] = [120.0, 40.0]
+
+    def SetDisplayPosition(self, x, y):
+        self.position = (x, y)
+
+
+class _FakeObserverInteractor:
+    def __init__(self):
+        self.added = []
+        self.removed = []
+
+    def add_observer(self, event, callback):
+        self.added.append((event, callback))
+        return 17
+
+    def remove_observer(self, observer_id):
+        self.removed.append(observer_id)
+
+
+class _FakeHoverPlotter:
+    def __init__(self):
+        self.iren = _FakeObserverInteractor()
+        self.renderer = object()
+        self.text_actors = []
+        self.removed = []
+
+    def add_text(self, *_args, **_kwargs):
+        actor = _FakeTextActor()
+        self.text_actors.append(actor)
+        return actor
+
+    def remove_actor(self, actor, **_kwargs):
+        self.removed.append(actor)
+
+
+class _FakeCellPicker:
+    def __init__(self):
+        self.pick_result = True
+        self.cell_id = 0
+        self.point = (1.0 / 3.0, 1.0 / 3.0, 0.0)
+        self.pick_list = []
+
+    def InitializePickList(self):
+        self.pick_list.clear()
+
+    def AddPickList(self, actor):
+        self.pick_list.append(actor)
+
+    def Pick(self, *_):
+        return self.pick_result
+
+    def GetCellId(self):
+        return self.cell_id
+
+    def GetPickPosition(self):
+        return self.point
+
+
+class _FakeRenderWindow:
+    def __init__(self):
+        self.render_count = 0
+
+    def GetSize(self):
+        return (200, 100)
+
+    def Render(self):
+        self.render_count += 1
+
+
+class _FakeMouseInteractor:
+    def __init__(self):
+        self.render_window = _FakeRenderWindow()
+
+    def GetEventPosition(self):
+        return (190, 90)
+
+    def GetRenderWindow(self):
+        return self.render_window
 
 
 def _preview_window(surface=None):
     plotter = _FakePlotter()
+    surface = surface if surface is not None else _plane_surface()
     window = SimpleNamespace(
-        rst_surface_mesh={"surface": surface or _plane_surface()},
+        rst_surface_mesh={"surface": surface},
         visualization_panel=_FakeVisualizationPanel(plotter),
         gage_placement_tool=_FakeGagePlacementTool(),
+        contour_hover_tool=_FakeContourHoverTool(),
         last_results={},
         preloaded_dataset=("old",),
         input_file=None,
         rst_named_selection="NS",
         input_panel=_FakeInputPanel(),
         project_dir=str(REPO_ROOT),
+        display_in_strain=False,
+        control_panel=SimpleNamespace(
+            get_parameters=lambda: {"strategy": "Max Quality (Greedy Search)"}
+        ),
     )
     window.clear_visualization = (
         lambda preserve_camera=False: main_window.MainWindow.clear_visualization(
@@ -147,6 +295,68 @@ def _preview_window(surface=None):
         lambda plotter: main_window.MainWindow._add_rst_surface_mesh(window, plotter)
     )
     return window
+
+
+def test_rst_surface_result_indices_follow_solver_node_ids():
+    surface = _triangle_surface()
+
+    indices = main_window._rst_surface_result_indices(
+        np.array([10, 20, 30]), surface
+    )
+
+    assert indices.tolist() == [2, 0, 1]
+    with pytest.raises(ValueError, match="no strain result"):
+        main_window._rst_surface_result_indices(np.array([10, 20]), surface)
+
+
+def test_contour_hover_interpolates_inside_surface_cells():
+    surface = _triangle_surface()
+    surface.point_data["Scalars"] = np.array([0.0, 3.0, 6.0])
+
+    assert ContourHoverUI.interpolate_scalar(
+        surface, 0, (0.0, 0.0, 0.0), "Scalars"
+    ) == pytest.approx(0.0)
+    assert ContourHoverUI.interpolate_scalar(
+        surface, 0, (1.0 / 3.0, 1.0 / 3.0, 0.0), "Scalars"
+    ) == pytest.approx(3.0)
+
+    surface.point_data["Scalars"] = np.array([0.0, np.nan, 6.0])
+    assert ContourHoverUI.interpolate_scalar(
+        surface, 0, (1.0 / 3.0, 1.0 / 3.0, 0.0), "Scalars"
+    ) is None
+
+
+def test_contour_hover_reuses_observer_and_clears_on_miss():
+    plotter = _FakeHoverPlotter()
+    tool = ContourHoverUI(plotter)
+    tool.picker = _FakeCellPicker()
+    surface = _triangle_surface()
+    surface.point_data["Scalars"] = np.array([0.0, 3.0, 6.0])
+    interactor = _FakeMouseInteractor()
+
+    tool.set_context("contour-actor", surface, "Scalars", "Microstrain (με)")
+    tool._on_mouse_move(interactor, None)
+
+    tooltip = tool.tooltip_actor
+    assert plotter.iren.added[0][0] == "MouseMoveEvent"
+    assert len(plotter.iren.added) == 1
+    assert tool.picker.pick_list == ["contour-actor"]
+    assert tooltip.visible
+    assert "Microstrain (με): 3" in tooltip.text
+    assert "X/Y/Z [mm]: 0.333333, 0.333333, 0" in tooltip.text
+    assert tooltip.position[0] < 190
+    assert tooltip.position[1] < 90
+
+    tool.picker.pick_result = False
+    tool._last_hover_time = 0.0
+    tool._on_mouse_move(interactor, None)
+    assert not tooltip.visible
+    assert tooltip.text == ""
+
+    tool.set_context("new-actor", surface, "Scalars", "Strain (mm/mm)")
+    assert len(plotter.iren.added) == 1
+    tool.close()
+    assert plotter.iren.removed == [17]
 
 
 def test_surface_axes_are_orthonormal_and_angle_wraps():
@@ -227,6 +437,71 @@ def test_refresh_visualization_redraws_preview_before_analysis():
     assert len(plotter.add_mesh_calls) == 1
 
 
+def test_rst_results_render_one_interpolated_surface_contour():
+    surface = _triangle_surface()
+    window = _preview_window(surface)
+    window.rst_surface_mesh["result_indices"] = np.array([2, 0, 1])
+    plotter = window.visualization_panel.vtk_widget
+
+    main_window.MainWindow.display_strain_with_candidates(
+        window,
+        surface.points,
+        np.array([1.0, 2.0, 3.0]),
+        pd.DataFrame(),
+        preserve_camera=False,
+    )
+
+    assert len(plotter.add_mesh_calls) == 1
+    args, kwargs = plotter.add_mesh_calls[0]
+    assert args[0] is surface
+    assert surface.point_data["Scalars"].tolist() == [3.0, 1.0, 2.0]
+    assert kwargs["scalars"] == "Scalars"
+    assert kwargs["cmap"] == "jet"
+    assert kwargs["clim"] == (1.0, 3.0)
+    assert kwargs["below_color"] == "gray"
+    assert kwargs["above_color"] == "purple"
+    assert kwargs["opacity"] == 0.42
+    assert kwargs["show_edges"] is True
+    assert kwargs["interpolate_before_map"] is True
+    assert "render_points_as_spheres" not in kwargs
+    assert window.contour_hover_tool.contexts[-1] == (
+        "actor-1", surface, "Scalars", "Microstrain (με)"
+    )
+
+    window.visualization_panel._settings["show_surface_edges"] = False
+    main_window.MainWindow.display_strain_with_candidates(
+        window,
+        surface.points,
+        np.array([1.0, 2.0, 3.0]),
+        pd.DataFrame(),
+        preserve_camera=True,
+    )
+    assert len(plotter.add_mesh_calls) == 2
+    assert plotter.add_mesh_calls[-1][1]["show_edges"] is False
+
+
+def test_text_results_remain_a_point_cloud():
+    window = _preview_window()
+    window.rst_surface_mesh = None
+    window.preloaded_dataset = None
+    plotter = window.visualization_panel.vtk_widget
+
+    main_window.MainWindow.display_strain_with_candidates(
+        window,
+        np.array([[0.0, 0.0, 0.0], [1.0, 0.0, 0.0]]),
+        np.array([1.0, 2.0]),
+        pd.DataFrame(),
+        preserve_camera=False,
+    )
+
+    assert len(plotter.add_mesh_calls) == 1
+    args, kwargs = plotter.add_mesh_calls[0]
+    assert isinstance(args[0], pv.PolyData)
+    assert kwargs["render_points_as_spheres"] is True
+    assert kwargs["point_size"] == 8.0
+    assert window.contour_hover_tool.contexts == []
+
+
 def test_text_input_resets_rst_preview_state(monkeypatch, tmp_path):
     input_file = tmp_path / "strain.txt"
     input_file.write_text("dummy", encoding="utf-8")
@@ -247,13 +522,18 @@ def test_text_input_resets_rst_preview_state(monkeypatch, tmp_path):
     assert window.rst_surface_mesh is None
     assert window.rst_named_selection is None
     assert window.visualization_panel.enabled_values == [False]
-    assert window.gage_placement_tool.contexts[-1] == (None, None)
+    assert window.gage_placement_tool.contexts[-1] == (None, None, None)
     assert clear_calls == [False]
 
 
 @pytest.mark.skipif(not BENCHMARK_RST.exists(), reason="benchmark .rst is not available")
 @pytest.mark.skipif(not dpf_loader.dpf_available(), reason="ansys-dpf-core is not available")
 def test_benchmark_named_selection_surface_has_normals():
+    nodes, _coords, _strain_tensors = dpf_loader.load_rst_strain(
+        BENCHMARK_RST,
+        [1],
+        named_selection="NS_FACES_FANDUCT",
+    )
     info = dpf_loader.load_rst_surface_mesh(
         BENCHMARK_RST,
         named_selection="NS_FACES_FANDUCT",
@@ -266,3 +546,5 @@ def test_benchmark_named_selection_surface_has_normals():
     assert info["n_cells"] > 0
     assert normals.shape[0] == surface.n_points
     assert np.allclose(norms, 1.0, atol=1.0e-6)
+    assert np.unique(surface.point_data["DPFNodeId"]).size == surface.n_points
+    assert main_window._rst_surface_result_indices(nodes, surface).size == surface.n_points
