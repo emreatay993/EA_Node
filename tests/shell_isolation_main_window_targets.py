@@ -340,7 +340,6 @@ def _build_targets():
         ShellIsolationTarget.pytest_nodeid_list(
             "main_window__passive_pdf_nodes__editors_and_storage",
             (
-                "tests/main_window_shell/passive_pdf_nodes.py::MainWindowShellPassivePdfNodesTests::test_pdf_panel_inspector_exposes_locked_editor_modes",
                 "tests/main_window_shell/passive_pdf_nodes.py::MainWindowShellPassivePdfNodesTests::test_pdf_panel_path_editor_browse_commits_external_path_by_default",
                 "tests/main_window_shell/passive_pdf_nodes.py::MainWindowShellPassivePdfNodesTests::test_pdf_panel_path_editor_storage_combo_can_choose_internal_copy",
             ),

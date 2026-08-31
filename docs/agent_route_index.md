@@ -19,7 +19,7 @@ This index is the machine-readable companion to `docs/agent_maps/`. Use it to fi
 
 | Route key | Kind | Map | Source | Tests | QML | Keywords |
 | --- | --- | --- | ---: | ---: | ---: | --- |
-| `coverage:coverage` | `coverage` | `docs/agent_maps/COVERAGE.md` | 11 | 3 | - | `agent`, `map`, `coverage`, `node`, `editor`, `graph`, `execution`, `persistence`, `nodes`, `qml`, ... +65 more |
+| `coverage:coverage` | `coverage` | `docs/agent_maps/COVERAGE.md` | 11 | 3 | - | `agent`, `map`, `coverage`, `node`, `editor`, `graph`, `execution`, `persistence`, `nodes`, `qml`, ... +67 more |
 | `feature_route:feature-routes-addon-manager` | `feature_route` | `docs/agent_maps/feature_routes/addon_manager.md` | 9 | 1 | 1 | `add`, `manager`, `addon`, `node`, `editor`, `addons`, `catalog`, `hot`, `apply`, `shell`, ... +55 more |
 | `feature_route:feature-routes-ansys-dpf-operator-viewer-transport` | `feature_route` | `docs/agent_maps/feature_routes/ansys_dpf_operator_viewer_transport.md` | 34 | - | 2 | `ansys`, `dpf`, `operator`, `nodes`, `viewer`, `and`, `transport`, `node`, `editor`, `data`, ... +258 more |
 | `feature_route:feature-routes-clipboard-undo-redo-mutation-history` | `feature_route` | `docs/agent_maps/feature_routes/clipboard_undo_redo_mutation_history.md` | 11 | - | - | `clipboard`, `undo`, `redo`, `and`, `mutation`, `history`, `node`, `editor`, `qml`, `graph`, ... +235 more |
@@ -37,7 +37,7 @@ This index is the machine-readable companion to `docs/agent_maps/`. Use it to fi
 | `feature_route:feature-routes-jupyter-notebook-node` | `feature_route` | `docs/agent_maps/feature_routes/jupyter_notebook_node.md` | 10 | - | 1 | `jupyter`, `notebook`, `node`, `code`, `ipynb`, `web`, `page`, `viewer`, `webengineview`, `editor`, ... +99 more |
 | `feature_route:feature-routes-managed-artifacts-project-data` | `feature_route` | `docs/agent_maps/feature_routes/managed_artifacts_project_data.md` | 10 | 3 | - | `workspace`, `scoped`, `node`, `files`, `and`, `data`, `managed`, `artifacts`, `project`, `editor`, ... +89 more |
 | `feature_route:feature-routes-mars-solver-addon` | `feature_route` | `docs/agent_maps/feature_routes/mars_solver_addon.md` | 7 | - | - | `mars`, `solver`, `add`, `addon`, `corex`, `node`, `editor`, `addons`, `catalog`, `function`, ... +45 more |
-| `feature_route:feature-routes-media-image-video-pdf-refocus` | `feature_route` | `docs/agent_maps/feature_routes/media_image_video_pdf_refocus.md` | 18 | 10 | 8 | `media`, `image`, `video`, `pdf`, `and`, `mail`, `nodes`, `refocus`, `node`, `editor`, ... +75 more |
+| `feature_route:feature-routes-media-image-video-pdf-refocus` | `feature_route` | `docs/agent_maps/feature_routes/media_image_video_pdf_refocus.md` | 18 | 10 | 8 | `media`, `image`, `video`, `pdf`, `and`, `mail`, `nodes`, `refocus`, `node`, `editor`, ... +78 more |
 | `feature_route:feature-routes-nested-node-categories-subnodes-grouping` | `feature_route` | `docs/agent_maps/feature_routes/nested_node_categories_subnodes_grouping.md` | 8 | - | - | `nested`, `node`, `categories`, `subnodes`, `and`, `grouping`, `category`, `path`, `group`, `selection`, ... +67 more |
 | `feature_route:feature-routes-neutral-cad-fe-engineering-viewer` | `feature_route` | `docs/agent_maps/feature_routes/neutral_cad_fe_engineering_viewer.md` | 9 | 8 | - | `neutral`, `cad`, `engineering`, `viewer`, `settings`, `expansion`, `node`, `editor`, `nodes`, `builtin`, ... +35 more |
 | `feature_route:feature-routes-node-execution-visualization` | `feature_route` | `docs/agent_maps/feature_routes/node_execution_visualization.md` | 8 | 3 | 2 | `node`, `execution`, `visualization`, `grip`, `flow`, `state`, `live`, `port`, `runtime`, `per`, ... +135 more |
@@ -85,7 +85,7 @@ This index is the machine-readable companion to `docs/agent_maps/`. Use it to fi
 | `subsystem:subsystems-workspace-projects-session-library` | `subsystem` | `docs/agent_maps/subsystems/workspace_projects_session_library.md` | 12 | 1 | - | `workspace`, `projects`, `session`, `and`, `library`, `node`, `editor`, `shell`, `controllers`, `project`, ... +27 more |
 | `testing:testing-docs-traceability-hygiene` | `testing` | `docs/agent_maps/testing/docs_traceability_hygiene.md` | 6 | 11 | - | `docs`, `traceability`, `and`, `hygiene`, `tests`, `scripts`, `check`, `markdown`, `links`, `test`, ... +55 more |
 | `testing:testing-qml-and-graph-surface-tests` | `testing` | `docs/agent_maps/testing/qml_and_graph_surface_tests.md` | - | 64 | - | `qml`, `and`, `graph`, `surface`, `tests`, `quick`, `tst`, `node`, `host`, `controls`, ... +207 more |
-| `testing:testing-shell-isolation-tests` | `testing` | `docs/agent_maps/testing/shell_isolation_tests.md` | 1 | 6 | - | `shell`, `isolation`, `tests`, `test`, `phase`, `runtime`, `main`, `window`, `scripts`, `verification`, ... +91 more |
+| `testing:testing-shell-isolation-tests` | `testing` | `docs/agent_maps/testing/shell_isolation_tests.md` | 1 | 6 | - | `shell`, `isolation`, `tests`, `test`, `phase`, `runtime`, `main`, `window`, `scripts`, `verification`, ... +93 more |
 | `testing:testing-verification-runner` | `testing` | `docs/agent_maps/testing/verification_runner.md` | 3 | 5 | - | `verification`, `runner`, `scripts`, `run`, `manifest`, `node`, `editor`, `pytest`, `defaults`, `tests`, ... +32 more |
 
 ## QML Component Routes

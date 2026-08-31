@@ -5,7 +5,6 @@ from unittest.mock import patch
 
 from PyQt6.QtCore import QMetaObject
 from PyQt6.QtGui import QColor
-from PyQt6.QtQuick import QQuickItem
 
 from ea_node_editor.persistence.serializer import JsonProjectSerializer
 from tests.main_window_shell.base import *  # noqa: F401,F403
@@ -16,49 +15,6 @@ class MainWindowShellPassivePropertyEditorsTests(SharedMainWindowShellTestBase):
     def setUp(self) -> None:
         super().setUp()
         register_passive_editor_fixture(self.window.registry)
-
-    def _walk_items(self, item: QQuickItem):
-        yield item
-        for child in item.childItems():
-            yield from self._walk_items(child)
-
-    def _find_qml_item(self, object_name: str) -> QQuickItem | None:
-        root_object = self.window.quick_widget.rootObject()
-        self.assertIsNotNone(root_object)
-        for item in self._walk_items(root_object):
-            if item.objectName() == object_name:
-                return item
-        return None
-
-    def _open_inspector_property_group(self, property_key: str) -> None:
-        self.window.shell_inspector_presenter.set_property_pane_variant("smart_groups")
-        self.app.processEvents()
-
-        property_items = {
-            str(item["key"]): item
-            for item in self.window.selected_node_property_items
-        }
-        property_item = property_items[property_key]
-        group_name = str(property_item.get("group") or "Properties")
-        smart_groups_body = self._find_qml_item("inspectorSmartGroupsBody")
-        self.assertIsNotNone(smart_groups_body)
-        assert smart_groups_body is not None
-        smart_groups_body.setProperty("expandedMap", {f"static:{group_name}": True})
-        self.app.processEvents()
-
-    def _inspector_property_object(self, object_name: str, property_key: str) -> QQuickItem:
-        self._open_inspector_property_group(property_key)
-        root_object = self.window.quick_widget.rootObject()
-        self.assertIsNotNone(root_object)
-        for item in self._walk_items(root_object):
-            if item.objectName() != object_name:
-                continue
-            if str(item.property("propertyKey")) != property_key:
-                continue
-            if not bool(item.property("visible")):
-                continue
-            return item
-        self.fail(f"Could not find {object_name!r} for property {property_key!r}.")
 
     def test_qml_textarea_editor_uses_explicit_apply_commit(self) -> None:
         workspace_id = self.window.workspace_manager.active_workspace_id()

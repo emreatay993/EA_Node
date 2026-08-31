@@ -9,6 +9,7 @@ from unittest.mock import patch
 
 from PyQt6.QtCore import QEvent, QObject, Qt
 from PyQt6.QtGui import QKeySequence
+from PyQt6.QtQuick import QQuickItem
 from PyQt6.QtWidgets import QApplication, QWidget
 
 from ea_node_editor.execution.compiler import compile_runtime_snapshot
@@ -462,6 +463,59 @@ class MainWindowShellTestBase(unittest.TestCase):
         graph_canvas = root_object.findChild(QObject, "graphCanvas")
         self.assertIsNotNone(graph_canvas)
         return graph_canvas
+
+    def _hold_qml_ref(self, item: QQuickItem) -> QQuickItem:
+        return item
+
+    def _walk_items(self, item: QQuickItem):
+        yield item
+        for child in item.childItems():
+            yield from self._walk_items(child)
+
+    def _find_qml_item(self, object_name: str) -> QQuickItem | None:
+        for item in self._walk_items(self._qml_root_object()):
+            if item.objectName() == object_name:
+                return self._hold_qml_ref(item)
+        return None
+
+    def _open_inspector_property_group(self, property_key: str) -> None:
+        self.window.shell_inspector_presenter.set_property_pane_variant("smart_groups")
+        self.app.processEvents()
+
+        property_items = {
+            str(item["key"]): item
+            for item in self.window.selected_node_property_items
+        }
+        property_item = property_items[property_key]
+        group_name = str(property_item.get("group") or "Properties")
+        smart_groups_body = self._find_qml_item("inspectorSmartGroupsBody")
+        self.assertIsNotNone(smart_groups_body)
+        assert smart_groups_body is not None
+        smart_groups_body.setProperty("expandedMap", {f"static:{group_name}": True})
+        self.app.processEvents()
+
+    def _inspector_property_object(
+        self, object_name: str, property_key: str
+    ) -> QQuickItem:
+        self._open_inspector_property_group(property_key)
+        for item in self._walk_items(self._qml_root_object()):
+            if item.objectName() != object_name:
+                continue
+            if str(item.property("propertyKey")) != property_key:
+                continue
+            if not bool(item.property("visible")):
+                continue
+            return self._hold_qml_ref(item)
+        self.fail(f"Could not find {object_name!r} for property {property_key!r}.")
+
+    def _graph_node_card(self, node_id: str) -> QQuickItem:
+        for item in self._walk_items(self._graph_canvas_item()):
+            if item.objectName() != "graphNodeCard":
+                continue
+            node_data = item.property("nodeData") or {}
+            if str(node_data.get("node_id", "")) == node_id:
+                return self._hold_qml_ref(item)
+        self.fail(f"Could not find graphNodeCard for node {node_id!r}.")
 
     def _library_pane_item(self) -> QObject:
         root_object = self._qml_root_object()

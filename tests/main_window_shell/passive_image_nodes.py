@@ -55,21 +55,6 @@ class MainWindowShellPassiveImageNodesTests(SharedMainWindowShellTestBase):
         self._held_qml_refs.append(item)
         return item
 
-    def _walk_items(self, item: QQuickItem):
-        yield item
-        for child in item.childItems():
-            yield from self._walk_items(child)
-
-    def _graph_node_card(self, node_id: str) -> QQuickItem:
-        graph_canvas = self._graph_canvas_item()
-        for item in self._walk_items(graph_canvas):
-            if item.objectName() != "graphNodeCard":
-                continue
-            node_data = item.property("nodeData") or {}
-            if str(node_data.get("node_id", "")) == node_id:
-                return self._hold_qml_ref(item)
-        self.fail(f"Could not find graphNodeCard for node {node_id!r}.")
-
     def _graph_node_child(self, node_id: str, object_name: str) -> QQuickItem:
         match: QQuickItem | None = None
 
@@ -138,44 +123,6 @@ class MainWindowShellPassiveImageNodesTests(SharedMainWindowShellTestBase):
             ),
         )
         self.assertEqual(str(surface.property("sourceState")), "ready")
-
-    def _find_qml_item(self, object_name: str) -> QQuickItem | None:
-        root_object = self.window.quick_widget.rootObject()
-        self.assertIsNotNone(root_object)
-        for item in self._walk_items(root_object):
-            if item.objectName() == object_name:
-                return self._hold_qml_ref(item)
-        return None
-
-    def _open_inspector_property_group(self, property_key: str) -> None:
-        self.window.shell_inspector_presenter.set_property_pane_variant("smart_groups")
-        self.app.processEvents()
-
-        property_items = {
-            str(item["key"]): item
-            for item in self.window.selected_node_property_items
-        }
-        property_item = property_items[property_key]
-        group_name = str(property_item.get("group") or "Properties")
-        smart_groups_body = self._find_qml_item("inspectorSmartGroupsBody")
-        self.assertIsNotNone(smart_groups_body)
-        assert smart_groups_body is not None
-        smart_groups_body.setProperty("expandedMap", {f"static:{group_name}": True})
-        self.app.processEvents()
-
-    def _inspector_property_object(self, object_name: str, property_key: str) -> QQuickItem:
-        self._open_inspector_property_group(property_key)
-        root_object = self.window.quick_widget.rootObject()
-        self.assertIsNotNone(root_object)
-        for item in self._walk_items(root_object):
-            if item.objectName() != object_name:
-                continue
-            if str(item.property("propertyKey")) != property_key:
-                continue
-            if not bool(item.property("visible")):
-                continue
-            return self._hold_qml_ref(item)
-        self.fail(f"Could not find {object_name!r} for property {property_key!r}.")
 
     def test_image_panel_inspector_exposes_locked_editor_modes(self) -> None:
         node_id = self._create_browse_media_panel()

@@ -61,7 +61,12 @@ Use this for the active unified Media Panel, its derived image/PDF/video rendere
 .\venv\Scripts\python.exe -m pytest tests/test_media_panel.py tests/test_media_panel_creation_preferences.py tests/test_media_panel_source_resolution.py tests/test_media_panel_qml_surface.py --ignore=venv -q
 .\venv\Scripts\python.exe -m pytest tests/test_content_fullscreen_bridge.py tests/test_video_trim.py tests/test_project_review_deck.py tests/test_pdf_preview_provider.py tests/test_passive_image_nodes.py --ignore=venv -q
 $env:QT_QPA_PLATFORM = "offscreen"
-.\venv\Scripts\python.exe -m pytest tests/main_window_shell/passive_image_nodes.py tests/main_window_shell/passive_pdf_nodes.py --ignore=venv -q -n 0
+.\venv\Scripts\python.exe -m pytest `
+  "tests/test_shell_isolation_phase.py::test_shell_isolation_target[main_window__passive_image_nodes__editors_and_storage]" `
+  "tests/test_shell_isolation_phase.py::test_shell_isolation_target[main_window__passive_image_nodes__crop_interactions]" `
+  "tests/test_shell_isolation_phase.py::test_shell_isolation_target[main_window__passive_pdf_nodes__editors_and_storage]" `
+  "tests/test_shell_isolation_phase.py::test_shell_isolation_target[main_window__passive_pdf_nodes__toolbar_and_page_resolution]" `
+  --ignore=venv -q -n 0
 Remove-Item Env:QT_QPA_PLATFORM -ErrorAction SilentlyContinue
 ```
 
