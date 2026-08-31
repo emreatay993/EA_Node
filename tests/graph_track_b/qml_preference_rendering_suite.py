@@ -1757,8 +1757,8 @@ class GraphCanvasQmlPreferenceRenderingTests(GraphCanvasQmlPreferenceTestBase):
         self.assertEqual(_color_name(node_card.property("bodyGradientEndColor")), "#3a372a")
         self.assertEqual(_color_name(node_card.property("outlineColor")), "#81795c")
         self.assertEqual(_color_name(node_card.property("headerTextColor")), "#f3f3f1")
-        self.assertEqual(_color_name(node_card.property("inlineRowColor")), "#3a372a")
-        self.assertEqual(_color_name(node_card.property("inlineInputBackgroundColor")), "#403c2d")
+        self.assertEqual(_color_name(node_card.property("inlineRowColor")), "#282b32")
+        self.assertEqual(_color_name(node_card.property("inlineInputBackgroundColor")), "#24272e")
         self.assertEqual(_color_name(node_card.property("portLabelColor")), "#d7d5ce")
         self.assertEqual(set(self.graph_theme_bridge.port_kind_palette), {"data", "flow"})
         self.assertEqual(
@@ -1779,8 +1779,8 @@ class GraphCanvasQmlPreferenceRenderingTests(GraphCanvasQmlPreferenceTestBase):
         self.assertEqual(_color_name(node_card.property("bodyGradientEndColor")), "#f9fbfc")
         self.assertEqual(_color_name(node_card.property("outlineColor")), "#6b7277")
         self.assertEqual(_color_name(node_card.property("headerTextColor")), "#17174b")
-        self.assertEqual(_color_name(node_card.property("inlineRowColor")), "#f9fbfc")
-        self.assertEqual(_color_name(node_card.property("inlineInputBackgroundColor")), "#f6f8f8")
+        self.assertEqual(_color_name(node_card.property("inlineRowColor")), "#ffffff")
+        self.assertEqual(_color_name(node_card.property("inlineInputBackgroundColor")), "#ffffff")
         self.assertEqual(_color_name(node_card.property("portLabelColor")), "#43436d")
         self.assertEqual(set(self.graph_theme_bridge.port_kind_palette), {"data", "flow"})
         self.assertEqual(

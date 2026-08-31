@@ -505,10 +505,12 @@ class GraphCanvasQmlPreferenceBindingTests(
             def __init__(
                 self,
                 preference_bridge: _rendering_suite._GraphCanvasPreferenceBridge,
+                canvas_source: object,
                 view_bridge: _rendering_suite.ViewportBridge,
             ) -> None:
                 super().__init__()
                 self._preference_bridge = preference_bridge
+                self._canvas_source = canvas_source
                 self._view_bridge = view_bridge
                 self._nodes_model = [dict(node_payload)]
                 self._running_node_lookup: dict[str, bool] = {}
@@ -525,7 +527,7 @@ class GraphCanvasQmlPreferenceBindingTests(
 
             @_rendering_suite.pyqtProperty(bool, notify=graphics_preferences_changed)
             def graphics_minimap_expanded(self) -> bool:
-                return bool(self._preference_bridge.graphics_minimap_expanded)
+                return bool(self._canvas_source.graphics_minimap_expanded)
 
             @_rendering_suite.pyqtProperty(bool, notify=graphics_preferences_changed)
             def graphics_show_grid(self) -> bool:
@@ -659,7 +661,11 @@ class GraphCanvasQmlPreferenceBindingTests(
         self.canvas.deleteLater()
         self.app.processEvents()
 
-        canvas_state_bridge = CanvasStateBridgeStub(self.bridge, self.view)
+        canvas_state_bridge = CanvasStateBridgeStub(
+            self.bridge,
+            self.canvas_source,
+            self.view,
+        )
         canvas_command_bridge = _rendering_suite.GraphCanvasCommandBridge(
             shell_window=self.bridge,  # type: ignore[arg-type]
             canvas_source=self.canvas_source,  # type: ignore[arg-type]
