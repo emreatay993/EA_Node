@@ -21,7 +21,7 @@ from ea_node_editor.app_preferences import (
 )
 from ea_node_editor.execution.viewer_backend_dpf import DPF_EXECUTION_VIEWER_BACKEND_ID
 from ea_node_editor.execution.headless_runtime import CorexRuntime
-from ea_node_editor.execution.solution_store import InvalidationResult
+from ea_node_editor.execution.prepared_execution import InvalidationResult
 from ea_node_editor.graph.model import GraphModel
 from ea_node_editor.nodes.bootstrap import build_default_registry
 from ea_node_editor.nodes.node_specs import NodeTypeSpec, PortSpec, PropertySpec
@@ -472,10 +472,6 @@ class _ShellProjectSessionControllerScenarios(MainWindowShellTestBase):
             ),
             patch(
                 "ea_node_editor.addons.catalog.importlib.import_module",
-                side_effect=_import_fake_module,
-            ),
-            patch(
-                "ea_node_editor.nodes.plugin_loader.importlib.import_module",
                 side_effect=_import_fake_module,
             ),
         ):

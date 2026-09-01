@@ -67,14 +67,18 @@ from ea_node_editor.execution.solution_identity import (
 )
 from ea_node_editor.execution.solution_store import (
     CapturedNodeSolution,
+    SolutionStore,
+)
+from ea_node_editor.execution.solution_backend import (
     DurableBackendOpenResult,
     DurableSolutionBackendFactory,
+)
+from ea_node_editor.execution.project_solution import (
     ProjectSolutionAdoptionResult,
     ProjectSolutionCandidateResult,
     ProjectSolutionGcResult,
     ProjectSolutionSaveResult,
     ProjectSolutionSaveSnapshot,
-    SolutionStore,
     project_solution_snapshot_token,
 )
 from ea_node_editor.execution.runtime_snapshot import (

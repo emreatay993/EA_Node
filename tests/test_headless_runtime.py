@@ -44,7 +44,7 @@ from ea_node_editor.execution.prepared_execution import (
     RecomputeMode,
 )
 from ea_node_editor.execution.runtime_snapshot import build_runtime_snapshot
-from ea_node_editor.execution.solution_store import (
+from ea_node_editor.execution.solution_backend import (
     DurableBackendOpenResult,
     DurableLookupResult,
     DurablePayloadResult,

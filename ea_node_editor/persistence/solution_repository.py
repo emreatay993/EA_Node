@@ -18,11 +18,13 @@ from typing import Any
 import unicodedata
 from uuid import uuid4
 
-from ea_node_editor.execution.solution_store import (
+from ea_node_editor.execution.solution_backend import (
     DurableBackendOpenResult,
     DurableLookupResult,
     DurablePayloadResult,
     DurableStageResult,
+)
+from ea_node_editor.execution.project_solution import (
     MAX_PROJECT_SOLUTION_ORPHAN_CANDIDATES,
     MAX_PROJECT_SOLUTION_ORPHAN_SCAN_ENTRIES,
     ProjectSolutionGcResult,

@@ -1,15 +1,14 @@
 from __future__ import annotations
 
 import base64
-from contextlib import contextmanager
-from dataclasses import replace
 import queue
 import struct
-from typing import Any
 import zlib
+from contextlib import contextmanager
+from dataclasses import replace
+from typing import Any
 
 import pytest
-import ea_node_editor.execution.solution_store as solution_store_module
 
 from ea_node_editor.execution.backends import ExecutionBackendSelection
 from ea_node_editor.execution.client_generation import (
@@ -18,33 +17,31 @@ from ea_node_editor.execution.client_generation import (
     ViewerInvalidationReservation,
     _ViewerInvalidationSnapshot,
 )
-from ea_node_editor.execution.run_messages import (
-    CommitRunPreflightCommand,
-)
-from ea_node_editor.execution.protocol_codec import (
-    command_to_dict,
-)
-from ea_node_editor.execution.viewer_messages import (
-    viewer_epoch_snapshot_digest,
-)
 from ea_node_editor.execution.headless_runtime import (
     CancellationRequest,
     CorexRuntime,
     ExecutionRequest,
 )
 from ea_node_editor.execution.prepared_execution import PreparedAction, RecomputeMode
+from ea_node_editor.execution.protocol_codec import (
+    command_to_dict,
+)
+from ea_node_editor.execution.run_messages import (
+    CommitRunPreflightCommand,
+)
 from ea_node_editor.execution.runtime_snapshot import build_runtime_snapshot
-from ea_node_editor.execution.solution_store import (
+from ea_node_editor.execution.solution_backend import (
     DurableBackendOpenResult,
     DurableLookupResult,
     DurablePayloadResult,
     DurableStageResult,
-    ProjectSolutionAdoptionResult,
-    ProjectSolutionCandidateResult,
-    ProjectSolutionGcResult,
-    ProjectSolutionSaveResult,
+)
+from ea_node_editor.execution.solution_store import (
     SolutionStore,
     SolutionStoreLimits,
+)
+from ea_node_editor.execution.viewer_messages import (
+    viewer_epoch_snapshot_digest,
 )
 from ea_node_editor.execution.worker_runner import WorkflowRunner
 from ea_node_editor.graph.model import GraphModel
@@ -55,16 +52,15 @@ from ea_node_editor.persistence.solution_repository import (
     SolutionRepository,
     SolutionRepositoryFactory,
 )
-from ea_node_editor.settings import PROJECT_ARTIFACT_STORE_METADATA_KEY
 from ea_node_editor.runtime_contracts import (
     COREX_VIEWER_SESSION_HANDLE_KIND,
+    PATH_DATA_TYPE_ID,
+    VIEWER_SESSION_DATA_TYPE_ID,
     DataTree,
     ImageValue,
-    RuntimeHandleRef,
     RuntimeArtifactRef,
-    PATH_DATA_TYPE_ID,
+    RuntimeHandleRef,
     TabularDataRef,
-    VIEWER_SESSION_DATA_TYPE_ID,
 )
 from ea_node_editor.runtime_contracts.settled_results import SettledPortResult
 from ea_node_editor.runtime_contracts.solution_records import (
@@ -72,6 +68,7 @@ from ea_node_editor.runtime_contracts.solution_records import (
     SolutionFreshness,
     SolutionResidency,
 )
+from ea_node_editor.settings import PROJECT_ARTIFACT_STORE_METADATA_KEY
 
 
 class _Client:
@@ -2185,110 +2182,3 @@ def test_first_save_preserves_unsaved_namespace_and_restart_prepares_reuse(
         assert not any(event.get("type") == "node_started" for event in observed)
     finally:
         restarted.shutdown()
-
-
-def test_project_solution_save_adoption_and_gc_result_shapes_are_strict() -> None:
-    for reason in solution_store_module._PROJECT_SOLUTION_SAVE_REASONS:  # noqa: SLF001
-        success = reason == "project_solution_save_staged"
-        result = ProjectSolutionSaveResult(
-            snapshot_token="1" * 64,
-            solution_namespace_id="namespace",
-            candidate_generation_id="2" * 32 if success else "",
-            candidate_manifest_set_digest="3" * 64 if success else "",
-            initially_protected_generations=(
-                (("2" * 32, "3" * 64),) if success else ()
-            ),
-            reason_code=reason,
-            diagnostic="" if success else "Save failed safely.",
-        )
-        assert bool(result.metadata_solution_store) is success
-    with pytest.raises(ValueError, match="candidate generation"):
-        ProjectSolutionSaveResult(
-            snapshot_token="1" * 64,
-            solution_namespace_id="namespace",
-            candidate_generation_id="2" * 32,
-            candidate_manifest_set_digest="3" * 64,
-        )
-
-    adopted = ProjectSolutionAdoptionResult(
-        True,
-        "project_solution_adopted",
-    )
-    failed = ProjectSolutionAdoptionResult(
-        False,
-        "project_solution_adoption_candidate_invalid",
-        "Candidate invalid.",
-    )
-    assert adopted.adopted and not failed.adopted
-    assert ProjectSolutionCandidateResult(
-        True,
-        "project_solution_candidate_prepared",
-    ).prepared
-    with pytest.raises(ValueError, match="candidate result"):
-        ProjectSolutionCandidateResult(
-            True,
-            "project_solution_candidate_invalid",
-            "Invalid.",
-        )
-    completed = ProjectSolutionGcResult(
-        ("records/sha256/aa/" + "a" * 64 + ".json",),
-        (),
-        False,
-        "project_solution_gc_completed",
-    )
-    partial = ProjectSolutionGcResult(
-        (),
-        (),
-        True,
-        "project_solution_gc_partial",
-    )
-    assert not completed.has_more and partial.has_more
-
-
-@pytest.mark.parametrize("namespace", ("namespace", "n" * 4_096))
-def test_project_solution_save_result_accepts_exact_namespace_bounds(
-    namespace: str,
-) -> None:
-    result = ProjectSolutionSaveResult(
-        snapshot_token="1" * 64,
-        solution_namespace_id=namespace,
-        reason_code="project_solution_save_io_error",
-        diagnostic="Save failed safely.",
-    )
-    assert result.solution_namespace_id == namespace
-
-
-@pytest.mark.parametrize(
-    "namespace",
-    (
-        "",
-        " ",
-        " namespace",
-        "namespace ",
-        "name\nspace",
-        "name\x7fspace",
-        "n" * 4_097,
-        None,
-        1,
-        b"namespace",
-    ),
-)
-def test_project_solution_save_result_rejects_invalid_namespace_shapes(
-    namespace: object,
-) -> None:
-    with pytest.raises(ValueError, match="solution_namespace_id"):
-        ProjectSolutionSaveResult(
-            snapshot_token="1" * 64,
-            solution_namespace_id=namespace,  # type: ignore[arg-type]
-            reason_code="project_solution_save_io_error",
-            diagnostic="Save failed safely.",
-        )
-
-    with pytest.raises(ValueError, match="solution_namespace_id"):
-        ProjectSolutionSaveResult(
-            snapshot_token="1" * 64,
-            solution_namespace_id=namespace,  # type: ignore[arg-type]
-            candidate_generation_id="2" * 32,
-            candidate_manifest_set_digest="3" * 64,
-            initially_protected_generations=(("2" * 32, "3" * 64),),
-        )

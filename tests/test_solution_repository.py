@@ -11,12 +11,12 @@ import pytest
 
 import ea_node_editor.persistence.solution_repository as solution_repository_module
 
-from ea_node_editor.execution.solution_store import (
-    DurableBackendOpenResult,
+from ea_node_editor.execution.solution_backend import DurableBackendOpenResult
+from ea_node_editor.execution.project_solution import (
     ProjectSolutionSaveRecordExport,
     ProjectSolutionSaveSnapshot,
-    SolutionStore,
 )
+from ea_node_editor.execution.solution_store import SolutionStore
 from ea_node_editor.nodes.bootstrap import build_default_registry
 from ea_node_editor.persistence.artifact_store import ProjectArtifactStore
 from ea_node_editor.persistence.solution_repository import (

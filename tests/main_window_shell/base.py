@@ -15,7 +15,7 @@ from PyQt6.QtWidgets import QApplication, QWidget
 from ea_node_editor.execution.compiler import compile_runtime_snapshot
 from ea_node_editor.execution.execution_plan import ExecutionPlan
 from ea_node_editor.execution.prepared_execution import InvalidationResult
-from ea_node_editor.execution.solution_store import (
+from ea_node_editor.execution.project_solution import (
     ProjectSolutionAdoptionResult,
     ProjectSolutionCandidateResult,
     ProjectSolutionGcResult,

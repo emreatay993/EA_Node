@@ -545,17 +545,67 @@ class GraphArchitectureBoundaryTests(unittest.TestCase):
         imports = imported_modules(
             parse_module("ea_node_editor/persistence/solution_repository.py")
         )
-        self.assertIn("ea_node_editor.execution.solution_store", imports)
-        self.assertFalse(
+        self.assertEqual(
             {
                 module
                 for module in imports
                 if module.startswith("ea_node_editor.execution.")
-                and module != "ea_node_editor.execution.solution_store"
-            }
+            },
+            {
+                "ea_node_editor.execution.project_solution",
+                "ea_node_editor.execution.solution_backend",
+            },
         )
         self.assertNotIn("ea_node_editor.persistence.serializer", imports)
         self.assertNotIn("ea_node_editor.persistence.project_codec", imports)
+
+    def test_solution_contracts_have_direct_cycle_free_owners(self) -> None:
+        store_tree = parse_module("ea_node_editor/execution/solution_store.py")
+        backend_tree = parse_module("ea_node_editor/execution/solution_backend.py")
+        project_tree = parse_module("ea_node_editor/execution/project_solution.py")
+        store_classes = {
+            node.name for node in store_tree.body if isinstance(node, ast.ClassDef)
+        }
+        self.assertFalse(
+            {
+                "DurableSolutionBackend",
+                "DurableSolutionBackendFactory",
+                "DurableBackendOpenResult",
+                "ProjectSolutionSaveSnapshot",
+                "ProjectSolutionSaveResult",
+            }
+            & store_classes
+        )
+        self.assertTrue(
+            {
+                "DurableSolutionBackend",
+                "DurableSolutionBackendFactory",
+                "DurableBackendOpenResult",
+            }
+            <= {
+                node.name
+                for node in backend_tree.body
+                if isinstance(node, ast.ClassDef)
+            }
+        )
+        self.assertTrue(
+            {
+                "ProjectSolutionSaveSnapshot",
+                "ProjectSolutionSaveResult",
+                "ProjectSolutionAdoptionResult",
+                "ProjectSolutionCandidateResult",
+                "ProjectSolutionGcResult",
+            }
+            <= {
+                node.name
+                for node in project_tree.body
+                if isinstance(node, ast.ClassDef)
+            }
+        )
+        self.assertNotIn(
+            "ea_node_editor.execution.project_solution",
+            top_level_imported_modules(backend_tree),
+        )
 
     def test_project_artifact_store_replacement_uses_public_controller_boundary(
         self,

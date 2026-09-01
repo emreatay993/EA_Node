@@ -1914,6 +1914,8 @@ TRACEABILITY_ROW_REQUIRED_TOKENS.update(
         "REQ-EXEC-017": (
             "solution_identity.py",
             "solution_store.py",
+            "solution_backend.py",
+            "project_solution.py",
             "run_controller.py",
             "test_shell_run_controller.py",
         ),
@@ -1923,12 +1925,16 @@ TRACEABILITY_ROW_REQUIRED_TOKENS.update(
             "4,472 passed, 2 skipped",
         ),
         "REQ-PERSIST-026": (
+            "solution_backend.py",
+            "project_solution.py",
             "solution_repository.py",
             "document_io_service.py",
             "mutable freshness",
             "never durable truth",
         ),
         "AC-REQ-PERSIST-026-01": (
+            "test_solution_backend.py",
+            "test_project_solution.py",
             "test_solution_repository.py",
             "test_project_save_as_flow.py",
             "run_verification.py --mode fast --summarize-output",
