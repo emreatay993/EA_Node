@@ -34,16 +34,11 @@ from ea_node_editor.execution.backends import (
     ExecutionBackendSelection,
     coerce_execution_backend_selection,
 )
-from ea_node_editor.execution.protocol import (
+from ea_node_editor.execution.run_messages import (
     CancelRunPreflightCommand,
-    CloseViewerSessionCommand,
     CommitRunPreflightCommand,
-    EMPTY_REGISTRY_CONTRACT_FINGERPRINT,
-    MaterializeViewerDataCommand,
-    OpenViewerSessionCommand,
     PauseRunCommand,
     ProtocolErrorEvent,
-    QueryViewerSessionCommand,
     ResumeRunCommand,
     RunFailedEvent,
     RunPreflightAcceptedEvent,
@@ -51,21 +46,32 @@ from ea_node_editor.execution.protocol import (
     ShutdownCommand,
     StartRunCommand,
     StopRunCommand,
+)
+from ea_node_editor.execution.viewer_messages import (
+    CloseViewerSessionCommand,
+    MaterializeViewerDataCommand,
+    OpenViewerSessionCommand,
+    QueryViewerSessionCommand,
     UpdateViewerSessionCommand,
     VIEWER_COMMAND_TYPES,
     VIEWER_RESPONSE_EVENT_TYPES,
     ViewerSessionFailedEvent,
+    normalize_viewer_invalidation_node_ids,
+    viewer_epoch_snapshot_digest,
+)
+from ea_node_editor.execution.registry_agreement import (
+    EMPTY_REGISTRY_CONTRACT_FINGERPRINT,
+    catalog_agreement,
+    normalize_addon_runtime_config,
+    runtime_registry_fingerprint,
+)
+from ea_node_editor.execution.protocol_codec import (
     WorkerCommand,
     WorkerEvent,
-    catalog_agreement,
     command_to_dict,
     coerce_start_run_command,
     dict_to_event,
     event_to_dict,
-    normalize_addon_runtime_config,
-    normalize_viewer_invalidation_node_ids,
-    runtime_registry_fingerprint,
-    viewer_epoch_snapshot_digest,
 )
 from ea_node_editor.runtime_contracts.settled_results import SettledPortResult
 from ea_node_editor.execution.python_environment import (
@@ -789,7 +795,9 @@ class _ExecutionClientCommon:
         return command_to_dict(command, catalog=getattr(self, "_data_types", None))
 
     def _decode_command(self, payload: dict[str, Any]) -> WorkerCommand:
-        from ea_node_editor.execution.protocol import dict_to_command
+        from ea_node_editor.execution.protocol_codec import (
+            dict_to_command,
+        )
 
         return dict_to_command(payload, catalog=getattr(self, "_data_types", None))
 
@@ -2683,8 +2691,7 @@ class ExternalPythonExecutionClient(_ExecutionClientCommon):
         except json.JSONDecodeError as exc:
             if self._source_generation_is_current(source_generation):
                 self._emit_protocol_error(
-                    "Received invalid JSON event from external Python worker: "
-                    f"{exc}"
+                    f"Received invalid JSON event from external Python worker: {exc}"
                 )
             return
         if not isinstance(event, dict):
@@ -3529,9 +3536,7 @@ class TrustedInProcessExecutionClient(_ExecutionClientCommon):
                 typed_event = self._decode_event(dict(event))
             except (TypeError, ValueError) as exc:
                 if self._source_generation_is_current(generation_token):
-                    self._emit_protocol_error(
-                        f"Received invalid worker event: {exc}"
-                    )
+                    self._emit_protocol_error(f"Received invalid worker event: {exc}")
                 continue
 
             if not self._source_generation_is_current(generation_token):
@@ -4262,7 +4267,9 @@ class ExecutionBackendClient:
         reservation: ExecutionRunReservation,
         command: Any,
     ) -> str:
-        from ea_node_editor.execution.protocol import StartRunCommand
+        from ea_node_editor.execution.run_messages import (
+            StartRunCommand,
+        )
 
         if not isinstance(reservation, ExecutionRunReservation):
             raise TypeError("reservation must be an ExecutionRunReservation")

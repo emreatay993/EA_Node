@@ -3,7 +3,9 @@ from __future__ import annotations
 import queue
 import unittest
 
-from ea_node_editor.execution.protocol import coerce_start_run_command
+from ea_node_editor.execution.protocol_codec import (
+    coerce_start_run_command,
+)
 from ea_node_editor.execution.runtime_snapshot import build_runtime_snapshot
 from ea_node_editor.execution.worker import run_workflow
 from ea_node_editor.graph.model import GraphModel

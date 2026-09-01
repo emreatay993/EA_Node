@@ -48,17 +48,23 @@ from ea_node_editor.execution.managed_runtime import (
     resolve_addon_runtime_paths,
     resolve_managed_runtime_paths,
 )
-from ea_node_editor.execution.protocol import (
+from ea_node_editor.execution.run_messages import (
     CommitRunPreflightCommand,
     NodeSettledEvent,
     NodeStartedEvent,
-    OpenViewerSessionCommand,
     ProtocolErrorEvent,
     RunCompletedEvent,
     RunPreflightAcceptedEvent,
     StartRunCommand,
+)
+from ea_node_editor.execution.viewer_messages import (
+    OpenViewerSessionCommand,
     ViewerSessionOpenedEvent,
+)
+from ea_node_editor.execution.registry_agreement import (
     catalog_agreement,
+)
+from ea_node_editor.execution.protocol_codec import (
     event_to_dict,
 )
 from ea_node_editor.execution.prepared_execution import (

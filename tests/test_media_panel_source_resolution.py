@@ -5,8 +5,10 @@ from types import SimpleNamespace
 
 from PyQt6.QtCore import QObject, pyqtSignal
 
-from ea_node_editor.execution.protocol import (
+from ea_node_editor.execution.run_messages import (
     NodeSettledEvent,
+)
+from ea_node_editor.execution.protocol_codec import (
     dict_to_event,
 )
 from ea_node_editor.runtime_contracts.settled_results import (

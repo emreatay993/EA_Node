@@ -23,7 +23,7 @@ Use this for node execution state projection, declarative readiness diagnostics,
 - `ea_node_editor/ui/media_panel_source.py` and `tests/test_media_panel_source_resolution.py` - effective Media Panel runtime/source-state projection.
 
 ## Do Not Start Here
-- `ea_node_editor/execution/protocol.py` - inspect the worker event contract only when the retained event lacks a required fact; do not scan the execution package by default.
+- `ea_node_editor/execution/run_messages.py` and `ea_node_editor/execution/protocol_codec.py` - inspect the worker event contract only when the retained event lacks a required fact; do not scan the execution package by default.
 - `ea_node_editor/graph/effective_ports.py` - authored/effective topology, not live execution-state ownership.
 - Do not begin in the generic tests directory; use the focused test above.
 

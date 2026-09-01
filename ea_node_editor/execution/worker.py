@@ -3,7 +3,7 @@ from __future__ import annotations
 import traceback
 from multiprocessing import Queue
 
-from ea_node_editor.execution.protocol import (
+from ea_node_editor.execution.run_messages import (
     PauseRunCommand,
     ResumeRunCommand,
     RunFailedEvent,

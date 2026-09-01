@@ -4,11 +4,10 @@ import unittest
 from dataclasses import replace
 from pathlib import Path
 
-from ea_node_editor.execution.protocol import (
+from ea_node_editor.execution.viewer_messages import (
     CloseViewerSessionCommand,
     MaterializeViewerDataCommand,
     OpenViewerSessionCommand,
-    ProtocolErrorEvent,
     QueryViewerSessionCommand,
     ViewerDataMaterializedEvent,
     ViewerQueryResultEvent,
@@ -17,12 +16,20 @@ from ea_node_editor.execution.protocol import (
     ViewerSessionOpenedEvent,
     ViewerSessionUpdatedEvent,
     UpdateViewerSessionCommand,
+)
+from ea_node_editor.execution.run_messages import (
+    ProtocolErrorEvent,
+)
+from ea_node_editor.execution.protocol_codec import (
     command_to_dict,
     dict_to_command,
     dict_to_event,
     event_to_dict,
 )
-from ea_node_editor.runtime_contracts.value_refs import RuntimeArtifactRef, RuntimeHandleRef
+from ea_node_editor.runtime_contracts.value_refs import (
+    RuntimeArtifactRef,
+    RuntimeHandleRef,
+)
 from ea_node_editor.nodes.bootstrap import build_default_registry
 from ea_node_editor.runtime_contracts import PATH_DATA_TYPE_ID
 

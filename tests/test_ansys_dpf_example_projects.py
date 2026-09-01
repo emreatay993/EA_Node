@@ -8,7 +8,9 @@ from typing import Any
 
 import pytest
 
-from ea_node_editor.execution.protocol import coerce_start_run_command
+from ea_node_editor.execution.protocol_codec import (
+    coerce_start_run_command,
+)
 from ea_node_editor.execution.runtime_snapshot import build_runtime_snapshot
 from ea_node_editor.execution.worker import run_workflow
 from ea_node_editor.nodes.bootstrap import build_default_registry

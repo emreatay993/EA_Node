@@ -17,7 +17,7 @@ from ea_node_editor.execution.compiler import compile_runtime_snapshot
 from ea_node_editor.execution.execution_plan import ExecutionPlan
 from ea_node_editor.runtime_contracts.settled_results import SettledPortResult
 from ea_node_editor.execution.prepared_execution import InvalidationResult
-from ea_node_editor.execution.protocol import (
+from ea_node_editor.execution.viewer_messages import (
     CloseViewerSessionCommand,
     OpenViewerSessionCommand,
     ViewerSessionFailedEvent,

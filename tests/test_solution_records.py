@@ -25,12 +25,16 @@ from ea_node_editor.execution.solution_store import (
     DurablePayloadResult,
     DurableStageResult,
 )
-from ea_node_editor.execution.protocol import (
+from ea_node_editor.execution.run_messages import (
     NodeSettledEvent,
+)
+from ea_node_editor.execution.registry_agreement import (
     catalog_agreement,
+    runtime_registry_fingerprint,
+)
+from ea_node_editor.execution.protocol_codec import (
     dict_to_event,
     event_to_dict,
-    runtime_registry_fingerprint,
 )
 from ea_node_editor.execution.runtime_snapshot import build_runtime_snapshot
 from ea_node_editor.graph.model import GraphModel
@@ -556,7 +560,7 @@ def test_settled_results_are_strict_bounded_and_not_protocol_owned() -> None:
             ),
         )
 
-    import ea_node_editor.execution.protocol as protocol
+    import ea_node_editor.execution.protocol_codec as protocol
 
     assert not hasattr(protocol, "RootExecutionError")
     assert not hasattr(protocol, "SettledPortResult")

@@ -6,21 +6,27 @@ from typing import Any
 
 from ea_node_editor.common.payload_tools import copy_json_safe
 from ea_node_editor.nodes.ansys_dpf_data_types import DPF_FIELDS_CONTAINER_HANDLE_KIND
-from ea_node_editor.execution.protocol import (
+from ea_node_editor.execution.viewer_messages import (
     CloseViewerSessionCommand,
     MaterializeViewerDataCommand,
     OpenViewerSessionCommand,
+    UpdateViewerSessionCommand,
+    ViewerSessionFailedEvent,
+)
+from ea_node_editor.execution.run_messages import (
     ProtocolErrorEvent,
     RunFailedEvent,
     RunStateEvent,
-    UpdateViewerSessionCommand,
-    ViewerSessionFailedEvent,
+)
+from ea_node_editor.execution.protocol_codec import (
     WorkerCommand,
     WorkerEvent,
-    catalog_agreement_from_payload,
-    catalog_mismatch_message,
     dict_to_command,
     event_to_dict,
+)
+from ea_node_editor.execution.registry_agreement import (
+    catalog_agreement_from_payload,
+    catalog_mismatch_message,
     normalize_addon_runtime_config,
 )
 from ea_node_editor.execution.worker_services import WorkerServices

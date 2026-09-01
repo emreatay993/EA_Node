@@ -22,7 +22,11 @@ Use this for runtime snapshot assembly, ordered data-edge DTOs, dependency sched
 - `ea_node_editor/execution/solution_store.py`
 - `ea_node_editor/execution/prepared_execution.py`
 - `ea_node_editor/execution/compiler.py`
-- `ea_node_editor/execution/protocol.py`
+- `ea_node_editor/execution/transport_fields.py`
+- `ea_node_editor/execution/registry_agreement.py`
+- `ea_node_editor/execution/run_messages.py`
+- `ea_node_editor/execution/viewer_messages.py`
+- `ea_node_editor/execution/protocol_codec.py`
 - `ea_node_editor/execution/worker_protocol.py`
 - `ea_node_editor/execution/client.py`
 - `ea_node_editor/execution/worker.py`
@@ -53,7 +57,9 @@ Use this for runtime snapshot assembly, ordered data-edge DTOs, dependency sched
 - `tests/test_solution_store_session.py`
 - `tests/test_headless_runtime.py`
 - `tests/test_solution_records.py`
-- `tests/test_execution_protocol.py`
+- `tests/test_registry_agreement.py`
+- `tests/test_run_messages.py`
+- `tests/test_protocol_codec.py`
 - `tests/test_plugin_runtime_agreement.py`
 - `tests/test_plugin_worker_loading.py`
 - `tests/test_execution_client.py`
@@ -137,7 +143,7 @@ Use this for runtime snapshot assembly, ordered data-edge DTOs, dependency sched
 - Durable artifact checks pass the runtime service's `ProjectArtifactStore` into the durable gate, never the catalog-validating `RuntimeArtifactService.resolve_path()` route. Session reuse retains the normal runtime-service validation path.
 - Project saves use the execution-owned `ProjectSolutionSaveSnapshot`/result/candidate/adoption/GC ports. `CorexRuntime` captures the current namespace, binding revision, active generation pointer, registry/artifact-context fingerprints, current durable-maximum session records, and removed-owner filter; one deterministic SHA-256 token binds the complete canonical snapshot. Precommit staging is backend-free. After `.cxproj` publication, `prepare_project_solution_adoption(...)` freshly opens and fully validates exactly one pending candidate; adoption is an exact no-I/O swap. Bounded GC runs only after live adoption and retains incomplete-scan context for later rescans.
 - `CorexRuntime.registry_publication_guard()` owns the global lock order: lifecycle first, then client publication, then brief store locks. Prepared dispatch, viewer admission, and shell registry transactions share this order.
-- Settled result DTO ownership is dependency-light under `runtime_contracts/settled_results.py`. Protocol, worker, shell, and tests import those classes from the runtime-contract owner; `execution/protocol.py` retains transport adapters but does not re-export the classes.
+- Settled result DTO ownership is dependency-light under `runtime_contracts/settled_results.py`. Protocol, worker, shell, and tests import those classes from the runtime-contract owner; `execution/protocol_codec.py` retains transport adapters but does not re-export the classes.
 - Runtime snapshots omit removed plot-session document state; legacy `plot_session_layout` stripping is owned by persistence.
 - Avoid importing persistence serializer internals from worker/runtime code.
 - Test worker, client, artifact refs, handles, and viewer protocols together for cross-process changes.
@@ -158,7 +164,7 @@ Use this for runtime snapshot assembly, ordered data-edge DTOs, dependency sched
 .\venv\Scripts\python.exe -m pytest tests/test_execution_type_enforcement.py --ignore=venv -q
 .\venv\Scripts\python.exe -m pytest tests/test_execution_handle_registry.py tests/test_typed_runtime_values.py --ignore=venv -q
 .\venv\Scripts\python.exe -m pytest tests/test_execution_handle_registry.py tests/test_execution_worker.py tests/test_execution_viewer_service.py tests/test_engineering_import_nodes.py tests/test_dpf_runtime_service.py --ignore=venv -q
-.\venv\Scripts\python.exe -m pytest tests/test_execution_protocol.py tests/test_execution_viewer_protocol.py --ignore=venv -q
+.\venv\Scripts\python.exe -m pytest tests/test_registry_agreement.py tests/test_run_messages.py tests/test_protocol_codec.py tests/test_execution_viewer_protocol.py --ignore=venv -q
 .\venv\Scripts\python.exe -m pytest tests/test_execution_worker.py tests/test_execution_client.py tests/test_execution_artifact_refs.py tests/test_execution_viewer_protocol.py --ignore=venv -q
 .\venv\Scripts\python.exe -m pytest tests/test_run_controller_unit.py tests/test_execution_worker.py tests/test_execution_client.py --ignore=venv -q
 .\venv\Scripts\python.exe -m pytest tests/test_execution_client.py -k "workflow_python or external_python or external_executable or application_default_python" --ignore=venv -q

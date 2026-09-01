@@ -16,7 +16,7 @@ from ea_node_editor.nodes.ansys_dpf_data_types import (
     DPF_VIEWER_DATASET_HANDLE_KIND,
 )
 from ea_node_editor.execution.handle_registry import StaleHandleError
-from ea_node_editor.execution.protocol import (
+from ea_node_editor.execution.viewer_messages import (
     CloseViewerSessionCommand,
     MaterializeViewerDataCommand,
     OpenViewerSessionCommand,
@@ -28,8 +28,10 @@ from ea_node_editor.execution.protocol import (
     ViewerSessionOpenedEvent,
     ViewerQueryResultEvent,
     ViewerSessionUpdatedEvent,
-    event_to_dict,
     viewer_epoch_snapshot_digest,
+)
+from ea_node_editor.execution.protocol_codec import (
+    event_to_dict,
 )
 from ea_node_editor.execution.viewer_backend import (
     ViewerBackendMaterializationResult,

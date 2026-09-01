@@ -801,7 +801,7 @@ sequenceDiagram
 - Change plugin loading/package rules: `ea_node_editor/nodes/plugin_loader.py`, `plugin_generation.py`, `package_manager.py`, and the guarded replacement path in `ea_node_editor/ui/shell/registry_replacement.py`.
 - Change graph hierarchy/scope behavior: `ea_node_editor/graph/hierarchy.py` and `ea_node_editor/ui_qml/graph_scene_bridge.py`.
 - Change grouping/ungrouping and fragment transforms: `ea_node_editor/graph/transforms.py`.
-- Change execution semantics or event behavior: `ea_node_editor/execution/runtime_snapshot.py`, `ea_node_editor/execution/runtime_snapshot_assembly.py`, `ea_node_editor/execution/worker_runtime.py`, and `ea_node_editor/execution/protocol.py`.
+- Change execution semantics or event behavior: `ea_node_editor/execution/runtime_snapshot.py`, `ea_node_editor/execution/runtime_snapshot_assembly.py`, `ea_node_editor/execution/worker_runtime.py`, `ea_node_editor/execution/run_messages.py`, `ea_node_editor/execution/viewer_messages.py`, and `ea_node_editor/execution/protocol_codec.py`.
 - Change run orchestration/UI reaction: `ea_node_editor/ui/shell/controllers/run_controller.py`.
 - Change project/session/autosave orchestration: `ea_node_editor/ui/shell/controllers/project_session_controller.py` and `ea_node_editor/persistence/session_store.py`.
 - Change workspace/view/library/search behavior: `ea_node_editor/ui/shell/controllers/workspace_library_controller.py` and helper ops.

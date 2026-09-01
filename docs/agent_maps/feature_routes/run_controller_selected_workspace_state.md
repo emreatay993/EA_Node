@@ -23,7 +23,9 @@ Use this for Run, Run Selected, workspace solution mode, Auto evaluation, Trigge
 - `ea_node_editor/execution/client.py`
 - `ea_node_editor/execution/headless_runtime.py`
 - `ea_node_editor/execution/solution_store.py`
-- `ea_node_editor/execution/protocol.py`
+- `ea_node_editor/execution/run_messages.py`
+- `ea_node_editor/execution/registry_agreement.py`
+- `ea_node_editor/execution/protocol_codec.py`
 - `ea_node_editor/execution/worker_runtime.py`
 
 ## Current Selected-Run Rules

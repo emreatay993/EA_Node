@@ -7,13 +7,15 @@ import threading
 import traceback
 from typing import Any, TextIO
 
-from ea_node_editor.execution.protocol import (
+from ea_node_editor.execution.run_messages import (
     PauseRunCommand,
     ResumeRunCommand,
     RunFailedEvent,
     ShutdownCommand,
     StartRunCommand,
     StopRunCommand,
+)
+from ea_node_editor.execution.protocol_codec import (
     command_to_dict,
 )
 from ea_node_editor.execution.worker import run_workflow

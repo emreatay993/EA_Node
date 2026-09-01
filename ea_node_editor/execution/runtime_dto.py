@@ -9,8 +9,14 @@ from __future__ import annotations
 
 import copy
 from dataclasses import dataclass, field
-from math import isfinite
 from typing import TYPE_CHECKING, Any, Mapping
+
+from ea_node_editor.execution.transport_fields import (
+    bool_field as _bool_field,
+    float_field as _float_field,
+    nonnegative_int_field as _nonnegative_int_field,
+    string_field as _string_field,
+)
 
 if TYPE_CHECKING:
     from ea_node_editor.graph.workspace_state import WorkspaceData
@@ -48,74 +54,6 @@ def _require_sequence(value: Any, *, field_name: str) -> list[Any] | tuple[Any, 
     if isinstance(value, (list, tuple)):
         return value
     raise ValueError(f"{field_name} must be a list.")
-
-
-def _string_field(
-    payload: Mapping[str, Any],
-    field_name: str,
-    *,
-    default: str = "",
-    strip: bool = True,
-    allow_none: bool = False,
-) -> str | None:
-    if field_name not in payload:
-        return default
-    value = payload[field_name]
-    if allow_none and value is None:
-        return None
-    if not isinstance(value, str):
-        raise ValueError(f"{field_name} must be a string.")
-    return value.strip() if strip else value
-
-
-def _bool_field(
-    payload: Mapping[str, Any],
-    field_name: str,
-    *,
-    default: bool,
-) -> bool:
-    if field_name not in payload:
-        return default
-    value = payload[field_name]
-    if not isinstance(value, bool):
-        raise ValueError(f"{field_name} must be a boolean.")
-    return value
-
-
-def _float_field(
-    payload: Mapping[str, Any],
-    field_name: str,
-    *,
-    default: float | None = 0.0,
-    allow_none: bool = False,
-) -> float | None:
-    if field_name not in payload:
-        return default
-    value = payload[field_name]
-    if allow_none and value is None:
-        return None
-    if isinstance(value, bool) or not isinstance(value, (int, float)):
-        raise ValueError(f"{field_name} must be a number.")
-    normalized = float(value)
-    if not isfinite(normalized):
-        raise ValueError(f"{field_name} must be finite.")
-    return normalized
-
-
-def _nonnegative_int_field(
-    payload: Mapping[str, Any],
-    field_name: str,
-    *,
-    default: int = 0,
-) -> int:
-    if field_name not in payload:
-        return default
-    value = payload[field_name]
-    if isinstance(value, bool) or not isinstance(value, int):
-        raise ValueError(f"{field_name} must be an integer.")
-    if value < 0:
-        raise ValueError(f"{field_name} must be non-negative.")
-    return value
 
 
 def _mapping_field(
@@ -183,6 +121,7 @@ def _validate_workspace_document_fields(
     workspace_id = _string_field(
         payload,
         "workspace_id",
+        strip=True,
     )
     if not workspace_id:
         raise ValueError(
@@ -205,6 +144,7 @@ def _validate_workspace_document_fields(
         document_fields["active_view_id"] = _string_field(
             payload,
             "active_view_id",
+            strip=True,
         )
     if "views" in payload:
         views: list[dict[str, Any]] = []
@@ -228,7 +168,7 @@ def _validate_workspace_document_fields(
                     "runtime_workspace.document_fields.views entries require "
                     "string keys."
                 )
-            view_id = _string_field(view, "view_id")
+            view_id = _string_field(view, "view_id", strip=True)
             if not view_id:
                 raise ValueError(
                     "runtime_workspace.document_fields.views entries require "
@@ -306,8 +246,8 @@ class RuntimeNode:
 
     @classmethod
     def from_mapping(cls, payload: Mapping[str, Any]) -> RuntimeNode | None:
-        node_id = _string_field(payload, "node_id")
-        type_id = _string_field(payload, "type_id")
+        node_id = _string_field(payload, "node_id", strip=True)
+        type_id = _string_field(payload, "type_id", strip=True)
         if not node_id or not type_id:
             return None
         title = _string_field(payload, "title", default=type_id, strip=False)
@@ -326,6 +266,7 @@ class RuntimeNode:
                 _string_field(
                     payload,
                     "principal_input_port_id",
+                    strip=True,
                     allow_none=True,
                 )
                 or None
@@ -335,6 +276,7 @@ class RuntimeNode:
                 _string_field(
                     payload,
                     "parent_node_id",
+                    strip=True,
                     allow_none=True,
                 )
                 or None
@@ -411,10 +353,10 @@ class RuntimeEdge:
 
     @classmethod
     def from_mapping(cls, payload: Mapping[str, Any]) -> RuntimeEdge | None:
-        source_node_id = _string_field(payload, "source_node_id")
-        source_port_key = _string_field(payload, "source_port_key")
-        target_node_id = _string_field(payload, "target_node_id")
-        target_port_key = _string_field(payload, "target_port_key")
+        source_node_id = _string_field(payload, "source_node_id", strip=True)
+        source_port_key = _string_field(payload, "source_port_key", strip=True)
+        target_node_id = _string_field(payload, "target_node_id", strip=True)
+        target_port_key = _string_field(payload, "target_port_key", strip=True)
         if (
             not source_node_id
             or not source_port_key
@@ -427,7 +369,7 @@ class RuntimeEdge:
             source_port_key=source_port_key,
             target_node_id=target_node_id,
             target_port_key=target_port_key,
-            edge_id=str(_string_field(payload, "edge_id")),
+            edge_id=str(_string_field(payload, "edge_id", strip=True)),
             enabled=_bool_field(payload, "enabled", default=True),
             input_order=_nonnegative_int_field(payload, "input_order"),
             label=str(_string_field(payload, "label", strip=False)),

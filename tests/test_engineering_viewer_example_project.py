@@ -10,7 +10,9 @@ from typing import Any
 import pytest
 
 from ea_node_editor.common.scene_protocol import ENGINEERING_SELECTION_SCHEMA
-from ea_node_editor.execution.protocol import coerce_start_run_command
+from ea_node_editor.execution.protocol_codec import (
+    coerce_start_run_command,
+)
 from ea_node_editor.execution.runtime_snapshot import build_runtime_snapshot
 from ea_node_editor.execution.viewer_backend_engineering import (
     ENGINEERING_VIEWER_BACKEND_ID,

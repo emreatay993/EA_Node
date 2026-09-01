@@ -423,7 +423,8 @@ class PreparedDispatchEnvelope:
     def _to_payload(
         self, *, catalog: DataTypeCatalog | None = None
     ) -> dict[str, Any]:
-        from ea_node_editor.execution.protocol import StartRunCommand, command_to_dict
+        from ea_node_editor.execution.run_messages import StartRunCommand
+        from ea_node_editor.execution.protocol_codec import command_to_dict
 
         runtime_snapshot = self.decode_runtime_snapshot(catalog=catalog)
         command_payload = command_to_dict(
@@ -542,7 +543,8 @@ class PreparedDispatchEnvelope:
         catalog: DataTypeCatalog | None = None,
     ) -> PreparedDispatchEnvelope:
         _exact_fields(payload, _DISPATCH_FIELDS, field_name="prepared dispatch envelope")
-        from ea_node_editor.execution.protocol import StartRunCommand, dict_to_command
+        from ea_node_editor.execution.run_messages import StartRunCommand
+        from ea_node_editor.execution.protocol_codec import dict_to_command
 
         command_payload = {
             key: value

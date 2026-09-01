@@ -18,7 +18,9 @@ from ea_node_editor.common.scene_protocol import (
 from ea_node_editor.execution.viewer_backend_engineering import ENGINEERING_VIEWER_BACKEND_ID
 from ea_node_editor.execution.handle_registry import StaleHandleError
 from ea_node_editor.execution.prepared_scene_runtime import PreparedSceneRuntime
-from ea_node_editor.execution.protocol import CloseViewerSessionCommand
+from ea_node_editor.execution.viewer_messages import (
+    CloseViewerSessionCommand,
+)
 from ea_node_editor.execution.worker_services import WorkerServices
 from tests.typed_handle_support import core_worker_services
 from ea_node_editor.nodes.bootstrap import build_builtin_registry

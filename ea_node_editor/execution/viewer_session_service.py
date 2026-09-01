@@ -13,7 +13,7 @@ from ea_node_editor.execution.handle_registry import (
     HandleDisposalError,
     StaleHandleError,
 )
-from ea_node_editor.execution.protocol import (
+from ea_node_editor.execution.viewer_messages import (
     CloseViewerSessionCommand,
     MaterializeViewerDataCommand,
     OpenViewerSessionCommand,
@@ -45,15 +45,23 @@ from ea_node_editor.runtime_contracts.data_types import (
 from ea_node_editor.runtime_contracts.value_refs import RuntimeHandleRef
 
 if TYPE_CHECKING:
-    from ea_node_editor.execution.protocol import WorkerEvent, WorkerCommand
-    from ea_node_editor.execution.runtime_snapshot import RuntimeSnapshot, RuntimeSnapshotContext
+    from ea_node_editor.execution.protocol_codec import (
+        WorkerEvent,
+        WorkerCommand,
+    )
+    from ea_node_editor.execution.runtime_snapshot import (
+        RuntimeSnapshot,
+        RuntimeSnapshotContext,
+    )
     from ea_node_editor.execution.worker_services import WorkerServices
 
 _DEFAULT_OUTPUT_PROFILE = "memory"
 _SESSION_ID_PREFIX = "viewer_session_"
 _SESSION_INVALIDATION_REASON_RERUN = "workspace_rerun"
 _MATERIALIZED_DATA_KEYS = frozenset({"dataset", "preview", "csv", "png", "vtu", "vtm"})
-_MATERIALIZE_TRANSIENT_OPTION_KEYS = frozenset({"temporary_root_parent", "force_recompute"})
+_MATERIALIZE_TRANSIENT_OPTION_KEYS = frozenset(
+    {"temporary_root_parent", "force_recompute"}
+)
 _CLOSE_TRANSIENT_OPTION_KEYS = frozenset({"reason", "release_handles"})
 _TRANSPORT_RERUN_REQUIRED_BLOCKER = {
     "code": "rerun_required",

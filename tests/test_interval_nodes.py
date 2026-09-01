@@ -8,8 +8,10 @@ from unittest import mock
 
 import pytest
 
-from ea_node_editor.execution.protocol import (
+from ea_node_editor.execution.run_messages import (
     StartRunCommand,
+)
+from ea_node_editor.execution.registry_agreement import (
     catalog_agreement,
     runtime_registry_fingerprint,
 )

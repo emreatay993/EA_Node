@@ -85,7 +85,7 @@ PROJECT_MANAGED_FILES_TRACEABILITY_ROW_TOKENS: dict[str, tuple[str, ...]] = {
     "REQ-UI-028": ("project_files_dialog.py", "test_project_files_dialog.py", "test_shell_project_session_controller.py"),
     "REQ-NODE-022": ("Runtime artifact-ref SDK helpers", "test_execution_artifact_refs.py"),
     "REQ-NODE-023": ("Stored-output runtime artifact refs", "test_integrations_track_f.py"),
-    "REQ-EXEC-010": ("protocol.py", "test_execution_artifact_refs.py", "test_execution_client.py"),
+    "REQ-EXEC-010": ("protocol_codec.py", "test_execution_artifact_refs.py", "test_execution_client.py"),
     "REQ-PERSIST-015": ("Canonical `.cxproj` plus sibling `.data` layout", "test_project_artifact_store.py"),
     "REQ-QA-021": ("PROJECT_MANAGED_FILES_QA_MATRIX.md", "test_graph_output_mode_ui.py", "test_shell_project_session_controller.py"),
     "AC-REQ-QA-021-01": (PROJECT_MANAGED_FILES_FINAL_REGRESSION_COMMAND, "PROJECT_MANAGED_FILES_QA_MATRIX.md"),

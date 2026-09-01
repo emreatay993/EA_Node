@@ -12,7 +12,9 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from ea_node_editor.execution.protocol import coerce_start_run_command
+from ea_node_editor.execution.protocol_codec import (
+    coerce_start_run_command,
+)
 from ea_node_editor.execution.runtime_snapshot import (
     RuntimeSnapshot,
     RuntimeSnapshotContext,

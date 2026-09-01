@@ -26,12 +26,16 @@ from ea_node_editor.execution.client import (
 )
 from ea_node_editor.execution.compiler import compile_runtime_snapshot
 from ea_node_editor.execution.execution_plan import ExecutionPlan
-from ea_node_editor.execution.protocol import (
+from ea_node_editor.execution.run_messages import (
     CancelRunPreflightCommand,
     CommitRunPreflightCommand,
+)
+from ea_node_editor.execution.viewer_messages import (
     OpenViewerSessionCommand,
-    command_to_dict,
     viewer_epoch_snapshot_digest,
+)
+from ea_node_editor.execution.protocol_codec import (
+    command_to_dict,
 )
 from ea_node_editor.execution.headless_runtime import CorexRuntime, ExecutionRequest
 from ea_node_editor.execution.prepared_execution import (

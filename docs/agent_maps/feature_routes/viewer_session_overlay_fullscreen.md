@@ -30,7 +30,8 @@ Use this for execution viewer sessions, native overlay lifecycle, fullscreen con
 - `ea_node_editor/ui_qml/components/graph/tabular/TabularFullscreenSurface.qml`
 - `ea_node_editor/execution/client.py`
 - `ea_node_editor/execution/worker.py`
-- `ea_node_editor/execution/protocol.py`
+- `ea_node_editor/execution/viewer_messages.py`
+- `ea_node_editor/execution/protocol_codec.py`
 - `ea_node_editor/execution/worker_protocol.py`
 - `ea_node_editor/execution/viewer_session_service.py`
 - `ea_node_editor/nodes/viewer_runtime_contracts.py`

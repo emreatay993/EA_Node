@@ -19,7 +19,10 @@ from ea_node_editor.nodes.ansys_dpf_data_types import (
     DPF_FIELDS_CONTAINER_HANDLE_KIND,
     DPF_VIEWER_DATASET_HANDLE_KIND,
 )
-from ea_node_editor.execution.protocol import CloseViewerSessionCommand, OpenViewerSessionCommand
+from ea_node_editor.execution.viewer_messages import (
+    CloseViewerSessionCommand,
+    OpenViewerSessionCommand,
+)
 from ea_node_editor.execution.viewer_backend_dpf import DPF_EXECUTION_VIEWER_BACKEND_ID
 from ea_node_editor.execution.worker_services import WorkerServices
 from tests.typed_handle_support import dpf_worker_services

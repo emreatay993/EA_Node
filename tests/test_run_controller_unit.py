@@ -10,9 +10,11 @@ from ea_node_editor.execution.backends import EXTERNAL_SUBPROCESS_BACKEND
 from ea_node_editor.execution.compiler import compile_runtime_snapshot
 from ea_node_editor.execution.execution_plan import ExecutionPlan
 from ea_node_editor.execution.prepared_execution import InvalidationResult
-from ea_node_editor.execution.protocol import (
+from ea_node_editor.execution.run_messages import (
     NodeSettledEvent,
     TriggerCaptureSettledEvent,
+)
+from ea_node_editor.execution.protocol_codec import (
     event_to_dict,
 )
 from ea_node_editor.runtime_contracts.settled_results import (

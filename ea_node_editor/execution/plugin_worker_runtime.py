@@ -17,7 +17,12 @@ from pathlib import Path, PurePosixPath
 from types import ModuleType
 from typing import Any
 
-from ea_node_editor.execution.protocol import StartRunCommand, runtime_registry_fingerprint
+from ea_node_editor.execution.run_messages import (
+    StartRunCommand,
+)
+from ea_node_editor.execution.registry_agreement import (
+    runtime_registry_fingerprint,
+)
 from ea_node_editor.nodes.function_plugin import (
     EMPTY_PLUGIN_FINGERPRINT,
     INTERNAL_BUILTIN_FUNCTION_OWNER_ID,

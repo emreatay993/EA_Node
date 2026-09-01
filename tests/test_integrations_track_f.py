@@ -11,7 +11,9 @@ from dataclasses import asdict
 from pathlib import Path
 from unittest import mock
 
-from ea_node_editor.execution.protocol import coerce_start_run_command
+from ea_node_editor.execution.protocol_codec import (
+    coerce_start_run_command,
+)
 from ea_node_editor.execution.worker import run_workflow
 from ea_node_editor.execution.runtime_snapshot import build_runtime_snapshot
 from ea_node_editor.addons.tabular_data.input_node import execute_tabular_input

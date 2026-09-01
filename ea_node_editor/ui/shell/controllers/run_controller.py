@@ -14,7 +14,7 @@ from ea_node_editor.developer_mode import developer_mode_capability_enabled
 from ea_node_editor.execution.backends import EXTERNAL_SUBPROCESS_BACKEND
 from ea_node_editor.execution.headless_runtime import ExecutionRequest
 from ea_node_editor.execution.prepared_execution import SolutionStateChangedEvent
-from ea_node_editor.execution.protocol import (
+from ea_node_editor.runtime_contracts.settled_results import (
     normalize_root_execution_errors,
     normalize_settled_output_mapping,
     normalize_settled_port_result,

@@ -108,7 +108,7 @@
       "focused_test": "tests/test_port_flow_state.py",
       "not_first_paths": [
         "ea_node_editor/graph/effective_ports.py",
-        "ea_node_editor/execution/protocol.py"
+        "ea_node_editor/execution/protocol_codec.py"
       ]
     },
     {
@@ -120,7 +120,7 @@
       "focused_test": "tests/test_port_flow_state.py",
       "not_first_paths": [
         "ea_node_editor/graph/effective_ports.py",
-        "ea_node_editor/execution/protocol.py"
+        "ea_node_editor/execution/protocol_codec.py"
       ]
     },
     {
@@ -132,7 +132,7 @@
       "focused_test": "tests/test_port_flow_state.py",
       "not_first_paths": [
         "ea_node_editor/graph/effective_ports.py",
-        "ea_node_editor/execution/protocol.py"
+        "ea_node_editor/execution/protocol_codec.py"
       ]
     },
     {

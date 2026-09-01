@@ -254,11 +254,11 @@ def _run_engineering_workflow(
     dict[str, Any],
     list[dict[str, Any]],
 ]:
-    from ea_node_editor.execution.protocol import (
-        UpdateViewerSessionCommand,
+    from ea_node_editor.execution.protocol_codec import (
         coerce_start_run_command,
         event_to_dict,
     )
+    from ea_node_editor.execution.viewer_messages import UpdateViewerSessionCommand
     from ea_node_editor.execution.runtime_snapshot import build_runtime_snapshot
     from ea_node_editor.execution.worker import run_workflow
     from ea_node_editor.execution.worker_services import WorkerServices
@@ -641,13 +641,13 @@ def _run_engineering_canvas_scenario(args: argparse.Namespace, app: Any) -> int:
     from PyQt6.QtGui import QGuiApplication, QWheelEvent
     from PyQt6.QtTest import QTest
 
-    from ea_node_editor.execution.protocol import (
+    from ea_node_editor.execution.protocol_codec import event_to_dict
+    from ea_node_editor.execution.viewer_messages import (
         CloseViewerSessionCommand,
         MaterializeViewerDataCommand,
         OpenViewerSessionCommand,
         QueryViewerSessionCommand,
         UpdateViewerSessionCommand,
-        event_to_dict,
     )
     from ea_node_editor.nodes.bootstrap import build_default_registry
     from ea_node_editor.persistence.serializer import JsonProjectSerializer

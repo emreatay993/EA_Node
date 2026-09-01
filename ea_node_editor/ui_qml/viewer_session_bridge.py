@@ -19,7 +19,7 @@ from ea_node_editor.common.scene_protocol import (
     normalize_viewer_representation,
 )
 from ea_node_editor.execution.viewer_backend_dpf import DPF_EXECUTION_VIEWER_BACKEND_ID
-from ea_node_editor.execution.protocol import (
+from ea_node_editor.execution.viewer_messages import (
     normalize_viewer_invalidation_node_ids,
     normalize_viewer_node_invalidation_epochs,
     viewer_epoch_snapshot_digest,

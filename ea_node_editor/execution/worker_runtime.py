@@ -15,8 +15,12 @@ from ea_node_editor.common.payload_tools import (
 )
 from ea_node_editor.execution.compiler import compile_runtime_snapshot
 from ea_node_editor.execution import execution_plan as _execution_plan
-from ea_node_editor.execution.protocol import StartRunCommand
-from ea_node_editor.execution.protocol import normalize_addon_runtime_config
+from ea_node_editor.execution.run_messages import (
+    StartRunCommand,
+)
+from ea_node_editor.execution.registry_agreement import (
+    normalize_addon_runtime_config,
+)
 from ea_node_editor.execution.plugin_worker_runtime import WorkerPluginRuntime
 from ea_node_editor.execution.runtime_dto import RuntimeWorkspace
 from ea_node_editor.execution.runtime_snapshot import (
@@ -159,10 +163,7 @@ class RuntimeArtifactService:
                 for path, items in value.branches
             )
         if isinstance(value, Mapping):
-            if (
-                not _runtime_markers_decoded
-                and "__ea_runtime_value__" in value
-            ):
+            if not _runtime_markers_decoded and "__ea_runtime_value__" in value:
                 from ea_node_editor.runtime_contracts.value_codec import (
                     deserialize_runtime_value,
                 )

@@ -32,17 +32,23 @@ from ea_node_editor.execution.backends import (
 )
 from ea_node_editor.execution.handle_registry import StaleHandleError
 from ea_node_editor.execution.execution_plan import ExecutionPlan
-from ea_node_editor.execution.protocol import (
+from ea_node_editor.execution.viewer_messages import (
     CloseViewerSessionCommand,
     MaterializeViewerDataCommand,
-    NodeSettledEvent,
     OpenViewerSessionCommand,
     QueryViewerSessionCommand,
-    ShutdownCommand,
-    StartRunCommand,
     UpdateViewerSessionCommand,
     ViewerSessionOpenedEvent,
+)
+from ea_node_editor.execution.run_messages import (
+    NodeSettledEvent,
+    ShutdownCommand,
+    StartRunCommand,
+)
+from ea_node_editor.execution.registry_agreement import (
     catalog_agreement,
+)
+from ea_node_editor.execution.protocol_codec import (
     command_to_dict,
     coerce_start_run_command,
     dict_to_command,

@@ -10,8 +10,10 @@ from pathlib import Path
 
 import pytest
 
-from ea_node_editor.execution.protocol import (
+from ea_node_editor.execution.run_messages import (
     NodeSettledEvent,
+)
+from ea_node_editor.execution.protocol_codec import (
     dict_to_event,
     event_to_dict,
 )

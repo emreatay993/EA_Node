@@ -16,12 +16,16 @@ from ea_node_editor.execution.client import (
     TrustedInProcessExecutionClient,
 )
 from ea_node_editor.execution.plugin_worker_runtime import WorkerPluginRuntime
-from ea_node_editor.execution.protocol import (
+from ea_node_editor.execution.run_messages import (
     StartRunCommand,
     StopRunCommand,
+)
+from ea_node_editor.execution.registry_agreement import (
     catalog_agreement,
-    command_to_dict,
     runtime_registry_fingerprint,
+)
+from ea_node_editor.execution.protocol_codec import (
+    command_to_dict,
 )
 from ea_node_editor.execution.runtime_snapshot import build_runtime_snapshot
 from ea_node_editor.execution.worker_runner import WorkflowRunner

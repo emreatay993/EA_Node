@@ -5,9 +5,11 @@ import tempfile
 from pathlib import Path
 from unittest import mock
 
-from ea_node_editor.execution.protocol import (
+from ea_node_editor.execution.run_messages import (
     TriggerCaptureSettledEvent,
     TriggerPublishedEvent,
+)
+from ea_node_editor.execution.protocol_codec import (
     coerce_start_run_command,
     dict_to_event,
 )

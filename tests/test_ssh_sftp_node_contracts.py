@@ -749,8 +749,10 @@ def test_ssh_value_functions_execute_through_reserved_worker_adapters(
     tmp_path: Path,
 ) -> None:
     from ea_node_editor.execution.plugin_worker_runtime import WorkerPluginRuntime
-    from ea_node_editor.execution.protocol import (
+    from ea_node_editor.execution.run_messages import (
         StartRunCommand,
+    )
+    from ea_node_editor.execution.registry_agreement import (
         catalog_agreement,
         runtime_registry_fingerprint,
     )

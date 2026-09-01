@@ -1969,13 +1969,16 @@ TRACEABILITY_ROW_REQUIRED_TOKENS.update(
             "test_dataflow_execution_runtime.py",
         ),
         "REQ-EXEC-028": (
-            "protocol.py",
+            "registry_agreement.py",
+            "protocol_codec.py",
             "plugin_worker_runtime.py",
             "worker_runtime.py",
             "plugin_generation.py",
         ),
         "AC-REQ-EXEC-028-01": (
-            "test_execution_protocol.py",
+            "test_registry_agreement.py",
+            "test_run_messages.py",
+            "test_protocol_codec.py",
             "test_execution_client.py",
             "test_execution_worker.py",
             "test_plugin_generation.py",

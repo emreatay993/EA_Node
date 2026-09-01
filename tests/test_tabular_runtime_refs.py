@@ -2,10 +2,14 @@ from __future__ import annotations
 
 import unittest
 
-from ea_node_editor.execution.protocol import (
+from ea_node_editor.execution.run_messages import (
     NodeSettledEvent,
+)
+from ea_node_editor.execution.viewer_messages import (
     OpenViewerSessionCommand,
     ViewerDataMaterializedEvent,
+)
+from ea_node_editor.execution.protocol_codec import (
     command_to_dict,
     dict_to_command,
     dict_to_event,

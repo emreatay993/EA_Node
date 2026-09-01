@@ -44,7 +44,9 @@ from ea_node_editor.addons.mars.runtime import (
     run_mars_batch,
 )
 from ea_node_editor.app_preferences import default_app_preferences_document
-from ea_node_editor.execution.protocol import coerce_start_run_command
+from ea_node_editor.execution.protocol_codec import (
+    coerce_start_run_command,
+)
 from ea_node_editor.execution.runtime_snapshot import (
     RuntimeSnapshot,
     RuntimeSnapshotContext,
@@ -237,7 +239,7 @@ class MarsAddOnContractTests(unittest.TestCase):
                     return_value=registry,
                 ),
                 patch(
-                    "ea_node_editor.execution.protocol.plugin_generations_dir",
+                    "ea_node_editor.execution.registry_agreement.plugin_generations_dir",
                     return_value=Path(generation.name),
                 ),
             ):

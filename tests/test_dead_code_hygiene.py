@@ -143,7 +143,7 @@ class DeadCodeHygienePythonHelperBoundaryTests(unittest.TestCase):
 
     def test_removed_internal_helpers_do_not_reappear(self) -> None:
         expectations = {
-            "ea_node_editor/execution/protocol.py": {"dict_to_event_type"},
+            "ea_node_editor/execution/protocol_codec.py": {"dict_to_event_type"},
             "ea_node_editor/ui/shell/library_flow.py": {"input_port_is_available"},
             "ea_node_editor/ui_qml/edge_routing.py": {"inline_body_height"},
         }

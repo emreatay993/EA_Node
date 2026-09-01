@@ -42,11 +42,15 @@ from ea_node_editor.execution.prepared_execution import (
     RecomputeMode,
     SolutionStateChangedEvent,
 )
-from ea_node_editor.execution.protocol import (
+from ea_node_editor.execution.run_messages import (
     StartRunCommand,
+)
+from ea_node_editor.execution.registry_agreement import (
     catalog_agreement,
-    coerce_start_run_command,
     runtime_registry_fingerprint,
+)
+from ea_node_editor.execution.protocol_codec import (
+    coerce_start_run_command,
 )
 from ea_node_editor.runtime_contracts.settled_results import (
     SettledPortResult,
@@ -1980,17 +1984,19 @@ class CorexRuntime:
             run_artifact_service = self._run_artifact_services.get(
                 str(event.get("run_id", "")).strip()
             )
-            diagnostics, released_leases, acceptance = self._solution_store.handle_event(
-                validated_event,
-                generation_snapshot,
-                catalog=self._registry.data_types,
-                resources_reusable=resources_reusable,
-                resource_leases=resource_leases,
-                artifact_context=(
-                    run_artifact_service.store
-                    if run_artifact_service is not None
-                    else None
-                ),
+            diagnostics, released_leases, acceptance = (
+                self._solution_store.handle_event(
+                    validated_event,
+                    generation_snapshot,
+                    catalog=self._registry.data_types,
+                    resources_reusable=resources_reusable,
+                    resource_leases=resource_leases,
+                    artifact_context=(
+                        run_artifact_service.store
+                        if run_artifact_service is not None
+                        else None
+                    ),
+                )
             )
             enriched_event = dict(validated_event)
             if str(enriched_event.get("type", "")) == "node_settled":

@@ -12,7 +12,7 @@ from multiprocessing import Queue
 from types import MappingProxyType
 from typing import Any
 
-from ea_node_editor.execution.protocol import (
+from ea_node_editor.execution.run_messages import (
     CancelRunPreflightCommand,
     CommitRunPreflightCommand,
     PauseRunCommand,
@@ -27,8 +27,12 @@ from ea_node_editor.execution.protocol import (
     StopRunCommand,
     TriggerCaptureSettledEvent,
     TriggerPublishedEvent,
+)
+from ea_node_editor.execution.protocol_codec import (
     WorkerCommand,
     WorkerEvent,
+)
+from ea_node_editor.execution.registry_agreement import (
     catalog_mismatch_message,
 )
 from ea_node_editor.runtime_contracts.settled_results import (
@@ -378,7 +382,9 @@ class RunEventPublisher:
     def emit_node_started(
         self, node_id: str, *, started_at_epoch_ms: float = 0.0
     ) -> None:
-        from ea_node_editor.execution.protocol import NodeStartedEvent
+        from ea_node_editor.execution.run_messages import (
+            NodeStartedEvent,
+        )
 
         self.emit(
             NodeStartedEvent(
@@ -404,7 +410,9 @@ class RunEventPublisher:
         record_id: str = "",
         residency: str = "",
     ) -> None:
-        from ea_node_editor.execution.protocol import NodeSettledEvent
+        from ea_node_editor.execution.run_messages import (
+            NodeSettledEvent,
+        )
 
         normalized_warnings = _normalize_warning_messages(warnings)
         self.emit(
@@ -448,7 +456,9 @@ class RunEventPublisher:
         )
 
     def emit_log(self, level: str, message: str, *, node_id: str = "") -> None:
-        from ea_node_editor.execution.protocol import LogEvent
+        from ea_node_editor.execution.run_messages import (
+            LogEvent,
+        )
 
         self.emit(
             LogEvent(

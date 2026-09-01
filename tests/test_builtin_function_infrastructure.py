@@ -14,12 +14,16 @@ import pytest
 from ea_node_editor.addons.tabular_data.metadata import TABULAR_DATA_ADDON_ID
 from ea_node_editor.execution.client import TrustedInProcessExecutionClient
 from ea_node_editor.execution.plugin_worker_runtime import WorkerPluginRuntime
-from ea_node_editor.execution.protocol import (
+from ea_node_editor.execution.run_messages import (
     StartRunCommand,
+)
+from ea_node_editor.execution.registry_agreement import (
     catalog_agreement,
+    runtime_registry_fingerprint,
+)
+from ea_node_editor.execution.protocol_codec import (
     command_to_dict,
     dict_to_command,
-    runtime_registry_fingerprint,
 )
 from ea_node_editor.execution.runtime_snapshot import build_runtime_snapshot
 from ea_node_editor.graph.model import GraphModel

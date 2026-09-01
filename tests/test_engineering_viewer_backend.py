@@ -15,7 +15,7 @@ from ea_node_editor.execution.prepared_scene_runtime import (
     PreparedScene,
     PreparedSceneRuntime,
 )
-from ea_node_editor.execution.protocol import (
+from ea_node_editor.execution.viewer_messages import (
     MaterializeViewerDataCommand,
     OpenViewerSessionCommand,
     ViewerDataMaterializedEvent,

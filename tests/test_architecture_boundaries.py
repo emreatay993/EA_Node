@@ -1323,7 +1323,7 @@ class GraphArchitectureBoundaryTests(unittest.TestCase):
         settled_tree = parse_module(
             "ea_node_editor/runtime_contracts/settled_results.py"
         )
-        protocol_tree = parse_module("ea_node_editor/execution/protocol.py")
+        protocol_tree = parse_module("ea_node_editor/execution/protocol_codec.py")
         worker_runtime_tree = parse_module(
             "ea_node_editor/execution/worker_runtime.py"
         )
@@ -1348,19 +1348,47 @@ class GraphArchitectureBoundaryTests(unittest.TestCase):
         self.assertNotIn("ExecutionPlan", worker_runtime_classes)
 
         offenders: dict[str, list[str]] = {}
+        protocol_owner_modules = (
+            "ea_node_editor.execution.protocol_codec",
+            "ea_node_editor.execution.run_messages",
+            "ea_node_editor.execution.viewer_messages",
+        )
         for root_name in ("ea_node_editor", "tests"):
             for source_path in (REPO_ROOT / root_name).rglob("*.py"):
                 relative_path = source_path.relative_to(REPO_ROOT).as_posix()
                 old_owner_imports = sorted(
-                    imported_names_from(
-                        parse_module(relative_path),
-                        "ea_node_editor.execution.protocol",
-                    )
+                    {
+                        name
+                        for module_name in protocol_owner_modules
+                        for name in imported_names_from(
+                            parse_module(relative_path), module_name
+                        )
+                    }
                     & {"RootExecutionError", "SettledPortResult"}
                 )
                 if old_owner_imports:
                     offenders[relative_path] = old_owner_imports
         self.assertEqual(offenders, {})
+
+    def test_typed_execution_protocol_has_direct_owners(self) -> None:
+        self.assertFalse((REPO_ROOT / "ea_node_editor/execution/protocol.py").exists())
+        owner_paths = {
+            "transport_fields.py": "test_protocol_codec.py",
+            "registry_agreement.py": "test_registry_agreement.py",
+            "run_messages.py": "test_run_messages.py",
+            "viewer_messages.py": "test_execution_viewer_protocol.py",
+            "protocol_codec.py": "test_protocol_codec.py",
+        }
+        for source_name, test_name in owner_paths.items():
+            with self.subTest(source_name=source_name):
+                source_path = REPO_ROOT / "ea_node_editor/execution" / source_name
+                self.assertTrue(source_path.is_file())
+                self.assertIn(test_name, source_path.read_text(encoding="utf-8"))
+        prepared_tree = parse_module("ea_node_editor/execution/prepared_execution.py")
+        self.assertNotIn(
+            "ea_node_editor.execution.run_messages",
+            top_level_imported_modules(prepared_tree),
+        )
 
     def test_nodes_sdk_modules_do_not_import_runtime_or_ui_implementations_at_module_load(self) -> None:
         nodes_root = REPO_ROOT / "ea_node_editor" / "nodes"

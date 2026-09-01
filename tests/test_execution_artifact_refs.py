@@ -12,9 +12,11 @@ from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
 from ea_node_editor.common.payload_tools import artifact_content_integrity
-from ea_node_editor.execution.protocol import (
+from ea_node_editor.execution.run_messages import (
     NodeSettledEvent,
     StartRunCommand,
+)
+from ea_node_editor.execution.protocol_codec import (
     command_to_dict,
     coerce_start_run_command,
     dict_to_command,

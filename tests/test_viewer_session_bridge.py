@@ -12,9 +12,13 @@ from unittest.mock import patch
 
 from PyQt6.QtCore import QCoreApplication, QEvent, QObject, QUrl, pyqtSignal
 
-from ea_node_editor.execution.protocol import (
+from ea_node_editor.execution.run_messages import (
     NodeSettledEvent,
+)
+from ea_node_editor.execution.protocol_codec import (
     event_to_dict,
+)
+from ea_node_editor.execution.viewer_messages import (
     viewer_epoch_snapshot_digest,
 )
 from ea_node_editor.execution.prepared_execution import InvalidationResult

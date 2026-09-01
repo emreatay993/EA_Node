@@ -8,7 +8,7 @@ from dataclasses import replace
 
 import pytest
 
-from ea_node_editor.execution import protocol
+import ea_node_editor.execution.registry_agreement as registry_agreement
 from ea_node_editor.execution.client import (
     ExecutionBackendClient,
     ExternalPythonExecutionClient,
@@ -17,10 +17,14 @@ from ea_node_editor.execution.client import (
     _ExecutionClientCommon,
 )
 from ea_node_editor.execution.headless_runtime import CorexRuntime, ExecutionRequest
-from ea_node_editor.execution.protocol import (
+from ea_node_editor.execution.run_messages import (
     StartRunCommand,
+)
+from ea_node_editor.execution.protocol_codec import (
     command_to_dict,
     dict_to_command,
+)
+from ea_node_editor.execution.registry_agreement import (
     runtime_registry_fingerprint,
 )
 from ea_node_editor.execution.runtime_dto import RuntimeWorkspace
@@ -94,7 +98,11 @@ def test_start_run_plugin_bundle_round_trips_with_combined_fingerprint(
     monkeypatch,
 ) -> None:
     generation_root = tmp_path / "plugin_generations"
-    monkeypatch.setattr(protocol, "plugin_generations_dir", lambda: generation_root)
+    monkeypatch.setattr(
+        registry_agreement,
+        "plugin_generations_dir",
+        lambda: generation_root,
+    )
     bundle = _bundle(generation_root)
     catalog = _frozen_catalog()
     expected_runtime = runtime_registry_fingerprint(
@@ -140,7 +148,11 @@ def test_plugin_protocol_rejects_path_escape_bounds_and_fingerprint_mismatch(
     monkeypatch,
 ) -> None:
     generation_root = tmp_path / "plugin_generations"
-    monkeypatch.setattr(protocol, "plugin_generations_dir", lambda: generation_root)
+    monkeypatch.setattr(
+        registry_agreement,
+        "plugin_generations_dir",
+        lambda: generation_root,
+    )
     catalog = _frozen_catalog()
     payload = command_to_dict(
         StartRunCommand(
