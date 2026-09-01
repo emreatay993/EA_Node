@@ -454,15 +454,6 @@ class ShellWindowWorkspaceGraphActionsMixin:
     def _selected_node_context(self: "ShellWindow"):
         return self.workspace_library_controller.selected_node_context()
 
-    def _active_workspace_data(self: "ShellWindow"):
-        return self.shell_host_presenter._active_workspace_data()
-
-    def _passive_node_context(self: "ShellWindow", node_id: str):
-        return self.shell_host_presenter._passive_node_context(node_id)
-
-    def _flow_edge_context(self: "ShellWindow", edge_id: str):
-        return self.shell_host_presenter._flow_edge_context(edge_id)
-
     def _reveal_parent_chain(self: "ShellWindow", workspace_id, node_id):
         return self.workspace_library_controller.reveal_parent_chain(workspace_id, node_id)
 

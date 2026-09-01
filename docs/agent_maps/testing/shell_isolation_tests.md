@@ -16,6 +16,7 @@ Use this for shell-backed workflows that need process isolation, shell target ca
 - `MainWindowShellTestBase` owns shared full-shell QML traversal and Inspector lookup. Image and PDF subclasses retain ownership of their QML reference lists and teardown.
 - PDF tests use `SharedMainWindowShellTestBase` to own shell reuse within each existing isolated child; the two manifest-owned child processes remain the process-isolation boundaries that scope that reuse.
 - Keep catalog-owned Media Panel and graph-host targets free of nested subprocess proxy classes and `load_tests` wrappers.
+- Graph cursor/style mutation behavior belongs in `tests/test_graph_canvas_host_presenter.py` and `tests/test_passive_style_presets.py`; shell-isolated passive-style coverage retains only the real QML graph-action route/render smoke.
 - Keep shell-isolated direct `unittest` commands as focused manual reruns only.
 - Prefer `run_verification.py --mode full` for release confidence when shell-backed behavior changes.
 - For shell composition changes, keep `tests/test_main_bootstrap.py`, `tests/test_main_window_shell.py`, and `tests/test_shell_window_lifecycle.py` aligned with the direct `ShellWindow()` and `create_shell_window()` paths.

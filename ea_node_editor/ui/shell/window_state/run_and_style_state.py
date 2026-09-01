@@ -3,7 +3,7 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING, Any, Iterable, Literal
 
-from PyQt6.QtCore import Qt, pyqtSlot
+from PyQt6.QtCore import pyqtSlot
 
 from ea_node_editor.developer_mode import developer_mode_capability_enabled
 
@@ -12,9 +12,6 @@ if TYPE_CHECKING:
     from ea_node_editor.ui.shell.window import ShellWindow
 
 logger = logging.getLogger(__name__)
-
-_UNSET = object()
-
 
 def _coerce_nonnegative_timing_ms(value: object) -> float:
     from ea_node_editor.ui.shell.controllers.run_controller import RunController
@@ -163,17 +160,6 @@ class ShellWindowRunAndStyleStateMixin:
     def clear_run_failure_focus(self: "ShellWindow") -> None:
         self.run_controller.clear_run_failure_focus()
 
-    def _apply_graph_cursor(self: "ShellWindow", cursor_shape: Qt.CursorShape) -> None:
-        self.shell_host_presenter.apply_graph_cursor(cursor_shape)
-
-    @pyqtSlot(int)
-    def set_graph_cursor_shape(self: "ShellWindow", cursor_shape: int) -> None:
-        self.shell_host_presenter.set_graph_cursor_shape(cursor_shape)
-
-    @pyqtSlot()
-    def clear_graph_cursor_shape(self: "ShellWindow") -> None:
-        self.shell_host_presenter.clear_graph_cursor_shape()
-
     def _apply_theme(self: "ShellWindow", theme_id: Any) -> str:
         return self.shell_host_presenter.apply_theme(theme_id)
 
@@ -198,80 +184,6 @@ class ShellWindowRunAndStyleStateMixin:
     @pyqtSlot(result=bool)
     def request_toggle_snap_to_grid(self: "ShellWindow") -> bool:
         return bool(self.graph_canvas_presenter.request_toggle_snap_to_grid())
-
-    @pyqtSlot(str, result=bool)
-    def request_edit_passive_node_style(self: "ShellWindow", node_id: str) -> bool:
-        return bool(self.shell_host_presenter.request_edit_passive_node_style(node_id))
-
-    @pyqtSlot(str, result=bool)
-    def request_reset_passive_node_style(self: "ShellWindow", node_id: str) -> bool:
-        return bool(self.shell_host_presenter.request_reset_passive_node_style(node_id))
-
-    @pyqtSlot(str, result=bool)
-    def request_copy_passive_node_style(self: "ShellWindow", node_id: str) -> bool:
-        return bool(self.shell_host_presenter.request_copy_passive_node_style(node_id))
-
-    @pyqtSlot(str, result=bool)
-    def request_paste_passive_node_style(self: "ShellWindow", node_id: str) -> bool:
-        return bool(self.shell_host_presenter.request_paste_passive_node_style(node_id))
-
-    @pyqtSlot(str, result=bool)
-    def request_propagate_passive_node_style(self: "ShellWindow", node_id: str) -> bool:
-        return bool(self.shell_host_presenter.request_propagate_passive_node_style(node_id))
-
-    @pyqtSlot(str, result=bool)
-    def request_edit_flow_edge_style(self: "ShellWindow", edge_id: str) -> bool:
-        return bool(self.shell_host_presenter.request_edit_flow_edge_style(edge_id))
-
-    @pyqtSlot(str, result=bool)
-    def request_edit_flow_edge_label(self: "ShellWindow", edge_id: str) -> bool:
-        return bool(self.shell_host_presenter.request_edit_flow_edge_label(edge_id))
-
-    @pyqtSlot(str, result=bool)
-    def request_reset_flow_edge_style(self: "ShellWindow", edge_id: str) -> bool:
-        return bool(self.shell_host_presenter.request_reset_flow_edge_style(edge_id))
-
-    @pyqtSlot(str, result=bool)
-    def request_copy_flow_edge_style(self: "ShellWindow", edge_id: str) -> bool:
-        return bool(self.shell_host_presenter.request_copy_flow_edge_style(edge_id))
-
-    @pyqtSlot(str, result=bool)
-    def request_paste_flow_edge_style(self: "ShellWindow", edge_id: str) -> bool:
-        return bool(self.shell_host_presenter.request_paste_flow_edge_style(edge_id))
-
-    def _project_passive_style_presets(self: "ShellWindow") -> dict[str, list[dict[str, Any]]]:
-        return self.shell_host_presenter._project_passive_style_presets()
-
-    def _set_project_passive_style_presets(
-        self: "ShellWindow",
-        *,
-        node_presets: Any = _UNSET,
-        edge_presets: Any = _UNSET,
-    ) -> None:
-        self.shell_host_presenter._set_project_passive_style_presets(
-            node_presets=node_presets,
-            edge_presets=edge_presets,
-        )
-
-    def edit_passive_node_style(self: "ShellWindow", node_id: str) -> dict[str, Any] | None:
-        return self.shell_host_presenter.edit_passive_node_style(node_id)
-
-    def edit_flow_edge_style(self: "ShellWindow", edge_id: str) -> dict[str, Any] | None:
-        return self.shell_host_presenter.edit_flow_edge_style(edge_id)
-
-    def _write_style_clipboard(self: "ShellWindow", *, kind: str, style: dict[str, Any]) -> None:
-        self.shell_host_presenter._write_style_clipboard(kind=kind, style=style)
-
-    def _read_style_clipboard(self: "ShellWindow", *, kind: str) -> dict[str, Any] | None:
-        return self.shell_host_presenter._read_style_clipboard(kind=kind)
-
-    def _normalize_style_clipboard_payload(
-        self: "ShellWindow",
-        payload: Any,
-        *,
-        kind: str,
-    ) -> dict[str, Any] | None:
-        return self.shell_host_presenter._normalize_style_clipboard_payload(payload, kind=kind)
 
     def _focus_failed_node(self: "ShellWindow", workspace_id, node_id):
         return self.workspace_library_controller.focus_failed_node(workspace_id, node_id)

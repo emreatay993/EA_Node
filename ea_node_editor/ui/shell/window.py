@@ -34,9 +34,6 @@ from ea_node_editor.ui_qml.qtquick_backend import configure_qtquick_backend, qtq
 
 
 configure_qtquick_backend()
-_PASSIVE_NODE_STYLE_CLIPBOARD_KIND = "passive-node-style"
-_FLOW_EDGE_STYLE_CLIPBOARD_KIND = "flow-edge-style"
-_STYLE_CLIPBOARD_APP_PROPERTY = "eaNodeEditorStyleClipboard"
 
 
 class ShellWindow(

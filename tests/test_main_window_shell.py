@@ -1505,26 +1505,16 @@ class MainWindowNodeExecutionCanvasTests(SharedMainWindowShellTestBase):
 
 
 class MainWindowShellHostFacadeDelegationTests(SharedMainWindowShellTestBase):
-    def test_host_slots_delegate_nontrivial_host_logic_to_shell_host_presenter(self) -> None:
+    def test_host_slot_delegates_app_dialog_to_shell_host_presenter(self) -> None:
         self.assertIsNotNone(self.window.shell_host_presenter)
 
-        with (
-            patch.object(self.window.shell_host_presenter, "show_graphics_settings_dialog") as show_graphics_mock,
-            patch.object(self.window.shell_host_presenter, "set_graph_cursor_shape") as set_cursor_mock,
-            patch.object(
-                self.window.shell_host_presenter,
-                "request_edit_passive_node_style",
-                return_value=True,
-            ) as edit_passive_style_mock,
-        ):
+        with patch.object(
+            self.window.shell_host_presenter,
+            "show_graphics_settings_dialog",
+        ) as show_graphics_mock:
             self.window.show_graphics_settings_dialog()
-            self.window.set_graph_cursor_shape(3)
-            result = self.window.request_edit_passive_node_style("node-1")
 
         show_graphics_mock.assert_called_once_with(False)
-        set_cursor_mock.assert_called_once_with(3)
-        edit_passive_style_mock.assert_called_once_with("node-1")
-        self.assertTrue(result)
 
     def test_shell_window_addon_and_run_facades_delegate_to_owning_controllers(self) -> None:
         with (

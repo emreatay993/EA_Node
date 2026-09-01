@@ -88,11 +88,11 @@ class PassiveStylePresetCatalogTests(unittest.TestCase):
         )
 
 
-class PassiveStylePresetProjectScopeTests(unittest.TestCase):
+class GraphCanvasHostPresenterPassiveStylePresetProjectScopeTests(unittest.TestCase):
     def setUp(self) -> None:
         self.app = QApplication.instance() or QApplication([])
 
-    def test_shell_uses_current_project_preset_library_when_projects_switch(self) -> None:
+    def test_graph_host_presenter_uses_current_project_preset_library_when_projects_switch(self) -> None:
         window = ShellWindow()
         window._persist_session = lambda project_doc=None: None
 
@@ -147,7 +147,9 @@ class PassiveStylePresetProjectScopeTests(unittest.TestCase):
             ]
 
             with patch("ea_node_editor.ui.dialogs.PassiveNodeStyleDialog", FakePassiveNodeStyleDialog):
-                self.assertIsNone(window.edit_passive_node_style(node_a.node_id))
+                self.assertIsNone(
+                    window.graph_canvas_host_presenter.edit_passive_node_style(node_a.node_id)
+                )
 
             self.assertEqual(
                 FakePassiveNodeStyleDialog.seen_user_presets[0],
@@ -202,7 +204,9 @@ class PassiveStylePresetProjectScopeTests(unittest.TestCase):
             ]
 
             with patch("ea_node_editor.ui.dialogs.PassiveNodeStyleDialog", FakePassiveNodeStyleDialog):
-                self.assertIsNone(window.edit_passive_node_style(node_b.node_id))
+                self.assertIsNone(
+                    window.graph_canvas_host_presenter.edit_passive_node_style(node_b.node_id)
+                )
 
             self.assertEqual(
                 FakePassiveNodeStyleDialog.seen_user_presets[1],

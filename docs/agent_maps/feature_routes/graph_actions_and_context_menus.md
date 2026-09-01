@@ -14,6 +14,7 @@ Use this for graph action IDs, layout menu actions, context menu entries, select
 - `ea_node_editor/ui_qml/components/graph/GraphNodeHost.qml`
 - `ea_node_editor/ui_qml/graph_action_bridge.py`
 - `ea_node_editor/ui/shell/controllers/graph_action_controller.py`
+- `ea_node_editor/ui/shell/presenters/graph_canvas_host_presenter.py`
 - `ea_node_editor/ui/shell/controllers/mutation_ui_effects.py`
 - `ea_node_editor/ui/shell/controllers/run_controller.py`
 - `ea_node_editor/ui/shell/inspector_projection.py`
@@ -35,7 +36,7 @@ Use this for graph action IDs, layout menu actions, context menu entries, select
 - `data.panel` adds QML-local Parse numbers automatically, Copy, and Copy as tree rows. The checked parse action and both copy requests dispatch through the loaded `GraphPanelSurface.qml`; they do not register global graph action IDs. Copy and Copy as tree stay available in read-only graphs, while parse and every formatting/editor mutation remain blocked.
 
 ## Passive Style Context Menu
-- Passive node style actions are declared as graph action contracts, surfaced from `GraphCanvasContextMenus.qml`, routed by `GraphCanvasActionRouter.qml`, and dispatched through `GraphActionController` to `GraphCanvasHostPresenter`/`ShellHostPresenter`.
+- Passive node and flow-edge style actions are declared as graph action contracts, surfaced from graph context menus/toolbars, routed by `GraphCanvasActionRouter.qml`, and dispatched through `GraphActionController` directly to `GraphCanvasHostPresenter`. That presenter owns dialog/preset/clipboard/label policy and calls the graph scene mutation owner; `ShellHostPresenter` and `ShellWindow` are not on this route.
 - Bare Text annotations are excluded from the generic passive `visual_style` actions because their chrome-free surface owns whole-object typography and colors as node properties through `GraphRichTextBlock.qml` and its floating toolbar.
 - `Propagate Style` copies the right-clicked passive node's style to every other passive node in the active workspace from the scene mutation layer; keep its context-menu, graph-action contract, shell dispatch, and undo/redo tests together.
 
@@ -68,6 +69,7 @@ Use this for graph action IDs, layout menu actions, context menu entries, select
 ## Focused Verification
 ```powershell
 .\venv\Scripts\python.exe -m pytest tests/test_graph_action_contracts.py tests/test_transform_layout_ops.py tests/main_window_shell/passive_style_context_menus.py tests/main_window_shell/group_backdrop_workflows.py --ignore=venv -q
+.\venv\Scripts\python.exe -m pytest tests/test_graph_canvas_host_presenter.py tests/test_passive_style_presets.py --ignore=venv -q
 .\venv\Scripts\python.exe -m pytest tests/test_graph_surface_input_controls.py -k SelectionEnvelope --ignore=venv -q
 .\venv\Scripts\python.exe -m pytest tests/test_graph_surface_input_controls.py -k floating_toolbar_run_action_exposes_selected_run_menu --ignore=venv -q
 .\venv\Scripts\python.exe -m pytest tests/graph_track_b/scene_model_graph_scene_suite.py -k propagate_passive_node_style --ignore=venv -q

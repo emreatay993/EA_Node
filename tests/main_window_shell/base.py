@@ -694,7 +694,7 @@ class SharedMainWindowShellTestBase(MainWindowShellTestBase):
             highlight_index=-1,
             context=None,
         )
-        window.clear_graph_cursor_shape()
+        window.graph_canvas_host_presenter.clear_graph_cursor_shape()
         window.search_scope_state.runtime_scope_camera.clear()
         window.set_library_query("")
         window.set_library_category("")

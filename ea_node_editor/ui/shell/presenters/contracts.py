@@ -107,9 +107,15 @@ class _GraphCanvasPresenterHostProtocol(Protocol):
     def clear_graph_hint(self) -> None: ...
 
 class _GraphCanvasHostPresenterHostProtocol(Protocol):
+    project_meta_changed: _SignalLike
+    project_path: str
+    model: Any
+    registry: Any
+    workspace_manager: Any
     search_scope_controller: Any
     scene: Any
-    shell_host_presenter: Any
+    project_session_controller: Any
+    quick_widget: Any
     workspace_library_controller: Any
 
 

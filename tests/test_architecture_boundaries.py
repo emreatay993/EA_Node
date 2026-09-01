@@ -224,6 +224,90 @@ def declared_python_names(tree: ast.AST) -> set[str]:
 
 
 class GraphArchitectureBoundaryTests(unittest.TestCase):
+    def test_graph_canvas_host_presenter_exclusively_owns_cursor_and_style_actions(self) -> None:
+        owner_tree = parse_module(
+            "ea_node_editor/ui/shell/presenters/graph_canvas_host_presenter.py"
+        )
+        shell_host_tree = parse_module("ea_node_editor/ui/shell/host_presenter.py")
+        run_style_tree = parse_module(
+            "ea_node_editor/ui/shell/window_state/run_and_style_state.py"
+        )
+        workspace_actions_tree = parse_module(
+            "ea_node_editor/ui/shell/window_state/workspace_graph_actions.py"
+        )
+        contracts_tree = parse_module("ea_node_editor/ui/shell/presenters/contracts.py")
+        owned_methods = {
+            "_apply_graph_cursor",
+            "set_graph_cursor_shape",
+            "clear_graph_cursor_shape",
+            "_active_workspace_data",
+            "_passive_node_context",
+            "_flow_edge_context",
+            "_project_passive_style_presets",
+            "_set_project_passive_style_presets",
+            "edit_passive_node_style",
+            "edit_flow_edge_style",
+            "_write_style_clipboard",
+            "_read_style_clipboard",
+            "_normalize_style_clipboard_payload",
+            "request_edit_passive_node_style",
+            "request_reset_passive_node_style",
+            "request_copy_passive_node_style",
+            "request_paste_passive_node_style",
+            "request_propagate_passive_node_style",
+            "request_edit_flow_edge_style",
+            "request_edit_flow_edge_label",
+            "request_reset_flow_edge_style",
+            "request_copy_flow_edge_style",
+            "request_paste_flow_edge_style",
+        }
+
+        def methods(tree: ast.Module, owner: str) -> set[str]:
+            return {
+                node.name
+                for node in class_node(tree, owner).body
+                if isinstance(node, ast.FunctionDef)
+            }
+
+        graph_host = class_node(owner_tree, "GraphCanvasHostPresenter")
+        self.assertTrue(owned_methods <= methods(owner_tree, "GraphCanvasHostPresenter"))
+        for tree, owner in (
+            (shell_host_tree, "ShellHostPresenter"),
+            (run_style_tree, "ShellWindowRunAndStyleStateMixin"),
+            (workspace_actions_tree, "ShellWindowWorkspaceGraphActionsMixin"),
+        ):
+            with self.subTest(retired_owner=owner):
+                self.assertFalse(owned_methods & methods(tree, owner))
+        self.assertNotIn(
+            "shell_host_presenter",
+            {
+                node.attr
+                for node in ast.walk(graph_host)
+                if isinstance(node, ast.Attribute)
+            },
+        )
+        protocol_fields = {
+            node.target.id
+            for node in class_node(
+                contracts_tree,
+                "_GraphCanvasHostPresenterHostProtocol",
+            ).body
+            if isinstance(node, ast.AnnAssign) and isinstance(node.target, ast.Name)
+        }
+        self.assertNotIn("shell_host_presenter", protocol_fields)
+        self.assertTrue(
+            {
+                "model",
+                "registry",
+                "workspace_manager",
+                "scene",
+                "project_session_controller",
+                "project_meta_changed",
+                "quick_widget",
+            }
+            <= protocol_fields
+        )
+
     def test_corex_no_legacy_guardrail_inventory_matches_current_source_anchors(self) -> None:
         for surface in manifest.COREX_NO_LEGACY_GUARDRAIL_INVENTORY:
             source_path = REPO_ROOT / surface.path
