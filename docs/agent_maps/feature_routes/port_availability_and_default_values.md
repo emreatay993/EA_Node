@@ -7,6 +7,8 @@ Use this for static and resolved instance-port availability, dynamic-port groups
 - `ea_node_editor/nodes/node_specs.py`
 - `ea_node_editor/nodes/decorators.py`
 - `ea_node_editor/nodes/registry.py`
+- `ea_node_editor/nodes/instance_resolution.py`
+- `ea_node_editor/nodes/property_normalization.py`
 - `ea_node_editor/nodes/readiness.py`
 - `ea_node_editor/graph/effective_ports.py`
 - `ea_node_editor/graph/invariant_kernel.py`
@@ -25,6 +27,7 @@ Use this for static and resolved instance-port availability, dynamic-port groups
 - `ea_node_editor/ui_qml/components/graph/GraphNodePortsLayer.qml`
 - `ea_node_editor/ui_qml/components/graph_canvas/GraphCanvasInteractionState.qml`
 - `tests/test_registry_validation.py`
+- `tests/test_property_normalization.py`
 - `tests/test_default_port_values.py`
 - `tests/test_port_availability.py`
 - `tests/test_port_flow_state.py`
@@ -37,7 +40,7 @@ Use this for static and resolved instance-port availability, dynamic-port groups
 
 ## Dataflow Port Notes
 - Active ports are `data`; unrelated passive connectors remain `flow`. Unavailable add-on placeholders and passive-object locks are separate contracts and remain locked where declared.
-- `ea_node_editor.nodes.registry.resolve_instance_ports` is the shared resolver for graph invariants, scene projection, readiness, and worker execution. It combines static ports with each dynamic group's ordered ordinary `PortSpec` values from the same normalized current properties; dynamic ports are data-only and cannot use property defaults or static readiness declarations.
+- `ea_node_editor.nodes.instance_resolution.resolve_instance_ports` is the shared resolver for graph invariants, scene projection, readiness, and worker execution. It combines static ports with each dynamic group's ordered ordinary `PortSpec` values from the same normalized current properties; dynamic ports are data-only and cannot use property defaults or static readiness declarations. `nodes/property_normalization.py` owns generic defaults/coercion, dynamic backing-property updates, exact Select/Number Slider/Web normalization, and explicit DPF legacy time-scope handling; `NodeRegistry` keeps only catalog/spec lookup plus the three intentional normalization API entry points.
 - Stable dynamic keys carry presentation, readiness/flow-state, endpoint, modifier, and Principal identity. Label-mode rename changes only the sparse display label and preserves wires; key-mode rename and removal prune the old key's wires and sparse state through graph-owned mutation.
 - `PortSpec.uses_property_default` and the public `in_port(..., uses_property_default=...)` helper are explicit opt-ins. Registry validation requires a compatible same-key `PropertySpec`; matching names alone do not create defaults. Keep the audited built-in/add-on pairs aligned with their actual same-key properties rather than maintaining a parallel allowlist.
 - Media Panel deliberately has a same-key authored `source` property and optional Source input with `uses_property_default=False`. Per-instance exposure selects source authority; hiding the port prunes its wire in the same undoable mutation, while creation-time `exposed_port_overrides` selects blank/connect/seeded behavior without inferring from property values.

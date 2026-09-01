@@ -197,8 +197,11 @@ loose decorated .py or installed schema-2 package
   is the dependency-light property-value primitive. `NodeRegistry` installs
   manifest types into a staged catalog, registers staged entries, revalidates every
   surviving and new entry against that catalog, and publishes only after the
-  complete transaction succeeds. Property normalization orchestration remains
-  registry-owned until its separate refactor.
+  complete transaction succeeds. `property_normalization.py` owns generic
+  defaults/coercion, dynamic backing-state updates, Select/Number Slider/Web policy,
+  and explicit DPF legacy time-scope normalization. `NodeRegistry` retains the
+  intentional catalog/spec-aware `default_properties`, `normalize_property_value`,
+  and `normalize_properties` entry points without built-in-specific branches.
 - `RegistryReplacementCoordinator` refuses mutation while a run or viewer is
   active, validates every open graph against a fresh candidate, activates any
   package change reversibly, replaces registry consumers in order, retires old

@@ -1,11 +1,10 @@
 # Purpose: Store and atomically compose node entries with their semantic data-type catalog.
 # Map: subsystems/nodes_registry_builtins.md
 # Tests: tests/test_registry_validation.py, tests/test_plugin_runtime_agreement.py
-# Landmarks: TrustedFactoryEntry; PythonFunctionEntry; NodeRegistry; atomic registration; property normalization
+# Landmarks: TrustedFactoryEntry; PythonFunctionEntry; NodeRegistry; atomic registration; catalog-aware property APIs
 
 from __future__ import annotations
 
-import copy
 import hashlib
 import json
 from collections.abc import Iterable, Mapping, Sequence
@@ -16,7 +15,7 @@ from typing import Any, Callable
 
 from ea_node_editor.runtime_contracts import DataTypeCatalog
 
-from . import instance_resolution, property_coercion, spec_validation
+from . import instance_resolution, property_normalization, spec_validation
 
 from .category_paths import (
     CategoryPath,
@@ -840,16 +839,13 @@ class NodeRegistry:
         *,
         properties: Mapping[str, object] | None = None,
     ) -> Any:
-        prop_spec = self._property_spec(type_id, key, properties=properties)
-        return self._normalize_special_property_value(
-            type_id,
+        spec = self.get_spec(type_id)
+        return property_normalization.normalize_property_value(
+            spec,
             key,
-            property_coercion.coerce_property_value(
-                prop_spec,
-                value,
-                strict=False,
-                data_types=self._data_types,
-            ),
+            value,
+            properties=properties,
+            data_types=self._data_types,
         )
 
     def normalize_properties(
@@ -859,151 +855,13 @@ class NodeRegistry:
         *,
         include_defaults: bool = True,
     ) -> dict[str, Any]:
-        provided = dict(values or {})
-        ambiguous_legacy_dpf_time_scope = self._has_ambiguous_legacy_dpf_time_scope(
-            type_id,
-            provided,
-        )
-        provided = self._normalize_legacy_dpf_time_scope_properties(
-            type_id,
-            provided,
-        )
-        base_spec = self.get_spec(type_id)
-        resolution_properties = {
-            prop.key: copy.deepcopy(prop.default) for prop in base_spec.properties
-        }
-        resolution_properties.update(provided)
-        spec = self.resolve_spec(type_id, resolution_properties)
-        normalized: dict[str, Any] = {}
-        for prop in spec.properties:
-            if prop.key in provided:
-                normalized[prop.key] = self._normalize_special_property_value(
-                    type_id,
-                    prop.key,
-                    property_coercion.coerce_property_value(
-                        prop,
-                        provided[prop.key],
-                        strict=False,
-                        data_types=self._data_types,
-                    ),
-                )
-                continue
-            if include_defaults:
-                normalized[prop.key] = self._normalize_special_property_value(
-                    type_id,
-                    prop.key,
-                    property_coercion.coerce_property_value(
-                        prop,
-                        prop.default,
-                        strict=False,
-                        data_types=self._data_types,
-                    ),
-                )
-        if ambiguous_legacy_dpf_time_scope:
-            normalized.pop("time_scope_mode", None)
-        normalized = self._normalize_special_properties(type_id, normalized)
-        resolved_groups = instance_resolution.resolve_dynamic_port_groups(
+        spec = self.get_spec(type_id)
+        return property_normalization.normalize_properties(
             spec,
-            normalized,
+            values,
+            include_defaults=include_defaults,
             data_types=self._data_types,
         )
-        for group, ports in zip(spec.dynamic_port_groups, resolved_groups, strict=True):
-            if include_defaults or group.property_key in provided:
-                normalized[group.property_key] = [port.key for port in ports]
-        return normalized
-
-    @staticmethod
-    def _has_ambiguous_legacy_dpf_time_scope(
-        type_id: str, values: Mapping[str, Any]
-    ) -> bool:
-        if not type_id.startswith("dpf.workflow."):
-            return False
-        if str(values.get("time_scope_mode", "") or "").strip():
-            return False
-        return bool(str(values.get("set_ids", "") or "").strip()) and bool(
-            str(values.get("time_values", "") or "").strip()
-        )
-
-    @staticmethod
-    def _normalize_legacy_dpf_time_scope_properties(
-        type_id: str,
-        values: dict[str, Any],
-    ) -> dict[str, Any]:
-        from ea_node_editor.nodes.builtins.ansys_dpf_common import (
-            DPF_TIME_SCOPE_SET_IDS,
-            DPF_TIME_SCOPE_TIME_VALUES,
-            DPF_WORKFLOW_MIN_MAX_ENVELOPE_NODE_TYPE_ID,
-            DPF_WORKFLOW_RESULT_FIELDS_NODE_TYPE_ID,
-            DPF_WORKFLOW_RESULT_VIEWER_NODE_TYPE_ID,
-            DPF_WORKFLOW_STRESS_INVARIANTS_NODE_TYPE_ID,
-            DPF_WORKFLOW_TIME_HISTORY_PROBE_NODE_TYPE_ID,
-        )
-
-        supported = {
-            DPF_WORKFLOW_RESULT_FIELDS_NODE_TYPE_ID,
-            DPF_WORKFLOW_RESULT_VIEWER_NODE_TYPE_ID,
-            DPF_WORKFLOW_MIN_MAX_ENVELOPE_NODE_TYPE_ID,
-            DPF_WORKFLOW_TIME_HISTORY_PROBE_NODE_TYPE_ID,
-            DPF_WORKFLOW_STRESS_INVARIANTS_NODE_TYPE_ID,
-        }
-        if (
-            type_id not in supported
-            or str(values.get("time_scope_mode", "") or "").strip()
-        ):
-            return values
-        normalized = dict(values)
-        normalized.pop("time_scope_mode", None)
-        has_set_ids = bool(str(normalized.get("set_ids", "") or "").strip())
-        has_time_values = bool(str(normalized.get("time_values", "") or "").strip())
-        if has_set_ids and has_time_values:
-            return normalized
-        if has_set_ids:
-            normalized["time_scope_mode"] = DPF_TIME_SCOPE_SET_IDS
-        elif has_time_values:
-            normalized["time_scope_mode"] = DPF_TIME_SCOPE_TIME_VALUES
-        return normalized
-
-    @staticmethod
-    def _normalize_special_property_value(type_id: str, key: str, value: Any) -> Any:
-        if type_id == "data.number_slider":
-            from ea_node_editor.nodes.builtins.data_control import (
-                normalize_number_slider_property_value,
-            )
-
-            return normalize_number_slider_property_value(key, value)
-        if type_id != "web.page_viewer" or key != "browser_state":
-            return value
-        from ea_node_editor.nodes.builtins.web_viewer import (
-            normalize_web_page_viewer_browser_state,
-        )
-
-        return normalize_web_page_viewer_browser_state(
-            value if isinstance(value, Mapping) else {}
-        )
-
-    @staticmethod
-    def _normalize_special_properties(
-        type_id: str, values: dict[str, Any]
-    ) -> dict[str, Any]:
-        if type_id == "data.select":
-            from ea_node_editor.nodes.builtins.data_control import (
-                normalize_select_properties,
-            )
-
-            return normalize_select_properties(values)
-        if type_id == "data.number_slider":
-            from ea_node_editor.nodes.builtins.data_control import (
-                normalize_number_slider_properties,
-            )
-
-            return normalize_number_slider_properties(values)
-        if type_id != "web.page_viewer":
-            return values
-        from ea_node_editor.nodes.builtins.web_viewer import (
-            normalize_web_page_viewer_properties,
-        )
-
-        return normalize_web_page_viewer_properties(values)
 
     def filter_nodes(
         self,
@@ -1108,23 +966,6 @@ class NodeRegistry:
         return any(
             accepted_type.lower() == data_type for accepted_type in accepted_types
         )
-
-    def _property_spec(
-        self,
-        type_id: str,
-        key: str,
-        *,
-        properties: Mapping[str, object] | None = None,
-    ) -> PropertySpec:
-        spec = (
-            self.resolve_spec(type_id, properties)
-            if properties is not None
-            else self.get_spec(type_id)
-        )
-        for prop in spec.properties:
-            if prop.key == key:
-                return prop
-        raise KeyError(f"Unknown property {key} for node type {type_id}")
 
 
 def default_port(spec: NodeTypeSpec, key: str) -> PortSpec:

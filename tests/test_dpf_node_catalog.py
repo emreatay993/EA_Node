@@ -568,27 +568,6 @@ class DpfNodeCatalogTests(unittest.TestCase):
         ansys_dpf_catalog.invalidate_ansys_dpf_descriptor_cache()
         self._temp_dir.cleanup()
 
-    def test_legacy_curated_time_values_infer_explicit_time_scope_mode(self) -> None:
-        set_scoped = self.registry.normalize_properties(
-            "dpf.workflow.result_fields",
-            {"set_ids": "2, 4"},
-        )
-        time_scoped = self.registry.normalize_properties(
-            "dpf.workflow.result_fields",
-            {"time_values": "0.5, 1.0"},
-        )
-
-        self.assertEqual(set_scoped["time_scope_mode"], "set_ids")
-        self.assertEqual(time_scoped["time_scope_mode"], "time_values")
-
-    def test_ambiguous_legacy_curated_time_values_require_explicit_mode(self) -> None:
-        properties = self.registry.normalize_properties(
-            "dpf.workflow.result_fields",
-            {"set_ids": "2", "time_values": "1.0"},
-        )
-
-        self.assertNotIn("time_scope_mode", properties)
-
     def _execution_context(
         self,
         node_type_id: str,

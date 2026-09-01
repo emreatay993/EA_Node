@@ -1138,27 +1138,10 @@ class RegistryValidationTests(unittest.TestCase):
         )
         self.assertEqual(factory_calls, 1)
 
-    def test_dynamic_ports_resolve_in_declared_order_and_normalize_backing_properties(
+    def test_dynamic_ports_participate_in_registry_filters_without_factory_construction(
         self,
     ) -> None:
         registry = NodeRegistry()
-        output_group = DynamicPortGroupSpec(
-            "outputs",
-            "port_ids",
-            "out",
-            _dynamic_output_ports,
-            _dynamic_key_factory,
-            minimum=1,
-            maximum=3,
-            rename_mode="label",
-        )
-        input_group = DynamicPortGroupSpec(
-            "inputs",
-            "input_ids",
-            "in",
-            _dynamic_input_ports,
-            _dynamic_key_factory,
-        )
         spec = NodeTypeSpec(
             type_id="tests.dynamic_ports",
             display_name="Dynamic Ports",
@@ -1178,7 +1161,25 @@ class RegistryValidationTests(unittest.TestCase):
                 ),
                 PropertySpec("port_limit", "int", 99, "Port limit"),
             ),
-            dynamic_port_groups=(output_group, input_group),
+            dynamic_port_groups=(
+                DynamicPortGroupSpec(
+                    "outputs",
+                    "port_ids",
+                    "out",
+                    _dynamic_output_ports,
+                    _dynamic_key_factory,
+                    minimum=1,
+                    maximum=3,
+                    rename_mode="label",
+                ),
+                DynamicPortGroupSpec(
+                    "inputs",
+                    "input_ids",
+                    "in",
+                    _dynamic_input_ports,
+                    _dynamic_key_factory,
+                ),
+            ),
         )
         factory_calls = 0
 
@@ -1189,49 +1190,6 @@ class RegistryValidationTests(unittest.TestCase):
 
         registry.register_descriptor(spec, factory)
 
-        self.assertEqual(
-            [port.key for port in resolve_instance_ports(spec, {})],
-            ["static", "alpha", "payload"],
-        )
-        self.assertEqual(
-            [
-                port.key
-                for port in resolve_instance_ports(
-                    spec,
-                    {"port_ids": ["first", "second"], "port_limit": "1"},
-                )
-            ],
-            ["static", "first", "payload"],
-        )
-        self.assertEqual(
-            registry.default_properties(spec.type_id)["port_ids"], ["alpha"]
-        )
-        self.assertEqual(
-            registry.normalize_properties(
-                spec.type_id,
-                {"port_ids": ["beta", "gamma"]},
-                include_defaults=False,
-            ),
-            {"port_ids": ["beta", "gamma"]},
-        )
-        self.assertEqual(
-            registry.normalize_properties(
-                spec.type_id,
-                {"port_ids": [1]},
-                include_defaults=False,
-            ),
-            {"port_ids": ["1"]},
-        )
-        self.assertEqual(
-            registry.normalize_properties(spec.type_id, {}, include_defaults=False),
-            {},
-        )
-        with self.assertRaisesRegex(ValueError, "allows at most 3 ports"):
-            registry.normalize_properties(
-                spec.type_id,
-                {"port_ids": ["a", "b", "c", "d"]},
-                include_defaults=False,
-            )
         self.assertEqual(
             [match.type_id for match in registry.filter_nodes(query="alpha")],
             [spec.type_id],
@@ -2990,72 +2948,6 @@ class RegistryValidationTests(unittest.TestCase):
                 properties=(),
                 render_quality={"supported_quality_tiers": ("full", "ultra")},  # type: ignore[arg-type]
             )
-
-    def test_default_properties_are_deep_copied_per_instance(self) -> None:
-        registry = NodeRegistry()
-        spec = NodeTypeSpec(
-            type_id="tests.deep_copy",
-            display_name="Deep Copy",
-            category_path=("Tests",),
-            icon="",
-            ports=(
-                PortSpec(
-                    "value", "out", "data", "COREX.DataTypes.Any"
-                ),
-            ),
-            properties=(PropertySpec("payload", "json", {"items": []}, "Payload"),),
-        )
-        registry.register(_factory(spec))
-
-        first = registry.default_properties("tests.deep_copy")
-        second = registry.default_properties("tests.deep_copy")
-        first["payload"]["items"].append("x")
-
-        self.assertEqual(second["payload"], {"items": []})
-
-    def test_normalize_property_value_and_properties_fall_back_to_defaults(
-        self,
-    ) -> None:
-        registry = NodeRegistry()
-        spec = NodeTypeSpec(
-            type_id="tests.normalize",
-            display_name="Normalize",
-            category_path=("Tests",),
-            icon="",
-            ports=(
-                PortSpec(
-                    "value", "out", "data", "COREX.DataTypes.Any"
-                ),
-            ),
-            properties=(
-                PropertySpec("count", "int", 7, "Count"),
-                PropertySpec("enabled", "bool", False, "Enabled"),
-            ),
-        )
-        registry.register(_factory(spec))
-
-        self.assertEqual(
-            registry.normalize_property_value("tests.normalize", "count", "15"), 15
-        )
-        self.assertEqual(
-            registry.normalize_property_value("tests.normalize", "count", "bad"), 7
-        )
-        self.assertFalse(
-            registry.normalize_property_value("tests.normalize", "enabled", "true")
-        )
-
-        self.assertEqual(
-            registry.normalize_properties(
-                "tests.normalize", {"count": "15"}, include_defaults=False
-            ),
-            {"count": 15},
-        )
-        self.assertEqual(
-            registry.normalize_properties(
-                "tests.normalize", {"count": "15"}, include_defaults=True
-            ),
-            {"count": 15, "enabled": False},
-        )
 
     def test_normalize_project_for_registry_marks_same_count_workspace_changes(
         self,

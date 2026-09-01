@@ -90,10 +90,11 @@ implementation studies are intentionally excluded.
 - Node specification structure is validated purely by `nodes/spec_validation.py`
   against an explicit staged/live `DataTypeCatalog`; port and instance/dynamic
   resolution lives directly in `nodes/instance_resolution.py`, and dependency-light
-  property coercion lives in `nodes/property_coercion.py`. `NodeRegistry` retains
-  storage, atomic staged composition/revalidation/rollback, fingerprints, and its
-  registry-aware `resolve_spec`, while normalization orchestration remains there
-  until T04.
+  property coercion lives in `nodes/property_coercion.py`. Generic and exact
+  built-in/DPF property normalization lives in `nodes/property_normalization.py`.
+  `NodeRegistry` retains storage, atomic staged composition/revalidation/rollback,
+  fingerprints, registry-aware `resolve_spec`, and the three catalog-aware
+  normalization API entry points without built-in-specific policy.
 - Public node authoring is now only the 17-name top-level `corex` function SDK.
   `ea_node_editor.nodes` is internal, its former `types.py` barrel is removed,
   and trusted descriptor decorators remain owned by the Nodes map for the exact

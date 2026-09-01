@@ -1036,7 +1036,6 @@ class GraphArchitectureBoundaryTests(unittest.TestCase):
         self.assertIn("spec_validation.validate_node_spec(", registry_source)
         self.assertIn("instance_resolution.resolve_instance_ports(", registry_source)
         self.assertIn("instance_resolution.resolve_instance_spec(", registry_source)
-        self.assertIn("property_coercion.coerce_property_value(", registry_source)
         self.assertIn("def normalize_property_value(", registry_source)
         self.assertIn("def normalize_properties(", registry_source)
 
@@ -1067,6 +1066,61 @@ class GraphArchitectureBoundaryTests(unittest.TestCase):
                         "ea_node_editor.nodes.registry",
                     ),
                 )
+
+    def test_property_normalization_has_one_policy_owner(self) -> None:
+        normalization_tree = parse_module(
+            "ea_node_editor/nodes/property_normalization.py"
+        )
+        normalization_imports = imported_modules(normalization_tree)
+        self.assertNotIn("ea_node_editor.nodes.registry", normalization_imports)
+        self.assertIn(
+            "ea_node_editor.nodes.property_coercion",
+            normalization_imports,
+        )
+        self.assertIn(
+            "ea_node_editor.nodes.instance_resolution",
+            normalization_imports,
+        )
+        normalization_source = (
+            REPO_ROOT / "ea_node_editor/nodes/property_normalization.py"
+        ).read_text(encoding="utf-8")
+        for policy_anchor in (
+            'type_id == "data.select"',
+            'type_id == "data.number_slider"',
+            'type_id != "web.page_viewer"',
+            'type_id.startswith("dpf.workflow.")',
+            "resolve_dynamic_port_groups(",
+            "coerce_property_value(",
+        ):
+            with self.subTest(policy_anchor=policy_anchor):
+                self.assertIn(policy_anchor, normalization_source)
+        self.assertNotIn("Protocol", normalization_source)
+        self.assertNotIn("Callable", normalization_source)
+
+        registry_source = (
+            REPO_ROOT / "ea_node_editor/nodes/registry.py"
+        ).read_text(encoding="utf-8")
+        for policy_anchor in (
+            "ea_node_editor.nodes.builtins",
+            '"data.select"',
+            '"data.number_slider"',
+            '"web.page_viewer"',
+            '"dpf.workflow.',
+            "property_coercion",
+            "_normalize_special_property",
+            "_normalize_legacy_dpf_time_scope",
+        ):
+            with self.subTest(registry_policy_anchor=policy_anchor):
+                self.assertNotIn(policy_anchor, registry_source)
+        for api_name in (
+            "def default_properties(",
+            "def normalize_property_value(",
+            "def normalize_properties(",
+            "property_normalization.normalize_property_value(",
+            "property_normalization.normalize_properties(",
+        ):
+            with self.subTest(api_name=api_name):
+                self.assertIn(api_name, registry_source)
 
     def test_runtime_value_contracts_have_direct_owners_and_common_stays_leaf(self) -> None:
         from ea_node_editor.runtime_contracts import (
