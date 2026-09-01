@@ -1,6 +1,6 @@
 # COREX Maintainability And Ownership Refactor
 
-Status: `IN PROGRESS`
+Status: `COMPLETED — T00–T08 ACCEPTED`
 
 ## Summary
 

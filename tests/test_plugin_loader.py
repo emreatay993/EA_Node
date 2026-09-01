@@ -992,6 +992,8 @@ def test_legacy_public_sdk_and_class_loading_surfaces_are_absent() -> None:
     )
     assert not hasattr(plugin_loader, "discover_and_load_plugins")
     assert not hasattr(plugin_loader, "discover_package_plugins")
+    assert not hasattr(plugin_loader, "discover_addon_records")
+    assert not hasattr(plugin_loader, "addon_record_by_id")
     assert not hasattr(plugin_loader, "__all__")
     for legacy_surface in (
         "ENTRY_POINT_GROUP",

@@ -39,7 +39,6 @@ These rows summarize whole-capability status. `PARTIAL` means accepted backend a
 
 ## Active Implementation Plans — No Implementation Proof
 
-- [COREX Maintainability And Ownership Refactor](../PLAN_COREX_MAINTAINABILITY_OWNERSHIP_REFACTOR.md) — `IN PROGRESS — NO ACCEPTANCE PROOF`
 
 ### Completed Semantic-Type Architecture and Evidence
 
@@ -47,6 +46,7 @@ T01–T17 are complete, and the locked 176-type snapshot is fully classified.
 
 ### Completed Implementation Plans
 
+- [COREX Maintainability And Ownership Refactor](../PLAN_COREX_MAINTAINABILITY_OWNERSHIP_REFACTOR.md) — `COMPLETED — T00–T08 ACCEPTED`
 - [COREX Incremental Execution And Solution Snapshots](../PLAN_COREX_INCREMENTAL_EXECUTION_AND_SOLUTION_SNAPSHOTS.md) — `COMPLETED — T01–T09 ACCEPTED`
 - [COREX Novice Function Plugin SDK](../PLAN_COREX_NOVICE_PLUGIN_SDK.md) — `COMPLETED — T01–T17; RETAINED QA EVIDENCE BELOW`
 - [COREX Application-Default External Python Runtime](../PLAN_COREX_EXTERNAL_PYTHON_RUNTIME.md) — `COMPLETED — T01–T05 ACCEPTED`
@@ -56,7 +56,7 @@ Work-packet manifests, status ledgers, and per-phase wrap-up documents formerly 
 
 ## Retained Work-Packet QA Evidence
 
-- [COREX Maintainability And Ownership Refactor QA Matrix](perf/COREX_MAINTAINABILITY_OWNERSHIP_REFACTOR_QA_MATRIX.md) - active task and acceptance ledger; not closeout proof until the plan is completed.
+- [COREX Maintainability And Ownership Refactor QA Matrix](perf/COREX_MAINTAINABILITY_OWNERSHIP_REFACTOR_QA_MATRIX.md) - retained T00–T08 task, migration, review, correctness, and advisory performance closeout evidence.
 - [Verification Speed QA Matrix](perf/VERIFICATION_SPEED_QA_MATRIX.md)
 - [COREX Change Locality QA Matrix](perf/COREX_CHANGE_LOCALITY_QA_MATRIX.md)
 - [COREX Internal Performance Improvement QA Matrix](perf/COREX_INTERNAL_PERFORMANCE_IMPROVEMENT_QA_MATRIX.md)

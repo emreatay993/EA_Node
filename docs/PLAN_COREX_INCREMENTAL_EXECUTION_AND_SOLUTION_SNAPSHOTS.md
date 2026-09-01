@@ -833,7 +833,7 @@ Adding durable storage changes a record's eligible residency, not the planner,
 solution key, or scheduler authority. Do not build separate session and durable
 cache frameworks.
 
-`runtime_contracts/runtime_values.py` owns one dependency-light durable value gate
+`runtime_contracts/durable_values.py` owns one dependency-light durable value gate
 consumed by `prepared_execution.py`, `solution_store.py`,
 `solution_records.py`, and `solution_repository.py`:
 
