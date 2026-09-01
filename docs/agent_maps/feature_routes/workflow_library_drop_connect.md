@@ -23,7 +23,7 @@ Use this for workflow library actions, drag/drop connect, workflow IO, and custo
 ## Focused Verification
 ```powershell
 .\venv\Scripts\python.exe -m pytest tests/test_graph_output_mode_ui.py --ignore=venv -q
-.\venv\Scripts\python.exe -m pytest tests/main_window_shell/drop_connect_and_workflow_io.py tests/test_window_library_inspector.py tests/test_workspace_library_controller_unit.py --ignore=venv -q
+.\venv\Scripts\python.exe -m pytest tests/main_window_shell/drop_connect_and_workflow_io.py tests/test_library_projection.py tests/test_quick_insert_projection.py tests/test_workspace_library_controller_unit.py --ignore=venv -q
 .\venv\Scripts\python.exe -m pytest tests/test_dataflow_graph_persistence.py tests/main_window_shell/view_library_inspector.py -k "replaces_occupied_data_input or workflow" --ignore=venv -q
 ```
 

@@ -14,7 +14,7 @@ Use this for the tabular data add-on, tabular input node, preview provider, shee
 - `ea_node_editor/execution/plugin_worker_runtime.py`
 - `ea_node_editor/ui/tabular_preview_provider.py`
 - `ea_node_editor/ui/tabular_preview_async.py` — worker pool for cold preview resolution
-- `ea_node_editor/ui/shell/window_library_inspector.py`
+- `ea_node_editor/ui/shell/inspector_projection.py`
 - `ea_node_editor/ui_qml/tabular_preview_table_model.py`
 - `ea_node_editor/ui_qml/components/graph/tabular/`
 - `ea_node_editor/ui_qml/components/graph/tabular/GraphTabularPreviewSurface.qml`

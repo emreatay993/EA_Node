@@ -15,7 +15,7 @@ Use this for `category_path`, nested library categories, subnodes, group transfo
 
 ## Focused Verification
 ```powershell
-.\venv\Scripts\python.exe -m pytest tests/test_window_library_inspector.py tests/graph_track_b/scene_model_graph_scene_suite.py --ignore=venv -q
+.\venv\Scripts\python.exe -m pytest tests/test_library_projection.py tests/graph_track_b/scene_model_graph_scene_suite.py --ignore=venv -q
 ```
 
 ## Routing Notes

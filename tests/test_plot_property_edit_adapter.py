@@ -5,7 +5,7 @@ from types import SimpleNamespace
 from ea_node_editor.addons.property_edit_adapters import PropertyEditAdapterContext
 from ea_node_editor.nodes.bootstrap import build_default_registry
 from ea_node_editor.nodes.builtins.plot.property_edit_adapter import PlotPropertyEditAdapter
-from ea_node_editor.ui.shell.window_library_inspector import build_selected_node_property_items
+from ea_node_editor.ui.shell.inspector_projection import build_selected_node_property_items
 
 
 def _items_by_key(type_id: str, properties: dict[str, object] | None = None) -> dict[str, dict[str, object]]:

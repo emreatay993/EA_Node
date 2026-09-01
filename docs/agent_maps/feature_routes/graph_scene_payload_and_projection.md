@@ -22,7 +22,7 @@ Use this for graph scene payload construction, state projection, data-port/edge 
 - `ea_node_editor/ui_qml/graph_canvas_state/`
 - `ea_node_editor/ui/support/node_presentation.py`
 - `ea_node_editor/ui/shell/presenters/library_presenter.py`
-- `ea_node_editor/ui/shell/window_library_inspector.py`
+- `ea_node_editor/ui/shell/inspector_projection.py`
 - `ea_node_editor/ui_qml/graph_scene_mutation/policy.py`
 - `ea_node_editor/ui_qml/graph_scene/policy_bridge.py`
 - `ea_node_editor/ui_qml/graph_scene_bridge.py`

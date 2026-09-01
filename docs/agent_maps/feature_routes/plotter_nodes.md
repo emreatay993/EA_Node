@@ -40,7 +40,7 @@ Use this for plotter node planning, backend registry/static export work, generic
 ```powershell
 .\venv\Scripts\python.exe -m pytest tests/test_plot_node_contracts.py tests/test_plot_headless_export.py tests/test_registry_validation.py tests/test_passive_runtime_wiring.py --ignore=venv -q
 .\venv\Scripts\python.exe -m pytest tests/test_plot_backend_registry.py tests/test_plot_headless_export.py --ignore=venv -q
-.\venv\Scripts\python.exe -m pytest tests/test_window_library_inspector.py --ignore=venv -q
+.\venv\Scripts\python.exe -m pytest tests/test_inspector_projection.py --ignore=venv -q
 .\venv\Scripts\python.exe -m pytest tests/test_plot_dpf_node_contracts.py tests/test_plot_node_contracts.py tests/test_dpf_node_catalog.py tests/test_dpf_runtime_service.py tests/test_passive_runtime_wiring.py --ignore=venv -q
 $env:QT_QPA_PLATFORM='offscreen'; .\venv\Scripts\python.exe -m pytest tests/test_graphics_settings_preferences.py tests/test_graphics_settings_dialog.py tests/graph_track_b/qml_preference_bindings.py tests/test_plot_node_contracts.py --ignore=venv -q; $exitCode = $LASTEXITCODE; Remove-Item Env:QT_QPA_PLATFORM -ErrorAction SilentlyContinue; exit $exitCode
 $env:QT_QPA_PLATFORM='offscreen'; .\venv\Scripts\python.exe -m pytest tests/test_plot_preview_cache_provider.py tests/test_plot_widget_binder.py tests/test_plot_host_service.py tests/test_plot_surface_integration.py tests/test_plot_fullscreen_overlay.py tests/test_graph_surface_input_contract.py --ignore=venv -q; $exitCode = $LASTEXITCODE; Remove-Item Env:QT_QPA_PLATFORM -ErrorAction SilentlyContinue; exit $exitCode

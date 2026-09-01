@@ -29,7 +29,7 @@ from ea_node_editor.ui_qml.dpf_metadata_options_service import (
     reset_shared_dpf_metadata_options_service,
     shared_dpf_metadata_options_service,
 )
-from ea_node_editor.ui.shell.window_library_inspector import (
+from ea_node_editor.ui.shell.inspector_projection import (
     build_pin_data_type_options,
     build_selected_node_header_data,
     build_selected_node_link_items,

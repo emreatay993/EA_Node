@@ -28,7 +28,7 @@ from ea_node_editor.ui.image_value_preview_provider import (
 from ea_node_editor.ui.media_panel_source import resolve_media_panel_source
 from ea_node_editor.ui.plot_preview_cache_provider import ViewerPreviewCacheImageProvider
 from ea_node_editor.ui.shell.presenters.inspector_presenter import ShellInspectorPresenter
-from ea_node_editor.ui.shell.window_library_inspector import (
+from ea_node_editor.ui.shell.inspector_projection import (
     build_selected_node_property_items,
 )
 from ea_node_editor.persistence.file_issues import collect_node_file_issues

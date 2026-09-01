@@ -400,7 +400,7 @@ flowchart LR
     SW --> PSC[ProjectSessionController]
     SW --> WLC[WorkspaceLibraryController]
     SW --> SEARCH[window_search_scope_state]
-    SW --> INSPECTOR_HELPERS[window_library_inspector presentation identity helpers]
+    SW --> INSPECTOR_HELPERS[library, inspector, and quick-insert projection owners]
     SW --> TBRIDGE
     SW --> THEME[theme registry and stylesheet builder]
     SW --> GTBRIDGE
@@ -618,7 +618,7 @@ sequenceDiagram
 - A port drag begins and ends entirely in `GraphCanvasNodeDelegate` / `GraphNodeHost` plus `GraphCanvas`.
 - If a drag is released over a valid compatible port, normal `request_connect_ports()` flow runs.
 - If the drag is released on empty space, `GraphCanvas.qml` opens `ConnectionQuickInsertOverlay.qml` through `graphCanvasCommandBridge` and `shellLibraryBridge`.
-- `ShellWindow` builds source-port context using effective port resolution and asks `window_library_inspector.py` for compatible node-library results.
+- `ShellWindow` builds source-port context using effective port resolution and asks `quick_insert_projection.py` for compatible node-library results.
 - Quick insert acceptance reuses `request_drop_node_from_library(..., target_mode="port", ...)`, so insertion and auto-connect still flow through `WorkspaceDropConnectOps`.
 
 ### 1b) Inline node controls
@@ -786,7 +786,7 @@ sequenceDiagram
 - Change shell-to-QML boundary ownership: `ea_node_editor/ui_qml/{shell_context_bootstrap.py,shell_library_bridge.py,shell_workspace_bridge.py,shell_inspector_bridge.py,shell_addon_manager_bridge.py,graph_canvas_state/,graph_canvas_command/,viewport_bridge.py,content_fullscreen_bridge.py,viewer_session_bridge.py,viewer_host_service.py}`, `ea_node_editor/ui_qml/components/GraphCanvas.qml`, plus the corresponding `ui_qml/components/shell/*` consumers.
 - Change graph-scene internal boundary ownership: `ea_node_editor/ui_qml/{graph_scene_bridge.py,graph_scene_scope_selection.py,graph_scene_mutation_history.py,graph_scene_payload/}`.
 - Change shell QML composition layout: `ea_node_editor/ui_qml/MainShell.qml` and `ea_node_editor/ui_qml/components/shell/*`.
-- Change quick insert result ranking/filtering or inline property payload generation: `ea_node_editor/ui/shell/window.py` and `ea_node_editor/ui/shell/window_library_inspector.py`.
+- Change quick insert result ranking/filtering or inline property payload generation: `ea_node_editor/ui/shell/presenters/`, `ea_node_editor/ui/shell/quick_insert_projection.py`, and `ea_node_editor/ui/shell/inspector_projection.py`.
 - Change custom workflow metadata/file format or global library storage: `ea_node_editor/custom_workflows/codec.py`, `file_codec.py`, and `global_store.py`.
 - Change current-schema persistence normalization: `ea_node_editor/persistence/migration.py`.
 - Change QML canvas rendering/interaction: `ea_node_editor/ui_qml/components/GraphCanvas.qml`, `ui_qml/components/graph_canvas/*`, and `ui_qml/graph_scene_bridge.py`.

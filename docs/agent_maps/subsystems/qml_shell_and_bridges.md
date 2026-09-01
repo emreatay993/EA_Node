@@ -42,7 +42,9 @@ Use this for QML shell composition, Python-to-QML bridge wiring, shell bridge mo
 - `ea_node_editor/ui_qml/content_fullscreen_bridge.py`
 - `ea_node_editor/ui_qml/plot_host_service.py`
 - `ea_node_editor/ui/shell/context_bridges.py`
-- `ea_node_editor/ui/shell/window_library_inspector.py`
+- `ea_node_editor/ui/shell/library_projection.py`
+- `ea_node_editor/ui/shell/inspector_projection.py`
+- `ea_node_editor/ui/shell/quick_insert_projection.py`
 - `tests/test_data_type_ui_projection.py`
 - `tests/test_graph_surface_input_controls.py`
 - `docs/qml_navigation_index.md` and `docs/qml_navigation_index.json` for generated QML component, filename alias, property, signal, function, and dynamic-loader lookup.

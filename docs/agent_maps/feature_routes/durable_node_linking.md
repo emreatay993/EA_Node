@@ -16,7 +16,7 @@ Use this for durable node link records, persisted node comment threads, inspecto
 - `ea_node_editor/ui_qml/graph_scene/context.py`
 - `ea_node_editor/ui_qml/graph_scene_payload/`
 - `ea_node_editor/ui/shell/presenters/inspector_presenter.py`
-- `ea_node_editor/ui/shell/window_library_inspector.py`
+- `ea_node_editor/ui/shell/inspector_projection.py`
 - `ea_node_editor/ui_qml/shell_inspector_bridge.py`
 - `ea_node_editor/ui_qml/MainShell.qml`
 - `ea_node_editor/ui_qml/components/GraphCanvas.qml`
@@ -62,7 +62,7 @@ Use this for durable node link records, persisted node comment threads, inspecto
 
 ## Focused Verification
 ```powershell
-.\venv\Scripts\python.exe -m pytest tests/test_icon_registry.py tests/test_window_library_inspector.py tests/test_serializer.py::SerializerPortLockingTests tests/main_window_shell/bridge_contracts_library_and_inspector.py tests/test_graph_canvas_split_bridges.py tests/main_window_shell/bridge_qml_boundaries.py::ShellInspectorBridgeQmlBoundaryTests tests/main_window_shell/bridge_qml_boundaries.py::GraphCanvasQmlBoundaryTests::test_graph_canvas_root_layers_mount_node_link_hover_layer --ignore=venv -q
+.\venv\Scripts\python.exe -m pytest tests/test_icon_registry.py tests/test_inspector_projection.py tests/test_serializer.py::SerializerPortLockingTests tests/main_window_shell/bridge_contracts_library_and_inspector.py tests/test_graph_canvas_split_bridges.py tests/main_window_shell/bridge_qml_boundaries.py::ShellInspectorBridgeQmlBoundaryTests tests/main_window_shell/bridge_qml_boundaries.py::GraphCanvasQmlBoundaryTests::test_graph_canvas_root_layers_mount_node_link_hover_layer --ignore=venv -q
 $env:QT_QPA_PLATFORM='offscreen'; .\venv\Scripts\python.exe -m pytest tests/main_window_shell/view_library_inspector.py::MainWindowShellViewLibraryInspectorTests::test_qml_selected_node_inspector_shows_node_link_rows tests/main_window_shell/view_library_inspector.py::MainWindowShellViewLibraryInspectorTests::test_selected_node_link_picker_options_cover_all_workspaces_and_store_hidden_ids tests/main_window_shell/view_library_inspector.py::MainWindowShellViewLibraryInspectorTests::test_qml_node_link_target_pick_fills_hidden_ids_and_saves_without_raw_id_entry --ignore=venv -q; $exitCode = $LASTEXITCODE; Remove-Item Env:QT_QPA_PLATFORM -ErrorAction SilentlyContinue; exit $exitCode
 .\venv\Scripts\python.exe -m pytest tests/test_graph_node_link_hover_layer.py tests/test_graph_surface_input_controls.py -k "link or node_context_menu_routes_editors" --ignore=venv -q
 .\venv\Scripts\python.exe -m pytest tests/graph_track_b/scene_model_graph_scene_suite.py::GraphSceneBridgeTrackBTests::test_node_link_mutations_publish_targeted_node_payload --ignore=venv -q

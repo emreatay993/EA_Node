@@ -16,7 +16,8 @@ Use this for graph action IDs, layout menu actions, context menu entries, select
 - `ea_node_editor/ui/shell/controllers/graph_action_controller.py`
 - `ea_node_editor/ui/shell/controllers/mutation_ui_effects.py`
 - `ea_node_editor/ui/shell/controllers/run_controller.py`
-- `ea_node_editor/ui/shell/window_library_inspector.py`
+- `ea_node_editor/ui/shell/inspector_projection.py`
+- `ea_node_editor/ui/shell/quick_insert_projection.py`
 - `ea_node_editor/ui/shell/controllers/workspace_drop_connect_ops.py`
 - `ea_node_editor/ui/shell/window_actions.py`
 
@@ -70,7 +71,7 @@ Use this for graph action IDs, layout menu actions, context menu entries, select
 .\venv\Scripts\python.exe -m pytest tests/test_graph_surface_input_controls.py -k SelectionEnvelope --ignore=venv -q
 .\venv\Scripts\python.exe -m pytest tests/test_graph_surface_input_controls.py -k floating_toolbar_run_action_exposes_selected_run_menu --ignore=venv -q
 .\venv\Scripts\python.exe -m pytest tests/graph_track_b/scene_model_graph_scene_suite.py -k propagate_passive_node_style --ignore=venv -q
-.\venv\Scripts\python.exe -m pytest tests/test_window_library_inspector.py tests/test_graph_canvas_split_bridges.py --ignore=venv -q
+.\venv\Scripts\python.exe -m pytest tests/test_inspector_projection.py tests/test_quick_insert_projection.py tests/test_graph_canvas_split_bridges.py --ignore=venv -q
 .\venv\Scripts\python.exe -m pytest tests/test_graph_surface_input_controls.py -k "port_and_edge_authoring or dynamic_port" --ignore=venv -q
 .\venv\Scripts\python.exe -m pytest tests/test_graph_surface_input_controls.py tests/test_graph_node_link_hover_layer.py -k "node_context_menu_routes_editors or link" --ignore=venv -q
 ```

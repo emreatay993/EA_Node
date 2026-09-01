@@ -8,7 +8,7 @@ from ea_node_editor.addons.ansys_dpf.property_edit_adapter import AnsysDpfProper
 from ea_node_editor.graph.model import GraphModel
 from ea_node_editor.nodes.bootstrap import build_default_registry
 from ea_node_editor.ui.shell.controllers.workspace_view_nav_ops import WorkspaceViewNavOps
-from ea_node_editor.ui.shell.window_library_inspector import build_selected_node_property_items
+from ea_node_editor.ui.shell.inspector_projection import build_selected_node_property_items
 from ea_node_editor.ui_qml.graph_scene_bridge import GraphSceneBridge
 from tests.passive_property_editor_fixtures import (
     PASSIVE_EDITOR_FIXTURE_TYPE_ID,

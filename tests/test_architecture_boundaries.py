@@ -1330,6 +1330,98 @@ class GraphArchitectureBoundaryTests(unittest.TestCase):
             & declared_python_names(model_tree)
         )
 
+    def test_shell_projection_helpers_have_direct_owners(self) -> None:
+        self.assertFalse(
+            (REPO_ROOT / "ea_node_editor/ui/shell/window_library_inspector.py").exists()
+        )
+
+        library_tree = parse_module("ea_node_editor/ui/shell/library_projection.py")
+        library_names = declared_python_names(library_tree)
+        inspector_names = declared_python_names(
+            parse_module("ea_node_editor/ui/shell/inspector_projection.py")
+        )
+        quick_insert_tree = parse_module(
+            "ea_node_editor/ui/shell/quick_insert_projection.py"
+        )
+        quick_insert_names = declared_python_names(quick_insert_tree)
+        self.assertTrue(
+            {
+                "build_combined_library_items",
+                "build_filtered_library_items",
+                "build_library_category_tree",
+                "build_registry_library_items",
+                "project_display_library_items",
+                "project_grouped_library_items",
+                "projected_port_declared_data_types",
+                "rank_node_library_usage",
+            }
+            <= library_names
+        )
+        self.assertTrue(
+            {
+                "build_pin_data_type_options",
+                "build_selected_node_header_data",
+                "build_selected_node_link_items",
+                "build_selected_node_port_items",
+                "build_selected_node_property_items",
+            }
+            <= inspector_names
+        )
+        self.assertTrue(
+            {
+                "build_canvas_quick_insert_items",
+                "build_connection_quick_insert_items",
+            }
+            <= quick_insert_names
+        )
+        self.assertFalse(
+            any(
+                isinstance(node, ast.FunctionDef)
+                and node.name == "projected_port_declared_data_types"
+                for node in quick_insert_tree.body
+            )
+        )
+        self.assertEqual(
+            imported_names_from(
+                library_tree,
+                "ea_node_editor.ui.shell.quick_insert_projection",
+            ),
+            set(),
+        )
+        self.assertIn(
+            "projected_port_declared_data_types",
+            imported_names_from(
+                quick_insert_tree,
+                "ea_node_editor.ui.shell.library_projection",
+            ),
+        )
+
+        self.assertTrue(
+            {
+                "build_library_category_tree",
+                "project_display_library_items",
+                "project_grouped_library_items",
+            }
+            <= imported_names_from(
+                parse_module("ea_node_editor/ui/shell/presenters/library_presenter.py"),
+                "ea_node_editor.ui.shell.library_projection",
+            ),
+        )
+        self.assertIn(
+            "build_selected_node_property_items",
+            imported_names_from(
+                parse_module("ea_node_editor/ui/shell/presenters/inspector_presenter.py"),
+                "ea_node_editor.ui.shell.inspector_projection",
+            ),
+        )
+        self.assertIn(
+            "build_connection_quick_insert_items",
+            imported_names_from(
+                parse_module("ea_node_editor/ui/shell/presenters/state.py"),
+                "ea_node_editor.ui.shell.quick_insert_projection",
+            ),
+        )
+
     def test_closeout_docs_publish_architecture_residual_matrix_from_packet_owned_surfaces(self) -> None:
         spec_index_text = (REPO_ROOT / manifest.SPEC_INDEX_DOC).read_text(encoding="utf-8")
         qa_acceptance_text = (REPO_ROOT / manifest.QA_ACCEPTANCE_DOC).read_text(encoding="utf-8")

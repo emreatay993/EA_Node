@@ -23,7 +23,7 @@ from ea_node_editor.nodes.builtins.ansys_dpf import (
     DpfWorkflowTimeHistoryProbeNodePlugin,
 )
 from ea_node_editor.nodes.builtins.ansys_dpf_common import dpf_output_mode_property
-from ea_node_editor.ui.shell.window_library_inspector import (
+from ea_node_editor.ui.shell.inspector_projection import (
     build_selected_node_property_items,
 )
 

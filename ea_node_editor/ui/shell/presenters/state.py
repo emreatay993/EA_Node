@@ -29,7 +29,7 @@ from ea_node_editor.graph.effective_ports import find_port
 from ea_node_editor.settings import DEFAULT_GRAPHICS_SETTINGS
 from ea_node_editor.text_style import normalize_recent_text_colors
 from ea_node_editor.ui.shell.tooltip_policy import normalize_tooltip_category_preferences
-from ea_node_editor.ui.shell.window_library_inspector import (
+from ea_node_editor.ui.shell.quick_insert_projection import (
     build_canvas_quick_insert_items,
     build_connection_quick_insert_items,
 )

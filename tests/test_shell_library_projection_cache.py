@@ -55,6 +55,29 @@ class _InspectorHostStub(QObject):
 
 
 class ShellLibraryProjectionCacheTests(unittest.TestCase):
+    def test_display_projection_reuses_tree_without_eager_grouped_rows(self) -> None:
+        presenter = ShellLibraryPresenter(_LibraryHostStub())
+
+        with (
+            patch.object(
+                library_module,
+                "build_library_category_tree",
+                wraps=library_module.build_library_category_tree,
+            ) as build_category_tree,
+            patch.object(
+                library_module,
+                "project_grouped_library_items",
+                wraps=library_module.project_grouped_library_items,
+            ) as project_grouped_items,
+        ):
+            self.assertTrue(presenter.display_node_library_items)
+            self.assertEqual(build_category_tree.call_count, 1)
+            self.assertEqual(project_grouped_items.call_count, 0)
+
+            self.assertTrue(presenter.grouped_node_library_items)
+            self.assertEqual(build_category_tree.call_count, 1)
+            self.assertEqual(project_grouped_items.call_count, 1)
+
     def test_reuses_projection_results_across_property_reads_and_filter_changes(self) -> None:
         host = _LibraryHostStub()
         presenter = ShellLibraryPresenter(host)
@@ -77,14 +100,19 @@ class ShellLibraryProjectionCacheTests(unittest.TestCase):
             ) as build_filtered_items,
             patch.object(
                 library_module,
-                "build_grouped_library_items",
-                wraps=library_module.build_grouped_library_items,
-            ) as build_grouped_items,
+                "build_library_category_tree",
+                wraps=library_module.build_library_category_tree,
+            ) as build_category_tree,
             patch.object(
                 library_module,
-                "build_display_library_items",
-                wraps=library_module.build_display_library_items,
-            ) as build_display_items,
+                "project_grouped_library_items",
+                wraps=library_module.project_grouped_library_items,
+            ) as project_grouped_items,
+            patch.object(
+                library_module,
+                "project_display_library_items",
+                wraps=library_module.project_display_library_items,
+            ) as project_display_items,
             patch.object(
                 library_module,
                 "build_library_category_options",
@@ -106,8 +134,9 @@ class ShellLibraryProjectionCacheTests(unittest.TestCase):
             self.assertEqual(build_registry_items.call_count, 1)
             self.assertEqual(build_combined_items.call_count, 1)
             self.assertEqual(build_filtered_items.call_count, 1)
-            self.assertEqual(build_grouped_items.call_count, 1)
-            self.assertEqual(build_display_items.call_count, 1)
+            self.assertEqual(build_category_tree.call_count, 1)
+            self.assertEqual(project_grouped_items.call_count, 1)
+            self.assertEqual(project_display_items.call_count, 1)
             self.assertEqual(build_category_options.call_count, 1)
             self.assertEqual(build_data_type_options.call_count, 1)
             self.assertEqual(host.workspace_library_controller.calls, 1)
@@ -122,8 +151,9 @@ class ShellLibraryProjectionCacheTests(unittest.TestCase):
             self.assertEqual(build_registry_items.call_count, 1)
             self.assertEqual(build_combined_items.call_count, 1)
             self.assertEqual(build_filtered_items.call_count, 2)
-            self.assertEqual(build_grouped_items.call_count, 2)
-            self.assertEqual(build_display_items.call_count, 2)
+            self.assertEqual(build_category_tree.call_count, 2)
+            self.assertEqual(project_grouped_items.call_count, 2)
+            self.assertEqual(project_display_items.call_count, 2)
             self.assertEqual(build_category_options.call_count, 1)
             self.assertEqual(build_data_type_options.call_count, 1)
             self.assertEqual(host.workspace_library_controller.calls, 1)

@@ -33,7 +33,7 @@ from ea_node_editor.nodes.registry import NodeRegistry
 from ea_node_editor.runtime_contracts import GRAPH_DATA_TYPE_ID
 from ea_node_editor.ui.shell.controllers import workflow_library_controller as workflow_controller_module
 from ea_node_editor.ui.shell.controllers.workflow_library_controller import WorkflowLibraryController
-from ea_node_editor.ui.shell.window_library_inspector import build_connection_quick_insert_items
+from ea_node_editor.ui.shell.quick_insert_projection import build_connection_quick_insert_items
 
 
 def _definitions_by_id() -> dict[str, dict[str, object]]:

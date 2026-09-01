@@ -7,16 +7,17 @@ from PyQt6.QtCore import QObject, pyqtSignal
 from ea_node_editor.app_preferences import normalize_passive_node_library_display_mode
 from ea_node_editor.settings import DEFAULT_GRAPHICS_SETTINGS
 from ea_node_editor.ui.shell.state import GRAPH_SEARCH_SCOPE_IDS
-from ea_node_editor.ui.shell.window_library_inspector import (
+from ea_node_editor.ui.shell.library_projection import (
     build_combined_library_items,
-    build_display_library_items,
     build_filtered_library_items,
-    build_grouped_library_items,
+    build_library_category_tree,
     build_library_category_options,
     build_library_data_type_options,
     build_library_direction_options,
     build_registry_library_items,
     library_item_matches_filters,
+    project_display_library_items,
+    project_grouped_library_items,
     rank_node_library_usage,
 )
 from ea_node_editor.ui.support.node_presentation import build_data_type_ui_projection
@@ -56,6 +57,7 @@ class ShellLibraryPresenter(QObject):
         self._custom_workflow_items_cache: list[dict[str, Any]] | None = None
         self._combined_items_cache: list[dict[str, Any]] | None = None
         self._filtered_items_cache: list[dict[str, Any]] | None = None
+        self._category_tree_cache: dict[str, Any] | None = None
         self._grouped_items_cache: list[dict[str, Any]] | None = None
         self._display_items_cache: list[dict[str, Any]] | None = None
         self._display_items_cache_mode = ""
@@ -70,6 +72,7 @@ class ShellLibraryPresenter(QObject):
 
     def _invalidate_filtered_items(self) -> None:
         self._filtered_items_cache = None
+        self._category_tree_cache = None
         self._grouped_items_cache = None
         self._display_items_cache = None
         self._display_items_cache_mode = ""
@@ -182,8 +185,8 @@ class ShellLibraryPresenter(QObject):
     @property
     def grouped_node_library_items(self) -> list[dict[str, Any]]:
         if self._grouped_items_cache is None:
-            self._grouped_items_cache = build_grouped_library_items(
-                filtered_items=self.filtered_node_library_items
+            self._grouped_items_cache = project_grouped_library_items(
+                category_tree=self._library_category_tree()
             )
         return list(self._grouped_items_cache)
 
@@ -214,13 +217,23 @@ class ShellLibraryPresenter(QObject):
     @property
     def display_node_library_items(self) -> list[dict[str, Any]]:
         display_mode = self.passive_node_library_display_mode
-        if self._display_items_cache is None or self._display_items_cache_mode != display_mode:
-            self._display_items_cache = build_display_library_items(
-                filtered_items=self.filtered_node_library_items,
+        if (
+            self._display_items_cache is None
+            or self._display_items_cache_mode != display_mode
+        ):
+            self._display_items_cache = project_display_library_items(
+                category_tree=self._library_category_tree(),
                 passive_node_library_display_mode=display_mode,
             )
             self._display_items_cache_mode = display_mode
         return list(self._display_items_cache)
+
+    def _library_category_tree(self) -> dict[str, Any]:
+        if self._category_tree_cache is None:
+            self._category_tree_cache = build_library_category_tree(
+                self.filtered_node_library_items
+            )
+        return self._category_tree_cache
 
     @property
     def library_category_options(self) -> list[dict[str, Any]]:

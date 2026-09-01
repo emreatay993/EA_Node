@@ -1782,9 +1782,9 @@ NESTED_NODE_CATEGORIES_REQUIREMENT_TOKENS: dict[str, dict[str, tuple[str, ...]]]
 NESTED_NODE_CATEGORIES_TRACEABILITY_ROW_TOKENS: dict[str, tuple[str, ...]] = {
     "REQ-UI-006": (
         "category_paths.py",
-        "window_library_inspector.py",
+        "library_projection.py",
         "NodeLibraryPane.qml",
-        "tests/test_window_library_inspector.py",
+        "tests/test_library_projection.py",
         "NESTED_NODE_CATEGORIES_QA_MATRIX.md",
     ),
     "AC-REQ-UI-006-01": (

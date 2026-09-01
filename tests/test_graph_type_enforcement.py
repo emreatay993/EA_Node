@@ -36,10 +36,12 @@ from ea_node_editor.runtime_contracts import (
     STRING_DATA_TYPE_ID,
 )
 from ea_node_editor.ui.graph_theme import resolve_graph_theme
-from ea_node_editor.ui.shell.window_library_inspector import (
+from ea_node_editor.ui.shell.library_projection import (
     build_combined_library_items,
-    build_connection_quick_insert_items,
     build_registry_library_items,
+)
+from ea_node_editor.ui.shell.quick_insert_projection import (
+    build_connection_quick_insert_items,
 )
 from ea_node_editor.ui_qml.edge_routing import build_edge_payload
 

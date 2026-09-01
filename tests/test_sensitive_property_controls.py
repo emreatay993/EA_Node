@@ -11,7 +11,7 @@ from ea_node_editor.nodes.execution_context import NodeResult
 from ea_node_editor.nodes.node_specs import NodeTypeSpec, PortSpec, PropertySpec
 from ea_node_editor.nodes.registry import NodeRegistry
 from ea_node_editor.ui.shell.runtime_history import RuntimeGraphHistory
-from ea_node_editor.ui.shell.window_library_inspector import (
+from ea_node_editor.ui.shell.inspector_projection import (
     build_selected_node_property_items,
 )
 from ea_node_editor.ui_qml.graph_scene_bridge import GraphSceneBridge

@@ -51,7 +51,7 @@ from ea_node_editor.runtime_contracts.value_refs import (
     RuntimeHandleRef,
     TypedInlineValue,
 )
-from ea_node_editor.ui.shell.window_library_inspector import (
+from ea_node_editor.ui.shell.library_projection import (
     build_registry_library_items,
 )
 from ea_node_editor.ui.graph_theme import resolve_graph_theme
