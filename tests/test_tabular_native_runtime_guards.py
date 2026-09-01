@@ -20,6 +20,8 @@ import sys
 import pytest
 
 import ea_node_editor.addons.tabular_data.loader_cache_service as loader_module
+import ea_node_editor.addons.tabular_data.preview_query as query_module
+import ea_node_editor.addons.tabular_data.source_backends as backends_module
 
 
 def test_tabular_addon_preloads_pyarrow_native_submodules() -> None:
@@ -53,7 +55,10 @@ def test_tabular_preload_skips_pyinstaller_analysis_child(monkeypatch: pytest.Mo
 
 
 def test_loader_service_never_imports_duckdb_or_streaming_csv_reader() -> None:
-    source = inspect.getsource(loader_module)
+    source = "\n".join(
+        inspect.getsource(module)
+        for module in (loader_module, backends_module, query_module)
+    )
     assert 'import_module("duckdb")' not in source
     assert "import duckdb" not in source
     # pyarrow.csv.open_csv's background readahead thread is part of the same

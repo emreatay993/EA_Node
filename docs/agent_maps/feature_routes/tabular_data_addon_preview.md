@@ -9,6 +9,8 @@ Use this for the tabular data add-on, tabular input node, preview provider, shee
 - `ea_node_editor/addons/tabular_data/input_node.py`
 - `ea_node_editor/addons/tabular_data/`
 - `ea_node_editor/addons/tabular_data/loader_cache_service.py` — shared parquet-first loader service (see notes)
+- `ea_node_editor/addons/tabular_data/source_backends.py` — format-specific scan/read/array/conversion owner
+- `ea_node_editor/addons/tabular_data/preview_query.py` — normalized preview request and Python/Arrow evaluators
 - `ea_node_editor/addons/tabular_data/extraction_nodes.py`
 - `ea_node_editor/addons/tabular_data/property_edit_adapter.py`
 - `ea_node_editor/execution/plugin_worker_runtime.py`
@@ -35,6 +37,7 @@ Use this for the tabular data add-on, tabular input node, preview provider, shee
 - `tests/test_graph_surface_input_controls.py`
 - `tests/graph_surface/passive_host_interaction_suite.py`
 - `tests/test_tabular_loaders.py`
+- `tests/test_tabular_preview_query.py`
 - `tests/test_tabular_project_managed_data.py`
 - `examples/tabular_plot_showcase.README.md`
 - `examples/tabular_plot_showcase_direct.cxproj`
@@ -43,7 +46,7 @@ Use this for the tabular data add-on, tabular input node, preview provider, shee
 ```powershell
 .\venv\Scripts\python.exe -m pytest tests/test_tabular_function_migration.py tests/test_tabular_addon_catalog.py --ignore=venv -q
 .\venv\Scripts\python.exe -m pytest tests/test_tabular_preview_provider.py --ignore=venv -q
-.\venv\Scripts\python.exe -m pytest tests/test_tabular_input_node.py tests/test_tabular_loaders.py tests/test_tabular_project_managed_data.py tests/test_tabular_runtime_refs.py --ignore=venv -q
+.\venv\Scripts\python.exe -m pytest tests/test_tabular_input_node.py tests/test_tabular_loaders.py tests/test_tabular_preview_query.py tests/test_tabular_project_managed_data.py tests/test_tabular_runtime_refs.py --ignore=venv -q
 .\venv\Scripts\python.exe -m pytest tests/test_tabular_extraction_nodes.py --ignore=venv -q
 .\venv\Scripts\python.exe -m pytest tests/test_passive_property_editors.py tests/test_graph_surface_input_controls.py tests/graph_surface/passive_host_interaction_suite.py --ignore=venv -q
 ```
@@ -56,10 +59,10 @@ Use this for the tabular data add-on, tabular input node, preview provider, shee
 ## Surface Ownership Notes
 - The seven executable Tabular shells are inert `corex` declarations in `function_nodes.py`, statically parsed as one digest-pinned function bundle owned by `ea_node_editor.builtins.tabular_data`. `catalog.py` retains dependency gating, manifest/toolchain facts, zero descriptors, exact function IDs, and lazy source loading. The worker accepts private declaration metadata only because the trusted registry already carries that exact owner contract; public bundles do not inherit this trust.
 - Enable, disable, and dependency-unavailable rebuilds add or remove the Tabular manifest, seven entries, and bundle together. Add-on discovery reports declared IDs without loading or executing the function source, and the existing full registry-replacement coordinator remains the hot-apply owner.
-- All tabular consumers share one process-wide `shared_tabular_loader_cache_service()` (thread-safe records + scan cache + per-key conversion locks). Text/Excel sources convert once into the managed parquet cache (chunked `pyarrow.csv.read_csv` blocks — NEVER `open_csv`, see `tests/test_tabular_native_runtime_guards.py`); all windows/batches/queries read parquet. Row counts are never computed by scanning the source — they backfill from cache metadata. `EA_TABULAR_CACHE_DIR` overrides the cache dir (tests/harness isolation).
+- All tabular consumers share one process-wide `shared_tabular_loader_cache_service()` (thread-safe records + scan cache + per-key conversion locks). Format-specific scan/read/array/conversion behavior lives in `source_backends.py`; text/Excel sources convert once into the managed parquet cache (chunked `pyarrow.csv.read_csv` blocks — NEVER `open_csv`, see `tests/test_tabular_native_runtime_guards.py`). Row counts are never computed by rescanning the source; they backfill from cache metadata. `EA_TABULAR_CACHE_DIR` overrides the cache dir.
 - Tabular output availability learned from settlement is node-scoped solution state. Exact invalidation/recompute IDs clear only affected observations; graph mutation helpers no longer clear every node in the workspace, and only a store-accepted current settlement may observe a replacement output kind.
 - Cold large sources never convert on the UI thread: `window()` raises `TabularCacheNotReadyError`, the provider returns a `loading` payload, and `TabularPreviewWorkerPool` (canvas host presenter + fullscreen bridge) resolves it on a worker. `GraphTabularPreviewSurface.qml` re-describes on a retry timer while loading and refreshes again when the canvas/command bridge arrives after the surface was completed; `TabularFullscreenSurface.qml` applies async window results from the bridge's `tabularWindowReady` signal. Small files (≤ `TABULAR_DATA_INLINE_CONVERSION_BYTES`) still convert synchronously.
-- Sort/filter/search preview queries on parquet-backed sources run through `_preview_window_arrow` (pyarrow.compute). duckdb must NOT be imported in the GUI process (Qt+arrow+duckdb access-violates on Windows); the bounded python scan with `PREVIEW_QUERY_SCAN_ROW_CAP` remains for `source_direct`/HDF5 only.
+- `preview_query.py` normalizes selected columns, filters, search, sort, offset, and limit once. Parquet-backed sources use its Arrow evaluator with exact totals and typed values; `source_direct`/HDF5 use its bounded Python evaluator with the existing 200k cap, truncated totals, and source typing. Missing/null/blank named-column values share the locked operator policy. duckdb must NOT be imported in the GUI process.
 - App startup explicitly calls `_preload_native_tabular_runtime()` before QML construction because lazy Arrow DLL loads after Qt Quick has run crash the process. The Tabular package and catalog stay import-light for discovery; extend the explicit preload list when using a new PyArrow submodule.
 - `examples/tabular_plot_showcase_direct.cxproj` demonstrates direct `TabularDataRef` / `ArrayDataRef` plotting without Python Script adapter nodes. Regenerate it through `scripts/generate_tabular_plot_showcase_example.py` when selected-column, array-slice, or plot-side mapping contracts change.
 - `selected_object` is the persisted sheet/key/dataset choice. The property pane and `GraphTabularPreviewSurface.qml` use `TabularPreviewProvider.describe_selector(...)` / `describe_tabular_selector(...)` to scan object IDs without materializing the selected object.
