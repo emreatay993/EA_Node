@@ -4,7 +4,9 @@ from typing import TYPE_CHECKING, Any, Protocol
 
 from PyQt6.QtCore import QMimeData
 
-from ea_node_editor.addons.catalog import create_live_property_edit_adapters
+from ea_node_editor.ui.shell.property_edit_adapters import (
+    create_shell_property_edit_adapters,
+)
 from ea_node_editor.addons.property_edit_adapters import (
     PropertyEditAdapterContext,
     rewrite_property_edit_with_adapters,
@@ -164,7 +166,7 @@ class WorkspaceEditOps:
         return document()
 
     def _property_edit_adapters(self) -> tuple[Any, ...]:
-        return create_live_property_edit_adapters(
+        return create_shell_property_edit_adapters(
             preferences_document=self._preferences_document(),
         )
 

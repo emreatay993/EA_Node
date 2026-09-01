@@ -166,6 +166,19 @@ def test_placeholder_sources_form_one_noop_internal_bundle(
     assert bundle.functions == ()
 
 
+def test_internal_builtin_function_entries_keep_no_plugin_provenance(
+    tmp_path: Path,
+) -> None:
+    registry = build_builtin_registry(
+        generation_root=tmp_path / "builtin-generations"
+    )
+
+    entry = registry.get_entry("core.if")
+
+    assert isinstance(entry, PythonFunctionEntry)
+    assert entry.provenance is None
+
+
 def test_internal_function_declarations_carry_the_accepted_reuse_scopes(
     tmp_path: Path,
 ) -> None:

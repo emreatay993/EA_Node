@@ -1005,7 +1005,7 @@ TRACEABILITY_ROW_REQUIRED_TOKENS.update(
             "UI_CONTEXT_SCALABILITY_REFACTOR_QA_MATRIX.md",
         ),
         "REQ-INT-009": (
-            "plugin_loader.py",
+            "registry_contributions.py",
             "plugin_contracts.py",
             "addons/ansys_dpf",
             "catalog.py",
@@ -1017,6 +1017,7 @@ TRACEABILITY_ROW_REQUIRED_TOKENS.update(
             "DPF_OPERATOR_PLUGIN_BACKEND_REFACTOR_QA_MATRIX.md",
         ),
         "AC-REQ-INT-009-01": (
+            "tests/test_addon_registry_contributions.py",
             "tests/test_plugin_loader.py",
             "tests/test_dpf_node_catalog.py",
             "tests/test_dpf_compute_nodes.py",
@@ -1100,14 +1101,15 @@ TRACEABILITY_ROW_REQUIRED_TOKENS.update(
             "docs/specs/perf/ADDON_MANAGER_BACKEND_PREPARATION_QA_MATRIX.md",
         ),
         "REQ-INT-011": (
-            "addons/catalog.py",
+            "catalog.py",
+            "registry_contributions.py",
             "plugin_contracts.py",
-            "plugin_loader.py",
+            "function_bundle.py",
             "addon_manager_presenter.py",
             "docs/specs/perf/ADDON_MANAGER_BACKEND_PREPARATION_QA_MATRIX.md",
         ),
         "AC-REQ-INT-011-01": (
-            "tests/test_plugin_loader.py",
+            "tests/test_addon_registry_contributions.py",
             "tests/test_main_window_shell.py",
             "tests/main_window_shell/shell_basics_and_search.py",
             "docs/specs/perf/ADDON_MANAGER_BACKEND_PREPARATION_QA_MATRIX.md",

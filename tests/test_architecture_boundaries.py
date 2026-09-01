@@ -886,6 +886,88 @@ class GraphArchitectureBoundaryTests(unittest.TestCase):
             with self.subTest(retired_name=retired_name):
                 self.assertNotIn(retired_name, state_source)
 
+    def test_plugin_registry_contributions_have_direct_owners(self) -> None:
+        from ea_node_editor.nodes.builtin_catalog import (
+            BUILTIN_CONTRACT_CONTRIBUTIONS,
+        )
+
+        loader_tree = parse_module("ea_node_editor/nodes/plugin_loader.py")
+        loader_imports = imported_modules(loader_tree)
+        self.assertFalse(
+            {
+                module
+                for module in loader_imports
+                if module == "ea_node_editor.addons"
+                or module.startswith("ea_node_editor.addons.")
+            }
+        )
+        loader_source = (REPO_ROOT / "ea_node_editor/nodes/plugin_loader.py").read_text(
+            encoding="utf-8"
+        )
+        for retired_name in (
+            "PluginBackendDescriptor",
+            "register_plugin_backends",
+            "register_internal_builtin_functions",
+            "_discover_configured_static_plugins",
+        ):
+            with self.subTest(retired_name=retired_name):
+                self.assertNotIn(retired_name, loader_source)
+
+        bundle_source = (REPO_ROOT / "ea_node_editor/nodes/function_bundle.py").read_text(
+            encoding="utf-8"
+        )
+        for forbidden_name in (
+            "PluginBackendDescriptor",
+            "plugins_dir",
+            "_root_entries",
+            "live_addon",
+            "INTERNAL_BUILTIN_FUNCTION_OWNER_ID",
+            "_register_trusted_python_function",
+        ):
+            with self.subTest(forbidden_name=forbidden_name):
+                self.assertNotIn(forbidden_name, bundle_source)
+
+        builtin_source = (
+            REPO_ROOT / "ea_node_editor/nodes/builtin_catalog.py"
+        ).read_text(encoding="utf-8")
+        self.assertIn("INTERNAL_BUILTIN_FUNCTION_OWNER_ID", builtin_source)
+        self.assertIn("_register_trusted_python_function", builtin_source)
+
+        addon_tree = parse_module("ea_node_editor/addons/registry_contributions.py")
+        self.assertNotIn(
+            "ea_node_editor.nodes.plugin_loader",
+            imported_modules(addon_tree),
+        )
+        worker_tree = parse_module("ea_node_editor/execution/plugin_worker_runtime.py")
+        self.assertIn(
+            "ea_node_editor.nodes.function_bundle",
+            imported_modules(worker_tree),
+        )
+        self.assertNotIn(
+            "ea_node_editor.nodes.plugin_loader",
+            imported_modules(worker_tree),
+        )
+
+        self.assertEqual(len(BUILTIN_CONTRACT_CONTRIBUTIONS), 17)
+        self.assertEqual(
+            [
+                owner_id
+                for _manifest, owner_id, _version, _source, replace in BUILTIN_CONTRACT_CONTRIBUTIONS
+                if replace
+            ],
+            ["corex.core_data_types", "corex.geometry_primitives"],
+        )
+
+        catalog_source = (REPO_ROOT / "ea_node_editor/addons/catalog.py").read_text(
+            encoding="utf-8"
+        )
+        self.assertNotIn("create_plot_property_edit_adapters", catalog_source)
+        shell_adapter_source = (
+            REPO_ROOT / "ea_node_editor/ui/shell/property_edit_adapters.py"
+        ).read_text(encoding="utf-8")
+        self.assertIn("create_plot_property_edit_adapters", shell_adapter_source)
+        self.assertIn("create_live_property_edit_adapters", shell_adapter_source)
+
     def test_runtime_value_contracts_have_direct_owners_and_common_stays_leaf(self) -> None:
         from ea_node_editor.runtime_contracts import (
             ImageValue,

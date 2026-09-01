@@ -18,16 +18,14 @@ from typing import Literal
 
 from ea_node_editor.common.path_safety import is_reparse_point
 from ea_node_editor.nodes.function_plugin import INTERNAL_BUILTIN_FUNCTION_OWNER_ID
+from ea_node_editor.nodes.function_bundle import registry_plugin_fingerprint
 from ea_node_editor.nodes.plugin_declaration import PluginDeclarationError
 from ea_node_editor.nodes.package_schema import (
     PLUGIN_SOURCE_LIMIT,
     validate_plugin_regular_file,
     validated_plugin_member_path,
 )
-from ea_node_editor.nodes.plugin_loader import (
-    discover_static_plugin_candidate,
-    plugin_fingerprint,
-)
+from ea_node_editor.nodes.plugin_loader import discover_static_plugin_candidate
 from ea_node_editor.nodes.registry import NodeRegistry
 from ea_node_editor.settings import plugins_dir
 
@@ -234,7 +232,7 @@ def summarize_plugin_registry(registry: NodeRegistry) -> PluginValidationReport:
         summary=PluginAuthoringSummary(
             bundle_count=len(external_bundles),
             node_count=len(diagnostics),
-            plugin_digest=plugin_fingerprint(registry, external_bundles),
+            plugin_digest=registry_plugin_fingerprint(registry, external_bundles),
             unavailable_node_count=unavailable_count,
         ),
     )

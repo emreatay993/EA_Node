@@ -45,7 +45,7 @@ from ea_node_editor.nodes.plugin_contracts import (
     PluginBackendDescriptor,
     PluginContractManifest,
 )
-from ea_node_editor.nodes.plugin_loader import register_plugin_backends
+from ea_node_editor.addons.registry_contributions import register_plugin_backends
 from ea_node_editor.nodes.registry import NodeRegistry, PythonFunctionEntry
 from ea_node_editor.persistence.serializer import JsonProjectSerializer
 from ea_node_editor.runtime_contracts import (

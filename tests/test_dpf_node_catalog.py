@@ -682,9 +682,9 @@ class DpfNodeCatalogTests(unittest.TestCase):
                 "_build_ansys_dpf_plugin_descriptors",
                 return_value=(),
             ) as build_descriptors,
-            patch("ea_node_editor.nodes.plugin_loader.register_plugin_backends", return_value=[]),
+            patch("ea_node_editor.addons.registry_contributions.register_plugin_backends", return_value=[]),
             patch(
-                "ea_node_editor.nodes.plugin_loader._discover_configured_static_plugins",
+                "ea_node_editor.nodes.plugin_loader.discover_configured_static_plugins",
                 return_value=[],
             ),
         ):
@@ -718,9 +718,9 @@ class DpfNodeCatalogTests(unittest.TestCase):
                 "_build_ansys_dpf_plugin_descriptors",
                 return_value=(),
             ) as build_descriptors,
-            patch("ea_node_editor.nodes.plugin_loader.register_plugin_backends", return_value=[]),
+            patch("ea_node_editor.addons.registry_contributions.register_plugin_backends", return_value=[]),
             patch(
-                "ea_node_editor.nodes.plugin_loader._discover_configured_static_plugins",
+                "ea_node_editor.nodes.plugin_loader.discover_configured_static_plugins",
                 return_value=[],
             ),
         ):

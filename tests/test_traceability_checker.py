@@ -480,7 +480,7 @@ DPF_OPERATOR_PLUGIN_BACKEND_REQUIREMENT_TOKENS: dict[str, dict[str, tuple[str, .
 
 DPF_OPERATOR_PLUGIN_BACKEND_TRACEABILITY_ROW_TOKENS: dict[str, tuple[str, ...]] = {
     "REQ-INT-009": (
-        "plugin_loader.py",
+        "registry_contributions.py",
         "plugin_contracts.py",
         "addons/ansys_dpf",
         "catalog.py",
@@ -489,6 +489,7 @@ DPF_OPERATOR_PLUGIN_BACKEND_TRACEABILITY_ROW_TOKENS: dict[str, tuple[str, ...]] 
         "DPF_OPERATOR_PLUGIN_BACKEND_REFACTOR_QA_MATRIX.md",
     ),
     "AC-REQ-INT-009-01": (
+        "tests/test_addon_registry_contributions.py",
         "tests/test_plugin_loader.py",
         "tests/test_dpf_node_catalog.py",
         "tests/test_dpf_compute_nodes.py",
@@ -912,15 +913,16 @@ ADDON_MANAGER_BACKEND_PREPARATION_TRACEABILITY_ROW_TOKENS: dict[str, tuple[str, 
         "docs/specs/perf/ADDON_MANAGER_BACKEND_PREPARATION_QA_MATRIX.md",
     ),
     "REQ-INT-011": (
-        "addons/catalog.py",
+        "catalog.py",
+        "registry_contributions.py",
         "tabular_data/{function_nodes.py,catalog.py}",
         "mars/{function_nodes.py,catalog.py}",
         "plugin_contracts.py",
-        "plugin_loader.py",
+        "function_bundle.py",
         "docs/specs/perf/ADDON_MANAGER_BACKEND_PREPARATION_QA_MATRIX.md",
     ),
     "AC-REQ-INT-011-01": (
-        "tests/test_plugin_loader.py",
+        "tests/test_addon_registry_contributions.py",
         "tests/test_tabular_function_migration.py",
         "tests/test_mars_function_migration.py",
         "tests/test_registry_replacement.py",

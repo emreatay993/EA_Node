@@ -57,7 +57,7 @@ from ea_node_editor.nodes.function_plugin import INTERNAL_BUILTIN_FUNCTION_OWNER
 from ea_node_editor.nodes.output_artifacts import register_staged_path_artifact
 from ea_node_editor.nodes.plugin_declaration import discover_plugin_declarations
 from ea_node_editor.nodes.plugin_contracts import PluginAvailability
-from ea_node_editor.nodes.plugin_loader import register_plugin_backends
+from ea_node_editor.addons.registry_contributions import register_plugin_backends
 from ea_node_editor.nodes.readiness import evaluate_node_readiness
 from ea_node_editor.nodes.registry import NodeRegistry, PythonFunctionEntry
 from ea_node_editor.persistence.artifact_resolution import ProjectArtifactResolver

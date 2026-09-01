@@ -1,354 +1,25 @@
-# Purpose: Compose built-in, add-on, and external plugin data types before node descriptors.
+# Purpose: Compose built-in, trusted add-on, and public plugin registry contributions.
 # Map: subsystems/nodes_registry_builtins.md
 # Tests: tests/test_plugin_loader.py, tests/test_corex_contract_catalog.py
 
 from __future__ import annotations
 
-from pathlib import Path
 from collections.abc import Iterable
+from pathlib import Path
 from typing import Any
 
-from ea_node_editor.nodes.builtins import data_control as _data_control  # noqa: F401
-from ea_node_editor.nodes.builtins.core import CORE_NODE_DESCRIPTORS
-from ea_node_editor.nodes.builtins.excalidraw import EXCALIDRAW_NODE_DESCRIPTORS
-from ea_node_editor.nodes.builtins.integrations_file_io import FILE_IO_NODE_DESCRIPTORS
-from ea_node_editor.nodes.builtins.integrations_ssh_sftp import (
-    SSH_SFTP_DATA_TYPE_FAMILIES,
-    SSH_SFTP_DATA_TYPE_OWNER_ID,
-    SSH_SFTP_DATA_TYPES,
-)
-from ea_node_editor.nodes.builtins.jupyter_notebook import (
-    JUPYTER_NOTEBOOK_NODE_DESCRIPTORS,
-)
-from ea_node_editor.nodes.builtins.passive_annotation import (
-    PASSIVE_ANNOTATION_NODE_DESCRIPTORS,
-)
-from ea_node_editor.nodes.builtins.passive_flowchart import (
-    PASSIVE_FLOWCHART_NODE_DESCRIPTORS,
-)
-from ea_node_editor.nodes.builtins.media_panel import MEDIA_PANEL_NODE_DESCRIPTORS
-from ea_node_editor.nodes.builtins.passive_mail import PASSIVE_MAIL_NODE_DESCRIPTORS
-from ea_node_editor.nodes.builtins.passive_planning import (
-    PASSIVE_PLANNING_NODE_DESCRIPTORS,
-)
-from ea_node_editor.nodes.builtins.plot import PLOT_NODE_DESCRIPTORS
-from ea_node_editor.nodes.builtins.subnode import SUBNODE_NODE_DESCRIPTORS
-from ea_node_editor.nodes.builtins.ai_ml_contracts import (
-    COREX_AI_ML_CONTRACTS_OWNER_ID,
-    COREX_AI_ML_CONTRACTS_OWNER_VERSION,
-    COREX_AI_ML_VECTOR_DATABASE_CANDIDATE_CONTRACT_MANIFEST,
-)
-from ea_node_editor.nodes.builtins.core_values import (
-    COREX_CORE_VALUE_CONTRACT_MANIFEST,
-    COREX_CORE_VALUE_OWNER_ID,
-    COREX_CORE_VALUE_OWNER_VERSION,
-)
-from ea_node_editor.nodes.builtins.core_media import (
-    COREX_CORE_MEDIA_CONTRACT_MANIFEST,
-    COREX_CORE_MEDIA_OWNER_ID,
-    COREX_CORE_MEDIA_OWNER_VERSION,
-)
-from ea_node_editor.nodes.builtins.fem_contracts import (
-    COREX_FEM_CONTRACT_MANIFEST,
-    COREX_FEM_CONTRACTS_OWNER_ID,
-    COREX_FEM_CONTRACTS_OWNER_VERSION,
-    COREX_FEM_NODE_DESCRIPTORS,
-)
-from ea_node_editor.nodes.builtins.geometry_contracts import (
-    COREX_GEOMETRY_COORDINATE_SYSTEM_VALUE_CANDIDATE_CONTRACT_MANIFEST,
-    COREX_GEOMETRY_CONTRACTS_OWNER_ID,
-    COREX_GEOMETRY_CONTRACTS_OWNER_VERSION,
-)
-from ea_node_editor.nodes.builtins.geometry_primitives import (
-    COREX_GEOMETRY_PRIMITIVES_CONTRACT_MANIFEST,
-    COREX_GEOMETRY_PRIMITIVES_OWNER_ID,
-    COREX_GEOMETRY_PRIMITIVES_OWNER_VERSION,
-)
-from ea_node_editor.nodes.builtins.mesh_contracts import (
-    COREX_MESH_CONTRACTS_OWNER_ID,
-    COREX_MESH_CONTRACTS_OWNER_VERSION,
-    COREX_MESH_PARAMETER_CANDIDATE_CONTRACT_MANIFEST,
-)
-from ea_node_editor.nodes.builtins.voxel_contracts import (
-    COREX_VOXEL_CONTRACT_MANIFEST,
-    COREX_VOXEL_CONTRACTS_OWNER_ID,
-    COREX_VOXEL_CONTRACTS_OWNER_VERSION,
-)
-from ea_node_editor.nodes.builtins.rich_value_nodes import (
-    COREX_RICH_VALUE_LLM_CANDIDATE_CONTRACT_MANIFEST,
-    COREX_RICH_VALUE_OWNER_ID,
-    COREX_RICH_VALUE_OWNER_VERSION,
-)
-from ea_node_editor.nodes.builtins.reporting import (
-    COREX_REPORTING_CONTRACT_MANIFEST,
-    COREX_REPORTING_OWNER_ID,
-    COREX_REPORTING_OWNER_VERSION,
-)
-from ea_node_editor.nodes.builtins.security_contracts import (
-    COREX_SECURITY_CONTRACT_MANIFEST,
-    COREX_SECURITY_OWNER_ID,
-    COREX_SECURITY_OWNER_VERSION,
-)
-from ea_node_editor.nodes.builtins.spatial_values import (
-    COREX_SPATIAL_VALUES_OWNER_ID,
-    COREX_SPATIAL_VALUES_OWNER_VERSION,
-    COREX_SPATIAL_VALUES_COORDINATE_SYSTEM_CANDIDATE_CONTRACT_MANIFEST,
-)
-from ea_node_editor.nodes.builtins.tree_path import (
-    COREX_TREE_PATH_CONTRACT_MANIFEST,
-    COREX_TREE_PATH_OWNER_ID,
-    COREX_TREE_PATH_OWNER_VERSION,
-)
-from ea_node_editor.nodes.builtins.units import (
-    COREX_UNITS_CONTRACT_MANIFEST,
-    COREX_UNITS_OWNER_ID,
-    COREX_UNITS_OWNER_VERSION,
-)
-from ea_node_editor.nodes.builtins.viewer_viewport import (
-    COREX_VIEWER_VIEWPORT_CONTRACT_MANIFEST,
-    COREX_VIEWER_VIEWPORT_OWNER_ID,
-    COREX_VIEWER_VIEWPORT_OWNER_VERSION,
-)
-from ea_node_editor.nodes.builtins.web_viewer import WEB_PAGE_VIEWER_NODE_DESCRIPTORS
-from ea_node_editor.nodes.core_data_types import (
-    CORE_DATA_CONVERSIONS,
-    CORE_DATA_TYPE_FAMILIES,
-    CORE_DATA_TYPE_OWNER_ID,
-    CORE_DATA_TYPE_OWNER_VERSION,
-    CORE_DATA_TYPES,
-)
 from ea_node_editor.nodes.registry import NodeRegistry
-from ea_node_editor.nodes.plugin_contracts import PluginContractManifest
 from ea_node_editor.settings import plugin_generations_dir, plugins_dir
 
 
-_TRUSTED_BUILTIN_DESCRIPTORS = (
-    *CORE_NODE_DESCRIPTORS,
-    *FILE_IO_NODE_DESCRIPTORS,
-    *PLOT_NODE_DESCRIPTORS,
-    *SUBNODE_NODE_DESCRIPTORS,
-    *PASSIVE_FLOWCHART_NODE_DESCRIPTORS,
-    *PASSIVE_PLANNING_NODE_DESCRIPTORS,
-    *PASSIVE_ANNOTATION_NODE_DESCRIPTORS,
-    *MEDIA_PANEL_NODE_DESCRIPTORS,
-    *PASSIVE_MAIL_NODE_DESCRIPTORS,
-    *WEB_PAGE_VIEWER_NODE_DESCRIPTORS,
-    *JUPYTER_NOTEBOOK_NODE_DESCRIPTORS,
-    *EXCALIDRAW_NODE_DESCRIPTORS,
-)
-
-_TRUSTED_BUILTIN_TYPE_IDS = frozenset(
-    {
-        "code.jupyter_notebook",
-        "core.python_script",
-        "core.stream_gate",
-        "core.subnode",
-        "core.subnode_input",
-        "core.subnode_output",
-        "core.trigger",
-        "excalidraw.board",
-        "io.folder_explorer",
-        "io.path_pointer",
-        "optimization.parameter_pool",
-        "optimization.parameter_setup",
-        "optimization.response_pool",
-        "passive.annotation.callout",
-        "passive.annotation.group_backdrop",
-        "passive.annotation.section_header",
-        "passive.annotation.sticky_note",
-        "passive.annotation.text",
-        "passive.flowchart.actor",
-        "passive.flowchart.callout",
-        "passive.flowchart.card",
-        "passive.flowchart.connector",
-        "passive.flowchart.cube",
-        "passive.flowchart.database",
-        "passive.flowchart.decision",
-        "passive.flowchart.document",
-        "passive.flowchart.end",
-        "passive.flowchart.input_output",
-        "passive.flowchart.isometric_cube",
-        "passive.flowchart.message",
-        "passive.flowchart.multi_document",
-        "passive.flowchart.predefined_process",
-        "passive.flowchart.process",
-        "passive.flowchart.star",
-        "passive.flowchart.start",
-        "passive.flowchart.tick",
-        "passive.flowchart.timestamp",
-        "passive.flowchart.x",
-        "media.panel",
-        "passive.media.mail_panel",
-        "passive.planning.decision_card",
-        "passive.planning.milestone_card",
-        "passive.planning.risk_card",
-        "passive.planning.task_card",
-        "plot.bar",
-        "plot.contour",
-        "plot.heatmap",
-        "plot.histogram",
-        "plot.point_cloud",
-        "plot.scatter",
-        "plot.streamlines",
-        "plot.surface",
-        "web.page_viewer",
-    }
-)
-
-
 def build_builtin_registry(*, generation_root: Path | None = None) -> NodeRegistry:
-    trusted_descriptors = (
-        *_TRUSTED_BUILTIN_DESCRIPTORS,
-        *COREX_FEM_NODE_DESCRIPTORS,
-    )
-    trusted_type_ids = frozenset(
-        descriptor.spec.type_id for descriptor in trusted_descriptors
-    )
-    if (
-        len(trusted_descriptors) != len(_TRUSTED_BUILTIN_TYPE_IDS)
-        or trusted_type_ids != _TRUSTED_BUILTIN_TYPE_IDS
-    ):
-        raise RuntimeError("Trusted built-in descriptor allowlist mismatch")
+    from ea_node_editor.nodes.builtin_catalog import register_builtin_catalog
 
     registry = NodeRegistry()
-    registry.register_plugin_bundle(
-        PluginContractManifest(
-            data_type_families=CORE_DATA_TYPE_FAMILIES,
-            data_types=CORE_DATA_TYPES,
-            data_conversions=CORE_DATA_CONVERSIONS,
-        ),
-        (),
-        owner_id=CORE_DATA_TYPE_OWNER_ID,
-        owner_version=CORE_DATA_TYPE_OWNER_VERSION,
-        source_label="ea_node_editor.nodes.core_data_types",
-        replace_owner=True,
-    )
-    registry.register_plugin_bundle(
-        COREX_GEOMETRY_COORDINATE_SYSTEM_VALUE_CANDIDATE_CONTRACT_MANIFEST,
-        (),
-        owner_id=COREX_GEOMETRY_CONTRACTS_OWNER_ID,
-        owner_version=COREX_GEOMETRY_CONTRACTS_OWNER_VERSION,
-        source_label="ea_node_editor.nodes.builtins.geometry_contracts",
-    )
-    registry.register_plugin_bundle(
-        COREX_VOXEL_CONTRACT_MANIFEST,
-        (),
-        owner_id=COREX_VOXEL_CONTRACTS_OWNER_ID,
-        owner_version=COREX_VOXEL_CONTRACTS_OWNER_VERSION,
-        source_label="ea_node_editor.nodes.builtins.voxel_contracts",
-    )
-    registry.register_plugin_bundle(
-        COREX_MESH_PARAMETER_CANDIDATE_CONTRACT_MANIFEST,
-        (),
-        owner_id=COREX_MESH_CONTRACTS_OWNER_ID,
-        owner_version=COREX_MESH_CONTRACTS_OWNER_VERSION,
-        source_label="ea_node_editor.nodes.builtins.mesh_contracts",
-    )
-    registry.register_plugin_bundle(
-        COREX_FEM_CONTRACT_MANIFEST,
-        (),
-        owner_id=COREX_FEM_CONTRACTS_OWNER_ID,
-        owner_version=COREX_FEM_CONTRACTS_OWNER_VERSION,
-        source_label="ea_node_editor.nodes.builtins.fem_contracts",
-    )
-    registry.register_plugin_bundle(
-        COREX_AI_ML_VECTOR_DATABASE_CANDIDATE_CONTRACT_MANIFEST,
-        (),
-        owner_id=COREX_AI_ML_CONTRACTS_OWNER_ID,
-        owner_version=COREX_AI_ML_CONTRACTS_OWNER_VERSION,
-        source_label="ea_node_editor.nodes.builtins.ai_ml_contracts",
-    )
-    registry.register_plugin_bundle(
-        COREX_RICH_VALUE_LLM_CANDIDATE_CONTRACT_MANIFEST,
-        (),
-        owner_id=COREX_RICH_VALUE_OWNER_ID,
-        owner_version=COREX_RICH_VALUE_OWNER_VERSION,
-        source_label="ea_node_editor.nodes.builtins.rich_value_nodes",
-    )
-    registry.register_plugin_bundle(
-        COREX_GEOMETRY_PRIMITIVES_CONTRACT_MANIFEST,
-        (),
-        owner_id=COREX_GEOMETRY_PRIMITIVES_OWNER_ID,
-        owner_version=COREX_GEOMETRY_PRIMITIVES_OWNER_VERSION,
-        source_label="ea_node_editor.nodes.builtins.geometry_primitives",
-        replace_owner=True,
-    )
-    registry.register_plugin_bundle(
-        COREX_CORE_VALUE_CONTRACT_MANIFEST,
-        (),
-        owner_id=COREX_CORE_VALUE_OWNER_ID,
-        owner_version=COREX_CORE_VALUE_OWNER_VERSION,
-        source_label="ea_node_editor.nodes.builtins.core_values",
-    )
-    registry.register_plugin_bundle(
-        COREX_TREE_PATH_CONTRACT_MANIFEST,
-        (),
-        owner_id=COREX_TREE_PATH_OWNER_ID,
-        owner_version=COREX_TREE_PATH_OWNER_VERSION,
-        source_label="ea_node_editor.nodes.builtins.tree_path",
-    )
-    registry.register_plugin_bundle(
-        COREX_CORE_MEDIA_CONTRACT_MANIFEST,
-        (),
-        owner_id=COREX_CORE_MEDIA_OWNER_ID,
-        owner_version=COREX_CORE_MEDIA_OWNER_VERSION,
-        source_label="ea_node_editor.nodes.builtins.core_media",
-    )
-    registry.register_plugin_bundle(
-        COREX_UNITS_CONTRACT_MANIFEST,
-        (),
-        owner_id=COREX_UNITS_OWNER_ID,
-        owner_version=COREX_UNITS_OWNER_VERSION,
-        source_label="ea_node_editor.nodes.builtins.units",
-    )
-    registry.register_plugin_bundle(
-        COREX_SPATIAL_VALUES_COORDINATE_SYSTEM_CANDIDATE_CONTRACT_MANIFEST,
-        (),
-        owner_id=COREX_SPATIAL_VALUES_OWNER_ID,
-        owner_version=COREX_SPATIAL_VALUES_OWNER_VERSION,
-        source_label="ea_node_editor.nodes.builtins.spatial_values",
-    )
-    registry.register_descriptors(
-        COREX_FEM_NODE_DESCRIPTORS,
-        owner_id=COREX_FEM_CONTRACTS_OWNER_ID,
-    )
-    registry.register_plugin_bundle(
-        COREX_VIEWER_VIEWPORT_CONTRACT_MANIFEST,
-        (),
-        owner_id=COREX_VIEWER_VIEWPORT_OWNER_ID,
-        owner_version=COREX_VIEWER_VIEWPORT_OWNER_VERSION,
-        source_label="ea_node_editor.nodes.builtins.viewer_viewport",
-    )
-    registry.register_plugin_bundle(
-        COREX_REPORTING_CONTRACT_MANIFEST,
-        (),
-        owner_id=COREX_REPORTING_OWNER_ID,
-        owner_version=COREX_REPORTING_OWNER_VERSION,
-        source_label="ea_node_editor.nodes.builtins.reporting",
-    )
-    registry.register_plugin_bundle(
-        COREX_SECURITY_CONTRACT_MANIFEST,
-        (),
-        owner_id=COREX_SECURITY_OWNER_ID,
-        owner_version=COREX_SECURITY_OWNER_VERSION,
-        source_label="ea_node_editor.nodes.builtins.security_contracts",
-    )
-    registry.register_plugin_bundle(
-        PluginContractManifest(
-            data_type_families=SSH_SFTP_DATA_TYPE_FAMILIES,
-            data_types=SSH_SFTP_DATA_TYPES,
-        ),
-        (),
-        owner_id=SSH_SFTP_DATA_TYPE_OWNER_ID,
-        source_label="ea_node_editor.nodes.builtins.integrations_ssh_sftp",
-    )
-    from ea_node_editor.nodes.plugin_loader import register_internal_builtin_functions
-
-    register_internal_builtin_functions(
+    register_builtin_catalog(
         registry,
         generation_root=generation_root or plugin_generations_dir(),
     )
-    registry.register_descriptors(_TRUSTED_BUILTIN_DESCRIPTORS)
     registry.freeze()
     return registry
 
@@ -360,16 +31,16 @@ def _build_trusted_registry(
     addon_runtime_config: Iterable[tuple[str, bool]] | None = None,
     generation_root: Path | None = None,
 ) -> NodeRegistry:
-    resolved_generation_root = generation_root or plugin_generations_dir()
-    registry = build_builtin_registry(generation_root=resolved_generation_root)
-
     from ea_node_editor.addons.catalog import (
         addon_registration_is_live_enabled,
-        live_addon_backend_collections,
         registered_addon_registrations,
     )
-    from ea_node_editor.nodes.plugin_loader import register_plugin_backends
+    from ea_node_editor.addons.registry_contributions import (
+        register_live_addon_contributions,
+    )
 
+    resolved_generation_root = generation_root or plugin_generations_dir()
+    registry = build_builtin_registry(generation_root=resolved_generation_root)
     registrations = registered_addon_registrations()
     if addon_runtime_config is None:
         from ea_node_editor.app_preferences import (
@@ -386,9 +57,7 @@ def _build_trusted_registry(
                 else default_app_preferences_document()
             )
         )
-        runtime_preferences = normalize_app_preferences_document(
-            source_preferences
-        )
+        runtime_preferences = normalize_app_preferences_document(source_preferences)
         accepted_config = tuple(
             sorted(
                 (
@@ -406,9 +75,7 @@ def _build_trusted_registry(
         from ea_node_editor.app_preferences import default_app_preferences_document
 
         requested_config = dict(addon_runtime_config)
-        known_ids = {
-            registration.manifest.addon_id for registration in registrations
-        }
+        known_ids = {registration.manifest.addon_id for registration in registrations}
         unknown_ids = set(requested_config) - known_ids
         if unknown_ids:
             raise ValueError("add-on runtime configuration contains unknown ids")
@@ -418,7 +85,9 @@ def _build_trusted_registry(
                     registration.manifest.addon_id,
                     True
                     if registration.manifest.apply_policy != "hot_apply"
-                    else bool(requested_config.get(registration.manifest.addon_id, False)),
+                    else bool(
+                        requested_config.get(registration.manifest.addon_id, False)
+                    ),
                 )
                 for registration in registrations
                 if registration.manifest.addon_id in requested_config
@@ -438,17 +107,12 @@ def _build_trusted_registry(
         }
         runtime_store = None
     registry.set_addon_runtime_config(accepted_config)
-
-    for addon_backends in live_addon_backend_collections(
+    register_live_addon_contributions(
+        registry,
         preferences_document=runtime_preferences,
         store=runtime_store,
-    ):
-        register_plugin_backends(
-            addon_backends.backends,
-            registry,
-            addon_backends.source,
-            generation_root=resolved_generation_root,
-        )
+        generation_root=resolved_generation_root,
+    )
     return registry
 
 
@@ -469,10 +133,10 @@ def build_default_registry(
     )
     if include_public_plugins:
         from ea_node_editor.nodes.plugin_loader import (
-            _discover_configured_static_plugins,
+            discover_configured_static_plugins,
         )
 
-        _discover_configured_static_plugins(
+        discover_configured_static_plugins(
             registry,
             extra_dirs=extra_plugin_dirs,
             generation_root=generation_root,
@@ -506,3 +170,10 @@ def build_plugin_candidate_registry(
     )
     registry.freeze()
     return registry
+
+
+__all__ = [
+    "build_builtin_registry",
+    "build_default_registry",
+    "build_plugin_candidate_registry",
+]

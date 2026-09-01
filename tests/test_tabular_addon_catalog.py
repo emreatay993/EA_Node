@@ -14,6 +14,9 @@ from ea_node_editor.addons.tabular_data.metadata import (
     TABULAR_DATA_TOOLCHAINS,
 )
 from ea_node_editor.app_preferences import default_app_preferences_document
+from ea_node_editor.ui.shell.property_edit_adapters import (
+    create_shell_property_edit_adapters,
+)
 
 
 def test_tabular_data_addon_manifest_publishes_stable_shell_metadata() -> None:
@@ -133,6 +136,15 @@ def test_registered_addon_catalog_exposes_tabular_property_edit_adapter_factory(
     )
 
     assert [adapter.__class__.__name__ for adapter in adapters] == [
+        "AnsysDpfPropertyEditAdapter",
+        "TabularDataPropertyEditAdapter",
+    ]
+    assert [
+        adapter.__class__.__name__
+        for adapter in create_shell_property_edit_adapters(
+            preferences_document=default_app_preferences_document()
+        )
+    ] == [
         "PlotPropertyEditAdapter",
         "AnsysDpfPropertyEditAdapter",
         "TabularDataPropertyEditAdapter",

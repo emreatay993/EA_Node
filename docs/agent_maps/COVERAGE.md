@@ -83,6 +83,10 @@ implementation studies are intentionally excluded.
   `nodes/builtin_functions/`; trusted helpers and data contracts remain under
   `nodes/builtins/`, and the current migration inventory pins 53 trusted
   exceptions while the 133-row pre-cutover catalog remains immutable.
+- Public filesystem discovery is nodes-owned in `plugin_loader.py`; shared
+  function materialization/fingerprinting lives in `function_bundle.py`, built-in
+  contributions in `builtin_catalog.py`, and trusted backend contributions in
+  `addons/registry_contributions.py` without forwarding aliases.
 - Public node authoring is now only the 17-name top-level `corex` function SDK.
   `ea_node_editor.nodes` is internal, its former `types.py` barrel is removed,
   and trusted descriptor decorators remain owned by the Nodes map for the exact

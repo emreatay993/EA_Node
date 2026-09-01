@@ -21,9 +21,6 @@ from ea_node_editor.addons.tabular_data.metadata import (
     TABULAR_DATA_ADDON_MANIFEST,
 )
 from ea_node_editor.addons.mars.metadata import MARS_ADDON_ID, MARS_ADDON_MANIFEST
-from ea_node_editor.nodes.builtins.plot.property_edit_adapter import (
-    create_plot_property_edit_adapters,
-)
 from ea_node_editor.nodes.plugin_contracts import AddOnManifest
 from ea_node_editor.addons.contracts import AddOnRecord, AddOnState
 from ea_node_editor.nodes.plugin_contracts import PluginAvailability
@@ -508,7 +505,7 @@ def create_live_property_edit_adapters(
     preferences_document: Any = None,
     store: AppPreferencesStore | None = None,
 ) -> tuple[Any, ...]:
-    adapters: list[Any] = list(create_plot_property_edit_adapters())
+    adapters: list[Any] = []
     for registration in live_addon_registrations(
         preferences_document=preferences_document,
         store=store,

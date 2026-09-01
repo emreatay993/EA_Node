@@ -12,6 +12,8 @@ Use this for node definitions, registry validation, built-in node families, data
 - `ea_node_editor/nodes/registry.py`
 - `ea_node_editor/nodes/declaration_engine.py`
 - `ea_node_editor/nodes/function_plugin.py`
+- `ea_node_editor/nodes/function_bundle.py`
+- `ea_node_editor/nodes/builtin_catalog.py`
 - `ea_node_editor/nodes/plugin_declaration.py`
 - `ea_node_editor/nodes/package_schema.py`
 - `ea_node_editor/nodes/plugin_generation.py`
@@ -47,7 +49,8 @@ Use this for node definitions, registry validation, built-in node families, data
   trusted implementation details only. The loader discovers public code only
   from explicitly configured loose/schema-2 paths through static parsing; it has
   no entry-point, class-probe, executable-manifest, or descriptor-discovery path.
-- The internal owner `corex:builtin:functions` is the only reserved-ID function bundle. GUI bootstrap aggregates 20 inert source members, materializes the normal content-addressed generation, and registers exactly 68 `PythonFunctionEntry` records; workers independently attest and lazily execute it. The remaining 53 built-ins are the migration inventory's exact trusted exceptions, including Python Script, Trigger, Stream Gate, subnodes, three FEM pool/setup nodes, passive/custom surfaces, active Media Panel, and generated private families.
+- `function_bundle.py` owns shared in-memory preparation/materialization and registry-aware fingerprint inputs without filesystem discovery, add-on availability policy, reserved-owner decisions, or registry publication. `plugin_loader.py` owns public loose/schema-2 filesystem discovery and public function publication.
+- `builtin_catalog.py` owns the 17-entry built-in contract contribution table, the two explicit `replace_owner` exceptions, trusted descriptors, reserved declaration permission, `None` provenance, and trusted registration for the internal owner `corex:builtin:functions`. GUI bootstrap registers exactly 68 `PythonFunctionEntry` records; workers independently attest and lazily execute them. The remaining 53 built-ins are the migration inventory's exact trusted exceptions, including Python Script, Trigger, Stream Gate, subnodes, three FEM pool/setup nodes, passive/custom surfaces, active Media Panel, and generated private families.
 - The complete private boundary is the 53 trusted non-DPF exceptions, 805 DPF
   exclusions, and three shipped add-on catalogs. Public authors never use those
   descriptor/backend records.
@@ -80,6 +83,7 @@ Use this for node definitions, registry validation, built-in node families, data
 - `tests/test_plugin_declaration.py`
 - `tests/test_function_plugin.py`
 - `tests/test_plugin_loader.py`
+- `tests/test_function_bundle.py`
 - `tests/test_addon_catalog.py`
 - `tests/test_plugin_worker_loading.py`
 - `tests/test_package_manager.py`
@@ -110,7 +114,7 @@ Use this for node definitions, registry validation, built-in node families, data
 
 ## Focused Verification
 ```powershell
-.\venv\Scripts\python.exe -m pytest tests/test_plugin_declaration.py tests/test_function_plugin.py tests/test_registry_validation.py tests/test_plugin_loader.py tests/test_package_manager.py tests/test_addon_catalog.py tests/test_corex_contract_catalog.py tests/test_corex_type_conformance.py tests/test_python_script_declaration.py -q
+.\venv\Scripts\python.exe -m pytest tests/test_plugin_declaration.py tests/test_function_plugin.py tests/test_function_bundle.py tests/test_registry_validation.py tests/test_plugin_loader.py tests/test_package_manager.py tests/test_addon_catalog.py tests/test_corex_contract_catalog.py tests/test_corex_type_conformance.py tests/test_python_script_declaration.py -q
 .\venv\Scripts\python.exe -m pytest tests/test_plugin_authoring.py tests/test_plugin_authoring_controller.py tests/test_plugin_authoring_dialog.py -q
 .\venv\Scripts\python.exe -m pytest tests/test_builtin_function_infrastructure.py tests/test_builtin_function_migration.py tests/test_remaining_builtin_function_migration.py tests/test_corex_contract_catalog.py tests/test_core_unit_nodes.py tests/test_spatial_values.py -q
 .\venv\Scripts\python.exe -m pytest tests/test_novice_plugin_sdk_docs.py tests/test_non_dpf_node_documentation.py -q

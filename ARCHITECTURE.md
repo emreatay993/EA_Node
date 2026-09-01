@@ -180,9 +180,13 @@ loose decorated .py or installed schema-2 package
 - `plugin_declaration.py` shares bounded literal parsing with Python Script but
   keeps the products separate. Public declarations are never executed during
   validation, reload validation, package import, or package export.
-- `plugin_loader.py` resolves configured loose files and installed schema-2
-  packages, checks declared imports against the bundled runtime, and copies
-  accepted bytes into `runtime/plugin_generations/<bundle-digest>/`. A
+- `plugin_loader.py` owns configured public loose files, installed schema-2
+  packages, and public function publication. `function_bundle.py` checks declared
+  imports and owns only shared immutable materialization/fingerprint inputs;
+  `builtin_catalog.py` owns reserved declaration permission, `None` provenance,
+  and trusted built-in publication; `addons/registry_contributions.py` owns
+  availability-gated atomic trusted add-on publication. Accepted bytes are copied into
+  `runtime/plugin_generations/<bundle-digest>/`. A
   `PythonFunctionEntry` contains only an immutable `PythonFunctionRef`; GUI
   discovery never receives the callable.
 - `RegistryReplacementCoordinator` refuses mutation while a run or viewer is
@@ -286,7 +290,7 @@ The six SSH/SFTP nodes reuse COREX's normal executable-node route:
 
 ## Add-on backend preparation
 
-- `ea_node_editor.addons.contracts.py` owns generic add-on state/presentation records, `ea_node_editor.addons.catalog` owns their dependency-gated construction and lookup, and `ea_node_editor.nodes.plugin_contracts.py` retains backend/manifest contracts. `plugin_loader.py` has no add-on catalog forwarding API.
+- `ea_node_editor.addons.contracts.py` owns generic add-on state/presentation records, `ea_node_editor.addons.catalog` owns their dependency-gated construction and lookup, `ea_node_editor.addons.registry_contributions` owns trusted registry contributions, and `ea_node_editor.nodes.plugin_contracts.py` retains backend/manifest contracts. Public `plugin_loader.py` imports no add-on catalog/backend owner.
 - The shell `Add-On Manager` entry now runs through `ea_node_editor.ui.shell.window_actions.py`, `ea_node_editor.ui.shell.window.py`, `ea_node_editor.ui.shell.presenters.addon_manager_presenter.py`, `ea_node_editor.ui_qml/shell_addon_manager_bridge.py`, and `MainShell.qml`, landing the shipped Variant 4 inspector-style right drawer with row-level `HOT`/`RESTART` badges, pending-restart banners, and explicit but still-disabled install/restart affordances.
 - `ea_node_editor/persistence/project_codec.py`, `ea_node_editor/graph/registry_normalization.py`, `ea_node_editor/ui_qml/graph_scene_payload/`, `ea_node_editor/ui_qml/components/graph/GraphNodeHost.qml`, `GraphNodeHeaderLayer.qml`, and `GraphCanvasContextMenus.qml` project unavailable add-on nodes as locked Mockup B surfaces with manager-targeted recovery affordances and blocked edit, drag, and resize gestures.
 - `ea_node_editor/addons/ansys_dpf/catalog.py` and `ea_node_editor/addons/tabular_data/catalog.py` define the shipped repo-local `hot_apply` add-ons. `ea_node_editor/addons/state_changes.py` prepares requested state without I/O; `ea_node_editor/ui/shell/registry_replacement.py` is the sole guarded apply/persist/rollback authority and publishes through execution/viewer owners. Disabling an add-on used by an open graph is refused before publication; projects opened while an add-on is unavailable retain locked unavailable-add-on surfaces.

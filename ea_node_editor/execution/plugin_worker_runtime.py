@@ -25,6 +25,7 @@ from ea_node_editor.nodes.function_plugin import (
     PythonFunctionAdapter,
     PythonFunctionRef,
 )
+from ea_node_editor.nodes.function_bundle import registry_plugin_fingerprint
 from ea_node_editor.nodes.node_specs import NodeTypeSpec
 from ea_node_editor.nodes.plugin_contracts import PluginProvenance
 from ea_node_editor.nodes.plugin_generation import (
@@ -36,7 +37,6 @@ from ea_node_editor.nodes.package_schema import (
     validate_package_manifest,
     validated_package_declarations,
 )
-from ea_node_editor.nodes.plugin_loader import plugin_fingerprint
 from ea_node_editor.nodes.registry import NodeRegistry
 
 
@@ -178,7 +178,7 @@ class WorkerPluginRuntime:
                     )
                 generations[bundle.bundle_digest] = generation
 
-            computed_plugin_fingerprint = plugin_fingerprint(
+            computed_plugin_fingerprint = registry_plugin_fingerprint(
                 candidate,
                 command.plugin_bundles,
             )

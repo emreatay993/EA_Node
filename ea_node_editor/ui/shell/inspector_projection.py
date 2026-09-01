@@ -9,7 +9,9 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
 
-from ea_node_editor.addons.catalog import create_live_property_edit_adapters
+from ea_node_editor.ui.shell.property_edit_adapters import (
+    create_shell_property_edit_adapters,
+)
 from ea_node_editor.addons.property_edit_adapters import (
     AddOnPropertyEditAdapter,
     PropertyEditAdapterContext,
@@ -421,7 +423,7 @@ def build_selected_node_property_items(
     adapters = (
         tuple(property_edit_adapters)
         if property_edit_adapters is not None
-        else create_live_property_edit_adapters()
+        else create_shell_property_edit_adapters()
     )
     adapter_context = PropertyEditAdapterContext(
         node=node,

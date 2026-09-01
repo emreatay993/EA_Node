@@ -6,6 +6,7 @@ Use this for add-on catalog metadata, add-on manager shell/QML payloads, depende
 ## Start Here
 - `ea_node_editor/addons/contracts.py`
 - `ea_node_editor/addons/catalog.py`
+- `ea_node_editor/addons/registry_contributions.py`
 - `ea_node_editor/addons/state_changes.py`
 - `ea_node_editor/ui/shell/controllers/addon_manager_controller.py`
 - `ea_node_editor/ui/shell/presenters/addon_manager_presenter.py`
@@ -19,6 +20,7 @@ Use this for add-on catalog metadata, add-on manager shell/QML payloads, depende
 
 ## Contracts
 - Add-on state and presentation records are add-on-owned. The shell presenter reads them from `addons.catalog`; `nodes.plugin_loader` has no add-on catalog forwarding surface.
+- Trusted registry contributions are add-on-owned in `addons.registry_contributions`; public plugin discovery never imports add-on backend contracts.
 - Managed package setup has no default five-minute ceiling. The runtime command runner streams its latest phase/output line through the install worker and bridge to `AddOnManagerPane.qml`.
 - Add-on setup reports the exact selected COREX Python path. Source runs use the active interpreter; frozen runs use the app-managed AppData interpreter.
 - Keep progress transient and bridge-owned: QML displays only the latest line while installation is active, and thread cleanup clears it.

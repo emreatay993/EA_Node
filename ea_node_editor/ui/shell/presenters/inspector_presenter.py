@@ -6,7 +6,9 @@ from typing import Any
 from PyQt6.QtCore import QObject, QUrl, pyqtSignal, pyqtSlot
 from PyQt6.QtGui import QDesktopServices
 
-from ea_node_editor.addons.catalog import create_live_property_edit_adapters
+from ea_node_editor.ui.shell.property_edit_adapters import (
+    create_shell_property_edit_adapters,
+)
 from ea_node_editor.app_preferences import normalize_property_pane_variant
 from ea_node_editor.graph.file_issue_state import (
     EXTERNAL_LINK_MODE,
@@ -310,7 +312,9 @@ class ShellInspectorPresenter(QObject):
         controller = getattr(self._host, "app_preferences_controller", None)
         document = getattr(controller, "document", None)
         preferences_document = document() if callable(document) else None
-        return create_live_property_edit_adapters(preferences_document=preferences_document)
+        return create_shell_property_edit_adapters(
+            preferences_document=preferences_document
+        )
 
     @property
     def selected_node_port_items(self) -> list[dict[str, Any]]:
