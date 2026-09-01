@@ -28,7 +28,7 @@ Use this for execution viewer sessions, native overlay lifecycle, fullscreen con
 - `ea_node_editor/ui_qml/components/graph/viewer/ViewerQuickControls.qml`
 - `ea_node_editor/ui_qml/components/graph/viewer/ViewerSidePanel.qml`
 - `ea_node_editor/ui_qml/components/graph/tabular/TabularFullscreenSurface.qml`
-- `ea_node_editor/execution/client.py`
+- `ea_node_editor/execution/backend_client.py`
 - `ea_node_editor/execution/worker.py`
 - `ea_node_editor/execution/viewer_messages.py`
 - `ea_node_editor/execution/protocol_codec.py`
@@ -41,7 +41,10 @@ Use this for execution viewer sessions, native overlay lifecycle, fullscreen con
 - `tests/test_viewer_control_bridge.py`
 - `tests/test_viewer_host_service.py`
 - `tests/test_viewer_surface_contract.py`
-- `tests/test_execution_client.py`
+- `tests/test_backend_client.py`
+- `tests/test_process_client.py`
+- `tests/test_external_python_client.py`
+- `tests/test_trusted_client.py`
 - `tests/test_execution_worker.py`
 - `tests/test_execution_viewer_service.py`
 - `tests/test_engineering_viewer_node.py`

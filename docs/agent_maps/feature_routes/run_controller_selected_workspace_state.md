@@ -20,7 +20,7 @@ Use this for Run, Run Selected, workspace solution mode, Auto evaluation, Trigge
 - `ea_node_editor/ui_qml/components/graph_canvas/GraphCanvasRootLayers.qml`
 - `ea_node_editor/ui_qml/components/graph/overlay/GraphSelectionEnvelopeOverlay.qml`
 - `ea_node_editor/ui_qml/status_model.py`
-- `ea_node_editor/execution/client.py`
+- `ea_node_editor/execution/backend_client.py`
 - `ea_node_editor/execution/headless_runtime.py`
 - `ea_node_editor/execution/solution_store.py`
 - `ea_node_editor/execution/run_messages.py`
@@ -55,7 +55,7 @@ Use this for Run, Run Selected, workspace solution mode, Auto evaluation, Trigge
 ## Focused Verification
 ```powershell
 .\venv\Scripts\python.exe -m pytest tests/test_shell_run_controller.py tests/main_window_shell/shell_runtime_contracts.py tests/main_window_shell/bridge_qml_boundaries.py --ignore=venv -q
-.\venv\Scripts\python.exe -m pytest tests/test_run_controller_unit.py tests/test_selected_run_settings_dialog.py tests/test_execution_worker.py tests/test_execution_client.py --ignore=venv -q
+.\venv\Scripts\python.exe -m pytest tests/test_run_controller_unit.py tests/test_selected_run_settings_dialog.py tests/test_execution_worker.py tests/test_backend_client.py --ignore=venv -q
 .\venv\Scripts\python.exe -m unittest tests.test_graph_canvas_viewport_virtualization.GraphCanvasViewportVirtualizationTests.test_selected_run_preview_overlay_shrinks_and_expands_overflow_rows -v
 .\venv\Scripts\python.exe -m pytest tests/test_run_controller_unit.py tests/test_dataflow_execution_runtime.py -k "run_selected or solution_mode or auto or trigger" --ignore=venv -q
 .\venv\Scripts\python.exe -m pytest tests/test_run_controller_unit.py -k "application_default_python" --ignore=venv -q

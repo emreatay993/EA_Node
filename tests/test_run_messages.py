@@ -10,11 +10,9 @@ import unittest
 from dataclasses import dataclass, replace
 from unittest.mock import patch
 
-from ea_node_editor.execution.client import (
-    ExternalPythonExecutionClient,
-    ProcessExecutionClient,
-    TrustedInProcessExecutionClient,
-)
+from ea_node_editor.execution.external_python_client import ExternalPythonExecutionClient
+from ea_node_editor.execution.process_client import ProcessExecutionClient
+from ea_node_editor.execution.trusted_client import TrustedInProcessExecutionClient
 from ea_node_editor.execution.run_messages import (
     CancelRunPreflightCommand,
     CommitRunPreflightCommand,

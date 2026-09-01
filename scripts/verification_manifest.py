@@ -667,7 +667,7 @@ VERIFICATION_SUITE_SPECS = (
 VERIFICATION_SUITE_SPECS_BY_KEY = {spec.key: spec for spec in VERIFICATION_SUITE_SPECS}
 
 FAST_SERIAL_PYTEST_TARGETS = (
-    "tests/test_execution_client.py::ProcessExecutionClientTests",
+    "tests/test_process_client.py::ProcessClientTests",
     (
         "tests/test_managed_runtime.py::ManagedRuntimeTests::"
         "test_run_command_streams_output_before_process_finishes"
@@ -1979,7 +1979,11 @@ TRACEABILITY_ROW_REQUIRED_TOKENS.update(
             "test_registry_agreement.py",
             "test_run_messages.py",
             "test_protocol_codec.py",
-            "test_execution_client.py",
+            "test_client_common.py",
+            "test_process_client.py",
+            "test_external_python_client.py",
+            "test_trusted_client.py",
+            "test_backend_client.py",
             "test_execution_worker.py",
             "test_plugin_generation.py",
         ),

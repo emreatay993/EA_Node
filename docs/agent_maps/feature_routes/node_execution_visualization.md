@@ -68,7 +68,7 @@ Stale records are ignored for current grip flow. Typed EMPTY remains distinct fr
 
 ## Focused Verification
 ```powershell
-.\venv\Scripts\python.exe -m pytest tests/test_port_flow_state.py tests/test_execution_client.py tests/test_execution_worker.py tests/test_shell_run_controller.py tests/test_passive_runtime_wiring.py --ignore=venv -q
+.\venv\Scripts\python.exe -m pytest tests/test_port_flow_state.py tests/test_process_client.py tests/test_execution_worker.py tests/test_shell_run_controller.py tests/test_passive_runtime_wiring.py --ignore=venv -q
 .\venv\Scripts\python.exe -m pytest tests/test_run_controller_unit.py -k "runtime_warning_messages" --ignore=venv -q
 .\venv\Scripts\python.exe -m unittest tests.test_passive_graph_surface_host.PassiveGraphSurfaceHostTests.test_graph_node_host_persistent_diagnostic_uses_warning_badge_and_execution_precedence -v
 .\venv\Scripts\python.exe -m pytest tests/test_port_flow_state.py tests/test_data_tree_ui.py tests/test_run_controller_unit.py tests/test_media_panel_source_resolution.py -k "settled or preview or empty or failure or media_panel" --ignore=venv -q

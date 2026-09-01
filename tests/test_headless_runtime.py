@@ -18,7 +18,7 @@ from ea_node_editor.execution.backends import (
     TRUSTED_IN_PROCESS_BACKEND,
     ExecutionBackendSelection,
 )
-from ea_node_editor.execution.client import (
+from ea_node_editor.execution.client_generation import (
     ExecutionGenerationSnapshot,
     ExecutionRunReservation,
     ViewerInvalidationReservation,

@@ -12,7 +12,7 @@ import pytest
 import ea_node_editor.execution.solution_store as solution_store_module
 
 from ea_node_editor.execution.backends import ExecutionBackendSelection
-from ea_node_editor.execution.client import (
+from ea_node_editor.execution.client_generation import (
     ExecutionGenerationSnapshot,
     ExecutionRunReservation,
     ViewerInvalidationReservation,

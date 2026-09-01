@@ -522,7 +522,10 @@ class GraphArchitectureBoundaryTests(unittest.TestCase):
         tree = parse_module("ea_node_editor/ui/shell/composition/controllers.py")
 
         self.assertIn("CorexRuntime", imported_names_from(tree, "ea_node_editor.execution.headless_runtime"))
-        self.assertNotIn("ProcessExecutionClient", imported_names_from(tree, "ea_node_editor.execution.client"))
+        self.assertNotIn(
+            "ProcessExecutionClient",
+            imported_names_from(tree, "ea_node_editor.execution.process_client"),
+        )
 
     def test_solution_store_stays_execution_owned_and_persistence_neutral(self) -> None:
         imports = imported_modules(
@@ -1388,6 +1391,58 @@ class GraphArchitectureBoundaryTests(unittest.TestCase):
         self.assertNotIn(
             "ea_node_editor.execution.run_messages",
             top_level_imported_modules(prepared_tree),
+        )
+
+    def test_execution_clients_have_direct_transport_and_router_owners(self) -> None:
+        self.assertFalse((REPO_ROOT / "ea_node_editor/execution/client.py").exists())
+        owner_paths = {
+            "client_common.py": "test_client_common.py",
+            "client_generation.py": "test_backend_client.py",
+            "process_client.py": "test_process_client.py",
+            "external_python_client.py": "test_external_python_client.py",
+            "trusted_client.py": "test_trusted_client.py",
+            "backend_client.py": "test_backend_client.py",
+        }
+        for source_name, test_name in owner_paths.items():
+            with self.subTest(source_name=source_name):
+                source_path = REPO_ROOT / "ea_node_editor/execution" / source_name
+                self.assertTrue(source_path.is_file())
+                self.assertIn(test_name, source_path.read_text(encoding="utf-8"))
+
+        backend_imports = imported_modules(
+            parse_module("ea_node_editor/execution/backend_client.py")
+        )
+        self.assertTrue(
+            {
+                "ea_node_editor.execution.process_client",
+                "ea_node_editor.execution.external_python_client",
+                "ea_node_editor.execution.trusted_client",
+            }
+            <= backend_imports
+        )
+        for transport_name in (
+            "process_client.py",
+            "external_python_client.py",
+            "trusted_client.py",
+        ):
+            self.assertNotIn(
+                "ea_node_editor.execution.backend_client",
+                imported_modules(
+                    parse_module(f"ea_node_editor/execution/{transport_name}")
+                ),
+            )
+
+        package_exports = declared_python_names(
+            parse_module("ea_node_editor/execution/__init__.py")
+        )
+        self.assertFalse(
+            {
+                "ExecutionBackendClient",
+                "ProcessExecutionClient",
+                "ExternalPythonExecutionClient",
+                "TrustedInProcessExecutionClient",
+            }
+            & package_exports
         )
 
     def test_nodes_sdk_modules_do_not_import_runtime_or_ui_implementations_at_module_load(self) -> None:

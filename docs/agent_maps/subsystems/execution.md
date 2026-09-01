@@ -28,7 +28,12 @@ Use this for runtime snapshot assembly, ordered data-edge DTOs, dependency sched
 - `ea_node_editor/execution/viewer_messages.py`
 - `ea_node_editor/execution/protocol_codec.py`
 - `ea_node_editor/execution/worker_protocol.py`
-- `ea_node_editor/execution/client.py`
+- `ea_node_editor/execution/client_common.py`
+- `ea_node_editor/execution/client_generation.py`
+- `ea_node_editor/execution/process_client.py`
+- `ea_node_editor/execution/external_python_client.py`
+- `ea_node_editor/execution/trusted_client.py`
+- `ea_node_editor/execution/backend_client.py`
 - `ea_node_editor/execution/worker.py`
 - `ea_node_editor/execution/managed_runtime.py`
 - `ea_node_editor/execution/python_environment.py`
@@ -62,7 +67,11 @@ Use this for runtime snapshot assembly, ordered data-edge DTOs, dependency sched
 - `tests/test_protocol_codec.py`
 - `tests/test_plugin_runtime_agreement.py`
 - `tests/test_plugin_worker_loading.py`
-- `tests/test_execution_client.py`
+- `tests/test_client_common.py`
+- `tests/test_process_client.py`
+- `tests/test_external_python_client.py`
+- `tests/test_trusted_client.py`
+- `tests/test_backend_client.py`
 - `tests/test_execution_viewer_service.py`
 - `tests/test_engineering_import_nodes.py`
 - `tests/test_engineering_viewer_backend.py`
@@ -77,7 +86,7 @@ Use this for runtime snapshot assembly, ordered data-edge DTOs, dependency sched
 
 ## Common Changes
 - Process workers import the nodes-owned schema-2 policy from `nodes/package_schema.py`, but `plugin_worker_runtime.py` retains worker-bound generation reads, digest rechecks, static declaration reconstruction, and registry agreement. Shared policy never substitutes for worker attestation.
-- `ImageValue` is the bounded immutable `COREXImage` runtime carrier: exact field types, dimensions capped at 64 MP, SHA-256, schema 1, and a 64 MiB base64 transport ceiling. PNG validation covers chunk order/length/type/CRC plus bounded incremental zlib decoding of non-interlaced IDAT data, exact IHDR-derived scanline byte counts, legal row filters, stream EOF, and no trailing stream data; Adam7 input fails closed. It uses the shared tagged runtime-value serializer and catalog validation; it is neither a handle nor a `RuntimeArtifactRef`, and `tests/test_execution_client.py` proves it through the real process queue.
+- `ImageValue` is the bounded immutable `COREXImage` runtime carrier: exact field types, dimensions capped at 64 MP, SHA-256, schema 1, and a 64 MiB base64 transport ceiling. PNG validation covers chunk order/length/type/CRC plus bounded incremental zlib decoding of non-interlaced IDAT data, exact IHDR-derived scanline byte counts, legal row filters, stream EOF, and no trailing stream data; Adam7 input fails closed. It uses the shared tagged runtime-value serializer and catalog validation; it is neither a handle nor a `RuntimeArtifactRef`, and `tests/test_process_client.py` proves it through the real process queue.
 - Signal Plot renders synchronously through XY's native browser-free `to_png(scale=1.0)` path and returns ImageValue bytes without allocating a managed output file.
 - Keep runtime snapshot assembly in `ea_node_editor.execution`.
 - DPF runtime composition is direct: `dpf_runtime/service.py` owns the concrete service, `dpf_runtime/contracts.py` owns DTOs/errors, and the package root owns only the lazy factory. Handle-kind strings are nodes-owned alongside their semantic data types in `nodes/ansys_dpf_data_types.py`; do not restore the deleted facade, protocol module, or package reexports.
@@ -92,7 +101,7 @@ Use this for runtime snapshot assembly, ordered data-edge DTOs, dependency sched
   values, Interval1D, markers, handles, artifacts, subclasses, and conversion
   behavior retain their existing paths.
 - The worker resolves instance ports from normalized snapshot properties before readiness evaluation and plugin construction. The resulting topology is fixed for that runtime snapshot; plugins cannot add, remove, or rename ports during execution.
-- `core.python_script` uses that same instance-resolution path in the worker: `python_script_declaration.py` revalidates the applied literal decorator source before `builtins/core.py` executes `run(ctx, ...)`. Keep timeout ownership in `execution/client.py`, user tracebacks sanitized as `<script>`, and output checks against the resolved declaration.
+- `core.python_script` uses that same instance-resolution path in the worker: `python_script_declaration.py` revalidates the applied literal decorator source before `builtins/core.py` executes `run(ctx, ...)`. Keep timeout ownership in `execution/process_client.py`, `execution/external_python_client.py`, and `execution/trusted_client.py`, user tracebacks sanitized as `<script>`, and output checks against the resolved declaration.
 - `WorkerRunner` binds `WorkerServices` to the prepared registry's active data-type catalog before constructing execution/viewer services. Handle registration requires a known concrete handle-carrier semantic type, derives its schema version from that catalog, and treats semantic type/schema plus kind/owner/generation as immutable ref identity. Resolution authenticates that stored identity first, then independently enforces catalog assignability to the consumer's expected semantic type and equality with its expected backend kind. Handle metadata is strict, bounded JSON only; large sequences use deterministic count/sample/hash summaries while full arrays, absolute paths, secrets, and live objects stay behind the handle.
 - The local Windows Authentication node uses the existing
   `ExecutionContext.register_handle(...)` path to register an opaque
@@ -165,9 +174,9 @@ Use this for runtime snapshot assembly, ordered data-edge DTOs, dependency sched
 .\venv\Scripts\python.exe -m pytest tests/test_execution_handle_registry.py tests/test_typed_runtime_values.py --ignore=venv -q
 .\venv\Scripts\python.exe -m pytest tests/test_execution_handle_registry.py tests/test_execution_worker.py tests/test_execution_viewer_service.py tests/test_engineering_import_nodes.py tests/test_dpf_runtime_service.py --ignore=venv -q
 .\venv\Scripts\python.exe -m pytest tests/test_registry_agreement.py tests/test_run_messages.py tests/test_protocol_codec.py tests/test_execution_viewer_protocol.py --ignore=venv -q
-.\venv\Scripts\python.exe -m pytest tests/test_execution_worker.py tests/test_execution_client.py tests/test_execution_artifact_refs.py tests/test_execution_viewer_protocol.py --ignore=venv -q
-.\venv\Scripts\python.exe -m pytest tests/test_run_controller_unit.py tests/test_execution_worker.py tests/test_execution_client.py --ignore=venv -q
-.\venv\Scripts\python.exe -m pytest tests/test_execution_client.py -k "workflow_python or external_python or external_executable or application_default_python" --ignore=venv -q
+.\venv\Scripts\python.exe -m pytest tests/test_execution_worker.py tests/test_client_common.py tests/test_process_client.py tests/test_external_python_client.py tests/test_trusted_client.py tests/test_backend_client.py tests/test_execution_artifact_refs.py tests/test_execution_viewer_protocol.py --ignore=venv -q
+.\venv\Scripts\python.exe -m pytest tests/test_run_controller_unit.py tests/test_execution_worker.py tests/test_backend_client.py --ignore=venv -q
+.\venv\Scripts\python.exe -m pytest tests/test_external_python_client.py tests/test_backend_client.py -k "workflow_python or external_python or external_executable or application_default_python" --ignore=venv -q
 .\venv\Scripts\python.exe -m pytest tests/test_run_controller_unit.py -k "application_default_python" --ignore=venv -q
 .\venv\Scripts\python.exe -m pytest tests/test_plot_node_contracts.py tests/test_plot_headless_export.py --ignore=venv -q
 .\venv\Scripts\python.exe -m pytest tests/test_plot_backend_registry.py tests/test_plot_headless_export.py --ignore=venv -q

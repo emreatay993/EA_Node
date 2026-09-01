@@ -12,7 +12,7 @@ from pathlib import Path
 import pytest
 
 from ea_node_editor.addons.tabular_data.metadata import TABULAR_DATA_ADDON_ID
-from ea_node_editor.execution.client import TrustedInProcessExecutionClient
+from ea_node_editor.execution.trusted_client import TrustedInProcessExecutionClient
 from ea_node_editor.execution.plugin_worker_runtime import WorkerPluginRuntime
 from ea_node_editor.execution.run_messages import (
     StartRunCommand,

@@ -11,10 +11,8 @@ from unittest.mock import patch
 
 import pytest
 
-from ea_node_editor.execution.client import (
-    ProcessExecutionClient,
-    TrustedInProcessExecutionClient,
-)
+from ea_node_editor.execution.process_client import ProcessExecutionClient
+from ea_node_editor.execution.trusted_client import TrustedInProcessExecutionClient
 from ea_node_editor.execution.plugin_worker_runtime import WorkerPluginRuntime
 from ea_node_editor.execution.run_messages import (
     StartRunCommand,

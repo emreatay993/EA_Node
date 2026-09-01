@@ -90,7 +90,7 @@ class PytestDefaultsTests(unittest.TestCase):
 
     def test_fast_serial_targets_stay_off_the_default_parallel_path(self) -> None:
         targets = (
-            "tests/test_execution_client.py::ProcessExecutionClientTests",
+            "tests/test_process_client.py::ProcessClientTests",
             (
                 "tests/test_managed_runtime.py::ManagedRuntimeTests::"
                 "test_run_command_streams_output_before_process_finishes"

@@ -16,7 +16,7 @@ from ea_node_editor.custom_workflows import (
     export_custom_workflow_file,
     import_custom_workflow_file,
 )
-from ea_node_editor.execution.client import ProcessExecutionClient
+from ea_node_editor.execution.process_client import ProcessExecutionClient
 from ea_node_editor.execution.runtime_snapshot import build_runtime_snapshot
 from ea_node_editor.graph.fragment_payloads import build_graph_fragment_payload
 from ea_node_editor.graph.model import GraphModel

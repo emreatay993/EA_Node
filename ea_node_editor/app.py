@@ -107,7 +107,7 @@ def _run_function_plugin_package_smoke() -> None:
     import tempfile
     import threading
 
-    from ea_node_editor.execution.client import ProcessExecutionClient
+    from ea_node_editor.execution.process_client import ProcessExecutionClient
     from ea_node_editor.execution.runtime_snapshot import build_runtime_snapshot
     from ea_node_editor.execution.solution_identity import corex_build_digest
     from ea_node_editor.graph.model import GraphModel

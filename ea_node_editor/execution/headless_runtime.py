@@ -1,6 +1,6 @@
 # Purpose: Expose the Qt-free COREX runtime, preparation, and CLI entry points.
 # Map: subsystems/execution.md
-# Tests: tests/test_headless_runtime.py, tests/test_execution_client.py
+# Tests: tests/test_headless_runtime.py, tests/test_backend_client.py
 # Landmarks: ExecutionRequest; CorexRuntime.prepare_execution; dispatch_prepared; run
 
 """Qt-free Corex runtime API and CLI entry point."""
@@ -27,7 +27,7 @@ from ea_node_editor.execution.backends import (
     TRUSTED_IN_PROCESS_BACKEND,
     ExecutionBackendPolicy,
 )
-from ea_node_editor.execution.client import ExecutionBackendClient
+from ea_node_editor.execution.backend_client import ExecutionBackendClient
 from ea_node_editor.execution.compiler import compile_runtime_snapshot
 from ea_node_editor.execution.execution_plan import ExecutionPlan
 from ea_node_editor.execution.prepared_execution import (

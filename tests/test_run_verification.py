@@ -344,7 +344,7 @@ class RunVerificationTests(unittest.TestCase):
 
     def test_fast_serial_target_and_deselection_contract_is_exact(self) -> None:
         expected_targets = (
-            "tests/test_execution_client.py::ProcessExecutionClientTests",
+            "tests/test_process_client.py::ProcessClientTests",
             (
                 "tests/test_managed_runtime.py::ManagedRuntimeTests::"
                 "test_run_command_streams_output_before_process_finishes"

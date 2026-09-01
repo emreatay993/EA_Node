@@ -7,7 +7,7 @@ from pathlib import Path
 
 import corex
 
-from ea_node_editor.execution.client import ProcessExecutionClient
+from ea_node_editor.execution.process_client import ProcessExecutionClient
 from ea_node_editor.execution.runtime_snapshot import build_runtime_snapshot
 from ea_node_editor.graph.model import GraphModel
 from ea_node_editor.nodes.bootstrap import build_builtin_registry

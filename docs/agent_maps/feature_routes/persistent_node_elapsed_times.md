@@ -19,7 +19,7 @@ Use this for elapsed execution-time persistence, runtime projection, node chrome
 
 ## Focused Verification
 ```powershell
-.\venv\Scripts\python.exe -m pytest tests/test_execution_client.py tests/test_serializer.py --ignore=venv -q
+.\venv\Scripts\python.exe -m pytest tests/test_process_client.py tests/test_serializer.py --ignore=venv -q
 .\venv\Scripts\python.exe -m pytest tests/graph_track_b/qml_preference_bindings.py tests/main_window_shell/bridge_qml_boundaries.py --ignore=venv -q
 ```
 

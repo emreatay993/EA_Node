@@ -62,7 +62,7 @@
 
 | Coverage area | Primary requirements | Current proof |
 |---|---|---|
-| Typed lifecycle events, root failures, warnings, and timing metadata | `REQ-EXEC-007`, `REQ-NODE-027` | `tests/test_execution_worker.py`, `tests/test_execution_client.py` |
+| Typed lifecycle events, root failures, warnings, and timing metadata | `REQ-EXEC-007`, `REQ-NODE-027` | `tests/test_execution_worker.py`, `tests/test_process_client.py` |
 | Run-controller node state, failure focus, cleanup, and session-only elapsed/output facts | `REQ-UI-034`, `REQ-NODE-027` | `tests/test_run_controller_unit.py`, `tests/test_shell_run_controller.py`, `tests/test_project_session_controller_unit.py` |
 | Fixed light/dark active palettes, state priority, selected fill, reserved disabled colors, and complete execution-glow removal | `REQ-UI-018`, `REQ-UI-034`, `REQ-QA-010`, `REQ-QA-028` | `tests/graph_surface/passive_host_interaction_suite.py`, `tests/graph_track_b/qml_preference_bindings.py`, `tests/graph_track_b/qml_preference_rendering_suite.py`, `tests/test_node_restyle_mockup.py` |
 | Passive-only theme defaults and known non-passive `visual_style` removal/omission | `REQ-UI-019`, `REQ-PERSIST-012` | `tests/test_graph_theme_editor_dialog.py`, `tests/test_graph_theme_preferences.py`, `tests/test_serializer.py`, `tests/test_serializer_schema_migration.py` |

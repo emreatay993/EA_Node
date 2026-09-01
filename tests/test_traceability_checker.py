@@ -85,7 +85,7 @@ PROJECT_MANAGED_FILES_TRACEABILITY_ROW_TOKENS: dict[str, tuple[str, ...]] = {
     "REQ-UI-028": ("project_files_dialog.py", "test_project_files_dialog.py", "test_shell_project_session_controller.py"),
     "REQ-NODE-022": ("Runtime artifact-ref SDK helpers", "test_execution_artifact_refs.py"),
     "REQ-NODE-023": ("Stored-output runtime artifact refs", "test_integrations_track_f.py"),
-    "REQ-EXEC-010": ("protocol_codec.py", "test_execution_artifact_refs.py", "test_execution_client.py"),
+    "REQ-EXEC-010": ("protocol_codec.py", "test_execution_artifact_refs.py", "test_process_client.py"),
     "REQ-PERSIST-015": ("Canonical `.cxproj` plus sibling `.data` layout", "test_project_artifact_store.py"),
     "REQ-QA-021": ("PROJECT_MANAGED_FILES_QA_MATRIX.md", "test_graph_output_mode_ui.py", "test_shell_project_session_controller.py"),
     "AC-REQ-QA-021-01": (PROJECT_MANAGED_FILES_FINAL_REGRESSION_COMMAND, "PROJECT_MANAGED_FILES_QA_MATRIX.md"),
@@ -109,7 +109,9 @@ CROSS_PROCESS_VIEWER_BACKEND_FRAMEWORK_QA_MATRIX = (
 )
 CROSS_PROCESS_VIEWER_BACKEND_FRAMEWORK_P01_COMMAND = (
     "./venv/Scripts/python.exe -m pytest "
-    "tests/test_execution_viewer_protocol.py tests/test_execution_client.py "
+    "tests/test_execution_viewer_protocol.py tests/test_client_common.py "
+    "tests/test_process_client.py tests/test_external_python_client.py "
+    "tests/test_trusted_client.py tests/test_backend_client.py "
     "tests/test_execution_viewer_service.py tests/test_execution_worker.py "
     "tests/test_dpf_viewer_node.py --ignore=venv -q"
 )
@@ -1512,7 +1514,7 @@ NODE_EXECUTION_VISUALIZATION_REQUIREMENT_TOKENS: dict[str, dict[str, tuple[str, 
         ),
         "AC-REQ-EXEC-007-01": (
             "tests/test_execution_worker.py",
-            "tests/test_execution_client.py",
+            "tests/test_process_client.py",
             "started_at_epoch_ms",
             "elapsed_ms",
             "shell-side fallback timing",
@@ -1569,11 +1571,11 @@ NODE_EXECUTION_VISUALIZATION_TRACEABILITY_ROW_TOKENS: dict[str, tuple[str, ...]]
     "REQ-EXEC-007": (
         "lifecycle events",
         "tests/test_execution_worker.py",
-        "tests/test_execution_client.py",
+        "tests/test_process_client.py",
     ),
     "AC-REQ-EXEC-007-01": (
         "tests/test_execution_worker.py",
-        "tests/test_execution_client.py",
+        "tests/test_process_client.py",
     ),
     "REQ-UI-034": (
         "Node-only",

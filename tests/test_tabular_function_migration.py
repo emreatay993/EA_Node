@@ -25,7 +25,7 @@ from ea_node_editor.custom_workflows import (
     export_custom_workflow_file,
     import_custom_workflow_file,
 )
-from ea_node_editor.execution.client import ProcessExecutionClient
+from ea_node_editor.execution.process_client import ProcessExecutionClient
 from ea_node_editor.execution.plugin_worker_runtime import WorkerPluginRuntime
 from ea_node_editor.execution.run_messages import (
     StartRunCommand,
