@@ -112,13 +112,21 @@ class MainBootstrapTests(unittest.TestCase):
                 bootstrap_module, "_preferred_python", return_value=preferred_python
             ):
                 with self.assertRaises(AssertionError):
-                    bootstrap_module._bootstrap_python()
+                    bootstrap_module._bootstrap_python(
+                        "ea_node_editor.execution.runtime_cli"
+                    )
 
             self.assertEqual(len(exec_calls), 1)
             self.assertEqual(exec_calls[0][0], str(preferred_python))
             self.assertEqual(
                 exec_calls[0][1],
-                [str(preferred_python), "-m", "ea_node_editor.bootstrap", "--example-flag", "value"],
+                [
+                    str(preferred_python),
+                    "-m",
+                    "ea_node_editor.execution.runtime_cli",
+                    "--example-flag",
+                    "value",
+                ],
             )
             self.assertEqual(exec_calls[0][2][bootstrap_module._BOOTSTRAP_SENTINEL], "1")
             chdir_mock.assert_called_once_with(repo_root)
@@ -130,7 +138,9 @@ class MainBootstrapTests(unittest.TestCase):
             ), patch.object(bootstrap_module.os, "execvpe") as execvpe_mock, patch.dict(
                 bootstrap_module.os.environ, {bootstrap_module._BOOTSTRAP_SENTINEL: "1"}, clear=False
             ), patch.object(bootstrap_module, "_preferred_python", return_value=preferred_python):
-                bootstrap_module._bootstrap_python()
+                bootstrap_module._bootstrap_python(
+                    "ea_node_editor.execution.runtime_cli"
+                )
 
             execvpe_mock.assert_not_called()
 

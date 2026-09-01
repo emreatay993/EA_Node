@@ -20,7 +20,7 @@ from ea_node_editor.app_preferences import (
     set_addon_state,
 )
 from ea_node_editor.execution.viewer_backend_dpf import DPF_EXECUTION_VIEWER_BACKEND_ID
-from ea_node_editor.execution.headless_runtime import CorexRuntime
+from ea_node_editor.execution.runtime import CorexRuntime
 from ea_node_editor.execution.prepared_execution import InvalidationResult
 from ea_node_editor.graph.model import GraphModel
 from ea_node_editor.nodes.bootstrap import build_default_registry

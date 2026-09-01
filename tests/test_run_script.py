@@ -24,7 +24,7 @@ class RunScriptTests(unittest.TestCase):
 
         self.assertIn('corex-runtime = "ea_node_editor.bootstrap:headless_main"', text)
         self.assertIn('def headless_main() -> int:', bootstrap_text)
-        self.assertIn('"ea_node_editor.execution.headless_runtime"', bootstrap_text)
+        self.assertIn('"ea_node_editor.execution.runtime_cli"', bootstrap_text)
 
 
 if __name__ == "__main__":

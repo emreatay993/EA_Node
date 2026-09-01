@@ -13,7 +13,7 @@ from PyQt6.QtWidgets import QApplication
 
 from ea_node_editor.graph.model import GraphModel
 from ea_node_editor.graph.project_state import ProjectData
-from ea_node_editor.execution.headless_runtime import CorexRuntime
+from ea_node_editor.execution.runtime import CorexRuntime
 from ea_node_editor.execution.signal_plot_renderer import render_signal_plot
 from ea_node_editor.execution.project_solution import ProjectSolutionAdoptionResult
 from ea_node_editor.nodes.bootstrap import build_default_registry

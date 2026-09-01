@@ -5,7 +5,7 @@ from typing import TYPE_CHECKING
 
 from PyQt6.QtCore import Qt
 
-from ea_node_editor.execution.headless_runtime import CorexRuntime
+from ea_node_editor.execution.runtime import CorexRuntime
 from ea_node_editor.persistence.solution_repository import SolutionRepositoryFactory
 from ea_node_editor.ui.shell.controllers import (
     AddonManagerController,

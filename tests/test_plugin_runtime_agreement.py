@@ -14,7 +14,8 @@ from ea_node_editor.execution.external_python_client import ExternalPythonExecut
 from ea_node_editor.execution.process_client import ProcessExecutionClient
 from ea_node_editor.execution.trusted_client import TrustedInProcessExecutionClient
 from ea_node_editor.execution.client_common import _ExecutionClientCommon
-from ea_node_editor.execution.headless_runtime import CorexRuntime, ExecutionRequest
+from ea_node_editor.execution.runtime import CorexRuntime
+from ea_node_editor.execution.runtime_requests import ExecutionRequest
 from ea_node_editor.execution.run_messages import (
     StartRunCommand,
 )

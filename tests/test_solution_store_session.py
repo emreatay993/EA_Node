@@ -17,11 +17,11 @@ from ea_node_editor.execution.client_generation import (
     ViewerInvalidationReservation,
     _ViewerInvalidationSnapshot,
 )
-from ea_node_editor.execution.headless_runtime import (
+from ea_node_editor.execution.runtime_requests import (
     CancellationRequest,
-    CorexRuntime,
     ExecutionRequest,
 )
+from ea_node_editor.execution.runtime import CorexRuntime
 from ea_node_editor.execution.prepared_execution import PreparedAction, RecomputeMode
 from ea_node_editor.execution.protocol_codec import (
     command_to_dict,

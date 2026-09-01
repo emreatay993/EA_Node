@@ -32,10 +32,12 @@ from ea_node_editor.execution.client_generation import (
 from ea_node_editor.execution.external_python_client import (
     ExternalPythonExecutionClient,
 )
-from ea_node_editor.execution.headless_runtime import (
-    CorexRuntime,
+from ea_node_editor.execution.runtime import CorexRuntime
+from ea_node_editor.execution.runtime_requests import (
     ExecutionRequest,
     WorkspaceSelection,
+)
+from ea_node_editor.execution.project_loader import (
     load_project,
     select_workspace,
 )

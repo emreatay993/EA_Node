@@ -498,30 +498,69 @@ class GraphArchitectureBoundaryTests(unittest.TestCase):
         self.assertNotIn("sanitize_execution_trigger", snapshot_names)
         self.assertNotIn("ea_node_editor.persistence.serializer", imported_modules(worker_runtime_tree))
 
-    def test_headless_runtime_api_does_not_import_ui_or_qt(self) -> None:
-        tree = parse_module("ea_node_editor/execution/headless_runtime.py")
-        imports = imported_modules(tree)
+    def test_runtime_owners_do_not_import_ui_or_qt(self) -> None:
         forbidden_prefixes = (
             "PyQt6",
             "ea_node_editor.app",
             "ea_node_editor.ui",
             "ea_node_editor.ui_qml",
         )
-        offenders = sorted(
-            module
-            for module in imports
-            if any(
-                module == prefix or module.startswith(f"{prefix}.")
-                for prefix in forbidden_prefixes
+        for relative_path in (
+            "ea_node_editor/execution/runtime_requests.py",
+            "ea_node_editor/execution/project_loader.py",
+            "ea_node_editor/execution/runtime.py",
+            "ea_node_editor/execution/runtime_cli.py",
+        ):
+            imports = imported_modules(parse_module(relative_path))
+            offenders = sorted(
+                module
+                for module in imports
+                if any(
+                    module == prefix or module.startswith(f"{prefix}.")
+                    for prefix in forbidden_prefixes
+                )
             )
+            self.assertEqual(offenders, [], relative_path)
+
+    def test_project_loader_is_the_only_runtime_persistence_import(self) -> None:
+        self.assertFalse(
+            (REPO_ROOT / "ea_node_editor/execution/headless_runtime.py").exists()
         )
+        owner_paths = {
+            "runtime_requests.py": "test_runtime_requests.py",
+            "project_loader.py": "test_project_loader.py",
+            "runtime.py": "test_runtime.py",
+            "runtime_cli.py": "test_runtime_cli.py",
+        }
+        for source_name, test_name in owner_paths.items():
+            with self.subTest(source_name=source_name):
+                source_path = REPO_ROOT / "ea_node_editor/execution" / source_name
+                self.assertTrue(source_path.is_file())
+                self.assertIn(test_name, source_path.read_text(encoding="utf-8"))
 
-        self.assertEqual(offenders, [])
+        loader_imports = imported_modules(
+            parse_module("ea_node_editor/execution/project_loader.py")
+        )
+        self.assertIn("ea_node_editor.persistence.serializer", loader_imports)
+        for source_name in ("runtime_requests.py", "runtime.py", "runtime_cli.py"):
+            self.assertFalse(
+                {
+                    module
+                    for module in imported_modules(
+                        parse_module(f"ea_node_editor/execution/{source_name}")
+                    )
+                    if module.startswith("ea_node_editor.persistence")
+                },
+                source_name,
+            )
 
-    def test_shell_execution_client_uses_headless_runtime_boundary(self) -> None:
+    def test_shell_execution_client_uses_runtime_boundary(self) -> None:
         tree = parse_module("ea_node_editor/ui/shell/composition/controllers.py")
 
-        self.assertIn("CorexRuntime", imported_names_from(tree, "ea_node_editor.execution.headless_runtime"))
+        self.assertIn(
+            "CorexRuntime",
+            imported_names_from(tree, "ea_node_editor.execution.runtime"),
+        )
         self.assertNotIn(
             "ProcessExecutionClient",
             imported_names_from(tree, "ea_node_editor.execution.process_client"),

@@ -6,6 +6,7 @@ Use this for launch path, app lifetime, splash handoff, and startup authority ch
 ## Start Here
 - `ea_node_editor/bootstrap.py`
 - `ea_node_editor/app.py`
+- `ea_node_editor/execution/runtime_cli.py`
 - `ea_node_editor/ui/shell/composition/` (`bootstrap.py` owns `create_shell_window` and the attach/startup sequence; `factory.py` sequences the per-domain dependency modules)
 - `ea_node_editor/ui/shell/window.py`
 - `ea_node_editor/ui/splash/opening_screen.py`
@@ -25,7 +26,8 @@ Use this for launch path, app lifetime, splash handoff, and startup authority ch
 ## Focused Verification
 ```powershell
 .\venv\Scripts\python.exe -m pytest tests/test_main_bootstrap.py tests/test_shell_window_lifecycle.py --ignore=venv -q
-.\venv\Scripts\python.exe -m pytest tests/test_headless_runtime.py -k "project_solution" -q
+.\venv\Scripts\python.exe -m pytest tests/test_runtime.py -k "project_solution" -q
+.\venv\Scripts\python.exe -m pytest tests/test_runtime_cli.py tests/test_run_script.py -q
 ```
 
 ## Breadcrumbs

@@ -21,7 +21,7 @@ removed instead of being restored as fallback paths.
 
 ## Final Architecture Baseline
 
-- `ea_node_editor.execution.headless_runtime` and the `corex-runtime` console
+- `ea_node_editor.execution.runtime` and the `corex-runtime` console
   entry point publish the Qt-free runtime API used by non-GUI clients and by
   the QML shell's execution boundary.
 - `ea_node_editor.ui.shell.composition` binds the QML shell as a bridge-first

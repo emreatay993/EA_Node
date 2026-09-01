@@ -12,7 +12,7 @@ from typing import Any, Iterable, Literal, Protocol
 from ea_node_editor.addons.ansys_dpf.ui_summary import project_dpf_workflow_summary
 from ea_node_editor.developer_mode import developer_mode_capability_enabled
 from ea_node_editor.execution.backends import EXTERNAL_SUBPROCESS_BACKEND
-from ea_node_editor.execution.headless_runtime import ExecutionRequest
+from ea_node_editor.execution.runtime_requests import ExecutionRequest
 from ea_node_editor.execution.prepared_execution import SolutionStateChangedEvent
 from ea_node_editor.runtime_contracts.settled_results import (
     normalize_root_execution_errors,

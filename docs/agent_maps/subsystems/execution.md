@@ -22,6 +22,10 @@ Use this for runtime snapshot assembly, ordered data-edge DTOs, dependency sched
 - `ea_node_editor/execution/solution_store.py`
 - `ea_node_editor/execution/solution_backend.py`
 - `ea_node_editor/execution/project_solution.py`
+- `ea_node_editor/execution/runtime_requests.py`
+- `ea_node_editor/execution/project_loader.py`
+- `ea_node_editor/execution/runtime.py`
+- `ea_node_editor/execution/runtime_cli.py`
 - `ea_node_editor/execution/prepared_execution.py`
 - `ea_node_editor/execution/compiler.py`
 - `ea_node_editor/execution/transport_fields.py`
@@ -64,7 +68,10 @@ Use this for runtime snapshot assembly, ordered data-edge DTOs, dependency sched
 - `tests/test_solution_store_session.py`
 - `tests/test_solution_backend.py`
 - `tests/test_project_solution.py`
-- `tests/test_headless_runtime.py`
+- `tests/test_runtime_requests.py`
+- `tests/test_project_loader.py`
+- `tests/test_runtime.py`
+- `tests/test_runtime_cli.py`
 - `tests/test_solution_records.py`
 - `tests/test_registry_agreement.py`
 - `tests/test_run_messages.py`
@@ -187,8 +194,8 @@ Use this for runtime snapshot assembly, ordered data-edge DTOs, dependency sched
 .\venv\Scripts\python.exe -m pytest tests/test_plot_dpf_node_contracts.py tests/test_dpf_runtime_service.py --ignore=venv -q
 .\venv\Scripts\python.exe -m pytest tests/test_dataflow_execution_runtime.py tests/test_data_tree_contract.py --ignore=venv -q
 .\venv\Scripts\python.exe -m pytest tests/test_solution_identity.py tests/test_execution_plan.py --ignore=venv -q
-.\venv\Scripts\python.exe -m pytest tests/test_solution_backend.py tests/test_project_solution.py tests/test_solution_store_session.py tests/test_headless_runtime.py tests/test_execution_plan.py tests/test_solution_identity.py --ignore=venv -q
-.\venv\Scripts\python.exe -m pytest tests/test_solution_backend.py tests/test_project_solution.py tests/test_solution_store_session.py tests/test_headless_runtime.py -k "durable or solution_repository or project_solution" -q
+.\venv\Scripts\python.exe -m pytest tests/test_runtime_requests.py tests/test_project_loader.py tests/test_runtime.py tests/test_runtime_cli.py tests/test_solution_backend.py tests/test_project_solution.py tests/test_solution_store_session.py tests/test_execution_plan.py tests/test_solution_identity.py --ignore=venv -q
+.\venv\Scripts\python.exe -m pytest tests/test_runtime.py tests/test_solution_backend.py tests/test_project_solution.py tests/test_solution_store_session.py -k "durable or solution_repository or project_solution" -q
 .\venv\Scripts\python.exe -m pytest tests/test_execution_type_enforcement.py tests/test_viewer_viewport.py tests/test_security_contracts_types.py --ignore=venv -q
 ```
 

@@ -34,7 +34,8 @@ from ea_node_editor.nodes.plugin_contracts import AddOnManifest
 from ea_node_editor.nodes.builtins.ansys_dpf_common import DPF_VIEWER_NODE_TYPE_ID
 from ea_node_editor.nodes.registry import NodeRegistry, PythonFunctionEntry
 from ea_node_editor.persistence.serializer import JsonProjectSerializer
-from ea_node_editor.execution.headless_runtime import CorexRuntime, ExecutionRequest
+from ea_node_editor.execution.runtime import CorexRuntime
+from ea_node_editor.execution.runtime_requests import ExecutionRequest
 from ea_node_editor.ui.shell.registry_replacement import (
     RegistryReplacementCoordinator,
     RegistryReplacementRollbackError,

@@ -37,7 +37,8 @@ from ea_node_editor.execution.viewer_messages import (
 from ea_node_editor.execution.protocol_codec import (
     command_to_dict,
 )
-from ea_node_editor.execution.headless_runtime import CorexRuntime, ExecutionRequest
+from ea_node_editor.execution.runtime import CorexRuntime
+from ea_node_editor.execution.runtime_requests import ExecutionRequest
 from ea_node_editor.execution.prepared_execution import (
     AcceptedOutputPayload,
     PreparedAction,
@@ -1437,7 +1438,7 @@ def test_passive_flow_cycle_compiles_out_of_invalidation_and_preparation() -> No
 
 
 def test_headless_boundaries_compile_once_and_preserve_authored_snapshot() -> None:
-    import ea_node_editor.execution.headless_runtime as runtime_module
+    import ea_node_editor.execution.runtime as runtime_module
 
     runtime, _client, registry, model, workspace, node, snapshot = (
         _runtime_with_constant()
@@ -1715,7 +1716,7 @@ def test_generation_replacement_evicts_records_and_project_reset_replaces_namesp
 def test_invalidation_holds_lifecycle_through_plan_and_store(
     monkeypatch,
 ) -> None:  # noqa: ANN001
-    import ea_node_editor.execution.headless_runtime as runtime_module
+    import ea_node_editor.execution.runtime as runtime_module
 
     runtime, _client, _registry, model, workspace, node, snapshot = (
         _runtime_with_constant()

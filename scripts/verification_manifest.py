@@ -1916,8 +1916,10 @@ TRACEABILITY_ROW_REQUIRED_TOKENS.update(
             "solution_store.py",
             "solution_backend.py",
             "project_solution.py",
+            "runtime.py",
             "run_controller.py",
             "test_shell_run_controller.py",
+            "test_runtime.py",
         ),
         "AC-REQ-EXEC-017-01": (
             "test_disconnected_toggle_auto_run_preserves_current_viewer",
@@ -1977,6 +1979,9 @@ TRACEABILITY_ROW_REQUIRED_TOKENS.update(
         "REQ-EXEC-028": (
             "registry_agreement.py",
             "protocol_codec.py",
+            "runtime_requests.py",
+            "project_loader.py",
+            "runtime.py",
             "plugin_worker_runtime.py",
             "worker_runtime.py",
             "plugin_generation.py",

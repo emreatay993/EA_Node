@@ -95,8 +95,8 @@ def main() -> int:
 
 
 def headless_main() -> int:
-    _bootstrap_python("ea_node_editor.execution.headless_runtime")
-    from ea_node_editor.execution.headless_runtime import main as run_headless_runtime
+    _bootstrap_python("ea_node_editor.execution.runtime_cli")
+    from ea_node_editor.execution.runtime_cli import main as run_headless_runtime
 
     return run_headless_runtime(sys.argv[1:])
 
