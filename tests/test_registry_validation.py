@@ -60,7 +60,6 @@ from ea_node_editor.nodes.ansys_dpf_data_types import (
     DPF_MESH_DATA_TYPE,
     DPF_MODEL_DATA_TYPE,
     DPF_OBJECT_HANDLE_DATA_TYPE,
-    DPF_RESULT_FILE_DATA_TYPE,
     DPF_SCOPING_DATA_TYPE,
     COREX_MESH_INTERFACE_DATA_TYPE,
     COREX_MODEL_INTERFACE_DATA_TYPE,
@@ -69,7 +68,6 @@ from ea_node_editor.nodes.bootstrap import build_default_registry
 from ea_node_editor.nodes.solution_provenance import SolutionProvenanceInputSpec
 from ea_node_editor.nodes.builtins.ansys_dpf_common import (
     DPF_FIELD_OPS_VARIANT_NORM,
-    DPF_NODE_CATEGORY_PATH,
     DPF_RESULT_FIELD_OPERATOR_VARIANT_KEY,
     DPF_TIME_SELECTION_EXCLUSIVE_GROUP,
 )
@@ -1137,74 +1135,6 @@ class RegistryValidationTests(unittest.TestCase):
             registry.create("tests.descriptor").spec().type_id, "tests.descriptor"
         )
         self.assertEqual(factory_calls, 1)
-
-    def test_dynamic_ports_participate_in_registry_filters_without_factory_construction(
-        self,
-    ) -> None:
-        registry = NodeRegistry()
-        spec = NodeTypeSpec(
-            type_id="tests.dynamic_ports",
-            display_name="Dynamic Ports",
-            category_path=("Tests",),
-            icon="",
-            ports=(PortSpec("static", "out", "data", "COREX.DataTypes.String"),),
-            properties=(
-                PropertySpec(
-                    "port_ids", "json", ["alpha"], "Port ids", inspector_visible=False
-                ),
-                PropertySpec(
-                    "input_ids",
-                    "json",
-                    ["payload"],
-                    "Input ids",
-                    inspector_visible=False,
-                ),
-                PropertySpec("port_limit", "int", 99, "Port limit"),
-            ),
-            dynamic_port_groups=(
-                DynamicPortGroupSpec(
-                    "outputs",
-                    "port_ids",
-                    "out",
-                    _dynamic_output_ports,
-                    _dynamic_key_factory,
-                    minimum=1,
-                    maximum=3,
-                    rename_mode="label",
-                ),
-                DynamicPortGroupSpec(
-                    "inputs",
-                    "input_ids",
-                    "in",
-                    _dynamic_input_ports,
-                    _dynamic_key_factory,
-                ),
-            ),
-        )
-        factory_calls = 0
-
-        def factory() -> _Plugin:
-            nonlocal factory_calls
-            factory_calls += 1
-            return _Plugin(spec)
-
-        registry.register_descriptor(spec, factory)
-
-        self.assertEqual(
-            [match.type_id for match in registry.filter_nodes(query="alpha")],
-            [spec.type_id],
-        )
-        self.assertEqual(
-            [
-                match.type_id
-                for match in registry.filter_nodes(
-                    data_type="COREX.DataTypes.Any",
-                    direction="in",
-                )
-            ],
-            [spec.type_id],
-        )
-        self.assertEqual(factory_calls, 0)
 
     def test_persistent_typed_properties_copy_without_static_port_catalog_resolution(
         self,
@@ -3456,96 +3386,6 @@ class RegistryValidationTests(unittest.TestCase):
         inserted = workspace.nodes[inserted_node_ids[0]]
         self.assertEqual(inserted.parent_node_id, parent.node_id)
         self.assertNotEqual(inserted.parent_node_id, inserted.node_id)
-
-    def test_default_registry_accepts_foundational_dpf_port_types_in_filters(
-        self,
-    ) -> None:
-        registry = build_default_registry()
-
-        category_specs = registry.filter_nodes(category_path=DPF_NODE_CATEGORY_PATH)
-        result_file_specs = registry.filter_nodes(
-            data_type=DPF_RESULT_FILE_DATA_TYPE, direction="out"
-        )
-        model_specs = registry.filter_nodes(
-            data_type=DPF_MODEL_DATA_TYPE, direction="out"
-        )
-        scoping_specs = registry.filter_nodes(
-            data_type=DPF_SCOPING_DATA_TYPE, direction="out"
-        )
-
-        self.assertTrue(
-            {
-                "dpf.result_file",
-                "dpf.model",
-                "dpf.scoping.mesh",
-                "dpf.scoping.time",
-                "dpf.viewer",
-                "dpf.result_field",
-                "dpf.export",
-                "dpf.field_ops",
-                "dpf.mesh_extract",
-            }.issubset({spec.type_id for spec in category_specs})
-        )
-        self.assertIn("dpf.result_file", [spec.type_id for spec in result_file_specs])
-        self.assertIn("dpf.model", [spec.type_id for spec in model_specs])
-        self.assertTrue(
-            {"dpf.scoping.mesh", "dpf.scoping.time"}.issubset(
-                {spec.type_id for spec in scoping_specs}
-            )
-        )
-
-    def test_filter_nodes_matches_ports_through_accepted_dpf_data_types(self) -> None:
-        registry = _dpf_registry()
-        spec = NodeTypeSpec(
-            type_id="tests.dpf.helper.multi_input",
-            display_name="DPF Multi Input",
-            category_path=("Tests",),
-            icon="",
-            ports=(
-                PortSpec(
-                    "receiver",
-                    "in",
-                    "data",
-                    DPF_OBJECT_HANDLE_DATA_TYPE,
-                    required=False,
-                    accepted_data_types=(
-                        DPF_MODEL_DATA_TYPE,
-                        DPF_DATA_SOURCES_DATA_TYPE,
-                    ),
-                ),
-                PortSpec("result", "out", "data", DPF_OBJECT_HANDLE_DATA_TYPE),
-            ),
-            properties=(),
-        )
-        registry.register(_factory(spec))
-
-        model_matches = registry.filter_nodes(
-            data_type=DPF_MODEL_DATA_TYPE, direction="in"
-        )
-        data_sources_matches = registry.filter_nodes(
-            data_type=DPF_DATA_SOURCES_DATA_TYPE,
-            direction="in",
-        )
-        object_handle_matches = registry.filter_nodes(
-            data_type=DPF_OBJECT_HANDLE_DATA_TYPE,
-            direction="out",
-        )
-        object_handle_input_matches = registry.filter_nodes(
-            data_type=DPF_OBJECT_HANDLE_DATA_TYPE,
-            direction="in",
-        )
-
-        self.assertEqual([match.type_id for match in model_matches], [spec.type_id])
-        self.assertEqual(
-            [match.type_id for match in data_sources_matches], [spec.type_id]
-        )
-        self.assertEqual(
-            [match.type_id for match in object_handle_matches], [spec.type_id]
-        )
-        self.assertEqual(
-            [match.type_id for match in object_handle_input_matches],
-            [spec.type_id],
-        )
 
     def test_registry_owns_catalog_rejects_unknown_ids_and_freezes_after_composition(
         self,

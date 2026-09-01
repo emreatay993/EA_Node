@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import hashlib
 import json
-from collections.abc import Iterable, Mapping, Sequence
+from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, fields, is_dataclass, replace
 from functools import partial
 from pathlib import Path
@@ -17,13 +17,6 @@ from ea_node_editor.runtime_contracts import DataTypeCatalog
 
 from . import instance_resolution, property_normalization, spec_validation
 
-from .category_paths import (
-    CategoryPath,
-    category_display,
-    category_path_ancestors,
-    category_path_matches_prefix,
-    normalize_category_path,
-)
 from .core_data_types import (
     CORE_DATA_CONVERSIONS,
     CORE_DATA_TYPE_FAMILIES,
@@ -37,7 +30,7 @@ from .function_plugin import (
     PythonFunctionRef,
     plugin_fingerprint,
 )
-from .node_specs import NodeTypeSpec, PortSpec, PropertySpec
+from .node_specs import NodeTypeSpec, PortSpec
 from .solution_provenance import trusted_solution_provenance_inputs
 from .plugin_contracts import (
     NodePlugin,
@@ -861,110 +854,6 @@ class NodeRegistry:
             values,
             include_defaults=include_defaults,
             data_types=self._data_types,
-        )
-
-    def filter_nodes(
-        self,
-        query: str = "",
-        category: str = "",
-        data_type: str = "",
-        direction: str = "",
-        *,
-        category_path: Sequence[str] | None = None,
-    ) -> list[NodeTypeSpec]:
-        text = query.strip().lower()
-        category_prefix = (
-            normalize_category_path(category_path)
-            if category_path is not None
-            else None
-        )
-        category_display_filter = str(category).strip().casefold()
-        normalized_type = data_type.strip().lower()
-        normalized_direction = direction.strip().lower()
-        output: list[NodeTypeSpec] = []
-        for spec in self.all_specs():
-            if category_prefix is not None:
-                if not category_path_matches_prefix(
-                    spec.category_path, category_prefix
-                ):
-                    continue
-            elif category_display_filter:
-                if (
-                    category_display(spec.category_path).casefold()
-                    != category_display_filter
-                ):
-                    continue
-            if text and not self._matches_text(spec, text):
-                continue
-            if (
-                normalized_type or normalized_direction
-            ) and not self._matches_port_filters(
-                spec,
-                data_type=normalized_type,
-                direction=normalized_direction,
-            ):
-                continue
-            output.append(spec)
-        output.sort(
-            key=lambda spec: (
-                tuple(segment.lower() for segment in spec.category_path),
-                spec.display_name.lower(),
-                spec.type_id.lower(),
-            )
-        )
-        return output
-
-    def category_paths(self) -> list[CategoryPath]:
-        paths: set[CategoryPath] = set()
-        for spec in self.all_specs():
-            paths.update(category_path_ancestors(spec.category_path))
-        return sorted(paths, key=self._category_path_sort_key)
-
-    def categories(self) -> list[str]:
-        leaf_paths = {spec.category_path for spec in self.all_specs()}
-        return [
-            category_display(path)
-            for path in sorted(leaf_paths, key=self._category_path_sort_key)
-        ]
-
-    @staticmethod
-    def _category_path_sort_key(
-        path: Sequence[str],
-    ) -> tuple[tuple[str, ...], tuple[str, ...]]:
-        normalized_path = normalize_category_path(path)
-        return tuple(segment.casefold() for segment in normalized_path), normalized_path
-
-    @staticmethod
-    def _matches_text(spec: NodeTypeSpec, query: str) -> bool:
-        ports = instance_resolution.resolve_instance_ports(spec, {})
-        haystack = " ".join(
-            [
-                spec.type_id,
-                spec.display_name,
-                spec.category,
-                spec.description,
-                " ".join(port.key for port in ports),
-            ]
-        ).lower()
-        return query in haystack
-
-    @staticmethod
-    def _matches_port_filters(
-        spec: NodeTypeSpec, data_type: str, direction: str
-    ) -> bool:
-        for port in instance_resolution.resolve_instance_ports(spec, {}):
-            if direction and port.direction != direction:
-                continue
-            if data_type and not NodeRegistry._port_matches_data_type(port, data_type):
-                continue
-            return True
-        return False
-
-    @staticmethod
-    def _port_matches_data_type(port: PortSpec, data_type: str) -> bool:
-        accepted_types = (port.data_type, *port.accepted_data_types)
-        return any(
-            accepted_type.lower() == data_type for accepted_type in accepted_types
         )
 
 

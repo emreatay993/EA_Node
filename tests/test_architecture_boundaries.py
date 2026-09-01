@@ -1034,7 +1034,6 @@ class GraphArchitectureBoundaryTests(unittest.TestCase):
             with self.subTest(retired_name=retired_name):
                 self.assertNotIn(retired_name, registry_source)
         self.assertIn("spec_validation.validate_node_spec(", registry_source)
-        self.assertIn("instance_resolution.resolve_instance_ports(", registry_source)
         self.assertIn("instance_resolution.resolve_instance_spec(", registry_source)
         self.assertIn("def normalize_property_value(", registry_source)
         self.assertIn("def normalize_properties(", registry_source)
@@ -1713,6 +1712,7 @@ class GraphArchitectureBoundaryTests(unittest.TestCase):
             {
                 "build_combined_library_items",
                 "build_filtered_library_items",
+                "build_library_category_options",
                 "build_library_category_tree",
                 "build_registry_library_items",
                 "project_display_library_items",
@@ -1763,6 +1763,7 @@ class GraphArchitectureBoundaryTests(unittest.TestCase):
 
         self.assertTrue(
             {
+                "build_library_category_options",
                 "build_library_category_tree",
                 "project_display_library_items",
                 "project_grouped_library_items",
@@ -1772,6 +1773,26 @@ class GraphArchitectureBoundaryTests(unittest.TestCase):
                 "ea_node_editor.ui.shell.library_projection",
             ),
         )
+        library_source = (
+            REPO_ROOT / "ea_node_editor/ui/shell/library_projection.py"
+        ).read_text(encoding="utf-8")
+        presenter_source = (
+            REPO_ROOT / "ea_node_editor/ui/shell/presenters/library_presenter.py"
+        ).read_text(encoding="utf-8")
+        registry_source = (
+            REPO_ROOT / "ea_node_editor/nodes/registry.py"
+        ).read_text(encoding="utf-8")
+        self.assertNotIn("registry_categories", library_source)
+        self.assertNotIn("_registry_categories_cache", presenter_source)
+        self.assertNotIn(".category_paths(", presenter_source)
+        for retired_name in (
+            "def filter_nodes(",
+            "def category_paths(",
+            "def categories(",
+        ):
+            with self.subTest(retired_name=retired_name):
+                self.assertNotIn(retired_name, registry_source)
+        self.assertFalse((REPO_ROOT / "tests/test_registry_filters.py").exists())
         self.assertIn(
             "build_selected_node_property_items",
             imported_names_from(

@@ -20,15 +20,7 @@ from ea_node_editor.nodes.category_paths import (
 )
 from ea_node_editor.custom_workflows import CUSTOM_WORKFLOW_LIBRARY_CATEGORY
 from ea_node_editor.graph.effective_ports import ordered_ports_for_display
-from ea_node_editor.runtime_contracts import (
-    BOOLEAN_DATA_TYPE_ID,
-    DOUBLE_DATA_TYPE_ID,
-    GRAPH_DATA_TYPE_ID,
-    INTEGER_DATA_TYPE_ID,
-    JSON_DATA_TYPE_ID,
-    PATH_DATA_TYPE_ID,
-    STRING_DATA_TYPE_ID,
-)
+from ea_node_editor.runtime_contracts import GRAPH_DATA_TYPE_ID
 from ea_node_editor.ui.support.node_presentation import (
     project_port_data_type_presentation,
 )
@@ -558,40 +550,17 @@ def project_display_library_items(
 def build_library_category_options(
     *,
     combined_items: Iterable[dict[str, Any]],
-    registry_categories: Iterable[Any],
 ) -> list[dict[str, Any]]:
     paths: set[CategoryPath] = set()
-    display_lookup: dict[str, set[CategoryPath]] = {}
 
     def _add_path(path: Iterable[str]) -> None:
         normalized_path = normalize_category_path(tuple(path))
         for ancestor in category_path_ancestors(normalized_path):
             paths.add(ancestor)
-            display_lookup.setdefault(category_display(ancestor).casefold(), set()).add(
-                ancestor
-            )
 
     for item in combined_items:
         item_path = _category_path_from_item(item)
         _add_path(item_path)
-
-    for raw_category in registry_categories:
-        if isinstance(raw_category, str):
-            normalized_category = raw_category.strip()
-            if not normalized_category:
-                continue
-            matched_paths = display_lookup.get(normalized_category.casefold())
-            if matched_paths:
-                for path in matched_paths:
-                    _add_path(path)
-            else:
-                _add_path(normalize_category_path((normalized_category,)))
-            continue
-        try:
-            normalized_path = normalize_category_path(tuple(raw_category))
-        except (TypeError, ValueError):
-            continue
-        _add_path(normalized_path)
 
     _add_path(_CUSTOM_WORKFLOW_LIBRARY_CATEGORY_PATH)
     return [{"label": "All Categories", "value": ""}] + [

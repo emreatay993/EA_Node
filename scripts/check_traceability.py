@@ -57,7 +57,7 @@ DPF_OPERATOR_PLUGIN_BACKEND_P01_COMMAND = (
 )
 DPF_OPERATOR_PLUGIN_BACKEND_P02_COMMAND = (
     r".\venv\Scripts\python.exe -m pytest tests/test_dpf_node_catalog.py "
-    r"tests/test_registry_validation.py tests/test_registry_filters.py --ignore=venv -q"
+    r"tests/test_registry_validation.py tests/test_library_projection.py --ignore=venv -q"
 )
 DPF_OPERATOR_PLUGIN_BACKEND_P03_COMMAND = (
     r".\venv\Scripts\python.exe -m pytest tests/test_dpf_compute_nodes.py "

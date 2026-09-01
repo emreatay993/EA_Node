@@ -82,10 +82,6 @@ class TestNumberSliderSpec:
         assert surface.qml_component == "passive/GraphNumberSliderSurface.qml"
         assert (surface.family, surface.variant) == ("standard", "number_slider")
 
-    def test_categories_include_data_control(self, registry) -> None:
-        assert ("Data", "Control") in registry.category_paths()
-
-
 class TestNumberSliderNormalization:
     def test_full_pass_clamps_value_into_range(self, registry) -> None:
         normalized = registry.normalize_properties(

@@ -381,7 +381,7 @@ DPF_OPERATOR_PLUGIN_BACKEND_P01_COMMAND = (
 )
 DPF_OPERATOR_PLUGIN_BACKEND_P02_COMMAND = (
     r".\venv\Scripts\python.exe -m pytest tests/test_dpf_node_catalog.py "
-    r"tests/test_registry_validation.py tests/test_registry_filters.py --ignore=venv -q"
+    r"tests/test_registry_validation.py tests/test_library_projection.py --ignore=venv -q"
 )
 DPF_OPERATOR_PLUGIN_BACKEND_P03_COMMAND = (
     r".\venv\Scripts\python.exe -m pytest tests/test_dpf_compute_nodes.py "
@@ -569,7 +569,7 @@ ANSYS_DPF_FULL_PLUGIN_ROLLOUT_P02_COMMAND = (
 )
 ANSYS_DPF_FULL_PLUGIN_ROLLOUT_P03_COMMAND = (
     r".\venv\Scripts\python.exe -m pytest tests/test_dpf_library_taxonomy.py "
-    r"tests/test_dpf_node_catalog.py tests/test_registry_filters.py "
+    r"tests/test_dpf_node_catalog.py tests/test_library_projection.py "
     r"--ignore=venv -q"
 )
 ANSYS_DPF_FULL_PLUGIN_ROLLOUT_P04_COMMAND = (
@@ -1662,13 +1662,13 @@ NESTED_NODE_CATEGORIES_P01_REVIEW_COMMAND = (
     r"-k nested_category_sdk --ignore=venv -q"
 )
 NESTED_NODE_CATEGORIES_P02_COMMAND = (
-    r".\venv\Scripts\python.exe -m pytest tests/test_registry_filters.py "
+    r".\venv\Scripts\python.exe -m pytest tests/test_library_projection.py "
     r"tests/test_dpf_node_catalog.py tests/test_graph_theme_shell.py "
-    r"-k nested_category_registry --ignore=venv -q"
+    r"-k nested_category_library --ignore=venv -q"
 )
 NESTED_NODE_CATEGORIES_P02_REVIEW_COMMAND = (
-    r".\venv\Scripts\python.exe -m pytest tests/test_registry_filters.py "
-    r"tests/test_dpf_node_catalog.py -k nested_category_registry --ignore=venv -q"
+    r".\venv\Scripts\python.exe -m pytest tests/test_library_projection.py "
+    r"tests/test_dpf_node_catalog.py -k nested_category_library --ignore=venv -q"
 )
 NESTED_NODE_CATEGORIES_P03_COMMAND = (
     r".\venv\Scripts\python.exe -m pytest tests/test_window_library_inspector.py "
@@ -1800,8 +1800,8 @@ NESTED_NODE_CATEGORIES_TRACEABILITY_ROW_TOKENS: dict[str, tuple[str, ...]] = {
     ),
     "REQ-NODE-003": (
         "category_paths.py",
-        "registry.py",
-        "tests/test_registry_filters.py",
+        "library_projection.py",
+        "tests/test_library_projection.py",
         "tests/test_registry_validation.py",
         "NESTED_NODE_CATEGORIES_QA_MATRIX.md",
     ),
@@ -1814,7 +1814,7 @@ NESTED_NODE_CATEGORIES_TRACEABILITY_ROW_TOKENS: dict[str, tuple[str, ...]] = {
     ),
     "AC-REQ-NODE-003-01": (
         NESTED_NODE_CATEGORIES_P02_COMMAND,
-        "tests/test_registry_filters.py",
+        "tests/test_library_projection.py",
         "NESTED_NODE_CATEGORIES_QA_MATRIX.md",
     ),
     "AC-REQ-NODE-008-01": (
@@ -1831,6 +1831,7 @@ NESTED_NODE_CATEGORIES_TRACEABILITY_ROW_TOKENS: dict[str, tuple[str, ...]] = {
     ),
     "AC-REQ-NODE-025-01": (
         NESTED_NODE_CATEGORIES_P02_REVIEW_COMMAND,
+        "tests/test_library_projection.py",
         "tests/test_dpf_node_catalog.py",
         "NESTED_NODE_CATEGORIES_QA_MATRIX.md",
     ),

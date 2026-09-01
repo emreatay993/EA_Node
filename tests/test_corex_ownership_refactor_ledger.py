@@ -278,8 +278,8 @@ def test_plan_and_ledger_status_drift_is_rejected() -> None:
     with pytest.raises(AssertionError):
         _validate_documents(
             PLAN.read_text(encoding="utf-8").replace(
-                "Status: `CHECKPOINT — T04 ACCEPTED; NEXT T05`",
-                "Status: `CHECKPOINT — T04 ACCEPTED; NEXT T06`",
+                "Status: `CHECKPOINT — T05 ACCEPTED; NEXT T06`",
+                "Status: `CHECKPOINT — T05 ACCEPTED; NEXT T07`",
                 1,
             ),
             LEDGER.read_text(encoding="utf-8"),

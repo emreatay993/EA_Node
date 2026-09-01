@@ -52,7 +52,6 @@ class ShellLibraryPresenter(QObject):
         self._registry_cache_owner: Any | None = None
         self._registry_items_cache: list[dict[str, Any]] | None = None
         self._registry_specs_cache: list[Any] | None = None
-        self._registry_categories_cache: list[Any] | None = None
         self._data_type_projection_cache: dict[str, Any] | None = None
         self._custom_workflow_items_cache: list[dict[str, Any]] | None = None
         self._combined_items_cache: list[dict[str, Any]] | None = None
@@ -91,7 +90,6 @@ class ShellLibraryPresenter(QObject):
         self._registry_cache_owner = None
         self._registry_items_cache = None
         self._registry_specs_cache = None
-        self._registry_categories_cache = None
         self._data_type_projection_cache = None
         self._invalidate_combined_items()
 
@@ -115,7 +113,6 @@ class ShellLibraryPresenter(QObject):
         if self._registry_cache_owner is registry and self._registry_items_cache is not None:
             return
         specs = registry.all_specs()
-        categories = registry.category_paths()
         data_type_projection = build_data_type_ui_projection(registry.data_types)
         items = build_registry_library_items(
             registry_specs=specs,
@@ -125,7 +122,6 @@ class ShellLibraryPresenter(QObject):
         self._registry_cache_owner = registry
         self._registry_items_cache = items
         self._registry_specs_cache = specs
-        self._registry_categories_cache = list(categories)
         self._data_type_projection_cache = data_type_projection
 
     def _registry_library_items(self) -> list[dict[str, Any]]:
@@ -241,7 +237,6 @@ class ShellLibraryPresenter(QObject):
         if self._category_options_cache is None:
             self._category_options_cache = build_library_category_options(
                 combined_items=self._combined_library_items(),
-                registry_categories=self._registry_categories_cache or (),
             )
         return list(self._category_options_cache)
 

@@ -86,20 +86,14 @@ from ea_node_editor.nodes.builtins.ansys_dpf_common import (
 )
 from ea_node_editor.nodes.builtins.ansys_dpf_taxonomy import (
     DPF_ADVANCED_BUILDING_BLOCKS_CATEGORY_PATH,
-    DPF_HELPERS_CONTAINERS_CATEGORY_PATH,
     DPF_HELPERS_SCOPING_CATEGORY_PATH,
     DPF_HELPERS_SUPPORT_CATEGORY_PATH,
-    DPF_NODE_CATEGORY,
-    DPF_NODE_CATEGORY_PATH,
     DPF_VIEWER_CATEGORY_PATH,
     DPF_WORKFLOW_CATEGORY_PATH,
     operator_family_category_path,
     operator_family_path,
 )
-from ea_node_editor.nodes.builtins.plot.dpf import (
-    DPF_PLOT_CATEGORY_PATH,
-    DPF_PLOT_NODE_TYPE_IDS,
-)
+from ea_node_editor.nodes.builtins.plot.dpf import DPF_PLOT_NODE_TYPE_IDS
 from ea_node_editor.nodes.ansys_dpf_data_types import DPF_FIELDS_CONTAINER_DATA_TYPE
 from ea_node_editor.nodes.ansys_dpf_data_types import (
     DPF_FIELD_DATA_TYPE,
@@ -634,8 +628,6 @@ class DpfNodeCatalogTests(unittest.TestCase):
             registry = build_default_registry(app_preferences_store=self._store)
 
         self.assertIsNotNone(registry.spec_or_none("core.constant"))
-        self.assertEqual(registry.filter_nodes(category=DPF_NODE_CATEGORY), [])
-        self.assertNotIn(DPF_NODE_CATEGORY_PATH, registry.category_paths())
         self.assertIsNone(registry.spec_or_none(DPF_RESULT_FILE_NODE_TYPE_ID))
 
     def test_build_default_registry_refreshes_descriptor_cache_when_dpf_version_changes(self) -> None:
@@ -1102,47 +1094,6 @@ class DpfNodeCatalogTests(unittest.TestCase):
 
             self.assertEqual(spec.icon, expected_icon)
             self.assertEqual(title_icon_source_for_node_payload(spec), asset_path.resolve().as_uri())
-
-    def test_default_registry_exposes_dpf_category_and_scoping_ports(self) -> None:
-        dpf_specs = self.registry.filter_nodes(category_path=DPF_NODE_CATEGORY_PATH)
-
-        if dpf is None:
-            self.assertEqual(dpf_specs, [])
-            self.assertNotIn(DPF_NODE_CATEGORY_PATH, self.registry.category_paths())
-            self.assertEqual(
-                self.registry.filter_nodes(data_type=DPF_SCOPING_DATA_TYPE, direction="out"),
-                [],
-            )
-            return
-
-        dpf_type_ids = {spec.type_id for spec in dpf_specs}
-        self.assertTrue(set(_EXPECTED_DPF_SPECS).issubset(dpf_type_ids))
-        self.assertTrue(set(DPF_PLOT_NODE_TYPE_IDS).issubset(dpf_type_ids))
-        self.assertIn(_GENERATED_DPF_RESULT_OPERATOR_TYPE_ID, dpf_type_ids)
-        self.assertIn(_GENERATED_DPF_MATH_OPERATOR_TYPE_ID, dpf_type_ids)
-        self.assertGreater(len(dpf_type_ids), len(_EXPECTED_DPF_SPECS))
-        self.assertTrue(
-            {
-                DPF_ADVANCED_BUILDING_BLOCKS_CATEGORY_PATH,
-                DPF_WORKFLOW_CATEGORY_PATH,
-                DPF_HELPERS_SCOPING_CATEGORY_PATH,
-                DPF_HELPERS_CONTAINERS_CATEGORY_PATH,
-                DPF_HELPERS_SUPPORT_CATEGORY_PATH,
-                DPF_VIEWER_CATEGORY_PATH,
-                DPF_PLOT_CATEGORY_PATH,
-                operator_family_category_path("result"),
-                operator_family_category_path("math"),
-            }.issubset({spec.category_path for spec in dpf_specs})
-        )
-        self.assertIn(DPF_NODE_CATEGORY_PATH, self.registry.category_paths())
-        scoping_output_type_ids = {
-            spec.type_id
-            for spec in self.registry.filter_nodes(data_type=DPF_SCOPING_DATA_TYPE, direction="out")
-        }
-        self.assertTrue(
-            {DPF_MESH_SCOPING_NODE_TYPE_ID, DPF_TIME_SCOPING_NODE_TYPE_ID}.issubset(scoping_output_type_ids)
-        )
-        self.assertTrue(any(type_id.startswith("dpf.op.") for type_id in scoping_output_type_ids))
 
     @unittest.skipIf(dpf is None, "ansys.dpf.core is not installed")
     def test_result_file_and_model_nodes_emit_handle_based_outputs(self) -> None:

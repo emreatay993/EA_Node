@@ -202,6 +202,11 @@ loose decorated .py or installed schema-2 package
   and explicit DPF legacy time-scope normalization. `NodeRegistry` retains the
   intentional catalog/spec-aware `default_properties`, `normalize_property_value`,
   and `normalize_properties` entry points without built-in-specific branches.
+- Node Library filtering and category ancestors/options/tree are presentation
+  concerns owned by `ui/shell/library_projection.py`. `LibraryPresenter` derives
+  them from the same cached combined registry/custom-workflow items and builds one
+  category tree per filtered cache request. `NodeRegistry` retains storage and
+  spec/catalog resolution only; it exposes no filter/category presentation API.
 - `RegistryReplacementCoordinator` refuses mutation while a run or viewer is
   active, validates every open graph against a fresh candidate, activates any
   package change reversibly, replaces registry consumers in order, retires old
