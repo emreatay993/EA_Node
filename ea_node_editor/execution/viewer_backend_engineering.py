@@ -29,7 +29,7 @@ from ea_node_editor.execution.viewer_backend import (
     ViewerBackendQueryRequest,
     ViewerBackendQueryResult,
 )
-from ea_node_editor.nodes.runtime_refs import coerce_runtime_handle_ref
+from ea_node_editor.runtime_contracts.value_refs import coerce_runtime_handle_ref
 from ea_node_editor.runtime_contracts import ENGINEERING_SCENE_DATA_TYPE_ID
 
 if TYPE_CHECKING:

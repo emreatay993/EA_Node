@@ -16,7 +16,7 @@ from ea_node_editor.common.payload_tools import (
 )
 from ea_node_editor.runtime_contracts.data_tree import DataTree
 from ea_node_editor.runtime_contracts.data_types import DataTypeCatalog
-from ea_node_editor.runtime_contracts.runtime_values import (
+from ea_node_editor.runtime_contracts.value_codec import (
     deserialize_runtime_value,
     serialize_runtime_value,
 )

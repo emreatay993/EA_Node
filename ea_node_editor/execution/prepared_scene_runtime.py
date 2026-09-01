@@ -32,7 +32,7 @@ from ea_node_editor.common.scene_protocol import (
     validate_scene_bundle,
 )
 from ea_node_editor.execution.handle_registry import StaleHandleError
-from ea_node_editor.nodes.runtime_refs import RuntimeHandleRef
+from ea_node_editor.runtime_contracts.value_refs import RuntimeHandleRef
 from ea_node_editor.runtime_contracts import ENGINEERING_SCENE_DATA_TYPE_ID
 
 if TYPE_CHECKING:

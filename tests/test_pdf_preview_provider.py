@@ -12,8 +12,8 @@ from PyQt6.QtCore import QMarginsF, QRectF, QSize, QUrl
 from PyQt6.QtGui import QPainter, QPageLayout, QPageSize, QPdfWriter
 from PyQt6.QtWidgets import QApplication
 
-from ea_node_editor.persistence.artifact_refs import format_managed_artifact_ref
-from ea_node_editor.persistence.artifact_refs import format_staged_artifact_ref
+from ea_node_editor.common.artifact_refs import format_managed_artifact_ref
+from ea_node_editor.common.artifact_refs import format_staged_artifact_ref
 from ea_node_editor.ui import pdf_preview_provider as pdf_preview_provider_module
 from ea_node_editor.ui.pdf_preview_provider import (
     LOCAL_PDF_PREVIEW_PROVIDER_ID,

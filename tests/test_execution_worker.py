@@ -76,7 +76,7 @@ from ea_node_editor.nodes.plugin_contracts import PluginContractManifest
 from ea_node_editor.nodes.registry import NodeRegistry
 from ea_node_editor.nodes.execution_context import ExecutionContext, NodeResult
 from ea_node_editor.nodes.node_specs import PortSpec
-from ea_node_editor.nodes.runtime_refs import (
+from ea_node_editor.runtime_contracts.value_codec import (
     deserialize_runtime_value,
 )
 from ea_node_editor.persistence.artifact_store import ProjectArtifactStore

@@ -24,7 +24,7 @@ from ea_node_editor.nodes.builtins.web_viewer import (
 from ea_node_editor.nodes.node_specs import PropertySpec
 from ea_node_editor.nodes.registry import NodeRegistry
 from ea_node_editor.common.payload_tools import copy_json_safe
-from ea_node_editor.persistence.artifact_refs import (
+from ea_node_editor.common.artifact_refs import (
     ManagedArtifactRef,
     StagedArtifactRef,
     parse_artifact_ref,

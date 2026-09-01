@@ -27,7 +27,7 @@ from ea_node_editor.execution.runtime_snapshot import (
     RuntimeSnapshotContext,
 )
 from ea_node_editor.execution.runtime_dto import RuntimeWorkspace
-from ea_node_editor.execution.runtime_value_codec import (
+from ea_node_editor.runtime_contracts.value_codec import (
     deserialize_runtime_value,
     serialize_runtime_value,
 )
@@ -42,7 +42,7 @@ from ea_node_editor.nodes.output_artifacts import (
 )
 from ea_node_editor.nodes.registry import NodeRegistry
 from ea_node_editor.nodes.execution_context import ExecutionContext
-from ea_node_editor.nodes.runtime_refs import RuntimeArtifactRef
+from ea_node_editor.runtime_contracts.value_refs import RuntimeArtifactRef
 from ea_node_editor.persistence.artifact_resolution import ProjectArtifactResolver
 from ea_node_editor.persistence.artifact_store import ProjectArtifactStore
 from ea_node_editor.runtime_contracts import DataTree, PATH_DATA_TYPE_ID
@@ -1196,7 +1196,7 @@ class ExecutionArtifactRefProtocolTests(unittest.TestCase):
             }
 
             with patch(
-                "ea_node_editor.nodes.runtime_refs.deserialize_runtime_value",
+                "ea_node_editor.runtime_contracts.value_codec.deserialize_runtime_value",
                 wraps=deserialize_runtime_value,
             ) as decoder:
                 materialized = service.materialize_persisted_value(value)
@@ -1314,14 +1314,14 @@ class ExecutionArtifactRefProtocolTests(unittest.TestCase):
 
             with (
                 patch(
-                    "ea_node_editor.nodes.runtime_refs."
+                    "ea_node_editor.runtime_contracts.value_codec."
                     "serialize_runtime_value",
                     side_effect=AssertionError(
                         "persisted properties must not be serialized"
                     ),
                 ) as serialized,
                 patch(
-                    "ea_node_editor.nodes.runtime_refs."
+                    "ea_node_editor.runtime_contracts.value_codec."
                     "deserialize_runtime_value",
                     side_effect=AssertionError(
                         "persisted properties must not be deserialized"

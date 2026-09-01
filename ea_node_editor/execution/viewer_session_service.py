@@ -34,12 +34,15 @@ from ea_node_editor.execution.viewer_backend import (
     ViewerBackendQueryRequest,
     ViewerBackendQueryResult,
 )
-from ea_node_editor.nodes.runtime_refs import RuntimeArtifactRef, coerce_runtime_handle_ref
+from ea_node_editor.runtime_contracts.value_refs import (
+    RuntimeArtifactRef,
+    coerce_runtime_handle_ref,
+)
 from ea_node_editor.runtime_contracts.data_types import (
     COREX_VIEWER_SESSION_HANDLE_KIND,
     VIEWER_SESSION_DATA_TYPE_ID,
 )
-from ea_node_editor.runtime_contracts.runtime_values import RuntimeHandleRef
+from ea_node_editor.runtime_contracts.value_refs import RuntimeHandleRef
 
 if TYPE_CHECKING:
     from ea_node_editor.execution.protocol import WorkerEvent, WorkerCommand

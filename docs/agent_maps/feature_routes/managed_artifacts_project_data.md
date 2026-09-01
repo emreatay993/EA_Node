@@ -4,7 +4,7 @@
 Use this for workspace-scoped node project files, saved/temporary artifact refs, runtime artifact integrity, transactional staged cleanup, artifact cache metadata, and project data repair.
 
 ## Start Here
-- `ea_node_editor/persistence/artifact_refs.py`
+- `ea_node_editor/common/artifact_refs.py`
 - `ea_node_editor/persistence/artifact_store.py`
 - `ea_node_editor/persistence/artifact_resolution.py`
 - `ea_node_editor/persistence/solution_repository.py`
@@ -19,6 +19,7 @@ Use this for workspace-scoped node project files, saved/temporary artifact refs,
 - `tests/test_project_file_staging.py`
 
 ## Notes
+- `common/artifact_refs.py` owns only normalized `saved://` and `temp://` syntax. Persistence and execution retain independent ownership of store metadata, integrity, publication, runtime carriers, and durable eligibility.
 - The OS sidecar layout is `<project>.data/workspaces/<Workspace [hash]>/nodes/<Node [hash]>/{in,out,tmp}/...`; the workspace hash is stable from `workspace_id`, while the readable prefix follows workspace renames.
 - `ProjectArtifactStore.migrate_workspace_artifact_folders(...)` remains for explicit legacy/non-save callers. Production Save/Save As uses `stage_project_save(...)`: legacy metadata is rewritten in the candidate and registered payloads are copied to verified immutable workspace-scoped targets without moving source bytes.
 - Raw clipboard/media imports are node-first staged artifacts: `WorkspaceEditOps` and `GraphCanvasPresenter` call the public project-session controller, while `ProjectFilesService` writes under the node temp input path, registers MIME/size/hash metadata, and returns the `temp://` ref. The normal copy-on-write save candidate rewrites referenced refs to `saved://`; it never destructively promotes source bytes.

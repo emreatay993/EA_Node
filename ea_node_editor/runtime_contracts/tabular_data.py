@@ -8,6 +8,7 @@ from ea_node_editor.common.payload_tools import (
     REF_METADATA_MAX_BYTES,
     copy_json_mapping,
     copy_json_safe,
+    validate_payload_fields,
 )
 from ea_node_editor.runtime_contracts.data_types import (
     ARRAY_DATA_REF_TYPE_ID,
@@ -57,25 +58,6 @@ def _validate_fixed_carrier(
     ):
         raise ValueError(
             f"Runtime ref schema_version must be {RUNTIME_REF_SCHEMA_VERSION}"
-        )
-
-
-def _validate_payload_fields(
-    payload: Mapping[str, Any],
-    *,
-    required: frozenset[str],
-    optional: frozenset[str] = frozenset(),
-) -> None:
-    missing = required.difference(payload)
-    if missing:
-        raise ValueError(
-            "Runtime ref payload is missing: " + ", ".join(sorted(missing))
-        )
-    unexpected = set(payload).difference(required | optional)
-    if unexpected:
-        raise ValueError(
-            "Runtime ref payload has unexpected fields: "
-            + ", ".join(sorted(str(key) for key in unexpected))
         )
 
 
@@ -192,8 +174,9 @@ class TabularDataRef:
     def from_payload(cls, payload: Mapping[str, Any]) -> TabularDataRef | None:
         if str(payload.get(RUNTIME_VALUE_MARKER_KEY, "")).strip() != TABULAR_DATA_REF_MARKER_VALUE:
             return None
-        _validate_payload_fields(
+        validate_payload_fields(
             payload,
+            label="Runtime ref payload",
             required=frozenset(
                 {
                     RUNTIME_VALUE_MARKER_KEY,
@@ -278,8 +261,9 @@ class ArrayDataRef:
     def from_payload(cls, payload: Mapping[str, Any]) -> ArrayDataRef | None:
         if str(payload.get(RUNTIME_VALUE_MARKER_KEY, "")).strip() != ARRAY_DATA_REF_MARKER_VALUE:
             return None
-        _validate_payload_fields(
+        validate_payload_fields(
             payload,
+            label="Runtime ref payload",
             required=frozenset(
                 {
                     RUNTIME_VALUE_MARKER_KEY,
@@ -391,8 +375,9 @@ class TabularWindowRef:
     def from_payload(cls, payload: Mapping[str, Any]) -> TabularWindowRef | None:
         if str(payload.get(RUNTIME_VALUE_MARKER_KEY, "")).strip() != TABULAR_WINDOW_REF_MARKER_VALUE:
             return None
-        _validate_payload_fields(
+        validate_payload_fields(
             payload,
+            label="Runtime ref payload",
             required=frozenset(
                 {
                     RUNTIME_VALUE_MARKER_KEY,
@@ -485,8 +470,9 @@ class ArraySlice2DRef:
     def from_payload(cls, payload: Mapping[str, Any]) -> ArraySlice2DRef | None:
         if str(payload.get(RUNTIME_VALUE_MARKER_KEY, "")).strip() != ARRAY_SLICE_2D_REF_MARKER_VALUE:
             return None
-        _validate_payload_fields(
+        validate_payload_fields(
             payload,
+            label="Runtime ref payload",
             required=frozenset(
                 {
                     RUNTIME_VALUE_MARKER_KEY,

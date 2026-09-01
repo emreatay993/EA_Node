@@ -15,7 +15,7 @@ import pyarrow.parquet as pq
 # Import the add-on catalog before bootstrap to avoid the current lazy import cycle.
 import ea_node_editor.addons.catalog  # noqa: F401
 from ea_node_editor.nodes.bootstrap import build_default_registry
-from ea_node_editor.persistence.artifact_refs import format_managed_artifact_ref
+from ea_node_editor.common.artifact_refs import format_managed_artifact_ref
 from ea_node_editor.persistence.artifact_store import format_node_artifact_folder
 from ea_node_editor.persistence.serializer import JsonProjectSerializer
 from ea_node_editor.settings import SCHEMA_VERSION

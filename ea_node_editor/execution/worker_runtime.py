@@ -24,7 +24,7 @@ from ea_node_editor.execution.runtime_snapshot import (
     RuntimeSnapshotContext,
 )
 from ea_node_editor.persistence.artifact_resolution import ProjectArtifactResolver
-from ea_node_editor.persistence.artifact_refs import (
+from ea_node_editor.common.artifact_refs import (
     ARTIFACT_REF_SCHEME,
     STAGED_ARTIFACT_REF_SCHEME,
     normalize_artifact_id,
@@ -96,7 +96,7 @@ class RuntimeArtifactService:
         return self._resolver.store
 
     def normalize_outputs(self, payload: dict[str, Any]) -> dict[str, Any]:
-        from ea_node_editor.nodes.runtime_refs import (
+        from ea_node_editor.runtime_contracts.value_codec import (
             deserialize_runtime_value,
             serialize_runtime_value,
         )
@@ -163,7 +163,7 @@ class RuntimeArtifactService:
                 not _runtime_markers_decoded
                 and "__ea_runtime_value__" in value
             ):
-                from ea_node_editor.nodes.runtime_refs import (
+                from ea_node_editor.runtime_contracts.value_codec import (
                     deserialize_runtime_value,
                 )
 

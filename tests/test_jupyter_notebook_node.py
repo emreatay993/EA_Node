@@ -9,7 +9,7 @@ from PyQt6.QtCore import QUrl
 
 from ea_node_editor.graph.model import GraphModel
 from ea_node_editor.graph.records import NodeInstance
-from ea_node_editor.persistence.artifact_refs import format_managed_artifact_ref
+from ea_node_editor.common.artifact_refs import format_managed_artifact_ref
 from ea_node_editor.persistence.artifact_store import ProjectArtifactStore
 from ea_node_editor.settings import (
     PROJECT_ARTIFACT_STORE_METADATA_KEY,

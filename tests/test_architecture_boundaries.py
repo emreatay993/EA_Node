@@ -23,6 +23,88 @@ _RETIRED_GUARDRAIL_PRESENT_NAMES = {
         "sanitize_execution_trigger",
     },
 }
+_EXPECTED_RUNTIME_CONTRACT_EXPORTS = frozenset(
+    {
+        "DATA_TREE_MODIFIER_ORDER",
+        "ARRAY_DATA_REF_TYPE_ID",
+        "ARRAY_SLICE_2D_REF_TYPE_ID",
+        "ArrayDataRef",
+        "ArrayDataResolver",
+        "ArrayMaterializationOptions",
+        "ArraySlice2D",
+        "ArraySlice2DRef",
+        "ArraySlice2DRequest",
+        "BOOLEAN_DATA_TYPE_ID",
+        "COREX_VIEWER_SESSION_HANDLE_KIND",
+        "DataAccess",
+        "DataPath",
+        "DataTree",
+        "DataTreeModifier",
+        "DataConversionSpec",
+        "DataTypeCatalog",
+        "DataTypeCatalogError",
+        "DataTypeCompatibility",
+        "DataTypeFamilySpec",
+        "DataTypeSpec",
+        "DOUBLE_DATA_TYPE_ID",
+        "ENGINEERING_SCENE_DATA_TYPE_ID",
+        "ENGINEERING_SELECTION_SET_DATA_TYPE_ID",
+        "GRAPH_ARRAY_DATA_TYPE_ID",
+        "GRAPH_DATA_TYPE_ID",
+        "GRAPH_DICTIONARY_DATA_TYPE_ID",
+        "INTEGER_DATA_TYPE_ID",
+        "INTERVAL_1D_DATA_TYPE",
+        "INTERVAL_1D_GRAPH_DATA_TYPE_ID",
+        "IMAGE_VALUE_DATA_TYPE_ID",
+        "IMAGE_VALUE_MAX_ENCODED_BYTES",
+        "IMAGE_VALUE_SCHEMA_VERSION",
+        "ImageValue",
+        "Interval1D",
+        "JSON_DATA_TYPE_ID",
+        "PATH_DATA_TYPE_ID",
+        "NodeSolutionFact",
+        "RootExecutionError",
+        "RuntimeArtifactRef",
+        "RuntimeArtifactScope",
+        "RuntimeHandleRef",
+        "RuntimeValueRef",
+        "SettledPortResult",
+        "SolutionDisposition",
+        "SolutionFreshness",
+        "SolutionOutputDescriptor",
+        "SolutionPayloadLocator",
+        "SolutionRecord",
+        "SolutionResidency",
+        "STRING_DATA_TYPE_ID",
+        "STRING_LIST_DATA_TYPE_ID",
+        "TABULAR_DATA_REF_TYPE_ID",
+        "TABULAR_WINDOW_REF_TYPE_ID",
+        "TabularArrowBatchOptions",
+        "TabularColumn",
+        "TabularDataRef",
+        "TabularDataResolver",
+        "TabularDataWindow",
+        "TabularMaterializationOptions",
+        "TabularSchema",
+        "TabularWindowRef",
+        "TypedInlineValue",
+        "TabularWindowRequest",
+        "TypeCarrierKind",
+        "TypePersistence",
+        "TypeSensitivity",
+        "VIEWER_SESSION_DATA_TYPE_ID",
+        "coerce_array_data_ref",
+        "coerce_array_slice_2d_ref",
+        "coerce_interval_1d",
+        "coerce_runtime_artifact_ref",
+        "coerce_runtime_handle_ref",
+        "coerce_tabular_data_ref",
+        "coerce_tabular_window_ref",
+        "default_viewer_session_id",
+        "deserialize_runtime_value",
+        "serialize_runtime_value",
+    }
+)
 
 
 def parse_module(relative_path: str) -> ast.Module:
@@ -675,6 +757,127 @@ class GraphArchitectureBoundaryTests(unittest.TestCase):
                     }
                 )
 
+    def test_runtime_value_contracts_have_direct_owners_and_common_stays_leaf(self) -> None:
+        from ea_node_editor.runtime_contracts import (
+            ImageValue,
+            RuntimeArtifactRef,
+            serialize_runtime_value,
+        )
+        from ea_node_editor.runtime_contracts.durable_values import (
+            validate_durable_settled_outputs,
+        )
+
+        self.assertFalse(
+            (REPO_ROOT / "ea_node_editor/runtime_contracts/runtime_values.py").exists()
+        )
+        self.assertFalse(
+            (REPO_ROOT / "ea_node_editor/persistence/artifact_refs.py").exists()
+        )
+        self.assertFalse(
+            (REPO_ROOT / "ea_node_editor/nodes/runtime_refs.py").exists()
+        )
+        self.assertFalse(
+            (REPO_ROOT / "ea_node_editor/execution/runtime_value_codec.py").exists()
+        )
+        self.assertEqual(
+            ImageValue.__module__,
+            "ea_node_editor.runtime_contracts.image_value",
+        )
+        self.assertEqual(
+            RuntimeArtifactRef.__module__,
+            "ea_node_editor.runtime_contracts.value_refs",
+        )
+        self.assertEqual(
+            serialize_runtime_value.__module__,
+            "ea_node_editor.runtime_contracts.value_codec",
+        )
+        self.assertEqual(
+            validate_durable_settled_outputs.__module__,
+            "ea_node_editor.runtime_contracts.durable_values",
+        )
+
+        forbidden_prefixes = (
+            "ea_node_editor.execution",
+            "ea_node_editor.graph",
+            "ea_node_editor.nodes",
+            "ea_node_editor.persistence",
+            "ea_node_editor.runtime_contracts",
+            "ea_node_editor.ui",
+            "ea_node_editor.ui_qml",
+        )
+        offenders: dict[str, list[str]] = {}
+        for source_path in (REPO_ROOT / "ea_node_editor/common").glob("*.py"):
+            relative_path = source_path.relative_to(REPO_ROOT).as_posix()
+            forbidden = sorted(
+                module
+                for module in imported_modules(parse_module(relative_path))
+                if any(
+                    module == prefix or module.startswith(f"{prefix}.")
+                    for prefix in forbidden_prefixes
+                )
+            )
+            if forbidden:
+                offenders[relative_path] = forbidden
+        self.assertEqual(offenders, {})
+
+    def test_runtime_contract_package_exports_are_exact(self) -> None:
+        import ea_node_editor.runtime_contracts as runtime_contracts
+
+        self.assertEqual(
+            frozenset(runtime_contracts.__all__),
+            _EXPECTED_RUNTIME_CONTRACT_EXPORTS,
+        )
+        self.assertEqual(
+            len(runtime_contracts.__all__),
+            len(_EXPECTED_RUNTIME_CONTRACT_EXPORTS),
+        )
+
+    def test_runtime_value_ref_union_members_have_direct_defining_modules(self) -> None:
+        from typing import get_args
+
+        from ea_node_editor.runtime_contracts import (
+            ArrayDataRef,
+            ArraySlice2DRef,
+            ImageValue,
+            RuntimeArtifactRef,
+            RuntimeHandleRef,
+            RuntimeValueRef,
+            TabularDataRef,
+            TabularWindowRef,
+            TypedInlineValue,
+        )
+        from ea_node_editor.runtime_contracts import image_value, value_refs
+
+        expected_modules = {
+            TypedInlineValue: "ea_node_editor.runtime_contracts.value_refs",
+            ImageValue: "ea_node_editor.runtime_contracts.image_value",
+            RuntimeArtifactRef: "ea_node_editor.runtime_contracts.value_refs",
+            RuntimeHandleRef: "ea_node_editor.runtime_contracts.value_refs",
+            TabularDataRef: "ea_node_editor.runtime_contracts.tabular_data",
+            ArrayDataRef: "ea_node_editor.runtime_contracts.tabular_data",
+            TabularWindowRef: "ea_node_editor.runtime_contracts.tabular_data",
+            ArraySlice2DRef: "ea_node_editor.runtime_contracts.tabular_data",
+        }
+        self.assertEqual(set(get_args(RuntimeValueRef)), set(expected_modules))
+        for member, module_name in expected_modules.items():
+            with self.subTest(member=member.__name__):
+                self.assertEqual(member.__module__, module_name)
+        self.assertEqual(
+            frozenset(value_refs.__all__),
+            frozenset(
+                {
+                    "RuntimeArtifactRef",
+                    "RuntimeArtifactScope",
+                    "RuntimeHandleRef",
+                    "TypedInlineValue",
+                    "coerce_runtime_artifact_ref",
+                    "coerce_runtime_handle_ref",
+                }
+            ),
+        )
+        self.assertFalse(hasattr(value_refs, "_RUNTIME_IMAGE_MARKER_VALUE"))
+        self.assertEqual(image_value._RUNTIME_IMAGE_MARKER_VALUE, "image_value")
+
     def test_settled_results_have_one_runtime_contract_owner(self) -> None:
         settled_tree = parse_module(
             "ea_node_editor/runtime_contracts/settled_results.py"
@@ -842,15 +1045,6 @@ class GraphArchitectureBoundaryTests(unittest.TestCase):
                     offenders.append(f"{relative_path}:{node.lineno}")
 
         self.assertEqual(offenders, [])
-
-    def test_execution_value_codec_is_contract_compatibility_export(self) -> None:
-        codec_tree = parse_module("ea_node_editor/execution/runtime_value_codec.py")
-
-        self.assertIn("RuntimeValueRef", imported_names_from(codec_tree, "ea_node_editor.runtime_contracts"))
-        self.assertIn("serialize_runtime_value", imported_names_from(codec_tree, "ea_node_editor.runtime_contracts"))
-        self.assertIn("deserialize_runtime_value", imported_names_from(codec_tree, "ea_node_editor.runtime_contracts"))
-        self.assertNotIn("_coerce_runtime_value_ref", declared_python_names(codec_tree))
-        self.assertNotIn("_extract_runtime_marker", declared_python_names(codec_tree))
 
     def test_transform_surface_reexports_focused_operation_modules(self) -> None:
         self.assertEqual(transforms.collect_layout_node_bounds.__module__, "ea_node_editor.graph.transform_layout_ops")

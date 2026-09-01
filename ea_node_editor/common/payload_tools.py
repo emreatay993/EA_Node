@@ -127,6 +127,26 @@ def copy_json_mapping(
     return dict(copied)
 
 
+def validate_payload_fields(
+    payload: Mapping[str, Any],
+    *,
+    label: str,
+    required: frozenset[str],
+    optional: frozenset[str] = frozenset(),
+) -> None:
+    """Require an exact set of fields while keeping stable error text."""
+
+    missing = required.difference(payload)
+    if missing:
+        raise ValueError(f"{label} is missing: " + ", ".join(sorted(missing)))
+    unexpected = set(payload).difference(required | optional)
+    if unexpected:
+        raise ValueError(
+            f"{label} has unexpected fields: "
+            + ", ".join(sorted(str(key) for key in unexpected))
+        )
+
+
 def compact_sequence_metadata(
     field_name: str,
     values: Iterable[Any],

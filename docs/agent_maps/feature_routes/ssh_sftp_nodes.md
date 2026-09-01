@@ -19,7 +19,7 @@ Use this for the six built-in Control > SSH/SFTP nodes, protected credentials, P
 - `ea_node_editor/nodes/builtin_functions/__init__.py`
 - `ea_node_editor/nodes/bootstrap.py`
 - `ea_node_editor/common/protected_values.py`
-- `ea_node_editor/runtime_contracts/runtime_values.py`
+- `ea_node_editor/runtime_contracts/value_codec.py`
 - `ea_node_editor/nodes/node_specs.py`
 - `ea_node_editor/nodes/registry.py`
 - `ea_node_editor/ui_qml/components/common/SecretEditor.qml`
@@ -40,7 +40,7 @@ Use this for the six built-in Control > SSH/SFTP nodes, protected credentials, P
 - `protected_values.py` owns DPAPI CurrentUser/LocalMachine envelopes. Plaintext enters only the dedicated replace command, is protected before graph mutation/history, and is never projected into QML. Non-Windows protection/decryption fails closed.
 - `PropertySpec.sensitive`, `sensitive_scope_key`, and the `secret` editor kind are generic metadata. Scene and Inspector payloads expose only redacted public state; both UIs reuse `SecretEditor.qml` and the graph-owned replace/clear/reprotect mutation path.
 - Secret and SSH Host runtime markers are unavailable in previews before any key or value is stringified, including nested containers and hostile non-string keys. Panel display rows and Copy/Copy as tree reuse the same callback-free projection; ciphertext, address, username, key path, and marker details never enter QML or clipboard text.
-- Runtime `secret_data` and `ssh_sftp_host_data` values are immutable-by-convention tagged mappings, not live sessions. `runtime_values.py` preserves these opaque mappings through worker serialization; operation functions import `ssh_sftp_runtime.py` only when executed, and that lazy runtime decrypts credentials only while creating a fresh Paramiko client.
+- Runtime `secret_data` and `ssh_sftp_host_data` values are immutable-by-convention tagged mappings, not live sessions. `runtime_contracts/value_codec.py` preserves these opaque mappings through worker serialization; operation functions import `ssh_sftp_runtime.py` only when executed, and that lazy runtime decrypts credentials only while creating a fresh Paramiko client.
 - Connections load system OpenSSH known-hosts and reject unknown or changed host keys. Command/script execution uses bounded capture, cancellation callbacks, and warnings for nonzero exits; script staging uses a unique protected remote directory with cleanup.
 - Public runtime failures use fixed path-free messages for local path probes, credential decode, known-host loading, client/agent setup, connect/transport failures, and cleanup. Cause/context chaining is suppressed so Paramiko, DPAPI, filesystem, host, user, and key-path details do not escape; client/SFTP close remains best-effort and does not replace the primary failure.
 - Upload/download reuse one SFTP session per node execution, recurse through directory contents, skip symlinks with warnings, contain local targets, and commit files atomically. Multiple sources require a directory destination.

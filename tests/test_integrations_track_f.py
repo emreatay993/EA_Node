@@ -59,10 +59,10 @@ from ea_node_editor.nodes.function_plugin import (
 from ea_node_editor.nodes.plugin_declaration import discover_plugin_declarations
 from ea_node_editor.nodes.registry import PythonFunctionEntry
 from ea_node_editor.nodes.execution_context import ExecutionContext, NodeResult
-from ea_node_editor.nodes.runtime_refs import (
+from ea_node_editor.runtime_contracts.value_refs import (
     RuntimeArtifactRef,
-    deserialize_runtime_value,
 )
+from ea_node_editor.runtime_contracts.value_codec import deserialize_runtime_value
 from ea_node_editor.platform_paths import default_user_desktop_path
 from ea_node_editor.runtime_contracts import DataTree, PATH_DATA_TYPE_ID, TabularDataRef
 from ea_node_editor.ui.folder_explorer import FolderExplorerFilesystemService

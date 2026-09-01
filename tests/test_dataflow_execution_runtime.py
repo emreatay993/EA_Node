@@ -30,7 +30,7 @@ from ea_node_editor.nodes.node_specs import (
     PropertyConditionSpec,
     ReadinessRequirementSpec,
 )
-from ea_node_editor.nodes.runtime_refs import (
+from ea_node_editor.runtime_contracts.value_codec import (
     deserialize_runtime_value,
 )
 from ea_node_editor.runtime_contracts import DataTree

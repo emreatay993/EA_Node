@@ -15,7 +15,7 @@ from typing import Any
 
 from PyQt6.QtCore import QObject, pyqtProperty, pyqtSignal, pyqtSlot
 
-from ea_node_editor.persistence.artifact_refs import ManagedArtifactRef, parse_artifact_ref
+from ea_node_editor.common.artifact_refs import ManagedArtifactRef, parse_artifact_ref
 from ea_node_editor.persistence.artifact_store import ProjectArtifactStore, StagedArtifactEntry
 from ea_node_editor.settings import (
     PROJECT_ARTIFACT_SESSION_STAGING_DIRNAME,

@@ -11,7 +11,7 @@ from ea_node_editor.addons.tabular_data.loader_cache_service import (
     TabularLoaderCacheService,
     UnsupportedTabularFormatError,
 )
-from ea_node_editor.persistence.artifact_refs import format_managed_artifact_ref
+from ea_node_editor.common.artifact_refs import format_managed_artifact_ref
 from ea_node_editor.runtime_contracts import (
     ArrayDataRef,
     ArraySlice2D,

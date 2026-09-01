@@ -22,8 +22,8 @@ from ea_node_editor.nodes.readiness import (
 )
 from ea_node_editor.runtime_contracts.data_tree import DataTree
 from ea_node_editor.runtime_contracts.data_types import DataTypeCatalog, DataTypeSpec
-from ea_node_editor.runtime_contracts.runtime_values import (
-    ImageValue,
+from ea_node_editor.runtime_contracts.image_value import ImageValue
+from ea_node_editor.runtime_contracts.value_refs import (
     RuntimeArtifactRef,
     RuntimeHandleRef,
     TypedInlineValue,

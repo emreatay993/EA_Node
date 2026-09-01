@@ -21,7 +21,7 @@ from ea_node_editor.nodes.ansys_dpf_data_types import (
     DPF_VIEWER_DATASET_DATA_TYPE,
 )
 from ea_node_editor.nodes.output_artifacts import register_staged_artifact
-from ea_node_editor.nodes.runtime_refs import RuntimeArtifactRef, RuntimeHandleRef
+from ea_node_editor.runtime_contracts.value_refs import RuntimeArtifactRef, RuntimeHandleRef
 from ea_node_editor.persistence.artifact_store import ProjectArtifactStore
 from ea_node_editor.runtime_contracts import PATH_DATA_TYPE_ID
 

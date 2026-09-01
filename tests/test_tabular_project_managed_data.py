@@ -16,7 +16,7 @@ from ea_node_editor.graph.file_issue_state import (
     MANAGED_COPY_MODE,
     repair_modes_for_node_property,
 )
-from ea_node_editor.persistence.artifact_refs import (
+from ea_node_editor.common.artifact_refs import (
     format_managed_artifact_ref,
     format_staged_artifact_ref,
 )

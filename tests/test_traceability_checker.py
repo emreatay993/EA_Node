@@ -3191,7 +3191,7 @@ COREX_EXCALIDRAW_WEB_HOST_LAYER_TRACEABILITY_ROW_TOKENS: dict[str, tuple[str, ..
     ),
     "REQ-PERSIST-024": (
         "project_codec.py",
-        "persistence/artifact_refs.py",
+        "common/artifact_refs.py",
         "web_host/bridge.py",
         "round_trip_cases.py",
         "tests/test_content_fullscreen_bridge.py",

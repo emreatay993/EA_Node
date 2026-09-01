@@ -12,7 +12,7 @@ from ea_node_editor.graph.project_state import ProjectData
 from ea_node_editor.graph.records import NodeInstance
 from ea_node_editor.nodes.builtins.media_panel import MEDIA_PANEL_TYPE_ID
 from ea_node_editor.nodes.file_dialog_filters import IMAGE_FILE_SUFFIXES
-from ea_node_editor.persistence.artifact_refs import ManagedArtifactRef, StagedArtifactRef, parse_artifact_ref
+from ea_node_editor.common.artifact_refs import ManagedArtifactRef, StagedArtifactRef, parse_artifact_ref
 from ea_node_editor.persistence.artifact_store import ProjectArtifactStore
 from ea_node_editor.runtime_contracts import ImageValue
 from ea_node_editor.ui.canvas_view_export import collision_safe_path, safe_filename_component

@@ -19,7 +19,7 @@ from ea_node_editor.nodes.builtins.excalidraw import (
     EXCALIDRAW_STATE_PROPERTY,
 )
 from ea_node_editor.nodes.builtins.jupyter_notebook import JUPYTER_NOTEBOOK_TYPE_ID
-from ea_node_editor.persistence.artifact_refs import (
+from ea_node_editor.common.artifact_refs import (
     format_managed_artifact_ref,
     format_staged_artifact_ref,
 )

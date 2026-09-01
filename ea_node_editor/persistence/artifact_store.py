@@ -30,7 +30,7 @@ from ea_node_editor.settings import (
     PROJECT_NODE_TEMP_DIRNAME,
 )
 
-from .artifact_refs import (
+from ea_node_editor.common.artifact_refs import (
     coerce_managed_artifact_id,
     coerce_staged_artifact_id,
     format_managed_artifact_ref,
@@ -1387,7 +1387,7 @@ class ProjectArtifactStore:
     def inspect_durable_artifact(self, value: object) -> Path:
         """Verify one managed runtime artifact without catalog or value callbacks."""
 
-        from ea_node_editor.runtime_contracts.runtime_values import RuntimeArtifactRef
+        from ea_node_editor.runtime_contracts.value_refs import RuntimeArtifactRef
 
         if type(value) is not RuntimeArtifactRef or value.scope != "managed":
             raise ValueError("durable artifact must be an exact managed reference")

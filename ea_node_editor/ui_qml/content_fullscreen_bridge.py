@@ -62,7 +62,7 @@ from ea_node_editor.nodes.file_dialog_filters import (
     TABULAR_ARRAY_OUTPUT_FILES_FILTER,
     TABULAR_TABLE_OUTPUT_FILES_FILTER,
 )
-from ea_node_editor.persistence.artifact_refs import parse_artifact_ref
+from ea_node_editor.common.artifact_refs import parse_artifact_ref
 from ea_node_editor.ui.tabular_preview_provider import (
     TABULAR_PREVIEW_CONTENT_KIND,
     TABULAR_PREVIEW_FULLSCREEN_COLUMN_LIMIT,

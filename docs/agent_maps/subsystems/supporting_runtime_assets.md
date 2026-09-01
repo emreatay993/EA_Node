@@ -16,7 +16,8 @@ Use this for support layers that are not owned by graph, persistence, or UI: tel
 
 ## Runtime Contracts
 - `runtime_contracts/data_tree.py` owns immutable path-indexed `DataTree` values and modifier ordering.
-- `runtime_contracts/runtime_values.py` owns carrier serialization for native values, `TypedInlineValue`, `RuntimeHandleRef`, `RuntimeArtifactRef`, and `ImageValue`. Its structural durable decoder reconstructs only locked runtime-contract values without catalog callbacks. The centralized durable-output gate then validates declared and concrete catalog types, assignability, persistence/sensitivity, exact carrier kinds, per-inline size, recursively serialized artifact metadata, traversal/private/staging/session-temporary/drive-relative/home/environment paths, markers, and current managed-artifact integrity through the store's callback-free inspector.
+- `runtime_contracts/image_value.py` owns strict immutable PNG parsing and `ImageValue`; `value_refs.py` owns inline, artifact, and handle carriers; `tabular_data.py` owns tabular and array carriers; `value_codec.py` owns recursive tagged serialization; and `durable_values.py` owns callback-free durable decoding and validation. The durable gate retains declared/concrete catalog checks, assignability, persistence/sensitivity, carrier kinds, per-inline size, artifact metadata, private/staging/session/path rejection, markers, and current managed-artifact integrity.
+- `common/artifact_refs.py` owns only the dependency-light `saved://` and `temp://` grammar shared by runtime contracts and persistence.
 - `runtime_contracts/data_types.py` owns catalog registration, parent assignability, carrier compatibility, and catalog fingerprints.
 - `runtime_contracts/interval_1d.py` owns immutable ordered `Interval1D` values and strict coercion.
 - `runtime_contracts/settled_results.py` owns immutable settled port/root-error DTOs plus shared DataTree/output/error count and transport limits.
@@ -27,9 +28,11 @@ Use this for support layers that are not owned by graph, persistence, or UI: tel
 - Keep generated benchmark outputs under ignored local roots.
 - Publish accepted COREX behavior and current verification only.
 - Keep `ea_node_editor/common/` dependency-light and free of graph, UI, execution, persistence, and nodes imports.
+- Import runtime values from their defining modules or the intentional `runtime_contracts` package surface; do not add another compatibility codec/barrel.
 
 ## Focused Tests
 - `tests/test_typed_runtime_values.py`
+- `tests/test_image_value.py`
 - `tests/test_data_type_catalog.py`
 - `tests/test_core_value_codecs.py`
 - `tests/test_core_value_types.py`

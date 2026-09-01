@@ -55,7 +55,7 @@ from ea_node_editor.nodes.node_specs import (
     PropertySpec,
 )
 from ea_node_editor.nodes.execution_context import ExecutionContext
-from ea_node_editor.nodes.runtime_refs import RuntimeHandleRef
+from ea_node_editor.runtime_contracts.value_refs import RuntimeHandleRef
 
 _HELPER_TYPE_ID_PREFIX = "dpf.helper"
 _SANITIZE_RE = re.compile(r"[^0-9a-zA-Z_]+")

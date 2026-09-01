@@ -12,11 +12,11 @@ from ea_node_editor.execution.protocol import (
 )
 from ea_node_editor.runtime_contracts.settled_results import SettledPortResult
 from ea_node_editor.execution.runtime_snapshot import RuntimeSnapshot
-from ea_node_editor.execution.runtime_value_codec import (
+from ea_node_editor.runtime_contracts.value_codec import (
     deserialize_runtime_value,
     serialize_runtime_value,
 )
-from ea_node_editor.nodes.runtime_refs import RuntimeHandleRef
+from ea_node_editor.runtime_contracts.value_refs import RuntimeHandleRef
 from ea_node_editor.runtime_contracts import DataTree
 from tests.typed_handle_support import dpf_data_type_catalog
 

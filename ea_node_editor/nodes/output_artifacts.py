@@ -11,7 +11,7 @@ from typing import Any
 from ea_node_editor.common.payload_tools import artifact_content_integrity
 from ea_node_editor.nodes.execution_context import ExecutionContext
 from ea_node_editor.nodes.core_data_types import CORE_DATA_TYPES
-from ea_node_editor.nodes.runtime_refs import RuntimeArtifactRef
+from ea_node_editor.runtime_contracts.value_refs import RuntimeArtifactRef
 from ea_node_editor.runtime_contracts import PATH_DATA_TYPE_ID
 from ea_node_editor.settings import (
     PROJECT_ARTIFACT_SESSION_STAGING_DIRNAME,

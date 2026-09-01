@@ -36,10 +36,10 @@ from ea_node_editor.nodes.output_artifacts import (
     register_staged_path_artifact,
 )
 from ea_node_editor.nodes.execution_context import ExecutionContext
-from ea_node_editor.nodes.runtime_refs import (
+from ea_node_editor.runtime_contracts.value_refs import (
     RuntimeArtifactRef,
-    deserialize_runtime_value,
 )
+from ea_node_editor.runtime_contracts.value_codec import deserialize_runtime_value
 from ea_node_editor.persistence.artifact_resolution import ProjectArtifactResolver
 from ea_node_editor.persistence.artifact_store import ProjectArtifactStore
 from ea_node_editor.runtime_contracts import DataTree, PATH_DATA_TYPE_ID

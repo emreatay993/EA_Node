@@ -9,7 +9,7 @@ from ea_node_editor.graph.file_issue_state import encode_file_repair_request
 from ea_node_editor.graph.model import GraphModel
 from ea_node_editor.nodes.bootstrap import build_default_registry
 from ea_node_editor.persistence.artifact_store import ProjectArtifactStore
-from ea_node_editor.persistence.artifact_refs import format_managed_artifact_ref
+from ea_node_editor.common.artifact_refs import format_managed_artifact_ref
 from ea_node_editor.persistence.file_issues import collect_workspace_file_issue_map
 from tests.conftest import ShellTestEnvironment
 

@@ -46,7 +46,7 @@ from ea_node_editor.nodes.output_artifacts import (
     register_staged_path_artifact,
 )
 from ea_node_editor.nodes.plugin_contracts import PluginDescriptor
-from ea_node_editor.nodes.runtime_refs import RuntimeHandleRef
+from ea_node_editor.runtime_contracts.value_refs import RuntimeHandleRef
 
 if TYPE_CHECKING:
     from ea_node_editor.execution.plot_backend import PlotExportResult, PlotRenderRequest

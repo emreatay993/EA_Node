@@ -49,7 +49,7 @@ from ea_node_editor.runtime_contracts import (
 from ea_node_editor.nodes.builtins.plot import PLOT_NODE_CATEGORY_PATH, PLOT_NODE_TYPE_IDS
 from ea_node_editor.nodes.builtins.plot.generic import build_generic_plot_render_request
 from ea_node_editor.nodes.execution_context import ExecutionContext
-from ea_node_editor.nodes.runtime_refs import RuntimeArtifactRef
+from ea_node_editor.runtime_contracts.value_refs import RuntimeArtifactRef
 from ea_node_editor.persistence.artifact_resolution import ProjectArtifactResolver
 from ea_node_editor.persistence.artifact_store import ProjectArtifactStore
 from ea_node_editor.ui_qml.graph_scene_payload import GraphScenePayloadBuilder

@@ -31,7 +31,7 @@ from ea_node_editor.runtime_contracts import (
     TabularDataRef,
     TypedInlineValue,
 )
-from ea_node_editor.persistence.artifact_refs import (
+from ea_node_editor.common.artifact_refs import (
     format_managed_artifact_ref,
     format_staged_artifact_ref,
 )

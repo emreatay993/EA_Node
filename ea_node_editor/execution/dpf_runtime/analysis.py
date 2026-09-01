@@ -17,7 +17,7 @@ from ea_node_editor.nodes.ansys_dpf_data_types import (
     DPF_FIELD_DATA_TYPE,
     DPF_FIELDS_CONTAINER_DATA_TYPE,
 )
-from ea_node_editor.nodes.runtime_refs import RuntimeHandleRef
+from ea_node_editor.runtime_contracts.value_refs import RuntimeHandleRef
 
 _TENSOR_COMPONENT_COUNT = 6
 

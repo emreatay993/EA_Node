@@ -10,7 +10,7 @@ from types import SimpleNamespace
 from unittest.mock import patch
 
 from ea_node_editor.nodes.output_artifacts import register_staged_artifact
-from ea_node_editor.persistence.artifact_refs import (
+from ea_node_editor.common.artifact_refs import (
     ManagedArtifactRef,
     StagedArtifactRef,
     format_managed_artifact_ref,

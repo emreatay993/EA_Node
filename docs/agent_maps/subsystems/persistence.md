@@ -7,7 +7,7 @@ Use this for `.cxproj` documents, serializers, migrations, workspace-scoped proj
 - `ea_node_editor/persistence/serializer.py`
 - `ea_node_editor/persistence/project_codec.py`
 - `ea_node_editor/persistence/migration.py`
-- `ea_node_editor/persistence/artifact_refs.py`
+- `ea_node_editor/common/artifact_refs.py`
 - `ea_node_editor/persistence/artifact_store.py`
 - `ea_node_editor/persistence/artifact_resolution.py`
 - `ea_node_editor/persistence/solution_repository.py`
@@ -18,6 +18,7 @@ Use this for `.cxproj` documents, serializers, migrations, workspace-scoped proj
 - Keep document conversion and legacy-envelope handling in persistence.
 - Keep runtime snapshot and worker code independent of persistence internals.
 - Route workspace-scoped `in`/`out`/`tmp` files through the artifact store and resolution helpers.
+- Keep `saved://`/`temp://` parsing in the dependency-light common owner; persistence owns store metadata, resolution, publication, and cleanup rather than the reference grammar.
 - Persistent `ImageValue` properties externalize to immutable content-addressed PNG sidecars only at save time; an existing digest target is reused only after exact-byte verification and is never replaced.
 - Save and Save As use `ProjectArtifactStore.stage_project_save(...)`, `stage_project_images(...)`, and `JsonProjectSerializer.stage_document(...)` copy-on-write paths. Source/staged bytes and committed immutable targets are not moved, deleted, or overwritten before `.cxproj` publication; no product-specific importer owns a special promotion path.
 - Keep protected properties encrypted and reject unresolved add-ons before final writes.

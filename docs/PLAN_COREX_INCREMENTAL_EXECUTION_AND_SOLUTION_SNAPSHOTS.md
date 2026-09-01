@@ -2645,7 +2645,7 @@ container nodes or internalization commands.
   - `ea_node_editor/execution/prepared_execution.py`
   - `ea_node_editor/persistence/solution_repository.py` (new)
   - `ea_node_editor/persistence/artifact_store.py`
-  - `ea_node_editor/runtime_contracts/runtime_values.py`
+  - `ea_node_editor/runtime_contracts/durable_values.py`
   - `ea_node_editor/runtime_contracts/solution_records.py`
   - `ea_node_editor/ui/shell/composition/controllers.py`
   - `ea_node_editor/ui/shell/controllers/project_session_services_support/document_io_service.py`

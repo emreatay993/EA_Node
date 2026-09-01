@@ -26,7 +26,10 @@ from ea_node_editor.nodes.ansys_dpf_data_types import (
     DPF_RESULT_FILE_DATA_TYPE,
     DPF_SCOPING_DATA_TYPE,
 )
-from ea_node_editor.nodes.runtime_refs import RuntimeHandleRef, coerce_runtime_handle_ref
+from ea_node_editor.runtime_contracts.value_refs import (
+    RuntimeHandleRef,
+    coerce_runtime_handle_ref,
+)
 
 _DPF_RESULT_FIELD_NODE_TYPE_ID = "dpf.result_field"
 _DPF_FIELD_OPS_NODE_TYPE_ID = "dpf.field_ops"

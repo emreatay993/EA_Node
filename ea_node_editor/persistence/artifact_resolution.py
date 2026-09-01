@@ -5,7 +5,7 @@ from pathlib import Path, PureWindowsPath
 from typing import Any
 from urllib.parse import unquote, urlparse
 
-from .artifact_refs import ManagedArtifactRef, StagedArtifactRef, parse_artifact_ref
+from ea_node_editor.common.artifact_refs import ManagedArtifactRef, StagedArtifactRef, parse_artifact_ref
 from .artifact_store import ProjectArtifactStore
 
 

@@ -13,12 +13,14 @@ from typing import TYPE_CHECKING, Any
 from ea_node_editor.execution.backends import ExecutionBackendSelection
 from ea_node_editor.execution.runtime_snapshot import RuntimeSnapshot
 from ea_node_editor.runtime_contracts.data_types import DataTypeCatalog
-from ea_node_editor.runtime_contracts.runtime_values import (
-    deserialize_runtime_value,
+from ea_node_editor.runtime_contracts.durable_values import (
     durable_settled_outputs_from_payload,
     durable_settled_outputs_to_payload,
-    serialize_runtime_value,
     validate_durable_settled_outputs,
+)
+from ea_node_editor.runtime_contracts.value_codec import (
+    deserialize_runtime_value,
+    serialize_runtime_value,
 )
 from ea_node_editor.runtime_contracts.settled_results import (
     MAX_OUTPUTS_PER_NODE,

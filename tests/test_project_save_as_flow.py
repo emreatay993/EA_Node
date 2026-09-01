@@ -25,7 +25,7 @@ from ea_node_editor.nodes.builtins.excalidraw import (
 from ea_node_editor.nodes.node_specs import NodeTypeSpec, PortSpec, PropertySpec
 from ea_node_editor.nodes.builtins.core_values import IMAGE_DATA_TYPE_ID
 from ea_node_editor.nodes.registry import NodeRegistry
-from ea_node_editor.persistence.artifact_refs import (
+from ea_node_editor.common.artifact_refs import (
     format_managed_artifact_ref,
     format_staged_artifact_ref,
 )

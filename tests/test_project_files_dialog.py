@@ -8,7 +8,7 @@ from PyQt6.QtWidgets import QApplication
 
 from ea_node_editor.graph.model import GraphModel
 from ea_node_editor.nodes.bootstrap import build_default_registry
-from ea_node_editor.persistence.artifact_refs import (
+from ea_node_editor.common.artifact_refs import (
     format_managed_artifact_ref,
     format_staged_artifact_ref,
 )

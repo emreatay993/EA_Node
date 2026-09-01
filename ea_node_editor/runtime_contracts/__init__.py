@@ -55,41 +55,45 @@ from ea_node_editor.runtime_contracts.solution_records import (
     SolutionRecord,
     SolutionResidency,
 )
-from ea_node_editor.runtime_contracts.runtime_values import (
-    ArrayDataRef,
-    ArraySlice2DRef,
+from ea_node_editor.runtime_contracts.image_value import (
     IMAGE_VALUE_DATA_TYPE_ID,
     IMAGE_VALUE_MAX_ENCODED_BYTES,
     IMAGE_VALUE_SCHEMA_VERSION,
     ImageValue,
-    RuntimeArtifactRef,
-    RuntimeArtifactScope,
-    RuntimeHandleRef,
+)
+from ea_node_editor.runtime_contracts.value_codec import (
     RuntimeValueRef,
-    TabularDataRef,
-    TabularWindowRef,
-    TypedInlineValue,
-    coerce_array_data_ref,
-    coerce_array_slice_2d_ref,
-    coerce_runtime_artifact_ref,
-    coerce_runtime_handle_ref,
-    coerce_tabular_data_ref,
-    coerce_tabular_window_ref,
     deserialize_runtime_value,
     serialize_runtime_value,
 )
+from ea_node_editor.runtime_contracts.value_refs import (
+    RuntimeArtifactRef,
+    RuntimeArtifactScope,
+    RuntimeHandleRef,
+    TypedInlineValue,
+    coerce_runtime_artifact_ref,
+    coerce_runtime_handle_ref,
+)
 from ea_node_editor.runtime_contracts.tabular_data import (
+    ArrayDataRef,
     ArrayDataResolver,
     ArrayMaterializationOptions,
     ArraySlice2D,
+    ArraySlice2DRef,
     ArraySlice2DRequest,
     TabularArrowBatchOptions,
     TabularColumn,
+    TabularDataRef,
     TabularDataResolver,
     TabularDataWindow,
     TabularMaterializationOptions,
     TabularSchema,
+    TabularWindowRef,
     TabularWindowRequest,
+    coerce_array_data_ref,
+    coerce_array_slice_2d_ref,
+    coerce_tabular_data_ref,
+    coerce_tabular_window_ref,
 )
 from ea_node_editor.runtime_contracts.viewer_session import default_viewer_session_id
 

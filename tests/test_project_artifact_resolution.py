@@ -4,7 +4,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from ea_node_editor.persistence.artifact_refs import format_managed_artifact_ref, format_staged_artifact_ref
+from ea_node_editor.common.artifact_refs import format_managed_artifact_ref, format_staged_artifact_ref
 from ea_node_editor.persistence.artifact_resolution import ProjectArtifactResolver
 from ea_node_editor.persistence.artifact_store import format_node_artifact_folder, format_workspace_artifact_folder
 

@@ -23,7 +23,7 @@ from ea_node_editor.nodes.builtins.web_viewer import (
     normalize_web_page_viewer_display_mode,
 )
 from ea_node_editor.nodes.execution_context import ExecutionContext
-from ea_node_editor.persistence.artifact_refs import format_managed_artifact_ref
+from ea_node_editor.common.artifact_refs import format_managed_artifact_ref
 from ea_node_editor.persistence.artifact_store import ProjectArtifactStore
 from ea_node_editor.settings import PROJECT_ARTIFACT_STORE_METADATA_KEY, PROJECT_NODE_INPUTS_DIRNAME
 from ea_node_editor.ui_qml.graph_scene_payload import (

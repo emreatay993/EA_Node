@@ -4,7 +4,7 @@ from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import Any, Protocol
 
-from ea_node_editor.nodes.runtime_refs import RuntimeArtifactRef, RuntimeHandleRef
+from ea_node_editor.runtime_contracts.value_refs import RuntimeArtifactRef, RuntimeHandleRef
 
 DPF_RESULT_FILE_HANDLE_KIND = "dpf.result_file"
 DPF_MODEL_HANDLE_KIND = "dpf.model"

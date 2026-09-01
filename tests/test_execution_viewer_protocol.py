@@ -22,7 +22,7 @@ from ea_node_editor.execution.protocol import (
     dict_to_event,
     event_to_dict,
 )
-from ea_node_editor.nodes.runtime_refs import RuntimeArtifactRef, RuntimeHandleRef
+from ea_node_editor.runtime_contracts.value_refs import RuntimeArtifactRef, RuntimeHandleRef
 from ea_node_editor.nodes.bootstrap import build_default_registry
 from ea_node_editor.runtime_contracts import PATH_DATA_TYPE_ID
 

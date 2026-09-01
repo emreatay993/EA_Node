@@ -18,7 +18,7 @@ from ea_node_editor.runtime_contracts.solution_records import (
 from ea_node_editor.graph.model import GraphModel
 from ea_node_editor.graph.workspace_state import ViewState
 from ea_node_editor.nodes.bootstrap import build_default_registry
-from ea_node_editor.persistence.artifact_refs import format_managed_artifact_ref, format_staged_artifact_ref
+from ea_node_editor.common.artifact_refs import format_managed_artifact_ref, format_staged_artifact_ref
 from ea_node_editor.persistence.artifact_store import format_node_artifact_folder, format_workspace_artifact_folder
 from ea_node_editor.runtime_contracts import DataTree, ImageValue
 from ea_node_editor.ui.dialogs.project_review_deck_dialog import ProjectReviewDeckDialog

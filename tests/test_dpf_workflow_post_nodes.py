@@ -49,7 +49,7 @@ from ea_node_editor.nodes.builtins.ansys_dpf_common import (
     DPF_WORKFLOW_TIME_HISTORY_PROBE_NODE_TYPE_ID,
 )
 from ea_node_editor.nodes.execution_context import ExecutionContext
-from ea_node_editor.nodes.runtime_refs import (
+from ea_node_editor.runtime_contracts.value_refs import (
     RuntimeArtifactRef,
     RuntimeHandleRef,
 )

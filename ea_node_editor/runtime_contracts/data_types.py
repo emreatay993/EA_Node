@@ -454,8 +454,8 @@ class DataTypeCatalog:
 
         from ea_node_editor.runtime_contracts.data_tree import DataTree
         from ea_node_editor.runtime_contracts.interval_1d import Interval1D
-        from ea_node_editor.runtime_contracts.runtime_values import (
-            ImageValue,
+        from ea_node_editor.runtime_contracts.image_value import ImageValue
+        from ea_node_editor.runtime_contracts.value_refs import (
             RuntimeArtifactRef,
             RuntimeHandleRef,
             TypedInlineValue,

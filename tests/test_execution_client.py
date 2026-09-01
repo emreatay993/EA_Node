@@ -75,11 +75,11 @@ from ea_node_editor.execution.worker_runtime import (
 from ea_node_editor.execution.worker_services import WorkerServices
 from ea_node_editor.graph.model import GraphModel
 from ea_node_editor.nodes.bootstrap import build_builtin_registry, build_default_registry
-from ea_node_editor.nodes.runtime_refs import (
+from ea_node_editor.runtime_contracts.value_refs import (
     RuntimeArtifactRef,
     RuntimeHandleRef,
-    deserialize_runtime_value,
 )
+from ea_node_editor.runtime_contracts.value_codec import deserialize_runtime_value
 from ea_node_editor.persistence.serializer import JsonProjectSerializer
 from ea_node_editor.runtime_contracts import (
     ARRAY_DATA_REF_TYPE_ID,

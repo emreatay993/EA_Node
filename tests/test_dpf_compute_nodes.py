@@ -55,7 +55,7 @@ from ea_node_editor.nodes.builtins.ansys_dpf_common import (
     clone_handle_with_metadata,
 )
 from ea_node_editor.nodes.execution_context import ExecutionContext
-from ea_node_editor.nodes.runtime_refs import RuntimeArtifactRef
+from ea_node_editor.runtime_contracts.value_refs import RuntimeArtifactRef
 from ea_node_editor.persistence.artifact_resolution import ProjectArtifactResolver
 
 

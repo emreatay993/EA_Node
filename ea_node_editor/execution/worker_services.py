@@ -10,7 +10,10 @@ from ea_node_editor.addons.catalog import create_live_execution_viewer_backends
 from ea_node_editor.execution.dpf_runtime import create_dpf_runtime_service
 from ea_node_editor.execution.handle_registry import HandleRegistry
 from ea_node_editor.execution.viewer_backend import ViewerBackendRegistry
-from ea_node_editor.nodes.runtime_refs import RuntimeHandleRef, coerce_runtime_handle_ref
+from ea_node_editor.runtime_contracts.value_refs import (
+    RuntimeHandleRef,
+    coerce_runtime_handle_ref,
+)
 from ea_node_editor.runtime_contracts import DataTypeCatalog
 
 if TYPE_CHECKING:

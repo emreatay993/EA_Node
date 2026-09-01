@@ -46,7 +46,7 @@ from ea_node_editor.runtime_contracts import (
     STRING_DATA_TYPE_ID,
 )
 from ea_node_editor.runtime_contracts.data_tree import DataTree
-from ea_node_editor.runtime_contracts.runtime_values import (
+from ea_node_editor.runtime_contracts.value_refs import (
     RuntimeArtifactRef,
     RuntimeHandleRef,
     TypedInlineValue,

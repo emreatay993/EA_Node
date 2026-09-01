@@ -42,7 +42,7 @@ from ea_node_editor.runtime_contracts import (
     deserialize_runtime_value,
     serialize_runtime_value,
 )
-from ea_node_editor.runtime_contracts.runtime_values import (
+from ea_node_editor.runtime_contracts.durable_values import (
     validate_durable_settled_outputs,
 )
 from ea_node_editor.runtime_contracts.settled_results import (

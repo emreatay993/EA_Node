@@ -1,3 +1,7 @@
+# Purpose: Define the shared saved:// and temp:// artifact-reference grammar.
+# Map: feature_routes/managed_artifacts_project_data.md
+# Tests: tests/test_project_artifact_store.py
+
 from __future__ import annotations
 
 import re
@@ -94,6 +98,8 @@ def parse_artifact_ref(value: object) -> ArtifactRef | None:
         artifact_id = normalize_artifact_id(text[len(f"{ARTIFACT_REF_SCHEME}://") :])
         return ManagedArtifactRef(artifact_id) if artifact_id else None
     if text.startswith(f"{STAGED_ARTIFACT_REF_SCHEME}://"):
-        artifact_id = normalize_artifact_id(text[len(f"{STAGED_ARTIFACT_REF_SCHEME}://") :])
+        artifact_id = normalize_artifact_id(
+            text[len(f"{STAGED_ARTIFACT_REF_SCHEME}://") :]
+        )
         return StagedArtifactRef(artifact_id) if artifact_id else None
     return None

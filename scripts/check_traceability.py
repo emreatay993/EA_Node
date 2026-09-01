@@ -1230,7 +1230,7 @@ TRACEABILITY_ROW_REQUIRED_TOKENS.update(
             "P03_fullscreen_lifecycle_and_preview_WRAPUP.md",
         ),
         "REQ-PERSIST-024": (
-            "persistence/artifact_refs.py",
+            "common/artifact_refs.py",
             "web_host/bridge.py",
             "tests/test_project_save_as_flow.py",
             "P02_artifact_backed_web_bridge_WRAPUP.md",

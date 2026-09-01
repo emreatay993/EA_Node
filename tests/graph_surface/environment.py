@@ -19,7 +19,7 @@ from ea_node_editor.nodes.bootstrap import build_default_registry
 from ea_node_editor.nodes.registry import NodeRegistry
 from ea_node_editor.nodes.execution_context import NodeResult
 from ea_node_editor.nodes.node_specs import NodeTypeSpec
-from ea_node_editor.persistence.artifact_refs import format_managed_artifact_ref
+from ea_node_editor.common.artifact_refs import format_managed_artifact_ref
 from ea_node_editor.persistence.artifact_store import ProjectArtifactStore
 from ea_node_editor.ui_qml.graph_scene_payload import GraphScenePayloadBuilder
 from tests.conftest import ShellTestEnvironment

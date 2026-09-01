@@ -50,7 +50,7 @@ class PassiveGraphSurfaceMediaAndScopeTests(PassiveGraphSurfaceHostTestBase):
             from PyQt6.QtWidgets import QApplication
 
             from ea_node_editor.graph.file_issue_state import encode_file_repair_request
-            from ea_node_editor.persistence.artifact_refs import format_managed_artifact_ref
+            from ea_node_editor.common.artifact_refs import format_managed_artifact_ref
             from ea_node_editor.persistence.artifact_store import ProjectArtifactStore
             from ea_node_editor.ui.shell.window import ShellWindow
             from tests.conftest import ShellTestEnvironment
