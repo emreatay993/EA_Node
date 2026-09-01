@@ -904,11 +904,17 @@ P10_TRACEABILITY_ROW_REQUIRED_TOKENS = {
         "tests/test_main_window_shell.py",
     ),
     "REQ-NODE-016": (
+        "spec_validation.py",
+        "instance_resolution.py",
+        "property_coercion.py",
+        "tests/test_spec_validation.py",
         "graph_scene_payload/",
         "tests/test_graph_surface_input_contract.py",
         "tests/test_passive_node_contracts.py",
     ),
     "AC-REQ-NODE-016-01": (
+        "tests/test_spec_validation.py",
+        "tests/test_property_coercion.py",
         "tests/test_graph_surface_input_contract.py",
         "tests/test_passive_node_contracts.py",
         "tests/test_registry_validation.py",

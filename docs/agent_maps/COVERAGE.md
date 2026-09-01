@@ -87,6 +87,13 @@ implementation studies are intentionally excluded.
   function materialization/fingerprinting lives in `function_bundle.py`, built-in
   contributions in `builtin_catalog.py`, and trusted backend contributions in
   `addons/registry_contributions.py` without forwarding aliases.
+- Node specification structure is validated purely by `nodes/spec_validation.py`
+  against an explicit staged/live `DataTypeCatalog`; port and instance/dynamic
+  resolution lives directly in `nodes/instance_resolution.py`, and dependency-light
+  property coercion lives in `nodes/property_coercion.py`. `NodeRegistry` retains
+  storage, atomic staged composition/revalidation/rollback, fingerprints, and its
+  registry-aware `resolve_spec`, while normalization orchestration remains there
+  until T04.
 - Public node authoring is now only the 17-name top-level `corex` function SDK.
   `ea_node_editor.nodes` is internal, its former `types.py` barrel is removed,
   and trusted descriptor decorators remain owned by the Nodes map for the exact

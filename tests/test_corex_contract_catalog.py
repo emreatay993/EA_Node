@@ -29,7 +29,10 @@ from ea_node_editor.addons.tabular_data.function_nodes import SOURCE as TABULAR_
 from ea_node_editor.addons.tabular_data.metadata import TABULAR_DATA_ADDON_ID
 from ea_node_editor.nodes.bootstrap import build_builtin_registry
 from ea_node_editor.nodes.plugin_declaration import discover_plugin_declarations
-from ea_node_editor.nodes.registry import resolve_instance_ports, resolve_instance_spec
+from ea_node_editor.nodes.instance_resolution import (
+    resolve_instance_ports,
+    resolve_instance_spec,
+)
 from ea_node_editor.nodes.solution_provenance import trusted_solution_provenance_inputs
 from tests.non_dpf_catalog_fixture import (
     CURRENT_CONTRACT_OVERLAY_PATH,

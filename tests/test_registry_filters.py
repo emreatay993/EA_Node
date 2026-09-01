@@ -32,7 +32,7 @@ from ea_node_editor.nodes.builtins.ansys_dpf_taxonomy import (
 )
 from ea_node_editor.nodes.bootstrap import build_default_registry
 from ea_node_editor.nodes.category_paths import category_display
-from ea_node_editor.nodes.registry import resolve_instance_ports
+from ea_node_editor.nodes.instance_resolution import resolve_instance_ports
 from ea_node_editor.runtime_contracts import (
     ARRAY_DATA_REF_TYPE_ID,
     PATH_DATA_TYPE_ID,

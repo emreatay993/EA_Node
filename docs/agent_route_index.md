@@ -19,7 +19,7 @@ This index is the machine-readable companion to `docs/agent_maps/`. Use it to fi
 
 | Route key | Kind | Map | Source | Tests | QML | Keywords |
 | --- | --- | --- | ---: | ---: | ---: | --- |
-| `coverage:coverage` | `coverage` | `docs/agent_maps/COVERAGE.md` | 13 | 3 | - | `agent`, `map`, `coverage`, `node`, `editor`, `graph`, `execution`, `persistence`, `nodes`, `addons`, ... +89 more |
+| `coverage:coverage` | `coverage` | `docs/agent_maps/COVERAGE.md` | 13 | 3 | - | `agent`, `map`, `coverage`, `node`, `editor`, `graph`, `execution`, `persistence`, `nodes`, `addons`, ... +98 more |
 | `feature_route:feature-routes-addon-manager` | `feature_route` | `docs/agent_maps/feature_routes/addon_manager.md` | 11 | 2 | 1 | `add`, `manager`, `addon`, `node`, `editor`, `addons`, `contracts`, `catalog`, `registry`, `contributions`, ... +58 more |
 | `feature_route:feature-routes-ansys-dpf-operator-viewer-transport` | `feature_route` | `docs/agent_maps/feature_routes/ansys_dpf_operator_viewer_transport.md` | 34 | - | 2 | `ansys`, `dpf`, `operator`, `nodes`, `viewer`, `and`, `transport`, `node`, `editor`, `data`, ... +258 more |
 | `feature_route:feature-routes-clipboard-undo-redo-mutation-history` | `feature_route` | `docs/agent_maps/feature_routes/clipboard_undo_redo_mutation_history.md` | 11 | - | - | `clipboard`, `undo`, `redo`, `and`, `mutation`, `history`, `node`, `editor`, `qml`, `graph`, ... +235 more |
@@ -70,7 +70,7 @@ This index is the machine-readable companion to `docs/agent_maps/`. Use it to fi
 | `subsystem:subsystems-execution` | `subsystem` | `docs/agent_maps/subsystems/execution.md` | 45 | 19 | - | `execution`, `snapshot`, `client`, `worker`, `and`, `protocol`, `runtime`, `handle`, `lease`, `owner`, ... +262 more |
 | `subsystem:subsystems-graph-canvas` | `subsystem` | `docs/agent_maps/subsystems/graph_canvas.md` | 16 | 6 | 5 | `graph`, `canvas`, `rendering`, `input`, `and`, `viewport`, `node`, `editor`, `qml`, `components`, ... +294 more |
 | `subsystem:subsystems-graph-domain` | `subsystem` | `docs/agent_maps/subsystems/graph_domain.md` | 32 | - | - | `graph`, `domain`, `mutation`, `transforms`, `and`, `hierarchy`, `node`, `editor`, `model`, `graphmodel`, ... +145 more |
-| `subsystem:subsystems-nodes-registry-builtins` | `subsystem` | `docs/agent_maps/subsystems/nodes_registry_builtins.md` | 80 | 33 | - | `nodes`, `registry`, `built`, `ins`, `and`, `plugin`, `loading`, `builtins`, `node`, `corex`, ... +149 more |
+| `subsystem:subsystems-nodes-registry-builtins` | `subsystem` | `docs/agent_maps/subsystems/nodes_registry_builtins.md` | 80 | 35 | - | `nodes`, `registry`, `built`, `ins`, `and`, `plugin`, `loading`, `builtins`, `node`, `corex`, ... +155 more |
 | `subsystem:subsystems-packaging-generated-assets` | `subsystem` | `docs/agent_maps/subsystems/packaging_generated_assets.md` | 15 | 1 | - | `packaging`, `and`, `generated`, `assets`, `scripts`, `build`, `windows`, `package`, `ps1`, `installer`, ... +156 more |
 | `subsystem:subsystems-passive-media-tabular-surfaces` | `subsystem` | `docs/agent_maps/subsystems/passive_media_tabular_surfaces.md` | 13 | 1 | 1 | `passive`, `media`, `and`, `tabular`, `surfaces`, `node`, `editor`, `qml`, `surface`, `contracts`, ... +128 more |
 | `subsystem:subsystems-persistence` | `subsystem` | `docs/agent_maps/subsystems/persistence.md` | 12 | 8 | - | `persistence`, `documents`, `artifacts`, `and`, `migrations`, `cxproj`, `node`, `editor`, `serializer`, `project`, ... +50 more |

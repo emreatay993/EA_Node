@@ -1,6 +1,6 @@
 # COREX Runtime, Registry, and Presentation Ownership Refactor
 
-Status: `CHECKPOINT — T02 ACCEPTED; NEXT T03`
+Status: `CHECKPOINT — T03 ACCEPTED; NEXT T04`
 
 ## Summary
 
@@ -281,7 +281,8 @@ No aliases or deprecated forwarding modules remain for these changes:
   registration order or atomicity.
 - **Preconditions:** T02 accepted.
 - **Conservative write scope:** `nodes/registry.py`, new
-  `nodes/property_coercion.py` and `nodes/spec_validation.py`, validation tests,
+  `nodes/property_coercion.py`, `nodes/instance_resolution.py`, and
+  `nodes/spec_validation.py`, direct resolution callers, validation tests,
   architecture maps.
 - **Deliverables:**
   - `coerce_property_value(...)` becomes the dependency-light primitive used by
@@ -294,9 +295,13 @@ No aliases or deprecated forwarding modules remain for these changes:
     commit.
   - Public plugin pre-materialization validation remains independent from
     registry-boundary validation.
-  - Dynamic instance specs use the same validator.
+  - `instance_resolution.py` directly owns port validation, instance-spec
+    resolution, dynamic-group resolution, and resolved ports without importing
+    registry or specification validation; all callers import it directly.
+  - Dynamic and resolved instance specs use the same extracted validator.
   - Keep catalog storage, registration rollback, freeze, fingerprints, and
-    instance resolution in `NodeRegistry`.
+    registry-aware spec resolution in `NodeRegistry`; pure instance-resolution
+    mechanics belong only to `instance_resolution.py`.
 - **Verification:** exact accepted/rejected corpus, deterministic validation
   order, exception type/message parity, atomic registration/owner replacement,
   plugin runtime agreement, and architecture tests.

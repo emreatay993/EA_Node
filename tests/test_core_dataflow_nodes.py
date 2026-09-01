@@ -23,7 +23,7 @@ from ea_node_editor.graph.subnode_contract import (
 )
 from ea_node_editor.graph.validated_mutation import ValidatedGraphMutation
 from ea_node_editor.nodes.execution_context import ExecutionContext
-from ea_node_editor.nodes.registry import resolve_instance_ports
+from ea_node_editor.nodes.instance_resolution import resolve_instance_ports
 from ea_node_editor.runtime_contracts import DataTree
 
 

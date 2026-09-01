@@ -45,7 +45,7 @@ from ea_node_editor.nodes.builtins.subnode import (
 )
 from ea_node_editor.nodes.builtins.data_control import NUMBER_SLIDER_TYPE_ID, SELECT_TYPE_ID
 from ea_node_editor.nodes.builtins.web_viewer import WEB_PAGE_VIEWER_TYPE_ID
-from ea_node_editor.nodes.registry import resolve_instance_ports
+from ea_node_editor.nodes.instance_resolution import resolve_instance_ports
 from ea_node_editor.ui_qml.graph_scene_mutation.collision_avoidance_ops import (
     expand_collision_avoidance_updates,
 )

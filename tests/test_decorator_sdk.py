@@ -22,7 +22,8 @@ from ea_node_editor.nodes.decorators import (
     prop_json,
     prop_str,
 )
-from ea_node_editor.nodes.registry import NodeRegistry, resolve_instance_ports
+from ea_node_editor.nodes.instance_resolution import resolve_instance_ports
+from ea_node_editor.nodes.registry import NodeRegistry
 from ea_node_editor.nodes.execution_context import ExecutionContext, NodeResult
 from ea_node_editor.nodes.node_specs import (
     DynamicPortGroupSpec,

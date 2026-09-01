@@ -11,7 +11,7 @@ from ea_node_editor.graph.subnode_contract import (
     resolve_subnode_pin_definition,
 )
 from ea_node_editor.nodes.node_specs import NodeTypeSpec, PortSpec
-from ea_node_editor.nodes.registry import resolve_instance_ports
+from ea_node_editor.nodes.instance_resolution import resolve_instance_ports
 from ea_node_editor.runtime_contracts import DataTypeCatalog, GRAPH_DATA_TYPE_ID
 
 _FLOW_EDGE_KINDS = frozenset({"flow"})

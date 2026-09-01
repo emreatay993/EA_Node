@@ -189,6 +189,16 @@ loose decorated .py or installed schema-2 package
   `runtime/plugin_generations/<bundle-digest>/`. A
   `PythonFunctionEntry` contains only an immutable `PythonFunctionRef`; GUI
   discovery never receives the callable.
+- `spec_validation.py` validates node structure and data-type references against
+  the exact catalog supplied by its caller without mutating registry/catalog
+  state. `instance_resolution.py` is the cycle-free direct owner for port
+  validation, instance-spec resolution, dynamic groups, and resolved ports;
+  registry, graph, execution, UI, and tests import it directly. `property_coercion.py`
+  is the dependency-light property-value primitive. `NodeRegistry` installs
+  manifest types into a staged catalog, registers staged entries, revalidates every
+  surviving and new entry against that catalog, and publishes only after the
+  complete transaction succeeds. Property normalization orchestration remains
+  registry-owned until its separate refactor.
 - `RegistryReplacementCoordinator` refuses mutation while a run or viewer is
   active, validates every open graph against a fresh candidate, activates any
   package change reversibly, replaces registry consumers in order, retires old

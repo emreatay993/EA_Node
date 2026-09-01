@@ -25,7 +25,8 @@ from ea_node_editor.graph.subnode_contract import (
     is_subnode_pin_type,
 )
 from ea_node_editor.graph.workspace_state import ViewState, WorkspaceData
-from ea_node_editor.nodes.registry import NodeRegistry, resolve_instance_ports
+from ea_node_editor.nodes.instance_resolution import resolve_instance_ports
+from ea_node_editor.nodes.registry import NodeRegistry
 from ea_node_editor.nodes.builtins.media_panel import MEDIA_PANEL_TYPE_ID
 from ea_node_editor.nodes.node_specs import DynamicPortGroupSpec, NodeTypeSpec, PortSpec
 

@@ -39,7 +39,7 @@ These rows summarize whole-capability status. `PARTIAL` means accepted backend a
 
 ## Active Implementation Plans — No Implementation Proof
 
-- [COREX Runtime, Registry, and Presentation Ownership Refactor](../PLAN_COREX_RUNTIME_REGISTRY_PRESENTATION_REFACTOR.md) — `CHECKPOINT — T02 ACCEPTED; NEXT T03`; [QA ledger](perf/COREX_RUNTIME_REGISTRY_PRESENTATION_REFACTOR_QA_MATRIX.md)
+- [COREX Runtime, Registry, and Presentation Ownership Refactor](../PLAN_COREX_RUNTIME_REGISTRY_PRESENTATION_REFACTOR.md) — `CHECKPOINT — T03 ACCEPTED; NEXT T04`; [QA ledger](perf/COREX_RUNTIME_REGISTRY_PRESENTATION_REFACTOR_QA_MATRIX.md)
 
 ### Completed Semantic-Type Architecture and Evidence
 

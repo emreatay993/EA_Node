@@ -9,7 +9,7 @@ from ea_node_editor.addons.mars.metadata import MARS_ADDON_ID
 from ea_node_editor.addons.tabular_data.catalog import TABULAR_DATA_FUNCTION_TYPE_IDS
 from ea_node_editor.nodes.bootstrap import build_builtin_registry, build_default_registry
 from ea_node_editor.nodes.plugin_declaration import discover_plugin_declarations
-from ea_node_editor.nodes.registry import resolve_instance_ports
+from ea_node_editor.nodes.instance_resolution import resolve_instance_ports
 from tests.non_dpf_catalog_fixture import (
     DOCUMENTATION_OVERLAY_PATH,
     load_effective_non_dpf_catalog,

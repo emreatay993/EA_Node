@@ -968,6 +968,106 @@ class GraphArchitectureBoundaryTests(unittest.TestCase):
         self.assertIn("create_plot_property_edit_adapters", shell_adapter_source)
         self.assertIn("create_live_property_edit_adapters", shell_adapter_source)
 
+    def test_node_spec_validation_and_property_coercion_have_direct_owners(self) -> None:
+        coercion_tree = parse_module("ea_node_editor/nodes/property_coercion.py")
+        coercion_imports = imported_modules(coercion_tree)
+        self.assertFalse(
+            {
+                module
+                for module in coercion_imports
+                if module == "ea_node_editor.nodes.registry"
+                or module.startswith("ea_node_editor.addons")
+                or module.startswith("ea_node_editor.graph")
+                or module.startswith("ea_node_editor.ui")
+                or module.startswith("ea_node_editor.persistence")
+                or module.startswith("ea_node_editor.execution")
+            }
+        )
+
+        validation_source = (
+            REPO_ROOT / "ea_node_editor/nodes/spec_validation.py"
+        ).read_text(encoding="utf-8")
+        validation_imports = imported_modules(
+            parse_module("ea_node_editor/nodes/spec_validation.py")
+        )
+        self.assertNotIn("ea_node_editor.nodes.registry", validation_imports)
+        for mutation_name in (
+            "register_many(",
+            ".fork(",
+            ".freeze(",
+            "_entries",
+            "_contract_manifests",
+            "_plugin_bundle_refs",
+        ):
+            with self.subTest(mutation_name=mutation_name):
+                self.assertNotIn(mutation_name, validation_source)
+
+        resolution_tree = parse_module("ea_node_editor/nodes/instance_resolution.py")
+        resolution_imports = imported_modules(resolution_tree)
+        self.assertNotIn("ea_node_editor.nodes.registry", resolution_imports)
+        self.assertNotIn("ea_node_editor.nodes.spec_validation", resolution_imports)
+        resolution_source = (
+            REPO_ROOT / "ea_node_editor/nodes/instance_resolution.py"
+        ).read_text(encoding="utf-8")
+        for policy_name in (
+            "_SUPPORTED_DIRECTIONS",
+            "_SUPPORTED_PORT_SIDES",
+            "_SUPPORTED_KINDS",
+            "_SUPPORTED_DATA_ACCESS",
+        ):
+            with self.subTest(policy_name=policy_name):
+                self.assertIn(policy_name, resolution_source)
+                self.assertNotIn(policy_name, validation_source)
+
+        registry_source = (
+            REPO_ROOT / "ea_node_editor/nodes/registry.py"
+        ).read_text(encoding="utf-8")
+        for retired_name in (
+            "def _validate_spec(",
+            "def _validate_property(",
+            "def _validate_port(",
+            "def _coerce_property_value(",
+            "def resolve_instance_ports(",
+            "def resolve_instance_spec(",
+            "_SUPPORTED_SURFACE_FAMILIES",
+        ):
+            with self.subTest(retired_name=retired_name):
+                self.assertNotIn(retired_name, registry_source)
+        self.assertIn("spec_validation.validate_node_spec(", registry_source)
+        self.assertIn("instance_resolution.resolve_instance_ports(", registry_source)
+        self.assertIn("instance_resolution.resolve_instance_spec(", registry_source)
+        self.assertIn("property_coercion.coerce_property_value(", registry_source)
+        self.assertIn("def normalize_property_value(", registry_source)
+        self.assertIn("def normalize_properties(", registry_source)
+
+        annotation_source = (
+            REPO_ROOT / "ea_node_editor/nodes/builtins/passive_annotation.py"
+        ).read_text(encoding="utf-8")
+        self.assertNotIn("NodeRegistry._SUPPORTED_SURFACE_FAMILIES", annotation_source)
+
+        for consumer_path in (
+            "ea_node_editor/execution/worker_runner.py",
+            "ea_node_editor/graph/effective_ports.py",
+            "ea_node_editor/graph/validated_mutation.py",
+            "ea_node_editor/ui_qml/graph_scene_mutation/selection_and_scope_ops.py",
+        ):
+            with self.subTest(consumer_path=consumer_path):
+                consumer_tree = parse_module(consumer_path)
+                self.assertIn(
+                    "resolve_instance_ports",
+                    imported_names_from(
+                        consumer_tree,
+                        "ea_node_editor.nodes.instance_resolution",
+                    ),
+                )
+                self.assertNotIn(
+                    "resolve_instance_ports",
+                    imported_names_from(
+                        consumer_tree,
+                        "ea_node_editor.nodes.registry",
+                    ),
+                )
+
     def test_runtime_value_contracts_have_direct_owners_and_common_stays_leaf(self) -> None:
         from ea_node_editor.runtime_contracts import (
             ImageValue,

@@ -10,6 +10,9 @@ Use this for node definitions, registry validation, built-in node families, data
 - `corex/__init__.py`
 - `ea_node_editor/nodes/bootstrap.py`
 - `ea_node_editor/nodes/registry.py`
+- `ea_node_editor/nodes/spec_validation.py`
+- `ea_node_editor/nodes/property_coercion.py`
+- `ea_node_editor/nodes/instance_resolution.py`
 - `ea_node_editor/nodes/declaration_engine.py`
 - `ea_node_editor/nodes/function_plugin.py`
 - `ea_node_editor/nodes/function_bundle.py`
@@ -55,6 +58,7 @@ Use this for node definitions, registry validation, built-in node families, data
   exclusions, and three shipped add-on catalogs. Public authors never use those
   descriptor/backend records.
 - `TrustedFactoryEntry` and `PythonFunctionEntry` are the mutually exclusive private registry implementations. Public function entries store only `PythonFunctionRef`; process workers re-hash the immutable generation and use `PythonFunctionAdapter` without exposing a callable to GUI discovery.
+- `spec_validation.py` purely validates node, property/default, readiness, group, source-metadata, and data-type-reference structure against the explicit catalog it receives. `instance_resolution.py` directly owns port validation, instance-spec resolution, dynamic-group resolution, and resolved ports without importing registry or specification validation; graph, execution, UI, registry, and tests import it directly. `property_coercion.py` is the dependency-light scalar/carrier coercion primitive shared by validation/resolution and the still-registry-owned normalization orchestration. `registry.py` retains entry/catalog storage, staged catalog composition, atomic owner replacement/rollback, freeze/fingerprints, and registry-aware `resolve_spec`; every staged surviving and new entry is revalidated before commit.
 - `NodeTypeSpec.solution_reuse_scope` is the internal fail-closed `never|session|durable` maximum. Every normal/untrusted function registration is locked to `never` regardless of type-ID prefix; broader scopes enter only through the attested internal built-in or shipped Tabular package construction paths. Every trusted factory remains `never`. The locked classification artifact is the row authority; the effective catalog fixture layers it after the frozen 133-row fixture instead of editing that fixture.
 - `nodes/solution_provenance.py` is the registry-owned typed overlay for the six accepted shipped session readers. It adds exact `path` file provenance only for the trusted built-in/tabular owners; declarations, public packages, and trusted factories cannot supply or imitate this metadata.
 - `NodeRegistry.execution_environment_facts()` projects deterministic active add-on, plugin-bundle, toolchain, and Python-package requirements for the concrete execution-route handshake; it contains no mutable source/install paths.
@@ -80,6 +84,8 @@ Use this for node definitions, registry validation, built-in node families, data
 
 ## Focused Tests
 - `tests/test_registry_validation.py`
+- `tests/test_spec_validation.py`
+- `tests/test_property_coercion.py`
 - `tests/test_plugin_declaration.py`
 - `tests/test_function_plugin.py`
 - `tests/test_plugin_loader.py`
@@ -114,7 +120,7 @@ Use this for node definitions, registry validation, built-in node families, data
 
 ## Focused Verification
 ```powershell
-.\venv\Scripts\python.exe -m pytest tests/test_plugin_declaration.py tests/test_function_plugin.py tests/test_function_bundle.py tests/test_registry_validation.py tests/test_plugin_loader.py tests/test_package_manager.py tests/test_addon_catalog.py tests/test_corex_contract_catalog.py tests/test_corex_type_conformance.py tests/test_python_script_declaration.py -q
+.\venv\Scripts\python.exe -m pytest tests/test_plugin_declaration.py tests/test_function_plugin.py tests/test_function_bundle.py tests/test_property_coercion.py tests/test_spec_validation.py tests/test_registry_validation.py tests/test_plugin_loader.py tests/test_package_manager.py tests/test_addon_catalog.py tests/test_corex_contract_catalog.py tests/test_corex_type_conformance.py tests/test_python_script_declaration.py -q
 .\venv\Scripts\python.exe -m pytest tests/test_plugin_authoring.py tests/test_plugin_authoring_controller.py tests/test_plugin_authoring_dialog.py -q
 .\venv\Scripts\python.exe -m pytest tests/test_builtin_function_infrastructure.py tests/test_builtin_function_migration.py tests/test_remaining_builtin_function_migration.py tests/test_corex_contract_catalog.py tests/test_core_unit_nodes.py tests/test_spatial_values.py -q
 .\venv\Scripts\python.exe -m pytest tests/test_novice_plugin_sdk_docs.py tests/test_non_dpf_node_documentation.py -q

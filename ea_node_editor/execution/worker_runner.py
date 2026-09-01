@@ -74,7 +74,7 @@ from ea_node_editor.nodes.readiness import (
     evaluate_node_readiness,
     readiness_value_is_present,
 )
-from ea_node_editor.nodes.registry import resolve_instance_ports
+from ea_node_editor.nodes.instance_resolution import resolve_instance_ports
 from ea_node_editor.runtime_contracts import (
     DataTree,
     DataTypeCatalog,

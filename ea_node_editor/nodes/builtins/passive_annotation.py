@@ -11,7 +11,6 @@ from ea_node_editor.nodes.decorators import (
     prop_str,
 )
 from ea_node_editor.nodes.node_specs import PropertySpec
-from ea_node_editor.nodes.registry import NodeRegistry
 from ea_node_editor.nodes.execution_context import ExecutionContext, NodeResult
 
 PASSIVE_ANNOTATION_CATEGORY = "Annotation"
@@ -22,15 +21,6 @@ PASSIVE_ANNOTATION_SECTION_HEADER_TYPE_ID = "passive.annotation.section_header"
 PASSIVE_ANNOTATION_GROUP_BACKDROP_TYPE_ID = "passive.annotation.group_backdrop"
 PASSIVE_ANNOTATION_TEXT_TYPE_ID = "passive.annotation.text"
 PASSIVE_ANNOTATION_GROUP_BACKDROP_SURFACE_FAMILY = "group_backdrop"
-
-
-def _enable_group_backdrop_surface_family() -> None:
-    supported_families = set(getattr(NodeRegistry, "_SUPPORTED_SURFACE_FAMILIES", ()))
-    supported_families.add(PASSIVE_ANNOTATION_GROUP_BACKDROP_SURFACE_FAMILY)
-    NodeRegistry._SUPPORTED_SURFACE_FAMILIES = supported_families
-
-
-_enable_group_backdrop_surface_family()
 
 
 class _PassiveAnnotationNodePlugin:
@@ -149,8 +139,7 @@ PASSIVE_ANNOTATION_NODE_PLUGINS = (
     PassiveAnnotationGroupBackdropNodePlugin,
 )
 PASSIVE_ANNOTATION_NODE_DESCRIPTORS = tuple(
-    plugin_descriptor(plugin)
-    for plugin in PASSIVE_ANNOTATION_NODE_PLUGINS
+    plugin_descriptor(plugin) for plugin in PASSIVE_ANNOTATION_NODE_PLUGINS
 )
 
 
