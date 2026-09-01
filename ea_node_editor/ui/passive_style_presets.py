@@ -6,7 +6,7 @@ from collections.abc import Mapping, Sequence
 from secrets import token_hex
 from typing import Any, Literal
 
-from ea_node_editor.ui.dialogs.passive_style_controls import (
+from ea_node_editor.passive_style_normalization import (
     normalize_flow_edge_style_payload,
     normalize_passive_node_style_payload,
 )

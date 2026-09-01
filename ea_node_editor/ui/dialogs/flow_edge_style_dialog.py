@@ -17,12 +17,14 @@ from PyQt6.QtWidgets import (
     QLineEdit,
 )
 
-from ea_node_editor.ui.dialogs.passive_style_controls import (
-    ColorHexFieldControl,
+from ea_node_editor.passive_style_normalization import (
     FLOW_EDGE_ARROW_HEADS,
     FLOW_EDGE_PATH_MODES,
     FLOW_EDGE_STYLE_PATTERNS,
     normalize_flow_edge_style_payload,
+)
+from ea_node_editor.ui.dialogs.passive_style_controls import (
+    ColorHexFieldControl,
     set_dialog_role,
 )
 from ea_node_editor.ui.passive_style_presets import PassiveStylePresetCatalog

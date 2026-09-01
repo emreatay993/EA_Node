@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import copy
 from dataclasses import replace
 from types import SimpleNamespace
 from typing import Any
@@ -9,6 +10,7 @@ from PyQt6.QtWidgets import QApplication, QDialog
 
 import ea_node_editor.ui.shell.presenters.graph_canvas_host_presenter as presenter_module
 from ea_node_editor.graph.model import GraphModel
+from ea_node_editor.graph.project_state import ProjectData
 from ea_node_editor.nodes.bootstrap import build_default_registry
 from ea_node_editor.ui.shell.presenters.graph_canvas_host_presenter import GraphCanvasHostPresenter
 from ea_node_editor.ui_qml.graph_scene_bridge import GraphSceneBridge
@@ -98,7 +100,9 @@ def _style_fixture(
         project_path="",
         model=model,
         registry=registry,
-        workspace_manager=SimpleNamespace(active_workspace_id=lambda: workspace_id),
+        workspace_manager=SimpleNamespace(
+            active_workspace_id=lambda: model.active_workspace.workspace_id
+        ),
         scene=scene,
         project_session_controller=session,
         project_meta_changed=project_meta_changed,
@@ -410,6 +414,115 @@ def test_graph_canvas_host_presenter_persists_dialog_presets_on_cancel(monkeypat
         presets = model.project.metadata["ui"]["passive_style_presets"]
         assert presets["node_presets"][0]["name"] == "Saved On Cancel"
         assert seen_parents == [host]
+        assert session.persist_count == 1
+        assert project_meta_changed.emit_count == 1
+    finally:
+        presenter.shutdown()
+
+
+def test_graph_canvas_host_presenter_uses_current_project_presets_after_model_switch(monkeypatch) -> None:
+    presenter, host, model, scene, session, project_meta_changed = _style_fixture()
+
+    class _RejectedDialog:
+        DialogCode = QDialog.DialogCode
+        seen_user_presets: list[list[dict[str, object]]] = []
+        seen_parents: list[object] = []
+        next_user_presets: list[dict[str, object]] = []
+
+        def __init__(self, initial_style=None, parent=None, *, user_presets=None) -> None:  # noqa: ANN001
+            del initial_style
+            self.seen_user_presets.append(copy.deepcopy(user_presets or []))
+            self.seen_parents.append(parent)
+
+        @staticmethod
+        def exec() -> int:
+            return int(QDialog.DialogCode.Rejected)
+
+        def user_presets(self) -> list[dict[str, object]]:
+            return copy.deepcopy(self.next_user_presets)
+
+        @staticmethod
+        def node_style() -> dict[str, object]:
+            raise AssertionError("Rejected dialog must not return a style")
+
+    project_a_initial_presets = [
+        {
+            "preset_id": "node_preset_aa11bb22",
+            "name": "A Only",
+            "style": {"fill_color": "#112233"},
+        }
+    ]
+    project_a_updated_presets = [
+        {
+            "preset_id": "node_preset_cc33dd44",
+            "name": "A Updated",
+            "style": {"fill_color": "#445566"},
+        }
+    ]
+    project_b_presets = [
+        {
+            "preset_id": "node_preset_ee55ff66",
+            "name": "B Only",
+            "style": {"fill_color": "#AABBCC"},
+        }
+    ]
+    project_a = ProjectData(
+        project_id="proj_a",
+        name="Project A",
+        metadata={
+            "ui": {
+                "passive_style_presets": {
+                    "node_presets": copy.deepcopy(project_a_initial_presets),
+                    "edge_presets": [],
+                }
+            }
+        },
+    )
+    project_b = ProjectData(
+        project_id="proj_b",
+        name="Project B",
+        metadata={
+            "ui": {
+                "passive_style_presets": {
+                    "node_presets": copy.deepcopy(project_b_presets),
+                    "edge_presets": [],
+                }
+            }
+        },
+    )
+
+    def add_project_node(project: ProjectData, *, x: float, y: float) -> str:
+        model.project = project
+        workspace_id = model.active_workspace.workspace_id
+        scene.set_workspace(model, host.registry, workspace_id)
+        return scene.add_node_from_type("passive.flowchart.process", x, y)
+
+    monkeypatch.setattr("ea_node_editor.ui.dialogs.PassiveNodeStyleDialog", _RejectedDialog)
+    try:
+        node_a = add_project_node(project_a, x=10.0, y=20.0)
+        _RejectedDialog.next_user_presets = copy.deepcopy(project_a_updated_presets)
+        assert presenter.edit_passive_node_style(node_a) is None
+        assert _RejectedDialog.seen_user_presets[0] == project_a_initial_presets
+        assert (
+            project_a.metadata["ui"]["passive_style_presets"]["node_presets"]
+            == project_a_updated_presets
+        )
+        assert session.persist_count == 1
+        assert project_meta_changed.emit_count == 1
+
+        node_b = add_project_node(project_b, x=40.0, y=50.0)
+        _RejectedDialog.next_user_presets = copy.deepcopy(project_b_presets)
+        assert presenter.edit_passive_node_style(node_b) is None
+        assert _RejectedDialog.seen_user_presets[1] == project_b_presets
+        assert (
+            project_a.metadata["ui"]["passive_style_presets"]["node_presets"]
+            == project_a_updated_presets
+        )
+        assert (
+            project_b.metadata["ui"]["passive_style_presets"]["node_presets"]
+            == project_b_presets
+        )
+        assert _RejectedDialog.seen_parents == [host, host]
         assert session.persist_count == 1
         assert project_meta_changed.emit_count == 1
     finally:

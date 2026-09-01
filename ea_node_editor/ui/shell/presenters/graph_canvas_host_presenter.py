@@ -13,12 +13,12 @@ from PyQt6.QtGui import QCursor
 from PyQt6.QtWidgets import QApplication, QInputDialog
 
 from ea_node_editor.graph.effective_ports import port_kind
-from ea_node_editor.persistence.artifact_resolution import ProjectArtifactResolver
-from ea_node_editor.platform_open import open_path_with_app_chooser, open_path_with_default_handler
-from ea_node_editor.ui.dialogs.passive_style_controls import (
+from ea_node_editor.passive_style_normalization import (
     normalize_flow_edge_style_payload,
     normalize_passive_node_style_payload,
 )
+from ea_node_editor.persistence.artifact_resolution import ProjectArtifactResolver
+from ea_node_editor.platform_open import open_path_with_app_chooser, open_path_with_default_handler
 from ea_node_editor.ui.media_preview_provider import describe_local_image
 from ea_node_editor.ui.mail_preview_provider import describe_mail_preview
 from ea_node_editor.ui.pdf_preview_provider import describe_pdf_preview
