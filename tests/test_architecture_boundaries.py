@@ -841,6 +841,51 @@ class GraphArchitectureBoundaryTests(unittest.TestCase):
                     }
                 )
 
+    def test_addon_state_and_registry_publication_have_direct_owners(self) -> None:
+        import ea_node_editor.addons as addons
+        from ea_node_editor.addons.state_changes import AddOnApplyResult
+        from ea_node_editor.ui.shell.registry_replacement import (
+            RegistryReplacementCoordinator,
+        )
+
+        self.assertFalse((REPO_ROOT / "ea_node_editor/addons/hot_apply.py").exists())
+        self.assertFalse(hasattr(addons, "apply_addon_enabled_state"))
+        self.assertFalse(hasattr(addons, "AddOnApplyResult"))
+        self.assertEqual(
+            AddOnApplyResult.__module__,
+            "ea_node_editor.addons.state_changes",
+        )
+        self.assertFalse(
+            hasattr(RegistryReplacementCoordinator, "rebuild_after_addon_apply")
+        )
+
+        state_tree = parse_module("ea_node_editor/addons/state_changes.py")
+        self.assertFalse(
+            {
+                "ea_node_editor.execution",
+                "ea_node_editor.nodes.bootstrap",
+                "ea_node_editor.persistence",
+                "ea_node_editor.ui",
+                "ea_node_editor.ui_qml",
+            }
+            & top_level_imported_modules(state_tree)
+        )
+        state_source = (REPO_ROOT / "ea_node_editor/addons/state_changes.py").read_text(
+            encoding="utf-8"
+        )
+        for retired_name in (
+            "AddOnRuntimeCoordinator",
+            "AddOnRuntimeRebuildCoordinator",
+            "rebuild_hot_apply_runtime",
+            "runtime_coordinator",
+            ".persist_document(",
+            ".load_document(",
+            "build_default_registry",
+            "invalidate_addon_runtime_caches",
+        ):
+            with self.subTest(retired_name=retired_name):
+                self.assertNotIn(retired_name, state_source)
+
     def test_runtime_value_contracts_have_direct_owners_and_common_stays_leaf(self) -> None:
         from ea_node_editor.runtime_contracts import (
             ImageValue,

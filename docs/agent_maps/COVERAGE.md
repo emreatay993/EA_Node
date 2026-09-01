@@ -73,6 +73,9 @@ implementation studies are intentionally excluded.
 - Open-session registry reload safety is shared by the graph compatibility checker,
   nodes candidate/package transaction, execution identity/admission guard, and the
   shell registry replacement coordinator; it is not a legacy compatibility layer.
+- Add-on state preparation is pure and add-on-owned in `addons/state_changes.py`;
+  the shell registry replacement coordinator is the sole candidate, publication,
+  persistence, notification, and reverse-rollback authority.
 - Novice plugin authoring is shared by the nodes-owned static/save backend, native
   PyQt dialog/editor, and shell controller/File actions; reload still routes only
   through the guarded registry replacement coordinator.

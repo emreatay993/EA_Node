@@ -126,15 +126,19 @@ class RegistryReplacementCoordinator:
         preferences_document: Any = None,
         extra_plugin_dirs: Sequence[Path] | None = None,
     ):
-        from ea_node_editor.addons.hot_apply import persist_addon_enabled_state
+        from ea_node_editor.addons.state_changes import prepare_addon_enabled_state
+        from ea_node_editor.app_preferences import default_app_preferences_document
 
-        source_document = (
-            app_preferences_controller.document()
-            if app_preferences_controller is not None
-            and preferences_document is None
-            else preferences_document
-        )
-        staged = persist_addon_enabled_state(
+        if preferences_document is not None:
+            source_document = preferences_document
+        elif app_preferences_controller is not None:
+            source_document = app_preferences_controller.document()
+        elif app_preferences_store is not None:
+            source_document = app_preferences_store.load_document()
+        else:
+            source_document = default_app_preferences_document()
+
+        staged = prepare_addon_enabled_state(
             addon_id,
             enabled=enabled,
             preferences_document=source_document,
@@ -170,6 +174,7 @@ class RegistryReplacementCoordinator:
             preferences_document=staged.preferences_document,
             previous_preferences_document=source_document,
             addon_id=staged.addon_id,
+            expected_addon_enabled=staged.enabled,
             finalize=persist_preferences,
         )
         if not result.applied:
@@ -183,31 +188,6 @@ class RegistryReplacementCoordinator:
             registry=result.registry,
         )
 
-    def rebuild_after_addon_apply(
-        self,
-        *,
-        addon_id: str,
-        preferences_document: Any,
-        app_preferences_store: "AppPreferencesStore | None" = None,
-        extra_plugin_dirs: list[Path] | None = None,
-    ) -> NodeRegistry:
-        """Apply a caller-owned staged add-on preference document."""
-
-        del app_preferences_store
-        result = self._replace_registry(
-            operation=f"addon_apply:{addon_id}",
-            extra_plugin_dirs=extra_plugin_dirs,
-            preferences_document=preferences_document,
-            previous_preferences_document=self._current_preferences_document(),
-            addon_id=addon_id,
-        )
-        if not result.applied:
-            raise ValueError(
-                "; ".join(issue.message for issue in result.report.issues[:8])
-                or "The add-on change is incompatible"
-            )
-        return result.registry
-
     def _replace_registry(
         self,
         *,
@@ -218,10 +198,17 @@ class RegistryReplacementCoordinator:
         preferences_document: Any = None,
         previous_preferences_document: Any = None,
         addon_id: str = "",
+        expected_addon_enabled: bool | None = None,
         finalize: Callable[[], None] | None = None,
     ) -> RegistryReplacementResult:
         if transaction is not None and finalize is not None:
             raise ValueError("package and preference finalizers are mutually exclusive")
+        if bool(addon_id) != (expected_addon_enabled is not None):
+            raise ValueError(
+                "addon_id and expected_addon_enabled must be supplied together"
+            )
+        if addon_id:
+            assert expected_addon_enabled is not None
         if preflight:
             self.assert_registry_replaceable()
         current_registry = self._host.registry
@@ -240,6 +227,12 @@ class RegistryReplacementCoordinator:
                     preferences_document=preferences_document,
                     addon_id=addon_id,
                 )
+                if addon_id:
+                    self._assert_requested_addon_state(
+                        candidate,
+                        addon_id=addon_id,
+                        expected_enabled=expected_addon_enabled,
+                    )
                 report = check_registry_compatibility(
                     current_registry=current_registry,
                     candidate_registry=candidate,
@@ -273,6 +266,12 @@ class RegistryReplacementCoordinator:
                             preferences_document=preferences_document,
                             addon_id=addon_id,
                         )
+                        if addon_id:
+                            self._assert_requested_addon_state(
+                                final_registry,
+                                addon_id=addon_id,
+                                expected_enabled=expected_addon_enabled,
+                            )
                         if (
                             candidate.contract_fingerprint()
                             != final_registry.contract_fingerprint()
@@ -366,6 +365,19 @@ class RegistryReplacementCoordinator:
             staged_package_root=staged_package_root,
             preferences_document=preferences_document,
         )
+
+    @staticmethod
+    def _assert_requested_addon_state(
+        registry: NodeRegistry,
+        *,
+        addon_id: str,
+        expected_enabled: bool,
+    ) -> None:
+        accepted_enabled = dict(registry.addon_runtime_config()).get(addon_id)
+        if accepted_enabled is not expected_enabled:
+            raise RuntimeError(
+                "Add-on registry identity does not match the requested enabled state"
+            )
 
     def _publication_steps(
         self,

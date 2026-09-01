@@ -6,7 +6,7 @@ Use this for repo-local add-ons, dependency-gated add-on availability, add-on ma
 ## Start Here
 - `ea_node_editor/addons/contracts.py`
 - `ea_node_editor/addons/catalog.py`
-- `ea_node_editor/addons/hot_apply.py`
+- `ea_node_editor/addons/state_changes.py`
 - `ea_node_editor/addons/ansys_dpf/`
 - `ea_node_editor/nodes/ansys_dpf_data_types.py`
 - `ea_node_editor/addons/ansys_dpf/plot_catalog.py`
@@ -25,7 +25,8 @@ Use this for repo-local add-ons, dependency-gated add-on availability, add-on ma
 ## Common Changes
 - `addons/contracts.py` owns discovered `AddOnState` and `AddOnRecord` presentation/state records; `addons/catalog.py` owns their dependency-gated construction and lookup. Nodes/plugin loading has no forwarding catalog API.
 - Keep dependency-gated availability in add-on catalog and add-on-specific services.
-- Live-shell hot apply routes through `RegistryReplacementCoordinator`: accepted add-on state is part of the full registry/worker identity, run and viewer admission is guarded, graph publication is non-normalizing, preferences persist after all reversible consumers, and failures restore registry/services/files without changing open graph data. The standalone service helper remains explicit and also uses non-normalizing scene replacement.
+- `addons/state_changes.py` only prepares a normalized requested enabled state; it performs no store I/O, registry build, cache invalidation, or consumer callback.
+- Live-shell hot apply routes only through `RegistryReplacementCoordinator`: accepted add-on state is part of the full registry/worker identity, run and viewer admission is guarded, graph publication is non-normalizing, preferences persist after all reversible consumers, and failures restore registry/services/files without changing open graph data. Incompatible open graphs refuse the change before publication.
 - Add-on backend manifests contribute semantic data-type families/types/conversions before descriptors or function entries. Dependency-unavailable backends contribute nothing; a type, descriptor, static declaration, or declared-ID conflict rejects the complete contribution. The DPF add-on owns the ten `COREX.Ansys.DPF.*` concrete contracts plus the evidence-backed `IMesh`/`IModel` parent relations in `nodes/ansys_dpf_data_types.py`.
 - The repo catalog contains exactly three add-ons: Ansys DPF, Tabular Data, and
   MARS. Their catalog-local `PLUGIN_BACKENDS` tuples are private bootstrap facts;
@@ -50,6 +51,7 @@ Use this for repo-local add-ons, dependency-gated add-on availability, add-on ma
 ```powershell
 .\venv\Scripts\python.exe -m pytest tests/test_tabular_function_migration.py tests/test_tabular_addon_catalog.py --ignore=venv -q
 .\venv\Scripts\python.exe -m pytest tests/test_addon_catalog.py tests/test_addon_manager_install.py --ignore=venv -q
+.\venv\Scripts\python.exe -m pytest tests/test_addon_state_changes.py tests/test_registry_replacement.py --ignore=venv -q
 .\venv\Scripts\python.exe -m pytest tests/test_mars_function_migration.py tests/test_mars_nodes.py --ignore=venv -q
 .\venv\Scripts\python.exe -m pytest tests/test_tabular_input_node.py tests/test_addon_manager_install.py --ignore=venv -q
 .\venv\Scripts\python.exe -m pytest tests/test_non_dpf_node_documentation.py --ignore=venv -q

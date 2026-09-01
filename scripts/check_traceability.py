@@ -1114,12 +1114,15 @@ TRACEABILITY_ROW_REQUIRED_TOKENS.update(
         ),
         "REQ-INT-012": (
             "ansys_dpf/catalog.py",
-            "hot_apply.py",
+            "state_changes.py",
+            "registry_replacement.py",
             "worker_services.py",
             "viewer_host_service.py",
             "docs/specs/perf/ADDON_MANAGER_BACKEND_PREPARATION_QA_MATRIX.md",
         ),
         "AC-REQ-INT-012-01": (
+            "tests/test_addon_state_changes.py",
+            "tests/test_registry_replacement.py",
             "tests/test_dpf_node_catalog.py",
             "tests/test_dpf_runtime_service.py",
             "tests/test_viewer_host_service.py",

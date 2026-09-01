@@ -15,10 +15,6 @@ dpf = pytest.importorskip("ansys.dpf.core")
 pytest.importorskip("pyvista")
 
 from ansys_dpf_core.fixture_paths import STATIC_ANALYSIS_RST
-from ea_node_editor.addons.catalog import ANSYS_DPF_ADDON_ID
-from ea_node_editor.addons.hot_apply import apply_addon_enabled_state
-from ea_node_editor.app_preferences import default_app_preferences_document
-from ea_node_editor.graph.model import GraphModel
 from ea_node_editor.execution.dpf_runtime_service import (
     DPF_FIELDS_CONTAINER_HANDLE_KIND,
     DPF_VIEWER_DATASET_HANDLE_KIND,
@@ -50,13 +46,11 @@ from ea_node_editor.nodes.builtins.ansys_dpf_viewer_adapter import (
 from ea_node_editor.nodes.execution_context import ExecutionContext
 from ea_node_editor.runtime_contracts.value_refs import RuntimeHandleRef
 from ea_node_editor.persistence.artifact_resolution import ProjectArtifactResolver
-from ea_node_editor.persistence.serializer import JsonProjectSerializer
 from ea_node_editor.runtime_contracts import (
     COREX_VIEWER_SESSION_HANDLE_KIND,
     VIEWER_SESSION_DATA_TYPE_ID,
 )
 from ea_node_editor.settings import SCHEMA_VERSION
-from ea_node_editor.ui_qml.graph_scene_bridge import GraphSceneBridge
 
 
 class DpfViewerNodeTests(unittest.TestCase):
@@ -410,48 +404,6 @@ class DpfViewerNodeTests(unittest.TestCase):
         self.assertEqual(reopened.backend_id, DPF_EXECUTION_VIEWER_BACKEND_ID)
         self.assertEqual(reopened.live_open_status, "blocked")
         self.assertEqual(reopened.live_open_blocker["code"], "rerun_required")
-
-    def test_hot_apply_toggle_rebuilds_scene_between_live_node_and_disabled_registry(self) -> None:
-        serializer = JsonProjectSerializer(self.registry)
-        project = serializer.from_document(self._viewer_scene_document())
-        model = GraphModel(project)
-        scene = GraphSceneBridge()
-        scene.set_workspace(model, self.registry, "ws_dpf_viewer")
-
-        initial_node = {payload["node_id"]: payload for payload in scene.nodes_model}["node_dpf_viewer"]
-        self.assertFalse(initial_node["unresolved"])
-        self.assertFalse(initial_node["read_only"])
-
-        rebuilt_registries = []
-        disabled = apply_addon_enabled_state(
-            ANSYS_DPF_ADDON_ID,
-            enabled=False,
-            preferences_document=default_app_preferences_document(),
-            graph_scene_bridge=scene,
-            on_registry_rebuilt=rebuilt_registries.append,
-        )
-
-        disabled_nodes = {payload["node_id"]: payload for payload in scene.nodes_model}
-        self.assertNotIn("node_dpf_viewer", disabled_nodes)
-        self.assertIn("node_dpf_viewer", model.project.workspaces["ws_dpf_viewer"].nodes)
-        self.assertIsNotNone(disabled.registry)
-        self.assertIsNone(disabled.registry.spec_or_none(DPF_VIEWER_NODE_TYPE_ID))
-        self.assertIsNone(rebuilt_registries[-1].spec_or_none(DPF_VIEWER_NODE_TYPE_ID))
-
-        reenabled = apply_addon_enabled_state(
-            ANSYS_DPF_ADDON_ID,
-            enabled=True,
-            preferences_document=disabled.preferences_document,
-            graph_scene_bridge=scene,
-            on_registry_rebuilt=rebuilt_registries.append,
-        )
-
-        reenabled_nodes = {payload["node_id"]: payload for payload in scene.nodes_model}
-        self.assertIn("node_dpf_viewer", reenabled_nodes)
-        self.assertIsNotNone(reenabled.registry)
-        self.assertIsNotNone(reenabled.registry.spec_or_none(DPF_VIEWER_NODE_TYPE_ID))
-        self.assertIsNotNone(rebuilt_registries[-1].spec_or_none(DPF_VIEWER_NODE_TYPE_ID))
-
 
 if __name__ == "__main__":
     unittest.main()

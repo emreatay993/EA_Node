@@ -247,25 +247,20 @@ def test_plan_and_ledger_are_complete_and_synchronized() -> None:
 
 def test_clean_checkpoint_between_tasks_is_valid() -> None:
     plan_text = PLAN.read_text(encoding="utf-8").replace(
-        "Status: `IN PROGRESS — T00`",
+        "Status: `IN PROGRESS — T01`",
         "Status: `CHECKPOINT — T00 ACCEPTED; NEXT T01`",
         1,
     )
     ledger_text = (
         LEDGER.read_text(encoding="utf-8")
         .replace(
-            "Status: `IN PROGRESS — T00`",
+            "Status: `IN PROGRESS — T01`",
             "Status: `CHECKPOINT — T00 ACCEPTED; NEXT T01`",
             1,
         )
         .replace(
-            "| T00 Plan, ledger, baseline | Bootstrap | `IN PROGRESS` | `t00_writer`",
-            "| T00 Plan, ledger, baseline | Bootstrap | `ACCEPTED` | `t00_writer`",
-            1,
-        )
-        .replace(
-            "| Three review sets resolved; re-review pending | Pending |\n| T01 Add-on apply authority",
-            "| Review clear | This commit |\n| T01 Add-on apply authority",
+            "| T01 Add-on apply authority | A | `IN PROGRESS` | `t01_writer`",
+            "| T01 Add-on apply authority | A | `NOT STARTED` | Pending",
             1,
         )
     )
@@ -283,8 +278,8 @@ def test_plan_and_ledger_status_drift_is_rejected() -> None:
     with pytest.raises(AssertionError):
         _validate_documents(
             PLAN.read_text(encoding="utf-8").replace(
-                "Status: `CHECKPOINT — T00 ACCEPTED; NEXT T01`",
-                "Status: `CHECKPOINT — T00 ACCEPTED; NEXT T02`",
+                "Status: `CHECKPOINT — T01 ACCEPTED; NEXT T02`",
+                "Status: `CHECKPOINT — T01 ACCEPTED; NEXT T03`",
                 1,
             ),
             LEDGER.read_text(encoding="utf-8"),

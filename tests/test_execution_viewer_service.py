@@ -7,7 +7,7 @@ from pathlib import Path
 from unittest import mock
 
 from ea_node_editor.addons.catalog import ANSYS_DPF_ADDON_ID
-from ea_node_editor.addons.hot_apply import apply_addon_enabled_state
+from ea_node_editor.addons.state_changes import prepare_addon_enabled_state
 from ea_node_editor.app_preferences import default_app_preferences_document
 from ea_node_editor.execution.dpf_runtime_service import (
     DPF_FIELDS_CONTAINER_HANDLE_KIND,
@@ -1459,7 +1459,7 @@ class ViewerSessionServiceTests(unittest.TestCase):
         self.assertFalse(updated.options["rerun_required"])
         self.assertEqual(updated.options["live_mode"], "full")
 
-    def test_hot_apply_rebuild_clears_cached_dpf_transport_and_restores_live_materialization(
+    def test_worker_runtime_rebuild_clears_cached_dpf_transport_and_restores_live_materialization(
         self,
     ) -> None:
         calls: list[dict[str, object]] = []
@@ -1513,11 +1513,13 @@ class ViewerSessionServiceTests(unittest.TestCase):
             self.assertTrue(manifest_path.is_file())
             self.assertTrue(entry_path.is_file())
 
-            disabled = apply_addon_enabled_state(
+            disabled = prepare_addon_enabled_state(
                 ANSYS_DPF_ADDON_ID,
                 enabled=False,
                 preferences_document=default_app_preferences_document(),
-                worker_services=self.services,
+            )
+            self.services.rebuild_addon_runtime(
+                preferences_document=disabled.preferences_document
             )
 
             self.assertFalse(manifest_path.exists())
@@ -1527,11 +1529,13 @@ class ViewerSessionServiceTests(unittest.TestCase):
                     DPF_EXECUTION_VIEWER_BACKEND_ID
                 )
 
-            reenabled = apply_addon_enabled_state(
+            reenabled = prepare_addon_enabled_state(
                 ANSYS_DPF_ADDON_ID,
                 enabled=True,
                 preferences_document=disabled.preferences_document,
-                worker_services=self.services,
+            )
+            self.services.rebuild_addon_runtime(
+                preferences_document=reenabled.preferences_document
             )
 
             fields_ref = self.services.register_handle(
