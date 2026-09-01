@@ -22,6 +22,7 @@ from ea_node_editor.common.clr_type_names import (
     validate_canonical_clr_type_id,
 )
 from ea_node_editor.common.payload_tools import copy_json_safe
+from ea_node_editor.common.path_safety import is_reparse_point
 from ea_node_editor.execution.backends import (
     ExecutionBackendSelection,
     coerce_execution_backend_selection,
@@ -41,7 +42,6 @@ from ea_node_editor.nodes.function_plugin import (
     PluginBundleRef,
     PythonFunctionRef,
 )
-from ea_node_editor.nodes.plugin_generation import _is_reparse_point
 from ea_node_editor.settings import plugin_generations_dir
 from ea_node_editor.runtime_contracts import (
     DataTree,
@@ -832,7 +832,7 @@ def _approved_generation_path(value: object, *, bundle_digest: str) -> str:
         resolved.parent != approved_root
         or resolved.name != bundle_digest
         or not resolved.is_dir()
-        or _is_reparse_point(resolved)
+        or is_reparse_point(resolved)
     ):
         raise ValueError(
             "approved_generation_root must be a direct immutable generation child"

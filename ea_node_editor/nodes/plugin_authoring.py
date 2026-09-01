@@ -16,11 +16,11 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal
 
+from ea_node_editor.common.path_safety import is_reparse_point
 from ea_node_editor.nodes.function_plugin import INTERNAL_BUILTIN_FUNCTION_OWNER_ID
 from ea_node_editor.nodes.plugin_declaration import PluginDeclarationError
-from ea_node_editor.nodes.plugin_generation import (
+from ea_node_editor.nodes.package_schema import (
     PLUGIN_SOURCE_LIMIT,
-    _is_reparse_point,
     validate_plugin_regular_file,
     validated_plugin_member_path,
 )
@@ -290,10 +290,10 @@ def read_saved_plugin_draft(
     root: Path | None = None,
 ) -> str:
     target_root = Path(root) if root is not None else plugins_dir()
-    if _is_reparse_point(target_root) or not target_root.is_dir():
+    if is_reparse_point(target_root) or not target_root.is_dir():
         raise ValueError("Plugin folder must be a regular directory")
     target = _direct_plugin_path(path, target_root)
-    if _is_reparse_point(target) or not target.is_file():
+    if is_reparse_point(target) or not target.is_file():
         raise ValueError("Saved plugin draft is unavailable")
     try:
         before = validate_plugin_regular_file(target)
@@ -310,7 +310,7 @@ def read_saved_plugin_draft(
         or opened.st_nlink != 1
         or (before.st_dev, before.st_ino) != (opened.st_dev, opened.st_ino)
         or (after.st_dev, after.st_ino) != (opened.st_dev, opened.st_ino)
-        or _is_reparse_point(target)
+        or is_reparse_point(target)
     ):
         raise ValueError("Saved plugin draft changed while it was read")
     if len(payload) > PLUGIN_SOURCE_LIMIT:
@@ -339,11 +339,11 @@ def save_plugin_draft(
             target_root.mkdir(parents=True, exist_ok=True)
         except OSError:
             raise ValueError("Plugin folder is unavailable") from None
-        if _is_reparse_point(target_root) or not target_root.is_dir():
+        if is_reparse_point(target_root) or not target_root.is_dir():
             raise ValueError("Plugin folder must be a regular directory")
 
         destination = target_root / safe_filename
-        if _is_reparse_point(destination):
+        if is_reparse_point(destination):
             raise ValueError("Plugin draft target must not be a path alias")
         if expected_payload is None and destination.exists():
             validate_plugin_regular_file(destination)

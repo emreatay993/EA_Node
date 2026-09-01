@@ -412,7 +412,7 @@ def test_reload_refuses_reparse_saved_path_before_coordinator(
         destination = tmp_path / "new_plugin.py"
         monkeypatch.setattr(
             plugin_authoring,
-            "_is_reparse_point",
+            "is_reparse_point",
             lambda path: Path(path) == destination,
         )
 

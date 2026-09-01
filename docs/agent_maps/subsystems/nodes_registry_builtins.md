@@ -13,6 +13,7 @@ Use this for node definitions, registry validation, built-in node families, data
 - `ea_node_editor/nodes/declaration_engine.py`
 - `ea_node_editor/nodes/function_plugin.py`
 - `ea_node_editor/nodes/plugin_declaration.py`
+- `ea_node_editor/nodes/package_schema.py`
 - `ea_node_editor/nodes/plugin_generation.py`
 - `ea_node_editor/nodes/python_script_declaration.py`
 - `ea_node_editor/nodes/execution_context.py`
@@ -20,6 +21,7 @@ Use this for node definitions, registry validation, built-in node families, data
 - `ea_node_editor/nodes/plugin_loader.py`
 - `ea_node_editor/nodes/package_manager.py`
 - `ea_node_editor/nodes/plugin_authoring.py`
+- `ea_node_editor/common/path_safety.py`
 - `ea_node_editor/nodes/builtin_functions/`
 - `ea_node_editor/nodes/builtins/`
 - `ea_node_editor/runtime_contracts/data_types.py`
@@ -53,6 +55,7 @@ Use this for node definitions, registry validation, built-in node families, data
 - `NodeTypeSpec.solution_reuse_scope` is the internal fail-closed `never|session|durable` maximum. Every normal/untrusted function registration is locked to `never` regardless of type-ID prefix; broader scopes enter only through the attested internal built-in or shipped Tabular package construction paths. Every trusted factory remains `never`. The locked classification artifact is the row authority; the effective catalog fixture layers it after the frozen 133-row fixture instead of editing that fixture.
 - `nodes/solution_provenance.py` is the registry-owned typed overlay for the six accepted shipped session readers. It adds exact `path` file provenance only for the trusted built-in/tabular owners; declarations, public packages, and trusted factories cannot supply or imitate this metadata.
 - `NodeRegistry.execution_environment_facts()` projects deterministic active add-on, plugin-bundle, toolchain, and Python-package requirements for the concrete execution-route handshake; it contains no mutable source/install paths.
+- `package_schema.py` is the single pure policy owner for schema-2 fields, member paths, sizes, hashes, node inventory, icon declarations, and canonical manifest bytes. Discovery, archive import, installed-directory activation, immutable-generation reads, and workers still perform their own bounded reads and digest checks at each trust boundary.
 - Public loose files and installed schema-2 directories are parsed without import, checked for bundled imports, and copied byte-for-byte into `runtime/plugin_generations/<bundle-digest>/`; registry fingerprints exclude author/install paths. Worker registry construction reparses only the verified generation and never the mutable discovery roots.
 - `build_plugin_candidate_registry(...)` builds fail-closed candidates into a caller-owned disposable generation root; one staged schema-2 package may replace only the installed package with the same exact name. Candidate and canonical registries must have the same full `NodeRegistry.contract_fingerprint()` before publication.
 - `.cxpkg` import/export accepts schema 2 only. `package_manager.py` applies the shared static directory/declaration checks, exact source/asset hashes, Windows-safe paths and documented size/member limits; the 128-file ceiling includes `node_package.json`, and filesystem members must be singly linked regular files. ZIP exports use canonical manifest JSON, sorted members, fixed timestamps, and stored bytes for deterministic output. `PackageInstallTransaction` separates stage, reversible activation, commit, and retryable rollback; unresolved cleanup/restore work is exposed only as bounded issue codes.
@@ -77,6 +80,7 @@ Use this for node definitions, registry validation, built-in node families, data
 - `tests/test_plugin_declaration.py`
 - `tests/test_function_plugin.py`
 - `tests/test_plugin_loader.py`
+- `tests/test_addon_catalog.py`
 - `tests/test_plugin_worker_loading.py`
 - `tests/test_package_manager.py`
 - `tests/test_node_package_io_ops.py`
@@ -106,7 +110,7 @@ Use this for node definitions, registry validation, built-in node families, data
 
 ## Focused Verification
 ```powershell
-.\venv\Scripts\python.exe -m pytest tests/test_plugin_declaration.py tests/test_function_plugin.py tests/test_registry_validation.py tests/test_plugin_loader.py tests/test_package_manager.py tests/test_corex_contract_catalog.py tests/test_corex_type_conformance.py tests/test_python_script_declaration.py -q
+.\venv\Scripts\python.exe -m pytest tests/test_plugin_declaration.py tests/test_function_plugin.py tests/test_registry_validation.py tests/test_plugin_loader.py tests/test_package_manager.py tests/test_addon_catalog.py tests/test_corex_contract_catalog.py tests/test_corex_type_conformance.py tests/test_python_script_declaration.py -q
 .\venv\Scripts\python.exe -m pytest tests/test_plugin_authoring.py tests/test_plugin_authoring_controller.py tests/test_plugin_authoring_dialog.py -q
 .\venv\Scripts\python.exe -m pytest tests/test_builtin_function_infrastructure.py tests/test_builtin_function_migration.py tests/test_remaining_builtin_function_migration.py tests/test_corex_contract_catalog.py tests/test_core_unit_nodes.py tests/test_spatial_values.py -q
 .\venv\Scripts\python.exe -m pytest tests/test_novice_plugin_sdk_docs.py tests/test_non_dpf_node_documentation.py -q

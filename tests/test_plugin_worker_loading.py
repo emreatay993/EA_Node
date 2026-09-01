@@ -34,6 +34,7 @@ from ea_node_editor.nodes.bootstrap import build_builtin_registry, build_default
 from ea_node_editor.nodes.execution_context import ExecutionContext
 from ea_node_editor.nodes.function_plugin import PluginBundleRef, PythonFunctionRef
 from ea_node_editor.nodes.node_specs import NodeTypeSpec
+from ea_node_editor.nodes.plugin_generation import read_verified_plugin_generation
 from ea_node_editor.nodes.plugin_loader import discover_static_plugins
 from ea_node_editor.nodes.registry import NodeRegistry
 from ea_node_editor.runtime_contracts import DataTree, deserialize_runtime_value
@@ -201,6 +202,29 @@ def _adapter(
     function_ref = registry.python_function_ref_or_none(type_id)
     assert function_ref is not None
     return runtime.create_adapter(function_ref, registry.get_spec(type_id))
+
+
+def test_digit_leading_loose_filename_round_trips_through_worker(
+    tmp_path: Path,
+) -> None:
+    plugin_root = tmp_path / "plugins"
+    plugin_root.mkdir()
+    type_id = "custom.numeric_loose.1234abcd"
+    (plugin_root / "1_numeric.py").write_text(
+        _loose_source(type_id, 7),
+        encoding="utf-8",
+    )
+    registry, (bundle,) = _discover(plugin_root, tmp_path / "generations")
+
+    generation = read_verified_plugin_generation(bundle)
+    assert generation.manifest["name"] == "plugin_1_numeric"
+
+    runtime = WorkerPluginRuntime()
+    worker_registry = runtime.prepare_registry(_command(registry), registry)
+    assert _adapter(runtime, worker_registry, type_id).execute(_context()).outputs == {
+        "result": 7
+    }
+    runtime.clear()
 
 
 def test_worker_rehashes_generation_before_first_import(tmp_path: Path) -> None:

@@ -67,6 +67,7 @@ Use this for runtime snapshot assembly, ordered data-edge DTOs, dependency sched
 - `ea_node_editor/ui_qml/` until execution contract changes are understood.
 
 ## Common Changes
+- Process workers import the nodes-owned schema-2 policy from `nodes/package_schema.py`, but `plugin_worker_runtime.py` retains worker-bound generation reads, digest rechecks, static declaration reconstruction, and registry agreement. Shared policy never substitutes for worker attestation.
 - `ImageValue` is the bounded immutable `COREXImage` runtime carrier: exact field types, dimensions capped at 64 MP, SHA-256, schema 1, and a 64 MiB base64 transport ceiling. PNG validation covers chunk order/length/type/CRC plus bounded incremental zlib decoding of non-interlaced IDAT data, exact IHDR-derived scanline byte counts, legal row filters, stream EOF, and no trailing stream data; Adam7 input fails closed. It uses the shared tagged runtime-value serializer and catalog validation; it is neither a handle nor a `RuntimeArtifactRef`, and `tests/test_execution_client.py` proves it through the real process queue.
 - Signal Plot renders synchronously through XY's native browser-free `to_png(scale=1.0)` path and returns ImageValue bytes without allocating a managed output file.
 - Keep runtime snapshot assembly in `ea_node_editor.execution`.

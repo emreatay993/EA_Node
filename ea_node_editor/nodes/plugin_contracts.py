@@ -21,7 +21,6 @@ from ea_node_editor.runtime_contracts import (
 PluginProvenanceKind = Literal["runtime", "file", "package"]
 PluginAvailabilityState = Literal["available", "missing_dependency"]
 AddOnApplyPolicy = Literal["hot_apply", "restart_required"]
-AddOnRecordState = Literal["installed", "disabled", "unavailable", "pending_restart"]
 RuntimeBackendKind = Literal["python", "external_process", "rust", "cpp", "foreign"]
 ToolchainKind = Literal["python", "external_process", "rust", "cpp", "foreign"]
 ToolchainRequirementKind = Literal["python_module", "library", "compiler", "executable"]
@@ -647,86 +646,6 @@ class AddOnManifest:
             data_types=self.data_types,
             data_conversions=self.data_conversions,
         )
-
-
-@dataclass(slots=True, frozen=True)
-class AddOnState:
-    enabled: bool = True
-    pending_restart: bool = False
-
-
-@dataclass(slots=True, frozen=True)
-class AddOnRecord:
-    manifest: AddOnManifest
-    state: AddOnState = field(default_factory=AddOnState)
-    availability: "PluginAvailability" = field(default_factory=lambda: PluginAvailability.available())
-    provided_node_type_ids: tuple[str, ...] = ()
-
-    @property
-    def addon_id(self) -> str:
-        return self.manifest.addon_id
-
-    @property
-    def display_name(self) -> str:
-        return self.manifest.display_name
-
-    @property
-    def apply_policy(self) -> AddOnApplyPolicy:
-        return self.manifest.apply_policy
-
-    @property
-    def vendor(self) -> str:
-        return self.manifest.vendor
-
-    @property
-    def version(self) -> str:
-        return self.manifest.version
-
-    @property
-    def summary(self) -> str:
-        return self.manifest.summary
-
-    @property
-    def details(self) -> str:
-        return self.manifest.details
-
-    @property
-    def runtime_backends(self) -> tuple[RuntimeBackendSpec, ...]:
-        return self.manifest.runtime_backends
-
-    @property
-    def toolchains(self) -> tuple[ToolchainSpec, ...]:
-        return self.manifest.toolchains
-
-    @property
-    def artifacts(self) -> tuple[ArtifactDescriptor, ...]:
-        return self.manifest.artifacts
-
-    @property
-    def surface_capabilities(self) -> tuple[SurfaceCapabilitySpec, ...]:
-        return self.manifest.surface_capabilities
-
-    @property
-    def data_type_families(self) -> tuple[DataTypeFamilySpec, ...]:
-        return self.manifest.data_type_families
-
-    @property
-    def data_types(self) -> tuple[DataTypeSpec, ...]:
-        return self.manifest.data_types
-
-    @property
-    def data_conversions(self) -> tuple[DataConversionSpec, ...]:
-        return self.manifest.data_conversions
-
-    @property
-    def status(self) -> AddOnRecordState:
-        if not self.availability.is_available:
-            return "unavailable"
-        if self.state.pending_restart:
-            return "pending_restart"
-        if not self.state.enabled:
-            return "disabled"
-        return "installed"
 
 
 @dataclass(slots=True, frozen=True)

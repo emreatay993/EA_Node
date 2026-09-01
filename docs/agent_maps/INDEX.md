@@ -10,7 +10,7 @@ This atlas is an advisory lookup layer for agents and maintainers, not a require
 
 Indexes are generated — regenerate with `scripts/generate_agent_route_index.py`, then validate with `scripts/check_agent_maps.py` after any map edit.
 
-**Shared helpers:** dependency-light utilities used by 2+ subsystems live in `ea_node_editor/common/` (`protocols.py`, `coercions.py`, `payload_tools.py`) — check there before adding a subsystem-local copy.
+**Shared helpers:** dependency-light utilities used by 2+ subsystems live in `ea_node_editor/common/` (`protocols.py`, `coercions.py`, `payload_tools.py`, `path_safety.py`) — check there before adding a subsystem-local copy.
 
 ## Maintenance Contract
 

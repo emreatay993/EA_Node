@@ -18,7 +18,7 @@ from ea_node_editor.nodes.plugin_declaration import (
     PluginDeclarationError,
     discover_plugin_declarations,
 )
-from ea_node_editor.nodes.plugin_generation import PLUGIN_SOURCE_LIMIT
+from ea_node_editor.nodes.package_schema import PLUGIN_SOURCE_LIMIT
 from ea_node_editor.nodes.registry import NodeRegistry
 
 
@@ -304,7 +304,7 @@ def test_save_rejects_existing_hard_link_and_reparse_target(
     linked.unlink()
     monkeypatch.setattr(
         plugin_authoring,
-        "_is_reparse_point",
+        "is_reparse_point",
         lambda path: path == destination,
     )
     with pytest.raises(ValueError, match="path alias"):
@@ -343,12 +343,12 @@ def test_read_saved_draft_rejects_non_direct_hardlinked_reparse_large_and_non_ut
 
     monkeypatch.setattr(
         plugin_authoring,
-        "_is_reparse_point",
+        "is_reparse_point",
         lambda path: path == destination,
     )
     with pytest.raises(ValueError, match="unavailable"):
         read_saved_plugin_draft(destination, root=tmp_path)
-    monkeypatch.setattr(plugin_authoring, "_is_reparse_point", lambda _path: False)
+    monkeypatch.setattr(plugin_authoring, "is_reparse_point", lambda _path: False)
 
     destination.write_bytes(b"\xff")
     with pytest.raises(ValueError, match="UTF-8"):

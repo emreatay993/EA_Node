@@ -6,56 +6,36 @@ from __future__ import annotations
 
 import hashlib
 import json
-import os
 import shutil
-import stat
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
-from pathlib import Path, PurePosixPath, PureWindowsPath
+from pathlib import Path, PurePosixPath
 from types import MappingProxyType
 from uuid import uuid4
 
+from ea_node_editor.common.path_safety import is_reparse_point
 from ea_node_editor.nodes.function_plugin import PluginBundleRef
-
-MANIFEST_FILENAME = "node_package.json"
-PLUGIN_MANIFEST_LIMIT = 64 * 1024
-PLUGIN_SOURCE_LIMIT = 256 * 1024
-PLUGIN_ASSET_LIMIT = 4 * 1024 * 1024
-PLUGIN_MEMBER_LIMIT = 128
-PLUGIN_TOTAL_LIMIT = 16 * 1024 * 1024
-PLUGIN_ASSET_SUFFIXES = frozenset({".svg", ".png", ".jpg", ".jpeg"})
-PLUGIN_REGULAR_FILE_MESSAGE = (
-    "Plugin members must be regular files with exactly one link"
-)
-SCHEMA_1_UNSUPPORTED_MESSAGE = (
-    "Node package schema 1 is unsupported. Use schema 2; see "
-    "docs/PLUGIN_MIGRATION_GUIDE.md#node-package-schema-1."
+from ea_node_editor.nodes.package_schema import (
+    MANIFEST_FILENAME,
+    PLUGIN_ASSET_LIMIT,
+    PLUGIN_MANIFEST_LIMIT,
+    PLUGIN_MEMBER_LIMIT,
+    PLUGIN_SOURCE_LIMIT,
+    PLUGIN_TOTAL_LIMIT,
+    canonical_bundle_digest,
+    canonical_manifest_bytes,
+    validate_package_manifest,
+    validate_package_members,
+    validate_plugin_regular_file,
+    validated_plugin_member_path,
 )
 _SHA256_LENGTH = 64
-_WINDOWS_RESERVED_NAMES = frozenset(
-    {"aux", "con", "conin$", "conout$", "nul", "prn"}
-    | {f"com{index}" for index in range(1, 10)}
-    | {f"lpt{index}" for index in range(1, 10)}
-    | {f"com{index}" for index in ("¹", "²", "³")}
-    | {f"lpt{index}" for index in ("¹", "²", "³")}
-)
 
 
 @dataclass(frozen=True, slots=True)
 class VerifiedPluginGeneration:
     manifest: Mapping[str, object]
     members: Mapping[str, bytes]
-
-
-def _is_reparse_point(path: Path) -> bool:
-    try:
-        file_status = os.lstat(path)
-    except OSError:
-        return False
-    attributes = getattr(file_status, "st_file_attributes", 0)
-    return stat.S_ISLNK(file_status.st_mode) or bool(
-        attributes & getattr(stat, "FILE_ATTRIBUTE_REPARSE_POINT", 0)
-    )
 
 
 def _digest(value: object) -> str:
@@ -65,73 +45,6 @@ def _digest(value: object) -> str:
     ):
         raise ValueError("generation digest must be a lowercase SHA-256 digest")
     return text
-
-
-def validate_plugin_regular_file(path: Path) -> os.stat_result:
-    try:
-        file_status = path.stat()
-    except OSError as exc:
-        raise ValueError(PLUGIN_REGULAR_FILE_MESSAGE) from exc
-    if not stat.S_ISREG(file_status.st_mode) or file_status.st_nlink != 1:
-        raise ValueError(PLUGIN_REGULAR_FILE_MESSAGE)
-    return file_status
-
-
-def validated_plugin_member_path(
-    value: object,
-    *,
-    root_python: bool = False,
-) -> str:
-    if not isinstance(value, str) or value != value.strip():
-        raise ValueError("plugin members must use trimmed string paths")
-    text = value
-    path = PurePosixPath(text)
-    windows_path = PureWindowsPath(text)
-    if (
-        not text
-        or "\\" in text
-        or ":" in text
-        or path.is_absolute()
-        or windows_path.drive
-        or windows_path.root
-        or path.as_posix() != text
-        or any(part in {"", ".", ".."} for part in path.parts)
-        or any(
-            part.endswith((" ", "."))
-            or any(ord(character) < 32 or character in '<>"|?*' for character in part)
-            or part.partition(".")[0].casefold() in _WINDOWS_RESERVED_NAMES
-            for part in path.parts
-        )
-        or (root_python and (len(path.parts) != 1 or path.suffix != ".py"))
-    ):
-        raise ValueError("generation members must use canonical relative paths")
-    return text
-
-
-def canonical_manifest_bytes(manifest: Mapping[str, object]) -> bytes:
-    return json.dumps(
-        dict(manifest),
-        sort_keys=True,
-        separators=(",", ":"),
-        ensure_ascii=False,
-        allow_nan=False,
-    ).encode("utf-8")
-
-
-def canonical_bundle_digest(
-    manifest: Mapping[str, object],
-    members: Mapping[str, bytes],
-) -> str:
-    normalized = {
-        validated_plugin_member_path(path): bytes(payload)
-        for path, payload in members.items()
-    }
-    digest = hashlib.sha256(canonical_manifest_bytes(manifest))
-    for path in sorted(normalized):
-        digest.update(path.encode("utf-8"))
-        digest.update(b"\0")
-        digest.update(normalized[path])
-    return digest.hexdigest()
 
 
 def _expected_generation_members(
@@ -149,12 +62,12 @@ def _expected_generation_members(
 
 
 def _generation_matches(directory: Path, expected: Mapping[str, bytes]) -> bool:
-    if _is_reparse_point(directory):
+    if is_reparse_point(directory):
         return False
     actual_paths: set[str] = set()
     path_limit = max(16, len(expected) * 4)
     for index, path in enumerate(directory.rglob("*")):
-        if index >= path_limit or _is_reparse_point(path):
+        if index >= path_limit or is_reparse_point(path):
             return False
         if path.is_file():
             try:
@@ -188,7 +101,7 @@ def _read_generation_member(
     cursor = root
     for part in PurePosixPath(relative_path).parts:
         cursor /= part
-        if _is_reparse_point(cursor):
+        if is_reparse_point(cursor):
             raise ValueError("Plugin generation contains a path alias")
     try:
         member_status = validate_plugin_regular_file(target)
@@ -203,40 +116,6 @@ def _read_generation_member(
     return payload
 
 
-def _generation_manifest_records(
-    manifest: Mapping[str, object],
-    field_name: str,
-    *,
-    asset: bool,
-) -> tuple[tuple[str, str], ...]:
-    raw_records = manifest.get(field_name)
-    if not isinstance(raw_records, list):
-        raise ValueError(f"Plugin generation manifest {field_name} must be a list")
-    records: list[tuple[str, str]] = []
-    seen: set[str] = set()
-    for raw_record in raw_records:
-        if not isinstance(raw_record, dict) or set(raw_record) != {"path", "sha256"}:
-            raise ValueError(
-                f"Plugin generation manifest {field_name} entries are invalid"
-            )
-        path = validated_plugin_member_path(
-            raw_record["path"],
-            root_python=not asset,
-        )
-        suffix = PurePosixPath(path).suffix.lower()
-        if asset:
-            if suffix not in PLUGIN_ASSET_SUFFIXES:
-                raise ValueError("Plugin generation contains an unsupported asset")
-        elif len(PurePosixPath(path).parts) != 1 or suffix != ".py":
-            raise ValueError("Plugin generation Python sources must be root-level")
-        folded = path.casefold()
-        if folded in seen:
-            raise ValueError("Plugin generation manifest paths must be unique")
-        seen.add(folded)
-        records.append((path, _digest(raw_record["sha256"])))
-    return tuple(records)
-
-
 def read_verified_plugin_generation(
     bundle: PluginBundleRef,
 ) -> VerifiedPluginGeneration:
@@ -247,13 +126,13 @@ def read_verified_plugin_generation(
     if bundle.generation_id != bundle.bundle_digest:
         raise ValueError("Plugin generation identity does not match its bundle digest")
     configured_root = Path(bundle.approved_generation_root)
-    if not configured_root.is_absolute() or _is_reparse_point(configured_root):
+    if not configured_root.is_absolute() or is_reparse_point(configured_root):
         raise ValueError("Plugin generation root is invalid")
     try:
         root = configured_root.resolve(strict=True)
     except OSError as exc:
         raise ValueError("Plugin generation root is unavailable") from exc
-    if root.name != bundle.bundle_digest or not root.is_dir() or _is_reparse_point(root):
+    if root.name != bundle.bundle_digest or not root.is_dir() or is_reparse_point(root):
         raise ValueError("Plugin generation root does not match its bundle digest")
 
     raw_manifest = _read_generation_member(
@@ -267,21 +146,14 @@ def read_verified_plugin_generation(
         raise ValueError("Plugin generation manifest is invalid") from exc
     if not isinstance(manifest, dict) or canonical_manifest_bytes(manifest) != raw_manifest:
         raise ValueError("Plugin generation manifest is not canonical")
-    if manifest.get("schema_version") != 2:
-        raise ValueError("Plugin generation requires package schema 2")
-
-    sources = _generation_manifest_records(manifest, "sources", asset=False)
-    assets = _generation_manifest_records(manifest, "assets", asset=True)
-    records = (*sources, *assets)
-    if len(records) + 1 > PLUGIN_MEMBER_LIMIT:
-        raise ValueError("Plugin generation contains too many members")
-    folded_paths = [path.casefold() for path, _digest_value in records]
-    if len(folded_paths) != len(set(folded_paths)):
-        raise ValueError("Plugin generation manifest paths must be unique")
+    schema = validate_package_manifest(manifest)
+    records = (*schema.sources, *schema.assets)
 
     members: dict[str, bytes] = {}
-    expanded_size = 0
-    asset_paths = {path for path, _digest_value in assets}
+    expanded_size = len(raw_manifest)
+    if expanded_size > PLUGIN_TOTAL_LIMIT:
+        raise ValueError("Plugin generation expanded size is too large")
+    asset_paths = {path for path, _digest_value in schema.assets}
     for path, expected_digest in records:
         payload = _read_generation_member(
             root,
@@ -294,12 +166,18 @@ def read_verified_plugin_generation(
         if hashlib.sha256(payload).hexdigest() != expected_digest:
             raise ValueError("Plugin generation member digest mismatch")
         members[path] = payload
+    package = validate_package_members(
+        schema,
+        members,
+        manifest_size=len(raw_manifest),
+        verify_hashes=False,
+    )
 
     expected_paths = {MANIFEST_FILENAME, *members}
     actual_paths: set[str] = set()
     path_limit = max(16, len(expected_paths) * 4)
     for index, path in enumerate(root.rglob("*")):
-        if index >= path_limit or _is_reparse_point(path):
+        if index >= path_limit or is_reparse_point(path):
             raise ValueError("Plugin generation contains invalid path entries")
         if path.is_file():
             validate_plugin_regular_file(path)
@@ -307,7 +185,7 @@ def read_verified_plugin_generation(
     if actual_paths != expected_paths:
         raise ValueError("Plugin generation contains undeclared members")
 
-    source_paths = {path for path, _digest_value in sources}
+    source_paths = {path for path, _digest_value in schema.sources}
     for function in bundle.functions:
         if function.module_relative_path not in source_paths:
             raise ValueError("Plugin function source is not declared by its generation")
@@ -315,11 +193,11 @@ def read_verified_plugin_generation(
             function.source_digest
         ):
             raise ValueError("Plugin function source digest mismatch")
-    if canonical_bundle_digest(manifest, members) != bundle.bundle_digest:
+    if canonical_bundle_digest(package.manifest, package.members) != bundle.bundle_digest:
         raise ValueError("Plugin generation bundle digest mismatch")
     return VerifiedPluginGeneration(
-        manifest=MappingProxyType(manifest),
-        members=MappingProxyType(members),
+        manifest=MappingProxyType(package.manifest),
+        members=MappingProxyType(package.members),
     )
 
 
@@ -335,14 +213,14 @@ def materialize_plugin_generation(
     if len(expected) > PLUGIN_MEMBER_LIMIT:
         raise ValueError("Plugin generation contains too many members")
     configured_root = Path(generation_root)
-    if _is_reparse_point(configured_root):
+    if is_reparse_point(configured_root):
         raise ValueError("plugin generation root must not be a symlink")
     root = configured_root.resolve()
     root.mkdir(parents=True, exist_ok=True)
     destination = root / digest
     if destination.exists():
         if (
-            _is_reparse_point(destination)
+            is_reparse_point(destination)
             or not destination.is_dir()
             or not _generation_matches(destination, expected)
         ):
@@ -378,7 +256,7 @@ def prune_plugin_generations(
     referenced_digests: Iterable[str],
 ) -> tuple[str, ...]:
     configured_root = Path(generation_root)
-    if _is_reparse_point(configured_root):
+    if is_reparse_point(configured_root):
         raise ValueError("plugin generation root must not be a symlink")
     root = configured_root.resolve()
     if not root.is_dir():
@@ -393,7 +271,7 @@ def prune_plugin_generations(
             digest = _digest(child.name)
         except ValueError:
             continue
-        if digest in protected or _is_reparse_point(child) or not child.is_dir():
+        if digest in protected or is_reparse_point(child) or not child.is_dir():
             continue
         try:
             shutil.rmtree(child)
@@ -406,20 +284,8 @@ def prune_plugin_generations(
 
 __all__ = [
     "MANIFEST_FILENAME",
-    "PLUGIN_ASSET_LIMIT",
-    "PLUGIN_ASSET_SUFFIXES",
-    "PLUGIN_MANIFEST_LIMIT",
-    "PLUGIN_MEMBER_LIMIT",
-    "PLUGIN_REGULAR_FILE_MESSAGE",
-    "PLUGIN_SOURCE_LIMIT",
-    "PLUGIN_TOTAL_LIMIT",
-    "SCHEMA_1_UNSUPPORTED_MESSAGE",
     "VerifiedPluginGeneration",
-    "canonical_bundle_digest",
-    "canonical_manifest_bytes",
     "materialize_plugin_generation",
     "prune_plugin_generations",
     "read_verified_plugin_generation",
-    "validate_plugin_regular_file",
-    "validated_plugin_member_path",
 ]

@@ -36,8 +36,8 @@ reconciled with this ledger.
 
 | Task | Status | Writer | Conservative write scope | Focused evidence | Performance evidence | Independent review | Accepted commit |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| T00 Plan and baseline | `READY TO COMMIT` | Orchestrator | Plan, this ledger, exact spec-index additions | Full dry-run, traceability, links, diff hygiene, and 582-test affected inventory passed; `qmltestrunner.exe` unavailable | Fast baseline: 4,543 passed, 2 skipped, 18 existing warnings; logs under `artifacts/verification_logs/20260901_042328/` | Two delegated read-only baseline verifiers returned no findings | Pending |
-| T01 Package policy | `NOT STARTED` | Pending | Nodes package schema, add-on contracts, direct tests/maps | Pending | Pending | Pending | Pending |
+| T00 Plan and baseline | `ACCEPTED` | Orchestrator | Plan, this ledger, exact spec-index additions | Full dry-run, traceability, links, diff hygiene, and 582-test affected inventory passed; `qmltestrunner.exe` unavailable | Fast baseline: 4,543 passed, 2 skipped, 18 existing warnings; logs under `artifacts/verification_logs/20260901_042328/` | Two delegated read-only baseline verifiers returned no findings | `bc4233f6` |
+| T01 Package policy | `READY TO COMMIT` | `t01_package_writer` | Nodes package schema, add-on contracts, direct tests/maps | Final focused acceptance: 235 tests and 90 subtests passed; Ruff, compile, maps, traceability, links, and diff hygiene passed | Discovery/import/export medians changed `3.030/8.717/7.220 ms` to `2.483/8.333/6.621 ms`; no added traversal and deterministic bytes retained | `t01_package_reviewer`: initial two P1/two P2/one P3 findings fixed; re-review `CLEAR` | Pending |
 | T02 Runtime contracts | `NOT STARTED` | Pending | Common artifact grammar, runtime values, direct imports/tests/maps | Pending | Pending | Pending | Pending |
 | T03 UI projections | `NOT STARTED` | Pending | Library, Inspector, Quick Insert, direct tests/maps | Pending | Pending | Pending | Pending |
 | T04 Graph host owner | `NOT STARTED` | Pending | Graph host presenter, shell forwarders, direct tests/maps | Pending | Pending | Pending | Pending |
@@ -54,7 +54,9 @@ Allowed dispositions are `retained`, `moved_to_owner`,
 
 | Task | Old node ID | Behavior | Current owner | Disposition | Replacement node ID | Proving command | Status |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| T01 | Pending inventory | Package schema and trust-boundary validation | Mixed loader/manager/generation | Pending | Pending | Pending | `NOT STARTED` |
+| T01 | `tests/test_plugin_loader.py::test_addon_registration_lookup_requires_canonical_addon_id` | Canonical add-on ID lookup | Add-on catalog | `moved_to_owner` | `tests/test_addon_catalog.py::test_addon_registration_lookup_requires_canonical_addon_id` | `.\venv\Scripts\python.exe -m pytest tests/test_addon_catalog.py -q` | `PASS` |
+| T01 | `tests/test_plugin_loader.py::test_discover_addon_records_reports_generic_manifest_and_state` | Add-on manifest/state projection | Add-on catalog | `moved_to_owner` | `tests/test_addon_catalog.py::test_discover_addon_records_reports_generic_manifest_and_state` | `.\venv\Scripts\python.exe -m pytest tests/test_addon_catalog.py -q` | `PASS` |
+| T01 | `tests/test_plugin_loader.py::test_plugin_loader_addon_record_discovery_delegates_to_addon_catalog` | Forwarding-only loader alias | Removed forwarding path | `deleted_redundant` | Add-on owner tests above plus architecture absence guard | T01 focused package/add-on/architecture suite | `PASS` |
 | T02 | Pending inventory | Runtime carrier and codec contracts | Mixed runtime/persistence | Pending | Pending | Pending | `NOT STARTED` |
 | T03 | Pending inventory | Library/Inspector/Quick Insert projection | Mixed projection module | Pending | Pending | Pending | `NOT STARTED` |
 | T04 | Pending inventory | Graph cursor/style action routing | Shell forwarding chain | Pending | Pending | Pending | `NOT STARTED` |
@@ -66,7 +68,7 @@ Allowed dispositions are `retained`, `moved_to_owner`,
 
 | Task | Metric and fixture | Baseline | Candidate | Repeat / attribution | Verdict |
 | --- | --- | --- | --- | --- | --- |
-| T01 | Package discovery/import/export | Pending | Pending | Pending | Pending |
+| T01 | Four-member schema-2 fixture; discovery/import/export | `3.030 / 8.717 / 7.220 ms` medians | `2.483 / 8.333 / 6.621 ms` medians | Same 3 warmups + 7 measured runs; filesystem and ZIP call counts did not increase; all archive hashes identical | `NEUTRAL-TO-BETTER` (supportive, not a speedup claim) |
 | T02 | Runtime codec/import/copy behavior | Pending | Pending | Pending | Pending |
 | T03 | Library rebuild and Quick Insert | Pending | Pending | Pending | Pending |
 | T04 | Shell create and graph action | Pending | Pending | Pending | Pending |
@@ -89,7 +91,7 @@ Allowed dispositions are `retained`, `moved_to_owner`,
 
 | Review | Scope | Reviewer | Findings | Resolution | Verdict |
 | --- | --- | --- | --- | --- | --- |
-| Per-task reviews | T01-T07 | Pending | Pending | Pending | Pending |
+| Per-task reviews | T01 | `t01_package_reviewer` | Numeric loose-plugin generation rejection; delayed cumulative-byte checks; stale add-on test ownership; missing maps; dead imports | Production/test findings fixed by original writer; maps integrated by orchestrator | `CLEAR` |
 | Architecture/ownership closeout | Whole series | Pending | Pending | Pending | Pending |
 | Correctness/security/no-lost-tests closeout | Whole series | Pending | Pending | Pending | Pending |
 | Performance-evidence closeout | Whole series | Pending | Pending | Pending | Pending |

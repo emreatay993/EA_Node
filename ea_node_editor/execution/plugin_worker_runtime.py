@@ -31,10 +31,12 @@ from ea_node_editor.nodes.plugin_generation import (
     VerifiedPluginGeneration,
     read_verified_plugin_generation,
 )
-from ea_node_editor.nodes.plugin_loader import (
-    plugin_fingerprint,
-    validated_generation_declarations,
+from ea_node_editor.nodes.package_schema import (
+    ValidatedPackage,
+    validate_package_manifest,
+    validated_package_declarations,
 )
+from ea_node_editor.nodes.plugin_loader import plugin_fingerprint
 from ea_node_editor.nodes.registry import NodeRegistry
 
 
@@ -117,9 +119,12 @@ class WorkerPluginRuntime:
             generations: dict[str, VerifiedPluginGeneration] = {}
             for bundle in command.plugin_bundles:
                 generation = read_verified_plugin_generation(bundle)
-                declarations = validated_generation_declarations(
-                    generation.manifest,
-                    generation.members,
+                package = ValidatedPackage(
+                    validate_package_manifest(generation.manifest),
+                    dict(generation.members),
+                )
+                declarations = validated_package_declarations(
+                    package,
                     filename_prefix=bundle.owner_id,
                     owner_id=bundle.owner_id,
                     allow_internal_metadata=bundle.owner_id in trusted_owner_ids,

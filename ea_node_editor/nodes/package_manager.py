@@ -17,9 +17,9 @@ from enum import Enum
 from pathlib import Path, PurePosixPath
 from uuid import uuid4
 
-from ea_node_editor.nodes import plugin_loader
+from ea_node_editor.common.path_safety import is_reparse_point
 from ea_node_editor.nodes.plugin_declaration import discover_plugin_declarations
-from ea_node_editor.nodes.plugin_generation import (
+from ea_node_editor.nodes.package_schema import (
     MANIFEST_FILENAME,
     PLUGIN_ASSET_LIMIT,
     PLUGIN_ASSET_SUFFIXES,
@@ -28,9 +28,15 @@ from ea_node_editor.nodes.plugin_generation import (
     PLUGIN_SOURCE_LIMIT,
     PLUGIN_TOTAL_LIMIT,
     SCHEMA_1_UNSUPPORTED_MESSAGE,
-    _is_reparse_point,
+    ValidatedPackage,
     canonical_manifest_bytes,
+    read_validated_package_directory,
+    validate_package_declaration_inventory,
+    validate_package_manifest,
+    validate_package_members,
     validate_plugin_regular_file,
+    validated_package_declarations,
+    validated_package_name,
     validated_plugin_member_path,
 )
 from ea_node_editor.settings import plugins_dir
@@ -128,10 +134,10 @@ class PackageInstallTransaction:
             current_manifest = _validated_package_directory(self.staged_package_root)
             if canonical_manifest_bytes(current_manifest) != self._manifest_bytes:
                 raise ValueError("Staged package changed after validation")
-            if self.installed_package_root.exists() or _is_reparse_point(
+            if self.installed_package_root.exists() or is_reparse_point(
                 self.installed_package_root
             ):
-                if _is_reparse_point(
+                if is_reparse_point(
                     self.installed_package_root
                 ) or not self.installed_package_root.is_dir():
                     raise ValueError(
@@ -191,11 +197,11 @@ class PackageInstallTransaction:
         backup_root = self._backup_root
         if not self._activation_completed:
             if backup_root is not None:
-                if self.installed_package_root.exists() or _is_reparse_point(
+                if self.installed_package_root.exists() or is_reparse_point(
                     self.installed_package_root
                 ):
                     self._fail("rollback_installed_state")
-                if _is_reparse_point(backup_root) or not backup_root.is_dir():
+                if is_reparse_point(backup_root) or not backup_root.is_dir():
                     self._fail("rollback_backup_state")
                 try:
                     backup_root.replace(self.installed_package_root)
@@ -206,19 +212,19 @@ class PackageInstallTransaction:
             return
 
         if self._had_previous_install and backup_root is None:
-            if _is_reparse_point(
+            if is_reparse_point(
                 self.installed_package_root
             ) or not self.installed_package_root.is_dir():
                 self._fail("rollback_prior_state")
         else:
-            installed_exists = self.installed_package_root.exists() or _is_reparse_point(
+            installed_exists = self.installed_package_root.exists() or is_reparse_point(
                 self.installed_package_root
             )
-            staged_exists = self.staged_package_root.exists() or _is_reparse_point(
+            staged_exists = self.staged_package_root.exists() or is_reparse_point(
                 self.staged_package_root
             )
             if installed_exists:
-                if _is_reparse_point(
+                if is_reparse_point(
                     self.installed_package_root
                 ) or not self.installed_package_root.is_dir():
                     self._fail("rollback_installed_state")
@@ -228,13 +234,13 @@ class PackageInstallTransaction:
                     self.installed_package_root.replace(self.staged_package_root)
                 except OSError:
                     self._fail("rollback_active_move")
-            elif _is_reparse_point(
+            elif is_reparse_point(
                 self.staged_package_root
             ) or not self.staged_package_root.is_dir():
                 self._fail("rollback_staging_state")
 
             if self._had_previous_install:
-                if backup_root is None or _is_reparse_point(
+                if backup_root is None or is_reparse_point(
                     backup_root
                 ) or not backup_root.is_dir():
                     self._fail("rollback_backup_state")
@@ -289,26 +295,8 @@ class _ExportMember:
     is_asset: bool
 
 
-def _trimmed(field_name: str, value: object, *, allow_empty: bool = False) -> str:
-    if not isinstance(value, str) or value != value.strip():
-        raise ValueError(f"{field_name} must be a trimmed string")
-    if not value and not allow_empty:
-        raise ValueError(f"{field_name} must not be empty")
-    return value
-
-
-def _validate_package_name(value: object) -> str:
-    candidate = validated_plugin_member_path(_trimmed("Package name", value))
-    if (
-        len(PurePosixPath(candidate).parts) != 1
-        or candidate.startswith(_HIDDEN_PACKAGE_PREFIXES)
-    ):
-        raise ValueError("Package name must be a safe visible directory name")
-    return candidate
-
-
 def _read_local_member(path: Path, *, limit: int, label: str) -> bytes:
-    if _is_reparse_point(path) or not path.is_file():
+    if is_reparse_point(path) or not path.is_file():
         raise ValueError(f"{label} must be a regular file")
     member_status = validate_plugin_regular_file(path)
     try:
@@ -364,7 +352,7 @@ def _export_payload(
     source_files: list[PackageExportSource | Path | str],
     assets: list[PackageExportAsset | Path | str],
     manifest: PackageManifest,
-) -> tuple[dict[str, object], dict[str, bytes]]:
+) -> ValidatedPackage:
     if not source_files:
         raise ValueError("Package export requires at least one Python source file")
     if not isinstance(manifest, PackageManifest):
@@ -402,7 +390,7 @@ def _export_payload(
         if declarations:
             modules.append(member.path)
         for declaration in declarations:
-            declarations_by_module.append(declaration)
+            declarations_by_module.append((member.path, declaration))
             node_inventory.append(
                 {
                     "id": declaration.spec.type_id,
@@ -422,18 +410,6 @@ def _export_payload(
     ):
         raise ValueError("Package manifest nodes do not match static declarations")
 
-    asset_paths = {member.path for member in normalized if member.is_asset}
-    for declaration in declarations_by_module:
-        icon = declaration.spec.icon
-        if not icon:
-            continue
-        try:
-            icon_path = validated_plugin_member_path(icon)
-        except ValueError as exc:
-            raise ValueError(f"Plugin node icon path is invalid: {icon}") from exc
-        if icon_path not in asset_paths:
-            raise ValueError(f"Plugin node icon is not a declared asset: {icon_path}")
-
     source_records = [
         {"path": member.path, "sha256": hashlib.sha256(member.payload).hexdigest()}
         for member in sorted(
@@ -450,25 +426,23 @@ def _export_payload(
     ]
     package_manifest: dict[str, object] = {
         "schema_version": 2,
-        "name": _validate_package_name(manifest.name),
-        "version": _trimmed("Package version", manifest.version),
-        "author": _trimmed("Package author", manifest.author, allow_empty=True),
-        "description": _trimmed(
-            "Package description",
-            manifest.description,
-            allow_empty=True,
-        ),
+        "name": validated_package_name(manifest.name),
+        "version": manifest.version,
+        "author": manifest.author,
+        "description": manifest.description,
         "modules": sorted(modules),
         "sources": source_records,
         "assets": asset_records,
         "nodes": node_inventory,
     }
-    manifest_bytes = canonical_manifest_bytes(package_manifest)
-    if len(manifest_bytes) > PLUGIN_MANIFEST_LIMIT:
-        raise ValueError("Plugin package manifest is too large")
-    if total_size + len(manifest_bytes) > PLUGIN_TOTAL_LIMIT:
-        raise ValueError("Plugin package expanded size is too large")
-    return package_manifest, members
+    schema = validate_package_manifest(package_manifest)
+    package = validate_package_members(schema, members, verify_hashes=False)
+    validate_package_declaration_inventory(
+        package,
+        tuple(declarations_by_module),
+        require_declared_icons=True,
+    )
+    return package
 
 
 def _manifest_from_data(raw: object) -> PackageManifest:
@@ -515,7 +489,7 @@ def _read_archive_member(
 
 def _read_archive(
     archive: zipfile.ZipFile,
-) -> tuple[dict[str, object], dict[str, bytes]]:
+) -> ValidatedPackage:
     infos = archive.infolist()
     if len(infos) > PLUGIN_MEMBER_LIMIT:
         raise ValueError("Plugin package contains too many members")
@@ -566,17 +540,12 @@ def _read_archive(
         manifest = json.loads(manifest_bytes)
     except (UnicodeDecodeError, json.JSONDecodeError) as exc:
         raise ValueError(f"Invalid UTF-8 JSON in {MANIFEST_FILENAME}") from exc
-    if not isinstance(manifest, dict):
-        raise ValueError("Plugin package manifest must be a JSON object")
-    schema_version = manifest.get("schema_version")
-    if schema_version is None or (
-        type(schema_version) is int and schema_version == 1
-    ):
-        raise ValueError(SCHEMA_1_UNSUPPORTED_MESSAGE)
-    if type(schema_version) is not int or schema_version != 2:
-        raise ValueError("Only node package schema 2 is supported")
-    _validate_package_name(manifest.get("name"))
-    return manifest, members
+    schema = validate_package_manifest(manifest)
+    return validate_package_members(
+        schema,
+        members,
+        manifest_size=len(manifest_bytes),
+    )
 
 
 def _temporary_container(parent: Path, package_name: str, *, kind: str) -> Path:
@@ -623,8 +592,13 @@ def _write_package_directory(
 
 
 def _validated_package_directory(package_dir: Path) -> dict[str, object]:
-    prepared = plugin_loader._prepare_package(package_dir)
-    return prepared.manifest
+    package = read_validated_package_directory(package_dir)
+    validated_package_declarations(
+        package,
+        filename_prefix=package.schema.name,
+        require_declared_icons=True,
+    )
+    return package.manifest
 
 
 def _zip_info(member_name: str) -> zipfile.ZipInfo:
@@ -663,10 +637,10 @@ def stage_package_import(
     """Validate one schema-2 archive and stage it without activating it."""
 
     source = Path(package_path)
-    if _is_reparse_point(source) or not source.is_file():
+    if is_reparse_point(source) or not source.is_file():
         raise ValueError("Node package archive must be a regular file")
     target = Path(target_dir) if target_dir is not None else plugins_dir()
-    if _is_reparse_point(target):
+    if is_reparse_point(target):
         raise ValueError("Plugin install root must not be a path alias")
     transaction: PackageInstallTransaction | None = None
     container: Path | None = None
@@ -674,13 +648,17 @@ def stage_package_import(
         target.mkdir(parents=True, exist_ok=True)
         try:
             with zipfile.ZipFile(source, "r") as archive:
-                raw_manifest, members = _read_archive(archive)
+                archive_package = _read_archive(archive)
         except zipfile.BadZipFile as exc:
             raise ValueError("Node package archive is not a valid ZIP file") from exc
 
-        package_name = _validate_package_name(raw_manifest["name"])
+        package_name = archive_package.schema.name
         container = _temporary_container(target, package_name, kind="incoming")
-        staged_dir = _write_package_directory(container, raw_manifest, members)
+        staged_dir = _write_package_directory(
+            container,
+            archive_package.manifest,
+            archive_package.members,
+        )
         validated_manifest = _validated_package_directory(staged_dir)
         manifest_bytes = canonical_manifest_bytes(validated_manifest)
         transaction = PackageInstallTransaction(
@@ -728,9 +706,9 @@ def export_package(
 ) -> Path:
     """Statically validate and deterministically export one schema-2 archive."""
 
-    raw_manifest, members = _export_payload(source_files, assets or [], manifest)
+    package = _export_payload(source_files, assets or [], manifest)
     destination = Path(output_path).with_suffix(PACKAGE_EXTENSION)
-    if _is_reparse_point(destination.parent):
+    if is_reparse_point(destination.parent):
         raise ValueError("Package export directory must not be a path alias")
     temporary_archive: Path | None = None
     verification_container: Path | None = None
@@ -740,21 +718,21 @@ def export_package(
             temporary_archive = destination.with_name(
                 f".{destination.stem}.export-{uuid4().hex}{PACKAGE_EXTENSION}"
             )
-            _write_archive(temporary_archive, raw_manifest, members)
+            _write_archive(temporary_archive, package.manifest, package.members)
             try:
                 with zipfile.ZipFile(temporary_archive, "r") as archive:
-                    archive_manifest, archive_members = _read_archive(archive)
+                    archive_package = _read_archive(archive)
             except zipfile.BadZipFile as exc:
                 raise ValueError("Package export failed [archive]") from exc
             verification_container = _temporary_container(
                 destination.parent,
-                str(raw_manifest["name"]),
+                package.schema.name,
                 kind="archive-validation",
             )
             verification_dir = _write_package_directory(
                 verification_container,
-                archive_manifest,
-                archive_members,
+                archive_package.manifest,
+                archive_package.members,
             )
             _validated_package_directory(verification_dir)
             temporary_archive.replace(destination)
@@ -766,13 +744,13 @@ def export_package(
     except OSError:
         raise ValueError(_EXPORT_FILESYSTEM_ERROR) from None
 
-    logger.info("Exported node package '%s' to %s", raw_manifest["name"], destination)
+    logger.info("Exported node package '%s' to %s", package.schema.name, destination)
     return destination
 
 
 def list_installed_packages(target_dir: Path | None = None) -> list[PackageManifest]:
     target = Path(target_dir) if target_dir is not None else plugins_dir()
-    if not target.is_dir() or _is_reparse_point(target):
+    if not target.is_dir() or is_reparse_point(target):
         return []
     manifests: list[PackageManifest] = []
     for child in sorted(target.iterdir(), key=lambda path: path.name.casefold()):
@@ -791,8 +769,8 @@ def list_installed_packages(target_dir: Path | None = None) -> list[PackageManif
 
 def uninstall_package(package_name: str, target_dir: Path | None = None) -> bool:
     target = Path(target_dir) if target_dir is not None else plugins_dir()
-    package_dir = target / _validate_package_name(package_name)
-    if _is_reparse_point(target) or _is_reparse_point(package_dir):
+    package_dir = target / validated_package_name(package_name)
+    if is_reparse_point(target) or is_reparse_point(package_dir):
         raise ValueError("Package uninstall paths must not contain path aliases")
     if package_dir.is_dir():
         shutil.rmtree(package_dir)

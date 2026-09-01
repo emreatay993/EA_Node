@@ -3,8 +3,8 @@ from __future__ import annotations
 from typing import Any
 
 from ea_node_editor.addons.catalog import ANSYS_DPF_ADDON_ID
-from ea_node_editor.nodes.plugin_contracts import AddOnRecord
-from ea_node_editor.nodes.plugin_loader import discover_addon_records
+from ea_node_editor.addons.catalog import discover_addon_records
+from ea_node_editor.addons.contracts import AddOnRecord
 from ._addon_manager_payloads import canonical_token
 from ._addon_manager_payloads import detail_payload
 from ._addon_manager_payloads import normalized_filter

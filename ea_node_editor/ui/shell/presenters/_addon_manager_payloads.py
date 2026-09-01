@@ -6,7 +6,7 @@ from typing import Any
 from ea_node_editor.addons.catalog import registered_addon_registration_by_id
 
 from ea_node_editor.addons.catalog import ANSYS_DPF_ADDON_ID
-from ea_node_editor.nodes.plugin_contracts import AddOnRecord
+from ea_node_editor.addons.contracts import AddOnRecord
 
 _VALID_TABS = ("about", "dependencies", "nodes", "changelog")
 _VALID_FILTERS = ("all", "enabled", "disabled")

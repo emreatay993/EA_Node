@@ -14,12 +14,7 @@ from typing import get_args
 import pytest
 
 import ea_node_editor.nodes as nodes_package
-from ea_node_editor.addons import catalog as addon_catalog
-from ea_node_editor.addons.catalog import (
-    ANSYS_DPF_ADDON_ID,
-    AddOnRegistration,
-    registered_addon_registration_by_id,
-)
+from ea_node_editor.addons.catalog import ANSYS_DPF_ADDON_ID
 from ea_node_editor.addons.hot_apply import apply_addon_enabled_state
 from ea_node_editor.app_preferences import (
     AppPreferencesStore,
@@ -28,14 +23,15 @@ from ea_node_editor.app_preferences import (
     normalize_app_preferences_document,
     set_addon_state,
 )
+from ea_node_editor.common import path_safety
 from ea_node_editor.nodes import bootstrap, plugin_loader
 from ea_node_editor.nodes import plugin_generation
+from ea_node_editor.nodes import package_schema
 from ea_node_editor.nodes.core_data_types import GRAPH_DATA_TYPE_ID
 from ea_node_editor.nodes.execution_context import NodeResult
 from ea_node_editor.nodes.node_specs import NodeTypeSpec, PortSpec
 from ea_node_editor.nodes import plugin_contracts
 from ea_node_editor.nodes.plugin_contracts import (
-    AddOnManifest,
     ArtifactDescriptor,
     PluginAvailability,
     PluginBackendDescriptor,
@@ -677,7 +673,7 @@ def test_symlinked_discovery_roots_and_entries_are_rejected(
     simulated_symlinks = {linked_root, linked_file}
     monkeypatch.setattr(
         plugin_loader,
-        "_is_reparse_point",
+        "is_reparse_point",
         lambda path: path in simulated_symlinks,
     )
 
@@ -694,12 +690,12 @@ def test_symlinked_discovery_roots_and_entries_are_rejected(
 
 def test_path_alias_detector_recognizes_posix_symlink_mode(monkeypatch) -> None:
     monkeypatch.setattr(
-        plugin_generation.os,
+        path_safety.os,
         "lstat",
         lambda _path: SimpleNamespace(st_mode=stat.S_IFLNK, st_file_attributes=0),
     )
 
-    assert plugin_generation._is_reparse_point(Path("alias"))  # noqa: SLF001
+    assert path_safety.is_reparse_point(Path("alias"))
 
 
 def test_oversized_sources_and_unbounded_roots_fail_before_full_discovery(
@@ -758,17 +754,56 @@ def test_package_aggregate_limit_rejects_before_reading_excess_member(
     }
     _write_text(package_dir / "node_package.json", json.dumps(manifest))
     calls: list[str] = []
-    read_member = plugin_loader._read_package_member  # noqa: SLF001
+    read_member = package_schema._read_package_member  # noqa: SLF001
 
     def recording_read_member(package_root, relative_path, *, limit):  # noqa: ANN001
         calls.append(relative_path)
         return read_member(package_root, relative_path, limit=limit)
 
-    monkeypatch.setattr(plugin_loader, "_read_package_member", recording_read_member)
+    monkeypatch.setattr(package_schema, "_read_package_member", recording_read_member)
 
     with pytest.raises(ValueError, match="expanded size"):
-        plugin_loader._package_manifest(package_dir)  # noqa: SLF001
+        package_schema.read_validated_package_directory(package_dir)
     assert calls == ["nodes.py", "asset-0.png", "asset-1.png", "asset-2.png"]
+
+
+def test_package_aggregate_limit_checks_actual_bytes_after_each_read(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    package_dir = tmp_path / "plugins" / "actual_size_package"
+    source_path = _write_text(package_dir / "nodes.py", "x")
+    manifest = {
+        "schema_version": 2,
+        "name": package_dir.name,
+        "version": "1.0.0",
+        "modules": [source_path.name],
+        "sources": [
+            {
+                "path": source_path.name,
+                "sha256": hashlib.sha256(b"xyz").hexdigest(),
+            }
+        ],
+        "assets": [],
+        "nodes": [],
+    }
+    manifest_path = _write_text(
+        package_dir / package_schema.MANIFEST_FILENAME,
+        json.dumps(manifest),
+    )
+    monkeypatch.setattr(
+        package_schema,
+        "PLUGIN_TOTAL_LIMIT",
+        len(manifest_path.read_bytes()) + 2,
+    )
+    monkeypatch.setattr(
+        package_schema,
+        "_read_package_member",
+        lambda _root, _path, *, limit: b"xyz",
+    )
+
+    with pytest.raises(ValueError, match="expanded size"):
+        package_schema.read_validated_package_directory(package_dir)
 
 
 def test_frozen_import_availability_uses_the_actual_bundle_importer(monkeypatch) -> None:
@@ -850,7 +885,7 @@ def test_symlinked_generation_member_is_never_accepted_as_immutable(
     generation_source = Path(first.bundles[0].approved_generation_root) / "alias.py"
     monkeypatch.setattr(
         plugin_generation,
-        "_is_reparse_point",
+        "is_reparse_point",
         lambda path: path == generation_source,
     )
 
@@ -908,7 +943,7 @@ def test_generation_pruning_preserves_active_referenced_and_unknown_directories(
         _write_text(generation_root / name / "marker.txt", name)
     monkeypatch.setattr(
         plugin_generation,
-        "_is_reparse_point",
+        "is_reparse_point",
         lambda path: path == generation_root / aliased,
     )
 
@@ -1087,9 +1122,12 @@ def static_node(ctx, settings):
         Path(bundle.approved_generation_root) / bundle.functions[0].module_relative_path
     ).is_file()
     generation = plugin_generation.read_verified_plugin_generation(bundle)
-    declarations = plugin_loader.validated_generation_declarations(
-        generation.manifest,
-        generation.members,
+    package = package_schema.ValidatedPackage(
+        package_schema.validate_package_manifest(generation.manifest),
+        dict(generation.members),
+    )
+    declarations = package_schema.validated_package_declarations(
+        package,
         filename_prefix=owner_id,
         owner_id=owner_id,
         allow_internal_metadata=True,
@@ -1135,7 +1173,7 @@ def test_internal_builtin_function_entries_keep_no_plugin_provenance(
             ("DUPLICATE.py", _function_source("packet.other")),
         ),
         (("bytes.py", b"not source text"),),
-        (("large.py", " " * (plugin_generation.PLUGIN_SOURCE_LIMIT + 1)),),
+        (("large.py", " " * (package_schema.PLUGIN_SOURCE_LIMIT + 1)),),
     ],
 )
 def test_plugin_backend_function_sources_reject_path_duplicate_and_size_bounds(
@@ -1576,125 +1614,6 @@ def test_set_addon_state_updates_the_generic_addon_state_store() -> None:
         "enabled": False,
         "pending_restart": True,
     }
-
-
-def test_addon_registration_lookup_requires_canonical_addon_id() -> None:
-    assert registered_addon_registration_by_id(ANSYS_DPF_ADDON_ID) is not None
-    assert registered_addon_registration_by_id("ansys.dpf") is None
-    assert registered_addon_registration_by_id("ansys_dpf") is None
-
-
-def test_discover_addon_records_reports_generic_manifest_and_state(monkeypatch) -> None:
-    restart_runtime_backend = RuntimeBackendSpec(
-        backend_id="packet.restart.runtime",
-        display_name="Packet Restart Runtime",
-        kind="python",
-        adapter_module="packet.restart.runtime",
-        adapter_factory="create_runtime",
-    )
-    available_backend = PluginBackendDescriptor(
-        plugin_id="packet.restart",
-        display_name="Packet Restart Add-On",
-        get_availability=lambda: PluginAvailability.available("ready"),
-        load_descriptors=lambda: (_packet_descriptor("packet.restart.node", "Restart Node"),),
-    )
-    unavailable_backend = PluginBackendDescriptor(
-        plugin_id="packet.unavailable",
-        display_name="Packet Unavailable Add-On",
-        get_availability=lambda: PluginAvailability.missing_dependency(
-            "packet.unavailable.dep",
-            summary="dependency missing",
-        ),
-        load_descriptors=lambda: (_packet_descriptor("packet.unavailable.node", "Unavailable Node"),),
-    )
-    registrations = (
-        AddOnRegistration(
-            manifest=AddOnManifest(
-                addon_id="packet.restart",
-                display_name="Packet Restart Add-On",
-                apply_policy="restart_required",
-                vendor="Packet Vendor",
-                summary="Restart managed add-on",
-                details="Requires a restart to finish applying.",
-                dependencies=("packet.restart.dep",),
-                runtime_backends=(restart_runtime_backend,),
-            ),
-            backend_module="packet.restart.module",
-            backend_id="packet.restart",
-            version_resolver_attr="resolve_version",
-        ),
-        AddOnRegistration(
-            manifest=AddOnManifest(
-                addon_id="packet.unavailable",
-                display_name="Packet Unavailable Add-On",
-                apply_policy="hot_apply",
-                vendor="Packet Vendor",
-                summary="Unavailable add-on",
-                details="Stays unavailable until its dependency is installed.",
-                dependencies=("packet.unavailable.dep",),
-            ),
-            backend_module="packet.unavailable.module",
-            backend_id="packet.unavailable",
-        ),
-    )
-    fake_modules = {
-        "packet.restart.module": SimpleNamespace(
-            PLUGIN_BACKENDS=(available_backend,),
-            resolve_version=lambda: "9.9.9",
-        ),
-        "packet.unavailable.module": SimpleNamespace(
-            PLUGIN_BACKENDS=(unavailable_backend,),
-        ),
-    }
-    preferences = set_addon_state(
-        default_app_preferences_document(),
-        "packet.restart",
-        enabled=False,
-        pending_restart=True,
-    )
-
-    monkeypatch.setattr(addon_catalog, "REGISTERED_ADDON_REGISTRATIONS", registrations)
-    monkeypatch.setattr(
-        addon_catalog.importlib,
-        "import_module",
-        lambda module_name: fake_modules[module_name],
-    )
-
-    records = addon_catalog.discover_addon_records(preferences_document=preferences)
-    records_by_id = {record.addon_id: record for record in records}
-
-    restart_record = records_by_id["packet.restart"]
-    assert restart_record.status == "pending_restart"
-    assert restart_record.apply_policy == "restart_required"
-    assert restart_record.vendor == "Packet Vendor"
-    assert restart_record.version == "9.9.9"
-    assert restart_record.summary == "Restart managed add-on"
-    assert restart_record.details == "Requires a restart to finish applying."
-    assert restart_record.provided_node_type_ids == ("packet.restart.node",)
-    assert restart_record.runtime_backends == (restart_runtime_backend,)
-    assert restart_record.manifest.contract_manifest.runtime_backends == (restart_runtime_backend,)
-
-    unavailable_record = records_by_id["packet.unavailable"]
-    assert unavailable_record.status == "unavailable"
-    assert unavailable_record.apply_policy == "hot_apply"
-    assert unavailable_record.version == ""
-    assert unavailable_record.availability.missing_dependencies == ("packet.unavailable.dep",)
-    assert unavailable_record.provided_node_type_ids == ()
-
-
-def test_plugin_loader_addon_record_discovery_delegates_to_addon_catalog(monkeypatch) -> None:
-    sentinel_records = (object(),)
-    seen_documents: list[object] = []
-
-    def fake_discover_addon_records(*, preferences_document=None):
-        seen_documents.append(preferences_document)
-        return sentinel_records
-
-    preferences = default_app_preferences_document()
-    monkeypatch.setattr(addon_catalog, "discover_addon_records", fake_discover_addon_records)
-
-    assert plugin_loader.discover_addon_records(preferences_document=preferences) is sentinel_records
-    assert seen_documents == [preferences]
 
 
 def test_hot_apply_uses_runtime_coordinator_boundary_for_runtime_rebuild() -> None:

@@ -25,8 +25,7 @@ from ea_node_editor.nodes.builtins.plot.property_edit_adapter import (
     create_plot_property_edit_adapters,
 )
 from ea_node_editor.nodes.plugin_contracts import AddOnManifest
-from ea_node_editor.nodes.plugin_contracts import AddOnRecord
-from ea_node_editor.nodes.plugin_contracts import AddOnState
+from ea_node_editor.addons.contracts import AddOnRecord, AddOnState
 from ea_node_editor.nodes.plugin_contracts import PluginAvailability
 from ea_node_editor.nodes.plugin_contracts import PluginBackendDescriptor
 

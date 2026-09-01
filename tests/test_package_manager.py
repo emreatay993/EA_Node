@@ -10,9 +10,13 @@ from pathlib import Path
 
 import pytest
 
-from ea_node_editor.nodes import package_manager, plugin_loader
+from ea_node_editor.nodes import package_manager, plugin_generation, plugin_loader
 from ea_node_editor.nodes.function_plugin import PluginBundleRef, PythonFunctionRef
 from ea_node_editor.nodes.plugin_generation import (
+    materialize_plugin_generation,
+    read_verified_plugin_generation,
+)
+from ea_node_editor.nodes.package_schema import (
     PLUGIN_ASSET_LIMIT,
     PLUGIN_MANIFEST_LIMIT,
     PLUGIN_MEMBER_LIMIT,
@@ -22,8 +26,6 @@ from ea_node_editor.nodes.plugin_generation import (
     SCHEMA_1_UNSUPPORTED_MESSAGE,
     canonical_bundle_digest,
     canonical_manifest_bytes,
-    materialize_plugin_generation,
-    read_verified_plugin_generation,
 )
 from ea_node_editor.nodes.registry import NodeRegistry
 from ea_node_editor.ui_qml.node_title_icon_sources import (
@@ -501,6 +503,58 @@ def test_generation_materialization_rejects_129_total_members(tmp_path: Path) ->
         )
 
     assert not generation_root.exists()
+
+
+def test_generation_total_limit_checks_actual_bytes_after_each_read(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    source = _node_source().encode("utf-8")
+    members = {"nodes.py": source}
+    raw = _manifest(sources=members)
+    digest = canonical_bundle_digest(raw, members)
+    generation = materialize_plugin_generation(
+        tmp_path / "generations",
+        bundle_digest=digest,
+        manifest=raw,
+        members=members,
+    )
+    manifest_size = (generation / package_manager.MANIFEST_FILENAME).stat().st_size
+    monkeypatch.setattr(
+        plugin_generation,
+        "PLUGIN_TOTAL_LIMIT",
+        manifest_size + len(source) + 1,
+    )
+    read_member = plugin_generation._read_generation_member  # noqa: SLF001
+
+    def inflated_member(root, relative_path, *, limit):  # noqa: ANN001
+        payload = read_member(root, relative_path, limit=limit)
+        return payload + b"xx" if relative_path == "nodes.py" else payload
+
+    monkeypatch.setattr(
+        plugin_generation,
+        "_read_generation_member",
+        inflated_member,
+    )
+    function = PythonFunctionRef(
+        bundle_id="plugin:package:actual-size",
+        bundle_digest=digest,
+        module_relative_path="nodes.py",
+        function_name="package_node",
+        source_digest=hashlib.sha256(source).hexdigest(),
+    )
+
+    with pytest.raises(ValueError, match="expanded size"):
+        read_verified_plugin_generation(
+            PluginBundleRef(
+                owner_id="plugin:package:actual-size",
+                version="1.0.0",
+                generation_id=digest,
+                bundle_digest=digest,
+                approved_generation_root=str(generation),
+                functions=(function,),
+            )
+        )
 
 
 def test_installed_directory_rejects_129_total_members(tmp_path: Path) -> None:
