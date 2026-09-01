@@ -181,6 +181,7 @@ def evaluate_arrow_query(
         if applicable_sorts and total > 1:
             augmented = filtered
             sort_keys: list[tuple[str, str]] = []
+            reserved_key_names = set(augmented.column_names)
             for index, (column, descending) in enumerate(applicable_sorts):
                 field_type = filtered.schema.field(column).type
                 key_names = (column,)
@@ -190,10 +191,13 @@ def evaluate_arrow_query(
                         if filtered is table
                         else _arrow_text_view(pyarrow, pa_compute, filtered.column(column))
                     )
-                    key_names = (
-                        f"__sort_kind_{index}",
-                        f"__sort_numeric_{index}",
-                        f"__sort_text_{index}",
+                    key_names = tuple(
+                        _unique_sort_key_name(base_name, reserved_key_names)
+                        for base_name in (
+                            f"__sort_kind_{index}",
+                            f"__sort_numeric_{index}",
+                            f"__sort_text_{index}",
+                        )
                     )
                     for key_name, key_values in zip(
                         key_names,
@@ -201,15 +205,39 @@ def evaluate_arrow_query(
                         strict=True,
                     ):
                         augmented = augmented.append_column(key_name, key_values)
+                elif pyarrow.types.is_floating(field_type):
+                    key_names = tuple(
+                        _unique_sort_key_name(base_name, reserved_key_names)
+                        for base_name in (
+                            f"__sort_kind_{index}",
+                            f"__sort_numeric_{index}",
+                        )
+                    )
+                    for key_name, key_values in zip(
+                        key_names,
+                        _arrow_float_sort_columns(pyarrow, pa_compute, filtered.column(column)),
+                        strict=True,
+                    ):
+                        augmented = augmented.append_column(key_name, key_values)
+                else:
+                    kind_name = _unique_sort_key_name(
+                        f"__sort_kind_{index}",
+                        reserved_key_names,
+                    )
+                    augmented = augmented.append_column(
+                        kind_name,
+                        _arrow_native_sort_kind(pyarrow, pa_compute, filtered.column(column)),
+                    )
+                    key_names = (kind_name, column)
+                direction = "descending" if descending else "ascending"
                 sort_keys.extend(
-                    (key_name, "descending" if descending else "ascending")
+                    (key_name, direction)
                     for key_name in key_names
                 )
-            null_placement = "at_start" if applicable_sorts[0][1] else "at_end"
             indices = pa_compute.sort_indices(
                 augmented,
                 sort_keys=sort_keys,
-                null_placement=null_placement,
+                null_placement="at_end",
             )
             page_indices = indices.slice(query.row_offset, query.row_limit if query.row_limit > 0 else None)
             page = filtered.select(list(query.selected_columns)).take(page_indices)
@@ -334,7 +362,9 @@ def _cell_text(cell: Any) -> str:
 
 
 def _cell_has_value(cell: Any) -> bool:
-    return cell is not None and bool(_cell_text(cell).strip())
+    if cell is None or (isinstance(cell, float) and not math.isfinite(cell)):
+        return False
+    return bool(_cell_text(cell).strip())
 
 
 def _compare_cell(text: str, op: str, target: str) -> bool:
@@ -415,11 +445,19 @@ def _arrow_numeric_text_values(pyarrow: Any, pa_compute: Any, text_view: Any) ->
     return numeric_mask, pa_compute.cast(numeric_text, pyarrow.float64())
 
 
-def _arrow_value_present_mask(pa_compute: Any, column: Any, text_view: Any) -> Any:
-    return pa_compute.and_kleene(
+def _arrow_value_present_mask(
+    pyarrow: Any,
+    pa_compute: Any,
+    column: Any,
+    text_view: Any,
+) -> Any:
+    present = pa_compute.and_kleene(
         pa_compute.is_valid(column),
         pa_compute.invert(pa_compute.equal(pa_compute.utf8_trim_whitespace(text_view), "")),
     )
+    if pyarrow.types.is_floating(column.type):
+        present = pa_compute.and_kleene(present, pa_compute.is_finite(column))
+    return present
 
 
 def _arrow_query_sort_columns(
@@ -443,7 +481,29 @@ def _arrow_query_sort_columns(
     )
     numeric_key = pa_compute.fill_null(numeric_values, 0.0)
     text_key = pa_compute.if_else(text_mask, trimmed, pyarrow.scalar("", type=pyarrow.string()))
-    return kind, numeric_key, text_key
+    return pa_compute.fill_null(kind, 2), numeric_key, pa_compute.fill_null(text_key, "")
+
+
+def _arrow_float_sort_columns(pyarrow: Any, pa_compute: Any, column: Any) -> tuple[Any, Any]:
+    finite = pa_compute.fill_null(pa_compute.is_finite(column), False)
+    kind = pa_compute.if_else(finite, pyarrow.scalar(0), pyarrow.scalar(2))
+    numeric_key = pa_compute.if_else(finite, column, pyarrow.scalar(0.0, type=column.type))
+    return kind, numeric_key
+
+
+def _unique_sort_key_name(base_name: str, reserved_names: set[str]) -> str:
+    candidate = base_name
+    suffix = 1
+    while candidate in reserved_names:
+        candidate = f"{base_name}_{suffix}"
+        suffix += 1
+    reserved_names.add(candidate)
+    return candidate
+
+
+def _arrow_native_sort_kind(pyarrow: Any, pa_compute: Any, column: Any) -> Any:
+    present = pa_compute.fill_null(pa_compute.is_valid(column), False)
+    return pa_compute.if_else(present, pyarrow.scalar(0), pyarrow.scalar(2))
 
 
 def _arrow_cell_op_mask(
@@ -455,7 +515,7 @@ def _arrow_cell_op_mask(
     text_view: Any,
 ) -> Any:
     needle = value.lower()
-    present_mask = _arrow_value_present_mask(pa_compute, column, text_view)
+    present_mask = _arrow_value_present_mask(pyarrow, pa_compute, column, text_view)
     if op in {"gt", "gte", "lt", "lte"}:
         compare = {
             "gt": pa_compute.greater,
@@ -517,7 +577,7 @@ def _arrow_predicate_mask(
             column_values = table.column(column)
             text_view = text_view_for(column)
             present = pa_compute.fill_null(
-                _arrow_value_present_mask(pa_compute, column_values, text_view),
+                _arrow_value_present_mask(pyarrow, pa_compute, column_values, text_view),
                 False,
             )
             contains = pa_compute.fill_null(

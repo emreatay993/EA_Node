@@ -367,6 +367,216 @@ def test_named_column_no_value_policy_matches_arrow_and_python(
     assert arrow.total_rows == python.total_rows == len(expected_ids)
 
 
+def _evaluate_parquet_and_python(
+    tmp_path: Path,
+    rows: tuple[dict[str, object], ...],
+    query_request: dict[str, object],
+):  # noqa: ANN202
+    pyarrow = pytest.importorskip("pyarrow")
+    pq = pytest.importorskip("pyarrow.parquet")
+    source = tmp_path / "parity.parquet"
+    columns = tuple(rows[0])
+    pq.write_table(
+        pyarrow.table({column: [row[column] for row in rows] for column in columns}),
+        source,
+    )
+    query = NormalizedPreviewQuery.from_mapping(query_request, columns)
+    service = TabularLoaderCacheService(cache_dir=tmp_path / "cache")
+    arrow = evaluate_arrow_query(
+        query,
+        source,
+        query_table_for=service._query_table_for,  # noqa: SLF001
+        run_io=service._run_io,  # noqa: SLF001
+    )
+    python = evaluate_python_query(query, rows, scan_row_cap=200_000)
+    assert arrow is not None
+    return arrow, python
+
+
+def test_mixed_direction_multi_key_sort_uses_each_keys_null_placement(tmp_path: Path) -> None:
+    rows = (
+        {"id": "g1-null", "a": 1, "b": None},
+        {"id": "g1-high", "a": 1, "b": 3},
+        {"id": "g1-low", "a": 1, "b": 1},
+        {"id": "g2-null", "a": 2, "b": None},
+        {"id": "g2-high", "a": 2, "b": 2},
+    )
+    arrow, python = _evaluate_parquet_and_python(
+        tmp_path,
+        rows,
+        _base_request(
+            columns=["id"],
+            sort=[
+                {"column": "a", "direction": "ascending"},
+                {"column": "b", "direction": "descending"},
+            ],
+        ),
+    )
+    expected = ["g1-null", "g1-high", "g1-low", "g2-null", "g2-high"]
+
+    assert [row["id"] for row in arrow.rows] == expected
+    assert [row["id"] for row in python.rows] == expected
+
+
+def test_arrow_sort_keys_remain_pyarrow_24_compatible_pairs(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    pa_compute = pytest.importorskip("pyarrow.compute")
+    original_sort_indices = pa_compute.sort_indices
+    captured_keys: list[tuple[str, str]] = []
+    captured_null_placements: list[str | None] = []
+
+    def capture_sort_indices(values, /, sort_keys=(), **kwargs):  # noqa: ANN001, ANN003, ANN202
+        captured_keys.extend(sort_keys)
+        captured_null_placements.append(kwargs.get("null_placement"))
+        return original_sort_indices(values, sort_keys=sort_keys, **kwargs)
+
+    monkeypatch.setattr(pa_compute, "sort_indices", capture_sort_indices)
+    rows = (
+        {"id": "null", "a": 1, "b": None},
+        {"id": "finite", "a": 1, "b": 2},
+    )
+
+    _evaluate_parquet_and_python(
+        tmp_path,
+        rows,
+        _base_request(
+            columns=["id"],
+            sort=[
+                {"column": "a", "direction": "ascending"},
+                {"column": "b", "direction": "descending"},
+            ],
+        ),
+    )
+
+    assert captured_keys
+    assert all(len(key) == 2 for key in captured_keys)
+    assert captured_null_placements == ["at_end"]
+
+
+def test_internal_arrow_sort_key_names_do_not_shadow_user_columns(tmp_path: Path) -> None:
+    rows = (
+        {
+            "id": "a",
+            "__sort_kind_0": "group",
+            "__sort_numeric_0": "user-a",
+            "__sort_text_0": "text-a",
+            "__sort_kind_1": 1.0,
+            "__sort_numeric_1": "keep-a",
+        },
+        {
+            "id": "b",
+            "__sort_kind_0": "group",
+            "__sort_numeric_0": "user-b",
+            "__sort_text_0": "text-b",
+            "__sort_kind_1": 2.0,
+            "__sort_numeric_1": "keep-b",
+        },
+        {
+            "id": "c",
+            "__sort_kind_0": "alpha",
+            "__sort_numeric_0": "user-c",
+            "__sort_text_0": "text-c",
+            "__sort_kind_1": 3.0,
+            "__sort_numeric_1": "keep-c",
+        },
+    )
+    selected_columns = list(rows[0])
+    arrow, python = _evaluate_parquet_and_python(
+        tmp_path,
+        rows,
+        _base_request(
+            columns=selected_columns,
+            sort=[
+                {"column": "__sort_kind_0", "direction": "ascending"},
+                {"column": "__sort_kind_1", "direction": "descending"},
+            ],
+        ),
+    )
+    expected = (rows[2], rows[1], rows[0])
+
+    assert arrow.rows == python.rows == expected
+    assert arrow.rows[0]["__sort_kind_0"] == "alpha"
+    assert tuple(arrow.rows[0]) == tuple(selected_columns)
+
+
+_NON_FINITE_ROWS = (
+    {"id": "finite-low", "value": 1.0},
+    {"id": "nan", "value": float("nan")},
+    {"id": "positive-inf", "value": float("inf")},
+    {"id": "negative-inf", "value": float("-inf")},
+    {"id": "finite-high", "value": 2.0},
+    {"id": "null", "value": None},
+)
+
+
+@pytest.mark.parametrize(
+    ("query_filter", "expected_ids"),
+    [
+        pytest.param(
+            {"column": "value", "op": "gt", "value": "1.5"},
+            ["finite-high"],
+            id="relational-excludes-non-finite",
+        ),
+        pytest.param(
+            {"column": "value", "op": "contains", "value": ""},
+            ["finite-low", "finite-high"],
+            id="contains-empty-excludes-non-finite",
+        ),
+        pytest.param(
+            {"column": "value", "op": "not_contains", "value": "1"},
+            ["nan", "positive-inf", "negative-inf", "finite-high", "null"],
+            id="not-contains-accepts-non-finite",
+        ),
+    ],
+)
+def test_non_finite_filter_policy_matches_arrow_and_python(
+    tmp_path: Path,
+    query_filter: dict[str, str],
+    expected_ids: list[str],
+) -> None:
+    arrow, python = _evaluate_parquet_and_python(
+        tmp_path,
+        _NON_FINITE_ROWS,
+        _base_request(columns=["id"], filters=[query_filter]),
+    )
+
+    assert [row["id"] for row in arrow.rows] == expected_ids
+    assert [row["id"] for row in python.rows] == expected_ids
+    assert arrow.total_rows == python.total_rows == len(expected_ids)
+
+
+@pytest.mark.parametrize(
+    ("descending", "expected_ids"),
+    [
+        pytest.param(
+            False,
+            ["finite-low", "finite-high", "nan", "positive-inf", "negative-inf", "null"],
+            id="ascending-missing-last",
+        ),
+        pytest.param(
+            True,
+            ["nan", "positive-inf", "negative-inf", "null", "finite-high", "finite-low"],
+            id="descending-missing-first",
+        ),
+    ],
+)
+def test_non_finite_sort_policy_matches_arrow_and_python(
+    tmp_path: Path,
+    descending: bool,
+    expected_ids: list[str],
+) -> None:
+    arrow, python = _evaluate_parquet_and_python(
+        tmp_path,
+        _NON_FINITE_ROWS,
+        _base_request(columns=["id"], sort={"column": "value", "descending": descending}),
+    )
+
+    assert [row["id"] for row in arrow.rows] == expected_ids
+    assert [row["id"] for row in python.rows] == expected_ids
+
+
 def test_native_parquet_preview_sorts_before_row_and_column_window(tmp_path: Path) -> None:
     pyarrow = pytest.importorskip("pyarrow")
     pq = pytest.importorskip("pyarrow.parquet")
