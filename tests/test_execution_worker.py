@@ -16,11 +16,11 @@ from ea_node_editor.common.optimization_links import (
     PARAMETER_SETUP_PARAMETER_POOL_LINK_ID,
     PARAMETER_SETUP_PARAMETER_POOL_LINK_TITLE,
 )
-from ea_node_editor.execution.dpf_runtime_service import (
+from ea_node_editor.execution.dpf_runtime.contracts import DpfMaterializationResult
+from ea_node_editor.nodes.ansys_dpf_data_types import (
     DPF_FIELDS_CONTAINER_HANDLE_KIND,
     DPF_MODEL_HANDLE_KIND,
     DPF_VIEWER_DATASET_HANDLE_KIND,
-    DpfMaterializationResult,
 )
 from ea_node_editor.execution.dpf_runtime.viewer_session_backend import (
     DpfViewerSessionMaterializationBackend,

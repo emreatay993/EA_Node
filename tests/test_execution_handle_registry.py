@@ -10,7 +10,7 @@ from ea_node_editor.nodes.ansys_dpf_data_types import (
     DPF_MODEL_DATA_TYPE,
     DPF_OBJECT_HANDLE_DATA_TYPE,
 )
-from ea_node_editor.nodes.dpf_runtime_contracts import (
+from ea_node_editor.nodes.ansys_dpf_data_types import (
     DPF_MODEL_HANDLE_KIND,
     DPF_OBJECT_HANDLE_KIND,
 )

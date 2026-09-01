@@ -20,7 +20,11 @@ from ea_node_editor.graph.model import GraphModel
 from ea_node_editor.nodes import output_artifacts
 from ea_node_editor.nodes.ansys_dpf_data_types import (
     DPF_FIELD_DATA_TYPE,
+    DPF_FIELDS_CONTAINER_HANDLE_KIND,
     DPF_FIELDS_CONTAINER_DATA_TYPE,
+    DPF_FIELD_HANDLE_KIND,
+    DPF_MESH_HANDLE_KIND,
+    DPF_MESH_SCOPING_HANDLE_KIND,
     DPF_MESH_DATA_TYPE,
     DPF_SCOPING_DATA_TYPE,
 )
@@ -31,12 +35,6 @@ from ea_node_editor.nodes.builtins.plot.dpf import (
     DPF_PLOT_CATEGORY_PATH,
     DPF_PLOT_FRAME_SELECTOR_PROPERTY,
     DPF_PLOT_NODE_TYPE_IDS,
-)
-from ea_node_editor.nodes.dpf_runtime_contracts import (
-    DPF_FIELDS_CONTAINER_HANDLE_KIND,
-    DPF_FIELD_HANDLE_KIND,
-    DPF_MESH_HANDLE_KIND,
-    DPF_MESH_SCOPING_HANDLE_KIND,
 )
 from ea_node_editor.nodes.execution_context import ExecutionContext
 from ea_node_editor.persistence.artifact_resolution import ProjectArtifactResolver

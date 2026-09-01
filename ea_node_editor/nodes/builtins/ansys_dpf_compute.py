@@ -5,13 +5,11 @@ from typing import Any
 
 from ea_node_editor.nodes.ansys_dpf_data_types import (
     DPF_FIELD_DATA_TYPE,
+    DPF_MESH_SCOPING_HANDLE_KIND,
     DPF_MESH_DATA_TYPE,
     DPF_MODEL_DATA_TYPE,
     DPF_RESULT_FILE_DATA_TYPE,
     DPF_SCOPING_DATA_TYPE,
-)
-from ea_node_editor.nodes.dpf_runtime_contracts import (
-    DPF_MESH_SCOPING_HANDLE_KIND,
     DPF_TIME_SCOPING_HANDLE_KIND,
 )
 from ea_node_editor.nodes.builtins.ansys_dpf_common import (

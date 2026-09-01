@@ -8,9 +8,14 @@ from typing import TYPE_CHECKING, Any
 
 from ea_node_editor.nodes.ansys_dpf_data_types import (
     DPF_FIELD_DATA_TYPE,
+    DPF_FIELDS_CONTAINER_HANDLE_KIND,
     DPF_FIELDS_CONTAINER_DATA_TYPE,
+    DPF_FIELD_HANDLE_KIND,
+    DPF_MESH_HANDLE_KIND,
+    DPF_MESH_SCOPING_HANDLE_KIND,
     DPF_MESH_DATA_TYPE,
     DPF_SCOPING_DATA_TYPE,
+    DPF_TIME_SCOPING_HANDLE_KIND,
 )
 from ea_node_editor.nodes.builtins.ansys_dpf_taxonomy import dpf_category_path
 from ea_node_editor.nodes.builtins.plot.generic import (
@@ -25,13 +30,6 @@ from ea_node_editor.nodes.builtins.plot.generic import (
     _property_defaults,
     _runtime_artifact_metadata,
     _string_property,
-)
-from ea_node_editor.nodes.dpf_runtime_contracts import (
-    DPF_FIELDS_CONTAINER_HANDLE_KIND,
-    DPF_FIELD_HANDLE_KIND,
-    DPF_MESH_HANDLE_KIND,
-    DPF_MESH_SCOPING_HANDLE_KIND,
-    DPF_TIME_SCOPING_HANDLE_KIND,
 )
 from ea_node_editor.nodes.execution_context import ExecutionContext, NodeResult
 from ea_node_editor.nodes.node_specs import (

@@ -13,11 +13,11 @@ from ea_node_editor.execution.dpf_runtime.base import DpfRuntimeBase
 from ea_node_editor.execution.dpf_runtime.contracts import (
     DEFAULT_VTM_FILENAME,
     DEFAULT_VTU_BASENAME,
-    DPF_VIEWER_DATASET_HANDLE_KIND,
     DpfMaterializationResult,
     DpfTableExportResult,
 )
 from ea_node_editor.nodes.ansys_dpf_data_types import (
+    DPF_VIEWER_DATASET_HANDLE_KIND,
     DPF_VIEWER_DATASET_DATA_TYPE,
 )
 from ea_node_editor.nodes.output_artifacts import register_staged_artifact

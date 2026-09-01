@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import Any
 
 from ea_node_editor.nodes.ansys_dpf_data_types import (
+    DPF_FIELDS_CONTAINER_HANDLE_KIND,
     DPF_FIELDS_CONTAINER_DATA_TYPE,
 )
 from ea_node_editor.nodes.builtins.ansys_dpf_common import (
@@ -12,7 +13,6 @@ from ea_node_editor.nodes.builtins.ansys_dpf_common import (
     normalize_dpf_viewer_view_options,
     wrap_field_handle_as_fields_container,
 )
-from ea_node_editor.nodes.dpf_runtime_contracts import DPF_FIELDS_CONTAINER_HANDLE_KIND
 from ea_node_editor.nodes.viewer_runtime_contracts import (
     DPF_EXECUTION_VIEWER_BACKEND_ID,
     MaterializeViewerDataCommand,

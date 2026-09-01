@@ -16,7 +16,7 @@ dpf = pytest.importorskip("ansys.dpf.core")
 pytest.importorskip("pyvista")
 
 from ansys_dpf_core.fixture_paths import STATIC_ANALYSIS_RST, THERMAL_ANALYSIS_RTH
-from ea_node_editor.execution.dpf_runtime_service import (
+from ea_node_editor.nodes.ansys_dpf_data_types import (
     DPF_FIELDS_CONTAINER_HANDLE_KIND,
     DPF_FIELD_HANDLE_KIND,
     DPF_MESH_SCOPING_HANDLE_KIND,

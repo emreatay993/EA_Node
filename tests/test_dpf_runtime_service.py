@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import json
+import os
+import subprocess
 import sys
 from types import SimpleNamespace
 import unittest
@@ -20,17 +22,7 @@ from ea_node_editor.addons.state_changes import prepare_addon_enabled_state
 from ea_node_editor.app_preferences import addon_state, default_app_preferences_document
 from ansys_dpf_core.fixture_paths import MODAL_ANALYSIS_RST, STATIC_ANALYSIS_RST, THERMAL_ANALYSIS_RTH
 from ea_node_editor.execution.dpf_runtime.contracts import (
-    DPF_OBJECT_HANDLE_KIND,
     DpfOperatorInvocationError,
-)
-from ea_node_editor.execution.dpf_runtime_service import (
-    DPF_FIELDS_CONTAINER_HANDLE_KIND,
-    DPF_FIELD_HANDLE_KIND,
-    DPF_MESH_HANDLE_KIND,
-    DPF_MESH_SCOPING_HANDLE_KIND,
-    DPF_MODEL_HANDLE_KIND,
-    DPF_RESULT_FILE_HANDLE_KIND,
-    DPF_TIME_SCOPING_HANDLE_KIND,
     DpfResultFile,
     DpfRuntimeUnavailableError,
 )
@@ -40,12 +32,20 @@ from ea_node_editor.execution.viewer_backend_dpf import DPF_EXECUTION_VIEWER_BAC
 from tests.typed_handle_support import dpf_worker_services
 from ea_node_editor.nodes.ansys_dpf_data_types import (
     DPF_DATA_SOURCES_DATA_TYPE,
+    DPF_FIELDS_CONTAINER_HANDLE_KIND,
     DPF_FIELDS_CONTAINER_DATA_TYPE,
+    DPF_FIELD_HANDLE_KIND,
+    DPF_MESH_HANDLE_KIND,
+    DPF_MESH_SCOPING_HANDLE_KIND,
     DPF_MESH_DATA_TYPE,
+    DPF_MODEL_HANDLE_KIND,
     DPF_MODEL_DATA_TYPE,
+    DPF_OBJECT_HANDLE_KIND,
+    DPF_RESULT_FILE_HANDLE_KIND,
     DPF_SCOPING_DATA_TYPE,
     DPF_RESULT_FILE_DATA_TYPE,
     DPF_STREAMS_CONTAINER_DATA_TYPE,
+    DPF_TIME_SCOPING_HANDLE_KIND,
 )
 
 
@@ -172,6 +172,40 @@ class DpfRuntimeServiceTests(unittest.TestCase):
         self.assertEqual(by_position.selected_set_ids, (20,))
 
     def test_worker_services_lazy_service_defers_optional_dpf_import(self) -> None:
+        probe_environment = dict(os.environ)
+        probe_environment.pop("PYTHONHOME", None)
+        probe_environment.pop("PYTHONPATH", None)
+        probe = subprocess.run(
+            [
+                sys.executable,
+                "-c",
+                "\n".join(
+                    (
+                        "import json, sys",
+                        "from ea_node_editor.execution.worker_services import WorkerServices",
+                        "optional = lambda: sorted(name for name in sys.modules if name == 'ansys.dpf.core' or name.startswith('ansys.dpf.core.') or name == 'pyvista' or name.startswith('pyvista.'))",
+                        "before_factory = optional()",
+                        "service = WorkerServices().dpf_runtime_service",
+                        "print(json.dumps({'before_factory': before_factory, 'after_factory': optional(), 'service_module': type(service).__module__}, sort_keys=True))",
+                    )
+                ),
+            ],
+            cwd=_TESTS_ROOT.parent,
+            env=probe_environment,
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+        self.assertEqual(probe.returncode, 0, probe.stderr)
+        self.assertEqual(
+            json.loads(probe.stdout),
+            {
+                "after_factory": [],
+                "before_factory": [],
+                "service_module": "ea_node_editor.execution.dpf_runtime.service",
+            },
+        )
+
         services = dpf_worker_services()
 
         self.assertIsNone(services._dpf_runtime_service)
@@ -179,7 +213,7 @@ class DpfRuntimeServiceTests(unittest.TestCase):
         self.assertIs(service, services.dpf_runtime_service)
 
         with mock.patch(
-            "ea_node_editor.execution.dpf_runtime_service.importlib.import_module",
+            "ea_node_editor.execution.dpf_runtime.service.importlib.import_module",
             side_effect=ModuleNotFoundError("ansys.dpf.core"),
         ):
             with self.assertRaises(DpfRuntimeUnavailableError):

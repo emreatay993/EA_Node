@@ -15,7 +15,7 @@ dpf = pytest.importorskip("ansys.dpf.core")
 pytest.importorskip("pyvista")
 
 from ansys_dpf_core.fixture_paths import STATIC_ANALYSIS_RST
-from ea_node_editor.execution.dpf_runtime_service import (
+from ea_node_editor.nodes.ansys_dpf_data_types import (
     DPF_FIELDS_CONTAINER_HANDLE_KIND,
     DPF_FIELD_HANDLE_KIND,
     DPF_MESH_SCOPING_HANDLE_KIND,
@@ -27,6 +27,7 @@ from ea_node_editor.execution.worker_services import WorkerServices
 from tests.typed_handle_support import dpf_worker_services
 from ea_node_editor.nodes.ansys_dpf_data_types import (
     DPF_DATA_SOURCES_DATA_TYPE,
+    DPF_OBJECT_HANDLE_KIND,
     DPF_STREAMS_CONTAINER_DATA_TYPE,
     DPF_WORKFLOW_DATA_TYPE,
 )
@@ -35,7 +36,6 @@ from ea_node_editor.nodes.builtins.ansys_dpf_common import (
     DPF_EXPORT_NODE_TYPE_ID,
     DPF_RESULT_FIELD_NODE_TYPE_ID,
 )
-from ea_node_editor.nodes.dpf_runtime_contracts import DPF_OBJECT_HANDLE_KIND
 from ea_node_editor.nodes.execution_context import ExecutionContext
 from ea_node_editor.persistence.artifact_resolution import ProjectArtifactResolver
 

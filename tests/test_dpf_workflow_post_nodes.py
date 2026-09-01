@@ -18,7 +18,7 @@ from ansys_dpf_core.fixture_paths import MODAL_ANALYSIS_RST, STATIC_ANALYSIS_RST
 from ea_node_editor.addons.ansys_dpf.plot_catalog import (
     load_ansys_dpf_plot_plugin_descriptors,
 )
-from ea_node_editor.execution.dpf_runtime_service import (
+from ea_node_editor.nodes.ansys_dpf_data_types import (
     DPF_FIELDS_CONTAINER_HANDLE_KIND,
     DPF_FIELD_HANDLE_KIND,
     DPF_MODEL_HANDLE_KIND,

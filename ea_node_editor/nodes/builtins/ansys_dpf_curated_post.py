@@ -4,7 +4,9 @@ from typing import Any
 
 from ea_node_editor.nodes.ansys_dpf_data_types import (
     DPF_FIELD_DATA_TYPE,
+    DPF_FIELDS_CONTAINER_HANDLE_KIND,
     DPF_FIELDS_CONTAINER_DATA_TYPE,
+    DPF_FIELD_HANDLE_KIND,
     DPF_MESH_DATA_TYPE,
     DPF_MODEL_DATA_TYPE,
     DPF_RESULT_FILE_DATA_TYPE,
@@ -52,10 +54,6 @@ from ea_node_editor.nodes.builtins.ansys_dpf_node_helpers import (
 )
 from ea_node_editor.nodes.builtins.ansys_dpf_taxonomy import DPF_WORKFLOW_CATEGORY_PATH
 from ea_node_editor.nodes.builtins.ansys_dpf_viewer_adapter import open_dpf_viewer_session_payload
-from ea_node_editor.nodes.dpf_runtime_contracts import (
-    DPF_FIELDS_CONTAINER_HANDLE_KIND,
-    DPF_FIELD_HANDLE_KIND,
-)
 from ea_node_editor.nodes.core_data_types import VIEWER_SESSION_DATA_TYPE_ID
 from ea_node_editor.nodes.execution_context import NodeResult
 from ea_node_editor.nodes.file_dialog_filters import ANSYS_DPF_RESULT_FILES_FILTER

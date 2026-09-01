@@ -34,6 +34,9 @@ Use this for runtime snapshot assembly, ordered data-edge DTOs, dependency sched
 - `ea_node_editor/execution/worker_runner.py`
 - `ea_node_editor/execution/handle_registry.py`
 - `ea_node_editor/execution/worker_services.py`
+- `ea_node_editor/execution/dpf_runtime/__init__.py`
+- `ea_node_editor/execution/dpf_runtime/contracts.py`
+- `ea_node_editor/execution/dpf_runtime/service.py`
 - `ea_node_editor/execution/viewer_session_service.py`
 - `ea_node_editor/execution/prepared_scene_runtime.py`
 - `ea_node_editor/execution/viewer_backend_engineering.py`
@@ -71,6 +74,7 @@ Use this for runtime snapshot assembly, ordered data-edge DTOs, dependency sched
 - `ImageValue` is the bounded immutable `COREXImage` runtime carrier: exact field types, dimensions capped at 64 MP, SHA-256, schema 1, and a 64 MiB base64 transport ceiling. PNG validation covers chunk order/length/type/CRC plus bounded incremental zlib decoding of non-interlaced IDAT data, exact IHDR-derived scanline byte counts, legal row filters, stream EOF, and no trailing stream data; Adam7 input fails closed. It uses the shared tagged runtime-value serializer and catalog validation; it is neither a handle nor a `RuntimeArtifactRef`, and `tests/test_execution_client.py` proves it through the real process queue.
 - Signal Plot renders synchronously through XY's native browser-free `to_png(scale=1.0)` path and returns ImageValue bytes without allocating a managed output file.
 - Keep runtime snapshot assembly in `ea_node_editor.execution`.
+- DPF runtime composition is direct: `dpf_runtime/service.py` owns the concrete service, `dpf_runtime/contracts.py` owns DTOs/errors, and the package root owns only the lazy factory. Handle-kind strings are nodes-owned alongside their semantic data types in `nodes/ansys_dpf_data_types.py`; do not restore the deleted facade, protocol module, or package reexports.
 - Compiler/runtime edges are structured, ordered records. Only enabled data edges contribute dependencies or values; disabled edges remain authored graph state but are absent from dependency traversal and path-wise merge.
 - Headless prepare, prepared-dispatch validation, worker validation, and solution invalidation build plans from the compiled runtime workspace while retaining the authored snapshot/envelope fingerprint. `ExecutionPlan.for_invalidation(...)` alone may recover from a private topology-cycle error by using compiled declaration order so invalidation closure and stale-record cleanup remain deterministic; ordinary preparation and worker admission still reject active cycles with the existing `ValueError` text.
 - Registry-backed compilation uses the same `NodeRegistry.data_types.compatibility(...)` decision as graph mutation and prunes incompatible, unresolved, or unresolvable-node/port data edges before runtime DTO assembly. It revalidates real-to-real edges after subnode flattening so two direct conversion legs never imply a chained synthetic conversion. Compilation without a registry can enforce structural rules only. Conversion remains worker-owned and is never performed by the graph or compiler.

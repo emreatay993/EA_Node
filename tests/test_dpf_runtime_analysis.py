@@ -19,8 +19,8 @@ dpf = pytest.importorskip("ansys.dpf.core")
 np = pytest.importorskip("numpy")
 
 from ansys_dpf_core.fixture_paths import STATIC_ANALYSIS_RST
-from ea_node_editor.execution.dpf_runtime import materialization as materialization_module
-from ea_node_editor.execution.dpf_runtime_service import (
+import ea_node_editor.execution.dpf_runtime.materialization as materialization_module
+from ea_node_editor.nodes.ansys_dpf_data_types import (
     DPF_FIELDS_CONTAINER_HANDLE_KIND,
     DPF_FIELD_HANDLE_KIND,
 )

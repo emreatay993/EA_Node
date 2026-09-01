@@ -17,7 +17,7 @@ from ea_node_editor.runtime_contracts.value_refs import (
 from ea_node_editor.runtime_contracts import DataTypeCatalog
 
 if TYPE_CHECKING:
-    from ea_node_editor.execution.dpf_runtime_service import DpfRuntimeService
+    from ea_node_editor.execution.dpf_runtime.service import DpfRuntimeService
     from ea_node_editor.execution.prepared_scene_runtime import PreparedSceneRuntime
     from ea_node_editor.execution.viewer_session_service import ViewerSessionService
 

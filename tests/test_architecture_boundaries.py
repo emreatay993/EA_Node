@@ -1121,6 +1121,83 @@ class GraphArchitectureBoundaryTests(unittest.TestCase):
             with self.subTest(api_name=api_name):
                 self.assertIn(api_name, registry_source)
 
+    def test_dpf_runtime_has_direct_service_contract_and_handle_kind_owners(self) -> None:
+        import ea_node_editor.execution.dpf_runtime as dpf_runtime
+        from ea_node_editor.execution.dpf_runtime.contracts import DpfResultFile
+        from ea_node_editor.execution.dpf_runtime.service import DpfRuntimeService
+
+        self.assertFalse(
+            (REPO_ROOT / "ea_node_editor/execution/dpf_runtime_service.py").exists()
+        )
+        self.assertFalse(
+            (REPO_ROOT / "ea_node_editor/nodes/dpf_runtime_contracts.py").exists()
+        )
+        self.assertEqual(dpf_runtime.__all__, ["create_dpf_runtime_service"])
+        self.assertFalse(hasattr(dpf_runtime, "DpfRuntimeService"))
+        self.assertFalse(hasattr(dpf_runtime, "DpfResultFile"))
+        self.assertEqual(
+            DpfRuntimeService.__module__,
+            "ea_node_editor.execution.dpf_runtime.service",
+        )
+        self.assertEqual(
+            DpfResultFile.__module__,
+            "ea_node_editor.execution.dpf_runtime.contracts",
+        )
+
+        expected_handle_kinds = {
+            "DPF_RESULT_FILE_HANDLE_KIND": "dpf.result_file",
+            "DPF_MODEL_HANDLE_KIND": "dpf.model",
+            "DPF_MESH_SCOPING_HANDLE_KIND": "dpf.mesh_scoping",
+            "DPF_TIME_SCOPING_HANDLE_KIND": "dpf.time_scoping",
+            "DPF_FIELDS_CONTAINER_HANDLE_KIND": "dpf.fields_container",
+            "DPF_FIELD_HANDLE_KIND": "dpf.field",
+            "DPF_MESH_HANDLE_KIND": "dpf.mesh",
+            "DPF_VIEWER_DATASET_HANDLE_KIND": "dpf.viewer_dataset",
+            "DPF_OBJECT_HANDLE_KIND": "dpf_object_handle",
+        }
+        assignments: dict[str, list[tuple[str, object]]] = {
+            name: [] for name in expected_handle_kinds
+        }
+        for source_path in (REPO_ROOT / "ea_node_editor").rglob("*.py"):
+            tree = ast.parse(
+                source_path.read_text(encoding="utf-8-sig"),
+                filename=str(source_path),
+            )
+            for node in tree.body:
+                if not isinstance(node, ast.Assign) or len(node.targets) != 1:
+                    continue
+                target = node.targets[0]
+                if isinstance(target, ast.Name) and target.id in assignments:
+                    assignments[target.id].append(
+                        (source_path.relative_to(REPO_ROOT).as_posix(), ast.literal_eval(node.value))
+                    )
+        for name, value in expected_handle_kinds.items():
+            with self.subTest(handle_kind=name):
+                self.assertEqual(
+                    assignments[name],
+                    [("ea_node_editor/nodes/ansys_dpf_data_types.py", value)],
+                )
+
+        service_imports = imported_modules(
+            parse_module("ea_node_editor/execution/dpf_runtime/service.py")
+        )
+        self.assertNotIn("ea_node_editor.execution.dpf_runtime.contracts", service_imports)
+        self.assertNotIn("ea_node_editor.nodes.ansys_dpf_data_types", service_imports)
+        package_source = (
+            REPO_ROOT / "ea_node_editor/execution/dpf_runtime/__init__.py"
+        ).read_text(encoding="utf-8")
+        self.assertNotIn("dpf_runtime.contracts", package_source)
+        self.assertNotIn("ansys_dpf_data_types", package_source)
+
+        worker_imports = imported_modules(
+            parse_module("ea_node_editor/execution/worker_services.py")
+        )
+        self.assertIn("ea_node_editor.execution.dpf_runtime.service", worker_imports)
+        metadata_source = (
+            REPO_ROOT / "ea_node_editor/addons/ansys_dpf/metadata.py"
+        ).read_text(encoding="utf-8")
+        self.assertIn("ea_node_editor.execution.dpf_runtime.service", metadata_source)
+
     def test_runtime_value_contracts_have_direct_owners_and_common_stays_leaf(self) -> None:
         from ea_node_editor.runtime_contracts import (
             ImageValue,

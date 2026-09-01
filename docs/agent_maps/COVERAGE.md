@@ -87,6 +87,10 @@ implementation studies are intentionally excluded.
   function materialization/fingerprinting lives in `function_bundle.py`, built-in
   contributions in `builtin_catalog.py`, and trusted backend contributions in
   `addons/registry_contributions.py` without forwarding aliases.
+- DPF runtime ownership is direct: `execution/dpf_runtime/service.py` owns
+  concrete composition, `execution/dpf_runtime/contracts.py` owns DTOs/errors,
+  the package root exposes only its lazy factory, and
+  `nodes/ansys_dpf_data_types.py` is the sole handle-kind definition owner.
 - Node specification structure is validated purely by `nodes/spec_validation.py`
   against an explicit staged/live `DataTypeCatalog`; port and instance/dynamic
   resolution lives directly in `nodes/instance_resolution.py`, and dependency-light

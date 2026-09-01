@@ -7,16 +7,6 @@ from typing import Any
 
 from ea_node_editor.runtime_contracts.value_refs import RuntimeArtifactRef, RuntimeHandleRef
 
-DPF_RESULT_FILE_HANDLE_KIND = "dpf.result_file"
-DPF_MODEL_HANDLE_KIND = "dpf.model"
-DPF_MESH_SCOPING_HANDLE_KIND = "dpf.mesh_scoping"
-DPF_TIME_SCOPING_HANDLE_KIND = "dpf.time_scoping"
-DPF_FIELDS_CONTAINER_HANDLE_KIND = "dpf.fields_container"
-DPF_FIELD_HANDLE_KIND = "dpf.field"
-DPF_MESH_HANDLE_KIND = "dpf.mesh"
-DPF_VIEWER_DATASET_HANDLE_KIND = "dpf.viewer_dataset"
-DPF_OBJECT_HANDLE_KIND = "dpf_object_handle"
-
 SUPPORTED_RESULT_EXTENSIONS = frozenset({".rst", ".rth"})
 DEFAULT_TIME_SCOPING_LOCATION = "TimeFreq"
 DEFAULT_EXPORT_SUBDIRECTORY = PurePosixPath("dpf")
@@ -120,15 +110,6 @@ class DpfTableExportResult:
 
 
 __all__ = [
-    "DPF_FIELDS_CONTAINER_HANDLE_KIND",
-    "DPF_FIELD_HANDLE_KIND",
-    "DPF_MESH_SCOPING_HANDLE_KIND",
-    "DPF_MESH_HANDLE_KIND",
-    "DPF_MODEL_HANDLE_KIND",
-    "DPF_OBJECT_HANDLE_KIND",
-    "DPF_RESULT_FILE_HANDLE_KIND",
-    "DPF_TIME_SCOPING_HANDLE_KIND",
-    "DPF_VIEWER_DATASET_HANDLE_KIND",
     "SUPPORTED_FIELD_MATH_OPERATIONS",
     "SUPPORTED_INVARIANTS",
     "DpfFieldRange",

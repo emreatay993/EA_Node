@@ -14,6 +14,9 @@ Use this for Ansys DPF add-on nodes, operator docs, DPF-typed plot nodes, DPF vi
 - `ea_node_editor/nodes/builtins/ansys_dpf_curated.py`
 - `ea_node_editor/nodes/builtins/ansys_dpf_curated_post.py`
 - `ea_node_editor/nodes/builtins/ansys_dpf_taxonomy.py`
+- `ea_node_editor/execution/dpf_runtime/__init__.py`
+- `ea_node_editor/execution/dpf_runtime/contracts.py`
+- `ea_node_editor/execution/dpf_runtime/service.py`
 - `ea_node_editor/execution/dpf_runtime/base.py`
 - `ea_node_editor/execution/dpf_runtime/analysis.py`
 - `ea_node_editor/execution/dpf_runtime/operations.py`
@@ -42,7 +45,8 @@ Use this for Ansys DPF add-on nodes, operator docs, DPF-typed plot nodes, DPF vi
 
 ## Viewer Surface Notes
 - `COREX.Viewer.Session` is the generic public session data type. DPF viewer nodes return its exact `corex.viewer_session` handle rather than copying the session projection into node output; the worker session service remains authoritative. DPF nodes still select backend `dpf_embedded` explicitly; generic session services must not infer DPF when `backend_id` is empty. The neutral `viewer` package excludes DPF and its operator-catalog preflight, while `full` retains both.
-- `nodes/ansys_dpf_data_types.py` owns the DPF semantic catalog contribution. `COREX.Ansys.DPF.Mesh` parents `COREX.Mesh.IMesh` and `COREX.Ansys.DPF.Model` parents `COREX.Fem.Model.IModel`; do not infer additional vendor relationships. Runtime `dpf_*` handle kinds remain transport markers and are not semantic type IDs.
+- `nodes/ansys_dpf_data_types.py` owns both the DPF semantic catalog contribution and the sole definitions of every DPF runtime handle-kind string. `COREX.Ansys.DPF.Mesh` parents `COREX.Mesh.IMesh` and `COREX.Ansys.DPF.Model` parents `COREX.Fem.Model.IModel`; do not infer additional vendor relationships. Runtime `dpf_*` handle kinds remain transport markers and are not semantic type IDs.
+- `execution/dpf_runtime/__init__.py` exposes only the lazy `create_dpf_runtime_service` factory. Concrete composition lives in `dpf_runtime/service.py`, DTOs and errors live in `dpf_runtime/contracts.py`, and internal callers import those owners directly rather than through package or compatibility reexports. Creating the service must not import PyDPF or PyVista; each optional backend remains loaded only on first use.
 - In-memory DPF viewer materialization uses the concrete `COREX.Viewer.Dataset` semantic type with `dpf.viewer_dataset` as its handle-kind marker. Generic DPF object consumers discriminate `RuntimeHandleRef.data_type_id`, never duplicate or trust semantic identity in metadata. Concrete handle validators require both the semantic type ID and backend kind, and resolving consumers supply both expectations to the registry. Every generated output, including a single-candidate port and each List item, must prove its live value against the deduplicated primary-plus-accepted candidates before wrapping; unsupported or ambiguous values fail instead of being stamped with the primary type.
 - DPF result/model caches own cache-scope handles and lease each hit once to the requesting run. Run cleanup removes only that run's ownership; stale entries release their cache scope, and reset releases model streams while warning and continuing after cleanup failures.
 - `DpfRuntimeOperationsMixin.model_part_names()` in `execution/dpf_runtime/operations.py` owns the bounded model-part-name projection. It reuses the model resolver, reads only `metadata.mesh_info.part_names`, preserves provider order, duplicates, and nonempty whitespace, and returns a detached tuple of exact built-in strings. The projection accepts at most 4,096 names and 65,536 aggregate UTF-8 bytes; native supported-provider success remains deferred.

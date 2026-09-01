@@ -14,20 +14,18 @@ from ea_node_editor.common.payload_tools import compact_sequence_metadata
 from ea_node_editor.nodes.ansys_dpf_data_types import (
     DPF_DATA_SOURCES_DATA_TYPE,
     DPF_FIELD_DATA_TYPE,
+    DPF_FIELDS_CONTAINER_HANDLE_KIND,
     DPF_FIELDS_CONTAINER_DATA_TYPE,
+    DPF_FIELD_HANDLE_KIND,
     DPF_MESH_DATA_TYPE,
+    DPF_MODEL_HANDLE_KIND,
     DPF_MODEL_DATA_TYPE,
     DPF_OBJECT_HANDLE_DATA_TYPE,
     DPF_SCOPING_DATA_TYPE,
     DPF_STREAMS_CONTAINER_DATA_TYPE,
+    DPF_TIME_SCOPING_HANDLE_KIND,
     DPF_WORKFLOW_DATA_TYPE,
     normalize_dpf_type_id,
-)
-from ea_node_editor.nodes.dpf_runtime_contracts import (
-    DPF_FIELDS_CONTAINER_HANDLE_KIND,
-    DPF_FIELD_HANDLE_KIND,
-    DPF_MODEL_HANDLE_KIND,
-    DPF_TIME_SCOPING_HANDLE_KIND,
 )
 from ea_node_editor.nodes.core_data_types import (
     BOOLEAN_DATA_TYPE_ID,

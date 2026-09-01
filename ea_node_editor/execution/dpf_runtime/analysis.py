@@ -6,8 +6,6 @@ from ea_node_editor.common.payload_tools import compact_sequence_metadata
 from ea_node_editor.execution.dpf_runtime.base import DpfRuntimeBase
 from ea_node_editor.execution.dpf_runtime.contracts import (
     DEFAULT_TIME_SCOPING_LOCATION,
-    DPF_FIELDS_CONTAINER_HANDLE_KIND,
-    DPF_FIELD_HANDLE_KIND,
     SUPPORTED_FIELD_MATH_OPERATIONS,
     SUPPORTED_INVARIANTS,
     DpfMinMaxEnvelope,
@@ -15,7 +13,9 @@ from ea_node_editor.execution.dpf_runtime.contracts import (
 )
 from ea_node_editor.nodes.ansys_dpf_data_types import (
     DPF_FIELD_DATA_TYPE,
+    DPF_FIELDS_CONTAINER_HANDLE_KIND,
     DPF_FIELDS_CONTAINER_DATA_TYPE,
+    DPF_FIELD_HANDLE_KIND,
 )
 from ea_node_editor.runtime_contracts.value_refs import RuntimeHandleRef
 

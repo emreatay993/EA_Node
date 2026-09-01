@@ -5,9 +5,7 @@ from multiprocessing import Queue
 from typing import Any
 
 from ea_node_editor.common.payload_tools import copy_json_safe
-from ea_node_editor.execution.dpf_runtime.contracts import (
-    DPF_FIELDS_CONTAINER_HANDLE_KIND,
-)
+from ea_node_editor.nodes.ansys_dpf_data_types import DPF_FIELDS_CONTAINER_HANDLE_KIND
 from ea_node_editor.execution.protocol import (
     CloseViewerSessionCommand,
     MaterializeViewerDataCommand,

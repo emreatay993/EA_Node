@@ -41,7 +41,7 @@ from ea_node_editor.app_preferences import (
     default_app_preferences_document,
     set_ansys_dpf_plugin_state,
 )
-from ea_node_editor.execution.dpf_runtime_service import (
+from ea_node_editor.nodes.ansys_dpf_data_types import (
     DPF_MESH_SCOPING_HANDLE_KIND,
     DPF_MODEL_HANDLE_KIND,
     DPF_RESULT_FILE_HANDLE_KIND,

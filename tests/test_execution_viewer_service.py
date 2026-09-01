@@ -9,11 +9,11 @@ from unittest import mock
 from ea_node_editor.addons.catalog import ANSYS_DPF_ADDON_ID
 from ea_node_editor.addons.state_changes import prepare_addon_enabled_state
 from ea_node_editor.app_preferences import default_app_preferences_document
-from ea_node_editor.execution.dpf_runtime_service import (
+from ea_node_editor.execution.dpf_runtime.contracts import DpfMaterializationResult
+from ea_node_editor.nodes.ansys_dpf_data_types import (
     DPF_FIELDS_CONTAINER_HANDLE_KIND,
     DPF_MODEL_HANDLE_KIND,
     DPF_VIEWER_DATASET_HANDLE_KIND,
-    DpfMaterializationResult,
 )
 from ea_node_editor.execution.handle_registry import StaleHandleError
 from ea_node_editor.execution.protocol import (
