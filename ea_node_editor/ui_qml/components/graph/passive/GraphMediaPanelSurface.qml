@@ -317,10 +317,7 @@ GraphShared.GraphSurfaceBase {
         var state = loadedRenderer && loadedRenderer.fullscreenRuntimeState
             ? loadedRenderer.fullscreenRuntimeState()
             : ({});
-        var opened = Boolean(host.requestSurfaceContentFullscreen(state));
-        if (opened && loadedRenderer && loadedRenderer.onFullscreenOpened)
-            loadedRenderer.onFullscreenOpened();
-        return opened;
+        return Boolean(host.requestSurfaceContentFullscreen(state));
     }
 
     function dispatchSurfaceAction(actionId) {

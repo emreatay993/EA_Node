@@ -15,20 +15,16 @@ FocusScope {
     property var payload: ({})
     property var bridgeRef: null
     property var themePalette: ({})
-    property bool initialPositionApplied: false
     property bool resumeAfterSeek: false
-    property bool clipEnforcing: false
-    property bool thumbnailPrimerActive: false
-    property bool thumbnailPrimerComplete: false
-    property bool mutedValue: false
-    property real volumeValue: 1.0
-    property real playbackRateValue: 1.0
-    property bool loopValue: false
-    property string fitModeValue: "contain"
-    property var timelineBookmarksValue: []
-    property bool clipEnabledValue: false
-    property int clipStartValue: 0
-    property int clipEndValue: 0
+    property alias mutedValue: playback.muted
+    property alias volumeValue: playback.volume
+    property alias playbackRateValue: playback.playbackRate
+    property alias loopValue: playback.loopEnabled
+    property alias fitModeValue: playback.fitMode
+    property alias timelineBookmarksValue: playback.timelineBookmarks
+    property alias clipEnabledValue: playback.clipEnabled
+    property alias clipStartValue: playback.clipStartMs
+    property alias clipEndValue: playback.clipEndMs
     property string activeSourceIdentity: ""
     property bool rendererReleased: false
     readonly property var transientState: payload && payload.transient_state ? payload.transient_state : ({})
@@ -49,15 +45,9 @@ FocusScope {
     readonly property bool shouldResumePlaying: transientState.playing !== undefined
         ? Boolean(transientState.playing)
         : Boolean(payload && payload.auto_play)
-    readonly property bool readyOrPlaying: player.mediaStatus === MediaPlayer.LoadedMedia
-        || player.mediaStatus === MediaPlayer.BufferedMedia
-        || player.mediaStatus === MediaPlayer.EndOfMedia
-        || player.playbackState === MediaPlayer.PlayingState
-        || player.playbackState === MediaPlayer.PausedState
-    readonly property bool errorActive: player.error !== MediaPlayer.NoError
-        || player.mediaStatus === MediaPlayer.InvalidMedia
-        || sourceUrl.length === 0
-    readonly property bool clipRangeActive: clipEnabledValue && clipEndValue > clipStartValue
+    readonly property bool readyOrPlaying: playback.readyOrPlaying
+    readonly property bool errorActive: playback.errorActive
+    readonly property bool clipRangeActive: playback.clipRangeActive
     readonly property string statusText: _statusText()
 
     focus: visible
@@ -74,21 +64,13 @@ FocusScope {
     }
 
     onPayloadChanged: _syncFromPayload()
-    onSourceUrlChanged: {
-        initialPositionApplied = false;
-        thumbnailPrimerActive = false;
-        thumbnailPrimerComplete = false;
-        thumbnailPrimerTimer.stop();
-        seekSlider.value = 0;
-    }
-
     Component.onDestruction: release()
 
     function release() {
+        if (rendererReleased)
+            return;
         rendererReleased = true;
-        thumbnailPrimerTimer.stop();
-        thumbnailPrimerActive = false;
-        player.stop();
+        playback.release();
     }
 
     Keys.priority: Keys.BeforeItem
@@ -119,38 +101,20 @@ FocusScope {
         }
     }
 
-    AudioOutput {
-        id: audioOutput
-        muted: root.mutedValue || root.thumbnailPrimerActive
-        volume: volumeSlider.pressed ? volumeSlider.value : root.volumeValue
-    }
-
-    MediaPlayer {
-        id: player
-        objectName: "contentFullscreenVideoMediaPlayer"
-        source: root.visible ? root.sourceUrl : ""
-        audioOutput: audioOutput
+    GraphMediaVideoPlaybackCore {
+        id: playback
+        sourceUrl: root.sourceUrl
+        sourceEnabled: root.visible && !root.rendererReleased
         videoOutput: videoOutput
-        playbackRate: root.playbackRateValue
-        loops: root.loopValue && !root.clipRangeActive ? MediaPlayer.Infinite : 1
+        playerObjectName: "contentFullscreenVideoMediaPlayer"
+        initialPositionMs: root.initialPositionMs
+        shouldResumePlaying: root.shouldResumePlaying
+        playbackAllowed: true
+        thumbnailPrimingEnabled: root.initialPositionMs <= 0
+            && !root.shouldResumePlaying
 
-        onMediaStatusChanged: {
-            root._applyInitialPosition();
-            root._maybeResumePlaying();
-            root._primeThumbnailFrame();
-        }
-        onDurationChanged: root._syncSeekSlider()
-        onPositionChanged: {
-            root._syncSeekSlider();
-            root._enforceClipRange();
-        }
-    }
-
-    Timer {
-        id: thumbnailPrimerTimer
-        interval: 500
-        repeat: false
-        onTriggered: root._finishThumbnailPrimer()
+        onPositionMsChanged: root._syncSeekSlider()
+        onDurationMsChanged: root._syncSeekSlider()
     }
 
     ColumnLayout {
@@ -175,7 +139,7 @@ FocusScope {
                 fillMode: root.fitModeValue === "cover"
                     ? VideoOutput.PreserveAspectCrop
                     : VideoOutput.PreserveAspectFit
-                visible: root.sourceUrl.length > 0 && !root.errorActive
+                visible: playback.sourceActive && !root.errorActive
             }
 
             Text {
@@ -203,7 +167,7 @@ FocusScope {
 
                 Text {
                     objectName: "contentFullscreenVideoElapsedLabel"
-                    text: root._formatTime(seekSlider.value)
+                    text: playback.formatTime(seekSlider.value)
                     color: root.themePalette.panel_fg || "#f0f2f5"
                     font.pixelSize: 11
                     Layout.preferredWidth: 54
@@ -216,28 +180,28 @@ FocusScope {
                     objectName: "contentFullscreenVideoSeekSlider"
                     Layout.fillWidth: true
                     from: 0
-                    to: Math.max(1, Number(player.duration || 0))
+                    to: Math.max(1, playback.durationMs)
                     enabled: root.sourceUrl.length > 0 && !root.errorActive
                     live: true
                     onPressedChanged: {
                         if (pressed) {
-                            root.resumeAfterSeek = player.playbackState === MediaPlayer.PlayingState;
+                            root.resumeAfterSeek = playback.mediaPlayer.playbackState === MediaPlayer.PlayingState;
                         } else {
                             root._seekTo(value);
                             if (root.resumeAfterSeek)
-                                player.play();
+                                playback.mediaPlayer.play();
                             root.resumeAfterSeek = false;
                         }
                     }
                     onMoved: root._seekTo(value)
 
                     Repeater {
-                        model: root._seekMarkers()
+                        model: playback.seekMarkers()
 
                         Rectangle {
                             readonly property var marker: modelData || ({})
                             readonly property real markerRatio: {
-                                var duration = Math.max(1, Number(player.duration || 0));
+                                var duration = Math.max(1, playback.durationMs);
                                 return Math.max(0.0, Math.min(1.0, Number(marker.position_ms || 0) / duration));
                             }
                             objectName: "contentFullscreenVideoSeekMarker_" + String(marker.role || "")
@@ -258,7 +222,7 @@ FocusScope {
 
                 Text {
                     objectName: "contentFullscreenVideoDurationLabel"
-                    text: root._formatTime(player.duration)
+                    text: playback.formatTime(playback.durationMs)
                     color: root.themePalette.muted_fg || "#bdc5d3"
                     font.pixelSize: 11
                     Layout.preferredWidth: 54
@@ -273,8 +237,8 @@ FocusScope {
                 ShellComponents.ShellButton {
                     id: playButton
                     objectName: "contentFullscreenVideoPlayButton"
-                    iconName: player.playbackState === MediaPlayer.PlayingState ? "pause" : "run"
-                    tooltipText: player.playbackState === MediaPlayer.PlayingState
+                    iconName: playback.mediaPlayer.playbackState === MediaPlayer.PlayingState ? "pause" : "run"
+                    tooltipText: playback.mediaPlayer.playbackState === MediaPlayer.PlayingState
                         ? TooltipCopy.text(tooltipCopyBridge, "fullscreen.video.pause")
                         : TooltipCopy.text(tooltipCopyBridge, "fullscreen.video.play")
                     enabled: root.sourceUrl.length > 0 && !root.errorActive
@@ -346,9 +310,9 @@ FocusScope {
                     objectName: "contentFullscreenVideoRateCombo"
                     Layout.preferredWidth: 82
                     model: ["0.5x", "1x", "1.25x", "1.5x", "2x"]
-                    currentIndex: root._rateIndex(root.playbackRateValue)
+                    currentIndex: playback.rateIndex(root.playbackRateValue)
                     enabled: playButton.enabled
-                    onActivated: root.playbackRateValue = root._rateForIndex(index)
+                    onActivated: root.playbackRateValue = playback.rateForIndex(index)
                 }
 
                 ShellComponents.ShellButton {
@@ -426,289 +390,98 @@ FocusScope {
             return;
         activeSourceIdentity = nextSourceIdentity;
         var state = source.transient_state || ({});
-        mutedValue = _boolValue(state.muted !== undefined ? state.muted : source.muted, false);
-        volumeValue = _boundedNumber(state.volume !== undefined ? state.volume : source.volume, 1.0, 0.0, 1.0);
-        playbackRateValue = _boundedNumber(
+        mutedValue = playback.boolValue(state.muted !== undefined ? state.muted : source.muted, false);
+        volumeValue = playback.boundedNumber(state.volume !== undefined ? state.volume : source.volume, 1.0, 0.0, 1.0);
+        playbackRateValue = playback.boundedNumber(
             state.playback_rate !== undefined ? state.playback_rate : source.playback_rate,
             1.0,
             0.25,
             4.0
         );
-        loopValue = _boolValue(state.loop !== undefined ? state.loop : source.loop, false);
-        fitModeValue = _normalizedFitMode(state.fit_mode !== undefined ? state.fit_mode : source.fit_mode);
-        timelineBookmarksValue = _normalizedTimelineBookmarks(
+        loopValue = playback.boolValue(state.loop !== undefined ? state.loop : source.loop, false);
+        fitModeValue = playback.normalizedFitMode(state.fit_mode !== undefined ? state.fit_mode : source.fit_mode);
+        timelineBookmarksValue = playback.normalizedTimelineBookmarks(
             state.timeline_bookmarks !== undefined ? state.timeline_bookmarks : source.timeline_bookmarks
         );
-        clipEnabledValue = _boolValue(state.clip_enabled !== undefined ? state.clip_enabled : source.clip_enabled, false);
-        clipStartValue = Math.max(
-            0,
-            Math.round(Number(state.clip_start_ms !== undefined ? state.clip_start_ms : source.clip_start_ms || 0))
+        clipEnabledValue = playback.boolValue(
+            state.clip_enabled !== undefined ? state.clip_enabled : source.clip_enabled,
+            false
         );
-        clipEndValue = Math.max(
-            0,
-            Math.round(Number(state.clip_end_ms !== undefined ? state.clip_end_ms : source.clip_end_ms || 0))
+        clipStartValue = playback.nonNegativeInt(
+            state.clip_start_ms !== undefined ? state.clip_start_ms : source.clip_start_ms
         );
-    }
-
-    function _boolValue(value, fallback) {
-        if (typeof value === "boolean")
-            return value;
-        if (value === undefined || value === null)
-            return Boolean(fallback);
-        if (typeof value === "string") {
-            var normalized = value.trim().toLowerCase();
-            if (normalized === "true" || normalized === "1" || normalized === "yes")
-                return true;
-            if (normalized === "false" || normalized === "0" || normalized === "no")
-                return false;
-        }
-        return Boolean(value);
-    }
-
-    function _boundedNumber(value, fallback, minimum, maximum) {
-        var numeric = Number(value);
-        if (!isFinite(numeric))
-            numeric = Number(fallback);
-        return Math.max(minimum, Math.min(maximum, numeric));
-    }
-
-    function _normalizedFitMode(value) {
-        var normalized = String(value || "contain").trim().toLowerCase();
-        return normalized === "cover" ? "cover" : "contain";
-    }
-
-    function _normalizedTimelineBookmarks(value) {
-        var source = [];
-        if (Array.isArray(value))
-            source = value;
-        else if (value && value.length !== undefined) {
-            for (var sourceIndex = 0; sourceIndex < value.length; sourceIndex++)
-                source.push(value[sourceIndex]);
-        }
-        var bookmarks = [];
-        var seen = {};
-        for (var index = 0; index < source.length; index++) {
-            var item = source[index] || {};
-            var position = Math.max(0, Math.round(Number(item.position_ms || 0)));
-            var bookmarkId = String(item.id || "").trim() || "bookmark-" + position + "-" + index;
-            if (seen[bookmarkId])
-                continue;
-            seen[bookmarkId] = true;
-            var label = String(item.label || "").trim() || _formatTime(position);
-            bookmarks.push({
-                "id": bookmarkId,
-                "label": label.slice(0, 80),
-                "position_ms": position
-            });
-        }
-        bookmarks.sort(function(left, right) {
-            var leftPosition = Number(left.position_ms || 0);
-            var rightPosition = Number(right.position_ms || 0);
-            if (leftPosition !== rightPosition)
-                return leftPosition - rightPosition;
-            return String(left.label || "").localeCompare(String(right.label || ""));
-        });
-        return bookmarks.slice(0, 200);
+        clipEndValue = playback.nonNegativeInt(
+            state.clip_end_ms !== undefined ? state.clip_end_ms : source.clip_end_ms
+        );
     }
 
     function _statusText() {
         if (sourceUrl.length === 0)
             return "Video source is unavailable.";
-        if (player.error !== MediaPlayer.NoError)
-            return player.errorString && player.errorString.length > 0
-                ? player.errorString
+        if (playback.mediaPlayer.error !== MediaPlayer.NoError)
+            return playback.mediaPlayer.errorString && playback.mediaPlayer.errorString.length > 0
+                ? playback.mediaPlayer.errorString
                 : "Video could not be loaded.";
-        if (player.mediaStatus === MediaPlayer.InvalidMedia)
+        if (playback.mediaPlayer.mediaStatus === MediaPlayer.InvalidMedia)
             return "Video could not be loaded.";
         return "Loading video...";
     }
 
-    function _applyInitialPosition() {
-        if (initialPositionApplied)
-            return;
-        if (player.mediaStatus !== MediaPlayer.LoadedMedia
-                && player.mediaStatus !== MediaPlayer.BufferedMedia
-                && player.mediaStatus !== MediaPlayer.EndOfMedia)
-            return;
-        _seekTo(_initialThumbnailPositionMs());
-        _primeThumbnailFrame();
-        initialPositionApplied = true;
-    }
-
-    function _initialThumbnailPositionMs() {
-        if (initialPositionMs > 0)
-            return initialPositionMs;
-        if (clipRangeActive && clipStartValue > 0)
-            return clipStartValue;
-        return 1;
-    }
-
-    function _primeThumbnailFrame() {
-        if (thumbnailPrimerComplete || thumbnailPrimerActive)
-            return;
-        if (initialPositionMs > 0 || shouldResumePlaying || errorActive)
-            return;
-        if (!readyOrPlaying || player.playbackState === MediaPlayer.PlayingState)
-            return;
-        thumbnailPrimerComplete = true;
-        thumbnailPrimerActive = true;
-        thumbnailPrimerTimer.restart();
-        player.play();
-    }
-
-    function _finishThumbnailPrimer() {
-        if (!thumbnailPrimerActive)
-            return;
-        player.pause();
-        thumbnailPrimerActive = false;
-        _syncSeekSlider();
-    }
-
-    function _maybeResumePlaying() {
-        if (!shouldResumePlaying)
-            return;
-        if (!readyOrPlaying || errorActive)
-            return;
-        if (player.playbackState !== MediaPlayer.PlayingState)
-            player.play();
-    }
-
     function togglePlayback() {
-        if (sourceUrl.length === 0 || errorActive)
-            return;
-        if (player.playbackState === MediaPlayer.PlayingState) {
-            player.pause();
-            return;
-        }
-        player.play();
+        return playback.togglePlayback();
     }
 
     function _seekTo(positionMs) {
-        var duration = Math.max(0, Number(player.duration || 0));
-        var target = _clampedPlaybackPosition(positionMs);
-        if (duration > 0)
-            target = Math.min(target, duration);
-        player.position = target;
+        var target = playback.seekTo(positionMs);
         seekSlider.value = target;
+        return target;
     }
 
     function seekBy(deltaMs) {
-        _seekTo(Number(player.position || 0) + Number(deltaMs || 0));
+        return playback.seekBy(deltaMs);
     }
 
     function rewindToStart() {
-        _seekTo(0);
+        return playback.rewindToStart();
     }
 
     function _syncSeekSlider() {
         if (seekSlider.pressed)
             return;
-        seekSlider.to = Math.max(1, Number(player.duration || 0));
-        seekSlider.value = Math.max(0, Number(player.position || 0));
+        seekSlider.to = Math.max(1, playback.durationMs);
+        seekSlider.value = playback.positionMs;
     }
 
     function _currentPositionMs() {
-        return Math.max(0, Math.round(seekSlider.pressed ? seekSlider.value : Number(player.position || 0)));
-    }
-
-    function _clampedPlaybackPosition(positionMs) {
-        var target = Math.max(0, Math.round(Number(positionMs || 0)));
-        var duration = Math.max(0, Math.round(Number(player.duration || 0)));
-        if (duration > 0)
-            target = Math.min(target, duration);
-        if (!clipRangeActive)
-            return target;
-        var start = Math.max(0, Math.round(Number(clipStartValue || 0)));
-        var end = Math.max(start + 1, Math.round(Number(clipEndValue || 0)));
-        if (duration > 0)
-            end = Math.min(end, duration);
-        if (target < start)
-            return start;
-        if (target > end)
-            return end;
-        return target;
-    }
-
-    function _enforceClipRange() {
-        if (!clipRangeActive || clipEnforcing)
-            return;
-        var position = Math.max(0, Math.round(Number(player.position || 0)));
-        var start = Math.max(0, Math.round(Number(clipStartValue || 0)));
-        var end = Math.max(start + 1, Math.round(Number(clipEndValue || 0)));
-        var duration = Math.max(0, Math.round(Number(player.duration || 0)));
-        if (duration > 0)
-            end = Math.min(end, duration);
-        if (position < start) {
-            clipEnforcing = true;
-            _seekTo(start);
-            clipEnforcing = false;
-            return;
-        }
-        if (position >= end) {
-            clipEnforcing = true;
-            if (loopValue) {
-                _seekTo(start);
-                player.play();
-            } else {
-                _seekTo(end);
-                player.pause();
-            }
-            clipEnforcing = false;
-        }
-    }
-
-    function _seekMarkers() {
-        var markers = [];
-        if (clipEndValue > clipStartValue) {
-            markers.push({ "role": "clip_start", "position_ms": clipStartValue });
-            markers.push({ "role": "clip_end", "position_ms": clipEndValue });
-        }
-        for (var index = 0; index < timelineBookmarksValue.length; index++) {
-            var bookmark = timelineBookmarksValue[index] || {};
-            markers.push({
-                "role": "bookmark",
-                "position_ms": Math.max(0, Math.round(Number(bookmark.position_ms || 0))),
-                "label": String(bookmark.label || "")
-            });
-        }
-        return markers;
+        return Math.max(0, Math.round(seekSlider.pressed ? seekSlider.value : playback.positionMs));
     }
 
     function _addBookmarkAtCurrentPosition() {
         var position = _currentPositionMs();
-        var bookmarks = timelineBookmarksValue.slice(0);
-        bookmarks.push({
-            "id": "bookmark-" + Date.now() + "-" + position,
-            "label": _formatTime(position),
-            "position_ms": position
-        });
-        timelineBookmarksValue = _normalizedTimelineBookmarks(bookmarks);
+        timelineBookmarksValue = playback.withBookmarkAdded(position);
     }
 
     function _setClipStartAtCurrentPosition() {
         var position = _currentPositionMs();
-        var end = Math.max(0, Math.round(Number(clipEndValue || 0)));
-        if (end <= position)
-            end = Math.max(position + 1000, Math.round(Number(player.duration || 0)));
-        clipStartValue = position;
-        clipEndValue = end;
-        clipEnabledValue = true;
+        var state = playback.clipStateWithStart(position);
+        clipStartValue = state.clip_start_ms;
+        clipEndValue = state.clip_end_ms;
+        clipEnabledValue = state.clip_enabled;
     }
 
     function _setClipEndAtCurrentPosition() {
         var position = _currentPositionMs();
-        var start = Math.max(0, Math.round(Number(clipStartValue || 0)));
-        if (position <= start)
-            start = Math.max(0, position - 1000);
-        clipStartValue = start;
-        clipEndValue = Math.max(start + 1, position);
-        clipEnabledValue = true;
+        var state = playback.clipStateWithEnd(position);
+        clipStartValue = state.clip_start_ms;
+        clipEndValue = state.clip_end_ms;
+        clipEnabledValue = state.clip_enabled;
     }
 
     function _clearClipRange() {
-        clipEnabledValue = false;
-        clipStartValue = 0;
-        clipEndValue = 0;
+        var state = playback.clearedClipState();
+        clipEnabledValue = state.clip_enabled;
+        clipStartValue = state.clip_start_ms;
+        clipEndValue = state.clip_end_ms;
     }
 
     function _replaceWithTrimmedClip() {
@@ -730,19 +503,10 @@ FocusScope {
     }
 
     function currentState() {
-        return {
-            "position_ms": Math.max(0, Math.round(seekSlider.pressed ? seekSlider.value : player.position)),
-            "playing": player.playbackState === MediaPlayer.PlayingState,
-            "muted": mutedValue,
-            "volume": volumeSlider.pressed ? volumeSlider.value : volumeValue,
-            "playback_rate": playbackRateValue,
-            "loop": loopValue,
-            "fit_mode": fitModeValue,
-            "timeline_bookmarks": timelineBookmarksValue,
-            "clip_enabled": clipRangeActive,
-            "clip_start_ms": clipStartValue,
-            "clip_end_ms": clipEndValue
-        };
+        return playback.currentState(
+            seekSlider.pressed ? seekSlider.value : playback.positionMs,
+            volumeSlider.pressed ? volumeSlider.value : volumeValue
+        );
     }
 
     function requestCloseWithState() {
@@ -755,35 +519,4 @@ FocusScope {
         return false;
     }
 
-    function _rateIndex(rate) {
-        var value = Number(rate || 1.0);
-        if (value <= 0.75)
-            return 0;
-        if (value <= 1.125)
-            return 1;
-        if (value <= 1.375)
-            return 2;
-        if (value <= 1.75)
-            return 3;
-        return 4;
-    }
-
-    function _rateForIndex(index) {
-        var rates = [0.5, 1.0, 1.25, 1.5, 2.0];
-        var normalized = Math.max(0, Math.min(rates.length - 1, Number(index || 0)));
-        return rates[normalized];
-    }
-
-    function _formatTime(positionMs) {
-        var totalSeconds = Math.max(0, Math.floor(Number(positionMs || 0) / 1000));
-        var hours = Math.floor(totalSeconds / 3600);
-        var minutes = Math.floor((totalSeconds % 3600) / 60);
-        var seconds = totalSeconds % 60;
-        var secondText = seconds < 10 ? "0" + seconds : "" + seconds;
-        if (hours > 0) {
-            var minuteText = minutes < 10 ? "0" + minutes : "" + minutes;
-            return hours + ":" + minuteText + ":" + secondText;
-        }
-        return minutes + ":" + secondText;
-    }
 }

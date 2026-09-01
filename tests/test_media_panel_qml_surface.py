@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 from pathlib import Path
 
 from ea_node_editor.graph.records import NodeInstance
@@ -8,6 +9,12 @@ from ea_node_editor.ui_qml.graph_surface_metrics import node_surface_metrics
 from ea_node_editor.ui_qml.graph_scene.command_bridge import GraphSceneCommandBridge
 from ea_node_editor.ui_qml.surface_contracts import surface_spec_for_values
 from tests.graph_surface.environment import PassiveGraphSurfaceHostTestBase
+
+
+# Generated once with FFmpeg 8.1.1 for deterministic decoded-media tests:
+# ffmpeg -f lavfi -i testsrc2=size=160x90:rate=30 -t 5 -c:v libx264 -preset veryslow -crf 30 -pix_fmt yuv420p -movflags +faststart -an video-playback.mp4
+_REAL_VIDEO_FIXTURE = Path(__file__).resolve().parent / "fixtures" / "media" / "video-playback.mp4"
+_REAL_VIDEO_FIXTURE_SHA256 = "8e57fae7a077c667a4f922762fb344a9fd073a78037df676144a7469bfd6f9b4"
 
 
 class MediaPanelQmlSurfaceTests(PassiveGraphSurfaceHostTestBase):
@@ -113,6 +120,9 @@ class MediaPanelQmlSurfaceTests(PassiveGraphSurfaceHostTestBase):
             / "graph"
             / "passive"
         )
+        dispatcher_source = (passive_root / "GraphMediaPanelSurface.qml").read_text(
+            encoding="utf-8"
+        )
         image_source = (passive_root / "GraphMediaImageRenderer.qml").read_text(
             encoding="utf-8"
         )
@@ -122,18 +132,39 @@ class MediaPanelQmlSurfaceTests(PassiveGraphSurfaceHostTestBase):
         fullscreen_video_source = (
             passive_root / "GraphMediaVideoFullscreenRenderer.qml"
         ).read_text(encoding="utf-8")
+        playback_core_source = (
+            passive_root / "GraphMediaVideoPlaybackCore.qml"
+        ).read_text(encoding="utf-8")
         assert "if (sourceInputExposed || !cropToolAvailable" in image_source
         assert "if (sourceInputExposed || !localSourceActive" in video_source
         assert "if (sourceInputExposed\n" in fullscreen_video_source
         assert "function _saveTrimmedClipCopy()" in video_source
         assert "function _saveTrimmedClipCopy()" in fullscreen_video_source
+        assert "onFullscreenOpened" not in dispatcher_source
+        assert "GraphMediaVideoPlaybackCore" in video_source
+        assert "GraphMediaVideoPlaybackCore" in fullscreen_video_source
+        assert "MediaPlayer {" not in video_source
+        assert "MediaPlayer {" not in fullscreen_video_source
+        assert playback_core_source.count("MediaPlayer {") == 1
+        assert "onMediaStatusChanged: root._scheduleSourceReadiness()" in playback_core_source
+        assert "onSourceActiveChanged: _scheduleSourceReadiness()" in playback_core_source
+        assert "thumbnailPrimingEnabled: root.initialPositionMs <= 0" in fullscreen_video_source
+        assert "function normalizedTimelineBookmarks(value)" in playback_core_source
+        assert "function enforceClipRange()" in playback_core_source
 
     def test_dispatcher_switches_renderers_and_routes_source_exposure(self) -> None:
+        assert (
+            hashlib.sha256(_REAL_VIDEO_FIXTURE.read_bytes()).hexdigest()
+            == _REAL_VIDEO_FIXTURE_SHA256
+        )
         self._run_qml_probe(
             "unified-media-panel-dispatch",
             """
             from PyQt6.QtCore import Q_ARG, pyqtProperty, pyqtSignal, pyqtSlot, qInstallMessageHandler
             from PyQt6.QtGui import QColor, QImage
+            from PyQt6.QtMultimedia import QMediaPlayer
+            from PyQt6.QtQuick import QQuickWindow
+            import time
 
             messages = []
             previous_handler = qInstallMessageHandler(
@@ -150,13 +181,90 @@ class MediaPanelQmlSurfaceTests(PassiveGraphSurfaceHostTestBase):
                     self.calls.append((str(node_id), str(key), bool(exposed)))
                     return True
 
+            class InlineFullscreenBridge(QObject):
+                changed = pyqtSignal()
+                videoFullscreenClosed = pyqtSignal(str, "QVariantMap")
+
+                def __init__(self):
+                    super().__init__()
+                    self._open = False
+                    self._node_id = ""
+                    self._source_url = ""
+                    self._transient_state = {}
+
+                @pyqtProperty(bool, notify=changed)
+                def open(self):
+                    return self._open
+
+                @pyqtProperty(str, notify=changed)
+                def node_id(self):
+                    return self._node_id
+
+                @pyqtProperty(str, notify=changed)
+                def content_kind(self):
+                    return "media" if self._open else ""
+
+                @pyqtProperty(str, notify=changed)
+                def title(self):
+                    return "Media Panel"
+
+                @pyqtProperty("QVariantMap", notify=changed)
+                def media_payload(self):
+                    return {
+                        "media_kind": "video",
+                        "source_state": "ready",
+                        "resolved_source_url": self._source_url,
+                        "auto_play": False,
+                        "loop": False,
+                        "muted": True,
+                        "volume": 1.0,
+                        "playback_rate": 1.0,
+                        "position_ms": 0,
+                        "timeline_bookmarks": [],
+                        "clip_enabled": False,
+                        "clip_start_ms": 0,
+                        "clip_end_ms": 0,
+                        "transient_state": dict(self._transient_state),
+                    } if self._open else {}
+
+                def open_video(self, node_id, source_url, transient_state=None):
+                    self._node_id = str(node_id)
+                    self._source_url = str(source_url)
+                    self._transient_state = dict(transient_state or {})
+                    self._open = True
+                    self.changed.emit()
+
+                def close_video(self, state):
+                    node_id = self._node_id
+                    self._open = False
+                    self._node_id = ""
+                    self._source_url = ""
+                    self._transient_state = {}
+                    self.changed.emit()
+                    self.videoFullscreenClosed.emit(node_id, dict(state))
+
+                @pyqtSlot()
+                def request_close(self):
+                    self.close_video({})
+
+                @pyqtSlot("QVariantMap", result=bool)
+                def request_close_with_state(self, state):
+                    self.close_video(state)
+                    return True
+
+            class RenameBridge(QObject):
+                managedArtifactRenameReleaseRequested = pyqtSignal(str)
+                managedArtifactRenameReleaseFinished = pyqtSignal(str)
+
             class MediaCanvas(PassiveSurfaceCanvasItem):
                 executionFactsChanged = pyqtSignal()
 
-                def __init__(self, resolution):
+                def __init__(self, resolution, node_id="node_surface_host_test"):
                     super().__init__()
                     self._resolution = dict(resolution)
+                    self._node_id = str(node_id)
                     self.exposure_bridge = ExposureBridge()
+                    self.rename_bridge = RenameBridge()
                     self.browse_calls = []
                     self.open_calls = []
                     self.browse_result = "C:/tmp/replacement-media.png"
@@ -177,7 +285,7 @@ class MediaPanelQmlSurfaceTests(PassiveGraphSurfaceHostTestBase):
                         "portValuePreviewLookup": {},
                         "nodeDiagnosticLookup": {},
                         "dpfWorkflowSummaryLookup": {},
-                        "mediaPanelSourceLookup": {"node_surface_host_test": self._resolution},
+                        "mediaPanelSourceLookup": {self._node_id: self._resolution},
                         "nodeExecutionRevision": 0,
                         "selectedRunPreviewVisible": False,
                         "selectedRunPreviewRows": [],
@@ -187,6 +295,10 @@ class MediaPanelQmlSurfaceTests(PassiveGraphSurfaceHostTestBase):
                 @pyqtProperty(QObject, constant=True)
                 def sceneCommandBridge(self):
                     return self.exposure_bridge
+
+                @pyqtProperty(QObject, constant=True)
+                def canvasCommandBridgeRef(self):
+                    return self.rename_bridge
 
                 def set_resolution(self, resolution):
                     self._resolution = dict(resolution)
@@ -241,12 +353,37 @@ class MediaPanelQmlSurfaceTests(PassiveGraphSurfaceHostTestBase):
                     f"{name!r} present={present} did not settle; messages={messages}"
                 )
 
+            def wait_for_condition(predicate, label, attempts=400, details=None):
+                for _attempt in range(attempts):
+                    settle_events(2)
+                    if predicate():
+                        return
+                    time.sleep(0.01)
+                detail = details() if details is not None else None
+                raise AssertionError(f"{label} did not settle; details={detail}; messages={messages}")
+
             image_path = Path.cwd() / "artifacts" / "media-panel-qml-test.png"
             image_path.parent.mkdir(parents=True, exist_ok=True)
             image = QImage(8, 6, QImage.Format.Format_ARGB32)
             image.fill(QColor("#5da9ff"))
             assert image.save(str(image_path))
             image_url = QUrl.fromLocalFile(str(image_path)).toString()
+            video_path = Path.cwd() / "tests" / "fixtures" / "media" / "video-playback.mp4"
+            assert video_path.is_file()
+            video_url = QUrl.fromLocalFile(str(video_path)).toString()
+
+            fullscreen_bridge = InlineFullscreenBridge()
+            engine.rootContext().setContextProperty("contentFullscreenBridge", fullscreen_bridge)
+            engine.rootContext().setContextProperty("tooltipCopyBridge", None)
+            overlay_path = Path.cwd() / "ea_node_editor" / "ui_qml" / "ContentFullscreenOverlay.qml"
+            overlay = create_component(overlay_path, {"bridgeRef": fullscreen_bridge})
+            probe_window = QQuickWindow()
+            probe_window.resize(900, 640)
+            overlay.setParentItem(probe_window.contentItem())
+            overlay.setWidth(900)
+            overlay.setHeight(640)
+            probe_window.show()
+            settle_events(6)
 
             payload = node_payload(surface_family="media", surface_variant="media_panel")
             payload.update({
@@ -314,6 +451,10 @@ class MediaPanelQmlSurfaceTests(PassiveGraphSurfaceHostTestBase):
 
             canvas = MediaCanvas(resolution("image", image_url))
             host = create_component(graph_node_host_qml_path, {"nodeData": payload, "canvasItem": canvas})
+            host.setParentItem(probe_window.contentItem())
+            host.setX(24)
+            host.setY(24)
+            settle_events(6)
             surface = wait_for_named(host, "graphNodeMediaSurface")
             image_renderer = wait_for_named(host, "graphNodeMediaImageRenderer")
             commits = []
@@ -495,10 +636,161 @@ class MediaPanelQmlSurfaceTests(PassiveGraphSurfaceHostTestBase):
             assert abs(float(host.height()) - 288.0) < 0.01
             assert_renderer_chrome(pdf_renderer, title=False, frame=False)
 
-            canvas.set_resolution(resolution("video", image_url, exposed=True))
-            video_renderer = wait_for_named(host, "graphNodeMediaVideoRenderer")
+            canvas.set_resolution(resolution("video", video_url, exposed=True))
+            wait_for_named(host, "graphNodeMediaVideoRenderer")
+            video_renderer = surface.property("loadedRenderer")
+            video_player = wait_for_named(video_renderer, "graphNodeVideoMediaPlayer")
+            video_core = wait_for_named(video_renderer, "graphMediaVideoPlaybackCore")
             assert bool(pdf_renderer.property("rendererReleased"))
             assert_renderer_chrome(video_renderer, title=False, frame=False)
+            wait_for_condition(
+                lambda: bool(video_core.property("readyOrPlaying")),
+                "inline video readiness",
+            )
+            wait_for_condition(
+                lambda: bool(video_core.property("thumbnailPrimerComplete"))
+                    and not bool(video_core.property("thumbnailPrimerActive"))
+                    and video_player.property("playbackState") != QMediaPlayer.PlaybackState.PlayingState,
+                "inline thumbnail primer completion",
+                details=lambda: {
+                    "enabled": bool(video_core.property("thumbnailPrimingEnabled")),
+                    "complete": bool(video_core.property("thumbnailPrimerComplete")),
+                    "active": bool(video_core.property("thumbnailPrimerActive")),
+                    "allowed": bool(video_core.property("playbackAllowed")),
+                    "should_resume": bool(video_core.property("shouldResumePlaying")),
+                    "error": bool(video_core.property("errorActive")),
+                    "ready": bool(video_core.property("readyOrPlaying")),
+                    "status": str(video_player.property("mediaStatus")),
+                    "playback": str(video_player.property("playbackState")),
+                    "position": int(video_player.property("position")),
+                },
+            )
+            assert 0 < int(video_player.property("position")) < 1200, (
+                "inline-primer-position",
+                int(video_player.property("position")),
+            )
+            assert str(video_player.property("source").toString()) == video_url, (
+                "first-inline-source",
+                str(video_player.property("source").toString()),
+                video_url,
+                bool(video_core.property("sourceActive")),
+                str(video_core.property("sourceUrl")),
+                bool(video_renderer.property("rendererReleased")),
+                str(video_renderer.property("resolvedSourceUrl")),
+                dict(video_renderer.property("sourceResolution") or {}),
+            )
+
+            second_payload = dict(payload)
+            second_payload["node_id"] = "second_video_node"
+            second_payload["properties"] = {
+                **payload["properties"],
+                "auto_play": True,
+                "position_ms": 1200,
+            }
+            second_canvas = MediaCanvas(
+                resolution("video", video_url, exposed=True),
+                "second_video_node",
+            )
+            second_host = create_component(
+                graph_node_host_qml_path,
+                {"nodeData": second_payload, "canvasItem": second_canvas},
+            )
+            second_host.setParentItem(probe_window.contentItem())
+            second_host.setX(420)
+            second_host.setY(24)
+            settle_events(6)
+            second_player = wait_for_named(second_host, "graphNodeVideoMediaPlayer")
+            second_core = wait_for_named(second_host, "graphMediaVideoPlaybackCore")
+            wait_for_condition(
+                lambda: second_player.property("playbackState") == QMediaPlayer.PlaybackState.PlayingState
+                    and int(second_player.property("position")) >= 1100,
+                "autoplay from authored initial position",
+            )
+            second_started_at = int(second_player.property("position"))
+            wait_for_condition(
+                lambda: int(second_player.property("position")) > second_started_at + 50,
+                "inline autoplay advancement",
+            )
+            assert not bool(second_core.property("thumbnailPrimerComplete")), "inline-autoplay-skipped-primer"
+            assert str(second_player.property("source").toString()) == video_url, "second-inline-source"
+
+            fullscreen_bridge.open_video(
+                "node_surface_host_test",
+                video_url,
+                {"position_ms": 2200, "playing": False},
+            )
+            settle_events(8)
+            fullscreen_loader = wait_for_named(overlay, "contentFullscreenVideoSurfaceLoader")
+            for _attempt in range(200):
+                settle_events(2)
+                if fullscreen_loader.property("item") is not None:
+                    break
+            fullscreen_surface = fullscreen_loader.property("item")
+            assert fullscreen_surface is not None
+            fullscreen_player = wait_for_named(fullscreen_surface, "contentFullscreenVideoMediaPlayer")
+            fullscreen_core = wait_for_named(fullscreen_surface, "graphMediaVideoPlaybackCore")
+            assert bool(video_renderer.property("fullscreenOwnsPlayback")), "fullscreen-owner"
+            assert not bool(video_core.property("sourceActive")), "inline-core-released"
+            assert str(video_player.property("source").toString()) == "", "inline-player-released"
+            wait_for_condition(
+                lambda: bool(fullscreen_core.property("readyOrPlaying"))
+                    and abs(int(fullscreen_player.property("position")) - 2200) <= 120,
+                "paused fullscreen initial position",
+            )
+            assert fullscreen_player.property("playbackState") != QMediaPlayer.PlaybackState.PlayingState, "paused-fullscreen"
+            assert not bool(fullscreen_core.property("thumbnailPrimerComplete")), "nonzero-fullscreen-skipped-primer"
+            assert str(fullscreen_player.property("source").toString()) == video_url, "fullscreen-source-owned"
+            assert str(second_player.property("source").toString()) == video_url, "parallel-inline-retained"
+
+            fullscreen_bridge.close_video({"position_ms": 2400, "playing": False})
+            settle_events(8)
+            assert not bool(video_renderer.property("fullscreenOwnsPlayback")), "fullscreen-owner-cleared"
+            assert str(video_player.property("source").toString()) == video_url, "inline-source-restored"
+            assert str(fullscreen_player.property("source").toString()) == "", "fullscreen-source-released"
+            assert int(video_core.property("restorePositionMs")) == 2400, "inline-position-restored"
+            assert not bool(video_core.property("restorePlaying")), "inline-pause-restored"
+
+            fullscreen_bridge.open_video(
+                "node_surface_host_test",
+                video_url,
+                {"position_ms": 1200, "playing": True},
+            )
+            settle_events(8)
+            reopened_surface = fullscreen_loader.property("item")
+            assert reopened_surface is not None
+            reopened_player = wait_for_named(reopened_surface, "contentFullscreenVideoMediaPlayer")
+            reopened_core = wait_for_named(reopened_surface, "graphMediaVideoPlaybackCore")
+            assert str(video_player.property("source").toString()) == "", "reopen-inline-released"
+            wait_for_condition(
+                lambda: reopened_player.property("playbackState") == QMediaPlayer.PlaybackState.PlayingState
+                    and int(reopened_player.property("position")) >= 1100,
+                "fullscreen resumed playback",
+            )
+            reopened_started_at = int(reopened_player.property("position"))
+            wait_for_condition(
+                lambda: int(reopened_player.property("position")) > reopened_started_at + 50,
+                "fullscreen resume advancement",
+            )
+            assert not bool(reopened_core.property("thumbnailPrimerComplete")), "fullscreen-resume-skipped-primer"
+            assert str(reopened_player.property("source").toString()) == video_url, "reopen-fullscreen-owned"
+            fullscreen_bridge.close_video({"position_ms": 1300, "playing": False})
+            settle_events(8)
+            assert str(reopened_player.property("source").toString()) == "", "reopen-fullscreen-released"
+            assert str(video_player.property("source").toString()) == video_url, "reopen-inline-restored"
+            assert int(video_core.property("restorePositionMs")) == 1300, "reopen-position-restored"
+
+            canvas.rename_bridge.managedArtifactRenameReleaseRequested.emit(
+                "node_surface_host_test"
+            )
+            settle_events(6)
+            assert bool(video_renderer.property("artifactRenameReleaseActive")), "rename-release-active"
+            assert str(video_player.property("source").toString()) == "", "rename-source-released"
+            canvas.rename_bridge.managedArtifactRenameReleaseFinished.emit(
+                "node_surface_host_test"
+            )
+            settle_events(8)
+            assert not bool(video_renderer.property("artifactRenameReleaseActive")), "rename-release-cleared"
+            assert str(video_player.property("source").toString()) == video_url, "rename-source-restored"
 
             QMetaObject.invokeMethod(
                 surface,
@@ -532,7 +824,13 @@ class MediaPanelQmlSurfaceTests(PassiveGraphSurfaceHostTestBase):
             assert not binding_failures, binding_failures
 
             host.deleteLater()
+            second_host.deleteLater()
+            overlay.deleteLater()
+            probe_window.close()
+            probe_window.deleteLater()
+            second_canvas.deleteLater()
             canvas.deleteLater()
+            fullscreen_bridge.deleteLater()
             qInstallMessageHandler(previous_handler)
             engine.deleteLater()
             app.processEvents()
@@ -711,7 +1009,13 @@ class MediaPanelQmlSurfaceTests(PassiveGraphSurfaceHostTestBase):
             assert int(video_surface.property("clipStartValue")) == 1000
             assert int(video_surface.property("clipEndValue")) == 4000
 
-            replacement_bookmarks = [{"id": "new", "label": "New", "position_ms": 2500}]
+            replacement_bookmarks = [
+                {"id": "same", "label": "Later", "position_ms": 2500},
+                {"id": "same", "label": "Duplicate", "position_ms": 1},
+                {"id": "", "label": "", "position_ms": 1000},
+                {"id": "alpha", "label": "alpha", "position_ms": 2500},
+                "invalid",
+            ]
             bridge.set_payload(payload("video", second_image_url, controls={
                 "muted": True,
                 "volume": 0.8,
@@ -729,7 +1033,11 @@ class MediaPanelQmlSurfaceTests(PassiveGraphSurfaceHostTestBase):
             assert abs(float(video_surface.property("playbackRateValue")) - 1.25) < 0.001
             assert not bool(video_surface.property("loopValue"))
             assert str(video_surface.property("fitModeValue")) == "contain"
-            assert variant_list(video_surface.property("timelineBookmarksValue"))[0]["id"] == "new"
+            assert variant_list(video_surface.property("timelineBookmarksValue")) == [
+                {"id": "bookmark-1000-2", "label": "0:01", "position_ms": 1000},
+                {"id": "alpha", "label": "alpha", "position_ms": 2500},
+                {"id": "same", "label": "Later", "position_ms": 2500},
+            ]
             assert bool(video_surface.property("clipEnabledValue"))
             assert int(video_surface.property("clipStartValue")) == 2000
             assert int(video_surface.property("clipEndValue")) == 6000

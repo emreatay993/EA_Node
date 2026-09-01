@@ -39,6 +39,7 @@ from ea_node_editor.ui.media_panel_source import (
     MediaPanelSourceResolution,
     resolve_media_panel_source,
 )
+from ea_node_editor.ui.media_video_state import normalize_media_video_properties
 from ea_node_editor.ui.mail_preview_provider import describe_mail_preview
 from ea_node_editor.ui.pdf_preview_provider import describe_pdf_preview
 from ea_node_editor.runtime_contracts import ImageValue
@@ -61,17 +62,13 @@ from ea_node_editor.ui_qml.graph_scene_payload.normalize import (
     PLOT_CONTENT_KIND,
     WEB_PAGE_CONTENT_KIND,
     _bool_property,
-    _bounded_float_property,
     _int_property,
     _mapping_value,
-    _non_negative_int_property,
     _normalized_crop_rect,
     _normalized_fit_mode,
     _normalized_image_rotation_degrees,
     _normalized_json_object,
     _normalized_preview_ref,
-    _normalized_video_fit_mode,
-    _normalized_video_timeline_bookmarks,
     _resolved_local_file_source_url,
     _resolved_web_page_navigation_location,
     _surface_spec_payload_for_node,
@@ -175,42 +172,8 @@ def build_content_fullscreen_media_payload(
             return payload
 
         if resolution.media_kind == "video":
-            payload.update(
-                {
-                    "fit_mode": _normalized_video_fit_mode(properties.get("fit_mode")),
-                    "auto_play": _bool_property(properties.get("auto_play"), False),
-                    "loop": _bool_property(properties.get("loop"), False),
-                    "muted": _bool_property(properties.get("muted"), False),
-                    "volume": _bounded_float_property(
-                        properties.get("volume"),
-                        1.0,
-                        minimum=0.0,
-                        maximum=1.0,
-                    ),
-                    "playback_rate": _bounded_float_property(
-                        properties.get("playback_rate"),
-                        1.0,
-                        minimum=0.25,
-                        maximum=4.0,
-                    ),
-                    "position_ms": _non_negative_int_property(
-                        properties.get("position_ms"), 0
-                    ),
-                    "timeline_bookmarks": _normalized_video_timeline_bookmarks(
-                        properties.get("timeline_bookmarks")
-                    ),
-                    "clip_enabled": _bool_property(
-                        properties.get("clip_enabled"), False
-                    ),
-                    "clip_start_ms": _non_negative_int_property(
-                        properties.get("clip_start_ms"), 0
-                    ),
-                    "clip_end_ms": _non_negative_int_property(
-                        properties.get("clip_end_ms"), 0
-                    ),
-                    "transient_state": {},
-                }
-            )
+            payload.update(normalize_media_video_properties(properties))
+            payload["transient_state"] = {}
             return payload
 
         image_preview = (

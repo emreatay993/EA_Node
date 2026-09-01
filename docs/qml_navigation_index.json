@@ -5,13 +5,13 @@
     "ea_node_editor/ui_qml"
   ],
   "summary": {
-    "qml_files": 170,
+    "qml_files": 171,
     "repeater_constructs": 98,
     "loader_constructs": 24,
-    "signal_handlers": 879,
+    "signal_handlers": 881,
     "connections": 47,
-    "property_bindings": 7592,
-    "local_component_refs": 270
+    "property_bindings": 7612,
+    "local_component_refs": 272
   },
   "entries": [
     {
@@ -49677,13 +49677,7 @@
           "name": "root"
         },
         {
-          "name": "audioOutput"
-        },
-        {
-          "name": "player"
-        },
-        {
-          "name": "thumbnailPrimerTimer"
+          "name": "playback"
         },
         {
           "name": "viewport"
@@ -49710,9 +49704,6 @@
       "object_names": [
         {
           "name": "contentFullscreenVideoSurface"
-        },
-        {
-          "name": "contentFullscreenVideoMediaPlayer"
         },
         {
           "name": "contentFullscreenVideoViewport"
@@ -49799,58 +49790,42 @@
         },
         {
           "kind": "bool",
-          "name": "initialPositionApplied"
-        },
-        {
-          "kind": "bool",
           "name": "resumeAfterSeek"
         },
         {
-          "kind": "bool",
-          "name": "clipEnforcing"
-        },
-        {
-          "kind": "bool",
-          "name": "thumbnailPrimerActive"
-        },
-        {
-          "kind": "bool",
-          "name": "thumbnailPrimerComplete"
-        },
-        {
-          "kind": "bool",
+          "kind": "alias",
           "name": "mutedValue"
         },
         {
-          "kind": "real",
+          "kind": "alias",
           "name": "volumeValue"
         },
         {
-          "kind": "real",
+          "kind": "alias",
           "name": "playbackRateValue"
         },
         {
-          "kind": "bool",
+          "kind": "alias",
           "name": "loopValue"
         },
         {
-          "kind": "string",
+          "kind": "alias",
           "name": "fitModeValue"
         },
         {
-          "kind": "var",
+          "kind": "alias",
           "name": "timelineBookmarksValue"
         },
         {
-          "kind": "bool",
+          "kind": "alias",
           "name": "clipEnabledValue"
         },
         {
-          "kind": "int",
+          "kind": "alias",
           "name": "clipStartValue"
         },
         {
-          "kind": "int",
+          "kind": "alias",
           "name": "clipEndValue"
         },
         {
@@ -49923,34 +49898,7 @@
           "name": "_syncFromPayload"
         },
         {
-          "name": "_boolValue"
-        },
-        {
-          "name": "_boundedNumber"
-        },
-        {
-          "name": "_normalizedFitMode"
-        },
-        {
-          "name": "_normalizedTimelineBookmarks"
-        },
-        {
           "name": "_statusText"
-        },
-        {
-          "name": "_applyInitialPosition"
-        },
-        {
-          "name": "_initialThumbnailPositionMs"
-        },
-        {
-          "name": "_primeThumbnailFrame"
-        },
-        {
-          "name": "_finishThumbnailPrimer"
-        },
-        {
-          "name": "_maybeResumePlaying"
         },
         {
           "name": "togglePlayback"
@@ -49969,15 +49917,6 @@
         },
         {
           "name": "_currentPositionMs"
-        },
-        {
-          "name": "_clampedPlaybackPosition"
-        },
-        {
-          "name": "_enforceClipRange"
-        },
-        {
-          "name": "_seekMarkers"
         },
         {
           "name": "_addBookmarkAtCurrentPosition"
@@ -50002,26 +49941,11 @@
         },
         {
           "name": "requestCloseWithState"
-        },
-        {
-          "name": "_rateIndex"
-        },
-        {
-          "name": "_rateForIndex"
-        },
-        {
-          "name": "_formatTime"
         }
       ],
       "instantiated_components": [
         {
-          "name": "AudioOutput"
-        },
-        {
-          "name": "MediaPlayer"
-        },
-        {
-          "name": "Timer"
+          "name": "GraphMediaVideoPlaybackCore"
         },
         {
           "name": "ColumnLayout"
@@ -50056,19 +49980,12 @@
       ],
       "dynamic_refs": [
         {
-          "kind": "source",
-          "targets": [
-            "root.visible",
-            "root.sourceUrl"
-          ]
-        },
-        {
           "kind": "Repeater"
         },
         {
           "kind": "model",
           "targets": [
-            "root._seekMarkers"
+            "playback.seekMarkers"
           ]
         },
         {
@@ -50086,10 +50003,6 @@
         },
         {
           "kind": "handler",
-          "name": "onSourceUrlChanged"
-        },
-        {
-          "kind": "handler",
           "name": "Component.onDestruction"
         },
         {
@@ -50098,19 +50011,11 @@
         },
         {
           "kind": "handler",
-          "name": "onMediaStatusChanged"
+          "name": "onPositionMsChanged"
         },
         {
           "kind": "handler",
-          "name": "onDurationChanged"
-        },
-        {
-          "kind": "handler",
-          "name": "onPositionChanged"
-        },
-        {
-          "kind": "handler",
-          "name": "onTriggered"
+          "name": "onDurationMsChanged"
         },
         {
           "kind": "handler",
@@ -50154,26 +50059,17 @@
         },
         {
           "kind": "binding",
-          "name": "muted",
+          "name": "sourceUrl",
           "targets": [
-            "root.mutedValue",
-            "root.thumbnailPrimerActive"
+            "root.sourceUrl"
           ]
         },
         {
           "kind": "binding",
-          "name": "volume",
+          "name": "sourceEnabled",
           "targets": [
-            "volumeSlider.pressed",
-            "volumeSlider.value",
-            "root.volumeValue"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "audioOutput",
-          "targets": [
-            "audioOutput"
+            "root.visible",
+            "root.rendererReleased"
           ]
         },
         {
@@ -50185,27 +50081,32 @@
         },
         {
           "kind": "binding",
-          "name": "playbackRate",
+          "name": "playerObjectName"
+        },
+        {
+          "kind": "binding",
+          "name": "initialPositionMs",
           "targets": [
-            "root.playbackRateValue"
+            "root.initialPositionMs"
           ]
         },
         {
           "kind": "binding",
-          "name": "loops",
+          "name": "shouldResumePlaying",
           "targets": [
-            "root.loopValue",
-            "root.clipRangeActive",
-            "MediaPlayer.Infinite"
+            "root.shouldResumePlaying"
           ]
         },
         {
           "kind": "binding",
-          "name": "interval"
+          "name": "playbackAllowed"
         },
         {
           "kind": "binding",
-          "name": "repeat"
+          "name": "thumbnailPrimingEnabled",
+          "targets": [
+            "root.initialPositionMs"
+          ]
         },
         {
           "kind": "binding",
@@ -50263,7 +50164,7 @@
           "kind": "binding",
           "name": "visible",
           "targets": [
-            "root.sourceUrl.length",
+            "playback.sourceActive",
             "root.errorActive"
           ]
         },
@@ -50326,7 +50227,7 @@
           "kind": "binding",
           "name": "text",
           "targets": [
-            "root._formatTime",
+            "playback.formatTime",
             "seekSlider.value"
           ]
         },
@@ -50364,8 +50265,7 @@
           "name": "to",
           "targets": [
             "Math.max",
-            "Number",
-            "player.duration"
+            "playback.durationMs"
           ]
         },
         {
@@ -50447,15 +50347,15 @@
           "kind": "binding",
           "name": "text",
           "targets": [
-            "root._formatTime",
-            "player.duration"
+            "playback.formatTime",
+            "playback.durationMs"
           ]
         },
         {
           "kind": "binding",
           "name": "iconName",
           "targets": [
-            "player.playbackState",
+            "playback.mediaPlayer.playbackState",
             "MediaPlayer.PlayingState"
           ]
         },
@@ -50463,7 +50363,7 @@
           "kind": "binding",
           "name": "tooltipText",
           "targets": [
-            "player.playbackState",
+            "playback.mediaPlayer.playbackState",
             "MediaPlayer.PlayingState"
           ]
         },
@@ -50533,7 +50433,7 @@
           "kind": "binding",
           "name": "currentIndex",
           "targets": [
-            "root._rateIndex",
+            "playback.rateIndex",
             "root.playbackRateValue"
           ]
         },
@@ -50609,6 +50509,11 @@
       "local_component_refs": [
         {
           "kind": "localComponent",
+          "name": "GraphMediaVideoPlaybackCore",
+          "detail": "ea_node_editor/ui_qml/components/graph/passive/GraphMediaVideoPlaybackCore.qml"
+        },
+        {
+          "kind": "localComponent",
           "name": "ShellComponents.ShellButton",
           "detail": "ea_node_editor/ui_qml/components/shell/ShellButton.qml"
         }
@@ -50633,88 +50538,64 @@
           "detail": "var"
         },
         {
-          "anchor": "GraphMediaVideoFullscreenRendererPropertyInitialPositionApplied",
-          "kind": "property",
-          "name": "initialPositionApplied",
-          "detail": "bool"
-        },
-        {
           "anchor": "GraphMediaVideoFullscreenRendererPropertyResumeAfterSeek",
           "kind": "property",
           "name": "resumeAfterSeek",
           "detail": "bool"
         },
         {
-          "anchor": "GraphMediaVideoFullscreenRendererPropertyClipEnforcing",
-          "kind": "property",
-          "name": "clipEnforcing",
-          "detail": "bool"
-        },
-        {
-          "anchor": "GraphMediaVideoFullscreenRendererPropertyThumbnailPrimerActive",
-          "kind": "property",
-          "name": "thumbnailPrimerActive",
-          "detail": "bool"
-        },
-        {
-          "anchor": "GraphMediaVideoFullscreenRendererPropertyThumbnailPrimerComplete",
-          "kind": "property",
-          "name": "thumbnailPrimerComplete",
-          "detail": "bool"
-        },
-        {
           "anchor": "GraphMediaVideoFullscreenRendererPropertyMutedValue",
           "kind": "property",
           "name": "mutedValue",
-          "detail": "bool"
+          "detail": "alias"
         },
         {
           "anchor": "GraphMediaVideoFullscreenRendererPropertyVolumeValue",
           "kind": "property",
           "name": "volumeValue",
-          "detail": "real"
+          "detail": "alias"
         },
         {
           "anchor": "GraphMediaVideoFullscreenRendererPropertyPlaybackRateValue",
           "kind": "property",
           "name": "playbackRateValue",
-          "detail": "real"
+          "detail": "alias"
         },
         {
           "anchor": "GraphMediaVideoFullscreenRendererPropertyLoopValue",
           "kind": "property",
           "name": "loopValue",
-          "detail": "bool"
+          "detail": "alias"
         },
         {
           "anchor": "GraphMediaVideoFullscreenRendererPropertyFitModeValue",
           "kind": "property",
           "name": "fitModeValue",
-          "detail": "string"
+          "detail": "alias"
         },
         {
           "anchor": "GraphMediaVideoFullscreenRendererPropertyTimelineBookmarksValue",
           "kind": "property",
           "name": "timelineBookmarksValue",
-          "detail": "var"
+          "detail": "alias"
         },
         {
           "anchor": "GraphMediaVideoFullscreenRendererPropertyClipEnabledValue",
           "kind": "property",
           "name": "clipEnabledValue",
-          "detail": "bool"
+          "detail": "alias"
         },
         {
           "anchor": "GraphMediaVideoFullscreenRendererPropertyClipStartValue",
           "kind": "property",
           "name": "clipStartValue",
-          "detail": "int"
+          "detail": "alias"
         },
         {
           "anchor": "GraphMediaVideoFullscreenRendererPropertyClipEndValue",
           "kind": "property",
           "name": "clipEndValue",
-          "detail": "int"
+          "detail": "alias"
         },
         {
           "anchor": "GraphMediaVideoFullscreenRendererPropertyActiveSourceIdentity",
@@ -50817,54 +50698,9 @@
           "name": "_syncFromPayload"
         },
         {
-          "anchor": "GraphMediaVideoFullscreenRendererFunctionBoolValue",
-          "kind": "function",
-          "name": "_boolValue"
-        },
-        {
-          "anchor": "GraphMediaVideoFullscreenRendererFunctionBoundedNumber",
-          "kind": "function",
-          "name": "_boundedNumber"
-        },
-        {
-          "anchor": "GraphMediaVideoFullscreenRendererFunctionNormalizedFitMode",
-          "kind": "function",
-          "name": "_normalizedFitMode"
-        },
-        {
-          "anchor": "GraphMediaVideoFullscreenRendererFunctionNormalizedTimelineBookmarks",
-          "kind": "function",
-          "name": "_normalizedTimelineBookmarks"
-        },
-        {
           "anchor": "GraphMediaVideoFullscreenRendererFunctionStatusText",
           "kind": "function",
           "name": "_statusText"
-        },
-        {
-          "anchor": "GraphMediaVideoFullscreenRendererFunctionApplyInitialPosition",
-          "kind": "function",
-          "name": "_applyInitialPosition"
-        },
-        {
-          "anchor": "GraphMediaVideoFullscreenRendererFunctionInitialThumbnailPositionMs",
-          "kind": "function",
-          "name": "_initialThumbnailPositionMs"
-        },
-        {
-          "anchor": "GraphMediaVideoFullscreenRendererFunctionPrimeThumbnailFrame",
-          "kind": "function",
-          "name": "_primeThumbnailFrame"
-        },
-        {
-          "anchor": "GraphMediaVideoFullscreenRendererFunctionFinishThumbnailPrimer",
-          "kind": "function",
-          "name": "_finishThumbnailPrimer"
-        },
-        {
-          "anchor": "GraphMediaVideoFullscreenRendererFunctionMaybeResumePlaying",
-          "kind": "function",
-          "name": "_maybeResumePlaying"
         },
         {
           "anchor": "GraphMediaVideoFullscreenRendererFunctionTogglePlayback",
@@ -50895,21 +50731,6 @@
           "anchor": "GraphMediaVideoFullscreenRendererFunctionCurrentPositionMs",
           "kind": "function",
           "name": "_currentPositionMs"
-        },
-        {
-          "anchor": "GraphMediaVideoFullscreenRendererFunctionClampedPlaybackPosition",
-          "kind": "function",
-          "name": "_clampedPlaybackPosition"
-        },
-        {
-          "anchor": "GraphMediaVideoFullscreenRendererFunctionEnforceClipRange",
-          "kind": "function",
-          "name": "_enforceClipRange"
-        },
-        {
-          "anchor": "GraphMediaVideoFullscreenRendererFunctionSeekMarkers",
-          "kind": "function",
-          "name": "_seekMarkers"
         },
         {
           "anchor": "GraphMediaVideoFullscreenRendererFunctionAddBookmarkAtCurrentPosition",
@@ -50952,21 +50773,6 @@
           "name": "requestCloseWithState"
         },
         {
-          "anchor": "GraphMediaVideoFullscreenRendererFunctionRateIndex",
-          "kind": "function",
-          "name": "_rateIndex"
-        },
-        {
-          "anchor": "GraphMediaVideoFullscreenRendererFunctionRateForIndex",
-          "kind": "function",
-          "name": "_rateForIndex"
-        },
-        {
-          "anchor": "GraphMediaVideoFullscreenRendererFunctionFormatTime",
-          "kind": "function",
-          "name": "_formatTime"
-        },
-        {
           "anchor": "GraphMediaVideoFullscreenRendererHandlerOnVisibleChanged",
           "kind": "handler",
           "name": "onVisibleChanged"
@@ -50975,11 +50781,6 @@
           "anchor": "GraphMediaVideoFullscreenRendererHandlerOnPayloadChanged",
           "kind": "handler",
           "name": "onPayloadChanged"
-        },
-        {
-          "anchor": "GraphMediaVideoFullscreenRendererHandlerOnSourceUrlChanged",
-          "kind": "handler",
-          "name": "onSourceUrlChanged"
         },
         {
           "anchor": "GraphMediaVideoFullscreenRendererHandlerComponentOnDestruction",
@@ -50992,24 +50793,14 @@
           "name": "Keys.onPressed"
         },
         {
-          "anchor": "GraphMediaVideoFullscreenRendererHandlerOnMediaStatusChanged",
+          "anchor": "GraphMediaVideoFullscreenRendererHandlerOnPositionMsChanged",
           "kind": "handler",
-          "name": "onMediaStatusChanged"
+          "name": "onPositionMsChanged"
         },
         {
-          "anchor": "GraphMediaVideoFullscreenRendererHandlerOnDurationChanged",
+          "anchor": "GraphMediaVideoFullscreenRendererHandlerOnDurationMsChanged",
           "kind": "handler",
-          "name": "onDurationChanged"
-        },
-        {
-          "anchor": "GraphMediaVideoFullscreenRendererHandlerOnPositionChanged",
-          "kind": "handler",
-          "name": "onPositionChanged"
-        },
-        {
-          "anchor": "GraphMediaVideoFullscreenRendererHandlerOnTriggered",
-          "kind": "handler",
-          "name": "onTriggered"
+          "name": "onDurationMsChanged"
         },
         {
           "anchor": "GraphMediaVideoFullscreenRendererHandlerOnPressedChanged",
@@ -51032,10 +50823,845 @@
           "name": "onActivated"
         },
         {
+          "anchor": "GraphMediaVideoFullscreenRendererLocalComponentGraphMediaVideoPlaybackCore",
+          "kind": "localComponent",
+          "name": "GraphMediaVideoPlaybackCore",
+          "detail": "ea_node_editor/ui_qml/components/graph/passive/GraphMediaVideoPlaybackCore.qml"
+        },
+        {
           "anchor": "GraphMediaVideoFullscreenRendererLocalComponentShellComponentsShellButton",
           "kind": "localComponent",
           "name": "ShellComponents.ShellButton",
           "detail": "ea_node_editor/ui_qml/components/shell/ShellButton.qml"
+        }
+      ]
+    },
+    {
+      "path": "ea_node_editor/ui_qml/components/graph/passive/GraphMediaVideoPlaybackCore.qml",
+      "component_name": "GraphMediaVideoPlaybackCore",
+      "aliases": [
+        "GraphMediaVideoPlaybackCore",
+        "GraphMediaVideoPlaybackCore.qml",
+        "ea_node_editor/ui_qml/components/graph/passive/GraphMediaVideoPlaybackCore.qml",
+        "ea_node_editor\\ui_qml\\components\\graph\\passive\\GraphMediaVideoPlaybackCore.qml"
+      ],
+      "root_component": "Item",
+      "imports": [
+        "QtQuick 2.15",
+        "QtMultimedia"
+      ],
+      "ids": [
+        {
+          "name": "root"
+        },
+        {
+          "name": "audioOutput"
+        },
+        {
+          "name": "player"
+        },
+        {
+          "name": "thumbnailPrimerTimer"
+        },
+        {
+          "name": "primerPauseGuardTimer"
+        }
+      ],
+      "object_names": [
+        {
+          "name": "graphMediaVideoPlaybackCore"
+        }
+      ],
+      "properties": [
+        {
+          "kind": "string",
+          "name": "sourceUrl"
+        },
+        {
+          "kind": "bool",
+          "name": "sourceEnabled"
+        },
+        {
+          "kind": "var",
+          "name": "videoOutput"
+        },
+        {
+          "kind": "string",
+          "name": "playerObjectName"
+        },
+        {
+          "kind": "bool",
+          "name": "muted"
+        },
+        {
+          "kind": "real",
+          "name": "volume"
+        },
+        {
+          "kind": "real",
+          "name": "playbackRate"
+        },
+        {
+          "kind": "bool",
+          "name": "loopEnabled"
+        },
+        {
+          "kind": "string",
+          "name": "fitMode"
+        },
+        {
+          "kind": "var",
+          "name": "timelineBookmarks"
+        },
+        {
+          "kind": "bool",
+          "name": "clipEnabled"
+        },
+        {
+          "kind": "int",
+          "name": "clipStartMs"
+        },
+        {
+          "kind": "int",
+          "name": "clipEndMs"
+        },
+        {
+          "kind": "int",
+          "name": "initialPositionMs"
+        },
+        {
+          "kind": "bool",
+          "name": "shouldResumePlaying"
+        },
+        {
+          "kind": "bool",
+          "name": "playbackAllowed"
+        },
+        {
+          "kind": "bool",
+          "name": "thumbnailPrimingEnabled"
+        },
+        {
+          "kind": "bool",
+          "name": "released"
+        },
+        {
+          "kind": "bool",
+          "name": "initialPositionApplied"
+        },
+        {
+          "kind": "bool",
+          "name": "clipEnforcing"
+        },
+        {
+          "kind": "bool",
+          "name": "thumbnailPrimerActive"
+        },
+        {
+          "kind": "bool",
+          "name": "thumbnailPrimerComplete"
+        },
+        {
+          "kind": "bool",
+          "name": "thumbnailPrimerPauseCommitGuard"
+        },
+        {
+          "kind": "bool",
+          "name": "restorePending"
+        },
+        {
+          "kind": "int",
+          "name": "restorePositionMs"
+        },
+        {
+          "kind": "bool",
+          "name": "restorePlaying"
+        },
+        {
+          "kind": "var",
+          "name": "mediaPlayer"
+        },
+        {
+          "kind": "int",
+          "name": "positionMs"
+        },
+        {
+          "kind": "int",
+          "name": "durationMs"
+        },
+        {
+          "kind": "bool",
+          "name": "sourceActive"
+        },
+        {
+          "kind": "bool",
+          "name": "clipRangeActive"
+        },
+        {
+          "kind": "bool",
+          "name": "readyOrPlaying"
+        },
+        {
+          "kind": "bool",
+          "name": "readyForInitialPosition"
+        },
+        {
+          "kind": "bool",
+          "name": "errorActive"
+        }
+      ],
+      "signals": [
+        {
+          "name": "positionCommitRequested"
+        }
+      ],
+      "functions": [
+        {
+          "name": "_resetSourceState"
+        },
+        {
+          "name": "_scheduleSourceReadiness"
+        },
+        {
+          "name": "release"
+        },
+        {
+          "name": "restoreState"
+        },
+        {
+          "name": "_requestedPositionMs"
+        },
+        {
+          "name": "_requestedPlaying"
+        },
+        {
+          "name": "applyInitialPosition"
+        },
+        {
+          "name": "maybeResumePlaying"
+        },
+        {
+          "name": "primeThumbnailFrame"
+        },
+        {
+          "name": "finishThumbnailPrimer"
+        },
+        {
+          "name": "togglePlayback"
+        },
+        {
+          "name": "seekTo"
+        },
+        {
+          "name": "seekBy"
+        },
+        {
+          "name": "rewindToStart"
+        },
+        {
+          "name": "clampedPlaybackPosition"
+        },
+        {
+          "name": "enforceClipRange"
+        },
+        {
+          "name": "seekMarkers"
+        },
+        {
+          "name": "withBookmarkAdded"
+        },
+        {
+          "name": "bookmarkIndex"
+        },
+        {
+          "name": "withBookmarkDeleted"
+        },
+        {
+          "name": "withBookmarkRenamed"
+        },
+        {
+          "name": "clipStateWithStart"
+        },
+        {
+          "name": "clipStateWithEnd"
+        },
+        {
+          "name": "clearedClipState"
+        },
+        {
+          "name": "currentState"
+        },
+        {
+          "name": "boolValue"
+        },
+        {
+          "name": "boundedNumber"
+        },
+        {
+          "name": "nonNegativeInt"
+        },
+        {
+          "name": "normalizedFitMode"
+        },
+        {
+          "name": "normalizedTimelineBookmarks"
+        },
+        {
+          "name": "rateIndex"
+        },
+        {
+          "name": "rateForIndex"
+        },
+        {
+          "name": "formatTime"
+        }
+      ],
+      "instantiated_components": [
+        {
+          "name": "AudioOutput"
+        },
+        {
+          "name": "MediaPlayer"
+        },
+        {
+          "name": "Timer"
+        }
+      ],
+      "dynamic_refs": [
+        {
+          "kind": "source",
+          "targets": [
+            "root.sourceActive",
+            "root.sourceUrl"
+          ]
+        }
+      ],
+      "signal_handlers": [
+        {
+          "kind": "handler",
+          "name": "onSourceUrlChanged"
+        },
+        {
+          "kind": "handler",
+          "name": "onSourceEnabledChanged"
+        },
+        {
+          "kind": "handler",
+          "name": "onSourceActiveChanged"
+        },
+        {
+          "kind": "handler",
+          "name": "onInitialPositionMsChanged"
+        },
+        {
+          "kind": "handler",
+          "name": "Component.onDestruction"
+        },
+        {
+          "kind": "handler",
+          "name": "onMediaStatusChanged"
+        },
+        {
+          "kind": "handler",
+          "name": "onPositionChanged"
+        },
+        {
+          "kind": "handler",
+          "name": "onPlaybackStateChanged"
+        },
+        {
+          "kind": "handler",
+          "name": "onTriggered"
+        }
+      ],
+      "connections": [],
+      "property_bindings": [
+        {
+          "kind": "binding",
+          "name": "width"
+        },
+        {
+          "kind": "binding",
+          "name": "height"
+        },
+        {
+          "kind": "binding",
+          "name": "visible"
+        },
+        {
+          "kind": "binding",
+          "name": "muted",
+          "targets": [
+            "root.muted",
+            "root.thumbnailPrimerActive"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "volume",
+          "targets": [
+            "root.volume"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "audioOutput",
+          "targets": [
+            "audioOutput"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "videoOutput",
+          "targets": [
+            "root.videoOutput"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "playbackRate",
+          "targets": [
+            "root.playbackRate"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "loops",
+          "targets": [
+            "root.loopEnabled",
+            "root.clipRangeActive",
+            "MediaPlayer.Infinite"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "interval"
+        },
+        {
+          "kind": "binding",
+          "name": "repeat"
+        }
+      ],
+      "local_component_refs": [],
+      "symbol_anchors": [
+        {
+          "anchor": "GraphMediaVideoPlaybackCorePropertySourceUrl",
+          "kind": "property",
+          "name": "sourceUrl",
+          "detail": "string"
+        },
+        {
+          "anchor": "GraphMediaVideoPlaybackCorePropertySourceEnabled",
+          "kind": "property",
+          "name": "sourceEnabled",
+          "detail": "bool"
+        },
+        {
+          "anchor": "GraphMediaVideoPlaybackCorePropertyVideoOutput",
+          "kind": "property",
+          "name": "videoOutput",
+          "detail": "var"
+        },
+        {
+          "anchor": "GraphMediaVideoPlaybackCorePropertyPlayerObjectName",
+          "kind": "property",
+          "name": "playerObjectName",
+          "detail": "string"
+        },
+        {
+          "anchor": "GraphMediaVideoPlaybackCorePropertyMuted",
+          "kind": "property",
+          "name": "muted",
+          "detail": "bool"
+        },
+        {
+          "anchor": "GraphMediaVideoPlaybackCorePropertyVolume",
+          "kind": "property",
+          "name": "volume",
+          "detail": "real"
+        },
+        {
+          "anchor": "GraphMediaVideoPlaybackCorePropertyPlaybackRate",
+          "kind": "property",
+          "name": "playbackRate",
+          "detail": "real"
+        },
+        {
+          "anchor": "GraphMediaVideoPlaybackCorePropertyLoopEnabled",
+          "kind": "property",
+          "name": "loopEnabled",
+          "detail": "bool"
+        },
+        {
+          "anchor": "GraphMediaVideoPlaybackCorePropertyFitMode",
+          "kind": "property",
+          "name": "fitMode",
+          "detail": "string"
+        },
+        {
+          "anchor": "GraphMediaVideoPlaybackCorePropertyTimelineBookmarks",
+          "kind": "property",
+          "name": "timelineBookmarks",
+          "detail": "var"
+        },
+        {
+          "anchor": "GraphMediaVideoPlaybackCorePropertyClipEnabled",
+          "kind": "property",
+          "name": "clipEnabled",
+          "detail": "bool"
+        },
+        {
+          "anchor": "GraphMediaVideoPlaybackCorePropertyClipStartMs",
+          "kind": "property",
+          "name": "clipStartMs",
+          "detail": "int"
+        },
+        {
+          "anchor": "GraphMediaVideoPlaybackCorePropertyClipEndMs",
+          "kind": "property",
+          "name": "clipEndMs",
+          "detail": "int"
+        },
+        {
+          "anchor": "GraphMediaVideoPlaybackCorePropertyInitialPositionMs",
+          "kind": "property",
+          "name": "initialPositionMs",
+          "detail": "int"
+        },
+        {
+          "anchor": "GraphMediaVideoPlaybackCorePropertyShouldResumePlaying",
+          "kind": "property",
+          "name": "shouldResumePlaying",
+          "detail": "bool"
+        },
+        {
+          "anchor": "GraphMediaVideoPlaybackCorePropertyPlaybackAllowed",
+          "kind": "property",
+          "name": "playbackAllowed",
+          "detail": "bool"
+        },
+        {
+          "anchor": "GraphMediaVideoPlaybackCorePropertyThumbnailPrimingEnabled",
+          "kind": "property",
+          "name": "thumbnailPrimingEnabled",
+          "detail": "bool"
+        },
+        {
+          "anchor": "GraphMediaVideoPlaybackCorePropertyReleased",
+          "kind": "property",
+          "name": "released",
+          "detail": "bool"
+        },
+        {
+          "anchor": "GraphMediaVideoPlaybackCorePropertyInitialPositionApplied",
+          "kind": "property",
+          "name": "initialPositionApplied",
+          "detail": "bool"
+        },
+        {
+          "anchor": "GraphMediaVideoPlaybackCorePropertyClipEnforcing",
+          "kind": "property",
+          "name": "clipEnforcing",
+          "detail": "bool"
+        },
+        {
+          "anchor": "GraphMediaVideoPlaybackCorePropertyThumbnailPrimerActive",
+          "kind": "property",
+          "name": "thumbnailPrimerActive",
+          "detail": "bool"
+        },
+        {
+          "anchor": "GraphMediaVideoPlaybackCorePropertyThumbnailPrimerComplete",
+          "kind": "property",
+          "name": "thumbnailPrimerComplete",
+          "detail": "bool"
+        },
+        {
+          "anchor": "GraphMediaVideoPlaybackCorePropertyThumbnailPrimerPauseCommitGuard",
+          "kind": "property",
+          "name": "thumbnailPrimerPauseCommitGuard",
+          "detail": "bool"
+        },
+        {
+          "anchor": "GraphMediaVideoPlaybackCorePropertyRestorePending",
+          "kind": "property",
+          "name": "restorePending",
+          "detail": "bool"
+        },
+        {
+          "anchor": "GraphMediaVideoPlaybackCorePropertyRestorePositionMs",
+          "kind": "property",
+          "name": "restorePositionMs",
+          "detail": "int"
+        },
+        {
+          "anchor": "GraphMediaVideoPlaybackCorePropertyRestorePlaying",
+          "kind": "property",
+          "name": "restorePlaying",
+          "detail": "bool"
+        },
+        {
+          "anchor": "GraphMediaVideoPlaybackCorePropertyMediaPlayer",
+          "kind": "property",
+          "name": "mediaPlayer",
+          "detail": "var"
+        },
+        {
+          "anchor": "GraphMediaVideoPlaybackCorePropertyPositionMs",
+          "kind": "property",
+          "name": "positionMs",
+          "detail": "int"
+        },
+        {
+          "anchor": "GraphMediaVideoPlaybackCorePropertyDurationMs",
+          "kind": "property",
+          "name": "durationMs",
+          "detail": "int"
+        },
+        {
+          "anchor": "GraphMediaVideoPlaybackCorePropertySourceActive",
+          "kind": "property",
+          "name": "sourceActive",
+          "detail": "bool"
+        },
+        {
+          "anchor": "GraphMediaVideoPlaybackCorePropertyClipRangeActive",
+          "kind": "property",
+          "name": "clipRangeActive",
+          "detail": "bool"
+        },
+        {
+          "anchor": "GraphMediaVideoPlaybackCorePropertyReadyOrPlaying",
+          "kind": "property",
+          "name": "readyOrPlaying",
+          "detail": "bool"
+        },
+        {
+          "anchor": "GraphMediaVideoPlaybackCorePropertyReadyForInitialPosition",
+          "kind": "property",
+          "name": "readyForInitialPosition",
+          "detail": "bool"
+        },
+        {
+          "anchor": "GraphMediaVideoPlaybackCorePropertyErrorActive",
+          "kind": "property",
+          "name": "errorActive",
+          "detail": "bool"
+        },
+        {
+          "anchor": "GraphMediaVideoPlaybackCoreSignalPositionCommitRequested",
+          "kind": "signal",
+          "name": "positionCommitRequested"
+        },
+        {
+          "anchor": "GraphMediaVideoPlaybackCoreFunctionResetSourceState",
+          "kind": "function",
+          "name": "_resetSourceState"
+        },
+        {
+          "anchor": "GraphMediaVideoPlaybackCoreFunctionScheduleSourceReadiness",
+          "kind": "function",
+          "name": "_scheduleSourceReadiness"
+        },
+        {
+          "anchor": "GraphMediaVideoPlaybackCoreFunctionRelease",
+          "kind": "function",
+          "name": "release"
+        },
+        {
+          "anchor": "GraphMediaVideoPlaybackCoreFunctionRestoreState",
+          "kind": "function",
+          "name": "restoreState"
+        },
+        {
+          "anchor": "GraphMediaVideoPlaybackCoreFunctionRequestedPositionMs",
+          "kind": "function",
+          "name": "_requestedPositionMs"
+        },
+        {
+          "anchor": "GraphMediaVideoPlaybackCoreFunctionRequestedPlaying",
+          "kind": "function",
+          "name": "_requestedPlaying"
+        },
+        {
+          "anchor": "GraphMediaVideoPlaybackCoreFunctionApplyInitialPosition",
+          "kind": "function",
+          "name": "applyInitialPosition"
+        },
+        {
+          "anchor": "GraphMediaVideoPlaybackCoreFunctionMaybeResumePlaying",
+          "kind": "function",
+          "name": "maybeResumePlaying"
+        },
+        {
+          "anchor": "GraphMediaVideoPlaybackCoreFunctionPrimeThumbnailFrame",
+          "kind": "function",
+          "name": "primeThumbnailFrame"
+        },
+        {
+          "anchor": "GraphMediaVideoPlaybackCoreFunctionFinishThumbnailPrimer",
+          "kind": "function",
+          "name": "finishThumbnailPrimer"
+        },
+        {
+          "anchor": "GraphMediaVideoPlaybackCoreFunctionTogglePlayback",
+          "kind": "function",
+          "name": "togglePlayback"
+        },
+        {
+          "anchor": "GraphMediaVideoPlaybackCoreFunctionSeekTo",
+          "kind": "function",
+          "name": "seekTo"
+        },
+        {
+          "anchor": "GraphMediaVideoPlaybackCoreFunctionSeekBy",
+          "kind": "function",
+          "name": "seekBy"
+        },
+        {
+          "anchor": "GraphMediaVideoPlaybackCoreFunctionRewindToStart",
+          "kind": "function",
+          "name": "rewindToStart"
+        },
+        {
+          "anchor": "GraphMediaVideoPlaybackCoreFunctionClampedPlaybackPosition",
+          "kind": "function",
+          "name": "clampedPlaybackPosition"
+        },
+        {
+          "anchor": "GraphMediaVideoPlaybackCoreFunctionEnforceClipRange",
+          "kind": "function",
+          "name": "enforceClipRange"
+        },
+        {
+          "anchor": "GraphMediaVideoPlaybackCoreFunctionSeekMarkers",
+          "kind": "function",
+          "name": "seekMarkers"
+        },
+        {
+          "anchor": "GraphMediaVideoPlaybackCoreFunctionWithBookmarkAdded",
+          "kind": "function",
+          "name": "withBookmarkAdded"
+        },
+        {
+          "anchor": "GraphMediaVideoPlaybackCoreFunctionBookmarkIndex",
+          "kind": "function",
+          "name": "bookmarkIndex"
+        },
+        {
+          "anchor": "GraphMediaVideoPlaybackCoreFunctionWithBookmarkDeleted",
+          "kind": "function",
+          "name": "withBookmarkDeleted"
+        },
+        {
+          "anchor": "GraphMediaVideoPlaybackCoreFunctionWithBookmarkRenamed",
+          "kind": "function",
+          "name": "withBookmarkRenamed"
+        },
+        {
+          "anchor": "GraphMediaVideoPlaybackCoreFunctionClipStateWithStart",
+          "kind": "function",
+          "name": "clipStateWithStart"
+        },
+        {
+          "anchor": "GraphMediaVideoPlaybackCoreFunctionClipStateWithEnd",
+          "kind": "function",
+          "name": "clipStateWithEnd"
+        },
+        {
+          "anchor": "GraphMediaVideoPlaybackCoreFunctionClearedClipState",
+          "kind": "function",
+          "name": "clearedClipState"
+        },
+        {
+          "anchor": "GraphMediaVideoPlaybackCoreFunctionCurrentState",
+          "kind": "function",
+          "name": "currentState"
+        },
+        {
+          "anchor": "GraphMediaVideoPlaybackCoreFunctionBoolValue",
+          "kind": "function",
+          "name": "boolValue"
+        },
+        {
+          "anchor": "GraphMediaVideoPlaybackCoreFunctionBoundedNumber",
+          "kind": "function",
+          "name": "boundedNumber"
+        },
+        {
+          "anchor": "GraphMediaVideoPlaybackCoreFunctionNonNegativeInt",
+          "kind": "function",
+          "name": "nonNegativeInt"
+        },
+        {
+          "anchor": "GraphMediaVideoPlaybackCoreFunctionNormalizedFitMode",
+          "kind": "function",
+          "name": "normalizedFitMode"
+        },
+        {
+          "anchor": "GraphMediaVideoPlaybackCoreFunctionNormalizedTimelineBookmarks",
+          "kind": "function",
+          "name": "normalizedTimelineBookmarks"
+        },
+        {
+          "anchor": "GraphMediaVideoPlaybackCoreFunctionRateIndex",
+          "kind": "function",
+          "name": "rateIndex"
+        },
+        {
+          "anchor": "GraphMediaVideoPlaybackCoreFunctionRateForIndex",
+          "kind": "function",
+          "name": "rateForIndex"
+        },
+        {
+          "anchor": "GraphMediaVideoPlaybackCoreFunctionFormatTime",
+          "kind": "function",
+          "name": "formatTime"
+        },
+        {
+          "anchor": "GraphMediaVideoPlaybackCoreHandlerOnSourceUrlChanged",
+          "kind": "handler",
+          "name": "onSourceUrlChanged"
+        },
+        {
+          "anchor": "GraphMediaVideoPlaybackCoreHandlerOnSourceEnabledChanged",
+          "kind": "handler",
+          "name": "onSourceEnabledChanged"
+        },
+        {
+          "anchor": "GraphMediaVideoPlaybackCoreHandlerOnSourceActiveChanged",
+          "kind": "handler",
+          "name": "onSourceActiveChanged"
+        },
+        {
+          "anchor": "GraphMediaVideoPlaybackCoreHandlerOnInitialPositionMsChanged",
+          "kind": "handler",
+          "name": "onInitialPositionMsChanged"
+        },
+        {
+          "anchor": "GraphMediaVideoPlaybackCoreHandlerComponentOnDestruction",
+          "kind": "handler",
+          "name": "Component.onDestruction"
+        },
+        {
+          "anchor": "GraphMediaVideoPlaybackCoreHandlerOnMediaStatusChanged",
+          "kind": "handler",
+          "name": "onMediaStatusChanged"
+        },
+        {
+          "anchor": "GraphMediaVideoPlaybackCoreHandlerOnPositionChanged",
+          "kind": "handler",
+          "name": "onPositionChanged"
+        },
+        {
+          "anchor": "GraphMediaVideoPlaybackCoreHandlerOnPlaybackStateChanged",
+          "kind": "handler",
+          "name": "onPlaybackStateChanged"
+        },
+        {
+          "anchor": "GraphMediaVideoPlaybackCoreHandlerOnTriggered",
+          "kind": "handler",
+          "name": "onTriggered"
         }
       ]
     },
@@ -51064,16 +51690,7 @@
           "name": "surface"
         },
         {
-          "name": "audioOutput"
-        },
-        {
-          "name": "player"
-        },
-        {
-          "name": "thumbnailPrimerTimer"
-        },
-        {
-          "name": "thumbnailPrimerPauseGuardTimer"
+          "name": "playback"
         },
         {
           "name": "viewport"
@@ -51094,9 +51711,6 @@
       "object_names": [
         {
           "name": "graphNodeMediaVideoRenderer"
-        },
-        {
-          "name": "graphNodeVideoMediaPlayer"
         },
         {
           "name": "graphNodeVideoViewport"
@@ -51137,24 +51751,8 @@
           "name": "resumeAfterSeek"
         },
         {
-          "kind": "bool",
+          "kind": "alias",
           "name": "initialPositionApplied"
-        },
-        {
-          "kind": "bool",
-          "name": "clipEnforcing"
-        },
-        {
-          "kind": "bool",
-          "name": "thumbnailPrimerActive"
-        },
-        {
-          "kind": "bool",
-          "name": "thumbnailPrimerComplete"
-        },
-        {
-          "kind": "bool",
-          "name": "thumbnailPrimerPauseCommitGuard"
         },
         {
           "kind": "bool",
@@ -51314,9 +51912,6 @@
           "name": "fullscreenRuntimeState"
         },
         {
-          "name": "onFullscreenOpened"
-        },
-        {
           "name": "onIsSelectedChanged"
         },
         {
@@ -51332,19 +51927,10 @@
           "name": "_boundedNumber"
         },
         {
-          "name": "_normalizedTimelineBookmarks"
-        },
-        {
           "name": "_readyOrPlayingForAction"
         },
         {
           "name": "readyOrPlayingForAction"
-        },
-        {
-          "name": "_readyForInitialPosition"
-        },
-        {
-          "name": "_normalizedFitMode"
         },
         {
           "name": "_iconSource"
@@ -51437,15 +52023,6 @@
           "name": "_applyInitialPosition"
         },
         {
-          "name": "_initialThumbnailPositionMs"
-        },
-        {
-          "name": "_primeThumbnailFrame"
-        },
-        {
-          "name": "_finishThumbnailPrimer"
-        },
-        {
           "name": "_maybeAutoPlay"
         },
         {
@@ -51465,12 +52042,6 @@
         },
         {
           "name": "_syncSeekSlider"
-        },
-        {
-          "name": "_clampedPlaybackPosition"
-        },
-        {
-          "name": "_enforceClipRange"
         },
         {
           "name": "_seekMarkers"
@@ -51494,12 +52065,6 @@
           "name": "_applyFullscreenReturnState"
         },
         {
-          "name": "_rateIndex"
-        },
-        {
-          "name": "_rateForIndex"
-        },
-        {
           "name": "_formatTime"
         },
         {
@@ -51511,13 +52076,7 @@
           "name": "Connections"
         },
         {
-          "name": "AudioOutput"
-        },
-        {
-          "name": "MediaPlayer"
-        },
-        {
-          "name": "Timer"
+          "name": "GraphMediaVideoPlaybackCore"
         },
         {
           "name": "Rectangle"
@@ -51546,12 +52105,6 @@
       ],
       "dynamic_refs": [
         {
-          "kind": "source",
-          "targets": [
-            "surface.effectiveResolvedSourceUrl"
-          ]
-        },
-        {
           "kind": "Repeater"
         },
         {
@@ -51562,14 +52115,6 @@
         }
       ],
       "signal_handlers": [
-        {
-          "kind": "handler",
-          "name": "onFullscreenOwnsPlaybackChanged"
-        },
-        {
-          "kind": "handler",
-          "name": "onHostPlaybackAllowedChanged"
-        },
         {
           "kind": "handler",
           "name": "onResolvedSourceUrlChanged"
@@ -51588,23 +52133,15 @@
         },
         {
           "kind": "handler",
-          "name": "onMediaStatusChanged"
+          "name": "onPositionMsChanged"
         },
         {
           "kind": "handler",
-          "name": "onDurationChanged"
+          "name": "onDurationMsChanged"
         },
         {
           "kind": "handler",
-          "name": "onPositionChanged"
-        },
-        {
-          "kind": "handler",
-          "name": "onPlaybackStateChanged"
-        },
-        {
-          "kind": "handler",
-          "name": "onTriggered"
+          "name": "onPositionCommitRequested"
         },
         {
           "kind": "handler",
@@ -51645,24 +52182,17 @@
         },
         {
           "kind": "binding",
-          "name": "muted",
+          "name": "sourceUrl",
           "targets": [
-            "surface.muted",
-            "surface.thumbnailPrimerActive"
+            "surface.effectiveResolvedSourceUrl"
           ]
         },
         {
           "kind": "binding",
-          "name": "volume",
+          "name": "sourceEnabled",
           "targets": [
-            "surface.volume"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "audioOutput",
-          "targets": [
-            "audioOutput"
+            "surface.fullscreenOwnsPlayback",
+            "surface.rendererReleased"
           ]
         },
         {
@@ -51674,6 +52204,24 @@
         },
         {
           "kind": "binding",
+          "name": "playerObjectName"
+        },
+        {
+          "kind": "binding",
+          "name": "muted",
+          "targets": [
+            "surface.muted"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "volume",
+          "targets": [
+            "surface.volume"
+          ]
+        },
+        {
+          "kind": "binding",
           "name": "playbackRate",
           "targets": [
             "surface.playbackRate"
@@ -51681,20 +52229,73 @@
         },
         {
           "kind": "binding",
-          "name": "loops",
+          "name": "loopEnabled",
           "targets": [
-            "surface.loopEnabled",
-            "surface.clipRangeActive",
-            "MediaPlayer.Infinite"
+            "surface.loopEnabled"
           ]
         },
         {
           "kind": "binding",
-          "name": "interval"
+          "name": "fitMode",
+          "targets": [
+            "surface.normalizedFitMode"
+          ]
         },
         {
           "kind": "binding",
-          "name": "repeat"
+          "name": "timelineBookmarks",
+          "targets": [
+            "surface.timelineBookmarks"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "clipEnabled",
+          "targets": [
+            "surface.clipEnabled"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "clipStartMs",
+          "targets": [
+            "surface.clipStartMs"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "clipEndMs",
+          "targets": [
+            "surface.clipEndMs"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "initialPositionMs",
+          "targets": [
+            "surface.storedPositionMs"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "shouldResumePlaying",
+          "targets": [
+            "surface.autoPlayEnabled"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "playbackAllowed",
+          "targets": [
+            "surface.hostPlaybackAllowed"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "thumbnailPrimingEnabled",
+          "targets": [
+            "surface.autoPlayEnabled"
+          ]
         },
         {
           "kind": "binding",
@@ -51953,8 +52554,7 @@
           "name": "to",
           "targets": [
             "Math.max",
-            "Number",
-            "player.duration"
+            "playback.durationMs"
           ]
         },
         {
@@ -52035,8 +52635,8 @@
           "kind": "binding",
           "name": "text",
           "targets": [
-            "surface._formatTime",
-            "player.duration"
+            "playback.formatTime",
+            "playback.durationMs"
           ]
         },
         {
@@ -52062,6 +52662,11 @@
         }
       ],
       "local_component_refs": [
+        {
+          "kind": "localComponent",
+          "name": "GraphMediaVideoPlaybackCore",
+          "detail": "ea_node_editor/ui_qml/components/graph/passive/GraphMediaVideoPlaybackCore.qml"
+        },
         {
           "kind": "localComponent",
           "name": "GraphSurfaceControls.GraphSurfaceInteractiveRegion",
@@ -52091,31 +52696,7 @@
           "anchor": "GraphMediaVideoRendererPropertyInitialPositionApplied",
           "kind": "property",
           "name": "initialPositionApplied",
-          "detail": "bool"
-        },
-        {
-          "anchor": "GraphMediaVideoRendererPropertyClipEnforcing",
-          "kind": "property",
-          "name": "clipEnforcing",
-          "detail": "bool"
-        },
-        {
-          "anchor": "GraphMediaVideoRendererPropertyThumbnailPrimerActive",
-          "kind": "property",
-          "name": "thumbnailPrimerActive",
-          "detail": "bool"
-        },
-        {
-          "anchor": "GraphMediaVideoRendererPropertyThumbnailPrimerComplete",
-          "kind": "property",
-          "name": "thumbnailPrimerComplete",
-          "detail": "bool"
-        },
-        {
-          "anchor": "GraphMediaVideoRendererPropertyThumbnailPrimerPauseCommitGuard",
-          "kind": "property",
-          "name": "thumbnailPrimerPauseCommitGuard",
-          "detail": "bool"
+          "detail": "alias"
         },
         {
           "anchor": "GraphMediaVideoRendererPropertyArtifactRenameReleaseActive",
@@ -52350,11 +52931,6 @@
           "name": "fullscreenRuntimeState"
         },
         {
-          "anchor": "GraphMediaVideoRendererFunctionOnFullscreenOpened",
-          "kind": "function",
-          "name": "onFullscreenOpened"
-        },
-        {
           "anchor": "GraphMediaVideoRendererFunctionOnIsSelectedChanged",
           "kind": "function",
           "name": "onIsSelectedChanged"
@@ -52380,11 +52956,6 @@
           "name": "_boundedNumber"
         },
         {
-          "anchor": "GraphMediaVideoRendererFunctionNormalizedTimelineBookmarks",
-          "kind": "function",
-          "name": "_normalizedTimelineBookmarks"
-        },
-        {
           "anchor": "GraphMediaVideoRendererFunctionReadyOrPlayingForAction",
           "kind": "function",
           "name": "_readyOrPlayingForAction"
@@ -52393,16 +52964,6 @@
           "anchor": "GraphMediaVideoRendererFunctionReadyOrPlayingForAction2",
           "kind": "function",
           "name": "readyOrPlayingForAction"
-        },
-        {
-          "anchor": "GraphMediaVideoRendererFunctionReadyForInitialPosition",
-          "kind": "function",
-          "name": "_readyForInitialPosition"
-        },
-        {
-          "anchor": "GraphMediaVideoRendererFunctionNormalizedFitMode",
-          "kind": "function",
-          "name": "_normalizedFitMode"
         },
         {
           "anchor": "GraphMediaVideoRendererFunctionIconSource",
@@ -52555,21 +53116,6 @@
           "name": "_applyInitialPosition"
         },
         {
-          "anchor": "GraphMediaVideoRendererFunctionInitialThumbnailPositionMs",
-          "kind": "function",
-          "name": "_initialThumbnailPositionMs"
-        },
-        {
-          "anchor": "GraphMediaVideoRendererFunctionPrimeThumbnailFrame",
-          "kind": "function",
-          "name": "_primeThumbnailFrame"
-        },
-        {
-          "anchor": "GraphMediaVideoRendererFunctionFinishThumbnailPrimer",
-          "kind": "function",
-          "name": "_finishThumbnailPrimer"
-        },
-        {
           "anchor": "GraphMediaVideoRendererFunctionMaybeAutoPlay",
           "kind": "function",
           "name": "_maybeAutoPlay"
@@ -52603,16 +53149,6 @@
           "anchor": "GraphMediaVideoRendererFunctionSyncSeekSlider",
           "kind": "function",
           "name": "_syncSeekSlider"
-        },
-        {
-          "anchor": "GraphMediaVideoRendererFunctionClampedPlaybackPosition",
-          "kind": "function",
-          "name": "_clampedPlaybackPosition"
-        },
-        {
-          "anchor": "GraphMediaVideoRendererFunctionEnforceClipRange",
-          "kind": "function",
-          "name": "_enforceClipRange"
         },
         {
           "anchor": "GraphMediaVideoRendererFunctionSeekMarkers",
@@ -52650,16 +53186,6 @@
           "name": "_applyFullscreenReturnState"
         },
         {
-          "anchor": "GraphMediaVideoRendererFunctionRateIndex",
-          "kind": "function",
-          "name": "_rateIndex"
-        },
-        {
-          "anchor": "GraphMediaVideoRendererFunctionRateForIndex",
-          "kind": "function",
-          "name": "_rateForIndex"
-        },
-        {
           "anchor": "GraphMediaVideoRendererFunctionFormatTime",
           "kind": "function",
           "name": "_formatTime"
@@ -52668,16 +53194,6 @@
           "anchor": "GraphMediaVideoRendererFunctionDispatchSurfaceAction",
           "kind": "function",
           "name": "dispatchSurfaceAction"
-        },
-        {
-          "anchor": "GraphMediaVideoRendererHandlerOnFullscreenOwnsPlaybackChanged",
-          "kind": "handler",
-          "name": "onFullscreenOwnsPlaybackChanged"
-        },
-        {
-          "anchor": "GraphMediaVideoRendererHandlerOnHostPlaybackAllowedChanged",
-          "kind": "handler",
-          "name": "onHostPlaybackAllowedChanged"
         },
         {
           "anchor": "GraphMediaVideoRendererHandlerOnResolvedSourceUrlChanged",
@@ -52700,29 +53216,19 @@
           "name": "Component.onDestruction"
         },
         {
-          "anchor": "GraphMediaVideoRendererHandlerOnMediaStatusChanged",
+          "anchor": "GraphMediaVideoRendererHandlerOnPositionMsChanged",
           "kind": "handler",
-          "name": "onMediaStatusChanged"
+          "name": "onPositionMsChanged"
         },
         {
-          "anchor": "GraphMediaVideoRendererHandlerOnDurationChanged",
+          "anchor": "GraphMediaVideoRendererHandlerOnDurationMsChanged",
           "kind": "handler",
-          "name": "onDurationChanged"
+          "name": "onDurationMsChanged"
         },
         {
-          "anchor": "GraphMediaVideoRendererHandlerOnPositionChanged",
+          "anchor": "GraphMediaVideoRendererHandlerOnPositionCommitRequested",
           "kind": "handler",
-          "name": "onPositionChanged"
-        },
-        {
-          "anchor": "GraphMediaVideoRendererHandlerOnPlaybackStateChanged",
-          "kind": "handler",
-          "name": "onPlaybackStateChanged"
-        },
-        {
-          "anchor": "GraphMediaVideoRendererHandlerOnTriggered",
-          "kind": "handler",
-          "name": "onTriggered"
+          "name": "onPositionCommitRequested"
         },
         {
           "anchor": "GraphMediaVideoRendererHandlerOnPressedChanged",
@@ -52753,6 +53259,12 @@
           "anchor": "GraphMediaVideoRendererTargetSurfaceCanvasCommandBridge",
           "kind": "target",
           "name": "surface._canvasCommandBridge()"
+        },
+        {
+          "anchor": "GraphMediaVideoRendererLocalComponentGraphMediaVideoPlaybackCore",
+          "kind": "localComponent",
+          "name": "GraphMediaVideoPlaybackCore",
+          "detail": "ea_node_editor/ui_qml/components/graph/passive/GraphMediaVideoPlaybackCore.qml"
         },
         {
           "anchor": "GraphMediaVideoRendererLocalComponentGraphSurfaceControlsGraphSurfaceInteractiveRegion",

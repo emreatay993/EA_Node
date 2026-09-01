@@ -43,7 +43,6 @@ _PROJECT_ARTIFACT_REF_RE = re.compile(r"^(?:saved|temp)://[A-Za-z0-9][A-Za-z0-9.
 _WINDOWS_DRIVE_PATH_RE = re.compile(r"^[A-Za-z]:[\\/]")
 _UNC_PATH_RE = re.compile(r"^[/\\]{2}[^/\\]")
 _IMAGE_FIT_MODES = frozenset({"contain", "cover", "original"})
-_VIDEO_FIT_MODES = frozenset({"contain", "cover"})
 WEB_PAGE_CONTENT_KIND = "web_page"
 WEB_PAGE_SURFACE_FAMILY = WEB_PAGE_VIEWER_SURFACE_FAMILY
 WEB_PAGE_SURFACE_VARIANT = WEB_PAGE_VIEWER_SURFACE_VARIANT
@@ -162,20 +161,6 @@ def _normalized_image_rotation_degrees(value: object) -> int:
     return degrees if degrees % 90 == 0 else 0
 
 
-def _normalized_video_fit_mode(value: object) -> str:
-    normalized = str(value or "contain").strip().lower()
-    return normalized if normalized in _VIDEO_FIT_MODES else "contain"
-
-
-def _bounded_float_property(
-    value: object, default: float, *, minimum: float, maximum: float
-) -> float:
-    number = _float_property(value, default)
-    if not math.isfinite(number):
-        number = default
-    return max(minimum, min(maximum, number))
-
-
 def _int_property(value: object, default: int) -> int:
     if isinstance(value, bool):
         return int(default)
@@ -183,54 +168,6 @@ def _int_property(value: object, default: int) -> int:
         return int(value)
     except (TypeError, ValueError):
         return int(default)
-
-
-def _non_negative_int_property(value: object, default: int) -> int:
-    return max(0, _int_property(value, default))
-
-
-def _normalized_video_timeline_bookmarks(value: object) -> list[dict[str, Any]]:
-    if not isinstance(value, list):
-        return []
-    bookmarks: list[dict[str, Any]] = []
-    seen_ids: set[str] = set()
-    for index, item in enumerate(value):
-        if not isinstance(item, Mapping):
-            continue
-        position_ms = _non_negative_int_property(item.get("position_ms"), 0)
-        raw_id = str(item.get("id", "") or "").strip()
-        bookmark_id = raw_id or f"bookmark-{position_ms}-{index}"
-        if bookmark_id in seen_ids:
-            continue
-        seen_ids.add(bookmark_id)
-        label = str(item.get("label", "") or "").strip() or _format_video_time(
-            position_ms
-        )
-        bookmarks.append(
-            {
-                "id": bookmark_id,
-                "label": label[:80],
-                "position_ms": position_ms,
-            }
-        )
-    bookmarks.sort(
-        key=lambda item: (
-            int(item["position_ms"]),
-            str(item["label"]).casefold(),
-            str(item["id"]),
-        )
-    )
-    return bookmarks[:200]
-
-
-def _format_video_time(position_ms: int) -> str:
-    total_seconds = max(0, int(position_ms) // 1000)
-    hours = total_seconds // 3600
-    minutes = (total_seconds % 3600) // 60
-    seconds = total_seconds % 60
-    if hours > 0:
-        return f"{hours}:{minutes:02d}:{seconds:02d}"
-    return f"{minutes}:{seconds:02d}"
 
 
 def _is_web_page_surface_spec(*, type_id: object = "", spec: NodeTypeSpec) -> bool:

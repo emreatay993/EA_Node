@@ -70,6 +70,7 @@ from ea_node_editor.ui.tabular_preview_provider import (
     TabularPreviewProvider,
 )
 from ea_node_editor.ui.media_panel_source import resolve_media_panel_source
+from ea_node_editor.ui.media_video_state import normalize_media_video_state
 from ea_node_editor.ui_qml.graph_scene_payload import (
     PLOT_CONTENT_KIND,
     WEB_PAGE_CONTENT_KIND,
@@ -201,75 +202,6 @@ def _normalized_plot_theme(value: Any) -> str:
     if normalized == "auto":
         normalized = "system"
     return normalized if normalized in _PLOT_FULLSCREEN_THEME_VALUES else "system"
-
-
-def _bounded_video_float(value: Any, default: float, *, minimum: float, maximum: float) -> float:
-    number = _finite_float(value, default)
-    return max(minimum, min(maximum, number))
-
-
-def _normalized_video_fit_mode(value: Any) -> str:
-    normalized = str(value or "contain").strip().lower()
-    return normalized if normalized in {"contain", "cover"} else "contain"
-
-
-def _format_video_time(position_ms: int) -> str:
-    total_seconds = max(0, int(position_ms) // 1000)
-    hours = total_seconds // 3600
-    minutes = (total_seconds % 3600) // 60
-    seconds = total_seconds % 60
-    if hours > 0:
-        return f"{hours}:{minutes:02d}:{seconds:02d}"
-    return f"{minutes}:{seconds:02d}"
-
-
-def _normalized_video_timeline_bookmarks(value: Any) -> list[dict[str, Any]]:
-    if not isinstance(value, list):
-        return []
-    bookmarks: list[dict[str, Any]] = []
-    seen_ids: set[str] = set()
-    for index, item in enumerate(value):
-        if not isinstance(item, Mapping):
-            continue
-        position_ms = _positive_int(item.get("position_ms"))
-        raw_id = str(item.get("id", "") or "").strip()
-        bookmark_id = raw_id or f"bookmark-{position_ms}-{index}"
-        if bookmark_id in seen_ids:
-            continue
-        seen_ids.add(bookmark_id)
-        label = str(item.get("label", "") or "").strip() or _format_video_time(position_ms)
-        bookmarks.append(
-            {
-                "id": bookmark_id,
-                "label": label[:80],
-                "position_ms": position_ms,
-            }
-        )
-    bookmarks.sort(key=lambda item: (int(item["position_ms"]), str(item["label"]).casefold(), str(item["id"])))
-    return bookmarks[:200]
-
-
-def _normalized_video_fullscreen_state(state: Any) -> dict[str, Any]:
-    payload = state if isinstance(state, Mapping) else {}
-    position = _positive_int(payload.get("position_ms") if "position_ms" in payload else payload.get("position"))
-    return {
-        "position_ms": position,
-        "playing": _bool_value(payload.get("playing"), False),
-        "muted": _bool_value(payload.get("muted"), False),
-        "volume": _bounded_video_float(payload.get("volume"), 1.0, minimum=0.0, maximum=1.0),
-        "playback_rate": _bounded_video_float(
-            payload.get("playback_rate") if "playback_rate" in payload else payload.get("rate"),
-            1.0,
-            minimum=0.25,
-            maximum=4.0,
-        ),
-        "loop": _bool_value(payload.get("loop"), False),
-        "fit_mode": _normalized_video_fit_mode(payload.get("fit_mode")),
-        "timeline_bookmarks": _normalized_video_timeline_bookmarks(payload.get("timeline_bookmarks")),
-        "clip_enabled": _bool_value(payload.get("clip_enabled"), False),
-        "clip_start_ms": _positive_int(payload.get("clip_start_ms")),
-        "clip_end_ms": _positive_int(payload.get("clip_end_ms")),
-    }
 
 
 def _excalidraw_scene_elements(scene_state: Mapping[str, Any]) -> list[Mapping[str, Any]]:
@@ -1190,7 +1122,7 @@ class ContentFullscreenBridge(QObject):
         if resolution.candidate is None:
             self._close_with_error(resolution.error)
             return False
-        self._open_candidate(resolution.candidate, runtime_state=_normalized_video_fullscreen_state(state))
+        self._open_candidate(resolution.candidate, runtime_state=normalize_media_video_state(state))
         return True
 
     @pyqtSlot(str, result=bool)
@@ -1249,7 +1181,7 @@ class ContentFullscreenBridge(QObject):
             self.request_close()
             return False
         node_id = self._node_id
-        normalized_state = _normalized_video_fullscreen_state(state)
+        normalized_state = normalize_media_video_state(state)
         self._persist_video_fullscreen_state(node_id, normalized_state)
         self.request_close()
         self.video_fullscreen_closed.emit(node_id, normalized_state)
@@ -1290,7 +1222,7 @@ class ContentFullscreenBridge(QObject):
                 "fullscreen_unavailable",
                 "No fullscreen Media Panel in video mode is active.",
             )
-        normalized_state = _normalized_video_fullscreen_state(state)
+        normalized_state = normalize_media_video_state(state)
         trim = self._trim_video_clip_replace
         if trim is None:
             return self._video_trim_bridge_error(
@@ -1319,7 +1251,7 @@ class ContentFullscreenBridge(QObject):
                 "fullscreen_unavailable",
                 "No fullscreen Media Panel in video mode is active.",
             )
-        normalized_state = _normalized_video_fullscreen_state(state)
+        normalized_state = normalize_media_video_state(state)
         trim = self._trim_video_clip_copy
         if trim is None:
             return self._video_trim_bridge_error(
@@ -1691,7 +1623,7 @@ class ContentFullscreenBridge(QObject):
             str(media_payload.get("media_kind", "") or "") == "video"
             and runtime_state is not None
         ):
-            media_payload["transient_state"] = _normalized_video_fullscreen_state(runtime_state)
+            media_payload["transient_state"] = normalize_media_video_state(runtime_state)
         self._set_state(
             open_=True,
             node_id=candidate.node.node_id,
@@ -2024,7 +1956,7 @@ class ContentFullscreenBridge(QObject):
         return _fallback_preview_payload_from_scene(scene_state)
 
     def _persist_video_fullscreen_state(self, node_id: str, state: Mapping[str, Any]) -> None:
-        normalized = _normalized_video_fullscreen_state(state)
+        normalized = normalize_media_video_state(state)
         for key in (
             "position_ms",
             "playback_rate",

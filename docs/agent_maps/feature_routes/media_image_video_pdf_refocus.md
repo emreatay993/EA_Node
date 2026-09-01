@@ -8,6 +8,7 @@ Use this for the active unified Media Panel, its derived image/PDF/video rendere
 - `ea_node_editor/nodes/builtins/passive_mail.py`
 - `ea_node_editor/nodes/file_dialog_filters.py`
 - `ea_node_editor/ui/media_panel_source.py`
+- `ea_node_editor/ui/media_video_state.py`
 - `ea_node_editor/ui/media_preview_provider.py`
 - `ea_node_editor/ui/pdf_preview_provider.py`
 - `ea_node_editor/ui/video_trim.py`
@@ -19,6 +20,7 @@ Use this for the active unified Media Panel, its derived image/PDF/video rendere
 - `ea_node_editor/ui_qml/components/graph/passive/GraphMediaPdfRenderer.qml`
 - `ea_node_editor/ui_qml/components/graph/passive/GraphMediaVideoRenderer.qml`
 - `ea_node_editor/ui_qml/components/graph/passive/GraphMediaVideoFullscreenRenderer.qml`
+- `ea_node_editor/ui_qml/components/graph/passive/GraphMediaVideoPlaybackCore.qml`
 - `ea_node_editor/ui_qml/components/graph/passive/GraphMailPanelSurface.qml`
 - `ea_node_editor/ui_qml/content_fullscreen_bridge.py`
 - `ea_node_editor/ui_qml/ContentFullscreenOverlay.qml`
@@ -26,6 +28,8 @@ Use this for the active unified Media Panel, its derived image/PDF/video rendere
 - `tests/test_media_panel_creation_preferences.py`
 - `tests/test_media_panel_source_resolution.py`
 - `tests/test_media_panel_qml_surface.py`
+- `tests/test_media_video_state.py`
+- `tests/fixtures/media/video-playback.mp4` — synthetic decoded-media lifecycle fixture
 - `tests/test_content_fullscreen_bridge.py`
 - `tests/test_passive_image_nodes.py`
 - `tests/test_pdf_preview_provider.py`
@@ -46,7 +50,8 @@ Use this for the active unified Media Panel, its derived image/PDF/video rendere
 - Input exposure disables the inspector Source editor, Browse, Internalize, Repair, crop Save/Replace, and trim Replace. Display actions, Open Source, fullscreen, frame capture, and valid trim Copy remain mode-gated.
 - Image crop/transform/animation state remains in `GraphMediaImageRenderer.qml`; animation ownership is loader-local and pauses/releases on proxy, crop, offscreen, fullscreen, source, or mode transitions.
 - PDF inline preview owns page clamping through `pdf_preview_provider.py`; fullscreen uses `PdfDocument`/`PdfMultiPageView`. Graph mutation does not rewrite authored page values.
-- Video bookmarks, range, playback, capture, timestamp links, and trim live in `GraphMediaVideoRenderer.qml` and the fullscreen renderer. Replace revalidates Browse authority/local source; Copy and capture create populated input-hidden Media Panels.
+- `GraphMediaVideoPlaybackCore.qml` owns the shared per-renderer player/audio, source lifecycle, seek, clip, bookmark, marker, thumbnail-primer, rate/time, and transient-state behavior. Inline retains graph-property persistence, node/capture/timestamp actions, selection/autoplay, and artifact release; fullscreen retains controls, trim calls, resume, and close-state handoff. `ui/media_video_state.py` is the single Python normalization owner.
+- Same-node fullscreen ownership clears the corresponding inline core source so only fullscreen decodes it; other inline video nodes retain independent loaded/playing cores. Closing/reopening restores paused or playing position, and nonzero paused handoffs skip thumbnail priming.
 - Inline and fullscreen consume the same effective source. Fullscreen uses `content_kind="media"` with dynamic `media_payload.media_kind` and refreshes on execution, topology, exposure, node, or workspace changes.
 - Fullscreen receives the live `ShellRunState` and execution signal from composition rather than reading `ShellWindow`. Its direct bridge tests pin retained `NodeSolutionFact` selection and current-to-running refresh; media QML tests continue to own renderer/action behavior.
 - Mail remains `passive.media.mail_panel` with authored `source_path`, provider-generated HTML, render-only inline WebEngine, and separate fullscreen behavior.
@@ -58,7 +63,7 @@ Use this for the active unified Media Panel, its derived image/PDF/video rendere
 
 ## Focused Verification
 ```powershell
-.\venv\Scripts\python.exe -m pytest tests/test_media_panel.py tests/test_media_panel_creation_preferences.py tests/test_media_panel_source_resolution.py tests/test_media_panel_qml_surface.py --ignore=venv -q
+.\venv\Scripts\python.exe -m pytest tests/test_media_panel.py tests/test_media_panel_creation_preferences.py tests/test_media_panel_source_resolution.py tests/test_media_video_state.py tests/test_media_panel_qml_surface.py --ignore=venv -q
 .\venv\Scripts\python.exe -m pytest tests/test_content_fullscreen_bridge.py tests/test_video_trim.py tests/test_project_review_deck.py tests/test_pdf_preview_provider.py tests/test_passive_image_nodes.py --ignore=venv -q
 $env:QT_QPA_PLATFORM = "offscreen"
 .\venv\Scripts\python.exe -m pytest `

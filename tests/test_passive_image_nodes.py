@@ -66,6 +66,9 @@ class MediaPanelRendererContractTests(unittest.TestCase):
         fullscreen_video_source = (
             passive_root / "GraphMediaVideoFullscreenRenderer.qml"
         ).read_text(encoding="utf-8")
+        video_playback_core_source = (
+            passive_root / "GraphMediaVideoPlaybackCore.qml"
+        ).read_text(encoding="utf-8")
 
         self.assertIn("sourceInputExposed || !cropToolAvailable", image_source)
         self.assertIn("root.surface.animationShouldPlay", image_viewport_source)
@@ -74,6 +77,9 @@ class MediaPanelRendererContractTests(unittest.TestCase):
         self.assertIn("request_create_video_frame_image_node", video_source)
         self.assertIn("function rewindToStart()", fullscreen_video_source)
         self.assertIn("sourceInputExposed", fullscreen_video_source)
+        self.assertNotIn("MediaPlayer {", video_source)
+        self.assertNotIn("MediaPlayer {", fullscreen_video_source)
+        self.assertEqual(video_playback_core_source.count("MediaPlayer {"), 1)
 
 
 class LocalMediaPreviewProviderTests(unittest.TestCase):

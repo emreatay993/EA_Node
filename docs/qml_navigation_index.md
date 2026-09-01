@@ -17,13 +17,13 @@ This compact index gives agents deterministic aliases for QML components, symbol
 
 | Metric | Count |
 | --- | ---: |
-| QML files | 170 |
+| QML files | 171 |
 | Repeater constructs | 98 |
 | Loader constructs | 24 |
-| Signal handlers | 879 |
+| Signal handlers | 881 |
 | Connections targets | 47 |
-| Property bindings | 7592 |
-| Local component refs | 270 |
+| Property bindings | 7612 |
+| Local component refs | 272 |
 
 ## Component Families
 
@@ -35,7 +35,7 @@ This compact index gives agents deterministic aliases for QML components, symbol
 | `components/graph/dpf` | 1 |
 | `components/graph/jupyter` | 1 |
 | `components/graph/overlay` | 6 |
-| `components/graph/passive` | 27 |
+| `components/graph/passive` | 28 |
 | `components/graph/plot` | 2 |
 | `components/graph/surface_controls` | 16 |
 | `components/graph/tabular` | 3 |
@@ -100,8 +100,9 @@ This compact index gives agents deterministic aliases for QML components, symbol
 | `GraphMediaImageViewport.qml` | `ea_node_editor/ui_qml/components/graph/passive/GraphMediaImageViewport.qml` | `Rectangle` | `Item`, `Image`, `Loader`, `Column`, `Text`, `GraphMediaImagePlaceholder` | `source`, `Loader`, `sourceComponent` |
 | `GraphMediaPanelSurface.qml` | `ea_node_editor/ui_qml/components/graph/passive/GraphMediaPanelSurface.qml` | `GraphShared.GraphSurfaceBase` | `Connections`, `Loader`, `Component`, `GraphMediaImageRenderer`, `GraphMediaPdfRenderer`, `GraphMediaVideoRenderer`, `Rectangle`, `Text` | `Loader`, `sourceComponent`, `Component` |
 | `GraphMediaPdfRenderer.qml` | `ea_node_editor/ui_qml/components/graph/passive/GraphMediaPdfRenderer.qml` | `GraphShared.GraphSurfaceBase` | `Rectangle`, `Text`, `Image` | `source` |
-| `GraphMediaVideoFullscreenRenderer.qml` | `ea_node_editor/ui_qml/components/graph/passive/GraphMediaVideoFullscreenRenderer.qml` | `FocusScope` | `AudioOutput`, `MediaPlayer`, `Timer`, `ColumnLayout`, `Rectangle`, `VideoOutput`, `Text`, `RowLayout`, ... +5 more | `source`, `Repeater`, `model` |
-| `GraphMediaVideoRenderer.qml` | `ea_node_editor/ui_qml/components/graph/passive/GraphMediaVideoRenderer.qml` | `GraphShared.GraphSurfaceBase` | `Connections`, `AudioOutput`, `MediaPlayer`, `Timer`, `Rectangle`, `ColumnLayout`, `VideoOutput`, `Text`, ... +4 more | `source`, `Repeater`, `model` |
+| `GraphMediaVideoFullscreenRenderer.qml` | `ea_node_editor/ui_qml/components/graph/passive/GraphMediaVideoFullscreenRenderer.qml` | `FocusScope` | `GraphMediaVideoPlaybackCore`, `ColumnLayout`, `Rectangle`, `VideoOutput`, `Text`, `RowLayout`, `Slider`, `Repeater`, ... +3 more | `Repeater`, `model` |
+| `GraphMediaVideoPlaybackCore.qml` | `ea_node_editor/ui_qml/components/graph/passive/GraphMediaVideoPlaybackCore.qml` | `Item` | `AudioOutput`, `MediaPlayer`, `Timer` | `source` |
+| `GraphMediaVideoRenderer.qml` | `ea_node_editor/ui_qml/components/graph/passive/GraphMediaVideoRenderer.qml` | `GraphShared.GraphSurfaceBase` | `Connections`, `GraphMediaVideoPlaybackCore`, `Rectangle`, `ColumnLayout`, `VideoOutput`, `Text`, `RowLayout`, `Slider`, ... +2 more | `Repeater`, `model` |
 | `GraphNativeExplorerSurface.qml` | `ea_node_editor/ui_qml/components/graph/passive/GraphNativeExplorerSurface.qml` | `Item` | `ListModel`, `Menu`, `MenuItem`, `MenuSeparator`, `Rectangle`, `Canvas`, `Text`, `Row`, ... +4 more | `ListView`, `model`, `delegate`, `source` |
 | `GraphNumberSliderSettingsPopover.qml` | `ea_node_editor/ui_qml/components/graph/passive/GraphNumberSliderSettingsPopover.qml` | `FocusScope` | `Common.DialogSurface`, `ColumnLayout`, `Common.DialogTextField`, `RowLayout`, `Text`, `Common.DialogButton`, `Item` | _None_ |
 | `GraphNumberSliderSurface.qml` | `ea_node_editor/ui_qml/components/graph/passive/GraphNumberSliderSurface.qml` | `GraphShared.GraphSurfaceBase` | `Item`, `Rectangle`, `Text`, `HoverHandler`, `Common.ManagedToolTip`, `SurfaceControls.GraphSurfaceSlider`, `Binding`, `SurfaceControls.GraphSurfaceDoubleClickTarget` | _None_ |
@@ -1146,17 +1147,35 @@ This compact index gives agents deterministic aliases for QML components, symbol
 - Root component: `FocusScope`
 - Agent route aliases: `GraphMediaVideoFullscreenRenderer`, `GraphMediaVideoFullscreenRenderer.qml`, `ea_node_editor/ui_qml/components/graph/passive/GraphMediaVideoFullscreenRenderer.qml`, `ea_node_editor\ui_qml\components\graph\passive\GraphMediaVideoFullscreenRenderer.qml`
 - Imports: `QtQuick 2.15`, `QtQuick.Controls 2.15`, `QtQuick.Layouts 1.15`, `QtMultimedia`, `"../../shell" as ShellComponents`, `"../../common/TooltipCopy.js" as TooltipCopy`, `"GraphMediaPanelSourceUtils.js" as GraphMediaPanelSourceUtils`
-- IDs: `root`, `audioOutput`, `player`, `thumbnailPrimerTimer`, `viewport`, `videoOutput`, `controls`, `seekSlider`, `playButton`, `volumeSlider`, `rateCombo`
-- Object names: `contentFullscreenVideoSurface`, `contentFullscreenVideoMediaPlayer`, `contentFullscreenVideoViewport`, `contentFullscreenVideoOutput`, `contentFullscreenVideoPlaceholder`, `contentFullscreenVideoControls`, `contentFullscreenVideoElapsedLabel`, `contentFullscreenVideoSeekSlider`, `contentFullscreenVideoSeekMarker_`, `contentFullscreenVideoDurationLabel`, `contentFullscreenVideoPlayButton`, `contentFullscreenVideoRewindButton`, `contentFullscreenVideoBackButton`, `contentFullscreenVideoForwardButton`, `contentFullscreenVideoLoopButton`, `contentFullscreenVideoMuteButton`, `contentFullscreenVideoVolumeSlider`, `contentFullscreenVideoRateCombo`, ... +7 more
-- Properties: `payload: var`, `bridgeRef: var`, `themePalette: var`, `initialPositionApplied: bool`, `resumeAfterSeek: bool`, `clipEnforcing: bool`, `thumbnailPrimerActive: bool`, `thumbnailPrimerComplete: bool`, `mutedValue: bool`, `volumeValue: real`, `playbackRateValue: real`, `loopValue: bool`, `fitModeValue: string`, `timelineBookmarksValue: var`, `clipEnabledValue: bool`, `clipStartValue: int`, `clipEndValue: int`, `activeSourceIdentity: string`, ... +14 more
+- IDs: `root`, `playback`, `viewport`, `videoOutput`, `controls`, `seekSlider`, `playButton`, `volumeSlider`, `rateCombo`
+- Object names: `contentFullscreenVideoSurface`, `contentFullscreenVideoViewport`, `contentFullscreenVideoOutput`, `contentFullscreenVideoPlaceholder`, `contentFullscreenVideoControls`, `contentFullscreenVideoElapsedLabel`, `contentFullscreenVideoSeekSlider`, `contentFullscreenVideoSeekMarker_`, `contentFullscreenVideoDurationLabel`, `contentFullscreenVideoPlayButton`, `contentFullscreenVideoRewindButton`, `contentFullscreenVideoBackButton`, `contentFullscreenVideoForwardButton`, `contentFullscreenVideoLoopButton`, `contentFullscreenVideoMuteButton`, `contentFullscreenVideoVolumeSlider`, `contentFullscreenVideoRateCombo`, `contentFullscreenVideoFitButton`, ... +6 more
+- Properties: `payload: var`, `bridgeRef: var`, `themePalette: var`, `resumeAfterSeek: bool`, `mutedValue: alias`, `volumeValue: alias`, `playbackRateValue: alias`, `loopValue: alias`, `fitModeValue: alias`, `timelineBookmarksValue: alias`, `clipEnabledValue: alias`, `clipStartValue: alias`, `clipEndValue: alias`, `activeSourceIdentity: string`, `rendererReleased: bool`, `transientState: var`, `videoPayloadActive: bool`, `sourceInputExposed: bool`, ... +10 more
 - Signals: _None_
-- Functions: `release`, `_syncFromPayload`, `_boolValue`, `_boundedNumber`, `_normalizedFitMode`, `_normalizedTimelineBookmarks`, `_statusText`, `_applyInitialPosition`, `_initialThumbnailPositionMs`, `_primeThumbnailFrame`, `_finishThumbnailPrimer`, `_maybeResumePlaying`, `togglePlayback`, `_seekTo`, `seekBy`, `rewindToStart`, `_syncSeekSlider`, `_currentPositionMs`, ... +14 more
-- Instantiates: `AudioOutput`, `MediaPlayer`, `Timer`, `ColumnLayout`, `Rectangle`, `VideoOutput`, `Text`, `RowLayout`, `Slider`, `Repeater`, `ShellComponents.ShellButton`, `ComboBox`, `Item`
-- Dynamic constructs: `source` -> `root.visible`, `root.sourceUrl`; `Repeater`; `model` -> `root._seekMarkers`; `model`
-- Signal handlers: `handler` `onVisibleChanged`; `handler` `onPayloadChanged`; `handler` `onSourceUrlChanged`; `handler` `Component.onDestruction`; `handler` `Keys.onPressed`; `handler` `onMediaStatusChanged`; `handler` `onDurationChanged`; `handler` `onPositionChanged`; `handler` `onTriggered`; `handler` `onPressedChanged`; `handler` `onMoved`; `handler` `onClicked`; `handler` `onActivated`
+- Functions: `release`, `_syncFromPayload`, `_statusText`, `togglePlayback`, `_seekTo`, `seekBy`, `rewindToStart`, `_syncSeekSlider`, `_currentPositionMs`, `_addBookmarkAtCurrentPosition`, `_setClipStartAtCurrentPosition`, `_setClipEndAtCurrentPosition`, `_clearClipRange`, `_replaceWithTrimmedClip`, `_saveTrimmedClipCopy`, `currentState`, `requestCloseWithState`
+- Instantiates: `GraphMediaVideoPlaybackCore`, `ColumnLayout`, `Rectangle`, `VideoOutput`, `Text`, `RowLayout`, `Slider`, `Repeater`, `ShellComponents.ShellButton`, `ComboBox`, `Item`
+- Dynamic constructs: `Repeater`; `model` -> `playback.seekMarkers`; `model`
+- Signal handlers: `handler` `onVisibleChanged`; `handler` `onPayloadChanged`; `handler` `Component.onDestruction`; `handler` `Keys.onPressed`; `handler` `onPositionMsChanged`; `handler` `onDurationMsChanged`; `handler` `onPressedChanged`; `handler` `onMoved`; `handler` `onClicked`; `handler` `onActivated`
 - Connections: _None_
-- Property bindings: `binding` `focus` -> `visible`; `binding` `activeFocusOnTab` -> `visible`; `binding` `Keys.priority` -> `Keys.BeforeItem`; `binding` `muted` -> `root.mutedValue`, `root.thumbnailPrimerActive`; `binding` `volume` -> `volumeSlider.pressed`, `volumeSlider.value`, `root.volumeValue`; `binding` `audioOutput` -> `audioOutput`; `binding` `videoOutput` -> `videoOutput`; `binding` `playbackRate` -> `root.playbackRateValue`; `binding` `loops` -> `root.loopValue`, `root.clipRangeActive`, `MediaPlayer.Infinite`; `binding` `interval`; `binding` `repeat`; `binding` `anchors.fill` -> `parent`; `binding` `spacing`; `binding` `Layout.fillWidth`; `binding` `Layout.fillHeight`; `binding` `radius`; `binding` `color` -> `root.themePalette.input_bg`; `binding` `border.width`; ... +52 more
-- Local component refs: `localComponent` `ShellComponents.ShellButton`: `ea_node_editor/ui_qml/components/shell/ShellButton.qml`
+- Property bindings: `binding` `focus` -> `visible`; `binding` `activeFocusOnTab` -> `visible`; `binding` `Keys.priority` -> `Keys.BeforeItem`; `binding` `sourceUrl` -> `root.sourceUrl`; `binding` `sourceEnabled` -> `root.visible`, `root.rendererReleased`; `binding` `videoOutput` -> `videoOutput`; `binding` `playerObjectName`; `binding` `initialPositionMs` -> `root.initialPositionMs`; `binding` `shouldResumePlaying` -> `root.shouldResumePlaying`; `binding` `playbackAllowed`; `binding` `thumbnailPrimingEnabled` -> `root.initialPositionMs`; `binding` `anchors.fill` -> `parent`; `binding` `spacing`; `binding` `Layout.fillWidth`; `binding` `Layout.fillHeight`; `binding` `radius`; `binding` `color` -> `root.themePalette.input_bg`; `binding` `border.width`; ... +52 more
+- Local component refs: `localComponent` `GraphMediaVideoPlaybackCore`: `ea_node_editor/ui_qml/components/graph/passive/GraphMediaVideoPlaybackCore.qml`; `localComponent` `ShellComponents.ShellButton`: `ea_node_editor/ui_qml/components/shell/ShellButton.qml`
+
+### `GraphMediaVideoPlaybackCore.qml`
+
+- Path: `ea_node_editor/ui_qml/components/graph/passive/GraphMediaVideoPlaybackCore.qml`
+- Root component: `Item`
+- Agent route aliases: `GraphMediaVideoPlaybackCore`, `GraphMediaVideoPlaybackCore.qml`, `ea_node_editor/ui_qml/components/graph/passive/GraphMediaVideoPlaybackCore.qml`, `ea_node_editor\ui_qml\components\graph\passive\GraphMediaVideoPlaybackCore.qml`
+- Imports: `QtQuick 2.15`, `QtMultimedia`
+- IDs: `root`, `audioOutput`, `player`, `thumbnailPrimerTimer`, `primerPauseGuardTimer`
+- Object names: `graphMediaVideoPlaybackCore`
+- Properties: `sourceUrl: string`, `sourceEnabled: bool`, `videoOutput: var`, `playerObjectName: string`, `muted: bool`, `volume: real`, `playbackRate: real`, `loopEnabled: bool`, `fitMode: string`, `timelineBookmarks: var`, `clipEnabled: bool`, `clipStartMs: int`, `clipEndMs: int`, `initialPositionMs: int`, `shouldResumePlaying: bool`, `playbackAllowed: bool`, `thumbnailPrimingEnabled: bool`, `released: bool`, ... +16 more
+- Signals: `positionCommitRequested`
+- Functions: `_resetSourceState`, `_scheduleSourceReadiness`, `release`, `restoreState`, `_requestedPositionMs`, `_requestedPlaying`, `applyInitialPosition`, `maybeResumePlaying`, `primeThumbnailFrame`, `finishThumbnailPrimer`, `togglePlayback`, `seekTo`, `seekBy`, `rewindToStart`, `clampedPlaybackPosition`, `enforceClipRange`, `seekMarkers`, `withBookmarkAdded`, ... +15 more
+- Instantiates: `AudioOutput`, `MediaPlayer`, `Timer`
+- Dynamic constructs: `source` -> `root.sourceActive`, `root.sourceUrl`
+- Signal handlers: `handler` `onSourceUrlChanged`; `handler` `onSourceEnabledChanged`; `handler` `onSourceActiveChanged`; `handler` `onInitialPositionMsChanged`; `handler` `Component.onDestruction`; `handler` `onMediaStatusChanged`; `handler` `onPositionChanged`; `handler` `onPlaybackStateChanged`; `handler` `onTriggered`
+- Connections: _None_
+- Property bindings: `binding` `width`; `binding` `height`; `binding` `visible`; `binding` `muted` -> `root.muted`, `root.thumbnailPrimerActive`; `binding` `volume` -> `root.volume`; `binding` `audioOutput` -> `audioOutput`; `binding` `videoOutput` -> `root.videoOutput`; `binding` `playbackRate` -> `root.playbackRate`; `binding` `loops` -> `root.loopEnabled`, `root.clipRangeActive`, `MediaPlayer.Infinite`; `binding` `interval`; `binding` `repeat`
+- Local component refs: _None_
 
 ### `GraphMediaVideoRenderer.qml`
 
@@ -1164,17 +1183,17 @@ This compact index gives agents deterministic aliases for QML components, symbol
 - Root component: `GraphShared.GraphSurfaceBase`
 - Agent route aliases: `GraphMediaVideoRenderer`, `GraphMediaVideoRenderer.qml`, `ea_node_editor/ui_qml/components/graph/passive/GraphMediaVideoRenderer.qml`, `ea_node_editor\ui_qml\components\graph\passive\GraphMediaVideoRenderer.qml`
 - Imports: `QtQuick 2.15`, `".." as GraphShared`, `QtQuick.Controls 2.15`, `QtQuick.Layouts 1.15`, `QtMultimedia`, `"../surface_controls" as GraphSurfaceControls`, `"../surface_controls/SurfaceControlGeometry.js" as SurfaceControlGeometry`, `"GraphMediaPanelSourceUtils.js" as GraphMediaPanelSourceUtils`
-- IDs: `surface`, `audioOutput`, `player`, `thumbnailPrimerTimer`, `thumbnailPrimerPauseGuardTimer`, `viewport`, `videoOutput`, `controls`, `seekSlider`, `seekRegion`
-- Object names: `graphNodeMediaVideoRenderer`, `graphNodeVideoMediaPlayer`, `graphNodeVideoViewport`, `graphNodeVideoOutput`, `graphNodeVideoPlaceholder`, `graphNodeVideoControls`, `graphNodeVideoElapsedLabel`, `graphNodeVideoSeekSlider`, `graphNodeVideoSeekMarker_`, `graphNodeVideoDurationLabel`
-- Properties: `sourceResolution: var`, `rendererReleased: bool`, `resumeAfterSeek: bool`, `initialPositionApplied: bool`, `clipEnforcing: bool`, `thumbnailPrimerActive: bool`, `thumbnailPrimerComplete: bool`, `thumbnailPrimerPauseCommitGuard: bool`, `artifactRenameReleaseActive: bool`, `artifactRenameReleaseState: var`, `artifactRenameResolveGeneration: int`, `sourcePath: string`, `sourceInputExposed: bool`, `normalizedFitMode: string`, `autoPlayEnabled: bool`, `loopEnabled: bool`, `muted: bool`, `volume: real`, ... +27 more
+- IDs: `surface`, `playback`, `viewport`, `videoOutput`, `controls`, `seekSlider`, `seekRegion`
+- Object names: `graphNodeMediaVideoRenderer`, `graphNodeVideoViewport`, `graphNodeVideoOutput`, `graphNodeVideoPlaceholder`, `graphNodeVideoControls`, `graphNodeVideoElapsedLabel`, `graphNodeVideoSeekSlider`, `graphNodeVideoSeekMarker_`, `graphNodeVideoDurationLabel`
+- Properties: `sourceResolution: var`, `rendererReleased: bool`, `resumeAfterSeek: bool`, `initialPositionApplied: alias`, `artifactRenameReleaseActive: bool`, `artifactRenameReleaseState: var`, `artifactRenameResolveGeneration: int`, `sourcePath: string`, `sourceInputExposed: bool`, `normalizedFitMode: string`, `autoPlayEnabled: bool`, `loopEnabled: bool`, `muted: bool`, `volume: real`, `playbackRate: real`, `storedPositionMs: int`, `timelineBookmarks: var`, `clipEnabled: bool`, ... +23 more
 - Signals: _None_
-- Functions: `release`, `fullscreenRuntimeState`, `onFullscreenOpened`, `onIsSelectedChanged`, `onVideoFullscreenClosed`, `onManagedArtifactRenameReleaseRequested`, `onManagedArtifactRenameReleaseFinished`, `_boundedNumber`, `_normalizedTimelineBookmarks`, `_readyOrPlayingForAction`, `readyOrPlayingForAction`, `_readyForInitialPosition`, `_normalizedFitMode`, `_iconSource`, `_beginInlineInteraction`, `_commitInlineProperty`, `_commitSurfaceProperties`, `_persistPlaybackPosition`, ... +48 more
-- Instantiates: `Connections`, `AudioOutput`, `MediaPlayer`, `Timer`, `Rectangle`, `ColumnLayout`, `VideoOutput`, `Text`, `RowLayout`, `Slider`, `Repeater`, `GraphSurfaceControls.GraphSurfaceInteractiveRegion`
-- Dynamic constructs: `source` -> `surface.effectiveResolvedSourceUrl`; `Repeater`; `model` -> `surface._seekMarkers`
-- Signal handlers: `handler` `onFullscreenOwnsPlaybackChanged`; `handler` `onHostPlaybackAllowedChanged`; `handler` `onResolvedSourceUrlChanged`; `handler` `onStoredPositionMsChanged`; `handler` `Component.onCompleted`; `handler` `Component.onDestruction`; `handler` `onMediaStatusChanged`; `handler` `onDurationChanged`; `handler` `onPositionChanged`; `handler` `onPlaybackStateChanged`; `handler` `onTriggered`; `handler` `onPressedChanged`; `handler` `onMoved`; `handler` `onControlStarted`
+- Functions: `release`, `fullscreenRuntimeState`, `onIsSelectedChanged`, `onVideoFullscreenClosed`, `onManagedArtifactRenameReleaseRequested`, `onManagedArtifactRenameReleaseFinished`, `_boundedNumber`, `_readyOrPlayingForAction`, `readyOrPlayingForAction`, `_iconSource`, `_beginInlineInteraction`, `_commitInlineProperty`, `_commitSurfaceProperties`, `_persistPlaybackPosition`, `_canvasItem`, `_canvasCommandBridge`, `_currentPositionMs`, `_sidecarScenePoint`, ... +37 more
+- Instantiates: `Connections`, `GraphMediaVideoPlaybackCore`, `Rectangle`, `ColumnLayout`, `VideoOutput`, `Text`, `RowLayout`, `Slider`, `Repeater`, `GraphSurfaceControls.GraphSurfaceInteractiveRegion`
+- Dynamic constructs: `Repeater`; `model` -> `surface._seekMarkers`
+- Signal handlers: `handler` `onResolvedSourceUrlChanged`; `handler` `onStoredPositionMsChanged`; `handler` `Component.onCompleted`; `handler` `Component.onDestruction`; `handler` `onPositionMsChanged`; `handler` `onDurationMsChanged`; `handler` `onPositionCommitRequested`; `handler` `onPressedChanged`; `handler` `onMoved`; `handler` `onControlStarted`
 - Connections: `target` `host`; `target` `fullscreenBridgeRef`; `target` `surface._canvasCommandBridge()`
-- Property bindings: `binding` `implicitHeight` -> `host`, `Number`, `host.surfaceMetrics.body_height`; `binding` `muted` -> `surface.muted`, `surface.thumbnailPrimerActive`; `binding` `volume` -> `surface.volume`; `binding` `audioOutput` -> `audioOutput`; `binding` `videoOutput` -> `videoOutput`; `binding` `playbackRate` -> `surface.playbackRate`; `binding` `loops` -> `surface.loopEnabled`, `surface.clipRangeActive`, `MediaPlayer.Infinite`; `binding` `interval`; `binding` `repeat`; `binding` `visible` -> `surface.surfaceShowFrame`; `binding` `anchors.fill` -> `parent`; `binding` `radius` -> `host`, `Number`, `host.resolvedCornerRadius`; `binding` `color` -> `host`, `Qt.darker`, `host.surfaceColor`; `binding` `border.width` -> `host`, `Number`, `host.resolvedBorderWidth`; `binding` `border.color` -> `host`, `host.isSelected`; `binding` `anchors.leftMargin` -> `surface.contentLeftMargin`; `binding` `anchors.rightMargin` -> `surface.contentRightMargin`; `binding` `anchors.topMargin` -> `surface.contentTopMargin`; ... +44 more
-- Local component refs: `localComponent` `GraphSurfaceControls.GraphSurfaceInteractiveRegion`: `ea_node_editor/ui_qml/components/graph/surface_controls/GraphSurfaceInteractiveRegion.qml`
+- Property bindings: `binding` `implicitHeight` -> `host`, `Number`, `host.surfaceMetrics.body_height`; `binding` `sourceUrl` -> `surface.effectiveResolvedSourceUrl`; `binding` `sourceEnabled` -> `surface.fullscreenOwnsPlayback`, `surface.rendererReleased`; `binding` `videoOutput` -> `videoOutput`; `binding` `playerObjectName`; `binding` `muted` -> `surface.muted`; `binding` `volume` -> `surface.volume`; `binding` `playbackRate` -> `surface.playbackRate`; `binding` `loopEnabled` -> `surface.loopEnabled`; `binding` `fitMode` -> `surface.normalizedFitMode`; `binding` `timelineBookmarks` -> `surface.timelineBookmarks`; `binding` `clipEnabled` -> `surface.clipEnabled`; `binding` `clipStartMs` -> `surface.clipStartMs`; `binding` `clipEndMs` -> `surface.clipEndMs`; `binding` `initialPositionMs` -> `surface.storedPositionMs`; `binding` `shouldResumePlaying` -> `surface.autoPlayEnabled`; `binding` `playbackAllowed` -> `surface.hostPlaybackAllowed`; `binding` `thumbnailPrimingEnabled` -> `surface.autoPlayEnabled`; ... +53 more
+- Local component refs: `localComponent` `GraphMediaVideoPlaybackCore`: `ea_node_editor/ui_qml/components/graph/passive/GraphMediaVideoPlaybackCore.qml`; `localComponent` `GraphSurfaceControls.GraphSurfaceInteractiveRegion`: `ea_node_editor/ui_qml/components/graph/surface_controls/GraphSurfaceInteractiveRegion.qml`
 
 ### `GraphNativeExplorerSurface.qml`
 

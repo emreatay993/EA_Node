@@ -17,24 +17,20 @@ GraphShared.GraphSurfaceBase {
     property var sourceResolution: ({})
     property bool rendererReleased: false
     property bool resumeAfterSeek: false
-    property bool initialPositionApplied: false
-    property bool clipEnforcing: false
-    property bool thumbnailPrimerActive: false
-    property bool thumbnailPrimerComplete: false
-    property bool thumbnailPrimerPauseCommitGuard: false
+    property alias initialPositionApplied: playback.initialPositionApplied
     property bool artifactRenameReleaseActive: false
     property var artifactRenameReleaseState: ({})
     property int artifactRenameResolveGeneration: 0
     readonly property string sourcePath: String(sourceResolution.source_ref || "")
     readonly property bool sourceInputExposed: Boolean(sourceResolution.input_exposed)
-    readonly property string normalizedFitMode: _normalizedFitMode(propValue("fit_mode"))
+    readonly property string normalizedFitMode: playback.normalizedFitMode(propValue("fit_mode"))
     readonly property bool autoPlayEnabled: propBool("auto_play", false)
     readonly property bool loopEnabled: propBool("loop", false)
     readonly property bool muted: propBool("muted", false)
     readonly property real volume: _boundedNumber("volume", 1.0, 0.0, 1.0)
     readonly property real playbackRate: _boundedNumber("playback_rate", 1.0, 0.25, 4.0)
     readonly property int storedPositionMs: Math.max(0, Math.round(propNumber("position_ms", 0)))
-    readonly property var timelineBookmarks: _normalizedTimelineBookmarks(propRaw("timeline_bookmarks", []))
+    readonly property var timelineBookmarks: playback.normalizedTimelineBookmarks(propRaw("timeline_bookmarks", []))
     readonly property bool clipEnabled: propBool("clip_enabled", false)
     readonly property int clipStartMs: Math.max(0, Math.round(propNumber("clip_start_ms", 0)))
     readonly property int clipEndMs: Math.max(0, Math.round(propNumber("clip_end_ms", 0)))
@@ -74,17 +70,14 @@ GraphShared.GraphSurfaceBase {
     readonly property string previewState: {
         if (String(sourceResolution.state || "") !== "ready" || resolvedSourceUrl.length === 0)
             return "error";
-        if (player.error !== MediaPlayer.NoError || player.mediaStatus === MediaPlayer.InvalidMedia)
+        if (playback.mediaPlayer.error !== MediaPlayer.NoError
+                || playback.mediaPlayer.mediaStatus === MediaPlayer.InvalidMedia)
             return "error";
-        if (player.mediaStatus === MediaPlayer.LoadingMedia
-                || player.mediaStatus === MediaPlayer.BufferingMedia
-                || player.mediaStatus === MediaPlayer.StalledMedia)
+        if (playback.mediaPlayer.mediaStatus === MediaPlayer.LoadingMedia
+                || playback.mediaPlayer.mediaStatus === MediaPlayer.BufferingMedia
+                || playback.mediaPlayer.mediaStatus === MediaPlayer.StalledMedia)
             return "loading";
-        if (player.mediaStatus === MediaPlayer.LoadedMedia
-                || player.mediaStatus === MediaPlayer.BufferedMedia
-                || player.mediaStatus === MediaPlayer.EndOfMedia
-                || player.playbackState === MediaPlayer.PlayingState
-                || player.playbackState === MediaPlayer.PausedState)
+        if (playback.readyOrPlaying)
             return "ready";
         return "placeholder";
     }
@@ -100,11 +93,11 @@ GraphShared.GraphSurfaceBase {
         if (validSourceActive) {
             actions.push({
                 "id": "playPause",
-                "label": player.playbackState === MediaPlayer.PlayingState ? "Pause" : "Play",
-                "icon": player.playbackState === MediaPlayer.PlayingState ? "pause" : "run",
+                "label": playback.mediaPlayer.playbackState === MediaPlayer.PlayingState ? "Pause" : "Play",
+                "icon": playback.mediaPlayer.playbackState === MediaPlayer.PlayingState ? "pause" : "run",
                 "kind": "media",
                 "enabled": true,
-                "primary": player.playbackState !== MediaPlayer.PlayingState
+                "primary": playback.mediaPlayer.playbackState !== MediaPlayer.PlayingState
             });
             actions.push({
                 "id": "rewindToStart",
@@ -200,33 +193,8 @@ GraphShared.GraphSurfaceBase {
 
     implicitHeight: host ? Number(host.surfaceMetrics.body_height || 0) : 0
 
-    onFullscreenOwnsPlaybackChanged: {
-        if (fullscreenOwnsPlayback && player.playbackState === MediaPlayer.PlayingState)
-            player.pause();
-    }
-
-    onHostPlaybackAllowedChanged: {
-        if (!hostPlaybackAllowed && player.playbackState === MediaPlayer.PlayingState)
-            player.pause();
-    }
-
     onResolvedSourceUrlChanged: {
-        initialPositionApplied = false;
-        thumbnailPrimerActive = false;
-        thumbnailPrimerComplete = false;
-        thumbnailPrimerPauseCommitGuard = false;
-        thumbnailPrimerTimer.stop();
-        thumbnailPrimerPauseGuardTimer.stop();
         seekSlider.value = 0;
-        if (rendererReleased || artifactRenameReleaseActive)
-            return;
-        var expectedSourceUrl = resolvedSourceUrl;
-        Qt.callLater(function() {
-            if (surface.resolvedSourceUrl !== expectedSourceUrl)
-                return;
-            surface._applyInitialPosition();
-            surface._maybeAutoPlay();
-        });
     }
 
     onStoredPositionMsChanged: {
@@ -236,8 +204,8 @@ GraphShared.GraphSurfaceBase {
             _applyInitialPosition();
             return;
         }
-        if (Math.abs(Number(player.position || 0) - storedPositionMs) > 250)
-            _seekTo(storedPositionMs);
+        if (Math.abs(playback.positionMs - storedPositionMs) > 250)
+            playback.seekTo(storedPositionMs);
     }
 
     Component.onCompleted: {
@@ -249,20 +217,11 @@ GraphShared.GraphSurfaceBase {
         if (rendererReleased)
             return;
         rendererReleased = true;
-        thumbnailPrimerTimer.stop();
-        thumbnailPrimerPauseGuardTimer.stop();
-        thumbnailPrimerActive = false;
-        if (player.playbackState === MediaPlayer.PlayingState)
-            player.pause();
+        playback.release();
     }
 
     function fullscreenRuntimeState() {
         return _runtimeState();
-    }
-
-    function onFullscreenOpened() {
-        if (player.playbackState === MediaPlayer.PlayingState)
-            player.pause();
     }
 
     Connections {
@@ -299,57 +258,32 @@ GraphShared.GraphSurfaceBase {
         }
     }
 
-    AudioOutput {
-        id: audioOutput
-        muted: surface.muted || surface.thumbnailPrimerActive
-        volume: surface.volume
-    }
-
-    MediaPlayer {
-        id: player
-        objectName: "graphNodeVideoMediaPlayer"
-        source: surface.effectiveResolvedSourceUrl
-        audioOutput: audioOutput
+    GraphMediaVideoPlaybackCore {
+        id: playback
+        sourceUrl: surface.effectiveResolvedSourceUrl
+        sourceEnabled: !surface.fullscreenOwnsPlayback && !surface.rendererReleased
         videoOutput: videoOutput
+        playerObjectName: "graphNodeVideoMediaPlayer"
+        muted: surface.muted
+        volume: surface.volume
         playbackRate: surface.playbackRate
-        loops: surface.loopEnabled && !surface.clipRangeActive ? MediaPlayer.Infinite : 1
+        loopEnabled: surface.loopEnabled
+        fitMode: surface.normalizedFitMode
+        timelineBookmarks: surface.timelineBookmarks
+        clipEnabled: surface.clipEnabled
+        clipStartMs: surface.clipStartMs
+        clipEndMs: surface.clipEndMs
+        initialPositionMs: surface.storedPositionMs
+        shouldResumePlaying: surface.autoPlayEnabled
+        playbackAllowed: surface.hostPlaybackAllowed
+        thumbnailPrimingEnabled: !surface.autoPlayEnabled
 
-        onMediaStatusChanged: {
-            surface._applyInitialPosition();
-            surface._maybeAutoPlay();
+        onPositionMsChanged: surface._syncSeekSlider()
+        onDurationMsChanged: surface._syncSeekSlider()
+        onPositionCommitRequested: function(positionMs) {
+            if (!surface.rendererReleased && !surface.artifactRenameReleaseActive)
+                surface._commitPosition(positionMs);
         }
-
-        onDurationChanged: surface._syncSeekSlider()
-        onPositionChanged: {
-            surface._syncSeekSlider();
-            surface._enforceClipRange();
-        }
-        onPlaybackStateChanged: {
-            if (surface.rendererReleased || surface.artifactRenameReleaseActive)
-                return;
-            if (playbackState !== MediaPlayer.PlayingState) {
-                if (surface.thumbnailPrimerActive || surface.thumbnailPrimerPauseCommitGuard) {
-                    surface.thumbnailPrimerPauseCommitGuard = false;
-                    thumbnailPrimerPauseGuardTimer.stop();
-                    return;
-                }
-                surface._commitPosition(position);
-            }
-        }
-    }
-
-    Timer {
-        id: thumbnailPrimerTimer
-        interval: 500
-        repeat: false
-        onTriggered: surface._finishThumbnailPrimer()
-    }
-
-    Timer {
-        id: thumbnailPrimerPauseGuardTimer
-        interval: 350
-        repeat: false
-        onTriggered: surface.thumbnailPrimerPauseCommitGuard = false
     }
 
     Rectangle {
@@ -431,18 +365,18 @@ GraphShared.GraphSurfaceBase {
                 objectName: "graphNodeVideoSeekSlider"
                 Layout.fillWidth: true
                 from: 0
-                to: Math.max(1, Number(player.duration || 0))
+                to: Math.max(1, playback.durationMs)
                 enabled: surface.validSourceActive
                 live: true
 
                 onPressedChanged: {
                     if (pressed) {
                         surface._beginInlineInteraction();
-                        surface.resumeAfterSeek = player.playbackState === MediaPlayer.PlayingState;
+                        surface.resumeAfterSeek = playback.mediaPlayer.playbackState === MediaPlayer.PlayingState;
                     } else {
                         surface._seekTo(value);
                         if (surface.resumeAfterSeek && surface.hostPlaybackAllowed)
-                            player.play();
+                            playback.mediaPlayer.play();
                         surface.resumeAfterSeek = false;
                         surface._commitPosition(value);
                     }
@@ -456,7 +390,7 @@ GraphShared.GraphSurfaceBase {
                     Rectangle {
                         readonly property var marker: modelData || ({})
                         readonly property real markerRatio: {
-                            var duration = Math.max(1, Number(player.duration || 0));
+                        var duration = Math.max(1, playback.durationMs);
                             return Math.max(0.0, Math.min(1.0, Number(marker.position_ms || 0) / duration));
                         }
                         objectName: "graphNodeVideoSeekMarker_" + String(marker.role || "")
@@ -477,7 +411,7 @@ GraphShared.GraphSurfaceBase {
 
             Text {
                 objectName: "graphNodeVideoDurationLabel"
-                text: surface._formatTime(player.duration)
+                text: playback.formatTime(playback.durationMs)
                 color: host ? host.inlineDrivenTextColor : "#bdc5d3"
                 font.pixelSize: 10
                 Layout.preferredWidth: 42
@@ -500,68 +434,15 @@ GraphShared.GraphSurfaceBase {
 
 
     function _boundedNumber(key, fallback, minimum, maximum) {
-        var numeric = propNumber(key, fallback);
-        return Math.max(minimum, Math.min(maximum, numeric));
-    }
-
-    function _normalizedTimelineBookmarks(value) {
-        var source = [];
-        if (Array.isArray(value))
-            source = value;
-        else if (value && value.length !== undefined) {
-            for (var sourceIndex = 0; sourceIndex < value.length; sourceIndex++)
-                source.push(value[sourceIndex]);
-        }
-        var bookmarks = [];
-        var seen = {};
-        for (var index = 0; index < source.length; index++) {
-            var item = source[index] || {};
-            var position = Math.max(0, Math.round(Number(item.position_ms || 0)));
-            var rawId = String(item.id || "").trim();
-            var bookmarkId = rawId.length > 0 ? rawId : "bookmark-" + position + "-" + index;
-            if (seen[bookmarkId])
-                continue;
-            seen[bookmarkId] = true;
-            var label = String(item.label || "").trim();
-            if (!label.length)
-                label = _formatTime(position);
-            bookmarks.push({
-                "id": bookmarkId,
-                "label": label.slice(0, 80),
-                "position_ms": position
-            });
-        }
-        bookmarks.sort(function(left, right) {
-            var leftPosition = Number(left.position_ms || 0);
-            var rightPosition = Number(right.position_ms || 0);
-            if (leftPosition !== rightPosition)
-                return leftPosition - rightPosition;
-            return String(left.label || "").localeCompare(String(right.label || ""));
-        });
-        return bookmarks.slice(0, 200);
+        return playback.boundedNumber(propNumber(key, fallback), fallback, minimum, maximum);
     }
 
     function _readyOrPlayingForAction() {
-        return player.mediaStatus === MediaPlayer.LoadedMedia
-            || player.mediaStatus === MediaPlayer.BufferedMedia
-            || player.mediaStatus === MediaPlayer.EndOfMedia
-            || player.playbackState === MediaPlayer.PlayingState
-            || player.playbackState === MediaPlayer.PausedState;
+        return playback.readyOrPlaying;
     }
 
     function readyOrPlayingForAction() {
         return _readyOrPlayingForAction();
-    }
-
-    function _readyForInitialPosition() {
-        return player.mediaStatus === MediaPlayer.LoadedMedia
-            || player.mediaStatus === MediaPlayer.BufferedMedia
-            || player.mediaStatus === MediaPlayer.EndOfMedia;
-    }
-
-    function _normalizedFitMode(value) {
-        var normalized = String(value || "contain").trim().toLowerCase();
-        return normalized === "cover" ? "cover" : "contain";
     }
 
     function _iconSource(name, size, color) {
@@ -648,7 +529,7 @@ GraphShared.GraphSurfaceBase {
     }
 
     function _currentPositionMs() {
-        return Math.max(0, Math.round(seekSlider.pressed ? seekSlider.value : Number(player.position || 0)));
+        return Math.max(0, Math.round(seekSlider.pressed ? seekSlider.value : playback.positionMs));
     }
 
     function _sidecarScenePoint(verticalOffset) {
@@ -676,7 +557,7 @@ GraphShared.GraphSurfaceBase {
 
     function _commitTimelineBookmarks(bookmarks) {
         return _commitSurfaceProperties({
-            "timeline_bookmarks": _normalizedTimelineBookmarks(bookmarks)
+            "timeline_bookmarks": playback.normalizedTimelineBookmarks(bookmarks)
         });
     }
 
@@ -775,22 +656,12 @@ GraphShared.GraphSurfaceBase {
 
     function _addBookmarkAtCurrentPosition() {
         var position = _currentPositionMs();
-        var bookmarks = timelineBookmarks.slice(0);
-        bookmarks.push({
-            "id": "bookmark-" + Date.now() + "-" + position,
-            "label": _formatTime(position),
-            "position_ms": position
-        });
-        return _commitTimelineBookmarks(bookmarks);
+        return _commitTimelineBookmarks(playback.withBookmarkAdded(position));
     }
 
     function _bookmarkIndex(bookmarkId) {
         var normalizedId = String(bookmarkId || "");
-        for (var index = 0; index < timelineBookmarks.length; index++) {
-            if (String((timelineBookmarks[index] || {}).id || "") === normalizedId)
-                return index;
-        }
-        return -1;
+        return playback.bookmarkIndex(normalizedId);
     }
 
     function _jumpToBookmark(bookmarkId) {
@@ -798,39 +669,18 @@ GraphShared.GraphSurfaceBase {
         if (index < 0)
             return false;
         _seekTo(timelineBookmarks[index].position_ms || 0);
-        _commitPosition(player.position);
+        _commitPosition(playback.positionMs);
         return true;
     }
 
     function _deleteBookmark(bookmarkId) {
-        var normalizedId = String(bookmarkId || "");
-        var next = [];
-        for (var index = 0; index < timelineBookmarks.length; index++) {
-            var bookmark = timelineBookmarks[index] || {};
-            if (String(bookmark.id || "") !== normalizedId)
-                next.push(bookmark);
-        }
-        return _commitTimelineBookmarks(next);
+        return _commitTimelineBookmarks(playback.withBookmarkDeleted(bookmarkId));
     }
 
     function _renameBookmark(bookmarkId, label) {
-        var normalizedId = String(bookmarkId || "");
-        var nextLabel = String(label || "").trim().slice(0, 80);
-        if (!nextLabel.length)
+        var next = playback.withBookmarkRenamed(bookmarkId, label);
+        if (next === null)
             return false;
-        var next = [];
-        for (var index = 0; index < timelineBookmarks.length; index++) {
-            var bookmark = timelineBookmarks[index] || {};
-            if (String(bookmark.id || "") === normalizedId) {
-                next.push({
-                    "id": String(bookmark.id || ""),
-                    "label": nextLabel,
-                    "position_ms": Math.max(0, Math.round(Number(bookmark.position_ms || 0)))
-                });
-            } else {
-                next.push(bookmark);
-            }
-        }
         return _commitTimelineBookmarks(next);
     }
 
@@ -840,26 +690,12 @@ GraphShared.GraphSurfaceBase {
 
     function _setClipStartAtCurrentPosition() {
         var position = _currentPositionMs();
-        var end = Math.max(0, Math.round(Number(clipEndMs || 0)));
-        if (end <= position)
-            end = Math.max(position + 1000, Math.round(Number(player.duration || 0)));
-        return _commitClipProperties({
-            "clip_enabled": true,
-            "clip_start_ms": position,
-            "clip_end_ms": end
-        });
+        return _commitClipProperties(playback.clipStateWithStart(position));
     }
 
     function _setClipEndAtCurrentPosition() {
         var position = _currentPositionMs();
-        var start = Math.max(0, Math.round(Number(clipStartMs || 0)));
-        if (position <= start)
-            start = Math.max(0, position - 1000);
-        return _commitClipProperties({
-            "clip_enabled": true,
-            "clip_start_ms": start,
-            "clip_end_ms": Math.max(start + 1, position)
-        });
+        return _commitClipProperties(playback.clipStateWithEnd(position));
     }
 
     function _toggleClipRange() {
@@ -869,11 +705,7 @@ GraphShared.GraphSurfaceBase {
     }
 
     function _clearClipRange() {
-        return _commitClipProperties({
-            "clip_enabled": false,
-            "clip_start_ms": 0,
-            "clip_end_ms": 0
-        });
+        return _commitClipProperties(playback.clearedClipState());
     }
 
     function _trimStatePayload() {
@@ -982,11 +814,11 @@ GraphShared.GraphSurfaceBase {
     function _statusText() {
         if (sourcePath.trim().length === 0)
             return "Choose a local video file to preview it here.";
-        if (player.error !== MediaPlayer.NoError)
-            return player.errorString && player.errorString.length > 0
-                ? player.errorString
+        if (playback.mediaPlayer.error !== MediaPlayer.NoError)
+            return playback.mediaPlayer.errorString && playback.mediaPlayer.errorString.length > 0
+                ? playback.mediaPlayer.errorString
                 : "Video could not be loaded.";
-        if (player.mediaStatus === MediaPlayer.InvalidMedia)
+        if (playback.mediaPlayer.mediaStatus === MediaPlayer.InvalidMedia)
             return "Video could not be loaded.";
         if (previewState === "loading")
             return "Loading video...";
@@ -994,63 +826,12 @@ GraphShared.GraphSurfaceBase {
     }
 
     function _applyInitialPosition() {
-        if (initialPositionApplied)
-            return;
-        if (!_readyForInitialPosition())
-            return;
-        if (storedPositionMs <= 0) {
-            _seekTo(_initialThumbnailPositionMs());
-            _primeThumbnailFrame();
-            initialPositionApplied = true;
-            _syncSeekSlider();
-            return;
-        }
-        _seekTo(storedPositionMs);
-        _primeThumbnailFrame();
-        initialPositionApplied = true;
-    }
-
-    function _initialThumbnailPositionMs() {
-        if (clipRangeActive && clipStartMs > 0)
-            return clipStartMs;
-        return 1;
-    }
-
-    function _primeThumbnailFrame() {
-        if (rendererReleased || artifactRenameReleaseActive)
-            return;
-        if (thumbnailPrimerComplete || thumbnailPrimerActive)
-            return;
-        if (!validSourceActive || autoPlayEnabled || fullscreenOwnsPlayback)
-            return;
-        if (player.playbackState === MediaPlayer.PlayingState)
-            return;
-        thumbnailPrimerComplete = true;
-        thumbnailPrimerActive = true;
-        thumbnailPrimerTimer.restart();
-        player.play();
-    }
-
-    function _finishThumbnailPrimer() {
-        if (!thumbnailPrimerActive)
-            return;
-        thumbnailPrimerPauseCommitGuard = true;
-        thumbnailPrimerPauseGuardTimer.restart();
-        player.pause();
-        thumbnailPrimerActive = false;
+        playback.applyInitialPosition();
         _syncSeekSlider();
     }
 
     function _maybeAutoPlay() {
-        if (rendererReleased || artifactRenameReleaseActive)
-            return;
-        if (!autoPlayEnabled || !hostPlaybackAllowed)
-            return;
-        if (resolvedSourceUrl.length === 0)
-            return;
-        if (player.playbackState === MediaPlayer.PlayingState)
-            return;
-        player.play();
+        playback.maybeResumePlaying();
     }
 
     // A play-button click selects the node, but host.isSelected can lag until
@@ -1067,32 +848,29 @@ GraphShared.GraphSurfaceBase {
         if (!validSourceActive || artifactRenameReleaseActive)
             return false;
         _beginInlineInteraction();
-        if (player.playbackState === MediaPlayer.PlayingState) {
-            player.pause();
-            _commitPosition(player.position);
+        if (playback.mediaPlayer.playbackState === MediaPlayer.PlayingState) {
+            playback.mediaPlayer.pause();
+            _commitPosition(playback.positionMs);
             return true;
         }
         if (!_explicitPlaybackStartAllowed())
             return false;
-        player.play();
-        return true;
+        return playback.togglePlayback();
     }
 
     function _seekTo(positionMs) {
-        var duration = Math.max(0, Number(player.duration || 0));
-        var target = _clampedPlaybackPosition(positionMs);
-        if (duration > 0)
-            target = Math.min(target, duration);
-        player.position = target;
+        var target = playback.seekTo(positionMs);
         seekSlider.value = target;
+        return target;
     }
 
     function seekBy(deltaMs) {
         if (!validSourceActive)
             return false;
         _beginInlineInteraction();
-        _seekTo(Number(player.position || 0) + Number(deltaMs || 0));
-        _commitPosition(player.position);
+        playback.seekBy(deltaMs);
+        _syncSeekSlider();
+        _commitPosition(playback.positionMs);
         return true;
     }
 
@@ -1100,80 +878,21 @@ GraphShared.GraphSurfaceBase {
         if (!validSourceActive)
             return false;
         _beginInlineInteraction();
-        _seekTo(0);
-        _commitPosition(player.position);
+        playback.rewindToStart();
+        _syncSeekSlider();
+        _commitPosition(playback.positionMs);
         return true;
     }
 
     function _syncSeekSlider() {
         if (seekSlider.pressed)
             return;
-        seekSlider.to = Math.max(1, Number(player.duration || 0));
-        seekSlider.value = Math.max(0, Number(player.position || 0));
-    }
-
-    function _clampedPlaybackPosition(positionMs) {
-        var target = Math.max(0, Math.round(Number(positionMs || 0)));
-        var duration = Math.max(0, Math.round(Number(player.duration || 0)));
-        if (duration > 0)
-            target = Math.min(target, duration);
-        if (!clipRangeActive)
-            return target;
-        var start = Math.max(0, Math.round(Number(clipStartMs || 0)));
-        var end = Math.max(start + 1, Math.round(Number(clipEndMs || 0)));
-        if (duration > 0)
-            end = Math.min(end, duration);
-        if (target < start)
-            return start;
-        if (target > end)
-            return end;
-        return target;
-    }
-
-    function _enforceClipRange() {
-        if (!clipRangeActive || clipEnforcing)
-            return;
-        var position = Math.max(0, Math.round(Number(player.position || 0)));
-        var start = Math.max(0, Math.round(Number(clipStartMs || 0)));
-        var end = Math.max(start + 1, Math.round(Number(clipEndMs || 0)));
-        var duration = Math.max(0, Math.round(Number(player.duration || 0)));
-        if (duration > 0)
-            end = Math.min(end, duration);
-        if (position < start) {
-            clipEnforcing = true;
-            _seekTo(start);
-            clipEnforcing = false;
-            return;
-        }
-        if (position >= end) {
-            clipEnforcing = true;
-            if (loopEnabled && hostPlaybackAllowed) {
-                _seekTo(start);
-                player.play();
-            } else {
-                _seekTo(end);
-                player.pause();
-                _commitPosition(end);
-            }
-            clipEnforcing = false;
-        }
+        seekSlider.to = Math.max(1, playback.durationMs);
+        seekSlider.value = playback.positionMs;
     }
 
     function _seekMarkers() {
-        var markers = [];
-        if (clipEndMs > clipStartMs) {
-            markers.push({ "role": "clip_start", "position_ms": clipStartMs });
-            markers.push({ "role": "clip_end", "position_ms": clipEndMs });
-        }
-        for (var index = 0; index < timelineBookmarks.length; index++) {
-            var bookmark = timelineBookmarks[index] || {};
-            markers.push({
-                "role": "bookmark",
-                "position_ms": Math.max(0, Math.round(Number(bookmark.position_ms || 0))),
-                "label": String(bookmark.label || "")
-            });
-        }
-        return markers;
+        return playback.seekMarkers();
     }
 
     function _commitPosition(positionMs) {
@@ -1184,19 +903,10 @@ GraphShared.GraphSurfaceBase {
     }
 
     function _runtimeState() {
-        return {
-            "position_ms": Math.max(0, Math.round(seekSlider.pressed ? seekSlider.value : player.position)),
-            "playing": player.playbackState === MediaPlayer.PlayingState,
-            "muted": surface.muted,
-            "volume": surface.volume,
-            "playback_rate": surface.playbackRate,
-            "loop": surface.loopEnabled,
-            "fit_mode": surface.normalizedFitMode,
-            "timeline_bookmarks": surface.timelineBookmarks,
-            "clip_enabled": surface.clipRangeActive,
-            "clip_start_ms": surface.clipStartMs,
-            "clip_end_ms": surface.clipEndMs
-        };
+        return playback.currentState(
+            seekSlider.pressed ? seekSlider.value : playback.positionMs,
+            surface.volume
+        );
     }
 
     function _isManagedArtifactRenameTarget(nodeId) {
@@ -1208,12 +918,6 @@ GraphShared.GraphSurfaceBase {
         if (!_isManagedArtifactRenameTarget(nodeId))
             return;
         artifactRenameReleaseState = _runtimeState();
-        thumbnailPrimerTimer.stop();
-        thumbnailPrimerPauseGuardTimer.stop();
-        thumbnailPrimerActive = false;
-        thumbnailPrimerPauseCommitGuard = false;
-        if (player.playbackState === MediaPlayer.PlayingState)
-            player.pause();
         artifactRenameReleaseActive = true;
     }
 
@@ -1223,7 +927,6 @@ GraphShared.GraphSurfaceBase {
         var state = artifactRenameReleaseState || ({});
         artifactRenameResolveGeneration += 1;
         artifactRenameReleaseActive = false;
-        initialPositionApplied = false;
         Qt.callLater(function() {
             if (!surface.artifactRenameReleaseActive)
                 surface._applyFullscreenReturnState(state);
@@ -1236,46 +939,11 @@ GraphShared.GraphSurfaceBase {
             artifactRenameReleaseState = payload;
             return;
         }
-        if (payload.position_ms !== undefined)
-            _seekTo(payload.position_ms);
-        if (Boolean(payload.playing) && hostPlaybackAllowed) {
-            player.play();
-        } else {
-            player.pause();
-            _primeThumbnailFrame();
-        }
-    }
-
-    function _rateIndex(rate) {
-        var value = Number(rate || 1.0);
-        if (value <= 0.75)
-            return 0;
-        if (value <= 1.125)
-            return 1;
-        if (value <= 1.375)
-            return 2;
-        if (value <= 1.75)
-            return 3;
-        return 4;
-    }
-
-    function _rateForIndex(index) {
-        var rates = [0.5, 1.0, 1.25, 1.5, 2.0];
-        var normalized = Math.max(0, Math.min(rates.length - 1, Number(index || 0)));
-        return rates[normalized];
+        playback.restoreState(payload);
     }
 
     function _formatTime(positionMs) {
-        var totalSeconds = Math.max(0, Math.floor(Number(positionMs || 0) / 1000));
-        var hours = Math.floor(totalSeconds / 3600);
-        var minutes = Math.floor((totalSeconds % 3600) / 60);
-        var seconds = totalSeconds % 60;
-        var secondText = seconds < 10 ? "0" + seconds : "" + seconds;
-        if (hours > 0) {
-            var minuteText = minutes < 10 ? "0" + minutes : "" + minutes;
-            return hours + ":" + minuteText + ":" + secondText;
-        }
-        return minutes + ":" + secondText;
+        return playback.formatTime(positionMs);
     }
 
     function dispatchSurfaceAction(actionId) {

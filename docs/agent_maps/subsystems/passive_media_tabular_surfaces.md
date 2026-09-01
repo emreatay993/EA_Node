@@ -13,6 +13,8 @@ Use this for passive node QML surfaces, media/image/video/PDF/mail panels, tabul
 - `ea_node_editor/passive_style_normalization.py`
 - `ea_node_editor/text_style.py`
 - `ea_node_editor/ui/media_panel_source.py` for current Media Panel source/mode resolution.
+- `ea_node_editor/ui/media_video_state.py` for canonical Python video state.
+- `ea_node_editor/ui_qml/components/graph/passive/GraphMediaVideoPlaybackCore.qml` for shared per-renderer video playback.
 
 ## Do Not Start Here
 - Graph model internals for visual-only passive surface changes.
@@ -30,7 +32,7 @@ Use this for passive node QML surfaces, media/image/video/PDF/mail panels, tabul
 - For tabular surfaces, coordinate add-on data model, preview-provider selector payloads, add-on-owned property edit adapters, and QML preview routes; `selected_object` persists the sheet/key/dataset picker value, and selected table columns persist through `tabular_selected_columns` from inline/fullscreen column-selection UI.
 - Tabular previews are async on cold caches: `GraphTabularPreviewSurface.qml` holds `previewPayload` as a refreshed property (nodeData change, late canvas/command bridge availability, plus a retry timer while `state === "loading"` or the bridge placeholder is retryable), and `TabularFullscreenSurface.qml` keeps the current rows on a `loading` window response and applies the worker result from the bridge's `tabularWindowReady` signal. Don't reintroduce synchronous describe bindings that can convert sources on the UI thread.
 - Path source editors that support both `managed_copy` and `external_link` expose a Source storage dropdown and route through the shared shell path browse bridge; this includes the input-hidden Media Panel `source` property and Tabular Input's `path` property. Current storage is value-derived: blank/external paths show External, while `temp://` and `saved://` refs show Internal. Media Panel exposes `internalizeSource` only in Browse authority; input exposure disables source editing and replacement.
-- Floating-toolbar chrome actions (`toggle_content_only`, `toggle_title`, `toggle_frame`) use hidden `show_title` / `show_frame` properties and the host chrome path. Media image transform/aspect/crop actions live in `GraphMediaImageRenderer.qml`, PDF page controls in `GraphMediaPdfRenderer.qml`, and video actions in `GraphMediaVideoRenderer.qml`; the dispatcher owns common source/exposure/fullscreen actions.
+- Floating-toolbar chrome actions (`toggle_content_only`, `toggle_title`, `toggle_frame`) use hidden `show_title` / `show_frame` properties and the host chrome path. Media image transform/aspect/crop actions live in `GraphMediaImageRenderer.qml`, PDF page controls in `GraphMediaPdfRenderer.qml`, and shared video playback/seek/clip/bookmark/primer behavior in `GraphMediaVideoPlaybackCore.qml`; inline/fullscreen renderers retain host-specific actions and the dispatcher owns common source/exposure/fullscreen actions.
 - Media Panel video bookmarks, clip range, capture, timestamp, and trim controls use the unified hidden settings superset plus presenter-created staged outputs. Copy/capture create input-hidden `media.panel` nodes, while Replace is denied whenever Source input is exposed.
 - Mail Panel previews keep the original `.eml`, `.msg`, or `.oft` as the source path and render provider-generated HTML through `GraphMailPanelSurface.qml`; `.msg` and `.oft` rich export depends on Outlook COM on Windows and should surface an unavailable/error state rather than storing preview artifacts in `.cxproj`. Fullscreen Mail renders the generated preview URL through `ContentFullscreenOverlay.qml` with Page/Width/100% zoom controls; inline Mail WebEngine stays render-only so host drag/select/resize remains available.
 - OS clipboard paste creates populated input-hidden Media Panels for image/PDF/video sources, while `.eml`/`.msg`/`.oft` remains `passive.media.mail_panel`; tabular and annotation routing is unchanged.
@@ -43,7 +45,7 @@ Use this for passive node QML surfaces, media/image/video/PDF/mail panels, tabul
 ## Focused Verification
 ```powershell
 .\venv\Scripts\python.exe -m pytest tests/test_passive_graph_surface_host.py tests/test_media_panel_qml_surface.py tests/test_passive_image_nodes.py tests/test_passive_node_contracts.py --ignore=venv -q
-.\venv\Scripts\python.exe -m pytest tests/test_media_panel.py tests/test_media_panel_source_resolution.py tests/test_content_fullscreen_bridge.py tests/test_video_trim.py tests/test_tabular_input_node.py --ignore=venv -q
+.\venv\Scripts\python.exe -m pytest tests/test_media_panel.py tests/test_media_panel_source_resolution.py tests/test_media_video_state.py tests/test_content_fullscreen_bridge.py tests/test_video_trim.py tests/test_tabular_input_node.py --ignore=venv -q
 .\venv\Scripts\python.exe -m pytest tests/test_project_review_deck.py tests/test_pdf_preview_provider.py tests/test_mail_preview_provider.py --ignore=venv -q
 .\venv\Scripts\python.exe -m pytest tests/test_graph_surface_input_controls.py tests/graph_surface/passive_host_interaction_suite.py --ignore=venv -q
 .\venv\Scripts\python.exe -m pytest tests/test_flowchart_surfaces.py tests/test_flowchart_visual_polish.py --ignore=venv -q

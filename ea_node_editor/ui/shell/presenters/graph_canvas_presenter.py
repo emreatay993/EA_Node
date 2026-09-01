@@ -40,6 +40,7 @@ from ea_node_editor.ui.media_panel_source import (
     MediaPanelSourceResolution,
     resolve_media_panel_source,
 )
+from ea_node_editor.ui.media_video_state import format_video_time
 from ea_node_editor.ui.pptx_export import (
     CanvasViewPptxExportError,
     CanvasViewPptxSlide,
@@ -527,7 +528,7 @@ class GraphCanvasPresenter(QObject):
             )
 
         position = max(0, int(position_ms or 0))
-        time_label = _format_video_timestamp(position)
+        time_label = format_video_time(position)
         try:
             node_id = str(
                 self._host.scene.create_node_from_type(
@@ -838,7 +839,7 @@ class GraphCanvasPresenter(QObject):
         self._video_trim_jobs[request_id] = (thread, worker, context)
         self._append_console_log(
             "info",
-            f"Trimming Media Panel clip ({_format_video_timestamp(start)}-{_format_video_timestamp(end)}).",
+            f"Trimming Media Panel clip ({format_video_time(start)}-{format_video_time(end)}).",
         )
         self.show_graph_hint("Trimming video clip...", 2400)
         thread.start()
@@ -1977,16 +1978,6 @@ class GraphCanvasPresenter(QObject):
 __all__ = ["GraphCanvasPresenter"]
 
 
-def _format_video_timestamp(position_ms: int) -> str:
-    total_seconds = max(0, int(position_ms) // 1000)
-    hours = total_seconds // 3600
-    minutes = (total_seconds % 3600) // 60
-    seconds = total_seconds % 60
-    if hours:
-        return f"{hours}:{minutes:02d}:{seconds:02d}"
-    return f"{minutes}:{seconds:02d}"
-
-
 def _remap_timeline_bookmarks(value: object, start_ms: int, end_ms: int) -> list[dict[str, object]]:
     raw_items = value
     if isinstance(value, str):
@@ -2010,7 +2001,7 @@ def _remap_timeline_bookmarks(value: object, start_ms: int, end_ms: int) -> list
             continue
         if position < start or position > end:
             continue
-        label = str(item.get("label", "") or "").strip() or _format_video_timestamp(position - start)
+        label = str(item.get("label", "") or "").strip() or format_video_time(position - start)
         bookmark_id = str(item.get("id", "") or "").strip() or f"bookmark-{index}-{position}"
         remapped.append(
             {
