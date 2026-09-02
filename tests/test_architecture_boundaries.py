@@ -1992,6 +1992,48 @@ class GraphArchitectureBoundaryTests(unittest.TestCase):
         self.assertNotIn("workspace_library_controller", production_source)
         self.assertNotIn("workspace_graph_edit_controller", production_source)
 
+    def test_viewer_and_plot_owners_use_explicit_dependencies_without_shell_location(
+        self,
+    ) -> None:
+        owner_paths = (
+            "ea_node_editor/ui_qml/viewer_session_bridge.py",
+            "ea_node_editor/ui_qml/viewer_control_bridge.py",
+            "ea_node_editor/ui_qml/viewer_host_service.py",
+            "ea_node_editor/ui_qml/plot_host_service.py",
+        )
+        for relative_path in owner_paths:
+            source = (REPO_ROOT / relative_path).read_text(encoding="utf-8")
+            with self.subTest(path=relative_path):
+                self.assertNotIn("_shell_window", source)
+                self.assertNotIn('shell_window: "ShellWindow', source)
+
+        composition = (
+            REPO_ROOT / "ea_node_editor/ui/shell/composition/runtime_services.py"
+        ).read_text(encoding="utf-8")
+        for direct_dependency in (
+            "execution_client_provider=execution_client_provider",
+            "active_workspace_id_provider=active_workspace_id_provider",
+            "workspace_provider=workspace_provider",
+            "model_provider=model_provider",
+            "registry_provider=registry_provider",
+            "app_preferences_controller=preferences.app_preferences_controller",
+            "save_file_dialog=presenters.shell_host_presenter.save_file_dialog",
+            "viewer_host_service=viewer_host_service",
+            "qml_engine_provider=qml_engine_provider",
+            "cycle_camera_bookmark=cycle_viewer_camera_bookmark",
+        ):
+            self.assertIn(direct_dependency, composition)
+        self.assertEqual(composition.count("_ref: list["), 2)
+        self.assertEqual(composition.count("def capture_overlay_camera_state("), 1)
+        self.assertEqual(composition.count("def cycle_viewer_camera_bookmark("), 1)
+        for retired_route in (
+            "ViewerSessionBridge(\n        host,\n        shell_window=host",
+            "ViewerControlBridge(\n        host,\n        shell_window=host",
+            "ViewerHostService(\n        host,\n        shell_window=host",
+            "PlotHostService(\n        host,\n        shell_window=host",
+        ):
+            self.assertNotIn(retired_route, composition)
+
     def test_media_panel_actions_have_one_direct_qobject_service(self) -> None:
         presenter_dir = REPO_ROOT / "ea_node_editor/ui/shell/presenters"
         self.assertFalse((presenter_dir / "graph_canvas_presenter.py").exists())

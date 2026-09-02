@@ -189,6 +189,11 @@ class _ContentFullscreenDirectTestCase(unittest.TestCase):
         self.project_path = ""
         self.script_editor = ScriptEditorModel()
         self.viewer_session_bridge = ViewerSessionBridge(
+            execution_client_provider=lambda: None,
+            active_workspace_id_provider=lambda: self.workspace_id,
+            workspace_provider=lambda workspace_id: (
+                self.model.project.workspaces.get(workspace_id)
+            ),
             scene_bridge=self.scene,
             data_types=self.registry.data_types,
         )

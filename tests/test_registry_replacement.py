@@ -876,7 +876,12 @@ def test_publication_guard_blocks_run_and_viewer_until_failed_publication_rolls_
 def test_viewer_session_bridge_refuses_active_projection_and_replaces_catalog() -> None:
     current = _registry()
     replacement = _registry(plugin_fingerprint="2" * 64)
-    bridge = ViewerSessionBridge(data_types=current.data_types)
+    bridge = ViewerSessionBridge(
+        execution_client_provider=lambda: None,
+        active_workspace_id_provider=lambda: "",
+        workspace_provider=lambda _workspace_id: None,
+        data_types=current.data_types,
+    )
     bridge._sessions = {  # noqa: SLF001
         ("ws", "node"): SimpleNamespace(
             phase="open",

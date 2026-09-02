@@ -88,6 +88,7 @@ class ShellWindowDependencyFactory:
             runtime = self.create_viewer_service_dependencies(
                 state,
                 primitives,
+                preferences_theme_status,
                 library_workspace,
                 controllers,
                 presenters,
@@ -222,6 +223,7 @@ class ShellWindowDependencyFactory:
         self,
         state: ShellStateDependencies,
         primitives: ShellPrimitiveDependencies,
+        preferences: ShellPreferencesThemeStatusDependencies,
         library_workspace: ShellLibraryWorkspaceDependencies,
         controllers: ShellControllerDependencies,
         presenters: ShellPresenterDependencies,
@@ -230,6 +232,7 @@ class ShellWindowDependencyFactory:
             self._host,
             state,
             primitives,
+            preferences,
             library_workspace,
             controllers,
             presenters,

@@ -61,7 +61,6 @@ from ea_node_editor.runtime_contracts import (
 if TYPE_CHECKING:
     from ea_node_editor.graph.project_state import ProjectData
     from ea_node_editor.nodes.registry import NodeRegistry
-    from ea_node_editor.ui.shell.window import ShellWindow
     from ea_node_editor.ui_qml.graph_scene_bridge import GraphSceneBridge
 
 _LIVE_MODE_FULL = "full"
@@ -325,13 +324,17 @@ class ViewerSessionBridge(QObject):
         self,
         parent: QObject | None = None,
         *,
-        shell_window: "ShellWindow | None" = None,
+        execution_client_provider: Callable[[], Any],
+        active_workspace_id_provider: Callable[[], str],
+        workspace_provider: Callable[[str], Any],
         scene_bridge: "GraphSceneBridge | None" = None,
         data_types: DataTypeCatalog,
         capture_overlay_camera_state: Callable[..., Any] | None = None,
     ) -> None:
         super().__init__(parent)
-        self._shell_window = shell_window
+        self._execution_client_provider = execution_client_provider
+        self._active_workspace_id_provider = active_workspace_id_provider
+        self._workspace_provider = workspace_provider
         self._scene_bridge = scene_bridge
         self._data_types = data_types
         self._sessions: dict[tuple[str, str], _ViewerSessionProjection] = {}
@@ -976,7 +979,7 @@ class ViewerSessionBridge(QObject):
                 node_ids is None or pending_node_id in node_ids
             ):
                 self._pending_query_requests.pop(request_id, None)
-        execution_client = getattr(self._shell_window, "execution_client", None)
+        execution_client = self._execution_client()
         invalidate = getattr(execution_client, "invalidate_viewer_requests", None)
         if callable(invalidate):
             invalidate(workspace_id, node_ids)
@@ -1270,7 +1273,7 @@ class ViewerSessionBridge(QObject):
         return options
 
     def _send_execution_command(self, method_name: str, **kwargs: Any) -> str:
-        execution_client = getattr(self._shell_window, "execution_client", None)
+        execution_client = self._execution_client()
         method = getattr(execution_client, method_name, None)
         if not callable(method):
             self._set_last_error(f"Execution client does not support {method_name}.")
@@ -1285,6 +1288,12 @@ class ViewerSessionBridge(QObject):
             return ""
         self._set_last_error("")
         return _string(request_id)
+
+    def _execution_client(self) -> Any:
+        try:
+            return self._execution_client_provider()
+        except Exception:  # noqa: BLE001
+            return None
 
     def _send_materialize_command(
         self,
@@ -1403,12 +1412,8 @@ class ViewerSessionBridge(QObject):
             workspace_id = _string(getattr(self._scene_bridge, "workspace_id", ""))
             if workspace_id:
                 return workspace_id
-        workspace_manager = getattr(self._shell_window, "workspace_manager", None)
-        active_workspace_id = getattr(workspace_manager, "active_workspace_id", None)
-        if not callable(active_workspace_id):
-            return ""
         try:
-            return _string(active_workspace_id())
+            return _string(self._active_workspace_id_provider())
         except Exception:  # noqa: BLE001
             return ""
 
@@ -1707,15 +1712,10 @@ class ViewerSessionBridge(QObject):
         self._sync_live_modes(workspace_id)
 
     def _workspace_node_ids(self, workspace_id: str) -> set[str] | None:
-        shell_window = self._shell_window
-        if shell_window is None:
+        try:
+            workspace = self._workspace_provider(workspace_id)
+        except Exception:  # noqa: BLE001
             return None
-        model = getattr(shell_window, "model", None)
-        project = getattr(model, "project", None)
-        workspaces = getattr(project, "workspaces", None)
-        if not isinstance(workspaces, dict):
-            return None
-        workspace = workspaces.get(workspace_id)
         if workspace is None:
             return None
         nodes = getattr(workspace, "nodes", None)

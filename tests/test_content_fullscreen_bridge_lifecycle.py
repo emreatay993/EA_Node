@@ -69,6 +69,11 @@ class ContentFullscreenBridgeLifecycleTests(unittest.TestCase):
         self.run_state = ShellRunState()
         self.script_editor = ScriptEditorModel()
         self.viewer_session_bridge = ViewerSessionBridge(
+            execution_client_provider=lambda: None,
+            active_workspace_id_provider=lambda: self.current_workspace_id,
+            workspace_provider=lambda workspace_id: (
+                self.current_model.project.workspaces.get(workspace_id)
+            ),
             scene_bridge=self.scene,
             data_types=self.current_registry.data_types,
         )

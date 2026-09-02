@@ -31,7 +31,6 @@ from ea_node_editor.ui_qml.viewer_widget_binder import (
 )
 
 if TYPE_CHECKING:
-    from ea_node_editor.ui.shell.window import ShellWindow
     from ea_node_editor.ui_qml.content_fullscreen_bridge import ContentFullscreenBridge
     from ea_node_editor.ui_qml.viewer_session_bridge import ViewerSessionBridge
 
@@ -516,14 +515,20 @@ class ViewerHostService(QObject):
         self,
         parent: QObject | None = None,
         *,
-        shell_window: "ShellWindow | None" = None,
+        qml_engine_provider: Callable[[], Any],
+        save_file_dialog: Callable[..., str],
+        cycle_camera_bookmark: Callable[[str, int], bool],
         viewer_session_bridge: "ViewerSessionBridge | None" = None,
         content_fullscreen_bridge: "ContentFullscreenBridge",
         overlay_manager: EmbeddedViewerOverlayManager | None = None,
         preview_cache_provider: ViewerPreviewCacheImageProvider | None = None,
     ) -> None:
         super().__init__(parent)
-        self._shell_window = shell_window
+        self._qml_engine_provider: Callable[[], Any] | None = qml_engine_provider
+        self._save_file_dialog: Callable[..., str] | None = save_file_dialog
+        self._cycle_camera_bookmark: Callable[[str, int], bool] | None = (
+            cycle_camera_bookmark
+        )
         self._viewer_session_bridge = viewer_session_bridge
         self._overlay_manager = overlay_manager
         self._preview_cache_provider = preview_cache_provider
@@ -1282,8 +1287,7 @@ class ViewerHostService(QObject):
         return sanitized or "viewer_screenshot.png"
 
     def _pick_screenshot_path(self, suggested_name: str) -> str:
-        presenter = getattr(self._shell_window, "shell_host_presenter", None)
-        picker = getattr(presenter, "save_file_dialog", None)
+        picker = self._save_file_dialog
         if not callable(picker):
             return ""
         try:
@@ -1530,7 +1534,9 @@ class ViewerHostService(QObject):
         self._overlay_manager = None
         self._content_fullscreen_bridge = None
         self._viewer_session_bridge = None
-        self._shell_window = None
+        self._qml_engine_provider = None
+        self._save_file_dialog = None
+        self._cycle_camera_bookmark = None
         self._set_last_error("")
         self.state_changed.emit()
 
@@ -1549,9 +1555,13 @@ class ViewerHostService(QObject):
         self._schedule_sync()
 
     def _qml_engine(self) -> Any:
-        qml_host = getattr(self._shell_window, "qml_host", None)
-        engine = getattr(qml_host, "engine", None) if qml_host is not None else None
-        return engine() if callable(engine) else None
+        provider = self._qml_engine_provider
+        if provider is None:
+            return None
+        try:
+            return provider()
+        except Exception:  # noqa: BLE001
+            return None
 
     def _ensure_detached_window(
         self,
@@ -2363,8 +2373,7 @@ class ViewerHostService(QObject):
         if key == Qt.Key.Key_R:
             return self.apply_standard_view(node_id, "iso")
         if key in {Qt.Key.Key_PageUp, Qt.Key.Key_PageDown}:
-            control_bridge = getattr(self._shell_window, "viewer_control_bridge", None)
-            cycle = getattr(control_bridge, "cycle_viewer_camera_bookmark", None)
+            cycle = self._cycle_camera_bookmark
             if callable(cycle):
                 return bool(cycle(node_id, -1 if key == Qt.Key.Key_PageUp else 1))
         return False

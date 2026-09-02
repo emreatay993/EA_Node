@@ -118,25 +118,56 @@ class _AppPreferencesControllerStub:
 
 class ViewerControlBridgeTests(unittest.TestCase):
     def setUp(self) -> None:
-        self.node = SimpleNamespace(properties={}, title="Viewer")
+        self.node = SimpleNamespace(
+            properties={}, title="Viewer", type_id="tests.viewer"
+        )
         self.workspace = SimpleNamespace(nodes={"node": self.node})
-        manager = SimpleNamespace(active_workspace_id=lambda: "workspace")
         self.host = _ViewerHostStub()
         self.preferences = _AppPreferencesControllerStub()
-        shell = SimpleNamespace(
-            workspace_manager=manager,
-            model=SimpleNamespace(project=SimpleNamespace(workspaces={"workspace": self.workspace})),
-            viewer_host_service=self.host,
-            app_preferences_controller=self.preferences,
+        self.preferences_host = QObject()
+        self.current_model = SimpleNamespace(
+            project=SimpleNamespace(workspaces={"workspace": self.workspace})
         )
+        self.current_registry = SimpleNamespace(
+            spec_or_none=lambda _type_id: SimpleNamespace(surface_family="viewer")
+        )
+        self.provider_calls = {
+            "active": 0,
+            "workspace": 0,
+            "model": 0,
+            "registry": 0,
+        }
+
+        def active_workspace_id_provider() -> str:
+            self.provider_calls["active"] += 1
+            return "workspace"
+
+        def workspace_provider(workspace_id: str):  # noqa: ANN202
+            self.provider_calls["workspace"] += 1
+            return self.current_model.project.workspaces.get(workspace_id)
+
+        def model_provider():  # noqa: ANN202
+            self.provider_calls["model"] += 1
+            return self.current_model
+
+        def registry_provider():  # noqa: ANN202
+            self.provider_calls["registry"] += 1
+            return self.current_registry
+
         self.scene = _SceneBridgeStub(self.node)
         self.session = _SessionBridgeStub()
         self.bridge = ViewerControlBridge(
-            shell_window=shell,
+            self.preferences_host,
+            active_workspace_id_provider=active_workspace_id_provider,
+            workspace_provider=workspace_provider,
+            model_provider=model_provider,
+            registry_provider=registry_provider,
+            app_preferences_controller=self.preferences,
+            save_file_dialog=lambda **_kwargs: "",
+            viewer_host_service=self.host,
             scene_bridge=self.scene,
             viewer_session_bridge=self.session,
         )
-        self.shell = shell
 
     def test_node_scoped_options_include_new_render_and_orientation_values(self) -> None:
         changed: list[str] = []
@@ -171,6 +202,53 @@ class ViewerControlBridgeTests(unittest.TestCase):
         self.assertTrue(changed)
         self.assertEqual(set(changed), {"node"})
 
+    def test_direct_providers_follow_model_and_registry_replacement_and_fail_closed(
+        self,
+    ) -> None:
+        resolved = self.bridge._node_properties("node")  # noqa: SLF001
+        self.assertIsNotNone(resolved)
+        self.assertIs(resolved[1], self.node)
+        self.assertEqual(
+            self.provider_calls,
+            {"active": 1, "workspace": 1, "model": 1, "registry": 1},
+        )
+
+        replacement_node = SimpleNamespace(
+            properties={"representation": "surface"},
+            title="Replacement",
+            type_id="tests.viewer.replacement",
+        )
+        replacement_workspace = SimpleNamespace(nodes={"node": replacement_node})
+        self.current_model = SimpleNamespace(
+            project=SimpleNamespace(workspaces={"workspace": replacement_workspace})
+        )
+        self.current_registry = SimpleNamespace(
+            spec_or_none=lambda _type_id: SimpleNamespace(surface_family="viewer")
+        )
+        replaced = self.bridge._node_properties("node")  # noqa: SLF001
+        self.assertIsNotNone(replaced)
+        self.assertIs(replaced[1], replacement_node)
+        self.assertEqual(
+            self.provider_calls,
+            {"active": 2, "workspace": 2, "model": 2, "registry": 2},
+        )
+
+        self.current_registry = SimpleNamespace(
+            spec_or_none=lambda _type_id: SimpleNamespace(surface_family="table")
+        )
+        self.assertIsNone(self.bridge._node_properties("node"))  # noqa: SLF001
+        self.assertEqual(
+            self.provider_calls,
+            {"active": 3, "workspace": 3, "model": 3, "registry": 3},
+        )
+
+        self.scene.workspace_id = "different-workspace"
+        self.assertIsNone(self.bridge._active_workspace())  # noqa: SLF001
+        self.assertEqual(
+            self.provider_calls,
+            {"active": 4, "workspace": 3, "model": 3, "registry": 3},
+        )
+
     def test_selection_filter_is_runtime_only_and_tangent_angle_is_app_wide(self) -> None:
         self.assertTrue(self.bridge.set_viewer_option("node", "selection_filter", "CAD_FACE"))
         self.assertEqual(self.host.selection_filters, [("node", "cad_face")])
@@ -187,7 +265,7 @@ class ViewerControlBridgeTests(unittest.TestCase):
             [
                 (
                     {"engineering_viewer": {"tangent_selection_angle_degrees": 90.0}},
-                    self.shell,
+                    self.preferences_host,
                 )
             ],
         )

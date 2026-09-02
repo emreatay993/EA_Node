@@ -24,6 +24,9 @@ if TYPE_CHECKING:
     from ea_node_editor.ui.shell.composition.presenters import (
         ShellPresenterDependencies,
     )
+    from ea_node_editor.ui.shell.composition.preferences import (
+        ShellPreferencesThemeStatusDependencies,
+    )
     from ea_node_editor.ui.shell.composition.primitives import ShellPrimitiveDependencies
     from ea_node_editor.ui.shell.composition.state import ShellStateDependencies
     from ea_node_editor.ui.shell.window import ShellWindow
@@ -57,11 +60,36 @@ def create_viewer_service_dependencies(
     host: "ShellWindow",
     state: "ShellStateDependencies",
     primitives: "ShellPrimitiveDependencies",
+    preferences: "ShellPreferencesThemeStatusDependencies",
     library_workspace: "ShellLibraryWorkspaceDependencies",
     controllers: "ShellControllerDependencies",
     presenters: "ShellPresenterDependencies",
 ) -> ShellRuntimeDependencies:
     viewer_host_service_ref: list[ViewerHostService | None] = [None]
+    viewer_control_bridge_ref: list[ViewerControlBridge | None] = [None]
+
+    def model_provider():  # noqa: ANN202
+        return host.model
+
+    def registry_provider():  # noqa: ANN202
+        return host.registry
+
+    def active_workspace_id_provider() -> str:
+        return str(host.workspace_manager.active_workspace_id() or "")
+
+    def workspace_provider(workspace_id: str):  # noqa: ANN202
+        return model_provider().project.workspaces.get(str(workspace_id or ""))
+
+    def active_workspace_provider():  # noqa: ANN202
+        return workspace_provider(active_workspace_id_provider())
+
+    def execution_client_provider():  # noqa: ANN202
+        return host.execution_client
+
+    def qml_engine_provider():  # noqa: ANN202
+        qml_host = getattr(host, "qml_host", None)
+        engine = getattr(qml_host, "engine", None) if qml_host is not None else None
+        return engine() if callable(engine) else None
 
     def capture_overlay_camera_state(node_id: str, *, workspace_id: str = ""):  # noqa: ANN202
         viewer_host_service = viewer_host_service_ref[0]
@@ -72,30 +100,26 @@ def create_viewer_service_dependencies(
             workspace_id=workspace_id,
         )
 
+    def cycle_viewer_camera_bookmark(node_id: str, direction: int) -> bool:
+        viewer_control_bridge = viewer_control_bridge_ref[0]
+        if viewer_control_bridge is None:
+            return False
+        return bool(
+            viewer_control_bridge.cycle_viewer_camera_bookmark(node_id, direction)
+        )
+
     viewer_session_bridge = ViewerSessionBridge(
         host,
-        shell_window=host,
+        execution_client_provider=execution_client_provider,
+        active_workspace_id_provider=active_workspace_id_provider,
+        workspace_provider=workspace_provider,
         scene_bridge=primitives.scene,
         data_types=primitives.registry.data_types,
         capture_overlay_camera_state=capture_overlay_camera_state,
     )
 
-    def model_provider():  # noqa: ANN202
-        return host.model
-
-    def active_workspace_provider():  # noqa: ANN202
-        model = model_provider()
-        workspace_id = active_workspace_id_provider()
-        return model.project.workspaces.get(workspace_id)
-
     def project_provider():  # noqa: ANN202
         return model_provider().project
-
-    def registry_provider():  # noqa: ANN202
-        return host.registry
-
-    def active_workspace_id_provider() -> str:
-        return str(host.workspace_manager.active_workspace_id() or "")
 
     def project_context_provider() -> tuple[str | None, dict[str, Any] | None]:
         model = model_provider()
@@ -169,7 +193,9 @@ def create_viewer_service_dependencies(
     )
     viewer_host_service = ViewerHostService(
         host,
-        shell_window=host,
+        qml_engine_provider=qml_engine_provider,
+        save_file_dialog=presenters.shell_host_presenter.save_file_dialog,
+        cycle_camera_bookmark=cycle_viewer_camera_bookmark,
         viewer_session_bridge=viewer_session_bridge,
         content_fullscreen_bridge=content_fullscreen_bridge,
         preview_cache_provider=primitives._viewer_preview_cache_provider,
@@ -177,13 +203,20 @@ def create_viewer_service_dependencies(
     viewer_host_service_ref[0] = viewer_host_service
     viewer_control_bridge = ViewerControlBridge(
         host,
-        shell_window=host,
+        active_workspace_id_provider=active_workspace_id_provider,
+        workspace_provider=workspace_provider,
+        model_provider=model_provider,
+        registry_provider=registry_provider,
+        app_preferences_controller=preferences.app_preferences_controller,
+        save_file_dialog=presenters.shell_host_presenter.save_file_dialog,
+        viewer_host_service=viewer_host_service,
         scene_bridge=primitives.scene,
         viewer_session_bridge=viewer_session_bridge,
     )
+    viewer_control_bridge_ref[0] = viewer_control_bridge
     plot_host_service = PlotHostService(
         host,
-        shell_window=host,
+        active_workspace_id_provider=active_workspace_id_provider,
         scene_bridge=primitives.scene,
         content_fullscreen_bridge=content_fullscreen_bridge,
         preview_cache_provider=primitives._plot_preview_cache_provider,

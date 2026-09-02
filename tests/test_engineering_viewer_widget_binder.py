@@ -1617,6 +1617,9 @@ class EngineeringViewerWidgetBinderTests(unittest.TestCase):
 
     def test_viewer_host_registers_engineering_binder(self) -> None:
         host = ViewerHostService(
+            qml_engine_provider=lambda: None,
+            save_file_dialog=lambda **_kwargs: "",
+            cycle_camera_bookmark=lambda _node_id, _direction: False,
             content_fullscreen_bridge=_FakeContentFullscreenBridge(),  # type: ignore[arg-type]
         )
         try:

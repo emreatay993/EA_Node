@@ -6,7 +6,7 @@ from __future__ import annotations
 
 import copy
 import math
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from datetime import datetime
 from typing import TYPE_CHECKING, Any
 
@@ -42,7 +42,6 @@ from ea_node_editor.nodes.builtins.ansys_dpf_common import (
 )
 
 if TYPE_CHECKING:
-    from ea_node_editor.ui.shell.window import ShellWindow
     from ea_node_editor.ui_qml.graph_scene_bridge import GraphSceneBridge
     from ea_node_editor.ui_qml.viewer_session_bridge import ViewerSessionBridge
 
@@ -168,12 +167,26 @@ class ViewerControlBridge(QObject):
         self,
         parent: QObject | None = None,
         *,
-        shell_window: "ShellWindow | None" = None,
+        active_workspace_id_provider: Callable[[], str],
+        workspace_provider: Callable[[str], Any],
+        model_provider: Callable[[], Any],
+        registry_provider: Callable[[], Any],
+        app_preferences_controller: Any,
+        save_file_dialog: Callable[..., str],
+        viewer_host_service: Any,
         scene_bridge: "GraphSceneBridge | None" = None,
         viewer_session_bridge: "ViewerSessionBridge | None" = None,
     ) -> None:
         super().__init__(parent)
-        self._shell_window = shell_window
+        self._active_workspace_id_provider: Callable[[], str] | None = (
+            active_workspace_id_provider
+        )
+        self._workspace_provider: Callable[[str], Any] | None = workspace_provider
+        self._model_provider: Callable[[], Any] | None = model_provider
+        self._registry_provider: Callable[[], Any] | None = registry_provider
+        self._app_preferences_controller = app_preferences_controller
+        self._save_file_dialog: Callable[..., str] | None = save_file_dialog
+        self._viewer_host_service = viewer_host_service
         self._scene_bridge = scene_bridge
         self._viewer_session_bridge = viewer_session_bridge
         self._bookmark_indices: dict[tuple[str, str], int] = {}
@@ -190,7 +203,13 @@ class ViewerControlBridge(QObject):
     def shutdown(self) -> None:
         self._bookmark_indices.clear()
         self._bookmark_session_ids.clear()
-        self._shell_window = None
+        self._active_workspace_id_provider = None
+        self._workspace_provider = None
+        self._model_provider = None
+        self._registry_provider = None
+        self._app_preferences_controller = None
+        self._save_file_dialog = None
+        self._viewer_host_service = None
         self._scene_bridge = None
         self._viewer_session_bridge = None
 
@@ -226,22 +245,45 @@ class ViewerControlBridge(QObject):
         self.viewer_query_completed.emit(str(node_id or ""), dict(result or {}))
 
     def _active_workspace(self) -> tuple[str, Any] | None:
-        shell_window = self._shell_window
         scene_bridge = self._scene_bridge
-        scene_workspace_id = str(getattr(scene_bridge, "workspace_id", "") or "").strip()
-        manager = getattr(shell_window, "workspace_manager", None) if shell_window is not None else None
+        scene_workspace_id = str(
+            getattr(scene_bridge, "workspace_id", "") or ""
+        ).strip()
+        active_workspace_id_provider = self._active_workspace_id_provider
         manager_workspace_id = ""
-        active_workspace_id = getattr(manager, "active_workspace_id", None)
-        if callable(active_workspace_id):
-            manager_workspace_id = str(active_workspace_id() or "").strip()
-        if scene_workspace_id and manager_workspace_id and scene_workspace_id != manager_workspace_id:
+        if active_workspace_id_provider is not None:
+            try:
+                manager_workspace_id = str(
+                    active_workspace_id_provider() or ""
+                ).strip()
+            except Exception:  # noqa: BLE001
+                return None
+        if (
+            scene_workspace_id
+            and manager_workspace_id
+            and scene_workspace_id != manager_workspace_id
+        ):
             return None
         workspace_id = scene_workspace_id or manager_workspace_id
-        model = getattr(shell_window, "model", None) if shell_window is not None else None
+        model_provider = self._model_provider
+        workspace_provider = self._workspace_provider
+        if not workspace_id or model_provider is None or workspace_provider is None:
+            return None
+        try:
+            model = model_provider()
+            workspace = workspace_provider(workspace_id)
+        except Exception:  # noqa: BLE001
+            return None
         project = getattr(model, "project", None)
-        workspaces = getattr(project, "workspaces", {}) if project is not None else {}
-        workspace = workspaces.get(workspace_id) if workspace_id else None
-        return (workspace_id, workspace) if workspace_id and workspace is not None else None
+        workspaces = (
+            getattr(project, "workspaces", {}) if project is not None else {}
+        )
+        if (
+            not isinstance(workspaces, Mapping)
+            or workspaces.get(workspace_id) is not workspace
+        ):
+            return None
+        return (workspace_id, workspace) if workspace is not None else None
 
     def _node_properties(self, node_id: str) -> tuple[str, Any, dict[str, Any]] | None:
         active = self._active_workspace()
@@ -251,8 +293,16 @@ class ViewerControlBridge(QObject):
         node = workspace.nodes.get(str(node_id or "").strip())
         if node is None:
             return None
-        registry = getattr(self._shell_window, "registry", None)
-        spec_or_none = getattr(registry, "spec_or_none", None) if registry is not None else None
+        registry_provider = self._registry_provider
+        try:
+            registry = registry_provider() if registry_provider is not None else None
+        except Exception:  # noqa: BLE001
+            registry = None
+        spec_or_none = (
+            getattr(registry, "spec_or_none", None)
+            if registry is not None
+            else None
+        )
         if callable(spec_or_none):
             spec = spec_or_none(str(getattr(node, "type_id", "") or ""))
             if spec is None or str(getattr(spec, "surface_family", "") or "") != "viewer":
@@ -283,12 +333,6 @@ class ViewerControlBridge(QObject):
             sync(str(node_id or ""), key, value, {"workspace_id": active[0]})
         except Exception:  # noqa: BLE001
             pass
-
-    def _viewer_host_service(self) -> Any:
-        return getattr(self._shell_window, "viewer_host_service", None)
-
-    def _app_preferences_controller(self) -> Any:
-        return getattr(self._shell_window, "app_preferences_controller", None)
 
     def _session_state(self, node_id: str) -> dict[str, Any]:
         bridge = self._viewer_session_bridge
@@ -324,7 +368,7 @@ class ViewerControlBridge(QObject):
         normalized_value = coercer(value)
         if option_key == "selection_filter":
             setter = getattr(
-                self._viewer_host_service(),
+                self._viewer_host_service,
                 "set_viewer_selection_filter",
                 None,
             )
@@ -347,7 +391,7 @@ class ViewerControlBridge(QObject):
 
     @pyqtSlot(result=float)
     def viewer_tangent_selection_angle_degrees(self) -> float:
-        controller = self._app_preferences_controller()
+        controller = self._app_preferences_controller
         getter = getattr(controller, "graphics_settings", None)
         if not callable(getter):
             return 5.0
@@ -362,7 +406,7 @@ class ViewerControlBridge(QObject):
 
     @pyqtSlot(float, result=bool)
     def set_viewer_tangent_selection_angle_degrees(self, value: float) -> bool:
-        controller = self._app_preferences_controller()
+        controller = self._app_preferences_controller
         update = getattr(controller, "update_graphics_settings", None)
         if not callable(update):
             return False
@@ -374,7 +418,7 @@ class ViewerControlBridge(QObject):
         try:
             update(
                 {"engineering_viewer": {"tangent_selection_angle_degrees": angle}},
-                host=self._shell_window,
+                host=self.parent(),
             )
         except Exception:  # noqa: BLE001
             return False
@@ -403,7 +447,7 @@ class ViewerControlBridge(QObject):
 
     @pyqtSlot(str, str, result=bool)
     def save_viewer_camera_bookmark(self, node_id: str, name: str) -> bool:
-        host_service = self._viewer_host_service()
+        host_service = self._viewer_host_service
         snapshot = getattr(host_service, "camera_state_snapshot", None)
         if not callable(snapshot):
             return False
@@ -444,7 +488,7 @@ class ViewerControlBridge(QObject):
         normalized_index = int(index)
         if normalized_index < 0 or normalized_index >= len(bookmarks):
             return False
-        host_service = self._viewer_host_service()
+        host_service = self._viewer_host_service
         apply_state = getattr(host_service, "apply_overlay_camera_state", None)
         camera_state = dict(bookmarks[normalized_index]["camera_state"])
         if not callable(apply_state):
@@ -571,7 +615,7 @@ class ViewerControlBridge(QObject):
 
     @pyqtSlot(str, str, result=bool)
     def save_current_viewer_selection(self, node_id: str, name: str) -> bool:
-        host_service = self._viewer_host_service()
+        host_service = self._viewer_host_service
         snapshot = getattr(host_service, "viewer_selection_snapshot", None)
         if not callable(snapshot):
             return False
@@ -638,7 +682,7 @@ class ViewerControlBridge(QObject):
         if normalized_index < 0 or normalized_index >= len(selections["selections"]):
             return False
         selection = selections["selections"][normalized_index]
-        activate = getattr(self._viewer_host_service(), "activate_viewer_selection", None)
+        activate = getattr(self._viewer_host_service, "activate_viewer_selection", None)
         if not callable(activate):
             return False
         try:
@@ -718,8 +762,7 @@ class ViewerControlBridge(QObject):
         if resolved is None:
             return {"supported": False, "value": {}, "explanation": "The viewer node is unavailable."}
         suffix, file_filter = filters[normalized]
-        presenter = getattr(self._shell_window, "shell_host_presenter", None)
-        picker = getattr(presenter, "save_file_dialog", None)
+        picker = self._save_file_dialog
         if not callable(picker):
             return {"supported": False, "value": {}, "explanation": "The export file picker is unavailable."}
         title = str(getattr(resolved[1], "title", "") or "engineering_viewer")

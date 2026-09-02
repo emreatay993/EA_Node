@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from types import SimpleNamespace
-
 from PyQt6.QtCore import QObject, pyqtSignal
 from PyQt6.QtWidgets import QWidget
 
@@ -145,7 +143,7 @@ def _service(
     binder: _FakePlotBinder,
 ) -> PlotHostService:
     service = PlotHostService(
-        shell_window=SimpleNamespace(),
+        active_workspace_id_provider=lambda: scene.workspace_id,
         scene_bridge=scene,
         content_fullscreen_bridge=_FakeContentFullscreenBridge(),  # type: ignore[arg-type]
         overlay_manager=overlay_manager,  # type: ignore[arg-type]

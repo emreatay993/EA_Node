@@ -413,9 +413,25 @@ class ViewerSessionBridgeUnitTests(unittest.TestCase):
     def setUp(self) -> None:
         self.host = _HostStub()
         self.data_types = core_data_type_catalog()
+        self.provider_calls = {"execution": 0, "active": 0, "workspace": 0}
+
+        def execution_client_provider():  # noqa: ANN202
+            self.provider_calls["execution"] += 1
+            return self.host.execution_client
+
+        def active_workspace_id_provider() -> str:
+            self.provider_calls["active"] += 1
+            return "ws_main"
+
+        def workspace_provider(workspace_id: str):  # noqa: ANN202
+            self.provider_calls["workspace"] += 1
+            return self.host.model.project.workspaces.get(workspace_id)
+
         self.bridge = ViewerSessionBridge(
             self.host,
-            shell_window=self.host,
+            execution_client_provider=execution_client_provider,
+            active_workspace_id_provider=active_workspace_id_provider,
+            workspace_provider=workspace_provider,
             scene_bridge=self.host.scene,
             data_types=self.data_types,
             capture_overlay_camera_state=self.host.capture_overlay_camera_state,
@@ -431,6 +447,41 @@ class ViewerSessionBridgeUnitTests(unittest.TestCase):
         self.assertNotIn("base64.b85decode", facade_text)
         self.assertNotIn("zlib.decompress", facade_text)
         self.assertIn("class ViewerSessionBridge", facade_text)
+
+    def test_direct_providers_are_lazy_counted_and_follow_workspace_replacement(
+        self,
+    ) -> None:
+        self.assertIs(self.bridge._execution_client(), self.host.execution_client)  # noqa: SLF001
+        self.assertEqual(
+            self.provider_calls, {"execution": 1, "active": 0, "workspace": 0}
+        )
+
+        self.host.scene.workspace_id = ""
+        self.assertEqual(self.bridge.active_workspace_id, "ws_main")
+        self.assertEqual(
+            self.bridge._workspace_node_ids("ws_main"),  # noqa: SLF001
+            {
+                "node_viewer",
+                "node_viewer_b",
+                "node_viewer_restore",
+                "node_viewer_other",
+            },
+        )
+        self.assertEqual(
+            self.provider_calls, {"execution": 1, "active": 1, "workspace": 1}
+        )
+
+        replacement_workspace = _WorkspaceState(nodes={"replacement": object()})
+        self.host.model = _ModelState(
+            project=_ProjectState(workspaces={"ws_main": replacement_workspace})
+        )
+        self.assertEqual(
+            self.bridge._workspace_node_ids("ws_main"),  # noqa: SLF001
+            {"replacement"},
+        )
+        self.assertEqual(
+            self.provider_calls, {"execution": 1, "active": 1, "workspace": 2}
+        )
 
     def test_pending_open_is_displayed_without_mutating_canonical_phase_or_playback(
         self,

@@ -44,7 +44,6 @@ from ea_node_editor.ui_qml.plot_widget_binder import (
 from ea_node_editor.ui_qml.plot_live_backend_resolution import resolve_plot_live_backend_id
 
 if TYPE_CHECKING:
-    from ea_node_editor.ui.shell.window import ShellWindow
     from ea_node_editor.ui_qml.content_fullscreen_bridge import ContentFullscreenBridge
     from ea_node_editor.ui_qml.graph_scene_bridge import GraphSceneBridge
 
@@ -512,7 +511,7 @@ class PlotHostService(QObject):
         self,
         parent: QObject | None = None,
         *,
-        shell_window: "ShellWindow | None" = None,
+        active_workspace_id_provider: Callable[[], str],
         scene_bridge: "GraphSceneBridge | None" = None,
         content_fullscreen_bridge: "ContentFullscreenBridge",
         overlay_manager: EmbeddedViewerOverlayManager | None = None,
@@ -520,7 +519,9 @@ class PlotHostService(QObject):
         preview_cache_provider: PlotPreviewCacheImageProvider | None = None,
     ) -> None:
         super().__init__(parent)
-        self._shell_window = shell_window
+        self._active_workspace_id_provider: Callable[[], str] | None = (
+            active_workspace_id_provider
+        )
         self._scene_bridge = scene_bridge
         self._overlay_manager = overlay_manager
         self._content_fullscreen_bridge: QObject | None = content_fullscreen_bridge
@@ -982,7 +983,7 @@ class PlotHostService(QObject):
         self._overlay_manager = None
         self._content_fullscreen_bridge = None
         self._scene_bridge = None
-        self._shell_window = None
+        self._active_workspace_id_provider = None
         self._embedded_interaction_active.clear()
         self._plot_content_fullscreen_target_key = None
         self._plot_overlay_revision = 0
@@ -1064,10 +1065,13 @@ class PlotHostService(QObject):
             workspace_id = _string(getattr(self._scene_bridge, "workspace_id", ""))
             if workspace_id:
                 return workspace_id
-        shell_window = self._shell_window
-        manager = getattr(shell_window, "workspace_manager", None) if shell_window is not None else None
-        active_workspace_id = getattr(manager, "active_workspace_id", None)
-        return _string(active_workspace_id()) if callable(active_workspace_id) else ""
+        provider = self._active_workspace_id_provider
+        if provider is None:
+            return ""
+        try:
+            return _string(provider())
+        except Exception:  # noqa: BLE001
+            return ""
 
     def _embedded_interaction_active_for(self, workspace_id: str, node_id: str) -> bool:
         key = (_string(workspace_id), _string(node_id))

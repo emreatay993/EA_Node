@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import copy
 import time
-from types import SimpleNamespace
 from unittest.mock import patch
 
 from PyQt6.QtCore import QObject, QSize, pyqtSignal
@@ -195,7 +194,7 @@ def _service(
 ) -> PlotHostService:
     resolved_fullscreen_bridge = fullscreen_bridge or _FakeContentFullscreenBridge()
     service = PlotHostService(
-        shell_window=SimpleNamespace(),
+        active_workspace_id_provider=lambda: scene.workspace_id,
         scene_bridge=scene,
         content_fullscreen_bridge=resolved_fullscreen_bridge,  # type: ignore[arg-type]
         overlay_manager=overlay_manager,  # type: ignore[arg-type]
@@ -214,12 +213,28 @@ def _preview_image(color: str = "#2f81f7") -> QImage:
 def test_content_fullscreen_signal_connects_once_and_disconnects_on_shutdown() -> None:
     bridge = _FakeContentFullscreenBridge()
     service = PlotHostService(
+        active_workspace_id_provider=lambda: "",
         scene_bridge=None,
         content_fullscreen_bridge=bridge,  # type: ignore[arg-type]
     )
     assert bridge.receivers(bridge.content_fullscreen_changed) == 1
     service.shutdown()
     assert bridge.receivers(bridge.content_fullscreen_changed) == 0
+
+
+def test_active_workspace_provider_is_lazy_and_cleared_on_shutdown() -> None:
+    calls: list[str] = []
+    service = PlotHostService(
+        active_workspace_id_provider=lambda: calls.append("active") or "ws-provider",
+        scene_bridge=None,
+        content_fullscreen_bridge=_FakeContentFullscreenBridge(),  # type: ignore[arg-type]
+    )
+    assert service._active_workspace_id() == "ws-provider"  # noqa: SLF001
+    assert service._active_workspace_id() == "ws-provider"  # noqa: SLF001
+    assert calls == ["active", "active"]
+    service.shutdown()
+    assert service._active_workspace_id() == ""  # noqa: SLF001
+    assert calls == ["active", "active"]
 
 
 def test_binders_are_lazy_reused_and_custom_registration_survives_first_initialization(qapp) -> None:  # noqa: ANN001
@@ -229,6 +244,7 @@ def test_binders_are_lazy_reused_and_custom_registration_survives_first_initiali
         patch.object(plot_host_module, "PyVistaPlotWidgetBinder") as pyvista_binder,
     ):
         unopened = PlotHostService(
+            active_workspace_id_provider=lambda: "",
             scene_bridge=None,
             content_fullscreen_bridge=_FakeContentFullscreenBridge(),  # type: ignore[arg-type]
         )
@@ -239,6 +255,7 @@ def test_binders_are_lazy_reused_and_custom_registration_survives_first_initiali
         pyvista_binder.assert_not_called()
 
         service = PlotHostService(
+            active_workspace_id_provider=lambda: "",
             scene_bridge=None,
             content_fullscreen_bridge=_FakeContentFullscreenBridge(),  # type: ignore[arg-type]
         )

@@ -370,11 +370,50 @@ class _CameraStatsBinder(_RecordingBinder):
 
 
 class ViewerHostAttachRefreshUnitTests(unittest.TestCase):
+    def test_explicit_callbacks_are_called_once_without_shell_service_location(
+        self,
+    ) -> None:
+        calls: list[tuple[str, object]] = []
+        bridge = _FakeContentFullscreenBridge()
+        host = ViewerHostService(
+            qml_engine_provider=lambda: calls.append(("engine", None)) or "engine",
+            save_file_dialog=lambda **kwargs: (
+                calls.append(("save", dict(kwargs))) or "viewer.png"
+            ),
+            cycle_camera_bookmark=lambda node_id, direction: (
+                calls.append(("cycle", (node_id, direction))) or True
+            ),
+            content_fullscreen_bridge=bridge,  # type: ignore[arg-type]
+        )
+        try:
+            self.assertEqual(host._qml_engine(), "engine")  # noqa: SLF001
+            self.assertEqual(  # noqa: SLF001
+                host._pick_screenshot_path("viewer.png"), "viewer.png"
+            )
+            with patch.object(
+                host,
+                "_active_controlled_presentation_key",
+                return_value=("workspace", "node"),
+            ):
+                self.assertTrue(
+                    host._handle_fullscreen_shortcut(  # noqa: SLF001
+                        Qt.Key.Key_PageUp, Qt.KeyboardModifier.NoModifier
+                    )
+                )
+            self.assertEqual(
+                [name for name, _payload in calls], ["engine", "save", "cycle"]
+            )
+        finally:
+            host.shutdown()
+
     def test_content_fullscreen_signal_connects_once_and_disconnects_on_shutdown(
         self,
     ) -> None:
         bridge = _FakeContentFullscreenBridge()
         host = ViewerHostService(
+            qml_engine_provider=lambda: None,
+            save_file_dialog=lambda **_kwargs: "",
+            cycle_camera_bookmark=lambda _node_id, _direction: False,
             content_fullscreen_bridge=bridge,  # type: ignore[arg-type]
         )
         self.assertEqual(bridge.receivers(bridge.content_fullscreen_changed), 1)
@@ -395,6 +434,9 @@ class ViewerHostAttachRefreshUnitTests(unittest.TestCase):
                 raise pending
 
         host = ViewerHostService(
+            qml_engine_provider=lambda: None,
+            save_file_dialog=lambda **_kwargs: "",
+            cycle_camera_bookmark=lambda _node_id, _direction: False,
             content_fullscreen_bridge=_FakeContentFullscreenBridge(),  # type: ignore[arg-type]
         )
         try:
@@ -412,6 +454,9 @@ class ViewerHostAttachRefreshUnitTests(unittest.TestCase):
                 return False
 
         host = ViewerHostService(
+            qml_engine_provider=lambda: None,
+            save_file_dialog=lambda **_kwargs: "",
+            cycle_camera_bookmark=lambda _node_id, _direction: False,
             content_fullscreen_bridge=_FakeContentFullscreenBridge(),  # type: ignore[arg-type]
         )
         try:
@@ -1031,6 +1076,9 @@ class ViewerHostServiceTests(MainWindowShellTestBase):
             return_value=(),
         ) as binder_factory:
             unopened = ViewerHostService(
+                qml_engine_provider=lambda: None,
+                save_file_dialog=lambda **_kwargs: "",
+                cycle_camera_bookmark=lambda _node_id, _direction: False,
                 content_fullscreen_bridge=_FakeContentFullscreenBridge(),  # type: ignore[arg-type]
             )
             unopened.shutdown()
@@ -1038,6 +1086,9 @@ class ViewerHostServiceTests(MainWindowShellTestBase):
             binder_factory.assert_not_called()
 
             service = ViewerHostService(
+                qml_engine_provider=lambda: None,
+                save_file_dialog=lambda **_kwargs: "",
+                cycle_camera_bookmark=lambda _node_id, _direction: False,
                 content_fullscreen_bridge=_FakeContentFullscreenBridge(),  # type: ignore[arg-type]
             )
             custom_binder = _RecordingBinder()
@@ -1214,24 +1265,23 @@ class ViewerHostServiceTests(MainWindowShellTestBase):
         self.app.processEvents()
         self._emit_viewer_event(event_type="viewer_data_materialized", node_id=node_id)
 
-        presenter = self.window.shell_host_presenter
-        original_picker = presenter.save_file_dialog
+        original_picker = self.host_service._save_file_dialog  # noqa: SLF001
         with tempfile.TemporaryDirectory() as temp_dir:
             target = str(Path(temp_dir) / "viewer_shot.png")
-            presenter.save_file_dialog = lambda **kwargs: target  # type: ignore[method-assign]
+            self.host_service._save_file_dialog = lambda **kwargs: target  # noqa: SLF001
             try:
                 result = self.host_service.export_viewer_screenshot(node_id)
             finally:
-                presenter.save_file_dialog = original_picker  # type: ignore[method-assign]
+                self.host_service._save_file_dialog = original_picker  # noqa: SLF001
             self.assertTrue(result["ok"], result)
             self.assertEqual(result["path"], target)
             self.assertTrue(Path(target).is_file())
 
-        presenter.save_file_dialog = lambda **kwargs: ""  # type: ignore[method-assign]
+        self.host_service._save_file_dialog = lambda **kwargs: ""  # noqa: SLF001
         try:
             cancelled = self.host_service.export_viewer_screenshot(node_id)
         finally:
-            presenter.save_file_dialog = original_picker  # type: ignore[method-assign]
+            self.host_service._save_file_dialog = original_picker  # noqa: SLF001
         self.assertFalse(cancelled["ok"])
         self.assertEqual(cancelled["error"], "")
 
