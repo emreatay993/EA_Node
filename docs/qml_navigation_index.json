@@ -3738,6 +3738,7 @@
       "imports": [
         "QtQuick 2.15",
         "\"EdgeMath.js\" as EdgeMath",
+        "\"EdgePaintPolicy.js\" as EdgePaintPolicy",
         "\"EdgeViewportMath.js\" as EdgeViewportMath"
       ],
       "ids": [
@@ -3806,10 +3807,6 @@
           "name": "_paintViewportOffsetY"
         },
         {
-          "kind": "color",
-          "name": "activeAppendMarkerColor"
-        },
-        {
           "kind": "var",
           "name": "_currentViewportTransform"
         },
@@ -3850,100 +3847,10 @@
           "name": "clearCanvasPaintDiagnostics"
         },
         {
-          "name": "edgeIsFlow"
-        },
-        {
-          "name": "flowStyle"
-        },
-        {
-          "name": "styleString"
-        },
-        {
-          "name": "stylePositiveNumber"
-        },
-        {
-          "name": "flowStrokePattern"
-        },
-        {
-          "name": "flowArrowHead"
-        },
-        {
-          "name": "flowStrokeColor"
-        },
-        {
-          "name": "flowStrokeWidth"
-        },
-        {
-          "name": "flowDashPattern"
-        },
-        {
-          "name": "standardEdgeBaseColor"
-        },
-        {
-          "name": "standardEdgeActive"
-        },
-        {
-          "name": "standardEdgeDataAccess"
-        },
-        {
-          "name": "standardEdgeDisplayMode"
-        },
-        {
-          "name": "standardEdgeInvalid"
-        },
-        {
-          "name": "standardEdgeMuted"
-        },
-        {
-          "name": "standardEdgeStrokeColor"
-        },
-        {
-          "name": "standardEdgeBaseWidthPx"
-        },
-        {
-          "name": "standardEdgeStructure"
-        },
-        {
-          "name": "standardEdgeStrokeCount"
-        },
-        {
-          "name": "standardEdgeStrokeOffsetsScreenPx"
-        },
-        {
-          "name": "standardEdgeDashPattern"
-        },
-        {
           "name": "standardStrokeOffsetVector"
         },
         {
-          "name": "dragConnectionMode"
-        },
-        {
-          "name": "dragConnectionDashPattern"
-        },
-        {
-          "name": "dragConnectionMarkerText"
-        },
-        {
-          "name": "dragConnectionMarkerVisible"
-        },
-        {
-          "name": "dragConnectionMarkerColor"
-        },
-        {
-          "name": "dragConnectionMarkerPlain"
-        },
-        {
-          "name": "dragConnectionStrokeColor"
-        },
-        {
-          "name": "dragConnectionStrokeWidthScreenPx"
-        },
-        {
           "name": "drawDragConnectionMarker"
-        },
-        {
-          "name": "standardEdgePaintState"
         },
         {
           "name": "traceBezierGeometry"
@@ -3967,13 +3874,7 @@
           "name": "traceGeometry"
         },
         {
-          "name": "edgeAnchor"
-        },
-        {
           "name": "standardEdgeStrokeStyle"
-        },
-        {
-          "name": "standardEdgeGradientStops"
         },
         {
           "name": "drawHiddenEndpointArcs"
@@ -4187,12 +4088,6 @@
           "detail": "real"
         },
         {
-          "anchor": "EdgeCanvasLayerPropertyActiveAppendMarkerColor",
-          "kind": "property",
-          "name": "activeAppendMarkerColor",
-          "detail": "color"
-        },
-        {
           "anchor": "EdgeCanvasLayerPropertyCurrentViewportTransform",
           "kind": "property",
           "name": "_currentViewportTransform",
@@ -4250,164 +4145,14 @@
           "name": "clearCanvasPaintDiagnostics"
         },
         {
-          "anchor": "EdgeCanvasLayerFunctionEdgeIsFlow",
-          "kind": "function",
-          "name": "edgeIsFlow"
-        },
-        {
-          "anchor": "EdgeCanvasLayerFunctionFlowStyle",
-          "kind": "function",
-          "name": "flowStyle"
-        },
-        {
-          "anchor": "EdgeCanvasLayerFunctionStyleString",
-          "kind": "function",
-          "name": "styleString"
-        },
-        {
-          "anchor": "EdgeCanvasLayerFunctionStylePositiveNumber",
-          "kind": "function",
-          "name": "stylePositiveNumber"
-        },
-        {
-          "anchor": "EdgeCanvasLayerFunctionFlowStrokePattern",
-          "kind": "function",
-          "name": "flowStrokePattern"
-        },
-        {
-          "anchor": "EdgeCanvasLayerFunctionFlowArrowHead",
-          "kind": "function",
-          "name": "flowArrowHead"
-        },
-        {
-          "anchor": "EdgeCanvasLayerFunctionFlowStrokeColor",
-          "kind": "function",
-          "name": "flowStrokeColor"
-        },
-        {
-          "anchor": "EdgeCanvasLayerFunctionFlowStrokeWidth",
-          "kind": "function",
-          "name": "flowStrokeWidth"
-        },
-        {
-          "anchor": "EdgeCanvasLayerFunctionFlowDashPattern",
-          "kind": "function",
-          "name": "flowDashPattern"
-        },
-        {
-          "anchor": "EdgeCanvasLayerFunctionStandardEdgeBaseColor",
-          "kind": "function",
-          "name": "standardEdgeBaseColor"
-        },
-        {
-          "anchor": "EdgeCanvasLayerFunctionStandardEdgeActive",
-          "kind": "function",
-          "name": "standardEdgeActive"
-        },
-        {
-          "anchor": "EdgeCanvasLayerFunctionStandardEdgeDataAccess",
-          "kind": "function",
-          "name": "standardEdgeDataAccess"
-        },
-        {
-          "anchor": "EdgeCanvasLayerFunctionStandardEdgeDisplayMode",
-          "kind": "function",
-          "name": "standardEdgeDisplayMode"
-        },
-        {
-          "anchor": "EdgeCanvasLayerFunctionStandardEdgeInvalid",
-          "kind": "function",
-          "name": "standardEdgeInvalid"
-        },
-        {
-          "anchor": "EdgeCanvasLayerFunctionStandardEdgeMuted",
-          "kind": "function",
-          "name": "standardEdgeMuted"
-        },
-        {
-          "anchor": "EdgeCanvasLayerFunctionStandardEdgeStrokeColor",
-          "kind": "function",
-          "name": "standardEdgeStrokeColor"
-        },
-        {
-          "anchor": "EdgeCanvasLayerFunctionStandardEdgeBaseWidthPx",
-          "kind": "function",
-          "name": "standardEdgeBaseWidthPx"
-        },
-        {
-          "anchor": "EdgeCanvasLayerFunctionStandardEdgeStructure",
-          "kind": "function",
-          "name": "standardEdgeStructure"
-        },
-        {
-          "anchor": "EdgeCanvasLayerFunctionStandardEdgeStrokeCount",
-          "kind": "function",
-          "name": "standardEdgeStrokeCount"
-        },
-        {
-          "anchor": "EdgeCanvasLayerFunctionStandardEdgeStrokeOffsetsScreenPx",
-          "kind": "function",
-          "name": "standardEdgeStrokeOffsetsScreenPx"
-        },
-        {
-          "anchor": "EdgeCanvasLayerFunctionStandardEdgeDashPattern",
-          "kind": "function",
-          "name": "standardEdgeDashPattern"
-        },
-        {
           "anchor": "EdgeCanvasLayerFunctionStandardStrokeOffsetVector",
           "kind": "function",
           "name": "standardStrokeOffsetVector"
         },
         {
-          "anchor": "EdgeCanvasLayerFunctionDragConnectionMode",
-          "kind": "function",
-          "name": "dragConnectionMode"
-        },
-        {
-          "anchor": "EdgeCanvasLayerFunctionDragConnectionDashPattern",
-          "kind": "function",
-          "name": "dragConnectionDashPattern"
-        },
-        {
-          "anchor": "EdgeCanvasLayerFunctionDragConnectionMarkerText",
-          "kind": "function",
-          "name": "dragConnectionMarkerText"
-        },
-        {
-          "anchor": "EdgeCanvasLayerFunctionDragConnectionMarkerVisible",
-          "kind": "function",
-          "name": "dragConnectionMarkerVisible"
-        },
-        {
-          "anchor": "EdgeCanvasLayerFunctionDragConnectionMarkerColor",
-          "kind": "function",
-          "name": "dragConnectionMarkerColor"
-        },
-        {
-          "anchor": "EdgeCanvasLayerFunctionDragConnectionMarkerPlain",
-          "kind": "function",
-          "name": "dragConnectionMarkerPlain"
-        },
-        {
-          "anchor": "EdgeCanvasLayerFunctionDragConnectionStrokeColor",
-          "kind": "function",
-          "name": "dragConnectionStrokeColor"
-        },
-        {
-          "anchor": "EdgeCanvasLayerFunctionDragConnectionStrokeWidthScreenPx",
-          "kind": "function",
-          "name": "dragConnectionStrokeWidthScreenPx"
-        },
-        {
           "anchor": "EdgeCanvasLayerFunctionDrawDragConnectionMarker",
           "kind": "function",
           "name": "drawDragConnectionMarker"
-        },
-        {
-          "anchor": "EdgeCanvasLayerFunctionStandardEdgePaintState",
-          "kind": "function",
-          "name": "standardEdgePaintState"
         },
         {
           "anchor": "EdgeCanvasLayerFunctionTraceBezierGeometry",
@@ -4445,19 +4190,9 @@
           "name": "traceGeometry"
         },
         {
-          "anchor": "EdgeCanvasLayerFunctionEdgeAnchor",
-          "kind": "function",
-          "name": "edgeAnchor"
-        },
-        {
           "anchor": "EdgeCanvasLayerFunctionStandardEdgeStrokeStyle",
           "kind": "function",
           "name": "standardEdgeStrokeStyle"
-        },
-        {
-          "anchor": "EdgeCanvasLayerFunctionStandardEdgeGradientStops",
-          "kind": "function",
-          "name": "standardEdgeGradientStops"
         },
         {
           "anchor": "EdgeCanvasLayerFunctionDrawHiddenEndpointArcs",
@@ -4584,7 +4319,8 @@
       "root_component": "Item",
       "imports": [
         "QtQuick 2.15",
-        "QtQml 2.15"
+        "QtQml 2.15",
+        "\"EdgePaintPolicy.js\" as EdgePaintPolicy"
       ],
       "ids": [
         {
@@ -5661,6 +5397,7 @@
         "QtQuick 2.15",
         "QtQml 2.15",
         "\"EdgeMath.js\" as EdgeMath",
+        "\"EdgePaintPolicy.js\" as EdgePaintPolicy",
         "\"EdgeSnapshotCache.js\" as EdgeSnapshotCache",
         "\"EdgeViewportMath.js\" as EdgeViewportMath",
         "\"GraphNodeSurfaceMetrics.js\" as GraphNodeSurfaceMetrics"
@@ -6504,16 +6241,16 @@
         },
         {
           "kind": "binding",
-          "name": "canvasLayer",
+          "name": "visible",
           "targets": [
-            "edgeCanvasLayer"
+            "root.edgeRendererKind"
           ]
         },
         {
           "kind": "binding",
-          "name": "visible",
+          "name": "canvasLayer",
           "targets": [
-            "root.edgeRendererKind"
+            "edgeCanvasLayer"
           ]
         },
         {
@@ -7774,6 +7511,8 @@
         "QtQuick 2.15",
         "QtQml 2.15",
         "QtQuick.Shapes 1.15",
+        "\"EdgeMath.js\" as EdgeMath",
+        "\"EdgePaintPolicy.js\" as EdgePaintPolicy",
         "\"EdgeViewportMath.js\" as EdgeViewportMath"
       ],
       "ids": [
@@ -7805,10 +7544,6 @@
         {
           "kind": "Item",
           "name": "edgeLayer"
-        },
-        {
-          "kind": "Item",
-          "name": "canvasLayer"
         },
         {
           "kind": "bool",
@@ -8362,12 +8097,6 @@
           "anchor": "EdgeRetainedLayerPropertyEdgeLayer",
           "kind": "property",
           "name": "edgeLayer",
-          "detail": "Item"
-        },
-        {
-          "anchor": "EdgeRetainedLayerPropertyCanvasLayer",
-          "kind": "property",
-          "name": "canvasLayer",
           "detail": "Item"
         },
         {

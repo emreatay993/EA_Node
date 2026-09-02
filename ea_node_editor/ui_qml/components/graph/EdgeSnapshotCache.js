@@ -1,5 +1,6 @@
 .pragma library
 .import "EdgeMath.js" as EdgeMath
+.import "EdgePaintPolicy.js" as EdgePaintPolicy
 .import "EdgeViewportMath.js" as EdgeViewportMath
 
 function invalidateGeometryCache(edgeLayer) {
@@ -1089,7 +1090,7 @@ function _buildSnapshotForEdge(
             && !replacementPreviewed,
         "sourceNodeSelected": sourceNodeSelected,
         "targetNodeSelected": targetNodeSelected,
-        "flowEdge": canvasLayer.edgeIsFlow(edge),
+        "flowEdge": EdgePaintPolicy.edgeIsFlow(edge),
         "labelText": labelLayer.edgeLabelText(edge),
         "labelMode": labelMode,
         "drawOrderIndex": drawOrderIndex,

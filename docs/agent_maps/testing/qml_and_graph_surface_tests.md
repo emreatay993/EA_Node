@@ -6,6 +6,7 @@ Use this for graph surface, QML bridge, passive host, inline input, pointer, mod
 ## Start Here
 - `tests/qml_quick/tst_graph_node_host.qml`
 - `tests/qml_quick/tst_graph_surface_controls.qml`
+- `tests/qml_quick/tst_edge_paint_policy.qml`
 - `tests/qml_quick/tst_secret_editor.qml`
 - `tests/graph_surface/`
 - `tests/graph_track_b/`
@@ -47,6 +48,7 @@ Use this for graph surface, QML bridge, passive host, inline input, pointer, mod
 - Use graph-track suites for scene model projection and behavior contracts.
 - Named settings-group coverage is split across `tests/test_graph_scene_presentation_facts.py` (two groups, paired editor overrides, collapsed aggregate anchors, expanded real anchors, unchanged topology/output), `tests/graph_surface/passive_host_interaction_suite.py` (shared host rendering, live resize, signal and duplicate-label guards), `tests/graph_track_b/scene_model_graph_scene_suite.py` (command/history/custom height/collision/global collapse), `tests/test_graph_surface_input_controls.py` (Settings submenu and read-only guards), and `tests/test_viewer_surface_contract.py` (specialized body preservation).
 - Use `tests/test_data_tree_ui.py`, `tests/test_graph_surface_input_controls.py`, `tests/test_flow_edge_labels.py`, and graph-track scene suites for read-only Item/List/Tree access, modifier/Principal checks, grip hover/target halo, replacement versus Shift append, bundle Ctrl move versus one-edge Ctrl+Shift copy, edge selection/W-marquee/jump, edge Enable/Ctrl+E, active-data solid/dotted/dashed/double-hairline wire rendering, Default/Faint/Hidden, bounded preview/status projection, and passive/flow isolation. Assert the complete absence of control rows, compact control endpoints, and execution-wire animation.
+- `tests/qml_quick/tst_edge_paint_policy.qml` owns direct pure-JS structure/display/marker/drag-preview and `EdgeMath.edgeAnchor(...)` checks. `tests/test_flow_edge_labels.py` retains real Canvas/retained parity, hit geometry, label/crossing, and renderer-fallback integration.
 - Use `tests/test_default_port_values.py`, graph-surface input suites, and graph-track scene suites for explicit `default_property` payloads, outlined grips, embedded editor reuse, duplicate-row suppression, override/restoration, and active lock-chrome removal. Keep unavailable add-on placeholder and passive-object lock assertions separate and unchanged.
 - Declarative control coverage is split deliberately: `tests/test_registry_validation.py` and `tests/test_decorator_sdk.py` own SDK metadata; `tests/test_interval_1d.py` owns ordered value transport; `tests/test_graph_scene_presentation_facts.py` and `tests/test_default_port_values.py` own authored/display/condition facts; `tests/qml_quick/tst_graph_surface_controls.qml` and graph-surface input suites own shared canvas controls; `tests/test_library_projection.py`, `tests/test_inspector_projection.py`, `tests/test_quick_insert_projection.py`, `tests/test_inspector_smart_groups_variant.py`, and `tests/main_window_shell/view_library_inspector.py` own Library/search/Inspector interaction, settled-wire/authored restoration, and one-undo-entry parity. `tests/fixtures/node_controls/signal_plot_style_node_controls.py` is an internal visual fixture owned by `tests/test_corex_node_controls_visual.py`; it is not a public plugin example or production node.
 - `tests/qml_quick/tst_secret_editor.qml` owns the shared masked Replace/Clear control behavior. `tests/test_sensitive_property_controls.py` owns redacted scene/Inspector payloads and the dedicated history-safe secret command path.
@@ -84,6 +86,7 @@ Use this for graph surface, QML bridge, passive host, inline input, pointer, mod
 $env:QT_QPA_PLATFORM = "offscreen"
 $env:QT_QUICK_CONTROLS_STYLE = "Basic"
 & (Join-Path $env:QT_ROOT "bin\qmltestrunner.exe") -input tests/qml_quick/tst_graph_surface_controls.qml -eventdelay 0 -keydelay 0 -mousedelay 0 -o -,txt
+& (Join-Path $env:QT_ROOT "bin\qmltestrunner.exe") -input tests/qml_quick/tst_edge_paint_policy.qml -eventdelay 0 -keydelay 0 -mousedelay 0 -o -,txt
 .\venv\Scripts\python.exe -m pytest tests/test_graph_surface_input_contract.py tests/test_graph_surface_input_inline.py tests/test_passive_graph_surface_host.py tests/test_media_panel_qml_surface.py tests/test_passive_image_nodes.py --ignore=venv -q
 .\venv\Scripts\python.exe -m pytest tests/test_graph_canvas_viewport_virtualization.py --ignore=venv -q
 .\venv\Scripts\python.exe -m pytest tests/test_graph_canvas_split_bridges.py tests/test_graph_canvas_surface_snapshot.py --ignore=venv -q

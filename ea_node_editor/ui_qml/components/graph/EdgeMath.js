@@ -308,6 +308,25 @@ function pointTangentAlongPolyline(points, fraction) {
     };
 }
 
+function edgeAnchor(geometry, fraction) {
+    if (!geometry)
+        return null;
+    if (geometry.route === "pipe")
+        return pointTangentAlongPolyline(geometry.pipe_points || [], fraction);
+    return pointTangentAlongBezier(
+        geometry.sx,
+        geometry.sy,
+        geometry.c1x,
+        geometry.c1y,
+        geometry.c2x,
+        geometry.c2y,
+        geometry.tx,
+        geometry.ty,
+        fraction,
+        40
+    );
+}
+
 function rectsIntersect(a, b) {
     if (!a || !b)
         return false;

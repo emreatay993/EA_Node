@@ -1,13 +1,14 @@
 import QtQuick 2.15
 import QtQml 2.15
 import QtQuick.Shapes 1.15
+import "EdgeMath.js" as EdgeMath
+import "EdgePaintPolicy.js" as EdgePaintPolicy
 import "EdgeViewportMath.js" as EdgeViewportMath
 
 Item {
     id: root
     objectName: "graphCanvasEdgeRetainedLayer"
     property Item edgeLayer: null
-    property Item canvasLayer: null
     property bool rendererSupported: true
     property real profileLastPaintMs: 0.0
     property int profilePaintCount: 0
@@ -91,7 +92,7 @@ Item {
     }
 
     function canRenderSnapshots(snapshots) {
-        if (!root.rendererSupported || !root.edgeLayer || !root.canvasLayer)
+        if (!root.rendererSupported || !root.edgeLayer)
             return false;
         if (root.edgeLayer.dragConnectionList().length > 0)
             return false;
@@ -266,7 +267,12 @@ Item {
 
     function _entryForSnapshot(snapshot, viewportTransform, zoom) {
         var edge = snapshot.edgeData || ({});
-        var paintState = root.canvasLayer.standardEdgePaintState(snapshot, edge, zoom);
+        var paintState = EdgePaintPolicy.standardEdgePaintState(
+            root.edgeLayer,
+            snapshot,
+            edge,
+            zoom
+        );
         var sourceGeometry = snapshot.geometry || ({});
         var route = String(sourceGeometry.route || "bezier");
         var sourceNodeId = root._endpointNodeId(edge, "source");
@@ -326,7 +332,7 @@ Item {
             "disabledMarkerAlpha": Number(paintState.disabledMarkerAlpha || 0.0),
             "paintState": paintState
         };
-        var markerAnchor = root.canvasLayer.edgeAnchor(sourceGeometry, 0.5);
+        var markerAnchor = EdgeMath.edgeAnchor(sourceGeometry, 0.5);
         entry.markerX = markerAnchor
             ? EdgeViewportMath.sceneXToScreen(Number(markerAnchor.x), viewportTransform)
             : 0.0;
@@ -402,7 +408,7 @@ Item {
 
     function requestRetainedPaint() {
         var startedMs = Date.now();
-        if (!root.edgeLayer || !root.canvasLayer) {
+        if (!root.edgeLayer) {
             root.clearRetainedPaint();
             root._recordPaint(startedMs);
             return;

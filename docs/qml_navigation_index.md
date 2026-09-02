@@ -354,12 +354,12 @@ This compact index gives agents deterministic aliases for QML components, symbol
 - Path: `ea_node_editor/ui_qml/components/graph/EdgeCanvasLayer.qml`
 - Root component: `Item`
 - Agent route aliases: `EdgeCanvasLayer`, `EdgeCanvasLayer.qml`, `ea_node_editor/ui_qml/components/graph/EdgeCanvasLayer.qml`, `ea_node_editor\ui_qml\components\graph\EdgeCanvasLayer.qml`
-- Imports: `QtQuick 2.15`, `"EdgeMath.js" as EdgeMath`, `"EdgeViewportMath.js" as EdgeViewportMath`
+- Imports: `QtQuick 2.15`, `"EdgeMath.js" as EdgeMath`, `"EdgePaintPolicy.js" as EdgePaintPolicy`, `"EdgeViewportMath.js" as EdgeViewportMath`
 - IDs: `root`, `canvasTransformLayer`, `edgeCanvas`, `edgeLabelGapTypography`, `labelGapMetrics`
 - Object names: `graphCanvasEdgeCanvasLayer`, `graphCanvasEdgeCanvasTransformLayer`, `graphEdgeCanvasSharedTypography`
-- Properties: `edgeLayer: Item`, `canvasStateBridgeRef: var`, `profileLastPaintMs: real`, `profilePaintCount: int`, `_paintDiagnosticsByEdgeId: var`, `_paintDiagnosticsRevision: int`, `_paintViewportZoom: real`, `_paintViewportOffsetX: real`, `_paintViewportOffsetY: real`, `activeAppendMarkerColor: color`, `_currentViewportTransform: var`, `effectiveGraphLabelPixelSize: int`, `graphSharedTypography: var`, `viewportTransformCompensationActive: bool`, `viewportTransformCompensationScale: real`, `viewportTransformCompensationX: real`, `viewportTransformCompensationY: real`
+- Properties: `edgeLayer: Item`, `canvasStateBridgeRef: var`, `profileLastPaintMs: real`, `profilePaintCount: int`, `_paintDiagnosticsByEdgeId: var`, `_paintDiagnosticsRevision: int`, `_paintViewportZoom: real`, `_paintViewportOffsetX: real`, `_paintViewportOffsetY: real`, `_currentViewportTransform: var`, `effectiveGraphLabelPixelSize: int`, `graphSharedTypography: var`, `viewportTransformCompensationActive: bool`, `viewportTransformCompensationScale: real`, `viewportTransformCompensationX: real`, `viewportTransformCompensationY: real`
 - Signals: _None_
-- Functions: `_recordPaint`, `_rememberPaintViewport`, `clearCanvasPaintDiagnostics`, `edgeIsFlow`, `flowStyle`, `styleString`, `stylePositiveNumber`, `flowStrokePattern`, `flowArrowHead`, `flowStrokeColor`, `flowStrokeWidth`, `flowDashPattern`, `standardEdgeBaseColor`, `standardEdgeActive`, `standardEdgeDataAccess`, `standardEdgeDisplayMode`, `standardEdgeInvalid`, `standardEdgeMuted`, ... +47 more
+- Functions: `_recordPaint`, `_rememberPaintViewport`, `clearCanvasPaintDiagnostics`, `standardStrokeOffsetVector`, `drawDragConnectionMarker`, `traceBezierGeometry`, `tracePolylineGeometry`, `_tracePolylineSegmentSpan`, `_tracePolylineRange`, `traceBrokenGeometry`, `strokeStandardGeometry`, `traceGeometry`, `standardEdgeStrokeStyle`, `drawHiddenEndpointArcs`, `hiddenEndpointArcRadiiScreenPx`, `drawDisabledMarker`, `drawFlowArrowHead`, `decorationEnabled`, ... +15 more
 - Instantiates: `Canvas`, `GraphSharedTypography`, `TextMetrics`
 - Dynamic constructs: _None_
 - Signal handlers: `handler` `onPaint`
@@ -372,7 +372,7 @@ This compact index gives agents deterministic aliases for QML components, symbol
 - Path: `ea_node_editor/ui_qml/components/graph/EdgeFlowLabelLayer.qml`
 - Root component: `Item`
 - Agent route aliases: `EdgeFlowLabelLayer`, `EdgeFlowLabelLayer.qml`, `ea_node_editor/ui_qml/components/graph/EdgeFlowLabelLayer.qml`, `ea_node_editor\ui_qml\components\graph\EdgeFlowLabelLayer.qml`
-- Imports: `QtQuick 2.15`, `QtQml 2.15`
+- Imports: `QtQuick 2.15`, `QtQml 2.15`, `"EdgePaintPolicy.js" as EdgePaintPolicy`
 - IDs: `root`, `sharedTypographyState`, `flowLabelModel`, `labelTextItem`
 - Object names: `graphEdgeFlowLabelLayer`, `graphEdgeSharedTypography`, `graphEdgeFlowLabelItem`, `graphEdgeFlowLabelPill`, `graphEdgeFlowLabelText`
 - Properties: `edgeLayer: Item`, `canvasLayer: Item`, `snapshotRevisionToken: int`, `profileLabelDelegateCreateCount: int`, `profileLabelDelegateDestroyCount: int`, `profileFlowLabelModelSyncSkipCount: int`, `_lastFlowLabelEntryRefs: var`, `effectiveGraphLabelPixelSize: int`, `graphSharedTypography: var`, `edgeData: var`, `edgeId: string`, `snapshotData: var`, `labelText: string`, `labelMode: string`, `labelRequested: bool`, `snapshotRevision: var`, `culledByViewport: bool`, `pillVisible: bool`, ... +14 more
@@ -408,7 +408,7 @@ This compact index gives agents deterministic aliases for QML components, symbol
 - Path: `ea_node_editor/ui_qml/components/graph/EdgeLayer.qml`
 - Root component: `Item`
 - Agent route aliases: `EdgeLayer`, `EdgeLayer.qml`, `ea_node_editor/ui_qml/components/graph/EdgeLayer.qml`, `ea_node_editor\ui_qml\components\graph\EdgeLayer.qml`
-- Imports: `QtQuick 2.15`, `QtQml 2.15`, `"EdgeMath.js" as EdgeMath`, `"EdgeSnapshotCache.js" as EdgeSnapshotCache`, `"EdgeViewportMath.js" as EdgeViewportMath`, `"GraphNodeSurfaceMetrics.js" as GraphNodeSurfaceMetrics`
+- Imports: `QtQuick 2.15`, `QtQml 2.15`, `"EdgeMath.js" as EdgeMath`, `"EdgePaintPolicy.js" as EdgePaintPolicy`, `"EdgeSnapshotCache.js" as EdgeSnapshotCache`, `"EdgeViewportMath.js" as EdgeViewportMath`, `"GraphNodeSurfaceMetrics.js" as GraphNodeSurfaceMetrics`
 - IDs: `root`, `edgeCanvasLayer`, `edgeRetainedLayer`, `edgeScenegraphLayer`, `flowLabelLayer`, `edgeHitTestOverlay`
 - Object names: _None_
 - Properties: `edgePalette: var`, `shellPalette: var`, `portKindPalette: var`, `viewBridge: var`, `sceneBridge: var`, `edges: var`, `edgeTopologyDelta: var`, `nodeDeltaPayload: var`, `nodes: var`, `dragNodeLookup: var`, `dragDx: real`, `dragDy: real`, `dragRevision: int`, `liveNodeGeometry: var`, `selectedNodeIds: var`, `selectedEdgeIds: var`, `visibleSceneRectPayload: var`, `previewEdgeId: string`, ... +111 more
@@ -418,7 +418,7 @@ This compact index gives agents deterministic aliases for QML components, symbol
 - Dynamic constructs: _None_
 - Signal handlers: `handler` `onEdgeClicked`; `handler` `onEdgeDoubleClicked`; `handler` `onEdgeContextRequested`; `handler` `onEdgesChanged`; `handler` `onNodeDeltaPayloadChanged`; `handler` `onSelectedNodeIdsChanged`; `handler` `onReplacementPreviewEdgeIdsChanged`; `handler` `onNodesChanged`; `handler` `onDragRevisionChanged`; `handler` `onLiveNodeGeometryChanged`; `handler` `onVisibleSceneRectPayloadChanged`; `handler` `onSelectedEdgeIdsChanged`; `handler` `onWireSelectionModeHeldChanged`; `handler` `onPreviewEdgeIdChanged`; `handler` `onDragConnectionChanged`; `handler` `onOutputPreviewLookupChanged`; `handler` `onEdgePaletteChanged`; `handler` `onShellPaletteChanged`; ... +3 more
 - Connections: _None_
-- Property bindings: `binding` `anchors.fill` -> `parent`; `binding` `edgeLayer` -> `root`; `binding` `canvasLayer` -> `edgeCanvasLayer`; `binding` `visible` -> `root.edgeRendererKind`; `binding` `inputEnabled` -> `root.inputEnabled`; `binding` `wireSelectionModeHeld` -> `root.wireSelectionModeHeld`
+- Property bindings: `binding` `anchors.fill` -> `parent`; `binding` `edgeLayer` -> `root`; `binding` `visible` -> `root.edgeRendererKind`; `binding` `canvasLayer` -> `edgeCanvasLayer`; `binding` `inputEnabled` -> `root.inputEnabled`; `binding` `wireSelectionModeHeld` -> `root.wireSelectionModeHeld`
 - Local component refs: `localComponent` `EdgeCanvasLayer`: `ea_node_editor/ui_qml/components/graph/EdgeCanvasLayer.qml`; `localComponent` `EdgeRetainedLayer`: `ea_node_editor/ui_qml/components/graph/EdgeRetainedLayer.qml`; `localComponent` `EdgeScenegraphLayer`: `ea_node_editor/ui_qml/components/graph/EdgeScenegraphLayer.qml`; `localComponent` `EdgeFlowLabelLayer`: `ea_node_editor/ui_qml/components/graph/EdgeFlowLabelLayer.qml`; `localComponent` `EdgeHitTestOverlay`: `ea_node_editor/ui_qml/components/graph/EdgeHitTestOverlay.qml`
 
 ### `EdgeRetainedLayer.qml`
@@ -426,10 +426,10 @@ This compact index gives agents deterministic aliases for QML components, symbol
 - Path: `ea_node_editor/ui_qml/components/graph/EdgeRetainedLayer.qml`
 - Root component: `Item`
 - Agent route aliases: `EdgeRetainedLayer`, `EdgeRetainedLayer.qml`, `ea_node_editor/ui_qml/components/graph/EdgeRetainedLayer.qml`, `ea_node_editor\ui_qml\components\graph\EdgeRetainedLayer.qml`
-- Imports: `QtQuick 2.15`, `QtQml 2.15`, `QtQuick.Shapes 1.15`, `"EdgeViewportMath.js" as EdgeViewportMath`
+- Imports: `QtQuick 2.15`, `QtQml 2.15`, `QtQuick.Shapes 1.15`, `"EdgeMath.js" as EdgeMath`, `"EdgePaintPolicy.js" as EdgePaintPolicy`, `"EdgeViewportMath.js" as EdgeViewportMath`
 - IDs: `root`, `retainedEdgeModel`, `retainedTransformLayer`, `retainedEdgeDelegate`, `retainedStrokeDelegate`
 - Object names: `graphCanvasEdgeRetainedLayer`, `graphCanvasEdgeRetainedTransformLayer`
-- Properties: `edgeLayer: Item`, `canvasLayer: Item`, `rendererSupported: bool`, `profileLastPaintMs: real`, `profilePaintCount: int`, `profileRetainedDelegateCreateCount: int`, `profileRetainedDelegateDestroyCount: int`, `profileRetainedModelEntryUpdateCount: int`, `profileRetainedModelEntrySkipCount: int`, `_paintDiagnosticsByEdgeId: var`, `_paintDiagnosticsRevision: int`, `_retainedEdgeModel: var`, `_paintViewportZoom: real`, `_paintViewportOffsetX: real`, `_paintViewportOffsetY: real`, `_currentViewportTransform: var`, `viewportTransformCompensationActive: bool`, `viewportTransformCompensationScale: real`, ... +9 more
+- Properties: `edgeLayer: Item`, `rendererSupported: bool`, `profileLastPaintMs: real`, `profilePaintCount: int`, `profileRetainedDelegateCreateCount: int`, `profileRetainedDelegateDestroyCount: int`, `profileRetainedModelEntryUpdateCount: int`, `profileRetainedModelEntrySkipCount: int`, `_paintDiagnosticsByEdgeId: var`, `_paintDiagnosticsRevision: int`, `_retainedEdgeModel: var`, `_paintViewportZoom: real`, `_paintViewportOffsetX: real`, `_paintViewportOffsetY: real`, `_currentViewportTransform: var`, `viewportTransformCompensationActive: bool`, `viewportTransformCompensationScale: real`, `viewportTransformCompensationX: real`, ... +8 more
 - Signals: _None_
 - Functions: `_recordPaint`, `_rememberPaintViewport`, `_compatibleSnapshot`, `canRenderSnapshots`, `_screenBezier`, `_screenPolyline`, `_polylineSegments`, `_endpointNodeId`, `_nodeIsDragged`, `_paintScreenDragDeltaX`, `_paintScreenDragDeltaY`, `_fixed`, `_segmentKey`, `_offsetKey`, `_numberArrayKey`, `_shapeDashPattern`, `_contentKeyForEntry`, `_screenStrokeOffsets`, ... +7 more
 - Instantiates: `ListModel`, `Repeater`, `Shape`, `ShapePath`, `PathCubic`, `PathLine`, `Rectangle`

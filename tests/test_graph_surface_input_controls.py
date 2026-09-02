@@ -2241,7 +2241,6 @@ class GraphSurfaceCanvasInteractionTests(GraphSurfaceInputContractTestBase):
 
             shell_bridge.rewire_delegate = scene
             edge_layer = named_item(canvas, "graphCanvasEdgeLayer")
-            edge_canvas_layer = named_item(edge_layer, "graphCanvasEdgeCanvasLayer")
             history = RuntimeGraphHistory()
             scene.bind_runtime_history(history)
             workspace_id = model.active_workspace.workspace_id
@@ -2265,7 +2264,7 @@ class GraphSurfaceCanvasInteractionTests(GraphSurfaceInputContractTestBase):
                 control_shift,
             )
             assert copy_blank_preview["connection_mode"] == "noop", copy_blank_preview
-            assert str(edge_canvas_layer.dragConnectionMarkerText(copy_blank_preview)) == ""
+            assert copy_blank_preview["active_data_wire"] is True
             assert model.active_workspace.capture_snapshot() == topology_before_copy
             assert history.undo_depth(workspace_id) == history_before_copy
 
@@ -2289,7 +2288,7 @@ class GraphSurfaceCanvasInteractionTests(GraphSurfaceInputContractTestBase):
             assert [connection["edge_id"] for connection in blank_connections] == bundle_ids
             assert all(
                 connection["connection_mode"] == "disconnect"
-                and str(edge_canvas_layer.dragConnectionMarkerText(connection)) == ""
+                and connection["active_data_wire"] is True
                 for connection in blank_connections
             ), blank_connections
             settle_events(4)
@@ -2331,7 +2330,7 @@ class GraphSurfaceCanvasInteractionTests(GraphSurfaceInputContractTestBase):
             assert [connection["edge_id"] for connection in invalid_connections] == preserved_edge_ids
             assert all(
                 connection["connection_mode"] == "noop"
-                and str(edge_canvas_layer.dragConnectionMarkerText(connection)) == ""
+                and connection["active_data_wire"] is True
                 for connection in invalid_connections
             ), invalid_connections
             assert all(edge_id in model.active_workspace.edges for edge_id in preserved_edge_ids)
@@ -2361,7 +2360,7 @@ class GraphSurfaceCanvasInteractionTests(GraphSurfaceInputContractTestBase):
             assert [connection["edge_id"] for connection in original_connections] == preserved_edge_ids
             assert all(
                 connection["connection_mode"] == "noop"
-                and str(edge_canvas_layer.dragConnectionMarkerText(connection)) == ""
+                and connection["active_data_wire"] is True
                 for connection in original_connections
             ), original_connections
             assert all(edge_id in model.active_workspace.edges for edge_id in preserved_edge_ids)

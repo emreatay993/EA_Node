@@ -1,6 +1,7 @@
 import QtQuick 2.15
 import QtQml 2.15
 import "EdgeMath.js" as EdgeMath
+import "EdgePaintPolicy.js" as EdgePaintPolicy
 import "EdgeSnapshotCache.js" as EdgeSnapshotCache
 import "EdgeViewportMath.js" as EdgeViewportMath
 import "GraphNodeSurfaceMetrics.js" as GraphNodeSurfaceMetrics
@@ -324,7 +325,7 @@ Item {
         return EdgeViewportMath.sceneYToScreen(worldY, EdgeViewportMath.viewportTransform(root));
     }
     function _edgeAnchor(geometry, fraction) {
-        return edgeCanvasLayer.edgeAnchor(geometry, fraction);
+        return EdgeMath.edgeAnchor(geometry, fraction);
     }
     function _visibleEdgeSnapshot(edgeId) {
         return EdgeSnapshotCache.visibleEdgeSnapshot(root, edgeId);
@@ -420,7 +421,7 @@ Item {
 
     function edgeTooltipText(edgeId) {
         var edge = root._edgeData(edgeId);
-        if (!edge || edgeCanvasLayer.edgeIsFlow(edge))
+        if (!edge || EdgePaintPolicy.edgeIsFlow(edge))
             return "";
         var access = String(edge.data_access || "item").trim().toLowerCase();
         if (!Boolean(edge.active_data_wire)) {
@@ -984,7 +985,7 @@ Item {
             var targetBounds = targetState ? targetState.bounds : null;
             var sourceSide = sourceState ? sourceState.side : root._normalizedCardinalSide(edge.source_anchor_side, edge.source_port_side);
             var targetSide = targetState ? targetState.side : root._normalizedCardinalSide(edge.target_anchor_side, edge.target_port_side);
-            pipePoints = edgeCanvasLayer.edgeIsFlow(edge)
+            pipePoints = EdgePaintPolicy.edgeIsFlow(edge)
                 ? _buildFlowPipePoints(
                     sxWorld,
                     syWorld,
@@ -1112,7 +1113,6 @@ Item {
         id: edgeRetainedLayer
         anchors.fill: parent
         edgeLayer: root
-        canvasLayer: edgeCanvasLayer
         visible: root.edgeRendererKind === "retained_qml"
     }
 

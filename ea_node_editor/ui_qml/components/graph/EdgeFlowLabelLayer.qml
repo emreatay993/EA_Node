@@ -1,5 +1,6 @@
 import QtQuick 2.15
 import QtQml 2.15
+import "EdgePaintPolicy.js" as EdgePaintPolicy
 
 Item {
     id: root
@@ -143,7 +144,7 @@ Item {
     }
 
     function flowLabelMode(edge) {
-        if (!root.edgeLayer || !root.canvasLayer || !root.canvasLayer.edgeIsFlow(edge) || !edgeLabelText(edge))
+        if (!root.edgeLayer || !EdgePaintPolicy.edgeIsFlow(edge) || !edgeLabelText(edge))
             return "hidden";
         var zoom = root.edgeLayer.viewBridge ? root.edgeLayer.viewBridge.zoom_value : 1.0;
         if (zoom < root.edgeLayer.flowLabelSimplifyZoomThreshold)
@@ -162,23 +163,22 @@ Item {
     }
 
     function flowLabelTextColor(edge) {
-        return root.canvasLayer
-            ? (root.canvasLayer.styleString(root.canvasLayer.flowStyle(edge).label_text_color) || root.edgeLayer.flowDefaultLabelTextColor)
-            : root.edgeLayer.flowDefaultLabelTextColor;
+        return EdgePaintPolicy.styleString(EdgePaintPolicy.flowStyle(edge).label_text_color)
+            || root.edgeLayer.flowDefaultLabelTextColor;
     }
 
     function flowLabelBackgroundColor(edge) {
-        var explicitColor = root.canvasLayer
-            ? root.canvasLayer.styleString(root.canvasLayer.flowStyle(edge).label_background_color)
-            : "";
+        var explicitColor = EdgePaintPolicy.styleString(
+            EdgePaintPolicy.flowStyle(edge).label_background_color
+        );
         if (explicitColor)
             return explicitColor;
         return "transparent";
     }
 
     function flowLabelBorderColor(edge, selected, previewed) {
-        if ((selected || previewed) && root.canvasLayer)
-            return root.canvasLayer.flowStrokeColor(edge, selected, previewed);
+        if (selected || previewed)
+            return EdgePaintPolicy.flowStrokeColor(root.edgeLayer, edge, selected, previewed);
         return root.edgeLayer.flowDefaultLabelBorderColor;
     }
 
