@@ -731,12 +731,24 @@ class FlowEdgeLabelQmlTests(unittest.TestCase):
             view.centerOn(240.0, 90.0)
             shell_bridge = CanvasShellBridge()
             canvas_state_bridge = GraphCanvasStateBridge(
-                shell_window=shell_bridge,
+                session_state=shell_bridge,
+                snap_to_grid_changed_signal=getattr(
+                    shell_bridge, "snap_to_grid_changed", None
+                ),
+                snap_grid_size=float(getattr(shell_bridge, "snap_grid_size", 20.0)),
+                app_preferences_source=shell_bridge,
+                graphics_source=shell_bridge,
                 scene_bridge=scene,
                 view_bridge=view,
             )
             canvas_command_bridge = GraphCanvasCommandBridge(
-                shell_window=shell_bridge,
+                search_scope_controller=shell_bridge,
+                app_preferences_source=shell_bridge,
+                run_controller=shell_bridge,
+                inspector_source=shell_bridge,
+                library_source=shell_bridge,
+                workspace_edit_controller=shell_bridge,
+                workspace_drop_connect_controller=shell_bridge,
                 scene_bridge=scene,
                 view_bridge=view,
             )

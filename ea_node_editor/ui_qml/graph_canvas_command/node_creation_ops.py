@@ -172,20 +172,19 @@ class NodeCreationOps:
         target_port_key: str,
         target_edge_id: str,
     ) -> bool:
-        return bool(
-            _invoke(
-                self._canvas_source,
-                "request_drop_node_from_library",
-                type_id,
-                float(scene_x),
-                float(scene_y),
-                target_mode,
-                target_node_id,
-                target_port_key,
-                target_edge_id,
-                default=False,
-            )
+        result = _invoke(
+            self._workspace_drop_connect_controller,
+            "request_drop_node_from_library",
+            type_id,
+            float(scene_x),
+            float(scene_y),
+            target_mode,
+            target_node_id,
+            target_port_key,
+            target_edge_id,
+            default=False,
         )
+        return bool(getattr(result, "payload", result))
 
     @pyqtSlot(str, float, float, "QVariantMap", result=bool)
     def request_drop_node_from_library_with_properties(
@@ -197,13 +196,13 @@ class NodeCreationOps:
     ) -> bool:
         return bool(
             _invoke(
-                self._canvas_source,
-                "request_drop_node_from_library_with_properties",
+                self._workspace_drop_connect_controller,
+                "insert_library_node_with_properties",
                 type_id,
+                dict(properties or {}),
                 float(scene_x),
                 float(scene_y),
-                dict(properties or {}),
-                default=False,
+                default="",
             )
         )
 
@@ -216,18 +215,21 @@ class NodeCreationOps:
         target_port_key: str,
         append_requested: bool = False,
     ) -> bool:
-        return bool(
-            _invoke(
-                self._canvas_source,
-                "request_connect_ports",
-                source_node_id,
-                source_port_key,
-                target_node_id,
-                target_port_key,
-                bool(append_requested),
-                default=False,
-            )
+        result = _invoke(
+            self._workspace_edit_controller,
+            "request_connect_ports",
+            source_node_id,
+            source_port_key,
+            target_node_id,
+            target_port_key,
+            bool(append_requested),
+            default=False,
         )
+        message = str(getattr(result, "message", "") or "").strip()
+        payload = bool(getattr(result, "payload", result))
+        if not payload and message and callable(self._show_graph_hint_callback):
+            self._show_graph_hint_callback(message, 2400)
+        return payload
 
     @pyqtSlot("QVariantList", str, str, str, bool, bool, result=bool)
     def request_rewire_edges(
@@ -239,19 +241,22 @@ class NodeCreationOps:
         copy_requested: bool = False,
         append_requested: bool = False,
     ) -> bool:
-        return bool(
-            _invoke(
-                self._canvas_source,
-                "request_rewire_edges",
-                list(edge_ids or []),
-                endpoint,
-                node_id,
-                port_key,
-                bool(copy_requested),
-                bool(append_requested),
-                default=False,
-            )
+        result = _invoke(
+            self._workspace_edit_controller,
+            "request_rewire_edges",
+            list(edge_ids or []),
+            endpoint,
+            node_id,
+            port_key,
+            bool(copy_requested),
+            bool(append_requested),
+            default=False,
         )
+        message = str(getattr(result, "message", "") or "").strip()
+        payload = bool(getattr(result, "payload", result))
+        if not payload and message and callable(self._show_graph_hint_callback):
+            self._show_graph_hint_callback(message, 2400)
+        return payload
 
     @pyqtSlot(str, str, float, float, float, float, bool, result=bool)
     def request_open_connection_quick_insert(
@@ -266,7 +271,7 @@ class NodeCreationOps:
     ) -> bool:
         return bool(
             _invoke(
-                self._canvas_source,
+                self._library_source,
                 "request_open_connection_quick_insert",
                 node_id,
                 port_key,
@@ -288,7 +293,7 @@ class NodeCreationOps:
         overlay_y: float,
     ) -> None:
         _invoke(
-            self._canvas_source,
+            self._library_source,
             "request_open_canvas_quick_insert",
             float(scene_x),
             float(scene_y),

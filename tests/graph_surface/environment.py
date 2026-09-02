@@ -282,15 +282,22 @@ class PassiveGraphSurfaceHostTestBase(unittest.TestCase):
                     shell_source = CanvasShellSource(shell_source)
 
                 state_bridge = GraphCanvasStateBridge(
-                    shell_window=shell_source,
-                    canvas_source=shell_source,
+                    session_state=shell_source,
+                    snap_to_grid_changed_signal=getattr(shell_source, "snap_to_grid_changed", None),
+                    snap_grid_size=float(getattr(shell_source, "snap_grid_size", 20.0)),
+                    app_preferences_source=shell_source,
                     graphics_source=shell_source,
                     scene_bridge=scene_bridge,
                     view_bridge=view_bridge,
                 )
                 command_bridge = GraphCanvasCommandBridge(
-                    shell_window=shell_source,
-                    canvas_source=shell_source,
+                    search_scope_controller=shell_source,
+                    app_preferences_source=shell_source,
+                    run_controller=shell_source,
+                    inspector_source=shell_source,
+                    library_source=shell_source,
+                    workspace_edit_controller=shell_source,
+                    workspace_drop_connect_controller=shell_source,
                     scene_bridge=scene_bridge,
                     view_bridge=view_bridge,
                 )
@@ -653,15 +660,22 @@ class GraphSurfaceInputContractTestBase(unittest.TestCase):
 
             def build_canvas_bridges(*, shell_bridge=None, scene_bridge=None, view_bridge=None):
                 state_bridge = GraphCanvasStateBridge(
-                    shell_window=shell_bridge,
-                    canvas_source=shell_bridge,
+                    session_state=shell_bridge,
+                    snap_to_grid_changed_signal=getattr(shell_bridge, "snap_to_grid_changed", None),
+                    snap_grid_size=float(getattr(shell_bridge, "snap_grid_size", 20.0)),
+                    app_preferences_source=shell_bridge,
                     graphics_source=shell_bridge,
                     scene_bridge=scene_bridge,
                     view_bridge=view_bridge,
                 )
                 command_bridge = GraphCanvasCommandBridge(
-                    shell_window=shell_bridge,
-                    canvas_source=shell_bridge,
+                    search_scope_controller=shell_bridge,
+                    app_preferences_source=shell_bridge,
+                    run_controller=shell_bridge,
+                    inspector_source=shell_bridge,
+                    library_source=shell_bridge,
+                    workspace_edit_controller=shell_bridge,
+                    workspace_drop_connect_controller=shell_bridge,
                     scene_bridge=scene_bridge,
                     view_bridge=view_bridge,
                 )

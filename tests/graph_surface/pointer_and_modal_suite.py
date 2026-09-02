@@ -364,7 +364,13 @@ class GraphSurfaceInputContractTests(GraphSurfaceInputContractTestBase):
                 scene_bridge=scene,
                 view_bridge=view,
             )
-            canvas_command_bridge._canvas_source = shell_bridge
+            canvas_command_bridge._search_scope_controller = shell_bridge
+            canvas_command_bridge._app_preferences_source = shell_bridge
+            canvas_command_bridge._run_controller = shell_bridge
+            canvas_command_bridge._inspector_source = shell_bridge
+            canvas_command_bridge._library_source = shell_bridge
+            canvas_command_bridge._workspace_edit_controller = shell_bridge
+            canvas_command_bridge._workspace_drop_connect_controller = shell_bridge
 
             first_source_id = scene.add_node_from_type("passive.flowchart.process", 20.0, 20.0)
             first_target_id = scene.add_node_from_type("passive.flowchart.process", 360.0, 160.0)
@@ -524,7 +530,13 @@ class GraphSurfaceInputContractTests(GraphSurfaceInputContractTestBase):
                 scene_bridge=scene,
                 view_bridge=view,
             )
-            canvas_command_bridge._canvas_source = shell_bridge
+            canvas_command_bridge._search_scope_controller = shell_bridge
+            canvas_command_bridge._app_preferences_source = shell_bridge
+            canvas_command_bridge._run_controller = shell_bridge
+            canvas_command_bridge._inspector_source = shell_bridge
+            canvas_command_bridge._library_source = shell_bridge
+            canvas_command_bridge._workspace_edit_controller = shell_bridge
+            canvas_command_bridge._workspace_drop_connect_controller = shell_bridge
 
             node_id = scene.add_node_from_type("passive.flowchart.process", 20.0, 20.0)
 

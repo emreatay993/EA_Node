@@ -450,6 +450,14 @@ class _GraphCanvasViewBridgeStub(QObject):
 class GraphCanvasSplitBridgeTests(unittest.TestCase):
     __test__ = True
 
+    def test_trigger_node_routes_directly_to_run_controller(self) -> None:
+        run_controller = mock.Mock()
+        run_controller.trigger_node.return_value = True
+        bridge = GraphCanvasCommandBridge(run_controller=run_controller)
+
+        self.assertTrue(bridge.trigger_node("node-1"))
+        run_controller.trigger_node.assert_called_once_with("node-1")
+
     def test_media_action_fallbacks_keep_shape_and_use_neutral_message(self) -> None:
         bridge = GraphCanvasCommandBridge()
         results = (
@@ -573,7 +581,12 @@ class GraphCanvasSplitBridgeTests(unittest.TestCase):
         )
         scene = _GraphCanvasSceneBridgeStub()
         scene._return_values["open_node_link"] = False
-        command_bridge = GraphCanvasCommandBridge(shell_window=shell, scene_bridge=scene)
+        command_bridge = GraphCanvasCommandBridge(
+            scene_bridge=scene,
+            model_provider=lambda: shell.model,
+            active_workspace_id_provider=shell.workspace_manager.active_workspace_id,
+            workspace_navigation_controller=controller,
+        )
 
         self.assertTrue(command_bridge.open_node_link("node-1", "link-workspace"))
         self.assertEqual(controller.calls, [("switch_workspace", ("ws-target",))])
@@ -613,7 +626,12 @@ class GraphCanvasSplitBridgeTests(unittest.TestCase):
         scene = _GraphCanvasSceneBridgeStub()
         scene._workspace_id = "ws-active"
         scene._return_values["open_node_link"] = False
-        command_bridge = GraphCanvasCommandBridge(shell_window=shell, scene_bridge=scene)
+        command_bridge = GraphCanvasCommandBridge(
+            scene_bridge=scene,
+            model_provider=lambda: shell.model,
+            active_workspace_id_provider=shell.workspace_manager.active_workspace_id,
+            workspace_navigation_controller=controller,
+        )
 
         self.assertTrue(command_bridge.open_node_link("node-source", "link-cross-node"))
         self.assertEqual(controller.calls, [("jump_to_graph_node", ("ws-target", "node-target"))])
@@ -623,13 +641,22 @@ class GraphCanvasSplitBridgeTests(unittest.TestCase):
         host = _GraphCanvasShellHostStub()
         presenter = _GraphCanvasShellHostStub()
         host_source = _GraphCanvasShellHostStub()
-        host.graph_canvas_presenter = presenter
         scene = _GraphCanvasSceneBridgeStub()
+        scene._return_values["open_subnode_scope"] = True
         view = _GraphCanvasViewBridgeStub()
         bridge = GraphCanvasCommandBridge(
             host,
-            shell_window=host,
-            canvas_source=presenter,
+            search_scope_controller=SimpleNamespace(navigate_scope=lambda callback: callback()),
+            app_preferences_source=presenter,
+            graphics_preferences_changed_signal=presenter.graphics_preferences_changed,
+            run_controller=presenter,
+            show_graph_hint=lambda message, timeout: presenter._record(
+                "show_graph_hint", message, timeout
+            ),
+            inspector_source=presenter,
+            library_source=presenter,
+            workspace_edit_controller=presenter,
+            workspace_drop_connect_controller=presenter,
             media_action_source=presenter,
             host_source=host_source,
             scene_bridge=scene,
@@ -637,8 +664,8 @@ class GraphCanvasSplitBridgeTests(unittest.TestCase):
         )
 
         self.assertIs(bridge.parent(), host)
-        self.assertIsNone(bridge.shell_window)
-        self.assertIs(bridge.canvas_source, presenter)
+        self.assertIs(bridge._run_controller, presenter)
+        self.assertIs(bridge._workspace_edit_controller, presenter)
         self.assertIs(bridge.media_action_source, presenter)
         self.assertIs(bridge.host_source, host_source)
         self.assertIs(bridge.scene_bridge, scene)
@@ -757,8 +784,6 @@ class GraphCanvasSplitBridgeTests(unittest.TestCase):
         self.assertEqual(
             presenter.calls,
             [
-                ("set_graphics_minimap_expanded", (False,)),
-                ("request_open_subnode_scope", ("subnode-1",)),
                 ("browse_node_property_path", ("node-1", "source_path", "C:/temp/current.txt")),
                 ("internalize_node_property_path", ("node-1", "source_path", "C:/temp/current.txt")),
                 ("pick_node_property_color", ("node-1", "accent_color", "#336699")),
@@ -794,6 +819,7 @@ class GraphCanvasSplitBridgeTests(unittest.TestCase):
         self.assertEqual(
             scene.calls,
             [
+                ("open_subnode_scope", ("subnode-1",)),
                 ("select_node", ("node-1", True)),
                 ("clear_selection", ()),
                 ("select_nodes_in_rect", (1.0, 2.0, 3.0, 4.0, True)),
@@ -839,7 +865,9 @@ class GraphCanvasSplitBridgeTests(unittest.TestCase):
         canvas = _GraphCanvasShellHostStub()
         graphics = _GraphCanvasShellHostStub()
         bridge = GraphCanvasCommandBridge(
-            canvas_source=canvas,
+            search_scope_controller=canvas,
+            app_preferences_source=canvas,
+            graphics_preferences_changed_signal=canvas.graphics_preferences_changed,
             graphics_source=graphics,
         )
         cases = (
@@ -911,7 +939,7 @@ class GraphCanvasSplitBridgeTests(unittest.TestCase):
 
     def test_canvas_command_bridge_forwards_batch_rewire_and_preserves_boolean_failure(self) -> None:
         source = _CanvasRewireSource()
-        bridge = GraphCanvasCommandBridge(canvas_source=source)
+        bridge = GraphCanvasCommandBridge(workspace_edit_controller=source)
 
         self.assertTrue(
             bridge.request_rewire_edges(
@@ -1007,19 +1035,31 @@ class GraphCanvasSplitBridgeTests(unittest.TestCase):
         host.active_theme_id = "canvas-owned-sentinel"
         host_source = _GraphCanvasShellHostStub()
         scene = _GraphCanvasSceneBridgeStub()
+        scene._return_values["open_subnode_scope"] = True
         view = _GraphCanvasViewBridgeStub()
         state_bridge = GraphCanvasStateBridge(
             host,
-            shell_window=host,
-            canvas_source=host,
+            session_state=host,
+            snap_to_grid_changed_signal=host.snap_to_grid_changed,
+            snap_grid_size=host.snap_grid_size,
+            app_preferences_source=host,
             graphics_source=graphics,
             scene_bridge=scene,
             view_bridge=view,
         )
         command_bridge = GraphCanvasCommandBridge(
             host,
-            shell_window=host,
-            canvas_source=host,
+            search_scope_controller=SimpleNamespace(navigate_scope=lambda callback: callback()),
+            app_preferences_source=host,
+            graphics_preferences_changed_signal=host.graphics_preferences_changed,
+            run_controller=host,
+            show_graph_hint=lambda message, timeout: host._record(
+                "show_graph_hint", message, timeout
+            ),
+            inspector_source=host,
+            library_source=host,
+            workspace_edit_controller=host,
+            workspace_drop_connect_controller=host,
             media_action_source=host,
             graphics_source=graphics,
             host_source=host_source,
@@ -1027,11 +1067,9 @@ class GraphCanvasSplitBridgeTests(unittest.TestCase):
             view_bridge=view,
         )
 
-        self.assertIsNone(state_bridge.shell_window)
         self.assertIs(state_bridge.scene_bridge, scene)
         self.assertIs(state_bridge.view_bridge, view)
-        self.assertIsNone(command_bridge.shell_window)
-        self.assertIs(command_bridge.canvas_source, host)
+        self.assertIs(command_bridge._run_controller, host)
         self.assertIs(command_bridge.media_action_source, host)
         self.assertIs(command_bridge.graphics_source, graphics)
         self.assertIs(command_bridge.host_source, host_source)
@@ -1278,8 +1316,6 @@ class GraphCanvasSplitBridgeTests(unittest.TestCase):
         self.assertEqual(
             host.calls,
             [
-                ("set_graphics_minimap_expanded", (False,)),
-                ("request_open_subnode_scope", ("subnode-1",)),
                 ("browse_node_property_path", ("node-1", "source_path", "C:/temp/current.txt")),
                 ("internalize_node_property_path", ("node-1", "source_path", "C:/temp/current.txt")),
                 ("pick_node_property_color", ("node-1", "accent_color", "#336699")),
@@ -1335,6 +1371,7 @@ class GraphCanvasSplitBridgeTests(unittest.TestCase):
         self.assertEqual(
             scene.calls,
             [
+                ("open_subnode_scope", ("subnode-1",)),
                 ("select_node", ("node-1", True)),
                 ("set_node_property", ("node-1", "message", "hello")),
                 (
@@ -1378,14 +1415,15 @@ class GraphCanvasSplitBridgeTests(unittest.TestCase):
         scene = _GraphCanvasSceneBridgeStub()
         view = _GraphCanvasViewBridgeStub()
         state_bridge = GraphCanvasStateBridge(
-            shell_window=host,
-            canvas_source=host,
+            session_state=host,
+            snap_to_grid_changed_signal=host.snap_to_grid_changed,
+            snap_grid_size=host.snap_grid_size,
+            app_preferences_source=host,
             scene_bridge=scene,
             view_bridge=view,
         )
         command_bridge = GraphCanvasCommandBridge(
-            shell_window=host,
-            canvas_source=host,
+            library_source=host,
             host_source=host_source,
             scene_bridge=scene,
             view_bridge=view,
@@ -1462,8 +1500,10 @@ class GraphCanvasSplitBridgeTests(unittest.TestCase):
         canvas_source = _GraphCanvasTooltipCanvasSourceStub()
         state_bridge = GraphCanvasStateBridge(
             host,
-            shell_window=host,
-            canvas_source=canvas_source,
+            session_state=canvas_source,
+            snap_to_grid_changed_signal=host.snap_to_grid_changed,
+            snap_grid_size=getattr(canvas_source, "snap_grid_size", 20.0),
+            app_preferences_source=canvas_source,
             graphics_source=host,
             scene_bridge=_GraphCanvasSceneBridgeStub(),
             view_bridge=_GraphCanvasViewBridgeStub(),
@@ -1506,8 +1546,11 @@ class GraphCanvasSplitBridgeTests(unittest.TestCase):
         view = _GraphCanvasViewBridgeStub()
         state_bridge = GraphCanvasStateBridge(
             host,
-            shell_window=host,
-            canvas_source=host,
+            session_state=host,
+            snap_to_grid_changed_signal=host.snap_to_grid_changed,
+            snap_grid_size=host.snap_grid_size,
+            app_preferences_source=host,
+            graphics_source=host,
             scene_bridge=scene,
             view_bridge=view,
         )
@@ -1540,8 +1583,10 @@ class GraphCanvasSplitBridgeTests(unittest.TestCase):
         view = _GraphCanvasViewBridgeStub()
         state_bridge = GraphCanvasStateBridge(
             host,
-            shell_window=host,
-            canvas_source=presenter,
+            session_state=presenter,
+            snap_to_grid_changed_signal=presenter.snap_to_grid_changed,
+            snap_grid_size=presenter.snap_grid_size,
+            app_preferences_source=presenter,
             graphics_source=host,
             scene_bridge=scene,
             view_bridge=view,

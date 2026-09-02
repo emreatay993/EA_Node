@@ -616,9 +616,13 @@ class ShellHostPresenter(QObject):
         )
         if dialog.exec() != dialog.DialogCode.Accepted:
             return
-        self._host.graph_canvas_presenter.set_selected_run_preview_before_run(
+        preferences = self._host.app_preferences_controller
+        previous = preferences.selected_run_preview_before_run()
+        current = preferences.set_selected_run_preview_before_run(
             dialog.selected_run_preview_before_run()
         )
+        if current != previous:
+            self._host.graphics_preferences_changed.emit()
 
     def show_keyboard_mouse_reference_dialog(self, _checked: bool = False) -> None:
         from ea_node_editor.ui.dialogs import InputReferenceDialog

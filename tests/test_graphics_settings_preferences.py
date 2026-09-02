@@ -26,7 +26,6 @@ from ea_node_editor.ui.shell.controllers.app_preferences_controller import (
 )
 from ea_node_editor.ui.shell.host_presenter import ShellHostPresenter
 from ea_node_editor.ui.shell.presenters import workspace_presenter as workspace_presenter_module
-from ea_node_editor.ui.shell.presenters.graph_canvas_presenter import GraphCanvasPresenter
 from ea_node_editor.ui.shell.presenters.state import build_default_shell_workspace_ui_state
 from ea_node_editor.ui.shell.presenters.workspace_presenter import ShellWorkspacePresenter
 from ea_node_editor.ui.shell.tooltip_manager import TooltipManager
@@ -45,6 +44,7 @@ from ea_node_editor.ui.shell.window_state import context_properties as shell_con
 from ea_node_editor.ui.shell.window_state import run_and_style_state as shell_run_and_style_state
 from ea_node_editor.ui_qml.graph_scene_bridge import GraphSceneBridge
 from ea_node_editor.ui_qml.graph_canvas_state import GraphCanvasStateBridge
+from ea_node_editor.ui_qml.graph_canvas_command import GraphCanvasCommandBridge
 from ea_node_editor.ui_qml.graph_theme_bridge import GraphThemeBridge
 
 
@@ -410,14 +410,16 @@ class GraphicsSettingsPreferencesTests(unittest.TestCase):
             scene.bind_graphics_preferences_source(host.shell_workspace_presenter)
             scene.set_workspace(model, registry, workspace_id)
             scene.add_node_from_type("core.logger", 40.0, 60.0)
-            canvas = GraphCanvasPresenter(
-                host,  # type: ignore[arg-type]
-                workspace_presenter=host.shell_workspace_presenter,
-                library_presenter=SimpleNamespace(),  # type: ignore[arg-type]
-                inspector_presenter=SimpleNamespace(),  # type: ignore[arg-type]
+            canvas = GraphCanvasCommandBridge(
+                search_scope_controller=host.search_scope_controller,
+                app_preferences_source=host.app_preferences_controller,
+                graphics_preferences_changed_signal=host.graphics_preferences_changed,
             )
             state = GraphCanvasStateBridge(
-                canvas_source=canvas,
+                session_state=host.search_scope_state,
+                snap_to_grid_changed_signal=host.snap_to_grid_changed,
+                snap_grid_size=20.0,
+                app_preferences_source=host.app_preferences_controller,
                 graphics_source=host.shell_workspace_presenter,
                 scene_bridge=scene,
             )

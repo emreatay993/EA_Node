@@ -1,7 +1,7 @@
-# Purpose: Shell presenter for graph-canvas view capture/export — PNG export and
-#          project-review canvas capture viewport/spec.
+# Purpose: Plain presenter for graph-canvas PNG/PPTX and project-review capture.
 # Map: subsystems/ui_shell
-# Landmarks: CanvasViewPngExport, ProjectReviewCanvasCaptureSpec, ProjectReviewCanvasCaptureViewport
+# Tests: tests/test_canvas_export_presenter.py
+# Landmarks: CanvasExportPresenter, CanvasViewPngExport, ProjectReviewCanvasCaptureSpec
 from __future__ import annotations
 
 import copy
@@ -13,7 +13,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 from uuid import uuid4
 
-from PyQt6.QtCore import Q_ARG, QEventLoop, QMetaObject, QObject, Qt, QTimer, pyqtSignal
+from PyQt6.QtCore import Q_ARG, QEventLoop, QMetaObject, QObject, Qt, QTimer
 from PyQt6.QtGui import QImage
 from PyQt6.QtWidgets import QApplication, QMessageBox, QWidget
 
@@ -44,11 +44,9 @@ from ea_node_editor.ui_qml.native_overlay_owners import (
     VIEWER_SESSION_OVERLAY_OWNER,
 )
 
-from .contracts import _GraphCanvasPresenterHostProtocol, _presenter_parent
+from .contracts import _CanvasExportPresenterHostProtocol
 
 if TYPE_CHECKING:
-    from .inspector_presenter import ShellInspectorPresenter
-    from .library_presenter import ShellLibraryPresenter
     from .workspace_presenter import ShellWorkspacePresenter
 
 
@@ -144,213 +142,15 @@ def _mapping(value: Any) -> dict[str, Any]:
     return {}
 
 
-class GraphCanvasPresenter(QObject):
-    snap_to_grid_changed = pyqtSignal()
-
+class CanvasExportPresenter:
     def __init__(
         self,
-        host: _GraphCanvasPresenterHostProtocol,
+        host: _CanvasExportPresenterHostProtocol,
         *,
-        parent: QObject | None = None,
         workspace_presenter: "ShellWorkspacePresenter",
-        library_presenter: "ShellLibraryPresenter",
-        inspector_presenter: "ShellInspectorPresenter",
     ) -> None:
-        super().__init__(_presenter_parent(host, parent))
         self._host = host
         self._workspace_presenter = workspace_presenter
-        self._library_presenter = library_presenter
-        self._inspector_presenter = inspector_presenter
-        host.snap_to_grid_changed.connect(self.snap_to_grid_changed.emit)
-
-    def trigger_node(self, node_id: str) -> bool:
-        normalized_node_id = str(node_id or "").strip()
-        callback = getattr(self._host.run_controller, "trigger_node", None)
-        if not normalized_node_id or not callable(callback):
-            return False
-        return callback(normalized_node_id) is not False
-
-    @property
-    def graphics_minimap_expanded(self) -> bool: return bool(self._host.search_scope_state.graphics_minimap_expanded)
-
-    @property
-    def selected_run_preview_before_run(self) -> bool:
-        return bool(self._host.app_preferences_controller.selected_run_preview_before_run())
-
-    @property
-    def snap_to_grid_enabled(self) -> bool: return bool(self._host.search_scope_state.snap_to_grid_enabled)
-
-    @property
-    def snap_grid_size(self) -> float: return float(self._host._SNAP_GRID_SIZE)
-
-    def set_snap_to_grid_enabled(self, enabled: bool) -> None:
-        self._host.search_scope_controller.set_snap_to_grid_enabled(enabled)
-
-    def request_toggle_snap_to_grid(self) -> bool:
-        self.set_snap_to_grid_enabled(not self._host.search_scope_state.snap_to_grid_enabled)
-        return bool(self._host.search_scope_state.snap_to_grid_enabled)
-
-    def set_graphics_minimap_expanded(self, expanded: bool) -> None:
-        self._host.search_scope_controller.set_graphics_minimap_expanded(expanded)
-
-    def set_selected_run_preview_before_run(self, enabled: bool) -> None:
-        previous = self.selected_run_preview_before_run
-        current = self._host.app_preferences_controller.set_selected_run_preview_before_run(enabled)
-        if current != previous:
-            self._host.graphics_preferences_changed.emit()
-
-    def request_open_subnode_scope(self, node_id: str) -> bool:
-        normalized_node_id = str(node_id).strip()
-        if not normalized_node_id:
-            return False
-        return bool(
-            self._host.search_scope_controller.navigate_scope(
-                lambda: self._host.scene.open_subnode_scope(normalized_node_id)
-            )
-        )
-
-    def browse_node_property_path(self, node_id: str, key: str, current_path: str, source_mode: str = "") -> str:
-        return self._inspector_presenter.browse_node_property_path(node_id, key, current_path, source_mode)
-
-    def internalize_node_property_path(self, node_id: str, key: str, current_path: str) -> str:
-        return self._inspector_presenter.internalize_node_property_path(node_id, key, current_path)
-
-    def pick_node_property_color(self, node_id: str, key: str, current_value: str) -> str:
-        return self._inspector_presenter.pick_node_property_color(node_id, key, current_value)
-
-    def request_drop_node_from_library(
-        self,
-        type_id: str,
-        scene_x: float,
-        scene_y: float,
-        target_mode: str,
-        target_node_id: str,
-        target_port_key: str,
-        target_edge_id: str,
-        append_requested: bool = False,
-    ) -> bool:
-        result = self._host.workspace_drop_connect_controller.request_drop_node_from_library(
-            type_id,
-            scene_x,
-            scene_y,
-            target_mode,
-            target_node_id,
-            target_port_key,
-            target_edge_id,
-            append_requested,
-        )
-        return bool(result.payload)
-
-    def request_drop_node_from_library_with_properties(
-        self,
-        type_id: str,
-        scene_x: float,
-        scene_y: float,
-        properties: dict[str, Any],
-    ) -> bool:
-        return bool(
-            self._host.workspace_drop_connect_controller.insert_library_node_with_properties(
-                type_id,
-                dict(properties or {}),
-                float(scene_x),
-                float(scene_y),
-            )
-        )
-
-    @staticmethod
-    def _positive_capture_dimension(value: object) -> float | None:
-        try:
-            number = float(value)
-        except (TypeError, ValueError):
-            return None
-        if not isfinite(number) or number <= 0:
-            return None
-        return number
-
-    @staticmethod
-    def _positive_capture_integer(value: object) -> int | None:
-        try:
-            number = int(value)
-        except (TypeError, ValueError):
-            return None
-        return number if number > 0 else None
-
-    def request_connect_ports(
-        self,
-        node_a_id: str,
-        port_a: str,
-        node_b_id: str,
-        port_b: str,
-        append_requested: bool = False,
-    ) -> bool:
-        result = self._host.workspace_edit_controller.request_connect_ports(
-            node_a_id,
-            port_a,
-            node_b_id,
-            port_b,
-            append_requested,
-        )
-        if not result.payload and str(result.message or "").strip():
-            self.show_graph_hint(str(result.message), 2400)
-        return bool(result.payload)
-
-    def request_rewire_edges(
-        self,
-        edge_ids: list[Any],
-        endpoint: str,
-        node_id: str,
-        port_key: str,
-        copy_requested: bool = False,
-        append_requested: bool = False,
-    ) -> bool:
-        result = self._host.workspace_edit_controller.request_rewire_edges(
-            edge_ids,
-            endpoint,
-            node_id,
-            port_key,
-            copy_requested,
-            append_requested,
-        )
-        if not result.payload and str(result.message or "").strip():
-            self.show_graph_hint(str(result.message), 2400)
-        return bool(result.payload)
-
-    def show_graph_hint(self, message: str, timeout_ms: int = 3600) -> None:
-        self._host.show_graph_hint(message, timeout_ms)
-
-    def clear_graph_hint(self) -> None:
-        self._host.clear_graph_hint()
-
-    def request_open_connection_quick_insert(
-        self,
-        node_id: str,
-        port_key: str,
-        scene_x: float,
-        scene_y: float,
-        overlay_x: float,
-        overlay_y: float,
-        append_requested: bool = False,
-    ) -> bool:
-        return bool(
-            self._library_presenter.request_open_connection_quick_insert(
-                node_id,
-                port_key,
-                scene_x,
-                scene_y,
-                overlay_x,
-                overlay_y,
-                append_requested,
-            )
-        )
-
-    def request_open_canvas_quick_insert(
-        self,
-        scene_x: float,
-        scene_y: float,
-        overlay_x: float,
-        overlay_y: float,
-    ) -> None:
-        self._library_presenter.request_open_canvas_quick_insert(scene_x, scene_y, overlay_x, overlay_y)
 
     def export_canvas_views(self, view_ids: Sequence[str] | None = None) -> bool:
         try:
@@ -391,7 +191,9 @@ class GraphCanvasPresenter(QObject):
             return False
 
     def _canvas_export_context(self, view_ids: Sequence[str] | None) -> dict[str, Any]:
-        workspace_id = str(self._host.workspace_manager.active_workspace_id() or "").strip()
+        workspace_id = str(
+            self._host.workspace_manager.active_workspace_id() or ""
+        ).strip()
         workspace = self._host.model.project.workspaces.get(workspace_id)
         if workspace is None:
             raise CanvasViewExportError("No active workspace is available for export.")
@@ -404,7 +206,9 @@ class GraphCanvasPresenter(QObject):
             for view in workspace.views.values()
         ]
         requested_ids = [str(view_id or "").strip() for view_id in view_ids or []]
-        initial_view_ids = [view_id for view_id in requested_ids if view_id in workspace.views]
+        initial_view_ids = [
+            view_id for view_id in requested_ids if view_id in workspace.views
+        ]
         if requested_ids and not initial_view_ids:
             raise CanvasViewExportError("The requested view is no longer available.")
         return {
@@ -431,7 +235,9 @@ class GraphCanvasPresenter(QObject):
         exports = list(result.exports)
         failures = list(result.failures)
         output_dir = Path(output_dir).expanduser()
-        workspace_id = str(self._host.workspace_manager.active_workspace_id() or "").strip()
+        workspace_id = str(
+            self._host.workspace_manager.active_workspace_id() or ""
+        ).strip()
         workspace = self._host.model.project.workspaces.get(workspace_id)
         if workspace is None:
             raise CanvasViewExportError("No active workspace is available for export.")
@@ -442,7 +248,9 @@ class GraphCanvasPresenter(QObject):
                 CanvasViewPptxSlide(title=export.view_name, image_path=export.path)
                 for export in exports
             ]
-            default_deck_path = default_canvas_views_deck_path(output_dir, workspace.name)
+            default_deck_path = default_canvas_views_deck_path(
+                output_dir, workspace.name
+            )
             deck_path = collision_safe_path(output_dir, default_deck_path.stem, ".pptx")
             create_canvas_views_pptx(
                 slides=exported_slides,
@@ -456,14 +264,18 @@ class GraphCanvasPresenter(QObject):
             f"{'' if len(exports) == 1 else 's'} to {output_dir}.",
         )
         if deck_path is not None:
-            self._append_console_log("info", f"Canvas view PowerPoint deck saved to {deck_path}.")
+            self._append_console_log(
+                "info", f"Canvas view PowerPoint deck saved to {deck_path}."
+            )
         if failures:
             self._append_console_log(
                 "warning",
                 self._format_canvas_export_failures(failures, all_failed=False),
             )
-        self.show_graph_hint(
-            "Canvas view export complete." if not failures else "Canvas view export completed with failures.",
+        self._host.show_graph_hint(
+            "Canvas view export complete."
+            if not failures
+            else "Canvas view export completed with failures.",
             3000,
         )
         self._show_canvas_export_complete(len(exports), output_dir, deck_path, failures)
@@ -477,21 +289,28 @@ class GraphCanvasPresenter(QObject):
         crop_to_content: bool = True,
         crop_padding_px: float = DEFAULT_CANVAS_EXPORT_CROP_PADDING_PX,
     ) -> CanvasViewPngExportResult:
-        workspace_id = str(self._host.workspace_manager.active_workspace_id() or "").strip()
+        workspace_id = str(
+            self._host.workspace_manager.active_workspace_id() or ""
+        ).strip()
         workspace = self._host.model.project.workspaces.get(workspace_id)
         if workspace is None:
             raise CanvasViewExportError("No active workspace is available for export.")
         workspace.ensure_default_view()
-        selected_view_ids = [str(view_id or "").strip() for view_id in view_ids if str(view_id or "").strip()]
-        selected_view_ids = [view_id for view_id in selected_view_ids if view_id in workspace.views]
+        selected_view_ids = [
+            str(view_id or "").strip()
+            for view_id in view_ids
+            if str(view_id or "").strip()
+        ]
+        selected_view_ids = [
+            view_id for view_id in selected_view_ids if view_id in workspace.views
+        ]
         if not selected_view_ids:
             raise CanvasViewExportError("Select at least one view to export.")
 
         output_dir = Path(output_dir).expanduser()
         output_dir.mkdir(parents=True, exist_ok=True)
         selected_names_by_id = {
-            view_id: workspace.views[view_id].name
-            for view_id in selected_view_ids
+            view_id: workspace.views[view_id].name for view_id in selected_view_ids
         }
         output_paths_by_id = canvas_view_png_output_paths(
             output_dir=output_dir,
@@ -508,7 +327,11 @@ class GraphCanvasPresenter(QObject):
                 for index, view_id in enumerate(selected_view_ids, start=1):
                     workspace = self._host.model.project.workspaces.get(workspace_id)
                     if workspace is None or view_id not in workspace.views:
-                        failures.append(_CanvasViewExportFailure(view_id, "A selected view is no longer available."))
+                        failures.append(
+                            _CanvasViewExportFailure(
+                                view_id, "A selected view is no longer available."
+                            )
+                        )
                         continue
                     view_name = str(workspace.views[view_id].name or view_id)
                     try:
@@ -547,17 +370,21 @@ class GraphCanvasPresenter(QObject):
                     self._append_console_log(
                         "info",
                         "Canvas view exported: "
-                            f"{view_name} -> {capture.path} "
-                            f"({capture.output_pixel_size[0]} x {capture.output_pixel_size[1]} px, "
-                            f"DPR {capture.device_pixel_ratio:g}).",
+                        f"{view_name} -> {capture.path} "
+                        f"({capture.output_pixel_size[0]} x {capture.output_pixel_size[1]} px, "
+                        f"DPR {capture.device_pixel_ratio:g}).",
                     )
         finally:
             self._restore_canvas_export_view(workspace_id, original_view_id)
 
         if failures and not exports:
-            raise CanvasViewExportError(self._format_canvas_export_failures(failures, all_failed=True))
+            raise CanvasViewExportError(
+                self._format_canvas_export_failures(failures, all_failed=True)
+            )
 
-        return CanvasViewPngExportResult(exports=tuple(exports), failures=tuple(failures))
+        return CanvasViewPngExportResult(
+            exports=tuple(exports), failures=tuple(failures)
+        )
 
     def capture_project_review_canvas_pngs(
         self,
@@ -567,7 +394,9 @@ class GraphCanvasPresenter(QObject):
         scale: int,
         crop_padding_px: float = DEFAULT_CANVAS_EXPORT_CROP_PADDING_PX,
     ) -> ProjectReviewCanvasPngExportResult:
-        workspace_id = str(self._host.workspace_manager.active_workspace_id() or "").strip()
+        workspace_id = str(
+            self._host.workspace_manager.active_workspace_id() or ""
+        ).strip()
         workspace = self._host.model.project.workspaces.get(workspace_id)
         if workspace is None:
             raise CanvasViewExportError("No active workspace is available for export.")
@@ -590,27 +419,40 @@ class GraphCanvasPresenter(QObject):
         failures: list[_CanvasViewExportFailure] = []
 
         try:
-            with tempfile.TemporaryDirectory(prefix="project-review-canvas-export-") as temp_dir:
+            with tempfile.TemporaryDirectory(
+                prefix="project-review-canvas-export-"
+            ) as temp_dir:
                 temp_root = Path(temp_dir)
                 for index, spec in enumerate(specs, start=1):
-                    display_name = str(spec.display_name or spec.view_id or spec.slide_id)
+                    display_name = str(
+                        spec.display_name or spec.view_id or spec.slide_id
+                    )
                     capture_mode = str(spec.capture_mode or "").strip().lower()
                     live_view_state = self._canvas_export_view_state()
                     try:
                         if capture_mode == "view":
-                            viewport = self._project_review_canvas_viewport_state(spec.viewport)
+                            viewport = self._project_review_canvas_viewport_state(
+                                spec.viewport
+                            )
                             if viewport is None:
-                                raise CanvasViewExportError("Saved workspace view state is not available.")
+                                raise CanvasViewExportError(
+                                    "Saved workspace view state is not available."
+                                )
                             if not self._set_canvas_export_live_view_state(viewport):
-                                raise CanvasViewExportError("Saved workspace view could not be applied.")
+                                raise CanvasViewExportError(
+                                    "Saved workspace view could not be applied."
+                                )
                             effective_crop_to_content = False
                         elif capture_mode == "snapshot":
                             effective_crop_to_content = bool(spec.crop_to_content)
                         else:
-                            raise CanvasViewExportError("Unsupported review deck canvas capture mode.")
+                            raise CanvasViewExportError(
+                                "Unsupported review deck canvas capture mode."
+                            )
                         capture = self._capture_active_canvas_png(
                             output_path=output_paths_by_slide_id[spec.slide_id],
-                            base_path=temp_root / f"project-review-canvas-{index}.base.png",
+                            base_path=temp_root
+                            / f"project-review-canvas-{index}.base.png",
                             scale=scale,
                             crop_to_content=effective_crop_to_content,
                             crop_padding_px=crop_padding_px,
@@ -650,9 +492,13 @@ class GraphCanvasPresenter(QObject):
             self._restore_canvas_export_live_view_state(original_live_view_state)
 
         if failures and not exports:
-            raise CanvasViewExportError(self._format_canvas_export_failures(failures, all_failed=True))
+            raise CanvasViewExportError(
+                self._format_canvas_export_failures(failures, all_failed=True)
+            )
 
-        return ProjectReviewCanvasPngExportResult(exports=tuple(exports), failures=tuple(failures))
+        return ProjectReviewCanvasPngExportResult(
+            exports=tuple(exports), failures=tuple(failures)
+        )
 
     def _capture_active_canvas_png(
         self,
@@ -665,9 +511,13 @@ class GraphCanvasPresenter(QObject):
     ) -> _ActiveCanvasPngCapture:
         live_view_state = self._canvas_export_view_state() if crop_to_content else None
         try:
-            scene_bounds = self._canvas_export_scene_bounds() if crop_to_content else None
+            scene_bounds = (
+                self._canvas_export_scene_bounds() if crop_to_content else None
+            )
             framed_for_crop = (
-                self._frame_canvas_export_scene_bounds(scene_bounds, padding_px=crop_padding_px)
+                self._frame_canvas_export_scene_bounds(
+                    scene_bounds, padding_px=crop_padding_px
+                )
                 if live_view_state is not None and scene_bounds is not None
                 else False
             )
@@ -803,7 +653,9 @@ class GraphCanvasPresenter(QObject):
             return None
         return scene_bounds
 
-    def _frame_canvas_export_scene_bounds(self, scene_bounds: object, *, padding_px: float) -> bool:
+    def _frame_canvas_export_scene_bounds(
+        self, scene_bounds: object, *, padding_px: float
+    ) -> bool:
         view = getattr(self._host, "view", None)
         if view is None:
             return False
@@ -824,10 +676,16 @@ class GraphCanvasPresenter(QObject):
         fit_zoom_for_scene_rect = getattr(view, "fit_zoom_for_scene_rect", None)
         center = getattr(scene_bounds, "center", None)
         set_view_state = getattr(view, "set_view_state", None)
-        if not callable(fit_zoom_for_scene_rect) or not callable(center) or not callable(set_view_state):
+        if (
+            not callable(fit_zoom_for_scene_rect)
+            or not callable(center)
+            or not callable(set_view_state)
+        ):
             return False
         try:
-            fitted_zoom = fit_zoom_for_scene_rect(scene_bounds, padding_px=float(padding_px))
+            fitted_zoom = fit_zoom_for_scene_rect(
+                scene_bounds, padding_px=float(padding_px)
+            )
             scene_center = center()
             center_x = self._numeric_export_value(getattr(scene_center, "x", None))
             center_y = self._numeric_export_value(getattr(scene_center, "y", None))
@@ -842,19 +700,25 @@ class GraphCanvasPresenter(QObject):
         view = getattr(self._host, "view", None)
         if view is None:
             return None
-        zoom = self._numeric_export_value(getattr(view, "zoom_value", getattr(view, "zoom", None)))
+        zoom = self._numeric_export_value(
+            getattr(view, "zoom_value", getattr(view, "zoom", None))
+        )
         center_x = self._numeric_export_value(getattr(view, "center_x", None))
         center_y = self._numeric_export_value(getattr(view, "center_y", None))
         if zoom is None or center_x is None or center_y is None or zoom <= 0.0:
             return None
         return _CanvasExportViewState(zoom=zoom, center_x=center_x, center_y=center_y)
 
-    def _restore_canvas_export_live_view_state(self, state: _CanvasExportViewState | None) -> None:
+    def _restore_canvas_export_live_view_state(
+        self, state: _CanvasExportViewState | None
+    ) -> None:
         if state is None:
             return
         self._set_canvas_export_live_view_state(state)
 
-    def _set_canvas_export_live_view_state(self, state: _CanvasExportViewState | None) -> bool:
+    def _set_canvas_export_live_view_state(
+        self, state: _CanvasExportViewState | None
+    ) -> bool:
         if state is None:
             return False
         view = getattr(self._host, "view", None)
@@ -891,14 +755,22 @@ class GraphCanvasPresenter(QObject):
     def _graph_canvas_item(self) -> QObject:
         quick_widget = getattr(self._host, "quick_widget", None)
         root_object = quick_widget.rootObject() if quick_widget is not None else None
-        graph_canvas_item = root_object.findChild(QObject, "graphCanvas") if root_object is not None else None
+        graph_canvas_item = (
+            root_object.findChild(QObject, "graphCanvas")
+            if root_object is not None
+            else None
+        )
         if graph_canvas_item is None:
             raise CanvasViewExportError("Graph canvas is not ready for export.")
         return graph_canvas_item
 
     def _canvas_logical_size(self, graph_canvas_item: QObject) -> tuple[float, float]:
-        width = self._positive_capture_dimension(self._numeric_qobject_value(graph_canvas_item, "width"))
-        height = self._positive_capture_dimension(self._numeric_qobject_value(graph_canvas_item, "height"))
+        width = self._positive_capture_dimension(
+            self._numeric_qobject_value(graph_canvas_item, "width")
+        )
+        height = self._positive_capture_dimension(
+            self._numeric_qobject_value(graph_canvas_item, "height")
+        )
         if width is None or height is None:
             raise CanvasViewExportError("Graph canvas size is not ready for export.")
         return width, height
@@ -918,7 +790,9 @@ class GraphCanvasPresenter(QObject):
         ]
         quick_window = quick_widget.quickWindow() if quick_widget is not None else None
         if quick_window is not None:
-            candidates.append(getattr(quick_window, "effectiveDevicePixelRatio", lambda: 0.0)())
+            candidates.append(
+                getattr(quick_window, "effectiveDevicePixelRatio", lambda: 0.0)()
+            )
         for candidate in candidates:
             try:
                 value = float(candidate)
@@ -974,7 +848,9 @@ class GraphCanvasPresenter(QObject):
         signal.connect(_finished)
         timer = QTimer()
         timer.setSingleShot(True)
-        timer.timeout.connect(lambda: self._mark_canvas_capture_timeout(loop, timed_out))
+        timer.timeout.connect(
+            lambda: self._mark_canvas_capture_timeout(loop, timed_out)
+        )
         try:
             timer.start(_CANVAS_BASE_CAPTURE_TIMEOUT_MS)
             request = {
@@ -993,7 +869,9 @@ class GraphCanvasPresenter(QObject):
                     Q_ARG("QVariant", request),
                 )
             except (RuntimeError, TypeError) as exc:
-                raise CanvasViewExportError("Canvas base capture could not be started.") from exc
+                raise CanvasViewExportError(
+                    "Canvas base capture could not be started."
+                ) from exc
             if invoked is False:
                 raise CanvasViewExportError("Canvas base capture could not be started.")
             loop.exec()
@@ -1007,20 +885,34 @@ class GraphCanvasPresenter(QObject):
             raise CanvasViewExportError("Canvas base capture timed out.")
         result = result_box.get("result", {})
         if not bool(result.get("success")):
-            message = str(result.get("error") or result.get("message") or "Canvas base capture failed.")
+            message = str(
+                result.get("error")
+                or result.get("message")
+                or "Canvas base capture failed."
+            )
             raise CanvasViewExportError(message)
         result_request_id = str(result.get("request_id") or "").strip()
         if result_request_id != request_id:
-            raise CanvasViewExportError("Canvas base capture returned an unexpected request id.")
+            raise CanvasViewExportError(
+                "Canvas base capture returned an unexpected request id."
+            )
         result_path = Path(str(result.get("path") or "")).expanduser()
         if result_path != output_path:
-            raise CanvasViewExportError("Canvas base capture returned an unexpected output path.")
+            raise CanvasViewExportError(
+                "Canvas base capture returned an unexpected output path."
+            )
         if not output_path.exists():
             raise CanvasViewExportError("Canvas base PNG was not written.")
-        canvas_logical_width = self._positive_capture_dimension(result.get("base_logical_width"))
-        canvas_logical_height = self._positive_capture_dimension(result.get("base_logical_height"))
+        canvas_logical_width = self._positive_capture_dimension(
+            result.get("base_logical_width")
+        )
+        canvas_logical_height = self._positive_capture_dimension(
+            result.get("base_logical_height")
+        )
         if canvas_logical_width is None or canvas_logical_height is None:
-            raise CanvasViewExportError("Canvas base capture returned an invalid logical size.")
+            raise CanvasViewExportError(
+                "Canvas base capture returned an invalid logical size."
+            )
         output_width = self._positive_capture_integer(
             result.get("output_pixel_width", result.get("width"))
         )
@@ -1028,11 +920,15 @@ class GraphCanvasPresenter(QObject):
             result.get("output_pixel_height", result.get("height"))
         )
         if output_width is None or output_height is None:
-            raise CanvasViewExportError("Canvas base capture returned an invalid pixel size.")
+            raise CanvasViewExportError(
+                "Canvas base capture returned an invalid pixel size."
+            )
         validate_export_pixel_size(output_width, output_height)
         result_dpr = self._positive_capture_dimension(result.get("device_pixel_ratio"))
         if result_dpr is None:
-            raise CanvasViewExportError("Canvas base capture returned an invalid device pixel ratio.")
+            raise CanvasViewExportError(
+                "Canvas base capture returned an invalid device pixel ratio."
+            )
         return _CanvasBaseCaptureResult(
             request_id=request_id,
             path=output_path,
@@ -1042,7 +938,9 @@ class GraphCanvasPresenter(QObject):
         )
 
     @staticmethod
-    def _mark_canvas_capture_timeout(loop: QEventLoop, timed_out: dict[str, bool]) -> None:
+    def _mark_canvas_capture_timeout(
+        loop: QEventLoop, timed_out: dict[str, bool]
+    ) -> None:
         timed_out["value"] = True
         if loop.isRunning():
             loop.quit()
@@ -1104,7 +1002,11 @@ class GraphCanvasPresenter(QObject):
         if not view_id:
             return
         workspace = self._host.model.project.workspaces.get(workspace_id)
-        if workspace is None or view_id not in workspace.views or workspace.active_view_id == view_id:
+        if (
+            workspace is None
+            or view_id not in workspace.views
+            or workspace.active_view_id == view_id
+        ):
             return
         try:
             self._workspace_presenter.request_switch_view(view_id)
@@ -1118,11 +1020,17 @@ class GraphCanvasPresenter(QObject):
         *,
         all_failed: bool,
     ) -> str:
-        prefix = "Canvas view export failed for all selected views." if all_failed else (
-            f"{len(failures)} canvas view export"
-            f"{'' if len(failures) == 1 else 's'} failed."
+        prefix = (
+            "Canvas view export failed for all selected views."
+            if all_failed
+            else (
+                f"{len(failures)} canvas view export"
+                f"{'' if len(failures) == 1 else 's'} failed."
+            )
         )
-        details = [f"{failure.view_name}: {failure.message}" for failure in failures[:5]]
+        details = [
+            f"{failure.view_name}: {failure.message}" for failure in failures[:5]
+        ]
         if len(failures) > len(details):
             details.append(f"{len(failures) - len(details)} more failure(s) omitted.")
         return "\n".join([prefix, *details])
@@ -1133,7 +1041,7 @@ class GraphCanvasPresenter(QObject):
     def _show_canvas_export_error(self, message: str) -> None:
         normalized = str(message or "Canvas view export failed.").strip()
         self._append_console_log("error", f"Canvas view export failed: {normalized}")
-        self.show_graph_hint(normalized, 4200)
+        self._host.show_graph_hint(normalized, 4200)
         QMessageBox.warning(self._dialog_parent(), "Export Canvas Views", normalized)
 
     def _show_canvas_export_complete(
@@ -1166,6 +1074,17 @@ class GraphCanvasPresenter(QObject):
         console = getattr(self._host, "console_panel", None)
         updater = getattr(self._host, "update_notification_counters", None)
         if callable(updater) and console is not None:
-            updater(getattr(console, "warning_count", 0), getattr(console, "error_count", 0))
+            updater(
+                getattr(console, "warning_count", 0), getattr(console, "error_count", 0)
+            )
 
-__all__ = ["GraphCanvasPresenter"]
+
+__all__ = [
+    "CanvasExportPresenter",
+    "CanvasViewPngExport",
+    "CanvasViewPngExportResult",
+    "ProjectReviewCanvasCaptureSpec",
+    "ProjectReviewCanvasCaptureViewport",
+    "ProjectReviewCanvasPngExport",
+    "ProjectReviewCanvasPngExportResult",
+]

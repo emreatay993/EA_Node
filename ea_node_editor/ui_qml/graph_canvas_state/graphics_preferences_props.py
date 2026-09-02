@@ -58,7 +58,7 @@ class GraphicsPreferencesProps:
 
     @pyqtProperty(bool, notify=graphics_preferences_changed)
     def graphics_minimap_expanded(self) -> bool:
-        return bool(_source_attr(self._canvas_source, "graphics_minimap_expanded", True))
+        return bool(_source_attr(self._session_state, "graphics_minimap_expanded", True))
 
     @pyqtProperty(bool, notify=graphics_preferences_changed)
     def graphics_show_grid(self) -> bool:
@@ -239,7 +239,12 @@ class GraphicsPreferencesProps:
 
     @pyqtProperty(bool, notify=graphics_preferences_changed)
     def selected_run_preview_before_run(self) -> bool:
-        return bool(_source_attr(self._canvas_source, "selected_run_preview_before_run", True))
+        getter = getattr(
+            self._app_preferences_source,
+            "selected_run_preview_before_run",
+            None,
+        )
+        return bool(getter() if callable(getter) else getter if getter is not None else True)
 
     @pyqtProperty(bool, notify=graphics_preferences_changed)
     def graphics_show_tooltips(self) -> bool:
@@ -404,8 +409,8 @@ class GraphicsPreferencesProps:
 
     @pyqtProperty(bool, notify=snap_to_grid_changed)
     def snap_to_grid_enabled(self) -> bool:
-        return bool(_source_attr(self._canvas_source, "snap_to_grid_enabled", False))
+        return bool(_source_attr(self._session_state, "snap_to_grid_enabled", False))
 
     @pyqtProperty(float, notify=snap_to_grid_changed)
     def snap_grid_size(self) -> float:
-        return float(_source_attr(self._canvas_source, "snap_grid_size", 20.0))
+        return float(self._snap_grid_size)

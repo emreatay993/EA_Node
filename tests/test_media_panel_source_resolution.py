@@ -348,7 +348,10 @@ def test_state_bridge_uses_project_source_and_invalidates_media_lookup() -> None
     execution_source = _ExecutionSource()
     scene_source = _SceneSource(workspace.workspace_id)
     bridge = GraphCanvasStateBridge(
-        canvas_source=canvas_source,
+        session_state=canvas_source,
+        snap_to_grid_changed_signal=canvas_source.snap_to_grid_changed,
+        snap_grid_size=20.0,
+        app_preferences_source=canvas_source,
         execution_source=execution_source,
         project_source=SimpleNamespace(
             model=SimpleNamespace(project=project),

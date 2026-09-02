@@ -9,9 +9,11 @@ matching ``*_ops`` module (plus its protocol entry in the same file or
 ``protocols.py``) — not here.
 """
 
+from collections.abc import Callable
 from typing import TYPE_CHECKING, cast
 
 from PyQt6.QtCore import QObject, pyqtProperty, pyqtSignal
+from PyQt6.QtWidgets import QWidget
 
 from ea_node_editor.ui.folder_explorer import FolderExplorerFilesystemService
 from ea_node_editor.ui_qml.graph_canvas_command.annotation_style_ops import AnnotationStyleOps
@@ -27,7 +29,6 @@ from ea_node_editor.ui_qml.graph_canvas_command.media_image_ops import MediaImag
 from ea_node_editor.ui_qml.graph_canvas_command.media_video_ops import MediaVideoOps
 from ea_node_editor.ui_qml.graph_canvas_command.node_creation_ops import NodeCreationOps
 from ea_node_editor.ui_qml.graph_canvas_command.protocols import (
-    _GraphCanvasCommandSource,
     _GraphCanvasGraphicsCommandSource,
     _GraphCanvasHostSource,
     _GraphCanvasSceneCommandSource,
@@ -37,8 +38,30 @@ from ea_node_editor.ui_qml.graph_canvas_command.scene_mutation_ops import SceneM
 from ea_node_editor.ui_qml.graph_canvas_command.viewport_ops import ViewportOps
 
 if TYPE_CHECKING:
+    from ea_node_editor.ui.shell.controllers.app_preferences_controller import (
+        AppPreferencesController,
+    )
+    from ea_node_editor.ui.shell.controllers.run_controller import RunController
+    from ea_node_editor.ui.shell.controllers.workspace_drop_connect_controller import (
+        WorkspaceDropConnectController,
+    )
+    from ea_node_editor.ui.shell.controllers.workspace_edit_controller import (
+        WorkspaceEditController,
+    )
     from ea_node_editor.ui.shell.media_panel_action_service import (
         MediaPanelActionService,
+    )
+    from ea_node_editor.ui.shell.presenters.graph_canvas_host_presenter import (
+        GraphCanvasHostPresenter,
+    )
+    from ea_node_editor.ui.shell.presenters.inspector_presenter import (
+        ShellInspectorPresenter,
+    )
+    from ea_node_editor.ui.shell.presenters.library_presenter import (
+        ShellLibraryPresenter,
+    )
+    from ea_node_editor.ui.shell.window_search_scope_state import (
+        WindowSearchScopeController,
     )
     from ea_node_editor.ui_qml.graph_scene_bridge import GraphSceneBridge
     from ea_node_editor.ui_qml.viewport_bridge import ViewportBridge
@@ -81,11 +104,21 @@ class GraphCanvasCommandBridge(
         self,
         parent: QObject | None = None,
         *,
-        shell_window: object | None = None,
-        canvas_source: _GraphCanvasCommandSource | None = None,
+        search_scope_controller: "WindowSearchScopeController | None" = None,
+        app_preferences_source: "AppPreferencesController | None" = None,
+        graphics_preferences_changed_signal: object | None = None,
+        run_controller: "RunController | None" = None,
+        show_graph_hint: Callable[[str, int], None] | None = None,
+        inspector_source: "ShellInspectorPresenter | None" = None,
+        library_source: "ShellLibraryPresenter | None" = None,
+        workspace_edit_controller: "WorkspaceEditController | None" = None,
+        workspace_drop_connect_controller: "WorkspaceDropConnectController | None" = None,
+        model_provider: Callable[[], object] | None = None,
+        active_workspace_id_provider: Callable[[], str] | None = None,
+        workspace_navigation_controller: object | None = None,
         media_action_source: "MediaPanelActionService | None" = None,
         graphics_source: _GraphCanvasGraphicsCommandSource | None = None,
-        host_source: _GraphCanvasHostSource | None = None,
+        host_source: "GraphCanvasHostPresenter | _GraphCanvasHostSource | None" = None,
         scene_bridge: "GraphSceneBridge | None" = None,
         view_bridge: "ViewportBridge | None" = None,
         folder_explorer_service: FolderExplorerFilesystemService | None = None,
@@ -94,10 +127,21 @@ class GraphCanvasCommandBridge(
         folder_explorer_open_source: _FolderExplorerOpenSource | None = None,
     ) -> None:
         super().__init__(parent)
-        self._shell_window = shell_window
         self._scene_bridge = scene_bridge
         self._view_bridge = view_bridge
-        self._canvas_source = canvas_source
+        self._search_scope_controller = search_scope_controller
+        self._app_preferences_source = app_preferences_source
+        self._graphics_preferences_changed_signal = graphics_preferences_changed_signal
+        self._run_controller = run_controller
+        self._show_graph_hint_callback = show_graph_hint
+        self._inspector_source = inspector_source
+        self._library_source = library_source
+        self._workspace_edit_controller = workspace_edit_controller
+        self._workspace_drop_connect_controller = workspace_drop_connect_controller
+        self._model_provider = model_provider
+        self._active_workspace_id_provider = active_workspace_id_provider
+        self._workspace_navigation_controller = workspace_navigation_controller
+        self._dialog_parent = parent if isinstance(parent, QWidget) else None
         self._media_action_source = media_action_source
         self._graphics_source = graphics_source
         self._host_source = host_source
@@ -108,14 +152,6 @@ class GraphCanvasCommandBridge(
         self._folder_explorer_clipboard_source = folder_explorer_clipboard_source
         self._folder_explorer_open_source = folder_explorer_open_source
         self._text_annotation_style_clipboard = ""
-
-    @property
-    def shell_window(self) -> object | None:
-        return None
-
-    @property
-    def canvas_source(self) -> _GraphCanvasCommandSource | None:
-        return self._canvas_source
 
     @property
     def media_action_source(self) -> "MediaPanelActionService | None":

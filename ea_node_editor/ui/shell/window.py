@@ -704,8 +704,8 @@ class ShellWindow(
         inspector_shutdown = getattr(inspector_presenter, "shutdown", None)
         if callable(inspector_shutdown):
             inspector_shutdown()
-        graph_canvas_presenter = getattr(self, "graph_canvas_host_presenter", None)
-        graph_canvas_shutdown = getattr(graph_canvas_presenter, "shutdown", None)
+        graph_canvas_host_presenter = getattr(self, "graph_canvas_host_presenter", None)
+        graph_canvas_shutdown = getattr(graph_canvas_host_presenter, "shutdown", None)
         if callable(graph_canvas_shutdown):
             graph_canvas_shutdown()
         fullscreen_bridge = getattr(self, "content_fullscreen_bridge", None)

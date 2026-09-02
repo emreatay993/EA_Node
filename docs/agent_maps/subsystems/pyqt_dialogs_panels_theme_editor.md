@@ -26,7 +26,7 @@ Use this for PyQt dialogs, script/editor support, graph theme editors, and non-Q
 - Passive Node Style gradients use `Inherit / Custom / Off` so blank per-node style still inherits graph theme defaults.
 - For script/editor behavior, check editor tests before broad shell tests.
 - Workflow Settings is a PyQt dialog with separate Application Default Python Executable and project Workflow Override fields, native executable pickers, `Clear Application Default`, and `Inherit Application Default`. `Create / Repair Managed Runtime` delegates to `ea_node_editor.execution.managed_runtime` and fills only the app field. `values()` remains project-only while `application_default_python_executable()` returns the app value; visible help states whole-workflow, trusted-local, import-preflight, startup-handshake, and next-run behavior.
-- `CanvasViewExportDialog` is a shell-presenter options dialog only; actual PNG capture, native-overlay compositing, and PowerPoint writing stay in `GraphCanvasPresenter` and UI export helpers.
+- `CanvasViewExportDialog` is an options dialog only; actual PNG capture, native-overlay compositing, and PowerPoint writing stay in plain `CanvasExportPresenter` and UI export helpers.
 - `ProjectReviewDeckDialog` is a shell-presenter options dialog for the curated draft tree, global slide order, output deck path, slide size, and optional corporate `.pptx` template. Project/artifact discovery stays in `ui/project_review_deck.py`, not inside the dialog.
 - `InputReferenceDialog` owns the Help > Keyboard and Mouse Reference table plus its Context/Action filters; update it when user-facing shortcuts, hidden-port decluttering gestures, focused editor controls, or reference lookup behavior change.
 

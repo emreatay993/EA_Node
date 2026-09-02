@@ -355,14 +355,14 @@ class _NodePropertyPathBrowserAdapter:
         self._host = host
 
     def browse_node_property_path(self, node_id: str, key: str, current_path: str) -> str:
-        presenter = getattr(self._host, "graph_canvas_presenter", None)
-        presenter_browse = getattr(presenter, "browse_node_property_path", None)
-        if callable(presenter_browse):
-            return str(presenter_browse(node_id, key, current_path) or "")
-        browse = getattr(self._host, "browse_node_property_path", None)
-        if callable(browse):
-            return str(browse(node_id, key, current_path) or "")
-        return ""
+        return str(
+            self._host.shell_inspector_presenter.browse_node_property_path(
+                node_id,
+                key,
+                current_path,
+            )
+            or ""
+        )
 
 
 class _RecentProjectsMenuAdapter:

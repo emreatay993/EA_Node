@@ -390,8 +390,13 @@ class GraphCanvasQmlPreferenceRenderingTests(GraphCanvasQmlPreferenceTestBase):
 
         canvas_state_bridge = CanvasStateBridgeStub(self.bridge, self.canvas_source)
         canvas_command_bridge = GraphCanvasCommandBridge(
-            shell_window=self.bridge,  # type: ignore[arg-type]
-            canvas_source=self.canvas_source,  # type: ignore[arg-type]
+            search_scope_controller=self.canvas_source,  # type: ignore[arg-type]
+            app_preferences_source=self.canvas_source,  # type: ignore[arg-type]
+            run_controller=self.canvas_source,  # type: ignore[arg-type]
+            inspector_source=self.canvas_source,  # type: ignore[arg-type]
+            library_source=self.canvas_source,  # type: ignore[arg-type]
+            workspace_edit_controller=self.canvas_source,  # type: ignore[arg-type]
+            workspace_drop_connect_controller=self.canvas_source,  # type: ignore[arg-type]
             graphics_source=self.bridge,  # type: ignore[arg-type]
             view_bridge=self.view,
         )
@@ -702,8 +707,13 @@ class GraphCanvasQmlPreferenceRenderingTests(GraphCanvasQmlPreferenceTestBase):
         preference_bridge = TooltipPreferenceBridge()
         canvas_state_bridge = CanvasStateBridgeStub(preference_bridge)
         canvas_command_bridge = GraphCanvasCommandBridge(
-            shell_window=self.bridge,  # type: ignore[arg-type]
-            canvas_source=self.canvas_source,  # type: ignore[arg-type]
+            search_scope_controller=self.canvas_source,  # type: ignore[arg-type]
+            app_preferences_source=self.canvas_source,  # type: ignore[arg-type]
+            run_controller=self.canvas_source,  # type: ignore[arg-type]
+            inspector_source=self.canvas_source,  # type: ignore[arg-type]
+            library_source=self.canvas_source,  # type: ignore[arg-type]
+            workspace_edit_controller=self.canvas_source,  # type: ignore[arg-type]
+            workspace_drop_connect_controller=self.canvas_source,  # type: ignore[arg-type]
             graphics_source=preference_bridge,  # type: ignore[arg-type]
             view_bridge=self.view,
         )
@@ -1003,8 +1013,13 @@ class GraphCanvasQmlPreferenceRenderingTests(GraphCanvasQmlPreferenceTestBase):
             self.view,
         )
         canvas_command_bridge = GraphCanvasCommandBridge(
-            shell_window=self.bridge,  # type: ignore[arg-type]
-            canvas_source=self.canvas_source,  # type: ignore[arg-type]
+            search_scope_controller=self.canvas_source,  # type: ignore[arg-type]
+            app_preferences_source=self.canvas_source,  # type: ignore[arg-type]
+            run_controller=self.canvas_source,  # type: ignore[arg-type]
+            inspector_source=self.canvas_source,  # type: ignore[arg-type]
+            library_source=self.canvas_source,  # type: ignore[arg-type]
+            workspace_edit_controller=self.canvas_source,  # type: ignore[arg-type]
+            workspace_drop_connect_controller=self.canvas_source,  # type: ignore[arg-type]
             graphics_source=self.bridge,  # type: ignore[arg-type]
             view_bridge=self.view,
         )
@@ -1358,15 +1373,22 @@ class GraphCanvasQmlPreferenceRenderingTests(GraphCanvasQmlPreferenceTestBase):
         self.canvas.deleteLater()
         self.app.processEvents()
         state_bridge = GraphCanvasStateBridge(
-            shell_window=self.bridge,  # type: ignore[arg-type]
-            canvas_source=self.canvas_source,  # type: ignore[arg-type]
+            session_state=self.canvas_source,  # type: ignore[arg-type]
+            snap_to_grid_changed_signal=getattr(self.canvas_source, "snap_to_grid_changed", None),  # type: ignore[arg-type]
+            snap_grid_size=float(getattr(self.canvas_source, "snap_grid_size", 20.0)),  # type: ignore[arg-type]
+            app_preferences_source=self.canvas_source,  # type: ignore[arg-type]
             graphics_source=self.bridge,  # type: ignore[arg-type]
             scene_bridge=scene,
             view_bridge=self.view,
         )
         command_bridge = GraphCanvasCommandBridge(
-            shell_window=self.bridge,  # type: ignore[arg-type]
-            canvas_source=self.canvas_source,  # type: ignore[arg-type]
+            search_scope_controller=self.canvas_source,  # type: ignore[arg-type]
+            app_preferences_source=self.canvas_source,  # type: ignore[arg-type]
+            run_controller=self.canvas_source,  # type: ignore[arg-type]
+            inspector_source=self.canvas_source,  # type: ignore[arg-type]
+            library_source=self.canvas_source,  # type: ignore[arg-type]
+            workspace_edit_controller=self.canvas_source,  # type: ignore[arg-type]
+            workspace_drop_connect_controller=self.canvas_source,  # type: ignore[arg-type]
             graphics_source=self.bridge,  # type: ignore[arg-type]
             scene_bridge=scene,
             view_bridge=self.view,
@@ -1807,15 +1829,22 @@ class GraphCanvasQmlPreferenceRenderingTests(GraphCanvasQmlPreferenceTestBase):
         self.app.processEvents()
 
         canvas_state_bridge = GraphCanvasStateBridge(
-            shell_window=self.bridge,  # type: ignore[arg-type]
-            canvas_source=self.canvas_source,  # type: ignore[arg-type]
+            session_state=self.canvas_source,  # type: ignore[arg-type]
+            snap_to_grid_changed_signal=getattr(self.canvas_source, "snap_to_grid_changed", None),  # type: ignore[arg-type]
+            snap_grid_size=float(getattr(self.canvas_source, "snap_grid_size", 20.0)),  # type: ignore[arg-type]
+            app_preferences_source=self.canvas_source,  # type: ignore[arg-type]
             graphics_source=self.bridge,  # type: ignore[arg-type]
             scene_bridge=scene,
             view_bridge=self.view,
         )
         canvas_command_bridge = GraphCanvasCommandBridge(
-            shell_window=self.bridge,  # type: ignore[arg-type]
-            canvas_source=self.canvas_source,  # type: ignore[arg-type]
+            search_scope_controller=self.canvas_source,  # type: ignore[arg-type]
+            app_preferences_source=self.canvas_source,  # type: ignore[arg-type]
+            run_controller=self.canvas_source,  # type: ignore[arg-type]
+            inspector_source=self.canvas_source,  # type: ignore[arg-type]
+            library_source=self.canvas_source,  # type: ignore[arg-type]
+            workspace_edit_controller=self.canvas_source,  # type: ignore[arg-type]
+            workspace_drop_connect_controller=self.canvas_source,  # type: ignore[arg-type]
             graphics_source=self.bridge,  # type: ignore[arg-type]
             scene_bridge=scene,
             view_bridge=self.view,
@@ -1905,15 +1934,22 @@ class GraphCanvasQmlPreferenceRenderingTests(GraphCanvasQmlPreferenceTestBase):
         self.app.processEvents()
 
         canvas_state_bridge = GraphCanvasStateBridge(
-            shell_window=self.bridge,  # type: ignore[arg-type]
-            canvas_source=self.canvas_source,  # type: ignore[arg-type]
+            session_state=self.canvas_source,  # type: ignore[arg-type]
+            snap_to_grid_changed_signal=getattr(self.canvas_source, "snap_to_grid_changed", None),  # type: ignore[arg-type]
+            snap_grid_size=float(getattr(self.canvas_source, "snap_grid_size", 20.0)),  # type: ignore[arg-type]
+            app_preferences_source=self.canvas_source,  # type: ignore[arg-type]
             graphics_source=self.bridge,  # type: ignore[arg-type]
             scene_bridge=scene,
             view_bridge=self.view,
         )
         canvas_command_bridge = GraphCanvasCommandBridge(
-            shell_window=self.bridge,  # type: ignore[arg-type]
-            canvas_source=self.canvas_source,  # type: ignore[arg-type]
+            search_scope_controller=self.canvas_source,  # type: ignore[arg-type]
+            app_preferences_source=self.canvas_source,  # type: ignore[arg-type]
+            run_controller=self.canvas_source,  # type: ignore[arg-type]
+            inspector_source=self.canvas_source,  # type: ignore[arg-type]
+            library_source=self.canvas_source,  # type: ignore[arg-type]
+            workspace_edit_controller=self.canvas_source,  # type: ignore[arg-type]
+            workspace_drop_connect_controller=self.canvas_source,  # type: ignore[arg-type]
             graphics_source=self.bridge,  # type: ignore[arg-type]
             scene_bridge=scene,
             view_bridge=self.view,
@@ -1996,15 +2032,22 @@ class GraphCanvasQmlPreferenceRenderingTests(GraphCanvasQmlPreferenceTestBase):
         self.app.processEvents()
 
         canvas_state_bridge = GraphCanvasStateBridge(
-            shell_window=self.bridge,  # type: ignore[arg-type]
-            canvas_source=self.canvas_source,  # type: ignore[arg-type]
+            session_state=self.canvas_source,  # type: ignore[arg-type]
+            snap_to_grid_changed_signal=getattr(self.canvas_source, "snap_to_grid_changed", None),  # type: ignore[arg-type]
+            snap_grid_size=float(getattr(self.canvas_source, "snap_grid_size", 20.0)),  # type: ignore[arg-type]
+            app_preferences_source=self.canvas_source,  # type: ignore[arg-type]
             graphics_source=self.bridge,  # type: ignore[arg-type]
             scene_bridge=scene,
             view_bridge=self.view,
         )
         canvas_command_bridge = GraphCanvasCommandBridge(
-            shell_window=self.bridge,  # type: ignore[arg-type]
-            canvas_source=self.canvas_source,  # type: ignore[arg-type]
+            search_scope_controller=self.canvas_source,  # type: ignore[arg-type]
+            app_preferences_source=self.canvas_source,  # type: ignore[arg-type]
+            run_controller=self.canvas_source,  # type: ignore[arg-type]
+            inspector_source=self.canvas_source,  # type: ignore[arg-type]
+            library_source=self.canvas_source,  # type: ignore[arg-type]
+            workspace_edit_controller=self.canvas_source,  # type: ignore[arg-type]
+            workspace_drop_connect_controller=self.canvas_source,  # type: ignore[arg-type]
             graphics_source=self.bridge,  # type: ignore[arg-type]
             scene_bridge=scene,
             view_bridge=self.view,

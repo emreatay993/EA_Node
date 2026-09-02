@@ -70,9 +70,9 @@ Design intent:
 - `shellWorkspaceBridge` owns workspace tabs, title/run/console state, and the `ShellWorkspacePresenter` projections and mutations for persisted graphics preferences.
 - `shellInspectorBridge` owns inspector-facing selection metadata, property-edit affordances, and exposed-port presentation for inspector QML surfaces.
 - `addonManagerBridge`, `contentFullscreenBridge`, `viewerSessionBridge`, `viewerHostService`, `scriptEditorBridge`, `scriptHighlighterBridge`, `statusEngine`, `statusJobs`, `statusMetrics`, `statusNotifications`, and `helpBridge` are all first-class shell-owned context surfaces bound from `ea_node_editor.ui.shell.composition`. The content bridge has no `ShellWindow` reference, policy facade, dependency bag, compatibility alias, or second QML API.
-- `graphCanvasStateBridge` publishes the focused state surface consumed by `GraphCanvas.qml`: persisted graphics come only from its explicit `ShellWorkspacePresenter` graphics source, while minimap-expanded, selected-run preview, snap enabled, and snap size come only from its `GraphCanvasPresenter` canvas source.
+- `graphCanvasStateBridge` publishes the focused state surface consumed by `GraphCanvas.qml`: persisted graphics come only from its explicit `ShellWorkspacePresenter`, minimap/snap facts come from `ShellWindowSearchScopeState` plus the exact snap signal/size, and selected-run preview comes from `AppPreferencesController`.
 - `graphCanvasViewBridge` (the `ViewportBridge` context property) owns camera/view state consumed directly by `GraphCanvas.qml` and `GraphCanvasRootLayers.qml`.
-- `graphCanvasCommandBridge` owns scene/view mutations, property-browse requests, drop/connect flows, and connection quick-insert requests through its focused sources. Its persisted graphics slots target the explicit `ShellWorkspacePresenter` graphics source; snap, minimap-expanded, and selected-run-preview slots target the `GraphCanvasPresenter` canvas source; image crop and video frame/timestamp/trim slots target the concrete `MediaPanelActionService`. Scope-open flows prefer `GraphActionBridge`. `GraphCanvas.qml` has no aggregate graph-canvas facade or compatibility alias.
+- `graphCanvasCommandBridge` owns the unchanged QML slot surface while routing each domain directly: session commands to `WindowSearchScopeController`, selected-run preferences to `AppPreferencesController`, Trigger to Program A `RunController`, scope/hints to their direct shell owners, path/color to `ShellInspectorPresenter`, Quick Insert to `ShellLibraryPresenter`, edit/drop to the T14 controllers, media to `MediaPanelActionService`, and host/cursor/preview actions to `GraphCanvasHostPresenter`. It has no `canvas_source`, shell-window fallback, or aggregate accessor.
 - `MediaPanelActionService` is the sole QObject owner of Media Panel crop, frame capture, timestamp annotation, trim replace/copy, artifact staging, and trim QThread/worker lifecycle. Composition injects the scene mutation owner, direct workspace edit/drop controllers, live model/workspace/project/run/path providers, the project-session staging call, and notification callbacks. Inline commands and fullscreen trim call this service directly; playback, source resolution, and fullscreen lifecycle stay in their existing owners.
 - `GraphCanvas.qml` still exposes the stable root contract methods used by shell/drop workflows (`toggleMinimapExpanded()`, `clearLibraryDropPreview()`, `updateLibraryDropPreview()`, `isPointInCanvas()`, `performLibraryDrop()`).
 - `GraphCanvas.qml` composes `GraphCanvasStateBridge`, `GraphCanvasCommandBridge`, and `ViewportBridge` directly through `canvasStateBridgeRef`, `canvasCommandBridgeRef`, and `_canvasViewportBridge`; there is no aggregate canvas bridge, adapter, or context property.
@@ -87,7 +87,7 @@ Design intent:
 - QML context-menu graph verbs and node-delegate graph verbs call `graphActionBridge.trigger_graph_action(actionId, payload)`. The bridge maps stable QML action IDs through `ea_node_editor.ui.shell.graph_action_contracts` and delegates to `GraphActionController`; surface-local delegate actions can still fall through to the loaded surface.
 - PyQt menus, shortcuts, and host request slots dispatch through `ea_node_editor.ui.shell.window_actions` and `ea_node_editor.ui.shell.window_state.workspace_graph_actions`, then converge on the same controller instead of carrying parallel behavior.
 - `Help > Keyboard and Mouse Reference` is a shell-owned, filterable dialog that documents user-facing shortcuts, mouse gestures, hidden-port decluttering gestures, context-menu gestures, and focused editor controls; it is not a behavior router and should stay synchronized with the owners listed here and in the input-layer maps.
-- `GraphActionController` does not own the behavior implementation. It selects the established owner for each verb: workspace graph-edit controllers for selection/subgraph operations, `GraphCanvasHostPresenter` for scope entry plus graph cursor/style/label host actions, `GraphSceneBridge` for Group Peek state, and the help or add-on bridges for their shell-owned surfaces.
+- `GraphActionController` does not own the behavior implementation. It selects the established owner for each verb: workspace graph-edit controllers for selection/subgraph operations, `WindowSearchScopeController` plus `GraphSceneBridge` for subnode scope entry, `GraphCanvasHostPresenter` for parent/root scope navigation plus graph cursor/style/label host actions, `GraphSceneBridge` for Group Peek state, and the help or add-on bridges for their shell-owned surfaces.
 - Low-level canvas operations stay outside the graph action controller. Selection mechanics, marquee hit testing, node movement, node resize, geometry commits, viewport pan/zoom, port drag/connect/drop flows, inline property and port-label commits, quick-insert overlay placement, and direct scene policy checks continue to live in `GraphCanvasCommandBridge`, `GraphCanvasStateBridge`, `ViewportBridge`, `GraphSceneBridge`, and their helper modules. Cursor-shape application and graph style/label dialogs are direct `GraphCanvasHostPresenter` responsibilities rather than `ShellWindow` or `ShellHostPresenter` facades.
 - `docs/specs/perf/COREX_ARCHITECTURE_ENTRY_POINT_REDUCTION_QA_MATRIX.md` is retained as historical graph-action-route evidence; the active no-legacy closeout proof lives in `docs/specs/perf/COREX_NO_LEGACY_ARCHITECTURE_CLEANUP_QA_MATRIX.md`.
 
@@ -430,6 +430,7 @@ flowchart LR
     SW --> WFLOW[WorkflowLibraryController]
     SW --> WPKG[WorkspacePackageIOController]
     SW --> MEDIA[MediaPanelActionService]
+    SW --> CEXP[CanvasExportPresenter]
     SW --> SEARCH[window_search_scope_state]
     SW --> INSPECTOR_HELPERS[library, inspector, and quick-insert projection owners]
     SW --> TBRIDGE
@@ -455,6 +456,8 @@ flowchart LR
     MEDIA --> WEDIT
     MEDIA --> WDROP
     MEDIA --> PSC
+CEXP --> GS
+CEXP --> GC
     INSPECTOR_HELPERS --> EFFECTIVE[graph.effective_ports]
 
     WEDIT --> GS
@@ -717,7 +720,7 @@ sequenceDiagram
 - `GraphicsSettingsDialog` controls shell-theme selection plus graph-theme follow-shell/explicit selection and launches the graph-theme manager from `Manage Graph Themes...`.
 - `GraphThemeEditorDialog` groups built-in read-only themes and editable custom themes, supports create/duplicate/rename/delete/use-selected flows, and edits node/edge/category-accent/port-kind color tokens.
 - `AppPreferencesController` normalizes and persists grid, minimap, snap-to-grid, shell-theme, and `graph_theme` payload choices into v8 `app_preferences.json`.
-- `ShellWorkspacePresenter` projects and mutates persisted `graphics.*` state, emits its one graphics-preferences notification, and owns the revision-scoped tooltip/category caches. `GraphCanvasPresenter` keeps only snap, minimap-expanded, selected-run preview, and canvas operations.
+- `ShellWorkspacePresenter` projects and mutates persisted `graphics.*` state, emits its one graphics-preferences notification, and owns the revision-scoped tooltip/category caches. Plain `CanvasExportPresenter` owns canvas PNG/PPTX and project-review capture; no mixed `GraphCanvasPresenter` remains.
 - Composition binds `ShellWorkspacePresenter` explicitly to the graph-canvas state/command bridges and `GraphSceneBridge`; the scene receives port-label visibility, normalized graph-label size, effective title-icon size, and lightweight-canvas state through that binding.
 - `ShellWindow.apply_graphics_preferences()` updates the workspace presentation state, reapplies the shared shell theme to both QApplication stylesheet and `ThemeBridge`, and resolves `graphThemeBridge` independently.
 - `GraphCanvasBackground`, `GraphCanvasDropPreview`, and `GraphCanvasMinimapOverlay` stay on `themeBridge.palette`, while `NodeCard` and `EdgeLayer` bind to `graphThemeBridge`.

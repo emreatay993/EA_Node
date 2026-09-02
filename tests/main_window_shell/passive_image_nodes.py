@@ -181,7 +181,7 @@ class MainWindowShellPassiveImageNodesTests(SharedMainWindowShellTestBase):
             "ea_node_editor.ui.shell.window.QFileDialog.getOpenFileName",
             side_effect=_pick_and_expose,
         ):
-            selected = self.window.graph_canvas_presenter.browse_node_property_path(
+            selected = self.window.shell_inspector_presenter.browse_node_property_path(
                 node_id,
                 "source",
                 old_path,
@@ -216,7 +216,7 @@ class MainWindowShellPassiveImageNodesTests(SharedMainWindowShellTestBase):
             "internalize_property_path",
             side_effect=_internalize_and_expose,
         ):
-            managed = self.window.graph_canvas_presenter.internalize_node_property_path(
+            managed = self.window.shell_inspector_presenter.internalize_node_property_path(
                 node_id,
                 "source",
                 old_path,

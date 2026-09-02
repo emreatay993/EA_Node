@@ -9,14 +9,6 @@ if TYPE_CHECKING:
     pass
 
 
-class _GraphCanvasStateSource(Protocol):
-    snap_to_grid_changed: _SignalLike
-    graphics_minimap_expanded: bool
-    selected_run_preview_before_run: bool
-    snap_to_grid_enabled: bool
-    snap_grid_size: float
-
-
 class _GraphCanvasProjectSource(Protocol):
     model: object
     project_path: str

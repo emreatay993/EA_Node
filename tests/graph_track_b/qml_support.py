@@ -361,14 +361,21 @@ class GraphCanvasQmlPreferenceTestBase(unittest.TestCase):
         self.view = ViewportBridge()
         self.view.set_viewport_size(1280.0, 720.0)
         self.canvas_state_bridge = GraphCanvasStateBridge(
-            shell_window=self.bridge,  # type: ignore[arg-type]
-            canvas_source=self.canvas_source,  # type: ignore[arg-type]
+            session_state=self.canvas_source,  # type: ignore[arg-type]
+            snap_to_grid_changed_signal=getattr(self.canvas_source, "snap_to_grid_changed", None),  # type: ignore[arg-type]
+            snap_grid_size=float(getattr(self.canvas_source, "snap_grid_size", 20.0)),  # type: ignore[arg-type]
+            app_preferences_source=self.canvas_source,  # type: ignore[arg-type]
             graphics_source=self.bridge,  # type: ignore[arg-type]
             view_bridge=self.view,
         )
         self.canvas_command_bridge = GraphCanvasCommandBridge(
-            shell_window=self.bridge,  # type: ignore[arg-type]
-            canvas_source=self.canvas_source,  # type: ignore[arg-type]
+            search_scope_controller=self.canvas_source,  # type: ignore[arg-type]
+            app_preferences_source=self.canvas_source,  # type: ignore[arg-type]
+            run_controller=self.canvas_source,  # type: ignore[arg-type]
+            inspector_source=self.canvas_source,  # type: ignore[arg-type]
+            library_source=self.canvas_source,  # type: ignore[arg-type]
+            workspace_edit_controller=self.canvas_source,  # type: ignore[arg-type]
+            workspace_drop_connect_controller=self.canvas_source,  # type: ignore[arg-type]
             graphics_source=self.bridge,  # type: ignore[arg-type]
             view_bridge=self.view,
         )

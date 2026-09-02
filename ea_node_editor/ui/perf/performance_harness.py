@@ -3543,12 +3543,13 @@ class _GraphCanvasBenchmarkHost:
         )
         self.main_window_bridge = _BenchmarkMainWindowBridge()
         self.canvas_state_bridge = GraphCanvasStateBridge(
-            shell_window=self.main_window_bridge,  # type: ignore[arg-type]
+            session_state=self.main_window_bridge,
+            snap_grid_size=20.0,
+            graphics_source=self.main_window_bridge,  # type: ignore[arg-type]
             scene_bridge=self.scene,
             view_bridge=self.view,
         )
         self.canvas_command_bridge = GraphCanvasCommandBridge(
-            shell_window=self.main_window_bridge,  # type: ignore[arg-type]
             host_source=self.main_window_bridge,  # type: ignore[arg-type]
             scene_bridge=self.scene,
             view_bridge=self.view,

@@ -112,7 +112,13 @@ class ShellWindowWorkspaceGraphActionsMixin:
 
     @pyqtSlot(str, result=bool)
     def request_open_subnode_scope(self: "ShellWindow", node_id: str) -> bool:
-        return bool(self.graph_canvas_presenter.request_open_subnode_scope(node_id))
+        normalized_node_id = str(node_id or "").strip()
+        return bool(
+            normalized_node_id
+            and self.search_scope_controller.navigate_scope(
+                lambda: self.scene.open_subnode_scope(normalized_node_id)
+            )
+        )
 
     @pyqtSlot(str, result=bool)
     def request_open_scope_breadcrumb(self: "ShellWindow", node_id: str) -> bool:
@@ -147,7 +153,7 @@ class ShellWindowWorkspaceGraphActionsMixin:
         return bool(self.shell_workspace_presenter.request_rename_view(view_id))
 
     def _export_canvas_views(self: "ShellWindow") -> bool:
-        return bool(self.graph_canvas_presenter.export_canvas_views())
+        return bool(self.canvas_export_presenter.export_canvas_views())
 
     def _export_project_review_deck(self: "ShellWindow") -> bool:
         return bool(self.project_review_deck_presenter.export_project_review_deck())
@@ -177,15 +183,16 @@ class ShellWindowWorkspaceGraphActionsMixin:
         port_b: str,
         append_requested: bool = False,
     ) -> bool:
-        return bool(
-            self.graph_canvas_presenter.request_connect_ports(
-                node_a_id,
-                port_a,
-                node_b_id,
-                port_b,
-                append_requested,
-            )
+        result = self.workspace_edit_controller.request_connect_ports(
+            node_a_id,
+            port_a,
+            node_b_id,
+            port_b,
+            append_requested,
         )
+        if not result.payload and str(result.message or "").strip():
+            self.show_graph_hint(str(result.message), 2400)
+        return bool(result.payload)
 
     @pyqtSlot("QVariantList", str, str, str, bool, bool, result=bool)
     def request_rewire_edges(
@@ -197,16 +204,17 @@ class ShellWindowWorkspaceGraphActionsMixin:
         copy_requested: bool = False,
         append_requested: bool = False,
     ) -> bool:
-        return bool(
-            self.graph_canvas_presenter.request_rewire_edges(
-                edge_ids,
-                endpoint,
-                node_id,
-                port_key,
-                copy_requested,
-                append_requested,
-            )
+        result = self.workspace_edit_controller.request_rewire_edges(
+            edge_ids,
+            endpoint,
+            node_id,
+            port_key,
+            copy_requested,
+            append_requested,
         )
+        if not result.payload and str(result.message or "").strip():
+            self.show_graph_hint(str(result.message), 2400)
+        return bool(result.payload)
 
     @pyqtSlot(str, result=bool)
     def request_remove_edge(self: "ShellWindow", edge_id: str) -> bool:
@@ -275,15 +283,28 @@ class ShellWindowWorkspaceGraphActionsMixin:
         current_path: str,
         source_mode: str = "",
     ) -> str:
-        return self.graph_canvas_presenter.browse_node_property_path(node_id, key, current_path, source_mode)
+        return self.shell_inspector_presenter.browse_node_property_path(
+            node_id,
+            key,
+            current_path,
+            source_mode,
+        )
 
     @pyqtSlot(str, str, str, result=str)
     def internalize_node_property_path(self: "ShellWindow", node_id: str, key: str, current_path: str) -> str:
-        return self.graph_canvas_presenter.internalize_node_property_path(node_id, key, current_path)
+        return self.shell_inspector_presenter.internalize_node_property_path(
+            node_id,
+            key,
+            current_path,
+        )
 
     @pyqtSlot(str, str, str, result=str)
     def pick_node_property_color(self: "ShellWindow", node_id: str, key: str, current_value: str) -> str:
-        return self.graph_canvas_presenter.pick_node_property_color(node_id, key, current_value)
+        return self.shell_inspector_presenter.pick_node_property_color(
+            node_id,
+            key,
+            current_value,
+        )
 
     def _browse_property_path_dialog(self: "ShellWindow", property_label: str, current_path: str) -> str:
         return self.shell_host_presenter.browse_property_path_dialog(property_label, current_path)

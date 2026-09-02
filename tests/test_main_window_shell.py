@@ -225,8 +225,7 @@ class MainWindowShellContextBootstrapTests(SharedMainWindowShellTestBase):
         graph_canvas_state_bridge = context.contextProperty("graphCanvasStateBridge")
         self.assertIsInstance(graph_canvas_state_bridge, GraphCanvasStateBridge)
         self.assertIs(graph_canvas_state_bridge.parent(), self.window)
-        self.assertIsNone(graph_canvas_state_bridge.shell_window)
-        self.assertIs(graph_canvas_state_bridge.canvas_source, self.window.graph_canvas_presenter)
+        self.assertIs(graph_canvas_state_bridge._session_state, self.window.search_scope_state)
         self.assertIs(graph_canvas_state_bridge.graphics_source, self.window.shell_workspace_presenter)
         self.assertIs(graph_canvas_state_bridge.execution_source, self.window)
         self.assertIs(graph_canvas_state_bridge.scene_bridge, self.window.scene)
@@ -235,8 +234,7 @@ class MainWindowShellContextBootstrapTests(SharedMainWindowShellTestBase):
         graph_canvas_command_bridge = context.contextProperty("graphCanvasCommandBridge")
         self.assertIsInstance(graph_canvas_command_bridge, GraphCanvasCommandBridge)
         self.assertIs(graph_canvas_command_bridge.parent(), self.window)
-        self.assertIsNone(graph_canvas_command_bridge.shell_window)
-        self.assertIs(graph_canvas_command_bridge.canvas_source, self.window.graph_canvas_presenter)
+        self.assertIs(graph_canvas_command_bridge._run_controller, self.window.run_controller)
         self.assertIs(
             graph_canvas_command_bridge.graphics_source,
             self.window.shell_workspace_presenter,
@@ -407,7 +405,7 @@ class PresenterPackageBoundaryTests(unittest.TestCase):
         expected_exports = {
             "AddOnManagerPresenter",
             "GraphCanvasHostPresenter",
-            "GraphCanvasPresenter",
+            "CanvasExportPresenter",
             "ShellInspectorPresenter",
             "ShellLibraryPresenter",
             "ShellWorkspacePresenter",
@@ -427,7 +425,7 @@ class PresenterPackageBoundaryTests(unittest.TestCase):
             "library_presenter.py",
             "workspace_presenter.py",
             "inspector_presenter.py",
-            "graph_canvas_presenter.py",
+            "canvas_export_presenter.py",
             "graph_canvas_host_presenter.py",
         ):
             with self.subTest(path=relative_path):
@@ -553,8 +551,7 @@ class MainWindowGraphCanvasSplitBridgeTests(SharedMainWindowShellTestBase):
         self.assertIs(graph_action_bridge.controller, self.window.graph_action_controller)
         self.assertIsInstance(graph_canvas_state_bridge, GraphCanvasStateBridge)
         self.assertIs(graph_canvas_state_bridge.parent(), self.window)
-        self.assertIsNone(graph_canvas_state_bridge.shell_window)
-        self.assertIs(graph_canvas_state_bridge.canvas_source, self.window.graph_canvas_presenter)
+        self.assertIs(graph_canvas_state_bridge._session_state, self.window.search_scope_state)
         self.assertIs(graph_canvas_state_bridge.graphics_source, self.window.shell_workspace_presenter)
         self.assertIs(graph_canvas_state_bridge.execution_source, self.window)
         self.assertIs(graph_canvas_state_bridge.scene_bridge, self.window.scene)
@@ -562,8 +559,7 @@ class MainWindowGraphCanvasSplitBridgeTests(SharedMainWindowShellTestBase):
 
         self.assertIsInstance(graph_canvas_command_bridge, GraphCanvasCommandBridge)
         self.assertIs(graph_canvas_command_bridge.parent(), self.window)
-        self.assertIsNone(graph_canvas_command_bridge.shell_window)
-        self.assertIs(graph_canvas_command_bridge.canvas_source, self.window.graph_canvas_presenter)
+        self.assertIs(graph_canvas_command_bridge._run_controller, self.window.run_controller)
         self.assertIs(
             graph_canvas_command_bridge.graphics_source,
             self.window.shell_workspace_presenter,

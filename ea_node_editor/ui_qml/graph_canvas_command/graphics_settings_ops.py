@@ -18,11 +18,19 @@ class GraphicsSettingsOps:
 
     @pyqtSlot(bool)
     def set_snap_to_grid_enabled(self, enabled: bool) -> None:
-        _invoke(self._canvas_source, "set_snap_to_grid_enabled", bool(enabled))
+        _invoke(
+            self._search_scope_controller,
+            "set_snap_to_grid_enabled",
+            bool(enabled),
+        )
 
     @pyqtSlot(bool)
     def set_graphics_minimap_expanded(self, expanded: bool) -> None:
-        _invoke(self._canvas_source, "set_graphics_minimap_expanded", bool(expanded))
+        _invoke(
+            self._search_scope_controller,
+            "set_graphics_minimap_expanded",
+            bool(expanded),
+        )
 
     @pyqtSlot(bool)
     def set_graphics_show_grid(self, show_grid: bool) -> None:
@@ -42,7 +50,30 @@ class GraphicsSettingsOps:
 
     @pyqtSlot(bool)
     def set_selected_run_preview_before_run(self, enabled: bool) -> None:
-        _invoke(self._canvas_source, "set_selected_run_preview_before_run", bool(enabled))
+        getter = getattr(
+            self._app_preferences_source,
+            "selected_run_preview_before_run",
+            None,
+        )
+        previous = bool(
+            getter()
+            if callable(getter)
+            else getter
+            if getter is not None
+            else True
+        )
+        current = bool(
+            _invoke(
+                self._app_preferences_source,
+                "set_selected_run_preview_before_run",
+                bool(enabled),
+                default=previous,
+            )
+        )
+        if current != previous:
+            emit = getattr(self._graphics_preferences_changed_signal, "emit", None)
+            if callable(emit):
+                emit()
 
     @pyqtSlot(bool)
     def set_graphics_node_shadow(self, enabled: bool) -> None:

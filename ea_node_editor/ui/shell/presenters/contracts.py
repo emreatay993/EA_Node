@@ -51,7 +51,7 @@ class _ShellWorkspacePresenterHostProtocol(Protocol):
     workspace_navigation_controller: Any
     shell_host_presenter: Any
     shell_inspector_presenter: Any
-    graph_canvas_presenter: Any
+    canvas_export_presenter: Any
     graph_theme_bridge: Any
     app_preferences_controller: Any
 
@@ -83,17 +83,9 @@ class _ShellInspectorPresenterHostProtocol(Protocol):
     ) -> str: ...
 
 
-class _GraphCanvasPresenterHostProtocol(Protocol):
-    graphics_preferences_changed: _SignalLike
-    snap_to_grid_changed: _SignalLike
-    search_scope_state: Any
-    _SNAP_GRID_SIZE: float
-    search_scope_controller: Any
-    app_preferences_controller: Any
+class _CanvasExportPresenterHostProtocol(Protocol):
     scene: Any
     view: Any
-    workspace_edit_controller: Any
-    workspace_drop_connect_controller: Any
     model: Any
     workspace_manager: Any
     quick_widget: Any
@@ -103,11 +95,11 @@ class _GraphCanvasPresenterHostProtocol(Protocol):
     embedded_viewer_overlay_manager: Any
     project_path: str
     console_panel: Any
-    run_controller: Any
 
     def show_graph_hint(self, message: str, timeout_ms: int = 3600) -> None: ...
 
-    def clear_graph_hint(self) -> None: ...
+    def update_notification_counters(self, warnings: int, errors: int) -> None: ...
+
 
 class _GraphCanvasHostPresenterHostProtocol(Protocol):
     project_meta_changed: _SignalLike
@@ -128,7 +120,7 @@ class _ProjectReviewDeckPresenterHostProtocol(Protocol):
     project_path: str
     workspace_manager: Any
     workspace_navigation_controller: Any
-    graph_canvas_presenter: Any
+    canvas_export_presenter: Any
     shell_host_presenter: Any
     console_panel: Any
 

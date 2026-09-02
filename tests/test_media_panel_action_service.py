@@ -600,12 +600,7 @@ class MediaPanelActionServiceTests(MainWindowShellTestBase):
         )
         self.assertEqual(service._video_trim_jobs, {})
         self.assertEqual(service.findChildren(QThread), [])
-        self.assertFalse(
-            hasattr(
-                self.window.graph_canvas_presenter,
-                "request_trim_video_clip_copy",
-            )
-        )
+        self.assertFalse(hasattr(self.window, "graph_canvas_presenter"))
 
     def test_trim_worker_thread_is_created_lazily_and_cleaned_by_service(
         self,

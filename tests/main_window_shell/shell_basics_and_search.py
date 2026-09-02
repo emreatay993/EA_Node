@@ -677,13 +677,17 @@ class MainWindowShellBasicsAndSearchTests(SharedMainWindowShellTestBase):
             def selected_run_preview_before_run(self) -> bool:
                 return False
 
-        self.assertTrue(self.window.graph_canvas_presenter.selected_run_preview_before_run)
+        self.assertTrue(
+            self.window.app_preferences_controller.selected_run_preview_before_run()
+        )
         with _patched_selected_run_settings_dialog(AcceptingDialog):
             self.window.show_selected_run_settings_dialog()
             self.app.processEvents()
 
         self.assertEqual(captured_initial_settings, [{"preview_before_run": True}])
-        self.assertFalse(self.window.graph_canvas_presenter.selected_run_preview_before_run)
+        self.assertFalse(
+            self.window.app_preferences_controller.selected_run_preview_before_run()
+        )
         persisted = json.loads(self._app_preferences_path.read_text(encoding="utf-8"))
         self.assertEqual(persisted["selected_run"], {"preview_before_run": False})
 

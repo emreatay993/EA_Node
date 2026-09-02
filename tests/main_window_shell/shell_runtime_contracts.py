@@ -188,8 +188,11 @@ class MainWindowShellContextBootstrapTests(SharedMainWindowShellTestBase):
         graph_canvas_state_bridge = context.contextProperty("graphCanvasStateBridge")
         self.assertIsInstance(graph_canvas_state_bridge, GraphCanvasStateBridge)
         self.assertIs(graph_canvas_state_bridge.parent(), self.window)
-        self.assertIsNone(graph_canvas_state_bridge.shell_window)
-        self.assertIs(graph_canvas_state_bridge.canvas_source, self.window.graph_canvas_presenter)
+        self.assertIs(graph_canvas_state_bridge._session_state, self.window.search_scope_state)
+        self.assertIs(
+            graph_canvas_state_bridge._app_preferences_source,
+            self.window.app_preferences_controller,
+        )
         self.assertIs(graph_canvas_state_bridge.graphics_source, self.window.shell_workspace_presenter)
         self.assertIs(graph_canvas_state_bridge.execution_source, self.window)
         self.assertIs(graph_canvas_state_bridge.project_source, self.window)
@@ -199,8 +202,14 @@ class MainWindowShellContextBootstrapTests(SharedMainWindowShellTestBase):
         graph_canvas_command_bridge = context.contextProperty("graphCanvasCommandBridge")
         self.assertIsInstance(graph_canvas_command_bridge, GraphCanvasCommandBridge)
         self.assertIs(graph_canvas_command_bridge.parent(), self.window)
-        self.assertIsNone(graph_canvas_command_bridge.shell_window)
-        self.assertIs(graph_canvas_command_bridge.canvas_source, self.window.graph_canvas_presenter)
+        self.assertIs(
+            graph_canvas_command_bridge._run_controller,
+            self.window.run_controller,
+        )
+        self.assertIs(
+            graph_canvas_command_bridge._workspace_edit_controller,
+            self.window.workspace_edit_controller,
+        )
         self.assertIs(
             graph_canvas_command_bridge.media_action_source,
             self.window.media_panel_action_service,

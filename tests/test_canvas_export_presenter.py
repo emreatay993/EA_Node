@@ -1,3 +1,6 @@
+# Purpose: Direct owner tests for canvas PNG/PPTX and project-review capture.
+# Map: subsystems/graph_canvas
+# Tests: tests/test_canvas_export_presenter.py
 from __future__ import annotations
 
 import copy
@@ -28,11 +31,14 @@ from ea_node_editor.ui.pptx_export import (
     create_canvas_views_pptx,
     default_canvas_views_deck_path,
 )
-import ea_node_editor.ui.shell.presenters.graph_canvas_presenter as graph_canvas_presenter_module
-from ea_node_editor.ui.shell.presenters.graph_canvas_presenter import (
-    GraphCanvasPresenter,
+import ea_node_editor.ui.shell.presenters.canvas_export_presenter as canvas_export_presenter_module
+from ea_node_editor.ui.shell.presenters.canvas_export_presenter import (
+    CanvasExportPresenter,
     ProjectReviewCanvasCaptureSpec,
     ProjectReviewCanvasCaptureViewport,
+)
+from ea_node_editor.ui.shell.presenters.contracts import (
+    _CanvasExportPresenterHostProtocol,
 )
 from ea_node_editor.ui_qml.native_overlay_owners import (
     PLOT_HOST_OVERLAY_OWNER,
@@ -70,8 +76,12 @@ class _FakeWorkspace:
         self.name = "Workspace"
         self.active_view_id = active_view_id
         self.views = {
-            "view-a": SimpleNamespace(view_id="view-a", name="View A", zoom=1.0, pan_x=0.0, pan_y=0.0),
-            "view-b": SimpleNamespace(view_id="view-b", name="View B", zoom=2.0, pan_x=80.0, pan_y=-30.0),
+            "view-a": SimpleNamespace(
+                view_id="view-a", name="View A", zoom=1.0, pan_x=0.0, pan_y=0.0
+            ),
+            "view-b": SimpleNamespace(
+                view_id="view-b", name="View B", zoom=2.0, pan_x=80.0, pan_y=-30.0
+            ),
         }
 
     def ensure_default_view(self) -> None:
@@ -93,7 +103,9 @@ class _FakeHost:
         self.graphics_preferences_changed = _FakeSignal()
         self.snap_to_grid_changed = _FakeSignal()
         self.workspace_manager = _FakeWorkspaceManager()
-        self.model = SimpleNamespace(project=SimpleNamespace(workspaces={"ws": workspace}))
+        self.model = SimpleNamespace(
+            project=SimpleNamespace(workspaces={"ws": workspace})
+        )
         self.console_panel = _FakeConsole()
         self.project_path = ""
         self.quick_widget = None
@@ -118,14 +130,14 @@ class _FakeHost:
         return None
 
 
-def _presenter_for_export(workspace: _FakeWorkspace) -> tuple[GraphCanvasPresenter, _FakeHost, _FakeWorkspacePresenter]:
+def _presenter_for_export(
+    workspace: _FakeWorkspace,
+) -> tuple[CanvasExportPresenter, _FakeHost, _FakeWorkspacePresenter]:
     host = _FakeHost(workspace)
     workspace_presenter = _FakeWorkspacePresenter(workspace)
-    presenter = GraphCanvasPresenter(
+    presenter = CanvasExportPresenter(
         host,
         workspace_presenter=workspace_presenter,
-        library_presenter=SimpleNamespace(),
-        inspector_presenter=SimpleNamespace(),
     )
     return presenter, host, workspace_presenter
 
@@ -146,7 +158,7 @@ def _viewport(
 
 def _patch_presenter_export_boundaries(
     monkeypatch,  # noqa: ANN001
-    presenter: GraphCanvasPresenter,
+    presenter: CanvasExportPresenter,
     workspace: _FakeWorkspace,
     tmp_path: Path,
     *,
@@ -209,9 +221,11 @@ def _patch_presenter_export_boundaries(
             device_pixel_ratio=device_pixel_ratio,
             scale=scale,
         )
-        _solid_png(output_path, expected_pixel_size[0], expected_pixel_size[1], "#ffffff")
+        _solid_png(
+            output_path, expected_pixel_size[0], expected_pixel_size[1], "#ffffff"
+        )
         capture_calls.append((view_id, expected_pixel_size, device_pixel_ratio))
-        return graph_canvas_presenter_module._CanvasBaseCaptureResult(
+        return canvas_export_presenter_module._CanvasBaseCaptureResult(
             request_id="test",
             path=output_path,
             canvas_logical_size=logical_size,
@@ -240,8 +254,33 @@ def _patch_presenter_export_boundaries(
         return output_png_path
 
     monkeypatch.setattr(presenter, "_capture_canvas_base_png", fake_capture)
-    monkeypatch.setattr(graph_canvas_presenter_module, "composite_canvas_view_png", fake_composite)
+    monkeypatch.setattr(
+        canvas_export_presenter_module, "composite_canvas_view_png", fake_composite
+    )
     return capture_calls, composite_calls, crop_calls, complete_calls
+
+
+def test_canvas_export_host_protocol_only_declares_capture_export_dependencies() -> (
+    None
+):
+    assert set(_CanvasExportPresenterHostProtocol.__annotations__) == {
+        "scene",
+        "view",
+        "model",
+        "workspace_manager",
+        "quick_widget",
+        "shell_host_presenter",
+        "viewer_host_service",
+        "plot_host_service",
+        "embedded_viewer_overlay_manager",
+        "project_path",
+        "console_panel",
+    }
+    assert {
+        name
+        for name, value in _CanvasExportPresenterHostProtocol.__dict__.items()
+        if not name.startswith("_") and callable(value)
+    } == {"show_graph_hint", "update_notification_counters"}
 
 
 def test_final_export_pixel_size_uses_canvas_logical_size_dpr_and_scale() -> None:
@@ -324,39 +363,48 @@ def test_canvas_export_crop_rect_clamps_and_falls_back_for_invalid_bounds() -> N
         padding_px=0.0,
     )
     assert clamped == CanvasExportCropRect(x=0, y=0, width=10, height=10)
-    assert canvas_export_crop_rect_for_scene_bounds(
-        scene_bounds=QRectF(-500.0, -500.0, 10.0, 10.0),
-        center_x=0.0,
-        center_y=0.0,
-        zoom=1.0,
-        canvas_logical_width=200.0,
-        canvas_logical_height=200.0,
-        output_pixel_width=200,
-        output_pixel_height=200,
-        padding_px=0.0,
-    ) is None
-    assert canvas_export_crop_rect_for_scene_bounds(
-        scene_bounds=QRectF(-100.0, -100.0, 200.0, 200.0),
-        center_x=0.0,
-        center_y=0.0,
-        zoom=1.0,
-        canvas_logical_width=200.0,
-        canvas_logical_height=200.0,
-        output_pixel_width=200,
-        output_pixel_height=200,
-        padding_px=0.0,
-    ) is None
-    assert canvas_export_crop_rect_for_scene_bounds(
-        scene_bounds=QRectF(0.0, 0.0, 0.0, 20.0),
-        center_x=0.0,
-        center_y=0.0,
-        zoom=1.0,
-        canvas_logical_width=200.0,
-        canvas_logical_height=200.0,
-        output_pixel_width=200,
-        output_pixel_height=200,
-        padding_px=0.0,
-    ) is None
+    assert (
+        canvas_export_crop_rect_for_scene_bounds(
+            scene_bounds=QRectF(-500.0, -500.0, 10.0, 10.0),
+            center_x=0.0,
+            center_y=0.0,
+            zoom=1.0,
+            canvas_logical_width=200.0,
+            canvas_logical_height=200.0,
+            output_pixel_width=200,
+            output_pixel_height=200,
+            padding_px=0.0,
+        )
+        is None
+    )
+    assert (
+        canvas_export_crop_rect_for_scene_bounds(
+            scene_bounds=QRectF(-100.0, -100.0, 200.0, 200.0),
+            center_x=0.0,
+            center_y=0.0,
+            zoom=1.0,
+            canvas_logical_width=200.0,
+            canvas_logical_height=200.0,
+            output_pixel_width=200,
+            output_pixel_height=200,
+            padding_px=0.0,
+        )
+        is None
+    )
+    assert (
+        canvas_export_crop_rect_for_scene_bounds(
+            scene_bounds=QRectF(0.0, 0.0, 0.0, 20.0),
+            center_x=0.0,
+            center_y=0.0,
+            zoom=1.0,
+            canvas_logical_width=200.0,
+            canvas_logical_height=200.0,
+            output_pixel_width=200,
+            output_pixel_height=200,
+            padding_px=0.0,
+        )
+        is None
+    )
 
 
 def test_canvas_export_crop_rect_expands_for_overlay_snapshots() -> None:
@@ -443,7 +491,9 @@ def test_compositor_fails_when_visible_overlay_capture_is_missing(tmp_path) -> N
         rect=QRectF(10.0, 20.0, 20.0, 20.0),
     )
 
-    with pytest.raises(CanvasViewExportCompositeError, match=f"{PLOT_HOST_OVERLAY_OWNER} overlay"):
+    with pytest.raises(
+        CanvasViewExportCompositeError, match=f"{PLOT_HOST_OVERLAY_OWNER} overlay"
+    ):
         composite_canvas_view_png(
             base_png_path=base_path,
             output_png_path=tmp_path / "out.png",
@@ -504,7 +554,9 @@ def test_qml_base_export_contract_includes_request_metadata_and_live_size() -> N
     assert "function allHosts()" in world_layer_source
 
 
-def test_canvas_view_export_dialog_defaults_to_content_crop_and_allows_opt_out(tmp_path, qapp) -> None:  # noqa: ANN001, ARG001
+def test_canvas_view_export_dialog_defaults_to_content_crop_and_allows_opt_out(
+    tmp_path, qapp
+) -> None:  # noqa: ANN001, ARG001
     dialog = CanvasViewExportDialog(
         view_items=[{"view_id": "view-a", "label": "View A"}],
         output_folder=tmp_path,
@@ -523,14 +575,18 @@ def test_canvas_view_export_dialog_defaults_to_content_crop_and_allows_opt_out(t
     assert values.crop_to_content is False
 
 
-def test_export_canvas_views_recomputes_live_size_per_view_and_restores(monkeypatch, tmp_path, qapp) -> None:  # noqa: ANN001, ARG001
+def test_export_canvas_views_recomputes_live_size_per_view_and_restores(
+    monkeypatch, tmp_path, qapp
+) -> None:  # noqa: ANN001, ARG001
     workspace = _FakeWorkspace(active_view_id="view-a")
     presenter, host, workspace_presenter = _presenter_for_export(workspace)
-    capture_calls, composite_calls, _crop_calls, complete_calls = _patch_presenter_export_boundaries(
-        monkeypatch,
-        presenter,
-        workspace,
-        tmp_path,
+    capture_calls, composite_calls, _crop_calls, complete_calls = (
+        _patch_presenter_export_boundaries(
+            monkeypatch,
+            presenter,
+            workspace,
+            tmp_path,
+        )
     )
 
     presenter._export_canvas_views_to_paths(
@@ -555,16 +611,22 @@ def test_export_canvas_views_recomputes_live_size_per_view_and_restores(monkeypa
     assert any("DPR 1.5" in message for _level, message in host.console_panel.logs)
 
 
-def test_capture_canvas_view_pngs_crops_to_workspace_bounds_by_default(monkeypatch, tmp_path, qapp) -> None:  # noqa: ANN001, ARG001
+def test_capture_canvas_view_pngs_crops_to_workspace_bounds_by_default(
+    monkeypatch, tmp_path, qapp
+) -> None:  # noqa: ANN001, ARG001
     workspace = _FakeWorkspace(active_view_id="view-a")
     presenter, host, _workspace_presenter = _presenter_for_export(workspace)
-    _capture_calls, _composite_calls, crop_calls, _complete_calls = _patch_presenter_export_boundaries(
-        monkeypatch,
-        presenter,
-        workspace,
-        tmp_path,
+    _capture_calls, _composite_calls, crop_calls, _complete_calls = (
+        _patch_presenter_export_boundaries(
+            monkeypatch,
+            presenter,
+            workspace,
+            tmp_path,
+        )
     )
-    host.view = _viewport(width=100, height=50, zoom=1.0, center_x=-200.0, center_y=-120.0)
+    host.view = _viewport(
+        width=100, height=50, zoom=1.0, center_x=-200.0, center_y=-120.0
+    )
     host.scene.workspace_scene_bounds = lambda: QRectF(25.0, 15.0, 20.0, 5.0)
 
     result = presenter.capture_canvas_view_pngs(
@@ -581,16 +643,22 @@ def test_capture_canvas_view_pngs_crops_to_workspace_bounds_by_default(monkeypat
     assert host.view.center_y == -120.0
 
 
-def test_capture_canvas_view_pngs_respects_crop_opt_out(monkeypatch, tmp_path, qapp) -> None:  # noqa: ANN001, ARG001
+def test_capture_canvas_view_pngs_respects_crop_opt_out(
+    monkeypatch, tmp_path, qapp
+) -> None:  # noqa: ANN001, ARG001
     workspace = _FakeWorkspace(active_view_id="view-a")
     presenter, host, _workspace_presenter = _presenter_for_export(workspace)
-    _capture_calls, _composite_calls, crop_calls, _complete_calls = _patch_presenter_export_boundaries(
-        monkeypatch,
-        presenter,
-        workspace,
-        tmp_path,
+    _capture_calls, _composite_calls, crop_calls, _complete_calls = (
+        _patch_presenter_export_boundaries(
+            monkeypatch,
+            presenter,
+            workspace,
+            tmp_path,
+        )
     )
-    host.view = _viewport(width=100, height=50, zoom=1.0, center_x=-200.0, center_y=-120.0)
+    host.view = _viewport(
+        width=100, height=50, zoom=1.0, center_x=-200.0, center_y=-120.0
+    )
     host.scene.workspace_scene_bounds = lambda: QRectF(25.0, 15.0, 20.0, 10.0)
 
     result = presenter.capture_canvas_view_pngs(
@@ -606,11 +674,15 @@ def test_capture_canvas_view_pngs_respects_crop_opt_out(monkeypatch, tmp_path, q
     assert host.view.center_y == -120.0
 
 
-def test_project_review_canvas_capture_applies_supplied_viewport_and_restores(monkeypatch, tmp_path, qapp) -> None:  # noqa: ANN001, ARG001
+def test_project_review_canvas_capture_applies_supplied_viewport_and_restores(
+    monkeypatch, tmp_path, qapp
+) -> None:  # noqa: ANN001, ARG001
     workspace = _FakeWorkspace(active_view_id="view-a")
     original_views = copy.deepcopy(workspace.views)
     presenter, host, workspace_presenter = _presenter_for_export(workspace)
-    host.view = _viewport(width=100, height=50, zoom=0.75, center_x=-12.0, center_y=18.0)
+    host.view = _viewport(
+        width=100, height=50, zoom=0.75, center_x=-12.0, center_y=18.0
+    )
     captured_view_states: list[tuple[float, float, float]] = []
     crop_calls: list[object | None] = []
 
@@ -620,7 +692,9 @@ def test_project_review_canvas_capture_applies_supplied_viewport_and_restores(mo
     monkeypatch.setattr(presenter, "_canvas_export_overlay_snapshots", lambda: ())
     monkeypatch.setattr(presenter, "_canvas_logical_size", lambda _item: (100.0, 50.0))
     monkeypatch.setattr(presenter, "_canvas_device_pixel_ratio", lambda: 1.0)
-    monkeypatch.setattr(presenter, "_canvas_export_scene_bounds", lambda: QRectF(0.0, 0.0, 20.0, 10.0))
+    monkeypatch.setattr(
+        presenter, "_canvas_export_scene_bounds", lambda: QRectF(0.0, 0.0, 20.0, 10.0)
+    )
 
     def fake_capture(
         *,
@@ -630,12 +704,14 @@ def test_project_review_canvas_capture_applies_supplied_viewport_and_restores(mo
         device_pixel_ratio: float,
         expected_pixel_size: tuple[int, int],
     ):
-        captured_view_states.append((host.view.zoom_value, host.view.center_x, host.view.center_y))
+        captured_view_states.append(
+            (host.view.zoom_value, host.view.center_x, host.view.center_y)
+        )
         assert scale == 1
         assert device_pixel_ratio == 1.0
         assert expected_pixel_size == (100, 50)
         _solid_png(output_path, 100, 50, "#ffffff")
-        return graph_canvas_presenter_module._CanvasBaseCaptureResult(
+        return canvas_export_presenter_module._CanvasBaseCaptureResult(
             request_id="test",
             path=output_path,
             canvas_logical_size=(100.0, 50.0),
@@ -658,7 +734,9 @@ def test_project_review_canvas_capture_applies_supplied_viewport_and_restores(mo
         return output_png_path
 
     monkeypatch.setattr(presenter, "_capture_canvas_base_png", fake_capture)
-    monkeypatch.setattr(graph_canvas_presenter_module, "composite_canvas_view_png", fake_composite)
+    monkeypatch.setattr(
+        canvas_export_presenter_module, "composite_canvas_view_png", fake_composite
+    )
 
     result = presenter.capture_project_review_canvas_pngs(
         capture_specs=(
@@ -667,7 +745,9 @@ def test_project_review_canvas_capture_applies_supplied_viewport_and_restores(mo
                 display_name="View B",
                 capture_mode="view",
                 view_id="view-b",
-                viewport=ProjectReviewCanvasCaptureViewport(zoom=2.0, center_x=80.0, center_y=-30.0),
+                viewport=ProjectReviewCanvasCaptureViewport(
+                    zoom=2.0, center_x=80.0, center_y=-30.0
+                ),
                 crop_to_content=True,
             ),
         ),
@@ -687,14 +767,18 @@ def test_project_review_canvas_capture_applies_supplied_viewport_and_restores(mo
     assert host.view.center_y == 18.0
 
 
-def test_capture_canvas_view_pngs_falls_back_when_content_cannot_be_framed(monkeypatch, tmp_path, qapp) -> None:  # noqa: ANN001, ARG001
+def test_capture_canvas_view_pngs_falls_back_when_content_cannot_be_framed(
+    monkeypatch, tmp_path, qapp
+) -> None:  # noqa: ANN001, ARG001
     workspace = _FakeWorkspace(active_view_id="view-a")
     presenter, host, _workspace_presenter = _presenter_for_export(workspace)
-    _capture_calls, _composite_calls, crop_calls, _complete_calls = _patch_presenter_export_boundaries(
-        monkeypatch,
-        presenter,
-        workspace,
-        tmp_path,
+    _capture_calls, _composite_calls, crop_calls, _complete_calls = (
+        _patch_presenter_export_boundaries(
+            monkeypatch,
+            presenter,
+            workspace,
+            tmp_path,
+        )
     )
     host.view = SimpleNamespace(center_x=-200.0, center_y=-120.0, zoom_value=1.0)
     host.scene.workspace_scene_bounds = lambda: QRectF(25.0, 15.0, 20.0, 10.0)
@@ -710,15 +794,19 @@ def test_capture_canvas_view_pngs_falls_back_when_content_cannot_be_framed(monke
     assert result.exports[0].output_pixel_size == (100, 50)
 
 
-def test_export_canvas_views_reports_partial_failures_and_keeps_successes(monkeypatch, tmp_path, qapp) -> None:  # noqa: ANN001, ARG001
+def test_export_canvas_views_reports_partial_failures_and_keeps_successes(
+    monkeypatch, tmp_path, qapp
+) -> None:  # noqa: ANN001, ARG001
     workspace = _FakeWorkspace(active_view_id="view-a")
     presenter, _host, _workspace_presenter = _presenter_for_export(workspace)
-    _capture_calls, composite_calls, _crop_calls, complete_calls = _patch_presenter_export_boundaries(
-        monkeypatch,
-        presenter,
-        workspace,
-        tmp_path,
-        failing_views={"view-a"},
+    _capture_calls, composite_calls, _crop_calls, complete_calls = (
+        _patch_presenter_export_boundaries(
+            monkeypatch,
+            presenter,
+            workspace,
+            tmp_path,
+            failing_views={"view-a"},
+        )
     )
 
     presenter._export_canvas_views_to_paths(
@@ -740,15 +828,19 @@ def test_export_canvas_views_reports_partial_failures_and_keeps_successes(monkey
     assert "missing overlay" in failures[0].message
 
 
-def test_export_canvas_views_restores_original_view_when_all_views_fail(monkeypatch, tmp_path, qapp) -> None:  # noqa: ANN001, ARG001
+def test_export_canvas_views_restores_original_view_when_all_views_fail(
+    monkeypatch, tmp_path, qapp
+) -> None:  # noqa: ANN001, ARG001
     workspace = _FakeWorkspace(active_view_id="view-b")
     presenter, _host, _workspace_presenter = _presenter_for_export(workspace)
-    _capture_calls, _composite_calls, _crop_calls, _complete_calls = _patch_presenter_export_boundaries(
-        monkeypatch,
-        presenter,
-        workspace,
-        tmp_path,
-        failing_views={"view-a"},
+    _capture_calls, _composite_calls, _crop_calls, _complete_calls = (
+        _patch_presenter_export_boundaries(
+            monkeypatch,
+            presenter,
+            workspace,
+            tmp_path,
+            failing_views={"view-a"},
+        )
     )
 
     with pytest.raises(CanvasViewExportError, match="failed for all selected views"):

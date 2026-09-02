@@ -20,18 +20,16 @@ API lives on GraphSceneBridgeBase, not the scene command sub-bridge)."""
 
     @pyqtSlot(str, result=bool)
     def trigger_node(self, node_id: str) -> bool:
-        return bool(_invoke(self._canvas_source, "trigger_node", node_id, default=False))
+        return bool(_invoke(self._run_controller, "trigger_node", node_id, default=False))
 
     @pyqtSlot(str, result=bool)
     def request_open_subnode_scope(self, node_id: str) -> bool:
-        return bool(
-            _invoke(
-                self._canvas_source,
-                "request_open_subnode_scope",
-                node_id,
-                default=False,
-            )
-        )
+        normalized_node_id = str(node_id or "").strip()
+        navigate = getattr(self._search_scope_controller, "navigate_scope", None)
+        open_scope = getattr(self._scene_bridge, "open_subnode_scope", None)
+        if not normalized_node_id or not callable(navigate) or not callable(open_scope):
+            return False
+        return bool(navigate(lambda: open_scope(normalized_node_id)))
 
     @pyqtSlot(str, result=bool)
     def can_open_comment_peek(self, node_id: str) -> bool:
@@ -53,7 +51,7 @@ API lives on GraphSceneBridgeBase, not the scene command sub-bridge)."""
             args.append(source_mode)
         return str(
             _invoke(
-                self._canvas_source,
+                self._inspector_source,
                 "browse_node_property_path",
                 *args,
                 default="",
@@ -65,7 +63,7 @@ API lives on GraphSceneBridgeBase, not the scene command sub-bridge)."""
     def internalize_node_property_path(self, node_id: str, key: str, current_path: str) -> str:
         return str(
             _invoke(
-                self._canvas_source,
+                self._inspector_source,
                 "internalize_node_property_path",
                 node_id,
                 key,
@@ -79,7 +77,7 @@ API lives on GraphSceneBridgeBase, not the scene command sub-bridge)."""
     def pick_node_property_color(self, node_id: str, key: str, current_value: str) -> str:
         return str(
             _invoke(
-                self._canvas_source,
+                self._inspector_source,
                 "pick_node_property_color",
                 node_id,
                 key,

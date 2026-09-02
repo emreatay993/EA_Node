@@ -5,7 +5,7 @@ from typing import TYPE_CHECKING
 
 from ea_node_editor.ui.shell.host_presenter import ShellHostPresenter
 from ea_node_editor.ui.shell.presenters import (
-    GraphCanvasPresenter,
+    CanvasExportPresenter,
     GraphCanvasHostPresenter,
     ProjectReviewDeckPresenter,
     ShellInspectorPresenter,
@@ -24,7 +24,7 @@ class ShellPresenterDependencies:
     shell_library_presenter: ShellLibraryPresenter
     shell_workspace_presenter: ShellWorkspacePresenter
     shell_inspector_presenter: ShellInspectorPresenter
-    graph_canvas_presenter: GraphCanvasPresenter
+    canvas_export_presenter: CanvasExportPresenter
     graph_canvas_host_presenter: GraphCanvasHostPresenter
     project_review_deck_presenter: ProjectReviewDeckPresenter
 
@@ -33,7 +33,7 @@ class ShellPresenterDependencies:
         host.shell_library_presenter = self.shell_library_presenter
         host.shell_workspace_presenter = self.shell_workspace_presenter
         host.shell_inspector_presenter = self.shell_inspector_presenter
-        host.graph_canvas_presenter = self.graph_canvas_presenter
+        host.canvas_export_presenter = self.canvas_export_presenter
         host.graph_canvas_host_presenter = self.graph_canvas_host_presenter
         host.project_review_deck_presenter = self.project_review_deck_presenter
 
@@ -50,12 +50,9 @@ def create_presenter_dependencies(
         ui_state=state.workspace_ui_state,
     )
     shell_inspector_presenter = ShellInspectorPresenter(host, parent=host)
-    graph_canvas_presenter = GraphCanvasPresenter(
+    canvas_export_presenter = CanvasExportPresenter(
         host,
-        parent=host,
         workspace_presenter=shell_workspace_presenter,
-        library_presenter=shell_library_presenter,
-        inspector_presenter=shell_inspector_presenter,
     )
     graph_canvas_host_presenter = GraphCanvasHostPresenter(host, parent=host)
     project_review_deck_presenter = ProjectReviewDeckPresenter(host, parent=host)
@@ -64,7 +61,7 @@ def create_presenter_dependencies(
         shell_library_presenter=shell_library_presenter,
         shell_workspace_presenter=shell_workspace_presenter,
         shell_inspector_presenter=shell_inspector_presenter,
-        graph_canvas_presenter=graph_canvas_presenter,
+        canvas_export_presenter=canvas_export_presenter,
         graph_canvas_host_presenter=graph_canvas_host_presenter,
         project_review_deck_presenter=project_review_deck_presenter,
     )

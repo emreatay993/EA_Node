@@ -15,9 +15,16 @@ from ea_node_editor.ui_qml.shell_workspace_bridge import ShellWorkspaceBridge
 
 if TYPE_CHECKING:
     from ea_node_editor.ui.shell.composition.controllers import ShellControllerDependencies
+    from ea_node_editor.ui.shell.composition.library_workspace import (
+        ShellLibraryWorkspaceDependencies,
+    )
+    from ea_node_editor.ui.shell.composition.preferences import (
+        ShellPreferencesThemeStatusDependencies,
+    )
     from ea_node_editor.ui.shell.composition.presenters import ShellPresenterDependencies
     from ea_node_editor.ui.shell.composition.primitives import ShellPrimitiveDependencies
     from ea_node_editor.ui.shell.composition.runtime_services import ShellRuntimeDependencies
+    from ea_node_editor.ui.shell.composition.state import ShellStateDependencies
     from ea_node_editor.ui.shell.controllers import AddonManagerController
     from ea_node_editor.ui.shell.window import ShellWindow
 
@@ -85,14 +92,20 @@ class ShellContextBridgeDependencies:
 
 def create_context_bridge_dependencies(
     host: "ShellWindow",
+    state: "ShellStateDependencies",
     primitives: "ShellPrimitiveDependencies",
+    preferences: "ShellPreferencesThemeStatusDependencies",
+    library_workspace: "ShellLibraryWorkspaceDependencies",
     controllers: "ShellControllerDependencies",
     presenters: "ShellPresenterDependencies",
     runtime: "ShellRuntimeDependencies",
 ) -> ShellContextBridgeDependencies:
     graph_canvas_state_bridge = GraphCanvasStateBridge(
         host,
-        canvas_source=presenters.graph_canvas_presenter,
+        session_state=state.search_scope_state,
+        snap_to_grid_changed_signal=host.snap_to_grid_changed,
+        snap_grid_size=host._SNAP_GRID_SIZE,
+        app_preferences_source=preferences.app_preferences_controller,
         graphics_source=presenters.shell_workspace_presenter,
         execution_source=host,
         project_source=host,
@@ -101,12 +114,27 @@ def create_context_bridge_dependencies(
     )
     graph_canvas_command_bridge = GraphCanvasCommandBridge(
         host,
-        canvas_source=presenters.graph_canvas_presenter,
+        search_scope_controller=controllers.search_scope_controller,
+        app_preferences_source=preferences.app_preferences_controller,
+        graphics_preferences_changed_signal=host.graphics_preferences_changed,
+        run_controller=controllers.run_controller,
+        show_graph_hint=host.show_graph_hint,
+        inspector_source=presenters.shell_inspector_presenter,
+        library_source=presenters.shell_library_presenter,
+        workspace_edit_controller=library_workspace.workspace_edit_controller,
+        workspace_drop_connect_controller=(
+            library_workspace.workspace_drop_connect_controller
+        ),
         media_action_source=runtime.media_panel_action_service,
         graphics_source=presenters.shell_workspace_presenter,
         host_source=presenters.graph_canvas_host_presenter,
         scene_bridge=primitives.scene,
         view_bridge=primitives.view,
+        model_provider=lambda: host.model,
+        active_workspace_id_provider=lambda: str(
+            host.workspace_manager.active_workspace_id() or ""
+        ),
+        workspace_navigation_controller=library_workspace.workspace_navigation_controller,
     )
     primitives.scene.bind_graphics_preferences_source(
         presenters.shell_workspace_presenter

@@ -524,10 +524,10 @@ class ShellWorkspacePresenter(QObject):
         return bool(self._host.workspace_navigation_controller.close_view(view_id))
 
     def request_export_view(self, view_id: str) -> bool:
-        return bool(self._host.graph_canvas_presenter.export_canvas_views([view_id]))
+        return bool(self._host.canvas_export_presenter.export_canvas_views([view_id]))
 
     def request_export_all_views(self) -> bool:
-        return bool(self._host.graph_canvas_presenter.export_canvas_views())
+        return bool(self._host.canvas_export_presenter.export_canvas_views())
 
     def request_create_view(self) -> None: self._host.workspace_navigation_controller.create_view()
 

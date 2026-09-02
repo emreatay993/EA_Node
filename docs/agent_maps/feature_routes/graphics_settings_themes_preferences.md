@@ -9,7 +9,7 @@ Use this for graph themes, graphics settings, app preferences, theme editor dial
 - `ea_node_editor/ui/dialogs/graphics_settings_dialog.py`
 - `ea_node_editor/ui/shell/controllers/app_preferences_controller.py`
 - `ea_node_editor/ui/shell/presenters/workspace_presenter.py`
-- `ea_node_editor/ui/shell/presenters/graph_canvas_presenter.py`
+- `ea_node_editor/ui/shell/presenters/canvas_export_presenter.py`
 - `ea_node_editor/ui/dialogs/graph_theme_editor_dialog.py`
 - `ea_node_editor/ui_qml/graph_canvas_state/`
 - `ea_node_editor/ui_qml/graph_canvas_command/`
@@ -24,7 +24,7 @@ Use this for graph themes, graphics settings, app preferences, theme editor dial
 - `tests/graph_track_b/qml_preference_rendering_suite.py`
 
 ## Common Changes
-- `AppPreferencesController` is the v8 persistence and normalization owner. `ShellWorkspacePresenter` is the sole runtime owner for persisted `graphics.*` projections, mutations, graphics notification, and revision-scoped tooltip/category caches; it returns defensive copies for collection projections. `GraphCanvasPresenter` retains only snap, minimap-expanded, selected-run preview, and canvas operations.
+- `AppPreferencesController` is the v8 persistence and normalization owner. `ShellWorkspacePresenter` is the sole runtime owner for persisted `graphics.*` projections, mutations, graphics notification, and revision-scoped tooltip/category caches; session-only snap/minimap and selected-run preview route through their direct state/controller owners.
 - Folder Explorer column widths flow through app-wide graphics preferences at `graphics.folder_explorer.column_widths`, through the graph-canvas command bridge's graphics source, and then from `ShellWorkspacePresenter` to graph-canvas QML state; header resizing does not use the Graphics Settings dialog.
 - Recent annotation text colors flow through app-wide graphics preferences at `graphics.typography.recent_text_colors`, through the graphics source, and then from `ShellWorkspacePresenter` to graph-canvas QML state for text toolbar swatches.
 - Learned radial-menu node choices live app-wide at `graphics.shell.node_library_usage` as a normalized rolling list of the last 64 successful explicit library choices. Repeated ids intentionally encode frequency and recency; this history is not project `.cxproj` state.

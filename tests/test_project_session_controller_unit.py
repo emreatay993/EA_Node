@@ -204,6 +204,7 @@ class _ProjectHostStub:
         self.session_store = _SessionStoreStub(base_path or Path.cwd())
         self.serializer = _SerializerStub()
         self.workspace_navigation_controller = _WorkspaceNavigationControllerStub()
+        self.shell_inspector_presenter = self
         self.runtime_history = _RuntimeHistoryStub()
         self.run_controller = _RunControllerStub(self)
         self.execution_client = mock.Mock()
@@ -582,13 +583,13 @@ class ProjectSessionControllerUnitTests(unittest.TestCase):
         prompt_recover_autosave.assert_called_once_with(recovered_project)
 
 
-    def test_node_property_path_browser_prefers_graph_canvas_presenter_surface(
+    def test_node_property_path_browser_uses_inspector_presenter_surface(
         self,
     ) -> None:
         host = _ProjectHostStub()
         presenter = mock.Mock()
         presenter.browse_node_property_path.return_value = "presenter-path"
-        host.graph_canvas_presenter = presenter
+        host.shell_inspector_presenter = presenter
         controller = ProjectSessionController(host)  # type: ignore[arg-type]
 
         resolved = (

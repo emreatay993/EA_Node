@@ -369,7 +369,11 @@ class AppBootstrapTests(unittest.TestCase):
         self.assertIs(services.presenters.shell_library_presenter._host, window)
         self.assertIs(services.presenters.shell_workspace_presenter._host, window)
         self.assertIs(services.presenters.shell_inspector_presenter._host, window)
-        self.assertIs(services.presenters.graph_canvas_presenter._host, window)
+        self.assertIs(services.presenters.canvas_export_presenter._host, window)
+        self.assertNotIsInstance(
+            services.presenters.canvas_export_presenter,
+            QtCore.QObject,
+        )
         self.assertIs(services.presenters.graph_canvas_host_presenter._host, window)
         context_bindings = dict(services.qml_context.qml_context_property_bindings)
         self.assertIs(context_bindings["viewerSessionBridge"], services.runtime.viewer_session_bridge)

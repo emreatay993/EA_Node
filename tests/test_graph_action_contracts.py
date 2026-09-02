@@ -213,8 +213,8 @@ class _GraphActionSource:
             payload=self._record("request_delete_selected_graph_items", edge_ids)
         )
 
-    def request_open_subnode_scope(self, node_id: str) -> bool:
-        return self._record("request_open_subnode_scope", node_id)
+    def open_subnode_scope(self, node_id: str) -> bool:
+        return self._record("open_subnode_scope", node_id)
 
     def request_publish_custom_workflow_from_node(self, node_id: str) -> bool:
         return self._record("request_publish_custom_workflow_from_node", node_id)
@@ -285,7 +285,6 @@ class _CommentPeekScene:
 class GraphActionBridgeDelegationTests(unittest.TestCase):
     def test_graph_action_controller_delegates_representative_action_families(self) -> None:
         workspace = _GraphActionSource()
-        canvas_presenter = _GraphActionSource()
         host_presenter = _GraphActionSource()
         workflow = _GraphActionSource()
         scene = _GraphActionSource()
@@ -293,7 +292,9 @@ class GraphActionBridgeDelegationTests(unittest.TestCase):
         controller = GraphActionController(
             workspace_edit_controller=workspace,
             workflow_library_controller=workflow,
-            graph_canvas_presenter=canvas_presenter,
+            search_scope_controller=SimpleNamespace(
+                navigate_scope=lambda callback: callback()
+            ),
             graph_canvas_host_presenter=host_presenter,
             scene_bridge=scene,
             addon_manager_bridge=addon_manager,
@@ -341,8 +342,8 @@ class GraphActionBridgeDelegationTests(unittest.TestCase):
             ],
         )
         self.assertEqual(
-            canvas_presenter.calls,
-            [("request_open_subnode_scope", ("node-1",))],
+            scene.calls,
+            [("open_subnode_scope", ("node-1",)), ("open_comment_peek", ("comment-1",)), ("close_comment_peek", ())],
         )
         self.assertEqual(
             host_presenter.calls,
@@ -354,13 +355,6 @@ class GraphActionBridgeDelegationTests(unittest.TestCase):
         self.assertEqual(
             workflow.calls,
             [("publish_custom_workflow_from_node", ("node-2",))],
-        )
-        self.assertEqual(
-            scene.calls,
-            [
-                ("open_comment_peek", ("comment-1",)),
-                ("close_comment_peek", ()),
-            ],
         )
         self.assertEqual(addon_manager.calls, [("requestOpen", ("addon.from-lock",))])
 
@@ -406,7 +400,10 @@ class GraphActionBridgeDelegationTests(unittest.TestCase):
                 self.hints.append((message, timeout_ms))
 
         presenter = _HintPresenter()
-        controller = GraphActionController(scene_bridge=_PathPointerScene(), graph_canvas_presenter=presenter)
+        controller = GraphActionController(
+            scene_bridge=_PathPointerScene(),
+            show_graph_hint=presenter.show_graph_hint,
+        )
 
         default_calls: list[str] = []
         chooser_calls: list[str] = []
@@ -443,7 +440,10 @@ class GraphActionBridgeDelegationTests(unittest.TestCase):
                 self.hints.append((message, timeout_ms))
 
         presenter = _HintPresenter()
-        controller = GraphActionController(scene_bridge=_EmptyPathPointerScene(), graph_canvas_presenter=presenter)
+        controller = GraphActionController(
+            scene_bridge=_EmptyPathPointerScene(),
+            show_graph_hint=presenter.show_graph_hint,
+        )
 
         opener_calls: list[str] = []
         with mock.patch.object(

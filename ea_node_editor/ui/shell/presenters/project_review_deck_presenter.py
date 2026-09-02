@@ -26,7 +26,10 @@ from ea_node_editor.ui.project_review_deck import (
 from ea_node_editor.ui.pptx_export import CanvasViewPptxExportError, create_project_review_pptx
 
 from .contracts import _ProjectReviewDeckPresenterHostProtocol, _presenter_parent
-from .graph_canvas_presenter import ProjectReviewCanvasCaptureSpec, ProjectReviewCanvasCaptureViewport
+from .canvas_export_presenter import (
+    ProjectReviewCanvasCaptureSpec,
+    ProjectReviewCanvasCaptureViewport,
+)
 
 
 class ProjectReviewDeckPresenter(QObject):
@@ -163,7 +166,7 @@ class ProjectReviewDeckPresenter(QObject):
                 warnings.extend(spec_warnings)
                 if not capture_specs:
                     continue
-                result = self._host.graph_canvas_presenter.capture_project_review_canvas_pngs(
+                result = self._host.canvas_export_presenter.capture_project_review_canvas_pngs(
                     capture_specs=capture_specs,
                     output_dir=output_dir,
                     scale=1,

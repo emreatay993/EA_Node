@@ -1993,29 +1993,20 @@ class GraphArchitectureBoundaryTests(unittest.TestCase):
         self.assertNotIn("workspace_graph_edit_controller", production_source)
 
     def test_media_panel_actions_have_one_direct_qobject_service(self) -> None:
-        presenter_tree = parse_module(
-            "ea_node_editor/ui/shell/presenters/graph_canvas_presenter.py"
+        presenter_dir = REPO_ROOT / "ea_node_editor/ui/shell/presenters"
+        self.assertFalse((presenter_dir / "graph_canvas_presenter.py").exists())
+        export_tree = parse_module(
+            "ea_node_editor/ui/shell/presenters/canvas_export_presenter.py"
         )
-        presenter_methods = {
-            node.name
-            for node in class_node(presenter_tree, "GraphCanvasPresenter").body
-            if isinstance(node, ast.FunctionDef)
-        }
-        self.assertFalse(
+        export_class = class_node(export_tree, "CanvasExportPresenter")
+        self.assertEqual(export_class.bases, [])
+        self.assertIn(
+            "capture_canvas_view_pngs",
             {
-                "request_save_image_crop_replace",
-                "video_frame_capture_path",
-                "request_create_video_frame_image_node",
-                "request_create_video_timestamp_annotation",
-                "request_trim_video_clip_replace",
-                "request_trim_video_clip_copy",
-                "_active_media_source",
-                "_finish_video_trim_job",
-                "_stage_image_crop",
-                "_stage_video_frame_capture",
-                "_stage_video_clip",
-            }
-            & presenter_methods
+                node.name
+                for node in export_class.body
+                if isinstance(node, ast.FunctionDef)
+            },
         )
 
         service_path = "ea_node_editor/ui/shell/media_panel_action_service.py"
@@ -2057,6 +2048,27 @@ class GraphArchitectureBoundaryTests(unittest.TestCase):
             "media_action_source=runtime.media_panel_action_service",
             bridge_source,
         )
+        for direct_owner in (
+            "session_state=state.search_scope_state",
+            "app_preferences_source=preferences.app_preferences_controller",
+            "run_controller=controllers.run_controller",
+            "inspector_source=presenters.shell_inspector_presenter",
+            "library_source=presenters.shell_library_presenter",
+            "workspace_edit_controller=library_workspace.workspace_edit_controller",
+            "library_workspace.workspace_drop_connect_controller",
+            "host_source=presenters.graph_canvas_host_presenter",
+        ):
+            self.assertIn(direct_owner, bridge_source)
+        bridge_package_source = "\n".join(
+            path.read_text(encoding="utf-8")
+            for root in (
+                REPO_ROOT / "ea_node_editor/ui_qml/graph_canvas_state",
+                REPO_ROOT / "ea_node_editor/ui_qml/graph_canvas_command",
+            )
+            for path in root.glob("*.py")
+        )
+        self.assertNotIn("canvas_source", bridge_package_source)
+        self.assertNotIn("shell_window", bridge_package_source)
         fallback_sources = "\n".join(
             (REPO_ROOT / path).read_text(encoding="utf-8")
             for path in (

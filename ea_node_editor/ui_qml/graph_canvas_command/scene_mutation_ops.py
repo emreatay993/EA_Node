@@ -312,8 +312,8 @@ scene_bridge.command_bridge directly."""
         if not normalized_node_id or not normalized_link_id:
             return None
         model = getattr(self._scene_bridge, "_model", None)
-        if model is None:
-            model = getattr(self._shell_window, "model", None)
+        if model is None and callable(self._model_provider):
+            model = self._model_provider()
         project = getattr(model, "project", None)
         workspaces = getattr(project, "workspaces", None)
         if not isinstance(workspaces, Mapping):
@@ -327,11 +327,8 @@ scene_bridge.command_bridge directly."""
 
         add_workspace_id(getattr(self._scene_bridge, "_workspace_id", ""))
         add_workspace_id(getattr(self._scene_bridge, "workspace_id", ""))
-        workspace_manager = getattr(self._shell_window, "workspace_manager", None)
-        active_workspace_id = getattr(workspace_manager, "active_workspace_id", None)
-        if callable(active_workspace_id):
-            add_workspace_id(active_workspace_id())
-        add_workspace_id(getattr(self._shell_window, "active_workspace_id", ""))
+        if callable(self._active_workspace_id_provider):
+            add_workspace_id(self._active_workspace_id_provider())
         workspace = next(
             (workspaces.get(workspace_id) for workspace_id in workspace_ids if workspaces.get(workspace_id) is not None),
             None,
@@ -351,8 +348,8 @@ scene_bridge.command_bridge directly."""
         if not normalized_node_id:
             return ""
         model = getattr(self._scene_bridge, "_model", None)
-        if model is None:
-            model = getattr(self._shell_window, "model", None)
+        if model is None and callable(self._model_provider):
+            model = self._model_provider()
         project = getattr(model, "project", None)
         workspaces = getattr(project, "workspaces", None)
         if not isinstance(workspaces, Mapping):
@@ -377,14 +374,16 @@ scene_bridge.command_bridge directly."""
         normalized_workspace_id = str(workspace_id or "").strip()
         if not normalized_workspace_id:
             return False
-        model = getattr(self._shell_window, "model", None)
+        model = self._model_provider() if callable(self._model_provider) else None
         project = getattr(model, "project", None)
         workspaces = getattr(project, "workspaces", None)
         if isinstance(workspaces, Mapping) and normalized_workspace_id not in workspaces:
             return False
-        self._shell_window.workspace_navigation_controller.switch_workspace(
-            normalized_workspace_id
-        )
+        navigation = self._workspace_navigation_controller
+        switch_workspace = getattr(navigation, "switch_workspace", None)
+        if not callable(switch_workspace):
+            return False
+        switch_workspace(normalized_workspace_id)
         return True
 
     def _open_node_link(self, workspace_id: str, node_id: str) -> bool:
@@ -392,8 +391,11 @@ scene_bridge.command_bridge directly."""
         normalized_node_id = str(node_id or "").strip()
         if not normalized_workspace_id or not normalized_node_id:
             return False
+        navigation = self._workspace_navigation_controller
+        jump = getattr(navigation, "jump_to_graph_node", None)
         return bool(
-            self._shell_window.workspace_navigation_controller.jump_to_graph_node(
+            callable(jump)
+            and jump(
                 normalized_workspace_id,
                 normalized_node_id,
             )

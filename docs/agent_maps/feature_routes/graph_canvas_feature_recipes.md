@@ -28,7 +28,7 @@ ea_node_editor/ui_qml/components/graph/passive/GraphMediaVideoRenderer.qml
 
 ## Recipe B — New persisted canvas preference (canvas + options menu)
 
-`AppPreferencesController` owns storage/normalization, `ShellWorkspacePresenter` owns the runtime projection and mutation, and composition supplies it as the explicit graphics source for both graph-canvas bridges and `GraphSceneBridge`. Keep session-only snap, minimap-expanded, and selected-run-preview behavior on `GraphCanvasPresenter`.
+`AppPreferencesController` owns storage/normalization, `ShellWorkspacePresenter` owns persisted graphics projection/mutation, and graph-canvas session facts/commands use direct search-scope state/controller plus the selected-run preference owner. Do not restore an aggregate canvas source.
 
 Files (4 canvas-pipeline files; storage/presenter outside the pipeline unchanged):
 1. `ea_node_editor/ui_qml/graph_canvas_command/graphics_settings_ops.py` — one `@pyqtSlot` forward to the graphics source.

@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
+from collections.abc import Callable
 from typing import TYPE_CHECKING
 
 from ea_node_editor.platform_open import (
@@ -29,8 +30,8 @@ if TYPE_CHECKING:
     from ea_node_editor.ui.shell.presenters.graph_canvas_host_presenter import (
         GraphCanvasHostPresenter,
     )
-    from ea_node_editor.ui.shell.presenters.graph_canvas_presenter import (
-        GraphCanvasPresenter,
+    from ea_node_editor.ui.shell.window_search_scope_state import (
+        WindowSearchScopeController,
     )
     from ea_node_editor.ui_qml.graph_scene_bridge import GraphSceneBridge
 
@@ -44,7 +45,8 @@ class GraphActionController:
         *,
         workspace_edit_controller: WorkspaceEditController | None = None,
         workflow_library_controller: WorkflowLibraryController | None = None,
-        graph_canvas_presenter: GraphCanvasPresenter | None = None,
+        search_scope_controller: WindowSearchScopeController | None = None,
+        show_graph_hint: Callable[[str, int], None] | None = None,
         graph_canvas_host_presenter: GraphCanvasHostPresenter | None = None,
         scene_bridge: GraphSceneBridge | None = None,
         help_bridge: HelpBridge | None = None,
@@ -53,7 +55,8 @@ class GraphActionController:
     ) -> None:
         self._workspace_edit_controller = workspace_edit_controller
         self._workflow_library_controller = workflow_library_controller
-        self._graph_canvas_presenter = graph_canvas_presenter
+        self._search_scope_controller = search_scope_controller
+        self._show_graph_hint = show_graph_hint
         self._graph_canvas_host_presenter = graph_canvas_host_presenter
         self._scene_bridge = scene_bridge
         self._help_bridge = help_bridge
@@ -192,13 +195,15 @@ class GraphActionController:
                 and host_presenter.request_navigate_scope_root()
             )
 
-        canvas_presenter = self._graph_canvas_presenter
         if action_id is GraphActionId.OPEN_SUBNODE_SCOPE:
-            return (
-                canvas_presenter is not None
-                and canvas_presenter.request_open_subnode_scope(
-                    _required_str(payload, "node_id")
-                )
+            node_id = _required_str(payload, "node_id")
+            navigate = getattr(self._search_scope_controller, "navigate_scope", None)
+            open_scope = getattr(self._scene_bridge, "open_subnode_scope", None)
+            return bool(
+                node_id
+                and callable(navigate)
+                and callable(open_scope)
+                and navigate(lambda: open_scope(node_id))
             )
 
         if action_id is GraphActionId.PUBLISH_CUSTOM_WORKFLOW_FROM_NODE:
@@ -322,8 +327,8 @@ class GraphActionController:
         return True
 
     def _show_open_path_hint(self, message: str) -> None:
-        if self._graph_canvas_presenter is not None:
-            self._graph_canvas_presenter.show_graph_hint(message, 3200)
+        if callable(self._show_graph_hint):
+            self._show_graph_hint(message, 3200)
 
     def _addon_focus_id(self, payload: Mapping[str, object]) -> str:
         explicit = _first_non_empty_str(payload, "focus_addon_id", "addon_id")

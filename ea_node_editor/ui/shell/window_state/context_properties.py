@@ -186,7 +186,7 @@ def _qt_graphics_tooltip_category_visibility(self: "ShellWindow") -> dict[str, b
 
 
 def _qt_graphics_minimap_expanded(self: "ShellWindow") -> bool:
-    return self.graph_canvas_presenter.graphics_minimap_expanded
+    return bool(self.search_scope_state.graphics_minimap_expanded)
 
 
 def _qt_graphics_node_shadow(self: "ShellWindow") -> bool:
@@ -242,11 +242,11 @@ def _qt_active_theme_id(self: "ShellWindow") -> str:
 
 
 def _qt_snap_to_grid_enabled(self: "ShellWindow") -> bool:
-    return self.graph_canvas_presenter.snap_to_grid_enabled
+    return bool(self.search_scope_state.snap_to_grid_enabled)
 
 
 def _qt_snap_grid_size(self: "ShellWindow") -> float:
-    return self.graph_canvas_presenter.snap_grid_size
+    return float(self._SNAP_GRID_SIZE)
 
 
 def _qt_active_workspace_id(self: "ShellWindow") -> str:

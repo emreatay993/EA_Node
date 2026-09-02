@@ -362,15 +362,22 @@ class GraphCanvasFrameCoalescingTests(GraphCanvasQmlPreferenceTestBase):
         view = ViewportBridge()
         view.set_viewport_size(1280.0, 720.0)
         state_bridge = GraphCanvasStateBridge(
-            shell_window=self.bridge,
-            canvas_source=self.canvas_source,
+            session_state=self.canvas_source,
+            snap_to_grid_changed_signal=getattr(self.canvas_source, "snap_to_grid_changed", None),
+            snap_grid_size=float(getattr(self.canvas_source, "snap_grid_size", 20.0)),
+            app_preferences_source=self.canvas_source,
             graphics_source=self.bridge,
             scene_bridge=scene,
             view_bridge=view,
         )
         command_bridge = GraphCanvasCommandBridge(
-            shell_window=self.bridge,
-            canvas_source=self.canvas_source,
+            search_scope_controller=self.canvas_source,
+            app_preferences_source=self.canvas_source,
+            run_controller=self.canvas_source,
+            inspector_source=self.canvas_source,
+            library_source=self.canvas_source,
+            workspace_edit_controller=self.canvas_source,
+            workspace_drop_connect_controller=self.canvas_source,
             graphics_source=self.bridge,
             scene_bridge=scene,
             view_bridge=view,

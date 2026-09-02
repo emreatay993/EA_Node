@@ -27,7 +27,6 @@ from ea_node_editor.ui_qml.graph_canvas_state.protocols import (
     _GraphCanvasProjectSource,
     _GraphCanvasSceneStateSource,
     _GraphCanvasScenePolicySource,
-    _GraphCanvasStateSource,
 )
 from ea_node_editor.ui_qml.graph_canvas_state.scene_models_props import (
     SceneModelsProps,
@@ -79,8 +78,10 @@ class GraphCanvasStateBridge(
         self,
         parent: QObject | None = None,
         *,
-        shell_window: object | None = None,
-        canvas_source: _GraphCanvasStateSource | None = None,
+        session_state: object | None = None,
+        snap_to_grid_changed_signal: object | None = None,
+        snap_grid_size: float = 20.0,
+        app_preferences_source: object | None = None,
         graphics_source: _GraphCanvasGraphicsSource | None = None,
         execution_source: _GraphCanvasExecutionSource | None = None,
         project_source: _GraphCanvasProjectSource | None = None,
@@ -90,9 +91,12 @@ class GraphCanvasStateBridge(
         super().__init__(parent)
         self._scene_bridge = scene_bridge
         self._view_bridge = view_bridge
-        self._canvas_source = canvas_source if canvas_source is not None else cast(_GraphCanvasStateSource | None, shell_window)
-        self._graphics_source = graphics_source if graphics_source is not None else cast(_GraphCanvasGraphicsSource | None, shell_window)
-        self._execution_source = execution_source if execution_source is not None else cast(_GraphCanvasExecutionSource | None, shell_window)
+        self._session_state = session_state
+        self._snap_to_grid_changed_signal = snap_to_grid_changed_signal
+        self._snap_grid_size = float(snap_grid_size)
+        self._app_preferences_source = app_preferences_source
+        self._graphics_source = graphics_source
+        self._execution_source = execution_source
         self._project_source = project_source
         self._scene_state_source = _resolve_scene_state_source(scene_bridge)
         self._scene_policy_source = _resolve_scene_policy_source(scene_bridge)
@@ -138,7 +142,9 @@ class GraphCanvasStateBridge(
             "graphics_preferences_changed",
             self._handle_graphics_preferences_changed,
         )
-        _connect_signal(self._canvas_source, "snap_to_grid_changed", self.snap_to_grid_changed.emit)
+        connect_snap = getattr(snap_to_grid_changed_signal, "connect", None)
+        if callable(connect_snap):
+            connect_snap(self.snap_to_grid_changed.emit)
         _connect_signal(self._scene_state_source, "nodes_changed", self._handle_scene_nodes_changed)
         _connect_signal(self._scene_state_source, "nodes_changed", self.port_flow_state_changed.emit)
         _connect_signal(self._scene_state_source, "edges_changed", self.scene_edges_changed.emit)
@@ -162,16 +168,8 @@ class GraphCanvasStateBridge(
         )
 
     @property
-    def shell_window(self) -> None:
-        return None
-
-    @property
     def execution_source(self) -> _GraphCanvasExecutionSource | None:
         return self._execution_source
-
-    @property
-    def canvas_source(self) -> _GraphCanvasStateSource | None:
-        return self._canvas_source
 
     @property
     def graphics_source(self) -> _GraphCanvasGraphicsSource | None:

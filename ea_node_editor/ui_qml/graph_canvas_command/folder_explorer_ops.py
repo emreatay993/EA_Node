@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING, Any, Protocol, cast
 
 from PyQt6.QtCore import QUrl, pyqtSlot
 from PyQt6.QtGui import QGuiApplication
-from PyQt6.QtWidgets import QMessageBox, QWidget
+from PyQt6.QtWidgets import QMessageBox
 
 from ea_node_editor.platform_open import (
     open_path_with_app_chooser,
@@ -486,7 +486,7 @@ class FolderExplorerOps:
         if target_path:
             message += f"\n\nTarget:\n{target_path}"
         choice = QMessageBox.question(
-            self._shell_window if isinstance(self._shell_window, QWidget) else None,
+            self._dialog_parent,
             "Confirm Folder Explorer Operation",
             message,
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
@@ -655,4 +655,3 @@ class FolderExplorerOps:
             "extension": "" if is_folder else target.suffix.lower(),
             "size_bytes": -1 if is_folder else int(stats.st_size),
         }
-

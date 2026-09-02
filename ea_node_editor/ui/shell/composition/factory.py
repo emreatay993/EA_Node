@@ -96,7 +96,13 @@ class ShellWindowDependencyFactory:
             registry_replacement = self.create_registry_replacement_dependencies()
         with phase("factory.context_bridges"):
             context_bridges = self.create_context_bridge_dependencies(
-                primitives, controllers, presenters, runtime
+                state,
+                primitives,
+                preferences_theme_status,
+                library_workspace,
+                controllers,
+                presenters,
+                runtime,
             )
         with phase("factory.graph_actions"):
             graph_actions = self.create_graph_action_dependencies(
@@ -231,13 +237,23 @@ class ShellWindowDependencyFactory:
 
     def create_context_bridge_dependencies(
         self,
+        state: ShellStateDependencies,
         primitives: ShellPrimitiveDependencies,
+        preferences_theme_status: ShellPreferencesThemeStatusDependencies,
+        library_workspace: ShellLibraryWorkspaceDependencies,
         controllers: ShellControllerDependencies,
         presenters: ShellPresenterDependencies,
         runtime: ShellRuntimeDependencies,
     ) -> ShellContextBridgeDependencies:
         return create_context_bridge_dependencies(
-            self._host, primitives, controllers, presenters, runtime
+            self._host,
+            state,
+            primitives,
+            preferences_theme_status,
+            library_workspace,
+            controllers,
+            presenters,
+            runtime,
         )
 
     def create_graph_action_dependencies(

@@ -19,7 +19,7 @@ Use this for app-wide settings, graphics preferences, solution-mode defaults, se
 
 ## Common Changes
 - Keep app graphics/preferences outside project documents unless a current spec requires otherwise.
-- `AppPreferencesController` is the v8 persistence and normalization owner. `ShellWorkspacePresenter` is the sole runtime owner for persisted `graphics.*` projections, mutations, notifications, and tooltip/category caches; composition passes it explicitly to the graph-canvas bridges and scene. `GraphCanvasPresenter` keeps canvas/session operations only.
+- `AppPreferencesController` is the v8 persistence and normalization owner. `ShellWorkspacePresenter` is the sole runtime owner for persisted `graphics.*` projections, mutations, notifications, and tooltip/category caches; graph-canvas session facts/commands use `ShellWindowSearchScopeState`/`WindowSearchScopeController` plus the direct selected-run preference owner.
 - Route preference dialogs through shell controllers and PyQt dialog code.
 - Keep path resolution centralized in `platform_paths.py`.
 - Keep OS launch of files/folders centralized in `platform_open.py` (`open_path_with_default_handler` for "Open", `open_path_with_app_chooser` for "Open with..."); the folder-explorer open actions and the Path Pointer toolbar open actions route through it instead of inlining `os.startfile`/`QDesktopServices`/`rundll32` shell logic.

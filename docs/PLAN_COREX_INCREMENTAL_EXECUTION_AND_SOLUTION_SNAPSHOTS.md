@@ -2219,7 +2219,7 @@ container nodes or internalization commands.
   - `ea_node_editor/ui_qml/components/graph_canvas/GraphCanvasExecutionFacts.qml`
   - `ea_node_editor/ui_qml/content_fullscreen_bridge.py`
   - `ea_node_editor/ui_qml/graph_scene/command_bridge.py`
-  - `ea_node_editor/ui/shell/presenters/graph_canvas_presenter.py`
+  - `ea_node_editor/ui/shell/presenters/canvas_export_presenter.py`
   - `ea_node_editor/ui/project_review_deck.py`
   - `ea_node_editor/ui/shell/presenters/project_review_deck_presenter.py`
   - `tests/test_run_controller_unit.py`

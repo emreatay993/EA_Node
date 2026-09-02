@@ -16,7 +16,7 @@ EXPECTED_RULES = {
     "ea_node_editor/ui/shell/presenters/library_presenter.py": ("P02", "presenter-family", 450),
     "ea_node_editor/ui/shell/presenters/workspace_presenter.py": ("P02", "presenter-family", 450),
     "ea_node_editor/ui/shell/presenters/inspector_presenter.py": ("P02", "presenter-family", 450),
-    "ea_node_editor/ui/shell/presenters/graph_canvas_presenter.py": ("P02", "presenter-family", 450),
+    "ea_node_editor/ui/shell/presenters/canvas_export_presenter.py": ("P02", "presenter-family", 450),
     "ea_node_editor/ui/shell/presenters/graph_canvas_host_presenter.py": ("P02", "presenter-family", 450),
     "ea_node_editor/ui_qml/graph_scene_bridge.py": ("P03", "graph-scene-bridge", 300),
     "ea_node_editor/ui_qml/components/GraphCanvas.qml": ("P04", "graph-canvas-root", 700),

@@ -102,7 +102,7 @@ class ShellWindowLibraryOverlayStateMixin:
         overlay_y: float,
     ) -> bool:
         return bool(
-            self.graph_canvas_presenter.request_open_connection_quick_insert(
+            self.shell_library_presenter.request_open_connection_quick_insert(
                 node_id,
                 port_key,
                 scene_x,
@@ -120,7 +120,7 @@ class ShellWindowLibraryOverlayStateMixin:
         overlay_x: float,
         overlay_y: float,
     ) -> None:
-        self.graph_canvas_presenter.request_open_canvas_quick_insert(
+        self.shell_library_presenter.request_open_canvas_quick_insert(
             scene_x,
             scene_y,
             overlay_x,
@@ -239,18 +239,17 @@ class ShellWindowLibraryOverlayStateMixin:
         target_edge_id: str,
         append_requested: bool = False,
     ) -> bool:
-        return bool(
-            self.graph_canvas_presenter.request_drop_node_from_library(
-                type_id,
-                scene_x,
-                scene_y,
-                target_mode,
-                target_node_id,
-                target_port_key,
-                target_edge_id,
-                append_requested,
-            )
+        result = self.workspace_drop_connect_controller.request_drop_node_from_library(
+            type_id,
+            scene_x,
+            scene_y,
+            target_mode,
+            target_node_id,
+            target_port_key,
+            target_edge_id,
+            append_requested,
         )
+        return bool(result.payload)
 
 
 __all__ = [

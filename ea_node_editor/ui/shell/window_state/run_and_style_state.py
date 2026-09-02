@@ -12,7 +12,7 @@ if TYPE_CHECKING:
 class ShellWindowRunAndStyleStateMixin:
     @pyqtSlot(bool)
     def set_snap_to_grid_enabled(self: "ShellWindow", enabled: bool) -> None:
-        self.graph_canvas_presenter.set_snap_to_grid_enabled(enabled)
+        self.search_scope_controller.set_snap_to_grid_enabled(enabled)
 
     @pyqtSlot(bool)
     def set_interact_with_locked_objects(self: "ShellWindow", enabled: bool) -> None:
@@ -20,7 +20,7 @@ class ShellWindowRunAndStyleStateMixin:
 
     @pyqtSlot(bool)
     def set_graphics_minimap_expanded(self: "ShellWindow", expanded: bool) -> None:
-        self.graph_canvas_presenter.set_graphics_minimap_expanded(expanded)
+        self.search_scope_controller.set_graphics_minimap_expanded(expanded)
 
     @pyqtSlot(bool)
     def set_graphics_show_port_labels(self: "ShellWindow", show_port_labels: bool) -> None:
@@ -110,7 +110,10 @@ class ShellWindowRunAndStyleStateMixin:
 
     @pyqtSlot(result=bool)
     def request_toggle_snap_to_grid(self: "ShellWindow") -> bool:
-        return bool(self.graph_canvas_presenter.request_toggle_snap_to_grid())
+        self.search_scope_controller.set_snap_to_grid_enabled(
+            not self.search_scope_state.snap_to_grid_enabled
+        )
+        return bool(self.search_scope_state.snap_to_grid_enabled)
 
     def _focus_failed_node(self: "ShellWindow", workspace_id, node_id):
         return self.workspace_navigation_controller.focus_failed_node(workspace_id, node_id)

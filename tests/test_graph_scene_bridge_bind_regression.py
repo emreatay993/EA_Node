@@ -761,7 +761,7 @@ class GraphSceneBridgeBindRegressionTests(unittest.TestCase):
 
     def test_canvas_batch_rewire_request_forwards_all_arguments(self) -> None:
         source = _EdgeRewireCanvasSource()
-        command_bridge = GraphCanvasCommandBridge(canvas_source=source)
+        command_bridge = GraphCanvasCommandBridge(workspace_edit_controller=source)
 
         self.assertTrue(
             command_bridge.request_rewire_edges(

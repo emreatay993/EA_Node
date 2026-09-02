@@ -36,7 +36,8 @@ def create_graph_action_dependencies(
     graph_action_controller = GraphActionController(
         workspace_edit_controller=library_workspace.workspace_edit_controller,
         workflow_library_controller=library_workspace.workflow_library_controller,
-        graph_canvas_presenter=presenters.graph_canvas_presenter,
+        search_scope_controller=controllers.search_scope_controller,
+        show_graph_hint=host.show_graph_hint,
         graph_canvas_host_presenter=presenters.graph_canvas_host_presenter,
         scene_bridge=primitives.scene,
         help_bridge=context_bridges.help_bridge,

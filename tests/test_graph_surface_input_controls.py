@@ -1718,7 +1718,13 @@ class GraphSurfaceCanvasInteractionTests(GraphSurfaceInputContractTestBase):
                 scene_bridge=scene,
                 view_bridge=view,
             )
-            canvas_command_bridge._canvas_source = shell_bridge
+            canvas_command_bridge._search_scope_controller = shell_bridge
+            canvas_command_bridge._app_preferences_source = shell_bridge
+            canvas_command_bridge._run_controller = shell_bridge
+            canvas_command_bridge._inspector_source = shell_bridge
+            canvas_command_bridge._library_source = shell_bridge
+            canvas_command_bridge._workspace_edit_controller = shell_bridge
+            canvas_command_bridge._workspace_drop_connect_controller = shell_bridge
 
             class SnapshotPolicyProbe:
                 def __init__(self, delegate):
@@ -3618,7 +3624,13 @@ class GraphSurfaceDataflowAuthoringTests(GraphSurfaceInputContractTestBase):
                 scene_bridge=scene,
                 view_bridge=view,
             )
-            canvas_command_bridge._canvas_source = shell_bridge
+            canvas_command_bridge._search_scope_controller = shell_bridge
+            canvas_command_bridge._app_preferences_source = shell_bridge
+            canvas_command_bridge._run_controller = shell_bridge
+            canvas_command_bridge._inspector_source = shell_bridge
+            canvas_command_bridge._library_source = shell_bridge
+            canvas_command_bridge._workspace_edit_controller = shell_bridge
+            canvas_command_bridge._workspace_drop_connect_controller = shell_bridge
             source_a_id = scene.add_node_from_type("core.constant", 30.0, 30.0)
             source_b_id = scene.add_node_from_type("core.constant", 30.0, 190.0)
             target_id = scene.add_node_from_type("tests.dataflow_authoring", 390.0, 110.0)
