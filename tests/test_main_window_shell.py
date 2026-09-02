@@ -461,7 +461,7 @@ class ShellWindowStateFacadeBoundaryTests(unittest.TestCase):
             "context_properties": ("ShellWindowContextPropertiesMixin", "project_path"),
             "library_and_overlay_state": ("ShellWindowLibraryOverlayStateMixin", "request_open_graph_search"),
             "project_session_actions": ("ShellWindowProjectSessionActionsMixin", "_save_project"),
-            "run_and_style_state": ("ShellWindowRunAndStyleStateMixin", "mark_node_execution_running"),
+            "run_and_style_state": ("ShellWindowRunAndStyleStateMixin", "request_run_workflow"),
             "workspace_graph_actions": ("ShellWindowWorkspaceGraphActionsMixin", "_switch_workspace"),
         }
         for module_name, (mixin_name, representative_name) in module_expectations.items():
@@ -1367,7 +1367,7 @@ class MainWindowNodeExecutionCanvasTests(SharedMainWindowShellTestBase):
             bridge.node_execution_revision,
         )
 
-        self.window.mark_node_execution_running(workspace_id, "node_exec")
+        self.window.run_projection_controller.mark_node_execution_running(workspace_id, "node_exec")
         self.app.processEvents()
 
         self.assertEqual(graph_canvas.property("runningNodeLookup"), {"node_exec": True})
@@ -1379,7 +1379,7 @@ class MainWindowNodeExecutionCanvasTests(SharedMainWindowShellTestBase):
             bridge.node_execution_revision,
         )
 
-        self.window.mark_node_execution_settled(workspace_id, "node_exec")
+        self.window.run_projection_controller.mark_node_execution_settled(workspace_id, "node_exec")
         self.app.processEvents()
 
         self.assertEqual(graph_canvas.property("runningNodeLookup"), {})
@@ -1391,7 +1391,7 @@ class MainWindowNodeExecutionCanvasTests(SharedMainWindowShellTestBase):
             bridge.node_execution_revision,
         )
 
-        self.window.clear_node_execution_visualization_state()
+        self.window.run_projection_controller.clear_node_execution_visualization_state()
         self.app.processEvents()
 
         self.assertEqual(graph_canvas.property("runningNodeLookup"), {})
@@ -1413,12 +1413,12 @@ class MainWindowNodeExecutionCanvasTests(SharedMainWindowShellTestBase):
             "node_foreign": 12.0,
         }
 
-        self.window.mark_node_execution_running(
+        self.window.run_projection_controller.mark_node_execution_running(
             workspace_id,
             "node_live",
             started_at_epoch_ms=125.0,
         )
-        self.window.mark_node_execution_settled(
+        self.window.run_projection_controller.mark_node_execution_settled(
             workspace_id,
             "node_cached",
             elapsed_ms=48.5,
@@ -1471,12 +1471,12 @@ class MainWindowNodeExecutionCanvasTests(SharedMainWindowShellTestBase):
         self.window.run_state.cached_node_elapsed_ms_by_workspace_id["ws_other"] = {
             "node_foreign": 12.0,
         }
-        self.window.mark_node_execution_running(
+        self.window.run_projection_controller.mark_node_execution_running(
             workspace_id,
             runner_id,
             started_at_epoch_ms=125.0,
         )
-        self.window.mark_node_execution_settled(
+        self.window.run_projection_controller.mark_node_execution_settled(
             workspace_id,
             logger_id,
             elapsed_ms=48.5,
@@ -1516,17 +1516,29 @@ class MainWindowShellHostFacadeDelegationTests(SharedMainWindowShellTestBase):
 
         show_graphics_mock.assert_called_once_with(False)
 
-    def test_shell_window_addon_and_run_facades_delegate_to_owning_controllers(self) -> None:
+    def test_shell_window_addon_facade_and_run_projection_owner_are_direct(self) -> None:
+        self.assertFalse(hasattr(self.window, "mark_node_execution_running"))
+        self.assertFalse(
+            hasattr(self.window, "clear_node_execution_visualization_state")
+        )
         with (
             patch.object(self.window.addon_manager_controller, "request_open") as open_addon_mock,
             patch.object(self.window.addon_manager_controller, "request_close") as close_addon_mock,
-            patch.object(self.window.run_controller, "mark_node_execution_running") as mark_running_mock,
-            patch.object(self.window.run_controller, "clear_node_execution_visualization_state") as clear_execution_mock,
+            patch.object(
+                self.window.run_projection_controller,
+                "mark_node_execution_running",
+            ) as mark_running_mock,
+            patch.object(
+                self.window.run_projection_controller,
+                "clear_node_execution_visualization_state",
+            ) as clear_execution_mock,
         ):
             self.window.request_open_addon_manager("ansys.dpf")
             self.window.request_close_addon_manager()
-            self.window.mark_node_execution_running("workspace-1", "node-1", started_at_epoch_ms=12.5)
-            self.window.clear_node_execution_visualization_state()
+            self.window.run_projection_controller.mark_node_execution_running(
+                "workspace-1", "node-1", started_at_epoch_ms=12.5
+            )
+            self.window.run_projection_controller.clear_node_execution_visualization_state()
 
         open_addon_mock.assert_called_once_with("ansys.dpf")
         close_addon_mock.assert_called_once_with()

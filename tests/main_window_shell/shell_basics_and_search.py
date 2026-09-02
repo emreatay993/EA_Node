@@ -1920,14 +1920,14 @@ class MainWindowShellBasicsAndSearchTests(SharedMainWindowShellTestBase):
             stop_run.assert_called_once_with("run_test")
 
         self.window._engine_state_value = "running"
-        self.window._update_run_actions()
+        self.window.run_projection_controller.update_run_actions()
         with patch.object(self.window.execution_client, "pause_run") as pause_run:
             self.window.action_pause.trigger()
             self.app.processEvents()
             pause_run.assert_called_once_with("run_test")
 
         self.window._engine_state_value = "paused"
-        self.window._update_run_actions()
+        self.window.run_projection_controller.update_run_actions()
         with patch.object(self.window.execution_client, "resume_run") as resume_run:
             self.window.action_pause.trigger()
             self.app.processEvents()
@@ -2332,7 +2332,7 @@ class MainWindowShellBasicsAndSearchTests(SharedMainWindowShellTestBase):
 
         self.window._active_run_id = "run_live"
         self.window._active_run_workspace_id = workspace_id
-        self.window._set_run_ui_state("running", "Running", 1, 0, 0, 0)
+        self.window.run_projection_controller.set_run_ui_state("running", "Running", 1, 0, 0, 0)
 
         with patch.object(QMessageBox, "critical"):
             self.window.execution_event.emit(

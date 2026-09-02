@@ -1,7 +1,7 @@
 # Purpose: Store shell session state, including workspace-scoped execution
 #          caches and selected-run projections.
 # Map: feature_routes/run_controller_selected_workspace_state
-# Tests: tests/test_run_controller_unit.py
+# Tests: tests/test_run_projection_controller.py, tests/test_run_controller_unit.py
 from __future__ import annotations
 
 from collections.abc import Iterable

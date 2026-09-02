@@ -781,7 +781,7 @@ class ShellWindow(
                 timer.stop()
         try:
             if hasattr(self, "run_state"):
-                self.clear_run_failure_focus()
+                self.run_projection_controller.clear_run_failure_focus()
             self._reset_viewer_session_bridge(reason="project_close")
             project_session_controller = getattr(self, "project_session_controller", None)
             if project_session_controller is not None:

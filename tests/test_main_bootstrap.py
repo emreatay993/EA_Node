@@ -343,7 +343,16 @@ class AppBootstrapTests(unittest.TestCase):
         # forwarding host-adapter layer is retired.
         self.assertIs(services.library_workspace.workspace_library_controller._host, window)
         self.assertIs(services.controllers.project_session_controller._host, window)
+        self.assertIs(services.controllers.run_projection_controller._host, window)
         self.assertIs(services.controllers.run_controller._host, window)
+        self.assertIs(
+            services.controllers.run_controller._projection,
+            services.controllers.run_projection_controller,
+        )
+        self.assertNotIsInstance(
+            services.controllers.run_projection_controller,
+            QtCore.QObject,
+        )
         self.assertIs(services.presenters.shell_library_presenter._host, window)
         self.assertIs(services.presenters.shell_workspace_presenter._host, window)
         self.assertIs(services.presenters.shell_inspector_presenter._host, window)

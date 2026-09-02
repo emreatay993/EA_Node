@@ -34,6 +34,9 @@ from ea_node_editor.nodes.execution_context import ExecutionContext, NodeResult
 from ea_node_editor.nodes.node_specs import NodeTypeSpec, PortSpec, PropertySpec
 from ea_node_editor.runtime_contracts.value_refs import RuntimeHandleRef
 from ea_node_editor.ui.shell.controllers.run_controller import RunController
+from ea_node_editor.ui.shell.controllers.run_projection_controller import (
+    RunProjectionController,
+)
 from ea_node_editor.ui.shell.state import ShellRunState
 from ea_node_editor.ui.support.port_flow_state import resolve_runtime_port_flow_states
 from ea_node_editor.ui.support.solution_output_cache import (
@@ -112,10 +115,10 @@ def _accepted_settlement(
 def _script_result(expression: str) -> str:
     return (
         "@corex.node\n"
-        "@corex.input(\"payload\", value_type=corex.Any)\n"
-        "@corex.output(\"result\", value_type=corex.Any)\n"
+        '@corex.input("payload", value_type=corex.Any)\n'
+        '@corex.output("result", value_type=corex.Any)\n'
         "def run(ctx, payload):\n"
-        f"    return {{\"result\": {expression}}}\n"
+        f'    return {{"result": {expression}}}\n'
     )
 
 
@@ -388,9 +391,7 @@ class _RequiredPureDataPlugin:
                     "COREX.DataTypes.Int",
                     required=True,
                 ),
-                PortSpec(
-                    "result", "out", "data", "COREX.DataTypes.Int", exposed=True
-                ),
+                PortSpec("result", "out", "data", "COREX.DataTypes.Int", exposed=True),
             ),
             properties=(PropertySpec("value", "int", 0, "Value"),),
         )
@@ -462,6 +463,19 @@ class _RunHostStub:
         self.selected_run_settings_dialog_open_count += 1
 
 
+def _run_projection_controller(host: _RunHostStub) -> RunProjectionController:
+    controller = RunProjectionController(host)  # type: ignore[arg-type]
+    host.run_projection_controller = controller
+    return controller
+
+
+def _run_controller(host: _RunHostStub) -> RunController:
+    return RunController(
+        host,  # type: ignore[arg-type]
+        projection_controller=_run_projection_controller(host),
+    )
+
+
 class RunControllerUnitTests(unittest.TestCase):
     def assert_run_controls(
         self,
@@ -477,220 +491,12 @@ class RunControllerUnitTests(unittest.TestCase):
         self.assertEqual(host.action_stop.enabled, stop_enabled)
         self.assertEqual(host.action_pause.text, pause_label)
 
-    def test_ui_solution_cache_is_bounded_and_run_count_is_monotonic(self) -> None:
+    def test_history_classifier_ignores_passive_and_normalizes_removed_only(
+        self,
+    ) -> None:
         host = _RunHostStub()
         workspace_id = host.model.active_workspace.workspace_id
-        node = host.model.add_node(
-            workspace_id, "core.constant", "Cached", 0, 0
-        )
-        controller = RunController(host)  # type: ignore[arg-type]
-        for run_id in ("run_1", "run_2", "run_3"):
-            host.run_state.active_run_id = run_id
-            host.run_state.active_run_workspace_id = workspace_id
-            controller.handle_execution_event(
-                _accepted_settlement(
-                    host,
-                    workspace_id=workspace_id,
-                    node_id=node.node_id,
-                    run_id=run_id,
-                    outputs=_value_outputs(value=run_id),
-                )
-            )
-        records = host.run_state.cached_node_output_records_by_workspace_id[
-            workspace_id
-        ][node.node_id]
-        self.assertEqual(len(records), 2)
-        self.assertEqual(
-            host.run_state.node_output_run_counts_by_workspace_id[workspace_id][
-                node.node_id
-            ],
-            3,
-        )
-        retained = retained_output_record(host.run_state, workspace_id, node.node_id)
-        self.assertIsNotNone(retained)
-        self.assertEqual(retained["run_id"], "run_3")
-
-    def test_ui_solution_cache_global_eviction_and_metadata_only_fallback(self) -> None:
-        state = ShellRunState()
-        catalog = build_default_registry().data_types
-
-        def cache(workspace_id: str, node_id: str, record_id: str) -> None:
-            state.node_solution_facts_by_workspace_id[workspace_id] = {
-                node_id: NodeSolutionFact(
-                    project_id="project",
-                    workspace_id=workspace_id,
-                    node_id=node_id,
-                    freshness=SolutionFreshness.CURRENT,
-                    revision=1,
-                    retained_record_id=record_id,
-                    retained_solution_key="a" * 64,
-                    residency=SolutionResidency.SESSION,
-                    last_disposition=SolutionDisposition.RECOMPUTED,
-                )
-            }
-            self.assertTrue(
-                cache_accepted_output_record(
-                    state,
-                    workspace_id=workspace_id,
-                    node_id=node_id,
-                    event={
-                        "record_id": record_id,
-                        "solution_key": "a" * 64,
-                        "result_digest": "b" * 64,
-                        "disposition": "recomputed",
-                        "run_id": record_id,
-                    },
-                    outputs=_value_outputs(value=record_id),
-                    catalog=catalog,
-                )
-            )
-
-        with mock.patch(
-            "ea_node_editor.ui.support.solution_output_cache.MAX_RECORDS_GLOBAL", 2
-        ):
-            cache("ws_1", "node_1", "record_1")
-            state.node_solution_facts_by_workspace_id["ws_1"] = {}
-            cache("ws_2", "node_2", "record_2")
-            state.node_solution_facts_by_workspace_id["ws_2"] = {}
-            cache("ws_3", "node_3", "record_3")
-        self.assertNotIn("ws_1", state.cached_node_output_records_by_workspace_id)
-        self.assertEqual(
-            set(state.cached_node_output_records_by_workspace_id), {"ws_2", "ws_3"}
-        )
-
-        metadata_state = ShellRunState()
-        state = metadata_state
-        with mock.patch(
-            "ea_node_editor.ui.support.solution_output_cache.MAX_PAYLOAD_BYTES_GLOBAL",
-            1,
-        ):
-            cache("ws_meta", "node_meta", "record_meta")
-        metadata = metadata_state.cached_node_output_records_by_workspace_id[
-            "ws_meta"
-        ]["node_meta"]["record_meta"]
-        self.assertFalse(metadata["outputs_available"])
-        self.assertEqual(metadata["outputs"], {})
-        self.assertFalse(
-            retained_output_records_by_node(metadata_state, "ws_meta")["node_meta"][
-                "record_meta"
-            ]["outputs_available"]
-        )
-
-    def test_solution_state_events_filter_project_and_monotonic_revision(self) -> None:
-        host = _RunHostStub()
-        workspace_id = host.model.active_workspace.workspace_id
-        node = host.model.add_node(
-            workspace_id, "core.constant", "State", 0, 0
-        )
-        controller = RunController(host)  # type: ignore[arg-type]
-        fact = NodeSolutionFact(
-            project_id=host.model.project.project_id,
-            workspace_id=workspace_id,
-            node_id=node.node_id,
-            freshness=SolutionFreshness.CURRENT,
-            revision=1,
-            retained_record_id="record_current",
-            retained_solution_key="a" * 64,
-            residency=SolutionResidency.SESSION,
-            last_disposition=SolutionDisposition.RECOMPUTED,
-        )
-        host.execution_client.solution_facts_by_workspace[workspace_id] = (fact,)
-        event = {
-            "type": "solution_state_changed",
-            "project_id": host.model.project.project_id,
-            "workspace_id": workspace_id,
-            "solution_revision": 1,
-            "expired_node_ids": [],
-            "removed_node_ids": [],
-            "reason_code": "registry_generation_replaced",
-        }
-        controller.handle_execution_event({**event, "project_id": "other"})
-        self.assertNotIn(workspace_id, host.run_state.solution_revision_by_workspace_id)
-        controller.handle_execution_event(event)
-        self.assertIs(
-            host.run_state.node_solution_facts_by_workspace_id[workspace_id][
-                node.node_id
-            ].freshness,
-            SolutionFreshness.CURRENT,
-        )
-        host.execution_client.solution_facts_by_workspace[workspace_id] = (
-            NodeSolutionFact(
-                project_id=fact.project_id,
-                workspace_id=workspace_id,
-                node_id=node.node_id,
-                freshness=SolutionFreshness.EXPIRED,
-                revision=2,
-                retained_record_id=fact.retained_record_id,
-                retained_solution_key=fact.retained_solution_key,
-                residency=fact.residency,
-                expiration_reason_code="late_duplicate",
-                expiration_root_node_ids=(node.node_id,),
-                last_disposition=fact.last_disposition,
-            ),
-        )
-        controller.handle_execution_event(
-            {**event, "expired_node_ids": [node.node_id]}
-        )
-        self.assertIs(
-            host.run_state.node_solution_facts_by_workspace_id[workspace_id][
-                node.node_id
-            ].freshness,
-            SolutionFreshness.CURRENT,
-        )
-
-    def test_reset_before_settlement_keeps_current_cache_and_availability(self) -> None:
-        host = _RunHostStub()
-        workspace_id = host.model.active_workspace.workspace_id
-        node = host.model.add_node(workspace_id, "core.constant", "State", 0, 0)
-        controller = RunController(host)  # type: ignore[arg-type]
-        host.execution_client.solution_facts_by_workspace[workspace_id] = (
-            NodeSolutionFact(
-                project_id=host.model.project.project_id,
-                workspace_id=workspace_id,
-                node_id=node.node_id,
-                freshness=SolutionFreshness.EXPIRED,
-                revision=1,
-                expiration_reason_code="runtime_generation_replaced",
-                expiration_root_node_ids=(node.node_id,),
-            ),
-        )
-        controller.handle_execution_event(
-            {
-                "type": "solution_state_changed",
-                "project_id": host.model.project.project_id,
-                "workspace_id": workspace_id,
-                "solution_revision": 1,
-                "expired_node_ids": [node.node_id],
-                "removed_node_ids": [],
-                "reason_code": "runtime_generation_replaced",
-            }
-        )
-        host.run_state.active_run_id = "run_after_reset"
-        host.run_state.active_run_workspace_id = workspace_id
-        settled = _accepted_settlement(
-            host,
-            workspace_id=workspace_id,
-            node_id=node.node_id,
-            run_id="run_after_reset",
-            outputs=_value_outputs(value="current"),
-        )
-
-        with mock.patch(
-            "ea_node_editor.ui.shell.controllers.run_controller.observe_node_outputs"
-        ) as observe:
-            controller.handle_execution_event(settled)
-
-        observe.assert_called_once()
-        self.assertIn(node.node_id, host.run_state.completed_node_ids)
-        self.assertIn(
-            node.node_id,
-            host.run_state.cached_node_output_records_by_workspace_id[workspace_id],
-        )
-
-    def test_history_classifier_ignores_passive_and_normalizes_removed_only(self) -> None:
-        host = _RunHostStub()
-        workspace_id = host.model.active_workspace.workspace_id
-        controller = RunController(host)  # type: ignore[arg-type]
+        controller = _run_controller(host)  # type: ignore[arg-type]
         passive_before = host.model.active_workspace.capture_snapshot()
         host.model.add_node(
             workspace_id,
@@ -747,7 +553,7 @@ class RunControllerUnitTests(unittest.TestCase):
         self,
     ) -> None:
         host = _RunHostStub()
-        controller = RunController(host)  # type: ignore[arg-type]
+        controller = _run_controller(host)  # type: ignore[arg-type]
 
         controller.run_workflow()
 
@@ -800,7 +606,7 @@ class RunControllerUnitTests(unittest.TestCase):
     ) -> None:
         host = _RunHostStub()
         host.app_preferences_controller.python_executable = "application-python"
-        controller = RunController(host)  # type: ignore[arg-type]
+        controller = _run_controller(host)  # type: ignore[arg-type]
         workspace_id = host.model.active_workspace.workspace_id
 
         blank_snapshot = build_runtime_snapshot(
@@ -841,7 +647,9 @@ class RunControllerUnitTests(unittest.TestCase):
             )
         )
 
-    def test_application_default_python_policy_reaches_every_shell_dispatch(self) -> None:
+    def test_application_default_python_policy_reaches_every_shell_dispatch(
+        self,
+    ) -> None:
         expected_policy = {
             "requested_backend": EXTERNAL_SUBPROCESS_BACKEND,
             "allow_external_subprocess": True,
@@ -854,7 +662,7 @@ class RunControllerUnitTests(unittest.TestCase):
         host.app_preferences_controller.python_executable = expected_policy[
             "python_executable"
         ]
-        RunController(host).run_workflow()  # type: ignore[arg-type]
+        _run_controller(host).run_workflow()  # type: ignore[arg-type]
         calls.append(host.execution_client.start_calls[-1])
 
         for trigger_kind in ("manual", "auto"):
@@ -864,10 +672,8 @@ class RunControllerUnitTests(unittest.TestCase):
                 "python_executable"
             ]
             workspace_id = host.model.active_workspace.workspace_id
-            logger = host.model.add_node(
-                workspace_id, "core.logger", "Logger", 0, 0
-            )
-            RunController(host).run_selected_nodes(  # type: ignore[arg-type]
+            logger = host.model.add_node(workspace_id, "core.logger", "Logger", 0, 0)
+            _run_controller(host).run_selected_nodes(  # type: ignore[arg-type]
                 [logger.node_id],
                 trigger_kind=trigger_kind,
             )
@@ -878,11 +684,9 @@ class RunControllerUnitTests(unittest.TestCase):
             "python_executable"
         ]
         workspace_id = host.model.active_workspace.workspace_id
-        trigger = host.model.add_node(
-            workspace_id, "core.trigger", "Trigger", 0, 0
-        )
+        trigger = host.model.add_node(workspace_id, "core.trigger", "Trigger", 0, 0)
         self.assertTrue(
-            RunController(host).trigger_node(trigger.node_id)  # type: ignore[arg-type]
+            _run_controller(host).trigger_node(trigger.node_id)  # type: ignore[arg-type]
         )
         calls.append(host.execution_client.start_calls[-1])
 
@@ -912,7 +716,7 @@ class RunControllerUnitTests(unittest.TestCase):
             0,
             properties={"script": _script_result("'old'")},
         )
-        controller = RunController(host)  # type: ignore[arg-type]
+        controller = _run_controller(host)  # type: ignore[arg-type]
         host.script_editor.dirty = True
 
         def apply_draft() -> None:
@@ -969,7 +773,7 @@ class RunControllerUnitTests(unittest.TestCase):
         host = _RunHostStub()
         host.script_editor.dirty = True
         host.script_editor.apply_result = False
-        controller = RunController(host)  # type: ignore[arg-type]
+        controller = _run_controller(host)  # type: ignore[arg-type]
 
         controller.run_workflow()
 
@@ -979,7 +783,7 @@ class RunControllerUnitTests(unittest.TestCase):
 
     def test_open_selected_run_settings_delegates_to_shell_dialog(self) -> None:
         host = _RunHostStub()
-        controller = RunController(host)  # type: ignore[arg-type]
+        controller = _run_controller(host)  # type: ignore[arg-type]
 
         controller.open_selected_run_settings()
 
@@ -1004,7 +808,7 @@ class RunControllerUnitTests(unittest.TestCase):
         host.model.add_edge(
             workspace_id, script.node_id, "result", logger.node_id, "message"
         )
-        controller = RunController(host)  # type: ignore[arg-type]
+        controller = _run_controller(host)  # type: ignore[arg-type]
 
         controller.run_selected_nodes([logger.node_id])
 
@@ -1021,7 +825,7 @@ class RunControllerUnitTests(unittest.TestCase):
         host = _RunHostStub(default_mode="auto")
         workspace_id = host.model.active_workspace.workspace_id
         logger = host.model.add_node(workspace_id, "core.logger", "Logger", 0, 0)
-        controller = RunController(host)  # type: ignore[arg-type]
+        controller = _run_controller(host)  # type: ignore[arg-type]
 
         self.assertEqual(controller.solution_mode(workspace_id), "auto")
         controller.evaluate_workspace_on_open(workspace_id)
@@ -1051,7 +855,7 @@ class RunControllerUnitTests(unittest.TestCase):
         host = _RunHostStub()
         workspace_id = host.model.active_workspace.workspace_id
         logger = host.model.add_node(workspace_id, "core.logger", "Logger", 0, 0)
-        controller = RunController(host)  # type: ignore[arg-type]
+        controller = _run_controller(host)  # type: ignore[arg-type]
 
         controller.toggle_auto_run()
 
@@ -1079,7 +883,7 @@ class RunControllerUnitTests(unittest.TestCase):
         host.model.add_edge(
             workspace_id, source.node_id, "value", trigger.node_id, "input"
         )
-        controller = RunController(host)  # type: ignore[arg-type]
+        controller = _run_controller(host)  # type: ignore[arg-type]
         old_publication = _value_result("old")
         latest_publication = _value_result("latest")
         host.run_state.trigger_publications_by_workspace_id = {
@@ -1200,69 +1004,6 @@ class RunControllerUnitTests(unittest.TestCase):
             host.run_state.current_trigger_capture_node_ids_by_workspace_id, {}
         )
 
-    def test_semantic_runtime_carrier_settlements_use_active_catalog(self) -> None:
-        host = _RunHostStub()
-        workspace_id = host.model.active_workspace.workspace_id
-        signal = host.model.add_node(
-            workspace_id, "plot.signal", "Signal Plot", 0, 0
-        )
-        trigger = host.model.add_node(
-            workspace_id, "core.trigger", "Trigger", 200, 0
-        )
-        controller = RunController(host)  # type: ignore[arg-type]
-        host.run_state.active_run_id = "run_live"
-        host.run_state.active_run_workspace_id = workspace_id
-
-        controller.handle_execution_event(
-            {
-                "type": "node_started",
-                "run_id": "run_live",
-                "workspace_id": workspace_id,
-                "node_id": signal.node_id,
-                "started_at_epoch_ms": 1.0,
-            }
-        )
-        image_result = _value_result(ImageValue.from_png(_PNG_BYTES))
-        controller.handle_execution_event(
-            event_to_dict(
-                NodeSettledEvent(
-                    run_id="run_live",
-                    workspace_id=workspace_id,
-                    node_id=signal.node_id,
-                    elapsed_ms=25.0,
-                    outputs={"image": image_result},
-                ),
-                catalog=host.registry.data_types,
-            )
-        )
-
-        self.assertNotIn(signal.node_id, host.run_state.running_node_ids)
-        self.assertIn(signal.node_id, host.run_state.completed_node_ids)
-        self.assertEqual(
-            host.run_state.cached_node_elapsed_ms_by_workspace_id[workspace_id][
-                signal.node_id
-            ],
-            25.0,
-        )
-
-        controller.handle_execution_event(
-            event_to_dict(
-                TriggerCaptureSettledEvent(
-                    run_id="run_live",
-                    workspace_id=workspace_id,
-                    trigger_node_id=trigger.node_id,
-                    result=image_result,
-                ),
-                catalog=host.registry.data_types,
-            )
-        )
-        self.assertEqual(
-            host.run_state.latest_trigger_inputs_by_workspace_id[workspace_id][
-                trigger.node_id
-            ],
-            image_result,
-        )
-
     def test_trigger_applies_dirty_script_before_building_snapshot(self) -> None:
         host = _RunHostStub()
         workspace_id = host.model.active_workspace.workspace_id
@@ -1288,7 +1029,7 @@ class RunControllerUnitTests(unittest.TestCase):
             "script",
             _script_result("'draft'"),
         )
-        controller = RunController(host)  # type: ignore[arg-type]
+        controller = _run_controller(host)  # type: ignore[arg-type]
 
         self.assertTrue(controller.trigger_node(trigger.node_id))
 
@@ -1307,7 +1048,7 @@ class RunControllerUnitTests(unittest.TestCase):
         host = _RunHostStub()
         workspace_id = host.model.active_workspace.workspace_id
         trigger = host.model.add_node(workspace_id, "core.trigger", "Trigger", 0, 0)
-        controller = RunController(host)  # type: ignore[arg-type]
+        controller = _run_controller(host)  # type: ignore[arg-type]
         publication = _value_result("held")
         host.run_state.latest_trigger_inputs_by_workspace_id = {
             workspace_id: {trigger.node_id: publication},
@@ -1347,9 +1088,7 @@ class RunControllerUnitTests(unittest.TestCase):
         self.assertNotIn(
             "ws_deleted", host.run_state.node_output_run_counts_by_workspace_id
         )
-        self.assertNotIn(
-            "ws_deleted", host.run_state.solution_revision_by_workspace_id
-        )
+        self.assertNotIn("ws_deleted", host.run_state.solution_revision_by_workspace_id)
         self.assertNotIn(
             "ws_deleted", host.run_state.node_solution_facts_by_workspace_id
         )
@@ -1390,7 +1129,7 @@ class RunControllerUnitTests(unittest.TestCase):
             disabled_edge.edge_id,
             False,
         )
-        controller = RunController(host)  # type: ignore[arg-type]
+        controller = _run_controller(host)  # type: ignore[arg-type]
         controller.set_auto_run_enabled(True)
         host.run_state.latest_trigger_inputs_by_workspace_id[workspace_id] = {
             trigger.node_id: _value_result("captured")
@@ -1441,7 +1180,7 @@ class RunControllerUnitTests(unittest.TestCase):
         target = host.model.add_node(
             workspace_id, "test.required_pure_data", "Target", 160, 0
         )
-        controller = RunController(host)  # type: ignore[arg-type]
+        controller = _run_controller(host)  # type: ignore[arg-type]
 
         before_snapshot = host.model.active_workspace.capture_snapshot()
         host.model.add_edge(
@@ -1493,7 +1232,7 @@ class RunControllerUnitTests(unittest.TestCase):
             title="Target",
             properties={"value": 1},
         )
-        controller = RunController(host)  # type: ignore[arg-type]
+        controller = _run_controller(host)  # type: ignore[arg-type]
         controller.set_auto_run_enabled(True)
 
         before_snapshot = host.model.active_workspace.capture_snapshot()
@@ -1532,7 +1271,7 @@ class RunControllerUnitTests(unittest.TestCase):
         second_edge = host.model.add_edge(
             workspace_id, second.node_id, "result", target.node_id, "value"
         )
-        controller = RunController(host)  # type: ignore[arg-type]
+        controller = _run_controller(host)  # type: ignore[arg-type]
         controller.set_auto_run_enabled(True)
 
         before_snapshot = host.model.active_workspace.capture_snapshot()
@@ -1598,7 +1337,7 @@ class RunControllerUnitTests(unittest.TestCase):
         host.model.add_edge(
             workspace_id, downstream.node_id, "result", logger.node_id, "message"
         )
-        controller = RunController(host)  # type: ignore[arg-type]
+        controller = _run_controller(host)  # type: ignore[arg-type]
         controller.set_auto_run_enabled(True)
 
         before_snapshot = host.model.active_workspace.capture_snapshot()
@@ -1624,7 +1363,7 @@ class RunControllerUnitTests(unittest.TestCase):
         host = _RunHostStub()
         workspace_id = host.model.active_workspace.workspace_id
         panel = host.model.add_node(workspace_id, "data.panel", "Panel", 0, 0)
-        controller = RunController(host)  # type: ignore[arg-type]
+        controller = _run_controller(host)  # type: ignore[arg-type]
         controller.set_auto_run_enabled(True)
 
         before_snapshot = host.model.active_workspace.capture_snapshot()
@@ -1697,7 +1436,7 @@ class RunControllerUnitTests(unittest.TestCase):
             with self.subTest(action_type=action_type):
                 host = _RunHostStub()
                 workspace_id = host.model.active_workspace.workspace_id
-                controller = RunController(host)  # type: ignore[arg-type]
+                controller = _run_controller(host)  # type: ignore[arg-type]
                 controller.set_auto_run_enabled(True)
                 before_snapshot = host.model.active_workspace.capture_snapshot()
                 node = host.model.add_node(
@@ -1746,7 +1485,7 @@ class RunControllerUnitTests(unittest.TestCase):
             target.node_id,
             "message",
         )
-        controller = RunController(host)  # type: ignore[arg-type]
+        controller = _run_controller(host)  # type: ignore[arg-type]
         controller.set_auto_run_enabled(True)
         before_snapshot = host.model.active_workspace.capture_snapshot()
         host.model.validated_mutations(workspace_id, host.registry).set_edge_enabled(
@@ -1777,7 +1516,7 @@ class RunControllerUnitTests(unittest.TestCase):
             0,
             0,
         )
-        controller = RunController(host)  # type: ignore[arg-type]
+        controller = _run_controller(host)  # type: ignore[arg-type]
         controller.set_auto_run_enabled(True)
         before_snapshot = host.model.active_workspace.capture_snapshot()
         host.model.set_node_property(workspace_id, node.node_id, "note", "after")
@@ -1817,7 +1556,7 @@ class RunControllerUnitTests(unittest.TestCase):
         host.model.add_edge(
             workspace_id, source.node_id, "result", target.node_id, "value"
         )
-        controller = RunController(host)  # type: ignore[arg-type]
+        controller = _run_controller(host)  # type: ignore[arg-type]
         controller.set_auto_run_enabled(True)
         host.run_state.active_run_id = "run_old"
         host.run_state.active_run_workspace_id = workspace_id
@@ -1872,7 +1611,7 @@ class RunControllerUnitTests(unittest.TestCase):
         self,
     ) -> None:
         host = _RunHostStub()
-        controller = RunController(host)  # type: ignore[arg-type]
+        controller = _run_controller(host)  # type: ignore[arg-type]
         controller.set_auto_run_enabled(True)
         host.run_state.active_run_id = "run_live"
         host.run_state.active_run_workspace_id = (
@@ -1902,7 +1641,7 @@ class RunControllerUnitTests(unittest.TestCase):
 
     def test_fatal_failure_discards_pending_auto_run(self) -> None:
         host = _RunHostStub()
-        controller = RunController(host)  # type: ignore[arg-type]
+        controller = _run_controller(host)  # type: ignore[arg-type]
         controller.set_auto_run_enabled(True)
         workspace_id = host.model.active_workspace.workspace_id
         host.run_state.active_run_id = "run_live"
@@ -1926,152 +1665,6 @@ class RunControllerUnitTests(unittest.TestCase):
         self.assertEqual(host.run_state.pending_auto_run_workspace_id, "")
         self.assertEqual(host.run_state.pending_auto_run_target_node_ids, set())
 
-    def test_node_settled_caches_typed_outputs_by_workspace_node_and_run(self) -> None:
-        host = _RunHostStub()
-        workspace_id = host.model.active_workspace.workspace_id
-        script = host.model.add_node(
-            workspace_id,
-            "core.python_script",
-            "Script",
-            0,
-            0,
-            properties={"script": _script_result("'fresh'")},
-        )
-        controller = RunController(host)  # type: ignore[arg-type]
-
-        with mock.patch.object(
-            controller, "_current_epoch_ms", side_effect=[1000.0, 2000.0]
-        ):
-            for run_id, result in (("run_1", "first"), ("run_2", "second")):
-                host.run_state.active_run_id = run_id
-                host.run_state.active_run_workspace_id = workspace_id
-                controller.handle_execution_event(
-                    _accepted_settlement(
-                        host,
-                        workspace_id=workspace_id,
-                        node_id=script.node_id,
-                        run_id=run_id,
-                        outputs=_value_outputs(result=result),
-                    )
-                )
-
-        records = host.run_state.cached_node_output_records_by_workspace_id[
-            workspace_id
-        ][script.node_id]
-        self.assertEqual(len(records), 2)
-        self.assertEqual(
-            {next(iter(record["outputs"].values())).value.branches[0][1][0] for record in records.values()},
-            {"first", "second"},
-        )
-        self.assertEqual(
-            host.run_state.node_output_run_counts_by_workspace_id[workspace_id][
-                script.node_id
-            ],
-            2,
-        )
-
-    def test_invalidated_accepted_settlement_cannot_restore_cache_or_availability(self) -> None:
-        host = _RunHostStub()
-        workspace_id = host.model.active_workspace.workspace_id
-        node = host.model.add_node(workspace_id, "core.constant", "Constant", 0, 0)
-        controller = RunController(host)  # type: ignore[arg-type]
-        event = _accepted_settlement(
-            host,
-            workspace_id=workspace_id,
-            node_id=node.node_id,
-            run_id="run_late",
-            outputs=_value_outputs(value="late"),
-        )
-        accepted = host.execution_client.solution_facts_by_workspace[workspace_id][0]
-        host.execution_client.solution_facts_by_workspace[workspace_id] = (
-            NodeSolutionFact(
-                project_id=accepted.project_id,
-                workspace_id=accepted.workspace_id,
-                node_id=accepted.node_id,
-                freshness=SolutionFreshness.EXPIRED,
-                revision=accepted.revision + 1,
-                retained_record_id=accepted.retained_record_id,
-                retained_solution_key=accepted.retained_solution_key,
-                residency=accepted.residency,
-                expiration_reason_code="graph_changed",
-                expiration_root_node_ids=(node.node_id,),
-                last_disposition=accepted.last_disposition,
-            ),
-        )
-
-        with mock.patch(
-            "ea_node_editor.ui.shell.controllers.run_controller.observe_node_outputs"
-        ) as observe:
-            controller.handle_execution_event(event)
-
-        observe.assert_not_called()
-        self.assertNotIn(
-            workspace_id,
-            host.run_state.cached_node_output_records_by_workspace_id,
-        )
-
-    def test_node_settled_caches_compact_dpf_workflow_summary(self) -> None:
-        host = _RunHostStub()
-        workspace_id = host.model.active_workspace.workspace_id
-        node = host.model.add_node(
-            workspace_id,
-            "dpf.workflow.result_fields",
-            "DPF Result Fields",
-            0,
-            0,
-            properties={"result_name": "stress"},
-        )
-        fields = RuntimeHandleRef(
-            data_type_id="COREX.Ansys.DPF.FieldsContainer",
-            schema_version=1,
-            handle_id="fields",
-            kind="dpf.fields_container",
-            owner_scope="run:summary",
-            worker_generation=0,
-            metadata={
-                "result_name": "stress",
-                "location": "Nodal",
-                "unit": "MPa",
-                "field_count": 2,
-                "set_ids": [1, 2],
-            },
-        )
-        controller = RunController(host)  # type: ignore[arg-type]
-        host.run_state.active_run_id = "run_summary"
-        host.run_state.active_run_workspace_id = workspace_id
-
-        controller.handle_execution_event(
-            _accepted_settlement(
-                host,
-                workspace_id=workspace_id,
-                node_id=node.node_id,
-                run_id="run_summary",
-                outputs=_value_outputs(fields=fields),
-            )
-        )
-
-        record = next(
-            iter(
-                host.run_state.cached_node_output_records_by_workspace_id[
-                    workspace_id
-                ][node.node_id].values()
-            )
-        )
-        self.assertEqual(
-            record["dpf_workflow_summary"],
-            {
-                "state": "ready",
-                "headline": "Stress · 2 fields",
-                "detail": "Nodal · MPa",
-                "facts": [
-                    {"label": "Result", "value": "Stress"},
-                    {"label": "Location", "value": "Nodal"},
-                    {"label": "Unit", "value": "MPa"},
-                    {"label": "Fields", "value": "2"},
-                ],
-            },
-        )
-
     def test_graph_change_expires_fact_without_mutating_cached_records(self) -> None:
         host = _RunHostStub()
         workspace_id = host.model.active_workspace.workspace_id
@@ -2083,10 +1676,12 @@ class RunControllerUnitTests(unittest.TestCase):
             0,
             properties={"script": _script_result("'fresh'")},
         )
-        controller = RunController(host)  # type: ignore[arg-type]
+        controller = _run_controller(host)  # type: ignore[arg-type]
 
         with mock.patch.object(
-            controller, "_current_epoch_ms", side_effect=[1000.0, 2000.0]
+            host.run_projection_controller,
+            "_current_epoch_ms",
+            side_effect=[1000.0, 2000.0],
         ):
             for run_id, result in (("run_1", "first"), ("run_2", "second")):
                 host.run_state.active_run_id = run_id
@@ -2164,7 +1759,7 @@ class RunControllerUnitTests(unittest.TestCase):
         host.model.add_edge(
             workspace_id, middle.node_id, "result", downstream.node_id, "payload"
         )
-        controller = RunController(host)  # type: ignore[arg-type]
+        controller = _run_controller(host)  # type: ignore[arg-type]
         host.run_state.active_run_id = "run_1"
         host.run_state.active_run_workspace_id = workspace_id
         for index, node in enumerate(
@@ -2273,7 +1868,7 @@ class RunControllerUnitTests(unittest.TestCase):
             y=70,
             parent_node_id=group.node_id,
         )
-        controller = RunController(host)  # type: ignore[arg-type]
+        controller = _run_controller(host)  # type: ignore[arg-type]
 
         controller.run_selected_nodes([group.node_id])
 
@@ -2291,7 +1886,7 @@ class RunControllerUnitTests(unittest.TestCase):
             0,
         )
         host.script_editor.dirty = True
-        controller = RunController(host)  # type: ignore[arg-type]
+        controller = _run_controller(host)  # type: ignore[arg-type]
 
         controller.run_selected_nodes([script.node_id])
 
@@ -2324,7 +1919,7 @@ class RunControllerUnitTests(unittest.TestCase):
             properties={"script": _script_result("'applied'")},
         )
         host.script_editor.dirty = True
-        controller = RunController(host)  # type: ignore[arg-type]
+        controller = _run_controller(host)  # type: ignore[arg-type]
 
         controller.run_selected_nodes(
             [script.node_id],
@@ -2339,12 +1934,14 @@ class RunControllerUnitTests(unittest.TestCase):
         runtime_script = next(
             node for node in runtime_workspace.nodes if node.node_id == script.node_id
         )
-        self.assertEqual(runtime_script.properties["script"], _script_result("'applied'"))
+        self.assertEqual(
+            runtime_script.properties["script"], _script_result("'applied'")
+        )
 
     def test_run_workflow_logs_error_when_start_fails(self) -> None:
         host = _RunHostStub()
         host.execution_client.next_run_id = ""
-        controller = RunController(host)  # type: ignore[arg-type]
+        controller = _run_controller(host)  # type: ignore[arg-type]
 
         controller.run_workflow()
 
@@ -2365,91 +1962,9 @@ class RunControllerUnitTests(unittest.TestCase):
         )
         self.assertEqual(host.run_controls_changed.calls, 1)
 
-    def test_update_run_actions_idle_selected_workspace_enables_only_run(self) -> None:
-        host = _RunHostStub()
-        controller = RunController(host)  # type: ignore[arg-type]
-
-        controller.update_run_actions()
-
-        self.assert_run_controls(
-            host,
-            run_enabled=True,
-            pause_enabled=False,
-            stop_enabled=False,
-            pause_label="Pause",
-        )
-        self.assertEqual(host.run_controls_changed.calls, 1)
-
-    def test_update_run_actions_selected_workspace_owner_running_disables_run_and_enables_pause_stop(
-        self,
-    ) -> None:
-        host = _RunHostStub()
-        controller = RunController(host)  # type: ignore[arg-type]
-        host.run_state.active_run_id = "run_live"
-        host.run_state.active_run_workspace_id = (
-            host.model.active_workspace.workspace_id
-        )
-        host.run_state.engine_state_value = "running"
-
-        controller.update_run_actions()
-
-        self.assert_run_controls(
-            host,
-            run_enabled=False,
-            pause_enabled=True,
-            stop_enabled=True,
-            pause_label="Pause",
-        )
-        self.assertEqual(host.run_controls_changed.calls, 1)
-
-    def test_update_run_actions_selected_workspace_owner_paused_uses_resume_label(
-        self,
-    ) -> None:
-        host = _RunHostStub()
-        controller = RunController(host)  # type: ignore[arg-type]
-        host.run_state.active_run_id = "run_live"
-        host.run_state.active_run_workspace_id = (
-            host.model.active_workspace.workspace_id
-        )
-        host.run_state.engine_state_value = "paused"
-
-        controller.update_run_actions()
-
-        self.assert_run_controls(
-            host,
-            run_enabled=False,
-            pause_enabled=True,
-            stop_enabled=True,
-            pause_label="Resume",
-        )
-        self.assertEqual(host.run_controls_changed.calls, 1)
-
-    def test_update_run_actions_non_owning_selected_workspace_disables_pause_and_stop(
-        self,
-    ) -> None:
-        host = _RunHostStub()
-        controller = RunController(host)  # type: ignore[arg-type]
-        owning_workspace_id = host.model.active_workspace.workspace_id
-        other_workspace = host.model.create_workspace(name="Second Workspace")
-        host.workspace_manager.set_active_workspace(other_workspace.workspace_id)
-        host.run_state.active_run_id = "run_live"
-        host.run_state.active_run_workspace_id = owning_workspace_id
-        host.run_state.engine_state_value = "running"
-
-        controller.update_run_actions()
-
-        self.assert_run_controls(
-            host,
-            run_enabled=True,
-            pause_enabled=False,
-            stop_enabled=False,
-            pause_label="Pause",
-        )
-        self.assertEqual(host.run_controls_changed.calls, 1)
-
     def test_toggle_pause_resume_and_stop_route_to_execution_client(self) -> None:
         host = _RunHostStub()
-        controller = RunController(host)  # type: ignore[arg-type]
+        controller = _run_controller(host)  # type: ignore[arg-type]
         host.run_state.active_run_id = "run_live"
         host.run_state.engine_state_value = "running"
 
@@ -2472,7 +1987,7 @@ class RunControllerUnitTests(unittest.TestCase):
         host.run_state.active_run_workspace_id = (
             host.model.active_workspace.workspace_id
         )
-        controller = RunController(host)  # type: ignore[arg-type]
+        controller = _run_controller(host)  # type: ignore[arg-type]
 
         controller.handle_execution_event(
             {
@@ -2496,7 +2011,7 @@ class RunControllerUnitTests(unittest.TestCase):
             host.model.active_workspace.workspace_id
         )
         host.run_state.engine_state_value = "running"
-        controller = RunController(host)  # type: ignore[arg-type]
+        controller = _run_controller(host)  # type: ignore[arg-type]
 
         controller.handle_execution_event(
             {
@@ -2531,7 +2046,7 @@ class RunControllerUnitTests(unittest.TestCase):
 
     def test_protocol_error_is_logged(self) -> None:
         host = _RunHostStub()
-        controller = RunController(host)  # type: ignore[arg-type]
+        controller = _run_controller(host)  # type: ignore[arg-type]
 
         controller.handle_execution_event(
             {"type": "protocol_error", "error": "bad payload"}
@@ -2539,355 +2054,6 @@ class RunControllerUnitTests(unittest.TestCase):
 
         self.assertEqual(host.console_panel.logs, [("error", "bad payload")])
         self.assertEqual(host._notifications, (0, 1))
-
-    def test_node_execution_bridge_run_events_project_running_and_completed_nodes(
-        self,
-    ) -> None:
-        host = _RunHostStub()
-        workspace_id = host.model.active_workspace.workspace_id
-        host.run_state.active_run_id = "run_live"
-        host.run_state.active_run_workspace_id = workspace_id
-        host.run_state.node_execution_workspace_id = workspace_id
-        host.run_state.running_node_ids.add("node_stale")
-        host.run_state.failed_workspace_id = workspace_id
-        host.run_state.failed_node_id = "node_failed"
-        host.run_state.failed_node_title = "Failed Node"
-        host.run_state.node_execution_revision = 4
-        controller = RunController(host)  # type: ignore[arg-type]
-
-        controller.handle_execution_event(
-            {
-                "type": "run_started",
-                "run_id": "run_live",
-                "workspace_id": workspace_id,
-            }
-        )
-
-        self.assertEqual(host.run_failure_changed.calls, 1)
-        self.assertEqual(host.run_state.failed_workspace_id, "")
-        self.assertEqual(host.run_state.failed_node_id, "")
-        self.assertEqual(host.run_state.failed_node_title, "")
-        self.assertEqual(host.run_state.running_node_ids, set())
-        self.assertEqual(host.run_state.completed_node_ids, set())
-        self.assertEqual(host.run_state.node_execution_revision, 5)
-
-        controller.handle_execution_event(
-            {
-                "type": "node_started",
-                "run_id": "run_live",
-                "workspace_id": workspace_id,
-                "node_id": "node_1",
-            }
-        )
-
-        self.assertEqual(host.run_state.node_execution_workspace_id, workspace_id)
-        self.assertEqual(host.run_state.running_node_ids, {"node_1"})
-        self.assertEqual(host.run_state.completed_node_ids, set())
-        self.assertEqual(host.run_state.node_execution_revision, 6)
-
-        controller.handle_execution_event(
-            {
-                "type": "node_settled",
-                "status": "completed",
-                "run_id": "run_live",
-                "workspace_id": workspace_id,
-                "node_id": "node_1",
-            }
-        )
-
-        self.assertEqual(host.run_state.running_node_ids, set())
-        self.assertEqual(host.run_state.completed_node_ids, {"node_1"})
-        self.assertEqual(host.run_state.node_execution_revision, 7)
-        self.assertEqual(host._engine_status, ("running", "Running"))
-
-    def test_node_settled_projects_empty_failed_blocked_and_original_root_errors(
-        self,
-    ) -> None:
-        host = _RunHostStub()
-        workspace_id = host.model.active_workspace.workspace_id
-        node = host.model.add_node(workspace_id, "core.logger", "Logger", 0, 0)
-        host.run_state.active_run_id = "run_live"
-        host.run_state.active_run_workspace_id = workspace_id
-        controller = RunController(host)  # type: ignore[arg-type]
-        root_error = RootExecutionError(
-            node_id="node_root",
-            error="root failure",
-            traceback="root trace",
-        )
-
-        controller.handle_execution_event(
-            {
-                "type": "node_settled",
-                "status": "failed",
-                "run_id": "run_live",
-                "workspace_id": workspace_id,
-                "node_id": node.node_id,
-                "errors": (root_error,),
-            }
-        )
-        self.assertEqual(host.run_state.failed_node_ids, {node.node_id})
-        self.assertEqual(
-            host.run_state.root_errors_by_node_id[node.node_id], (root_error,)
-        )
-        self.assertEqual(host.run_state.completed_node_ids, set())
-        self.assertEqual(
-            host.workspace_library_controller.focus_calls,
-            [(workspace_id, node.node_id)],
-        )
-
-        controller.handle_execution_event(
-            {
-                "type": "node_started",
-                "run_id": "run_live",
-                "workspace_id": workspace_id,
-                "node_id": node.node_id,
-            }
-        )
-        controller.handle_execution_event(
-            {
-                "type": "node_settled",
-                "status": "empty",
-                "run_id": "run_live",
-                "workspace_id": workspace_id,
-                "node_id": node.node_id,
-            }
-        )
-        self.assertEqual(host.run_state.empty_node_ids, {node.node_id})
-        self.assertNotIn(node.node_id, host.run_state.root_errors_by_node_id)
-        self.assertEqual(
-            host.workspace_library_controller.focus_calls,
-            [(workspace_id, node.node_id)],
-        )
-
-        controller.handle_execution_event(
-            {
-                "type": "node_settled",
-                "status": "blocked",
-                "run_id": "run_live",
-                "workspace_id": workspace_id,
-                "node_id": node.node_id,
-                "errors": (root_error,),
-            }
-        )
-        self.assertEqual(host.run_state.blocked_node_ids, {node.node_id})
-        self.assertEqual(
-            host.run_state.root_errors_by_node_id[node.node_id], (root_error,)
-        )
-        self.assertEqual(host.run_state.empty_node_ids, set())
-        self.assertEqual(
-            host.workspace_library_controller.focus_calls,
-            [(workspace_id, node.node_id)],
-        )
-
-    def test_runtime_warning_messages_persist_until_node_rerun_or_graph_invalidation(
-        self,
-    ) -> None:
-        host = _RunHostStub()
-        workspace_id = host.model.active_workspace.workspace_id
-        node = host.model.add_node(
-            workspace_id,
-            "core.python_script",
-            "Script",
-            0,
-            0,
-            properties={"script": _script_result("1")},
-        )
-        controller = RunController(host)  # type: ignore[arg-type]
-        host.run_state.active_run_id = "run_warning"
-        host.run_state.active_run_workspace_id = workspace_id
-
-        controller.handle_execution_event(
-            {
-                "type": "node_settled",
-                "status": "completed",
-                "run_id": "run_warning",
-                "workspace_id": workspace_id,
-                "node_id": node.node_id,
-                "warnings": [
-                    "  Mesh quality was reduced.  ",
-                    "Mesh quality was reduced.",
-                ],
-            }
-        )
-        self.assertEqual(
-            host.run_state.runtime_warning_messages_by_workspace_id,
-            {workspace_id: {node.node_id: ("Mesh quality was reduced.",)}},
-        )
-
-        controller.handle_execution_event(
-            {
-                "type": "run_completed",
-                "run_id": "run_warning",
-                "workspace_id": workspace_id,
-            }
-        )
-        self.assertIn(
-            node.node_id,
-            host.run_state.runtime_warning_messages_by_workspace_id[workspace_id],
-        )
-
-        controller.mark_node_execution_running(workspace_id, node.node_id)
-        self.assertNotIn(
-            workspace_id, host.run_state.runtime_warning_messages_by_workspace_id
-        )
-
-        controller.mark_node_execution_settled(
-            workspace_id,
-            node.node_id,
-            status="completed",
-            warning=True,
-            warning_messages=("Review the result.",),
-        )
-        before_snapshot = host.model.active_workspace.capture_snapshot()
-        host.model.set_node_property(
-            workspace_id, node.node_id, "script", _script_result("2")
-        )
-        after_snapshot = host.model.active_workspace.capture_snapshot()
-        controller.invalidate_solution_for_history_action(
-            workspace_id,
-            "edit-node-property",
-            before_snapshot=before_snapshot,
-            after_snapshot=after_snapshot,
-        )
-        self.assertNotIn(
-            workspace_id, host.run_state.runtime_warning_messages_by_workspace_id
-        )
-
-        host.run_state.active_run_id = "run_invalidated"
-        host.run_state.active_run_workspace_id = workspace_id
-        controller.mark_node_execution_running(workspace_id, node.node_id)
-        before_snapshot = host.model.active_workspace.capture_snapshot()
-        host.model.set_node_property(
-            workspace_id, node.node_id, "script", _script_result("3")
-        )
-        after_snapshot = host.model.active_workspace.capture_snapshot()
-        controller.invalidate_solution_for_history_action(
-            workspace_id,
-            "edit-node-property",
-            before_snapshot=before_snapshot,
-            after_snapshot=after_snapshot,
-        )
-        controller.handle_execution_event(
-            {
-                "type": "node_settled",
-                "status": "completed",
-                "run_id": "run_invalidated",
-                "workspace_id": workspace_id,
-                "node_id": node.node_id,
-                "warnings": ("Stale warning must not survive.",),
-            }
-        )
-        self.assertNotIn(
-            workspace_id, host.run_state.runtime_warning_messages_by_workspace_id
-        )
-        self.assertNotIn(node.node_id, host.run_state.warning_node_ids)
-
-    def test_persistent_node_elapsed_state_projects_fallback_started_at_and_cached_elapsed_by_workspace(
-        self,
-    ) -> None:
-        host = _RunHostStub()
-        workspace_id = host.model.active_workspace.workspace_id
-        host.run_state.active_run_id = "run_live"
-        host.run_state.active_run_workspace_id = workspace_id
-        host.run_state.node_execution_workspace_id = workspace_id
-        host.run_state.running_node_ids.add("node_stale")
-        host.run_state.running_node_started_at_epoch_ms_by_node_id["node_stale"] = 500.0
-        host.run_state.cached_node_elapsed_ms_by_workspace_id = {
-            "ws_previous": {
-                "node_cached": 12.5,
-            }
-        }
-        host.run_state.node_execution_revision = 4
-        controller = RunController(host)  # type: ignore[arg-type]
-
-        controller.handle_execution_event(
-            {
-                "type": "run_started",
-                "run_id": "run_live",
-                "workspace_id": workspace_id,
-            }
-        )
-
-        self.assertEqual(host.run_state.running_node_ids, set())
-        self.assertEqual(host.run_state.completed_node_ids, set())
-        self.assertEqual(host.run_state.running_node_started_at_epoch_ms_by_node_id, {})
-        self.assertEqual(
-            host.run_state.cached_node_elapsed_ms_by_workspace_id,
-            {"ws_previous": {"node_cached": 12.5}},
-        )
-
-        with mock.patch(
-            "ea_node_editor.ui.shell.controllers.run_controller.time.time",
-            return_value=100.0,
-        ):
-            controller.handle_execution_event(
-                {
-                    "type": "node_started",
-                    "run_id": "run_live",
-                    "workspace_id": workspace_id,
-                    "node_id": "node_1",
-                    "started_at_epoch_ms": 0.0,
-                }
-            )
-
-        self.assertEqual(
-            host.run_state.running_node_started_at_epoch_ms_by_node_id,
-            {"node_1": 100000.0},
-        )
-
-        with mock.patch(
-            "ea_node_editor.ui.shell.controllers.run_controller.time.time",
-            return_value=100.04525,
-        ):
-            controller.handle_execution_event(
-                {
-                    "type": "node_settled",
-                    "status": "completed",
-                    "run_id": "run_live",
-                    "workspace_id": workspace_id,
-                    "node_id": "node_1",
-                    "elapsed_ms": 0.0,
-                }
-            )
-
-        self.assertEqual(host.run_state.running_node_ids, set())
-        self.assertEqual(host.run_state.completed_node_ids, {"node_1"})
-        self.assertEqual(host.run_state.running_node_started_at_epoch_ms_by_node_id, {})
-        self.assertEqual(
-            host.run_state.cached_node_elapsed_ms_by_workspace_id["ws_previous"],
-            {"node_cached": 12.5},
-        )
-        self.assertAlmostEqual(
-            host.run_state.cached_node_elapsed_ms_by_workspace_id[workspace_id][
-                "node_1"
-            ],
-            45.25,
-            places=2,
-        )
-
-        controller.handle_execution_event(
-            {
-                "type": "run_completed",
-                "run_id": "run_live",
-                "workspace_id": workspace_id,
-            }
-        )
-
-        self.assertEqual(host.run_state.node_execution_workspace_id, workspace_id)
-        self.assertEqual(host.run_state.running_node_ids, set())
-        self.assertEqual(host.run_state.completed_node_ids, {"node_1"})
-        self.assertEqual(host.run_state.running_node_started_at_epoch_ms_by_node_id, {})
-        self.assertEqual(
-            host.run_state.cached_node_elapsed_ms_by_workspace_id["ws_previous"],
-            {"node_cached": 12.5},
-        )
-        self.assertAlmostEqual(
-            host.run_state.cached_node_elapsed_ms_by_workspace_id[workspace_id][
-                "node_1"
-            ],
-            45.25,
-            places=2,
-        )
 
     def test_node_settled_after_pause_preserves_paused_state_and_resume_action(
         self,
@@ -2897,7 +2063,7 @@ class RunControllerUnitTests(unittest.TestCase):
         host.run_state.active_run_id = "run_live"
         host.run_state.active_run_workspace_id = workspace_id
         host.run_state.engine_state_value = "running"
-        controller = RunController(host)  # type: ignore[arg-type]
+        controller = _run_controller(host)  # type: ignore[arg-type]
 
         controller.handle_execution_event(
             {
@@ -2949,7 +2115,7 @@ class RunControllerUnitTests(unittest.TestCase):
             }
         }
         host.run_state.node_execution_revision = 2
-        controller = RunController(host)  # type: ignore[arg-type]
+        controller = _run_controller(host)  # type: ignore[arg-type]
 
         controller.handle_execution_event(
             {
@@ -2979,7 +2145,7 @@ class RunControllerUnitTests(unittest.TestCase):
     ) -> None:
         host = _RunHostStub()
         workspace_id = host.model.active_workspace.workspace_id
-        controller = RunController(host)  # type: ignore[arg-type]
+        controller = _run_controller(host)  # type: ignore[arg-type]
         host.run_state.cached_node_elapsed_ms_by_workspace_id = {
             workspace_id: {"node_cached": 12.5},
             "ws_other": {"node_other": 8.0},

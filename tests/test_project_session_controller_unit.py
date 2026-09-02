@@ -14,6 +14,9 @@ from ea_node_editor.ui.dialogs.project_files_dialog import ProjectFilesBrokenEnt
 from ea_node_editor.ui.shell.controllers.project_session_controller import (
     ProjectSessionController,
 )
+from ea_node_editor.ui.shell.controllers.run_projection_controller import (
+    RunProjectionController,
+)
 from ea_node_editor.ui.shell.state import ShellProjectSessionState, ShellRunState
 from ea_node_editor.workspace.manager import WorkspaceManager
 
@@ -226,12 +229,14 @@ class _ProjectHostStub:
         self.library_pane_reset_requested = _SignalStub()
         self.node_library_changed = _SignalStub()
         self.node_execution_state_changed = _SignalStub()
+        self.run_failure_changed = _SignalStub()
         self.project_meta_changed = _SignalStub()
         self.app_preferences_controller = mock.Mock()
         self.app_preferences_controller.default_python_executable.return_value = ""
         self.app_preferences_controller.set_default_python_executable.side_effect = (
             lambda value: value
         )
+        self.run_projection_controller = RunProjectionController(self)  # type: ignore[arg-type]
         self.refresh_calls = 0
         self.browse_calls: list[tuple[str, str, str]] = []
         self.browse_result = ""

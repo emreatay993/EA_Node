@@ -101,13 +101,13 @@ class MainWindowShellTelemetryTests(SharedMainWindowShellTestBase):
         failed_id = self.window.scene.add_node_from_type("core.python_script", x=320.0, y=120.0)
         self.app.processEvents()
 
-        self.window.mark_node_execution_running(workspace_id, running_id, started_at_epoch_ms=12.5)
+        self.window.run_projection_controller.mark_node_execution_running(workspace_id, running_id, started_at_epoch_ms=12.5)
         self.window.status_jobs.requestAction("running")
         self.app.processEvents()
 
         self.assertEqual(self.window.scene.selected_node_id(), running_id)
 
-        self.window.set_run_failure_focus(workspace_id, failed_id, node_title="Failed Script")
+        self.window.run_projection_controller.set_run_failure_focus(workspace_id, failed_id, node_title="Failed Script")
         self.window.status_notifications.requestAction("failed")
         self.app.processEvents()
 

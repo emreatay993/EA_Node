@@ -90,9 +90,7 @@ class WorkspaceViewNavOps:
         self._controller.restore_active_view_state()
         self._controller.refresh_workspace_tabs()
         self._host.script_editor.set_node(None)
-        update_run_actions = getattr(self._host, "_update_run_actions", None)
-        if callable(update_run_actions):
-            update_run_actions()
+        self._host.run_projection_controller.update_run_actions()
         self._host.workspace_state_changed.emit()
 
     def save_active_view_state(self) -> None:
@@ -504,7 +502,7 @@ class WorkspaceViewNavOps:
         failure_node_id = str(focused_node_id or node_id or "").strip()
         failure_node_title = self._failed_node_title(failure_workspace_id, failure_node_id)
         if failure_node_id:
-            self._host.set_run_failure_focus(
+            self._host.run_projection_controller.set_run_failure_focus(
                 failure_workspace_id,
                 failure_node_id,
                 node_title=failure_node_title,

@@ -785,7 +785,7 @@ class ShellRunControllerTests(MainWindowShellTestBase):
         node_id = self.window.scene.add_node_from_type("core.logger", x=120.0, y=40.0)
         self.window._active_run_id = "run_live"
         self.window._active_run_workspace_id = workspace_id
-        self.window._set_run_ui_state("running", "Running", 1, 0, 0, 0)
+        self.window.run_projection_controller.set_run_ui_state("running", "Running", 1, 0, 0, 0)
         self.app.processEvents()
 
         graph_canvas = self._graph_canvas_item()
@@ -914,7 +914,7 @@ class ShellRunControllerTests(MainWindowShellTestBase):
         node_id = self.window.scene.add_node_from_type("core.logger", x=160.0, y=60.0)
         self.window._active_run_id = "run_warning"
         self.window._active_run_workspace_id = workspace_id
-        self.window._set_run_ui_state("running", "Running", 1, 0, 0, 0)
+        self.window.run_projection_controller.set_run_ui_state("running", "Running", 1, 0, 0, 0)
         self.app.processEvents()
 
         graph_canvas = self._graph_canvas_item()
@@ -994,7 +994,7 @@ class ShellRunControllerTests(MainWindowShellTestBase):
         node_id = self.window.scene.add_node_from_type("core.logger", x=180.0, y=80.0)
         self.window._active_run_id = "run_live"
         self.window._active_run_workspace_id = workspace_id
-        self.window._set_run_ui_state("running", "Running", 1, 0, 0, 0)
+        self.window.run_projection_controller.set_run_ui_state("running", "Running", 1, 0, 0, 0)
         self.app.processEvents()
 
         graph_canvas = self._graph_canvas_item()
@@ -1146,7 +1146,7 @@ class ShellRunControllerTests(MainWindowShellTestBase):
         node_id = self.window.scene.add_node_from_type("core.logger", x=220.0, y=140.0)
         self.window._active_run_id = "run_live"
         self.window._active_run_workspace_id = workspace_id
-        self.window._set_run_ui_state("running", "Running", 1, 0, 0, 0)
+        self.window.run_projection_controller.set_run_ui_state("running", "Running", 1, 0, 0, 0)
         self.app.processEvents()
 
         graph_canvas = self._graph_canvas_item()
@@ -1234,7 +1234,7 @@ class ShellRunControllerTests(MainWindowShellTestBase):
         node_id = self.window.scene.add_node_from_type("core.python_script", x=180.0, y=80.0)
         self.window._active_run_id = "run_live"
         self.window._active_run_workspace_id = workspace_id
-        self.window._set_run_ui_state("running", "Running", 1, 0, 0, 0)
+        self.window.run_projection_controller.set_run_ui_state("running", "Running", 1, 0, 0, 0)
         self.app.processEvents()
 
         graph_canvas = self._graph_canvas_item()
@@ -1366,7 +1366,7 @@ class ShellRunControllerTests(MainWindowShellTestBase):
         if node_card is None:
             self.fail("Expected graph node card to exist")
 
-        self.window.mark_node_execution_settled(workspace_id, node_id)
+        self.window.run_projection_controller.mark_node_execution_settled(workspace_id, node_id)
         self.app.processEvents()
 
         wait_for_condition_or_raise(
@@ -1388,7 +1388,7 @@ class ShellRunControllerTests(MainWindowShellTestBase):
         node_id = self.window.scene.add_node_from_type("core.logger", x=220.0, y=140.0)
         self.window._active_run_id = "run_live"
         self.window._active_run_workspace_id = workspace_id
-        self.window._set_run_ui_state("running", "Running", 1, 0, 0, 0)
+        self.window.run_projection_controller.set_run_ui_state("running", "Running", 1, 0, 0, 0)
         self.app.processEvents()
 
         graph_canvas = self._graph_canvas_item()
@@ -1839,7 +1839,7 @@ class ShellRunControllerTests(MainWindowShellTestBase):
 
         self.window._active_run_id = "run_live"
         self.window._active_run_workspace_id = workspace_id
-        self.window._set_run_ui_state("running", "Running", 1, 0, 0, 0)
+        self.window.run_projection_controller.set_run_ui_state("running", "Running", 1, 0, 0, 0)
         with patch.object(QMessageBox, "critical"):
             self.window.execution_event.emit(
                 {
@@ -1867,7 +1867,7 @@ class ShellRunControllerTests(MainWindowShellTestBase):
         workspace_id = self.window.workspace_manager.active_workspace_id()
         self.window._active_run_id = "run_live"
         self.window._active_run_workspace_id = workspace_id
-        self.window._set_run_ui_state("running", "Running", 1, 0, 0, 0)
+        self.window.run_projection_controller.set_run_ui_state("running", "Running", 1, 0, 0, 0)
 
         self.window.execution_event.emit(
             {
@@ -1912,7 +1912,7 @@ class ShellRunControllerTests(MainWindowShellTestBase):
 
     def test_stale_run_events_do_not_mutate_active_run_ui(self) -> None:
         self.window._active_run_id = "run_live"
-        self.window._set_run_ui_state("running", "Running", 1, 0, 0, 0)
+        self.window.run_projection_controller.set_run_ui_state("running", "Running", 1, 0, 0, 0)
         initial_error_count = self.window.console_panel.error_count
 
         self.window.execution_event.emit(
@@ -1938,7 +1938,7 @@ class ShellRunControllerTests(MainWindowShellTestBase):
         workspace_id = self.window.workspace_manager.active_workspace_id()
         self.window._active_run_id = "run_live"
         self.window._active_run_workspace_id = workspace_id
-        self.window._set_run_ui_state("running", "Running", 1, 0, 0, 0)
+        self.window.run_projection_controller.set_run_ui_state("running", "Running", 1, 0, 0, 0)
         initial_output_text = self.window.console_panel.output_text
         initial_error_count = self.window.console_panel.error_count
 
@@ -2008,7 +2008,7 @@ class ShellRunControllerTests(MainWindowShellTestBase):
 
         self.window._active_run_id = "run_live"
         self.window._active_run_workspace_id = workspace_id
-        self.window._set_run_ui_state("running", "Running", 1, 0, 0, 0)
+        self.window.run_projection_controller.set_run_ui_state("running", "Running", 1, 0, 0, 0)
 
         with patch.object(QMessageBox, "critical"):
             self.window.execution_event.emit(

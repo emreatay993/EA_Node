@@ -681,8 +681,16 @@ class SharedMainWindowShellTestBase(MainWindowShellTestBase):
 
         window.console_panel.clear_all()
         window.update_notification_counters(0, 0)
-        window._set_run_ui_state("ready", "Idle", 0, 0, 0, 0, clear_run=True)
-        window.clear_run_failure_focus()
+        window.run_projection_controller.set_run_ui_state(
+            "ready",
+            "Idle",
+            0,
+            0,
+            0,
+            0,
+            clear_active_run=window.run_controller.clear_active_run,
+        )
+        window.run_projection_controller.clear_run_failure_focus()
         window.clear_graph_hint()
         window._set_graph_search_state(
             open_=False, query="", results=[], highlight_index=-1

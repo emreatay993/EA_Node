@@ -179,6 +179,7 @@ class _ScopeFocusHostStub:
         self.scene = _ScopeFocusSceneStub()
         self.run_failure_focus_calls: list[tuple[str, str, str]] = []
         self.graph_hints: list[tuple[str, int]] = []
+        self.run_projection_controller = self
 
     def set_run_failure_focus(
         self, workspace_id: str, node_id: str, *, node_title: str = ""

@@ -273,43 +273,7 @@ class ProjectDocumentIOService:
             reset(reason="project_install")
 
     def _clear_node_timing_and_warning_state_for_project_install(self) -> None:
-        run_state = getattr(self._host, "run_state", None)
-        if run_state is None:
-            return
-        changed = False
-        started_at_lookup = getattr(
-            run_state, "running_node_started_at_epoch_ms_by_node_id", None
-        )
-        if isinstance(started_at_lookup, dict) and started_at_lookup:
-            started_at_lookup.clear()
-            changed = True
-        cached_elapsed_lookup = getattr(
-            run_state, "cached_node_elapsed_ms_by_workspace_id", None
-        )
-        if isinstance(cached_elapsed_lookup, dict) and cached_elapsed_lookup:
-            cached_elapsed_lookup.clear()
-            changed = True
-        warning_lookup = getattr(
-            run_state, "runtime_warning_messages_by_workspace_id", None
-        )
-        if isinstance(warning_lookup, dict) and warning_lookup:
-            warning_lookup.clear()
-            changed = True
-        if not changed:
-            return
-        commit_state_change = getattr(
-            self._host, "_commit_node_execution_state_change", None
-        )
-        if callable(commit_state_change):
-            commit_state_change()
-            return
-        run_state.node_execution_revision = (
-            int(getattr(run_state, "node_execution_revision", 0)) + 1
-        )
-        state_changed_signal = getattr(self._host, "node_execution_state_changed", None)
-        emit = getattr(state_changed_signal, "emit", None)
-        if callable(emit):
-            emit()
+        self._host.run_projection_controller.clear_node_timing_and_warning_state()
 
     def show_workflow_settings_dialog(self) -> None:
         from ea_node_editor.ui.dialogs.workflow_settings_dialog import (

@@ -14,7 +14,7 @@ import sys
 import pytest
 
 from ea_node_editor.addons.ansys_dpf import catalog as ansys_dpf_catalog
-from ea_node_editor.nodes import bootstrap as node_bootstrap
+from ea_node_editor.nodes import builtin_catalog
 from ea_node_editor.nodes.bootstrap import build_builtin_registry
 from ea_node_editor.nodes.function_plugin import INTERNAL_BUILTIN_FUNCTION_OWNER_ID
 from ea_node_editor.nodes.plugin_contracts import PluginAvailability
@@ -108,7 +108,7 @@ def test_exact_t15_entries_match_golden_and_leave_exact_exception_set(
         for spec in registry.all_specs()
         if isinstance(registry.get_entry(spec.type_id), TrustedFactoryEntry)
     }
-    assert node_bootstrap._TRUSTED_BUILTIN_TYPE_IDS == expected_exceptions
+    assert builtin_catalog._TRUSTED_BUILTIN_TYPE_IDS == expected_exceptions
     assert actual_exceptions == expected_exceptions
     assert registry.plugin_contract_manifest("corex.windows_authentication") is None
 
@@ -118,9 +118,9 @@ def test_t16_trusted_descriptor_allowlist_fails_closed(
     tmp_path: Path,
 ) -> None:
     monkeypatch.setattr(
-        node_bootstrap,
+        builtin_catalog,
         "_TRUSTED_BUILTIN_DESCRIPTORS",
-        node_bootstrap._TRUSTED_BUILTIN_DESCRIPTORS[:-1],
+        builtin_catalog._TRUSTED_BUILTIN_DESCRIPTORS[:-1],
     )
 
     with pytest.raises(

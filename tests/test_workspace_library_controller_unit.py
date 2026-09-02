@@ -194,6 +194,9 @@ class _ViewMutationHostStub:
         self.script_editor = _ScriptEditorStub()
         self.workspace_state_changed = _SignalCounter()
         self.run_action_update_calls = 0
+        self.run_projection_controller = SimpleNamespace(
+            update_run_actions=self._update_run_actions
+        )
 
     def _update_run_actions(self) -> None:
         self.run_action_update_calls += 1

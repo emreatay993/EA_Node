@@ -147,7 +147,15 @@ def _create_shell_timer_dependencies(host: "ShellWindow") -> ShellTimerDependenc
 
 
 def _finalize_shell_window_bootstrap(host: "ShellWindow") -> None:
-    host._set_run_ui_state("ready", "Idle", 0, 0, 0, 0, clear_run=True)
+    host.run_projection_controller.set_run_ui_state(
+        "ready",
+        "Idle",
+        0,
+        0,
+        0,
+        0,
+        clear_active_run=host.run_controller.clear_active_run,
+    )
     host._update_metrics()
 
 

@@ -59,12 +59,12 @@ def _seed_persistent_node_elapsed_state(
     state.running_node_started_at_epoch_ms_by_node_id.clear()
     state.cached_node_elapsed_ms_by_workspace_id.clear()
     state.cached_node_elapsed_ms_by_workspace_id[foreign_workspace_id] = {"node_foreign": 91.0}
-    window.mark_node_execution_running(
+    window.run_projection_controller.mark_node_execution_running(
         workspace_id,
         running_node_id,
         started_at_epoch_ms=125.0,
     )
-    window.mark_node_execution_settled(
+    window.run_projection_controller.mark_node_execution_settled(
         workspace_id,
         cached_node_id,
         status="completed",

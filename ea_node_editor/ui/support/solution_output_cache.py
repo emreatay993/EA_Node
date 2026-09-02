@@ -1,6 +1,6 @@
 # Purpose: Bound shell output observations and select the runtime-retained record.
 # Map: feature_routes/node_execution_visualization.md
-# Tests: tests/test_run_controller_unit.py
+# Tests: tests/test_run_projection_controller.py
 from __future__ import annotations
 
 from collections.abc import Mapping

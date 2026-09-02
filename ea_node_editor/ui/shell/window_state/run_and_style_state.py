@@ -8,22 +8,9 @@ from PyQt6.QtCore import pyqtSlot
 from ea_node_editor.developer_mode import developer_mode_capability_enabled
 
 if TYPE_CHECKING:
-    from ea_node_editor.runtime_contracts.settled_results import RootExecutionError
     from ea_node_editor.ui.shell.window import ShellWindow
 
 logger = logging.getLogger(__name__)
-
-def _coerce_nonnegative_timing_ms(value: object) -> float:
-    from ea_node_editor.ui.shell.controllers.run_controller import RunController
-
-    return RunController._coerce_nonnegative_timing_ms(value)
-
-
-def _current_epoch_ms() -> float:
-    from ea_node_editor.ui.shell.controllers.run_controller import RunController
-
-    return RunController._current_epoch_ms()
-
 
 class ShellWindowRunAndStyleStateMixin:
     @pyqtSlot(bool)
@@ -86,44 +73,6 @@ class ShellWindowRunAndStyleStateMixin:
     def set_graphics_expand_collision_avoidance(self: "ShellWindow", settings: dict[str, Any]) -> None:
         self.shell_workspace_presenter.set_graphics_expand_collision_avoidance(settings)
 
-    def _normalize_node_execution_workspace_id(self: "ShellWindow", workspace_id: str) -> str:
-        return self.run_controller.normalize_node_execution_workspace_id(workspace_id)
-
-    def _commit_node_execution_state_change(self: "ShellWindow") -> None:
-        self.run_controller.commit_node_execution_state_change()
-
-    def mark_node_execution_running(
-        self: "ShellWindow",
-        workspace_id: str,
-        node_id: str,
-        *,
-        started_at_epoch_ms: float = 0.0,
-    ) -> None:
-        self.run_controller.mark_node_execution_running(
-            workspace_id,
-            node_id,
-            started_at_epoch_ms=started_at_epoch_ms,
-        )
-
-    def mark_node_execution_settled(
-        self: "ShellWindow",
-        workspace_id: str,
-        node_id: str,
-        *,
-        status: str = "completed",
-        errors: tuple[RootExecutionError, ...] = (),
-        elapsed_ms: float = 0.0,
-        warning: bool = False,
-    ) -> None:
-        self.run_controller.mark_node_execution_settled(
-            workspace_id,
-            node_id,
-            status=status,
-            errors=errors,
-            elapsed_ms=elapsed_ms,
-            warning=warning,
-        )
-
     def invalidate_solution_for_history_action(
         self: "ShellWindow",
         workspace_id: str,
@@ -140,25 +89,6 @@ class ShellWindowRunAndStyleStateMixin:
                 after_snapshot=after_snapshot,
             )
         )
-
-    def clear_node_execution_visualization_state(self: "ShellWindow") -> None:
-        self.run_controller.clear_node_execution_visualization_state()
-
-    def set_run_failure_focus(
-        self: "ShellWindow",
-        workspace_id: str,
-        node_id: str,
-        *,
-        node_title: str = "",
-    ) -> None:
-        self.run_controller.set_run_failure_focus(
-            workspace_id,
-            node_id,
-            node_title=node_title,
-        )
-
-    def clear_run_failure_focus(self: "ShellWindow") -> None:
-        self.run_controller.clear_run_failure_focus()
 
     def _apply_theme(self: "ShellWindow", theme_id: Any) -> str:
         return self.shell_host_presenter.apply_theme(theme_id)
@@ -272,30 +202,6 @@ class ShellWindowRunAndStyleStateMixin:
 
     def _clear_active_run(self: "ShellWindow"):
         return self.run_controller.clear_active_run()
-
-    def _set_run_ui_state(
-        self: "ShellWindow",
-        state,
-        details,
-        running,
-        queued,
-        done,
-        failed,
-        *,
-        clear_run=False,
-    ):
-        return self.run_controller.set_run_ui_state(
-            state,
-            details,
-            running,
-            queued,
-            done,
-            failed,
-            clear_run=clear_run,
-        )
-
-    def _update_run_actions(self: "ShellWindow"):
-        return self.run_controller.update_run_actions()
 
     @pyqtSlot()
     @pyqtSlot(bool)

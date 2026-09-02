@@ -224,6 +224,70 @@ def declared_python_names(tree: ast.AST) -> set[str]:
 
 
 class GraphArchitectureBoundaryTests(unittest.TestCase):
+    def test_shell_run_projection_has_one_direct_non_qobject_owner(self) -> None:
+        def class_method_names(path: str, class_name: str) -> set[str]:
+            tree = ast.parse((REPO_ROOT / path).read_text(encoding="utf-8"))
+            owner = next(
+                node
+                for node in tree.body
+                if isinstance(node, ast.ClassDef) and node.name == class_name
+            )
+            return {
+                node.name
+                for node in owner.body
+                if isinstance(node, ast.FunctionDef)
+            }
+
+        projection_methods = class_method_names(
+            "ea_node_editor/ui/shell/controllers/run_projection_controller.py",
+            "RunProjectionController",
+        )
+        run_methods = class_method_names(
+            "ea_node_editor/ui/shell/controllers/run_controller.py",
+            "RunController",
+        )
+        shell_methods = class_method_names(
+            "ea_node_editor/ui/shell/window_state/run_and_style_state.py",
+            "ShellWindowRunAndStyleStateMixin",
+        )
+        moved = {
+            "mark_node_execution_running",
+            "mark_node_execution_settled",
+            "handle_solution_state_changed",
+            "sync_solution_facts",
+            "clear_node_execution_visualization_state",
+            "set_run_failure_focus",
+            "clear_run_failure_focus",
+            "update_run_actions",
+        }
+        self.assertLessEqual(moved, projection_methods)
+        self.assertTrue(moved.isdisjoint(run_methods))
+        self.assertTrue(moved.isdisjoint(shell_methods))
+        self.assertIn("handle_execution_event", run_methods)
+        self.assertIn("_handle_execution_event", shell_methods)
+
+        projection_source = (
+            REPO_ROOT
+            / "ea_node_editor/ui/shell/controllers/run_projection_controller.py"
+        ).read_text(encoding="utf-8")
+        run_source = (
+            REPO_ROOT / "ea_node_editor/ui/shell/controllers/run_controller.py"
+        ).read_text(encoding="utf-8")
+        composition_source = (
+            REPO_ROOT / "ea_node_editor/ui/shell/composition/controllers.py"
+        ).read_text(encoding="utf-8")
+        self.assertNotIn("QObject", projection_source)
+        self.assertNotIn("QTimer", projection_source)
+        self.assertNotIn("cache_accepted_output_record", run_source)
+        self.assertIn("run_projection_controller", composition_source)
+        self.assertIn("host._handle_execution_event", composition_source)
+        self.assertFalse(
+            (
+                REPO_ROOT
+                / "ea_node_editor/ui/shell/controllers/run_event_controller.py"
+            ).exists()
+        )
+
     def test_graph_canvas_host_presenter_exclusively_owns_cursor_and_style_actions(self) -> None:
         owner_tree = parse_module(
             "ea_node_editor/ui/shell/presenters/graph_canvas_host_presenter.py"

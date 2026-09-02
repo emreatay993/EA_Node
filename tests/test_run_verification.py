@@ -344,6 +344,20 @@ class RunVerificationTests(unittest.TestCase):
 
     def test_fast_serial_target_and_deselection_contract_is_exact(self) -> None:
         expected_targets = (
+            "tests/test_plugin_loader.py::test_bootstrap_import_keeps_builtin_and_public_plugin_routes_lazy",
+            (
+                "tests/test_external_python_client.py::ExternalPythonSelectionTests::"
+                "test_execution_backend_client_uses_application_default_python_policy_for_external_worker"
+            ),
+            (
+                "tests/test_external_python_client.py::ExternalPythonSelectionTests::"
+                "test_execution_backend_client_uses_workflow_python_executable_for_external_worker"
+            ),
+            (
+                "tests/test_backend_client.py::BackendSelectionIntegrationTests::"
+                "test_headless_runtime_loads_project_selects_workspace_and_runs_without_qapplication"
+            ),
+            "tests/test_runtime_cli.py::test_runtime_cli_module_help",
             "tests/test_process_client.py::ProcessClientTests",
             (
                 "tests/test_managed_runtime.py::ManagedRuntimeTests::"
@@ -368,6 +382,35 @@ class RunVerificationTests(unittest.TestCase):
         self.assertEqual(
             tuple(f"--deselect={target}" for target in expected_targets),
             self.manifest.fast_serial_pytest_deselect_args(),
+        )
+
+    def test_fast_serial_manifest_targets_collect(self) -> None:
+        completed = run(
+            (
+                sys.executable,
+                "-m",
+                "pytest",
+                "--collect-only",
+                "-q",
+                "-n",
+                "0",
+                *self.manifest.FAST_SERIAL_PYTEST_TARGETS,
+            ),
+            cwd=REPO_ROOT,
+            capture_output=True,
+            text=True,
+            check=False,
+            env={
+                key: value
+                for key, value in os.environ.items()
+                if key.upper() not in {"PYTHONHOME", "PYTHONPATH"}
+            },
+        )
+
+        self.assertEqual(
+            0,
+            completed.returncode,
+            completed.stdout + completed.stderr,
         )
 
     def test_fast_and_slow_modes_never_resolve_qml_quick_runner(self) -> None:

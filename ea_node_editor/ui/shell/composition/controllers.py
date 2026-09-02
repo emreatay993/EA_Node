@@ -12,6 +12,7 @@ from ea_node_editor.ui.shell.controllers import (
     PluginAuthoringController,
     ProjectSessionController,
     RunController,
+    RunProjectionController,
 )
 from ea_node_editor.ui.shell.window_search_scope_state import (
     WindowSearchScopeController,
@@ -29,6 +30,7 @@ class ShellControllerDependencies:
     addon_manager_controller: AddonManagerController
     plugin_authoring_controller: PluginAuthoringController
     project_session_controller: ProjectSessionController
+    run_projection_controller: RunProjectionController
     run_controller: RunController
     execution_client: object
 
@@ -37,6 +39,7 @@ class ShellControllerDependencies:
         host.addon_manager_controller = self.addon_manager_controller
         host.plugin_authoring_controller = self.plugin_authoring_controller
         host.project_session_controller = self.project_session_controller
+        host.run_projection_controller = self.run_projection_controller
         host.run_controller = self.run_controller
         host.execution_client = self.execution_client
 
@@ -60,7 +63,11 @@ def create_controller_dependencies(
     addon_manager_controller = AddonManagerController(host)
     plugin_authoring_controller = PluginAuthoringController(host)
     project_session_controller = ProjectSessionController(host)
-    run_controller = RunController(host)
+    run_projection_controller = RunProjectionController(host)
+    run_controller = RunController(
+        host,
+        projection_controller=run_projection_controller,
+    )
     execution_client = _create_shell_execution_client(registry)
     execution_client.subscribe(host.execution_event.emit)
     host.execution_event.connect(
@@ -71,6 +78,7 @@ def create_controller_dependencies(
         addon_manager_controller=addon_manager_controller,
         plugin_authoring_controller=plugin_authoring_controller,
         project_session_controller=project_session_controller,
+        run_projection_controller=run_projection_controller,
         run_controller=run_controller,
         execution_client=execution_client,
     )

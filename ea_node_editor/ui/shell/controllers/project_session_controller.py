@@ -305,9 +305,7 @@ class ProjectSessionController:
         self._session_service.persist_session(project_doc)
 
     def _reset_runtime_surfaces_after_project_change(self) -> None:
-        clear_run_failure_focus = getattr(self._host, "clear_run_failure_focus", None)
-        if callable(clear_run_failure_focus):
-            clear_run_failure_focus()
+        self._host.run_projection_controller.clear_run_failure_focus()
         reset_viewer_session_bridge = getattr(self._host, "_reset_viewer_session_bridge", None)
         if callable(reset_viewer_session_bridge):
             reset_viewer_session_bridge(reason="project_close")
