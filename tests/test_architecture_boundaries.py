@@ -2034,6 +2034,62 @@ class GraphArchitectureBoundaryTests(unittest.TestCase):
         ):
             self.assertNotIn(retired_route, composition)
 
+    def test_native_presentation_handoff_owns_only_shared_demotion_state(self) -> None:
+        handoff_tree = parse_module(
+            "ea_node_editor/ui_qml/native_presentation_handoff.py"
+        )
+        handoff_class = class_node(handoff_tree, "NativePresentationHandoff")
+        self.assertEqual(handoff_class.bases, [])
+        handoff_methods = {
+            node.name
+            for node in handoff_class.body
+            if isinstance(node, ast.FunctionDef)
+        }
+        self.assertTrue(
+            {
+                "begin",
+                "notify_preview_swapped",
+                "cancel",
+                "flush",
+                "shutdown",
+                "_expire",
+                "_on_render_gate_frame",
+            }
+            <= handoff_methods
+        )
+
+        retired_host_state = (
+            "_PendingEmbeddedExitDemotion",
+            "_pending_embedded_exit_demotions",
+            "_embedded_exit_demotion_serial",
+            "_exit_render_gate_window",
+            "_connect_exit_render_gate",
+            "_disconnect_exit_render_gate",
+            "_complete_armed_embedded_exit_demotions",
+        )
+        for relative_path in (
+            "ea_node_editor/ui_qml/viewer_host_service.py",
+            "ea_node_editor/ui_qml/plot_host_service.py",
+        ):
+            source = (REPO_ROOT / relative_path).read_text(encoding="utf-8")
+            with self.subTest(path=relative_path):
+                self.assertEqual(source.count("NativePresentationHandoff("), 1)
+                for retired_name in retired_host_state:
+                    self.assertNotIn(retired_name, source)
+                self.assertIn("def _complete_embedded_exit_demotion(", source)
+
+        handoff_source = (
+            REPO_ROOT / "ea_node_editor/ui_qml/native_presentation_handoff.py"
+        ).read_text(encoding="utf-8")
+        for rejected_abstraction in (
+            "ABC",
+            "Protocol",
+            "Registry",
+            "Pool",
+            "singleton",
+        ):
+            self.assertNotIn(rejected_abstraction, handoff_source)
+
     def test_media_panel_actions_have_one_direct_qobject_service(self) -> None:
         presenter_dir = REPO_ROOT / "ea_node_editor/ui/shell/presenters"
         self.assertFalse((presenter_dir / "graph_canvas_presenter.py").exists())

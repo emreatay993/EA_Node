@@ -1,6 +1,6 @@
 # COREX Runtime, Registry, and Presentation Ownership Refactor QA Matrix
 
-Status: `CHECKPOINT — T17 ACCEPTED; NEXT T18`
+Status: `CHECKPOINT — T18 ACCEPTED; NEXT T19`
 
 This is the single compaction-safe task, test-migration, performance, and review
 ledger for
@@ -93,7 +93,7 @@ diff, and any running writer. Only one writer may edit at a time.
 | T15 Media actions | B | `ACCEPTED` | `python_ui_audit` | Media action service/callback wiring/tests/maps | Direct service branch suite 14 passed/6 subtests; seven neutral fallback paths 2 passed/5 subtests; focused service/command/fullscreen 68 passed/208 subtests; current QML snapshot/mounted-video/direct-service 7 passed/2 subtests; affected shell-isolation routing/default 55 passed/17 subtests; composition bootstrap 1 passed/23 subtests; architecture/artifact-owner guards 2 passed/3 subtests; exact migrated/architecture/ledger 15 passed/2 subtests; ledger/dead-code 22 passed/29 subtests; two exact `moved_to_owner` migrations finalized with collecting replacements/results/`This commit`; exact payload/artifact/source-exposure hashes pass; maps/indexes/traceability/links, Ruff/new-owner format/compile, full dry-run, component diagram, structural/performance, diff/protected/privacy hygiene complete; all reviewer findings resolved and re-reviewed clear; unchanged media cohorts retain accepted T14 integration evidence under the no-new-broad-run stop | `STRUCTURAL PASS; TIMING INCONCLUSIVE — MATCHED TRIM MEDIANS NEUTRAL; P95/CV NOISY; NO TIMING-ONLY ROLLBACK` | Architecture `CLEAR`; correctness/security/no-lost-tests `CLEAR`; performance `CLEAR` | This commit |
 | T16 Canvas export | B | `ACCEPTED` | `python_ui_audit` | Canvas export owner and split bridge composition | Current owner/bridge/review/bootstrap/shell cohort 91 passed/79 subtests; split/preferences/project/action 81 passed/61 subtests; QML snapshot/command/frame 18 passed/161 subtests; flow-edge QML 21 passed/14 subtests; graph-surface exact routes 4 passed; shell composition/settings 3 passed/23 subtests; reviewer-remediation protocol/export/bridge/architecture cohort 26 passed/45 subtests and all 21 replacement IDs collect; targeted run-verification/default routing 54 passed/17 subtests; ledger 12 passed; all 21 exact migrations finalized as `moved_to_owner` with replacements/results/`This commit`; independently reproduced PNG SHA/173 bytes and PPTX inventory, viewport/crop/overlay/order/restore, QObject/timer/meta/context counts, retained-writer hash provenance, and direct-action timing are recorded; full dry-run, maps/indexes/traceability/links, native component diagram, Ruff/bounded format/compile, diff/protected/privacy/process hygiene complete | `STRUCTURAL PASS; TIMING INCONCLUSIVE — DIRECT ACTION BELOW REPEAT THRESHOLD; STRESS FIXTURE RESOURCE-BLOCKED; NO RERUN OR TIMING-ONLY ROLLBACK` | Architecture `CLEAR`; correctness/security/no-lost-tests `CLEAR`; performance `CLEAR` | This commit |
 | T17 Viewer/plot injection | B | `ACCEPTED` | `python_ui_audit` | Four native viewer/plot classes and composition | Direct owner baseline 122 passed/15 subtests; candidate 126 passed/15 subtests; provider/callback/architecture focus 7 passed/4 subtests; fullscreen/replacement/bootstrap/shell lifecycle 94 passed/106 subtests; viewer/plot/QML surface cohort 77 passed/998 subtests with five tooltip helper blocks across four byte-identical accepted-T16 QML files classified `NONBLOCKING-DEFERRED`; architecture/dead-code 60 passed/193 subtests; four direct provider/callback tests plus one architecture guard added with all existing IDs retained; zero migration rows; source/QML/route indexes, maps, traceability, Markdown links, ledger, Ruff/compile, bounded format, diff/protected/privacy/process hygiene pass | `STRUCTURAL PASS; TIMING INCONCLUSIVE — SHELL CONSTRUCTION BELOW REPEAT THRESHOLD; NO TIMING-ONLY ROLLBACK` | Architecture `CLEAR`; correctness/security/no-lost-tests `CLEAR`; performance `CLEAR` | This commit |
-| T18 Native handoff | B | `NOT STARTED` | Pending | Shared handoff plus distinct viewer/plot hosts | Pending | Pending | Pending | Pending |
+| T18 Native handoff | B | `ACCEPTED` | `python_ui_audit` | Shared handoff plus distinct viewer/plot hosts | Baseline duplicate demotion cohort 6 passed plus 3 widget-identity tests; direct handoff plus host integration 7 passed after real-timeout/cancel remediation; authoritative handoff/viewer/plot host cohort 79 passed; overlay/detached/fullscreen/surface/bootstrap/architecture/dead-code cohort 128 passed/213 subtests; four duplicate timeout/cancel IDs finalized as `replaced_by_owner_test` with exact replacements/results/`This commit`; corrected post-T18 15-owner/QML/action/330-ID/fixture convergence baseline locked; source/QML/route indexes, maps, traceability, Markdown links, full dry-run, ledger, Ruff/format/compile, diff/protected/privacy/process hygiene pass | `STRUCTURAL PASS; TIMING INCONCLUSIVE — NO COMPARABLE TIMING/CPU/RSS; NO TIMING-ONLY ROLLBACK` | Architecture `CLEAR`; correctness/security/no-lost-tests `CLEAR`; performance `CLEAR` | This commit |
 | T19 Edge paint policy | B | `NOT STARTED` | Pending | Edge paint JS/math and two renderers | Pending | Pending | Pending | Pending |
 | T20 Surface overlays | B | `NOT STARTED` | Pending | Root layers/new overlay component/tests/maps | Pending | Pending | Pending | Pending |
 | T21 Port row | B | `NOT STARTED` | Pending | Ports layer/new row component/tests/maps | Pending | Pending | Pending | Pending |
@@ -176,6 +176,46 @@ No agent-map edit is needed in T00 because no production or test ownership moves
 | Test candidates | Direct session/control/viewer-host/plot-host owners, content-fullscreen lifecycle, registry replacement, bootstrap/shell runtime, viewer/plot surface routes, graph-surface snapshot/meta, architecture/dead-code, ledger, and docs/map hygiene |
 | Searches run | One justified recursive exact-constructor caller search after map selection, followed by bounded `_shell_window`, provider, callback, and focused-test searches; generated/build/vendor/venv/worktree trees were excluded |
 | Fallback reason | The maps identified the four owners but not every direct constructor fake or the exact service-locator reads; exact source/caller inspection was required to remove constructor compatibility defaults and preserve the two real construction cycles |
+
+### T18 Navigation Record
+
+| Field | T18 record |
+| --- | --- |
+| Route index entries checked | Viewer surfaces, viewer session/native overlay/fullscreen, QML shell/bridges, native host services, graph performance, QML/graph-surface tests, and T19–T24 plan scopes |
+| Maps consulted | Agent atlas/coverage; viewer surfaces; viewer session/overlay/fullscreen; QML shell/bridges; graph canvas; verification and QML graph-surface testing maps |
+| Source candidates | Exact duplicate demotion methods in `viewer_host_service.py` and `plot_host_service.py`; new plain `native_presentation_handoff.py`; `EmbeddedViewerOverlayManager` inspected and retained unchanged |
+| QML candidates | T19–T24 locked owners: edge Canvas/retained/scenegraph, root layers, ports, action router, floating toolbar, and node host; no QML file changed |
+| Test candidates | New direct handoff owner; moved viewer/plot timeout/cancel tests; retained host integration, overlay, detached/fullscreen, viewer surface, bootstrap, architecture/dead-code, and convergence collect/static probes |
+| Searches run | Bounded exact-method AST/body hashes, direct state-field/caller searches, and one map-selected test-name search; generated/build/vendor/venv/worktree trees excluded |
+| Fallback reason | Maps described the live-exit boundary but not which method bodies were byte-structurally identical or which four duplicate test IDs should move; exact AST/source/test inspection was required to keep host-specific capture/completion out of the shared owner |
+
+### T18 Final Write Inventory (Accepted)
+
+The exact task-owned working tree currently contains 20 paths: 2 added and 18
+modified, with no deletion. Protected paths retain their prior ownership rules.
+
+```text
+ARCHITECTURE.md
+docs/PLAN_COREX_RUNTIME_REGISTRY_PRESENTATION_REFACTOR.md
+docs/agent_maps/COVERAGE.md
+docs/agent_maps/feature_routes/viewer_session_overlay_fullscreen.md
+docs/agent_maps/subsystems/qml_shell_and_bridges.md
+docs/agent_maps/subsystems/viewer_surfaces.md
+docs/agent_route_index.json
+docs/agent_route_index.md
+docs/source_test_file_index.md
+docs/specs/INDEX.md
+docs/specs/perf/COREX_RUNTIME_REGISTRY_PRESENTATION_REFACTOR_QA_MATRIX.md
+docs/specs/requirements/TRACEABILITY_MATRIX.md
+ea_node_editor/ui_qml/native_presentation_handoff.py
+ea_node_editor/ui_qml/plot_host_service.py
+ea_node_editor/ui_qml/viewer_host_service.py
+tests/test_architecture_boundaries.py
+tests/test_corex_ownership_refactor_ledger.py
+tests/test_native_presentation_handoff.py
+tests/test_plot_host_service.py
+tests/test_viewer_host_service.py
+```
 
 ### T17 Final Write Inventory (Accepted)
 
@@ -1109,6 +1149,10 @@ when a test is retained.
 | B | T16 | python | tests/test_canvas_view_export.py::test_export_canvas_views_reports_partial_failures_and_keeps_successes | export canvas views reports partial failures and keeps successes | ea_node_editor.ui.shell.presenters.canvas_export_presenter | fast.pytest | moved_to_owner | tests/test_canvas_export_presenter.py::test_export_canvas_views_reports_partial_failures_and_keeps_successes | Exact assertions and fixtures moved with the plain export owner; capture, crop, overlay, ordering, restoration, PNG, and PPTX behavior are unchanged. | This commit | PASS — CanvasExportPresenter direct suite 21 passed/45 subtests; exact 21 replacement IDs collected | This commit |
 | B | T16 | python | tests/test_canvas_view_export.py::test_export_canvas_views_restores_original_view_when_all_views_fail | export canvas views restores original view when all views fail | ea_node_editor.ui.shell.presenters.canvas_export_presenter | fast.pytest | moved_to_owner | tests/test_canvas_export_presenter.py::test_export_canvas_views_restores_original_view_when_all_views_fail | Exact assertions and fixtures moved with the plain export owner; capture, crop, overlay, ordering, restoration, PNG, and PPTX behavior are unchanged. | This commit | PASS — CanvasExportPresenter direct suite 21 passed/45 subtests; exact 21 replacement IDs collected | This commit |
 | B | T16 | python | tests/test_project_session_controller_unit.py::ProjectSessionControllerUnitTests::test_node_property_path_browser_prefers_graph_canvas_presenter_surface | node property path browser uses direct inspector presenter | ea_node_editor.ui.shell.presenters.inspector_presenter | fast.pytest | moved_to_owner | tests/test_project_session_controller_unit.py::ProjectSessionControllerUnitTests::test_node_property_path_browser_uses_inspector_presenter_surface | Same path-browser assertion now names and invokes the final Inspector owner without a canvas aggregate fallback. | This commit | PASS — exact project-session replacement passed; focused remediation cohort 26 passed/45 subtests; exact 21 replacement IDs collected | This commit |
+| B | T18 | python | tests/test_viewer_host_service.py::ViewerHostServiceTests::test_embedded_live_exit_demotion_times_out_without_swap_confirmation | stale timeout cannot complete a newer native preview handoff | ea_node_editor.ui_qml.native_presentation_handoff | gui.pytest | replaced_by_owner_test | tests/test_native_presentation_handoff.py::test_real_qt_timeout_completes_separate_viewer_and_plot_host_outcomes | The host-local timeout assertion is replaced by the direct owner using a real 20 ms Qt timer and separate viewer/plot completion outcomes; stale-serial coverage remains secondary. | This commit | PASS — real-timeout/cancel direct owner plus viewer/plot host integration 7 passed; both replacement IDs collect; full handoff/viewer/plot host cohort 79 passed | This commit |
+| B | T18 | python | tests/test_plot_host_service.py::test_embedded_live_exit_demotion_times_out_without_swap_confirmation | stale timeout cannot complete a newer native preview handoff | ea_node_editor.ui_qml.native_presentation_handoff | gui.pytest | replaced_by_owner_test | tests/test_native_presentation_handoff.py::test_real_qt_timeout_completes_separate_viewer_and_plot_host_outcomes | The host-local timeout assertion is replaced by the direct owner using a real 20 ms Qt timer and separate viewer/plot completion outcomes; stale-serial coverage remains secondary. | This commit | PASS — real-timeout/cancel direct owner plus viewer/plot host integration 7 passed; both replacement IDs collect; full handoff/viewer/plot host cohort 79 passed | This commit |
+| B | T18 | python | tests/test_viewer_host_service.py::ViewerHostServiceTests::test_embedded_reactivation_cancels_pending_exit_demotion | cancellation and shutdown disconnect an idle render gate without late completion | ea_node_editor.ui_qml.native_presentation_handoff | gui.pytest | replaced_by_owner_test | tests/test_native_presentation_handoff.py::test_cancel_flush_and_shutdown_disconnect_idle_render_gate | The host-local cancellation assertion is replaced by the direct owner waiting past actual scheduled timeouts and proving cancel/shutdown produce no late completion. | This commit | PASS — real-timeout/cancel direct owner plus viewer/plot host integration 7 passed; both replacement IDs collect; full handoff/viewer/plot host cohort 79 passed | This commit |
+| B | T18 | python | tests/test_plot_host_service.py::test_embedded_reactivation_cancels_pending_exit_demotion | cancellation and shutdown disconnect an idle render gate without late completion | ea_node_editor.ui_qml.native_presentation_handoff | gui.pytest | replaced_by_owner_test | tests/test_native_presentation_handoff.py::test_cancel_flush_and_shutdown_disconnect_idle_render_gate | The host-local cancellation assertion is replaced by the direct owner waiting past actual scheduled timeouts and proving cancel/shutdown produce no late completion. | This commit | PASS — real-timeout/cancel direct owner plus viewer/plot host integration 7 passed; both replacement IDs collect; full handoff/viewer/plot host cohort 79 passed | This commit |
 
 ## Program A Performance Baseline Contract
 
@@ -1221,7 +1265,10 @@ for release-style rendering conclusions.
 | T16 candidate | Same deterministic PNG/PPTX serialization and 14-action sequence after plain export extraction and exact bridge-source split | The independently reproducible PNG SHA and 173-byte size, PPTX 42-entry/29,688-byte inventory, crop geometry, overlay extent, output order/naming, viewport restore, and direct test results match. The matching canonical PPTX ZIP SHA remains retained writer evidence. Candidate export/type AST manifest SHA `6676A529...EE9A` differs only for class/dependency ownership and direct hint calls; all 34 methods and 10 types remain. | Shell QObject/QTimer `156/3`; removed presenter/media service `0/1`; `CanvasExportPresenter` is plain; state/command meta counts `121/116` and 27 context bindings match baseline. Matching shortened meta SHAs remain retained writer evidence. Constructor SHA values state `1463E004...DDF7` and command `9A521642...3E20` are retained writer evidence; `canvas_source`, `_canvas_source`, shell-window graph-bridge fallback/accessors, aggregate protocols, and presenter host field are absent. The direct-owner action inventory remains 14 actions; payload SHA `CA4E65D5...4F5E` is retained writer evidence. 1,000-loop raw dispatch ns `[17938900,16948600,16794600,16043100,16389100,16565300,16738700]`, median `16738700` (`-0.34%`), p95 `17938900`, CV `0.032770`, MAD `209900`. | No extra QObject, timer, provider, event-loop pass, QML metadata, context name, or action ID was introduced. The locked stress fixture remains resource-blocked and was not rerun; deterministic capture and direct dispatch evidence is structural/advisory only. | `STRUCTURAL COUNTERS PASS; TIMING INCONCLUSIVE — DIRECT ACTION MEDIAN NEUTRAL, REAL-STRESS RESOURCE-BLOCKED, NO TIMING-ONLY ROLLBACK` |
 | T17 baseline | Accepted T16 `1ac032e9`; two warmups then seven same-process offscreen `ShellWindow(_defer_bootstrap=True)` plus `build_shell_window_composition(...)` samples; direct four-owner suite; source/service-location inventory | Raw construction ns `[210314800,208853800,342982500,347221800,303455300,329101400,333996800]`; median `329101400`, max/p95 `347221800`, mean `296560914.286`, CV `0.190579`, MAD `18120400`. Direct session/control/viewer-host/plot-host suite 122 passed/15 subtests. | Independently reproducible structural facts: isolated shell has 51 child QObjects, 0 QTimers, 0 QThreads; all four context identities exact; receivers execution/session-active/session-model/fullscreen/scene-workspace/scene-nodes `1/1/2/2/5/6`; viewer/plot binders uninitialized, engineering binder absent, bound overlays `0/0`; meta property/method/signal/slot counts are session `4/30/4/26`, control `0/27/3/24`, viewer host `6/28/3/25`, plot host `5/13/3/10`. Shortened meta SHAs session `EA262481...18C5B`, control `434448A7...4F18D`, viewer host `8B430312...D76C`, and plot host `BFFB3497...5646E` are retained writer evidence because the exact four-owner serializer command is not retained. The four owners each retain `_shell_window`; composition has one late reference list. | Structural baseline pass; samples are sequential, bimodal, and advisory. |
 | T17 candidate | Same interpreter, cache/warmup, process, offscreen platform, shell construction, cleanup, samples, and structural/meta probe after explicit injection | Raw construction ns `[206973900,209468800,306783700,328257900,331063100,355651400,338334400]`; median `328257900` (`-0.256304%`), max/p95 `355651400` (`+2.427728%`), mean `296647600` (`+0.029230%`), CV `0.193847`, MAD `21474200`. Direct four-owner suite 126 passed/15 subtests. | Every independently reproducible baseline QObject/timer/thread, context identity, receiver, lazy binder/overlay, and meta record count matches exactly; matching shortened meta SHAs remain retained writer evidence. `_shell_window` is absent from all four owners; composition has exactly two bounded late reference lists/callbacks. Direct call probes: session execution/active/workspace providers `1/1/2` across model replacement; control active/workspace/model/registry providers `4/3/3/3`, with scene/manager mismatch short-circuiting before workspace/model/registry; viewer engine/save/bookmark callbacks once each; plot active provider twice and zero after shutdown. Dynamic model/registry replacement is visible and workspace mismatch fails closed. | `STRUCTURAL PASS; TIMING INCONCLUSIVE — MEDIAN AND MAX/P95 BELOW 5% REPEAT THRESHOLD; SEQUENTIAL BIMODAL SAMPLES; NO TIMING-ONLY ROLLBACK` |
-| T17–T25 | Baseline locked at T13/T18/QML gates | Pending | Pending | Pending | Pending |
+| T18 baseline | Accepted T17 `e11dc5bf`; viewer and plot hosts each own an identical pending/serial/timeout/render-gate state machine; six duplicate demotion tests plus three widget-identity/priority tests | Duplicate demotion tests 6 passed in 10.82 s, outer wall 12,403.919 ms; widget identity/inline-fullscreen-detached priority 3 passed. Timing is retained context only. | Two pending dictionaries, two serials, two render-gate windows, two timeout schedulers, two `afterRendering` connect/disconnect paths, and two armed/flush/cancel state machines; host-specific final completion differs. Existing viewer/plot binder registries and overlay manager remain distinct. | `STRUCTURAL BASELINE PASS; TIMING NOT A COMPARATOR AFTER TEST MOVE` |
+| T18 candidate | One concrete plain `NativePresentationHandoff` class, instantiated independently by each host; same host capture/completion callbacks and presentation policy | Initial direct handoff plus two host integration tests 6 passed in 5.08 s, outer wall 6,686.952 ms; reviewer remediation adds real-timeout/cancel waiting and passes 7 tests without a new timing claim. Full handoff/viewer/plot host cohort 79 passed; broader native/surface/architecture cohort 128 passed/213 subtests. The direct-owner test bodies are not timing-comparable to baseline. | One pending/serial/render-gate/timeout implementation; exactly two runtime instances with independent state; shell child QObject/QTimer/QThread remains `51/0/0`; both handoffs start pending `0/0`; viewer/plot binders remain lazy; expected-source, one connection, queued completion, real timeout, stale serial, cancel/flush/shutdown/no-late-completion and no render-callback host mutation are directly proven. Widget identity and `fullscreen > detached > inline` stay host-owned and green. | `STRUCTURAL PASS; TIMING INCONCLUSIVE — TEST BODIES MOVED, NO MATCHED CPU/RSS CLAIM OR TIMING-ONLY ROLLBACK` |
+| T19–T24 convergence baseline | Final Python/native owners plus unchanged QML/action/test/fixture surfaces captured after T18 | Detailed current-owner/QML/API/count/hash/test-ID/fixture evidence recorded below; no whole-app stress child run | T19–T24 must use this baseline rather than deleted `GraphCanvasPresenter`/workspace facades or pre-T18 duplicate native state | `BASELINE CAPTURED — BOUNDED STATIC/COLLECT/STRUCTURAL PROBES ONLY` |
+| T19–T25 | Post-T18/P22 convergence baselines | Pending | Pending | Pending | Pending |
 
 ## T13 Retained T05–T10 Timing Dispersion Audit
 
@@ -1281,7 +1328,8 @@ finalized T14 migrations: 46 `moved_to_owner` and one
 `replaced_by_owner_test`. T15 has two finalized `moved_to_owner` rows with zero
 pending fields. T16 has 21 finalized `moved_to_owner` rows with complete
 replacement/result/commit evidence. T17 is accepted with zero migration rows;
-T18–T26 and the remaining Program B review rows are pending.
+T18 has four finalized `replaced_by_owner_test` rows. T19–T26 and the remaining
+Program B review rows are pending.
 
 ### Retired Program A owners and symbols
 
@@ -1471,6 +1519,107 @@ the complete ordered action-spec SHA-256 is
 `DD03E9FEC2C6F42967F42AE57FA76327D61A56BEFBFE871D14566E53E5538B0C`.
 `GraphCanvasActionRouter.qml` remains the sole QML dispatch owner; the file and
 surface hashes above lock its 53 direct functions before T23.
+
+### Mandatory post-T18 Python/native-to-QML convergence baseline
+
+This checkpoint is the required T19–T24 starting state. QML files were not
+changed by T14–T18. The exact multiline public-record regex is
+`^\s*(?:objectName\s*:\s*"([^"]+)"|function\s+([A-Za-z_]\w*)\s*\(|signal\s+([A-Za-z_]\w*)\b)`:
+function/signal declarations must begin a line after whitespace and functions
+must include `(`, so comments are excluded. Each match is tagged with its kind
+in file order, joined with `os.linesep`, and SHA-256 hashed. Object-name hashes
+use the selected values alone in the same order. Item/QtObject/Timer/Loader
+counts are static declaration counts from anchored line-start regexes, not
+live-object claims.
+
+| QML owner | Lines | File SHA-256 | Objects / functions / signals | Item / QtObject / Timer / Loader | Object SHA-256 | Tagged surface SHA-256 |
+| --- | ---: | --- | --- | --- | --- | --- |
+| `EdgeCanvasLayer.qml` | 1,212 | `CD26C558A41CF375F407487E6845A88AC582DA8A1AC663CE7053FB2C62E6E443` | `3 / 65 / 0` | `2 / 0 / 0 / 0` | `83C964977D15339B62021DCA792EABC3B98A29BF7966EA1FDB54FB523BC0929C` | `B248FA90C00CE1D38636A957E85FCDEE70755F92A38499E80EEFA487A160615E` |
+| `EdgeRetainedLayer.qml` | 585 | `3694BFA0F536C8D222BB7097CD960BD79D79C2431239B5045798A8E8F597F37B` | `2 / 25 / 0` | `3 / 0 / 0 / 0` | `CBCE0219514F4BA2ADF322E8CAC76B57CA5C354850DEC8289A8A95BFA7E1A730` | `588779D840AA7E5711BE61D924F3A4C4516FFEC2BCA1BF98C39D93AE9EE7EE05` |
+| `EdgeScenegraphLayer.qml` | 16 | `4ADFE72F0598A5296E90FFC51A0CEC9A80354ADC115800BA9444359211B067CB` | `1 / 1 / 0` | `1 / 0 / 0 / 0` | `1959BD9D0A52F9725431C0E669EC0B875AF60000253F43BA931E19665E821201` | `7F0621D875F46CF31D1E0089214DD64D19538232BCC38A1ECAACE105B89052C0` |
+| `GraphCanvasRootLayers.qml` | 1,823 | `0E52E26E7E8E8A432B82FC392FDC3CC2294689F1B3221D9BC2DCE43E495E937C` | `28 / 100 / 1` | `10 / 0 / 2 / 0` | `790DC50DA812517665593012A8E290B17F9A37236101B61FBFD2A79D344093E5` | `7ACB2F158338E128ECE3FAE52DA8D98E17ACD70C08293AFFD8D821D0549C0D16` |
+| `GraphNodePortsLayer.qml` | 2,520 | `F578B882F6B750A94453D205C8C3AAFA2310D87FFEAADEC8AC5FB7EF99E8CC16` | `41 / 70 / 1` | `3 / 0 / 0 / 1` | `06A51D6B48EBD66D2035EADAC3CCED21D2F5AF237CDDD0529B93B051E1D7B943` | `16E1F536153D2C72D1177C2B5E7408E923555BE5A55FF12ECBD4BF966DD56FC8` |
+| `GraphCanvasActionRouter.qml` | 663 | `B829907B1473DECFCADBA91C835D6F1D9CF8A2D67448DB66667C7F257E23A3C3` | `0 / 53 / 0` | `0 / 1 / 0 / 0` | `E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855` | `A716CE4E12FFFABD69F6B0126D01722FB7F401646EB06B636C0F9C43D0986108` |
+| `GraphNodeFloatingToolbar.qml` | 2,054 | `BA0A0B75D830FF12C2A1EAC414CD0F18D01454EA8DC2AD2552097CB827DA5511` | `36 / 45 / 0` | `8 / 0 / 0 / 0` | `89445200BFB6539454080AA2DE922BAFCE140EDCB8684F432A424D9626688A81` | `31F3588AE071C247320A58D933664221B5EC595A84EEBA399A390AC2225B2E0A` |
+| `GraphNodeHost.qml` | 1,861 | `B2EAB9DC8206118BB1577DF9BE1AFD0A5B3A17E370A475D9ED1D21159024C0B7` | `6 / 73 / 24` | `2 / 1 / 0 / 0` | `7772075880D2E075BAA9DA04C305D656C060A19F25A26C48099783F0842B3B81` | `3CD0B1B5CA47EF68F045C8954942CF51529D9327E861E1D435D4E1C17BD0B63B` |
+
+Totals across these eight owners are 117 object names, 432 functions, 26
+signals, 29 `Item`, 2 `QtObject`, 2 `Timer`, and 1 `Loader` declarations. Locked
+anchors remain the five root editor names, `graphNodePortContextMenu`,
+`graphNodeFloatingToolbarActionPopoverBridge`, and the three edge root names
+recorded above.
+
+The current action inventory contains 65 `GraphActionId` values. Sorted IDs
+joined with `os.linesep` hash to
+`A549EC58DAC70857863A7F2543727291CFDF4C293AAFBC14B7092FC4B0522C7B`.
+The exact current spec serializer is JSON over `[action.value,
+dataclasses.asdict(graph_action_spec(action))]` pairs sorted by action value,
+with `sort_keys=True`, separators `(',', ':')`, and `default=str`; SHA-256 is
+`524B320F94B2CFCC982A9D7284EC86BC123A2719B14BD862A0CDF32E90D7F9F4`.
+These hashes use a different documented serializer from the older T13 action
+hashes and are not compared directly.
+
+The complete current roster contains 15 Python owners that T19–T24 may
+reference:
+
+```text
+WorkspaceEditController
+WorkspaceDropConnectController
+MediaPanelActionService
+CanvasExportPresenter
+GraphCanvasHostPresenter
+GraphActionController
+RunController
+RunProjectionController
+RunEventController
+ContentFullscreenBridge
+ViewerSessionBridge
+ViewerControlBridge
+ViewerHostService
+PlotHostService
+NativePresentationHandoff
+```
+
+`GraphCanvasPresenter`, workspace umbrella/edit facades, and pre-Program-A run
+facades are absent and must not be referenced by QML work.
+
+The exact ordered 14-module selection is:
+
+```text
+tests/test_edge_snapshot_spatial_index.py
+tests/test_flow_edge_labels.py
+tests/test_graph_canvas_surface_snapshot.py
+tests/test_graph_action_contracts.py
+tests/test_floating_toolbar_positioning.py
+tests/test_default_port_values.py
+tests/test_port_availability.py
+tests/test_port_flow_state.py
+tests/test_port_labels.py
+tests/test_graph_surface_input_contract.py
+tests/test_graph_surface_input_controls.py
+tests/test_graph_surface_input_inline.py
+tests/test_passive_graph_surface_host.py
+tests/test_selection_toolbar_mockups.py
+```
+
+The exact command is `venv/Scripts/python.exe -m pytest --collect-only -q -n 0`
+followed by those paths in that order. It exits `0` and collects 330 unique IDs.
+Ordered IDs joined with `os.linesep` hash to
+`E8CE2D7A96711B7A66A38C3F883CAC5963386555B3C26BC8D087F027F6B2FF48`;
+first is
+`tests/test_edge_snapshot_spatial_index.py::EdgeSnapshotSpatialIndexTests::test_edge_topology_delta_refreshes_only_dirty_edges_and_spatial_index_entries`,
+last is
+`tests/test_selection_toolbar_mockups.py::test_selection_toolbar_runner_writes_theme_variant_screenshots`.
+
+The canonical 1,200-node fixture remains 1,203,145 bytes with SHA-256
+`DBE1B48CCD611B762615DAB9D8CE5FCA1935441449EAFFC362979126F445C4FB`;
+the graph-surface snapshot remains 30,674 bytes with SHA-256
+`8FACC5C409C1589D92ED16F5528328655265160A18DD7659497F1280C73A4B48`.
+No resource-exhausting whole-app child was run. The bounded convergence commands
+are the documented static serializer, the 14-module `pytest --collect-only -q
+-n 0` command, focused snapshot/action/edge/port tests, and future task-specific
+synthetic/offscreen harness runs. Any real-fixture attempt remains separately
+resource-gated by the T14 25.8 GB/94 MB evidence.
 
 ### Program B inventory and performance fixtures
 
@@ -1676,6 +1825,24 @@ only until the root orchestrator requests the acceptance-status/commit update.
 | Privacy/process/environment cleanup | `PASS`; added-line private-study provenance scan has zero hits; no verification/pytest/performance task process remains; `QT_ROOT`, `QT_QPA_PLATFORM`, and `PYTHONPYCACHEPREFIX` are `<UNSET>`. |
 | Review/status boundary | Architecture, correctness/security/no-lost-tests, and performance-causality re-reviews are `CLEAR`. T17 is accepted with `This commit`; nothing is staged, and T18 has not started. |
 
+### T18 accepted implementation evidence
+
+| Command / evidence | Result |
+| --- | --- |
+| Pre-edit native baseline | `PASS`; six duplicate viewer/plot demotion tests and three inline/fullscreen/detached widget-identity tests pass. Source AST proves eight identical shared methods plus host-specific final completion. |
+| Direct handoff owner | `PASS`; five direct tests cover expected-source rejection, one render connection, render callback queuing, a real 20 ms Qt timeout with distinct viewer/plot outcomes, secondary stale-serial injection, cancel/flush/shutdown disconnect, wait-past-timeout no-late-completion, fallback completion, and separate viewer/plot state. Two retained host integration tests pass; combined 7 passed. |
+| Viewer/plot host owners | `PASS`; new handoff plus complete viewer/plot host cohort 79 passed after exact test migration corrections. Viewer and plot each instantiate one plain handoff; no singleton/shared state. |
+| Native/surface regression | `PASS`; overlay manager, detached/fullscreen plot, viewer surfaces, content-fullscreen lifecycle, bootstrap, architecture, and dead-code cohort 128 passed/213 subtests. Widget identity, binder reuse, overlay priority, and QML/meta surfaces remain in existing owners. |
+| Architecture/deletion proof | `PASS`; focused guard proves the handoff is plain, both hosts instantiate once, duplicated pending/serial/render-gate fields and methods are absent, host completion callbacks remain, and no ABC/protocol/registry/pool/singleton framework was added. |
+| Test migration | Four duplicate timeout/cancel IDs are absent from viewer/plot host suites and are finalized as `replaced_by_owner_test` with two exact direct handoff replacements, assertion equivalence, results, and `This commit`. Host-specific preview-swap integration tests remain in both owners. |
+| Structural/performance | `STRUCTURAL PASS; TIMING INCONCLUSIVE`; shell child QObject/QTimer/QThread remains `51/0/0`, handoffs are distinct with pending `0/0`, binders remain lazy, and one shared implementation replaces two copies. Baseline/candidate test bodies differ, so wall-time/CPU/RSS are not compared and no timing-only rollback is made. |
+| Post-T18 convergence | `PASS`; all 15 current Python owners, eight anchored QML owner APIs/hashes/declaration counts, 65-action serializer, exact ordered 14-module command with 330 focused IDs, fixture/snapshot hashes, and bounded future commands are recorded above. The resource-exhausting whole-app child was not run. |
+| Source/test hygiene | `PASS`; Ruff checks all 8 changed Python files and all compile; new owner/test are formatted. Source/QML/route index checks, maps, traceability, Markdown links, full dry-run, and 12-test ledger pass. |
+| Working/cached diff and staging | `PASS`; both diff checks exit 0, staged count is zero, and the exact T18 inventory is 20 paths: 2 added, 18 modified, 0 deleted. |
+| Protected paths and mixed INDEX | `PASS`; protected untracked SHA-256 values remain `F1709CD27CDD97141E354AB0644B3602F8EA43EBEFBB294B0C5FA4578C6788F2` and `468C04C09DF327871ED6CD947EF58E8F26412D632A1E969C3C56303DFC44061B`. The mixed `docs/specs/INDEX.md` retains the user-owned Physical Simulation row plus the ownership-refactor `CHECKPOINT — T18 ACCEPTED; NEXT T19` row. |
+| Privacy/process/environment cleanup | `PASS`; added-line private-study provenance scan has zero hits; no verification/pytest/performance task process remains; `QT_ROOT`, `QT_QPA_PLATFORM`, and `PYTHONPYCACHEPREFIX` are `<UNSET>`. |
+| Review/status boundary | Architecture, correctness/security/no-lost-tests, and performance-causality re-reviews are `CLEAR`. T18 is accepted with `This commit`; nothing is staged, and T19 has not started. |
+
 ## Review Ledger
 
 | Review | Scope | Reviewer | Findings | Resolution | Verdict |
@@ -1746,6 +1913,9 @@ only until the root orchestrator requests the acceptance-status/commit update.
 | T17 architecture/ownership | Explicit providers/direct collaborators, four owner absences, composition order, and exactly two bounded late callbacks | Architecture reviewer | Resolved: no source issue remained after the QA-only pass; the review required confirmation that no behavior/QML/map/T18 expansion occurred | Confirmed the four direct owners, specific service-location absence guard, two bounded callbacks, unchanged lifecycle/meta surfaces, and 29-path inventory; re-review found no remaining issue. | `CLEAR` |
 | T17 correctness/security/no-lost-tests | Dynamic model/registry replacement, fail-closed workspace mismatch, callbacks, QML/meta identity, lifecycle, and retained test IDs | Correctness reviewer | Resolved: QA misstated the predecessor tooltip debt as five QML files rather than five helper blocks across four QML files and omitted the intended general-category correction | Corrected the exact four file/five block inventory, classified it `NONBLOCKING-DEFERRED`, and recorded the deferred `tooltipCategory: "general"` product-contract decision without changing QML/tests; re-review found no remaining T17 issue. | `CLEAR` |
 | T17 performance causality | QObject/timer/thread/provider/signal/meta/lazy counts and matched shell construction samples | Performance reviewer | Resolved: four shortened meta SHAs were presented alongside independently reproducible counts without a retained exact four-owner serializer | Labeled all four shortened SHAs retained writer evidence; independently reproducible claims cover meta record counts, signal counts, context identities, QObject/timer/thread counts, lazy binders/overlays, provider calls, and raw timing only; re-review found no remaining issue. | `CLEAR` |
+| T18 architecture/ownership | Shared handoff scope, separate host instances/state, host-specific callbacks, and absence of a generic native framework | Architecture reviewer | Resolved: the post-T18 Python roster omitted final direct owners `GraphActionController` and `ContentFullscreenBridge` | Added both exact owners for a complete 15-owner roster while preserving their action policy and fullscreen lifecycle boundaries; re-review found no remaining issue. | `CLEAR` |
+| T18 correctness/security/no-lost-tests | Expected-source/serial/render ordering, cancel/flush/shutdown, widget identity/priority, four migrations, and convergence baseline | Correctness reviewer | Resolved: timeout proof primarily called private `_expire`, cancel did not wait past its scheduled timeout, and the 14-module collection selection was summarized rather than recorded exactly | Added a bounded real 20 ms Qt event-loop timeout test with separate viewer/plot completion outcomes; cancel and shutdown wait past scheduled timeout and prove no late completion; private stale-serial coverage remains secondary. Recorded the exact ordered module list/command, reproduced 330 IDs/hash, finalized all four migrations, and re-review found no remaining issue. | `CLEAR` |
+| T18 performance causality | Structural duplication removal, connection/timer/object/binder counts, native lifecycle, bounded timing disposition, and post-T18 baseline | Performance reviewer | Resolved: the QML function regex matched comment text, overstating `GraphNodeFloatingToolbar` and total function counts by one | Anchored function/signal declarations to line starts and required `function name(`; toolbar is 45 functions with tagged SHA `31F3588A...B2E0A`, total functions are 432, the exact serializer is documented, and re-review found no remaining issue. No comparable timing/CPU/RSS claim is made. | `CLEAR` |
 | Program B architecture/ownership | T14–T25 | Pending | Pending | Pending | Pending |
 | Program B correctness/security/no-lost-tests | T14–T25 | Pending | Pending | Pending | Pending |
 | Program B performance causality | T14–T25 | Pending | Pending | Pending | Pending |

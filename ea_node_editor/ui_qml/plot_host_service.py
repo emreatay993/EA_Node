@@ -30,6 +30,9 @@ from ea_node_editor.ui_qml.embedded_viewer_overlay_manager import (
     EmbeddedViewerOverlaySpec,
 )
 from ea_node_editor.ui_qml.native_overlay_owners import PLOT_HOST_OVERLAY_OWNER
+from ea_node_editor.ui_qml.native_presentation_handoff import (
+    NativePresentationHandoff,
+)
 from ea_node_editor.ui.plot_preview_cache_provider import PlotPreviewCacheImageProvider
 from ea_node_editor.ui_qml.plot_widget_binder import (
     MatplotlibPlotWidgetBinder,
@@ -51,19 +54,6 @@ _OverlayKey = tuple[str, str]
 _PRESENTATION_DETACHED = "detached"
 _PRESENTATION_OVERLAY = "overlay"
 _LIVE_PLOT_OPTION_KEYS = ("plot_theme", "hover_readout", "vertical_guide", "crosshair")
-
-# Upper bound for the live-exit handoff: if QML never confirms the swapped
-# preview frame (hidden window, collapsed node, capture raced a teardown),
-# the deferred demotion still runs and the overlay hides as before.
-_EMBEDDED_EXIT_DEMOTION_TIMEOUT_MS = 300
-
-
-@dataclass
-class _PendingEmbeddedExitDemotion:
-    expected_source: str
-    serial: int
-    armed: bool = False
-
 
 def _mapping(value: Any) -> dict[str, Any]:
     normalized = value.toVariant() if hasattr(value, "toVariant") else value
@@ -533,9 +523,11 @@ class PlotHostService(QObject):
         self._bound_overlays: dict[_OverlayKey, _BoundPlotOverlay] = {}
         self._detached_windows: dict[_OverlayKey, _DetachedPlotWindow] = {}
         self._embedded_interaction_active: set[_OverlayKey] = set()
-        self._pending_embedded_exit_demotions: dict[_OverlayKey, _PendingEmbeddedExitDemotion] = {}
-        self._embedded_exit_demotion_serial = 0
-        self._exit_render_gate_window: QObject | None = None
+        self._native_presentation_handoff = NativePresentationHandoff(
+            overlay_manager_provider=lambda: self._overlay_manager,
+            completion_callback=self._complete_embedded_exit_demotion,
+            timeout_ms=300,
+        )
         self._plot_render_signatures: dict[_OverlayKey, tuple[Any, ...]] = {}
         self._plot_view_states: dict[_OverlayKey, tuple[tuple[Any, ...], object]] = {}
         self._preview_cache_revision = 0
@@ -605,8 +597,7 @@ class PlotHostService(QObject):
             return
         if self._overlay_manager is overlay_manager:
             return
-        self._disconnect_exit_render_gate()
-        self._flush_pending_embedded_exit_demotions()
+        self._native_presentation_handoff.flush()
         self._release_all_bindings(reason="overlay_manager_replaced")
         previous_overlay_manager = self._overlay_manager
         self._overlay_manager = overlay_manager
@@ -626,7 +617,7 @@ class PlotHostService(QObject):
         key = (workspace_id, normalized_node_id)
         changed = False
         if bool(active):
-            self._cancel_pending_embedded_exit_demotion(key)
+            self._native_presentation_handoff.cancel(key)
             if key not in self._embedded_interaction_active:
                 self._embedded_interaction_active.add(key)
                 changed = True
@@ -657,16 +648,7 @@ class PlotHostService(QObject):
         key = self._key_for_node_id(node_id)
         if key is None:
             return
-        pending = self._pending_embedded_exit_demotions.get(key)
-        if pending is None or pending.armed:
-            return
-        if _string(source) != pending.expected_source:
-            return
-        pending.armed = True
-        if not self._connect_exit_render_gate():
-            # No render signal is reachable; the swap is applied, so one
-            # queued pass is the best remaining ordering guarantee.
-            QTimer.singleShot(0, self._complete_armed_embedded_exit_demotions)
+        self._native_presentation_handoff.notify_preview_swapped(key, source)
 
     def _capture_embedded_exit_state(self, key: _OverlayKey) -> bool:
         """Capture the live frame and report whether demotion was deferred."""
@@ -680,7 +662,9 @@ class PlotHostService(QObject):
             return False
         if not self._embedded_exit_overlay_visible(key):
             return False
-        return self._begin_pending_embedded_exit_demotion(key, expected_source=source_after)
+        return self._native_presentation_handoff.begin(
+            key, expected_source=source_after
+        )
 
     def _embedded_exit_overlay_visible(self, key: _OverlayKey) -> bool:
         bound = self._bound_overlays.get(key)
@@ -700,33 +684,7 @@ class PlotHostService(QObject):
                 return False
         return True
 
-    def _begin_pending_embedded_exit_demotion(self, key: _OverlayKey, *, expected_source: str) -> bool:
-        self._embedded_exit_demotion_serial += 1
-        serial = self._embedded_exit_demotion_serial
-        self._pending_embedded_exit_demotions[key] = _PendingEmbeddedExitDemotion(
-            expected_source=expected_source,
-            serial=serial,
-        )
-        QTimer.singleShot(
-            _EMBEDDED_EXIT_DEMOTION_TIMEOUT_MS,
-            lambda key=key, serial=serial: self._expire_pending_embedded_exit_demotion(key, serial),
-        )
-        return True
-
-    def _expire_pending_embedded_exit_demotion(self, key: _OverlayKey, serial: int) -> None:
-        pending = self._pending_embedded_exit_demotions.get(key)
-        if pending is None or pending.serial != serial:
-            return
-        self._complete_pending_embedded_exit_demotion(key)
-
-    def _cancel_pending_embedded_exit_demotion(self, key: _OverlayKey) -> None:
-        self._pending_embedded_exit_demotions.pop(key, None)
-        self._disconnect_exit_render_gate_if_idle()
-
-    def _complete_pending_embedded_exit_demotion(self, key: _OverlayKey) -> None:
-        if self._pending_embedded_exit_demotions.pop(key, None) is None:
-            return
-        self._disconnect_exit_render_gate_if_idle()
+    def _complete_embedded_exit_demotion(self, key: _OverlayKey) -> None:
         if self._shutdown:
             return
         if key in self._embedded_interaction_active:
@@ -735,62 +693,6 @@ class PlotHostService(QObject):
             return
         self._release_inactive_embedded_overlay(key)
         self._schedule_sync()
-
-    def _complete_armed_embedded_exit_demotions(self) -> None:
-        for key, pending in list(self._pending_embedded_exit_demotions.items()):
-            if pending.armed:
-                self._complete_pending_embedded_exit_demotion(key)
-
-    def _flush_pending_embedded_exit_demotions(self) -> None:
-        for key in list(self._pending_embedded_exit_demotions):
-            self._complete_pending_embedded_exit_demotion(key)
-
-    def _exit_render_gate_source_window(self) -> QObject | None:
-        overlay_manager = self._overlay_manager
-        quick_widget = getattr(overlay_manager, "quick_widget", None) if overlay_manager is not None else None
-        root_object = getattr(quick_widget, "rootObject", None)
-        root_item = root_object() if callable(root_object) else None
-        window_getter = getattr(root_item, "window", None)
-        window = window_getter() if callable(window_getter) else None
-        return window if isinstance(window, QObject) else None
-
-    def _connect_exit_render_gate(self) -> bool:
-        if self._exit_render_gate_window is not None:
-            return True
-        window = self._exit_render_gate_source_window()
-        signal = getattr(window, "afterRendering", None) if window is not None else None
-        if signal is None or not hasattr(signal, "connect"):
-            return False
-        try:
-            signal.connect(self._on_exit_render_gate_frame)
-        except (TypeError, RuntimeError):
-            return False
-        self._exit_render_gate_window = window
-        return True
-
-    def _on_exit_render_gate_frame(self) -> None:
-        # afterRendering fires inside the scene render pass: never mutate
-        # binder or overlay state here, only schedule the completion.
-        self._disconnect_exit_render_gate()
-        QTimer.singleShot(0, self._complete_armed_embedded_exit_demotions)
-
-    def _disconnect_exit_render_gate(self) -> None:
-        window = self._exit_render_gate_window
-        self._exit_render_gate_window = None
-        if window is None:
-            return
-        signal = getattr(window, "afterRendering", None)
-        if signal is None:
-            return
-        try:
-            signal.disconnect(self._on_exit_render_gate_frame)
-        except (TypeError, RuntimeError):
-            pass
-
-    def _disconnect_exit_render_gate_if_idle(self) -> None:
-        if any(pending.armed for pending in self._pending_embedded_exit_demotions.values()):
-            return
-        self._disconnect_exit_render_gate()
 
     @pyqtSlot(str, result=str)
     def cached_preview_source(self, node_id: str) -> str:
@@ -933,7 +835,7 @@ class PlotHostService(QObject):
     def reset(self, *, reason: str = "") -> None:
         if self._shutdown:
             return
-        self._flush_pending_embedded_exit_demotions()
+        self._native_presentation_handoff.flush()
         self._release_all_bindings(reason=reason or "reset")
         self._close_all_detached_windows(reason=reason or "reset")
         self._clear_all_cached_previews()
@@ -963,8 +865,7 @@ class PlotHostService(QObject):
         self._shutdown = True
         self._sync_queued = False
         self._sync_suspended = False
-        self._disconnect_exit_render_gate()
-        self._pending_embedded_exit_demotions.clear()
+        self._native_presentation_handoff.shutdown()
         self._release_all_bindings(reason=reason or "shutdown")
         self._close_all_detached_windows(reason=reason or "shutdown")
         self._clear_all_cached_previews()
@@ -1054,7 +955,7 @@ class PlotHostService(QObject):
             signal.connect(slot)
 
     def _on_workspace_changed(self, _workspace_id: str = "") -> None:
-        self._flush_pending_embedded_exit_demotions()
+        self._native_presentation_handoff.flush()
         self._embedded_interaction_active.clear()
         self._close_all_detached_windows(reason="workspace_changed")
         self._clear_all_cached_previews()
@@ -1079,7 +980,7 @@ class PlotHostService(QObject):
             return True
         # A pending live-exit demotion keeps the overlay hosted until QML
         # confirms the swapped preview frame (or the handoff times out).
-        return key in self._pending_embedded_exit_demotions
+        return self._native_presentation_handoff.contains(key)
 
     def _key_for_node_id(self, node_id: str) -> _OverlayKey | None:
         workspace_id = self._active_workspace_id()

@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import time
 import unittest
 from dataclasses import replace
 from typing import Any
@@ -1603,69 +1602,31 @@ class ViewerHostServiceTests(MainWindowShellTestBase):
         node_id = self._open_live_embedded_viewer()
         key = (self.workspace_id, node_id)
 
-        with patch.object(viewer_host_module, "_EMBEDDED_EXIT_DEMOTION_TIMEOUT_MS", 5000):
-            self.host_service.set_embedded_interaction_active(node_id, False)
-            self.app.processEvents()
-            self.app.processEvents()
+        self.host_service.set_embedded_interaction_active(node_id, False)
+        self.app.processEvents()
+        self.app.processEvents()
 
-            # The bridge demotion (and with it the overlay teardown) waits
-            # for the swapped proxy frame instead of racing the reveal.
-            self.assertIn(key, self.host_service._pending_embedded_exit_demotions)
-            self.assertEqual(self.bridge.session_state(node_id)["options"]["live_mode"], "full")
-            self.assertIsNotNone(
-                self.overlay_manager.overlay_widget(node_id, workspace_id=self.workspace_id)
-            )
-
-            source = self.host_service.cached_preview_source(node_id)
-            self.assertTrue(source.startswith("image://viewer-preview-cache/"))
-            self.host_service.notify_cached_preview_swapped(node_id, source)
-            pending = self.host_service._pending_embedded_exit_demotions.get(key)
-            if pending is not None:
-                self.assertTrue(pending.armed)
-                self.host_service._on_exit_render_gate_frame()
-            self.app.processEvents()
-            self.app.processEvents()
-
-        self.assertNotIn(key, self.host_service._pending_embedded_exit_demotions)
-        self.assertEqual(self.bridge.session_state(node_id)["options"]["live_mode"], "proxy")
-        self.assertIsNone(self.host_service._exit_render_gate_window)
-
-    def test_embedded_live_exit_demotion_times_out_without_swap_confirmation(self) -> None:
-        node_id = self._open_live_embedded_viewer()
-        key = (self.workspace_id, node_id)
-
-        with patch.object(viewer_host_module, "_EMBEDDED_EXIT_DEMOTION_TIMEOUT_MS", 20):
-            self.host_service.set_embedded_interaction_active(node_id, False)
-            self.assertIn(key, self.host_service._pending_embedded_exit_demotions)
-            deadline = time.monotonic() + 2.0
-            while time.monotonic() < deadline:
-                self.app.processEvents()
-                if self.bridge.session_state(node_id)["options"]["live_mode"] == "proxy":
-                    break
-                time.sleep(0.01)
-
-        self.assertNotIn(key, self.host_service._pending_embedded_exit_demotions)
-        self.assertEqual(self.bridge.session_state(node_id)["options"]["live_mode"], "proxy")
-
-    def test_embedded_reactivation_cancels_pending_exit_demotion(self) -> None:
-        node_id = self._open_live_embedded_viewer()
-        key = (self.workspace_id, node_id)
-
-        with patch.object(viewer_host_module, "_EMBEDDED_EXIT_DEMOTION_TIMEOUT_MS", 20):
-            self.host_service.set_embedded_interaction_active(node_id, False)
-            self.assertIn(key, self.host_service._pending_embedded_exit_demotions)
-            self.host_service.set_embedded_interaction_active(node_id, True)
-            self.assertNotIn(key, self.host_service._pending_embedded_exit_demotions)
-
-            # Give the cancelled timeout a chance to fire; the serial guard
-            # must keep it from demoting the re-entered session.
-            deadline = time.monotonic() + 0.3
-            while time.monotonic() < deadline:
-                self.app.processEvents()
-                time.sleep(0.01)
-
+        # The bridge demotion (and with it the overlay teardown) waits
+        # for the swapped proxy frame instead of racing the reveal.
+        handoff = self.host_service._native_presentation_handoff
+        self.assertTrue(handoff.contains(key))
         self.assertEqual(self.bridge.session_state(node_id)["options"]["live_mode"], "full")
-        self.assertTrue(self.host_service.embedded_live_overlay_ready(node_id))
+        self.assertIsNotNone(
+            self.overlay_manager.overlay_widget(node_id, workspace_id=self.workspace_id)
+        )
+
+        source = self.host_service.cached_preview_source(node_id)
+        self.assertTrue(source.startswith("image://viewer-preview-cache/"))
+        self.host_service.notify_cached_preview_swapped(node_id, source)
+        if handoff.contains(key):
+            self.assertTrue(handoff.is_armed(key))
+            handoff._on_render_gate_frame()
+        self.app.processEvents()
+        self.app.processEvents()
+
+        self.assertFalse(handoff.contains(key))
+        self.assertEqual(self.bridge.session_state(node_id)["options"]["live_mode"], "proxy")
+        self.assertFalse(handoff.render_gate_connected)
 
     def test_snapshot_from_projected_state_prefers_projected_camera_state_during_pending_transition(self) -> None:
         snapshot = self.host_service._snapshot_from_projected_state(
@@ -2417,9 +2378,7 @@ class ViewerHostServiceTests(MainWindowShellTestBase):
             self.app.sendEvent(self.window, QEvent(QEvent.Type.WindowDeactivate))
             self.app.processEvents()
         unowned.deleteLater()
-        self.host_service._complete_pending_embedded_exit_demotion(
-            (self.workspace_id, node_id)
-        )
+        self.host_service._native_presentation_handoff.flush()
         self.app.processEvents()
 
         self.assertEqual(len(binder.capture_calls), 1)

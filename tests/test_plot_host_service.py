@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import copy
-import time
 from unittest.mock import patch
 
 from PyQt6.QtCore import QObject, QSize, pyqtSignal
@@ -455,75 +454,33 @@ def test_embedded_live_exit_defers_demotion_until_preview_swap_renders(qapp) -> 
     service, overlay_manager, binder = _live_plot_service_with_captured_preview()
     key = ("ws-plot", "node-plot")
 
-    with patch.object(plot_host_module, "_EMBEDDED_EXIT_DEMOTION_TIMEOUT_MS", 5000):
-        service.set_embedded_interaction_active("node-plot", False)
+    service.set_embedded_interaction_active("node-plot", False)
 
-        # The overlay release (and with it the native hide) waits for the
-        # swapped proxy frame instead of racing the reveal.
-        assert key in service._pending_embedded_exit_demotions  # noqa: SLF001
-        assert binder.release_calls == []
-        assert overlay_manager.overlay_widget("node-plot", workspace_id="ws-plot") is not None
-        service.sync()
-        assert service.active_overlay_count == 1
+    # The overlay release (and with it the native hide) waits for the
+    # swapped proxy frame instead of racing the reveal.
+    handoff = service._native_presentation_handoff  # noqa: SLF001
+    assert handoff.contains(key)
+    assert binder.release_calls == []
+    assert overlay_manager.overlay_widget("node-plot", workspace_id="ws-plot") is not None
+    service.sync()
+    assert service.active_overlay_count == 1
 
-        source = service.cached_preview_source("node-plot")
-        assert source.startswith("image://plot-preview-cache/")
-        service.notify_cached_preview_swapped("node-plot", source)
-        pending = service._pending_embedded_exit_demotions.get(key)  # noqa: SLF001
-        if pending is not None:
-            assert pending.armed
-            # The fake overlay manager exposes no QQuickWindow, so the armed
-            # completion runs through the queued-pass fallback.
-            for _ in range(3):
-                qapp.processEvents()
+    source = service.cached_preview_source("node-plot")
+    assert source.startswith("image://plot-preview-cache/")
+    service.notify_cached_preview_swapped("node-plot", source)
+    if handoff.contains(key):
+        assert handoff.is_armed(key)
+        # The fake overlay manager exposes no QQuickWindow, so the armed
+        # completion runs through the queued-pass fallback.
+        for _ in range(3):
+            qapp.processEvents()
 
-    assert key not in service._pending_embedded_exit_demotions  # noqa: SLF001
+    assert not handoff.contains(key)
     assert len(binder.release_calls) == 1
     assert overlay_manager.overlay_widget("node-plot", workspace_id="ws-plot") is None
-    assert service._exit_render_gate_window is None  # noqa: SLF001
+    assert handoff.render_gate_connected is False
     service.sync()
     assert service.active_overlay_count == 0
-
-
-def test_embedded_live_exit_demotion_times_out_without_swap_confirmation(qapp) -> None:  # noqa: ANN001
-    service, overlay_manager, binder = _live_plot_service_with_captured_preview()
-    key = ("ws-plot", "node-plot")
-
-    with patch.object(plot_host_module, "_EMBEDDED_EXIT_DEMOTION_TIMEOUT_MS", 20):
-        service.set_embedded_interaction_active("node-plot", False)
-        assert key in service._pending_embedded_exit_demotions  # noqa: SLF001
-        deadline = time.monotonic() + 2.0
-        while time.monotonic() < deadline:
-            qapp.processEvents()
-            if key not in service._pending_embedded_exit_demotions:  # noqa: SLF001
-                break
-            time.sleep(0.01)
-
-    assert key not in service._pending_embedded_exit_demotions  # noqa: SLF001
-    assert len(binder.release_calls) == 1
-    assert overlay_manager.overlay_widget("node-plot", workspace_id="ws-plot") is None
-
-
-def test_embedded_reactivation_cancels_pending_exit_demotion(qapp) -> None:  # noqa: ANN001
-    service, overlay_manager, binder = _live_plot_service_with_captured_preview()
-    key = ("ws-plot", "node-plot")
-
-    with patch.object(plot_host_module, "_EMBEDDED_EXIT_DEMOTION_TIMEOUT_MS", 20):
-        service.set_embedded_interaction_active("node-plot", False)
-        assert key in service._pending_embedded_exit_demotions  # noqa: SLF001
-        service.set_embedded_interaction_active("node-plot", True)
-        assert key not in service._pending_embedded_exit_demotions  # noqa: SLF001
-
-        # Give the cancelled timeout a chance to fire; the serial guard
-        # must keep it from releasing the re-entered live overlay.
-        deadline = time.monotonic() + 0.3
-        while time.monotonic() < deadline:
-            qapp.processEvents()
-            time.sleep(0.01)
-
-    assert binder.release_calls == []
-    assert service.embedded_live_overlay_ready("node-plot") is True
-    assert overlay_manager.overlay_widget("node-plot", workspace_id="ws-plot") is not None
 
 
 def test_embedded_live_reactivation_restores_cached_view_state(qapp) -> None:  # noqa: ANN001
