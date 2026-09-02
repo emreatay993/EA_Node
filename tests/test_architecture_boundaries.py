@@ -2464,6 +2464,83 @@ class GraphArchitectureBoundaryTests(unittest.TestCase):
             root_text,
         )
 
+    def test_graph_node_port_row_is_the_direct_shared_delegate_without_object_growth(self) -> None:
+        graph_dir = REPO_ROOT / "ea_node_editor/ui_qml/components/graph"
+        layer_text = (graph_dir / "GraphNodePortsLayer.qml").read_text(encoding="utf-8")
+        row_text = (graph_dir / "GraphNodePortRow.qml").read_text(encoding="utf-8")
+
+        def declaration_count(text: str, type_name: str) -> int:
+            return sum(line.strip() == f"{type_name} {{" for line in text.splitlines())
+
+        self.assertEqual(layer_text.count("delegate: GraphNodePortRow {"), 2)
+        self.assertEqual(
+            {
+                type_name: declaration_count(layer_text, type_name)
+                + declaration_count(row_text, type_name)
+                for type_name in (
+                    "Item",
+                    "Connections",
+                    "Binding",
+                    "Loader",
+                    "Timer",
+                    "Canvas",
+                    "Repeater",
+                )
+            },
+            {
+                "Item": 3,
+                "Connections": 2,
+                "Binding": 0,
+                "Loader": 1,
+                "Timer": 0,
+                "Canvas": 2,
+                "Repeater": 4,
+            },
+        )
+        for forbidden_type in ("Connections {", "Binding {", "Loader {", "Timer {"):
+            self.assertNotIn(forbidden_type, row_text)
+        for direction_property in (
+            "property bool defaultPropertyCapable",
+            "property string portPointSide",
+            "property bool notchMirrored",
+            "property bool outputHoverBehavior",
+        ):
+            self.assertNotIn(direction_property, row_text)
+        self.assertIn('property string direction: "in"', row_text)
+        self.assertIn('readonly property bool isInput: direction === "in"', row_text)
+        self.assertIn("function paintPadlock(canvas, padlockLocked, placeholderLocked)", row_text)
+        self.assertIn("host.localPortPointForPort(direction, rowIndex, portData)", row_text)
+        self.assertIn("mirror: !row.isInput", row_text)
+        self.assertIn("row.host._isResizeHandlePoint", row_text)
+
+        direction_only_names = (
+            "graphNodeInputPortInactiveSlash",
+            "graphNodeInputPortPadlock",
+            "graphNodeInputDefaultProperty",
+            "graphNodeOutputPortPadlock",
+        )
+        for name in direction_only_names:
+            self.assertIn(f'objectName: "{name}"', layer_text)
+            self.assertNotIn(name, row_text)
+        self.assertEqual(layer_text.count("id: outputLockGlyphLoader"), 1)
+        self.assertEqual(layer_text.count("id: portContextMenu"), 1)
+        self.assertIn('objectName: "graphNodePortContextMenu"', layer_text)
+
+        shared_name_families = (
+            "PortRow",
+            "PortNotch",
+            "PortDot",
+            "PortRing",
+            "PortMouseArea",
+            "PortLabel",
+            "PortHelpToolTip",
+            "PortLabelEditor",
+        )
+        for suffix in shared_name_families:
+            with self.subTest(suffix=suffix):
+                self.assertIn(f'"graphNodeInput{suffix}"', row_text)
+                self.assertIn(f'"graphNodeOutput{suffix}"', row_text)
+
     def test_closeout_docs_publish_architecture_residual_matrix_from_packet_owned_surfaces(self) -> None:
         spec_index_text = (REPO_ROOT / manifest.SPEC_INDEX_DOC).read_text(encoding="utf-8")
         qa_acceptance_text = (REPO_ROOT / manifest.QA_ACCEPTANCE_DOC).read_text(encoding="utf-8")

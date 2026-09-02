@@ -1,6 +1,6 @@
 # COREX Runtime, Registry, and Presentation Ownership Refactor
 
-Status: `CHECKPOINT — T20 ACCEPTED; NEXT T21`
+Status: `CHECKPOINT — T21 ACCEPTED; NEXT T22`
 
 ## Summary
 
@@ -786,10 +786,14 @@ No aliases or deprecated forwarding modules remain for these changes:
 - **Deliverables:**
   - The component root directly replaces each existing input/output delegate
     `Item`.
-  - Parameterize only direction, default-property capability, port-point side,
-    notch mirroring, and output-hover behavior.
-  - Row owns grip/notch/ring/dot, label edit, default editor,
-    tooltip/accessibility, flow state, dynamic remove, and interactive geometry.
+  - The component derives side, notch mirroring, label alignment,
+    default-property capability, and resize-hover behavior from direction.
+  - Row owns shared geometry, grip/notch/ring/dot, gestures/context routing,
+    dynamic remove, label/edit, general tooltip/accessibility, flow state,
+    padlock painting, and interactive-rectangle behavior.
+  - Input instances retain only the inactive slash, always-live padlock Canvas,
+    and `GraphInlinePropertiesLayer` default child. Output instances retain only
+    the separate inactive tooltip and existing padlock Loader/Component/Canvas.
   - Root retains models, dynamic-group scheduling, notch cache, aggregate
     interactive rectangles, context state, and add-button repeater.
   - No extra per-port Connection, Binding, Loader, timer, wrapper, edge scan, or

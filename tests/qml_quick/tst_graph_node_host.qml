@@ -296,6 +296,114 @@ TestCase {
         return matches
     }
 
+    function t21Hash(text) {
+        var hash = 2166136261
+        var value = String(text || "")
+        for (var index = 0; index < value.length; ++index) {
+            hash ^= value.charCodeAt(index)
+            hash = Math.imul(hash, 16777619)
+        }
+        return (hash >>> 0).toString(16).padStart(8, "0")
+    }
+
+    function t21ClassName(item) {
+        var value = String(item || "")
+        var splitIndex = value.indexOf("(")
+        var className = splitIndex >= 0 ? value.slice(0, splitIndex) : value
+        return className
+            .replace(/_QMLTYPE_[0-9]+/g, "_QMLTYPE")
+            .replace(/_QML_[0-9]+/g, "_QML")
+    }
+
+    function t21Descendants(item, result) {
+        var children = item && item.children ? item.children : []
+        for (var index = 0; index < children.length; ++index) {
+            result.push(children[index])
+            t21Descendants(children[index], result)
+        }
+    }
+
+    function t21Rounded(value) {
+        var numeric = Number(value || 0)
+        return isFinite(numeric) ? numeric.toFixed(3) : "nan"
+    }
+
+    function t21RowTopology(row) {
+        var descendants = []
+        t21Descendants(row, descendants)
+        var records = []
+        var geometryRecords = []
+        var canvasCount = 0
+        var loaderCount = 0
+        for (var index = 0; index < descendants.length; ++index) {
+            var item = descendants[index]
+            var className = t21ClassName(item)
+            var name = String(item.objectName || "")
+            var parentName = String(item.parent && item.parent.objectName || "")
+            records.push([className, name, parentName].join("|"))
+            if (className.indexOf("Canvas") >= 0)
+                canvasCount += 1
+            if (className.indexOf("Loader") >= 0)
+                loaderCount += 1
+            if (name.length > 0) {
+                geometryRecords.push([
+                    name,
+                    parentName,
+                    t21Rounded(item.x),
+                    t21Rounded(item.y),
+                    t21Rounded(item.width),
+                    t21Rounded(item.height),
+                    item.visible ? "1" : "0"
+                ].join("|"))
+            }
+        }
+        records.sort()
+        geometryRecords.sort()
+        var rects = row.currentEmbeddedInteractiveRects
+            ? row.currentEmbeddedInteractiveRects()
+            : []
+        return {
+            "topology_hash": t21Hash(records.join("\n")),
+            "geometry_hash": t21Hash([
+                geometryRecords.join("\n"),
+                t21Rounded(row.portPoint ? row.portPoint.x : 0),
+                t21Rounded(row.portPoint ? row.portPoint.y : 0),
+                JSON.stringify(rects)
+            ].join("\n")),
+            "qquickitem_count": descendants.length + 1,
+            "qobject_count": descendants.length + 1,
+            "loader_count": loaderCount,
+            "canvas_count": canvasCount,
+            "connection_count": 0,
+            "binding_count": 0,
+            "qtimer_count": 0,
+            "padlock_count": findNamedItems(row, row.propertyKey === "payload"
+                ? "graphNodeInputPortPadlock"
+                : "graphNodeOutputPortPadlock").length,
+            "default_count": findNamedItems(row, "graphNodeInputDefaultProperty").length,
+            "slash_count": findNamedItems(row, "graphNodeInputPortInactiveSlash").length
+        }
+    }
+
+    function t21PortPayload() {
+        var payload = nodePayload()
+        payload.node_id = "node_t21_port_topology"
+        payload.ports[0].flow_state = "default"
+        payload.ports[0].default_property = {
+            "key": "payload",
+            "label": "Payload",
+            "type": "str",
+            "value": "default text",
+            "display_value": "default text",
+            "display_value_available": true,
+            "inline_editor": "text",
+            "overridden_by_input": false,
+            "editor_enabled": true,
+            "condition_enabled": true
+        }
+        return payload
+    }
+
     function createHost(payload, properties) {
         var values = properties || {}
         values.nodeData = payload
@@ -392,6 +500,235 @@ TestCase {
         tryVerify(function() { return findNamedItems(planningHost, "graphNodePlanningBodyText").length === 1 })
         var planningText = findNamedItems(planningHost, "graphNodePlanningBodyText")[0]
         compare(planningText.effectiveRenderType, planningHost.nodeTextRenderType)
+    }
+
+    function test_port_row_topology_and_directional_children_stay_stable() {
+        var unlockedHost = createHost(t21PortPayload())
+        verify(unlockedHost !== null)
+        tryVerify(function() {
+            return findNamedItems(unlockedHost, "graphNodeInputPortRow").length === 1
+                && findNamedItems(unlockedHost, "graphNodeOutputPortRow").length === 1
+        })
+        var lockedPayload = t21PortPayload()
+        lockedPayload.unresolved = true
+        lockedPayload.locked_state = {"reason": "Missing add-on"}
+        var lockedHost = createHost(lockedPayload, {"graphReadOnly": true})
+        verify(lockedHost !== null)
+        tryVerify(function() {
+            return findNamedItems(lockedHost, "graphNodeInputPortRow").length === 1
+                && findNamedItems(lockedHost, "graphNodeOutputPortRow").length === 1
+                && findNamedItems(lockedHost, "graphNodeOutputPortPadlock").length === 1
+        })
+
+        var unlockedInput = findNamedItems(unlockedHost, "graphNodeInputPortRow")[0]
+        var unlockedOutput = findNamedItems(unlockedHost, "graphNodeOutputPortRow")[0]
+        var lockedInput = findNamedItems(lockedHost, "graphNodeInputPortRow")[0]
+        var lockedOutput = findNamedItems(lockedHost, "graphNodeOutputPortRow")[0]
+        var snapshot = {
+            "unlocked_input": t21RowTopology(unlockedInput),
+            "unlocked_output": t21RowTopology(unlockedOutput),
+            "locked_input": t21RowTopology(lockedInput),
+            "locked_output": t21RowTopology(lockedOutput)
+        }
+        var expected = {
+            "unlocked_input": {
+                "topology_hash": "d0078e01",
+                "geometry_hash": "055131d5",
+                "qquickitem_count": 135,
+                "loader_count": 0,
+                "canvas_count": 1
+            },
+            "unlocked_output": {
+                "topology_hash": "55b1e6c7",
+                "geometry_hash": "b0b81f42",
+                "qquickitem_count": 21,
+                "loader_count": 1,
+                "canvas_count": 0
+            },
+            "locked_input": {
+                "topology_hash": "ee335365",
+                "geometry_hash": "d0188864",
+                "qquickitem_count": 25,
+                "loader_count": 0,
+                "canvas_count": 1
+            },
+            "locked_output": {
+                "topology_hash": "2fccbe03",
+                "geometry_hash": "a6b75d7b",
+                "qquickitem_count": 22,
+                "loader_count": 1,
+                "canvas_count": 1
+            }
+        }
+        for (var stateName in expected) {
+            compare(snapshot[stateName].topology_hash, expected[stateName].topology_hash)
+            compare(snapshot[stateName].geometry_hash, expected[stateName].geometry_hash)
+            compare(snapshot[stateName].qquickitem_count, expected[stateName].qquickitem_count)
+            compare(snapshot[stateName].qobject_count, expected[stateName].qquickitem_count)
+            compare(snapshot[stateName].loader_count, expected[stateName].loader_count)
+            compare(snapshot[stateName].canvas_count, expected[stateName].canvas_count)
+            compare(snapshot[stateName].connection_count, 0)
+            compare(snapshot[stateName].binding_count, 0)
+            compare(snapshot[stateName].qtimer_count, 0)
+        }
+
+        compare(snapshot.unlocked_input.padlock_count, 1)
+        compare(snapshot.unlocked_input.default_count, 1)
+        compare(snapshot.unlocked_input.slash_count, 1)
+        compare(snapshot.unlocked_output.padlock_count, 0)
+        compare(snapshot.unlocked_output.default_count, 0)
+        compare(snapshot.unlocked_output.slash_count, 0)
+        compare(snapshot.locked_input.padlock_count, 1)
+        compare(snapshot.locked_output.padlock_count, 1)
+        compare(snapshot.unlocked_output.loader_count, 1)
+        compare(snapshot.locked_output.loader_count, 1)
+        compare(unlockedInput.direction, "in")
+        compare(unlockedOutput.direction, "out")
+        compare(
+            findNamedItems(unlockedInput, "graphNodeInputPortInactiveSlash")[0].parent,
+            findNamedItems(unlockedInput, "graphNodeInputPortDot")[0]
+        )
+        compare(
+            findNamedItems(unlockedInput, "graphNodeInputDefaultProperty")[0].parent,
+            unlockedInput
+        )
+        compare(
+            findNamedItems(lockedInput, "graphNodeInputPortPadlock")[0].parent,
+            findNamedItems(lockedInput, "graphNodeInputPortDot")[0]
+        )
+        compare(
+            findNamedItems(lockedOutput, "graphNodeOutputPortPadlock")[0].parent.parent,
+            findNamedItems(lockedOutput, "graphNodeOutputPortDot")[0]
+        )
+        var inputNotch = findNamedItems(unlockedInput, "graphNodeInputPortNotch")[0]
+        var outputNotch = findNamedItems(unlockedOutput, "graphNodeOutputPortNotch")[0]
+        compare(inputNotch.width, 9)
+        compare(inputNotch.height, 18)
+        compare(outputNotch.width, 9)
+        compare(outputNotch.height, 18)
+        verify(!inputNotch.mirror)
+        verify(outputNotch.mirror)
+        verify(inputNotch.cache)
+        verify(outputNotch.cache)
+    }
+
+    function test_port_row_default_editor_stays_visible_when_overridden() {
+        var authoredHost = createHost(t21PortPayload())
+        verify(authoredHost !== null)
+        tryVerify(function() {
+            return findNamedItems(authoredHost, "graphNodeInputDefaultProperty").length === 1
+        })
+        var authoredRow = findNamedItems(authoredHost, "graphNodeInputPortRow")[0]
+        var authoredLayer = findNamedItems(authoredHost, "graphNodeInputDefaultProperty")[0]
+        verify(authoredRow.defaultEditorVisible)
+        verify(authoredLayer.visible)
+        verify(authoredLayer.enabled)
+
+        var overriddenPayload = t21PortPayload()
+        overriddenPayload.ports[0].connected = true
+        overriddenPayload.ports[0].flow_state = "active"
+        overriddenPayload.ports[0].default_property.overridden_by_input = true
+        var overriddenHost = createHost(overriddenPayload)
+        verify(overriddenHost !== null)
+        tryVerify(function() {
+            return findNamedItems(overriddenHost, "graphNodeInputDefaultProperty").length === 1
+        })
+        var overriddenRow = findNamedItems(overriddenHost, "graphNodeInputPortRow")[0]
+        var overriddenLayer = findNamedItems(overriddenHost, "graphNodeInputDefaultProperty")[0]
+        verify(overriddenRow.defaultEditorVisible)
+        verify(overriddenLayer.visible)
+        compare(overriddenRow.currentEmbeddedInteractiveRects().length, 0)
+    }
+
+    function test_port_row_consumes_flow_type_tooltip_and_accessibility_facts() {
+        var payload = t21PortPayload()
+        payload.ports[0].data_type_label = "Text"
+        payload.ports[0].description = "Message payload"
+        payload.ports[0].flow_state = "invalid"
+        payload.ports[0].data_type_warning = true
+        payload.ports[1].inactive = true
+        payload.ports[1].inactive_reason = "Output is unavailable"
+        var host = createHost(payload)
+        verify(host !== null)
+        tryVerify(function() {
+            return findNamedItems(host, "graphNodeInputPortMouseArea").length === 1
+                && findNamedItems(host, "graphNodeOutputPortMouseArea").length === 1
+                && findNamedItems(host, "graphNodeOutputPortPadlock").length === 1
+        })
+        var inputDot = findNamedItems(host, "graphNodeInputPortDot")[0]
+        var inputMouse = findNamedItems(host, "graphNodeInputPortMouseArea")[0]
+        var outputDot = findNamedItems(host, "graphNodeOutputPortDot")[0]
+        var outputMouse = findNamedItems(host, "graphNodeOutputPortMouseArea")[0]
+        compare(inputDot.interactionDirection, "in")
+        compare(outputDot.interactionDirection, "out")
+        compare(String(inputDot.color).toLowerCase(), "#ff543e")
+        verify(inputMouse.accessiblePortText.indexOf("Payload") >= 0)
+        verify(inputMouse.accessiblePortText.indexOf("Text") >= 0)
+        verify(inputMouse.portHelpTooltipText.length > 0)
+        verify(outputDot.inactiveState)
+        verify(outputDot.lockedState)
+        compare(outputMouse.inactiveTooltipText, "Output is unavailable")
+        compare(outputMouse.cursorShape, Qt.ForbiddenCursor)
+    }
+
+    function test_port_row_dynamic_remove_and_label_edit_keep_directional_geometry() {
+        var payload = nodePayload()
+        payload.node_id = "node_t21_dynamic_port_row"
+        payload.dynamic_port_groups = [
+            {
+                "id": "inputs",
+                "direction": "in",
+                "port_keys": ["payload"],
+                "can_insert": true,
+                "removable_port_keys": ["payload"],
+                "rename_mode": "label"
+            },
+            {
+                "id": "outputs",
+                "direction": "out",
+                "port_keys": ["result"],
+                "can_insert": true,
+                "removable_port_keys": ["result"],
+                "rename_mode": "label"
+            }
+        ]
+        var host = createHost(payload)
+        verify(host !== null)
+        tryVerify(function() {
+            return findNamedItems(host, "graphNodeDynamicPortRemove_payload").length === 1
+                && findNamedItems(host, "graphNodeDynamicPortRemove_result").length === 1
+        })
+        var inputRow = findNamedItems(host, "graphNodeInputPortRow")[0]
+        var outputRow = findNamedItems(host, "graphNodeOutputPortRow")[0]
+        var inputRemove = findNamedItems(host, "graphNodeDynamicPortRemove_payload")[0]
+        var outputRemove = findNamedItems(host, "graphNodeDynamicPortRemove_result")[0]
+        compare(
+            t21Rounded(inputRemove.x + inputRemove.width * 0.5 - inputRow.portPoint.x),
+            t21Rounded(33)
+        )
+        compare(
+            t21Rounded(outputRow.portPoint.x - (outputRemove.x + outputRemove.width * 0.5)),
+            t21Rounded(33)
+        )
+        compare(inputRemove.propertyKey, "payload")
+        compare(outputRemove.propertyKey, "result")
+        compare(inputRemove.tooltipText, "Remove input Payload")
+        compare(outputRemove.tooltipText, "Remove output Result")
+
+        var portsLayer = findNamedItems(host, "graphNodePortsLayer")[0]
+        portsLayer.beginPortLabelEdit("payload", "in")
+        var inputEditor = findNamedItems(host, "graphNodeInputPortLabelEditor")[0]
+        tryVerify(function() { return inputEditor.visible && inputEditor.activeFocus })
+        compare(inputEditor.horizontalAlignment, TextInput.AlignLeft)
+        portsLayer.cancelPortLabelEdit()
+        tryVerify(function() { return !inputEditor.visible })
+
+        portsLayer.beginPortLabelEdit("result", "out")
+        var outputEditor = findNamedItems(host, "graphNodeOutputPortLabelEditor")[0]
+        tryVerify(function() { return outputEditor.visible && outputEditor.activeFocus })
+        compare(outputEditor.horizontalAlignment, TextInput.AlignRight)
+        portsLayer.cancelPortLabelEdit()
+        tryVerify(function() { return !outputEditor.visible })
     }
 
     function test_graph_node_host_exposes_split_helper_layers_with_stable_stacking() {

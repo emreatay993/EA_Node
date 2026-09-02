@@ -3399,6 +3399,10 @@ class GraphSurfaceDataflowAuthoringTests(GraphSurfaceInputContractTestBase):
             _REPO_ROOT
             / "ea_node_editor/ui_qml/components/graph/GraphNodePortsLayer.qml"
         ).read_text(encoding="utf-8")
+        row_source = (
+            _REPO_ROOT
+            / "ea_node_editor/ui_qml/components/graph/GraphNodePortRow.qml"
+        ).read_text(encoding="utf-8")
         menus_source = (
             _REPO_ROOT
             / "ea_node_editor/ui_qml/components/graph_canvas/GraphCanvasContextMenus.qml"
@@ -3412,7 +3416,9 @@ class GraphSurfaceDataflowAuthoringTests(GraphSurfaceInputContractTestBase):
             / "ea_node_editor/ui_qml/graph_geometry/standard_metrics.py"
         ).read_text(encoding="utf-8")
         compact_ports = " ".join(ports_source.split())
+        compact_row = " ".join(row_source.split())
         compact_menus = " ".join(menus_source.split())
+        port_ui_source = ports_source + row_source
 
         for obsolete in (
             "core.stream_gate",
@@ -3471,42 +3477,41 @@ class GraphSurfaceDataflowAuthoringTests(GraphSurfaceInputContractTestBase):
             "function _dynamicPortGroupActions", 1
         )[1].split("function _triggerGraphAction", 1)[0]
         self.assertNotIn("viewZoom", dynamic_menu_source)
-        self.assertIn("SurfaceControls.GraphSurfaceButton", ports_source)
-        self.assertGreaterEqual(ports_source.count("width: 26"), 3)
-        self.assertGreaterEqual(ports_source.count("height: 26"), 3)
-        self.assertGreaterEqual(ports_source.count("focusPolicy: Qt.TabFocus"), 3)
-        self.assertGreaterEqual(ports_source.count("Accessible.name: tooltipText"), 3)
+        self.assertIn("SurfaceControls.GraphSurfaceButton", row_source)
+        self.assertGreaterEqual(port_ui_source.count("width: 26"), 2)
+        self.assertGreaterEqual(port_ui_source.count("height: 26"), 2)
+        self.assertGreaterEqual(port_ui_source.count("focusPolicy: Qt.TabFocus"), 2)
+        self.assertGreaterEqual(port_ui_source.count("Accessible.name: tooltipText"), 2)
         self.assertIn('property color actionFillColor: "#55D65B"', ports_source)
-        self.assertGreaterEqual(
-            ports_source.count('property color actionFillColor: "#FF5449"'),
-            2,
+        self.assertEqual(
+            row_source.count('property color actionFillColor: "#FF5449"'),
+            1,
         )
         self.assertIn('text: "+"', ports_source)
-        self.assertGreaterEqual(ports_source.count('text: "\\u2212"'), 2)
+        self.assertEqual(row_source.count('text: "\\u2212"'), 1)
         self.assertIn('objectName: "graphNodeDynamicPortAddCircle"', ports_source)
+        self.assertEqual(
+            row_source.count('objectName: "graphNodeDynamicPortRemoveCircle"'),
+            1,
+        )
         self.assertGreaterEqual(
-            ports_source.count('objectName: "graphNodeDynamicPortRemoveCircle"'),
+            port_ui_source.count("readonly property bool actionActive: hovered || activeFocus || down"),
             2,
         )
-        self.assertGreaterEqual(
-            ports_source.count("readonly property bool actionActive: hovered || activeFocus || down"),
-            3,
-        )
         for control_id in (
-            "inputRemoveButton",
-            "outputRemoveButton",
+            "removeButton",
             "dynamicPortAddButton",
         ):
             self.assertIn(
                 f"width: {control_id}.actionActive ? 20 : 8",
-                ports_source,
+                port_ui_source,
             )
             self.assertIn(
                 f"opacity: {control_id}.actionActive ? 1.0 : 0.0",
-                ports_source,
+                port_ui_source,
             )
-        self.assertGreaterEqual(ports_source.count("height: width"), 3)
-        self.assertGreaterEqual(ports_source.count("radius: width * 0.5"), 3)
+        self.assertGreaterEqual(port_ui_source.count("height: width"), 2)
+        self.assertGreaterEqual(port_ui_source.count("radius: width * 0.5"), 2)
         self.assertIn("readonly property real dynamicPortControlCenterInterval:", ports_source)
         self.assertIn(
             "standardActivePortDiameter * 0.5 + portInteractionPadding "
@@ -3517,19 +3522,21 @@ class GraphSurfaceDataflowAuthoringTests(GraphSurfaceInputContractTestBase):
             '"y": Number(lastPoint.y || 0) + root.dynamicPortControlCenterInterval',
             compact_ports,
         )
-        self.assertIn("+ root.dynamicPortControlCenterInterval", ports_source)
-        self.assertIn("- root.dynamicPortControlCenterInterval", ports_source)
+        self.assertIn(
+            "(row.isInput ? 1 : -1) * row.portsLayer.dynamicPortControlCenterInterval",
+            compact_row,
+        )
         self.assertIn("DYNAMIC_PORT_HANDLE_CENTER_INTERVAL", surface_metrics_source)
         self.assertIn("_DYNAMIC_PORT_HANDLE_CENTER_INTERVAL", standard_metrics_source)
         self.assertIn("DYNAMIC_PORT_HANDLE_BOTTOM_INSET = 4.0", surface_metrics_source)
         self.assertIn("_DYNAMIC_PORT_HANDLE_BOTTOM_INSET = 4.0", standard_metrics_source)
         self.assertIn("x: Number(terminusPoint.x || 0) - width * 0.5", ports_source)
         self.assertIn("y: Number(terminusPoint.y || 0) - height * 0.5", ports_source)
-        self.assertIn("activeFocus", ports_source)
-        self.assertIn("hovered", ports_source)
-        self.assertIn(".down", ports_source)
+        self.assertIn("activeFocus", port_ui_source)
+        self.assertIn("hovered", port_ui_source)
+        self.assertIn(".down", port_ui_source)
         self.assertIn("lists.push(groupControl.embeddedInteractiveRects)", ports_source)
-        self.assertIn("root.host.surfaceControlInteractionStarted", ports_source)
+        self.assertIn("row.host.surfaceControlInteractionStarted", row_source)
 
     def test_dataflow_port_and_edge_authoring_controls_route_real_mutations(self) -> None:
         self._run_qml_probe(

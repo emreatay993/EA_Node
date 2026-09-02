@@ -17,13 +17,13 @@ This compact index gives agents deterministic aliases for QML components, symbol
 
 | Metric | Count |
 | --- | ---: |
-| QML files | 172 |
+| QML files | 173 |
 | Repeater constructs | 98 |
 | Loader constructs | 24 |
-| Signal handlers | 881 |
+| Signal handlers | 884 |
 | Connections targets | 47 |
-| Property bindings | 7615 |
-| Local component refs | 273 |
+| Property bindings | 7624 |
+| Local component refs | 276 |
 
 ## Component Families
 
@@ -31,7 +31,7 @@ This compact index gives agents deterministic aliases for QML components, symbol
 | --- | ---: |
 | `components` | 1 |
 | `components/common` | 6 |
-| `components/graph` | 25 |
+| `components/graph` | 26 |
 | `components/graph/dpf` | 1 |
 | `components/graph/jupyter` | 1 |
 | `components/graph/overlay` | 6 |
@@ -73,7 +73,8 @@ This compact index gives agents deterministic aliases for QML components, symbol
 | `GraphNodeHostRenderQuality.qml` | `ea_node_editor/ui_qml/components/graph/GraphNodeHostRenderQuality.qml` | `QtObject` | _None_ | _None_ |
 | `GraphNodeHostSceneAccess.qml` | `ea_node_editor/ui_qml/components/graph/GraphNodeHostSceneAccess.qml` | `QtObject` | _None_ | _None_ |
 | `GraphNodeHostTheme.qml` | `ea_node_editor/ui_qml/components/graph/GraphNodeHostTheme.qml` | `QtObject` | _None_ | _None_ |
-| `GraphNodePortsLayer.qml` | `ea_node_editor/ui_qml/components/graph/GraphNodePortsLayer.qml` | `Item` | `Connections`, `Repeater`, `Image`, `Rectangle`, `MouseArea`, `Common.ManagedToolTip`, `SurfaceControls.GraphSurfaceButton`, `Text`, ... +7 more | `Repeater`, `model`, `delegate`, `source`, `Loader`, `sourceComponent` |
+| `GraphNodePortRow.qml` | `ea_node_editor/ui_qml/components/graph/GraphNodePortRow.qml` | `Item` | `Image`, `Rectangle`, `MouseArea`, `Common.ManagedToolTip`, `SurfaceControls.GraphSurfaceButton`, `Text`, `SurfaceControls.GraphSurfaceTextField` | `source` |
+| `GraphNodePortsLayer.qml` | `ea_node_editor/ui_qml/components/graph/GraphNodePortsLayer.qml` | `Item` | `Connections`, `Repeater`, `Image`, `Rectangle`, `Canvas`, `GraphInlinePropertiesLayer`, `Common.ManagedToolTip`, `Loader`, ... +4 more | `Repeater`, `model`, `delegate`, `source`, `Loader`, `sourceComponent` |
 | `GraphNodeResizeHandle.qml` | `ea_node_editor/ui_qml/components/graph/GraphNodeResizeHandle.qml` | `Item` | `Canvas`, `MouseArea` | _None_ |
 | `GraphNodeSettingsGroupsLayer.qml` | `ea_node_editor/ui_qml/components/graph/GraphNodeSettingsGroupsLayer.qml` | `Item` | `Repeater`, `Rectangle`, `Text`, `Canvas`, `MouseArea`, `GraphInlinePropertiesLayer` | `Repeater`, `model`, `delegate` |
 | `GraphNodeSurfaceLoader.qml` | `ea_node_editor/ui_qml/components/graph/GraphNodeSurfaceLoader.qml` | `Item` | `Loader`, `Component`, `Rectangle`, `Canvas`, `Image`, `Column`, `Text` | `Loader`, `source`, `sourceComponent`, `Component` |
@@ -656,23 +657,41 @@ This compact index gives agents deterministic aliases for QML components, symbol
 - Property bindings: _None_
 - Local component refs: _None_
 
+### `GraphNodePortRow.qml`
+
+- Path: `ea_node_editor/ui_qml/components/graph/GraphNodePortRow.qml`
+- Root component: `Item`
+- Agent route aliases: `GraphNodePortRow`, `GraphNodePortRow.qml`, `ea_node_editor/ui_qml/components/graph/GraphNodePortRow.qml`, `ea_node_editor\ui_qml\components\graph\GraphNodePortRow.qml`
+- Imports: `QtQuick 2.15`, `"../common" as Common`, `"../common/TooltipPolicy.js" as TooltipPolicy`, `"surface_controls" as SurfaceControls`, `"surface_controls/SurfaceControlGeometry.js" as SurfaceControlGeometry`
+- IDs: `row`, `portDot`, `portMouse`, `removeButton`, `labelContainer`, `labelText`, `labelMouse`, `labelEditor`
+- Object names: `graphNodeDynamicPortRemove_`, `graphNodeDynamicPortRemoveCircle`
+- Properties: `portsLayer: Item`, `modelData: var`, `index: int`, `direction: string`, `defaultPropertyItem: Item`, `isInput: bool`, `host: Item`, `portData: var`, `rowIndex: int`, `propertyKey: string`, `handleVisible: bool`, `labelOwnedBySettings: bool`, `interactionDirection: string`, `placeholderLockedState: bool`, `inactiveState: bool`, `lockedState: bool`, `defaultProperty: var`, `defaultEditorVisible: bool`, ... +58 more
+- Signals: _None_
+- Functions: `currentEmbeddedInteractiveRects`, `refocusLabelEditor`, `paintPadlock`, `drawShackle`, `drawBody`, `updateHoverState`
+- Instantiates: `Image`, `Rectangle`, `MouseArea`, `Common.ManagedToolTip`, `SurfaceControls.GraphSurfaceButton`, `Text`, `SurfaceControls.GraphSurfaceTextField`
+- Dynamic constructs: `source` -> `row.portsLayer.notchSvgSource`
+- Signal handlers: `handler` `onPressed`; `handler` `onPositionChanged`; `handler` `onReleased`; `handler` `onCanceled`; `handler` `onEntered`; `handler` `onExited`; `handler` `onControlStarted`; `handler` `onClicked`; `handler` `onVisibleChanged`; `handler` `onAccepted`; `handler` `onTextEdited`; `handler` `onActiveFocusChanged`; `handler` `Keys.onEscapePressed`
+- Connections: _None_
+- Property bindings: `binding` `x`; `binding` `y` -> `isInput`; `binding` `width` -> `host`, `host.width`; `binding` `height` -> `Math.max`; `binding` `visible` -> `handleVisible`; `binding` `visible` -> `row.portsLayer.notchedPortsEffective`; `binding` `width` -> `row.portsLayer.notchDiameter`; `binding` `height` -> `row.portsLayer.notchDiameter`; `binding` `x` -> `row.isInput`, `row.portPoint.x`, `width`; `binding` `y` -> `row.isInput`; `binding` `sourceSize` -> `Qt.size`; `binding` `mirror` -> `row.isInput`; `binding` `cache`; `binding` `asynchronous`; `binding` `smooth`; `binding` `mipmap`; `binding` `fillMode` -> `Image.Stretch`; `binding` `z`; ... +101 more
+- Local component refs: `localComponent` `Common.ManagedToolTip`: `ea_node_editor/ui_qml/components/common/ManagedToolTip.qml`; `localComponent` `SurfaceControls.GraphSurfaceButton`: `ea_node_editor/ui_qml/components/graph/surface_controls/GraphSurfaceButton.qml`; `localComponent` `SurfaceControls.GraphSurfaceTextField`: `ea_node_editor/ui_qml/components/graph/surface_controls/GraphSurfaceTextField.qml`
+
 ### `GraphNodePortsLayer.qml`
 
 - Path: `ea_node_editor/ui_qml/components/graph/GraphNodePortsLayer.qml`
 - Root component: `Item`
 - Agent route aliases: `GraphNodePortsLayer`, `GraphNodePortsLayer.qml`, `ea_node_editor/ui_qml/components/graph/GraphNodePortsLayer.qml`, `ea_node_editor\ui_qml\components\graph\GraphNodePortsLayer.qml`
 - Imports: `QtQuick 2.15`, `QtQuick.Controls 2.15`, `"../common" as Common`, `"../common/TooltipPolicy.js" as TooltipPolicy`, `"../graph_canvas/CanvasBackgroundStyle.js" as CanvasBackgroundStyle`, `"GraphNodeSurfaceMetrics.js" as GraphNodeSurfaceMetrics`, `"surface_controls" as SurfaceControls`, `"surface_controls/SurfaceControlGeometry.js" as SurfaceControlGeometry`
-- IDs: `root`, `settingsGroupAggregate`, `inputPortsRepeater`, `inputPortRow`, `inputDot`, `inputPortMouse`, `inputRemoveButton`, `inputLabelContainer`, `lockGlyph`, `inputLabelText`, `inputLabelMouse`, `inputLabelEditor`, `defaultPropertyLayer`, `outputPortsRepeater`, `outputPortRow`, `outputDot`, `outputPortMouse`, `outputRemoveButton`, ... +8 more
-- Object names: `graphNodePortsLayer`, `graphNodeSettingsGroupAggregateNotch`, `graphNodeSettingsGroupAggregateSocket`, `graphNodeInputPortRow`, `graphNodeInputPortNotch`, `graphNodeInputPortDot`, `graphNodeInputPortRing`, `graphNodeInputPortInactiveSlash`, `graphNodeInputPortMouseArea`, `graphNodeDynamicPortRemove_`, `graphNodeDynamicPortRemoveCircle`, `graphNodeInputPortPadlock`, `graphNodeInputPortLabel`, `graphNodeInputPortHelpToolTip`, `graphNodeInputPortLabelEditor`, `graphNodeInputDefaultProperty`, `graphNodeOutputPortRow`, `graphNodeOutputPortNotch`, ... +21 more
-- Properties: `host: Item`, `editingPortKey: string`, `editingPortDirection: string`, `portLabelEditError: string`, `contextPortData: var`, `contextNodeId: string`, `graphSharedTypography: var`, `tooltipPolicyBridge: var`, `tooltipThemePalette: var`, `portHelpMutedColor: string`, `portHelpDividerColor: string`, `nodeTooltipPlacement: string`, `nodeTooltipAnchorScale: real`, `hostLockedPlaceholder: bool`, `standardRestPortDiameter: real`, `standardActivePortDiameter: real`, `portInteractionPadding: real`, `dynamicPortTargetRadius: real`, ... +93 more
+- IDs: `root`, `settingsGroupAggregate`, `inputPortsRepeater`, `inputPortRow`, `inputLockGlyph`, `defaultPropertyLayer`, `outputPortsRepeater`, `outputPortRow`, `outputLockGlyphLoader`, `outputLockGlyph`, `dynamicPortGroupRepeater`, `dynamicPortAddButton`, `portContextMenu`
+- Object names: `graphNodePortsLayer`, `graphNodeSettingsGroupAggregateNotch`, `graphNodeSettingsGroupAggregateSocket`, `graphNodeInputPortInactiveSlash`, `graphNodeInputPortPadlock`, `graphNodeInputDefaultProperty`, `graphNodeOutputPortPadlock`, `graphNodeDynamicPortAdd_`, `graphNodeDynamicPortAddCircle`, `graphNodePortContextMenu`, `graphNodePortAccessMetadata`, `graphNodePortModifierGraft`, `graphNodePortModifierFlatten`, `graphNodePortModifierSimplify`, `graphNodePortModifierReverse`, `graphNodePortModifierClean`, `graphNodePortPrincipal`, `graphNodeDynamicPortInsertBefore`, ... +3 more
+- Properties: `host: Item`, `editingPortKey: string`, `editingPortDirection: string`, `portLabelEditError: string`, `contextPortData: var`, `contextNodeId: string`, `graphSharedTypography: var`, `tooltipPolicyBridge: var`, `tooltipThemePalette: var`, `portHelpMutedColor: string`, `portHelpDividerColor: string`, `nodeTooltipPlacement: string`, `nodeTooltipAnchorScale: real`, `hostLockedPlaceholder: bool`, `standardRestPortDiameter: real`, `standardActivePortDiameter: real`, `portInteractionPadding: real`, `dynamicPortTargetRadius: real`, ... +38 more
 - Signals: `dynamicPortGroupsApplied`
-- Functions: `onNodeDataChanged`, `onNodes_changed`, `onScene_nodes_changed`, `_copyDynamicPortGroups`, `_payloadHasDynamicPortGroups`, `_scheduleDynamicPortGroupSync`, `_retainDynamicPortGroupsFromSceneDelta`, `_applyScheduledDynamicPortGroupSync`, `_colorChannel`, `_svgOpacity`, `_svgNumber`, `_svgColor`, `_notchSvgSource`, `_portFlowOutlineColor`, `_dynamicPortGroupById`, `_dynamicPortGroupForPort`, `_dynamicPortOrdinal`, `_dynamicPortCanRemove`, ... +48 more
-- Instantiates: `Connections`, `Repeater`, `Image`, `Rectangle`, `MouseArea`, `Common.ManagedToolTip`, `SurfaceControls.GraphSurfaceButton`, `Text`, `Canvas`, `SurfaceControls.GraphSurfaceTextField`, `GraphInlinePropertiesLayer`, `Loader`, `Menu`, `MenuItem`, `MenuSeparator`
-- Dynamic constructs: `Repeater`; `model` -> `root.settingsGroups`; `delegate` -> `Item`; `source` -> `root.notchSvgSource`; `model` -> `root._visibleInputPorts`; `model` -> `root._visibleOutputPorts`; `Loader`; `sourceComponent` -> `Component`; `model` -> `root.dynamicPortGroups`; `delegate` -> `SurfaceControls.GraphSurfaceButton`
-- Signal handlers: `handler` `onHostChanged`; `handler` `onContextNodeIdChanged`; `handler` `Component.onCompleted`; `handler` `onPressed`; `handler` `onPositionChanged`; `handler` `onReleased`; `handler` `onCanceled`; `handler` `onEntered`; `handler` `onExited`; `handler` `onControlStarted`; `handler` `onClicked`; `handler` `onPaint`; `handler` `onVisibleChanged`; `handler` `onLockedStateChanged`; `handler` `onPlaceholderLockedStateChanged`; `handler` `onAccepted`; `handler` `onTextEdited`; `handler` `onActiveFocusChanged`; ... +4 more
+- Functions: `onNodeDataChanged`, `onNodes_changed`, `onScene_nodes_changed`, `_copyDynamicPortGroups`, `_payloadHasDynamicPortGroups`, `_scheduleDynamicPortGroupSync`, `_retainDynamicPortGroupsFromSceneDelta`, `_applyScheduledDynamicPortGroupSync`, `_colorChannel`, `_svgOpacity`, `_svgNumber`, `_svgColor`, `_notchSvgSource`, `_portFlowOutlineColor`, `_dynamicPortGroupById`, `_dynamicPortGroupForPort`, `_dynamicPortOrdinal`, `_dynamicPortCanRemove`, ... +43 more
+- Instantiates: `Connections`, `Repeater`, `Image`, `Rectangle`, `Canvas`, `GraphInlinePropertiesLayer`, `Common.ManagedToolTip`, `Loader`, `Text`, `Menu`, `MenuItem`, `MenuSeparator`
+- Dynamic constructs: `Repeater`; `model` -> `root.settingsGroups`; `delegate` -> `Item`; `source` -> `root.notchSvgSource`; `model` -> `root._visibleInputPorts`; `delegate` -> `GraphNodePortRow`; `model` -> `root._visibleOutputPorts`; `Loader`; `sourceComponent` -> `Component`; `model` -> `root.dynamicPortGroups`; `delegate` -> `SurfaceControls.GraphSurfaceButton`
+- Signal handlers: `handler` `onHostChanged`; `handler` `onContextNodeIdChanged`; `handler` `Component.onCompleted`; `handler` `onPaint`; `handler` `onVisibleChanged`; `handler` `onLockedStateChanged`; `handler` `onPlaceholderLockedStateChanged`; `handler` `onWidthChanged`; `handler` `onHeightChanged`; `handler` `onControlStarted`; `handler` `onClicked`; `handler` `onTriggered`
 - Connections: `target` `root.host`; `target` `root.host && root.host.canvasItem`
-- Property bindings: `binding` `z`; `binding` `ignoreUnknownSignals`; `binding` `visible` -> `root.host`, `root.host.nodeData`, `root.host.nodeData.collapsed`; `binding` `visible` -> `Boolean`, `anchor`, `groupData.expanded`; `binding` `width` -> `root.width`; `binding` `height` -> `root.height`; `binding` `visible` -> `root.notchedPortsEffective`; `binding` `width` -> `root.notchDiameter`; `binding` `height` -> `root.notchDiameter`; `binding` `x` -> `settingsGroupAggregate.anchor`, `Number`, `settingsGroupAggregate.anchor.x`; `binding` `y` -> `settingsGroupAggregate.anchor`; `binding` `sourceSize` -> `Qt.size`; `binding` `cache`; `binding` `asynchronous`; `binding` `smooth`; `binding` `mipmap`; `binding` `fillMode` -> `Image.Stretch`; `binding` `x` -> `settingsGroupAggregate.anchor`; ... +192 more
-- Local component refs: `localComponent` `Common.ManagedToolTip`: `ea_node_editor/ui_qml/components/common/ManagedToolTip.qml`; `localComponent` `SurfaceControls.GraphSurfaceButton`: `ea_node_editor/ui_qml/components/graph/surface_controls/GraphSurfaceButton.qml`; `localComponent` `SurfaceControls.GraphSurfaceTextField`: `ea_node_editor/ui_qml/components/graph/surface_controls/GraphSurfaceTextField.qml`; `localComponent` `GraphInlinePropertiesLayer`: `ea_node_editor/ui_qml/components/graph/GraphInlinePropertiesLayer.qml`
+- Property bindings: `binding` `z`; `binding` `ignoreUnknownSignals`; `binding` `visible` -> `root.host`, `root.host.nodeData`, `root.host.nodeData.collapsed`; `binding` `visible` -> `Boolean`, `anchor`, `groupData.expanded`; `binding` `width` -> `root.width`; `binding` `height` -> `root.height`; `binding` `visible` -> `root.notchedPortsEffective`; `binding` `width` -> `root.notchDiameter`; `binding` `height` -> `root.notchDiameter`; `binding` `x` -> `settingsGroupAggregate.anchor`, `Number`, `settingsGroupAggregate.anchor.x`; `binding` `y` -> `settingsGroupAggregate.anchor`; `binding` `sourceSize` -> `Qt.size`; `binding` `cache`; `binding` `asynchronous`; `binding` `smooth`; `binding` `mipmap`; `binding` `fillMode` -> `Image.Stretch`; `binding` `x` -> `settingsGroupAggregate.anchor`; ... +82 more
+- Local component refs: `localComponent` `GraphInlinePropertiesLayer`: `ea_node_editor/ui_qml/components/graph/GraphInlinePropertiesLayer.qml`; `localComponent` `Common.ManagedToolTip`: `ea_node_editor/ui_qml/components/common/ManagedToolTip.qml`; `localComponent` `GraphNodePortRow`: `ea_node_editor/ui_qml/components/graph/GraphNodePortRow.qml`; `localComponent` `SurfaceControls.GraphSurfaceButton`: `ea_node_editor/ui_qml/components/graph/surface_controls/GraphSurfaceButton.qml`
 
 ### `GraphNodeResizeHandle.qml`
 

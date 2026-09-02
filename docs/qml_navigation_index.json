@@ -5,13 +5,13 @@
     "ea_node_editor/ui_qml"
   ],
   "summary": {
-    "qml_files": 172,
+    "qml_files": 173,
     "repeater_constructs": 98,
     "loader_constructs": 24,
-    "signal_handlers": 881,
+    "signal_handlers": 884,
     "connections": 47,
-    "property_bindings": 7615,
-    "local_component_refs": 273
+    "property_bindings": 7624,
+    "local_component_refs": 276
   },
   "entries": [
     {
@@ -20499,6 +20499,1857 @@
       ]
     },
     {
+      "path": "ea_node_editor/ui_qml/components/graph/GraphNodePortRow.qml",
+      "component_name": "GraphNodePortRow",
+      "aliases": [
+        "GraphNodePortRow",
+        "GraphNodePortRow.qml",
+        "ea_node_editor/ui_qml/components/graph/GraphNodePortRow.qml",
+        "ea_node_editor\\ui_qml\\components\\graph\\GraphNodePortRow.qml"
+      ],
+      "root_component": "Item",
+      "imports": [
+        "QtQuick 2.15",
+        "\"../common\" as Common",
+        "\"../common/TooltipPolicy.js\" as TooltipPolicy",
+        "\"surface_controls\" as SurfaceControls",
+        "\"surface_controls/SurfaceControlGeometry.js\" as SurfaceControlGeometry"
+      ],
+      "ids": [
+        {
+          "name": "row"
+        },
+        {
+          "name": "portDot"
+        },
+        {
+          "name": "portMouse"
+        },
+        {
+          "name": "removeButton"
+        },
+        {
+          "name": "labelContainer"
+        },
+        {
+          "name": "labelText"
+        },
+        {
+          "name": "labelMouse"
+        },
+        {
+          "name": "labelEditor"
+        }
+      ],
+      "object_names": [
+        {
+          "name": "graphNodeDynamicPortRemove_"
+        },
+        {
+          "name": "graphNodeDynamicPortRemoveCircle"
+        }
+      ],
+      "properties": [
+        {
+          "kind": "Item",
+          "name": "portsLayer"
+        },
+        {
+          "kind": "var",
+          "name": "modelData"
+        },
+        {
+          "kind": "int",
+          "name": "index"
+        },
+        {
+          "kind": "string",
+          "name": "direction"
+        },
+        {
+          "kind": "Item",
+          "name": "defaultPropertyItem"
+        },
+        {
+          "kind": "bool",
+          "name": "isInput"
+        },
+        {
+          "kind": "Item",
+          "name": "host"
+        },
+        {
+          "kind": "var",
+          "name": "portData"
+        },
+        {
+          "kind": "int",
+          "name": "rowIndex"
+        },
+        {
+          "kind": "string",
+          "name": "propertyKey"
+        },
+        {
+          "kind": "bool",
+          "name": "handleVisible"
+        },
+        {
+          "kind": "bool",
+          "name": "labelOwnedBySettings"
+        },
+        {
+          "kind": "string",
+          "name": "interactionDirection"
+        },
+        {
+          "kind": "bool",
+          "name": "placeholderLockedState"
+        },
+        {
+          "kind": "bool",
+          "name": "inactiveState"
+        },
+        {
+          "kind": "bool",
+          "name": "lockedState"
+        },
+        {
+          "kind": "var",
+          "name": "defaultProperty"
+        },
+        {
+          "kind": "bool",
+          "name": "defaultEditorVisible"
+        },
+        {
+          "kind": "var",
+          "name": "portPoint"
+        },
+        {
+          "kind": "real",
+          "name": "dotDiameter"
+        },
+        {
+          "kind": "real",
+          "name": "metricRowHeight"
+        },
+        {
+          "kind": "alias",
+          "name": "portDotItem"
+        },
+        {
+          "kind": "alias",
+          "name": "portMouseAreaItem"
+        },
+        {
+          "kind": "alias",
+          "name": "labelContainerItem"
+        },
+        {
+          "kind": "alias",
+          "name": "labelEditorItem"
+        },
+        {
+          "kind": "alias",
+          "name": "removeButtonItem"
+        },
+        {
+          "kind": "bool",
+          "name": "nodeFacingEdgeOnRight"
+        },
+        {
+          "kind": "color",
+          "name": "notchFillColor"
+        },
+        {
+          "kind": "color",
+          "name": "notchStrokeColor"
+        },
+        {
+          "kind": "real",
+          "name": "notchStrokeWidth"
+        },
+        {
+          "kind": "bool",
+          "name": "interactionBlockedState"
+        },
+        {
+          "kind": "bool",
+          "name": "hoveredState"
+        },
+        {
+          "kind": "bool",
+          "name": "pendingState"
+        },
+        {
+          "kind": "bool",
+          "name": "dragSourceState"
+        },
+        {
+          "kind": "bool",
+          "name": "compatibleTargetState"
+        },
+        {
+          "kind": "bool",
+          "name": "selectedState"
+        },
+        {
+          "kind": "bool",
+          "name": "attentionState"
+        },
+        {
+          "kind": "bool",
+          "name": "interactiveState"
+        },
+        {
+          "kind": "bool",
+          "name": "revealState"
+        },
+        {
+          "kind": "bool",
+          "name": "connectedState"
+        },
+        {
+          "kind": "color",
+          "name": "portColor"
+        },
+        {
+          "kind": "real",
+          "name": "lockedDiameter"
+        },
+        {
+          "kind": "real",
+          "name": "restDiameter"
+        },
+        {
+          "kind": "real",
+          "name": "activeDiameter"
+        },
+        {
+          "kind": "real",
+          "name": "ringDiameter"
+        },
+        {
+          "kind": "real",
+          "name": "pressStartX"
+        },
+        {
+          "kind": "real",
+          "name": "pressStartY"
+        },
+        {
+          "kind": "bool",
+          "name": "movedState"
+        },
+        {
+          "kind": "bool",
+          "name": "hoverActive"
+        },
+        {
+          "kind": "bool",
+          "name": "tooltipOnlyPortLabelActive"
+        },
+        {
+          "kind": "bool",
+          "name": "infoTooltipsEnabled"
+        },
+        {
+          "kind": "bool",
+          "name": "inactiveTooltipsEnabled"
+        },
+        {
+          "kind": "string",
+          "name": "portLabelTooltipText"
+        },
+        {
+          "kind": "string",
+          "name": "portHelpTooltipText"
+        },
+        {
+          "kind": "string",
+          "name": "inactiveTooltipText"
+        },
+        {
+          "kind": "string",
+          "name": "accessiblePortText"
+        },
+        {
+          "kind": "bool",
+          "name": "effectiveHoverActive"
+        },
+        {
+          "kind": "bool",
+          "name": "tooltipVisible"
+        },
+        {
+          "kind": "bool",
+          "name": "inactiveTooltipVisible"
+        },
+        {
+          "kind": "string",
+          "name": "activeTooltipCategory"
+        },
+        {
+          "kind": "color",
+          "name": "actionFillColor"
+        },
+        {
+          "kind": "bool",
+          "name": "actionActive"
+        },
+        {
+          "kind": "var",
+          "name": "dynamicGroup"
+        },
+        {
+          "kind": "bool",
+          "name": "isEditing"
+        },
+        {
+          "kind": "bool",
+          "name": "isEditable"
+        },
+        {
+          "kind": "bool",
+          "name": "labelTextVisible"
+        },
+        {
+          "kind": "bool",
+          "name": "standardColumnsActive"
+        },
+        {
+          "kind": "real",
+          "name": "inputLabelX"
+        },
+        {
+          "kind": "real",
+          "name": "outputLabelRightEdge"
+        },
+        {
+          "kind": "real",
+          "name": "rawAvailableWidth"
+        },
+        {
+          "kind": "real",
+          "name": "standardAvailableWidth"
+        },
+        {
+          "kind": "real",
+          "name": "availableWidth"
+        },
+        {
+          "kind": "int",
+          "name": "effectiveRenderType"
+        },
+        {
+          "kind": "string",
+          "name": "helpTooltipCategory"
+        },
+        {
+          "kind": "string",
+          "name": "helpTooltipText"
+        },
+        {
+          "kind": "bool",
+          "name": "helpTooltipHovered"
+        }
+      ],
+      "signals": [],
+      "functions": [
+        {
+          "name": "currentEmbeddedInteractiveRects"
+        },
+        {
+          "name": "refocusLabelEditor"
+        },
+        {
+          "name": "paintPadlock"
+        },
+        {
+          "name": "drawShackle"
+        },
+        {
+          "name": "drawBody"
+        },
+        {
+          "name": "updateHoverState"
+        }
+      ],
+      "instantiated_components": [
+        {
+          "name": "Image"
+        },
+        {
+          "name": "Rectangle"
+        },
+        {
+          "name": "MouseArea"
+        },
+        {
+          "name": "Common.ManagedToolTip"
+        },
+        {
+          "name": "SurfaceControls.GraphSurfaceButton"
+        },
+        {
+          "name": "Text"
+        },
+        {
+          "name": "SurfaceControls.GraphSurfaceTextField"
+        }
+      ],
+      "dynamic_refs": [
+        {
+          "kind": "source",
+          "targets": [
+            "row.portsLayer.notchSvgSource"
+          ]
+        }
+      ],
+      "signal_handlers": [
+        {
+          "kind": "handler",
+          "name": "onPressed"
+        },
+        {
+          "kind": "handler",
+          "name": "onPositionChanged"
+        },
+        {
+          "kind": "handler",
+          "name": "onReleased"
+        },
+        {
+          "kind": "handler",
+          "name": "onCanceled"
+        },
+        {
+          "kind": "handler",
+          "name": "onEntered"
+        },
+        {
+          "kind": "handler",
+          "name": "onExited"
+        },
+        {
+          "kind": "handler",
+          "name": "onControlStarted"
+        },
+        {
+          "kind": "handler",
+          "name": "onClicked"
+        },
+        {
+          "kind": "handler",
+          "name": "onVisibleChanged"
+        },
+        {
+          "kind": "handler",
+          "name": "onAccepted"
+        },
+        {
+          "kind": "handler",
+          "name": "onTextEdited"
+        },
+        {
+          "kind": "handler",
+          "name": "onActiveFocusChanged"
+        },
+        {
+          "kind": "handler",
+          "name": "Keys.onEscapePressed"
+        }
+      ],
+      "connections": [],
+      "property_bindings": [
+        {
+          "kind": "binding",
+          "name": "x"
+        },
+        {
+          "kind": "binding",
+          "name": "y",
+          "targets": [
+            "isInput"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "width",
+          "targets": [
+            "host",
+            "host.width"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "height",
+          "targets": [
+            "Math.max"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "visible",
+          "targets": [
+            "handleVisible"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "visible",
+          "targets": [
+            "row.portsLayer.notchedPortsEffective"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "width",
+          "targets": [
+            "row.portsLayer.notchDiameter"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "height",
+          "targets": [
+            "row.portsLayer.notchDiameter"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "x",
+          "targets": [
+            "row.isInput",
+            "row.portPoint.x",
+            "width"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "y",
+          "targets": [
+            "row.isInput"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "sourceSize",
+          "targets": [
+            "Qt.size"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "mirror",
+          "targets": [
+            "row.isInput"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "cache"
+        },
+        {
+          "kind": "binding",
+          "name": "asynchronous"
+        },
+        {
+          "kind": "binding",
+          "name": "smooth"
+        },
+        {
+          "kind": "binding",
+          "name": "mipmap"
+        },
+        {
+          "kind": "binding",
+          "name": "fillMode",
+          "targets": [
+            "Image.Stretch"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "z"
+        },
+        {
+          "kind": "binding",
+          "name": "x",
+          "targets": [
+            "row.portPoint.x",
+            "width"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "y",
+          "targets": [
+            "row.portPoint.y",
+            "row.y",
+            "height"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "width",
+          "targets": [
+            "lockedState",
+            "lockedDiameter",
+            "interactiveState",
+            "activeDiameter",
+            "restDiameter"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "height",
+          "targets": [
+            "width"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "radius",
+          "targets": [
+            "placeholderLockedState",
+            "width",
+            "lockedState"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "opacity",
+          "targets": [
+            "lockedState"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "color",
+          "targets": [
+            "placeholderLockedState"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "border.width",
+          "targets": [
+            "placeholderLockedState"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "border.color",
+          "targets": [
+            "placeholderLockedState"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "anchors.centerIn",
+          "targets": [
+            "parent"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "visible",
+          "targets": [
+            "row.host",
+            "row.host.usesCardinalNeutralFlowHandles"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "width",
+          "targets": [
+            "portDot.ringDiameter"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "height",
+          "targets": [
+            "portDot.ringDiameter"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "radius",
+          "targets": [
+            "width"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "color",
+          "targets": [
+            "portDot.attentionState",
+            "row.host"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "border.width",
+          "targets": [
+            "portDot.attentionState",
+            "portDot.compatibleTargetState"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "border.color",
+          "targets": [
+            "portDot.attentionState",
+            "row.host"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "enabled",
+          "targets": [
+            "row.host",
+            "row.host.surfaceInteractionLocked"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "y"
+        },
+        {
+          "kind": "binding",
+          "name": "width",
+          "targets": [
+            "parent.width"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "height",
+          "targets": [
+            "parent.height"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "acceptedButtons",
+          "targets": [
+            "Qt.LeftButton",
+            "Qt.RightButton"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "hoverEnabled"
+        },
+        {
+          "kind": "binding",
+          "name": "preventStealing"
+        },
+        {
+          "kind": "binding",
+          "name": "cursorShape",
+          "targets": [
+            "portDot.interactionBlockedState"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "Accessible.name",
+          "targets": [
+            "accessiblePortText"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "Accessible.description",
+          "targets": [
+            "accessiblePortText"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "policyBridge",
+          "targets": [
+            "row.portsLayer.tooltipPolicyBridge"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "category",
+          "targets": [
+            "row.isInput",
+            "portMouse.activeTooltipCategory"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "active",
+          "targets": [
+            "row.isInput"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "text",
+          "targets": [
+            "row.isInput",
+            "portMouse.inactiveTooltipVisible"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "textFormat",
+          "targets": [
+            "row.isInput",
+            "portMouse.inactiveTooltipVisible"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "delay"
+        },
+        {
+          "kind": "binding",
+          "name": "screenStablePositioning"
+        },
+        {
+          "kind": "binding",
+          "name": "screenStablePlacement",
+          "targets": [
+            "row.portsLayer.nodeTooltipPlacement"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "anchorScale",
+          "targets": [
+            "row.portsLayer.nodeTooltipAnchorScale"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "screenGap"
+        },
+        {
+          "kind": "binding",
+          "name": "visible",
+          "targets": [
+            "row.portsLayer._dynamicPortInlineControlsVisible"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "x",
+          "targets": [
+            "Number",
+            "row.portPoint.x"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "anchors.verticalCenter",
+          "targets": [
+            "parent.verticalCenter"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "width"
+        },
+        {
+          "kind": "binding",
+          "name": "height"
+        },
+        {
+          "kind": "binding",
+          "name": "host",
+          "targets": [
+            "row.host"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "text"
+        },
+        {
+          "kind": "binding",
+          "name": "foregroundColor"
+        },
+        {
+          "kind": "binding",
+          "name": "accentColor"
+        },
+        {
+          "kind": "binding",
+          "name": "tooltipText",
+          "targets": [
+            "row.direction"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "focusPolicy",
+          "targets": [
+            "Qt.TabFocus"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "Accessible.name",
+          "targets": [
+            "tooltipText"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "background",
+          "targets": [
+            "Item"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "width",
+          "targets": [
+            "removeButton.actionActive"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "color",
+          "targets": [
+            "removeButton.down"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "border.width",
+          "targets": [
+            "removeButton.actionActive"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "border.color",
+          "targets": [
+            "removeButton.activeFocus"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "color"
+        },
+        {
+          "kind": "binding",
+          "name": "font.pixelSize"
+        },
+        {
+          "kind": "binding",
+          "name": "opacity",
+          "targets": [
+            "removeButton.actionActive"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "visible",
+          "targets": [
+            "row.portsLayer.hostLockedPlaceholder"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "x",
+          "targets": [
+            "row.isInput"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "width",
+          "targets": [
+            "availableWidth"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "visible",
+          "targets": [
+            "labelContainer.labelTextVisible",
+            "labelContainer.isEditing"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "x",
+          "targets": [
+            "row.isInput",
+            "Math.max",
+            "parent.width",
+            "width"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "width",
+          "targets": [
+            "row.host"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "text",
+          "targets": [
+            "row.portsLayer._portDisplayText",
+            "row.portData"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "color",
+          "targets": [
+            "row.portsLayer._portDisplayColor",
+            "row.portData"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "font.pixelSize",
+          "targets": [
+            "row.portsLayer._portDisplayPixelSize",
+            "row.portData"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "font.weight",
+          "targets": [
+            "row.portsLayer._portDisplayFontWeight",
+            "row.portData"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "horizontalAlignment",
+          "targets": [
+            "row.isInput",
+            "Text.AlignLeft",
+            "Text.AlignRight"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "elide",
+          "targets": [
+            "row.isInput",
+            "Text.ElideRight",
+            "Text.ElideLeft"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "renderType",
+          "targets": [
+            "row.host",
+            "row.host.nodeTextRenderType",
+            "Text.CurveRendering"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "opacity",
+          "targets": [
+            "row.isInput",
+            "row.inactiveState"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "visible",
+          "targets": [
+            "labelMouse.containsMouse",
+            "labelContainer.isEditable"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "anchors.left",
+          "targets": [
+            "parent.left"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "anchors.right",
+          "targets": [
+            "parent.right"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "anchors.bottom",
+          "targets": [
+            "parent.bottom"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "color",
+          "targets": [
+            "row.host",
+            "row.host.portLabelColor"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "opacity"
+        },
+        {
+          "kind": "binding",
+          "name": "category",
+          "targets": [
+            "labelText.helpTooltipCategory"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "active",
+          "targets": [
+            "labelMouse.containsMouse"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "text",
+          "targets": [
+            "labelText.helpTooltipText"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "textFormat",
+          "targets": [
+            "Text.RichText"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "anchors.fill",
+          "targets": [
+            "labelText"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "cursorShape",
+          "targets": [
+            "containsMouse",
+            "labelContainer.isEditable"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "acceptedButtons",
+          "targets": [
+            "labelContainer.isEditable",
+            "Qt.LeftButton",
+            "Qt.NoButton"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "visible",
+          "targets": [
+            "labelContainer.isEditing"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "x",
+          "targets": [
+            "row.isInput",
+            "labelText.x"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "width",
+          "targets": [
+            "Math.max",
+            "labelContainer.availableWidth",
+            "row.isInput",
+            "labelText.x"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "textColor",
+          "targets": [
+            "row.portsLayer._portDisplayColor",
+            "row.portData"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "fillColor"
+        },
+        {
+          "kind": "binding",
+          "name": "borderColor"
+        },
+        {
+          "kind": "binding",
+          "name": "focusBorderColor"
+        },
+        {
+          "kind": "binding",
+          "name": "topPadding"
+        },
+        {
+          "kind": "binding",
+          "name": "bottomPadding"
+        },
+        {
+          "kind": "binding",
+          "name": "leftPadding"
+        },
+        {
+          "kind": "binding",
+          "name": "rightPadding"
+        },
+        {
+          "kind": "binding",
+          "name": "horizontalAlignment",
+          "targets": [
+            "row.isInput",
+            "TextInput.AlignLeft",
+            "TextInput.AlignRight"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "verticalAlignment",
+          "targets": [
+            "TextInput.AlignVCenter"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "category"
+        },
+        {
+          "kind": "binding",
+          "name": "active",
+          "targets": [
+            "labelEditor.visible",
+            "row.portsLayer.portLabelEditError.length"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "text",
+          "targets": [
+            "row.portsLayer.portLabelEditError"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "screenStablePlacement"
+        }
+      ],
+      "local_component_refs": [
+        {
+          "kind": "localComponent",
+          "name": "Common.ManagedToolTip",
+          "detail": "ea_node_editor/ui_qml/components/common/ManagedToolTip.qml"
+        },
+        {
+          "kind": "localComponent",
+          "name": "SurfaceControls.GraphSurfaceButton",
+          "detail": "ea_node_editor/ui_qml/components/graph/surface_controls/GraphSurfaceButton.qml"
+        },
+        {
+          "kind": "localComponent",
+          "name": "SurfaceControls.GraphSurfaceTextField",
+          "detail": "ea_node_editor/ui_qml/components/graph/surface_controls/GraphSurfaceTextField.qml"
+        }
+      ],
+      "symbol_anchors": [
+        {
+          "anchor": "GraphNodePortRowPropertyPortsLayer",
+          "kind": "property",
+          "name": "portsLayer",
+          "detail": "Item"
+        },
+        {
+          "anchor": "GraphNodePortRowPropertyModelData",
+          "kind": "property",
+          "name": "modelData",
+          "detail": "var"
+        },
+        {
+          "anchor": "GraphNodePortRowPropertyIndex",
+          "kind": "property",
+          "name": "index",
+          "detail": "int"
+        },
+        {
+          "anchor": "GraphNodePortRowPropertyDirection",
+          "kind": "property",
+          "name": "direction",
+          "detail": "string"
+        },
+        {
+          "anchor": "GraphNodePortRowPropertyDefaultPropertyItem",
+          "kind": "property",
+          "name": "defaultPropertyItem",
+          "detail": "Item"
+        },
+        {
+          "anchor": "GraphNodePortRowPropertyIsInput",
+          "kind": "property",
+          "name": "isInput",
+          "detail": "bool"
+        },
+        {
+          "anchor": "GraphNodePortRowPropertyHost",
+          "kind": "property",
+          "name": "host",
+          "detail": "Item"
+        },
+        {
+          "anchor": "GraphNodePortRowPropertyPortData",
+          "kind": "property",
+          "name": "portData",
+          "detail": "var"
+        },
+        {
+          "anchor": "GraphNodePortRowPropertyRowIndex",
+          "kind": "property",
+          "name": "rowIndex",
+          "detail": "int"
+        },
+        {
+          "anchor": "GraphNodePortRowPropertyPropertyKey",
+          "kind": "property",
+          "name": "propertyKey",
+          "detail": "string"
+        },
+        {
+          "anchor": "GraphNodePortRowPropertyHandleVisible",
+          "kind": "property",
+          "name": "handleVisible",
+          "detail": "bool"
+        },
+        {
+          "anchor": "GraphNodePortRowPropertyLabelOwnedBySettings",
+          "kind": "property",
+          "name": "labelOwnedBySettings",
+          "detail": "bool"
+        },
+        {
+          "anchor": "GraphNodePortRowPropertyInteractionDirection",
+          "kind": "property",
+          "name": "interactionDirection",
+          "detail": "string"
+        },
+        {
+          "anchor": "GraphNodePortRowPropertyPlaceholderLockedState",
+          "kind": "property",
+          "name": "placeholderLockedState",
+          "detail": "bool"
+        },
+        {
+          "anchor": "GraphNodePortRowPropertyInactiveState",
+          "kind": "property",
+          "name": "inactiveState",
+          "detail": "bool"
+        },
+        {
+          "anchor": "GraphNodePortRowPropertyLockedState",
+          "kind": "property",
+          "name": "lockedState",
+          "detail": "bool"
+        },
+        {
+          "anchor": "GraphNodePortRowPropertyDefaultProperty",
+          "kind": "property",
+          "name": "defaultProperty",
+          "detail": "var"
+        },
+        {
+          "anchor": "GraphNodePortRowPropertyDefaultEditorVisible",
+          "kind": "property",
+          "name": "defaultEditorVisible",
+          "detail": "bool"
+        },
+        {
+          "anchor": "GraphNodePortRowPropertyPortPoint",
+          "kind": "property",
+          "name": "portPoint",
+          "detail": "var"
+        },
+        {
+          "anchor": "GraphNodePortRowPropertyDotDiameter",
+          "kind": "property",
+          "name": "dotDiameter",
+          "detail": "real"
+        },
+        {
+          "anchor": "GraphNodePortRowPropertyMetricRowHeight",
+          "kind": "property",
+          "name": "metricRowHeight",
+          "detail": "real"
+        },
+        {
+          "anchor": "GraphNodePortRowPropertyPortDotItem",
+          "kind": "property",
+          "name": "portDotItem",
+          "detail": "alias"
+        },
+        {
+          "anchor": "GraphNodePortRowPropertyPortMouseAreaItem",
+          "kind": "property",
+          "name": "portMouseAreaItem",
+          "detail": "alias"
+        },
+        {
+          "anchor": "GraphNodePortRowPropertyLabelContainerItem",
+          "kind": "property",
+          "name": "labelContainerItem",
+          "detail": "alias"
+        },
+        {
+          "anchor": "GraphNodePortRowPropertyLabelEditorItem",
+          "kind": "property",
+          "name": "labelEditorItem",
+          "detail": "alias"
+        },
+        {
+          "anchor": "GraphNodePortRowPropertyRemoveButtonItem",
+          "kind": "property",
+          "name": "removeButtonItem",
+          "detail": "alias"
+        },
+        {
+          "anchor": "GraphNodePortRowPropertyNodeFacingEdgeOnRight",
+          "kind": "property",
+          "name": "nodeFacingEdgeOnRight",
+          "detail": "bool"
+        },
+        {
+          "anchor": "GraphNodePortRowPropertyNotchFillColor",
+          "kind": "property",
+          "name": "notchFillColor",
+          "detail": "color"
+        },
+        {
+          "anchor": "GraphNodePortRowPropertyNotchStrokeColor",
+          "kind": "property",
+          "name": "notchStrokeColor",
+          "detail": "color"
+        },
+        {
+          "anchor": "GraphNodePortRowPropertyNotchStrokeWidth",
+          "kind": "property",
+          "name": "notchStrokeWidth",
+          "detail": "real"
+        },
+        {
+          "anchor": "GraphNodePortRowPropertyInteractionBlockedState",
+          "kind": "property",
+          "name": "interactionBlockedState",
+          "detail": "bool"
+        },
+        {
+          "anchor": "GraphNodePortRowPropertyHoveredState",
+          "kind": "property",
+          "name": "hoveredState",
+          "detail": "bool"
+        },
+        {
+          "anchor": "GraphNodePortRowPropertyPendingState",
+          "kind": "property",
+          "name": "pendingState",
+          "detail": "bool"
+        },
+        {
+          "anchor": "GraphNodePortRowPropertyDragSourceState",
+          "kind": "property",
+          "name": "dragSourceState",
+          "detail": "bool"
+        },
+        {
+          "anchor": "GraphNodePortRowPropertyCompatibleTargetState",
+          "kind": "property",
+          "name": "compatibleTargetState",
+          "detail": "bool"
+        },
+        {
+          "anchor": "GraphNodePortRowPropertySelectedState",
+          "kind": "property",
+          "name": "selectedState",
+          "detail": "bool"
+        },
+        {
+          "anchor": "GraphNodePortRowPropertyAttentionState",
+          "kind": "property",
+          "name": "attentionState",
+          "detail": "bool"
+        },
+        {
+          "anchor": "GraphNodePortRowPropertyInteractiveState",
+          "kind": "property",
+          "name": "interactiveState",
+          "detail": "bool"
+        },
+        {
+          "anchor": "GraphNodePortRowPropertyRevealState",
+          "kind": "property",
+          "name": "revealState",
+          "detail": "bool"
+        },
+        {
+          "anchor": "GraphNodePortRowPropertyConnectedState",
+          "kind": "property",
+          "name": "connectedState",
+          "detail": "bool"
+        },
+        {
+          "anchor": "GraphNodePortRowPropertyPortColor",
+          "kind": "property",
+          "name": "portColor",
+          "detail": "color"
+        },
+        {
+          "anchor": "GraphNodePortRowPropertyLockedDiameter",
+          "kind": "property",
+          "name": "lockedDiameter",
+          "detail": "real"
+        },
+        {
+          "anchor": "GraphNodePortRowPropertyRestDiameter",
+          "kind": "property",
+          "name": "restDiameter",
+          "detail": "real"
+        },
+        {
+          "anchor": "GraphNodePortRowPropertyActiveDiameter",
+          "kind": "property",
+          "name": "activeDiameter",
+          "detail": "real"
+        },
+        {
+          "anchor": "GraphNodePortRowPropertyRingDiameter",
+          "kind": "property",
+          "name": "ringDiameter",
+          "detail": "real"
+        },
+        {
+          "anchor": "GraphNodePortRowPropertyPressStartX",
+          "kind": "property",
+          "name": "pressStartX",
+          "detail": "real"
+        },
+        {
+          "anchor": "GraphNodePortRowPropertyPressStartY",
+          "kind": "property",
+          "name": "pressStartY",
+          "detail": "real"
+        },
+        {
+          "anchor": "GraphNodePortRowPropertyMovedState",
+          "kind": "property",
+          "name": "movedState",
+          "detail": "bool"
+        },
+        {
+          "anchor": "GraphNodePortRowPropertyHoverActive",
+          "kind": "property",
+          "name": "hoverActive",
+          "detail": "bool"
+        },
+        {
+          "anchor": "GraphNodePortRowPropertyTooltipOnlyPortLabelActive",
+          "kind": "property",
+          "name": "tooltipOnlyPortLabelActive",
+          "detail": "bool"
+        },
+        {
+          "anchor": "GraphNodePortRowPropertyInfoTooltipsEnabled",
+          "kind": "property",
+          "name": "infoTooltipsEnabled",
+          "detail": "bool"
+        },
+        {
+          "anchor": "GraphNodePortRowPropertyInactiveTooltipsEnabled",
+          "kind": "property",
+          "name": "inactiveTooltipsEnabled",
+          "detail": "bool"
+        },
+        {
+          "anchor": "GraphNodePortRowPropertyPortLabelTooltipText",
+          "kind": "property",
+          "name": "portLabelTooltipText",
+          "detail": "string"
+        },
+        {
+          "anchor": "GraphNodePortRowPropertyPortHelpTooltipText",
+          "kind": "property",
+          "name": "portHelpTooltipText",
+          "detail": "string"
+        },
+        {
+          "anchor": "GraphNodePortRowPropertyInactiveTooltipText",
+          "kind": "property",
+          "name": "inactiveTooltipText",
+          "detail": "string"
+        },
+        {
+          "anchor": "GraphNodePortRowPropertyAccessiblePortText",
+          "kind": "property",
+          "name": "accessiblePortText",
+          "detail": "string"
+        },
+        {
+          "anchor": "GraphNodePortRowPropertyEffectiveHoverActive",
+          "kind": "property",
+          "name": "effectiveHoverActive",
+          "detail": "bool"
+        },
+        {
+          "anchor": "GraphNodePortRowPropertyTooltipVisible",
+          "kind": "property",
+          "name": "tooltipVisible",
+          "detail": "bool"
+        },
+        {
+          "anchor": "GraphNodePortRowPropertyInactiveTooltipVisible",
+          "kind": "property",
+          "name": "inactiveTooltipVisible",
+          "detail": "bool"
+        },
+        {
+          "anchor": "GraphNodePortRowPropertyActiveTooltipCategory",
+          "kind": "property",
+          "name": "activeTooltipCategory",
+          "detail": "string"
+        },
+        {
+          "anchor": "GraphNodePortRowPropertyActionFillColor",
+          "kind": "property",
+          "name": "actionFillColor",
+          "detail": "color"
+        },
+        {
+          "anchor": "GraphNodePortRowPropertyActionActive",
+          "kind": "property",
+          "name": "actionActive",
+          "detail": "bool"
+        },
+        {
+          "anchor": "GraphNodePortRowPropertyDynamicGroup",
+          "kind": "property",
+          "name": "dynamicGroup",
+          "detail": "var"
+        },
+        {
+          "anchor": "GraphNodePortRowPropertyIsEditing",
+          "kind": "property",
+          "name": "isEditing",
+          "detail": "bool"
+        },
+        {
+          "anchor": "GraphNodePortRowPropertyIsEditable",
+          "kind": "property",
+          "name": "isEditable",
+          "detail": "bool"
+        },
+        {
+          "anchor": "GraphNodePortRowPropertyLabelTextVisible",
+          "kind": "property",
+          "name": "labelTextVisible",
+          "detail": "bool"
+        },
+        {
+          "anchor": "GraphNodePortRowPropertyStandardColumnsActive",
+          "kind": "property",
+          "name": "standardColumnsActive",
+          "detail": "bool"
+        },
+        {
+          "anchor": "GraphNodePortRowPropertyInputLabelX",
+          "kind": "property",
+          "name": "inputLabelX",
+          "detail": "real"
+        },
+        {
+          "anchor": "GraphNodePortRowPropertyOutputLabelRightEdge",
+          "kind": "property",
+          "name": "outputLabelRightEdge",
+          "detail": "real"
+        },
+        {
+          "anchor": "GraphNodePortRowPropertyRawAvailableWidth",
+          "kind": "property",
+          "name": "rawAvailableWidth",
+          "detail": "real"
+        },
+        {
+          "anchor": "GraphNodePortRowPropertyStandardAvailableWidth",
+          "kind": "property",
+          "name": "standardAvailableWidth",
+          "detail": "real"
+        },
+        {
+          "anchor": "GraphNodePortRowPropertyAvailableWidth",
+          "kind": "property",
+          "name": "availableWidth",
+          "detail": "real"
+        },
+        {
+          "anchor": "GraphNodePortRowPropertyEffectiveRenderType",
+          "kind": "property",
+          "name": "effectiveRenderType",
+          "detail": "int"
+        },
+        {
+          "anchor": "GraphNodePortRowPropertyHelpTooltipCategory",
+          "kind": "property",
+          "name": "helpTooltipCategory",
+          "detail": "string"
+        },
+        {
+          "anchor": "GraphNodePortRowPropertyHelpTooltipText",
+          "kind": "property",
+          "name": "helpTooltipText",
+          "detail": "string"
+        },
+        {
+          "anchor": "GraphNodePortRowPropertyHelpTooltipHovered",
+          "kind": "property",
+          "name": "helpTooltipHovered",
+          "detail": "bool"
+        },
+        {
+          "anchor": "GraphNodePortRowFunctionCurrentEmbeddedInteractiveRects",
+          "kind": "function",
+          "name": "currentEmbeddedInteractiveRects"
+        },
+        {
+          "anchor": "GraphNodePortRowFunctionRefocusLabelEditor",
+          "kind": "function",
+          "name": "refocusLabelEditor"
+        },
+        {
+          "anchor": "GraphNodePortRowFunctionPaintPadlock",
+          "kind": "function",
+          "name": "paintPadlock"
+        },
+        {
+          "anchor": "GraphNodePortRowFunctionDrawShackle",
+          "kind": "function",
+          "name": "drawShackle"
+        },
+        {
+          "anchor": "GraphNodePortRowFunctionDrawBody",
+          "kind": "function",
+          "name": "drawBody"
+        },
+        {
+          "anchor": "GraphNodePortRowFunctionUpdateHoverState",
+          "kind": "function",
+          "name": "updateHoverState"
+        },
+        {
+          "anchor": "GraphNodePortRowHandlerOnPressed",
+          "kind": "handler",
+          "name": "onPressed"
+        },
+        {
+          "anchor": "GraphNodePortRowHandlerOnPositionChanged",
+          "kind": "handler",
+          "name": "onPositionChanged"
+        },
+        {
+          "anchor": "GraphNodePortRowHandlerOnReleased",
+          "kind": "handler",
+          "name": "onReleased"
+        },
+        {
+          "anchor": "GraphNodePortRowHandlerOnCanceled",
+          "kind": "handler",
+          "name": "onCanceled"
+        },
+        {
+          "anchor": "GraphNodePortRowHandlerOnEntered",
+          "kind": "handler",
+          "name": "onEntered"
+        },
+        {
+          "anchor": "GraphNodePortRowHandlerOnExited",
+          "kind": "handler",
+          "name": "onExited"
+        },
+        {
+          "anchor": "GraphNodePortRowHandlerOnControlStarted",
+          "kind": "handler",
+          "name": "onControlStarted"
+        },
+        {
+          "anchor": "GraphNodePortRowHandlerOnClicked",
+          "kind": "handler",
+          "name": "onClicked"
+        },
+        {
+          "anchor": "GraphNodePortRowHandlerOnVisibleChanged",
+          "kind": "handler",
+          "name": "onVisibleChanged"
+        },
+        {
+          "anchor": "GraphNodePortRowHandlerOnAccepted",
+          "kind": "handler",
+          "name": "onAccepted"
+        },
+        {
+          "anchor": "GraphNodePortRowHandlerOnTextEdited",
+          "kind": "handler",
+          "name": "onTextEdited"
+        },
+        {
+          "anchor": "GraphNodePortRowHandlerOnActiveFocusChanged",
+          "kind": "handler",
+          "name": "onActiveFocusChanged"
+        },
+        {
+          "anchor": "GraphNodePortRowHandlerKeysOnEscapePressed",
+          "kind": "handler",
+          "name": "Keys.onEscapePressed"
+        },
+        {
+          "anchor": "GraphNodePortRowLocalComponentCommonManagedToolTip",
+          "kind": "localComponent",
+          "name": "Common.ManagedToolTip",
+          "detail": "ea_node_editor/ui_qml/components/common/ManagedToolTip.qml"
+        },
+        {
+          "anchor": "GraphNodePortRowLocalComponentSurfaceControlsGraphSurfaceButton",
+          "kind": "localComponent",
+          "name": "SurfaceControls.GraphSurfaceButton",
+          "detail": "ea_node_editor/ui_qml/components/graph/surface_controls/GraphSurfaceButton.qml"
+        },
+        {
+          "anchor": "GraphNodePortRowLocalComponentSurfaceControlsGraphSurfaceTextField",
+          "kind": "localComponent",
+          "name": "SurfaceControls.GraphSurfaceTextField",
+          "detail": "ea_node_editor/ui_qml/components/graph/surface_controls/GraphSurfaceTextField.qml"
+        }
+      ]
+    },
+    {
       "path": "ea_node_editor/ui_qml/components/graph/GraphNodePortsLayer.qml",
       "component_name": "GraphNodePortsLayer",
       "aliases": [
@@ -20532,28 +22383,7 @@
           "name": "inputPortRow"
         },
         {
-          "name": "inputDot"
-        },
-        {
-          "name": "inputPortMouse"
-        },
-        {
-          "name": "inputRemoveButton"
-        },
-        {
-          "name": "inputLabelContainer"
-        },
-        {
-          "name": "lockGlyph"
-        },
-        {
-          "name": "inputLabelText"
-        },
-        {
-          "name": "inputLabelMouse"
-        },
-        {
-          "name": "inputLabelEditor"
+          "name": "inputLockGlyph"
         },
         {
           "name": "defaultPropertyLayer"
@@ -20565,28 +22395,10 @@
           "name": "outputPortRow"
         },
         {
-          "name": "outputDot"
-        },
-        {
-          "name": "outputPortMouse"
-        },
-        {
-          "name": "outputRemoveButton"
-        },
-        {
-          "name": "outputLabelContainer"
-        },
-        {
           "name": "outputLockGlyphLoader"
         },
         {
-          "name": "outputLabelText"
-        },
-        {
-          "name": "outputLabelMouse"
-        },
-        {
-          "name": "outputLabelEditor"
+          "name": "outputLockGlyph"
         },
         {
           "name": "dynamicPortGroupRepeater"
@@ -20609,70 +22421,16 @@
           "name": "graphNodeSettingsGroupAggregateSocket"
         },
         {
-          "name": "graphNodeInputPortRow"
-        },
-        {
-          "name": "graphNodeInputPortNotch"
-        },
-        {
-          "name": "graphNodeInputPortDot"
-        },
-        {
-          "name": "graphNodeInputPortRing"
-        },
-        {
           "name": "graphNodeInputPortInactiveSlash"
-        },
-        {
-          "name": "graphNodeInputPortMouseArea"
-        },
-        {
-          "name": "graphNodeDynamicPortRemove_"
-        },
-        {
-          "name": "graphNodeDynamicPortRemoveCircle"
         },
         {
           "name": "graphNodeInputPortPadlock"
         },
         {
-          "name": "graphNodeInputPortLabel"
-        },
-        {
-          "name": "graphNodeInputPortHelpToolTip"
-        },
-        {
-          "name": "graphNodeInputPortLabelEditor"
-        },
-        {
           "name": "graphNodeInputDefaultProperty"
         },
         {
-          "name": "graphNodeOutputPortRow"
-        },
-        {
-          "name": "graphNodeOutputPortNotch"
-        },
-        {
-          "name": "graphNodeOutputPortDot"
-        },
-        {
-          "name": "graphNodeOutputPortRing"
-        },
-        {
-          "name": "graphNodeOutputPortMouseArea"
-        },
-        {
           "name": "graphNodeOutputPortPadlock"
-        },
-        {
-          "name": "graphNodeOutputPortLabel"
-        },
-        {
-          "name": "graphNodeOutputPortHelpToolTip"
-        },
-        {
-          "name": "graphNodeOutputPortLabelEditor"
         },
         {
           "name": "graphNodeDynamicPortAdd_"
@@ -20907,248 +22665,16 @@
           "name": "notchStrokeWidth"
         },
         {
-          "kind": "int",
-          "name": "rowIndex"
-        },
-        {
           "kind": "string",
           "name": "propertyKey"
-        },
-        {
-          "kind": "bool",
-          "name": "handleVisible"
-        },
-        {
-          "kind": "bool",
-          "name": "labelOwnedBySettings"
-        },
-        {
-          "kind": "string",
-          "name": "interactionDirection"
-        },
-        {
-          "kind": "bool",
-          "name": "placeholderLockedState"
         },
         {
           "kind": "bool",
           "name": "lockedState"
         },
         {
-          "kind": "var",
-          "name": "defaultProperty"
-        },
-        {
           "kind": "bool",
-          "name": "defaultEditorVisible"
-        },
-        {
-          "kind": "var",
-          "name": "portPoint"
-        },
-        {
-          "kind": "real",
-          "name": "dotDiameter"
-        },
-        {
-          "kind": "real",
-          "name": "metricRowHeight"
-        },
-        {
-          "kind": "bool",
-          "name": "inactiveState"
-        },
-        {
-          "kind": "bool",
-          "name": "interactionBlockedState"
-        },
-        {
-          "kind": "bool",
-          "name": "hoveredState"
-        },
-        {
-          "kind": "bool",
-          "name": "pendingState"
-        },
-        {
-          "kind": "bool",
-          "name": "dragSourceState"
-        },
-        {
-          "kind": "bool",
-          "name": "compatibleTargetState"
-        },
-        {
-          "kind": "bool",
-          "name": "selectedState"
-        },
-        {
-          "kind": "bool",
-          "name": "attentionState"
-        },
-        {
-          "kind": "bool",
-          "name": "interactiveState"
-        },
-        {
-          "kind": "bool",
-          "name": "revealState"
-        },
-        {
-          "kind": "bool",
-          "name": "connectedState"
-        },
-        {
-          "kind": "color",
-          "name": "portColor"
-        },
-        {
-          "kind": "real",
-          "name": "lockedDiameter"
-        },
-        {
-          "kind": "real",
-          "name": "restDiameter"
-        },
-        {
-          "kind": "real",
-          "name": "activeDiameter"
-        },
-        {
-          "kind": "real",
-          "name": "ringDiameter"
-        },
-        {
-          "kind": "real",
-          "name": "pressStartX"
-        },
-        {
-          "kind": "real",
-          "name": "pressStartY"
-        },
-        {
-          "kind": "bool",
-          "name": "movedState"
-        },
-        {
-          "kind": "bool",
-          "name": "tooltipOnlyPortLabelActive"
-        },
-        {
-          "kind": "bool",
-          "name": "infoTooltipsEnabled"
-        },
-        {
-          "kind": "bool",
-          "name": "inactiveTooltipsEnabled"
-        },
-        {
-          "kind": "string",
-          "name": "portLabelTooltipText"
-        },
-        {
-          "kind": "string",
-          "name": "portHelpTooltipText"
-        },
-        {
-          "kind": "string",
-          "name": "inactiveTooltipText"
-        },
-        {
-          "kind": "string",
-          "name": "accessiblePortText"
-        },
-        {
-          "kind": "bool",
-          "name": "tooltipVisible"
-        },
-        {
-          "kind": "bool",
-          "name": "inactiveTooltipVisible"
-        },
-        {
-          "kind": "string",
-          "name": "activeTooltipCategory"
-        },
-        {
-          "kind": "color",
-          "name": "actionFillColor"
-        },
-        {
-          "kind": "bool",
-          "name": "actionActive"
-        },
-        {
-          "kind": "var",
-          "name": "dynamicGroup"
-        },
-        {
-          "kind": "bool",
-          "name": "isEditing"
-        },
-        {
-          "kind": "bool",
-          "name": "isEditable"
-        },
-        {
-          "kind": "bool",
-          "name": "labelTextVisible"
-        },
-        {
-          "kind": "real",
-          "name": "lockGlyphWidth"
-        },
-        {
-          "kind": "real",
-          "name": "lockGlyphGap"
-        },
-        {
-          "kind": "real",
-          "name": "textLeftInset"
-        },
-        {
-          "kind": "bool",
-          "name": "standardColumnsActive"
-        },
-        {
-          "kind": "real",
-          "name": "labelX"
-        },
-        {
-          "kind": "real",
-          "name": "rawAvailableWidth"
-        },
-        {
-          "kind": "real",
-          "name": "standardAvailableWidth"
-        },
-        {
-          "kind": "real",
-          "name": "availableWidth"
-        },
-        {
-          "kind": "int",
-          "name": "effectiveRenderType"
-        },
-        {
-          "kind": "string",
-          "name": "helpTooltipCategory"
-        },
-        {
-          "kind": "string",
-          "name": "helpTooltipText"
-        },
-        {
-          "kind": "bool",
-          "name": "helpTooltipHovered"
-        },
-        {
-          "kind": "bool",
-          "name": "hoverActive"
-        },
-        {
-          "kind": "real",
-          "name": "labelRightEdge"
+          "name": "placeholderLockedState"
         },
         {
           "kind": "string",
@@ -21161,6 +22687,18 @@
         {
           "kind": "var",
           "name": "portKeys"
+        },
+        {
+          "kind": "bool",
+          "name": "actionActive"
+        },
+        {
+          "kind": "color",
+          "name": "actionFillColor"
+        },
+        {
+          "kind": "var",
+          "name": "dynamicGroup"
         }
       ],
       "signals": [
@@ -21351,21 +22889,6 @@
         },
         {
           "name": "commitPortLabelEdit"
-        },
-        {
-          "name": "currentEmbeddedInteractiveRects"
-        },
-        {
-          "name": "refocusLabelEditor"
-        },
-        {
-          "name": "drawShackle"
-        },
-        {
-          "name": "drawBody"
-        },
-        {
-          "name": "updateHoverState"
         }
       ],
       "instantiated_components": [
@@ -21382,28 +22905,19 @@
           "name": "Rectangle"
         },
         {
-          "name": "MouseArea"
-        },
-        {
-          "name": "Common.ManagedToolTip"
-        },
-        {
-          "name": "SurfaceControls.GraphSurfaceButton"
-        },
-        {
-          "name": "Text"
-        },
-        {
           "name": "Canvas"
-        },
-        {
-          "name": "SurfaceControls.GraphSurfaceTextField"
         },
         {
           "name": "GraphInlinePropertiesLayer"
         },
         {
+          "name": "Common.ManagedToolTip"
+        },
+        {
           "name": "Loader"
+        },
+        {
+          "name": "Text"
         },
         {
           "name": "Menu"
@@ -21441,6 +22955,12 @@
           "kind": "model",
           "targets": [
             "root._visibleInputPorts"
+          ]
+        },
+        {
+          "kind": "delegate",
+          "targets": [
+            "GraphNodePortRow"
           ]
         },
         {
@@ -21486,38 +23006,6 @@
         },
         {
           "kind": "handler",
-          "name": "onPressed"
-        },
-        {
-          "kind": "handler",
-          "name": "onPositionChanged"
-        },
-        {
-          "kind": "handler",
-          "name": "onReleased"
-        },
-        {
-          "kind": "handler",
-          "name": "onCanceled"
-        },
-        {
-          "kind": "handler",
-          "name": "onEntered"
-        },
-        {
-          "kind": "handler",
-          "name": "onExited"
-        },
-        {
-          "kind": "handler",
-          "name": "onControlStarted"
-        },
-        {
-          "kind": "handler",
-          "name": "onClicked"
-        },
-        {
-          "kind": "handler",
           "name": "onPaint"
         },
         {
@@ -21534,27 +23022,19 @@
         },
         {
           "kind": "handler",
-          "name": "onAccepted"
-        },
-        {
-          "kind": "handler",
-          "name": "onTextEdited"
-        },
-        {
-          "kind": "handler",
-          "name": "onActiveFocusChanged"
-        },
-        {
-          "kind": "handler",
-          "name": "Keys.onEscapePressed"
-        },
-        {
-          "kind": "handler",
           "name": "onWidthChanged"
         },
         {
           "kind": "handler",
           "name": "onHeightChanged"
+        },
+        {
+          "kind": "handler",
+          "name": "onControlStarted"
+        },
+        {
+          "kind": "handler",
+          "name": "onClicked"
         },
         {
           "kind": "handler",
@@ -21727,117 +23207,34 @@
         },
         {
           "kind": "binding",
-          "name": "x"
-        },
-        {
-          "kind": "binding",
-          "name": "y",
+          "name": "portsLayer",
           "targets": [
-            "portPoint.y",
-            "root._defaultEditorAnchorOffset",
-            "defaultProperty",
-            "height"
+            "root"
           ]
         },
         {
           "kind": "binding",
-          "name": "width",
+          "name": "direction"
+        },
+        {
+          "kind": "binding",
+          "name": "defaultPropertyItem",
           "targets": [
-            "root.host",
-            "root.host.width"
+            "defaultPropertyLayer"
           ]
         },
         {
           "kind": "binding",
-          "name": "height",
+          "name": "parent",
           "targets": [
-            "Math.max"
+            "inputPortRow.portDotItem"
           ]
         },
         {
           "kind": "binding",
           "name": "visible",
           "targets": [
-            "handleVisible"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "x",
-          "targets": [
-            "parent.portPoint.x"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "y",
-          "targets": [
-            "parent.portPoint.y",
-            "parent.y",
-            "height"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "mirror"
-        },
-        {
-          "kind": "binding",
-          "name": "x",
-          "targets": [
-            "parent.portPoint.x",
-            "width"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "width",
-          "targets": [
-            "lockedState",
-            "lockedDiameter",
-            "interactiveState",
-            "activeDiameter",
-            "restDiameter"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "radius",
-          "targets": [
-            "placeholderLockedState",
-            "width",
-            "lockedState"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "opacity",
-          "targets": [
-            "lockedState",
-            "revealState",
-            "inactiveState",
-            "interactionBlockedState"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "color",
-          "targets": [
-            "placeholderLockedState"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "border.width",
-          "targets": [
-            "placeholderLockedState"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "border.color",
-          "targets": [
-            "placeholderLockedState"
+            "inputPortRow.portDotItem.inactiveState"
           ]
         },
         {
@@ -21849,66 +23246,10 @@
         },
         {
           "kind": "binding",
-          "name": "visible",
-          "targets": [
-            "root.host",
-            "root.host.usesCardinalNeutralFlowHandles"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "width",
-          "targets": [
-            "inputDot.ringDiameter"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "height",
-          "targets": [
-            "inputDot.ringDiameter"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "color",
-          "targets": [
-            "inputDot.attentionState",
-            "root.host",
-            "root.host.portInteractiveRingFillColor"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "border.width",
-          "targets": [
-            "inputDot.attentionState",
-            "inputDot.compatibleTargetState"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "border.color",
-          "targets": [
-            "inputDot.attentionState",
-            "root.host"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "visible",
-          "targets": [
-            "inputDot.inactiveState",
-            "inputDot.width",
-            "inputDot.height"
-          ]
-        },
-        {
-          "kind": "binding",
           "name": "width",
           "targets": [
             "Math.max",
-            "inputDot.width"
+            "inputPortRow.portDotItem.width"
           ]
         },
         {
@@ -21940,11 +23281,62 @@
         },
         {
           "kind": "binding",
-          "name": "enabled",
+          "name": "parent",
           "targets": [
-            "root.host",
-            "root.host.surfaceInteractionLocked"
+            "lockedState"
           ]
+        },
+        {
+          "kind": "binding",
+          "name": "visible",
+          "targets": [
+            "lockedState"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "x",
+          "targets": [
+            "lockedState",
+            "Math.round",
+            "parent.width",
+            "width"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "y",
+          "targets": [
+            "Math.round",
+            "parent.height",
+            "height"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "width"
+        },
+        {
+          "kind": "binding",
+          "name": "implicitHeight",
+          "targets": [
+            "height"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "antialiasing"
+        },
+        {
+          "kind": "binding",
+          "name": "opacity",
+          "targets": [
+            "lockedState"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "x"
         },
         {
           "kind": "binding",
@@ -21954,53 +23346,62 @@
           "kind": "binding",
           "name": "width",
           "targets": [
-            "parent.width"
+            "root.host",
+            "root.host.width"
           ]
         },
         {
           "kind": "binding",
           "name": "height",
           "targets": [
-            "parent.height"
+            "inputPortRow.height"
           ]
         },
         {
           "kind": "binding",
-          "name": "acceptedButtons",
+          "name": "visible",
           "targets": [
-            "Qt.LeftButton",
-            "Qt.RightButton"
+            "inputPortRow.defaultEditorVisible"
           ]
         },
         {
           "kind": "binding",
-          "name": "hoverEnabled"
-        },
-        {
-          "kind": "binding",
-          "name": "preventStealing"
-        },
-        {
-          "kind": "binding",
-          "name": "cursorShape",
+          "name": "enabled",
           "targets": [
-            "inputDot.interactionBlockedState",
-            "Qt.ForbiddenCursor",
-            "Qt.PointingHandCursor"
+            "root.host",
+            "root.host.surfaceInteractionLocked"
           ]
         },
         {
           "kind": "binding",
-          "name": "Accessible.name",
+          "name": "host",
           "targets": [
-            "accessiblePortText"
+            "root.host"
           ]
         },
         {
           "kind": "binding",
-          "name": "Accessible.description",
+          "name": "modelOverride",
           "targets": [
-            "accessiblePortText"
+            "inputPortRow.defaultEditorVisible"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "contentHeightOverride",
+          "targets": [
+            "inputPortRow.height"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "contentTopOverride"
+        },
+        {
+          "kind": "binding",
+          "name": "parent",
+          "targets": [
+            "outputPortRow.portMouseAreaItem"
           ]
         },
         {
@@ -22012,33 +23413,20 @@
         },
         {
           "kind": "binding",
-          "name": "category",
-          "targets": [
-            "inputPortMouse.activeTooltipCategory"
-          ]
+          "name": "category"
         },
         {
           "kind": "binding",
           "name": "active",
           "targets": [
-            "inputPortMouse.tooltipVisible",
-            "inputPortMouse.inactiveTooltipVisible"
+            "outputPortRow.portMouseAreaItem.inactiveTooltipVisible"
           ]
         },
         {
           "kind": "binding",
           "name": "text",
           "targets": [
-            "inputPortMouse.inactiveTooltipVisible"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "textFormat",
-          "targets": [
-            "inputPortMouse.inactiveTooltipVisible",
-            "Text.PlainText",
-            "Text.RichText"
+            "outputPortRow.portMouseAreaItem.inactiveTooltipText"
           ]
         },
         {
@@ -22069,666 +23457,16 @@
         },
         {
           "kind": "binding",
-          "name": "visible",
+          "name": "active",
           "targets": [
-            "root._dynamicPortInlineControlsVisible"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "x",
-          "targets": [
-            "Number",
-            "inputPortRow.portPoint.x"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "anchors.verticalCenter",
-          "targets": [
-            "parent.verticalCenter"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "width"
-        },
-        {
-          "kind": "binding",
-          "name": "host",
-          "targets": [
-            "root.host"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "text"
-        },
-        {
-          "kind": "binding",
-          "name": "foregroundColor"
-        },
-        {
-          "kind": "binding",
-          "name": "accentColor"
-        },
-        {
-          "kind": "binding",
-          "name": "tooltipText",
-          "targets": [
-            "root._portLabelText",
-            "modelData"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "focusPolicy",
-          "targets": [
-            "Qt.TabFocus"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "Accessible.name",
-          "targets": [
-            "tooltipText"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "background",
-          "targets": [
-            "Item"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "width",
-          "targets": [
-            "inputRemoveButton.actionActive"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "color",
-          "targets": [
-            "inputRemoveButton.down"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "border.width",
-          "targets": [
-            "inputRemoveButton.actionActive"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "border.color",
-          "targets": [
-            "inputRemoveButton.activeFocus"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "color"
-        },
-        {
-          "kind": "binding",
-          "name": "font.pixelSize"
-        },
-        {
-          "kind": "binding",
-          "name": "opacity",
-          "targets": [
-            "inputRemoveButton.actionActive"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "visible",
-          "targets": [
-            "root.hostLockedPlaceholder"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "x",
-          "targets": [
-            "labelX"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "width",
-          "targets": [
-            "availableWidth"
+            "outputPortRow.portDotItem.lockedState"
           ]
         },
         {
           "kind": "binding",
           "name": "parent",
           "targets": [
-            "inputLabelContainer.lockedState",
-            "inputDot",
-            "inputLabelContainer"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "visible",
-          "targets": [
-            "inputLabelContainer.lockedState"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "x",
-          "targets": [
-            "inputLabelContainer.lockedState",
-            "Math.round",
-            "parent.width",
-            "width"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "y",
-          "targets": [
-            "Math.round",
-            "parent.height",
-            "height"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "implicitHeight",
-          "targets": [
-            "height"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "antialiasing"
-        },
-        {
-          "kind": "binding",
-          "name": "opacity",
-          "targets": [
-            "lockedState"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "visible",
-          "targets": [
-            "inputLabelContainer.labelTextVisible",
-            "inputLabelContainer.isEditing"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "x",
-          "targets": [
-            "inputLabelContainer.textLeftInset"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "width",
-          "targets": [
-            "root.host"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "text",
-          "targets": [
-            "root._portDisplayText",
-            "modelData"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "color",
-          "targets": [
-            "root._portDisplayColor",
-            "modelData"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "font.pixelSize",
-          "targets": [
-            "root._portDisplayPixelSize",
-            "modelData"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "font.weight",
-          "targets": [
-            "root._portDisplayFontWeight",
-            "modelData"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "elide",
-          "targets": [
-            "Text.ElideRight"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "renderType",
-          "targets": [
-            "root.host",
-            "root.host.nodeTextRenderType",
-            "Text.CurveRendering"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "opacity",
-          "targets": [
-            "root._portInactive",
-            "modelData",
-            "inputLabelContainer.lockedState"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "visible",
-          "targets": [
-            "inputLabelMouse.containsMouse",
-            "inputLabelContainer.isEditable"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "anchors.left",
-          "targets": [
-            "parent.left"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "anchors.right",
-          "targets": [
-            "parent.right"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "anchors.bottom",
-          "targets": [
-            "parent.bottom"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "color",
-          "targets": [
-            "root.host",
-            "root.host.portLabelColor"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "category",
-          "targets": [
-            "inputLabelText.helpTooltipCategory"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "active",
-          "targets": [
-            "inputLabelMouse.containsMouse"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "text",
-          "targets": [
-            "inputLabelText.helpTooltipText"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "textFormat",
-          "targets": [
-            "Text.RichText"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "anchors.fill",
-          "targets": [
-            "inputLabelText"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "visible",
-          "targets": [
-            "inputLabelContainer.labelTextVisible"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "cursorShape",
-          "targets": [
-            "containsMouse",
-            "inputLabelContainer.isEditable",
-            "Qt.IBeamCursor",
-            "Qt.ArrowCursor"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "acceptedButtons",
-          "targets": [
-            "inputLabelContainer.isEditable",
-            "Qt.LeftButton",
-            "Qt.NoButton"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "visible",
-          "targets": [
-            "inputLabelContainer.isEditing"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "x",
-          "targets": [
-            "inputLabelText.x"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "width",
-          "targets": [
-            "Math.max",
-            "inputLabelContainer.availableWidth",
-            "inputLabelText.x"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "textColor",
-          "targets": [
-            "root._portDisplayColor",
-            "modelData"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "fillColor"
-        },
-        {
-          "kind": "binding",
-          "name": "borderColor"
-        },
-        {
-          "kind": "binding",
-          "name": "focusBorderColor"
-        },
-        {
-          "kind": "binding",
-          "name": "topPadding"
-        },
-        {
-          "kind": "binding",
-          "name": "bottomPadding"
-        },
-        {
-          "kind": "binding",
-          "name": "leftPadding"
-        },
-        {
-          "kind": "binding",
-          "name": "rightPadding"
-        },
-        {
-          "kind": "binding",
-          "name": "horizontalAlignment",
-          "targets": [
-            "TextInput.AlignLeft"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "verticalAlignment",
-          "targets": [
-            "TextInput.AlignVCenter"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "category"
-        },
-        {
-          "kind": "binding",
-          "name": "active",
-          "targets": [
-            "inputLabelEditor.visible",
-            "root.portLabelEditError.length"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "text",
-          "targets": [
-            "root.portLabelEditError"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "screenStablePlacement"
-        },
-        {
-          "kind": "binding",
-          "name": "height",
-          "targets": [
-            "inputPortRow.height"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "visible",
-          "targets": [
-            "inputPortRow.defaultEditorVisible"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "modelOverride",
-          "targets": [
-            "inputPortRow.defaultEditorVisible",
-            "inputPortRow.defaultProperty"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "contentHeightOverride",
-          "targets": [
-            "inputPortRow.height"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "contentTopOverride"
-        },
-        {
-          "kind": "binding",
-          "name": "y",
-          "targets": [
-            "portPoint.y",
-            "height"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "height",
-          "targets": [
-            "Math.max",
-            "dotDiameter",
-            "metricRowHeight"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "opacity",
-          "targets": [
-            "lockedState",
-            "revealState"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "width",
-          "targets": [
-            "outputDot.ringDiameter"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "height",
-          "targets": [
-            "outputDot.ringDiameter"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "color",
-          "targets": [
-            "outputDot.attentionState",
-            "root.host",
-            "root.host.portInteractiveRingFillColor"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "border.width",
-          "targets": [
-            "outputDot.attentionState",
-            "outputDot.compatibleTargetState"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "border.color",
-          "targets": [
-            "outputDot.attentionState",
-            "root.host"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "cursorShape",
-          "targets": [
-            "outputDot.lockedState",
-            "Qt.ForbiddenCursor",
-            "Qt.PointingHandCursor"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "active",
-          "targets": [
-            "outputPortMouse.tooltipVisible",
-            "outputPortMouse.inactiveTooltipVisible"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "text",
-          "targets": [
-            "outputPortMouse.portHelpTooltipText"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "active",
-          "targets": [
-            "outputPortMouse.inactiveTooltipVisible"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "text",
-          "targets": [
-            "outputPortMouse.inactiveTooltipText"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "x",
-          "targets": [
-            "Number",
-            "outputPortRow.portPoint.x"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "width",
-          "targets": [
-            "outputRemoveButton.actionActive"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "color",
-          "targets": [
-            "outputRemoveButton.down"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "border.width",
-          "targets": [
-            "outputRemoveButton.actionActive"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "border.color",
-          "targets": [
-            "outputRemoveButton.activeFocus"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "opacity",
-          "targets": [
-            "outputRemoveButton.actionActive"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "x",
-          "targets": [
-            "standardColumnsActive",
-            "root.host"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "active",
-          "targets": [
-            "outputDot.lockedState"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "parent",
-          "targets": [
-            "outputDot"
+            "outputPortRow.portDotItem"
           ]
         },
         {
@@ -22751,124 +23489,7 @@
           "kind": "binding",
           "name": "visible",
           "targets": [
-            "outputLabelContainer.isEditing"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "width",
-          "targets": [
-            "root.host",
-            "root.host.portLabelWidth",
-            "implicitWidth",
-            "outputLabelContainer.availableWidth"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "horizontalAlignment",
-          "targets": [
-            "Text.AlignRight"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "elide",
-          "targets": [
-            "Text.ElideLeft"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "opacity",
-          "targets": [
-            "outputDot.lockedState"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "visible",
-          "targets": [
-            "outputLabelMouse.containsMouse",
-            "outputLabelContainer.isEditable"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "category",
-          "targets": [
-            "outputLabelText.helpTooltipCategory"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "active",
-          "targets": [
-            "outputLabelMouse.containsMouse"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "text",
-          "targets": [
-            "outputLabelText.helpTooltipText"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "anchors.fill",
-          "targets": [
-            "outputLabelText"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "visible",
-          "targets": [
-            "outputLabelContainer.isEditing",
-            "root.hostLockedPlaceholder"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "cursorShape",
-          "targets": [
-            "containsMouse",
-            "outputLabelContainer.isEditable",
-            "Qt.IBeamCursor",
-            "Qt.ArrowCursor"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "acceptedButtons",
-          "targets": [
-            "outputLabelContainer.isEditable",
-            "Qt.LeftButton",
-            "Qt.NoButton"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "width",
-          "targets": [
-            "Math.max",
-            "outputLabelContainer.availableWidth"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "horizontalAlignment",
-          "targets": [
-            "TextInput.AlignRight"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "active",
-          "targets": [
-            "outputLabelEditor.visible",
-            "root.portLabelEditError.length"
+            "root._dynamicPortInlineControlsVisible"
           ]
         },
         {
@@ -22891,9 +23512,42 @@
         },
         {
           "kind": "binding",
+          "name": "text"
+        },
+        {
+          "kind": "binding",
+          "name": "foregroundColor"
+        },
+        {
+          "kind": "binding",
+          "name": "accentColor"
+        },
+        {
+          "kind": "binding",
           "name": "tooltipText",
           "targets": [
             "direction"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "focusPolicy",
+          "targets": [
+            "Qt.TabFocus"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "Accessible.name",
+          "targets": [
+            "tooltipText"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "background",
+          "targets": [
+            "Item"
           ]
         },
         {
@@ -22923,6 +23577,14 @@
           "targets": [
             "dynamicPortAddButton.activeFocus"
           ]
+        },
+        {
+          "kind": "binding",
+          "name": "color"
+        },
+        {
+          "kind": "binding",
+          "name": "font.pixelSize"
         },
         {
           "kind": "binding",
@@ -23046,23 +23708,23 @@
       "local_component_refs": [
         {
           "kind": "localComponent",
+          "name": "GraphInlinePropertiesLayer",
+          "detail": "ea_node_editor/ui_qml/components/graph/GraphInlinePropertiesLayer.qml"
+        },
+        {
+          "kind": "localComponent",
           "name": "Common.ManagedToolTip",
           "detail": "ea_node_editor/ui_qml/components/common/ManagedToolTip.qml"
         },
         {
           "kind": "localComponent",
+          "name": "GraphNodePortRow",
+          "detail": "ea_node_editor/ui_qml/components/graph/GraphNodePortRow.qml"
+        },
+        {
+          "kind": "localComponent",
           "name": "SurfaceControls.GraphSurfaceButton",
           "detail": "ea_node_editor/ui_qml/components/graph/surface_controls/GraphSurfaceButton.qml"
-        },
-        {
-          "kind": "localComponent",
-          "name": "SurfaceControls.GraphSurfaceTextField",
-          "detail": "ea_node_editor/ui_qml/components/graph/surface_controls/GraphSurfaceTextField.qml"
-        },
-        {
-          "kind": "localComponent",
-          "name": "GraphInlinePropertiesLayer",
-          "detail": "ea_node_editor/ui_qml/components/graph/GraphInlinePropertiesLayer.qml"
         }
       ],
       "symbol_anchors": [
@@ -23349,40 +24011,10 @@
           "detail": "real"
         },
         {
-          "anchor": "GraphNodePortsLayerPropertyRowIndex",
-          "kind": "property",
-          "name": "rowIndex",
-          "detail": "int"
-        },
-        {
           "anchor": "GraphNodePortsLayerPropertyPropertyKey",
           "kind": "property",
           "name": "propertyKey",
           "detail": "string"
-        },
-        {
-          "anchor": "GraphNodePortsLayerPropertyHandleVisible",
-          "kind": "property",
-          "name": "handleVisible",
-          "detail": "bool"
-        },
-        {
-          "anchor": "GraphNodePortsLayerPropertyLabelOwnedBySettings",
-          "kind": "property",
-          "name": "labelOwnedBySettings",
-          "detail": "bool"
-        },
-        {
-          "anchor": "GraphNodePortsLayerPropertyInteractionDirection",
-          "kind": "property",
-          "name": "interactionDirection",
-          "detail": "string"
-        },
-        {
-          "anchor": "GraphNodePortsLayerPropertyPlaceholderLockedState",
-          "kind": "property",
-          "name": "placeholderLockedState",
-          "detail": "bool"
         },
         {
           "anchor": "GraphNodePortsLayerPropertyLockedState",
@@ -23391,328 +24023,10 @@
           "detail": "bool"
         },
         {
-          "anchor": "GraphNodePortsLayerPropertyDefaultProperty",
+          "anchor": "GraphNodePortsLayerPropertyPlaceholderLockedState",
           "kind": "property",
-          "name": "defaultProperty",
-          "detail": "var"
-        },
-        {
-          "anchor": "GraphNodePortsLayerPropertyDefaultEditorVisible",
-          "kind": "property",
-          "name": "defaultEditorVisible",
+          "name": "placeholderLockedState",
           "detail": "bool"
-        },
-        {
-          "anchor": "GraphNodePortsLayerPropertyPortPoint",
-          "kind": "property",
-          "name": "portPoint",
-          "detail": "var"
-        },
-        {
-          "anchor": "GraphNodePortsLayerPropertyDotDiameter",
-          "kind": "property",
-          "name": "dotDiameter",
-          "detail": "real"
-        },
-        {
-          "anchor": "GraphNodePortsLayerPropertyMetricRowHeight",
-          "kind": "property",
-          "name": "metricRowHeight",
-          "detail": "real"
-        },
-        {
-          "anchor": "GraphNodePortsLayerPropertyInactiveState",
-          "kind": "property",
-          "name": "inactiveState",
-          "detail": "bool"
-        },
-        {
-          "anchor": "GraphNodePortsLayerPropertyInteractionBlockedState",
-          "kind": "property",
-          "name": "interactionBlockedState",
-          "detail": "bool"
-        },
-        {
-          "anchor": "GraphNodePortsLayerPropertyHoveredState",
-          "kind": "property",
-          "name": "hoveredState",
-          "detail": "bool"
-        },
-        {
-          "anchor": "GraphNodePortsLayerPropertyPendingState",
-          "kind": "property",
-          "name": "pendingState",
-          "detail": "bool"
-        },
-        {
-          "anchor": "GraphNodePortsLayerPropertyDragSourceState",
-          "kind": "property",
-          "name": "dragSourceState",
-          "detail": "bool"
-        },
-        {
-          "anchor": "GraphNodePortsLayerPropertyCompatibleTargetState",
-          "kind": "property",
-          "name": "compatibleTargetState",
-          "detail": "bool"
-        },
-        {
-          "anchor": "GraphNodePortsLayerPropertySelectedState",
-          "kind": "property",
-          "name": "selectedState",
-          "detail": "bool"
-        },
-        {
-          "anchor": "GraphNodePortsLayerPropertyAttentionState",
-          "kind": "property",
-          "name": "attentionState",
-          "detail": "bool"
-        },
-        {
-          "anchor": "GraphNodePortsLayerPropertyInteractiveState",
-          "kind": "property",
-          "name": "interactiveState",
-          "detail": "bool"
-        },
-        {
-          "anchor": "GraphNodePortsLayerPropertyRevealState",
-          "kind": "property",
-          "name": "revealState",
-          "detail": "bool"
-        },
-        {
-          "anchor": "GraphNodePortsLayerPropertyConnectedState",
-          "kind": "property",
-          "name": "connectedState",
-          "detail": "bool"
-        },
-        {
-          "anchor": "GraphNodePortsLayerPropertyPortColor",
-          "kind": "property",
-          "name": "portColor",
-          "detail": "color"
-        },
-        {
-          "anchor": "GraphNodePortsLayerPropertyLockedDiameter",
-          "kind": "property",
-          "name": "lockedDiameter",
-          "detail": "real"
-        },
-        {
-          "anchor": "GraphNodePortsLayerPropertyRestDiameter",
-          "kind": "property",
-          "name": "restDiameter",
-          "detail": "real"
-        },
-        {
-          "anchor": "GraphNodePortsLayerPropertyActiveDiameter",
-          "kind": "property",
-          "name": "activeDiameter",
-          "detail": "real"
-        },
-        {
-          "anchor": "GraphNodePortsLayerPropertyRingDiameter",
-          "kind": "property",
-          "name": "ringDiameter",
-          "detail": "real"
-        },
-        {
-          "anchor": "GraphNodePortsLayerPropertyPressStartX",
-          "kind": "property",
-          "name": "pressStartX",
-          "detail": "real"
-        },
-        {
-          "anchor": "GraphNodePortsLayerPropertyPressStartY",
-          "kind": "property",
-          "name": "pressStartY",
-          "detail": "real"
-        },
-        {
-          "anchor": "GraphNodePortsLayerPropertyMovedState",
-          "kind": "property",
-          "name": "movedState",
-          "detail": "bool"
-        },
-        {
-          "anchor": "GraphNodePortsLayerPropertyTooltipOnlyPortLabelActive",
-          "kind": "property",
-          "name": "tooltipOnlyPortLabelActive",
-          "detail": "bool"
-        },
-        {
-          "anchor": "GraphNodePortsLayerPropertyInfoTooltipsEnabled",
-          "kind": "property",
-          "name": "infoTooltipsEnabled",
-          "detail": "bool"
-        },
-        {
-          "anchor": "GraphNodePortsLayerPropertyInactiveTooltipsEnabled",
-          "kind": "property",
-          "name": "inactiveTooltipsEnabled",
-          "detail": "bool"
-        },
-        {
-          "anchor": "GraphNodePortsLayerPropertyPortLabelTooltipText",
-          "kind": "property",
-          "name": "portLabelTooltipText",
-          "detail": "string"
-        },
-        {
-          "anchor": "GraphNodePortsLayerPropertyPortHelpTooltipText",
-          "kind": "property",
-          "name": "portHelpTooltipText",
-          "detail": "string"
-        },
-        {
-          "anchor": "GraphNodePortsLayerPropertyInactiveTooltipText",
-          "kind": "property",
-          "name": "inactiveTooltipText",
-          "detail": "string"
-        },
-        {
-          "anchor": "GraphNodePortsLayerPropertyAccessiblePortText",
-          "kind": "property",
-          "name": "accessiblePortText",
-          "detail": "string"
-        },
-        {
-          "anchor": "GraphNodePortsLayerPropertyTooltipVisible",
-          "kind": "property",
-          "name": "tooltipVisible",
-          "detail": "bool"
-        },
-        {
-          "anchor": "GraphNodePortsLayerPropertyInactiveTooltipVisible",
-          "kind": "property",
-          "name": "inactiveTooltipVisible",
-          "detail": "bool"
-        },
-        {
-          "anchor": "GraphNodePortsLayerPropertyActiveTooltipCategory",
-          "kind": "property",
-          "name": "activeTooltipCategory",
-          "detail": "string"
-        },
-        {
-          "anchor": "GraphNodePortsLayerPropertyActionFillColor",
-          "kind": "property",
-          "name": "actionFillColor",
-          "detail": "color"
-        },
-        {
-          "anchor": "GraphNodePortsLayerPropertyActionActive",
-          "kind": "property",
-          "name": "actionActive",
-          "detail": "bool"
-        },
-        {
-          "anchor": "GraphNodePortsLayerPropertyDynamicGroup",
-          "kind": "property",
-          "name": "dynamicGroup",
-          "detail": "var"
-        },
-        {
-          "anchor": "GraphNodePortsLayerPropertyIsEditing",
-          "kind": "property",
-          "name": "isEditing",
-          "detail": "bool"
-        },
-        {
-          "anchor": "GraphNodePortsLayerPropertyIsEditable",
-          "kind": "property",
-          "name": "isEditable",
-          "detail": "bool"
-        },
-        {
-          "anchor": "GraphNodePortsLayerPropertyLabelTextVisible",
-          "kind": "property",
-          "name": "labelTextVisible",
-          "detail": "bool"
-        },
-        {
-          "anchor": "GraphNodePortsLayerPropertyLockGlyphWidth",
-          "kind": "property",
-          "name": "lockGlyphWidth",
-          "detail": "real"
-        },
-        {
-          "anchor": "GraphNodePortsLayerPropertyLockGlyphGap",
-          "kind": "property",
-          "name": "lockGlyphGap",
-          "detail": "real"
-        },
-        {
-          "anchor": "GraphNodePortsLayerPropertyTextLeftInset",
-          "kind": "property",
-          "name": "textLeftInset",
-          "detail": "real"
-        },
-        {
-          "anchor": "GraphNodePortsLayerPropertyStandardColumnsActive",
-          "kind": "property",
-          "name": "standardColumnsActive",
-          "detail": "bool"
-        },
-        {
-          "anchor": "GraphNodePortsLayerPropertyLabelX",
-          "kind": "property",
-          "name": "labelX",
-          "detail": "real"
-        },
-        {
-          "anchor": "GraphNodePortsLayerPropertyRawAvailableWidth",
-          "kind": "property",
-          "name": "rawAvailableWidth",
-          "detail": "real"
-        },
-        {
-          "anchor": "GraphNodePortsLayerPropertyStandardAvailableWidth",
-          "kind": "property",
-          "name": "standardAvailableWidth",
-          "detail": "real"
-        },
-        {
-          "anchor": "GraphNodePortsLayerPropertyAvailableWidth",
-          "kind": "property",
-          "name": "availableWidth",
-          "detail": "real"
-        },
-        {
-          "anchor": "GraphNodePortsLayerPropertyEffectiveRenderType",
-          "kind": "property",
-          "name": "effectiveRenderType",
-          "detail": "int"
-        },
-        {
-          "anchor": "GraphNodePortsLayerPropertyHelpTooltipCategory",
-          "kind": "property",
-          "name": "helpTooltipCategory",
-          "detail": "string"
-        },
-        {
-          "anchor": "GraphNodePortsLayerPropertyHelpTooltipText",
-          "kind": "property",
-          "name": "helpTooltipText",
-          "detail": "string"
-        },
-        {
-          "anchor": "GraphNodePortsLayerPropertyHelpTooltipHovered",
-          "kind": "property",
-          "name": "helpTooltipHovered",
-          "detail": "bool"
-        },
-        {
-          "anchor": "GraphNodePortsLayerPropertyHoverActive",
-          "kind": "property",
-          "name": "hoverActive",
-          "detail": "bool"
-        },
-        {
-          "anchor": "GraphNodePortsLayerPropertyLabelRightEdge",
-          "kind": "property",
-          "name": "labelRightEdge",
-          "detail": "real"
         },
         {
           "anchor": "GraphNodePortsLayerPropertyDirection",
@@ -23730,6 +24044,24 @@
           "anchor": "GraphNodePortsLayerPropertyPortKeys",
           "kind": "property",
           "name": "portKeys",
+          "detail": "var"
+        },
+        {
+          "anchor": "GraphNodePortsLayerPropertyActionActive",
+          "kind": "property",
+          "name": "actionActive",
+          "detail": "bool"
+        },
+        {
+          "anchor": "GraphNodePortsLayerPropertyActionFillColor",
+          "kind": "property",
+          "name": "actionFillColor",
+          "detail": "color"
+        },
+        {
+          "anchor": "GraphNodePortsLayerPropertyDynamicGroup",
+          "kind": "property",
+          "name": "dynamicGroup",
           "detail": "var"
         },
         {
@@ -24043,31 +24375,6 @@
           "name": "commitPortLabelEdit"
         },
         {
-          "anchor": "GraphNodePortsLayerFunctionCurrentEmbeddedInteractiveRects",
-          "kind": "function",
-          "name": "currentEmbeddedInteractiveRects"
-        },
-        {
-          "anchor": "GraphNodePortsLayerFunctionRefocusLabelEditor",
-          "kind": "function",
-          "name": "refocusLabelEditor"
-        },
-        {
-          "anchor": "GraphNodePortsLayerFunctionDrawShackle",
-          "kind": "function",
-          "name": "drawShackle"
-        },
-        {
-          "anchor": "GraphNodePortsLayerFunctionDrawBody",
-          "kind": "function",
-          "name": "drawBody"
-        },
-        {
-          "anchor": "GraphNodePortsLayerFunctionUpdateHoverState",
-          "kind": "function",
-          "name": "updateHoverState"
-        },
-        {
           "anchor": "GraphNodePortsLayerHandlerOnHostChanged",
           "kind": "handler",
           "name": "onHostChanged"
@@ -24081,46 +24388,6 @@
           "anchor": "GraphNodePortsLayerHandlerComponentOnCompleted",
           "kind": "handler",
           "name": "Component.onCompleted"
-        },
-        {
-          "anchor": "GraphNodePortsLayerHandlerOnPressed",
-          "kind": "handler",
-          "name": "onPressed"
-        },
-        {
-          "anchor": "GraphNodePortsLayerHandlerOnPositionChanged",
-          "kind": "handler",
-          "name": "onPositionChanged"
-        },
-        {
-          "anchor": "GraphNodePortsLayerHandlerOnReleased",
-          "kind": "handler",
-          "name": "onReleased"
-        },
-        {
-          "anchor": "GraphNodePortsLayerHandlerOnCanceled",
-          "kind": "handler",
-          "name": "onCanceled"
-        },
-        {
-          "anchor": "GraphNodePortsLayerHandlerOnEntered",
-          "kind": "handler",
-          "name": "onEntered"
-        },
-        {
-          "anchor": "GraphNodePortsLayerHandlerOnExited",
-          "kind": "handler",
-          "name": "onExited"
-        },
-        {
-          "anchor": "GraphNodePortsLayerHandlerOnControlStarted",
-          "kind": "handler",
-          "name": "onControlStarted"
-        },
-        {
-          "anchor": "GraphNodePortsLayerHandlerOnClicked",
-          "kind": "handler",
-          "name": "onClicked"
         },
         {
           "anchor": "GraphNodePortsLayerHandlerOnPaint",
@@ -24143,26 +24410,6 @@
           "name": "onPlaceholderLockedStateChanged"
         },
         {
-          "anchor": "GraphNodePortsLayerHandlerOnAccepted",
-          "kind": "handler",
-          "name": "onAccepted"
-        },
-        {
-          "anchor": "GraphNodePortsLayerHandlerOnTextEdited",
-          "kind": "handler",
-          "name": "onTextEdited"
-        },
-        {
-          "anchor": "GraphNodePortsLayerHandlerOnActiveFocusChanged",
-          "kind": "handler",
-          "name": "onActiveFocusChanged"
-        },
-        {
-          "anchor": "GraphNodePortsLayerHandlerKeysOnEscapePressed",
-          "kind": "handler",
-          "name": "Keys.onEscapePressed"
-        },
-        {
           "anchor": "GraphNodePortsLayerHandlerOnWidthChanged",
           "kind": "handler",
           "name": "onWidthChanged"
@@ -24171,6 +24418,16 @@
           "anchor": "GraphNodePortsLayerHandlerOnHeightChanged",
           "kind": "handler",
           "name": "onHeightChanged"
+        },
+        {
+          "anchor": "GraphNodePortsLayerHandlerOnControlStarted",
+          "kind": "handler",
+          "name": "onControlStarted"
+        },
+        {
+          "anchor": "GraphNodePortsLayerHandlerOnClicked",
+          "kind": "handler",
+          "name": "onClicked"
         },
         {
           "anchor": "GraphNodePortsLayerHandlerOnTriggered",
@@ -24188,28 +24445,28 @@
           "name": "root.host && root.host.canvasItem"
         },
         {
+          "anchor": "GraphNodePortsLayerLocalComponentGraphInlinePropertiesLayer",
+          "kind": "localComponent",
+          "name": "GraphInlinePropertiesLayer",
+          "detail": "ea_node_editor/ui_qml/components/graph/GraphInlinePropertiesLayer.qml"
+        },
+        {
           "anchor": "GraphNodePortsLayerLocalComponentCommonManagedToolTip",
           "kind": "localComponent",
           "name": "Common.ManagedToolTip",
           "detail": "ea_node_editor/ui_qml/components/common/ManagedToolTip.qml"
         },
         {
+          "anchor": "GraphNodePortsLayerLocalComponentGraphNodePortRow",
+          "kind": "localComponent",
+          "name": "GraphNodePortRow",
+          "detail": "ea_node_editor/ui_qml/components/graph/GraphNodePortRow.qml"
+        },
+        {
           "anchor": "GraphNodePortsLayerLocalComponentSurfaceControlsGraphSurfaceButton",
           "kind": "localComponent",
           "name": "SurfaceControls.GraphSurfaceButton",
           "detail": "ea_node_editor/ui_qml/components/graph/surface_controls/GraphSurfaceButton.qml"
-        },
-        {
-          "anchor": "GraphNodePortsLayerLocalComponentSurfaceControlsGraphSurfaceTextField",
-          "kind": "localComponent",
-          "name": "SurfaceControls.GraphSurfaceTextField",
-          "detail": "ea_node_editor/ui_qml/components/graph/surface_controls/GraphSurfaceTextField.qml"
-        },
-        {
-          "anchor": "GraphNodePortsLayerLocalComponentGraphInlinePropertiesLayer",
-          "kind": "localComponent",
-          "name": "GraphInlinePropertiesLayer",
-          "detail": "ea_node_editor/ui_qml/components/graph/GraphInlinePropertiesLayer.qml"
         }
       ]
     },

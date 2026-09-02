@@ -207,9 +207,9 @@ def test_graph_port_help_tooltips_use_semantic_rich_text(qapp) -> None:  # noqa:
         )
         assert root.property("neutralText") == ""
 
-        source = (_COMPONENTS_DIR / "graph" / "GraphNodePortsLayer.qml").read_text(encoding="utf-8")
-        assert "textFormat: inputPortMouse.inactiveTooltipVisible ? Text.PlainText : Text.RichText" in source
-        assert source.count("textFormat: Text.RichText") == 3
+        source = (_COMPONENTS_DIR / "graph" / "GraphNodePortRow.qml").read_text(encoding="utf-8")
+        assert "row.isInput && portMouse.inactiveTooltipVisible" in source
+        assert source.count("textFormat: Text.RichText") == 1
     finally:
         if root is not None:
             root.deleteLater()
