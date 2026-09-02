@@ -5,13 +5,13 @@
     "ea_node_editor/ui_qml"
   ],
   "summary": {
-    "qml_files": 171,
+    "qml_files": 172,
     "repeater_constructs": 98,
     "loader_constructs": 24,
     "signal_handlers": 881,
     "connections": 47,
-    "property_bindings": 7612,
-    "local_component_refs": 272
+    "property_bindings": 7615,
+    "local_component_refs": 273
   },
   "entries": [
     {
@@ -96610,7 +96610,6 @@
         "QtQuick 2.15",
         "\"../graph\" as GraphComponents",
         "\"../graph/overlay\" as GraphOverlay",
-        "\"../graph/passive\" as GraphPassive",
         "\"../web\" as WebComponents",
         "\"../common/TooltipCopy.js\" as TooltipCopy"
       ],
@@ -96694,34 +96693,7 @@
           "name": "labelText"
         },
         {
-          "name": "webPageAddressOverlayLayer"
-        },
-        {
-          "name": "webPageAddressPopover"
-        },
-        {
-          "name": "timestampOverlayLayer"
-        },
-        {
-          "name": "timestampDateTimePopover"
-        },
-        {
-          "name": "numberSliderOverlayLayer"
-        },
-        {
-          "name": "numberSliderSettingsPopover"
-        },
-        {
-          "name": "selectOverlayLayer"
-        },
-        {
-          "name": "selectSettingsPopover"
-        },
-        {
-          "name": "panelOverlayLayer"
-        },
-        {
-          "name": "panelEditorPopover"
+          "name": "surfaceEditorOverlays"
         }
       ],
       "object_names": [
@@ -96792,21 +96764,6 @@
           "name": "selectedRunPreviewWheelBlocker"
         },
         {
-          "name": "webPageAddressOverlayLayer"
-        },
-        {
-          "name": "graphNodeTimestampOverlayLayer"
-        },
-        {
-          "name": "graphNumberSliderOverlayLayer"
-        },
-        {
-          "name": "graphSelectOverlayLayer"
-        },
-        {
-          "name": "graphPanelOverlayLayer"
-        },
-        {
           "name": "graphCanvasMinimapOverlay"
         }
       ],
@@ -96856,43 +96813,43 @@
           "name": "_appliedLiveDragNodeIds"
         },
         {
-          "kind": "Item",
+          "kind": "alias",
           "name": "webPageAddressEditorHost"
         },
         {
-          "kind": "bool",
+          "kind": "alias",
           "name": "webPageAddressOverlayOpen"
         },
         {
-          "kind": "Item",
+          "kind": "alias",
           "name": "timestampEditorHost"
         },
         {
-          "kind": "bool",
+          "kind": "alias",
           "name": "timestampOverlayOpen"
         },
         {
-          "kind": "Item",
+          "kind": "alias",
           "name": "numberSliderEditorHost"
         },
         {
-          "kind": "bool",
+          "kind": "alias",
           "name": "numberSliderOverlayOpen"
         },
         {
-          "kind": "Item",
+          "kind": "alias",
           "name": "selectEditorHost"
         },
         {
-          "kind": "bool",
+          "kind": "alias",
           "name": "selectOverlayOpen"
         },
         {
-          "kind": "Item",
+          "kind": "alias",
           "name": "panelEditorHost"
         },
         {
-          "kind": "bool",
+          "kind": "alias",
           "name": "panelOverlayOpen"
         },
         {
@@ -96990,38 +96947,6 @@
         {
           "kind": "string",
           "name": "_lastActiveVirtualizedNodeIdsSignature"
-        },
-        {
-          "kind": "var",
-          "name": "activeToolbarSurfaceItem"
-        },
-        {
-          "kind": "bool",
-          "name": "activeToolbarAddressEditorOpen"
-        },
-        {
-          "kind": "bool",
-          "name": "activeToolbarTimestampEditorOpen"
-        },
-        {
-          "kind": "var",
-          "name": "webPageAddressEditorSurface"
-        },
-        {
-          "kind": "var",
-          "name": "timestampEditorSurface"
-        },
-        {
-          "kind": "var",
-          "name": "numberSliderEditorSurface"
-        },
-        {
-          "kind": "var",
-          "name": "selectEditorSurface"
-        },
-        {
-          "kind": "var",
-          "name": "panelEditorSurface"
         },
         {
           "kind": "var",
@@ -97248,136 +97173,7 @@
           "name": "startWithDelay"
         },
         {
-          "name": "_loadedSurfaceItem"
-        },
-        {
-          "name": "_surfaceAddressEditorOpen"
-        },
-        {
-          "name": "_surfaceTimestampEditorOpen"
-        },
-        {
-          "name": "_openWebPageAddressOverlay"
-        },
-        {
-          "name": "openWebPageAddressEditorForHost"
-        },
-        {
-          "name": "_openTimestampOverlay"
-        },
-        {
-          "name": "openTimestampEditorForHost"
-        },
-        {
-          "name": "_surfaceNumberSliderEditorOpen"
-        },
-        {
-          "name": "_openNumberSliderOverlay"
-        },
-        {
-          "name": "openNumberSliderEditorForHost"
-        },
-        {
-          "name": "_surfaceSelectEditorOpen"
-        },
-        {
-          "name": "_openSelectOverlay"
-        },
-        {
-          "name": "openSelectEditorForHost"
-        },
-        {
-          "name": "_surfacePanelEditorOpen"
-        },
-        {
-          "name": "_openPanelOverlay"
-        },
-        {
-          "name": "openPanelEditorForHost"
-        },
-        {
           "name": "openSurfaceActionOverlayForHost"
-        },
-        {
-          "name": "_cancelWebPageAddressOverlay"
-        },
-        {
-          "name": "_cancelTimestampOverlay"
-        },
-        {
-          "name": "_cancelNumberSliderOverlay"
-        },
-        {
-          "name": "_cancelSelectOverlay"
-        },
-        {
-          "name": "_cancelPanelOverlay"
-        },
-        {
-          "name": "_clampAddressOverlayX"
-        },
-        {
-          "name": "_quickWindowAddressOverlayY"
-        },
-        {
-          "name": "_itemRectInOverlayLayer"
-        },
-        {
-          "name": "_timestampSheetWidth"
-        },
-        {
-          "name": "_timestampSheetX"
-        },
-        {
-          "name": "_timestampSheetY"
-        },
-        {
-          "name": "_numberSliderSheetWidth"
-        },
-        {
-          "name": "_numberSliderSheetX"
-        },
-        {
-          "name": "_numberSliderSheetY"
-        },
-        {
-          "name": "_selectSheetWidth"
-        },
-        {
-          "name": "_selectSheetX"
-        },
-        {
-          "name": "_selectSheetY"
-        },
-        {
-          "name": "_panelSheetWidth"
-        },
-        {
-          "name": "_panelSheetX"
-        },
-        {
-          "name": "_panelSheetY"
-        },
-        {
-          "name": "onAddressEditorOpenChanged"
-        },
-        {
-          "name": "onAddressEditorTextChanged"
-        },
-        {
-          "name": "onTimestampManualEditorOpenChanged"
-        },
-        {
-          "name": "onTimestampManualEditorTextChanged"
-        },
-        {
-          "name": "onSliderSettingsEditorOpenChanged"
-        },
-        {
-          "name": "onSelectSettingsEditorOpenChanged"
-        },
-        {
-          "name": "onPanelEditorOpenChanged"
         },
         {
           "name": "hostForNodeId"
@@ -97496,19 +97292,7 @@
           "name": "PreviewActionButton"
         },
         {
-          "name": "WebComponents.WebPageAddressPopover"
-        },
-        {
-          "name": "GraphPassive.GraphTimestampDateTimePopover"
-        },
-        {
-          "name": "GraphPassive.GraphNumberSliderSettingsPopover"
-        },
-        {
-          "name": "GraphPassive.GraphSelectSettingsPopover"
-        },
-        {
-          "name": "GraphPassive.GraphPanelEditorPopover"
+          "name": "GraphCanvasSurfaceEditorOverlays"
         },
         {
           "name": "GraphCanvasMinimapOverlay"
@@ -97547,14 +97331,6 @@
         {
           "kind": "handler",
           "name": "onActiveVirtualizedNodeIdsChanged"
-        },
-        {
-          "kind": "handler",
-          "name": "onActiveToolbarAddressEditorOpenChanged"
-        },
-        {
-          "kind": "handler",
-          "name": "onActiveToolbarTimestampEditorOpenChanged"
         },
         {
           "kind": "handler",
@@ -97599,22 +97375,6 @@
         {
           "kind": "handler",
           "name": "onWheel"
-        },
-        {
-          "kind": "handler",
-          "name": "onPressed"
-        },
-        {
-          "kind": "handler",
-          "name": "onReleased"
-        },
-        {
-          "kind": "handler",
-          "name": "onCanceled"
-        },
-        {
-          "kind": "handler",
-          "name": "onAccepted"
         }
       ],
       "connections": [
@@ -97625,26 +97385,6 @@
         {
           "kind": "target",
           "name": "root.viewStateBridge"
-        },
-        {
-          "kind": "target",
-          "name": "root.webPageAddressEditorSurface"
-        },
-        {
-          "kind": "target",
-          "name": "root.timestampEditorSurface"
-        },
-        {
-          "kind": "target",
-          "name": "root.numberSliderEditorSurface"
-        },
-        {
-          "kind": "target",
-          "name": "root.selectEditorSurface"
-        },
-        {
-          "kind": "target",
-          "name": "root.panelEditorSurface"
         }
       ],
       "property_bindings": [
@@ -98392,350 +98132,6 @@
         },
         {
           "kind": "binding",
-          "name": "visible",
-          "targets": [
-            "root.webPageAddressOverlayOpen"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "enabled",
-          "targets": [
-            "root.webPageAddressOverlayOpen"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "acceptedButtons",
-          "targets": [
-            "Qt.LeftButton",
-            "Qt.RightButton",
-            "Qt.MiddleButton"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "themePalette",
-          "targets": [
-            "root.webPageAddressEditorSurface"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "shadowStrength",
-          "targets": [
-            "root.webPageAddressEditorHost"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "shadowSoftness",
-          "targets": [
-            "root.webPageAddressEditorHost"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "shadowOffset",
-          "targets": [
-            "root.webPageAddressEditorHost"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "width",
-          "targets": [
-            "Math.min",
-            "Math.max",
-            "webPageAddressOverlayLayer.width"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "height",
-          "targets": [
-            "implicitHeight"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "x",
-          "targets": [
-            "root._clampAddressOverlayX",
-            "webPageAddressOverlayLayer.width",
-            "width"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "y",
-          "targets": [
-            "root._quickWindowAddressOverlayY",
-            "height"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "visible",
-          "targets": [
-            "root.timestampOverlayOpen"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "enabled",
-          "targets": [
-            "root.timestampOverlayOpen"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "host",
-          "targets": [
-            "root.timestampEditorHost"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "shadowStrength",
-          "targets": [
-            "root.timestampEditorHost"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "shadowSoftness",
-          "targets": [
-            "root.timestampEditorHost"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "shadowOffset",
-          "targets": [
-            "root.timestampEditorHost"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "width",
-          "targets": [
-            "root._timestampSheetWidth"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "x",
-          "targets": [
-            "root._timestampSheetX",
-            "width"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "y",
-          "targets": [
-            "root._timestampSheetY",
-            "height"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "visible",
-          "targets": [
-            "root.numberSliderOverlayOpen"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "enabled",
-          "targets": [
-            "root.numberSliderOverlayOpen"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "host",
-          "targets": [
-            "root.numberSliderEditorHost"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "shadowStrength",
-          "targets": [
-            "root.numberSliderEditorHost"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "shadowSoftness",
-          "targets": [
-            "root.numberSliderEditorHost"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "shadowOffset",
-          "targets": [
-            "root.numberSliderEditorHost"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "width",
-          "targets": [
-            "root._numberSliderSheetWidth"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "x",
-          "targets": [
-            "root._numberSliderSheetX",
-            "width"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "y",
-          "targets": [
-            "root._numberSliderSheetY",
-            "height"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "visible",
-          "targets": [
-            "root.selectOverlayOpen"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "enabled",
-          "targets": [
-            "root.selectOverlayOpen"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "host",
-          "targets": [
-            "root.selectEditorHost"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "shadowStrength",
-          "targets": [
-            "root.selectEditorHost"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "shadowSoftness",
-          "targets": [
-            "root.selectEditorHost"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "shadowOffset",
-          "targets": [
-            "root.selectEditorHost"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "width",
-          "targets": [
-            "root._selectSheetWidth"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "x",
-          "targets": [
-            "root._selectSheetX",
-            "width"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "y",
-          "targets": [
-            "root._selectSheetY",
-            "height"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "visible",
-          "targets": [
-            "root.panelOverlayOpen"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "enabled",
-          "targets": [
-            "root.panelOverlayOpen"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "host",
-          "targets": [
-            "root.panelEditorHost"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "shadowStrength",
-          "targets": [
-            "root.panelEditorHost"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "shadowSoftness",
-          "targets": [
-            "root.panelEditorHost"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "shadowOffset",
-          "targets": [
-            "root.panelEditorHost"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "width",
-          "targets": [
-            "root._panelSheetWidth"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "x",
-          "targets": [
-            "root._panelSheetX",
-            "width"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "y",
-          "targets": [
-            "root._panelSheetY",
-            "height"
-          ]
-        },
-        {
-          "kind": "binding",
           "name": "viewStateBridge",
           "targets": [
             "root.viewStateBridge"
@@ -98811,28 +98207,8 @@
         },
         {
           "kind": "localComponent",
-          "name": "WebComponents.WebPageAddressPopover",
-          "detail": "ea_node_editor/ui_qml/components/web/WebPageAddressPopover.qml"
-        },
-        {
-          "kind": "localComponent",
-          "name": "GraphPassive.GraphTimestampDateTimePopover",
-          "detail": "ea_node_editor/ui_qml/components/graph/passive/GraphTimestampDateTimePopover.qml"
-        },
-        {
-          "kind": "localComponent",
-          "name": "GraphPassive.GraphNumberSliderSettingsPopover",
-          "detail": "ea_node_editor/ui_qml/components/graph/passive/GraphNumberSliderSettingsPopover.qml"
-        },
-        {
-          "kind": "localComponent",
-          "name": "GraphPassive.GraphSelectSettingsPopover",
-          "detail": "ea_node_editor/ui_qml/components/graph/passive/GraphSelectSettingsPopover.qml"
-        },
-        {
-          "kind": "localComponent",
-          "name": "GraphPassive.GraphPanelEditorPopover",
-          "detail": "ea_node_editor/ui_qml/components/graph/passive/GraphPanelEditorPopover.qml"
+          "name": "GraphCanvasSurfaceEditorOverlays",
+          "detail": "ea_node_editor/ui_qml/components/graph_canvas/GraphCanvasSurfaceEditorOverlays.qml"
         },
         {
           "kind": "localComponent",
@@ -98911,61 +98287,61 @@
           "anchor": "GraphCanvasRootLayersPropertyWebPageAddressEditorHost",
           "kind": "property",
           "name": "webPageAddressEditorHost",
-          "detail": "Item"
+          "detail": "alias"
         },
         {
           "anchor": "GraphCanvasRootLayersPropertyWebPageAddressOverlayOpen",
           "kind": "property",
           "name": "webPageAddressOverlayOpen",
-          "detail": "bool"
+          "detail": "alias"
         },
         {
           "anchor": "GraphCanvasRootLayersPropertyTimestampEditorHost",
           "kind": "property",
           "name": "timestampEditorHost",
-          "detail": "Item"
+          "detail": "alias"
         },
         {
           "anchor": "GraphCanvasRootLayersPropertyTimestampOverlayOpen",
           "kind": "property",
           "name": "timestampOverlayOpen",
-          "detail": "bool"
+          "detail": "alias"
         },
         {
           "anchor": "GraphCanvasRootLayersPropertyNumberSliderEditorHost",
           "kind": "property",
           "name": "numberSliderEditorHost",
-          "detail": "Item"
+          "detail": "alias"
         },
         {
           "anchor": "GraphCanvasRootLayersPropertyNumberSliderOverlayOpen",
           "kind": "property",
           "name": "numberSliderOverlayOpen",
-          "detail": "bool"
+          "detail": "alias"
         },
         {
           "anchor": "GraphCanvasRootLayersPropertySelectEditorHost",
           "kind": "property",
           "name": "selectEditorHost",
-          "detail": "Item"
+          "detail": "alias"
         },
         {
           "anchor": "GraphCanvasRootLayersPropertySelectOverlayOpen",
           "kind": "property",
           "name": "selectOverlayOpen",
-          "detail": "bool"
+          "detail": "alias"
         },
         {
           "anchor": "GraphCanvasRootLayersPropertyPanelEditorHost",
           "kind": "property",
           "name": "panelEditorHost",
-          "detail": "Item"
+          "detail": "alias"
         },
         {
           "anchor": "GraphCanvasRootLayersPropertyPanelOverlayOpen",
           "kind": "property",
           "name": "panelOverlayOpen",
-          "detail": "bool"
+          "detail": "alias"
         },
         {
           "anchor": "GraphCanvasRootLayersPropertyVisibleNodesModel",
@@ -99110,54 +98486,6 @@
           "kind": "property",
           "name": "_lastActiveVirtualizedNodeIdsSignature",
           "detail": "string"
-        },
-        {
-          "anchor": "GraphCanvasRootLayersPropertyActiveToolbarSurfaceItem",
-          "kind": "property",
-          "name": "activeToolbarSurfaceItem",
-          "detail": "var"
-        },
-        {
-          "anchor": "GraphCanvasRootLayersPropertyActiveToolbarAddressEditorOpen",
-          "kind": "property",
-          "name": "activeToolbarAddressEditorOpen",
-          "detail": "bool"
-        },
-        {
-          "anchor": "GraphCanvasRootLayersPropertyActiveToolbarTimestampEditorOpen",
-          "kind": "property",
-          "name": "activeToolbarTimestampEditorOpen",
-          "detail": "bool"
-        },
-        {
-          "anchor": "GraphCanvasRootLayersPropertyWebPageAddressEditorSurface",
-          "kind": "property",
-          "name": "webPageAddressEditorSurface",
-          "detail": "var"
-        },
-        {
-          "anchor": "GraphCanvasRootLayersPropertyTimestampEditorSurface",
-          "kind": "property",
-          "name": "timestampEditorSurface",
-          "detail": "var"
-        },
-        {
-          "anchor": "GraphCanvasRootLayersPropertyNumberSliderEditorSurface",
-          "kind": "property",
-          "name": "numberSliderEditorSurface",
-          "detail": "var"
-        },
-        {
-          "anchor": "GraphCanvasRootLayersPropertySelectEditorSurface",
-          "kind": "property",
-          "name": "selectEditorSurface",
-          "detail": "var"
-        },
-        {
-          "anchor": "GraphCanvasRootLayersPropertyPanelEditorSurface",
-          "kind": "property",
-          "name": "panelEditorSurface",
-          "detail": "var"
         },
         {
           "anchor": "GraphCanvasRootLayersPropertyNodeLinkHoverPalette",
@@ -99510,224 +98838,9 @@
           "name": "startWithDelay"
         },
         {
-          "anchor": "GraphCanvasRootLayersFunctionLoadedSurfaceItem",
-          "kind": "function",
-          "name": "_loadedSurfaceItem"
-        },
-        {
-          "anchor": "GraphCanvasRootLayersFunctionSurfaceAddressEditorOpen",
-          "kind": "function",
-          "name": "_surfaceAddressEditorOpen"
-        },
-        {
-          "anchor": "GraphCanvasRootLayersFunctionSurfaceTimestampEditorOpen",
-          "kind": "function",
-          "name": "_surfaceTimestampEditorOpen"
-        },
-        {
-          "anchor": "GraphCanvasRootLayersFunctionOpenWebPageAddressOverlay",
-          "kind": "function",
-          "name": "_openWebPageAddressOverlay"
-        },
-        {
-          "anchor": "GraphCanvasRootLayersFunctionOpenWebPageAddressEditorForHost",
-          "kind": "function",
-          "name": "openWebPageAddressEditorForHost"
-        },
-        {
-          "anchor": "GraphCanvasRootLayersFunctionOpenTimestampOverlay",
-          "kind": "function",
-          "name": "_openTimestampOverlay"
-        },
-        {
-          "anchor": "GraphCanvasRootLayersFunctionOpenTimestampEditorForHost",
-          "kind": "function",
-          "name": "openTimestampEditorForHost"
-        },
-        {
-          "anchor": "GraphCanvasRootLayersFunctionSurfaceNumberSliderEditorOpen",
-          "kind": "function",
-          "name": "_surfaceNumberSliderEditorOpen"
-        },
-        {
-          "anchor": "GraphCanvasRootLayersFunctionOpenNumberSliderOverlay",
-          "kind": "function",
-          "name": "_openNumberSliderOverlay"
-        },
-        {
-          "anchor": "GraphCanvasRootLayersFunctionOpenNumberSliderEditorForHost",
-          "kind": "function",
-          "name": "openNumberSliderEditorForHost"
-        },
-        {
-          "anchor": "GraphCanvasRootLayersFunctionSurfaceSelectEditorOpen",
-          "kind": "function",
-          "name": "_surfaceSelectEditorOpen"
-        },
-        {
-          "anchor": "GraphCanvasRootLayersFunctionOpenSelectOverlay",
-          "kind": "function",
-          "name": "_openSelectOverlay"
-        },
-        {
-          "anchor": "GraphCanvasRootLayersFunctionOpenSelectEditorForHost",
-          "kind": "function",
-          "name": "openSelectEditorForHost"
-        },
-        {
-          "anchor": "GraphCanvasRootLayersFunctionSurfacePanelEditorOpen",
-          "kind": "function",
-          "name": "_surfacePanelEditorOpen"
-        },
-        {
-          "anchor": "GraphCanvasRootLayersFunctionOpenPanelOverlay",
-          "kind": "function",
-          "name": "_openPanelOverlay"
-        },
-        {
-          "anchor": "GraphCanvasRootLayersFunctionOpenPanelEditorForHost",
-          "kind": "function",
-          "name": "openPanelEditorForHost"
-        },
-        {
           "anchor": "GraphCanvasRootLayersFunctionOpenSurfaceActionOverlayForHost",
           "kind": "function",
           "name": "openSurfaceActionOverlayForHost"
-        },
-        {
-          "anchor": "GraphCanvasRootLayersFunctionCancelWebPageAddressOverlay",
-          "kind": "function",
-          "name": "_cancelWebPageAddressOverlay"
-        },
-        {
-          "anchor": "GraphCanvasRootLayersFunctionCancelTimestampOverlay",
-          "kind": "function",
-          "name": "_cancelTimestampOverlay"
-        },
-        {
-          "anchor": "GraphCanvasRootLayersFunctionCancelNumberSliderOverlay",
-          "kind": "function",
-          "name": "_cancelNumberSliderOverlay"
-        },
-        {
-          "anchor": "GraphCanvasRootLayersFunctionCancelSelectOverlay",
-          "kind": "function",
-          "name": "_cancelSelectOverlay"
-        },
-        {
-          "anchor": "GraphCanvasRootLayersFunctionCancelPanelOverlay",
-          "kind": "function",
-          "name": "_cancelPanelOverlay"
-        },
-        {
-          "anchor": "GraphCanvasRootLayersFunctionClampAddressOverlayX",
-          "kind": "function",
-          "name": "_clampAddressOverlayX"
-        },
-        {
-          "anchor": "GraphCanvasRootLayersFunctionQuickWindowAddressOverlayY",
-          "kind": "function",
-          "name": "_quickWindowAddressOverlayY"
-        },
-        {
-          "anchor": "GraphCanvasRootLayersFunctionItemRectInOverlayLayer",
-          "kind": "function",
-          "name": "_itemRectInOverlayLayer"
-        },
-        {
-          "anchor": "GraphCanvasRootLayersFunctionTimestampSheetWidth",
-          "kind": "function",
-          "name": "_timestampSheetWidth"
-        },
-        {
-          "anchor": "GraphCanvasRootLayersFunctionTimestampSheetX",
-          "kind": "function",
-          "name": "_timestampSheetX"
-        },
-        {
-          "anchor": "GraphCanvasRootLayersFunctionTimestampSheetY",
-          "kind": "function",
-          "name": "_timestampSheetY"
-        },
-        {
-          "anchor": "GraphCanvasRootLayersFunctionNumberSliderSheetWidth",
-          "kind": "function",
-          "name": "_numberSliderSheetWidth"
-        },
-        {
-          "anchor": "GraphCanvasRootLayersFunctionNumberSliderSheetX",
-          "kind": "function",
-          "name": "_numberSliderSheetX"
-        },
-        {
-          "anchor": "GraphCanvasRootLayersFunctionNumberSliderSheetY",
-          "kind": "function",
-          "name": "_numberSliderSheetY"
-        },
-        {
-          "anchor": "GraphCanvasRootLayersFunctionSelectSheetWidth",
-          "kind": "function",
-          "name": "_selectSheetWidth"
-        },
-        {
-          "anchor": "GraphCanvasRootLayersFunctionSelectSheetX",
-          "kind": "function",
-          "name": "_selectSheetX"
-        },
-        {
-          "anchor": "GraphCanvasRootLayersFunctionSelectSheetY",
-          "kind": "function",
-          "name": "_selectSheetY"
-        },
-        {
-          "anchor": "GraphCanvasRootLayersFunctionPanelSheetWidth",
-          "kind": "function",
-          "name": "_panelSheetWidth"
-        },
-        {
-          "anchor": "GraphCanvasRootLayersFunctionPanelSheetX",
-          "kind": "function",
-          "name": "_panelSheetX"
-        },
-        {
-          "anchor": "GraphCanvasRootLayersFunctionPanelSheetY",
-          "kind": "function",
-          "name": "_panelSheetY"
-        },
-        {
-          "anchor": "GraphCanvasRootLayersFunctionOnAddressEditorOpenChanged",
-          "kind": "function",
-          "name": "onAddressEditorOpenChanged"
-        },
-        {
-          "anchor": "GraphCanvasRootLayersFunctionOnAddressEditorTextChanged",
-          "kind": "function",
-          "name": "onAddressEditorTextChanged"
-        },
-        {
-          "anchor": "GraphCanvasRootLayersFunctionOnTimestampManualEditorOpenChanged",
-          "kind": "function",
-          "name": "onTimestampManualEditorOpenChanged"
-        },
-        {
-          "anchor": "GraphCanvasRootLayersFunctionOnTimestampManualEditorTextChanged",
-          "kind": "function",
-          "name": "onTimestampManualEditorTextChanged"
-        },
-        {
-          "anchor": "GraphCanvasRootLayersFunctionOnSliderSettingsEditorOpenChanged",
-          "kind": "function",
-          "name": "onSliderSettingsEditorOpenChanged"
-        },
-        {
-          "anchor": "GraphCanvasRootLayersFunctionOnSelectSettingsEditorOpenChanged",
-          "kind": "function",
-          "name": "onSelectSettingsEditorOpenChanged"
-        },
-        {
-          "anchor": "GraphCanvasRootLayersFunctionOnPanelEditorOpenChanged",
-          "kind": "function",
-          "name": "onPanelEditorOpenChanged"
         },
         {
           "anchor": "GraphCanvasRootLayersFunctionHostForNodeId",
@@ -99835,16 +98948,6 @@
           "name": "onActiveVirtualizedNodeIdsChanged"
         },
         {
-          "anchor": "GraphCanvasRootLayersHandlerOnActiveToolbarAddressEditorOpenChanged",
-          "kind": "handler",
-          "name": "onActiveToolbarAddressEditorOpenChanged"
-        },
-        {
-          "anchor": "GraphCanvasRootLayersHandlerOnActiveToolbarTimestampEditorOpenChanged",
-          "kind": "handler",
-          "name": "onActiveToolbarTimestampEditorOpenChanged"
-        },
-        {
           "anchor": "GraphCanvasRootLayersHandlerComponentOnCompleted",
           "kind": "handler",
           "name": "Component.onCompleted"
@@ -99900,26 +99003,6 @@
           "name": "onWheel"
         },
         {
-          "anchor": "GraphCanvasRootLayersHandlerOnPressed",
-          "kind": "handler",
-          "name": "onPressed"
-        },
-        {
-          "anchor": "GraphCanvasRootLayersHandlerOnReleased",
-          "kind": "handler",
-          "name": "onReleased"
-        },
-        {
-          "anchor": "GraphCanvasRootLayersHandlerOnCanceled",
-          "kind": "handler",
-          "name": "onCanceled"
-        },
-        {
-          "anchor": "GraphCanvasRootLayersHandlerOnAccepted",
-          "kind": "handler",
-          "name": "onAccepted"
-        },
-        {
           "anchor": "GraphCanvasRootLayersTargetRootSceneStateBridge",
           "kind": "target",
           "name": "root.sceneStateBridge"
@@ -99928,31 +99011,6 @@
           "anchor": "GraphCanvasRootLayersTargetRootViewStateBridge",
           "kind": "target",
           "name": "root.viewStateBridge"
-        },
-        {
-          "anchor": "GraphCanvasRootLayersTargetRootWebPageAddressEditorSurface",
-          "kind": "target",
-          "name": "root.webPageAddressEditorSurface"
-        },
-        {
-          "anchor": "GraphCanvasRootLayersTargetRootTimestampEditorSurface",
-          "kind": "target",
-          "name": "root.timestampEditorSurface"
-        },
-        {
-          "anchor": "GraphCanvasRootLayersTargetRootNumberSliderEditorSurface",
-          "kind": "target",
-          "name": "root.numberSliderEditorSurface"
-        },
-        {
-          "anchor": "GraphCanvasRootLayersTargetRootSelectEditorSurface",
-          "kind": "target",
-          "name": "root.selectEditorSurface"
-        },
-        {
-          "anchor": "GraphCanvasRootLayersTargetRootPanelEditorSurface",
-          "kind": "target",
-          "name": "root.panelEditorSurface"
         },
         {
           "anchor": "GraphCanvasRootLayersLocalComponentWebComponentsWebPageRetentionStore",
@@ -100015,34 +99073,10 @@
           "detail": "ea_node_editor/ui_qml/components/graph/overlay/GraphEdgeFloatingToolbar.qml"
         },
         {
-          "anchor": "GraphCanvasRootLayersLocalComponentWebComponentsWebPageAddressPopover",
+          "anchor": "GraphCanvasRootLayersLocalComponentGraphCanvasSurfaceEditorOverlays",
           "kind": "localComponent",
-          "name": "WebComponents.WebPageAddressPopover",
-          "detail": "ea_node_editor/ui_qml/components/web/WebPageAddressPopover.qml"
-        },
-        {
-          "anchor": "GraphCanvasRootLayersLocalComponentGraphPassiveGraphTimestampDateTimePopover",
-          "kind": "localComponent",
-          "name": "GraphPassive.GraphTimestampDateTimePopover",
-          "detail": "ea_node_editor/ui_qml/components/graph/passive/GraphTimestampDateTimePopover.qml"
-        },
-        {
-          "anchor": "GraphCanvasRootLayersLocalComponentGraphPassiveGraphNumberSliderSettingsPopover",
-          "kind": "localComponent",
-          "name": "GraphPassive.GraphNumberSliderSettingsPopover",
-          "detail": "ea_node_editor/ui_qml/components/graph/passive/GraphNumberSliderSettingsPopover.qml"
-        },
-        {
-          "anchor": "GraphCanvasRootLayersLocalComponentGraphPassiveGraphSelectSettingsPopover",
-          "kind": "localComponent",
-          "name": "GraphPassive.GraphSelectSettingsPopover",
-          "detail": "ea_node_editor/ui_qml/components/graph/passive/GraphSelectSettingsPopover.qml"
-        },
-        {
-          "anchor": "GraphCanvasRootLayersLocalComponentGraphPassiveGraphPanelEditorPopover",
-          "kind": "localComponent",
-          "name": "GraphPassive.GraphPanelEditorPopover",
-          "detail": "ea_node_editor/ui_qml/components/graph/passive/GraphPanelEditorPopover.qml"
+          "name": "GraphCanvasSurfaceEditorOverlays",
+          "detail": "ea_node_editor/ui_qml/components/graph_canvas/GraphCanvasSurfaceEditorOverlays.qml"
         },
         {
           "anchor": "GraphCanvasRootLayersLocalComponentGraphCanvasMinimapOverlay",
@@ -100903,6 +99937,1148 @@
           "anchor": "GraphCanvasSceneStateFunctionSyncEdgePayload",
           "kind": "function",
           "name": "syncEdgePayload"
+        }
+      ]
+    },
+    {
+      "path": "ea_node_editor/ui_qml/components/graph_canvas/GraphCanvasSurfaceEditorOverlays.qml",
+      "component_name": "GraphCanvasSurfaceEditorOverlays",
+      "aliases": [
+        "GraphCanvasSurfaceEditorOverlays",
+        "GraphCanvasSurfaceEditorOverlays.qml",
+        "ea_node_editor/ui_qml/components/graph_canvas/GraphCanvasSurfaceEditorOverlays.qml",
+        "ea_node_editor\\ui_qml\\components\\graph_canvas\\GraphCanvasSurfaceEditorOverlays.qml"
+      ],
+      "root_component": "Item",
+      "imports": [
+        "QtQuick 2.15",
+        "\"../graph/passive\" as GraphPassive",
+        "\"../web\" as WebComponents"
+      ],
+      "ids": [
+        {
+          "name": "root"
+        },
+        {
+          "name": "webPageAddressPopover"
+        },
+        {
+          "name": "timestampOverlayLayer"
+        },
+        {
+          "name": "timestampDateTimePopover"
+        },
+        {
+          "name": "numberSliderOverlayLayer"
+        },
+        {
+          "name": "numberSliderSettingsPopover"
+        },
+        {
+          "name": "selectOverlayLayer"
+        },
+        {
+          "name": "selectSettingsPopover"
+        },
+        {
+          "name": "panelOverlayLayer"
+        },
+        {
+          "name": "panelEditorPopover"
+        }
+      ],
+      "object_names": [
+        {
+          "name": "webPageAddressOverlayLayer"
+        },
+        {
+          "name": "graphNodeTimestampOverlayLayer"
+        },
+        {
+          "name": "graphNumberSliderOverlayLayer"
+        },
+        {
+          "name": "graphSelectOverlayLayer"
+        },
+        {
+          "name": "graphPanelOverlayLayer"
+        }
+      ],
+      "properties": [
+        {
+          "kind": "Item",
+          "name": "canvasItem"
+        },
+        {
+          "kind": "var",
+          "name": "themePalette"
+        },
+        {
+          "kind": "Item",
+          "name": "webPageAddressEditorHost"
+        },
+        {
+          "kind": "bool",
+          "name": "webPageAddressOverlayOpen"
+        },
+        {
+          "kind": "Item",
+          "name": "timestampEditorHost"
+        },
+        {
+          "kind": "bool",
+          "name": "timestampOverlayOpen"
+        },
+        {
+          "kind": "Item",
+          "name": "numberSliderEditorHost"
+        },
+        {
+          "kind": "bool",
+          "name": "numberSliderOverlayOpen"
+        },
+        {
+          "kind": "Item",
+          "name": "selectEditorHost"
+        },
+        {
+          "kind": "bool",
+          "name": "selectOverlayOpen"
+        },
+        {
+          "kind": "Item",
+          "name": "panelEditorHost"
+        },
+        {
+          "kind": "bool",
+          "name": "panelOverlayOpen"
+        },
+        {
+          "kind": "var",
+          "name": "activeToolbarSurfaceItem"
+        },
+        {
+          "kind": "bool",
+          "name": "activeToolbarAddressEditorOpen"
+        },
+        {
+          "kind": "bool",
+          "name": "activeToolbarTimestampEditorOpen"
+        },
+        {
+          "kind": "var",
+          "name": "webPageAddressEditorSurface"
+        },
+        {
+          "kind": "var",
+          "name": "timestampEditorSurface"
+        },
+        {
+          "kind": "var",
+          "name": "numberSliderEditorSurface"
+        },
+        {
+          "kind": "var",
+          "name": "selectEditorSurface"
+        },
+        {
+          "kind": "var",
+          "name": "panelEditorSurface"
+        },
+        {
+          "kind": "bool",
+          "name": "anyOverlayOpen"
+        }
+      ],
+      "signals": [],
+      "functions": [
+        {
+          "name": "_loadedSurfaceItem"
+        },
+        {
+          "name": "_surfaceAddressEditorOpen"
+        },
+        {
+          "name": "_surfaceTimestampEditorOpen"
+        },
+        {
+          "name": "_surfaceNumberSliderEditorOpen"
+        },
+        {
+          "name": "_surfaceSelectEditorOpen"
+        },
+        {
+          "name": "_surfacePanelEditorOpen"
+        },
+        {
+          "name": "_openWebPageAddressOverlay"
+        },
+        {
+          "name": "_openTimestampOverlay"
+        },
+        {
+          "name": "_openNumberSliderOverlay"
+        },
+        {
+          "name": "_openSelectOverlay"
+        },
+        {
+          "name": "_openPanelOverlay"
+        },
+        {
+          "name": "openSurfaceActionOverlayForHost"
+        },
+        {
+          "name": "_cancelWebPageAddressOverlay"
+        },
+        {
+          "name": "_cancelTimestampOverlay"
+        },
+        {
+          "name": "_cancelNumberSliderOverlay"
+        },
+        {
+          "name": "_cancelSelectOverlay"
+        },
+        {
+          "name": "_cancelPanelOverlay"
+        },
+        {
+          "name": "_clampAddressOverlayX"
+        },
+        {
+          "name": "_quickWindowAddressOverlayY"
+        },
+        {
+          "name": "_itemRectInOverlayLayer"
+        },
+        {
+          "name": "_timestampSheetWidth"
+        },
+        {
+          "name": "_timestampSheetX"
+        },
+        {
+          "name": "_timestampSheetY"
+        },
+        {
+          "name": "_numberSliderSheetWidth"
+        },
+        {
+          "name": "_numberSliderSheetX"
+        },
+        {
+          "name": "_numberSliderSheetY"
+        },
+        {
+          "name": "_selectSheetWidth"
+        },
+        {
+          "name": "_selectSheetX"
+        },
+        {
+          "name": "_selectSheetY"
+        },
+        {
+          "name": "_panelSheetWidth"
+        },
+        {
+          "name": "_panelSheetX"
+        },
+        {
+          "name": "_panelSheetY"
+        },
+        {
+          "name": "onAddressEditorOpenChanged"
+        },
+        {
+          "name": "onAddressEditorTextChanged"
+        },
+        {
+          "name": "onTimestampManualEditorOpenChanged"
+        },
+        {
+          "name": "onTimestampManualEditorTextChanged"
+        },
+        {
+          "name": "onSliderSettingsEditorOpenChanged"
+        },
+        {
+          "name": "onSelectSettingsEditorOpenChanged"
+        },
+        {
+          "name": "onPanelEditorOpenChanged"
+        }
+      ],
+      "instantiated_components": [
+        {
+          "name": "Connections"
+        },
+        {
+          "name": "MouseArea"
+        },
+        {
+          "name": "WebComponents.WebPageAddressPopover"
+        },
+        {
+          "name": "GraphPassive.GraphTimestampDateTimePopover"
+        },
+        {
+          "name": "GraphPassive.GraphNumberSliderSettingsPopover"
+        },
+        {
+          "name": "GraphPassive.GraphSelectSettingsPopover"
+        },
+        {
+          "name": "GraphPassive.GraphPanelEditorPopover"
+        }
+      ],
+      "dynamic_refs": [],
+      "signal_handlers": [
+        {
+          "kind": "handler",
+          "name": "onActiveToolbarAddressEditorOpenChanged"
+        },
+        {
+          "kind": "handler",
+          "name": "onActiveToolbarTimestampEditorOpenChanged"
+        },
+        {
+          "kind": "handler",
+          "name": "onPressed"
+        },
+        {
+          "kind": "handler",
+          "name": "onReleased"
+        },
+        {
+          "kind": "handler",
+          "name": "onCanceled"
+        },
+        {
+          "kind": "handler",
+          "name": "onAccepted"
+        }
+      ],
+      "connections": [
+        {
+          "kind": "target",
+          "name": "root.webPageAddressEditorSurface"
+        },
+        {
+          "kind": "target",
+          "name": "root.timestampEditorSurface"
+        },
+        {
+          "kind": "target",
+          "name": "root.numberSliderEditorSurface"
+        },
+        {
+          "kind": "target",
+          "name": "root.selectEditorSurface"
+        },
+        {
+          "kind": "target",
+          "name": "root.panelEditorSurface"
+        }
+      ],
+      "property_bindings": [
+        {
+          "kind": "binding",
+          "name": "visible",
+          "targets": [
+            "root.anyOverlayOpen"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "z"
+        },
+        {
+          "kind": "binding",
+          "name": "anchors.fill",
+          "targets": [
+            "parent"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "enabled",
+          "targets": [
+            "root.webPageAddressOverlayOpen"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "acceptedButtons",
+          "targets": [
+            "Qt.LeftButton",
+            "Qt.RightButton",
+            "Qt.MiddleButton"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "themePalette",
+          "targets": [
+            "root.webPageAddressEditorSurface"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "shadowStrength",
+          "targets": [
+            "root.webPageAddressEditorHost"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "shadowSoftness",
+          "targets": [
+            "root.webPageAddressEditorHost"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "shadowOffset",
+          "targets": [
+            "root.webPageAddressEditorHost"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "width",
+          "targets": [
+            "Math.min",
+            "Math.max",
+            "root.width"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "height",
+          "targets": [
+            "implicitHeight"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "x",
+          "targets": [
+            "root._clampAddressOverlayX",
+            "root.width",
+            "width"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "y",
+          "targets": [
+            "root._quickWindowAddressOverlayY",
+            "height"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "visible",
+          "targets": [
+            "root.timestampOverlayOpen"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "enabled",
+          "targets": [
+            "root.timestampOverlayOpen"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "host",
+          "targets": [
+            "root.timestampEditorHost"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "themePalette",
+          "targets": [
+            "root.themePalette"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "shadowStrength",
+          "targets": [
+            "root.timestampEditorHost"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "shadowSoftness",
+          "targets": [
+            "root.timestampEditorHost"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "shadowOffset",
+          "targets": [
+            "root.timestampEditorHost"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "width",
+          "targets": [
+            "root._timestampSheetWidth"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "x",
+          "targets": [
+            "root._timestampSheetX",
+            "width"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "y",
+          "targets": [
+            "root._timestampSheetY",
+            "height"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "visible",
+          "targets": [
+            "root.numberSliderOverlayOpen"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "enabled",
+          "targets": [
+            "root.numberSliderOverlayOpen"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "host",
+          "targets": [
+            "root.numberSliderEditorHost"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "shadowStrength",
+          "targets": [
+            "root.numberSliderEditorHost"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "shadowSoftness",
+          "targets": [
+            "root.numberSliderEditorHost"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "shadowOffset",
+          "targets": [
+            "root.numberSliderEditorHost"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "width",
+          "targets": [
+            "root._numberSliderSheetWidth"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "x",
+          "targets": [
+            "root._numberSliderSheetX",
+            "width"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "y",
+          "targets": [
+            "root._numberSliderSheetY",
+            "height"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "visible",
+          "targets": [
+            "root.selectOverlayOpen"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "enabled",
+          "targets": [
+            "root.selectOverlayOpen"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "host",
+          "targets": [
+            "root.selectEditorHost"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "shadowStrength",
+          "targets": [
+            "root.selectEditorHost"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "shadowSoftness",
+          "targets": [
+            "root.selectEditorHost"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "shadowOffset",
+          "targets": [
+            "root.selectEditorHost"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "width",
+          "targets": [
+            "root._selectSheetWidth"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "x",
+          "targets": [
+            "root._selectSheetX",
+            "width"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "y",
+          "targets": [
+            "root._selectSheetY",
+            "height"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "visible",
+          "targets": [
+            "root.panelOverlayOpen"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "enabled",
+          "targets": [
+            "root.panelOverlayOpen"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "host",
+          "targets": [
+            "root.panelEditorHost"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "shadowStrength",
+          "targets": [
+            "root.panelEditorHost"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "shadowSoftness",
+          "targets": [
+            "root.panelEditorHost"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "shadowOffset",
+          "targets": [
+            "root.panelEditorHost"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "width",
+          "targets": [
+            "root._panelSheetWidth"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "x",
+          "targets": [
+            "root._panelSheetX",
+            "width"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "y",
+          "targets": [
+            "root._panelSheetY",
+            "height"
+          ]
+        }
+      ],
+      "local_component_refs": [
+        {
+          "kind": "localComponent",
+          "name": "WebComponents.WebPageAddressPopover",
+          "detail": "ea_node_editor/ui_qml/components/web/WebPageAddressPopover.qml"
+        },
+        {
+          "kind": "localComponent",
+          "name": "GraphPassive.GraphTimestampDateTimePopover",
+          "detail": "ea_node_editor/ui_qml/components/graph/passive/GraphTimestampDateTimePopover.qml"
+        },
+        {
+          "kind": "localComponent",
+          "name": "GraphPassive.GraphNumberSliderSettingsPopover",
+          "detail": "ea_node_editor/ui_qml/components/graph/passive/GraphNumberSliderSettingsPopover.qml"
+        },
+        {
+          "kind": "localComponent",
+          "name": "GraphPassive.GraphSelectSettingsPopover",
+          "detail": "ea_node_editor/ui_qml/components/graph/passive/GraphSelectSettingsPopover.qml"
+        },
+        {
+          "kind": "localComponent",
+          "name": "GraphPassive.GraphPanelEditorPopover",
+          "detail": "ea_node_editor/ui_qml/components/graph/passive/GraphPanelEditorPopover.qml"
+        }
+      ],
+      "symbol_anchors": [
+        {
+          "anchor": "GraphCanvasSurfaceEditorOverlaysPropertyCanvasItem",
+          "kind": "property",
+          "name": "canvasItem",
+          "detail": "Item"
+        },
+        {
+          "anchor": "GraphCanvasSurfaceEditorOverlaysPropertyThemePalette",
+          "kind": "property",
+          "name": "themePalette",
+          "detail": "var"
+        },
+        {
+          "anchor": "GraphCanvasSurfaceEditorOverlaysPropertyWebPageAddressEditorHost",
+          "kind": "property",
+          "name": "webPageAddressEditorHost",
+          "detail": "Item"
+        },
+        {
+          "anchor": "GraphCanvasSurfaceEditorOverlaysPropertyWebPageAddressOverlayOpen",
+          "kind": "property",
+          "name": "webPageAddressOverlayOpen",
+          "detail": "bool"
+        },
+        {
+          "anchor": "GraphCanvasSurfaceEditorOverlaysPropertyTimestampEditorHost",
+          "kind": "property",
+          "name": "timestampEditorHost",
+          "detail": "Item"
+        },
+        {
+          "anchor": "GraphCanvasSurfaceEditorOverlaysPropertyTimestampOverlayOpen",
+          "kind": "property",
+          "name": "timestampOverlayOpen",
+          "detail": "bool"
+        },
+        {
+          "anchor": "GraphCanvasSurfaceEditorOverlaysPropertyNumberSliderEditorHost",
+          "kind": "property",
+          "name": "numberSliderEditorHost",
+          "detail": "Item"
+        },
+        {
+          "anchor": "GraphCanvasSurfaceEditorOverlaysPropertyNumberSliderOverlayOpen",
+          "kind": "property",
+          "name": "numberSliderOverlayOpen",
+          "detail": "bool"
+        },
+        {
+          "anchor": "GraphCanvasSurfaceEditorOverlaysPropertySelectEditorHost",
+          "kind": "property",
+          "name": "selectEditorHost",
+          "detail": "Item"
+        },
+        {
+          "anchor": "GraphCanvasSurfaceEditorOverlaysPropertySelectOverlayOpen",
+          "kind": "property",
+          "name": "selectOverlayOpen",
+          "detail": "bool"
+        },
+        {
+          "anchor": "GraphCanvasSurfaceEditorOverlaysPropertyPanelEditorHost",
+          "kind": "property",
+          "name": "panelEditorHost",
+          "detail": "Item"
+        },
+        {
+          "anchor": "GraphCanvasSurfaceEditorOverlaysPropertyPanelOverlayOpen",
+          "kind": "property",
+          "name": "panelOverlayOpen",
+          "detail": "bool"
+        },
+        {
+          "anchor": "GraphCanvasSurfaceEditorOverlaysPropertyActiveToolbarSurfaceItem",
+          "kind": "property",
+          "name": "activeToolbarSurfaceItem",
+          "detail": "var"
+        },
+        {
+          "anchor": "GraphCanvasSurfaceEditorOverlaysPropertyActiveToolbarAddressEditorOpen",
+          "kind": "property",
+          "name": "activeToolbarAddressEditorOpen",
+          "detail": "bool"
+        },
+        {
+          "anchor": "GraphCanvasSurfaceEditorOverlaysPropertyActiveToolbarTimestampEditorOpen",
+          "kind": "property",
+          "name": "activeToolbarTimestampEditorOpen",
+          "detail": "bool"
+        },
+        {
+          "anchor": "GraphCanvasSurfaceEditorOverlaysPropertyWebPageAddressEditorSurface",
+          "kind": "property",
+          "name": "webPageAddressEditorSurface",
+          "detail": "var"
+        },
+        {
+          "anchor": "GraphCanvasSurfaceEditorOverlaysPropertyTimestampEditorSurface",
+          "kind": "property",
+          "name": "timestampEditorSurface",
+          "detail": "var"
+        },
+        {
+          "anchor": "GraphCanvasSurfaceEditorOverlaysPropertyNumberSliderEditorSurface",
+          "kind": "property",
+          "name": "numberSliderEditorSurface",
+          "detail": "var"
+        },
+        {
+          "anchor": "GraphCanvasSurfaceEditorOverlaysPropertySelectEditorSurface",
+          "kind": "property",
+          "name": "selectEditorSurface",
+          "detail": "var"
+        },
+        {
+          "anchor": "GraphCanvasSurfaceEditorOverlaysPropertyPanelEditorSurface",
+          "kind": "property",
+          "name": "panelEditorSurface",
+          "detail": "var"
+        },
+        {
+          "anchor": "GraphCanvasSurfaceEditorOverlaysPropertyAnyOverlayOpen",
+          "kind": "property",
+          "name": "anyOverlayOpen",
+          "detail": "bool"
+        },
+        {
+          "anchor": "GraphCanvasSurfaceEditorOverlaysFunctionLoadedSurfaceItem",
+          "kind": "function",
+          "name": "_loadedSurfaceItem"
+        },
+        {
+          "anchor": "GraphCanvasSurfaceEditorOverlaysFunctionSurfaceAddressEditorOpen",
+          "kind": "function",
+          "name": "_surfaceAddressEditorOpen"
+        },
+        {
+          "anchor": "GraphCanvasSurfaceEditorOverlaysFunctionSurfaceTimestampEditorOpen",
+          "kind": "function",
+          "name": "_surfaceTimestampEditorOpen"
+        },
+        {
+          "anchor": "GraphCanvasSurfaceEditorOverlaysFunctionSurfaceNumberSliderEditorOpen",
+          "kind": "function",
+          "name": "_surfaceNumberSliderEditorOpen"
+        },
+        {
+          "anchor": "GraphCanvasSurfaceEditorOverlaysFunctionSurfaceSelectEditorOpen",
+          "kind": "function",
+          "name": "_surfaceSelectEditorOpen"
+        },
+        {
+          "anchor": "GraphCanvasSurfaceEditorOverlaysFunctionSurfacePanelEditorOpen",
+          "kind": "function",
+          "name": "_surfacePanelEditorOpen"
+        },
+        {
+          "anchor": "GraphCanvasSurfaceEditorOverlaysFunctionOpenWebPageAddressOverlay",
+          "kind": "function",
+          "name": "_openWebPageAddressOverlay"
+        },
+        {
+          "anchor": "GraphCanvasSurfaceEditorOverlaysFunctionOpenTimestampOverlay",
+          "kind": "function",
+          "name": "_openTimestampOverlay"
+        },
+        {
+          "anchor": "GraphCanvasSurfaceEditorOverlaysFunctionOpenNumberSliderOverlay",
+          "kind": "function",
+          "name": "_openNumberSliderOverlay"
+        },
+        {
+          "anchor": "GraphCanvasSurfaceEditorOverlaysFunctionOpenSelectOverlay",
+          "kind": "function",
+          "name": "_openSelectOverlay"
+        },
+        {
+          "anchor": "GraphCanvasSurfaceEditorOverlaysFunctionOpenPanelOverlay",
+          "kind": "function",
+          "name": "_openPanelOverlay"
+        },
+        {
+          "anchor": "GraphCanvasSurfaceEditorOverlaysFunctionOpenSurfaceActionOverlayForHost",
+          "kind": "function",
+          "name": "openSurfaceActionOverlayForHost"
+        },
+        {
+          "anchor": "GraphCanvasSurfaceEditorOverlaysFunctionCancelWebPageAddressOverlay",
+          "kind": "function",
+          "name": "_cancelWebPageAddressOverlay"
+        },
+        {
+          "anchor": "GraphCanvasSurfaceEditorOverlaysFunctionCancelTimestampOverlay",
+          "kind": "function",
+          "name": "_cancelTimestampOverlay"
+        },
+        {
+          "anchor": "GraphCanvasSurfaceEditorOverlaysFunctionCancelNumberSliderOverlay",
+          "kind": "function",
+          "name": "_cancelNumberSliderOverlay"
+        },
+        {
+          "anchor": "GraphCanvasSurfaceEditorOverlaysFunctionCancelSelectOverlay",
+          "kind": "function",
+          "name": "_cancelSelectOverlay"
+        },
+        {
+          "anchor": "GraphCanvasSurfaceEditorOverlaysFunctionCancelPanelOverlay",
+          "kind": "function",
+          "name": "_cancelPanelOverlay"
+        },
+        {
+          "anchor": "GraphCanvasSurfaceEditorOverlaysFunctionClampAddressOverlayX",
+          "kind": "function",
+          "name": "_clampAddressOverlayX"
+        },
+        {
+          "anchor": "GraphCanvasSurfaceEditorOverlaysFunctionQuickWindowAddressOverlayY",
+          "kind": "function",
+          "name": "_quickWindowAddressOverlayY"
+        },
+        {
+          "anchor": "GraphCanvasSurfaceEditorOverlaysFunctionItemRectInOverlayLayer",
+          "kind": "function",
+          "name": "_itemRectInOverlayLayer"
+        },
+        {
+          "anchor": "GraphCanvasSurfaceEditorOverlaysFunctionTimestampSheetWidth",
+          "kind": "function",
+          "name": "_timestampSheetWidth"
+        },
+        {
+          "anchor": "GraphCanvasSurfaceEditorOverlaysFunctionTimestampSheetX",
+          "kind": "function",
+          "name": "_timestampSheetX"
+        },
+        {
+          "anchor": "GraphCanvasSurfaceEditorOverlaysFunctionTimestampSheetY",
+          "kind": "function",
+          "name": "_timestampSheetY"
+        },
+        {
+          "anchor": "GraphCanvasSurfaceEditorOverlaysFunctionNumberSliderSheetWidth",
+          "kind": "function",
+          "name": "_numberSliderSheetWidth"
+        },
+        {
+          "anchor": "GraphCanvasSurfaceEditorOverlaysFunctionNumberSliderSheetX",
+          "kind": "function",
+          "name": "_numberSliderSheetX"
+        },
+        {
+          "anchor": "GraphCanvasSurfaceEditorOverlaysFunctionNumberSliderSheetY",
+          "kind": "function",
+          "name": "_numberSliderSheetY"
+        },
+        {
+          "anchor": "GraphCanvasSurfaceEditorOverlaysFunctionSelectSheetWidth",
+          "kind": "function",
+          "name": "_selectSheetWidth"
+        },
+        {
+          "anchor": "GraphCanvasSurfaceEditorOverlaysFunctionSelectSheetX",
+          "kind": "function",
+          "name": "_selectSheetX"
+        },
+        {
+          "anchor": "GraphCanvasSurfaceEditorOverlaysFunctionSelectSheetY",
+          "kind": "function",
+          "name": "_selectSheetY"
+        },
+        {
+          "anchor": "GraphCanvasSurfaceEditorOverlaysFunctionPanelSheetWidth",
+          "kind": "function",
+          "name": "_panelSheetWidth"
+        },
+        {
+          "anchor": "GraphCanvasSurfaceEditorOverlaysFunctionPanelSheetX",
+          "kind": "function",
+          "name": "_panelSheetX"
+        },
+        {
+          "anchor": "GraphCanvasSurfaceEditorOverlaysFunctionPanelSheetY",
+          "kind": "function",
+          "name": "_panelSheetY"
+        },
+        {
+          "anchor": "GraphCanvasSurfaceEditorOverlaysFunctionOnAddressEditorOpenChanged",
+          "kind": "function",
+          "name": "onAddressEditorOpenChanged"
+        },
+        {
+          "anchor": "GraphCanvasSurfaceEditorOverlaysFunctionOnAddressEditorTextChanged",
+          "kind": "function",
+          "name": "onAddressEditorTextChanged"
+        },
+        {
+          "anchor": "GraphCanvasSurfaceEditorOverlaysFunctionOnTimestampManualEditorOpenChanged",
+          "kind": "function",
+          "name": "onTimestampManualEditorOpenChanged"
+        },
+        {
+          "anchor": "GraphCanvasSurfaceEditorOverlaysFunctionOnTimestampManualEditorTextChanged",
+          "kind": "function",
+          "name": "onTimestampManualEditorTextChanged"
+        },
+        {
+          "anchor": "GraphCanvasSurfaceEditorOverlaysFunctionOnSliderSettingsEditorOpenChanged",
+          "kind": "function",
+          "name": "onSliderSettingsEditorOpenChanged"
+        },
+        {
+          "anchor": "GraphCanvasSurfaceEditorOverlaysFunctionOnSelectSettingsEditorOpenChanged",
+          "kind": "function",
+          "name": "onSelectSettingsEditorOpenChanged"
+        },
+        {
+          "anchor": "GraphCanvasSurfaceEditorOverlaysFunctionOnPanelEditorOpenChanged",
+          "kind": "function",
+          "name": "onPanelEditorOpenChanged"
+        },
+        {
+          "anchor": "GraphCanvasSurfaceEditorOverlaysHandlerOnActiveToolbarAddressEditorOpenChanged",
+          "kind": "handler",
+          "name": "onActiveToolbarAddressEditorOpenChanged"
+        },
+        {
+          "anchor": "GraphCanvasSurfaceEditorOverlaysHandlerOnActiveToolbarTimestampEditorOpenChanged",
+          "kind": "handler",
+          "name": "onActiveToolbarTimestampEditorOpenChanged"
+        },
+        {
+          "anchor": "GraphCanvasSurfaceEditorOverlaysHandlerOnPressed",
+          "kind": "handler",
+          "name": "onPressed"
+        },
+        {
+          "anchor": "GraphCanvasSurfaceEditorOverlaysHandlerOnReleased",
+          "kind": "handler",
+          "name": "onReleased"
+        },
+        {
+          "anchor": "GraphCanvasSurfaceEditorOverlaysHandlerOnCanceled",
+          "kind": "handler",
+          "name": "onCanceled"
+        },
+        {
+          "anchor": "GraphCanvasSurfaceEditorOverlaysHandlerOnAccepted",
+          "kind": "handler",
+          "name": "onAccepted"
+        },
+        {
+          "anchor": "GraphCanvasSurfaceEditorOverlaysTargetRootWebPageAddressEditorSurface",
+          "kind": "target",
+          "name": "root.webPageAddressEditorSurface"
+        },
+        {
+          "anchor": "GraphCanvasSurfaceEditorOverlaysTargetRootTimestampEditorSurface",
+          "kind": "target",
+          "name": "root.timestampEditorSurface"
+        },
+        {
+          "anchor": "GraphCanvasSurfaceEditorOverlaysTargetRootNumberSliderEditorSurface",
+          "kind": "target",
+          "name": "root.numberSliderEditorSurface"
+        },
+        {
+          "anchor": "GraphCanvasSurfaceEditorOverlaysTargetRootSelectEditorSurface",
+          "kind": "target",
+          "name": "root.selectEditorSurface"
+        },
+        {
+          "anchor": "GraphCanvasSurfaceEditorOverlaysTargetRootPanelEditorSurface",
+          "kind": "target",
+          "name": "root.panelEditorSurface"
+        },
+        {
+          "anchor": "GraphCanvasSurfaceEditorOverlaysLocalComponentWebComponentsWebPageAddressPopover",
+          "kind": "localComponent",
+          "name": "WebComponents.WebPageAddressPopover",
+          "detail": "ea_node_editor/ui_qml/components/web/WebPageAddressPopover.qml"
+        },
+        {
+          "anchor": "GraphCanvasSurfaceEditorOverlaysLocalComponentGraphPassiveGraphTimestampDateTimePopover",
+          "kind": "localComponent",
+          "name": "GraphPassive.GraphTimestampDateTimePopover",
+          "detail": "ea_node_editor/ui_qml/components/graph/passive/GraphTimestampDateTimePopover.qml"
+        },
+        {
+          "anchor": "GraphCanvasSurfaceEditorOverlaysLocalComponentGraphPassiveGraphNumberSliderSettingsPopover",
+          "kind": "localComponent",
+          "name": "GraphPassive.GraphNumberSliderSettingsPopover",
+          "detail": "ea_node_editor/ui_qml/components/graph/passive/GraphNumberSliderSettingsPopover.qml"
+        },
+        {
+          "anchor": "GraphCanvasSurfaceEditorOverlaysLocalComponentGraphPassiveGraphSelectSettingsPopover",
+          "kind": "localComponent",
+          "name": "GraphPassive.GraphSelectSettingsPopover",
+          "detail": "ea_node_editor/ui_qml/components/graph/passive/GraphSelectSettingsPopover.qml"
+        },
+        {
+          "anchor": "GraphCanvasSurfaceEditorOverlaysLocalComponentGraphPassiveGraphPanelEditorPopover",
+          "kind": "localComponent",
+          "name": "GraphPassive.GraphPanelEditorPopover",
+          "detail": "ea_node_editor/ui_qml/components/graph/passive/GraphPanelEditorPopover.qml"
         }
       ]
     },

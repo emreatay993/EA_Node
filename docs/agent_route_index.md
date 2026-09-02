@@ -11,15 +11,15 @@ This index is the machine-readable companion to `docs/agent_maps/`. Use it to fi
 
 | Metric | Count |
 | --- | ---: |
-| Route entries | 239 |
+| Route entries | 240 |
 | Agent-map entries | 68 |
-| QML component entries | 171 |
+| QML component entries | 172 |
 
 ## Agent Map Routes
 
 | Route key | Kind | Map | Source | Tests | QML | Keywords |
 | --- | --- | --- | ---: | ---: | ---: | --- |
-| `coverage:coverage` | `coverage` | `docs/agent_maps/COVERAGE.md` | 13 | 3 | - | `agent`, `map`, `coverage`, `node`, `editor`, `graph`, `execution`, `persistence`, `nodes`, `addons`, ... +118 more |
+| `coverage:coverage` | `coverage` | `docs/agent_maps/COVERAGE.md` | 13 | 3 | - | `agent`, `map`, `coverage`, `node`, `editor`, `graph`, `execution`, `persistence`, `nodes`, `addons`, ... +119 more |
 | `feature_route:feature-routes-addon-manager` | `feature_route` | `docs/agent_maps/feature_routes/addon_manager.md` | 11 | 2 | 1 | `add`, `manager`, `addon`, `node`, `editor`, `addons`, `contracts`, `catalog`, `registry`, `contributions`, ... +58 more |
 | `feature_route:feature-routes-ansys-dpf-operator-viewer-transport` | `feature_route` | `docs/agent_maps/feature_routes/ansys_dpf_operator_viewer_transport.md` | 37 | - | 2 | `ansys`, `dpf`, `operator`, `nodes`, `viewer`, `and`, `transport`, `node`, `editor`, `data`, ... +262 more |
 | `feature_route:feature-routes-clipboard-undo-redo-mutation-history` | `feature_route` | `docs/agent_maps/feature_routes/clipboard_undo_redo_mutation_history.md` | 11 | - | - | `clipboard`, `undo`, `redo`, `and`, `mutation`, `history`, `node`, `editor`, `qml`, `graph`, ... +232 more |
@@ -54,7 +54,7 @@ This index is the machine-readable companion to `docs/agent_maps/`. Use it to fi
 | `feature_route:feature-routes-shared-graph-typography` | `feature_route` | `docs/agent_maps/feature_routes/shared_graph_typography.md` | 11 | - | 4 | `shared`, `graph`, `typography`, `node`, `editor`, `qml`, `components`, `graphsharedtypography`, `common`, `fontfamilyoptions`, ... +87 more |
 | `feature_route:feature-routes-shell-startup-qml-context-splash` | `feature_route` | `docs/agent_maps/feature_routes/shell_startup_qml_context_splash.md` | 6 | - | 1 | `shell`, `startup`, `qml`, `context`, `and`, `splash`, `node`, `editor`, `bootstrap`, `app`, ... +79 more |
 | `feature_route:feature-routes-ssh-sftp-nodes` | `feature_route` | `docs/agent_maps/feature_routes/ssh_sftp_nodes.md` | 13 | 4 | 1 | `ssh`, `sftp`, `nodes`, `secretdata`, `sshsftphostdata`, `dpapi`, `secret`, `known`, `hosts`, `paramiko`, ... +85 more |
-| `feature_route:feature-routes-surface-input-and-inline-controls` | `feature_route` | `docs/agent_maps/feature_routes/surface_input_and_inline_controls.md` | 39 | 10 | 32 | `surface`, `input`, `and`, `inline`, `controls`, `list`, `height`, `editor`, `expandable`, `standard`, ... +166 more |
+| `feature_route:feature-routes-surface-input-and-inline-controls` | `feature_route` | `docs/agent_maps/feature_routes/surface_input_and_inline_controls.md` | 40 | 10 | 33 | `surface`, `input`, `and`, `inline`, `controls`, `list`, `height`, `editor`, `expandable`, `standard`, ... +170 more |
 | `feature_route:feature-routes-tabular-data-addon-preview` | `feature_route` | `docs/agent_maps/feature_routes/tabular_data_addon_preview.md` | 23 | 14 | 2 | `tabular`, `data`, `add`, `and`, `preview`, `addon`, `node`, `editor`, `addons`, `catalog`, ... +436 more |
 | `feature_route:feature-routes-tooltips-and-tiers` | `feature_route` | `docs/agent_maps/feature_routes/tooltips_and_tiers.md` | 8 | 1 | 3 | `tooltips`, `and`, `tooltip`, `tiers`, `node`, `editor`, `shell`, `manager`, `policy`, `viewer`, ... +211 more |
 | `feature_route:feature-routes-viewer-session-overlay-fullscreen` | `feature_route` | `docs/agent_maps/feature_routes/viewer_session_overlay_fullscreen.md` | 27 | 14 | 10 | `viewer`, `session`, `native`, `overlay`, `and`, `fullscreen`, `ownership`, `toolbar`, `click`, `engineering`, ... +213 more |
@@ -68,7 +68,7 @@ This index is the machine-readable companion to `docs/agent_maps/`. Use it to fi
 | `subsystem:subsystems-app-preferences-settings-platform-paths` | `subsystem` | `docs/agent_maps/subsystems/app_preferences_settings_platform_paths.md` | 8 | - | - | `app`, `preferences`, `settings`, `and`, `platform`, `paths`, `node`, `editor`, `open`, `graph`, ... +86 more |
 | `subsystem:subsystems-assets-icons-theme` | `subsystem` | `docs/agent_maps/subsystems/assets_icons_theme.md` | 11 | - | 1 | `assets`, `icons`, `title`, `and`, `theme`, `node`, `editor`, `nodes`, `builtins`, `icon`, ... +84 more |
 | `subsystem:subsystems-execution` | `subsystem` | `docs/agent_maps/subsystems/execution.md` | 59 | 30 | - | `execution`, `snapshot`, `client`, `worker`, `and`, `protocol`, `runtime`, `handle`, `lease`, `owner`, ... +270 more |
-| `subsystem:subsystems-graph-canvas` | `subsystem` | `docs/agent_maps/subsystems/graph_canvas.md` | 17 | 6 | 5 | `graph`, `canvas`, `rendering`, `input`, `and`, `viewport`, `node`, `editor`, `qml`, `components`, ... +293 more |
+| `subsystem:subsystems-graph-canvas` | `subsystem` | `docs/agent_maps/subsystems/graph_canvas.md` | 17 | 6 | 5 | `graph`, `canvas`, `rendering`, `input`, `and`, `viewport`, `node`, `editor`, `qml`, `components`, ... +294 more |
 | `subsystem:subsystems-graph-domain` | `subsystem` | `docs/agent_maps/subsystems/graph_domain.md` | 32 | - | - | `graph`, `domain`, `mutation`, `transforms`, `and`, `hierarchy`, `node`, `editor`, `model`, `graphmodel`, ... +145 more |
 | `subsystem:subsystems-nodes-registry-builtins` | `subsystem` | `docs/agent_maps/subsystems/nodes_registry_builtins.md` | 80 | 36 | - | `nodes`, `registry`, `built`, `ins`, `and`, `plugin`, `loading`, `builtins`, `node`, `corex`, ... +160 more |
 | `subsystem:subsystems-packaging-generated-assets` | `subsystem` | `docs/agent_maps/subsystems/packaging_generated_assets.md` | 15 | 1 | - | `packaging`, `and`, `generated`, `assets`, `scripts`, `build`, `windows`, `package`, `ps1`, `installer`, ... +156 more |
@@ -84,7 +84,7 @@ This index is the machine-readable companion to `docs/agent_maps/`. Use it to fi
 | `subsystem:subsystems-web-assets-host-chromium-excalidraw` | `subsystem` | `docs/agent_maps/subsystems/web_assets_host_chromium_excalidraw.md` | 5 | - | - | `web`, `assets`, `host`, `chromium`, `and`, `excalidraw`, `node`, `editor`, `nodes`, `builtins`, ... +15 more |
 | `subsystem:subsystems-workspace-projects-session-library` | `subsystem` | `docs/agent_maps/subsystems/workspace_projects_session_library.md` | 15 | 5 | - | `workspace`, `projects`, `session`, `and`, `library`, `node`, `editor`, `shell`, `controllers`, `project`, ... +31 more |
 | `testing:testing-docs-traceability-hygiene` | `testing` | `docs/agent_maps/testing/docs_traceability_hygiene.md` | 6 | 11 | - | `docs`, `traceability`, `and`, `hygiene`, `tests`, `scripts`, `check`, `markdown`, `links`, `test`, ... +55 more |
-| `testing:testing-qml-and-graph-surface-tests` | `testing` | `docs/agent_maps/testing/qml_and_graph_surface_tests.md` | - | 68 | - | `qml`, `and`, `graph`, `surface`, `tests`, `quick`, `tst`, `node`, `host`, `controls`, ... +212 more |
+| `testing:testing-qml-and-graph-surface-tests` | `testing` | `docs/agent_maps/testing/qml_and_graph_surface_tests.md` | - | 69 | - | `qml`, `and`, `graph`, `surface`, `tests`, `quick`, `tst`, `node`, `host`, `controls`, ... +213 more |
 | `testing:testing-shell-isolation-tests` | `testing` | `docs/agent_maps/testing/shell_isolation_tests.md` | 1 | 8 | - | `shell`, `isolation`, `tests`, `test`, `phase`, `runtime`, `main`, `window`, `scripts`, `verification`, ... +98 more |
 | `testing:testing-verification-runner` | `testing` | `docs/agent_maps/testing/verification_runner.md` | 3 | 5 | - | `verification`, `runner`, `scripts`, `run`, `manifest`, `node`, `editor`, `pytest`, `defaults`, `tests`, ... +32 more |
 
@@ -124,9 +124,10 @@ This index is the machine-readable companion to `docs/agent_maps/`. Use it to fi
 | `qml:graphcanvasnodesurfacebridge` | `GraphCanvasNodeSurfaceBridge.qml` | `docs/agent_maps/subsystems/graph_canvas.md` | `ea_node_editor/ui_qml/components/graph_canvas/GraphCanvasNodeSurfaceBridge.qml` | `graphcanvasnodesurfacebridge`, `node`, `editor`, `qml`, `components`, `graph`, `canvas`, `item`, ... +38 more |
 | `qml:graphcanvasoptionsmenu` | `GraphCanvasOptionsMenu.qml` | `docs/agent_maps/subsystems/graph_canvas.md` | `ea_node_editor/ui_qml/components/graph_canvas/GraphCanvasOptionsMenu.qml` | `graphcanvasoptionsmenu`, `node`, `editor`, `qml`, `components`, `graph`, `canvas`, `item`, ... +110 more |
 | `qml:graphcanvaspreferencefacts` | `GraphCanvasPreferenceFacts.qml` | `docs/agent_maps/subsystems/graph_canvas.md` | `ea_node_editor/ui_qml/components/graph_canvas/GraphCanvasPreferenceFacts.qml` | `graphcanvaspreferencefacts`, `node`, `editor`, `qml`, `components`, `graph`, `canvas`, `qtobject`, ... +35 more |
-| `qml:graphcanvasrootlayers` | `GraphCanvasRootLayers.qml` | `docs/agent_maps/subsystems/graph_canvas.md` | `ea_node_editor/ui_qml/components/graph_canvas/GraphCanvasRootLayers.qml` | `graphcanvasrootlayers`, `node`, `editor`, `qml`, `components`, `graph`, `canvas`, `item`, ... +238 more |
+| `qml:graphcanvasrootlayers` | `GraphCanvasRootLayers.qml` | `docs/agent_maps/subsystems/graph_canvas.md` | `ea_node_editor/ui_qml/components/graph_canvas/GraphCanvasRootLayers.qml` | `graphcanvasrootlayers`, `node`, `editor`, `qml`, `components`, `graph`, `canvas`, `item`, ... +174 more |
 | `qml:graphcanvasscenelifecycle` | `GraphCanvasSceneLifecycle.qml` | `docs/agent_maps/subsystems/graph_canvas.md` | `ea_node_editor/ui_qml/components/graph_canvas/GraphCanvasSceneLifecycle.qml` | `graphcanvasscenelifecycle`, `node`, `editor`, `qml`, `components`, `graph`, `canvas`, `item`, ... +24 more |
 | `qml:graphcanvasscenestate` | `GraphCanvasSceneState.qml` | `docs/agent_maps/subsystems/graph_canvas.md` | `ea_node_editor/ui_qml/components/graph_canvas/GraphCanvasSceneState.qml` | `graphcanvasscenestate`, `node`, `editor`, `qml`, `components`, `graph`, `canvas`, `qtobject`, ... +74 more |
+| `qml:graphcanvassurfaceeditoroverlays` | `GraphCanvasSurfaceEditorOverlays.qml` | `docs/agent_maps/subsystems/graph_canvas.md` | `ea_node_editor/ui_qml/components/graph_canvas/GraphCanvasSurfaceEditorOverlays.qml` | `graphcanvassurfaceeditoroverlays`, `node`, `editor`, `qml`, `components`, `graph`, `canvas`, `item`, ... +77 more |
 | `qml:graphcanvassurfaceinteractionhost` | `GraphCanvasSurfaceInteractionHost.qml` | `docs/agent_maps/subsystems/graph_canvas.md` | `ea_node_editor/ui_qml/components/graph_canvas/GraphCanvasSurfaceInteractionHost.qml` | `graphcanvassurfaceinteractionhost`, `node`, `editor`, `qml`, `components`, `graph`, `canvas`, `qtobject`, ... +11 more |
 | `qml:graphcanvasviewportcontroller` | `GraphCanvasViewportController.qml` | `docs/agent_maps/subsystems/graph_canvas.md` | `ea_node_editor/ui_qml/components/graph_canvas/GraphCanvasViewportController.qml` | `graphcanvasviewportcontroller`, `node`, `editor`, `qml`, `components`, `graph`, `canvas`, `qtobject`, ... +40 more |
 | `qml:graphcanvasworldlayer` | `GraphCanvasWorldLayer.qml` | `docs/agent_maps/subsystems/graph_canvas.md` | `ea_node_editor/ui_qml/components/graph_canvas/GraphCanvasWorldLayer.qml` | `graphcanvasworldlayer`, `node`, `editor`, `qml`, `components`, `graph`, `canvas`, `item`, ... +17 more |

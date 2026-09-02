@@ -1,6 +1,6 @@
 # COREX Runtime, Registry, and Presentation Ownership Refactor QA Matrix
 
-Status: `CHECKPOINT — T19 ACCEPTED; NEXT T20`
+Status: `CHECKPOINT — T20 ACCEPTED; NEXT T21`
 
 This is the single compaction-safe task, test-migration, performance, and review
 ledger for
@@ -95,7 +95,7 @@ diff, and any running writer. Only one writer may edit at a time.
 | T17 Viewer/plot injection | B | `ACCEPTED` | `python_ui_audit` | Four native viewer/plot classes and composition | Direct owner baseline 122 passed/15 subtests; candidate 126 passed/15 subtests; provider/callback/architecture focus 7 passed/4 subtests; fullscreen/replacement/bootstrap/shell lifecycle 94 passed/106 subtests; viewer/plot/QML surface cohort 77 passed/998 subtests with five tooltip helper blocks across four byte-identical accepted-T16 QML files classified `NONBLOCKING-DEFERRED`; architecture/dead-code 60 passed/193 subtests; four direct provider/callback tests plus one architecture guard added with all existing IDs retained; zero migration rows; source/QML/route indexes, maps, traceability, Markdown links, ledger, Ruff/compile, bounded format, diff/protected/privacy/process hygiene pass | `STRUCTURAL PASS; TIMING INCONCLUSIVE — SHELL CONSTRUCTION BELOW REPEAT THRESHOLD; NO TIMING-ONLY ROLLBACK` | Architecture `CLEAR`; correctness/security/no-lost-tests `CLEAR`; performance `CLEAR` | This commit |
 | T18 Native handoff | B | `ACCEPTED` | `python_ui_audit` | Shared handoff plus distinct viewer/plot hosts | Baseline duplicate demotion cohort 6 passed plus 3 widget-identity tests; direct handoff plus host integration 7 passed after real-timeout/cancel remediation; authoritative handoff/viewer/plot host cohort 79 passed; overlay/detached/fullscreen/surface/bootstrap/architecture/dead-code cohort 128 passed/213 subtests; four duplicate timeout/cancel IDs finalized as `replaced_by_owner_test` with exact replacements/results/`This commit`; corrected post-T18 15-owner/QML/action/330-ID/fixture convergence baseline locked; source/QML/route indexes, maps, traceability, Markdown links, full dry-run, ledger, Ruff/format/compile, diff/protected/privacy/process hygiene pass | `STRUCTURAL PASS; TIMING INCONCLUSIVE — NO COMPARABLE TIMING/CPU/RSS; NO TIMING-ONLY ROLLBACK` | Architecture `CLEAR`; correctness/security/no-lost-tests `CLEAR`; performance `CLEAR` | This commit |
 | T19 Edge paint policy | B | `ACCEPTED` | `qml_audit` | Edge paint JS/math, Canvas/retained consumers, direct policy/renderer tests, maps/indexes/traceability | Direct policy QuickTest 8 passed; real edge owner 22 passed/19 subtests; edge spatial/surface 8 passed; surface/frame/export/Track-H cohort 27 passed; edge-owned preference probes 8 passed plus the separately rerun coalescing case passed; full QuickTest 78 passed; architecture/dead-code/docs hygiene 189 passed/449 subtests; ledger 12, maps/indexes/traceability/links/generator checks/full dry-run/Ruff/compile/diff/protected/privacy/process checks pass | `STRUCTURAL PASS; TIMING INCONCLUSIVE — SEQUENTIAL NON-COUNTERBALANCED; NO MATERIAL PAUSE OR TIMING-ONLY ROLLBACK` | Architecture/ownership `CLEAR`; correctness/no-lost-tests `CLEAR`; performance causality `CLEAR` | This commit |
-| T20 Surface overlays | B | `NOT STARTED` | Pending | Root layers/new overlay component/tests/maps | Pending | Pending | Pending | Pending |
+| T20 Surface overlays | B | `ACCEPTED` | `qml_audit` | Root layers, direct overlay component/QuickTest, retained real routes, tests/maps/indexes/traceability | Direct overlay QuickTest 7 passed; P03/Web/Number Slider/Select/Panel cohort 84 passed/62 subtests; Canvas export/snapshot/passive cohort 40 passed/4 subtests; full QuickTest 85 passed; architecture/dead-code/ledger/navigation/traceability/Markdown hygiene 202 passed/450 subtests; reviewer architecture cohort 33 passed/246 subtests plus direct QML pass; reviewer ledger/QML/route/source cohort 28 passed/240 subtests; direct maps/indexes/traceability/links/generator checks, Ruff, compile, format, full dry-run, diff/protected/privacy/process checks pass | `STRUCTURAL PASS; TIMING INCONCLUSIVE — CHANGED-TEST DIAGNOSTIC ONLY; NO PRODUCT REPEAT OR TIMING-ONLY ROLLBACK` | Architecture/ownership `CLEAR`; correctness/no-lost-tests `CLEAR`; performance causality `CLEAR` | This commit |
 | T21 Port row | B | `NOT STARTED` | Pending | Ports layer/new row component/tests/maps | Pending | Pending | Pending | Pending |
 | T22 Port context menu | B | `NOT STARTED` | Pending | Ports layer/new menu component/tests/maps | Pending | Pending | Pending | Pending |
 | T23 Action presentation | B | `NOT STARTED` | Pending | Pure action shaping and direct consumers | Pending | Pending | Pending | Pending |
@@ -188,6 +188,48 @@ No agent-map edit is needed in T00 because no production or test ownership moves
 | Test candidates | New direct handoff owner; moved viewer/plot timeout/cancel tests; retained host integration, overlay, detached/fullscreen, viewer surface, bootstrap, architecture/dead-code, and convergence collect/static probes |
 | Searches run | Bounded exact-method AST/body hashes, direct state-field/caller searches, and one map-selected test-name search; generated/build/vendor/venv/worktree trees excluded |
 | Fallback reason | Maps described the live-exit boundary but not which method bodies were byte-structurally identical or which four duplicate test IDs should move; exact AST/source/test inspection was required to keep host-specific capture/completion out of the shared owner |
+
+### T20 Navigation Record
+
+| Field | T20 record |
+| --- | --- |
+| Route index entries checked | Graph canvas, surface input/inline controls, QML graph-surface tests, Canvas export, passive loading, Web surface, and exact RootLayers/source-test entries |
+| Maps consulted | Agent atlas/coverage; graph canvas; surface input/inline controls; QML/graph-surface testing; performance harness |
+| Source candidates | `GraphCanvasRootLayers.qml`; Web Address, Timestamp, Number Slider, Select, and Panel popovers/surfaces; post-T16 `CanvasExportPresenter` retained unchanged |
+| QML candidates | New `GraphCanvasSurfaceEditorOverlays.qml` root-replacing owner plus direct `tst_graph_canvas_surface_editor_overlays.qml`; no generic registry or second wrapper candidate |
+| Test candidates | Direct QuickTest; retained Web/Timestamp/slider/select/panel real-canvas routes; P03 input; Canvas export/snapshot; architecture/dead-code; ledger and docs/map hygiene |
+| Searches run | Bounded exact overlay state/function/object/caller searches, exact source-assertion owners, traceability/map citations, and generated-index membership; no broad source-tree fallback |
+| Fallback reason | Maps named RootLayers but did not separate the five parallel state/placement/Connections blocks, active-toolbar reopen handlers, or exact static tests that named the old owner; direct source/test inspection was required to move one owner without touching export or bridge routes |
+
+### T20 Current Write Inventory
+
+The active unstaged T20 inventory contains 21 task paths: 2 added and 19
+modified, with no deletion. The two protected untracked paths and mixed INDEX
+content retain their prior ownership rules.
+
+```text
+docs/PLAN_COREX_RUNTIME_REGISTRY_PRESENTATION_REFACTOR.md
+docs/agent_maps/COVERAGE.md
+docs/agent_maps/feature_routes/surface_input_and_inline_controls.md
+docs/agent_maps/subsystems/graph_canvas.md
+docs/agent_maps/testing/qml_and_graph_surface_tests.md
+docs/agent_route_index.json
+docs/agent_route_index.md
+docs/qml_navigation_index.json
+docs/qml_navigation_index.md
+docs/source_test_file_index.md
+docs/specs/INDEX.md
+docs/specs/perf/COREX_RUNTIME_REGISTRY_PRESENTATION_REFACTOR_QA_MATRIX.md
+docs/specs/requirements/TRACEABILITY_MATRIX.md
+ea_node_editor/ui_qml/components/graph_canvas/GraphCanvasRootLayers.qml
+ea_node_editor/ui_qml/components/graph_canvas/GraphCanvasSurfaceEditorOverlays.qml
+tests/graph_surface/number_slider_suite.py
+tests/qml_quick/tst_graph_canvas_surface_editor_overlays.qml
+tests/test_architecture_boundaries.py
+tests/test_corex_ownership_refactor_ledger.py
+tests/test_qml_navigation_index.py
+tests/test_select_surface.py
+```
 
 ### T19 Navigation Record
 
@@ -668,9 +710,9 @@ tests/test_architecture_boundaries.py
 
 ### Affected QML QuickTest selectors
 
-These 68 selectors are currently owned by the `gui.qml_quick` phase under
+These 73 selectors are currently owned by the `gui.qml_quick` phase under
 `qmltestrunner`; SHA-256 over this ordered list is
-`F128B16D9353C04EB4477FA52644032F2FDED524D536990CAAE29D71A33C46A6`.
+`EF097FAD733C035588AFBC27BE5C56B7DFBB6FBE3CE3B16ECCA222E501CEA38D`.
 The two `SecretEditor` selectors are outside this refactor and are not listed.
 
 ```text
@@ -680,6 +722,11 @@ EdgePaintPolicy::test_active_base_color_ignores_projected_edge_color
 EdgePaintPolicy::test_flow_and_drag_preview_policy
 EdgePaintPolicy::test_passive_standard_and_drag_preview_state_stay_legacy
 EdgePaintPolicy::test_edge_anchor_is_geometry_owned
+GraphCanvasSurfaceEditorOverlays::test_component_replaces_web_root_and_contains_other_exact_layers
+GraphCanvasSurfaceEditorOverlays::test_open_focus_position_and_surface_identity_for_all_editors
+GraphCanvasSurfaceEditorOverlays::test_accept_callbacks_commit_and_close_each_surface
+GraphCanvasSurfaceEditorOverlays::test_outside_click_cancels_and_clears_each_host
+GraphCanvasSurfaceEditorOverlays::test_active_toolbar_reopens_web_and_timestamp_and_unknown_action_is_rejected
 GraphNodeHost::test_graph_node_host_loads_standard_surface_for_standard_nodes
 GraphNodeHost::test_graph_node_host_uses_surface_spec_for_standard_surface_selection
 GraphNodeHost::test_graph_node_host_uses_curve_rendering_for_node_text
@@ -815,7 +862,7 @@ project_session__test_recent_project_paths_are_owned_by_explicit_session_state
 | --- | --- | --- |
 | Program A Python cohort | Existing pytest fast/gui/serial routing; collected serially for T00 | Registry, add-on, execution, persistence, and run-controller suites listed above |
 | Program B Python cohort | Existing pytest fast/gui/serial routing; collected serially for T00 | Direct graph, canvas, media, viewer, plot, edge, port, and presentation suites listed above |
-| 68 affected QML selectors | `gui.qml_quick`; native `qmltestrunner` process | `tests/qml_quick/tst_edge_paint_policy.qml`, `tst_graph_node_host.qml`, and `tst_graph_surface_controls.qml` |
+| 73 affected QML selectors | `gui.qml_quick`; native `qmltestrunner` process | `tests/qml_quick/tst_edge_paint_policy.qml`, `tst_graph_canvas_surface_editor_overlays.qml`, `tst_graph_node_host.qml`, and `tst_graph_surface_controls.qml` |
 | 31 main-window target groups | `full.shell_isolation`; one child per target group | `tests/shell_isolation_main_window_targets.py` |
 | 20 controller/session targets | `full.shell_isolation`; one child per target | `tests/shell_isolation_controller_targets.py` |
 
@@ -1207,12 +1254,18 @@ when a test is retained.
 | B | T19 | python | tests/test_flow_edge_labels.py::FlowEdgeLabelQmlTests::test_active_data_wire_renderers_match_structure_display_selection_and_error_matrix | Exact Canvas/retained structure, display, hidden, selection, invalid, and tooltip parity plus pure gradient/policy facts | ea_node_editor/ui_qml/components/graph/EdgePaintPolicy.js | gui.pytest | retained | EdgePaintPolicy::test_standard_structure_display_and_marker_state; EdgePaintPolicy::test_hidden_selection_and_invalid_gradient_priority | Existing Python ID retains real renderer/hit/tooltip parity; direct QuickTests replace calls to removed Canvas policy helpers and preserve gradient/state assertions | This commit | PASS — direct QuickTest 8; real edge owner 22 passed/19 subtests | This commit |
 | B | T19 | python | tests/test_flow_edge_labels.py::FlowEdgeLabelQmlTests::test_active_data_wire_base_color_is_neutral_and_contrast_safe_across_canvas_palettes | Neutral active-wire base ignores projected edge color across ordinary/empty/disabled/invalid states | ea_node_editor/ui_qml/components/graph/EdgePaintPolicy.js | gui.pytest | retained | EdgePaintPolicy::test_active_base_color_ignores_projected_edge_color | Existing Python ID retains actual EdgeLayer luminance and rendered diagnostics; direct QuickTest owns pure policy permutations | This commit | PASS — direct QuickTest 8; real edge owner 22 passed/19 subtests | This commit |
 | B | T19 | python | tests/test_flow_edge_labels.py::FlowEdgeLabelQmlTests::test_graph_canvas_passive_standard_and_flow_styles_and_markers_stay_legacy | Styled/default flow, passive standard, and active/passive drag marker behavior | ea_node_editor/ui_qml/components/graph/EdgePaintPolicy.js | gui.pytest | retained | EdgePaintPolicy::test_flow_and_drag_preview_policy; EdgePaintPolicy::test_passive_standard_and_drag_preview_state_stay_legacy | Existing Python ID retains actual flow/passive rendering and Canvas drag redraw; direct QuickTests own the complete marker/dash/color/width matrix | This commit | PASS — direct QuickTest 8; real edge owner 22 passed/19 subtests | This commit |
+| B | T20 | python | tests/graph_surface/number_slider_suite.py::NumberSliderSurfaceContractTests::test_canvas_root_layers_route_number_slider_overlay | Root alias/delegation and direct Number Slider overlay ownership | ea_node_editor/ui_qml/components/graph_canvas/GraphCanvasSurfaceEditorOverlays.qml | gui.pytest | retained | GraphCanvasSurfaceEditorOverlays::test_component_replaces_web_root_and_contains_other_exact_layers; GraphCanvasSurfaceEditorOverlays::test_open_focus_position_and_surface_identity_for_all_editors | Existing Python ID remains and now asserts RootLayers aliases plus the direct overlay owner; QuickTests execute exact layer identity/open/focus/position behavior | This commit | PASS — both exact replacement selectors passed in the direct QuickTest 7; P03/Web/slider/select/panel cohort 84 passed/62 subtests | This commit |
+| B | T20 | python | tests/test_select_surface.py::SelectSurfaceTests::test_select_qml_uses_existing_controls_and_root_overlay | Select surface controls plus root alias/direct overlay owner | ea_node_editor/ui_qml/components/graph_canvas/GraphCanvasSurfaceEditorOverlays.qml | gui.pytest | retained | GraphCanvasSurfaceEditorOverlays::test_component_replaces_web_root_and_contains_other_exact_layers; GraphCanvasSurfaceEditorOverlays::test_open_focus_position_and_surface_identity_for_all_editors | Existing Python ID remains and names both RootLayers delegation and the direct Select overlay owner; QuickTests execute exact identity/open/focus/position behavior | This commit | PASS — both exact replacement selectors passed in the direct QuickTest 7; P03/Web/slider/select/panel cohort 84 passed/62 subtests | This commit |
 
 T19 maps exactly five QuickTest selectors in the three finalized rows above:
 two renderer/state selectors, one neutral-base selector, and two flow/passive
 marker selectors. `EdgePaintPolicy::test_edge_anchor_is_geometry_owned` is the
 sixth T19 selector and is a new direct owner proof; it replaces no old assertion
 and therefore has no migration row.
+
+The other three T20 selectors—accept/commit callbacks, outside-click
+cancellation, and active-toolbar reopen/unknown-action rejection—are new direct
+owner proofs and have no migration mapping.
 
 ## Program A Performance Baseline Contract
 
@@ -1329,6 +1382,7 @@ for release-style rendering conclusions.
 | T18 candidate | One concrete plain `NativePresentationHandoff` class, instantiated independently by each host; same host capture/completion callbacks and presentation policy | Initial direct handoff plus two host integration tests 6 passed in 5.08 s, outer wall 6,686.952 ms; reviewer remediation adds real-timeout/cancel waiting and passes 7 tests without a new timing claim. Full handoff/viewer/plot host cohort 79 passed; broader native/surface/architecture cohort 128 passed/213 subtests. The direct-owner test bodies are not timing-comparable to baseline. | One pending/serial/render-gate/timeout implementation; exactly two runtime instances with independent state; shell child QObject/QTimer/QThread remains `51/0/0`; both handoffs start pending `0/0`; viewer/plot binders remain lazy; expected-source, one connection, queued completion, real timeout, stale serial, cancel/flush/shutdown/no-late-completion and no render-callback host mutation are directly proven. Widget identity and `fullscreen > detached > inline` stay host-owned and green. | `STRUCTURAL PASS; TIMING INCONCLUSIVE — TEST BODIES MOVED, NO MATCHED CPU/RSS CLAIM OR TIMING-ONLY ROLLBACK` |
 | T19–T24 convergence baseline | Final Python/native owners plus unchanged QML/action/test/fixture surfaces captured after T18 | Detailed current-owner/QML/API/count/hash/test-ID/fixture evidence recorded below; no whole-app stress child run | T19–T24 must use this baseline rather than deleted `GraphCanvasPresenter`/workspace facades or pre-T18 duplicate native state | `BASELINE CAPTURED — BOUNDED STATIC/COLLECT/STRUCTURAL PROBES ONLY` |
 | T19 candidate | Accepted T18 `2e357a5d` versus working T19; same bounded synthetic 120-node/180-edge and 24-node/36-edge mutation commands; offscreen/software; exact per-command-family order `B1 → C1 → B2 → C2`; each arm is one process and one report; sequential/non-counterbalanced; no 1,200-node child | Bounded B1/B2 p95 load/pan/full-drag/frame `133.019/101.088/71.931/102.535` and `135.353/64.226/50.776/65.205 ms`; CPU `97.553/98.072%`; RSS `460,955,648/468,807,680 B`. Mutation B1/B2 `37.138/24.449/10.579/56.048` and `30.401/15.340/10.544/30.925 ms`; CPU `100.735/98.662%`; RSS `499,400,704/501,956,608 B`. | Bounded C1/C2 `141.319/217.221/69.883/155.520` and `123.866/57.741/15.354/73.989 ms`; CPU `100.278/100.008%`; RSS `465,178,624/462,172,160 B`. Mutation C1/C2 `32.565/34.500/34.447/60.273` and `32.983/16.529/9.925/38.391 ms`; CPU `97.728/98.192%`; RSS `499,544,064/501,637,120 B`. | Timing deltas in load/pan/drag/frame order: bounded B1→C1 `+6.24/+114.88/-2.85/+51.68%`, B2→C2 `-8.49/-10.10/-69.76/+13.47%`; mutation B1→C1 `-12.31/+41.11/+225.63/+7.54%`, B2→C2 `+8.49/+7.75/-5.87/+24.14%`. CPU/RSS deltas: bounded `+2.725 pp/+4,222,976 B`, then `+1.936 pp/-6,635,520 B`; mutation `-3.007 pp/+143,360 B`, then `-0.470 pp/-319,488 B`. Exact hot-work facts only: visible/candidate/retained-skip maxima are `23/23/23` on both bounded B2/C2 and `4/4/4` on both mutation B2/C2; renderer `canvas`, fallback false, create-edge structural-incremental `2/2`, drag in-place `3/3`; dirty/model/scene/setup sequences match `[1,1,2,1]`/`[0,1,0,1]`/`[1,1,2,1]`/`[0,0,0,0]`. Snapshot-refresh pan/zoom maxima are bounded `41/42 → 39/40` and mutation `30/31 → 31/32`. Bounded pan/zoom paint p95 is `1.0/0.0 → 0.85/0.85 ms`; mutation paint is `0/0 → 0/0 ms`. A contemporaneous process-list snapshot showing unrelated long-lived Python processes is retained writer observation only, not causal proof. | `STRUCTURAL PASS; TIMING INCONCLUSIVE — NON-COUNTERBALANCED SINGLE-PROCESS ARMS, NO REPEAT, CAUSAL CLAIM, OR TIMING-ONLY ROLLBACK` |
+| T20 candidate | Accepted T19 `3e400b74` versus working T20; exact five real overlay routes plus direct component QuickTest; offscreen/software; no stress or broad GUI run | Real-route baseline: 5 passed/6 subtests, outer `7,025.615 ms`; locked RootLayers 1,823 lines SHA `0E52E26E...E937C`, 28 objects/100 functions/1 signal, 10 Items/0 QtObjects/2 Timers/0 Loaders; overlay object hash `B8BE8BB4...7745`, state declaration hash `E7D77435...F3E97`, logic/items/position/Connections hashes recorded in T20 evidence | Candidate real routes: 5 passed/10 subtests, outer `7,757.120 ms`; direct owner QuickTest 7 passed in `114 ms`; RootLayers/new owner combined 28 objects/96 functions/1 signal and exact `10/0/2/0` Item/QtObject/Timer/Loader counts; object hash unchanged; callbacks/action IDs/alias-name hashes recorded below | Runtime test bodies differ because retained static assertions now inspect aliases and the direct owner, so outer `+10.42%` is diagnostic and not a performance comparison. Exact structural acceptance: one root-replacing component plus four contained Items, ten live aliases, one RootLayers delegation, unchanged five object names/callbacks/action IDs, no extra event pass/loader/timer, and Canvas export remains outside overlay content. | `STRUCTURAL PASS; TIMING INCONCLUSIVE — CHANGED-TEST DIAGNOSTIC ONLY; NO PRODUCT REPEAT OR TIMING-ONLY ROLLBACK` |
 | T19–T25 | Post-T18/P22 convergence baselines | Pending | Pending | Pending | Pending |
 
 ## T13 Retained T05–T10 Timing Dispersion Audit
@@ -1920,6 +1974,22 @@ only until the root orchestrator requests the acceptance-status/commit update.
 | Hygiene and working tree | `PASS`; architecture/dead-code/docs hygiene 189 passed/449 subtests; ledger 12 passed; maps/indexes/traceability/links and all three generator checks pass; full dry-run renders every phase; Ruff check and compile pass. Whole-file Ruff format-check remains pre-existing debt in the two legacy test modules and was not allowed to rewrite unrelated lines. Diff checks pass, staged count is zero, privacy scan has zero hits, task environments are unset, and no T19 Python/QML/performance process remains. |
 | Protected and retained artifacts | `PASS`; protected untracked hashes remain `F1709CD2...6788F2` and `468C04C0...8F2`; graph-canvas snapshot remains 30,674 bytes SHA `8FACC5C4...B48`; stress fixture remains 1,203,145 bytes SHA `DBE1B48C...C4FB`. The mixed INDEX retains the byte-existing Physical Simulation row plus only T19's synchronized status hunk. |
 
+### T20 accepted implementation evidence
+
+| Command / evidence | Result |
+| --- | --- |
+| Accepted-T19 overlay baseline | `PASS`; the five real overlay routes passed 5 tests/6 subtests in `7,025.615 ms`. `GraphCanvasRootLayers.qml` was 1,823 lines, SHA-256 `0E52E26E...E937C`, with 28 object names, 100 functions, 1 signal, and exact Item/QtObject/Timer/Loader counts `10/0/2/0`. The ten state declarations hashed `E7D77435...F3E97`; the five exact overlay object names hashed `B8BE8BB4...7745`; logic/items/position/Connections hashes were `132FEF3D...B549E`/`E59D5C2E...156A`/`EFCBB87F...6658`/`334B07A7...F1C9`. |
+| Direct overlay owner | `PASS`; `GraphCanvasSurfaceEditorOverlays.qml` is the single root-replacing owner, SHA-256 `E6EF34B2...13C79`. Its root keeps `objectName: "webPageAddressOverlayLayer"`; the Timestamp, Number Slider, Select, and Panel Items are its four direct contained layers. It owns the five explicit open-state/host pairs, placement/clamping, surface `Connections`, outside-click cancellation, commit/cancel callbacks, and Web/Timestamp active-toolbar reopen behavior. There is no generic registry or signal-name lookup. |
+| RootLayers responsibility | `PASS`; `GraphCanvasRootLayers.qml` is 1,198 lines, SHA-256 `717DA3F9...1CB56`. It retains the canvas/visible/export/drag/retained-Web/selected-run/link/comment/minimap owners, exposes only the ten live overlay aliases, and keeps exactly one `openSurfaceActionOverlayForHost(...)` delegation. It contains no overlay action branch, duplicate overlay state, or overlay-specific Connections block. Post-T16 Canvas export remains outside the overlay component and no Python/QML bridge or action owner changed. |
+| Public and object surface | `PASS`; `GraphCanvas.openSurfaceActionOverlayForHost(host, actionId, surface)` is unchanged. The five object-name hash remains `B8BE8BB4...7745`; alias-name hash is `06A16FFC...69286`; the exact callback list hash is `574E3EA5...3A99`; action-ID hash is `48B722B0...B329`. Loaded surface identity, first-open focus, clamped placement, switching, outside click, accept/commit, and cancellation are exercised directly. Internal IDs only changed where ownership moved. |
+| Allocation and hot-loop structure | `STRUCTURAL PASS`; RootLayers plus the new owner retain 28 object names, 96 functions, 1 signal, and exact combined Item/QtObject/Timer/Loader counts `10/0/2/0`. The old Web Address root Item is replaced, not wrapped; the other four moved Items are contained without an extra always-live root. No Loader, Timer, per-frame array, object-literal projection pass, paint pass, snapshot pass, or hot-loop allocation was added. |
+| Direct and retained behavior tests | `PASS`; direct overlay QuickTest 7; authoritative Qt Quick 85; P03/Web/Number Slider/Select/Panel 84 passed/62 subtests; Canvas export/snapshot/passive-host 40 passed/4 subtests. The direct test file SHA-256 is `FD18BC3A...B30E` and covers root replacement/parentage, all-five open/focus/position/identity, all-five commits, all-five outside-click cancellations, active-toolbar reopen, switching, and unknown-action rejection. Existing Select binding-loop warnings remain warning-only and were present outside this owner change. |
+| Test ownership migration | Two same-ID Python integration cases remain and now assert RootLayers aliases/delegation plus the direct owner. Their two finalized `retained` rows name the exact component-identity and all-five open/focus/position QuickTest replacements, passing results, and `This commit`. The other three direct selectors—commit callbacks, outside-click cancellation, and active-toolbar reopen/unknown-action rejection—are new owner proofs with no migration row. Current affected QuickTest inventory is 73 selectors, SHA-256 `EF097FAD...A38D`; no test ID was deleted. |
+| Structural/performance disposition | `STRUCTURAL PASS; TIMING INCONCLUSIVE — CHANGED-TEST DIAGNOSTIC ONLY; NO PRODUCT REPEAT OR TIMING-ONLY ROLLBACK`; the candidate five-route cohort passed 5 tests/10 subtests in `7,757.120 ms`, and the new direct component test passed in `114 ms`. The retained Python test bodies now perform more direct-owner assertions, so the outer `+10.42%` is not a matched product-performance comparison. Exact structural counts are unchanged, no extra event/paint/snapshot pass exists, and no causal regression, repeat demand, pause, or rollback is claimed. |
+| Hygiene and routing | `PASS`; architecture/dead-code/ledger/navigation/traceability/Markdown hygiene passes 202 tests/450 subtests. Agent maps, traceability, Markdown links, and all three generated indexes pass direct checks; the QML index reports 172 files, source/test index 1,220 files, and route index 240 entries. Ruff check, Python compile, QML format check, and the full verification dry-run pass. |
+| Working tree, protected paths, and privacy | `PASS`; the exact active inventory is 21 task paths, 2 added and 19 modified, with no deletions and zero staged paths. Working and cached diff checks pass. Protected untracked hashes remain `F1709CD27CDD97141E354AB0644B3602F8EA43EBEFBB294B0C5FA4578C6788F2` and `468C04C09DF327871ED6CD947EF58E8F26412D632A1E969C3C56303DFC44061B`; the mixed INDEX retains the user-owned Physical Simulation row plus only T20's synchronized ownership-plan status change. The added-line privacy scan is clear, task Qt variables are unset, and no T20 QML/pytest/performance/verification process remains. |
+| Review/status boundary | Architecture/ownership, correctness/no-lost-tests, and performance-causality reviews are `CLEAR`. T20 is accepted with `This commit`; nothing is staged, and T21 has not started. |
+
 ## Review Ledger
 
 | Review | Scope | Reviewer | Findings | Resolution | Verdict |
@@ -1997,6 +2067,9 @@ only until the root orchestrator requests the acceptance-status/commit update.
 | T19 test/no-lost-tests QA | Five moved policy selector mappings plus one new anchor owner proof | Correctness reviewer | Six T19 selectors were described as migrated even though the anchor selector had no predecessor assertion | Resolved: the three Python IDs remain, their finalized rows map exactly five selectors, and the sixth anchor selector is explicitly new with no migration row | `CLEAR` |
 | T19 performance QA | Four bounded reports, structural attribution, CPU/RSS, and timing disposition | Performance reviewer | B2/C2 was mislabeled as matched/repeated, broad structural identity exceeded measured counters, and background processes were presented without an observation qualifier | Resolved: exact `B1 → C1 → B2 → C2` non-counterbalanced one-process/report provenance, bounded hot-work counters, refresh/paint diagnostics, CPU/RSS and timing deltas are recorded; process state is retained writer observation only | `CLEAR — STRUCTURAL PASS; TIMING INCONCLUSIVE` |
 | T19 preference-suite debt | Complete `qml_preference_bindings.py` shared-engine run outside the edge-owned selector set | Correctness reviewer | The complete module retains unrelated typography/shared-engine failures and an access violation, while bounded edge-owned preference selectors pass | No T19 source/test workaround or timeout change; the exact edge-owned preference cases plus isolated coalescing case are green, and the unrelated suite debt remains outside edge-paint ownership | `NONBLOCKING-DEFERRED` |
+| T20 architecture/ownership | Root replacement, direct five-overlay ownership, ten live RootLayers aliases plus one delegation, object/API stability, Canvas export separation, and allocation topology | `t14_architecture_reviewer` | No remaining finding after source, direct QML, retained Python, map/index, diff, privacy, staging, and protected-file review | Confirmed the Web overlay root is replaced rather than wrapped, four other layers are contained, combined `10/0/2/0` Item/QtObject/Timer/Loader counts and exact object names remain, no duplicate state/action branch or generic registry exists, and CanvasExport plus T14–T19 owners remain unchanged; reviewer cohort passed 33 tests/246 subtests and the direct QML test | `CLEAR` |
+| T20 correctness/no-lost-tests | Two retained migration IDs, exact replacement selectors, all-five open/focus/position/identity/commit/cancel behavior, toolbar reopen/switching/rejection, retained surface routes, and public aliases/delegation | `test_verification_audit` | No remaining finding after migration, collection, direct QuickTest, authoritative QuickTest, retained-route, ledger, and navigation review | Finalized both same-ID rows as `retained` with their two exact replacement selectors, passing results, and `This commit`; the other three direct selectors remain correctly classified as new owner proofs. Direct QuickTest reports 7 passes, authoritative QuickTest 85, retained routes pass, and reviewer ledger/QML/route/source cohort passes 28 tests/240 subtests | `CLEAR` |
+| T20 performance causality | Replacement topology, always-live counts, Connections/bindings/loaders/timers, identity/focus/cleanup, Canvas-export separation, and changed-test timing disposition | `t14_performance_reviewer` | No remaining structural or causal finding; the real-route timing arms contain different test bodies | Confirmed exact `10/0/2/0` counts, no new loader/timer/event/paint/snapshot pass, stable identity/focus/cleanup, and unchanged export ownership. The `7,025.615 → 7,757.120 ms` outer timing remains changed-test diagnostic only; no product repeat, causal claim, pause, or timing-only rollback is warranted | `CLEAR — STRUCTURAL PASS; TIMING INCONCLUSIVE` |
 | Program B architecture/ownership | T14–T25 | Pending | Pending | Pending | Pending |
 | Program B correctness/security/no-lost-tests | T14–T25 | Pending | Pending | Pending | Pending |
 | Program B performance causality | T14–T25 | Pending | Pending | Pending | Pending |

@@ -643,6 +643,10 @@ class SelectSurfaceTests(PassiveGraphSurfaceHostTestBase):
         layers = (
             root / "ea_node_editor/ui_qml/components/graph_canvas/GraphCanvasRootLayers.qml"
         ).read_text(encoding="utf-8")
+        overlay = (
+            root
+            / "ea_node_editor/ui_qml/components/graph_canvas/GraphCanvasSurfaceEditorOverlays.qml"
+        ).read_text(encoding="utf-8")
 
         assert "SurfaceControls.GraphSurfaceComboBox" in surface
         assert "SurfaceControls.GraphSurfaceButton" in surface
@@ -650,5 +654,7 @@ class SelectSurfaceTests(PassiveGraphSurfaceHostTestBase):
         assert "Common.DialogSurface" in popover
         assert "Common.DialogTextField" in popover
         assert "ListModel" in popover
-        assert 'String(actionId || "") === "select_edit_settings"' in layers
-        assert "GraphPassive.GraphSelectSettingsPopover" in layers
+        assert "property alias selectEditorHost: surfaceEditorOverlays.selectEditorHost" in layers
+        assert "GraphCanvasSurfaceEditorOverlays {" in layers
+        assert 'String(actionId || "") === "select_edit_settings"' in overlay
+        assert "GraphPassive.GraphSelectSettingsPopover" in overlay

@@ -420,9 +420,21 @@ class NumberSliderSurfaceContractTests(unittest.TestCase):  # noqa: F405
         self.assertNotIn("TapHandler", qml_text)
 
     def test_canvas_root_layers_route_number_slider_overlay(self) -> None:
-        qml_text = (
+        root_layers_text = (
             _REPO_ROOT / "ea_node_editor/ui_qml/components/graph_canvas/GraphCanvasRootLayers.qml"  # noqa: F405
         ).read_text(encoding="utf-8")
+        overlay_text = (
+            _REPO_ROOT
+            / "ea_node_editor/ui_qml/components/graph_canvas/GraphCanvasSurfaceEditorOverlays.qml"  # noqa: F405
+        ).read_text(encoding="utf-8")
+        for snippet in (
+            "property alias numberSliderEditorHost: surfaceEditorOverlays.numberSliderEditorHost",
+            "property alias numberSliderOverlayOpen: surfaceEditorOverlays.numberSliderOverlayOpen",
+            "GraphCanvasSurfaceEditorOverlays {",
+            "return surfaceEditorOverlays.openSurfaceActionOverlayForHost(host, actionId, surface);",
+        ):
+            with self.subTest(owner="root", snippet=snippet):
+                self.assertIn(snippet, root_layers_text)
         for snippet in (
             "property Item numberSliderEditorHost: null",
             "property bool numberSliderOverlayOpen: false",
@@ -431,8 +443,8 @@ class NumberSliderSurfaceContractTests(unittest.TestCase):  # noqa: F405
             "onSliderSettingsEditorOpenChanged",
             'objectName: "graphNumberSliderOverlayLayer"',
         ):
-            with self.subTest(snippet=snippet):
-                self.assertIn(snippet, qml_text)
+            with self.subTest(owner="overlay", snippet=snippet):
+                self.assertIn(snippet, overlay_text)
 
     def test_settings_popover_uses_shared_theme_dialog_controls(self) -> None:
         common_root = _REPO_ROOT / "ea_node_editor/ui_qml/components/common"  # noqa: F405
@@ -443,8 +455,9 @@ class NumberSliderSurfaceContractTests(unittest.TestCase):  # noqa: F405
             _REPO_ROOT  # noqa: F405
             / "ea_node_editor/ui_qml/components/graph/passive/GraphNumberSliderSettingsPopover.qml"
         ).read_text(encoding="utf-8")
-        canvas_text = (
-            _REPO_ROOT / "ea_node_editor/ui_qml/components/graph_canvas/GraphCanvasRootLayers.qml"  # noqa: F405
+        overlay_text = (
+            _REPO_ROOT
+            / "ea_node_editor/ui_qml/components/graph_canvas/GraphCanvasSurfaceEditorOverlays.qml"  # noqa: F405
         ).read_text(encoding="utf-8")
 
         for text, snippets in (
@@ -483,7 +496,7 @@ class NumberSliderSurfaceContractTests(unittest.TestCase):  # noqa: F405
                     "primary: true",
                 ),
             ),
-            (canvas_text, ("Math.min(400, Math.max(320, numberSliderOverlayLayer.width - 48))",)),
+            (overlay_text, ("Math.min(400, Math.max(320, numberSliderOverlayLayer.width - 48))",)),
         ):
             for snippet in snippets:
                 with self.subTest(snippet=snippet):

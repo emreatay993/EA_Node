@@ -2408,6 +2408,62 @@ class GraphArchitectureBoundaryTests(unittest.TestCase):
             ),
         )
 
+    def test_graph_canvas_surface_editor_overlay_owner_replaces_root_items_without_growth(self) -> None:
+        graph_canvas_dir = REPO_ROOT / "ea_node_editor/ui_qml/components/graph_canvas"
+        root_text = (graph_canvas_dir / "GraphCanvasRootLayers.qml").read_text(
+            encoding="utf-8"
+        )
+        owner_text = (graph_canvas_dir / "GraphCanvasSurfaceEditorOverlays.qml").read_text(
+            encoding="utf-8"
+        )
+
+        def declaration_count(text: str, type_name: str) -> int:
+            return sum(line.strip() == f"{type_name} {{" for line in text.splitlines())
+
+        self.assertEqual(
+            {
+                type_name: declaration_count(root_text, type_name)
+                + declaration_count(owner_text, type_name)
+                for type_name in ("Item", "QtObject", "Timer", "Loader")
+            },
+            {"Item": 10, "QtObject": 0, "Timer": 2, "Loader": 0},
+        )
+        self.assertEqual(
+            [
+                name
+                for name in (
+                    "webPageAddressOverlayLayer",
+                    "graphNodeTimestampOverlayLayer",
+                    "graphNumberSliderOverlayLayer",
+                    "graphSelectOverlayLayer",
+                    "graphPanelOverlayLayer",
+                )
+                if f'objectName: "{name}"' in owner_text
+            ],
+            [
+                "webPageAddressOverlayLayer",
+                "graphNodeTimestampOverlayLayer",
+                "graphNumberSliderOverlayLayer",
+                "graphSelectOverlayLayer",
+                "graphPanelOverlayLayer",
+            ],
+        )
+        self.assertEqual(
+            root_text.count("function openSurfaceActionOverlayForHost(host, actionId, surface)"),
+            1,
+        )
+        self.assertNotIn('String(actionId || "") ===', root_text)
+        self.assertNotIn("property Item webPageAddressEditorHost: null", root_text)
+        self.assertNotIn("property bool panelOverlayOpen: false", root_text)
+        self.assertIn(
+            "property alias webPageAddressEditorHost: surfaceEditorOverlays.webPageAddressEditorHost",
+            root_text,
+        )
+        self.assertIn(
+            "return surfaceEditorOverlays.openSurfaceActionOverlayForHost(host, actionId, surface);",
+            root_text,
+        )
+
     def test_closeout_docs_publish_architecture_residual_matrix_from_packet_owned_surfaces(self) -> None:
         spec_index_text = (REPO_ROOT / manifest.SPEC_INDEX_DOC).read_text(encoding="utf-8")
         qa_acceptance_text = (REPO_ROOT / manifest.QA_ACCEPTANCE_DOC).read_text(encoding="utf-8")
