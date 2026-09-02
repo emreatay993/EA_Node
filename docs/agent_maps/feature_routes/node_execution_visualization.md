@@ -15,7 +15,8 @@ Use this for node execution state projection, declarative readiness diagnostics,
 - `ea_node_editor/ui_qml/components/graph/GraphNodeHeaderLayer.qml` - warning/error badges and the structured warning hover table.
 - [Port-flow semantic resolver](../../../ea_node_editor/ui/support/port_flow_state.py) - pure topology/runtime grip-state resolution.
 - `ea_node_editor/ui/shell/state.py` - ShellRunState session caches and revisions.
-- `ea_node_editor/ui/shell/controllers/run_controller.py` - command/Auto/history behavior and the retained pre-T12 event intake.
+- `ea_node_editor/ui/shell/controllers/run_controller.py` - command/Auto/Trigger/history behavior.
+- `ea_node_editor/ui/shell/controllers/run_event_controller.py` - sole shell runtime-event filtering, routing, logs, viewer adoption/reset, and terminal transitions.
 - `ea_node_editor/ui/shell/controllers/run_projection_controller.py` - execution-state, accepted-cache, solution-fact, availability, timing, warning, failure, and status projection.
 - `ea_node_editor/ui/support/solution_output_cache.py` - bounded retained-record-ID cache selection and eviction.
 - `ea_node_editor/ui_qml/components/graph_canvas/GraphCanvasExecutionFacts.qml` - shared-by-reference QML facts object.
@@ -44,7 +45,7 @@ Use this for node execution state projection, declarative readiness diagnostics,
 
 ## Settled Event To Grip Chain
 
-Until T12 the order remains `generation callback` -> `CorexRuntime` store handling/enrichment -> execution event stream -> `ShellWindow.execution_event` -> `RunController.handle_execution_event` -> `RunProjectionController` -> retained-record cache/fact projection -> `node_execution_state_changed` -> `GraphCanvasStateBridge` -> `ExecutionStateProps` / `GraphCanvasExecutionFacts`.
+The order is `generation callback` -> `CorexRuntime` store handling/enrichment -> execution event stream -> `ShellWindow.execution_event` -> one queued `RunEventController.handle_execution_event` connection -> run-state routing through `RunProjectionController` -> one direct `ViewerSessionBridge.handle_viewer_execution_event` delivery -> retained-record cache/fact and viewer projection. `ViewerSessionBridge` has no second signal subscription; its existing epoch/request filters remain authoritative.
 
 Stale records are ignored for current grip flow. Typed EMPTY remains distinct from a value containing explicit `None`; incoming edge `data_type_warning` is the only red invalidity fact. A separate `availability_warning` also blocks settlement without becoming a type warning or moving its edge-owned reason into port text.
 
@@ -61,7 +62,7 @@ Stale records are ignored for current grip flow. Typed EMPTY remains distinct fr
 - `fresh_run_node_lookup` is now a derived current-only compatibility projection over `NodeSolutionFact`; no mutable shell fresh-node set or per-record stale flag remains. Expired retained records stay inspectable through the selector, while current flow/Panel/media rendering requires a current fact.
 - Red failure chrome is driven by `run_failed.node_id` through shell failure focus and `GraphCanvasStateBridge.failed_node_lookup`; keep fatal worker-death and timeout paths node-scoped when the active node is known.
 - Unhandled `run_failed` is reported only through the fixed red/pink body (`focus_failed_node` failure focus) plus the console error/traceback log; never open a modal dialog (e.g. `QMessageBox`) from execution-event handlers, since the nested event loop inside the queued slot freezes then crashes the app.
-- `ShellWindow._handle_execution_event` guards `RunController.handle_execution_event`; a fault while handling an execution event is logged and swallowed so the app stays alive instead of aborting (no `sys.excepthook` is installed).
+- `RunEventController.handle_execution_event` catches and logs its own run-state faults so the app stays alive instead of aborting, then independently calls the viewer bridge's direct consumer. Viewer-delivery faults are separately logged and cannot prevent an already-routed projection or terminal transition. Do not add a ShellWindow/viewer self-registration wrapper, second subscription, timer, `Qt.callLater`, or another queued hop (no `sys.excepthook` is installed).
 - Python Script failure tracebacks reaching the console are sanitized to the user's `<script>` frames by default; the hidden Ctrl+Alt+Shift+D developer-mode toggle (gated by the `COREX_DEV_MODE` env capability and stored on `ShellRunState.developer_mode_active`) restores full host tracebacks for the session.
 - Python Script `BaseException` failures, including `SystemExit` and `KeyboardInterrupt`, should still surface as node-scoped failed settlements or fatal events so visualization stays tied to the script node.
 - Python Script `timeout_sec` kills are fatal process-isolated failures and should still include the running script node ID for canvas highlighting.
@@ -71,6 +72,7 @@ Stale records are ignored for current grip flow. Typed EMPTY remains distinct fr
 ```powershell
 .\venv\Scripts\python.exe -m pytest tests/test_port_flow_state.py tests/test_process_client.py tests/test_execution_worker.py tests/test_shell_run_controller.py tests/test_passive_runtime_wiring.py --ignore=venv -q
 .\venv\Scripts\python.exe -m pytest tests/test_run_projection_controller.py -k "runtime_warning_messages" --ignore=venv -q
+.\venv\Scripts\python.exe -m pytest tests/test_run_event_controller.py --ignore=venv -q
 .\venv\Scripts\python.exe -m unittest tests.test_passive_graph_surface_host.PassiveGraphSurfaceHostTests.test_graph_node_host_persistent_diagnostic_uses_warning_badge_and_execution_precedence -v
 .\venv\Scripts\python.exe -m pytest tests/test_port_flow_state.py tests/test_data_tree_ui.py tests/test_run_controller_unit.py tests/test_media_panel_source_resolution.py -k "settled or preview or empty or failure or media_panel" --ignore=venv -q
 .\venv\Scripts\python.exe -m pytest tests/test_data_type_ui_projection.py --ignore=venv -q

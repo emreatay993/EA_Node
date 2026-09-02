@@ -163,7 +163,7 @@ def create_window_actions(window: ShellWindow) -> None:
     window.action_run = QAction("Run", window)
     window.action_run.setIcon(qicon("run"))
     window.action_run.setShortcut(QKeySequence("F5"))
-    window.action_run.triggered.connect(window._run_workflow)
+    window.action_run.triggered.connect(window.run_controller.run_workflow)
 
     window.action_stop = QAction("Stop", window)
     window.action_stop.setIcon(qicon("stop"))

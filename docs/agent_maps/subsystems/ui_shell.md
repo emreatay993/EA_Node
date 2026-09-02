@@ -12,6 +12,7 @@ Use this for shell-backed workflows, controllers, presenters, context bridges, a
 - `ea_node_editor/ui/shell/context_bridges.py`
 - `ea_node_editor/ui/shell/controllers/`
 - `ea_node_editor/ui/shell/controllers/run_projection_controller.py`
+- `ea_node_editor/ui/shell/controllers/run_event_controller.py`
 - `ea_node_editor/ui/shell/controllers/project_session_services_support/document_io_service.py`
 - `ea_node_editor/ui/shell/controllers/project_session_services_support/project_files_service.py`
 - `ea_node_editor/ui/shell/controllers/mutation_ui_effects.py`
@@ -20,6 +21,7 @@ Use this for shell-backed workflows, controllers, presenters, context bridges, a
 - `ea_node_editor/ui/shell/presenters/graph_canvas_host_presenter.py`
 - `tests/test_run_controller_unit.py`
 - `tests/test_run_projection_controller.py`
+- `tests/test_run_event_controller.py`
 - `tests/test_registry_replacement.py`
 
 ## Do Not Start Here
@@ -64,7 +66,7 @@ Use this for shell-backed workflows, controllers, presenters, context bridges, a
 - Selected-node link rows/actions are projected through `ShellInspectorPresenter` and `ShellInspectorBridge`; keep inspector payload names, picker option labels/hidden IDs, cross-workspace open/focus behavior, and QML calls aligned with `InspectorNodeLinksSection.qml`.
 - Selected-node comment rows/actions are projected through `ShellInspectorPresenter` and `ShellInspectorBridge`; keep payload names, composer focus, and QML calls aligned with `InspectorNodeCommentsSection.qml`.
 
-- `RunProjectionController` projects execution-owned `NodeSolutionFact` values and strict `solution_state_changed` revisions; it does not own another freshness set or closure. It is the sole shell owner of node execution sets, elapsed/warning state, accepted-output observations, port availability, failure focus, and run-control status over the shared `ShellRunState`. `RunController` remains command/Auto/Trigger/history oriented and retains the existing intake order only until the T12 event-owner split. Store-accepted output observations use `ui/support/solution_output_cache.py`, whose retained-record selector and bounded eviction are shared by shell presenters and QML projections.
+- `RunEventController` is the sole plain-Python shell intake for runtime events. Composition retains it and connects `ShellWindow.execution_event` directly with one queued Qt connection; it filters before mutation, routes Trigger/log/terminal behavior, then directly delivers each event once to `ViewerSessionBridge.handle_viewer_execution_event(...)`. The viewer bridge does not self-register, retains its own event/epoch/request filters, and cannot interrupt completed run-state routing if its projection fails. `RunProjectionController` projects execution-owned `NodeSolutionFact` values and strict `solution_state_changed` revisions; it does not own another freshness set or closure. It is the sole shell owner of node execution sets, elapsed/warning state, accepted-output observations, port availability, failure focus, and run-control status over the shared `ShellRunState`. `RunController` remains command/Auto/Trigger/history oriented. Store-accepted output observations use `ui/support/solution_output_cache.py`, whose retained-record selector and bounded eviction are shared by shell presenters and QML projections.
 - Graph history calls the renamed solution-invalidation hook. Exact expired/removed IDs clear node availability, elapsed/warning/lifecycle projections, and deleted-node caches; active-run Auto targets coalesce until the terminal outcome table permits one retry.
 
 ## Recipes
@@ -101,6 +103,7 @@ Exact touch-point lists for the most common shell additions. One domain = one
 ```powershell
 .\venv\Scripts\python.exe -m pytest tests/test_run_controller_unit.py --ignore=venv -q
 .\venv\Scripts\python.exe -m pytest tests/test_run_projection_controller.py --ignore=venv -q
+.\venv\Scripts\python.exe -m pytest tests/test_run_event_controller.py --ignore=venv -q
 .\venv\Scripts\python.exe -m pytest tests/test_project_session_controller_unit.py -k "workflow_settings" --ignore=venv -q
 .\venv\Scripts\python.exe -m pytest tests/test_project_session_controller_unit.py -k "solution or bind or replacement" -q
 .\venv\Scripts\python.exe -m pytest tests/test_project_file_staging.py tests/test_architecture_boundaries.py tests/test_jupyter_create_blank.py --ignore=venv -q

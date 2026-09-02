@@ -12,6 +12,7 @@ from ea_node_editor.ui.shell.controllers import (
     PluginAuthoringController,
     ProjectSessionController,
     RunController,
+    RunEventController,
     RunProjectionController,
 )
 from ea_node_editor.ui.shell.window_search_scope_state import (
@@ -32,6 +33,7 @@ class ShellControllerDependencies:
     project_session_controller: ProjectSessionController
     run_projection_controller: RunProjectionController
     run_controller: RunController
+    run_event_controller: RunEventController
     execution_client: object
 
     def attach(self, host: "ShellWindow") -> None:
@@ -41,6 +43,7 @@ class ShellControllerDependencies:
         host.project_session_controller = self.project_session_controller
         host.run_projection_controller = self.run_projection_controller
         host.run_controller = self.run_controller
+        host.run_event_controller = self.run_event_controller
         host.execution_client = self.execution_client
 
 
@@ -68,10 +71,16 @@ def create_controller_dependencies(
         host,
         projection_controller=run_projection_controller,
     )
+    run_event_controller = RunEventController(
+        host,
+        run_controller=run_controller,
+        projection_controller=run_projection_controller,
+    )
     execution_client = _create_shell_execution_client(registry)
     execution_client.subscribe(host.execution_event.emit)
     host.execution_event.connect(
-        host._handle_execution_event, Qt.ConnectionType.QueuedConnection
+        run_event_controller.handle_execution_event,
+        Qt.ConnectionType.QueuedConnection,
     )
     return ShellControllerDependencies(
         search_scope_controller=search_scope_controller,
@@ -80,6 +89,7 @@ def create_controller_dependencies(
         project_session_controller=project_session_controller,
         run_projection_controller=run_projection_controller,
         run_controller=run_controller,
+        run_event_controller=run_event_controller,
         execution_client=execution_client,
     )
 

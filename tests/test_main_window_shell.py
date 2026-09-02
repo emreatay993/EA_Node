@@ -1521,6 +1521,12 @@ class MainWindowShellHostFacadeDelegationTests(SharedMainWindowShellTestBase):
         self.assertFalse(
             hasattr(self.window, "clear_node_execution_visualization_state")
         )
+        self.assertFalse(hasattr(self.window, "_handle_execution_event"))
+        self.assertFalse(hasattr(self.window, "_run_workflow"))
+        self.assertIs(
+            self.window.run_event_controller,
+            self.window.shell_services.controllers.run_event_controller,
+        )
         with (
             patch.object(self.window.addon_manager_controller, "request_open") as open_addon_mock,
             patch.object(self.window.addon_manager_controller, "request_close") as close_addon_mock,

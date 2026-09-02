@@ -34,6 +34,7 @@ from ea_node_editor.nodes.execution_context import ExecutionContext, NodeResult
 from ea_node_editor.nodes.node_specs import NodeTypeSpec, PortSpec, PropertySpec
 from ea_node_editor.runtime_contracts.value_refs import RuntimeHandleRef
 from ea_node_editor.ui.shell.controllers.run_controller import RunController
+from ea_node_editor.ui.shell.controllers.run_event_controller import RunEventController
 from ea_node_editor.ui.shell.controllers.run_projection_controller import (
     RunProjectionController,
 )
@@ -470,10 +471,16 @@ def _run_projection_controller(host: _RunHostStub) -> RunProjectionController:
 
 
 def _run_controller(host: _RunHostStub) -> RunController:
-    return RunController(
+    controller = RunController(
         host,  # type: ignore[arg-type]
         projection_controller=_run_projection_controller(host),
     )
+    host.run_event_controller = RunEventController(
+        host,  # type: ignore[arg-type]
+        run_controller=controller,
+        projection_controller=host.run_projection_controller,
+    )
+    return controller
 
 
 class RunControllerUnitTests(unittest.TestCase):
@@ -900,7 +907,7 @@ class RunControllerUnitTests(unittest.TestCase):
         )
         self.assertEqual(start_call["trigger_captures"], {})
 
-        controller.handle_execution_event(
+        host.run_event_controller.handle_execution_event(
             {
                 "type": "trigger_capture_settled",
                 "run_id": "run_live",
@@ -922,7 +929,7 @@ class RunControllerUnitTests(unittest.TestCase):
             old_publication,
         )
 
-        controller.handle_execution_event(
+        host.run_event_controller.handle_execution_event(
             {
                 "type": "run_failed",
                 "run_id": "run_live",
@@ -943,7 +950,7 @@ class RunControllerUnitTests(unittest.TestCase):
             host.execution_client.start_calls[-1]["trigger_captures"],
             {trigger.node_id: latest_publication},
         )
-        controller.handle_execution_event(
+        host.run_event_controller.handle_execution_event(
             {
                 "type": "run_stopped",
                 "run_id": "run_live",
@@ -960,7 +967,7 @@ class RunControllerUnitTests(unittest.TestCase):
         self.assertTrue(controller.trigger_node(trigger.node_id))
 
         revision_before_publish = host.run_state.node_execution_revision
-        controller.handle_execution_event(
+        host.run_event_controller.handle_execution_event(
             {
                 "type": "trigger_published",
                 "run_id": "run_live",
@@ -984,7 +991,7 @@ class RunControllerUnitTests(unittest.TestCase):
         self.assertEqual(
             host.run_state.node_execution_revision, revision_before_publish + 1
         )
-        controller.handle_execution_event(
+        host.run_event_controller.handle_execution_event(
             {
                 "type": "run_completed",
                 "run_id": "run_live",
@@ -1380,7 +1387,7 @@ class RunControllerUnitTests(unittest.TestCase):
             host.execution_client.start_calls[-1]["target_node_ids"], (panel.node_id,)
         )
         changes_before_settle = host.node_execution_state_changed.calls
-        controller.handle_execution_event(
+        host.run_event_controller.handle_execution_event(
             _accepted_settlement(
                 host,
                 workspace_id=workspace_id,
@@ -1576,7 +1583,7 @@ class RunControllerUnitTests(unittest.TestCase):
         self.assertEqual(
             host.run_state.pending_auto_run_target_node_ids, {target.node_id}
         )
-        controller.handle_execution_event(
+        host.run_event_controller.handle_execution_event(
             {
                 "type": "node_settled",
                 "status": "completed",
@@ -1594,7 +1601,7 @@ class RunControllerUnitTests(unittest.TestCase):
             ),
         )
 
-        controller.handle_execution_event(
+        host.run_event_controller.handle_execution_event(
             {
                 "type": "run_completed",
                 "run_id": "run_old",
@@ -1649,7 +1656,7 @@ class RunControllerUnitTests(unittest.TestCase):
         host.run_state.pending_auto_run_workspace_id = workspace_id
         host.run_state.pending_auto_run_target_node_ids = {"node_1"}
 
-        controller.handle_execution_event(
+        host.run_event_controller.handle_execution_event(
             {
                 "type": "run_failed",
                 "run_id": "run_live",
@@ -1686,7 +1693,7 @@ class RunControllerUnitTests(unittest.TestCase):
             for run_id, result in (("run_1", "first"), ("run_2", "second")):
                 host.run_state.active_run_id = run_id
                 host.run_state.active_run_workspace_id = workspace_id
-                controller.handle_execution_event(
+                host.run_event_controller.handle_execution_event(
                     _accepted_settlement(
                         host,
                         workspace_id=workspace_id,
@@ -1773,7 +1780,7 @@ class RunControllerUnitTests(unittest.TestCase):
                 outputs=_value_outputs(result=node.title),
             )
             event["elapsed_ms"] = float(index * 100)
-            controller.handle_execution_event(event)
+            host.run_event_controller.handle_execution_event(event)
         host.run_state.active_run_id = ""
         host.run_state.active_run_workspace_id = ""
         before_snapshot = host.model.active_workspace.capture_snapshot()
@@ -1981,260 +1988,6 @@ class RunControllerUnitTests(unittest.TestCase):
         self.assertEqual(host.execution_client.stop_calls, ["run_live"])
         self.assertEqual(host._engine_status, ("paused", "Stopping"))
 
-    def test_stale_run_event_is_ignored(self) -> None:
-        host = _RunHostStub()
-        host.run_state.active_run_id = "run_live"
-        host.run_state.active_run_workspace_id = (
-            host.model.active_workspace.workspace_id
-        )
-        controller = _run_controller(host)  # type: ignore[arg-type]
-
-        controller.handle_execution_event(
-            {
-                "type": "log",
-                "run_id": "run_stale",
-                "workspace_id": host.model.active_workspace.workspace_id,
-                "level": "error",
-                "message": "should be ignored",
-            }
-        )
-
-        self.assertEqual(host.console_panel.logs, [])
-        self.assertEqual(host.run_state.active_run_id, "run_live")
-
-    def test_run_failed_event_focuses_node_logs_traceback_and_clears_active_run(
-        self,
-    ) -> None:
-        host = _RunHostStub()
-        host.run_state.active_run_id = "run_live"
-        host.run_state.active_run_workspace_id = (
-            host.model.active_workspace.workspace_id
-        )
-        host.run_state.engine_state_value = "running"
-        controller = _run_controller(host)  # type: ignore[arg-type]
-
-        controller.handle_execution_event(
-            {
-                "type": "run_failed",
-                "run_id": "run_live",
-                "workspace_id": host.model.active_workspace.workspace_id,
-                "node_id": "node_1",
-                "error": "boom",
-                "traceback": "traceback: line 1",
-            }
-        )
-
-        self.assertEqual(
-            host.console_panel.logs[-2:],
-            [("error", "boom"), ("error", "traceback: line 1")],
-        )
-        self.assertEqual(host._notifications, (0, 2))
-        self.assertEqual(
-            host.workspace_library_controller.focus_calls,
-            [(host.model.active_workspace.workspace_id, "node_1")],
-        )
-        self.assertEqual(host.run_state.active_run_id, "")
-        self.assertEqual(host.run_state.active_run_workspace_id, "")
-        self.assertEqual(host.run_state.engine_state_value, "error")
-        self.assert_run_controls(
-            host,
-            run_enabled=True,
-            pause_enabled=False,
-            stop_enabled=False,
-            pause_label="Pause",
-        )
-
-    def test_protocol_error_is_logged(self) -> None:
-        host = _RunHostStub()
-        controller = _run_controller(host)  # type: ignore[arg-type]
-
-        controller.handle_execution_event(
-            {"type": "protocol_error", "error": "bad payload"}
-        )
-
-        self.assertEqual(host.console_panel.logs, [("error", "bad payload")])
-        self.assertEqual(host._notifications, (0, 1))
-
-    def test_node_settled_after_pause_preserves_paused_state_and_resume_action(
-        self,
-    ) -> None:
-        host = _RunHostStub()
-        workspace_id = host.model.active_workspace.workspace_id
-        host.run_state.active_run_id = "run_live"
-        host.run_state.active_run_workspace_id = workspace_id
-        host.run_state.engine_state_value = "running"
-        controller = _run_controller(host)  # type: ignore[arg-type]
-
-        controller.handle_execution_event(
-            {
-                "type": "run_state",
-                "run_id": "run_live",
-                "workspace_id": workspace_id,
-                "state": "paused",
-                "transition": "pause",
-            }
-        )
-        controller.handle_execution_event(
-            {
-                "type": "node_settled",
-                "status": "completed",
-                "run_id": "run_live",
-                "workspace_id": workspace_id,
-                "node_id": "node_1",
-            }
-        )
-
-        self.assertEqual(host.run_state.engine_state_value, "paused")
-        self.assertEqual(host._engine_status, ("paused", "Paused"))
-        self.assert_run_controls(
-            host,
-            run_enabled=False,
-            pause_enabled=True,
-            stop_enabled=True,
-            pause_label="Resume",
-        )
-
-        controller.toggle_pause_resume()
-
-        self.assertEqual(host.execution_client.resume_calls, ["run_live"])
-        self.assertEqual(host._engine_status, ("running", "Resuming"))
-
-    def test_persistent_node_elapsed_state_nonfatal_run_failed_clears_transient_execution_state_and_preserves_cache(
-        self,
-    ) -> None:
-        host = _RunHostStub()
-        workspace_id = host.model.active_workspace.workspace_id
-        host.run_state.active_run_id = "run_live"
-        host.run_state.active_run_workspace_id = workspace_id
-        host.run_state.node_execution_workspace_id = workspace_id
-        host.run_state.running_node_ids.add("node_1")
-        host.run_state.running_node_started_at_epoch_ms_by_node_id["node_1"] = 1000.0
-        host.run_state.cached_node_elapsed_ms_by_workspace_id = {
-            workspace_id: {
-                "node_cached": 33.0,
-            }
-        }
-        host.run_state.node_execution_revision = 2
-        controller = _run_controller(host)  # type: ignore[arg-type]
-
-        controller.handle_execution_event(
-            {
-                "type": "run_failed",
-                "run_id": "run_live",
-                "workspace_id": workspace_id,
-                "node_id": "node_1",
-                "error": "boom",
-                "traceback": "traceback: line 1",
-                "fatal": False,
-            }
-        )
-
-        self.assertEqual(host.run_state.node_execution_workspace_id, "")
-        self.assertEqual(host.run_state.running_node_ids, set())
-        self.assertEqual(host.run_state.completed_node_ids, set())
-        self.assertEqual(host.run_state.running_node_started_at_epoch_ms_by_node_id, {})
-        self.assertEqual(
-            host.run_state.cached_node_elapsed_ms_by_workspace_id,
-            {workspace_id: {"node_cached": 33.0}},
-        )
-        self.assertEqual(host.run_state.node_execution_revision, 3)
-        self.assertEqual(host.run_state.active_run_id, "")
-
-    def test_run_completed_preserves_settled_state_while_stop_and_failure_clear_it(
-        self,
-    ) -> None:
-        host = _RunHostStub()
-        workspace_id = host.model.active_workspace.workspace_id
-        controller = _run_controller(host)  # type: ignore[arg-type]
-        host.run_state.cached_node_elapsed_ms_by_workspace_id = {
-            workspace_id: {"node_cached": 12.5},
-            "ws_other": {"node_other": 8.0},
-        }
-
-        host.run_state.active_run_id = "run_live"
-        host.run_state.active_run_workspace_id = workspace_id
-        host.run_state.node_execution_workspace_id = workspace_id
-        host.run_state.completed_node_ids.add("node_1")
-        host.run_state.node_execution_revision = 1
-
-        controller.handle_execution_event(
-            {
-                "type": "run_completed",
-                "run_id": "run_live",
-                "workspace_id": workspace_id,
-            }
-        )
-
-        self.assertEqual(host.run_state.node_execution_workspace_id, workspace_id)
-        self.assertEqual(host.run_state.running_node_ids, set())
-        self.assertEqual(host.run_state.completed_node_ids, {"node_1"})
-        self.assertEqual(host.run_state.running_node_started_at_epoch_ms_by_node_id, {})
-        self.assertEqual(
-            host.run_state.cached_node_elapsed_ms_by_workspace_id,
-            {
-                workspace_id: {"node_cached": 12.5},
-                "ws_other": {"node_other": 8.0},
-            },
-        )
-        self.assertEqual(host.run_state.node_execution_revision, 1)
-
-        host.run_state.active_run_id = "run_live"
-        host.run_state.active_run_workspace_id = workspace_id
-        host.run_state.node_execution_workspace_id = workspace_id
-        host.run_state.completed_node_ids.add("node_2")
-        host.run_state.running_node_started_at_epoch_ms_by_node_id["node_2"] = 2000.0
-
-        controller.handle_execution_event(
-            {
-                "type": "run_stopped",
-                "run_id": "run_live",
-                "workspace_id": workspace_id,
-            }
-        )
-
-        self.assertEqual(host.run_state.node_execution_workspace_id, "")
-        self.assertEqual(host.run_state.running_node_ids, set())
-        self.assertEqual(host.run_state.completed_node_ids, set())
-        self.assertEqual(host.run_state.running_node_started_at_epoch_ms_by_node_id, {})
-        self.assertEqual(
-            host.run_state.cached_node_elapsed_ms_by_workspace_id,
-            {
-                workspace_id: {"node_cached": 12.5},
-                "ws_other": {"node_other": 8.0},
-            },
-        )
-        self.assertEqual(host.run_state.node_execution_revision, 2)
-
-        host.run_state.active_run_id = "run_live"
-        host.run_state.active_run_workspace_id = workspace_id
-        host.run_state.node_execution_workspace_id = workspace_id
-        host.run_state.running_node_ids.add("node_3")
-        host.run_state.running_node_started_at_epoch_ms_by_node_id["node_3"] = 3000.0
-
-        controller.handle_execution_event(
-            {
-                "type": "run_failed",
-                "run_id": "run_live",
-                "workspace_id": workspace_id,
-                "node_id": "node_3",
-                "error": "fatal boom",
-                "traceback": "traceback: line 9",
-                "fatal": True,
-            }
-        )
-
-        self.assertEqual(host.run_state.node_execution_workspace_id, "")
-        self.assertEqual(host.run_state.running_node_ids, set())
-        self.assertEqual(host.run_state.completed_node_ids, set())
-        self.assertEqual(host.run_state.running_node_started_at_epoch_ms_by_node_id, {})
-        self.assertEqual(
-            host.run_state.cached_node_elapsed_ms_by_workspace_id,
-            {
-                workspace_id: {"node_cached": 12.5},
-                "ws_other": {"node_other": 8.0},
-            },
-        )
-        self.assertEqual(host.run_state.node_execution_revision, 3)
 
 
 if __name__ == "__main__":

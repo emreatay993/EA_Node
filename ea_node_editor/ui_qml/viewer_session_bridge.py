@@ -351,10 +351,6 @@ class ViewerSessionBridge(QObject):
         self._last_error = ""
         self._live_mode_sync_in_progress = False
 
-        if shell_window is not None:
-            execution_event = getattr(shell_window, "execution_event", None)
-            if execution_event is not None:
-                execution_event.connect(self._handle_execution_event)
         if scene_bridge is not None:
             scene_bridge.workspace_changed.connect(self._on_workspace_changed)
             scene_bridge.selection_changed.connect(self._on_selection_changed)
@@ -1416,7 +1412,7 @@ class ViewerSessionBridge(QObject):
         except Exception:  # noqa: BLE001
             return ""
 
-    def _handle_execution_event(self, event: dict[str, Any]) -> None:
+    def handle_viewer_execution_event(self, event: dict[str, Any]) -> None:
         event_type = _string(event.get("type"))
         if event_type == _NODE_SETTLED_EVENT_TYPE:
             if self._seed_runtime_projection_from_node_settled(event):

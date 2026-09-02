@@ -572,6 +572,9 @@ class ViewerHostServiceTests(MainWindowShellTestBase):
                 "node_invalidation_epoch": node_epoch,
             }
         )
+        # First turn delivers the sole queued shell event; the second drains
+        # the existing host-service sync scheduled by sessions_changed.
+        self.app.processEvents()
         self.app.processEvents()
         if explicit_inline is None:
             explicit_inline = live_mode == "full"
@@ -617,6 +620,9 @@ class ViewerHostServiceTests(MainWindowShellTestBase):
                 "node_invalidation_epoch": node_epoch,
             }
         )
+        # First turn delivers the sole queued shell event; the second drains
+        # the existing host-service sync scheduled by sessions_changed.
+        self.app.processEvents()
         self.app.processEvents()
 
     def test_shell_window_exposes_host_service_context_and_binds_registered_backend(self) -> None:
@@ -1705,6 +1711,9 @@ class ViewerHostServiceTests(MainWindowShellTestBase):
                     },
                 }
             )
+            # First turn delivers the sole queued shell event; the second
+            # drains the existing host-service sync.
+            self.app.processEvents()
             self.app.processEvents()
 
         self.window.scene.select_node(node_id, False)

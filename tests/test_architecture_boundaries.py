@@ -246,6 +246,10 @@ class GraphArchitectureBoundaryTests(unittest.TestCase):
             "ea_node_editor/ui/shell/controllers/run_controller.py",
             "RunController",
         )
+        event_methods = class_method_names(
+            "ea_node_editor/ui/shell/controllers/run_event_controller.py",
+            "RunEventController",
+        )
         shell_methods = class_method_names(
             "ea_node_editor/ui/shell/window_state/run_and_style_state.py",
             "ShellWindowRunAndStyleStateMixin",
@@ -263,8 +267,9 @@ class GraphArchitectureBoundaryTests(unittest.TestCase):
         self.assertLessEqual(moved, projection_methods)
         self.assertTrue(moved.isdisjoint(run_methods))
         self.assertTrue(moved.isdisjoint(shell_methods))
-        self.assertIn("handle_execution_event", run_methods)
-        self.assertIn("_handle_execution_event", shell_methods)
+        self.assertIn("handle_execution_event", event_methods)
+        self.assertNotIn("handle_execution_event", run_methods)
+        self.assertNotIn("_handle_execution_event", shell_methods)
 
         projection_source = (
             REPO_ROOT
@@ -273,19 +278,41 @@ class GraphArchitectureBoundaryTests(unittest.TestCase):
         run_source = (
             REPO_ROOT / "ea_node_editor/ui/shell/controllers/run_controller.py"
         ).read_text(encoding="utf-8")
+        event_source = (
+            REPO_ROOT / "ea_node_editor/ui/shell/controllers/run_event_controller.py"
+        ).read_text(encoding="utf-8")
+        viewer_session_source = (
+            REPO_ROOT / "ea_node_editor/ui_qml/viewer_session_bridge.py"
+        ).read_text(encoding="utf-8")
         composition_source = (
             REPO_ROOT / "ea_node_editor/ui/shell/composition/controllers.py"
         ).read_text(encoding="utf-8")
         self.assertNotIn("QObject", projection_source)
         self.assertNotIn("QTimer", projection_source)
+        self.assertNotIn("QObject", event_source)
+        self.assertNotIn("QTimer", event_source)
+        self.assertNotIn("callLater", event_source)
+        self.assertNotIn("execution_event.connect", viewer_session_source)
+        self.assertIn("def handle_viewer_execution_event", viewer_session_source)
+        self.assertEqual(event_source.count('"handle_viewer_execution_event"'), 1)
         self.assertNotIn("cache_accepted_output_record", run_source)
         self.assertIn("run_projection_controller", composition_source)
-        self.assertIn("host._handle_execution_event", composition_source)
-        self.assertFalse(
-            (
-                REPO_ROOT
-                / "ea_node_editor/ui/shell/controllers/run_event_controller.py"
-            ).exists()
+        self.assertIn("run_event_controller.handle_execution_event", composition_source)
+        self.assertNotIn("host._handle_execution_event", composition_source)
+        self.assertEqual(
+            composition_source.count("host.execution_event.connect("),
+            1,
+        )
+        self.assertEqual(
+            sum(
+                path.read_text(encoding="utf-8").count("execution_event.connect(")
+                for path in (REPO_ROOT / "ea_node_editor").rglob("*.py")
+            ),
+            1,
+        )
+        self.assertEqual(
+            composition_source.count("execution_client.subscribe(host.execution_event.emit)"),
+            1,
         )
 
     def test_graph_canvas_host_presenter_exclusively_owns_cursor_and_style_actions(self) -> None:

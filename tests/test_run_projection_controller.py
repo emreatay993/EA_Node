@@ -329,7 +329,7 @@ class RunProjectionControllerTests(unittest.TestCase):
             25.0,
         )
 
-        run_controller.handle_execution_event(
+        host.run_event_controller.handle_execution_event(
             event_to_dict(
                 TriggerCaptureSettledEvent(
                     run_id="run_live",
@@ -648,7 +648,7 @@ class RunProjectionControllerTests(unittest.TestCase):
         host.run_state.node_execution_revision = 4
         controller = _run_controller(host)  # type: ignore[arg-type]
 
-        controller.handle_execution_event(
+        host.run_event_controller.handle_execution_event(
             {
                 "type": "run_started",
                 "run_id": "run_live",
@@ -664,7 +664,7 @@ class RunProjectionControllerTests(unittest.TestCase):
         self.assertEqual(host.run_state.completed_node_ids, set())
         self.assertEqual(host.run_state.node_execution_revision, 5)
 
-        controller.handle_execution_event(
+        host.run_event_controller.handle_execution_event(
             {
                 "type": "node_started",
                 "run_id": "run_live",
@@ -678,7 +678,7 @@ class RunProjectionControllerTests(unittest.TestCase):
         self.assertEqual(host.run_state.completed_node_ids, set())
         self.assertEqual(host.run_state.node_execution_revision, 6)
 
-        controller.handle_execution_event(
+        host.run_event_controller.handle_execution_event(
             {
                 "type": "node_settled",
                 "status": "completed",
@@ -708,7 +708,7 @@ class RunProjectionControllerTests(unittest.TestCase):
             traceback="root trace",
         )
 
-        controller.handle_execution_event(
+        host.run_event_controller.handle_execution_event(
             {
                 "type": "node_settled",
                 "status": "failed",
@@ -728,7 +728,7 @@ class RunProjectionControllerTests(unittest.TestCase):
             [(workspace_id, node.node_id)],
         )
 
-        controller.handle_execution_event(
+        host.run_event_controller.handle_execution_event(
             {
                 "type": "node_started",
                 "run_id": "run_live",
@@ -736,7 +736,7 @@ class RunProjectionControllerTests(unittest.TestCase):
                 "node_id": node.node_id,
             }
         )
-        controller.handle_execution_event(
+        host.run_event_controller.handle_execution_event(
             {
                 "type": "node_settled",
                 "status": "empty",
@@ -752,7 +752,7 @@ class RunProjectionControllerTests(unittest.TestCase):
             [(workspace_id, node.node_id)],
         )
 
-        controller.handle_execution_event(
+        host.run_event_controller.handle_execution_event(
             {
                 "type": "node_settled",
                 "status": "blocked",
@@ -789,7 +789,7 @@ class RunProjectionControllerTests(unittest.TestCase):
         host.run_state.active_run_id = "run_warning"
         host.run_state.active_run_workspace_id = workspace_id
 
-        controller.handle_execution_event(
+        host.run_event_controller.handle_execution_event(
             {
                 "type": "node_settled",
                 "status": "completed",
@@ -807,7 +807,7 @@ class RunProjectionControllerTests(unittest.TestCase):
             {workspace_id: {node.node_id: ("Mesh quality was reduced.",)}},
         )
 
-        controller.handle_execution_event(
+        host.run_event_controller.handle_execution_event(
             {
                 "type": "run_completed",
                 "run_id": "run_warning",
@@ -864,7 +864,7 @@ class RunProjectionControllerTests(unittest.TestCase):
             before_snapshot=before_snapshot,
             after_snapshot=after_snapshot,
         )
-        controller.handle_execution_event(
+        host.run_event_controller.handle_execution_event(
             {
                 "type": "node_settled",
                 "status": "completed",
@@ -897,7 +897,7 @@ class RunProjectionControllerTests(unittest.TestCase):
         host.run_state.node_execution_revision = 4
         controller = _run_controller(host)  # type: ignore[arg-type]
 
-        controller.handle_execution_event(
+        host.run_event_controller.handle_execution_event(
             {
                 "type": "run_started",
                 "run_id": "run_live",
@@ -917,7 +917,7 @@ class RunProjectionControllerTests(unittest.TestCase):
             "ea_node_editor.ui.shell.controllers.run_projection_controller.time.time",
             return_value=100.0,
         ):
-            controller.handle_execution_event(
+            host.run_event_controller.handle_execution_event(
                 {
                     "type": "node_started",
                     "run_id": "run_live",
@@ -936,7 +936,7 @@ class RunProjectionControllerTests(unittest.TestCase):
             "ea_node_editor.ui.shell.controllers.run_projection_controller.time.time",
             return_value=100.04525,
         ):
-            controller.handle_execution_event(
+            host.run_event_controller.handle_execution_event(
                 {
                     "type": "node_settled",
                     "status": "completed",
@@ -962,7 +962,7 @@ class RunProjectionControllerTests(unittest.TestCase):
             places=2,
         )
 
-        controller.handle_execution_event(
+        host.run_event_controller.handle_execution_event(
             {
                 "type": "run_completed",
                 "run_id": "run_live",

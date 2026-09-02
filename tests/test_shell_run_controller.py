@@ -1490,7 +1490,7 @@ class ShellRunControllerTests(MainWindowShellTestBase):
         )
         self.app.processEvents()
 
-        self.window._run_workflow()
+        self.window.run_controller.run_workflow()
         self.app.processEvents()
 
         workspace_epoch, node_epoch = bridge._viewer_epochs(  # noqa: SLF001
@@ -1563,7 +1563,7 @@ class ShellRunControllerTests(MainWindowShellTestBase):
         )
         self.app.processEvents()
 
-        self.window._run_workflow()
+        self.window.run_controller.run_workflow()
         self.app.processEvents()
 
         workspace_epoch, node_epoch = bridge._viewer_epochs(  # noqa: SLF001
@@ -1634,7 +1634,7 @@ class ShellRunControllerTests(MainWindowShellTestBase):
         )
         self.app.processEvents()
 
-        self.window._run_workflow()
+        self.window.run_controller.run_workflow()
         self.app.processEvents()
 
         self.assertEqual(viewer_host_service.calls, [])
@@ -2063,7 +2063,7 @@ class ShellRunControllerTests(MainWindowShellTestBase):
         graph_canvas = self._graph_canvas_item()
         self.assertEqual(dict(graph_canvas.property("failedNodeLookup")), {failed_node_id: True})
 
-        self.window._run_workflow()
+        self.window.run_controller.run_workflow()
         self.app.processEvents()
 
         self.assertEqual(self.window.run_state.failed_node_id, "")
@@ -2099,7 +2099,7 @@ class ShellRunControllerTests(MainWindowShellTestBase):
                 return_value=True,
             ):
                 self.window.run_state.developer_mode_active = True
-                self.window._run_workflow()
+                self.window.run_controller.run_workflow()
         self.assertTrue(prepare_mock.call_args.args[0].trigger["developer_mode"])
 
         with patch.object(
@@ -2112,7 +2112,7 @@ class ShellRunControllerTests(MainWindowShellTestBase):
                 return_value=False,
             ):
                 self.window.run_state.developer_mode_active = True
-                self.window._run_workflow()
+                self.window.run_controller.run_workflow()
         self.assertFalse(prepare_mock.call_args.args[0].trigger["developer_mode"])
 
 

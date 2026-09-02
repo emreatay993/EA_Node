@@ -4,6 +4,7 @@ from ea_node_editor.ui.shell.controllers.plugin_authoring_controller import Plug
 from ea_node_editor.ui.shell.controllers.project_session_controller import ProjectSessionController
 from ea_node_editor.ui.shell.controllers.result import ControllerResult
 from ea_node_editor.ui.shell.controllers.run_controller import RunController
+from ea_node_editor.ui.shell.controllers.run_event_controller import RunEventController
 from ea_node_editor.ui.shell.controllers.run_projection_controller import (
     RunProjectionController,
 )
@@ -16,6 +17,7 @@ __all__ = [
     "PluginAuthoringController",
     "ProjectSessionController",
     "RunController",
+    "RunEventController",
     "RunProjectionController",
     "WorkspaceLibraryController",
 ]

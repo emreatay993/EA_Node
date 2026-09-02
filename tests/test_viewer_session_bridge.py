@@ -307,8 +307,6 @@ class _ModelState:
 
 
 class _HostStub(QObject):
-    execution_event = pyqtSignal(dict)
-
     def __init__(self) -> None:
         super().__init__()
         self.scene = _SceneStub()
@@ -505,7 +503,7 @@ class ViewerSessionBridgeUnitTests(unittest.TestCase):
             },
         )
         open_call = self.host.execution_client.open_calls[-1]
-        self.host.execution_event.emit(
+        self.bridge.handle_viewer_execution_event(
             _viewer_opened_event(
                 request_id=open_call["request_id"],
                 workspace_id="ws_main",
@@ -545,7 +543,7 @@ class ViewerSessionBridgeUnitTests(unittest.TestCase):
         self.assertEqual(pending_state["options"]["representation"], "wireframe")
         update_call = self.host.execution_client.update_calls[-1]
 
-        self.host.execution_event.emit(
+        self.bridge.handle_viewer_execution_event(
             {
                 "type": "viewer_session_failed",
                 "request_id": update_call["request_id"],
@@ -621,7 +619,7 @@ class ViewerSessionBridgeUnitTests(unittest.TestCase):
             "coerce_viewer_session_model",
             wraps=viewer_session_bridge_module.coerce_viewer_session_model,
         ) as normalize:
-            self.host.execution_event.emit(authoritative_event)
+            self.bridge.handle_viewer_execution_event(authoritative_event)
             first_read = self.bridge.session_state("node_viewer")
             second_read = self.bridge.session_state("node_viewer")
             _ = self.bridge.sessions_model
@@ -718,7 +716,7 @@ class ViewerSessionBridgeUnitTests(unittest.TestCase):
             node_id, {"data_refs": {"fields": f"fields::{node_id}"}}
         )
         open_call = self.host.execution_client.open_calls[-1]
-        self.host.execution_event.emit(
+        self.bridge.handle_viewer_execution_event(
             _viewer_opened_event(
                 request_id=open_call["request_id"],
                 workspace_id="ws_main",
@@ -774,7 +772,7 @@ class ViewerSessionBridgeUnitTests(unittest.TestCase):
         self.assertNotIn("session_model", opening_state)
         self.assertEqual(opening_state["live_mode"], "proxy")
 
-        self.host.execution_event.emit(
+        self.bridge.handle_viewer_execution_event(
             _viewer_opened_event(
                 request_id=open_call["request_id"],
                 workspace_id="ws_main",
@@ -848,7 +846,7 @@ class ViewerSessionBridgeUnitTests(unittest.TestCase):
         close_call = self.host.execution_client.close_calls[-1]
         self.assertEqual(close_call["options"]["reason"], "user_close")
 
-        self.host.execution_event.emit(
+        self.bridge.handle_viewer_execution_event(
             {
                 "type": "viewer_session_closed",
                 "request_id": close_call["request_id"],
@@ -889,7 +887,7 @@ class ViewerSessionBridgeUnitTests(unittest.TestCase):
         query_call = self.host.execution_client.query_calls[-1]
         self.assertEqual(query_call["query_type"], "bounds")
         self.assertEqual(query_call["payload"], {"role": "primary"})
-        self.host.execution_event.emit(
+        self.bridge.handle_viewer_execution_event(
             {
                 "type": "viewer_query_result",
                 "request_id": query_call["request_id"],
@@ -1097,7 +1095,7 @@ class ViewerSessionBridgeUnitTests(unittest.TestCase):
             self.bridge.set_embedded_interaction_active("node_viewer", True)
         )
 
-        self.host.execution_event.emit(
+        self.bridge.handle_viewer_execution_event(
             {
                 "type": "viewer_session_opened",
                 "request_id": open_call["request_id"],
@@ -1144,7 +1142,7 @@ class ViewerSessionBridgeUnitTests(unittest.TestCase):
             "node_viewer", {"data_refs": {"fields": "fields_ref"}}
         )
         open_call = self.host.execution_client.open_calls[-1]
-        self.host.execution_event.emit(
+        self.bridge.handle_viewer_execution_event(
             _viewer_opened_event(
                 request_id=open_call["request_id"],
                 workspace_id="ws_main",
@@ -1177,7 +1175,7 @@ class ViewerSessionBridgeUnitTests(unittest.TestCase):
             "node_viewer", {"data_refs": {"fields": "fields_a"}}
         )
         first_open = self.host.execution_client.open_calls[-1]
-        self.host.execution_event.emit(
+        self.bridge.handle_viewer_execution_event(
             _viewer_opened_event(
                 request_id=first_open["request_id"],
                 workspace_id="ws_main",
@@ -1193,7 +1191,7 @@ class ViewerSessionBridgeUnitTests(unittest.TestCase):
             "node_viewer_b", {"data_refs": {"fields": "fields_b"}}
         )
         second_open = self.host.execution_client.open_calls[-1]
-        self.host.execution_event.emit(
+        self.bridge.handle_viewer_execution_event(
             _viewer_opened_event(
                 request_id=second_open["request_id"],
                 workspace_id="ws_main",
@@ -1318,7 +1316,7 @@ class ViewerSessionBridgeUnitTests(unittest.TestCase):
             data_refs={"dataset": {"kind": "mock::node_viewer"}},
         )
         initial_full_event["type"] = "viewer_session_updated"
-        self.host.execution_event.emit(initial_full_event)
+        self.bridge.handle_viewer_execution_event(initial_full_event)
 
         self.assertTrue(self.bridge.clear_viewer_focus())
         demotion_request = self.host.execution_client.update_calls[-1]
@@ -1345,7 +1343,7 @@ class ViewerSessionBridgeUnitTests(unittest.TestCase):
             data_refs={"dataset": {"kind": "mock::node_viewer"}},
         )
         stale_proxy_event["type"] = "viewer_session_updated"
-        self.host.execution_event.emit(stale_proxy_event)
+        self.bridge.handle_viewer_execution_event(stale_proxy_event)
 
         state_after_stale = self.bridge.session_state("node_viewer")
         self.assertEqual(projected_modes, [])
@@ -1362,7 +1360,7 @@ class ViewerSessionBridgeUnitTests(unittest.TestCase):
             data_refs={"dataset": {"kind": "mock::node_viewer"}},
         )
         current_full_event["type"] = "viewer_session_updated"
-        self.host.execution_event.emit(current_full_event)
+        self.bridge.handle_viewer_execution_event(current_full_event)
 
         self.assertTrue(projected_modes)
         self.assertEqual(set(projected_modes), {"full"})
@@ -1385,7 +1383,7 @@ class ViewerSessionBridgeUnitTests(unittest.TestCase):
             data_refs={"dataset": {"kind": "mock::node_viewer"}},
         )
         initial_full_event["type"] = "viewer_session_updated"
-        self.host.execution_event.emit(initial_full_event)
+        self.bridge.handle_viewer_execution_event(initial_full_event)
 
         self.assertTrue(self.bridge.clear_viewer_focus())
         demotion_request = self.host.execution_client.update_calls[-1]
@@ -1403,7 +1401,7 @@ class ViewerSessionBridgeUnitTests(unittest.TestCase):
                 )
             )
         )
-        self.host.execution_event.emit(
+        self.bridge.handle_viewer_execution_event(
             {
                 "type": "viewer_session_failed",
                 "request_id": demotion_request["request_id"],
@@ -1431,7 +1429,7 @@ class ViewerSessionBridgeUnitTests(unittest.TestCase):
             data_refs={"dataset": {"kind": "mock::node_viewer"}},
         )
         current_full_event["type"] = "viewer_session_updated"
-        self.host.execution_event.emit(current_full_event)
+        self.bridge.handle_viewer_execution_event(current_full_event)
 
         self.assertTrue(projected_states)
         self.assertEqual(set(projected_states), {("open", "full")})
@@ -1442,7 +1440,7 @@ class ViewerSessionBridgeUnitTests(unittest.TestCase):
     def test_empty_request_failure_still_applies_to_current_session(self) -> None:
         session_id = self._open_live_session()
 
-        self.host.execution_event.emit(
+        self.bridge.handle_viewer_execution_event(
             {
                 "type": "viewer_session_failed",
                 "request_id": "",
@@ -1468,7 +1466,7 @@ class ViewerSessionBridgeUnitTests(unittest.TestCase):
             },
         )
         restore_open = self.host.execution_client.open_calls[-1]
-        self.host.execution_event.emit(
+        self.bridge.handle_viewer_execution_event(
             _viewer_opened_event(
                 request_id=restore_open["request_id"],
                 workspace_id="ws_main",
@@ -1489,7 +1487,7 @@ class ViewerSessionBridgeUnitTests(unittest.TestCase):
             "node_viewer_other", {"data_refs": {"fields": "other_fields"}}
         )
         other_open = self.host.execution_client.open_calls[-1]
-        self.host.execution_event.emit(
+        self.bridge.handle_viewer_execution_event(
             _viewer_opened_event(
                 request_id=other_open["request_id"],
                 workspace_id="ws_main",
@@ -1544,7 +1542,7 @@ class ViewerSessionBridgeUnitTests(unittest.TestCase):
             "node_viewer", {"data_refs": {"fields": "fields_ref"}}
         )
         open_call = self.host.execution_client.open_calls[-1]
-        self.host.execution_event.emit(
+        self.bridge.handle_viewer_execution_event(
             _viewer_opened_event(
                 request_id=open_call["request_id"],
                 workspace_id="ws_main",
@@ -1595,7 +1593,7 @@ class ViewerSessionBridgeUnitTests(unittest.TestCase):
             camera_state=dict(self.host.captured_camera_state),
         )
         demoted_event["type"] = "viewer_session_updated"
-        self.host.execution_event.emit(demoted_event)
+        self.bridge.handle_viewer_execution_event(demoted_event)
 
         proxy_state = self.bridge.session_state("node_viewer")
         self.assertEqual(proxy_state["options"]["live_mode"], "proxy")
@@ -1627,7 +1625,7 @@ class ViewerSessionBridgeUnitTests(unittest.TestCase):
             "node_viewer", {"data_refs": {"fields": "fields_ref"}}
         )
         open_call = self.host.execution_client.open_calls[-1]
-        self.host.execution_event.emit(
+        self.bridge.handle_viewer_execution_event(
             _viewer_opened_event(
                 request_id=open_call["request_id"],
                 workspace_id="ws_main",
@@ -1681,7 +1679,7 @@ class ViewerSessionBridgeUnitTests(unittest.TestCase):
             camera_state={"zoom": 1.0},  # different from captured!
         )
         demoted_event["type"] = "viewer_session_updated"
-        self.host.execution_event.emit(demoted_event)
+        self.bridge.handle_viewer_execution_event(demoted_event)
 
         # Camera state must still be the locally captured one
         state_after_event = self.bridge.session_state("node_viewer")
@@ -1709,7 +1707,7 @@ class ViewerSessionBridgeUnitTests(unittest.TestCase):
             camera_state={"zoom": 1.0},
         )
         full_restore_event["type"] = "viewer_session_updated"
-        self.host.execution_event.emit(full_restore_event)
+        self.bridge.handle_viewer_execution_event(full_restore_event)
 
         restored_state = self.bridge.session_state("node_viewer")
         self.assertEqual(restored_state["camera_state"], captured)
@@ -1743,7 +1741,7 @@ class ViewerSessionBridgeUnitTests(unittest.TestCase):
             camera_state={},
         )
         demoted["type"] = "viewer_session_updated"
-        self.host.execution_event.emit(demoted)
+        self.bridge.handle_viewer_execution_event(demoted)
 
         # Re-focus
         self.assertTrue(
@@ -1758,7 +1756,7 @@ class ViewerSessionBridgeUnitTests(unittest.TestCase):
             options={"live_mode": "full"},
         )
         refocus_event["type"] = "viewer_session_updated"
-        self.host.execution_event.emit(refocus_event)
+        self.bridge.handle_viewer_execution_event(refocus_event)
 
         # Second blur with a different camera
         second_camera = {
@@ -1785,7 +1783,7 @@ class ViewerSessionBridgeUnitTests(unittest.TestCase):
             options={"live_mode": "proxy"},
         )
         demoted2["type"] = "viewer_session_updated"
-        self.host.execution_event.emit(demoted2)
+        self.bridge.handle_viewer_execution_event(demoted2)
         self.assertTrue(
             self.bridge.set_embedded_interaction_active("node_viewer", True)
         )
@@ -1882,7 +1880,7 @@ class ViewerSessionBridgeUnitTests(unittest.TestCase):
             },
         )
         open_call = self.host.execution_client.open_calls[-1]
-        self.host.execution_event.emit(
+        self.bridge.handle_viewer_execution_event(
             _viewer_opened_event(
                 request_id=open_call["request_id"],
                 workspace_id="ws_main",
@@ -1971,7 +1969,7 @@ class ViewerSessionBridgeUnitTests(unittest.TestCase):
         )
         self.assertEqual(self.bridge.sessions_model, before_empty)
 
-        self.host.execution_event.emit(
+        self.bridge.handle_viewer_execution_event(
             _viewer_opened_event(
                 request_id=stale_open_request,
                 workspace_id="ws_main",
@@ -2016,7 +2014,7 @@ class ViewerSessionBridgeUnitTests(unittest.TestCase):
                 reason="workspace_rerun",
             )
         )
-        self.host.execution_event.emit(
+        self.bridge.handle_viewer_execution_event(
             {
                 "type": "viewer_query_result",
                 "request_id": pending["request_id"],
@@ -2100,7 +2098,7 @@ class ViewerSessionBridgeUnitTests(unittest.TestCase):
             },
         )
         open_call = self.host.execution_client.open_calls[-1]
-        self.host.execution_event.emit(
+        self.bridge.handle_viewer_execution_event(
             _viewer_opened_event(
                 request_id=open_call["request_id"],
                 workspace_id="ws_main",
@@ -2143,7 +2141,7 @@ class ViewerSessionBridgeUnitTests(unittest.TestCase):
             workspace_invalidation_epoch=1,
             node_invalidation_epoch=0,
         )
-        self.host.execution_event.emit(
+        self.bridge.handle_viewer_execution_event(
             event_to_dict(
                 NodeSettledEvent(
                     workspace_id="ws_main",
@@ -2164,7 +2162,7 @@ class ViewerSessionBridgeUnitTests(unittest.TestCase):
             seeded_open_call["session_id"],
             "viewer_session_runtime_seeded",
         )
-        self.host.execution_event.emit(
+        self.bridge.handle_viewer_execution_event(
             {
                 **runtime_session_payload,
                 "request_id": seeded_open_call["request_id"],
@@ -2208,7 +2206,7 @@ class ViewerSessionBridgeUnitTests(unittest.TestCase):
         )
 
         open_call_count = len(self.host.execution_client.open_calls)
-        self.host.execution_event.emit(
+        self.bridge.handle_viewer_execution_event(
             event_to_dict(
                 NodeSettledEvent(
                     workspace_id="ws_main",
@@ -2241,7 +2239,7 @@ class ViewerSessionBridgeUnitTests(unittest.TestCase):
         self.assertEqual(open_call["data_refs"], {})
         self.assertEqual(open_call["transport"], {})
 
-        self.host.execution_event.emit(
+        self.bridge.handle_viewer_execution_event(
             {
                 **runtime_session_payload,
                 "request_id": open_call["request_id"],
@@ -2271,7 +2269,7 @@ class ViewerSessionBridgeUnitTests(unittest.TestCase):
 
     def test_node_settled_raw_session_projection_is_not_accepted(self) -> None:
         open_call_count = len(self.host.execution_client.open_calls)
-        self.host.execution_event.emit(
+        self.bridge.handle_viewer_execution_event(
             event_to_dict(
                 NodeSettledEvent(
                     workspace_id="ws_main",

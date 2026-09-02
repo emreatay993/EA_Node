@@ -12,10 +12,7 @@ from ea_node_editor.developer_mode import developer_mode_capability_enabled
 from ea_node_editor.execution.backends import EXTERNAL_SUBPROCESS_BACKEND
 from ea_node_editor.execution.runtime_requests import ExecutionRequest
 from ea_node_editor.execution.prepared_execution import SolutionStateChangedEvent
-from ea_node_editor.runtime_contracts.settled_results import (
-    SettledPortResult,
-    normalize_settled_port_result,
-)
+from ea_node_editor.runtime_contracts.settled_results import SettledPortResult
 from ea_node_editor.execution.python_environment import (
     workflow_python_path_from_snapshot,
 )
@@ -26,9 +23,6 @@ from ea_node_editor.ui.shell.controllers.run_projection_controller import (
 )
 from ea_node_editor.ui.shell.runtime_history import (
     classify_history_execution_change,
-)
-from ea_node_editor.ui.shell.run_flow import (
-    event_targets_active_run,
 )
 from ea_node_editor.ui.shell.state import ShellRunState
 
@@ -60,8 +54,6 @@ class _RunControllerHostProtocol(Protocol):
     run_controls_changed: Any
     run_failure_changed: Any
     node_execution_state_changed: Any
-    _RUN_SCOPED_EVENT_TYPES: set[str]
-
     def update_notification_counters(
         self, warning_count: int, error_count: int
     ) -> None: ...
@@ -585,187 +577,8 @@ class RunController:
             self._host.update_engine_status("running", "Stopping")
         self._projection.update_run_actions()
 
-    def handle_execution_event(self, event: dict[str, Any]) -> None:
-        event_type = str(event.get("type", ""))
-        if (
-            event_type
-            in {
-                "run_preflight_accepted",
-                "viewer_invalidation_committed",
-            }
-            and str(event.get("run_id", "")) != self._state.active_run_id
-        ):
-            return
-        if not event_targets_active_run(
-            event,
-            active_run_id=self._state.active_run_id,
-            run_scoped_event_types=self._host._RUN_SCOPED_EVENT_TYPES,
-        ):
-            return
-        if event_type == "solution_state_changed":
-            self._projection.handle_solution_state_changed(event)
-            return
-        if event_type == "viewer_invalidation_committed":
-            self._adopt_committed_viewer_invalidation(event)
-            return
-
-        if event_type == "run_started":
-            workspace_id = self._event_workspace_id(event)
-            if workspace_id:
-                self._state.active_run_workspace_id = workspace_id
-            self._projection.clear_node_execution_visualization_state()
-            self._projection.clear_run_failure_focus()
-            self._take_run_start_runtime_snapshot(str(event.get("run_id", "")))
-        elif event_type == "node_started":
-            self._projection.mark_node_execution_running(
-                self._event_workspace_id(event),
-                str(event.get("node_id", "")),
-                started_at_epoch_ms=float(event.get("started_at_epoch_ms", 0.0) or 0.0),
-            )
-        elif event_type == "node_settled":
-            workspace_id = self._event_workspace_id(event)
-            node_id = str(event.get("node_id", ""))
-            status = self._projection.project_node_settled(
-                event,
-                workspace_id=workspace_id,
-                node_id=node_id,
-                invalidated_during_run=(
-                    workspace_id == self._state.active_run_workspace_id
-                    and node_id in self._active_run_invalidated_node_ids
-                ),
-            )
-            if status == "failed":
-                self._host.workspace_library_controller.focus_failed_node(
-                    workspace_id,
-                    node_id,
-                )
-        elif event_type in {"trigger_capture_settled", "trigger_published"}:
-            workspace_id = self._event_workspace_id(event)
-            trigger_node_id = str(event.get("trigger_node_id", "") or "").strip()
-            if workspace_id and trigger_node_id:
-                result = normalize_settled_port_result(
-                    event.get("result", {}),
-                    catalog=self._host.registry.data_types,
-                )
-                if event_type == "trigger_capture_settled":
-                    self._state.latest_trigger_inputs_by_workspace_id.setdefault(
-                        workspace_id, {}
-                    )[trigger_node_id] = result
-                    current_capture_ids = self._state.current_trigger_capture_node_ids_by_workspace_id.setdefault(
-                        workspace_id, set()
-                    )
-                    if trigger_node_id in self._active_run_invalidated_node_ids:
-                        current_capture_ids.discard(trigger_node_id)
-                    else:
-                        current_capture_ids.add(trigger_node_id)
-                    if not current_capture_ids:
-                        self._state.current_trigger_capture_node_ids_by_workspace_id.pop(
-                            workspace_id, None
-                        )
-                else:
-                    self._state.trigger_publications_by_workspace_id.setdefault(
-                        workspace_id, {}
-                    )[trigger_node_id] = result
-                self._projection.commit_node_execution_state_change()
-
-        if event_type == "run_started" or (
-            event_type
-            in {
-                "node_started",
-                "node_settled",
-                "trigger_capture_settled",
-                "trigger_published",
-            }
-            and self._state.engine_state_value != "paused"
-        ):
-            self._projection.set_run_ui_state("running", "Running", 1, 0, 0, 0)
-
-        if event_type == "log":
-            self._host.console_panel.append_log(
-                event.get("level", "info"), event.get("message", "")
-            )
-            self._host.update_notification_counters(
-                self._host.console_panel.warning_count,
-                self._host.console_panel.error_count,
-            )
-        elif event_type == "run_completed":
-            self._projection.set_run_ui_state(
-                "ready",
-                "Completed",
-                0,
-                0,
-                1,
-                0,
-                clear_active_run=self.clear_active_run,
-            )
-            self._drain_pending_auto_run()
-        elif event_type == "run_failed":
-            self._projection.clear_node_execution_visualization_state()
-            self._projection.set_run_ui_state("error", "Failed", 0, 0, 0, 1)
-            self._host.console_panel.append_log(
-                "error", event.get("error", "Unknown failure")
-            )
-            self._host.console_panel.append_log("error", event.get("traceback", ""))
-            self._host.update_notification_counters(
-                self._host.console_panel.warning_count,
-                self._host.console_panel.error_count,
-            )
-            self._host.workspace_library_controller.focus_failed_node(
-                event.get("workspace_id", ""),
-                event.get("node_id", ""),
-            )
-            fatal = bool(event.get("fatal", False))
-            if fatal:
-                self._invalidate_viewer_sessions_for_worker_reset()
-            self.clear_active_run()
-            self._projection.update_run_actions()
-            self.clear_pending_auto_run()
-        elif event_type == "run_stopped":
-            self._projection.clear_node_execution_visualization_state()
-            self.clear_pending_auto_run()
-            self._projection.set_run_ui_state(
-                "ready",
-                "Stopped",
-                0,
-                0,
-                0,
-                0,
-                clear_active_run=self.clear_active_run,
-            )
-        elif event_type == "run_state":
-            state = event.get("state", "ready")
-            transition = str(event.get("transition", ""))
-            if state == "paused" or transition == "pause":
-                self._projection.set_run_ui_state("paused", "Paused", 1, 0, 0, 0)
-            elif state == "running":
-                self._projection.set_run_ui_state("running", "Running", 1, 0, 0, 0)
-            elif transition == "stop":
-                self._projection.clear_node_execution_visualization_state()
-                self.clear_pending_auto_run()
-                self._projection.set_run_ui_state(
-                    "ready",
-                    "Stopped",
-                    0,
-                    0,
-                    0,
-                    0,
-                    clear_active_run=self.clear_active_run,
-                )
-            elif state == "error":
-                self.clear_pending_auto_run()
-                self._projection.set_run_ui_state("error", "Failed", 0, 0, 0, 1)
-        elif event_type == "protocol_error":
-            self.clear_pending_auto_run()
-            self._host.console_panel.append_log(
-                "error", event.get("error", "Execution protocol error.")
-            )
-            self._host.update_notification_counters(
-                self._host.console_panel.warning_count,
-                self._host.console_panel.error_count,
-            )
-
     def clear_active_run(self) -> None:
-        self._take_run_start_runtime_snapshot(self._state.active_run_id)
+        self.consume_run_start_runtime_snapshot(self._state.active_run_id)
         self._state.active_run_id = ""
         self._state.active_run_workspace_id = ""
         self._active_run_invalidated_node_ids.clear()
@@ -841,9 +654,9 @@ class RunController:
             state.pending_auto_run_workspace_id = normalized_workspace_id
             state.pending_auto_run_target_node_ids = normalized_targets
         if not state.active_run_id:
-            self._drain_pending_auto_run()
+            self.drain_pending_auto_run()
 
-    def _drain_pending_auto_run(self) -> None:
+    def drain_pending_auto_run(self) -> None:
         state = self._state
         workspace_id = state.pending_auto_run_workspace_id
         target_node_ids = set(state.pending_auto_run_target_node_ids)
@@ -1057,41 +870,16 @@ class RunController:
             )
         return True
 
-    def _event_workspace_id(self, event: dict[str, Any]) -> str:
-        workspace_id = str(event.get("workspace_id", "") or "").strip()
-        if workspace_id:
-            return workspace_id
-        return str(self._state.active_run_workspace_id or "").strip()
-
-    def _adopt_committed_viewer_invalidation(self, event: Mapping[str, Any]) -> None:
-        viewer_session_bridge = getattr(self._host, "viewer_session_bridge", None)
-        if viewer_session_bridge is None:
-            return
-        adopt = getattr(viewer_session_bridge, "adopt_committed_invalidation", None)
-        if not callable(adopt):
-            return
-        adopt(
-            workspace_id=str(event.get("workspace_id", "")),
-            node_ids=event.get("viewer_invalidation_node_ids"),
-            workspace_epoch=event.get("viewer_workspace_invalidation_epoch", 0),
-            node_epochs=event.get("viewer_node_invalidation_epochs", ()),
-            snapshot_digest=str(event.get("viewer_epoch_snapshot_digest", "")),
-            reason=str(event.get("reason", "workspace_rerun")),
-            run_id=str(event.get("run_id", "")),
-        )
-
-    def _invalidate_viewer_sessions_for_worker_reset(self) -> None:
-        viewer_session_bridge = getattr(self._host, "viewer_session_bridge", None)
-        if viewer_session_bridge is None:
-            return
-        project_all_run_required = getattr(
-            viewer_session_bridge, "project_all_run_required", None
-        )
-        if callable(project_all_run_required):
-            project_all_run_required(reason="worker_reset")
-
-    def _take_run_start_runtime_snapshot(self, run_id: str) -> Any:
+    def consume_run_start_runtime_snapshot(self, run_id: str) -> Any:
         normalized_run_id = str(run_id or self._state.active_run_id).strip()
         if not normalized_run_id:
             return None
         return self._run_start_runtime_snapshots.pop(normalized_run_id, None)
+
+    def node_invalidated_during_active_run(
+        self, workspace_id: str, node_id: str
+    ) -> bool:
+        return (
+            str(workspace_id or "").strip() == self._state.active_run_workspace_id
+            and str(node_id or "").strip() in self._active_run_invalidated_node_ids
+        )

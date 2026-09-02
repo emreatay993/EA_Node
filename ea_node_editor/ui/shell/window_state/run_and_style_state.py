@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import logging
 from typing import TYPE_CHECKING, Any, Iterable, Literal
 
 from PyQt6.QtCore import pyqtSlot
@@ -9,8 +8,6 @@ from ea_node_editor.developer_mode import developer_mode_capability_enabled
 
 if TYPE_CHECKING:
     from ea_node_editor.ui.shell.window import ShellWindow
-
-logger = logging.getLogger(__name__)
 
 class ShellWindowRunAndStyleStateMixin:
     @pyqtSlot(bool)
@@ -170,9 +167,6 @@ class ShellWindowRunAndStyleStateMixin:
                 return True
         return False
 
-    def _run_workflow(self: "ShellWindow"):
-        return self.run_controller.run_workflow()
-
     def _toggle_pause_resume(self: "ShellWindow"):
         return self.run_controller.toggle_pause_resume()
 
@@ -185,23 +179,12 @@ class ShellWindowRunAndStyleStateMixin:
     def _stop_workflow(self: "ShellWindow"):
         return self.run_controller.stop_workflow()
 
-    def _handle_execution_event(self: "ShellWindow", event):
-        try:
-            return self.run_controller.handle_execution_event(event)
-        except Exception:
-            event_type = event.get("type", "") if isinstance(event, dict) else type(event).__name__
-            logger.exception("Error handling execution event (%s); keeping the app alive.", event_type)
-            return None
-
     def _toggle_developer_mode(self: "ShellWindow") -> None:
         if not developer_mode_capability_enabled():
             return
         active = not self.run_state.developer_mode_active
         self.run_state.developer_mode_active = active
         self.show_graph_hint(f"Developer mode {'ON' if active else 'OFF'}", 2400)
-
-    def _clear_active_run(self: "ShellWindow"):
-        return self.run_controller.clear_active_run()
 
     @pyqtSlot()
     @pyqtSlot(bool)
