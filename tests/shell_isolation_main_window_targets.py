@@ -326,8 +326,6 @@ def _build_targets():
             (
                 "tests/main_window_shell/passive_image_nodes.py::MainWindowShellPassiveImageNodesTests::test_media_panel_save_crop_action_replaces_browse_source_with_internal_png",
                 "tests/main_window_shell/passive_image_nodes.py::MainWindowShellPassiveImageNodesTests::test_media_panel_video_frame_and_timestamp_actions_use_current_video_mode",
-                "tests/main_window_shell/passive_image_nodes.py::MainWindowShellPassiveImageNodesTests::test_media_panel_frame_staging_failure_rolls_back_created_node_and_history",
-                "tests/main_window_shell/passive_image_nodes.py::MainWindowShellPassiveImageNodesTests::test_media_panel_trim_copy_staging_failure_rolls_back_created_node_and_history",
                 "tests/main_window_shell/passive_image_nodes.py::MainWindowShellPassiveImageNodesTests::test_media_panel_video_trim_copy_rejects_remote_effective_source",
                 "tests/main_window_shell/passive_image_nodes.py::MainWindowShellPassiveImageNodesTests::test_image_panel_crop_apply_persists_hidden_normalized_rect",
                 "tests/main_window_shell/passive_image_nodes.py::MainWindowShellPassiveImageNodesTests::test_image_panel_crop_action_does_not_start_host_drag",

@@ -102,6 +102,7 @@ def create_context_bridge_dependencies(
     graph_canvas_command_bridge = GraphCanvasCommandBridge(
         host,
         canvas_source=presenters.graph_canvas_presenter,
+        media_action_source=runtime.media_panel_action_service,
         graphics_source=presenters.shell_workspace_presenter,
         host_source=presenters.graph_canvas_host_presenter,
         scene_bridge=primitives.scene,

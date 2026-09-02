@@ -72,7 +72,8 @@ Design intent:
 - `addonManagerBridge`, `contentFullscreenBridge`, `viewerSessionBridge`, `viewerHostService`, `scriptEditorBridge`, `scriptHighlighterBridge`, `statusEngine`, `statusJobs`, `statusMetrics`, `statusNotifications`, and `helpBridge` are all first-class shell-owned context surfaces bound from `ea_node_editor.ui.shell.composition`. The content bridge has no `ShellWindow` reference, policy facade, dependency bag, compatibility alias, or second QML API.
 - `graphCanvasStateBridge` publishes the focused state surface consumed by `GraphCanvas.qml`: persisted graphics come only from its explicit `ShellWorkspacePresenter` graphics source, while minimap-expanded, selected-run preview, snap enabled, and snap size come only from its `GraphCanvasPresenter` canvas source.
 - `graphCanvasViewBridge` (the `ViewportBridge` context property) owns camera/view state consumed directly by `GraphCanvas.qml` and `GraphCanvasRootLayers.qml`.
-- `graphCanvasCommandBridge` owns scene/view mutations, property-browse requests, drop/connect flows, and connection quick-insert requests through its focused sources. Its persisted graphics slots target the explicit `ShellWorkspacePresenter` graphics source; snap, minimap-expanded, and selected-run-preview slots target the `GraphCanvasPresenter` canvas source. Scope-open flows prefer `GraphActionBridge`. `GraphCanvas.qml` has no aggregate graph-canvas facade or compatibility alias.
+- `graphCanvasCommandBridge` owns scene/view mutations, property-browse requests, drop/connect flows, and connection quick-insert requests through its focused sources. Its persisted graphics slots target the explicit `ShellWorkspacePresenter` graphics source; snap, minimap-expanded, and selected-run-preview slots target the `GraphCanvasPresenter` canvas source; image crop and video frame/timestamp/trim slots target the concrete `MediaPanelActionService`. Scope-open flows prefer `GraphActionBridge`. `GraphCanvas.qml` has no aggregate graph-canvas facade or compatibility alias.
+- `MediaPanelActionService` is the sole QObject owner of Media Panel crop, frame capture, timestamp annotation, trim replace/copy, artifact staging, and trim QThread/worker lifecycle. Composition injects the scene mutation owner, direct workspace edit/drop controllers, live model/workspace/project/run/path providers, the project-session staging call, and notification callbacks. Inline commands and fullscreen trim call this service directly; playback, source resolution, and fullscreen lifecycle stay in their existing owners.
 - `GraphCanvas.qml` still exposes the stable root contract methods used by shell/drop workflows (`toggleMinimapExpanded()`, `clearLibraryDropPreview()`, `updateLibraryDropPreview()`, `isPointInCanvas()`, `performLibraryDrop()`).
 - `GraphCanvas.qml` composes `GraphCanvasStateBridge`, `GraphCanvasCommandBridge`, and `ViewportBridge` directly through `canvasStateBridgeRef`, `canvasCommandBridgeRef`, and `_canvasViewportBridge`; there is no aggregate canvas bridge, adapter, or context property.
 - `GraphSceneBridge` remains the stable public scene contract for node/edge payloads and QML-invokable scene slots. Composition explicitly binds the `ShellWorkspacePresenter` graphics source; its payload fingerprint is `(show_port_labels, graph_label_pixel_size, node_title_icon_pixel_size, lightweight_canvas)`, so matching changes rebuild once while unrelated graphics changes do not rebuild scene models. Internal responsibility is split behind helper seams in `GraphSceneScopeSelection`, `GraphSceneMutationHistory`, and `GraphScenePayloadBuilder`.
@@ -428,6 +429,7 @@ flowchart LR
     SW --> WDROP[WorkspaceDropConnectController]
     SW --> WFLOW[WorkflowLibraryController]
     SW --> WPKG[WorkspacePackageIOController]
+    SW --> MEDIA[MediaPanelActionService]
     SW --> SEARCH[window_search_scope_state]
     SW --> INSPECTOR_HELPERS[library, inspector, and quick-insert projection owners]
     SW --> TBRIDGE
@@ -449,6 +451,10 @@ flowchart LR
     WDROP --> EFFECTS
     WEDIT --> GI[GraphInteractions]
     WPKG --> IO[WorkspaceIOOps]
+    MEDIA --> GS
+    MEDIA --> WEDIT
+    MEDIA --> WDROP
+    MEDIA --> PSC
     INSPECTOR_HELPERS --> EFFECTIVE[graph.effective_ports]
 
     WEDIT --> GS

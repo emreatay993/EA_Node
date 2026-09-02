@@ -19,7 +19,7 @@ class MediaImageOps:
     ) -> dict[str, Any]:
         return dict(
             _invoke(
-                self._canvas_source,
+                self._media_action_source,
                 "request_save_image_crop_replace",
                 image_node_id,
                 dict(crop_rect or {}),
@@ -31,7 +31,7 @@ class MediaImageOps:
                     "request_id": "",
                     "error": {
                         "code": "mutation_unavailable",
-                        "message": "Graph canvas presenter cannot save cropped Media Panel sources.",
+                        "message": "Media Panel actions are unavailable.",
                     },
                 },
             )

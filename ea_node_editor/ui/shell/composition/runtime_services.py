@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
+from ea_node_editor.ui.shell.media_panel_action_service import MediaPanelActionService
 from ea_node_editor.ui_qml.content_fullscreen_bridge import ContentFullscreenBridge
 from ea_node_editor.ui_qml.jupyter_server_bridge import JupyterServerBridge
 from ea_node_editor.ui_qml.native_folder_explorer_host_service import NativeFolderExplorerHostService
@@ -17,6 +18,9 @@ if TYPE_CHECKING:
     from ea_node_editor.ui.shell.composition.controllers import (
         ShellControllerDependencies,
     )
+    from ea_node_editor.ui.shell.composition.library_workspace import (
+        ShellLibraryWorkspaceDependencies,
+    )
     from ea_node_editor.ui.shell.composition.presenters import (
         ShellPresenterDependencies,
     )
@@ -27,6 +31,7 @@ if TYPE_CHECKING:
 
 @dataclass(frozen=True, slots=True)
 class ShellRuntimeDependencies:
+    media_panel_action_service: MediaPanelActionService
     content_fullscreen_bridge: ContentFullscreenBridge
     viewer_session_bridge: ViewerSessionBridge
     viewer_control_bridge: ViewerControlBridge
@@ -37,6 +42,7 @@ class ShellRuntimeDependencies:
     jupyter_server_bridge: JupyterServerBridge
 
     def attach(self, host: "ShellWindow") -> None:
+        host.media_panel_action_service = self.media_panel_action_service
         host.content_fullscreen_bridge = self.content_fullscreen_bridge
         host.viewer_session_bridge = self.viewer_session_bridge
         host.viewer_control_bridge = self.viewer_control_bridge
@@ -51,6 +57,7 @@ def create_viewer_service_dependencies(
     host: "ShellWindow",
     state: "ShellStateDependencies",
     primitives: "ShellPrimitiveDependencies",
+    library_workspace: "ShellLibraryWorkspaceDependencies",
     controllers: "ShellControllerDependencies",
     presenters: "ShellPresenterDependencies",
 ) -> ShellRuntimeDependencies:
@@ -76,6 +83,14 @@ def create_viewer_service_dependencies(
     def model_provider():  # noqa: ANN202
         return host.model
 
+    def active_workspace_provider():  # noqa: ANN202
+        model = model_provider()
+        workspace_id = active_workspace_id_provider()
+        return model.project.workspaces.get(workspace_id)
+
+    def project_provider():  # noqa: ANN202
+        return model_provider().project
+
     def registry_provider():  # noqa: ANN202
         return host.registry
 
@@ -91,6 +106,30 @@ def create_viewer_service_dependencies(
         )
 
     project_session = controllers.project_session_controller
+
+    def update_notification_counters() -> None:
+        host.update_notification_counters(
+            primitives.console_panel.warning_count,
+            primitives.console_panel.error_count,
+        )
+
+    media_panel_action_service = MediaPanelActionService(
+        host,
+        scene_mutation=primitives.scene,
+        workspace_edit_controller=library_workspace.workspace_edit_controller,
+        workspace_drop_connect_controller=(
+            library_workspace.workspace_drop_connect_controller
+        ),
+        model_provider=model_provider,
+        active_workspace_provider=active_workspace_provider,
+        project_provider=project_provider,
+        stage_node_artifact_bytes=project_session.stage_node_artifact_bytes,
+        run_state_provider=lambda: state.run_state,
+        project_path_provider=lambda: state.project_session_state.project_path,
+        append_console_log=primitives.console_panel.append_log,
+        show_graph_hint=host.show_graph_hint,
+        update_notification_counters=update_notification_counters,
+    )
 
     def create_web_surface_artifact_service(
         node_workspace_id: str,
@@ -123,11 +162,9 @@ def create_viewer_service_dependencies(
         script_editor=primitives.script_editor,
         save_file_dialog=presenters.shell_host_presenter.save_file_dialog,
         trim_video_clip_replace=(
-            presenters.graph_canvas_presenter.request_trim_video_clip_replace
+            media_panel_action_service.request_trim_video_clip_replace
         ),
-        trim_video_clip_copy=(
-            presenters.graph_canvas_presenter.request_trim_video_clip_copy
-        ),
+        trim_video_clip_copy=media_panel_action_service.request_trim_video_clip_copy,
         create_web_surface_artifact_service=create_web_surface_artifact_service,
     )
     viewer_host_service = ViewerHostService(
@@ -179,6 +216,7 @@ def create_viewer_service_dependencies(
         create_blank_notebook_artifact=project_session.create_blank_notebook_artifact,
     )
     return ShellRuntimeDependencies(
+        media_panel_action_service=media_panel_action_service,
         content_fullscreen_bridge=content_fullscreen_bridge,
         viewer_session_bridge=viewer_session_bridge,
         viewer_control_bridge=viewer_control_bridge,

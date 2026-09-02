@@ -37,6 +37,9 @@ from ea_node_editor.ui_qml.graph_canvas_command.scene_mutation_ops import SceneM
 from ea_node_editor.ui_qml.graph_canvas_command.viewport_ops import ViewportOps
 
 if TYPE_CHECKING:
+    from ea_node_editor.ui.shell.media_panel_action_service import (
+        MediaPanelActionService,
+    )
     from ea_node_editor.ui_qml.graph_scene_bridge import GraphSceneBridge
     from ea_node_editor.ui_qml.viewport_bridge import ViewportBridge
 
@@ -80,6 +83,7 @@ class GraphCanvasCommandBridge(
         *,
         shell_window: object | None = None,
         canvas_source: _GraphCanvasCommandSource | None = None,
+        media_action_source: "MediaPanelActionService | None" = None,
         graphics_source: _GraphCanvasGraphicsCommandSource | None = None,
         host_source: _GraphCanvasHostSource | None = None,
         scene_bridge: "GraphSceneBridge | None" = None,
@@ -94,6 +98,7 @@ class GraphCanvasCommandBridge(
         self._scene_bridge = scene_bridge
         self._view_bridge = view_bridge
         self._canvas_source = canvas_source
+        self._media_action_source = media_action_source
         self._graphics_source = graphics_source
         self._host_source = host_source
         self._scene_command_source = _resolve_scene_command_source(scene_bridge)
@@ -111,6 +116,10 @@ class GraphCanvasCommandBridge(
     @property
     def canvas_source(self) -> _GraphCanvasCommandSource | None:
         return self._canvas_source
+
+    @property
+    def media_action_source(self) -> "MediaPanelActionService | None":
+        return self._media_action_source
 
     @property
     def graphics_source(self) -> _GraphCanvasGraphicsCommandSource | None:

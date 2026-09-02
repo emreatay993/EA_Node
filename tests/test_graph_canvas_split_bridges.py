@@ -450,6 +450,61 @@ class _GraphCanvasViewBridgeStub(QObject):
 class GraphCanvasSplitBridgeTests(unittest.TestCase):
     __test__ = True
 
+    def test_media_action_fallbacks_keep_shape_and_use_neutral_message(self) -> None:
+        bridge = GraphCanvasCommandBridge()
+        results = (
+            (
+                bridge.request_save_image_crop_replace("image-1", {}),
+                {"success", "created_node_id", "created_type_id", "source_ref", "request_id", "error"},
+            ),
+            (
+                bridge.request_create_video_frame_image_node(
+                    "video-1",
+                    "missing.png",
+                    0,
+                    0.0,
+                    0.0,
+                    0.0,
+                    0.0,
+                ),
+                {"success", "created_node_id", "created_type_id", "source_ref", "error"},
+            ),
+            (
+                bridge.request_create_video_timestamp_annotation(
+                    "video-1",
+                    0,
+                    0.0,
+                    0.0,
+                ),
+                {"success", "created_node_id", "created_type_id", "link_id", "error"},
+            ),
+            (
+                bridge.request_trim_video_clip_replace("video-1", 0, 1, {}),
+                {"success", "created_node_id", "created_type_id", "source_ref", "request_id", "error"},
+            ),
+            (
+                bridge.request_trim_video_clip_copy(
+                    "video-1",
+                    0,
+                    1,
+                    0.0,
+                    0.0,
+                    {},
+                ),
+                {"success", "created_node_id", "created_type_id", "source_ref", "request_id", "error"},
+            ),
+        )
+
+        for result, expected_keys in results:
+            with self.subTest(result=result):
+                self.assertFalse(result["success"])
+                self.assertEqual(result["error"]["code"], "mutation_unavailable")
+                self.assertEqual(
+                    result["error"]["message"],
+                    "Media Panel actions are unavailable.",
+                )
+                self.assertEqual(set(result), expected_keys)
+
     def test_command_bridge_text_annotation_style_clipboard_is_internal(self) -> None:
         app = QApplication.instance() or QApplication([])
         app.setProperty("eaNodeEditorStyleClipboard:text-annotation-style", "")
@@ -575,6 +630,7 @@ class GraphCanvasSplitBridgeTests(unittest.TestCase):
             host,
             shell_window=host,
             canvas_source=presenter,
+            media_action_source=presenter,
             host_source=host_source,
             scene_bridge=scene,
             view_bridge=view,
@@ -583,6 +639,7 @@ class GraphCanvasSplitBridgeTests(unittest.TestCase):
         self.assertIs(bridge.parent(), host)
         self.assertIsNone(bridge.shell_window)
         self.assertIs(bridge.canvas_source, presenter)
+        self.assertIs(bridge.media_action_source, presenter)
         self.assertIs(bridge.host_source, host_source)
         self.assertIs(bridge.scene_bridge, scene)
         self.assertIs(bridge.view_bridge, view)
@@ -963,6 +1020,7 @@ class GraphCanvasSplitBridgeTests(unittest.TestCase):
             host,
             shell_window=host,
             canvas_source=host,
+            media_action_source=host,
             graphics_source=graphics,
             host_source=host_source,
             scene_bridge=scene,
@@ -974,6 +1032,7 @@ class GraphCanvasSplitBridgeTests(unittest.TestCase):
         self.assertIs(state_bridge.view_bridge, view)
         self.assertIsNone(command_bridge.shell_window)
         self.assertIs(command_bridge.canvas_source, host)
+        self.assertIs(command_bridge.media_action_source, host)
         self.assertIs(command_bridge.graphics_source, graphics)
         self.assertIs(command_bridge.host_source, host_source)
         self.assertIs(command_bridge.scene_bridge, scene)

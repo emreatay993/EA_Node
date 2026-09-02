@@ -12,6 +12,7 @@ from ea_node_editor.ui_qml.bridge_runtime import (
 if TYPE_CHECKING:
     pass
 
+
 class MediaVideoOps:
     """Video panel commands: frame capture, timestamp annotation, trim save/copy."""
 
@@ -19,7 +20,7 @@ class MediaVideoOps:
     def video_frame_capture_path(self, video_node_id: str, position_ms: int) -> str:
         return str(
             _invoke(
-                self._canvas_source,
+                self._media_action_source,
                 "video_frame_capture_path",
                 video_node_id,
                 int(position_ms),
@@ -41,7 +42,7 @@ class MediaVideoOps:
     ) -> dict[str, Any]:
         return dict(
             _invoke(
-                self._canvas_source,
+                self._media_action_source,
                 "request_create_video_frame_image_node",
                 video_node_id,
                 frame_path,
@@ -57,7 +58,7 @@ class MediaVideoOps:
                     "source_ref": "",
                     "error": {
                         "code": "mutation_unavailable",
-                        "message": "Graph canvas presenter cannot create video frame Media Panel nodes.",
+                        "message": "Media Panel actions are unavailable.",
                     },
                 },
             )
@@ -74,7 +75,7 @@ class MediaVideoOps:
     ) -> dict[str, Any]:
         return dict(
             _invoke(
-                self._canvas_source,
+                self._media_action_source,
                 "request_create_video_timestamp_annotation",
                 video_node_id,
                 int(position_ms),
@@ -87,7 +88,7 @@ class MediaVideoOps:
                     "link_id": "",
                     "error": {
                         "code": "mutation_unavailable",
-                        "message": "Graph canvas presenter cannot create video timestamp annotations.",
+                        "message": "Media Panel actions are unavailable.",
                     },
                 },
             )
@@ -104,7 +105,7 @@ class MediaVideoOps:
     ) -> dict[str, Any]:
         return dict(
             _invoke(
-                self._canvas_source,
+                self._media_action_source,
                 "request_trim_video_clip_replace",
                 video_node_id,
                 int(start_ms),
@@ -118,7 +119,7 @@ class MediaVideoOps:
                     "request_id": "",
                     "error": {
                         "code": "mutation_unavailable",
-                        "message": "Graph canvas presenter cannot trim Media Panel clips.",
+                        "message": "Media Panel actions are unavailable.",
                     },
                 },
             )
@@ -137,7 +138,7 @@ class MediaVideoOps:
     ) -> dict[str, Any]:
         return dict(
             _invoke(
-                self._canvas_source,
+                self._media_action_source,
                 "request_trim_video_clip_copy",
                 video_node_id,
                 int(start_ms),
@@ -153,7 +154,7 @@ class MediaVideoOps:
                     "request_id": "",
                     "error": {
                         "code": "mutation_unavailable",
-                        "message": "Graph canvas presenter cannot trim Media Panel clips.",
+                        "message": "Media Panel actions are unavailable.",
                     },
                 },
             )

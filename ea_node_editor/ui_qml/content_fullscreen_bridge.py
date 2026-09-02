@@ -1227,7 +1227,7 @@ class ContentFullscreenBridge(QObject):
         if trim is None:
             return self._video_trim_bridge_error(
                 "mutation_unavailable",
-                "Graph canvas presenter cannot trim Media Panel video clips.",
+                "Media Panel actions are unavailable.",
             )
         return dict(
             trim(
@@ -1256,7 +1256,7 @@ class ContentFullscreenBridge(QObject):
         if trim is None:
             return self._video_trim_bridge_error(
                 "mutation_unavailable",
-                "Graph canvas presenter cannot trim Media Panel video clips.",
+                "Media Panel actions are unavailable.",
             )
         return dict(
             trim(

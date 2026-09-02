@@ -55,6 +55,7 @@ flowchart LR
     SW --> WDROP[WorkspaceDropConnectController]
     SW --> WFLOW[WorkflowLibraryController]
     SW --> WPKG[WorkspacePackageIOController]
+    SW --> MEDIA[MediaPanelActionService]
     SW --> SEARCH[window_search_scope_state]
     SW --> INSPECTOR_HELPERS[library, inspector, and quick-insert projection owners]
     SW --> TBRIDGE
@@ -76,6 +77,10 @@ flowchart LR
     WDROP --> EFFECTS
     WEDIT --> GI[GraphInteractions]
     WPKG --> IO[WorkspaceIOOps]
+    MEDIA --> GS
+    MEDIA --> WEDIT
+    MEDIA --> WDROP
+    MEDIA --> PSC
     INSPECTOR_HELPERS --> EFFECTIVE[graph.effective_ports]
 
     WEDIT --> GS

@@ -785,6 +785,18 @@ class ContentFullscreenBridgeTests(_ContentFullscreenDirectTestCase):
         copy_state = self.video_trim_presenter.calls[1][1][5]
         self.assertEqual(copy_state["timeline_bookmarks"], [{"id": "out", "label": "Out", "position_ms": 5000}])
 
+        bridge._trim_video_clip_replace = None
+        bridge._trim_video_clip_copy = None
+        for unavailable in (
+            bridge.request_trim_video_clip_replace({"clip_start_ms": 1, "clip_end_ms": 2}),
+            bridge.request_trim_video_clip_copy({"clip_start_ms": 1, "clip_end_ms": 2}),
+        ):
+            self.assertEqual(unavailable["error"]["code"], "mutation_unavailable")
+            self.assertEqual(
+                unavailable["error"]["message"],
+                "Media Panel actions are unavailable.",
+            )
+
         bridge.request_close()
         unavailable = bridge.request_trim_video_clip_copy({})
         self.assertEqual(

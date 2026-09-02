@@ -9,6 +9,7 @@ Use this for the active unified Media Panel, its derived image/PDF/video rendere
 - `ea_node_editor/nodes/file_dialog_filters.py`
 - `ea_node_editor/ui/media_panel_source.py`
 - `ea_node_editor/ui/media_video_state.py`
+- `ea_node_editor/ui/shell/media_panel_action_service.py`
 - `ea_node_editor/ui/media_preview_provider.py`
 - `ea_node_editor/ui/pdf_preview_provider.py`
 - `ea_node_editor/ui/video_trim.py`
@@ -29,6 +30,7 @@ Use this for the active unified Media Panel, its derived image/PDF/video rendere
 - `tests/test_media_panel_source_resolution.py`
 - `tests/test_media_panel_qml_surface.py`
 - `tests/test_media_video_state.py`
+- `tests/test_media_panel_action_service.py`
 - `tests/fixtures/media/video-playback.mp4` — synthetic decoded-media lifecycle fixture
 - `tests/test_content_fullscreen_bridge.py`
 - `tests/test_passive_image_nodes.py`
@@ -47,6 +49,7 @@ Use this for the active unified Media Panel, its derived image/PDF/video rendere
 
 ## Surface And Action Rules
 - `GraphMediaPanelSurface.qml` is the common dispatcher. It owns Source/Browse/Internalize/Repair/Open, Source exposure, title/frame, and fullscreen actions; the three renderers own mode-specific behavior.
+- `MediaPanelActionService` owns crop, frame creation, timestamp annotation, trim replace/copy, artifact staging, normalized result payloads, and the lazy trim worker/QThread map. `GraphCanvasCommandBridge` has a dedicated concrete media-action source, and `ContentFullscreenBridge` receives only the service's two trim callbacks.
 - Input exposure disables the inspector Source editor, Browse, Internalize, Repair, crop Save/Replace, and trim Replace. Display actions, Open Source, fullscreen, frame capture, and valid trim Copy remain mode-gated.
 - Image crop/transform/animation state remains in `GraphMediaImageRenderer.qml`; animation ownership is loader-local and pauses/releases on proxy, crop, offscreen, fullscreen, source, or mode transitions.
 - PDF inline preview owns page clamping through `pdf_preview_provider.py`; fullscreen uses `PdfDocument`/`PdfMultiPageView`. Graph mutation does not rewrite authored page values.
@@ -57,7 +60,7 @@ Use this for the active unified Media Panel, its derived image/PDF/video rendere
 - Mail remains `passive.media.mail_panel` with authored `source_path`, provider-generated HTML, render-only inline WebEngine, and separate fullscreen behavior.
 
 ## Creation And Persistence Rules
-- Blank insertion reads app preference `graphics.media_panel.source_input_exposed` from the `ShellWorkspacePresenter` explicitly bound to `GraphSceneBridge`; explicit connect forces Source exposed; OS paste/drop, frame capture, and trim Copy force it hidden. `GraphCanvasPresenter` is not a Media Panel preference source.
+- Blank insertion reads app preference `graphics.media_panel.source_input_exposed` from the `ShellWorkspacePresenter` explicitly bound to `GraphSceneBridge`; explicit connect forces Source exposed; OS paste/drop, frame capture, and trim Copy force it hidden. `GraphCanvasPresenter` owns neither Media Panel preferences nor Media Panel actions.
 - Project load, fragment paste, custom workflows, undo, and redo preserve serialized exposure exactly. Property overrides never imply exposure.
 - The three pre-cutover media identities have no aliases or project migration. The frozen 133-row catalogue is historical; the structural overlay yields the 131-row current catalogue.
 

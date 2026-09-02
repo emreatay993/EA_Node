@@ -61,51 +61,6 @@ class _GraphCanvasCommandSource(Protocol):
         properties: dict[str, Any],
     ) -> bool: ...
 
-    def video_frame_capture_path(self, video_node_id: str, position_ms: int) -> str: ...
-
-    def request_save_image_crop_replace(
-        self,
-        image_node_id: str,
-        crop_rect: dict[str, Any] | None = None,
-    ) -> dict[str, Any]: ...
-
-    def request_create_video_frame_image_node(
-        self,
-        video_node_id: str,
-        frame_path: str,
-        position_ms: int,
-        scene_x: float,
-        scene_y: float,
-        capture_width: float,
-        capture_height: float,
-    ) -> dict[str, Any]: ...
-
-    def request_create_video_timestamp_annotation(
-        self,
-        video_node_id: str,
-        position_ms: int,
-        scene_x: float,
-        scene_y: float,
-    ) -> dict[str, Any]: ...
-
-    def request_trim_video_clip_replace(
-        self,
-        video_node_id: str,
-        start_ms: int,
-        end_ms: int,
-        state: dict[str, Any] | None = None,
-    ) -> dict[str, Any]: ...
-
-    def request_trim_video_clip_copy(
-        self,
-        video_node_id: str,
-        start_ms: int,
-        end_ms: int,
-        scene_x: float,
-        scene_y: float,
-        state: dict[str, Any] | None = None,
-    ) -> dict[str, Any]: ...
-
     def request_connect_ports(
         self,
         source_node_id: str,

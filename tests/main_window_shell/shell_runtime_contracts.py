@@ -202,6 +202,10 @@ class MainWindowShellContextBootstrapTests(SharedMainWindowShellTestBase):
         self.assertIsNone(graph_canvas_command_bridge.shell_window)
         self.assertIs(graph_canvas_command_bridge.canvas_source, self.window.graph_canvas_presenter)
         self.assertIs(
+            graph_canvas_command_bridge.media_action_source,
+            self.window.media_panel_action_service,
+        )
+        self.assertIs(
             graph_canvas_command_bridge.graphics_source,
             self.window.shell_workspace_presenter,
         )

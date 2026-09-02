@@ -248,7 +248,7 @@ def test_plan_and_ledger_are_complete_and_synchronized() -> None:
 def test_clean_checkpoint_between_tasks_is_valid() -> None:
     plan_text = PLAN.read_text(encoding="utf-8")
     ledger_text = LEDGER.read_text(encoding="utf-8")
-    active = "CHECKPOINT — T14 ACCEPTED; NEXT T15"
+    active = "CHECKPOINT — T15 ACCEPTED; NEXT T16"
     assert _top_status(plan_text) == active
     assert _top_status(ledger_text) == active
     _validate_documents(plan_text, ledger_text)
@@ -265,7 +265,7 @@ def test_plan_and_ledger_status_drift_is_rejected() -> None:
     with pytest.raises(AssertionError):
         _validate_documents(
             PLAN.read_text(encoding="utf-8").replace(
-                "Status: `CHECKPOINT — T14 ACCEPTED; NEXT T15`",
+                "Status: `CHECKPOINT — T15 ACCEPTED; NEXT T16`",
                 "Status: `CHECKPOINT — T13 ACCEPTED; NEXT T14`",
                 1,
             ),

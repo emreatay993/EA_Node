@@ -832,8 +832,8 @@ class GraphArchitectureBoundaryTests(unittest.TestCase):
         self.assertIn("stage_node_artifact_bytes", clipboard_stage)
         self.assertNotIn("shell_host_presenter", clipboard_stage)
 
-        graph_canvas_tree = parse_module(
-            "ea_node_editor/ui/shell/presenters/graph_canvas_presenter.py"
+        media_action_tree = parse_module(
+            "ea_node_editor/ui/shell/media_panel_action_service.py"
         )
         for method_name in (
             "_stage_image_crop",
@@ -842,14 +842,14 @@ class GraphArchitectureBoundaryTests(unittest.TestCase):
         ):
             method_source = ast.unparse(
                 method_node(
-                    graph_canvas_tree,
-                    "GraphCanvasPresenter",
+                    media_action_tree,
+                    "MediaPanelActionService",
                     method_name,
                 )
             )
-            with self.subTest(graph_canvas_method=method_name):
-                self.assertIn("project_session_controller", method_source)
-                self.assertIn("stage_node_artifact_bytes", method_source)
+            with self.subTest(media_action_method=method_name):
+                self.assertIn("_stage_node_artifact_bytes", method_source)
+                self.assertNotIn("project_session_controller", method_source)
                 self.assertNotIn("shell_host_presenter", method_source)
 
         jupyter_path = "ea_node_editor/ui_qml/jupyter_server_bridge.py"
@@ -1991,6 +1991,85 @@ class GraphArchitectureBoundaryTests(unittest.TestCase):
         )
         self.assertNotIn("workspace_library_controller", production_source)
         self.assertNotIn("workspace_graph_edit_controller", production_source)
+
+    def test_media_panel_actions_have_one_direct_qobject_service(self) -> None:
+        presenter_tree = parse_module(
+            "ea_node_editor/ui/shell/presenters/graph_canvas_presenter.py"
+        )
+        presenter_methods = {
+            node.name
+            for node in class_node(presenter_tree, "GraphCanvasPresenter").body
+            if isinstance(node, ast.FunctionDef)
+        }
+        self.assertFalse(
+            {
+                "request_save_image_crop_replace",
+                "video_frame_capture_path",
+                "request_create_video_frame_image_node",
+                "request_create_video_timestamp_annotation",
+                "request_trim_video_clip_replace",
+                "request_trim_video_clip_copy",
+                "_active_media_source",
+                "_finish_video_trim_job",
+                "_stage_image_crop",
+                "_stage_video_frame_capture",
+                "_stage_video_clip",
+            }
+            & presenter_methods
+        )
+
+        service_path = "ea_node_editor/ui/shell/media_panel_action_service.py"
+        service_tree = parse_module(service_path)
+        service_class = class_node(service_tree, "MediaPanelActionService")
+        self.assertEqual(
+            [base.id for base in service_class.bases if isinstance(base, ast.Name)],
+            ["QObject"],
+        )
+        self.assertFalse(
+            any(
+                isinstance(node, ast.ClassDef) and node.name.endswith("Protocol")
+                for node in service_tree.body
+            )
+        )
+        service_source = (REPO_ROOT / service_path).read_text(encoding="utf-8")
+        self.assertEqual(service_source.count("QThread(self)"), 1)
+        self.assertEqual(service_source.count("VideoTrimWorker("), 1)
+
+        runtime_source = (
+            REPO_ROOT / "ea_node_editor/ui/shell/composition/runtime_services.py"
+        ).read_text(encoding="utf-8")
+        self.assertEqual(runtime_source.count("MediaPanelActionService("), 1)
+        for direct_dependency in (
+            "scene_mutation=primitives.scene",
+            "workspace_edit_controller=library_workspace.workspace_edit_controller",
+            "workspace_drop_connect_controller=(",
+            "library_workspace.workspace_drop_connect_controller",
+            "stage_node_artifact_bytes=project_session.stage_node_artifact_bytes",
+            "trim_video_clip_replace=(\n            media_panel_action_service.request_trim_video_clip_replace",
+            "trim_video_clip_copy=media_panel_action_service.request_trim_video_clip_copy",
+        ):
+            self.assertIn(direct_dependency, runtime_source)
+
+        bridge_source = (
+            REPO_ROOT / "ea_node_editor/ui/shell/composition/bridges.py"
+        ).read_text(encoding="utf-8")
+        self.assertIn(
+            "media_action_source=runtime.media_panel_action_service",
+            bridge_source,
+        )
+        fallback_sources = "\n".join(
+            (REPO_ROOT / path).read_text(encoding="utf-8")
+            for path in (
+                "ea_node_editor/ui_qml/graph_canvas_command/media_image_ops.py",
+                "ea_node_editor/ui_qml/graph_canvas_command/media_video_ops.py",
+                "ea_node_editor/ui_qml/content_fullscreen_bridge.py",
+            )
+        )
+        self.assertNotIn("Graph canvas presenter cannot", fallback_sources)
+        self.assertEqual(
+            fallback_sources.count("Media Panel actions are unavailable."),
+            7,
+        )
 
     def test_fragment_payload_helpers_share_model_mapping_parsers(self) -> None:
         fragment_payload_tree = parse_module("ea_node_editor/graph/fragment_payloads.py")

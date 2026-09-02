@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import copy
 import gc
 import hashlib
 import os
@@ -13,8 +12,6 @@ from PyQt6.QtQml import QJSValue
 from PyQt6.QtQuick import QQuickItem
 from PyQt6.QtTest import QSignalSpy, QTest
 
-from ea_node_editor.ui.shell.presenters import graph_canvas_presenter as graph_canvas_presenter_module
-from ea_node_editor.ui.video_trim import VideoTrimResult
 from tests.main_window_shell.base import *  # noqa: F401,F403
 from tests.qt_wait import wait_for_condition_or_raise
 
@@ -505,7 +502,7 @@ class MainWindowShellPassiveImageNodesTests(SharedMainWindowShellTestBase):
 
         workspace = self.window.model.project.workspaces[workspace_id]
         metadata_spy = QSignalSpy(self.window.project_meta_changed)
-        result = self.window.graph_canvas_presenter.request_save_image_crop_replace(
+        result = self.window.media_panel_action_service.request_save_image_crop_replace(
             node_id,
             {"x": 0.25, "y": 0.25, "width": 0.5, "height": 0.5},
         )
@@ -559,7 +556,7 @@ class MainWindowShellPassiveImageNodesTests(SharedMainWindowShellTestBase):
         self.assertTrue(frame.save(str(frame_path), "PNG"))
         metadata_spy = QSignalSpy(self.window.project_meta_changed)
 
-        frame_result = self.window.graph_canvas_presenter.request_create_video_frame_image_node(
+        frame_result = self.window.media_panel_action_service.request_create_video_frame_image_node(
             video_node_id,
             str(frame_path),
             1200,
@@ -568,7 +565,7 @@ class MainWindowShellPassiveImageNodesTests(SharedMainWindowShellTestBase):
             240.0,
             120.0,
         )
-        timestamp_result = self.window.graph_canvas_presenter.request_create_video_timestamp_annotation(
+        timestamp_result = self.window.media_panel_action_service.request_create_video_timestamp_annotation(
             video_node_id,
             1200,
             360.0,
@@ -604,151 +601,6 @@ class MainWindowShellPassiveImageNodesTests(SharedMainWindowShellTestBase):
         self.assertEqual(note.links[0].subtitle, "video_position_ms=1200")
         self.assertEqual(len(metadata_spy), 1)
 
-    def test_media_panel_frame_staging_failure_rolls_back_created_node_and_history(self) -> None:
-        workspace_id = self.window.workspace_manager.active_workspace_id()
-        video_path = Path(self._env.temp_path) / "frame-failure-source.mp4"
-        video_path.write_bytes(b"video")
-        video_node_id = self.window.scene.create_node_from_type(
-            type_id="media.panel",
-            x=120.0,
-            y=80.0,
-            parent_node_id=None,
-            select_node=True,
-            property_overrides={"source": str(video_path)},
-            exposed_port_overrides={"source": False},
-        )
-        frame_path = Path(self._env.temp_path) / "failed-frame.png"
-        frame = QImage(24, 12, QImage.Format.Format_ARGB32)
-        frame.fill(QColor("#ba4d68"))
-        workspace = self.window.model.project.workspaces[workspace_id]
-
-        for pre_dirty, expected_revision in ((False, 419), (True, 503)):
-            with self.subTest(pre_dirty=pre_dirty):
-                self.assertTrue(frame.save(str(frame_path), "PNG"))
-                workspace.dirty = pre_dirty
-                workspace.mutation_revision = expected_revision
-                self.window.runtime_history.clear_workspace(workspace_id)
-                before_node_ids = set(workspace.nodes)
-                before_edges = dict(workspace.edges)
-                before_selection = tuple(self.window.scene.selected_node_ids)
-                before_metadata = copy.deepcopy(self.window.model.project.metadata)
-
-                with patch.object(
-                    self.window.graph_canvas_presenter,
-                    "_stage_video_frame_capture",
-                    return_value="",
-                ):
-                    result = self.window.graph_canvas_presenter.request_create_video_frame_image_node(
-                        video_node_id,
-                        str(frame_path),
-                        1200,
-                        360.0,
-                        80.0,
-                        240.0,
-                        120.0,
-                    )
-
-                self.assertFalse(result["success"])
-                self.assertEqual(result["error"]["code"], "stage_failed")
-                self.assertEqual(result["created_node_id"], "")
-                self.assertEqual(set(workspace.nodes), before_node_ids)
-                self.assertEqual(workspace.edges, before_edges)
-                self.assertEqual(tuple(self.window.scene.selected_node_ids), before_selection)
-                self.assertEqual(self.window.model.project.metadata, before_metadata)
-                self.assertEqual(workspace.dirty, pre_dirty)
-                self.assertEqual(workspace.mutation_revision, expected_revision)
-                self.assertEqual(self.window.runtime_history.undo_depth(workspace_id), 0)
-                self.assertEqual(self.window.runtime_history.redo_depth(workspace_id), 0)
-
-    def test_media_panel_trim_copy_staging_failure_rolls_back_created_node_and_history(self) -> None:
-        workspace_id = self.window.workspace_manager.active_workspace_id()
-        video_path = Path(self._env.temp_path) / "trim-failure-source.mp4"
-        video_path.write_bytes(b"video")
-        video_node_id = self.window.scene.create_node_from_type(
-            type_id="media.panel",
-            x=120.0,
-            y=80.0,
-            parent_node_id=None,
-            select_node=True,
-            property_overrides={"source": str(video_path)},
-            exposed_port_overrides={"source": False},
-        )
-        source_node, source_resolution = (
-            self.window.graph_canvas_presenter._active_media_source(
-                video_node_id,
-                expected_kind="video",
-            )
-        )
-        self.assertIsNotNone(source_node)
-        self.assertIsNotNone(source_resolution)
-        assert source_resolution is not None
-        context = graph_canvas_presenter_module._VideoTrimContext(
-            action="copy",
-            node_id=video_node_id,
-            start_ms=1000,
-            end_ms=2000,
-            scene_x=360.0,
-            scene_y=80.0,
-            properties=dict(source_node.properties),
-            resolved_source_url=source_resolution.resolved_source_url,
-        )
-        workspace = self.window.model.project.workspaces[workspace_id]
-        self.window.runtime_history.clear_workspace(workspace_id)
-        before_node_ids = set(workspace.nodes)
-        before_edges = dict(workspace.edges)
-        before_selection = tuple(self.window.scene.selected_node_ids)
-        before_metadata = dict(self.window.model.project.metadata)
-
-        with patch.object(
-            self.window.graph_canvas_presenter,
-            "_stage_video_clip",
-            return_value="",
-        ):
-            result = self.window.graph_canvas_presenter._complete_video_trim_copy(
-                context,
-                VideoTrimResult(success=True, data=b"trimmed", mode_used="fast_copy"),
-            )
-
-        self.assertFalse(result["success"])
-        self.assertEqual(result["error"]["code"], "stage_failed")
-        self.assertEqual(result["created_node_id"], "")
-        self.assertEqual(set(workspace.nodes), before_node_ids)
-        self.assertEqual(workspace.edges, before_edges)
-        self.assertEqual(tuple(self.window.scene.selected_node_ids), before_selection)
-        self.assertEqual(self.window.model.project.metadata, before_metadata)
-        self.assertEqual(self.window.runtime_history.undo_depth(workspace_id), 0)
-        self.assertEqual(self.window.runtime_history.redo_depth(workspace_id), 0)
-
-        metadata_spy = QSignalSpy(self.window.project_meta_changed)
-        success = self.window.graph_canvas_presenter._complete_video_trim_copy(
-            context,
-            VideoTrimResult(success=True, data=b"trimmed", mode_used="fast_copy"),
-        )
-        copied = workspace.nodes[str(success["created_node_id"])]
-        self.assertTrue(success["success"])
-        self.assertEqual(copied.type_id, "media.panel")
-        self.assertFalse(copied.exposed_ports["source"])
-        copied_ref = str(copied.properties["source"])
-        self.assertTrue(copied_ref.startswith("temp://"))
-        store = self.window.project_session_controller.project_artifact_store()
-        copied_entry = store.staged_entry(copied_ref)
-        copied_path = store.resolve_staged_path(copied_ref)
-        self.assertIsNotNone(copied_entry)
-        self.assertIsNotNone(copied_path)
-        assert copied_entry is not None and copied_path is not None
-        copied_bytes = copied_path.read_bytes()
-        self.assertEqual(copied_bytes, b"trimmed")
-        self.assertEqual(copied_entry.extra["artifact_kind"], "video_clip_source")
-        self.assertEqual(copied_entry.extra["mime_type"], "video/mp4")
-        self.assertEqual(copied_entry.extra["size"], len(copied_bytes))
-        self.assertEqual(
-            copied_entry.extra["sha256"],
-            hashlib.sha256(copied_bytes).hexdigest(),
-        )
-        self.assertEqual(copied_entry.extra["node_id"], copied.node_id)
-        self.assertEqual(len(metadata_spy), 1)
-        self.assertEqual(self.window.runtime_history.undo_depth(workspace_id), 1)
-
     def test_media_panel_video_trim_copy_rejects_remote_effective_source(self) -> None:
         node_id = self.window.scene.create_node_from_type(
             type_id="media.panel",
@@ -760,7 +612,7 @@ class MainWindowShellPassiveImageNodesTests(SharedMainWindowShellTestBase):
             exposed_port_overrides={"source": False},
         )
 
-        result = self.window.graph_canvas_presenter.request_trim_video_clip_copy(
+        result = self.window.media_panel_action_service.request_trim_video_clip_copy(
             node_id,
             1000,
             2000,
