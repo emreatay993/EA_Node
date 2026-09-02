@@ -2486,24 +2486,24 @@ class GraphSurfaceCanvasInteractionTests(GraphSurfaceInputContractTestBase):
             edge_popup = named_item(menus, "graphCanvasEdgeContextPopup")
             display_popup = named_item(menus, "graphCanvasEdgeDisplayModeContextPopup")
             active_actions = [variant_value(action) for action in variant_list(edge_popup.property("visibleActions"))]
-            assert "Display Mode" in [str(action.get("text", "")) for action in active_actions]
+            assert "Display Mode" in [str(action.get("text", "")) for action in active_actions], ("active actions", active_actions)
 
             edge_popup.actionTriggered.emit("edge_display_mode_menu")
             settle_events(2)
-            assert bool(display_popup.property("visible")) is True
+            assert bool(display_popup.property("visible")) is True, "display popup did not open"
             display_actions = [
                 variant_value(action)
                 for action in variant_list(display_popup.property("visibleActions"))
             ]
             assert [str(action.get("text", "")) for action in display_actions] == [
                 "Default", "Faint", "Hidden"
-            ]
-            assert [bool(action.get("checked")) for action in display_actions] == [False, True, False]
+            ], ("display actions", display_actions)
+            assert [bool(action.get("checked")) for action in display_actions] == [False, True, False], ("display checks", display_actions)
             display_popup.actionTriggered.emit("edge_display_mode:hidden")
             settle_events(2)
             assert variant_value(canvas_item.property("displayCalls")) == [
                 {"edge_ids": ["active_edge"], "mode": "hidden"}
-            ]
+            ], ("display calls after context", variant_value(canvas_item.property("displayCalls")))
 
             for unavailable_edge_id in ("passive_edge", "flow_edge"):
                 canvas_item.setProperty("edgeContextEdgeId", unavailable_edge_id)
@@ -2518,7 +2518,7 @@ class GraphSurfaceCanvasInteractionTests(GraphSurfaceInputContractTestBase):
                 ], (unavailable_edge_id, unavailable_actions)
             assert variant_value(canvas_item.property("displayCalls")) == [
                 {"edge_ids": ["active_edge"], "mode": "hidden"}
-            ]
+            ], ("display calls after unavailable", variant_value(canvas_item.property("displayCalls")))
 
             dispose_host_window(menus, menus_window)
             options = create_component(
@@ -2531,23 +2531,23 @@ class GraphSurfaceCanvasInteractionTests(GraphSurfaceInputContractTestBase):
                 ["active_edge", "passive_edge", "flow_edge"],
             )
             settle_events(3)
-            assert variant_list(options.property("selectedWireEdgeIds")) == ["active_edge"]
-            assert str(options.property("selectedWireDisplayModeValue")) == "faint"
+            assert variant_list(options.property("selectedWireEdgeIds")) == ["active_edge"], ("selected ids", variant_list(options.property("selectedWireEdgeIds")))
+            assert str(options.property("selectedWireDisplayModeValue")) == "faint", options.property("selectedWireDisplayModeValue")
             calls_before_batch = len(variant_list(canvas_item.property("displayCalls")))
-            assert bool(options.setSelectedWiresDisplayMode("hidden")) is True
+            assert bool(options.setSelectedWiresDisplayMode("hidden")) is True, "selected display update rejected"
             settle_events(2)
             display_calls = [
                 variant_value(call)
                 for call in variant_list(canvas_item.property("displayCalls"))
             ]
-            assert len(display_calls) == calls_before_batch + 1
-            assert display_calls[-1] == {"edge_ids": ["active_edge"], "mode": "hidden"}
+            assert len(display_calls) == calls_before_batch + 1, ("batch count", display_calls)
+            assert display_calls[-1] == {"edge_ids": ["active_edge"], "mode": "hidden"}, ("batch payload", display_calls)
 
             canvas_item.setProperty("selectedEdgeIds", ["passive_edge", "flow_edge"])
             settle_events(2)
-            assert variant_list(options.property("selectedWireEdgeIds")) == []
-            assert bool(options.setSelectedWiresDisplayMode("faint")) is False
-            assert len(variant_list(canvas_item.property("displayCalls"))) == calls_before_batch + 1
+            assert variant_list(options.property("selectedWireEdgeIds")) == [], ("empty selected ids", variant_list(options.property("selectedWireEdgeIds")))
+            assert bool(options.setSelectedWiresDisplayMode("faint")) is False, "empty selection accepted"
+            assert len(variant_list(canvas_item.property("displayCalls"))) == calls_before_batch + 1, variant_list(canvas_item.property("displayCalls"))
 
             dispose_host_window(options, options_window)
             action_router.deleteLater()

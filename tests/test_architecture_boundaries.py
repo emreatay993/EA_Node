@@ -2632,6 +2632,113 @@ class GraphArchitectureBoundaryTests(unittest.TestCase):
         self.assertIn("portContextMenu.y = Math.max", layer_text)
         self.assertIn("portContextMenu.open();", layer_text)
 
+    def test_graph_action_presentation_is_pure_and_dispatch_stays_in_the_router(self) -> None:
+        qml_root = REPO_ROOT / "ea_node_editor/ui_qml/components"
+        owner_path = qml_root / "graph/GraphActionPresentation.js"
+        owner_text = owner_path.read_text(encoding="utf-8")
+        consumer_paths = (
+            qml_root / "graph_canvas/GraphCanvasActionRouter.qml",
+            qml_root / "graph_canvas/GraphCanvasContextMenus.qml",
+            qml_root / "graph_canvas/GraphCanvasOptionsMenu.qml",
+            qml_root / "graph/overlay/GraphEdgeFloatingToolbar.qml",
+            qml_root / "graph/overlay/GraphNodeFloatingToolbar.qml",
+            qml_root / "graph/GraphNodeHost.qml",
+        )
+        consumer_texts = {
+            path.name: path.read_text(encoding="utf-8") for path in consumer_paths
+        }
+
+        self.assertTrue(owner_text.startswith(".pragma library\n"))
+        for forbidden in (
+            "Item {",
+            "QtObject {",
+            "Timer {",
+            "Loader {",
+            "Connections {",
+            "Binding {",
+            "crop_",
+            "trim_",
+            "timestamp_",
+            "fullscreen",
+            "viewer_",
+            "plot_",
+            "native_",
+        ):
+            self.assertNotIn(forbidden, owner_text.lower() if forbidden.islower() else owner_text)
+
+        for name, text in consumer_texts.items():
+            with self.subTest(consumer=name):
+                self.assertIn("GraphActionPresentation.js", text)
+
+        forbidden_helpers = {
+            "GraphCanvasActionRouter.qml": (
+                "function _descriptorForActionId(",
+                "function _normalizedEdgePathMode(",
+            ),
+            "GraphCanvasContextMenus.qml": (
+                "function _edgeActionId(",
+                "function _normalizedEdgePathMode(",
+                "function _edgePathAction(",
+                "function _normalizedEdgeDisplayMode(",
+                "function _edgeDisplayModeActions(",
+            ),
+            "GraphCanvasOptionsMenu.qml": ("function _normalizedEdgeDisplayMode(",),
+            "GraphEdgeFloatingToolbar.qml": (
+                "function _toolbarActions(",
+                "function _normalizedPathMode(",
+                "function _normalizedDisplayMode(",
+                "function _displayModeLabel(",
+                "function _currentPathMode(",
+                "function _currentDisplayMode(",
+            ),
+            "GraphNodeFloatingToolbar.qml": (
+                "function _actionChecked(",
+                "function _menuActionsFor(",
+                "function _popoverActionsFor(",
+                "function _toolbarActionById(",
+                "function _filteredPopoverActions(",
+                "function _checkedPopoverActionIndex(",
+                "function _sourceStorageLabels(",
+                "function _sourceStorageActionAt(",
+                "function _popoverActionById(",
+                "function _actionToolbarText(",
+                "function _actionTooltipText(",
+                "function _actionToolbarIcon(",
+                "function _actionIconOnly(",
+            ),
+        }
+        for name, helpers in forbidden_helpers.items():
+            for helper in helpers:
+                with self.subTest(consumer=name, helper=helper):
+                    self.assertNotIn(helper, consumer_texts[name])
+
+        router_text = consumer_texts["GraphCanvasActionRouter.qml"]
+        for public_method in (
+            "function descriptorActionId(",
+            "function edgeContextActionId(",
+            "function nodeContextActionId(",
+            "function selectionContextActionId(",
+            "function folderExplorerActionId(",
+            "function triggerGraphAction(",
+            "function handleEdgeContextAction(",
+            "function handleNodeContextAction(",
+            "function handleSelectionContextAction(",
+            "function handleNodeDelegateAction(",
+        ):
+            self.assertIn(public_method, router_text)
+
+        def declaration_count(text: str, type_name: str) -> int:
+            return sum(line.strip() == f"{type_name} {{" for line in text.splitlines())
+
+        combined = "\n".join(consumer_texts.values())
+        self.assertEqual(
+            {
+                name: declaration_count(combined, name)
+                for name in ("Item", "QtObject", "Timer", "Loader")
+            },
+            {"Item": 14, "QtObject": 2, "Timer": 0, "Loader": 7},
+        )
+
     def test_closeout_docs_publish_architecture_residual_matrix_from_packet_owned_surfaces(self) -> None:
         spec_index_text = (REPO_ROOT / manifest.SPEC_INDEX_DOC).read_text(encoding="utf-8")
         qa_acceptance_text = (REPO_ROOT / manifest.QA_ACCEPTANCE_DOC).read_text(encoding="utf-8")

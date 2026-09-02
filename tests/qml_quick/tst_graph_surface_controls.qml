@@ -1410,6 +1410,30 @@ TestCase {
         return root
     }
 
+    function test_floating_toolbar_action_model_ignores_position_only_changes() {
+        var probe = createFloatingToolbarProbe()
+        var toolbar = findChild(probe, "floatingToolbarProbeToolbar")
+        var host = findChild(probe, "floatingToolbarProbeHost")
+        var view = findChild(probe, "floatingToolbarProbeViewBridge")
+        var rebuildCount = 0
+        toolbar._orderedActionsChanged.connect(function() {
+            rebuildCount += 1
+        })
+
+        view.zoom_value = 0.75
+        view.center_x += 40
+        view.center_y -= 25
+        host.worldOffset += 18
+        wait(0)
+        compare(rebuildCount, 0)
+
+        host.availableActions = host.availableActions.concat([
+            {"id": "new_action", "label": "New", "kind": "common", "enabled": true}
+        ])
+        tryVerify(function() { return rebuildCount === 1 })
+        compare(toolbar._orderedActions.length, 5)
+    }
+
     function clickItem(item, button) {
         verify(item !== null)
         mouseClick(

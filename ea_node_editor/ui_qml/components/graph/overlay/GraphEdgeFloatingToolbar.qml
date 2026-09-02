@@ -2,6 +2,7 @@ import QtQuick 2.15
 import QtQuick.Controls 2.15
 import "../../common" as Common
 import ".." as GraphComponents
+import "../GraphActionPresentation.js" as GraphActionPresentation
 import "../surface_controls" as GraphSurfaceControls
 
 Item {
@@ -56,8 +57,12 @@ Item {
         ))
     readonly property var activeFlowStyle: root._flowStyle(root.activeEdgePayload)
     readonly property string activeLabelText: String(root.activeEdgePayload && root.activeEdgePayload.label || "").trim()
-    readonly property string toolbarPathMode: root._currentPathMode()
-    readonly property string toolbarDisplayMode: root._currentDisplayMode()
+    readonly property string toolbarPathMode: GraphActionPresentation.normalizeEdgePathMode(
+        root._visualStyle(root.activeEdgePayload).path_mode
+    )
+    readonly property string toolbarDisplayMode: GraphActionPresentation.normalizeEdgeDisplayMode(
+        root._visualStyle(root.activeEdgePayload).display_mode
+    )
     readonly property string toolbarPatternGlyphKind: root._currentStrokePattern()
     readonly property string toolbarArrowGlyphKind: root._currentArrowHead()
     readonly property string toolbarPatternIconName: root._strokePatternIconName(root.toolbarPatternGlyphKind)
@@ -106,7 +111,13 @@ Item {
         root.safetyMargin,
         Math.max(root.safetyMargin, height - toolbarChrome.implicitHeight - root.safetyMargin)
     )
-    readonly property var toolbarActions: root._toolbarActions()
+    readonly property var toolbarActions: GraphActionPresentation.edgeToolbarActions({
+        "edgePayload": root.activeEdgePayload,
+        "activeDataWire": root.activeDataWire,
+        "flowEdgeActive": root.flowEdgeActive,
+        "displayMode": root.toolbarDisplayMode,
+        "hasLabel": root.activeLabelText.length > 0
+    })
     readonly property var colorChoices: [
         "#8E8E8E", "#E06C75", "#E5C07B", "#98C379",
         "#56B6C2", "#61AFEF", "#C678DD", "#F0F4FB"
@@ -116,16 +127,8 @@ Item {
         { "label": "Dashed", "value": "dashed" },
         { "label": "Dotted", "value": "dotted" }
     ]
-    readonly property var pathModeChoices: [
-        { "label": "Auto", "value": "auto" },
-        { "label": "Pipe", "value": "pipe" },
-        { "label": "Bezier", "value": "bezier" }
-    ]
-    readonly property var displayModeChoices: [
-        { "label": "Default", "value": "default" },
-        { "label": "Faint", "value": "faint" },
-        { "label": "Hidden", "value": "hidden" }
-    ]
+    readonly property var pathModeChoices: GraphActionPresentation.edgePathChoices()
+    readonly property var displayModeChoices: GraphActionPresentation.edgeDisplayChoices()
     readonly property var arrowChoices: [
         { "label": "Filled", "value": "filled" },
         { "label": "Open", "value": "open" },
@@ -158,41 +161,6 @@ Item {
     function _styleString(value) {
         var text = String(value || "").trim();
         return text.length ? text : "";
-    }
-
-    function _toolbarActions() {
-        var actions = [
-            {
-                "id": "toggle_edge_enabled",
-                "label": root.activeEdgePayload && root.activeEdgePayload.enabled === false
-                    ? "Enable connection"
-                    : "Disable connection",
-                "icon": "check",
-                "checked": Boolean(root.activeEdgePayload && root.activeEdgePayload.enabled !== false)
-            },
-            { "id": "remove_edge", "label": "Remove", "icon": "delete", "destructive": true },
-            { "id": "path_mode", "label": "Path mode", "icon": "path-style", "popover": "path_mode" },
-            { "id": "frame_edge", "label": "Zoom to selection", "icon": "zoom-fit" }
-        ];
-        if (root.activeDataWire) {
-            actions.push({
-                "id": "display_mode",
-                "label": "Display mode: " + root._displayModeLabel(root.toolbarDisplayMode),
-                "icon": "palette",
-                "popover": "display_mode"
-            });
-        }
-        if (root.flowEdgeActive) {
-            actions.push(
-                { "id": "edge_color", "label": "Set color", "icon": "palette", "popover": "color" },
-                { "id": "clear_flow_edge_label", "label": "Remove label", "icon": "label-off", "enabled": root.activeLabelText.length > 0 },
-                { "id": "edit_flow_edge_label", "label": "Edit label", "icon": "edit" },
-                { "id": "stroke_pattern", "label": "Line pattern", "icon": "path-style", "popover": "pattern" },
-                { "id": "arrow_head", "label": "Arrow style", "icon": "arrow-right", "popover": "arrow" },
-                { "id": "edit_flow_edge_style", "label": "More settings", "icon": "more" }
-            );
-        }
-        return actions;
     }
 
     function _effectiveGraphLabelPixelSize() {
@@ -329,7 +297,7 @@ Item {
 
     function _setEdgePathMode(pathMode) {
         var edgeId = root.activeEdgeId;
-        var mode = root._normalizedPathMode(pathMode);
+        var mode = GraphActionPresentation.normalizeEdgePathMode(pathMode);
         var actionRouter = root._actionRouter();
         if (!edgeId.length)
             return false;
@@ -433,29 +401,6 @@ Item {
     function _currentStrokePattern() {
         var value = String(root.activeFlowStyle.stroke_pattern || root.activeFlowStyle.stroke || "solid").toLowerCase();
         return value === "dashed" || value === "dotted" ? value : "solid";
-    }
-
-    function _normalizedPathMode(pathMode) {
-        var value = String(pathMode || "").toLowerCase();
-        return value === "pipe" || value === "bezier" ? value : "auto";
-    }
-
-    function _currentPathMode() {
-        return root._normalizedPathMode(root._visualStyle(root.activeEdgePayload).path_mode);
-    }
-
-    function _normalizedDisplayMode(displayMode) {
-        var value = String(displayMode || "").trim().toLowerCase();
-        return value === "faint" || value === "hidden" ? value : "default";
-    }
-
-    function _currentDisplayMode() {
-        return root._normalizedDisplayMode(root._visualStyle(root.activeEdgePayload).display_mode);
-    }
-
-    function _displayModeLabel(displayMode) {
-        var value = root._normalizedDisplayMode(displayMode);
-        return value.charAt(0).toUpperCase() + value.slice(1);
     }
 
     function _strokePatternIconName(pattern) {

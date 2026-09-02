@@ -5,6 +5,7 @@ Use this for graph action IDs, layout menu actions, context menu entries, select
 
 ## Start Here
 - `ea_node_editor/ui/shell/graph_action_contracts.py`
+- `ea_node_editor/ui_qml/components/graph/GraphActionPresentation.js`
 - `ea_node_editor/ui_qml/components/graph_canvas/GraphCanvasActionRouter.qml`
 - `ea_node_editor/ui_qml/components/graph_canvas/GraphCanvasContextMenus.qml`
 - `ea_node_editor/ui_qml/components/graph_canvas/GraphCanvasOptionsMenu.qml`
@@ -28,6 +29,7 @@ Use this for graph action IDs, layout menu actions, context menu entries, select
 - `ea_node_editor/ui/dialogs/input_reference_dialog.py` documents user-facing graph action shortcuts and context-menu gestures. Update it when graph shortcuts, menu entries, visibility rules, or dispatch behavior change.
 
 ## Context Menu Positioning
+- Pure QML presentation shaping for already-authoritative action DTOs lives in stateless `GraphActionPresentation.js`: descriptor lookup, edge path/display normalization and choices, checked/enabled/label/icon projection, node/edge toolbar models, menu/popover extraction, filtering, ordering, and grouping. `GraphCanvasActionRouter.qml` remains the sole QML dispatch owner; graph mutation, media/fullscreen/viewer/plot eligibility, lifecycle, native state, and context policy remain in their existing QML/Python owners.
 - Standard data-port access/modifier/Principal/dynamic rows live in the direct-root `GraphNodePortContextMenu.qml`. `GraphNodePortsLayer.qml` owns the selected port context, placement/clamping, open call, and existing mutation/history methods; the Menu calls those methods explicitly and introduces no graph action ID, registry, callback bag, or replacement policy.
 - Node, edge, selection, and empty-canvas right-click context menus store scene anchors in `GraphCanvasInteractionState.qml` and resolve screen position in `GraphCanvasContextMenus.qml` so open menus move with pan/zoom. The top-right gear uses the screen-anchored `_openCanvasOptions` path.
 - Graph-owned node, edge, selection, and Settings right-click popups use 30 px rows with 4 px content padding; keep the pre-open height estimates in `GraphCanvasInteractionState.qml` aligned with that density.

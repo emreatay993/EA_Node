@@ -1,4 +1,5 @@
 import QtQml 2.15
+import "../graph/GraphActionPresentation.js" as GraphActionPresentation
 
 QtObject {
     id: root
@@ -101,8 +102,7 @@ QtObject {
     })
 
     function descriptorActionId(descriptors, key) {
-        var descriptor = descriptors ? descriptors[key] : null;
-        return descriptor ? String(descriptor.actionId || "") : "";
+        return GraphActionPresentation.descriptorActionId(descriptors, key);
     }
 
     function edgeContextActionId(key) {
@@ -119,20 +119,6 @@ QtObject {
 
     function folderExplorerActionId(key) {
         return descriptorActionId(root.folderExplorerActionDescriptors, key);
-    }
-
-    function _descriptorForActionId(descriptors, actionId) {
-        var normalized = String(actionId || "").trim();
-        if (!normalized || !descriptors)
-            return null;
-        for (var key in descriptors) {
-            if (!Object.prototype.hasOwnProperty.call(descriptors, key))
-                continue;
-            var descriptor = descriptors[key];
-            if (descriptor && String(descriptor.actionId || "") === normalized)
-                return descriptor;
-        }
-        return null;
     }
 
     function _graphActionBridge() {
@@ -334,11 +320,6 @@ QtObject {
         return copy;
     }
 
-    function _normalizedEdgePathMode(pathMode) {
-        var normalized = String(pathMode || "").trim().toLowerCase();
-        return normalized === "pipe" || normalized === "bezier" ? normalized : "auto";
-    }
-
     function _sceneCommandBridge() {
         return root.canvasItem && root.canvasItem.sceneCommandBridge
             ? root.canvasItem.sceneCommandBridge
@@ -379,7 +360,7 @@ QtObject {
         if (!bridge || !bridge.set_edge_visual_style)
             return false;
         var next = root._copyEdgeVisualStyle(normalized);
-        var mode = root._normalizedEdgePathMode(pathMode);
+        var mode = GraphActionPresentation.normalizeEdgePathMode(pathMode);
         if (mode === "auto")
             delete next.path_mode;
         else
@@ -432,7 +413,7 @@ QtObject {
     }
 
     function handleEdgeToolbarAction(actionId, edgeId) {
-        var descriptor = root._descriptorForActionId(root.edgeContextActionDescriptors, actionId);
+        var descriptor = GraphActionPresentation.descriptorForActionId(root.edgeContextActionDescriptors, actionId);
         if (!descriptor)
             return false;
         var payload = root._edgePayloadForId(edgeId);
@@ -452,7 +433,7 @@ QtObject {
     }
 
     function handleEdgeContextAction(actionId) {
-        var descriptor = root._descriptorForActionId(root.edgeContextActionDescriptors, actionId);
+        var descriptor = GraphActionPresentation.descriptorForActionId(root.edgeContextActionDescriptors, actionId);
         var payload = root._payloadForDescriptor(descriptor, actionId);
         if (!payload)
             return false;
@@ -468,7 +449,7 @@ QtObject {
     }
 
     function handleNodeContextAction(actionId) {
-        var descriptor = root._descriptorForActionId(root.nodeContextActionDescriptors, actionId);
+        var descriptor = GraphActionPresentation.descriptorForActionId(root.nodeContextActionDescriptors, actionId);
         var payload = root._payloadForDescriptor(descriptor, actionId);
         if (!descriptor || payload === null)
             return false;
@@ -490,7 +471,7 @@ QtObject {
     }
 
     function handleSelectionContextAction(actionId) {
-        var descriptor = root._descriptorForActionId(root.selectionContextActionDescriptors, actionId);
+        var descriptor = GraphActionPresentation.descriptorForActionId(root.selectionContextActionDescriptors, actionId);
         var payload = root._payloadForDescriptor(descriptor, actionId);
         if (!descriptor || payload === null)
             return false;
@@ -510,7 +491,7 @@ QtObject {
                 return false;
             return Boolean(sceneBridge.set_node_locked(String(nodeId || ""), !Boolean(nodeHost.authorLocked)));
         }
-        var descriptor = root._descriptorForActionId(root.nodeDelegateActionDescriptors, normalized);
+        var descriptor = GraphActionPresentation.descriptorForActionId(root.nodeDelegateActionDescriptors, normalized);
         if (!descriptor) {
             if (nodeHost && nodeHost.dispatchSurfaceAction)
                 return Boolean(nodeHost.dispatchSurfaceAction(normalized));

@@ -1,6 +1,7 @@
 ﻿import QtQuick 2.15
 import QtQuick.Controls 2.15
 import "../surface_controls" as GraphSurfaceControls
+import "../GraphActionPresentation.js" as GraphActionPresentation
 import "../../shell" as ShellComponents
 import "../surface_controls/SurfaceControlGeometry.js" as SurfaceControlGeometry
 import "toolbar_positioning.js" as ToolbarPositioning
@@ -37,23 +38,10 @@ Item {
     // keep the source order.
     readonly property bool _groupBySurfaceFamily:
         root.style === "compact_pill" || root.style === "minimal_ghost"
-    readonly property var _orderedActions: {
-        var all = root.actionList;
-        if (!Array.isArray(all) || all.length === 0)
-            return [];
-        if (!root._groupBySurfaceFamily)
-            return all;
-        var surface = [];
-        var common = [];
-        for (var i = 0; i < all.length; i++) {
-            var item = all[i] || {};
-            if (String(item.kind || "") === "common")
-                common.push(item);
-            else
-                surface.push(item);
-        }
-        return surface.concat(common);
-    }
+    readonly property var _orderedActions: GraphActionPresentation.orderNodeToolbarActions(
+        root.actionList,
+        root._groupBySurfaceFamily
+    )
     readonly property color _requestedAccentColor: root.hostValid ? root.host.nodeThemeColor : "#4DA8DA"
     readonly property color _shellAccentColor: (typeof themeBridge !== "undefined"
             && themeBridge
@@ -390,160 +378,28 @@ Item {
         return uiIcons.sourceSized(name, size, color);
     }
 
-    function _actionChecked(action) {
-        var item = action || {};
-        if (item.checked !== undefined)
-            return Boolean(item.checked);
-        return false;
-    }
-
-    function _menuActionsFor(action) {
-        var item = action || {};
-        var menuActions = item.menuActions;
-        if (Array.isArray(menuActions))
-            return menuActions;
-        if (menuActions && menuActions.length !== undefined) {
-            var resolved = [];
-            for (var i = 0; i < menuActions.length; i++)
-                resolved.push(menuActions[i]);
-            return resolved;
-        }
-        return [];
-    }
-
-    function _popoverActionsFor(action) {
-        var item = action || {};
-        var popoverActions = item.popoverActions;
-        if (Array.isArray(popoverActions))
-            return popoverActions;
-        if (popoverActions && popoverActions.length !== undefined) {
-            var resolved = [];
-            for (var i = 0; i < popoverActions.length; i++)
-                resolved.push(popoverActions[i]);
-            return resolved;
-        }
-        return [];
-    }
-
-    function _toolbarActionById(actionId) {
-        var normalized = String(actionId || "");
-        if (!normalized.length)
-            return null;
-        for (var index = 0; index < root.actionList.length; index++) {
-            var action = root.actionList[index] || {};
-            if (String(action.id || "") === normalized)
-                return action;
-        }
-        return null;
-    }
-
     function _refreshActionPopoverActions() {
         if (!root.actionPopoverVisible)
             return false;
-        var action = root._toolbarActionById(root.actionPopoverOwnerId);
-        var popoverActions = root._popoverActionsFor(action);
+        var action = GraphActionPresentation.findAction(root.actionList, root.actionPopoverOwnerId);
+        var popoverActions = GraphActionPresentation.childActions(action, "popoverActions");
         if (!popoverActions.length)
             return false;
         root.actionPopoverActions = popoverActions;
         root.actionPopoverActionKind = String(action && action.kind !== undefined
             ? action.kind
             : root.actionPopoverActionKind);
-        root.actionPopoverSourceStorageIndex = root._checkedPopoverActionIndex(popoverActions);
+        root.actionPopoverSourceStorageIndex = GraphActionPresentation.checkedActionIndex(popoverActions);
         root._positionActionPopover();
         Qt.callLater(root._positionActionPopover);
         return true;
     }
 
-    function _filteredPopoverActions() {
-        var filter = String(root.actionPopoverFilterText || "").trim().toLowerCase();
-        if (!filter.length)
-            return root.actionPopoverActions;
-        var exact = [];
-        var prefix = [];
-        var contains = [];
-        for (var index = 0; index < root.actionPopoverActions.length; index++) {
-            var action = root.actionPopoverActions[index] || {};
-            var label = String(action.label || action.toolbar_text || "");
-            var normalized = label.toLowerCase();
-            if (normalized === filter)
-                exact.push(action);
-            else if (normalized.indexOf(filter) === 0)
-                prefix.push(action);
-            else if (normalized.indexOf(filter) >= 0)
-                contains.push(action);
-        }
-        return exact.concat(prefix, contains);
-    }
-
-    function _checkedPopoverActionIndex(actions) {
-        var values = actions || [];
-        for (var index = 0; index < values.length; index++) {
-            if (root._actionChecked(values[index]))
-                return index;
-        }
-        return values.length > 0 ? 0 : -1;
-    }
-
-    function _sourceStorageLabels() {
-        var labels = [];
-        for (var index = 0; index < root.actionPopoverActions.length; index++)
-            labels.push(root._actionToolbarText(root.actionPopoverActions[index]));
-        return labels;
-    }
-
-    function _sourceStorageActionAt(index) {
-        if (!root.actionPopoverActions.length)
-            return null;
-        var boundedIndex = Math.max(
-            0,
-            Math.min(root.actionPopoverActions.length - 1, Math.round(Number(index || 0)))
-        );
-        return root.actionPopoverActions[boundedIndex] || null;
-    }
-
     function _dispatchSourceStorageSelection(index) {
-        var action = root._sourceStorageActionAt(index);
+        var action = GraphActionPresentation.boundedActionAt(root.actionPopoverActions, index);
         if (!action)
             return false;
         return root._dispatchPopoverAction(action);
-    }
-
-    function _popoverActionById(actionId) {
-        var normalized = String(actionId || "");
-        for (var index = 0; index < root.actionPopoverActions.length; index++) {
-            var action = root.actionPopoverActions[index] || {};
-            if (String(action.id || "") === normalized)
-                return action;
-        }
-        return null;
-    }
-
-    function _actionToolbarText(action) {
-        var item = action || {};
-        var toolbarText = String(item.toolbar_text !== undefined ? item.toolbar_text : "");
-        if (toolbarText.length > 0)
-            return toolbarText;
-        return String(item.label || "");
-    }
-
-    function _actionTooltipText(action) {
-        var item = action || {};
-        var label = String(item.label || "");
-        var description = String(item.description || "");
-        return description.length > 0 ? label + "\n" + description : label;
-    }
-
-    function _actionToolbarIcon(action) {
-        var item = action || {};
-        var toolbarText = String(item.toolbar_text !== undefined ? item.toolbar_text : "");
-        if (toolbarText.length > 0 && String(item.icon || "").length === 0)
-            return "";
-        return String(item.icon || "");
-    }
-
-    function _actionIconOnly(action) {
-        var item = action || {};
-        return String(item.toolbar_text !== undefined ? item.toolbar_text : "").length === 0;
     }
 
     function _floatingToolbarDepth(level) {
@@ -735,7 +591,7 @@ Item {
     }
 
     function openActionPopover(action, anchorItem) {
-        var popoverActions = root._popoverActionsFor(action);
+        var popoverActions = GraphActionPresentation.childActions(action, "popoverActions");
         if (!popoverActions.length || !anchorItem)
             return;
         var ownerId = String(action && action.id !== undefined ? action.id : "");
@@ -801,7 +657,7 @@ Item {
                 ? action.page_set_action_prefix
                 : "pdf_page_set:"
         );
-        root.actionPopoverSourceStorageIndex = root._checkedPopoverActionIndex(popoverActions);
+        root.actionPopoverSourceStorageIndex = GraphActionPresentation.checkedActionIndex(popoverActions);
         root.actionPopoverFontSizeDirty = false;
         root.actionPopoverFilterText = "";
         var anchor = anchorItem.mapToItem(root, anchorItem.width / 2, 0);
@@ -831,7 +687,7 @@ Item {
     onActionListChanged: root._refreshActionPopoverActions()
 
     function openActionMenu(action, anchorItem) {
-        root.runMenuActions = root._menuActionsFor(action);
+        root.runMenuActions = GraphActionPresentation.childActions(action, "menuActions");
         if (!root.runMenuActions.length || !anchorItem)
             return;
         root._closeActionPopover(true);
@@ -975,9 +831,9 @@ Item {
                     readonly property bool _isLast: index === buttonRepeater.count - 1
                     readonly property bool _isDestructive: Boolean(modelData.destructive)
                     readonly property bool _isCommon: String((modelData || {}).kind || "") === "common"
-                    readonly property var _menuActions: root._menuActionsFor(modelData)
+                    readonly property var _menuActions: GraphActionPresentation.childActions(modelData, "menuActions")
                     readonly property bool _hasMenu: buttonCell._menuActions.length > 0
-                    readonly property var _popoverActions: root._popoverActionsFor(modelData)
+                    readonly property var _popoverActions: GraphActionPresentation.childActions(modelData, "popoverActions")
                     readonly property bool _hasPopover: buttonCell._popoverActions.length > 0
                     readonly property bool _startsCommonGroup: {
                         if (!root._groupBySurfaceFamily || !buttonCell._isCommon || buttonCell._isFirst)
@@ -1008,9 +864,9 @@ Item {
                         id: actionButton
                         objectName: "graphNodeFloatingToolbarAction_" + String(modelData.id || "")
                         host: root.host
-                        text: root._actionToolbarText(modelData)
-                        iconName: root._actionToolbarIcon(modelData)
-                        iconOnly: root._actionIconOnly(modelData)
+                        text: GraphActionPresentation.actionToolbarText(modelData)
+                        iconName: GraphActionPresentation.actionToolbarIcon(modelData)
+                        iconOnly: GraphActionPresentation.actionIconOnly(modelData)
                         iconSize: root._buttonIconSize
                         iconSourceResolver: function(name, size, color) {
                             return root._iconSource(name, size, color);
@@ -1020,11 +876,11 @@ Item {
                             : root._actionColor(modelData, "accent_color", root.accentColor)
                         foregroundColor: root._actionColor(modelData, "foreground_color", root._chromeForeground)
                         enabled: modelData.enabled !== false
-                        active: root._actionChecked(modelData)
+                        active: GraphActionPresentation.actionChecked(modelData)
                         chromeRadius: root._buttonChromeRadius
                         contentHorizontalPadding: root._buttonHPadding
                         contentVerticalPadding: root._buttonVPadding
-                        tooltipText: root._actionTooltipText(modelData)
+                        tooltipText: GraphActionPresentation.actionTooltipText(modelData)
                         tooltipCategory: "general"
                         tooltipScreenStablePositioning: true
                         tooltipAnchorScale: root._effectiveZoom
@@ -1204,9 +1060,9 @@ Item {
                         id: popoverActionButton
                         objectName: "graphNodeFloatingToolbarPopoverAction_" + String(modelData.id || "")
                         host: root.host
-                        text: root._actionToolbarText(modelData)
-                        iconName: root._actionToolbarIcon(modelData)
-                        iconOnly: root._actionIconOnly(modelData)
+                        text: GraphActionPresentation.actionToolbarText(modelData)
+                        iconName: GraphActionPresentation.actionToolbarIcon(modelData)
+                        iconOnly: GraphActionPresentation.actionIconOnly(modelData)
                         iconSize: root._popoverIconSize
                         controlHeight: root._popoverControlHeight
                         chromeRadius: root._popoverRadius
@@ -1217,11 +1073,11 @@ Item {
                         accentColor: root._actionColor(modelData, "accent_color", root.accentColor)
                         foregroundColor: root._actionColor(modelData, "foreground_color", root._chromeForeground)
                         enabled: modelData.enabled !== false
-                        active: root._actionChecked(modelData)
-                        contentHorizontalPadding: root._actionIconOnly(modelData)
+                        active: GraphActionPresentation.actionChecked(modelData)
+                        contentHorizontalPadding: GraphActionPresentation.actionIconOnly(modelData)
                             ? root._popoverIconOnlyHorizontalPadding
                             : root._popoverHorizontalPadding
-                        tooltipText: root._actionTooltipText(modelData)
+                        tooltipText: GraphActionPresentation.actionTooltipText(modelData)
                         tooltipCategory: "general"
                         tooltipScreenStablePositioning: true
                         tooltipAnchorScale: root._effectiveZoom
@@ -1265,7 +1121,7 @@ Item {
                     host: root.host
                     width: Math.round(112 * root._sizeScale)
                     height: root._popoverControlHeight
-                    model: root._sourceStorageLabels()
+                    model: GraphActionPresentation.actionLabels(root.actionPopoverActions)
                     currentIndex: root.actionPopoverSourceStorageIndex
                     enabled: root.actionPopoverActions.length > 1
                     font.pixelSize: root._popoverTextPixelSize
@@ -1301,8 +1157,8 @@ Item {
                     }
                     accentColor: root.accentColor
                     foregroundColor: root._chromeForeground
-                    enabled: root._sourceStorageActionAt(sourceStorageCombo.currentIndex) !== null
-                        && root._sourceStorageActionAt(sourceStorageCombo.currentIndex).enabled !== false
+                    enabled: GraphActionPresentation.boundedActionAt(root.actionPopoverActions, sourceStorageCombo.currentIndex) !== null
+                        && GraphActionPresentation.boundedActionAt(root.actionPopoverActions, sourceStorageCombo.currentIndex).enabled !== false
                     contentHorizontalPadding: root._popoverHorizontalPadding
                     tooltipText: TooltipCopy.text(tooltipCopyBridge, "fullscreen.source.choose_file")
                     tooltipCategory: TooltipCopy.category(tooltipCopyBridge, "fullscreen.source.choose_file")
@@ -1377,8 +1233,8 @@ Item {
                                     visible: videoBookmarkDelegate.addRow
                                     width: parent.width
                                     host: root.host
-                                    text: root._actionToolbarText(videoBookmarkDelegate.actionData)
-                                    iconName: root._actionToolbarIcon(videoBookmarkDelegate.actionData)
+                                    text: GraphActionPresentation.actionToolbarText(videoBookmarkDelegate.actionData)
+                                    iconName: GraphActionPresentation.actionToolbarIcon(videoBookmarkDelegate.actionData)
                                     iconOnly: false
                                     iconSize: root._popoverIconSize
                                     controlHeight: root._popoverControlHeight
@@ -1467,7 +1323,7 @@ Item {
                                         objectName: "graphNodeFloatingToolbarVideoBookmarkJump_" + String(videoBookmarkDelegate.actionData.bookmark_id || "")
                                         host: root.host
                                         text: "Jump"
-                                        iconName: root._actionToolbarIcon(videoBookmarkDelegate.actionData)
+                                        iconName: GraphActionPresentation.actionToolbarIcon(videoBookmarkDelegate.actionData)
                                         iconOnly: true
                                         iconSize: root._popoverIconSize
                                         controlHeight: root._popoverControlHeight
@@ -1674,8 +1530,8 @@ Item {
                                 id: fontSizeStepButton
                                 objectName: "graphNodeFloatingToolbarPopoverAction_" + String(modelData.id || "")
                                 host: root.host
-                                text: root._actionToolbarText(modelData)
-                                iconName: root._actionToolbarIcon(modelData)
+                                text: GraphActionPresentation.actionToolbarText(modelData)
+                                iconName: GraphActionPresentation.actionToolbarIcon(modelData)
                                 iconOnly: false
                                 iconSize: root._popoverIconSize
                                 controlHeight: root._popoverControlHeight
@@ -1689,7 +1545,7 @@ Item {
                                 contentHorizontalPadding: root._popoverHorizontalPadding
                                 contentVerticalPadding: root._popoverVerticalPadding
                                 font.pixelSize: root._popoverTextPixelSize
-                                tooltipText: root._actionTooltipText(modelData)
+                                tooltipText: GraphActionPresentation.actionTooltipText(modelData)
                                 tooltipCategory: "general"
                                 tooltipScreenStablePositioning: true
                                 tooltipAnchorScale: root._effectiveZoom
@@ -1721,15 +1577,15 @@ Item {
                 anchors.centerIn: parent
                 spacing: Math.round(8 * root._sizeScale)
 
-                readonly property var previousAction: root._popoverActionById("pdf_page_previous") || ({})
-                readonly property var nextAction: root._popoverActionById("pdf_page_next") || ({})
+                readonly property var previousAction: GraphActionPresentation.findAction(root.actionPopoverActions, "pdf_page_previous") || ({})
+                readonly property var nextAction: GraphActionPresentation.findAction(root.actionPopoverActions, "pdf_page_next") || ({})
 
                 GraphSurfaceControls.GraphSurfaceButton {
                     id: pdfPreviousButton
                     objectName: "graphNodeFloatingToolbarPopoverAction_pdf_page_previous"
                     host: root.host
                     text: ""
-                    iconName: root._actionToolbarIcon(pdfPagePopoverPanel.previousAction)
+                    iconName: GraphActionPresentation.actionToolbarIcon(pdfPagePopoverPanel.previousAction)
                     iconOnly: true
                     iconSize: root._popoverIconSize
                         controlHeight: root._popoverControlHeight
@@ -1828,7 +1684,7 @@ Item {
                     objectName: "graphNodeFloatingToolbarPopoverAction_pdf_page_next"
                     host: root.host
                     text: ""
-                    iconName: root._actionToolbarIcon(pdfPagePopoverPanel.nextAction)
+                    iconName: GraphActionPresentation.actionToolbarIcon(pdfPagePopoverPanel.nextAction)
                     iconOnly: true
                     iconSize: root._popoverIconSize
                         controlHeight: root._popoverControlHeight
@@ -1875,7 +1731,7 @@ Item {
                 readonly property real preferredHeight: fontFamilySearchField.height
                     + spacing
                     + fontFamilyListFrame.height
-                readonly property var filteredActions: root._filteredPopoverActions()
+                readonly property var filteredActions: GraphActionPresentation.filterActions(root.actionPopoverActions, root.actionPopoverFilterText)
 
                 TextField {
                     id: fontFamilySearchField
@@ -1938,7 +1794,7 @@ Item {
                         clip: true
                         boundsBehavior: Flickable.StopAtBounds
                         model: fontFamilyPopoverPanel.visible ? fontFamilyPopoverPanel.filteredActions : []
-                        currentIndex: root._checkedPopoverActionIndex(fontFamilyPopoverPanel.filteredActions)
+                        currentIndex: GraphActionPresentation.checkedActionIndex(fontFamilyPopoverPanel.filteredActions)
                         ScrollBar.vertical: ScrollBar {
                             policy: ScrollBar.AsNeeded
                             interactive: true
@@ -1949,7 +1805,7 @@ Item {
                             objectName: "graphNodeFloatingToolbarPopoverAction_" + String(modelData.id || "")
                             width: ListView.view ? ListView.view.width : fontFamilyPopoverPanel.width
                             height: root._floatingToolbarControlHeight(root.floatingToolbarNestedPopoverLevel)
-                            highlighted: ListView.isCurrentItem || root._actionChecked(modelData)
+                            highlighted: ListView.isCurrentItem || GraphActionPresentation.actionChecked(modelData)
 
                             contentItem: Text {
                                 text: String(modelData.label || "")
@@ -1960,7 +1816,7 @@ Item {
                                 font.family: String(modelData.font_family || "").length > 0
                                     ? String(modelData.font_family || "")
                                     : Qt.application.font.family
-                                font.weight: root._actionChecked(modelData) ? Font.DemiBold : Font.Normal
+                                font.weight: GraphActionPresentation.actionChecked(modelData) ? Font.DemiBold : Font.Normal
                                 elide: Text.ElideRight
                                 verticalAlignment: Text.AlignVCenter
                             }
@@ -2030,21 +1886,7 @@ Item {
         HoverHandler {
             id: runMenuHoverHandler
         }
-        actions: {
-            var resolved = [];
-            var source = root.runMenuActions || [];
-            for (var i = 0; i < source.length; i++) {
-                var action = source[i] || {};
-                resolved.push({
-                    actionId: String(action.actionId || action.id || ""),
-                    text: String(action.text || action.label || ""),
-                    enabled: action.enabled !== false,
-                    visible: action.visible !== false,
-                    destructive: Boolean(action.destructive)
-                });
-            }
-            return resolved;
-        }
+        actions: GraphActionPresentation.menuModel(root.runMenuActions)
         onActionTriggered: function(actionId) {
             root.runMenuVisible = false;
             if (root.host)

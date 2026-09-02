@@ -59,6 +59,14 @@ ACTION_ROUTER_QML = (
     / "graph_canvas"
     / "GraphCanvasActionRouter.qml"
 )
+ACTION_PRESENTATION_JS = (
+    REPO_ROOT
+    / "ea_node_editor"
+    / "ui_qml"
+    / "components"
+    / "graph"
+    / "GraphActionPresentation.js"
+)
 SELECTION_ENVELOPE_OVERLAY_QML = (
     REPO_ROOT
     / "ea_node_editor"
@@ -903,6 +911,7 @@ def test_active_wire_actions_use_batch_rewire_display_mode_and_endpoint_navigati
     context_source = _source(CONTEXT_MENUS_QML)
     input_layers_source = _source(INPUT_LAYERS_QML)
     action_router_source = _source(ACTION_ROUTER_QML)
+    presentation_source = _source(ACTION_PRESENTATION_JS)
     options_source = _source(
         REPO_ROOT
         / "ea_node_editor"
@@ -937,7 +946,8 @@ def test_active_wire_actions_use_batch_rewire_display_mode_and_endpoint_navigati
     assert 'objectName: "graphCanvasEdgeDisplayModeContextPopup"' in context_source
     assert 'var prefix = "edge_display_mode:";' in context_source
     for mode in ("default", "faint", "hidden"):
-        assert f'"edge_display_mode:{mode}"' in context_source
+        assert f'"{mode}"' in presentation_source
+    assert "GraphActionPresentation.edgeDisplayMenuActions(" in context_source
     assert '"jump_edge_start"' in context_source
     assert '"jump_edge_end"' in context_source
     assert 'activeSubmenu === "selectedWireDisplayMode"' in options_source
@@ -1316,12 +1326,14 @@ def test_path_pointer_node_host_exposes_open_toolbar_popover() -> None:
     node_host_source = _source(
         REPO_ROOT / "ea_node_editor" / "ui_qml" / "components" / "graph" / "GraphNodeHost.qml"
     )
+    presentation_source = _source(ACTION_PRESENTATION_JS)
 
     assert 'type_id || "") === "io.path_pointer"' in node_host_source
-    assert '"open_node_path_menu"' in node_host_source
-    assert '"open_node_path"' in node_host_source
-    assert '"open_node_path_with"' in node_host_source
-    assert "popoverActions" in node_host_source
+    assert "GraphActionPresentation.nodeContextActions(" in node_host_source
+    assert '"open_node_path_menu"' in presentation_source
+    assert '"open_node_path"' in presentation_source
+    assert '"open_node_path_with"' in presentation_source
+    assert "popoverActions" in presentation_source
 
 
 def test_folder_explorer_surface_wires_row_context_menu() -> None:

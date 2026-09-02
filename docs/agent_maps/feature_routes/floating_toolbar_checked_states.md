@@ -30,6 +30,7 @@ PDF media controls use the toolbar's `pdf_page` popover layout: a Navigate actio
 Text annotation copy/paste style buttons are surface actions (`text_copy_style`, `text_paste_style`) owned by `GraphBareTextSurface.qml`; paste applies a local draft immediately and prefers a bulk node-property commit.
 
 ## Start Here
+- `ea_node_editor/ui_qml/components/graph/GraphActionPresentation.js`
 - `ea_node_editor/ui_qml/components/graph/overlay/GraphNodeFloatingToolbar.qml`
 - `ea_node_editor/ui_qml/components/graph/overlay/GraphEdgeFloatingToolbar.qml`
 - `ea_node_editor/ui_qml/components/graph/overlay/GraphSelectionEnvelopeOverlay.qml`
@@ -43,6 +44,12 @@ Text annotation copy/paste style buttons are surface actions (`text_copy_style`,
 - `ea_node_editor/ui_qml/components/graph/passive/GraphPanelSurface.qml`
 - `ea_node_editor/ui_qml/graph_scene_payload/`
 - `ea_node_editor/ui/shell/graph_action_contracts.py`
+
+`GraphActionPresentation.js` shapes action fields, child menu/popover arrays,
+checked indexes, stable filter ordering, node grouping, and edge toolbar choices
+only when authoritative action lists or popover state change. Toolbar position,
+anchor, hover-grace, focus, dispatch, draft flush, and popup lifecycle remain in
+the concrete toolbar owners and are not presentation-model dependencies.
 
 ## Focused Verification
 ```powershell

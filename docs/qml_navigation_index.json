@@ -10,7 +10,7 @@
     "loader_constructs": 24,
     "signal_handlers": 884,
     "connections": 47,
-    "property_bindings": 7624,
+    "property_bindings": 7607,
     "local_component_refs": 277
   },
   "entries": [
@@ -13059,7 +13059,8 @@
       "root_component": "Item",
       "imports": [
         "QtQuick 2.15",
-        "\"GraphNodeSurfaceMetrics.js\" as GraphNodeSurfaceMetrics"
+        "\"GraphNodeSurfaceMetrics.js\" as GraphNodeSurfaceMetrics",
+        "\"GraphActionPresentation.js\" as GraphActionPresentation"
       ],
       "ids": [
         {
@@ -14996,85 +14997,6 @@
         },
         {
           "kind": "binding",
-          "name": "label"
-        },
-        {
-          "kind": "binding",
-          "name": "icon"
-        },
-        {
-          "kind": "binding",
-          "name": "kind"
-        },
-        {
-          "kind": "binding",
-          "name": "enabled"
-        },
-        {
-          "kind": "binding",
-          "name": "primary"
-        },
-        {
-          "kind": "binding",
-          "name": "enabled",
-          "targets": [
-            "pathPointerPath.length"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "popover_layout"
-        },
-        {
-          "kind": "binding",
-          "name": "popoverActions"
-        },
-        {
-          "kind": "binding",
-          "name": "toolbar_text"
-        },
-        {
-          "kind": "binding",
-          "name": "close_popover"
-        },
-        {
-          "kind": "binding",
-          "name": "enabled",
-          "targets": [
-            "pathPointerIsFolder"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "menuActions"
-        },
-        {
-          "kind": "binding",
-          "name": "enabled",
-          "targets": [
-            "card.lockedPlaceholderManagerAvailable"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "label",
-          "targets": [
-            "card.authorLocked"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "checked",
-          "targets": [
-            "card.authorLocked"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "destructive"
-        },
-        {
-          "kind": "binding",
           "name": "visible",
           "targets": [
             "card.hasNodeIdentity"
@@ -15383,6 +15305,10 @@
             "pathPointerDropArea.containsDrag",
             "card.pathPointerDropValid"
           ]
+        },
+        {
+          "kind": "binding",
+          "name": "enabled"
         },
         {
           "kind": "binding",
@@ -28202,6 +28128,7 @@
         "QtQuick.Controls 2.15",
         "\"../../common\" as Common",
         "\"..\" as GraphComponents",
+        "\"../GraphActionPresentation.js\" as GraphActionPresentation",
         "\"../surface_controls\" as GraphSurfaceControls"
       ],
       "ids": [
@@ -28615,9 +28542,6 @@
           "name": "_styleString"
         },
         {
-          "name": "_toolbarActions"
-        },
-        {
           "name": "_effectiveGraphLabelPixelSize"
         },
         {
@@ -28685,21 +28609,6 @@
         },
         {
           "name": "_currentStrokePattern"
-        },
-        {
-          "name": "_normalizedPathMode"
-        },
-        {
-          "name": "_currentPathMode"
-        },
-        {
-          "name": "_normalizedDisplayMode"
-        },
-        {
-          "name": "_currentDisplayMode"
-        },
-        {
-          "name": "_displayModeLabel"
         },
         {
           "name": "_strokePatternIconName"
@@ -30055,11 +29964,6 @@
           "name": "_styleString"
         },
         {
-          "anchor": "GraphEdgeFloatingToolbarFunctionToolbarActions",
-          "kind": "function",
-          "name": "_toolbarActions"
-        },
-        {
           "anchor": "GraphEdgeFloatingToolbarFunctionEffectiveGraphLabelPixelSize",
           "kind": "function",
           "name": "_effectiveGraphLabelPixelSize"
@@ -30173,31 +30077,6 @@
           "anchor": "GraphEdgeFloatingToolbarFunctionCurrentStrokePattern",
           "kind": "function",
           "name": "_currentStrokePattern"
-        },
-        {
-          "anchor": "GraphEdgeFloatingToolbarFunctionNormalizedPathMode",
-          "kind": "function",
-          "name": "_normalizedPathMode"
-        },
-        {
-          "anchor": "GraphEdgeFloatingToolbarFunctionCurrentPathMode",
-          "kind": "function",
-          "name": "_currentPathMode"
-        },
-        {
-          "anchor": "GraphEdgeFloatingToolbarFunctionNormalizedDisplayMode",
-          "kind": "function",
-          "name": "_normalizedDisplayMode"
-        },
-        {
-          "anchor": "GraphEdgeFloatingToolbarFunctionCurrentDisplayMode",
-          "kind": "function",
-          "name": "_currentDisplayMode"
-        },
-        {
-          "anchor": "GraphEdgeFloatingToolbarFunctionDisplayModeLabel",
-          "kind": "function",
-          "name": "_displayModeLabel"
         },
         {
           "anchor": "GraphEdgeFloatingToolbarFunctionStrokePatternIconName",
@@ -32323,6 +32202,7 @@
         "QtQuick 2.15",
         "QtQuick.Controls 2.15",
         "\"../surface_controls\" as GraphSurfaceControls",
+        "\"../GraphActionPresentation.js\" as GraphActionPresentation",
         "\"../../shell\" as ShellComponents",
         "\"../surface_controls/SurfaceControlGeometry.js\" as SurfaceControlGeometry",
         "\"toolbar_positioning.js\" as ToolbarPositioning",
@@ -33082,49 +32962,10 @@
           "name": "_iconSource"
         },
         {
-          "name": "_actionChecked"
-        },
-        {
-          "name": "_menuActionsFor"
-        },
-        {
-          "name": "_popoverActionsFor"
-        },
-        {
-          "name": "_toolbarActionById"
-        },
-        {
           "name": "_refreshActionPopoverActions"
         },
         {
-          "name": "_filteredPopoverActions"
-        },
-        {
-          "name": "_checkedPopoverActionIndex"
-        },
-        {
-          "name": "_sourceStorageLabels"
-        },
-        {
-          "name": "_sourceStorageActionAt"
-        },
-        {
           "name": "_dispatchSourceStorageSelection"
-        },
-        {
-          "name": "_popoverActionById"
-        },
-        {
-          "name": "_actionToolbarText"
-        },
-        {
-          "name": "_actionTooltipText"
-        },
-        {
-          "name": "_actionToolbarIcon"
-        },
-        {
-          "name": "_actionIconOnly"
         },
         {
           "name": "_floatingToolbarDepth"
@@ -33277,7 +33118,8 @@
         {
           "kind": "model",
           "targets": [
-            "root._sourceStorageLabels"
+            "GraphActionPresentation.actionLabels",
+            "root.actionPopoverActions"
           ]
         },
         {
@@ -33811,7 +33653,7 @@
           "kind": "binding",
           "name": "text",
           "targets": [
-            "root._actionToolbarText",
+            "GraphActionPresentation.actionToolbarText",
             "modelData"
           ]
         },
@@ -33819,7 +33661,7 @@
           "kind": "binding",
           "name": "iconName",
           "targets": [
-            "root._actionToolbarIcon",
+            "GraphActionPresentation.actionToolbarIcon",
             "modelData"
           ]
         },
@@ -33827,7 +33669,7 @@
           "kind": "binding",
           "name": "iconOnly",
           "targets": [
-            "root._actionIconOnly",
+            "GraphActionPresentation.actionIconOnly",
             "modelData"
           ]
         },
@@ -33874,7 +33716,7 @@
           "kind": "binding",
           "name": "active",
           "targets": [
-            "root._actionChecked",
+            "GraphActionPresentation.actionChecked",
             "modelData"
           ]
         },
@@ -33903,7 +33745,7 @@
           "kind": "binding",
           "name": "tooltipText",
           "targets": [
-            "root._actionTooltipText",
+            "GraphActionPresentation.actionTooltipText",
             "modelData"
           ]
         },
@@ -34231,7 +34073,7 @@
           "kind": "binding",
           "name": "contentHorizontalPadding",
           "targets": [
-            "root._actionIconOnly",
+            "GraphActionPresentation.actionIconOnly",
             "modelData"
           ]
         },
@@ -34391,7 +34233,8 @@
           "kind": "binding",
           "name": "enabled",
           "targets": [
-            "root._sourceStorageActionAt",
+            "GraphActionPresentation.boundedActionAt",
+            "root.actionPopoverActions",
             "sourceStorageCombo.currentIndex"
           ]
         },
@@ -34488,7 +34331,7 @@
           "kind": "binding",
           "name": "text",
           "targets": [
-            "root._actionToolbarText",
+            "GraphActionPresentation.actionToolbarText",
             "videoBookmarkDelegate.actionData"
           ]
         },
@@ -34496,7 +34339,7 @@
           "kind": "binding",
           "name": "iconName",
           "targets": [
-            "root._actionToolbarIcon",
+            "GraphActionPresentation.actionToolbarIcon",
             "videoBookmarkDelegate.actionData"
           ]
         },
@@ -34942,7 +34785,7 @@
           "kind": "binding",
           "name": "iconName",
           "targets": [
-            "root._actionToolbarIcon",
+            "GraphActionPresentation.actionToolbarIcon",
             "pdfPagePopoverPanel.previousAction"
           ]
         },
@@ -35006,7 +34849,7 @@
           "kind": "binding",
           "name": "iconName",
           "targets": [
-            "root._actionToolbarIcon",
+            "GraphActionPresentation.actionToolbarIcon",
             "pdfPagePopoverPanel.nextAction"
           ]
         },
@@ -35078,7 +34921,7 @@
           "kind": "binding",
           "name": "currentIndex",
           "targets": [
-            "root._checkedPopoverActionIndex",
+            "GraphActionPresentation.checkedActionIndex",
             "fontFamilyPopoverPanel.filteredActions"
           ]
         },
@@ -35122,7 +34965,7 @@
           "name": "highlighted",
           "targets": [
             "ListView.isCurrentItem",
-            "root._actionChecked",
+            "GraphActionPresentation.actionChecked",
             "modelData"
           ]
         },
@@ -35161,7 +35004,7 @@
           "kind": "binding",
           "name": "font.weight",
           "targets": [
-            "root._actionChecked",
+            "GraphActionPresentation.actionChecked",
             "modelData",
             "Font.DemiBold",
             "Font.Normal"
@@ -35258,42 +35101,10 @@
         },
         {
           "kind": "binding",
-          "name": "actionId",
+          "name": "actions",
           "targets": [
-            "String",
-            "action.actionId",
-            "action.id"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "text",
-          "targets": [
-            "String",
-            "action.text",
-            "action.label"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "enabled",
-          "targets": [
-            "action.enabled"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "visible",
-          "targets": [
-            "action.visible"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "destructive",
-          "targets": [
-            "Boolean",
-            "action.destructive"
+            "GraphActionPresentation.menuModel",
+            "root.runMenuActions"
           ]
         }
       ],
@@ -36036,79 +35847,14 @@
           "name": "_iconSource"
         },
         {
-          "anchor": "GraphNodeFloatingToolbarFunctionActionChecked",
-          "kind": "function",
-          "name": "_actionChecked"
-        },
-        {
-          "anchor": "GraphNodeFloatingToolbarFunctionMenuActionsFor",
-          "kind": "function",
-          "name": "_menuActionsFor"
-        },
-        {
-          "anchor": "GraphNodeFloatingToolbarFunctionPopoverActionsFor",
-          "kind": "function",
-          "name": "_popoverActionsFor"
-        },
-        {
-          "anchor": "GraphNodeFloatingToolbarFunctionToolbarActionById",
-          "kind": "function",
-          "name": "_toolbarActionById"
-        },
-        {
           "anchor": "GraphNodeFloatingToolbarFunctionRefreshActionPopoverActions",
           "kind": "function",
           "name": "_refreshActionPopoverActions"
         },
         {
-          "anchor": "GraphNodeFloatingToolbarFunctionFilteredPopoverActions",
-          "kind": "function",
-          "name": "_filteredPopoverActions"
-        },
-        {
-          "anchor": "GraphNodeFloatingToolbarFunctionCheckedPopoverActionIndex",
-          "kind": "function",
-          "name": "_checkedPopoverActionIndex"
-        },
-        {
-          "anchor": "GraphNodeFloatingToolbarFunctionSourceStorageLabels",
-          "kind": "function",
-          "name": "_sourceStorageLabels"
-        },
-        {
-          "anchor": "GraphNodeFloatingToolbarFunctionSourceStorageActionAt",
-          "kind": "function",
-          "name": "_sourceStorageActionAt"
-        },
-        {
           "anchor": "GraphNodeFloatingToolbarFunctionDispatchSourceStorageSelection",
           "kind": "function",
           "name": "_dispatchSourceStorageSelection"
-        },
-        {
-          "anchor": "GraphNodeFloatingToolbarFunctionPopoverActionById",
-          "kind": "function",
-          "name": "_popoverActionById"
-        },
-        {
-          "anchor": "GraphNodeFloatingToolbarFunctionActionToolbarText",
-          "kind": "function",
-          "name": "_actionToolbarText"
-        },
-        {
-          "anchor": "GraphNodeFloatingToolbarFunctionActionTooltipText",
-          "kind": "function",
-          "name": "_actionTooltipText"
-        },
-        {
-          "anchor": "GraphNodeFloatingToolbarFunctionActionToolbarIcon",
-          "kind": "function",
-          "name": "_actionToolbarIcon"
-        },
-        {
-          "anchor": "GraphNodeFloatingToolbarFunctionActionIconOnly",
-          "kind": "function",
-          "name": "_actionIconOnly"
         },
         {
           "anchor": "GraphNodeFloatingToolbarFunctionFloatingToolbarDepth",
@@ -85674,7 +85420,8 @@
       ],
       "root_component": "QtObject",
       "imports": [
-        "QtQml 2.15"
+        "QtQml 2.15",
+        "\"../graph/GraphActionPresentation.js\" as GraphActionPresentation"
       ],
       "ids": [
         {
@@ -85758,9 +85505,6 @@
           "name": "folderExplorerActionId"
         },
         {
-          "name": "_descriptorForActionId"
-        },
-        {
           "name": "_graphActionBridge"
         },
         {
@@ -85834,9 +85578,6 @@
         },
         {
           "name": "_copyEdgeStylePayload"
-        },
-        {
-          "name": "_normalizedEdgePathMode"
         },
         {
           "name": "_sceneCommandBridge"
@@ -86019,11 +85760,6 @@
           "name": "folderExplorerActionId"
         },
         {
-          "anchor": "GraphCanvasActionRouterFunctionDescriptorForActionId",
-          "kind": "function",
-          "name": "_descriptorForActionId"
-        },
-        {
           "anchor": "GraphCanvasActionRouterFunctionGraphActionBridge",
           "kind": "function",
           "name": "_graphActionBridge"
@@ -86147,11 +85883,6 @@
           "anchor": "GraphCanvasActionRouterFunctionCopyEdgeStylePayload",
           "kind": "function",
           "name": "_copyEdgeStylePayload"
-        },
-        {
-          "anchor": "GraphCanvasActionRouterFunctionNormalizedEdgePathMode",
-          "kind": "function",
-          "name": "_normalizedEdgePathMode"
         },
         {
           "anchor": "GraphCanvasActionRouterFunctionSceneCommandBridge",
@@ -87122,7 +86853,8 @@
       "imports": [
         "QtQuick 2.15",
         "\"../shell\" as ShellComponents",
-        "\"../common/TooltipCopy.js\" as TooltipCopy"
+        "\"../common/TooltipCopy.js\" as TooltipCopy",
+        "\"../graph/GraphActionPresentation.js\" as GraphActionPresentation"
       ],
       "ids": [
         {
@@ -87410,27 +87142,6 @@
           "name": "_triggerGraphAction"
         },
         {
-          "name": "_edgeActionId"
-        },
-        {
-          "name": "_normalizedEdgePathMode"
-        },
-        {
-          "name": "_edgePathMode"
-        },
-        {
-          "name": "_edgePathAction"
-        },
-        {
-          "name": "_normalizedEdgeDisplayMode"
-        },
-        {
-          "name": "_edgeDisplayMode"
-        },
-        {
-          "name": "_edgeDisplayModeActions"
-        },
-        {
           "name": "_handleEdgeDisplayModeAction"
         },
         {
@@ -87692,7 +87403,10 @@
         },
         {
           "kind": "binding",
-          "name": "actions"
+          "name": "actions",
+          "targets": [
+            "GraphActionPresentation.edgeContextMenuActions"
+          ]
         },
         {
           "kind": "binding",
@@ -87719,7 +87433,7 @@
           "kind": "binding",
           "name": "actions",
           "targets": [
-            "root._edgeDisplayModeActions"
+            "GraphActionPresentation.edgeDisplayMenuActions"
           ]
         },
         {
@@ -87736,6 +87450,10 @@
           "targets": [
             "nodeContextPopup.isReadOnlyNode"
           ]
+        },
+        {
+          "kind": "binding",
+          "name": "actions"
         },
         {
           "kind": "binding",
@@ -88157,41 +87875,6 @@
           "anchor": "GraphCanvasContextMenusFunctionTriggerGraphAction",
           "kind": "function",
           "name": "_triggerGraphAction"
-        },
-        {
-          "anchor": "GraphCanvasContextMenusFunctionEdgeActionId",
-          "kind": "function",
-          "name": "_edgeActionId"
-        },
-        {
-          "anchor": "GraphCanvasContextMenusFunctionNormalizedEdgePathMode",
-          "kind": "function",
-          "name": "_normalizedEdgePathMode"
-        },
-        {
-          "anchor": "GraphCanvasContextMenusFunctionEdgePathMode",
-          "kind": "function",
-          "name": "_edgePathMode"
-        },
-        {
-          "anchor": "GraphCanvasContextMenusFunctionEdgePathAction",
-          "kind": "function",
-          "name": "_edgePathAction"
-        },
-        {
-          "anchor": "GraphCanvasContextMenusFunctionNormalizedEdgeDisplayMode",
-          "kind": "function",
-          "name": "_normalizedEdgeDisplayMode"
-        },
-        {
-          "anchor": "GraphCanvasContextMenusFunctionEdgeDisplayMode",
-          "kind": "function",
-          "name": "_edgeDisplayMode"
-        },
-        {
-          "anchor": "GraphCanvasContextMenusFunctionEdgeDisplayModeActions",
-          "kind": "function",
-          "name": "_edgeDisplayModeActions"
         },
         {
           "anchor": "GraphCanvasContextMenusFunctionHandleEdgeDisplayModeAction",
@@ -94824,7 +94507,8 @@
       "root_component": "Item",
       "imports": [
         "QtQuick 2.15",
-        "\"../common\" as Common"
+        "\"../common\" as Common",
+        "\"../graph/GraphActionPresentation.js\" as GraphActionPresentation"
       ],
       "ids": [
         {
@@ -95163,9 +94847,6 @@
         },
         {
           "name": "activeSubmenuHeight"
-        },
-        {
-          "name": "_normalizedEdgeDisplayMode"
         },
         {
           "name": "_selectedActiveWireEdgeIds"
@@ -95525,7 +95206,10 @@
         },
         {
           "kind": "binding",
-          "name": "options"
+          "name": "options",
+          "targets": [
+            "GraphActionPresentation.edgeDisplayChoices"
+          ]
         },
         {
           "kind": "binding",
@@ -95533,6 +95217,10 @@
           "targets": [
             "root.selectedWireDisplayModeValue"
           ]
+        },
+        {
+          "kind": "binding",
+          "name": "options"
         },
         {
           "kind": "binding",
@@ -96453,11 +96141,6 @@
           "anchor": "GraphCanvasOptionsMenuFunctionActiveSubmenuHeight",
           "kind": "function",
           "name": "activeSubmenuHeight"
-        },
-        {
-          "anchor": "GraphCanvasOptionsMenuFunctionNormalizedEdgeDisplayMode",
-          "kind": "function",
-          "name": "_normalizedEdgeDisplayMode"
         },
         {
           "anchor": "GraphCanvasOptionsMenuFunctionSelectedActiveWireEdgeIds",

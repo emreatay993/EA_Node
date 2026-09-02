@@ -1,5 +1,6 @@
 import QtQuick 2.15
 import "../common" as Common
+import "../graph/GraphActionPresentation.js" as GraphActionPresentation
 
 Item {
     id: root
@@ -42,9 +43,8 @@ Item {
     readonly property var canvasExecutionFacts: root.canvasItem ? root.canvasItem.executionFacts : null
     readonly property var selectedWireEdgeIds: root._selectedActiveWireEdgeIds()
     readonly property string selectedWireDisplayModeValue: root._selectedWireDisplayModeValue()
-    readonly property string selectedWireDisplayModeLabel: root.selectedWireDisplayModeValue === ""
-        ? "Mixed"
-        : root.selectedWireDisplayModeValue.charAt(0).toUpperCase() + root.selectedWireDisplayModeValue.slice(1)
+    readonly property string selectedWireDisplayModeLabel:
+        GraphActionPresentation.edgeDisplayModeLabel(root.selectedWireDisplayModeValue)
     readonly property bool showGrid: root.canvasPrefs ? Boolean(root.canvasPrefs.showGrid) : true
     readonly property bool snapToGrid: root.canvasItem ? Boolean(root.canvasItem.snapToGridEnabled()) : false
     readonly property bool nodeShadows: root.canvasPrefs ? Boolean(root.canvasPrefs.nodeShadowEnabled) : true
@@ -135,11 +135,6 @@ Item {
         return 0;
     }
 
-    function _normalizedEdgeDisplayMode(mode) {
-        var normalized = String(mode || "").trim().toLowerCase();
-        return normalized === "faint" || normalized === "hidden" ? normalized : "default";
-    }
-
     function _selectedActiveWireEdgeIds() {
         var selected = root.canvasItem && root.canvasItem._normalizeEdgeIds
             ? root.canvasItem._normalizeEdgeIds(root.canvasItem.selectedEdgeIds || [])
@@ -156,19 +151,15 @@ Item {
     }
 
     function _selectedWireDisplayModeValue() {
-        var current = "";
+        var payloads = [];
         for (var i = 0; i < root.selectedWireEdgeIds.length; ++i) {
             var payload = root.canvasItem && root.canvasItem._sceneEdgePayload
                 ? root.canvasItem._sceneEdgePayload(root.selectedWireEdgeIds[i])
                 : null;
-            var style = payload && payload.visual_style ? payload.visual_style : ({});
-            var mode = root._normalizedEdgeDisplayMode(style.display_mode);
-            if (!current)
-                current = mode;
-            else if (current !== mode)
-                return "";
+            if (payload)
+                payloads.push(payload);
         }
-        return current;
+        return GraphActionPresentation.commonEdgeDisplayMode(payloads);
     }
 
     function setSelectedWiresDisplayMode(mode) {
@@ -386,11 +377,7 @@ Item {
         y: 0
         sourceComponent: SubmenuPanel {
             title: "Selected Wires Display Mode"
-            options: [
-                { "label": "Default", "value": "default" },
-                { "label": "Faint", "value": "faint" },
-                { "label": "Hidden", "value": "hidden" }
-            ]
+            options: GraphActionPresentation.edgeDisplayChoices()
             currentValue: root.selectedWireDisplayModeValue
             onPicked: function(value) {
                 root.setSelectedWiresDisplayMode(value);

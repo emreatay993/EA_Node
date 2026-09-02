@@ -1,5 +1,6 @@
 import QtQuick 2.15
 import "GraphNodeSurfaceMetrics.js" as GraphNodeSurfaceMetrics
+import "GraphActionPresentation.js" as GraphActionPresentation
 
 Item {
     id: card
@@ -1277,144 +1278,33 @@ Item {
     // border. Tracks the node's per-node theme via its selected outline color.
     readonly property color nodeThemeColor: card.selectedOutlineColor
 
-    // Node-context actions are host-owned but type-specific, while surfaces add
-    // body-specific actions via card.surfaceActions. Common actions stay generic.
-    readonly property var contextNodeActions: {
-        var actions = [];
-        if (card.canEnterScope) {
-            actions.push({
-                id: "open_subnode_scope",
-                label: "Enter Subnode",
-                icon: "door-enter",
-                kind: "scope",
-                enabled: true,
-                primary: false,
-            });
-        }
-        // Path Pointer nodes expose an "Open" toolbar button that expands into a
-        // sub-toolbar (Open / Open with...). The two sub-actions dispatch as node
-        // graph actions (open_node_path / open_node_path_with); the parent button
-        // only opens the popover, so its own id is never dispatched.
-        if (card.nodeData && String(card.nodeData.type_id || "") === "io.path_pointer") {
-            var pathPointerProps = card.nodeData.properties || ({});
-            var pathPointerPath = String(pathPointerProps.path || "").trim();
-            var pathPointerIsFolder = String(pathPointerProps.mode || "") === "folder";
-            actions.push({
-                id: "open_node_path_menu",
-                label: "Open",
-                icon: "external-link",
-                kind: "context",
-                enabled: pathPointerPath.length > 0,
-                primary: false,
-                popover_layout: "row",
-                popoverActions: [
-                    {
-                        id: "open_node_path",
-                        label: "Open",
-                        kind: "context",
-                        toolbar_text: "Open",
-                        close_popover: true,
-                    },
-                    {
-                        id: "open_node_path_with",
-                        label: "Open with...",
-                        kind: "context",
-                        toolbar_text: "Open with...",
-                        close_popover: true,
-                        enabled: !pathPointerIsFolder,
-                    }
-                ]
-            });
-        }
-        return actions;
-    }
-
-    // Common actions available on every node.
-    readonly property var commonNodeActions: {
-        var actions = [];
-        actions.push({
-            id: "frame_node",
-            label: "Zoom to node",
-            icon: "zoom-fit",
-            kind: "common",
-            enabled: true,
-            primary: false,
-        });
-        if (card.runnableNode) {
-            actions.push({
-                id: "run_selected",
-                label: "Run",
-                icon: "run",
-                kind: "common",
-                enabled: true,
-                primary: true,
-                menuActions: [
-                    { id: "preview_selected_run", label: "Preview Run" },
-                    { id: "open_selected_run_settings", label: "Run Settings..." }
-                ]
-            });
-        }
-        if (card.graphReadOnly) {
-            if (card.lockedPlaceholderActive) {
-                actions.push({
-                    id: "open_addon_manager_for_node",
-                    label: "Load...",
-                    icon: "open-session",
-                    kind: "common",
-                    enabled: card.lockedPlaceholderManagerAvailable,
-                    primary: true,
-                });
+    // Eligibility and lifecycle stay host-owned; the pure module only shapes
+    // already-resolved presentation facts.
+    readonly property var contextNodeActions: GraphActionPresentation.nodeContextActions({
+        "canEnterScope": card.canEnterScope,
+        "pathPointer": card.nodeData
+            && String(card.nodeData.type_id || "") === "io.path_pointer"
+            ? {
+                "enabled": String((card.nodeData.properties || {}).path || "").trim().length > 0,
+                "isFolder": String((card.nodeData.properties || {}).mode || "") === "folder"
             }
-            return actions;
-        }
-        if (card.lockEligible) {
-            actions.push({
-                id: "toggle_node_lock",
-                label: card.authorLocked ? "Unlock" : "Lock",
-                icon: "lock",
-                kind: "common",
-                checked: card.authorLocked,
-                enabled: true,
-                primary: false,
-            });
-        }
-        if (card.authorLocked)
-            return actions;
-        actions.push({
-            id: "rename_node",
-            label: "Rename",
-            icon: "edit",
-            kind: "common",
-            enabled: true,
-            primary: false,
-        });
-        actions.push({
-            id: "duplicate_node",
-            label: "Duplicate",
-            icon: "duplicate",
-            kind: "common",
-            enabled: true,
-            primary: false,
-        });
-        actions.push({
-            id: "remove_node",
-            label: "Delete",
-            icon: "delete",
-            kind: "common",
-            enabled: true,
-            primary: false,
-            destructive: true,
-        });
-        return actions;
-    }
-    readonly property var availableActions: {
-        var surface = Array.isArray(card.surfaceActions) ? card.surfaceActions : [];
-        if (card.isPanelSurface)
-            return surface;
-        if (card.authorLocked)
-            return card.commonNodeActions;
-        return card.contextNodeActions.concat(surface).concat(card.commonNodeActions);
-    }
+            : null
+    })
+    readonly property var commonNodeActions: GraphActionPresentation.nodeCommonActions({
+        "runnable": card.runnableNode,
+        "graphReadOnly": card.graphReadOnly,
+        "lockedPlaceholderActive": card.lockedPlaceholderActive,
+        "lockedPlaceholderManagerAvailable": card.lockedPlaceholderManagerAvailable,
+        "lockEligible": card.lockEligible,
+        "authorLocked": card.authorLocked
+    })
+    readonly property var availableActions: GraphActionPresentation.nodeAvailableActions({
+        "contextActions": card.contextNodeActions,
+        "surfaceActions": card.surfaceActions,
+        "commonActions": card.commonNodeActions,
+        "panelSurface": card.isPanelSurface,
+        "authorLocked": card.authorLocked
+    })
 
     // Drag translate exposed for sibling overlays (floating toolbar) that need to
     // follow the node during multi-selection drag, where non-anchor nodes stay

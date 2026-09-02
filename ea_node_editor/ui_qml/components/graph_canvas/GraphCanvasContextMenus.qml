@@ -1,6 +1,7 @@
 import QtQuick 2.15
 import "../shell" as ShellComponents
 import "../common/TooltipCopy.js" as TooltipCopy
+import "../graph/GraphActionPresentation.js" as GraphActionPresentation
 
 Item {
     id: root
@@ -164,63 +165,6 @@ Item {
         return Boolean(root.graphActionBridge.trigger_graph_action(actionId, payload || ({})));
     }
 
-    function _edgeActionId(key) {
-        var actionRouter = root._actionRouter();
-        return actionRouter && actionRouter.edgeContextActionId
-            ? actionRouter.edgeContextActionId(key)
-            : "";
-    }
-
-    function _normalizedEdgePathMode(pathMode) {
-        var normalized = String(pathMode || "").trim().toLowerCase();
-        return normalized === "pipe" || normalized === "bezier" ? normalized : "auto";
-    }
-
-    function _edgePathMode(edgePayload) {
-        var style = edgePayload && edgePayload.visual_style ? edgePayload.visual_style : ({});
-        return root._normalizedEdgePathMode(style.path_mode);
-    }
-
-    function _edgePathAction(mode, label, edgePayload) {
-        var normalized = root._normalizedEdgePathMode(mode);
-        return {
-            "actionId": "edge_path_mode:" + normalized,
-            "text": "Path: " + String(label || ""),
-            "enabled": root._edgePathMode(edgePayload) !== normalized
-        };
-    }
-
-    function _normalizedEdgeDisplayMode(mode) {
-        var normalized = String(mode || "").trim().toLowerCase();
-        return normalized === "faint" || normalized === "hidden" ? normalized : "default";
-    }
-
-    function _edgeDisplayMode(edgePayload) {
-        var style = edgePayload && edgePayload.visual_style ? edgePayload.visual_style : ({});
-        return root._normalizedEdgeDisplayMode(style.display_mode);
-    }
-
-    function _edgeDisplayModeActions(edgeIds) {
-        var ids = root.canvasItem && root.canvasItem._normalizeEdgeIds
-            ? root.canvasItem._normalizeEdgeIds(edgeIds || [])
-            : (edgeIds || []);
-        var current = "";
-        for (var i = 0; i < ids.length; ++i) {
-            var mode = root._edgeDisplayMode(root.canvasItem._sceneEdgePayload(ids[i]));
-            if (!current)
-                current = mode;
-            else if (current !== mode) {
-                current = "mixed";
-                break;
-            }
-        }
-        return [
-            { "actionId": "edge_display_mode:default", "text": "Default", "checked": current === "default" },
-            { "actionId": "edge_display_mode:faint", "text": "Faint", "checked": current === "faint" },
-            { "actionId": "edge_display_mode:hidden", "text": "Hidden", "checked": current === "hidden" }
-        ];
-    }
-
     function _handleEdgeDisplayModeAction(actionId) {
         var normalized = String(actionId || "");
         if (normalized === "edge_display_mode_menu") {
@@ -238,7 +182,7 @@ Item {
             : null;
         if (!edgePayload || !Boolean(edgePayload.active_data_wire))
             return true;
-        var mode = root._normalizedEdgeDisplayMode(normalized.slice(prefix.length));
+        var mode = GraphActionPresentation.normalizeEdgeDisplayMode(normalized.slice(prefix.length));
         var router = root._actionRouter();
         if (edgeId.length && router && router.setEdgesDisplayMode)
             router.setEdgesDisplayMode([edgeId], mode);
@@ -269,7 +213,7 @@ Item {
             return true;
         var edgeId = String(root.canvasItem.edgeContextEdgeId || "").trim();
         var actionRouter = root._actionRouter();
-        var mode = root._normalizedEdgePathMode(text.slice(prefix.length));
+        var mode = GraphActionPresentation.normalizeEdgePathMode(text.slice(prefix.length));
         var handled = false;
         if (actionRouter && actionRouter.setEdgePathMode)
             handled = Boolean(actionRouter.setEdgePathMode(edgeId, mode));
@@ -479,7 +423,7 @@ Item {
             if (!visible)
                 displayModeSubmenuOpen = false;
         }
-        actions: [
+        actions: GraphActionPresentation.edgeContextMenuActions([
             {
                 "actionId": "toggle_edge_enabled",
                 "text": "Enabled",
@@ -490,12 +434,21 @@ Item {
             },
             { "actionId": "edge_display_mode_menu", "text": "Display Mode", "shortcutText": "\u203a", "visible": edgeContextPopup.activeDataWire },
             { "actionId": "jump_edge_start", "text": "Jump to Start", "shortcutText": "Ctrl+Left" },
-            { "actionId": "jump_edge_end", "text": "Jump to End", "shortcutText": "Ctrl+Right" },
-            root._edgePathAction("auto", "Auto", edgeContextPopup.edgePayload),
-            root._edgePathAction("pipe", "Pipe", edgeContextPopup.edgePayload),
-            root._edgePathAction("bezier", "Bezier", edgeContextPopup.edgePayload),
-            { "actionId": root._edgeActionId("remove_edge"), "text": "Remove Connection", "destructive": true }
-        ]
+            { "actionId": "jump_edge_end", "text": "Jump to End", "shortcutText": "Ctrl+Right" }
+        ],
+            GraphActionPresentation.normalizeEdgePathMode(
+                edgeContextPopup.edgePayload && edgeContextPopup.edgePayload.visual_style
+                    ? edgeContextPopup.edgePayload.visual_style.path_mode
+                    : "auto"
+            ),
+            {
+                "actionId": root._actionRouter() && root._actionRouter().edgeContextActionId
+                    ? root._actionRouter().edgeContextActionId("remove_edge")
+                    : "",
+                "text": "Remove Connection",
+                "destructive": true
+            }
+        )
         onActionTriggered: function(actionId) {
             if (root._handleEdgeDisplayModeAction(actionId))
                 return;
@@ -528,8 +481,10 @@ Item {
         minimumWidth: 150
         rowHeight: 30
         contentPadding: 4
-        actions: root._edgeDisplayModeActions(
-            root.canvasItem ? [root.canvasItem.edgeContextEdgeId] : []
+        actions: GraphActionPresentation.edgeDisplayMenuActions(
+            GraphActionPresentation.commonEdgeDisplayMode([
+                edgeContextPopup.edgePayload || ({})
+            ])
         )
         onActionTriggered: function(actionId) {
             root._handleEdgeDisplayModeAction(actionId);
